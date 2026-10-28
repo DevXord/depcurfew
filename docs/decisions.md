@@ -195,3 +195,13 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - Renovate cytuję adresem pliku na `github.com/renovatebot/` (dozwolona lokalizacja);
   - Dependabota cytuję adresem strony docs.github.com zbudowanej z tego pliku, bo `github/docs` nie jest na liście oficjalnych lokalizacji Dependabota.
 - **Kandydat na fazę 5:** `lib/util/minimum-release-age.ts` zamienia niepoprawny `minimumReleaseAge` na 0 (`coerceNumber(toMs(...), 0)`). Literówka w Renovate po cichu wyłącza więc opóźnienie. Faktu jeszcze nie dopisuję.
+
+## D-021 · Zatwierdzenie decyzji fazy 2 i publiczne API (2026-10-28)
+- **Zatwierdzenie:** właściciel zaakceptował decyzje podjęte w trakcie fazy 2 poza planem:
+  - lista `allow` bez efektu i nieznane pola to błędy (D-015);
+  - Yarn i Bun zawsze dostają liczby, Renovate tylko godziny i dni (D-018);
+  - czas trwania ma tylko limit techniczny, a `M` oznacza miesiące (D-017);
+  - fakty fazy 2 zweryfikowano w plikach źródłowych dokumentacji (D-020);
+  - powtórzone klucze JSON nie są wykrywane (D-015);
+  - zamiana niepoprawnego czasu na 0 w Renovate to kandydat na regułę `doctor` w fazie 5 (D-020).
+- **Publiczne API:** `src/index.ts` eksportuje funkcje polityki: `parsePolicy`, `validatePolicy`, `formatIssue`, `parseDuration`, `formatDuration`, `convertCooldown`, `convertMinutes`, `toDurationString`, `DEFAULT_POLICY`, `renderPolicy`, `POLICY_FILE` i `SCHEMA_URL`, a także typy `Policy`, `ResolvedPolicy`, `PolicyIssue`, `Duration` i `CooldownConversion`. Zmiana tych nazw po wydaniu 1.0 będzie zmianą łamiącą.
