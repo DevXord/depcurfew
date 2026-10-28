@@ -1,0 +1,11 @@
+{
+  "changed": [
+    "pnpm-workspace.yaml"
+  ],
+  "warnings": [
+    "pnpm: dangerouslyAllowAllBuilds allowed every build script; set to false because the policy denies install scripts",
+    "pnpm: allowBuilds takes package names only; \"@scope/*\" not written",
+    "pnpm: blockExoticSubdeps blocks git and tarball dependencies only when they are subdependencies; direct ones stay allowed"
+  ],
+  "snippets": []
+}

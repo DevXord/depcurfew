@@ -1,0 +1,13 @@
+{
+  "name": "yarn-berry",
+  "private": true,
+  "packageManager": "yarn@4.9.2",
+  "workspaces": [
+    "packages/*"
+  ],
+  "dependenciesMeta": {
+    "esbuild": {
+      "built": true
+    }
+  }
+}

@@ -23,6 +23,7 @@ const sourceFlagSince = () =>
 
 const LOCKFILE_V12 = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md';
 const PACKAGE_JSON = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md';
+const NPM_DEFINITIONS = 'https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js';
 
 export const npm: ToolKnowledge = {
   id: 'npm',
@@ -165,6 +166,21 @@ export const npm: ToolKnowledge = {
     ),
   },
   extra: {
+    npmrcListSyntax: verified(
+      '[]',
+      'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md',
+      'Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*.',
+    ),
+    allowAllScripts: verified(
+      { setting: 'dangerously-allow-all-scripts', since: '11.16.0', value: true },
+      NPM_DEFINITIONS,
+      'Boolean, default false: runs every dependency install script whether or not allowScripts approves it; --ignore-scripts still wins. First present in the 11.16.0 definitions.',
+    ),
+    excludeWildcards: verified(
+      { since: '11.17.0', trailingOnly: false },
+      NPM_DEFINITIONS,
+      'min-release-age-exclude takes package names or minimatch globs from its first version.',
+    ),
     latestVersion: verified(
       '12.2.1',
       release('12.2.1'),

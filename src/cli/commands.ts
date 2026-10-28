@@ -21,7 +21,13 @@ export const COMMANDS: readonly CommandInfo[] = [
     arguments: '[directory]',
     options: [{ name: 'force', summary: 'Overwrite an existing depgate.json' }],
   },
-  { name: 'apply', summary: 'Generate configuration for every detected tool', implemented: false },
+  {
+    name: 'apply',
+    summary: 'Write the policy into the configuration of every target tool',
+    implemented: true,
+    arguments: '[directory]',
+    options: [{ name: 'dry-run', summary: 'Print a diff of the changes instead of writing them' }],
+  },
   { name: 'doctor', summary: 'Find configuration that silently does not work', implemented: false },
   {
     name: 'explain',

@@ -1,1 +1,4 @@
 * text=auto eol=lf
+# Fixtures that test CRLF line endings are stored byte for byte.
+tests/fixtures/repos/npm-existing-config/** -text
+tests/fixtures/expected/npm-existing-config/after/** -text

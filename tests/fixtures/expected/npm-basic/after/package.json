@@ -1,0 +1,8 @@
+{
+  "name": "npm-basic",
+  "version": "1.0.0",
+  "private": true,
+  "allowScripts": {
+    "esbuild": true
+  }
+}

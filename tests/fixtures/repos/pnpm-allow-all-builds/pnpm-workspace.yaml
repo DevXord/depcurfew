@@ -1,0 +1,5 @@
+# Set during the migration to pnpm 10, when builds started to fail
+dangerouslyAllowAllBuilds: true # TODO: replace with allowBuilds
+
+allowBuilds:
+  sharp: true

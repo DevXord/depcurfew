@@ -1,0 +1,12 @@
+{
+  "changed": [],
+  "warnings": [
+    "npm 11.6.0 does not support min-release-age (since 11.10.0); not written",
+    "npm 11.6.0 does not support allowScripts (since 11.16.0); not written",
+    "npm 11.6.0 does not support allow-git (since 11.10.0); not written",
+    "npm 11.6.0 does not support allow-remote (since 11.15.0); not written",
+    "npm 11.6.0 does not support allow-file (since 11.15.0); not written",
+    "npm 11.6.0 does not support allow-directory (since 11.15.0); not written"
+  ],
+  "snippets": []
+}

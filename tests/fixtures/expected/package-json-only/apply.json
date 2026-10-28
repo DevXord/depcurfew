@@ -1,0 +1,11 @@
+{
+  "changed": [
+    ".npmrc",
+    "package.json"
+  ],
+  "warnings": [
+    "npm: no exact version is pinned; configuring for npm 12.2.1, the latest known version",
+    "npm: allowScripts takes package names only; \"@scope/*\" not written"
+  ],
+  "snippets": []
+}

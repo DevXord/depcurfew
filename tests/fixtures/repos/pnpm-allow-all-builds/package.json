@@ -1,0 +1,5 @@
+{
+  "name": "pnpm-allow-all-builds",
+  "version": "1.0.0",
+  "packageManager": "pnpm@11.2.0"
+}

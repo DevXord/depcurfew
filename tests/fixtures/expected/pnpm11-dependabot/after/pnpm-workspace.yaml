@@ -1,0 +1,11 @@
+# managed by depgate
+minimumReleaseAge: 4320
+# managed by depgate
+minimumReleaseAgeExclude:
+  - "@acme/*"
+  - left-pad
+# managed by depgate
+allowBuilds:
+  esbuild: true
+# managed by depgate
+blockExoticSubdeps: true

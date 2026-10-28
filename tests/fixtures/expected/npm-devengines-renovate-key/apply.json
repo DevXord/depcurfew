@@ -1,0 +1,18 @@
+{
+  "changed": [
+    ".npmrc",
+    "package.json"
+  ],
+  "warnings": [
+    "npm: no exact version is pinned; configuring for npm 12.2.1, the latest known version",
+    "npm: allowScripts takes package names only; \"@scope/*\" not written",
+    "Renovate: configuration in package.json is deprecated and depgate does not edit it; move it to renovate.json or add the snippet by hand"
+  ],
+  "snippets": [
+    {
+      "tool": "renovate",
+      "file": "package.json",
+      "text": "{\n  \"minimumReleaseAge\": \"3 days\",\n  \"packageRules\": [\n    {\n      \"description\": \"depgate: packages excluded from minimumReleaseAge\",\n      \"matchPackageNames\": [\n        \"@acme/*\",\n        \"left-pad\"\n      ],\n      \"minimumReleaseAge\": null\n    }\n  ],\n  \"vulnerabilityAlerts\": {\n    \"minimumReleaseAge\": null\n  }\n}"
+    }
+  ]
+}

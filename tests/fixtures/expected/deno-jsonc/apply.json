@@ -1,0 +1,12 @@
+{
+  "changed": [
+    "deno.jsonc"
+  ],
+  "warnings": [
+    "Deno: no exact version is pinned; configuring for Deno 2.9.8, the latest known version",
+    "Deno: allowScripts takes package names only; \"@scope/*\" not written",
+    "Deno has no setting for git dependencies; \"deny\" cannot be enforced",
+    "Deno has no setting for remote tarball dependencies; \"deny\" cannot be enforced"
+  ],
+  "snippets": []
+}

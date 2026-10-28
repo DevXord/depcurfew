@@ -2,6 +2,31 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-28 · Faza 4: generatory konfiguracji
+
+- `depgate apply [katalog] [--dry-run]` zapisuje politykę w konfiguracji każdego narzędzia docelowego (D-028):
+  - osobny generator dla npm, pnpm, Yarn (Berry), Bun, Deno, Renovate i Dependabota (`src/apply/generators/`);
+  - nazwy opcji, pliki, wersje minimalne i formaty pochodzą z bazy wiedzy;
+  - ustawienie, którego wersja menedżera jeszcze nie ma, oraz element polityki, którego narzędzie nie umie wyrazić, dają ostrzeżenie zamiast cichego pominięcia;
+  - `--dry-run` wypisuje zunifikowany diff, który przyjmuje `git apply`, i niczego nie zapisuje;
+  - gdy któregoś pliku nie da się edytować, nic nie jest zapisywane i kod wyjścia to 1.
+- Boty dostają opóźnienie nie krótsze niż najdłuższe zapisane przez menedżera (`botDuration`), więc Dependabot i Renovate nie proponują wersji, których menedżer jeszcze nie zainstaluje.
+- Edytory zachowują komentarze i formatowanie (D-029):
+  - `.npmrc` i `bunfig.toml` dostają zarządzany blok ze znacznikami, a stary zapis zarządzanego klucza poza blokiem jest zakomentowany;
+  - YAML jest zmieniany minimalną edycją tekstu ze znacznikiem `# managed by depgate`;
+  - JSON i JSONC zachowują komentarze, przecinki na końcu i wcięcia;
+  - końce linii, BOM i końcowy znak nowej linii zostają jak w oryginale;
+  - depgate nie zapisuje przez symlinki ani poza repozytorium, a zapis jest atomowy.
+- Zasady łączenia z istniejącą konfiguracją (D-030): allowlisty skryptów są tylko uzupełniane, listy wyjątków od opóźnienia zastępuje polityka, a przełączniki „pozwól na wszystkie skrypty” są wyłączane przy `deny`. `renovate.json5` i klucz `renovate` w `package.json` dostają fragment do wklejenia.
+- Baza wiedzy: 20 nowych faktów w `extra` (składnia list w `.npmrc`, przełączniki „pozwól na wszystko”, obsługa globów w wyjątkach, dawna allowlista pnpm, ekosystemy Dependabota, reguła wyłączenia w Renovate i inne), wszystkie ze źródłami (D-031).
+- Testy (507, wszystkie przechodzą):
+  - 18 fikstur repozytoriów z oczekiwanym wynikiem w `expected/<nazwa>/after/` i raportem `apply.json`, w tym 4 nowe (D-032);
+  - każda fikstura sprawdza wynik, brak utraty niezarządzanych ustawień i idempotencję (drugie `apply` nie zmienia żadnego pliku);
+  - testy edytorów INI, TOML, YAML, JSONC, stylu tekstu i diffu;
+  - CLI: `--dry-run` z nałożeniem diffu na pliki, brak i błąd polityki, zepsuty plik, symlink, opóźnienie botów po zaokrągleniu przez npm;
+  - e2e na zbudowanym `dist/cli.js`.
+- Weryfikacja: `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
+
 ## 2026-10-28 · Faza 3: wykrywanie projektu
 
 - `src/detect/` opisuje repozytorium (D-025):

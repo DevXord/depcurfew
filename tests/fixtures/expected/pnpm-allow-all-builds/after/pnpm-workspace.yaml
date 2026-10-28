@@ -1,0 +1,16 @@
+# Set during the migration to pnpm 10, when builds started to fail
+# managed by depgate
+dangerouslyAllowAllBuilds: false # TODO: replace with allowBuilds
+
+allowBuilds:
+  sharp: true
+  # managed by depgate
+  esbuild: true
+# managed by depgate
+minimumReleaseAge: 4320
+# managed by depgate
+minimumReleaseAgeExclude:
+  - "@acme/*"
+  - left-pad
+# managed by depgate
+blockExoticSubdeps: true

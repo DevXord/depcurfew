@@ -1,6 +1,6 @@
 // Runs the built executable. `npm test` builds with tsdown before running Vitest.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -70,6 +70,36 @@ describe('built depgate executable', () => {
       project: JSON.parse(readFileSync(new URL('tests/fixtures/expected/npm-basic/detect.json', root), 'utf8')),
       policy: null,
     });
+  });
+
+  it('apply writes the expected files into a copy of a fixture repository', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'depgate-e2e-'));
+    try {
+      cpSync(fileURLToPath(new URL('tests/fixtures/repos/pnpm11-dependabot', root)), directory, { recursive: true });
+      writeFileSync(join(directory, 'depgate.json'), readFileSync(new URL('tests/fixtures/apply/policy.json', root)));
+      const expected = new URL('tests/fixtures/expected/pnpm11-dependabot/after/', root);
+
+      const dryRun = depgateIn(directory, 'apply', '--dry-run');
+      expect(dryRun.status).toBe(0);
+      expect(dryRun.stdout).toContain('+++ b/pnpm-workspace.yaml\n');
+      expect(dryRun.stderr).toContain('nothing written.\n');
+
+      const result = depgateIn(directory, 'apply');
+      expect(result.status).toBe(0);
+      for (const file of readdirSync(expected, { recursive: true, encoding: 'utf8' })) {
+        if (!statSync(new URL(file, expected)).isFile()) continue;
+        expect(readFileSync(join(directory, file), 'utf8'), file).toBe(readFileSync(new URL(file, expected), 'utf8'));
+      }
+      expect(depgateIn(directory, 'apply').stdout).toBe('Nothing to change; the configuration already matches the policy.\n');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('apply without a policy exits with 1', () => {
+    const result = depgate('apply', fileURLToPath(new URL('tests/fixtures/repos/npm-basic', root)));
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("run 'depgate init' first");
   });
 
   it('an unknown command exits with 2', () => {

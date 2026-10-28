@@ -1,0 +1,15 @@
+{
+  "changed": [
+    ".npmrc",
+    "package.json"
+  ],
+  "warnings": [
+    "Yarn Classic (1.x) is not supported; nothing written for it",
+    "npm: no exact version is pinned; configuring for npm 12.2.1, the latest known version",
+    "npm: allowScripts takes package names only; \"@scope/*\" not written",
+    "pnpm 10.0.0 does not support minimumReleaseAge (since 10.16.0); not written",
+    "pnpm: onlyBuiltDependencies takes package names only; \"@scope/*\" not written",
+    "pnpm 10.0.0 does not support blockExoticSubdeps (since 10.26.0); not written"
+  ],
+  "snippets": []
+}

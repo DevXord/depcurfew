@@ -1,0 +1,8 @@
+{
+  // Renovate settings
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    { "matchPackageNames": ["eslint"], "automerge": true }, // keep
+  ],
+}

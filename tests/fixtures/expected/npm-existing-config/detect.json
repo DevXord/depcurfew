@@ -1,0 +1,36 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "package-lock.json"
+        },
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "versions": [
+        {
+          "version": "12.2.1",
+          "source": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [
+    ".npmrc"
+  ],
+  "workflows": [],
+  "warnings": []
+}

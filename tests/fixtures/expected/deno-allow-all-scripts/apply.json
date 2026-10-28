@@ -1,0 +1,10 @@
+{
+  "changed": [
+    "deno.json"
+  ],
+  "warnings": [
+    "Deno: no exact version is pinned; configuring for Deno 2.9.8, the latest known version",
+    "Deno: allowScripts allowed every install script; replaced with the policy's allow-list"
+  ],
+  "snippets": []
+}

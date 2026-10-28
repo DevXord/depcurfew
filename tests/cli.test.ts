@@ -55,14 +55,23 @@ describe('depgate CLI', () => {
     expect(result.stderr).toContain('--frobnicate');
   });
 
-  it.each([['apply'], ['doctor']])(
-    'planned command %s reports that it is not implemented yet',
-    async (command) => {
-      const result = await exec(command);
-      expect(result.code).toBe(EXIT_FAILURE);
-      expect(result.stderr).toContain(`'${command}' is not implemented yet`);
-    },
-  );
+  it('the planned doctor command reports that it is not implemented yet', async () => {
+    const result = await exec('doctor');
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stderr).toContain("'doctor' is not implemented yet");
+  });
+
+  it('lists the options of apply in the help', async () => {
+    const result = await exec('--help');
+    expect(result.stdout).toContain('apply [directory]:');
+    expect(result.stdout).toMatch(/^\s+--dry-run\s+Print a diff/mu);
+  });
+
+  it('rejects an option of another command', async () => {
+    const result = await exec('apply', '--json');
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stderr).toContain("option '--json' is not supported by 'apply'");
+  });
 
   it('shows help instead of running a command when --help is given', async () => {
     const result = await exec('doctor', '--help');

@@ -139,6 +139,12 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    scriptsSwitch: verified({ setting: 'enableScripts', allow: true, deny: false }, `${YARNRC}#enableScripts`),
+    excludeWildcards: verified(
+      { since: '4.10.0', trailingOnly: false },
+      `${YARNRC}#npmPreapprovedPackages`,
+      'Name globs such as @scope/* or package* in npmPreapprovedPackages.',
+    ),
     berryLockfileMarker: uncertain(
       '__metadata',
       'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Project.ts',

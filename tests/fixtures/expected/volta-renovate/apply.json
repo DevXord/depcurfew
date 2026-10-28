@@ -1,0 +1,19 @@
+{
+  "changed": [],
+  "warnings": [
+    "npm 11.6.2 does not support min-release-age (since 11.10.0); not written",
+    "npm 11.6.2 does not support allowScripts (since 11.16.0); not written",
+    "npm 11.6.2 does not support allow-git (since 11.10.0); not written",
+    "npm 11.6.2 does not support allow-remote (since 11.15.0); not written",
+    "npm 11.6.2 does not support allow-file (since 11.15.0); not written",
+    "npm 11.6.2 does not support allow-directory (since 11.15.0); not written",
+    "Renovate: .github/renovate.json5 is not plain JSON or JSONC, so depgate does not edit it; add the snippet by hand"
+  ],
+  "snippets": [
+    {
+      "tool": "renovate",
+      "file": ".github/renovate.json5",
+      "text": "{\n  \"minimumReleaseAge\": \"3 days\",\n  \"packageRules\": [\n    {\n      \"description\": \"depgate: packages excluded from minimumReleaseAge\",\n      \"matchPackageNames\": [\n        \"@acme/*\",\n        \"left-pad\"\n      ],\n      \"minimumReleaseAge\": null\n    }\n  ],\n  \"vulnerabilityAlerts\": {\n    \"minimumReleaseAge\": null\n  }\n}"
+    }
+  ]
+}

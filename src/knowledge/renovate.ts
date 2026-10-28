@@ -95,6 +95,26 @@ export const renovate: ToolKnowledge = {
     ),
   },
   extra: {
+    excludeRule: verified(
+      { list: 'packageRules', match: 'matchPackageNames', value: null },
+      'https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md',
+      'The documented opt-out: a packageRules entry with matchPackageNames and minimumReleaseAge: null.',
+    ),
+    securityUpdatesSetting: verified(
+      ['vulnerabilityAlerts', 'minimumReleaseAge'],
+      'https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts',
+      'The vulnerabilityAlerts default sets minimumReleaseAge to null, so security updates skip the delay unless a value is set there.',
+    ),
+    excludeWildcards: verified(
+      { since: '38.0.0', trailingOnly: false },
+      `${OPTIONS}#matchpackagenames`,
+      'matchPackageNames accepts globs (and regex) since 38.0.0.',
+    ),
+    ruleDescription: verified(
+      'description',
+      'https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description',
+      'A human-readable description allowed inside any configuration object; depgate uses it to recognise the packageRules entry it manages.',
+    ),
     packageJsonConfig: verified(
       { file: 'package.json', key: 'renovate' },
       'https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts',

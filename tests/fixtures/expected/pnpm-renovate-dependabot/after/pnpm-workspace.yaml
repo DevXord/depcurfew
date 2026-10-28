@@ -1,0 +1,16 @@
+# Workspace settings
+packages:
+  - 'packages/*'   # all packages
+
+# managed by depgate
+minimumReleaseAge: 4320 # one day, set by hand
+allowBuilds:
+  sharp: true
+  # managed by depgate
+  esbuild: true
+# managed by depgate
+minimumReleaseAgeExclude:
+  - "@acme/*"
+  - left-pad
+# managed by depgate
+blockExoticSubdeps: true

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "cooldown": {
+    "minimum": "1w"
+  },
+  "installScripts": {
+    "default": "deny"
+  },
+  "targets": "auto"
+}

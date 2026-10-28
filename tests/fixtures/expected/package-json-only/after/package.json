@@ -1,0 +1,7 @@
+{
+  "name": "package-json-only",
+  "version": "1.0.0",
+  "allowScripts": {
+    "esbuild": true
+  }
+}

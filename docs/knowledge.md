@@ -6,7 +6,7 @@ The facts depgate relies on, each linked to the official documentation or change
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-7 tools · 225 facts · 33 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-28.
+7 tools · 245 facts · 33 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-28.
 
 ## Release-age cooldown
 
@@ -81,6 +81,9 @@ Further facts used by generators and `doctor`.
 
 ### npm
 
+- `npmrcListSyntax` (✅ verified): [] [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
+- `allowAllScripts` (✅ verified): `{"setting":"dangerously-allow-all-scripts","since":"11.16.0","value":true}` [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
+- `excludeWildcards` (✅ verified): `{"since":"11.17.0","trailingOnly":false}` [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
 - `latestVersion` (✅ verified): 12.2.1 [↗](https://github.com/npm/cli/releases/tag/v12.2.1)
 - `beforeInteraction` (✅ verified): 11.10.0+: min-release-age and before are mutually exclusive<br>11.15.0+: both may be set; before wins within the same config source [↗](https://github.com/npm/cli/releases/tag/v11.15.0)
 - `strictAllowScripts` (✅ verified): strict-allow-scripts=true makes dependency scripts not covered by allowScripts fail the install (default false) [↗](https://docs.npmjs.com/cli/v12/commands/npm-install#strict-allow-scripts)
@@ -89,6 +92,9 @@ Further facts used by generators and `doctor`.
 
 ### pnpm
 
+- `allowAllBuilds` (✅ verified): `{"setting":"dangerouslyAllowAllBuilds","since":"10.9.0","value":true}` [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md)
+- `excludeWildcards` (✅ verified): `{"since":"10.17.0","trailingOnly":false}` [↗](https://pnpm.io/10.x/settings)
+- `onlyBuiltDependencies` (✅ verified): `{"since":"10.0.0","workspaceFileSince":"10.5.0","removedIn":"11.0.0"}` [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md)
 - `latestVersion` (✅ verified): 12.16.1 [↗](https://github.com/pnpm/pnpm/releases/tag/v12.16.1)
 - `npmrcIgnored` (✅ verified): pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json "pnpm" field and no longer reads npm_config_* variables [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `legacyAllowList` (✅ verified): 10.0.0+: onlyBuiltDependencies (package.json pnpm field; pnpm-workspace.yaml since 10.5.0)<br>10.26.0+: allowBuilds; onlyBuiltDependencies and ignoredBuiltDependencies deprecated<br>11.0.0+: allowBuilds only; onlyBuiltDependencies, neverBuiltDependencies and ignoredBuiltDependencies removed [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md)
@@ -100,6 +106,8 @@ Further facts used by generators and `doctor`.
 
 ### Yarn (Berry)
 
+- `scriptsSwitch` (✅ verified): `{"setting":"enableScripts","allow":true,"deny":false}` [↗](https://yarnpkg.com/configuration/yarnrc#enableScripts)
+- `excludeWildcards` (✅ verified): `{"since":"4.10.0","trailingOnly":false}` [↗](https://yarnpkg.com/configuration/yarnrc#npmPreapprovedPackages)
 - `berryLockfileMarker` (❓ uncertain): __metadata ❓ [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Project.ts)
 - `classicLockfileHeader` (✅ verified): # yarn lockfile v1 [↗](https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js)
 - `latestVersion` (✅ verified): 4.18.1 [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.18.1)
@@ -111,6 +119,7 @@ Further facts used by generators and `doctor`.
 
 ### Bun
 
+- `excludeWildcards` (✅ verified): `{"since":null,"trailingOnly":false}` [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 - `latestVersion` (✅ verified): 1.4.4 [↗](https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4)
 - `trustedDependenciesReplacesDefaults` (✅ verified): Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts [↗](https://bun.com/docs/pm/lifecycle#behavior-of-the-trusteddependencies-field)
 - `lockedVersionsNotRechecked` (✅ verified): minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept [↗](https://bun.com/docs/pm/cli/install#minimum-release-age)
@@ -118,6 +127,10 @@ Further facts used by generators and `doctor`.
 
 ### Deno
 
+- `ageObjectKey` (✅ verified): age [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
+- `excludeWildcards` (✅ verified): `{"since":"2.9.2","trailingOnly":true}` [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
+- `npmSpecifierPrefix` (✅ verified): npm: [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
+- `allowAllScripts` (✅ verified): `{"setting":"allowScripts","since":"2.6.0","value":true}` [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `latestVersion` (✅ verified): 2.9.8 [↗](https://github.com/denoland/deno/releases/tag/v2.9.8)
 - `npmrcFormat` (⚠️ disputed): ⚠️ whole days only, e.g. min-release-age=3 [↗](https://docs.deno.com/runtime/packages/supply_chain/#minimum-dependency-age) / a duration with a unit, e.g. min-release-age=72h [↗](https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default)
 - `fileLinkSkipped` (⚠️ disputed): ⚠️ file: and link: dependencies in the project package.json are silently skipped [↗](https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported) / file: and link: specifiers in registry metadata of npm packages are skipped [↗](https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages)
@@ -126,6 +139,10 @@ Further facts used by generators and `doctor`.
 
 ### Renovate
 
+- `excludeRule` (✅ verified): `{"list":"packageRules","match":"matchPackageNames","value":null}` [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
+- `securityUpdatesSetting` (✅ verified): vulnerabilityAlerts, minimumReleaseAge [↗](https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts)
+- `excludeWildcards` (✅ verified): `{"since":"38.0.0","trailingOnly":false}` [↗](https://docs.renovatebot.com/configuration-options/#matchpackagenames)
+- `ruleDescription` (✅ verified): description [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description)
 - `packageJsonConfig` (✅ verified): `{"file":"package.json","key":"renovate"}` [↗](https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts)
 - `durationUnits` (✅ verified): hours, days [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `presets` (✅ verified): config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): "3 days" and internalChecksFilter "strict" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm)
@@ -136,6 +153,9 @@ Further facts used by generators and `doctor`.
 
 ### Dependabot
 
+- `cooldownKeys` (✅ verified): `{"days":"default-days","exclude":"exclude"}` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
+- `excludeWildcards` (✅ verified): `{"since":"0.0.0","trailingOnly":false}` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
+- `ecosystems` (✅ verified): `{"npm":["npm","pnpm","yarn"],"bun":["bun"],"deno":["deno"]}` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#package-ecosystem)
 - `dayRange` (⚠️ disputed): ⚠️ 1 to 90 days [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates) / 0 removes the cooldown [↗](https://github.com/dependabot/dependabot-core/discussions/15582)
 - `maximumDays` (✅ verified): 90 [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates)
 - `missingPublishDate` (✅ verified): Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used [↗](https://github.com/dependabot/dependabot-core/blob/main/docker/README.md)
@@ -183,6 +203,9 @@ Context recorded with verified facts.
 - `sources.directory.default`: npm 12 did not change the default. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#allow-directory)
 - `project.lockfiles`: npm 11 and earlier prefer npm-shrinkwrap.json over package-lock.json when both exist; npm 12 no longer reads or writes npm-shrinkwrap.json (same format, rename it). [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md)
 - `project.workspaces`: An array of folder paths or globs. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md#workspaces)
+- `extra.npmrcListSyntax`: Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
+- `extra.allowAllScripts`: Boolean, default false: runs every dependency install script whether or not allowScripts approves it; --ignore-scripts still wins. First present in the 11.16.0 definitions. [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
+- `extra.excludeWildcards`: min-release-age-exclude takes package names or minimatch globs from its first version. [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
 - `extra.latestVersion`: Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1). [↗](https://github.com/npm/cli/releases/tag/v12.2.1)
 
 ### pnpm
@@ -197,6 +220,9 @@ Context recorded with verified facts.
 - `sources.git.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `sources.remoteTarball.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `project.workspaces`: Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md)
+- `extra.allowAllBuilds`: Boolean, default false; packages denied in allowBuilds stay blocked. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md)
+- `extra.excludeWildcards`: Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0. [↗](https://pnpm.io/10.x/settings)
+- `extra.onlyBuiltDependencies`: The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, also pnpm-workspace.yaml since 10.5.0; removed in 11.0.0 (see legacyAllowList). [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md)
 - `extra.latestVersion`: pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches. [↗](https://github.com/pnpm/pnpm/releases/tag/v12.16.1)
 - `extra.strictDepBuilds`: When true, an unreviewed dependency build script fails the install. [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `extra.strictMode`: In non-strict mode pnpm silently writes immature picks into minimumReleaseAgeExclude. Strict mode fails CI installs with ERR_PNPM_NO_MATURE_MATCHING_VERSION. [↗](https://github.com/pnpm/pnpm/releases/tag/v12.3.0)
@@ -211,6 +237,7 @@ Context recorded with verified facts.
 - `sources.git.default`: Upgraded projects with an old lockfile get ["**"] written to .yarnrc.yml. [↗](https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json)
 - `project.lockfiles`: Yarn Classic uses the same name; see berryLockfileMarker and classicLockfileHeader to tell them apart. [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-fslib/sources/path.ts)
 - `project.workspaces`: Array of folder glob patterns. [↗](https://yarnpkg.com/configuration/manifest#workspaces)
+- `extra.excludeWildcards`: Name globs such as @scope/* or package* in npmPreapprovedPackages. [↗](https://yarnpkg.com/configuration/yarnrc#npmPreapprovedPackages)
 - `extra.classicLockfileHeader`: Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js). [↗](https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js)
 - `extra.latestVersion`: Yarn 6 is still in preview. [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.18.1)
 - `extra.upgradeMigration`: Explicit values written by depgate prevent the migration. [↗](https://github.com/yarnpkg/berry/pull/7135)
@@ -226,6 +253,7 @@ Context recorded with verified facts.
 - `installScripts.disableAll`: Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project’s own scripts and trustedDependencies too. [↗](https://bun.com/docs/runtime/bunfig#install-ignorescripts)
 - `project.workspaces`: Full glob syntax, including ! patterns. [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx)
 - `project.workspacesObjectKey`: The object form also holds catalog and catalogs. [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx)
+- `extra.excludeWildcards`: minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards. [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 
 ### Deno
 
@@ -244,6 +272,10 @@ Context recorded with verified facts.
 - `sources.directory.setting`: No setting; local directories behave like file: and link: entries (see fileLinkSkipped). [↗](https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported)
 - `project.lockfiles`: The default location; lock.path in deno.json can move it and "lock": false turns it off. [↗](https://github.com/denoland/docs/blob/main/runtime/reference/deno_json.md)
 - `project.workspaces`: Paths of members; globs and ! exclusions since Deno 2.1. [↗](https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md)
+- `extra.ageObjectKey`: In the object form of minimumDependencyAge, age holds the delay and exclude the exemptions. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
+- `extra.excludeWildcards`: A trailing * matches by prefix (npm:@scope/*) since 2.9.2; earlier wildcard entries never matched. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
+- `extra.npmSpecifierPrefix`: Exclusions and allowScripts entries name npm packages as npm:<name>. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
+- `extra.allowAllScripts`: allowScripts: true allows every npm lifecycle script. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 
 ### Renovate
 
@@ -258,6 +290,10 @@ Context recorded with verified facts.
 - `cooldown.securityUpdates`: The vulnerabilityAlerts defaults set minimumReleaseAge to null; a delay can still be set inside vulnerabilityAlerts. [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/#what-happens-to-security-updates)
 - `installScripts.defaultPolicy`: Renovate disables package manager scripts when it updates lockfiles; the Mend-hosted app never runs them. [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts)
 - `installScripts.disableAll`: The default; the self-hosted global allowScripts also defaults to false. [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts)
+- `extra.excludeRule`: The documented opt-out: a packageRules entry with matchPackageNames and minimumReleaseAge: null. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
+- `extra.securityUpdatesSetting`: The vulnerabilityAlerts default sets minimumReleaseAge to null, so security updates skip the delay unless a value is set there. [↗](https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts)
+- `extra.excludeWildcards`: matchPackageNames accepts globs (and regex) since 38.0.0. [↗](https://docs.renovatebot.com/configuration-options/#matchpackagenames)
+- `extra.ruleDescription`: A human-readable description allowed inside any configuration object; depgate uses it to recognise the packageRules entry it manages. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description)
 - `extra.packageJsonConfig`: Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated. [↗](https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts)
 - `extra.durationUnits`: Units shown in the docs: minimumReleaseAge=1 hour on this page and "3 days" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `extra.missingTimestamp`: minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open. [↗](https://github.com/renovatebot/renovate/releases/tag/42.0.0)
@@ -272,6 +308,9 @@ Context recorded with verified facts.
 - `cooldown.default`: Version updates wait 3 days even without a cooldown block (GHES from 3.23); default-days is also 3 when cooldown is set without it. [↗](https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/)
 - `cooldown.securityUpdates`: Cooldown exists only for version updates. dependabot-core also passes a zero age to npm, pnpm and Yarn for security updates, overriding repository gates. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
 - `installScripts.allowList.setting`: insecure-external-code-execution: allow exists only for bundler, mix and pip; nothing allows npm, pnpm, Yarn or Bun scripts. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution)
+- `extra.cooldownKeys`: Keys inside the cooldown block of an updates entry. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
+- `extra.excludeWildcards`: cooldown.exclude accepts * wildcards. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
+- `extra.ecosystems`: The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. Cooldown is supported for all three. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#package-ecosystem)
 - `extra.maximumDays`: The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange). [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates)
 
 ### Environment

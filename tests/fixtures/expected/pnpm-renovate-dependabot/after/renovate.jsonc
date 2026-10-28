@@ -1,0 +1,20 @@
+{
+  // Renovate settings
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    { "matchPackageNames": ["eslint"], "automerge": true }, // keep
+    {
+      "description": "depgate: packages excluded from minimumReleaseAge",
+      "matchPackageNames": [
+        "@acme/*",
+        "left-pad"
+      ],
+      "minimumReleaseAge": null
+    },
+  ],
+  "minimumReleaseAge": "3 days",
+  "vulnerabilityAlerts": {
+    "minimumReleaseAge": null
+  },
+}
