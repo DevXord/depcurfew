@@ -23,7 +23,13 @@ export const COMMANDS: readonly CommandInfo[] = [
   },
   { name: 'apply', summary: 'Generate configuration for every detected tool', implemented: false },
   { name: 'doctor', summary: 'Find configuration that silently does not work', implemented: false },
-  { name: 'explain', summary: 'Show the effective settings for every tool', implemented: false },
+  {
+    name: 'explain',
+    summary: 'Describe the repository and the policy values for each tool',
+    implemented: true,
+    arguments: '[directory]',
+    options: [{ name: 'json', summary: 'Print the result as JSON' }],
+  },
 ];
 
 export function findCommand(name: string): CommandInfo | undefined {

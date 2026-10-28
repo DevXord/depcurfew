@@ -1,0 +1,5 @@
+{
+  "name": "conflicting-lockfiles",
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.0.0"
+}

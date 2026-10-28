@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { collectFacts } from '../../src/knowledge/facts.ts';
-import { knowledgeBase } from '../../src/knowledge/index.ts';
+import { environment, knowledgeBase } from '../../src/knowledge/index.ts';
 import { renderKnowledgeMarkdown } from '../../src/knowledge/render.ts';
 import { requiredFactPaths, TOOL_IDS } from '../../src/knowledge/schema.ts';
-import { validateKnowledge } from '../../src/knowledge/validate.ts';
+import { validateEnvironment, validateKnowledge } from '../../src/knowledge/validate.ts';
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -17,6 +17,18 @@ describe('knowledge base', () => {
     expect(validateKnowledge(knowledgeBase, today)).toEqual([]);
   });
 
+  it('passes validation for the environment facts as well', () => {
+    expect(validateEnvironment(environment, today)).toEqual([]);
+  });
+
+  it('rejects an environment fact from a location that is not official for it', () => {
+    const broken = structuredClone(environment);
+    broken.volta.maintained = { ...broken.volta.maintained, source: 'https://example.com/volta' } as typeof broken.volta.maintained;
+    expect(validateEnvironment(broken, today)).toEqual([
+      { tool: 'environment', path: 'volta.maintained', message: 'source is not an official location for this tool: example.com/volta' },
+    ]);
+  });
+
   it.each(TOOL_IDS.map((id) => [id]))('%s defines every required fact', (id) => {
     const tool = knowledgeBase.find((entry) => entry.id === id);
     expect(tool).toBeDefined();
@@ -26,6 +38,6 @@ describe('knowledge base', () => {
 
   it('docs/knowledge.md is up to date (run `npm run docs:knowledge`)', () => {
     const document = readFileSync(new URL('../../docs/knowledge.md', import.meta.url), 'utf8');
-    expect(document).toBe(renderKnowledgeMarkdown(knowledgeBase));
+    expect(document).toBe(renderKnowledgeMarkdown(knowledgeBase, environment));
   });
 });

@@ -1,0 +1,78 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "package-lock.json"
+        }
+      ],
+      "versions": [],
+      "configFiles": []
+    },
+    {
+      "id": "pnpm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "versions": [
+        {
+          "version": "10.0.0",
+          "source": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": []
+    },
+    {
+      "id": "yarn",
+      "variant": "classic",
+      "supported": false,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "yarn.lock"
+        }
+      ],
+      "versions": [],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": [
+    {
+      "code": "multiple-lockfiles",
+      "message": "lockfiles of several package managers: package-lock.json, yarn.lock",
+      "files": [
+        "package-lock.json",
+        "yarn.lock"
+      ]
+    },
+    {
+      "code": "package-manager-mismatch",
+      "message": "packageManager names pnpm, but no pnpm lockfile exists",
+      "files": [
+        "package.json"
+      ]
+    },
+    {
+      "code": "yarn-classic-unsupported",
+      "message": "Yarn Classic (1.x) is not supported; depgate configures Yarn 2 and later",
+      "files": [
+        "yarn.lock"
+      ]
+    }
+  ]
+}

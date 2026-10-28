@@ -1,0 +1,52 @@
+{
+  "packageManagers": [
+    {
+      "id": "bun",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "bun.lock"
+        },
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        },
+        {
+          "kind": "config",
+          "file": "bunfig.toml"
+        },
+        {
+          "kind": "ci",
+          "file": ".github/workflows/ci.yml"
+        }
+      ],
+      "versions": [
+        {
+          "version": "1.3.5",
+          "source": "packageManager",
+          "file": "package.json"
+        },
+        {
+          "version": "1.3.5",
+          "source": "github-actions",
+          "file": ".github/workflows/ci.yml",
+          "line": 10
+        }
+      ],
+      "configFiles": [
+        "bunfig.toml"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "warnings": []
+}

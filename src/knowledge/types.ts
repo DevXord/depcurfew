@@ -105,6 +105,23 @@ export interface SourcesKnowledge {
   directory: SourceKnowledge;
 }
 
+/** Where a tool declares workspace packages: a key in the first of these files that exists. */
+export interface WorkspaceDeclaration {
+  files: readonly string[];
+  key: string;
+}
+
+/** Facts for recognising a package manager in a repository. */
+export interface ProjectKnowledge {
+  /** Lockfile names in the project root. */
+  lockfiles: Fact<Versioned<readonly string[]>>;
+  /** Files that make a directory a project or a workspace package for this tool. */
+  manifests: Fact<readonly string[]>;
+  workspaces: Fact<WorkspaceDeclaration>;
+  /** Key of the package list when the workspace declaration is an object instead of a list; `null` if only lists are accepted. */
+  workspacesObjectKey: Fact<string | null>;
+}
+
 export interface ToolKnowledge {
   id: ToolId;
   name: string;
@@ -113,6 +130,83 @@ export interface ToolKnowledge {
   installScripts: InstallScriptsKnowledge;
   /** Package managers only: bots do not resolve dependency sources themselves. */
   sources?: SourcesKnowledge;
+  /** Package managers only: how to recognise the tool in a repository. */
+  project?: ProjectKnowledge;
   /** Further sourced facts that matter for generators and `doctor`, keyed by a short name. */
   extra?: Readonly<Record<string, Fact<unknown>>>;
+}
+
+// Facts about the environment around the package managers: version pinning (Corepack, Volta, asdf) and CI.
+
+/** A tool that environment facts refer to: Node.js or a package manager. */
+export type RuntimeOrTool = 'node' | ToolId;
+
+export interface PackageManagerFieldKnowledge {
+  /** Key in package.json, e.g. `packageManager`. */
+  key: string;
+  /** Package managers Corepack accepts in that key. */
+  managers: readonly ToolId[];
+}
+
+export interface DevEnginesKnowledge {
+  key: string;
+  packageManagerKey: string;
+  runtimeKey: string;
+}
+
+export interface VoltaKnowledge {
+  /** Key in package.json. */
+  key: string;
+  /** Tools whose versions Volta pins in that key. */
+  tools: readonly RuntimeOrTool[];
+}
+
+export interface WorkflowsKnowledge {
+  directory: string;
+  extensions: readonly string[];
+}
+
+export interface SetupActionInput {
+  name: string;
+  /** `runtime` values have the form `<name>@<version>`, e.g. `node@22`. */
+  kind: 'version' | 'version-file' | 'runtime';
+  /** The tool a `version` or `version-file` input refers to. */
+  tool?: RuntimeOrTool;
+}
+
+export interface SetupActionKnowledge {
+  /** `owner/name`, compared without case. */
+  action: string;
+  /** Tools whose use the step itself shows. */
+  installs: readonly RuntimeOrTool[];
+  inputs: readonly SetupActionInput[];
+}
+
+export interface EnvironmentKnowledge {
+  corepack: {
+    packageManagerField: Fact<PackageManagerFieldKnowledge>;
+    devEnginesSince: Fact<string>;
+    envFileSince: Fact<string>;
+    bundledWithNode: Fact<Versioned<boolean>>;
+  };
+  devEngines: Fact<DevEnginesKnowledge>;
+  devEnginesSince: Fact<string>;
+  volta: {
+    manifest: Fact<VoltaKnowledge>;
+    maintained: Fact<boolean>;
+  };
+  asdf: {
+    /** Name of the file that pins tool versions. */
+    toolVersionsFile: Fact<string>;
+    /** Plugin names mapped to the tools they install. */
+    plugins: Fact<Readonly<Record<string, RuntimeOrTool>>>;
+  };
+  githubActions: {
+    workflows: Fact<WorkflowsKnowledge>;
+    setupNode: Fact<SetupActionKnowledge>;
+    pnpmActionSetup: Fact<SetupActionKnowledge>;
+    pnpmSetup: Fact<SetupActionKnowledge>;
+    setupBun: Fact<SetupActionKnowledge>;
+    setupDeno: Fact<SetupActionKnowledge>;
+  };
 }

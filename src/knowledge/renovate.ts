@@ -95,6 +95,11 @@ export const renovate: ToolKnowledge = {
     ),
   },
   extra: {
+    packageJsonConfig: verified(
+      { file: 'package.json', key: 'renovate' },
+      'https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts',
+      'Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated.',
+    ),
     durationUnits: verified(
       ['hours', 'days'],
       'https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md',

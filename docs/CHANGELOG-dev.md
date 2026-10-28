@@ -2,6 +2,27 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-28 · Faza 3: wykrywanie projektu
+
+- `src/detect/` opisuje repozytorium (D-025):
+  - menedżery paczek z dowodami użycia: plikami blokad, `packageManager`, `devEngines`, plikami konfiguracyjnymi i krokami w CI;
+  - wersje menedżerów i Node.js zadeklarowane w `packageManager`, `devEngines`, Volcie, `.tool-versions` i GitHub Actions, z plikiem i linią;
+  - boty (Renovate, Dependabot), workspace'y z listą pakietów, pliki `.npmrc` i workflow;
+  - ostrzeżenia, m.in. o kilku plikach blokad, niezgodnym `packageManager` i Yarn Classic.
+- Detektor tylko czyta pliki: nie wychodzi poza repozytorium (także przez symlinki), pomija `node_modules`, `.git` i pliki powyżej 1 MiB.
+- `depgate explain [katalog] [--json]` pokazuje wynik wykrywania. Jeśli w repozytorium jest `depgate.json`, dokłada wartości opóźnienia przeliczone dla każdego narzędzia docelowego (D-026). `init` wypisuje wykryte narzędzia.
+- Baza wiedzy:
+  - sekcja `project` dla menedżerów paczek;
+  - nowy dział „środowisko” (Corepack, `devEngines`, Volta, asdf, akcje GitHub Actions) z własną listą oficjalnych źródeł;
+  - fakty o znacznikach `yarn.lock` i o kluczu `renovate` w `package.json` (D-023, D-024).
+- Pierwsza zależność w czasie działania: `yaml@2.9.1`, bez zależności przechodnich (D-022).
+- Testy (432, wszystkie przechodzą):
+  - 14 fikstur repozytoriów z oczekiwanym `detect.json`;
+  - przypadki brzegowe: zepsuty JSON i YAML, zły `packageManager`, za duży plik, symlinki poza repozytorium, wzorce workspace'ów z `..`, `**` bez `node_modules`, wyrażenia w workflow;
+  - `explain` w procesie i e2e;
+  - walidacja działu „środowisko”.
+- Weryfikacja: `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą. `node dist/cli.js explain .` poprawnie opisuje samo repozytorium depgate.
+
 ## 2026-10-28 · Faza 2: plik polityki i walidacja
 
 - Plik polityki `depgate.json` (D-015):

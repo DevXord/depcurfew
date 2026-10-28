@@ -12,6 +12,8 @@ const release = (version: string) => `https://github.com/denoland/deno/releases/
 
 const unsupported = (note: string): SourceKnowledge => ({ setting: verified(null, NOT_SUPPORTED, note) });
 
+const WORKSPACES = 'https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md';
+
 export const deno: ToolKnowledge = {
   id: 'deno',
   name: 'Deno',
@@ -98,6 +100,20 @@ export const deno: ToolKnowledge = {
       'No setting. Since 2.8 file: and link: entries are silently skipped (scope disputed, see fileLinkSkipped); deno.json "links" overrides dependencies with local packages.',
     ),
     directory: unsupported('No setting; local directories behave like file: and link: entries (see fileLinkSkipped).'),
+  },
+  project: {
+    lockfiles: verified(
+      [{ since: '0.0.0', value: ['deno.lock'] }],
+      'https://github.com/denoland/docs/blob/main/runtime/reference/deno_json.md',
+      'The default location; lock.path in deno.json can move it and "lock": false turns it off.',
+    ),
+    manifests: verified(['deno.json', 'deno.jsonc'], 'https://github.com/denoland/docs/blob/main/runtime/fundamentals/configuration.md'),
+    workspaces: verified(
+      { files: ['deno.json', 'deno.jsonc'], key: 'workspace' },
+      WORKSPACES,
+      'Paths of members; globs and ! exclusions since Deno 2.1.',
+    ),
+    workspacesObjectKey: verified('members', WORKSPACES),
   },
   extra: {
     latestVersion: verified('2.9.8', release('2.9.8')),

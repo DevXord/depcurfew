@@ -1,6 +1,8 @@
 export { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from './cli/run.ts';
 export type { CliIo } from './cli/run.ts';
 export { getVersion } from './version.ts';
+export { detectProject } from './detect/index.ts';
+export type { Detection, DetectionWarning, PackageManagerInfo, VersionDeclaration } from './detect/types.ts';
 export { convertCooldown, convertMinutes, toDurationString } from './policy/convert.ts';
 export type { CooldownConversion, Converted, DurationStringUnit, NumericDelayUnit } from './policy/convert.ts';
 export { DEFAULT_POLICY, POLICY_FILE, renderPolicy, SCHEMA_URL } from './policy/defaults.ts';

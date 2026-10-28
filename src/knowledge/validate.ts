@@ -1,7 +1,7 @@
 import { walkKnowledge } from './facts.ts';
 import { requiredFactPaths } from './schema.ts';
-import { isOfficialSource, OFFICIAL_SOURCES, type SourceRule } from './sources.ts';
-import type { ToolKnowledge } from './types.ts';
+import { ENVIRONMENT_SOURCES, isOfficialSource, OFFICIAL_SOURCES, type SourceRule } from './sources.ts';
+import type { EnvironmentKnowledge, ToolKnowledge } from './types.ts';
 
 export interface KnowledgeIssue {
   tool: string;
@@ -90,6 +90,22 @@ function validateFact(fact: Record<string, unknown>, rules: readonly SourceRule[
   }
 }
 
+function validateFacts(entry: object, rules: readonly SourceRule[], today: string, add: (path: string, message: string) => void) {
+  const walked = walkKnowledge(entry);
+  for (const stray of walked.strays) add(stray.path, 'value without a source: wrap it in a fact with source and verifiedAt');
+  for (const { path, fact } of walked.facts) {
+    validateFact(fact as unknown as Record<string, unknown>, rules, today, (message) => add(path, message));
+  }
+  return walked;
+}
+
+/** The same checks for facts about the environment, against its own list of official locations. */
+export function validateEnvironment(environment: EnvironmentKnowledge, today: string): KnowledgeIssue[] {
+  const issues: KnowledgeIssue[] = [];
+  validateFacts(environment, ENVIRONMENT_SOURCES, today, (path, message) => issues.push({ tool: 'environment', path, message }));
+  return issues;
+}
+
 /**
  * Checks that every fact has an official https source and a valid, non-future verification date,
  * that uncertain and disputed facts explain themselves, and that no value is left without a source.
@@ -113,11 +129,7 @@ export function validateKnowledge(tools: readonly ToolKnowledge[], today: string
     if (typeof tool.name !== 'string' || tool.name.trim() === '') add('name', 'missing tool name');
     if (tool.kind !== 'package-manager' && tool.kind !== 'update-bot') add('kind', `unknown kind '${String(tool.kind)}'`);
 
-    const { facts, strays } = walkKnowledge(tool);
-    for (const stray of strays) add(stray.path, 'value without a source: wrap it in a fact with source and verifiedAt');
-    for (const { path, fact } of facts) {
-      validateFact(fact as unknown as Record<string, unknown>, rules, today, (message) => add(path, message));
-    }
+    const { facts, strays } = validateFacts(tool, rules, today, add);
 
     const present = new Set(facts.map((entry) => entry.path));
     for (const path of requiredFactPaths(tool)) {
