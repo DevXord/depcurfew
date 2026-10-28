@@ -1,0 +1,7 @@
+{
+  "verison": 1,
+  "cooldown": { "minimun": "3d", "securityUpdate": "bypass" },
+  "installScripts": { "default": "deny", "allowList": ["esbuild"] },
+  "sources": { "remote_tarball": "deny", "Git": "deny" },
+  "comment": "managed by depgate"
+}

@@ -6,7 +6,7 @@ The facts depgate relies on, each linked to the official documentation or change
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-7 tools · 184 facts · 28 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-28.
+7 tools · 186 facts · 28 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-28.
 
 ## Release-age cooldown
 
@@ -112,6 +112,7 @@ Further facts used by generators and `doctor`.
 
 ### Renovate
 
+- `durationUnits` (✅ verified): hours, days [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `presets` (✅ verified): config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): "3 days" and internalChecksFilter "strict" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm)
 - `missingTimestamp` (✅ verified): earlier: updates without a release timestamp pass the check<br>42.0.0+: minimumReleaseAgeBehaviour timestamp-required: such updates are held [↗](https://github.com/renovatebot/renovate/releases/tag/42.0.0)
 - `internalChecksFilter` (✅ verified): Defaults to "strict" since 33.0.0; with "none" or "flexible" branches and PRs are created before the delay ends and only automerge waits [↗](https://github.com/renovatebot/renovate/releases/tag/33.0.0)
@@ -121,6 +122,7 @@ Further facts used by generators and `doctor`.
 ### Dependabot
 
 - `dayRange` (⚠️ disputed): ⚠️ 1 to 90 days [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates) / 0 removes the cooldown [↗](https://github.com/dependabot/dependabot-core/discussions/15582)
+- `maximumDays` (✅ verified): 90 [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates)
 - `missingPublishDate` (✅ verified): Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used [↗](https://github.com/dependabot/dependabot-core/blob/main/docker/README.md)
 - `transitiveGating` (❓ uncertain): Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none ❓ [↗](https://github.com/dependabot/dependabot-core/blob/main/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb)
 - `semverKeysScope` (✅ verified): semver-major/minor/patch-days apply only to SemVer ecosystems such as npm, Bun and Deno; others use default-days [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
@@ -210,6 +212,7 @@ Context recorded with verified facts.
 - `cooldown.securityUpdates`: The vulnerabilityAlerts defaults set minimumReleaseAge to null; a delay can still be set inside vulnerabilityAlerts. [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/#what-happens-to-security-updates)
 - `installScripts.defaultPolicy`: Renovate disables package manager scripts when it updates lockfiles; the Mend-hosted app never runs them. [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts)
 - `installScripts.disableAll`: The default; the self-hosted global allowScripts also defaults to false. [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts)
+- `extra.durationUnits`: Units shown in the docs: minimumReleaseAge=1 hour on this page and "3 days" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `extra.missingTimestamp`: minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open. [↗](https://github.com/renovatebot/renovate/releases/tag/42.0.0)
 - `extra.independentOfPackageManager`: Source code passes --before to npm only; pnpm, Yarn and Bun gates are not read. [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/)
 
@@ -222,6 +225,7 @@ Context recorded with verified facts.
 - `cooldown.default`: Version updates wait 3 days even without a cooldown block (GHES from 3.23); default-days is also 3 when cooldown is set without it. [↗](https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/)
 - `cooldown.securityUpdates`: Cooldown exists only for version updates. dependabot-core also passes a zero age to npm, pnpm and Yarn for security updates, overriding repository gates. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
 - `installScripts.allowList.setting`: insecure-external-code-execution: allow exists only for bundler, mix and pip; nothing allows npm, pnpm, Yarn or Bun scripts. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution)
+- `extra.maximumDays`: The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange). [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates)
 
 ## To review
 

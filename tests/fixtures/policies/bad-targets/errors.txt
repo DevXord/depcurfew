@@ -1,0 +1,3 @@
+targets[1]: must be one of "npm", "pnpm", "yarn", "bun", "deno", "renovate", "dependabot", got "yran"; did you mean "yarn"?
+targets[2]: duplicate entry "npm" (first at index 0)
+targets[3]: must be one of "npm", "pnpm", "yarn", "bun", "deno", "renovate", "dependabot", got "Renovate"; did you mean "renovate"?

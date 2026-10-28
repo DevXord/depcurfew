@@ -1,0 +1,7 @@
+version: must be 1, got "1"
+cooldown: must be an object, got "3d"
+installScripts.default: must be one of "allow", "deny", got true
+installScripts.allow: must be a list, got "esbuild"
+sources.git: must be one of "allow", "deny", got "block"
+sources.file: must be one of "allow", "deny", got null
+targets: must be "auto" or a list of tools, got 5

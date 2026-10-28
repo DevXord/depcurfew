@@ -2,6 +2,37 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-28 · Faza 2: plik polityki i walidacja
+
+- Plik polityki `depgate.json` (D-015):
+  - zdefiniowany raz w `src/policy/schema.ts`;
+  - z tej samej definicji powstają walidator, typy `Policy` i `ResolvedPolicy` oraz `schema.json` w wersji draft-07 (D-016);
+  - `schema.json` generuje `npm run schema` i trafia do paczki.
+- Walidator (`src/policy/validate.ts`):
+  - zgłasza wszystkie błędy naraz, każdy ze ścieżką do pola, np. `cooldown.exclude[1]: …`;
+  - podpowiada przy literówkach w polach i wartościach;
+  - błędy JSON mają linię i kolumnę;
+  - reguły zależne od kilku pól: lista `allow` bez efektu oraz maksimum Dependabota przy jawnych `targets`.
+- Czas trwania (`src/policy/duration.ts`):
+  - przyjmuje `36h`, `3d`, `1w` itp.;
+  - odrzuca zero, ułamki, spacje, wielkie litery, jednostki słowne i złożone, wiodące zera, miesiące, lata i sekundy;
+  - komunikat podpowiada poprawny zapis (D-017).
+- Przeliczanie (`src/policy/convert.ts`):
+  - jednostki, słowa Renovate i maksima pochodzą z bazy wiedzy;
+  - wynik jest zawsze zaokrąglony w stronę dłuższego opóźnienia;
+  - spór o jednostkę rozstrzyga najmniejsza jednostka;
+  - przekroczenie maksimum to błąd zamiast skrócenia opóźnienia (D-018).
+  - Przykład dla 36h: npm i Dependabot 2 dni, pnpm/Yarn/Deno 2160 minut, Bun 129600 sekund, Renovate `"36 hours"`.
+- `depgate init [katalog] [--force]` zapisuje domyślną politykę i bez `--force` nie nadpisuje istniejącego pliku (D-019).
+- Baza wiedzy: dwa nowe fakty, Renovate `extra.durationUnits` i Dependabot `extra.maximumDays`. Zweryfikowałem je w plikach źródłowych dokumentacji, bo sieć blokowała strony z dokumentacją (D-020).
+- Testy (375, wszystkie przechodzą):
+  - 21 fikstur polityk w `tests/fixtures/policies/` (wejście i oczekiwany wynik albo oczekiwane komunikaty);
+  - przeliczenia każdej jednostki na granicach oraz pełny przegląd 1–20 000 minut, który sprawdza, że wynik nigdy nie daje krótszego opóźnienia;
+  - jednostki sporne i brakujące na syntetycznej bazie;
+  - zgodność `schema.json` z walidatorem;
+  - `init` w procesie i e2e.
+- Weryfikacja: `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
+
 ## 2026-10-28 · Faza 1: baza wiedzy o menedżerach paczek
 
 - `src/knowledge/` zawiera jeden moduł na narzędzie: npm, pnpm, Yarn (Berry), Bun, Deno, Renovate i Dependabot. Razem to 184 fakty: 142 zweryfikowane, 28 niepewnych i 14 spornych. Każdy fakt ma `source` (oficjalny URL) i `verifiedAt` (2026-10-28).

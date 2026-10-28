@@ -1,0 +1,1 @@
+cooldown.minimum: must be a duration such as "3d", got 3

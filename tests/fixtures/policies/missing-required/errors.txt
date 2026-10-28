@@ -1,0 +1,2 @@
+cooldown: missing required field "minimum"
+installScripts: missing required field "default"

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3D", "exclude": ["@acme/*", "@acme/*"], "securityUpdates": "skip" },
+  "installScripts": { "default": "dney" },
+  "sources": { "git": "deny", "tarball": "deny" },
+  "targets": ["npm", "pnmp"]
+}

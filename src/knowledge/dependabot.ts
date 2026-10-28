@@ -77,6 +77,11 @@ export const dependabot: ToolKnowledge = {
       evidence('1 to 90 days', 'https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates'),
       evidence('0 removes the cooldown', 'https://github.com/dependabot/dependabot-core/discussions/15582'),
     ),
+    maximumDays: verified(
+      90,
+      'https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates',
+      'The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange).',
+    ),
     missingPublishDate: verified(
       'Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used',
       `${CORE}/docker/README.md`,

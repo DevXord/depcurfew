@@ -1,0 +1,9 @@
+(root): unknown field "verison"; did you mean "version"?
+(root): unknown field "comment"
+(root): missing required field "version"
+cooldown: unknown field "minimun"; did you mean "minimum"?
+cooldown: unknown field "securityUpdate"; did you mean "securityUpdates"?
+cooldown: missing required field "minimum"
+installScripts: unknown field "allowList"; did you mean "allow"?
+sources: unknown field "remote_tarball"; did you mean "remoteTarball"?
+sources: unknown field "Git"; did you mean "git"?
