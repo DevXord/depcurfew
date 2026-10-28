@@ -1,0 +1,160 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/depgate/schema.json",
+  "title": "depgate policy",
+  "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "JSON Schema of this file, for editor support.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Version of the policy format.",
+      "type": "integer",
+      "const": 1
+    },
+    "cooldown": {
+      "description": "Release-age delay (cooldown): freshly published versions wait before they are used.",
+      "type": "object",
+      "properties": {
+        "minimum": {
+          "description": "Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool’s unit, always rounding up.",
+          "type": "string",
+          "pattern": "^[1-9][0-9]*[mhdw]$",
+          "examples": [
+            "3d",
+            "36h",
+            "1w"
+          ]
+        },
+        "exclude": {
+          "description": "Packages that skip the release-age delay, e.g. your own scope.",
+          "type": "array",
+          "items": {
+            "description": "A package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". No versions.",
+            "type": "string",
+            "pattern": "^(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*-]*$"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "securityUpdates": {
+          "description": "Whether security updates skip the delay (\"bypass\") or wait like other updates (\"delay\"), where the tool can tell them apart.",
+          "type": "string",
+          "enum": [
+            "bypass",
+            "delay"
+          ],
+          "default": "bypass"
+        }
+      },
+      "required": [
+        "minimum"
+      ],
+      "additionalProperties": false
+    },
+    "installScripts": {
+      "description": "Dependency lifecycle scripts.",
+      "type": "object",
+      "properties": {
+        "default": {
+          "description": "Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default.",
+          "type": "string",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "allow": {
+          "description": "Packages whose lifecycle scripts may run when the default is \"deny\".",
+          "type": "array",
+          "items": {
+            "description": "A package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". No versions.",
+            "type": "string",
+            "pattern": "^(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*-]*$"
+          },
+          "uniqueItems": true,
+          "default": []
+        }
+      },
+      "required": [
+        "default"
+      ],
+      "additionalProperties": false
+    },
+    "sources": {
+      "description": "Where dependencies may come from besides the registry. An absent field is not managed.",
+      "type": "object",
+      "properties": {
+        "git": {
+          "description": "Dependencies installed from git repositories.",
+          "type": "string",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "remoteTarball": {
+          "description": "Dependencies installed from tarball URLs outside the registry.",
+          "type": "string",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "file": {
+          "description": "Dependencies installed from local tarball files.",
+          "type": "string",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "directory": {
+          "description": "Dependencies installed from local directories.",
+          "type": "string",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "targets": {
+      "description": "Tools to configure: \"auto\" detects them in the repository, or list them explicitly.",
+      "anyOf": [
+        {
+          "description": "Configure the tools detected in the repository.",
+          "type": "string",
+          "const": "auto"
+        },
+        {
+          "description": "Configure exactly these tools.",
+          "type": "array",
+          "items": {
+            "description": "A tool depgate can configure.",
+            "type": "string",
+            "enum": [
+              "npm",
+              "pnpm",
+              "yarn",
+              "bun",
+              "deno",
+              "renovate",
+              "dependabot"
+            ]
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        }
+      ],
+      "default": "auto"
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "additionalProperties": false
+}

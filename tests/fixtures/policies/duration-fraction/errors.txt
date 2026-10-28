@@ -1,0 +1,1 @@
+cooldown.minimum: invalid duration "1.5d": fractions are not supported; write "36h"

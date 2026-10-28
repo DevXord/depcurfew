@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "36h" },
+  "installScripts": { "default": "allow" },
+  "sources": { "git": "deny", "directory": "deny" },
+  "targets": ["npm", "renovate", "dependabot"]
+}

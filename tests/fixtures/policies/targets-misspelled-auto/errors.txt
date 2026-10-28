@@ -1,0 +1,1 @@
+targets: must be "auto" or a list of tools, got "Auto"; did you mean "auto"?

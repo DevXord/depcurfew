@@ -108,3 +108,90 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 ## D-011 · Język i końce linii (2026-10-28)
 - **Język:** kod, komunikaty CLI i notatki w bazie wiedzy są po angielsku, bo to projekt open source, a tabela trafi do README. Dokumenty deweloperskie (`docs/decisions.md`, `docs/CHANGELOG-dev.md`) i `CLAUDE.md` są po polsku.
 - **Końce linii:** `.gitattributes` wymusza LF, dzięki czemu wygenerowane pliki porównywane w testach mają takie same końce linii na Windows i Linux.
+
+## D-015 · Plik polityki i jego znaczenie (2026-10-28)
+- **Decyzja (zatwierdzona przez właściciela):**
+  - plik `depgate.json` w katalogu repozytorium, format JSON, wymagane jest tylko `version: 1`;
+  - brak sekcji oznacza, że depgate nie zarządza tym obszarem;
+  - w obecnej sekcji wymagane są `cooldown.minimum` i `installScripts.default`;
+  - wartości domyślne: `exclude` i `allow` to `[]`, `securityUpdates` to `"bypass"`, `targets` to `"auto"`; pominięte pole w `sources` jest niezarządzane;
+  - `securityUpdates` przyjmuje `"bypass"` albo `"delay"`; `sources` ma pola `git`, `remoteTarball`, `file` i `directory` z wartościami `"allow"` albo `"deny"`.
+- **Wzorce paczek:** to własna, celowo luźna gramatyka depgate, a nie kopia reguł nazw npm.
+  - Dozwolona jest nazwa lub wzorzec z `*`, np. `@moja-firma/*`.
+  - Odrzucane są: wersja, spacje, wzorzec złożony z samych `*` (pasowałby do każdej paczki) i powtórzenia.
+  - Czy dane narzędzie obsługuje wzorzec, rozstrzygają generatory w fazie 4.
+- **Błędy zamiast cichego pominięcia:**
+  - nieznane pole to błąd z podpowiedzią („did you mean”), bo literówka w polityce to dokładnie konfiguracja, która po cichu nie działa;
+  - z tego samego powodu błędem jest lista `installScripts.allow` przy `default: "allow"`.
+- **Przykład z planu:** pełnoszerokie „＠” traktujemy jako zwykłe `@`.
+- **Znane ograniczenie:** przy powtórzonym kluczu `JSON.parse` bierze ostatnią wartość bez ostrzeżenia. Wykrycie tego wymaga własnego parsera JSON.
+
+## D-016 · Jedno źródło prawdy dla polityki (2026-10-28)
+- **Decyzja:** z definicji w `src/policy/schema.ts`, zapisanej małym językiem schematu z `src/policy/shape.ts`, powstają:
+  - walidator;
+  - typy: `Policy` (plik, jak go zapisano) i `ResolvedPolicy` (po uzupełnieniu wartości domyślnych i sparsowaniu czasów);
+  - JSON Schema.
+- **`schema.json`:**
+  - leży w katalogu głównym, generuje go `npm run schema`, trafia do `files` w paczce;
+  - test pilnuje, że jest aktualny;
+  - ma wersję draft-07, bo edytory obsługują ją najpełniej;
+  - każdy obiekt ma `additionalProperties: false`, a każde pole opis do podpowiedzi w edytorze.
+- **Zgodność schematu z walidatorem:**
+  - sprawdza ją w testach mały interpreter podzbioru JSON Schema (`tests/policy/json-schema-subset.ts`), bez nowej zależności; na nieznanym słowie kluczowym rzuca błąd;
+  - walidator jest surowszy w trzech miejscach: limit wielkości czasu, maksimum narzędzia przy jawnych `targets` oraz lista `allow` bez efektu.
+- **`$schema`:** wartość `https://unpkg.com/depgate/schema.json`, zgodnie z planem. Adres zadziała po publikacji i nie jest przypięty do wersji.
+- **Komunikaty:**
+  - format to `ścieżka: komunikat`, ścieżka w notacji `cooldown.exclude[2]`, a `(root)` oznacza cały dokument;
+  - walidator zgłasza wszystkie błędy naraz, w tym błędy zależne od kilku pól, nawet gdy inna część pliku jest błędna;
+  - błędy JSON mają linię i kolumnę, a BOM jest pomijany.
+
+## D-017 · Czas trwania w polityce (2026-10-28)
+- **Decyzja:**
+  - składnia to dodatnia liczba całkowita i jedna jednostka: `m`, `h`, `d` albo `w` (`^[1-9][0-9]*[mhdw]$`);
+  - wartość jest przechowywana w minutach;
+  - limit: liczba sekund musi być bezpieczną liczbą całkowitą, bo Bun liczy w sekundach.
+- **Odrzucamy z podpowiedzią poprawnego zapisu:**
+  - zero: wyłączenie opóźnienia to usunięcie sekcji `cooldown`;
+  - ułamki (`1.5d` → `36h`), spacje, wielkie litery, jednostki słowne, jednostki złożone (`1d12h` → `36h`) i wiodące zera;
+  - miesiące, lata i sekundy;
+  - `M` czytamy jako miesiące, tak jak Renovate, nigdy jako minuty.
+
+## D-018 · Przeliczanie na jednostki narzędzi (2026-10-28)
+- **Jednostka** pochodzi z `cooldown.unit` w bazie wiedzy. Zaokrąglamy zawsze w górę, na liczbach całkowitych, z dokładną arytmetyką.
+- **Zawsze liczba, nie tekst:** dotyczy to także narzędzi, które przyjmują teksty (Yarn od 4.11.0, Bun od 1.4.4). Starsze wersje tekstów nie rozumieją, a Yarn 4.10.x pomijał je po cichu.
+- **Jednostka sporna:**
+  - wygrywa najmniejsza jednostka, czyli największa liczba, więc wynik wystarcza przy każdym odczytaniu;
+  - spór „liczba czy tekst” oraz brak ustawienia dają błąd konwersji.
+- **Renovate:** dostaje tekst w jednostkach z `extra.durationUnits` (godziny, dni). Wybieramy największą jednostkę, która daje wynik dokładny, a jeśli żadna nie daje, najmniejszą z zaokrągleniem w górę: `90m` → `"2 hours"`, `1w` → `"7 days"`.
+- **Maksimum** (`extra.maximumDays`; u Dependabota 90):
+  - przekroczenie to błąd, bo nie da się zaokrąglić w stronę dłuższego opóźnienia;
+  - przy jawnych `targets` to błąd walidacji `cooldown.minimum`, a przy `"auto"` zgłosi go `apply` w fazie 4;
+  - przy sporze o maksimum wygrywa najniższe.
+- **Żadne narzędzie nie dostaje `0`**, bo wszędzie oznacza ono wyłączenie opóźnienia.
+
+## D-019 · `depgate init` (2026-10-28)
+- **Polecenie:** `depgate init [katalog] [--force]` zapisuje `depgate.json` z domyślną polityką: JSON z wcięciem 2 spacji, LF, stała kolejność kluczy.
+- **Domyślna polityka (zatwierdzona przez właściciela):**
+  - cooldown `3d` z `"bypass"` i pustym `exclude`;
+  - skrypty `"deny"` z pustą listą `allow`;
+  - `git` i `remoteTarball` `"deny"`, `file` i `directory` `"allow"`;
+  - `targets: "auto"`.
+- **Kody wyjścia:**
+  - bez `--force` istniejący plik nie zostanie nadpisany: zapis z flagą `wx`, kod 1;
+  - nadmiarowe argumenty i opcja innego polecenia dają kod 2.
+- **Opcje poleceń:** są opisane w `COMMANDS` (`options`). `parseArgs` w trybie strict zna wszystkie, a `run` odrzuca opcję należącą do innego polecenia. `CliIo` i kody wyjścia przeniosłem do `src/cli/io.ts`; `run.ts` je reeksportuje.
+- **Wykrywanie narzędzi** należy do późniejszej fazy. Na razie opis `init` w pomocy mówi tylko o tworzeniu pliku.
+
+## D-020 · Fakty fazy 2 i sposób ich weryfikacji (2026-10-28)
+- **Nowe fakty:**
+  - Renovate `extra.durationUnits` = godziny i dni;
+  - Dependabot `extra.maximumDays` = 90.
+- **Weryfikacja przy zablokowanej sieci:**
+  - sieć sesji nie przepuszczała docs.renovatebot.com, docs.github.com ani github.com;
+  - pliki źródłowe tych stron przeczytałem przez raw.githubusercontent.com z repozytoriów `renovatebot/renovate` i `github/docs`;
+  - Renovate: `docs/usage/key-concepts/minimum-release-age.md`, `docs/usage/configuration-options.md`, `lib/util/pretty-time.ts` z testami i `lib/util/minimum-release-age.ts`;
+  - Dependabot: samouczek `optimizing-pr-creation-version-updates.md`, który mówi wprost: „The number of cooldown days must be between 1 and 90”.
+- **Cytowanie:**
+  - Renovate cytuję adresem pliku na `github.com/renovatebot/` (dozwolona lokalizacja);
+  - Dependabota cytuję adresem strony docs.github.com zbudowanej z tego pliku, bo `github/docs` nie jest na liście oficjalnych lokalizacji Dependabota.
+- **Kandydat na fazę 5:** `lib/util/minimum-release-age.ts` zamienia niepoprawny `minimumReleaseAge` na 0 (`coerceNumber(toMs(...), 0)`). Literówka w Renovate po cichu wyłącza więc opóźnienie. Faktu jeszcze nie dopisuję.

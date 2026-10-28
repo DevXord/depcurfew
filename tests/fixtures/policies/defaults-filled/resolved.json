@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": { "text": "36h", "minutes": 2160 }, "exclude": [], "securityUpdates": "bypass" },
+  "installScripts": { "default": "allow", "allow": [] },
+  "sources": { "git": "deny", "directory": "deny" },
+  "targets": ["npm", "renovate", "dependabot"]
+}

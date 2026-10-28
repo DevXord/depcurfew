@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "2160h", "securityUpdates": "delay" },
+  "targets": ["dependabot"]
+}

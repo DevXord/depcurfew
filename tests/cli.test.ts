@@ -55,7 +55,7 @@ describe('depgate CLI', () => {
     expect(result.stderr).toContain('--frobnicate');
   });
 
-  it.each([['init'], ['apply'], ['doctor'], ['explain']])(
+  it.each([['apply'], ['doctor'], ['explain']])(
     'planned command %s reports that it is not implemented yet',
     async (command) => {
       const result = await exec(command);

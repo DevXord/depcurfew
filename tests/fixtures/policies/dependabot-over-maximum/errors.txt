@@ -1,0 +1,1 @@
+cooldown.minimum: Dependabot accepts at most 90 days, but 13w needs 91 days

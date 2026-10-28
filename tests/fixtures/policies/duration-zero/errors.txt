@@ -1,0 +1,1 @@
+cooldown.minimum: invalid duration "0d": must be longer than zero; to leave release-age settings unmanaged, remove the cooldown section
