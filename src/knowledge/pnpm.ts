@@ -36,6 +36,8 @@ const localPaths: SourceKnowledge = {
   ),
 };
 
+const WORKSPACE_YAML_V10 = 'https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md';
+
 export const pnpm: ToolKnowledge = {
   id: 'pnpm',
   name: 'pnpm',
@@ -109,6 +111,19 @@ export const pnpm: ToolKnowledge = {
     remoteTarball: exoticSubdeps,
     file: localPaths,
     directory: localPaths,
+  },
+  project: {
+    lockfiles: verified([{ since: '0.0.0', value: ['pnpm-lock.yaml'] }], 'https://github.com/pnpm/pnpm.io/blob/main/docs/git.md'),
+    manifests: verified(
+      ['package.json', 'package.json5', 'package.yaml'],
+      'https://github.com/pnpm/pnpm.io/blob/main/docs/package_json.md',
+    ),
+    workspaces: verified(
+      { files: ['pnpm-workspace.yaml'], key: 'packages' },
+      WORKSPACE_YAML_V10,
+      'Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json.',
+    ),
+    workspacesObjectKey: uncertain(null, WORKSPACE_YAML_V10, 'The docs show packages only as a list; concluded from the absence of an object form.'),
   },
   extra: {
     latestVersion: verified(

@@ -1,0 +1,56 @@
+{
+  "packageManagers": [
+    {
+      "id": "deno",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "deno.lock"
+        },
+        {
+          "kind": "config",
+          "file": "deno.jsonc"
+        },
+        {
+          "kind": "ci",
+          "file": ".github/workflows/ci.yml"
+        }
+      ],
+      "versions": [
+        {
+          "version": "v2.x",
+          "source": "github-actions",
+          "file": ".github/workflows/ci.yml",
+          "line": 10
+        }
+      ],
+      "configFiles": [
+        "deno.jsonc",
+        "packages/util/deno.json"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": {
+    "declarations": [
+      {
+        "file": "deno.jsonc",
+        "patterns": [
+          "./packages/util"
+        ]
+      }
+    ],
+    "packages": [
+      "packages/util"
+    ]
+  },
+  "npmrcFiles": [],
+  "workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "warnings": []
+}

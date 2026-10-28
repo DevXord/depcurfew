@@ -2,6 +2,7 @@ import { parseArgs } from 'node:util';
 import { getVersion } from '../version.ts';
 import { COMMANDS, findCommand } from './commands.ts';
 import { helpText } from './help.ts';
+import { explain } from './explain.ts';
 import { init } from './init.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
@@ -61,13 +62,12 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
     return EXIT_USAGE;
   }
 
-  if (command.name === 'init') {
-    if (rest.length > 1) {
-      io.stderr(`depgate: too many arguments for 'init'\n${USAGE_HINT}`);
-      return EXIT_USAGE;
-    }
-    return init(rest[0], values['force'] === true, io);
+  if (command.implemented && rest.length > 1) {
+    io.stderr(`depgate: too many arguments for '${command.name}'\n${USAGE_HINT}`);
+    return EXIT_USAGE;
   }
+  if (command.name === 'init') return init(rest[0], values['force'] === true, io);
+  if (command.name === 'explain') return explain(rest[0], values['json'] === true, io);
 
   io.stderr(`depgate: '${command.name}' is not implemented yet.\n`);
   return EXIT_FAILURE;

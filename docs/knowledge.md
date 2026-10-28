@@ -6,7 +6,7 @@ The facts depgate relies on, each linked to the official documentation or change
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-7 tools · 186 facts · 28 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-28.
+7 tools · 225 facts · 33 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-28.
 
 ## Release-age cooldown
 
@@ -35,6 +35,18 @@ Whether dependency lifecycle scripts run, and how to allow specific packages.
 | Deno | all versions: deny-except-allowlist [↗](https://docs.deno.com/runtime/reference/cli/install/) | `allowScripts` [↗](https://deno.com/blog/v2.6#granular-control-over-postinstall-scripts-with-deno-approve-scripts) | `deno.json` [↗](https://docs.deno.com/examples/npm_lifecycle_scripts_tutorial/) | 2.6.0 [↗](https://deno.com/blog/v2.6#granular-control-over-postinstall-scripts-with-deno-approve-scripts) | true, an array of npm: constraints (semver ranges allowed, tags rejected) or { "allow": ..., "deny": [...] } [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json) | `allowScripts: false` ❓ [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json) |
 | Renovate | all versions: deny [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts) | none ❓ [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts) | — | — | — | `ignoreScripts: true` [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts) |
 | Dependabot | all versions: deny ❓ [↗](https://github.com/dependabot/dependabot-core/blob/main/npm_and_yarn/lib/dependabot/npm_and_yarn/helpers.rb) | none [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution) | — | — | — | none ❓ [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution) |
+
+## Project files
+
+How depgate recognises each package manager in a repository.
+
+| Tool | Lockfiles | Manifests | Workspaces | Object form key |
+| --- | --- | --- | --- | --- |
+| npm | earlier: `npm-shrinkwrap.json`, `package-lock.json`<br>12.0.0+: `package-lock.json` [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md) | `package.json` [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md) | `{"files":["package.json"],"key":"workspaces"}` [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md#workspaces) | `packages` ❓ [↗](https://github.com/npm/map-workspaces/blob/main/lib/index.js) |
+| pnpm | all versions: `pnpm-lock.yaml` [↗](https://github.com/pnpm/pnpm.io/blob/main/docs/git.md) | `package.json`, `package.json5`, `package.yaml` [↗](https://github.com/pnpm/pnpm.io/blob/main/docs/package_json.md) | `{"files":["pnpm-workspace.yaml"],"key":"packages"}` [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md) | none ❓ [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md) |
+| Yarn (Berry) | all versions: `yarn.lock` [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-fslib/sources/path.ts) | `package.json` [↗](https://yarnpkg.com/configuration/manifest) | `{"files":["package.json"],"key":"workspaces"}` [↗](https://yarnpkg.com/configuration/manifest#workspaces) | `packages` ❓ [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Manifest.ts) |
+| Bun | earlier: `bun.lockb`<br>1.2.0+: `bun.lock`, `bun.lockb` ❓ [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/lockfile.mdx) | `package.json` [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx) | `{"files":["package.json"],"key":"workspaces"}` [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx) | `packages` [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx) |
+| Deno | all versions: `deno.lock` [↗](https://github.com/denoland/docs/blob/main/runtime/reference/deno_json.md) | `deno.json`, `deno.jsonc` [↗](https://github.com/denoland/docs/blob/main/runtime/fundamentals/configuration.md) | `{"files":["deno.json","deno.jsonc"],"key":"workspace"}` [↗](https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md) | `members` [↗](https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md) |
 
 ## Dependency sources
 
@@ -88,6 +100,8 @@ Further facts used by generators and `doctor`.
 
 ### Yarn (Berry)
 
+- `berryLockfileMarker` (❓ uncertain): __metadata ❓ [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Project.ts)
+- `classicLockfileHeader` (✅ verified): # yarn lockfile v1 [↗](https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js)
 - `latestVersion` (✅ verified): 4.18.1 [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.18.1)
 - `bypassFlag` (✅ verified): --no-time-gate on yarn add and yarn up (4.15.0+) [↗](https://yarnpkg.com/cli/add)
 - `perScopeGate` (✅ verified): npmScopes.<scope>.npmMinimalAgeGate overrides the global gate (4.17.0+) [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.17.0)
@@ -112,6 +126,7 @@ Further facts used by generators and `doctor`.
 
 ### Renovate
 
+- `packageJsonConfig` (✅ verified): `{"file":"package.json","key":"renovate"}` [↗](https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts)
 - `durationUnits` (✅ verified): hours, days [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `presets` (✅ verified): config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): "3 days" and internalChecksFilter "strict" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm)
 - `missingTimestamp` (✅ verified): earlier: updates without a release timestamp pass the check<br>42.0.0+: minimumReleaseAgeBehaviour timestamp-required: such updates are held [↗](https://github.com/renovatebot/renovate/releases/tag/42.0.0)
@@ -126,6 +141,27 @@ Further facts used by generators and `doctor`.
 - `missingPublishDate` (✅ verified): Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used [↗](https://github.com/dependabot/dependabot-core/blob/main/docker/README.md)
 - `transitiveGating` (❓ uncertain): Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none ❓ [↗](https://github.com/dependabot/dependabot-core/blob/main/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb)
 - `semverKeysScope` (✅ verified): semver-major/minor/patch-days apply only to SemVer ecosystems such as npm, Bun and Deno; others use default-days [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
+
+## Environment
+
+How repositories pin tool versions (Corepack, devEngines, Volta, asdf) and how GitHub Actions installs them.
+
+- `corepack.packageManagerField` (✅ verified): `{"key":"packageManager","managers":["npm","pnpm","yarn"]}` [↗](https://github.com/nodejs/corepack/blob/main/README.md)
+- `corepack.devEnginesSince` (✅ verified): 0.32.0 [↗](https://github.com/nodejs/corepack/blob/main/CHANGELOG.md)
+- `corepack.envFileSince` (✅ verified): 0.32.0 [↗](https://github.com/nodejs/corepack/blob/main/CHANGELOG.md)
+- `corepack.bundledWithNode` (✅ verified): earlier: false<br>14.19.0+: true<br>25.0.0+: false [↗](https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md)
+- `devEngines` (✅ verified): `{"key":"devEngines","packageManagerKey":"packageManager","runtimeKey":"runtime"}` [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md#devengines)
+- `devEnginesSince` (✅ verified): 10.9.0 [↗](https://github.com/npm/cli/blob/v10.9.0/CHANGELOG.md)
+- `volta.manifest` (✅ verified): `{"key":"volta","tools":["node","npm","pnpm","yarn"]}` [↗](https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/serial.rs)
+- `volta.maintained` (✅ verified): false [↗](https://github.com/volta-cli/volta/blob/main/README.md)
+- `asdf.toolVersionsFile` (✅ verified): .tool-versions [↗](https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md)
+- `asdf.plugins` (✅ verified): `{"nodejs":"node","pnpm":"pnpm","yarn":"yarn","bun":"bun","deno":"deno"}` [↗](https://github.com/asdf-vm/asdf-plugins/tree/master/plugins)
+- `githubActions.workflows` (✅ verified): `{"directory":".github/workflows","extensions":[".yml",".yaml"]}` [↗](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
+- `githubActions.setupNode` (✅ verified): `{"action":"actions/setup-node","installs":["node"],"inputs":[{"name":"node-version","kind":"version","tool":"node"},{"name":"node-version-file","kind":"version-file","tool":"node"}]}` [↗](https://github.com/actions/setup-node/blob/main/action.yml)
+- `githubActions.pnpmActionSetup` (✅ verified): `{"action":"pnpm/action-setup","installs":["pnpm"],"inputs":[{"name":"version","kind":"version","tool":"pnpm"}]}` [↗](https://github.com/pnpm/action-setup/blob/master/action.yml)
+- `githubActions.pnpmSetup` (✅ verified): `{"action":"pnpm/setup","installs":["pnpm"],"inputs":[{"name":"version","kind":"version","tool":"pnpm"},{"name":"runtime","kind":"runtime"},{"name":"node-version-file","kind":"version-file","tool":"node"}]}` [↗](https://github.com/pnpm/setup/blob/main/action.yml)
+- `githubActions.setupBun` (✅ verified): `{"action":"oven-sh/setup-bun","installs":["bun"],"inputs":[{"name":"bun-version","kind":"version","tool":"bun"},{"name":"bun-version-file","kind":"version-file","tool":"bun"}]}` [↗](https://github.com/oven-sh/setup-bun/blob/main/action.yml)
+- `githubActions.setupDeno` (✅ verified): `{"action":"denoland/setup-deno","installs":["deno"],"inputs":[{"name":"deno-version","kind":"version","tool":"deno"},{"name":"deno-version-file","kind":"version-file","tool":"deno"}]}` [↗](https://github.com/denoland/setup-deno/blob/main/action.yml)
 
 ## Notes
 
@@ -145,6 +181,8 @@ Context recorded with verified facts.
 - `sources.file.default`: npm 12 did not change the default. [↗](https://github.blog/changelog/2026-06-09-upcoming-breaking-changes-for-npm-v12/)
 - `sources.directory.values`: The 2026-05-22 GitHub changelog mentions only all and none; the config reference also lists root. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#allow-directory)
 - `sources.directory.default`: npm 12 did not change the default. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#allow-directory)
+- `project.lockfiles`: npm 11 and earlier prefer npm-shrinkwrap.json over package-lock.json when both exist; npm 12 no longer reads or writes npm-shrinkwrap.json (same format, rename it). [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md)
+- `project.workspaces`: An array of folder paths or globs. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md#workspaces)
 - `extra.latestVersion`: Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1). [↗](https://github.com/npm/cli/releases/tag/v12.2.1)
 
 ### pnpm
@@ -158,6 +196,7 @@ Context recorded with verified facts.
 - `installScripts.disableAll`: Default false; --ignore-scripts on the CLI. Also skips the project’s own scripts. [↗](https://pnpm.io/cli/install)
 - `sources.git.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `sources.remoteTarball.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
+- `project.workspaces`: Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md)
 - `extra.latestVersion`: pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches. [↗](https://github.com/pnpm/pnpm/releases/tag/v12.16.1)
 - `extra.strictDepBuilds`: When true, an unreviewed dependency build script fails the install. [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `extra.strictMode`: In non-strict mode pnpm silently writes immature picks into minimumReleaseAgeExclude. Strict mode fails CI installs with ERR_PNPM_NO_MATURE_MATCHING_VERSION. [↗](https://github.com/pnpm/pnpm/releases/tag/v12.3.0)
@@ -170,6 +209,9 @@ Context recorded with verified facts.
 - `installScripts.allowList.file`: Root package.json only; ignored inside workspaces. [↗](https://yarnpkg.com/configuration/manifest#dependenciesMeta)
 - `installScripts.disableAll`: Set in .yarnrc.yml; the default since 4.14.0. yarn install --mode=skip-build skips builds for one run. Berry ignores YARN_IGNORE_SCRIPTS. [↗](https://yarnpkg.com/configuration/yarnrc#enableScripts)
 - `sources.git.default`: Upgraded projects with an old lockfile get ["**"] written to .yarnrc.yml. [↗](https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json)
+- `project.lockfiles`: Yarn Classic uses the same name; see berryLockfileMarker and classicLockfileHeader to tell them apart. [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-fslib/sources/path.ts)
+- `project.workspaces`: Array of folder glob patterns. [↗](https://yarnpkg.com/configuration/manifest#workspaces)
+- `extra.classicLockfileHeader`: Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js). [↗](https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js)
 - `extra.latestVersion`: Yarn 6 is still in preview. [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.18.1)
 - `extra.upgradeMigration`: Explicit values written by depgate prevent the migration. [↗](https://github.com/yarnpkg/berry/pull/7135)
 
@@ -182,6 +224,8 @@ Context recorded with verified facts.
 - `installScripts.defaultPolicy`: Dependency scripts run only for Bun’s built-in trusted list (npm-registry packages only since 1.4) or trustedDependencies; the root project’s scripts run. First version of this policy not tracked. [↗](https://bun.com/docs/pm/lifecycle#trusteddependencies)
 - `installScripts.allowList.setting`: Replaces the built-in default list rather than extending it. bun pm trust and bun add --trust write it. [↗](https://bun.com/docs/pm/lifecycle#trusteddependencies)
 - `installScripts.disableAll`: Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project’s own scripts and trustedDependencies too. [↗](https://bun.com/docs/runtime/bunfig#install-ignorescripts)
+- `project.workspaces`: Full glob syntax, including ! patterns. [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx)
+- `project.workspacesObjectKey`: The object form also holds catalog and catalogs. [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx)
 
 ### Deno
 
@@ -198,6 +242,8 @@ Context recorded with verified facts.
 - `sources.remoteTarball.setting`: Tarball URL dependencies are not supported in package.json. [↗](https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported)
 - `sources.file.setting`: No setting. Since 2.8 file: and link: entries are silently skipped (scope disputed, see fileLinkSkipped); deno.json "links" overrides dependencies with local packages. [↗](https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported)
 - `sources.directory.setting`: No setting; local directories behave like file: and link: entries (see fileLinkSkipped). [↗](https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported)
+- `project.lockfiles`: The default location; lock.path in deno.json can move it and "lock": false turns it off. [↗](https://github.com/denoland/docs/blob/main/runtime/reference/deno_json.md)
+- `project.workspaces`: Paths of members; globs and ! exclusions since Deno 2.1. [↗](https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md)
 
 ### Renovate
 
@@ -212,6 +258,7 @@ Context recorded with verified facts.
 - `cooldown.securityUpdates`: The vulnerabilityAlerts defaults set minimumReleaseAge to null; a delay can still be set inside vulnerabilityAlerts. [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/#what-happens-to-security-updates)
 - `installScripts.defaultPolicy`: Renovate disables package manager scripts when it updates lockfiles; the Mend-hosted app never runs them. [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts)
 - `installScripts.disableAll`: The default; the self-hosted global allowScripts also defaults to false. [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts)
+- `extra.packageJsonConfig`: Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated. [↗](https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts)
 - `extra.durationUnits`: Units shown in the docs: minimumReleaseAge=1 hour on this page and "3 days" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `extra.missingTimestamp`: minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open. [↗](https://github.com/renovatebot/renovate/releases/tag/42.0.0)
 - `extra.independentOfPackageManager`: Source code passes --before to npm only; pnpm, Yarn and Bun gates are not read. [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/)
@@ -226,6 +273,24 @@ Context recorded with verified facts.
 - `cooldown.securityUpdates`: Cooldown exists only for version updates. dependabot-core also passes a zero age to npm, pnpm and Yarn for security updates, overriding repository gates. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
 - `installScripts.allowList.setting`: insecure-external-code-execution: allow exists only for bundler, mix and pip; nothing allows npm, pnpm, Yarn or Bun scripts. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution)
 - `extra.maximumDays`: The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange). [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates)
+
+### Environment
+
+- `corepack.packageManagerField`: Format name@x.y.z, optionally followed by +<hash algorithm>.<hash>; a URL to a .js or .tgz file is also allowed. setup-bun also reads bun@x from this key. [↗](https://github.com/nodejs/corepack/blob/main/README.md)
+- `corepack.devEnginesSince`: Limited support at first; since 0.36.0 Corepack uses the devEngines.packageManager range when packageManager is missing. [↗](https://github.com/nodejs/corepack/blob/main/CHANGELOG.md)
+- `corepack.envFileSince`: Corepack reads COREPACK_* keys from .corepack.env; since 0.36.0 only the closest file. COREPACK_ENV_FILE=0 turns it off. [↗](https://github.com/nodejs/corepack/blob/main/CHANGELOG.md)
+- `corepack.bundledWithNode`: Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0. [↗](https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md)
+- `devEngines`: Each entry is an object or a list of objects with name (required), version and onFail (warn, error by default, or ignore). Corepack and the setup actions read it too. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md#devengines)
+- `devEnginesSince`: npm version that introduced devEngines. [↗](https://github.com/npm/cli/blob/v10.9.0/CHANGELOG.md)
+- `volta.manifest`: Also extends: a path to another JSON file with a volta key. pnpm support is experimental and needs VOLTA_FEATURE_PNPM=1. [↗](https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/serial.rs)
+- `volta.maintained`: The README says Volta is unmaintained and recommends migrating to mise. [↗](https://github.com/volta-cli/volta/blob/main/README.md)
+- `asdf.toolVersionsFile`: One tool per line followed by one or more versions separated by spaces (fallbacks); # starts a comment. [↗](https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md)
+- `asdf.plugins`: Short names in the asdf plugin index; there is no plugin named node. [↗](https://github.com/asdf-vm/asdf-plugins/tree/master/plugins)
+- `githubActions.setupNode`: Current major v7. node-version-file reads package.json, .nvmrc, .node-version, .tool-versions or mise.toml; node-version wins when both are set. [↗](https://github.com/actions/setup-node/blob/main/action.yml)
+- `githubActions.pnpmActionSetup`: Current major v6. Without version the action reads devEngines.packageManager or packageManager from package.json (package_json_file). [↗](https://github.com/pnpm/action-setup/blob/master/action.yml)
+- `githubActions.pnpmSetup`: For pnpm 11 and later. Without version it reads devEngines.packageManager or packageManager; runtime takes <name>@<version> for node, bun or deno. [↗](https://github.com/pnpm/setup/blob/main/action.yml)
+- `githubActions.setupBun`: Current major v2. Without bun-version it reads packageManager (bun@x), then engines.bun, then installs latest. [↗](https://github.com/oven-sh/setup-bun/blob/main/action.yml)
+- `githubActions.setupDeno`: Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions. [↗](https://github.com/denoland/setup-deno/blob/main/action.yml)
 
 ## To review
 
@@ -272,6 +337,12 @@ The 11.14.0 release notes add the flag; the GitHub changelog dates it to 11.15.0
 - Variant 1: `11.14.0` · [source](https://github.com/npm/cli/releases/tag/v11.14.0), verified 2026-10-28.
 - Variant 2: `11.15.0` · [source](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/), verified 2026-10-28.
 
+### npm · `project.workspacesObjectKey` ❓ uncertain
+
+Not documented; npm’s map-workspaces also accepts { "packages": [...] } and negated patterns.
+
+- `packages` · [source](https://github.com/npm/map-workspaces/blob/main/lib/index.js), verified 2026-10-28.
+
 ### npm · `extra.unknownNpmrcKeys` ⚠️ disputed
 
 Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.
@@ -302,6 +373,12 @@ No setting restricts file: or link: dependencies (concluded from the full settin
 No setting restricts file: or link: dependencies (concluded from the full settings list); blockExoticSubdeps treats local paths and workspace links as trusted.
 
 - `null` · [source](https://pnpm.io/settings), verified 2026-10-28.
+
+### pnpm · `project.workspacesObjectKey` ❓ uncertain
+
+The docs show packages only as a list; concluded from the absence of an object form.
+
+- `null` · [source](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md), verified 2026-10-28.
 
 ### pnpm · `extra.lockfileVerification` ❓ uncertain
 
@@ -359,6 +436,18 @@ No setting restricts local directory dependencies (file:, link:, portal:), as fo
 
 - `null` · [source](https://yarnpkg.com/protocol/file), verified 2026-10-28.
 
+### Yarn (Berry) · `project.workspacesObjectKey` ❓ uncertain
+
+Not documented; the manifest parser also accepts { "packages": [...] }.
+
+- `packages` · [source](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Manifest.ts), verified 2026-10-28.
+
+### Yarn (Berry) · `extra.berryLockfileMarker` ❓ uncertain
+
+Read from code: Yarn 2+ writes a __metadata key into yarn.lock and treats a lockfile without it but with "yarn lockfile v1" as Yarn Classic.
+
+- `__metadata` · [source](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Project.ts), verified 2026-10-28.
+
 ### Yarn (Berry) · `extra.unknownSettings` ❓ uncertain
 
 Read from the current source code; older releases were not checked.
@@ -407,6 +496,12 @@ Local tarball dependencies are supported with no setting to allow or forbid them
 Local directory dependencies are supported with no setting to allow or forbid them (concluded from the full bunfig [install] list); install.blockExoticSubdeps is proposed in oven-sh/bun#30340 but not shipped.
 
 - `null` · [source](https://bun.com/docs/pm/cli/add#local-paths), verified 2026-10-28.
+
+### Bun · `project.lockfiles` ❓ uncertain
+
+Bun 1.2 made the text bun.lock the default (verified). That bun.lockb is still read afterwards is inferred from the documented migration command and from saveTextLockfile = false, which writes bun.lockb.
+
+- earlier: `bun.lockb`<br>1.2.0+: `bun.lock`, `bun.lockb` · [source](https://github.com/oven-sh/bun/blob/main/docs/pm/lockfile.mdx), verified 2026-10-28.
 
 ### Deno · `cooldown.availableSince` ⚠️ disputed
 

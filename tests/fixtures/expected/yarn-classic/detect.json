@@ -1,0 +1,33 @@
+{
+  "packageManagers": [
+    {
+      "id": "yarn",
+      "variant": "classic",
+      "supported": false,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "yarn.lock"
+        }
+      ],
+      "versions": [],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": [
+    {
+      "code": "yarn-classic-unsupported",
+      "message": "Yarn Classic (1.x) is not supported; depgate configures Yarn 2 and later",
+      "files": [
+        "yarn.lock"
+      ]
+    }
+  ]
+}

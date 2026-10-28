@@ -1,0 +1,63 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "package-lock.json"
+        }
+      ],
+      "versions": [
+        {
+          "version": "11.6.2",
+          "source": "volta",
+          "file": "package.json"
+        },
+        {
+          "version": "11.6.2",
+          "source": "github-actions",
+          "file": ".github/workflows/ci.yml",
+          "line": 11
+        }
+      ],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": [
+      {
+        "version": "22.11.0",
+        "source": "volta",
+        "file": "package.json"
+      },
+      {
+        "version": "22.11.0",
+        "source": "tool-versions",
+        "file": ".tool-versions",
+        "line": 1
+      },
+      {
+        "versionFile": ".tool-versions",
+        "source": "github-actions",
+        "file": ".github/workflows/ci.yml",
+        "line": 10
+      }
+    ]
+  },
+  "bots": [
+    {
+      "id": "renovate",
+      "configFiles": [
+        ".github/renovate.json5"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "warnings": []
+}

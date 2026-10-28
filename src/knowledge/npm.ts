@@ -21,6 +21,9 @@ const sourceFlagSince = () =>
     evidence('11.15.0', INSTALL_TIME_CONTROLS),
   );
 
+const LOCKFILE_V12 = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md';
+const PACKAGE_JSON = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md';
+
 export const npm: ToolKnowledge = {
   id: 'npm',
   name: 'npm',
@@ -143,6 +146,23 @@ export const npm: ToolKnowledge = {
       availableSince: sourceFlagSince(),
       default: verified([{ since: '11.14.0', value: 'all' }], `${CONFIG}#allow-directory`, 'npm 12 did not change the default.'),
     },
+  },
+  project: {
+    lockfiles: verified(
+      [
+        { since: '0.0.0', value: ['npm-shrinkwrap.json', 'package-lock.json'] },
+        { since: '12.0.0', value: ['package-lock.json'] },
+      ],
+      LOCKFILE_V12,
+      'npm 11 and earlier prefer npm-shrinkwrap.json over package-lock.json when both exist; npm 12 no longer reads or writes npm-shrinkwrap.json (same format, rename it).',
+    ),
+    manifests: verified(['package.json'], PACKAGE_JSON),
+    workspaces: verified({ files: ['package.json'], key: 'workspaces' }, `${PACKAGE_JSON}#workspaces`, 'An array of folder paths or globs.'),
+    workspacesObjectKey: uncertain(
+      'packages',
+      'https://github.com/npm/map-workspaces/blob/main/lib/index.js',
+      'Not documented; npm’s map-workspaces also accepts { "packages": [...] } and negated patterns.',
+    ),
   },
   extra: {
     latestVersion: verified(

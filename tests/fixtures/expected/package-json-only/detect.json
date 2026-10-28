@@ -1,0 +1,32 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "default",
+          "file": "package.json"
+        }
+      ],
+      "versions": [],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": [
+    {
+      "code": "package-manager-assumed",
+      "message": "no lockfile, packageManager or devEngines found; assuming npm",
+      "files": [
+        "package.json"
+      ]
+    }
+  ]
+}

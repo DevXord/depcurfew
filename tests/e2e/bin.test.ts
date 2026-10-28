@@ -49,7 +49,7 @@ describe('built depgate executable', () => {
     try {
       const first = depgateIn(directory, 'init');
       expect(first.status).toBe(0);
-      expect(first.stdout).toBe('Created depgate.json with the default policy.\n');
+      expect(first.stdout).toBe('Created depgate.json with the default policy.\nDetected tools: none.\n');
       expect(readFileSync(join(directory, 'depgate.json'), 'utf8')).toBe(
         readFileSync(new URL('tests/fixtures/init/depgate.json', root), 'utf8'),
       );
@@ -60,6 +60,16 @@ describe('built depgate executable', () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+
+  it('explain --json describes a fixture repository', () => {
+    const result = depgate('explain', '--json', fileURLToPath(new URL('tests/fixtures/repos/npm-basic', root)));
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      schemaVersion: 1,
+      project: JSON.parse(readFileSync(new URL('tests/fixtures/expected/npm-basic/detect.json', root), 'utf8')),
+      policy: null,
+    });
   });
 
   it('an unknown command exits with 2', () => {

@@ -1,0 +1,20 @@
+{
+  "name": "npm-devengines-renovate-key",
+  "version": "1.0.0",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=22"
+    },
+    "packageManager": {
+      "name": "npm",
+      "version": "^11.6.0",
+      "onFail": "error"
+    }
+  },
+  "renovate": {
+    "extends": [
+      "config:recommended"
+    ]
+  }
+}

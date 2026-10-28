@@ -1,0 +1,7 @@
+{
+  // Deno configuration with comments
+  "workspace": ["./packages/util"],
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.0"
+  }
+}

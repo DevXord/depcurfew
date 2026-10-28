@@ -1,0 +1,24 @@
+{
+  "packageManagers": [
+    {
+      "id": "bun",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "bun.lockb"
+        }
+      ],
+      "versions": [],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}
