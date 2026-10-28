@@ -33,7 +33,8 @@
     "build": "tsdown",
     "test": "tsdown && vitest run",
     "typecheck": "tsc --noEmit",
-    "check:pkg": "tsdown && publint && attw --pack . --profile esm-only"
+    "check:pkg": "tsdown && publint && attw --pack . --profile esm-only",
+    "docs:knowledge": "node scripts/generate-knowledge.ts"
   },
   "keywords": [
     "supply-chain",
