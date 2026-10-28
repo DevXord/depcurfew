@@ -2,6 +2,31 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-28 · Faza 1: baza wiedzy o menedżerach paczek
+
+- `src/knowledge/` zawiera jeden moduł na narzędzie: npm, pnpm, Yarn (Berry), Bun, Deno, Renovate i Dependabot. Razem to 184 fakty: 142 zweryfikowane, 28 niepewnych i 14 spornych. Każdy fakt ma `source` (oficjalny URL) i `verifiedAt` (2026-10-28).
+- Zakres:
+  - opóźnienie: nazwa opcji, pliki, flaga CLI, jednostka, wersja minimalna, wartości domyślne zależne od wersji, wyjątki i ich składnia, zachowanie wobec aktualizacji bezpieczeństwa;
+  - skrypty instalacyjne: domyślna polityka, allowlista, wyłącznik;
+  - źródła git, zdalnych tarballi, lokalnych plików i katalogów (tylko menedżery paczek);
+  - fakty dodatkowe dla `doctor`.
+- Mechanika:
+  - `validate.ts` odrzuca wpis bez źródła, ze źródłem spoza oficjalnych domen, z błędną lub przyszłą datą, spór z jednym wariantem lub bez notatki i wartość bez źródła (D-012, D-013);
+  - `render.ts` generuje `docs/knowledge.md` z tabelami, sekcją „Additional facts”, notatkami i listą „To review”;
+  - `npm run docs:knowledge` waliduje bazę przed zapisem.
+- Testy (101, wszystkie przechodzą):
+  - walidator na celowo zepsutych wpisach;
+  - renderer na syntetycznej bazie;
+  - prawdziwa baza: komplet narzędzi i faktów, zero błędów walidacji, `docs/knowledge.md` zgodny z bazą.
+- Najważniejsze różnice względem punktów wyjścia z planu:
+  - npm 12 jest wydany (12.0.0, 2026-07-08): domyślnie blokuje skrypty zależności, a `allow-git`/`allow-remote` mają domyślnie `none`;
+  - pnpm 12 jest bieżącą wersją główną. pnpm 11 usunął `onlyBuiltDependencies` na rzecz `allowBuilds` i nie czyta już ustawień innych niż uwierzytelnianie i rejestr z `.npmrc`;
+  - Yarn ma od 4.14.0 skrypty domyślnie wyłączone, a `npmMinimalAgeGate` od 4.15.0 domyślnie `1d`. Migracja lockfile'a w starych projektach wpisuje łagodniejsze wartości;
+  - Bun od 1.4.4 przyjmuje jednostki czasu, a `trustedDependencies` zastępuje wbudowaną listę zaufanych paczek;
+  - Deno od 2.9.0 ma domyślne opóźnienie 24 h (liczba oznacza minuty);
+  - Dependabot od 2026-07-14 ma domyślny cooldown 3 dni, a Renovate ma flagę CLI `--minimum-release-age`.
+- Weryfikacja: `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
+
 ## 2026-10-28 · Faza 0: szkielet repozytorium
 
 - Dodano szkielet CLI w TypeScript, tylko ESM:
