@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test *)",
+      "Bash(npm run build *)",
+      "Bash(npm run typecheck *)",
+      "Bash(npm run check:pkg *)",
+      "Bash(npm run docs:knowledge *)",
+      "Bash(npm run schema *)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(node dist/cli.js *)",
+      "Bash(node scripts/generate-knowledge.ts)",
+      "Bash(node scripts/generate-schema.ts)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch)",
+      "Bash(git branch --show-current)",
+      "Bash(git branch -a)",
+      "Bash(git branch -vv)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}
