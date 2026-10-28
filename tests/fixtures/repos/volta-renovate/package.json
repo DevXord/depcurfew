@@ -1,0 +1,8 @@
+{
+  "name": "volta-renovate",
+  "version": "1.0.0",
+  "volta": {
+    "node": "22.11.0",
+    "npm": "11.6.2"
+  }
+}

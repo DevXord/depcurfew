@@ -27,6 +27,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 ## D-004 · Zero zależności w czasie działania w fazach 0–1 (2026-10-28)
 - **Decyzja:** `dependencies` jest puste. `yaml` dojdzie w fazie 4, kiedy generatory zaczną edytować YAML.
 - **Konsekwencje:** test `tests/meta/package.test.ts` dopuszcza w `dependencies` wyłącznie `yaml` i nie dopuszcza `peer`/`optional`/`bundle` dependencies.
+- **Aktualizacja:** `yaml` doszła już w fazie 3, zob. D-022.
 
 ## D-005 · Wspierane wersje Node (2026-10-28)
 - **Decyzja:** `engines.node` ma wartość `>=22`. Praca nad repozytorium wymaga Node ≥ 22.18.
@@ -205,3 +206,81 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - powtórzone klucze JSON nie są wykrywane (D-015);
   - zamiana niepoprawnego czasu na 0 w Renovate to kandydat na regułę `doctor` w fazie 5 (D-020).
 - **Publiczne API:** `src/index.ts` eksportuje funkcje polityki: `parsePolicy`, `validatePolicy`, `formatIssue`, `parseDuration`, `formatDuration`, `convertCooldown`, `convertMinutes`, `toDurationString`, `DEFAULT_POLICY`, `renderPolicy`, `POLICY_FILE` i `SCHEMA_URL`, a także typy `Policy`, `ResolvedPolicy`, `PolicyIssue`, `Duration` i `CooldownConversion`. Zmiana tych nazw po wydaniu 1.0 będzie zmianą łamiącą.
+
+## D-022 · Zależność `yaml` od fazy 3 (2026-10-28)
+- **Decyzja (zatwierdzona przez właściciela):** `yaml@2.9.1` w `dependencies`, przypięta dokładnie.
+- **Uzasadnienie:** wykrywanie czyta workflow GitHub Actions i `pnpm-workspace.yaml`. Własny parser YAML byłby w narzędziu bezpieczeństwa większym ryzykiem niż jedna zależność bez zależności przechodnich.
+- **Weryfikacja w rejestrze npm (2026-10-28):**
+  - wersja z tagiem `latest`, opublikowana 2026-09-11, czyli 47 dni temu (powyżej 7-dniowego opóźnienia);
+  - zero zależności, licencja ISC;
+  - jedyny opiekun i wydawca to `eemeli`; paczka nie ma atestacji proweniencji;
+  - `npm audit` nie zgłasza podatności.
+- **Konsekwencje:** paczka jest w formacie CommonJS, ale nazwane importy z ESM działają w Node 22. Test `tests/meta/package.test.ts` już dopuszczał `yaml`.
+
+## D-023 · Wiedza o projekcie i środowisku (2026-10-28)
+- **Sekcja `project`** w module każdego menedżera paczek:
+  - zawiera `lockfiles` (zależne od wersji), `manifests`, `workspaces` i `workspacesObjectKey`;
+  - jest wymagana przez `requiredFactPaths`;
+  - w `docs/knowledge.md` ma tabelę „Project files”.
+- **Dział „środowisko”** (`src/knowledge/environment.ts`):
+  - Corepack: klucz `packageManager` i obsługiwane menedżery, od której wersji czyta `devEngines` i `.corepack.env`, dystrybucja z Node.js;
+  - `devEngines` w npm;
+  - Volta: klucz w `package.json` i status utrzymania;
+  - asdf: plik `.tool-versions` i nazwy wtyczek;
+  - GitHub Actions: katalog workflow i rozszerzenia, a także pięć akcji instalujących narzędzia, z nazwami wejść.
+- **Źródła:** dział ma własną listę oficjalnych lokalizacji (`ENVIRONMENT_SOURCES`): nodejs.org, docs.github.com oraz `github.com/` z prefiksami `nodejs/`, `npm/`, `volta-cli/`, `asdf-vm/`, `actions/`, `pnpm/`, `oven-sh/` i `denoland/`.
+- **Walidacja i renderowanie:** `validateEnvironment` stosuje te same reguły co dla narzędzi. Renderer ma sekcję „Environment”, a notatki i lista „To review” obejmują też środowisko.
+- **Fakty dodatkowe:**
+  - Yarn: `berryLockfileMarker` (niepewny) i `classicLockfileHeader`;
+  - Renovate: `packageJsonConfig`, czyli przestarzały klucz `renovate` w `package.json`.
+- **Konsekwencje:** detektor bierze nazwy plików, klucze i akcje wyłącznie z bazy (`src/detect/knowledge.ts`). Przy fakcie spornym łączy nazwy plików ze wszystkich wariantów, żeby żadnego pliku nie przeoczyć.
+
+## D-024 · Sposób ustalenia faktów fazy 3 (2026-10-28)
+- **Badanie:** dwóch agentów badawczych zebrało fakty z URL-em i dosłownym cytatem. Jeden zajmował się plikami blokad, workspace'ami i plikami konfiguracyjnymi, drugi Corepackiem, `devEngines`, Voltą, asdf i akcjami CI.
+- **Weryfikacja wyrywkowa:** sam sprawdziłem wejścia wszystkich akcji (`action.yml`), nazwy wtyczek asdf, format `packageManager`, strukturę klucza `volta`, shrinkwrap w npm 11 i 12, plik blokady i workspace'y Bun, formy `workspace` w Deno, znaczniki plików blokad Yarn oraz klucz `renovate` w `package.json`.
+- **Sieć:**
+  - z sesji były dostępne tylko raw.githubusercontent.com, yarnpkg.com, nodejs.org i rejestr npm;
+  - dokumentację npm, pnpm, Bun, Deno, Volty, asdf i GitHuba czytałem z plików źródłowych w oficjalnych repozytoriach;
+  - cytuję je adresem `github.com/<org>/<repo>/blob/<ref>/<ścieżka>`; wyjątkiem jest składnia workflow, cytowana adresem strony docs.github.com zbudowanej z pliku w `github/docs`.
+- **Fakty niepewne:**
+  - forma obiektowa `workspaces` w npm i Yarn (wynika z kodu);
+  - brak formy obiektowej w pnpm (wniosek z braku opisu);
+  - odczyt `bun.lockb` po Bun 1.2;
+  - znacznik `__metadata` w Yarn Berry.
+- **Spostrzeżenia na fazy 4–5:**
+  - npm 12 nie czyta `npm-shrinkwrap.json`;
+  - Node.js 25+ nie zawiera Corepacka;
+  - Volta nie jest utrzymywana;
+  - dla pnpm 11+ jest nowa akcja `pnpm/setup`;
+  - pnpm czyta `pnpm-workspace.yaml` także w projekcie jednopakietowym i ignoruje `workspaces` z `package.json`.
+
+## D-025 · Model wykrywania (2026-10-28)
+- **Granice:** `detectProject(katalog)` tylko czyta pliki.
+  - Nie korzysta z sieci i niczego z repozytorium nie uruchamia.
+  - Nie wychodzi poza katalog repozytorium, także przez symlinki.
+  - Pomija `node_modules` i `.git`.
+  - Pliki większe niż 1 MiB pomija z ostrzeżeniem, a z `yarn.lock` czyta tylko pierwsze 4 KiB.
+- **Kiedy menedżer jest w użyciu:** gdy ma dowód: plik blokady, `packageManager`, `devEngines.packageManager`, własny plik konfiguracyjny albo krok instalacji w CI. Sama wersja w Volcie lub `.tool-versions` nie wystarcza.
+- **Brak dowodu przy obecnym `package.json`:** zakładamy npm i zgłaszamy ostrzeżenie `package-manager-assumed`, żeby `targets: "auto"` nie skończyło się po cichu niczym.
+- **Yarn:** Berry czy Classic rozstrzyga plik blokady, a gdy go nie ma, wersja w `packageManager`. Classic jest wykrywany, ale oznaczony jako nieobsługiwany (zatwierdzona decyzja 4).
+- **Pliki konfiguracyjne:** `.npmrc` jest listowane osobno (`npmrcFiles`), bo czyta je kilka narzędzi. Pliki konfiguracyjne menedżera nie obejmują `package.json` ani `.npmrc`, za to obejmują pakiety workspace'u.
+- **Wersje:** zapisuję je dosłownie, także zakresy i wyrażenia `${{ … }}`, z plikiem i linią. Porównanie z wersjami minimalnymi to zadanie fazy 5.
+- **Workspace'y:** własny matcher z `*`, `**` i `!`. Wzorce z `..` lub ścieżką absolutną odrzucam z ostrzeżeniem.
+- **Kody ostrzeżeń:** `invalid-file`, `file-too-large`, `outside-repository`, `invalid-package-manager`, `workspace-outside-repository`, `multiple-lockfiles`, `package-manager-mismatch`, `yarn-classic-unsupported`, `renovate-config-in-package-json`, `package-manager-assumed`, `nothing-detected`.
+- **Ograniczenia:**
+  - nie są śledzone: `lock.path` w `deno.json`, inny `package_json_file` w akcji pnpm, workflow wielokrotnego użytku i akcje złożone;
+  - `npm install -g npm@…` w krokach `run` rozpoznaje wyrażenie regularne.
+
+## D-026 · `depgate explain` i fikstury repozytoriów (2026-10-28)
+- **Polecenie:** `depgate explain [katalog] [--json]` zwraca JSON `{ schemaVersion: 1, project, policy }`.
+  - Bez `depgate.json` pole `policy` ma wartość `null`.
+  - Z poprawną polityką raport zawiera `targets`. Przy `"auto"` są to wykryte obsługiwane menedżery i boty, przy liście dokładnie wymienione narzędzia.
+  - Raport zawiera też `cooldown: { minimum, tools }` z wartościami przeliczonymi jak w fazie 2. Narzędzie, którego maksimum na to nie pozwala, dostaje `ok: false` z powodem.
+  - Niepoprawna polityka daje listę błędów i kod wyjścia 1.
+- **`init`:** wypisuje wykryte narzędzia; treść tworzonego pliku się nie zmienia.
+- **Opcje:** każde polecenie ma własne: `--force` należy do `init`, `--json` do `explain`.
+- **Publiczne API:** `src/index.ts` eksportuje też `detectProject` i typy wyniku (`Detection`, `DetectionWarning`, `PackageManagerInfo`, `VersionDeclaration`).
+- **Fikstury (zatwierdzona decyzja 3):**
+  - repozytoria leżą w `tests/fixtures/repos/<nazwa>/`, oczekiwany wynik wykrywania w `tests/fixtures/expected/<nazwa>/detect.json`;
+  - fikstury nie mają prawdziwych zależności;
+  - polecenie w `CLAUDE.md` zmieniłem na `explain tests/fixtures/repos/<nazwa>`.

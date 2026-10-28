@@ -1,0 +1,55 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "package-lock.json"
+        },
+        {
+          "kind": "devEngines",
+          "file": "package.json"
+        }
+      ],
+      "versions": [
+        {
+          "version": "^11.6.0",
+          "source": "devEngines",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": [
+      {
+        "version": ">=22",
+        "source": "devEngines",
+        "file": "package.json"
+      }
+    ]
+  },
+  "bots": [
+    {
+      "id": "renovate",
+      "configFiles": [
+        "package.json"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": [
+    {
+      "code": "renovate-config-in-package-json",
+      "message": "Renovate configuration in package.json is deprecated and depgate does not edit it; move it to renovate.json",
+      "files": [
+        "package.json"
+      ]
+    }
+  ]
+}

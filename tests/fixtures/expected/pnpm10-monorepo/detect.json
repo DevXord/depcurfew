@@ -1,0 +1,70 @@
+{
+  "packageManagers": [
+    {
+      "id": "pnpm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "pnpm-lock.yaml"
+        },
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        },
+        {
+          "kind": "config",
+          "file": "pnpm-workspace.yaml"
+        },
+        {
+          "kind": "ci",
+          "file": ".github/workflows/ci.yml"
+        }
+      ],
+      "versions": [
+        {
+          "version": "10.12.1",
+          "source": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": [
+        "pnpm-workspace.yaml"
+      ]
+    }
+  ],
+  "node": {
+    "versions": [
+      {
+        "version": "22",
+        "source": "github-actions",
+        "file": ".github/workflows/ci.yml",
+        "line": 11
+      }
+    ]
+  },
+  "bots": [],
+  "workspaces": {
+    "declarations": [
+      {
+        "file": "pnpm-workspace.yaml",
+        "patterns": [
+          "apps/*",
+          "packages/*",
+          "!packages/legacy"
+        ]
+      }
+    ],
+    "packages": [
+      "apps/web",
+      "packages/ui"
+    ]
+  },
+  "npmrcFiles": [
+    ".npmrc"
+  ],
+  "workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "warnings": []
+}

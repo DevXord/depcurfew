@@ -18,6 +18,8 @@ const noSetting = (anchor: string, kind: string): SourceKnowledge => ({
   ),
 });
 
+const WORKSPACES = 'https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx';
+
 export const bun: ToolKnowledge = {
   id: 'bun',
   name: 'Bun',
@@ -91,6 +93,19 @@ export const bun: ToolKnowledge = {
     remoteTarball: noSetting('tarball-dependencies', 'Tarball URL'),
     file: noSetting('local-paths', 'Local tarball'),
     directory: noSetting('local-paths', 'Local directory'),
+  },
+  project: {
+    lockfiles: uncertain(
+      [
+        { since: '0.0.0', value: ['bun.lockb'] },
+        { since: '1.2.0', value: ['bun.lock', 'bun.lockb'] },
+      ],
+      'https://github.com/oven-sh/bun/blob/main/docs/pm/lockfile.mdx',
+      'Bun 1.2 made the text bun.lock the default (verified). That bun.lockb is still read afterwards is inferred from the documented migration command and from saveTextLockfile = false, which writes bun.lockb.',
+    ),
+    manifests: verified(['package.json'], WORKSPACES),
+    workspaces: verified({ files: ['package.json'], key: 'workspaces' }, WORKSPACES, 'Full glob syntax, including ! patterns.'),
+    workspacesObjectKey: verified('packages', 'https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx', 'The object form also holds catalog and catalogs.'),
   },
   extra: {
     latestVersion: verified('1.4.4', 'https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4'),

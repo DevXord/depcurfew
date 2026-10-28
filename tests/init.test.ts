@@ -1,6 +1,7 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../src/cli/run.ts';
 import { parsePolicy } from '../src/policy/validate.ts';
@@ -36,7 +37,11 @@ describe('depgate init', () => {
 
   it('creates depgate.json with the default policy', async () => {
     const result = await exec('init', directory);
-    expect(result).toEqual({ code: EXIT_OK, stdout: `Created ${policyFile} with the default policy.\n`, stderr: '' });
+    expect(result).toEqual({
+      code: EXIT_OK,
+      stdout: `Created ${policyFile} with the default policy.\nDetected tools: none.\n`,
+      stderr: '',
+    });
     expect(readFileSync(policyFile, 'utf8')).toBe(EXPECTED);
   });
 
@@ -57,7 +62,11 @@ describe('depgate init', () => {
   it('overwrites an existing policy file with --force', async () => {
     writeFileSync(policyFile, '{ "version": 1 }\n');
     const result = await exec('init', '--force', directory);
-    expect(result).toEqual({ code: EXIT_OK, stdout: `Overwrote ${policyFile} with the default policy.\n`, stderr: '' });
+    expect(result).toEqual({
+      code: EXIT_OK,
+      stdout: `Overwrote ${policyFile} with the default policy.\nDetected tools: none.\n`,
+      stderr: '',
+    });
     expect(readFileSync(policyFile, 'utf8')).toBe(EXPECTED);
   });
 
@@ -85,6 +94,12 @@ describe('depgate init', () => {
     const result = await exec('init', directory, '--force');
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stderr).toMatch(new RegExp(`^depgate: cannot write ${policyFile.replaceAll('\\', '\\\\')}: `));
+  });
+
+  it('reports the tools it detects', async () => {
+    cpSync(fileURLToPath(new URL('fixtures/repos/pnpm11-dependabot', import.meta.url)), directory, { recursive: true });
+    const result = await exec('init', directory);
+    expect(result.stdout).toBe(`Created ${policyFile} with the default policy.\nDetected tools: pnpm, Dependabot.\n`);
   });
 
   it('accepts at most one directory', async () => {

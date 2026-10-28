@@ -124,7 +124,31 @@ export const yarn: ToolKnowledge = {
       'No setting restricts local directory dependencies (file:, link:, portal:), as for local tarballs.',
     ),
   },
+  project: {
+    lockfiles: verified(
+      [{ since: '0.0.0', value: ['yarn.lock'] }],
+      'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-fslib/sources/path.ts',
+      'Yarn Classic uses the same name; see berryLockfileMarker and classicLockfileHeader to tell them apart.',
+    ),
+    manifests: verified(['package.json'], MANIFEST),
+    workspaces: verified({ files: ['package.json'], key: 'workspaces' }, `${MANIFEST}#workspaces`, 'Array of folder glob patterns.'),
+    workspacesObjectKey: uncertain(
+      'packages',
+      'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Manifest.ts',
+      'Not documented; the manifest parser also accepts { "packages": [...] }.',
+    ),
+  },
   extra: {
+    berryLockfileMarker: uncertain(
+      '__metadata',
+      'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Project.ts',
+      'Read from code: Yarn 2+ writes a __metadata key into yarn.lock and treats a lockfile without it but with "yarn lockfile v1" as Yarn Classic.',
+    ),
+    classicLockfileHeader: verified(
+      '# yarn lockfile v1',
+      'https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js',
+      'Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js).',
+    ),
     latestVersion: verified('4.18.1', release('4.18.1'), 'Yarn 6 is still in preview.'),
     bypassFlag: verified('--no-time-gate on yarn add and yarn up (4.15.0+)', 'https://yarnpkg.com/cli/add'),
     perScopeGate: verified('npmScopes.<scope>.npmMinimalAgeGate overrides the global gate (4.17.0+)', release('4.17.0')),

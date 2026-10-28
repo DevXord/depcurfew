@@ -1,6 +1,6 @@
 import { collectFacts, evidenceOf, factAt, type FactEntry } from './facts.ts';
 import { SOURCE_KINDS } from './schema.ts';
-import type { Evidence, Fact, ToolKind, ToolKnowledge } from './types.ts';
+import type { EnvironmentKnowledge, Evidence, Fact, ToolKind, ToolKnowledge } from './types.ts';
 
 type Style = 'code' | 'text';
 
@@ -66,6 +66,18 @@ export const TABLE_SECTIONS: readonly TableSection[] = [
       { title: 'Allow-list since', path: 'installScripts.allowList.availableSince', empty: 'n/a' },
       { title: 'Allow-list format', path: 'installScripts.allowList.format', empty: 'n/a' },
       { title: 'Disable all', path: 'installScripts.disableAll', style: 'code', empty: 'none' },
+    ],
+  },
+  {
+    heading: 'Project files',
+    kinds: ['package-manager'],
+    intro: 'How depgate recognises each package manager in a repository.',
+    rows: singleRow,
+    columns: [
+      { title: 'Lockfiles', path: 'project.lockfiles', style: 'code' },
+      { title: 'Manifests', path: 'project.manifests', style: 'code' },
+      { title: 'Workspaces', path: 'project.workspaces', style: 'code' },
+      { title: 'Object form key', path: 'project.workspacesObjectKey', style: 'code', empty: 'none' },
     ],
   },
   {
@@ -172,22 +184,50 @@ function renderExtras(tools: readonly ToolKnowledge[]): string[] {
   return lines;
 }
 
-function renderNotes(tools: readonly ToolKnowledge[]): string[] {
+/** A named group of facts: one tool, or the environment. */
+interface FactGroup {
+  name: string;
+  entry: object;
+}
+
+const ENVIRONMENT_NAME = 'Environment';
+
+function groups(tools: readonly ToolKnowledge[], environment: EnvironmentKnowledge | undefined): FactGroup[] {
+  const named: FactGroup[] = tools.map((tool) => ({ name: tool.name, entry: tool }));
+  return environment === undefined ? named : [...named, { name: ENVIRONMENT_NAME, entry: environment }];
+}
+
+function renderEnvironment(environment: EnvironmentKnowledge | undefined): string[] {
+  if (environment === undefined) return [];
+  const lines = [
+    '## Environment',
+    '',
+    'How repositories pin tool versions (Corepack, devEngines, Volta, asdf) and how GitHub Actions installs them.',
+    '',
+  ];
+  for (const { path, fact } of collectFacts(environment)) {
+    lines.push(`- \`${path}\` (${statusLabel(fact)}): ${renderCell(fact, 'text', 'none')}`);
+  }
+  lines.push('');
+  return lines;
+}
+
+function renderNotes(groupsToRender: readonly FactGroup[]): string[] {
   const lines = ['## Notes', '', 'Context recorded with verified facts.', ''];
-  for (const tool of tools) {
-    const noted = collectFacts(tool).filter(
+  for (const { name, entry } of groupsToRender) {
+    const noted = collectFacts(entry).filter(
       (entry): entry is FactEntry & { fact: Evidence<unknown> & { status: 'verified' } } =>
         entry.fact.status === 'verified' && entry.fact.note !== undefined,
     );
     if (noted.length === 0) continue;
-    lines.push(`### ${tool.name}`, '');
+    lines.push(`### ${name}`, '');
     for (const { path, fact } of noted) lines.push(`- \`${path}\`: ${fact.note ?? ''} ${link(fact)}`);
     lines.push('');
   }
   return lines;
 }
 
-function renderReview(tools: readonly ToolKnowledge[]): string[] {
+function renderReview(groupsToRender: readonly FactGroup[]): string[] {
   const lines = [
     '## To review',
     '',
@@ -195,11 +235,11 @@ function renderReview(tools: readonly ToolKnowledge[]): string[] {
     '',
   ];
   let count = 0;
-  for (const tool of tools) {
-    for (const { path, fact } of collectFacts(tool)) {
+  for (const { name, entry } of groupsToRender) {
+    for (const { path, fact } of collectFacts(entry)) {
       if (fact.status === 'verified') continue;
       count += 1;
-      lines.push(`### ${tool.name} · \`${path}\` ${statusLabel(fact)}`, '', fact.note, '');
+      lines.push(`### ${name} · \`${path}\` ${statusLabel(fact)}`, '', fact.note, '');
       if (fact.status === 'disputed') {
         fact.variants.forEach((variant, index) => lines.push(evidenceLine(variant, `Variant ${index + 1}: `)));
       } else {
@@ -212,8 +252,8 @@ function renderReview(tools: readonly ToolKnowledge[]): string[] {
   return lines;
 }
 
-function renderSummary(tools: readonly ToolKnowledge[]): string {
-  const facts = tools.flatMap((tool) => collectFacts(tool).map((entry) => entry.fact));
+function renderSummary(tools: readonly ToolKnowledge[], groupsToRender: readonly FactGroup[]): string {
+  const facts = groupsToRender.flatMap(({ entry }) => collectFacts(entry).map((item) => item.fact));
   const dates = facts.flatMap((fact) => evidenceOf(fact).map((evidence) => evidence.verifiedAt)).sort();
   const uncertain = facts.filter((fact) => fact.status === 'uncertain').length;
   const disputed = facts.filter((fact) => fact.status === 'disputed').length;
@@ -221,7 +261,8 @@ function renderSummary(tools: readonly ToolKnowledge[]): string {
   return `${tools.length} tools · ${facts.length} facts · ${uncertain} uncertain · ${disputed} disputed · verified ${range}.`;
 }
 
-export function renderKnowledgeMarkdown(tools: readonly ToolKnowledge[]): string {
+export function renderKnowledgeMarkdown(tools: readonly ToolKnowledge[], environment?: EnvironmentKnowledge): string {
+  const all = groups(tools, environment);
   const lines = [
     '<!-- Generated by `npm run docs:knowledge` from src/knowledge/. Do not edit by hand. -->',
     '',
@@ -231,12 +272,13 @@ export function renderKnowledgeMarkdown(tools: readonly ToolKnowledge[]): string
     '',
     'Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".',
     '',
-    renderSummary(tools),
+    renderSummary(tools, all),
     '',
     ...TABLE_SECTIONS.flatMap((section) => renderTable(section, tools)),
     ...renderExtras(tools),
-    ...renderNotes(tools),
-    ...renderReview(tools),
+    ...renderEnvironment(environment),
+    ...renderNotes(all),
+    ...renderReview(all),
   ];
   return `${lines.join('\n').trimEnd()}\n`;
 }

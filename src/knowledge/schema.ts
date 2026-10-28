@@ -34,6 +34,8 @@ const COMMON_GROUPS: readonly FactGroup[] = [
   },
 ];
 
+const PROJECT_FACTS = ['project.lockfiles', 'project.manifests', 'project.workspaces', 'project.workspacesObjectKey'];
+
 const SOURCE_GROUPS: readonly FactGroup[] = SOURCE_KINDS.map((kind) => ({
   anchor: `sources.${kind}.setting`,
   dependents: ['values', 'availableSince', 'default'].map((field) => `sources.${kind}.${field}`),
@@ -45,7 +47,7 @@ const SOURCE_GROUPS: readonly FactGroup[] = SOURCE_KINDS.map((kind) => ({
  */
 export function requiredFactPaths(tool: { kind: ToolKind }): readonly string[] {
   const groups = tool.kind === 'package-manager' ? [...COMMON_GROUPS, ...SOURCE_GROUPS] : COMMON_GROUPS;
-  const paths = [...ALWAYS_REQUIRED];
+  const paths = tool.kind === 'package-manager' ? [...ALWAYS_REQUIRED, ...PROJECT_FACTS] : [...ALWAYS_REQUIRED];
   for (const group of groups) {
     paths.push(group.anchor);
     const anchor = factAt(tool, group.anchor);

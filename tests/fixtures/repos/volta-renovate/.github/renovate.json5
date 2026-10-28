@@ -1,0 +1,4 @@
+{
+  // Renovate configuration
+  extends: ['config:recommended'],
+}
