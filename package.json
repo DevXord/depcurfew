@@ -1,0 +1,59 @@
+{
+  "name": "depgate",
+  "version": "0.0.0",
+  "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot, plus a doctor that finds config that silently does nothing.",
+  "license": "MIT",
+  "author": "DevXord",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DevXord/depgate.git"
+  },
+  "homepage": "https://github.com/DevXord/depgate#readme",
+  "bugs": {
+    "url": "https://github.com/DevXord/depgate/issues"
+  },
+  "type": "module",
+  "bin": {
+    "depgate": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "tsdown && vitest run",
+    "typecheck": "tsc --noEmit",
+    "check:pkg": "tsdown && publint && attw --pack . --profile esm-only"
+  },
+  "keywords": [
+    "supply-chain",
+    "security",
+    "npm",
+    "pnpm",
+    "yarn",
+    "bun",
+    "deno",
+    "renovate",
+    "dependabot",
+    "minimum-release-age",
+    "cooldown"
+  ],
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@types/node": "22.20.5",
+    "publint": "0.3.25",
+    "tsdown": "0.22.14",
+    "typescript": "6.0.3",
+    "vitest": "4.1.12"
+  }
+}

@@ -1,0 +1,14 @@
+# Local planning documents (never committed)
+docs/PLAN.md
+plan-polityka-supply-chain.md
+
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+*.tgz
+
+# Logs and OS noise
+npm-debug.log*
+.DS_Store
+Thumbs.db

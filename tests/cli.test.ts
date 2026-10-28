@@ -1,0 +1,72 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../src/cli/run.ts';
+
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+
+async function exec(...argv: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+  let stdout = '';
+  let stderr = '';
+  const code = await run(argv, {
+    stdout: (text) => {
+      stdout += text;
+    },
+    stderr: (text) => {
+      stderr += text;
+    },
+  });
+  return { code, stdout, stderr };
+}
+
+describe('depgate CLI', () => {
+  it.each([['--help'], ['-h'], ['help']])('%s prints usage and the command list', async (flag) => {
+    const result = await exec(flag);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toContain('Usage: depgate <command> [options]');
+    for (const command of ['init', 'apply', 'doctor', 'explain']) {
+      expect(result.stdout).toMatch(new RegExp(`^\\s+${command}\\s`, 'm'));
+    }
+    expect(result.stderr).toBe('');
+  });
+
+  it('prints help when called without arguments', async () => {
+    const result = await exec();
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toContain('Usage: depgate');
+  });
+
+  it.each([['--version'], ['-v']])('%s prints the package version', async (flag) => {
+    const result = await exec(flag);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toBe(`${pkg.version}\n`);
+  });
+
+  it('rejects an unknown command with a usage error', async () => {
+    const result = await exec('frobnicate');
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain("unknown command 'frobnicate'");
+    expect(result.stderr).toContain('depgate --help');
+  });
+
+  it('rejects an unknown flag with a usage error', async () => {
+    const result = await exec('--frobnicate');
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stderr).toContain('--frobnicate');
+  });
+
+  it.each([['init'], ['apply'], ['doctor'], ['explain']])(
+    'planned command %s reports that it is not implemented yet',
+    async (command) => {
+      const result = await exec(command);
+      expect(result.code).toBe(EXIT_FAILURE);
+      expect(result.stderr).toContain(`'${command}' is not implemented yet`);
+    },
+  );
+
+  it('shows help instead of running a command when --help is given', async () => {
+    const result = await exec('doctor', '--help');
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toContain('Usage: depgate');
+  });
+});
