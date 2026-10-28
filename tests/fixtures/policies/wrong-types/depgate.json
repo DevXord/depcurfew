@@ -1,0 +1,7 @@
+{
+  "version": "1",
+  "cooldown": "3d",
+  "installScripts": { "default": true, "allow": "esbuild" },
+  "sources": { "git": "block", "file": null },
+  "targets": 5
+}

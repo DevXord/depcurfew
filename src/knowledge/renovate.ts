@@ -95,6 +95,11 @@ export const renovate: ToolKnowledge = {
     ),
   },
   extra: {
+    durationUnits: verified(
+      ['hours', 'days'],
+      'https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md',
+      'Units shown in the docs: minimumReleaseAge=1 hour on this page and "3 days" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values.',
+    ),
     presets: verified(
       'config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): "3 days" and internalChecksFilter "strict" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback',
       'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm',

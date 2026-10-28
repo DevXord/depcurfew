@@ -24,7 +24,8 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "schema.json"
   ],
   "engines": {
     "node": ">=22"
@@ -34,7 +35,8 @@
     "test": "tsdown && vitest run",
     "typecheck": "tsc --noEmit",
     "check:pkg": "tsdown && publint && attw --pack . --profile esm-only",
-    "docs:knowledge": "node scripts/generate-knowledge.ts"
+    "docs:knowledge": "node scripts/generate-knowledge.ts",
+    "schema": "node scripts/generate-schema.ts"
   },
   "keywords": [
     "supply-chain",

@@ -1,0 +1,9 @@
+cooldown.exclude[1]: invalid package pattern "esbuild@0.25.0": versions are not supported; write "esbuild"
+cooldown.exclude[2]: invalid package pattern "": must not be empty
+cooldown.exclude[3]: invalid package pattern "*": it matches every package; list packages explicitly
+cooldown.exclude[4]: invalid package pattern "foo bar": must not contain spaces
+cooldown.exclude[5]: must be a package name or pattern, got 3
+cooldown.exclude[6]: duplicate entry "@acme/*" (first at index 0)
+cooldown.exclude[7]: invalid package pattern "./local": expected a package name or a name pattern with *, e.g. "esbuild", "@scope/name" or "@scope/*"
+installScripts.allow[0]: invalid package pattern "@playwright/test@1.50.0": versions are not supported; write "@playwright/test"
+installScripts.allow[1]: invalid package pattern "**": it matches every package; list packages explicitly

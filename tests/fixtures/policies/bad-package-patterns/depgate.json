@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "cooldown": {
+    "minimum": "3d",
+    "exclude": ["@acme/*", "esbuild@0.25.0", "", "*", "foo bar", 3, "@acme/*", "./local"]
+  },
+  "installScripts": { "default": "deny", "allow": ["@playwright/test@1.50.0", "**"] }
+}

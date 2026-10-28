@@ -1,0 +1,1 @@
+cooldown.minimum: invalid duration "999999999999999w": too large

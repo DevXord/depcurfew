@@ -1,3 +1,11 @@
 export { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from './cli/run.ts';
 export type { CliIo } from './cli/run.ts';
 export { getVersion } from './version.ts';
+export { convertCooldown, convertMinutes, toDurationString } from './policy/convert.ts';
+export type { CooldownConversion, Converted, DurationStringUnit, NumericDelayUnit } from './policy/convert.ts';
+export { DEFAULT_POLICY, POLICY_FILE, renderPolicy, SCHEMA_URL } from './policy/defaults.ts';
+export { formatDuration, parseDuration } from './policy/duration.ts';
+export type { Duration, DurationResult } from './policy/duration.ts';
+export type { Policy, ResolvedPolicy } from './policy/schema.ts';
+export { formatIssue, parsePolicy, validatePolicy } from './policy/validate.ts';
+export type { PolicyIssue, PolicyResult } from './policy/validate.ts';

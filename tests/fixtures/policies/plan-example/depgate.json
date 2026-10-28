@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/depgate/schema.json",
+  "version": 1,
+  "cooldown": { "minimum": "3d", "exclude": ["@moja-firma/*"], "securityUpdates": "bypass" },
+  "installScripts": { "default": "deny", "allow": ["esbuild", "sharp", "@playwright/test"] },
+  "sources": { "git": "deny", "remoteTarball": "deny", "file": "allow" },
+  "targets": "auto"
+}
