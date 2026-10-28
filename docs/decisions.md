@@ -284,3 +284,12 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - repozytoria leżą w `tests/fixtures/repos/<nazwa>/`, oczekiwany wynik wykrywania w `tests/fixtures/expected/<nazwa>/detect.json`;
   - fikstury nie mają prawdziwych zależności;
   - polecenie w `CLAUDE.md` zmieniłem na `explain tests/fixtures/repos/<nazwa>`.
+
+## D-027 · Zatwierdzenie decyzji fazy 3 (2026-10-28)
+- **Zatwierdzenie:** właściciel zaakceptował decyzje podjęte w trakcie fazy 3 poza planem:
+  - domyślny npm z ostrzeżeniem `package-manager-assumed`, gdy jest `package.json`, ale brak dowodu użycia menedżera (D-025);
+  - format JSON `explain` (`{ schemaVersion: 1, project, policy }`, `cooldown: { minimum, tools }`) i kod wyjścia 1 przy niepoprawnym `depgate.json` (D-026);
+  - obsługa akcji `pnpm/setup` obok `pnpm/action-setup` (D-023);
+  - eksport `detectProject` i typów wyniku w publicznym API (D-026);
+  - matcher workspace'ów, w którym `*` dopasowuje też katalogi zaczynające się od kropki (D-025);
+  - spostrzeżenia dla faz 4–5 (D-024).
