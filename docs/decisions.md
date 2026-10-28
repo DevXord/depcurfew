@@ -293,3 +293,91 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - eksport `detectProject` i typów wyniku w publicznym API (D-026);
   - matcher workspace'ów, w którym `*` dopasowuje też katalogi zaczynające się od kropki (D-025);
   - spostrzeżenia dla faz 4–5 (D-024).
+
+## D-028 · `depgate apply`: przebieg i wyjście (2026-10-28)
+- **Polecenie:** `depgate apply [katalog] [--dry-run]`.
+  - Najpierw cały plan powstaje w pamięci (`planApply`, bufor `Workspace`), dopiero potem pliki są zapisywane.
+  - `--dry-run` niczego nie zapisuje i wypisuje zunifikowany diff (Myers, 3 linie kontekstu) ze znacznikiem `\ No newline at end of file`, więc diff przyjmuje `git apply`.
+  - Na stdout trafia wynik: lista utworzonych i zmienionych plików albo diff. Na stderr trafiają ostrzeżenia (`warning:`), fragmenty do wklejenia ręcznie i błędy (`error:`), więc wyjście `--dry-run` można zapisać jako łatkę.
+- **Kody wyjścia:**
+  - 0 także przy ostrzeżeniach (zatwierdzona decyzja 8);
+  - 1 przy braku albo niepoprawnym `depgate.json` i przy pliku, którego nie da się edytować.
+- **Wszystko albo nic:** jeśli choć jednego pliku nie da się edytować (np. zepsuty JSON albo symlink), `apply` nie zapisuje żadnego pliku. Generator, który trafił na błąd, przerywa pracę, ale pozostałe dalej działają, żeby jeden przebieg zgłosił wszystkie zepsute pliki.
+- **Cele:**
+  - `targets: "auto"` oznacza wykryte obsługiwane menedżery i boty;
+  - Yarn Classic dostaje ostrzeżenie i nic nie jest dla niego zapisywane (zatwierdzona decyzja 4);
+  - wersja menedżera to pierwsza dokładna wersja w kolejności wykrywania (`packageManager`, `devEngines`, Volta, …);
+  - bez dokładnej wersji generator przyjmuje najnowszą wersję z bazy i zgłasza ostrzeżenie (zatwierdzona decyzja 5).
+- **Wersje:** ustawienie nowsze niż wersja menedżera nie jest zapisywane. Ostrzeżenie ma postać `<narzędzie> <wersja> does not support <ustawienie> (since <wersja>); not written`.
+- **Kolejność:**
+  - najpierw menedżery paczek, potem boty;
+  - w generatorze: opóźnienie → wyjątki (tylko gdy opóźnienie zostało zapisane) → skrypty instalacyjne → źródła;
+  - powtórzone ostrzeżenia są usuwane.
+- **Boty czekają co najmniej tyle co menedżery:** opóźnienie botów to `botDuration` = max(opóźnienie z polityki, opóźnienia zapisane przez menedżery). Przykład: przy `36h` npm zaokrągla do 2 dni, więc Renovate dostaje `"2 days"`, a Dependabot `default-days: 2`. Inaczej bot proponowałby wersje, których menedżer (np. pnpm 11 z Dependabotem) jeszcze nie zainstaluje. `explain` pokazuje przeliczenie dla każdego narzędzia osobno i nie stosuje `botDuration`.
+- **Publiczne API:** `src/index.ts` eksportuje `applyProject`, `planApply`, `loadPolicy`, `PolicyError`, `botDuration`, `unifiedDiff` i typy `ApplyReport`, `FileChange`, `Snippet`.
+
+## D-029 · Edytory plików konfiguracyjnych (2026-10-28)
+- **Styl pliku:** edycja pracuje na tekście z LF. Przy zapisie przywracane są oryginalne końce linii, BOM i końcowy znak nowej linii. Nowe pliki mają LF i końcowy znak nowej linii.
+- **INI (`.npmrc`) i TOML (`bunfig.toml`):** zarządzany blok ze znacznikami `# >>> depgate managed block: edit depgate.json and run depgate apply instead` i `# <<< depgate managed block` (zatwierdzona decyzja 6).
+  - Istniejący blok jest podmieniany w miejscu, nowy trafia na koniec pliku (w TOML na koniec tabeli `[install]`, którą w razie potrzeby tworzy).
+  - Zarządzany klucz ustawiony poza blokiem jest zakomentowany jako `# depgate: superseded by the managed block: <linia>` (zatwierdzona decyzja 7). W TOML dotyczy to także zapisu z kropką na najwyższym poziomie (`install.klucz`), a podtabele są pomijane.
+  - Gdy polityka nie ma już nic do zapisania, depgate usuwa tylko własny blok.
+- **YAML (`pnpm-workspace.yaml`, `.yarnrc.yml`, `dependabot.yml`):**
+  - biblioteka `yaml` tylko znajduje węzły, a zmiana to minimalna edycja tekstu, bo `toString()` przeformatowuje cały dokument;
+  - komentarze, cudzysłowy i odstępy poza zmienianą wartością zostają bajt w bajt, komentarz w tej samej linii co skalar też;
+  - nad każdym zapisanym kluczem pojawia się linia `# managed by depgate` (zatwierdzona decyzja 6);
+  - wcięcie i styl list są wykrywane z pliku.
+- **JSON i JSONC (`package.json`, `deno.json(c)`, `renovate.json(c)`):** własny edytor na drzewie z pozycjami. Zachowuje komentarze, przecinki na końcu, kolejność kluczy, wcięcie (tabulator albo najmniejsze wcięcie spacjami) i jednolinijkowe kontenery. Bez znaczników, bo JSON nie ma komentarzy (zatwierdzona decyzja 6).
+- **Bezpieczeństwo zapisu:**
+  - depgate nie zapisuje przez symlinki ani poza repozytorium;
+  - zapis idzie przez plik tymczasowy (`wx`) i `rename`;
+  - istniejący plik zachowuje uprawnienia.
+
+## D-030 · Co `apply` zarządza i jak łączy się z istniejącymi ustawieniami (2026-10-28)
+- **Allowlisty skryptów są tylko uzupełniane:** npm `allowScripts`, pnpm `allowBuilds` (od 10.26.0) albo `onlyBuiltDependencies` (wcześniej; w `pnpm-workspace.yaml` od 10.5.0, a przed nią w `package.json`), Yarn `dependenciesMeta.<paczka>.built`, Bun `trustedDependencies` i Deno `allowScripts`. Wpisy spoza polityki zostają, bo `apply` nie usuwa niezarządzanych ustawień. Wzorce z `*` są pomijane z ostrzeżeniem, bo te listy przyjmują tylko nazwy.
+- **Listy wyjątków od opóźnienia są zastępowane polityką:** npm `min-release-age-exclude`, pnpm `minimumReleaseAgeExclude`, Yarn `npmPreapprovedPackages`, Bun `minimumReleaseAgeExcludes`, Deno `minimumDependencyAge.exclude`, Dependabot `cooldown.exclude` i reguła Renovate. Wyjątki osłabiają ochronę, więc ich jedynym źródłem jest polityka. Wzorzec, którego narzędzie lub jego wersja nie obsługuje, jest pomijany z ostrzeżeniem, co oznacza dłuższe opóźnienie.
+- **Przełączniki „pozwól na wszystko” przy `deny`:**
+  - npm: `dangerously-allow-all-scripts` poza blokiem jest zakomentowane;
+  - pnpm: `dangerouslyAllowAllBuilds: true` zmienia się na `false`;
+  - Deno: `allowScripts: true` zastępuje lista z polityki, przy pustej liście `[]` (schemat dopuszcza pustą tablicę, a znaczenie `false` jest w bazie niepewne);
+  - pnpm i Deno zgłaszają przy tym ostrzeżenie.
+- **pnpm `blockExoticSubdeps`:** jedno ustawienie obejmuje git i tarballe i działa tylko dla zależności przechodnich. Dostaje `true`, gdy polityka blokuje którekolwiek z tych źródeł. Ostrzeżenie mówi, że bezpośrednie zależności pozostają dozwolone, a drugie ostrzeżenie pojawia się, gdy polityka traktuje git i tarballe różnie.
+- **Yarn:** gdy polityka zarządza skryptami lub źródłem git, `enableScripts` i `approvedGitRepositories` są zapisywane jawnie, także gdy zgadzają się z wartością domyślną, żeby migracja przy aktualizacji Yarna nie wpisała łagodniejszych wartości.
+- **Bun:** utworzenie `trustedDependencies` daje ostrzeżenie, bo lista zastępuje wbudowaną listę zaufanych paczek. Bun nie ma ustawienia „pozwól na wszystkie skrypty”, więc `default: "allow"` daje ostrzeżenie.
+- **Renovate:**
+  - edytowany jest pierwszy istniejący plik konfiguracyjny `.json`/`.jsonc`;
+  - depgate zarządza `minimumReleaseAge`, regułą w `packageRules` rozpoznawaną po `description: "depgate: packages excluded from minimumReleaseAge"` (usuwaną, gdy polityka nie ma wyjątków) i `vulnerabilityAlerts.minimumReleaseAge` (`null` przy `bypass`, wartość przy `delay`);
+  - `renovate.json5` i klucz `renovate` w `package.json` nie są edytowane; depgate wypisuje fragment do wklejenia (zatwierdzona decyzja 9);
+  - brak pliku daje ostrzeżenie zamiast tworzenia konfiguracji (zatwierdzona decyzja 10).
+- **Dependabot:**
+  - depgate edytuje każdy wpis `updates` z ekosystemem npm, bun lub deno;
+  - ustawia `cooldown.default-days` i `cooldown.exclude`, a pozostałe klucze `cooldown` (`semver-*-days`, `include`) zostawia;
+  - Dependabot nie opóźnia aktualizacji bezpieczeństwa, więc `securityUpdates: "delay"` daje ostrzeżenie;
+  - pliku nie tworzy (zatwierdzona decyzja 10).
+- **Pliki menedżerów** (`.npmrc`, `pnpm-workspace.yaml`, `.yarnrc.yml`, `bunfig.toml`, `deno.json`) są tworzone, gdy ich brakuje (zatwierdzona decyzja 10).
+
+## D-031 · Fakty dodane w fazie 4 (2026-10-28)
+- Wszystkie w `extra` danego narzędzia, ze źródłem i datą 2026-10-28. Sprawdzone w plikach źródłowych oficjalnej dokumentacji i kodu (sieć jak w D-024):
+  - npm (`docs/.../npmrc.md` i `definitions.js` v12.2.1): składnia list `klucz[]=wartość`, `dangerously-allow-all-scripts` od 11.16.0, globy w `min-release-age-exclude` od 11.17.0;
+  - pnpm (ustawienia 10.x, `settings/build.md` 11.x): `dangerouslyAllowAllBuilds` od 10.9.0, globy w `minimumReleaseAgeExclude` od 10.17.0, `onlyBuiltDependencies` od 10.0.0 (w `pnpm-workspace.yaml` od 10.5.0, usunięte w 11.0.0);
+  - Yarn (strona o `.yarnrc.yml`): `enableScripts` jako przełącznik, globy w `npmPreapprovedPackages` od 4.10.0;
+  - Bun (wpis o wydaniu 1.4.4): `minimumReleaseAgeExcludes` bez globów;
+  - Deno (`config-file.v1.json` v2.9.8): klucz `age` w formie obiektowej, prefiks `npm:`, `allowScripts: true` od 2.6.0, końcowa `*` w wyjątkach od 2.9.2;
+  - Renovate: reguła wyłączenia przez `packageRules` + `matchPackageNames` + `minimumReleaseAge: null`, `vulnerabilityAlerts.minimumReleaseAge`, globy w `matchPackageNames` od 38.0.0, pole `description`;
+  - Dependabot: ekosystemy npm, bun i deno, klucze `default-days` i `exclude`, `*` w `exclude`.
+- `docs/knowledge.md` jest wygenerowany na nowo.
+
+## D-032 · Fikstury „przed i po” dla `apply` (2026-10-28)
+- **Układ (zatwierdzona decyzja 3):**
+  - `tests/fixtures/expected/<nazwa>/after/` zawiera tylko pliki, które `apply` zmienia;
+  - `apply.json` zawiera `{ changed, warnings, snippets }`;
+  - wspólna polityka leży w `tests/fixtures/apply/policy.json`, a fikstura może mieć własny `expected/<nazwa>/depgate.json`.
+- **Test każdej fikstury sprawdza, że:**
+  - wynik i raport są zgodne z oczekiwanymi;
+  - pozostałe pliki się nie zmieniły;
+  - żadne niezarządzane ustawienie nie zniknęło ani nie zmieniło wartości (YAML/JSON porównane po sparsowaniu, INI/TOML linia po linii);
+  - drugie `apply` nie zmienia żadnego pliku.
+- **Nowe fikstury:**
+  - `npm-existing-config`: CRLF, tabulatory, stary blok, zarządzany klucz poza blokiem;
+  - `pnpm-renovate-dependabot`: komentarze w YAML, JSONC z przecinkiem na końcu, istniejący `semver-major-days`, wpis github-actions;
+  - `pnpm-allow-all-builds` i `deno-allow-all-scripts`: przełączniki „pozwól na wszystko” przy `deny`.

@@ -116,6 +116,14 @@ export const deno: ToolKnowledge = {
     workspacesObjectKey: verified('members', WORKSPACES),
   },
   extra: {
+    ageObjectKey: verified('age', SCHEMA, 'In the object form of minimumDependencyAge, age holds the delay and exclude the exemptions.'),
+    excludeWildcards: verified(
+      { since: '2.9.2', trailingOnly: true },
+      SCHEMA,
+      'A trailing * matches by prefix (npm:@scope/*) since 2.9.2; earlier wildcard entries never matched.',
+    ),
+    npmSpecifierPrefix: verified('npm:', SCHEMA, 'Exclusions and allowScripts entries name npm packages as npm:<name>.'),
+    allowAllScripts: verified({ setting: 'allowScripts', since: '2.6.0', value: true }, SCHEMA, 'allowScripts: true allows every npm lifecycle script.'),
     latestVersion: verified('2.9.8', release('2.9.8')),
     npmrcFormat: disputed(
       'The safe choice is an integer number of days, which also matches npm.',

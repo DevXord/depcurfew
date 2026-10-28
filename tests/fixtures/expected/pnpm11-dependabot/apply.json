@@ -1,0 +1,11 @@
+{
+  "changed": [
+    ".github/dependabot.yml",
+    "pnpm-workspace.yaml"
+  ],
+  "warnings": [
+    "pnpm: allowBuilds takes package names only; \"@scope/*\" not written",
+    "pnpm: blockExoticSubdeps blocks git and tarball dependencies only when they are subdependencies; direct ones stay allowed"
+  ],
+  "snippets": []
+}

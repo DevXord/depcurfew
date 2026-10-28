@@ -1,0 +1,7 @@
+{
+  "name": "bun-lockb",
+  "version": "1.0.0",
+  "trustedDependencies": [
+    "esbuild"
+  ]
+}

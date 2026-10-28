@@ -1,0 +1,7 @@
+# Workspace settings
+packages:
+  - 'packages/*'   # all packages
+
+minimumReleaseAge: 1440 # one day, set by hand
+allowBuilds:
+  sharp: true

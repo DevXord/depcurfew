@@ -108,6 +108,11 @@ export const bun: ToolKnowledge = {
     workspacesObjectKey: verified('packages', 'https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx', 'The object form also holds catalog and catalogs.'),
   },
   extra: {
+    excludeWildcards: verified(
+      { since: null, trailingOnly: false },
+      BUN_1_4_4,
+      'minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards.',
+    ),
     latestVersion: verified('1.4.4', 'https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4'),
     trustedDependenciesReplacesDefaults: verified(
       'Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts',

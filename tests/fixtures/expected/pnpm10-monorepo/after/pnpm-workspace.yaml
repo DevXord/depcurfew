@@ -1,0 +1,7 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - '!packages/legacy'
+# managed by depgate
+onlyBuiltDependencies:
+  - esbuild

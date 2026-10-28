@@ -126,6 +126,21 @@ export const pnpm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, WORKSPACE_YAML_V10, 'The docs show packages only as a list; concluded from the absence of an object form.'),
   },
   extra: {
+    allowAllBuilds: verified(
+      { setting: 'dangerouslyAllowAllBuilds', since: '10.9.0', value: true },
+      'https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md',
+      'Boolean, default false; packages denied in allowBuilds stay blocked.',
+    ),
+    excludeWildcards: verified(
+      { since: '10.17.0', trailingOnly: false },
+      SETTINGS_V10,
+      'Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0.',
+    ),
+    onlyBuiltDependencies: verified(
+      { since: '10.0.0', workspaceFileSince: '10.5.0', removedIn: '11.0.0' },
+      BUILD_V11,
+      'The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, also pnpm-workspace.yaml since 10.5.0; removed in 11.0.0 (see legacyAllowList).',
+    ),
     latestVersion: verified(
       '12.16.1',
       release('12.16.1'),

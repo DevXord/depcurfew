@@ -1,0 +1,9 @@
+{
+	"name": "npm-existing-config",
+	"version": "1.0.0",
+	"packageManager": "npm@12.2.1",
+	"allowScripts": {
+		"sharp": true,
+		"esbuild": true
+	}
+}

@@ -1,0 +1,15 @@
+{
+  "changed": [
+    "bunfig.toml",
+    "package.json"
+  ],
+  "warnings": [
+    "Bun: no exact version is pinned; configuring for Bun 1.4.4, the latest known version",
+    "Bun: install.minimumReleaseAgeExcludes does not support the pattern \"@acme/*\"; not written",
+    "Bun: trustedDependencies takes package names only; \"@scope/*\" not written",
+    "Bun: trustedDependencies replaces Bun's built-in list of trusted packages; packages on that list no longer run install scripts unless listed",
+    "Bun has no setting for git dependencies; \"deny\" cannot be enforced",
+    "Bun has no setting for remote tarball dependencies; \"deny\" cannot be enforced"
+  ],
+  "snippets": []
+}

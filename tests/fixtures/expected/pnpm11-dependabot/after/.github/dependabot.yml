@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # managed by depgate
+    cooldown:
+      default-days: 3
+      exclude:
+        - "@acme/*"
+        - left-pad

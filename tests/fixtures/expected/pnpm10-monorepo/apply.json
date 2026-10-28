@@ -1,0 +1,11 @@
+{
+  "changed": [
+    "pnpm-workspace.yaml"
+  ],
+  "warnings": [
+    "pnpm 10.12.1 does not support minimumReleaseAge (since 10.16.0); not written",
+    "pnpm: onlyBuiltDependencies takes package names only; \"@scope/*\" not written",
+    "pnpm 10.12.1 does not support blockExoticSubdeps (since 10.26.0); not written"
+  ],
+  "snippets": []
+}

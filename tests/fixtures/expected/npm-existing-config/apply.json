@@ -1,0 +1,10 @@
+{
+  "changed": [
+    ".npmrc",
+    "package.json"
+  ],
+  "warnings": [
+    "npm: allowScripts takes package names only; \"@scope/*\" not written"
+  ],
+  "snippets": []
+}

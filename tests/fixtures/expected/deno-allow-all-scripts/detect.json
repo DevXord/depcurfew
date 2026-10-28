@@ -1,0 +1,26 @@
+{
+  "packageManagers": [
+    {
+      "id": "deno",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "config",
+          "file": "deno.json"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "deno.json"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}
