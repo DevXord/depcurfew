@@ -96,7 +96,7 @@ function readPackageManagerField(repository: Repository, facts: DetectionFacts, 
   const [, name = '', version = ''] = match;
   const manager = facts.managers.find((entry) => entry.id === name);
   if (manager === undefined) {
-    repository.warn('invalid-package-manager', `${facts.packageManagerKey} names ${name}, which depgate does not know`, ['package.json']);
+    repository.warn('invalid-package-manager', `${facts.packageManagerKey} names ${name}, which depcurfew does not know`, ['package.json']);
     return undefined;
   }
   collector.addEvidence(manager.id, 'packageManager', 'package.json');
@@ -239,7 +239,7 @@ export function detectProject(
     if (evidence === undefined) continue;
     const yarn = manager.id === 'yarn' ? yarnVariant(repository, facts, collector) : undefined;
     if (yarn?.variant === 'classic') {
-      repository.warn('yarn-classic-unsupported', 'Yarn Classic (1.x) is not supported; depgate configures Yarn 2 and later', [yarn.file]);
+      repository.warn('yarn-classic-unsupported', 'Yarn Classic (1.x) is not supported; depcurfew configures Yarn 2 and later', [yarn.file]);
     }
     packageManagers.push({
       id: manager.id,
@@ -258,7 +258,7 @@ export function detectProject(
       files.push('package.json');
       repository.warn(
         'renovate-config-in-package-json',
-        'Renovate configuration in package.json is deprecated and depgate does not edit it; move it to renovate.json',
+        'Renovate configuration in package.json is deprecated and depcurfew does not edit it; move it to renovate.json',
         ['package.json'],
       );
     }

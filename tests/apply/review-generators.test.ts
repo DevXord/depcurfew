@@ -14,11 +14,11 @@ afterAll(() => {
 
 describe('Dependabot semver-*-days', () => {
   it('raises the ones below the policy, keeps longer ones and adds none', () => {
-    const root = mkdtempSync(join(tmpdir(), 'depgate-dependabot-'));
+    const root = mkdtempSync(join(tmpdir(), 'depcurfew-dependabot-'));
     temporary.push(root);
     mkdirSync(join(root, '.github'));
     writeFileSync(join(root, 'package.json'), '{"name": "app", "packageManager": "npm@11.19.1"}\n');
-    writeFileSync(join(root, 'depgate.json'), '{"version": 1, "cooldown": {"minimum": "3d"}}\n');
+    writeFileSync(join(root, 'depcurfew.json'), '{"version": 1, "cooldown": {"minimum": "3d"}}\n');
     writeFileSync(
       join(root, '.github/dependabot.yml'),
       'version: 2\nupdates:\n  - package-ecosystem: npm\n    directory: "/"\n    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 1\n      semver-patch-days: 1\n      semver-major-days: 30\n',

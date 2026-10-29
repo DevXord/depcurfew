@@ -5,7 +5,7 @@
       "file": "package-lock.json",
       "line": 41
     },
-    "message": "core-js has install scripts that npm will not run because depgate.json does not allow it; the package may need them",
-    "fix": "Review its scripts and add core-js to installScripts.allow in depgate.json, or replace the package"
+    "message": "core-js has install scripts that npm will not run because depcurfew.json does not allow it; the package may need them",
+    "fix": "Review its scripts and add core-js to installScripts.allow in depcurfew.json, or replace the package"
   }
 ]

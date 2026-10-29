@@ -64,7 +64,7 @@ function structured(file: string, text: string): unknown {
   return undefined;
 }
 
-/** Every setting present before is still there afterwards, with the same value unless depgate manages it. */
+/** Every setting present before is still there afterwards, with the same value unless depcurfew manages it. */
 function expectNothingUnmanagedLost(file: string, before: string, after: string): void {
   const old = structured(file, before);
   if (old !== undefined) {
@@ -94,11 +94,11 @@ describe('apply on fixture repositories', () => {
     const expectedReport = join(EXPECTED, name, 'apply.json');
     expect(existsSync(expectedReport), `${name} has an apply.json`).toBe(true);
 
-    const directory = mkdtempSync(join(tmpdir(), `depgate-apply-${name}-`));
+    const directory = mkdtempSync(join(tmpdir(), `depcurfew-apply-${name}-`));
     temporary.push(directory);
     cpSync(join(REPOS, name), directory, { recursive: true });
-    const ownPolicy = join(EXPECTED, name, 'depgate.json');
-    writeFileSync(join(directory, 'depgate.json'), existsSync(ownPolicy) ? readFileSync(ownPolicy, 'utf8') : DEFAULT_POLICY);
+    const ownPolicy = join(EXPECTED, name, 'depcurfew.json');
+    writeFileSync(join(directory, 'depcurfew.json'), existsSync(ownPolicy) ? readFileSync(ownPolicy, 'utf8') : DEFAULT_POLICY);
     const original = snapshot(directory);
 
     const report = applyProject(directory, { write: true });

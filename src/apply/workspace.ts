@@ -39,7 +39,7 @@ export class Workspace {
     if (parent !== this.root && !parent.startsWith(this.root + sep)) throw new Error(`${file} is outside the repository`);
     let original: string | null = null;
     try {
-      if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depgate does not write through symlinks`);
+      if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
       original = readFileSync(path, 'utf8');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
@@ -80,7 +80,7 @@ export function writeChanges(root: string, changes: readonly FileChange[]): void
   for (const change of changes) {
     const path = join(root, change.file);
     mkdirSync(dirname(path), { recursive: true });
-    const temporary = `${path}.depgate-${process.pid}-${Date.now()}`;
+    const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}`;
     writeFileSync(temporary, change.after, { flag: 'wx' });
     if (change.before !== null) chmodSync(temporary, statSync(path).mode);
     renameSync(temporary, path);

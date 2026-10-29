@@ -35,7 +35,7 @@ export function helpText(colors: Paint = PLAIN): string {
   ]);
 
   const text = [
-    'Usage: depgate <command> [options]',
+    'Usage: depcurfew <command> [options]',
     '',
     'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot.',
     '',
@@ -44,21 +44,22 @@ export function helpText(colors: Paint = PLAIN): string {
     '',
     'Options:',
     '  -h, --help     Show this help',
-    '  -v, --version  Show the depgate version',
+    '  -v, --version  Show the depcurfew version',
     ...commandOptions,
     '',
-    "Run 'depgate <command> --help' for what a command does, examples and exit codes.",
+    "Run 'depcurfew <command> --help' for what a command does, examples and exit codes.",
+    "'dcf' is a short name for 'depcurfew': dcf doctor works like depcurfew doctor.",
     '',
   ].join('\n');
   return headings(text, colors);
 }
 
-/** `depgate <command> --help`: what the command does, its options, examples and exit codes. */
+/** `depcurfew <command> --help`: what the command does, its options, examples and exit codes. */
 export function commandHelpText(command: CommandInfo, colors: Paint = PLAIN): string {
   const options = [...(command.options ?? []).map((option) => [`--${option.name}`, option.summary] as const), ['-h, --help', 'Show this help'] as const];
   const width = Math.max(...options.map(([name]) => name.length));
   const text = [
-    `Usage: depgate ${[command.name, command.arguments, '[options]'].filter(Boolean).join(' ')}`,
+    `Usage: depcurfew ${[command.name, command.arguments, '[options]'].filter(Boolean).join(' ')}`,
     '',
     `${command.summary}.`,
     '',

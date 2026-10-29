@@ -1,4 +1,4 @@
-// A minimal JSON Schema (draft-07) evaluator for the keywords depgate's generator emits. It exists only to check
+// A minimal JSON Schema (draft-07) evaluator for the keywords depcurfew's generator emits. It exists only to check
 // that schema.json accepts and rejects the same documents as the validator, without adding a dependency.
 // Any other keyword throws, so the generator cannot start emitting something this evaluator ignores.
 

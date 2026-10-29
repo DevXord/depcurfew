@@ -5,8 +5,8 @@
       "file": "pnpm-lock.yaml",
       "line": 26
     },
-    "message": "pnpm-lock.yaml installs foo from a git repository (git+https://example.com/foo.git#0123456789abcdef0123456789abcdef01234567), which depgate.json denies",
-    "fix": "Use a registry version of foo, or set sources.git to \"allow\" in depgate.json"
+    "message": "pnpm-lock.yaml installs foo from a git repository (git+https://example.com/foo.git#0123456789abcdef0123456789abcdef01234567), which depcurfew.json denies",
+    "fix": "Use a registry version of foo, or set sources.git to \"allow\" in depcurfew.json"
   },
   {
     "level": "error",
@@ -14,8 +14,8 @@
       "file": "pnpm-lock.yaml",
       "line": 30
     },
-    "message": "pnpm-lock.yaml installs is-negative from a git repository (https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c), which depgate.json denies",
-    "fix": "Use a registry version of is-negative, or set sources.git to \"allow\" in depgate.json"
+    "message": "pnpm-lock.yaml installs is-negative from a git repository (https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c), which depcurfew.json denies",
+    "fix": "Use a registry version of is-negative, or set sources.git to \"allow\" in depcurfew.json"
   },
   {
     "level": "error",
@@ -23,8 +23,8 @@
       "file": "pnpm-lock.yaml",
       "line": 35
     },
-    "message": "pnpm-lock.yaml installs sub-dep from a local directory (file:sub-dep), which depgate.json denies",
-    "fix": "Use a registry version of sub-dep, or set sources.directory to \"allow\" in depgate.json"
+    "message": "pnpm-lock.yaml installs sub-dep from a local directory (file:sub-dep), which depcurfew.json denies",
+    "fix": "Use a registry version of sub-dep, or set sources.directory to \"allow\" in depcurfew.json"
   },
   {
     "level": "error",
@@ -32,7 +32,7 @@
       "file": "pnpm-lock.yaml",
       "line": 39
     },
-    "message": "pnpm-lock.yaml installs tar-pkg from a local tarball (file:../tar-pkg-1.0.0.tgz), which depgate.json denies",
-    "fix": "Use a registry version of tar-pkg, or set sources.file to \"allow\" in depgate.json"
+    "message": "pnpm-lock.yaml installs tar-pkg from a local tarball (file:../tar-pkg-1.0.0.tgz), which depcurfew.json denies",
+    "fix": "Use a registry version of tar-pkg, or set sources.file to \"allow\" in depcurfew.json"
   }
 ]

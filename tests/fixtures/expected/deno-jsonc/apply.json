@@ -3,10 +3,10 @@
     "deno.jsonc"
   ],
   "warnings": [
-    "Deno: no exact version is pinned, so depgate configures for Deno 2.9.8, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
+    "Deno: no exact version is pinned, so depcurfew configures for Deno 2.9.8, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
     "Deno: allowScripts takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
-    "Deno has no setting for git dependencies, so \"deny\" cannot be enforced; depgate doctor cannot see them in the lockfile either, so review new dependencies by hand",
-    "Deno has no setting for remote tarball dependencies, so \"deny\" cannot be enforced; depgate doctor cannot see them in the lockfile either, so review new dependencies by hand"
+    "Deno has no setting for git dependencies, so \"deny\" cannot be enforced; depcurfew doctor cannot see them in the lockfile either, so review new dependencies by hand",
+    "Deno has no setting for remote tarball dependencies, so \"deny\" cannot be enforced; depcurfew doctor cannot see them in the lockfile either, so review new dependencies by hand"
   ],
   "snippets": []
 }

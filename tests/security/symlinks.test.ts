@@ -1,5 +1,5 @@
-// depgate never reads or writes through a symlink that leads outside the repository (decision P2 of the review
-// before 1.0.0): depgate.json, init --force, the action's SARIF file and its directory input. A symlink to a file
+// depcurfew never reads or writes through a symlink that leads outside the repository (decision P2 of the review
+// before 1.0.0): depcurfew.json, init --force, the action's SARIF file and its directory input. A symlink to a file
 // inside the repository may be read, but editing it is a reported error, never a crash or a silent pass.
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,7 +20,7 @@ afterAll(() => {
 });
 
 function scratch(): string {
-  const directory = mkdtempSync(join(tmpdir(), 'depgate-symlinks-'));
+  const directory = mkdtempSync(join(tmpdir(), 'depcurfew-symlinks-'));
   temporary.push(directory);
   return directory;
 }
@@ -44,13 +44,13 @@ async function exec(...argv: string[]): Promise<{ code: number; stdout: string; 
   return { code, stdout, stderr };
 }
 
-describe('depgate.json behind a symlink', () => {
+describe('depcurfew.json behind a symlink', () => {
   it('is not read when the symlink leads outside the repository', async () => {
     const { repo, outside } = layout();
-    symlinkSync(join(outside, 'secret.json'), join(repo, 'depgate.json'));
+    symlinkSync(join(outside, 'secret.json'), join(repo, 'depcurfew.json'));
     expect(() => loadPolicy(repo)).toThrow(PolicyError);
-    expect(() => loadPolicy(repo)).toThrow('depgate.json points outside the repository and was not read');
-    expect(() => runDoctor(repo)).toThrow('depgate.json points outside the repository and was not read');
+    expect(() => loadPolicy(repo)).toThrow('depcurfew.json points outside the repository and was not read');
+    expect(() => runDoctor(repo)).toThrow('depcurfew.json points outside the repository and was not read');
     for (const command of [['doctor'], ['apply', '--dry-run'], ['explain'], ['explain', '--json']]) {
       const result = await exec(...command, repo);
       expect(`${result.stdout}${result.stderr}`, command.join(' ')).not.toContain('auths');
@@ -63,33 +63,33 @@ describe('depgate.json behind a symlink', () => {
     const { repo } = layout();
     mkdirSync(join(repo, 'config'));
     writeFileSync(join(repo, 'config', 'policy.json'), '{"version": 1, "cooldown": {"minimum": "2d"}}\n');
-    symlinkSync(join('config', 'policy.json'), join(repo, 'depgate.json'));
+    symlinkSync(join('config', 'policy.json'), join(repo, 'depcurfew.json'));
     expect(loadPolicy(repo).cooldown?.minimum.text).toBe('2d');
   });
 
   it('is refused when it is larger than 1 MiB', () => {
     const { repo } = layout();
-    writeFileSync(join(repo, 'depgate.json'), `{"version": 1, "x": "${'a'.repeat(1024 * 1024)}"}`);
-    expect(() => loadPolicy(repo)).toThrow('depgate.json is larger than 1 MiB and was not read');
+    writeFileSync(join(repo, 'depcurfew.json'), `{"version": 1, "x": "${'a'.repeat(1024 * 1024)}"}`);
+    expect(() => loadPolicy(repo)).toThrow('depcurfew.json is larger than 1 MiB and was not read');
   });
 });
 
 describe('init --force', () => {
   it('does not overwrite the target of a symlink', async () => {
     const { repo, outside } = layout();
-    symlinkSync(join(outside, 'secret.json'), join(repo, 'depgate.json'));
+    symlinkSync(join(outside, 'secret.json'), join(repo, 'depcurfew.json'));
     const result = await exec('init', '--force', repo);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toContain('depgate.json is a symlink; depgate does not write through symlinks');
+    expect(result.stderr).toContain('depcurfew.json is a symlink; depcurfew does not write through symlinks');
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
   });
 
-  it('still overwrites a regular depgate.json', async () => {
+  it('still overwrites a regular depcurfew.json', async () => {
     const { repo } = layout();
-    writeFileSync(join(repo, 'depgate.json'), '{"version": 1}\n');
+    writeFileSync(join(repo, 'depcurfew.json'), '{"version": 1}\n');
     const result = await exec('init', '--force', repo);
     expect(result.code).toBe(EXIT_OK);
-    expect(readFileSync(join(repo, 'depgate.json'), 'utf8')).toContain('"cooldown"');
+    expect(readFileSync(join(repo, 'depcurfew.json'), 'utf8')).toContain('"cooldown"');
   });
 });
 
@@ -101,10 +101,10 @@ describe('editing a symlink inside the repository', () => {
     cpSync(join(root, '.github/dependabot.yml'), join(root, 'config/dependabot.yml'));
     rmSync(join(root, '.github/dependabot.yml'));
     symlinkSync(join('..', 'config', 'dependabot.yml'), join(root, '.github/dependabot.yml'));
-    writeFileSync(join(root, 'depgate.json'), '{"version": 1, "cooldown": {"minimum": "3d"}}\n');
+    writeFileSync(join(root, 'depcurfew.json'), '{"version": 1, "cooldown": {"minimum": "3d"}}\n');
 
     const plan = applyProject(root, { write: false });
-    expect(plan.errors).toContain('Dependabot: cannot edit .github/dependabot.yml: .github/dependabot.yml is a symlink; depgate does not write through symlinks');
+    expect(plan.errors).toContain('Dependabot: cannot edit .github/dependabot.yml: .github/dependabot.yml is a symlink; depcurfew does not write through symlinks');
 
     const report = runDoctor(root);
     expect(report.findings).toContainEqual(
@@ -116,7 +116,7 @@ describe('editing a symlink inside the repository', () => {
     const { repo, outside } = layout();
     writeFileSync(join(outside, 'npmrc'), 'min-release-age=0\n');
     symlinkSync(join(outside, 'npmrc'), join(repo, '.npmrc'));
-    writeFileSync(join(repo, 'depgate.json'), '{"version": 1, "cooldown": {"minimum": "3d"}}\n');
+    writeFileSync(join(repo, 'depcurfew.json'), '{"version": 1, "cooldown": {"minimum": "3d"}}\n');
     const findings = runDoctor(repo).findings.filter((finding) => finding.rule === 'unreadable-config');
     expect(findings).toHaveLength(1);
     expect(findings[0]?.location).toEqual({ file: '.npmrc' });
@@ -126,7 +126,7 @@ describe('editing a symlink inside the repository', () => {
     const root = scratch();
     writeFileSync(join(root, 'package.json'), '{"name": "app", "packageManager": "pnpm@11.1.0"}\n');
     writeFileSync(join(root, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n");
-    writeFileSync(join(root, 'depgate.json'), '{"version": 1, "cooldown": {"minimum": "3d"}}\n');
+    writeFileSync(join(root, 'depcurfew.json'), '{"version": 1, "cooldown": {"minimum": "3d"}}\n');
     mkdirSync(join(root, 'config'));
     writeFileSync(join(root, 'config', 'ws.yaml'), 'minimumReleaseAge: 0\n');
     symlinkSync(join('config', 'ws.yaml'), join(root, 'pnpm-workspace.yaml'));
@@ -147,9 +147,9 @@ describe('GitHub Action', () => {
   it('does not write SARIF through a symlinked file', () => {
     const root = workspace();
     const { outside } = layout();
-    symlinkSync(join(outside, 'secret.json'), join(root, 'depgate.sarif'));
+    symlinkSync(join(outside, 'secret.json'), join(root, 'depcurfew.sarif'));
     const outputs = runAction({ GITHUB_WORKSPACE: root }, { log: () => undefined, summary: () => undefined });
-    expect(outputs.failure).toBe('cannot write the SARIF file depgate.sarif: depgate.sarif is a symlink; depgate does not write through symlinks');
+    expect(outputs.failure).toBe('cannot write the SARIF file depcurfew.sarif: depcurfew.sarif is a symlink; depcurfew does not write through symlinks');
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
   });
 
@@ -158,7 +158,7 @@ describe('GitHub Action', () => {
     const { outside } = layout();
     symlinkSync(outside, join(root, 'reports'));
     const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: 'reports/secret.json' }, { log: () => undefined, summary: () => undefined });
-    expect(outputs.failure).toBe('cannot write the SARIF file reports/secret.json: reports is a symlink; depgate does not write through symlinks');
+    expect(outputs.failure).toBe('cannot write the SARIF file reports/secret.json: reports is a symlink; depcurfew does not write through symlinks');
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
   });
 
@@ -167,7 +167,7 @@ describe('GitHub Action', () => {
     const { outside } = layout();
     symlinkSync(outside, join(root, '..out'));
     const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: '..out/secret.json' }, { log: () => undefined, summary: () => undefined });
-    expect(outputs.failure).toBe('cannot write the SARIF file ..out/secret.json: ..out is a symlink; depgate does not write through symlinks');
+    expect(outputs.failure).toBe('cannot write the SARIF file ..out/secret.json: ..out is a symlink; depcurfew does not write through symlinks');
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
   });
 

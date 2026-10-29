@@ -13,7 +13,7 @@ const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta
 const readme = read('README.md');
 const inputs = { tools: knowledgeBase, environment, action: read('action.yml'), workflow: read('.github/workflows/ci.yml') };
 
-/** Field names of depgate.json, which the README may use freely even where a tool has a setting of that name. */
+/** Field names of depcurfew.json, which the README may use freely even where a tool has a setting of that name. */
 function policyFields(schema: unknown, names = new Set<string>()): Set<string> {
   if (typeof schema === 'object' && schema !== null) {
     const properties = (schema as Record<string, unknown>)['properties'];

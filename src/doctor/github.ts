@@ -45,7 +45,7 @@ export function annotationCommands(
       const properties = [
         [format.properties.file, finding.location.file],
         [format.properties.line, finding.location.line === undefined ? undefined : String(finding.location.line)],
-        [format.properties.title, `depgate: ${finding.rule}`],
+        [format.properties.title, `depcurfew: ${finding.rule}`],
       ].flatMap(([name, value]) => (value === undefined ? [] : [`${name}=${property(value)}`]));
       const fix = fixOf(finding, rules);
       const message = fix === undefined ? finding.message : `${finding.message}\nFix: ${fix}`;
@@ -84,7 +84,7 @@ function code(text: string): string {
 export function jobSummary(report: DoctorReport, rules: readonly Rule[], directory: string, maxBytes: number): string {
   const counts = countLevels(report.findings);
   const where = directory === '' ? '' : ` in ${code(directory)}`;
-  const head = ['## depgate doctor', ''];
+  const head = ['## depcurfew doctor', ''];
   if (report.findings.length === 0) {
     head.push(`No problems found${where}.`);
   } else {
@@ -111,5 +111,5 @@ export function jobSummary(report: DoctorReport, rules: readonly Rule[], directo
 
 /** The job summary when doctor could not run. */
 export function failureSummary(message: string): string {
-  return ['## depgate doctor', '', `depgate could not check the repository: ${markdown(message)}`, ''].join('\n');
+  return ['## depcurfew doctor', '', `depcurfew could not check the repository: ${markdown(message)}`, ''].join('\n');
 }

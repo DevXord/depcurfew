@@ -1,5 +1,5 @@
 // broad-exclusion: an exception list that matches every package turns the protection off while the setting still
-// looks configured. Checked in depgate.json and in the tools' own files.
+// looks configured. Checked in depcurfew.json and in the tools' own files.
 import { isRecord, settingOf, values } from '../../apply/facts.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';

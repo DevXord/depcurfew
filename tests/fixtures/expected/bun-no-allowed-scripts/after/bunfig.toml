@@ -1,6 +1,6 @@
 [install]
 exact = true
 
-# >>> depgate managed block: edit depgate.json and run depgate apply instead
+# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
 minimumReleaseAge = 259200
-# <<< depgate managed block
+# <<< depcurfew managed block

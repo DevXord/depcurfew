@@ -1,8 +1,8 @@
 {
   "changed": [],
   "warnings": [
-    "Yarn Classic (1.x) is not supported; nothing written for it. Move to Yarn (Berry) 4.10.2 or later, or to another package manager depgate configures",
-    "no tools to configure: depgate found no supported package manager or bot here (depgate explain shows what it detects)"
+    "Yarn Classic (1.x) is not supported; nothing written for it. Move to Yarn (Berry) 4.10.2 or later, or to another package manager depcurfew configures",
+    "no tools to configure: depcurfew found no supported package manager or bot here (depcurfew explain shows what it detects)"
   ],
   "snippets": []
 }

@@ -46,7 +46,7 @@
   "warnings": [
     {
       "code": "renovate-config-in-package-json",
-      "message": "Renovate configuration in package.json is deprecated and depgate does not edit it; move it to renovate.json",
+      "message": "Renovate configuration in package.json is deprecated and depcurfew does not edit it; move it to renovate.json",
       "files": [
         "package.json"
       ]

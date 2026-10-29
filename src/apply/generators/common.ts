@@ -66,7 +66,7 @@ export function allowedNames(context: Context, setting: string): string[] {
   });
 }
 
-/** Whether depgate doctor can tell dependency sources apart in the tool's lockfile. */
+/** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
 function lockfileShowsSources(tool: Context['tool']): boolean {
   const fact = tool.extra?.['lockfileFormat'];
   const format = fact === undefined ? undefined : values(fact)[0];
@@ -85,8 +85,8 @@ export function eachSource(context: Context, apply: (kind: SourceKind, setting: 
     if (setting === null) {
       if (access === 'deny') {
         const checked = lockfileShowsSources(context.tool)
-          ? '; depgate doctor still reports such dependencies in the lockfile'
-          : '; depgate doctor cannot see them in the lockfile either, so review new dependencies by hand';
+          ? '; depcurfew doctor still reports such dependencies in the lockfile'
+          : '; depcurfew doctor cannot see them in the lockfile either, so review new dependencies by hand';
         context.warn(`${context.name} has no setting for ${SOURCE_LABELS[kind]} dependencies, so "deny" cannot be enforced${checked}`);
       }
       continue;

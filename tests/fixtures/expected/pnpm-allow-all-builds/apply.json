@@ -5,8 +5,8 @@
   "warnings": [
     "pnpm: dangerouslyAllowAllBuilds allowed every build script; set to false because the policy denies install scripts",
     "pnpm: allowBuilds takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
-    "pnpm: blockExoticSubdeps stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depgate doctor reports them in pnpm-lock.yaml",
-    "allowBuilds in pnpm-workspace.yaml lets sharp run install scripts, but depgate.json does not allow it; depgate apply does not remove entries it did not write, so remove sharp from allowBuilds by hand or add it to installScripts.allow in depgate.json"
+    "pnpm: blockExoticSubdeps stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depcurfew doctor reports them in pnpm-lock.yaml",
+    "allowBuilds in pnpm-workspace.yaml lets sharp run install scripts, but depcurfew.json does not allow it; depcurfew apply does not remove entries it did not write, so remove sharp from allowBuilds by hand or add it to installScripts.allow in depcurfew.json"
   ],
   "snippets": []
 }

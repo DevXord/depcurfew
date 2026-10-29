@@ -48,7 +48,7 @@ jobs:
         run: |
           npm run build:action
           git diff --exit-code -- action/
-      - name: depgate doctor on itself
+      - name: depcurfew doctor on itself
         run: node dist/cli.js doctor .
       - name: Stage the package (approve it on npmjs.com or with npm stage approve, using 2FA)
         run: npm stage publish --provenance

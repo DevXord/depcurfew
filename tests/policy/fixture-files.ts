@@ -1,4 +1,4 @@
-// Reads the policy fixtures: every directory in tests/fixtures/policies holds a depgate.json and the expected
+// Reads the policy fixtures: every directory in tests/fixtures/policies holds a depcurfew.json and the expected
 // outcome, either resolved.json (the policy with defaults filled in) or errors.txt (one "path: message" per line).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 

@@ -1,4 +1,4 @@
-// `depgate apply` through the CLI: output, --dry-run, policy errors, files that cannot be edited and the bots'
+// `depcurfew apply` through the CLI: output, --dry-run, policy errors, files that cannot be edited and the bots'
 // delay never being shorter than the one a package manager enforces.
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,10 +19,10 @@ afterAll(() => {
 });
 
 function scratch(fixture?: string, policy: string | null = POLICY): string {
-  const directory = mkdtempSync(join(tmpdir(), 'depgate-apply-cli-'));
+  const directory = mkdtempSync(join(tmpdir(), 'depcurfew-apply-cli-'));
   temporary.push(directory);
   if (fixture !== undefined) cpSync(join(REPOS, fixture), directory, { recursive: true });
-  if (policy !== null) writeFileSync(join(directory, 'depgate.json'), policy);
+  if (policy !== null) writeFileSync(join(directory, 'depcurfew.json'), policy);
   return directory;
 }
 
@@ -86,7 +86,7 @@ function applyPatch(directory: string, patch: string): Record<string, string> {
   return result;
 }
 
-describe('depgate apply', () => {
+describe('depcurfew apply', () => {
   it('writes the changes and reports them; a second run changes nothing', async () => {
     const directory = scratch('package-json-only');
     const first = await exec('apply', directory);
@@ -94,7 +94,7 @@ describe('depgate apply', () => {
     expect(first.stdout).toBe('Created .npmrc\nUpdated package.json\n');
     expect(first.stderr).toBe(
       [
-        'warning: npm: no exact version is pinned, so depgate configures for npm 12.2.1, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it',
+        'warning: npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it',
         'warning: npm: allowScripts takes package names only; "@scope/*" not written. List the package names in installScripts.allow',
         '',
       ].join('\n'),
@@ -105,7 +105,7 @@ describe('depgate apply', () => {
 
     const second = await exec('apply', directory);
     expect(second.code).toBe(EXIT_OK);
-    expect(second.stdout).toBe('No files changed; what depgate could not apply is listed below.\n');
+    expect(second.stdout).toBe('No files changed; what depcurfew could not apply is listed below.\n');
   });
 
   it('--dry-run prints a diff that produces the expected files and writes nothing', async () => {
@@ -143,7 +143,7 @@ describe('depgate apply', () => {
     const result = await exec('apply', scratch('npm-existing-config'));
     expect(result.code).toBe(EXIT_OK);
     expect(result.stderr).toContain(
-      'warning: allowScripts in package.json lets sharp run install scripts, but depgate.json does not allow it; depgate apply does not remove entries it did not write, so remove sharp from allowScripts by hand or add it to installScripts.allow in depgate.json\n',
+      'warning: allowScripts in package.json lets sharp run install scripts, but depcurfew.json does not allow it; depcurfew apply does not remove entries it did not write, so remove sharp from allowScripts by hand or add it to installScripts.allow in depcurfew.json\n',
     );
   });
 
@@ -159,7 +159,7 @@ describe('depgate apply', () => {
     const directory = scratch('volta-renovate');
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_OK);
-    expect(result.stdout).toBe('No files changed; what depgate could not apply is listed below.\n');
+    expect(result.stdout).toBe('No files changed; what depcurfew could not apply is listed below.\n');
     expect(result.stderr).toContain('Renovate: add this to .github/renovate.json5 by hand:\n  {\n    "minimumReleaseAge": "3 days",\n');
   });
 
@@ -168,19 +168,19 @@ describe('depgate apply', () => {
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toBe(`depgate: no depgate.json in ${directory}; run 'depgate init' first\n`);
+    expect(result.stderr).toBe(`depcurfew: no depcurfew.json in ${directory}; run 'depcurfew init' first\n`);
   });
 
   it('fails with an invalid policy file and lists the problems', async () => {
     const directory = scratch('npm-basic', '{ "version": 1, "cooldown": { "minimum": "soon" } }');
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toMatch(/^depgate: depgate\.json is invalid\n {2}\S/u);
+    expect(result.stderr).toMatch(/^depcurfew: depcurfew\.json is invalid\n {2}\S/u);
     expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
   });
 
   it('fails for a directory that does not exist', async () => {
-    const result = await exec('apply', join(tmpdir(), 'depgate-does-not-exist'));
+    const result = await exec('apply', join(tmpdir(), 'depcurfew-does-not-exist'));
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stderr).toContain('directory not found');
   });
@@ -192,7 +192,7 @@ describe('depgate apply', () => {
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
     expect(result.stderr).toMatch(/^error: npm: cannot edit package\.json: /mu);
-    expect(result.stderr.endsWith('depgate: nothing written because of the errors above.\n')).toBe(true);
+    expect(result.stderr.endsWith('depcurfew: nothing written because of the errors above.\n')).toBe(true);
     expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
   });
 
@@ -203,7 +203,7 @@ describe('depgate apply', () => {
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
     expect(result.stderr).toContain('error: Renovate: cannot edit renovate.json');
-    expect(result.stderr).toContain('depgate: apply would write nothing because of the errors above.\n');
+    expect(result.stderr).toContain('depcurfew: apply would write nothing because of the errors above.\n');
   });
 
   it('does not write through a symlink', async () => {
@@ -213,7 +213,7 @@ describe('depgate apply', () => {
     symlinkSync(join(outside, '.npmrc'), join(directory, '.npmrc'));
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toContain('error: npm: cannot edit .npmrc: .npmrc is a symlink; depgate does not write through symlinks\n');
+    expect(result.stderr).toContain('error: npm: cannot edit .npmrc: .npmrc is a symlink; depcurfew does not write through symlinks\n');
     expect(readFileSync(join(outside, '.npmrc'), 'utf8')).toBe('registry=https://registry.npmjs.org/\n');
     expect(readFileSync(join(directory, 'package.json'), 'utf8')).toBe(readFileSync(join(REPOS, 'package-json-only/package.json'), 'utf8'));
   });

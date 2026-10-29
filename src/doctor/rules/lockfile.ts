@@ -1,5 +1,5 @@
-// Lockfile rules. lockfile-forbidden-source: a package from a source depgate.json denies. lockfile-install-scripts:
-// a package with install scripts that depgate.json does not allow, where the lockfile records scripts.
+// Lockfile rules. lockfile-forbidden-source: a package from a source depcurfew.json denies. lockfile-install-scripts:
+// a package with install scripts that depcurfew.json does not allow, where the lockfile records scripts.
 import { extraOf, isSwitch, values } from '../../apply/facts.ts';
 import { pinnedVersion } from '../../apply/version.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
@@ -33,10 +33,10 @@ function location(lockfile: Lockfile, entry: LockEntry): { file: string; line?: 
 
 export const lockfileForbiddenSource: Rule = {
   id: 'lockfile-forbidden-source',
-  summary: 'The lockfile installs a package from a source depgate.json denies.',
+  summary: 'The lockfile installs a package from a source depcurfew.json denies.',
   description:
     'A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say.',
-  help: 'Replace the dependency with a registry version, or allow that source in depgate.json.',
+  help: 'Replace the dependency with a registry version, or allow that source in depcurfew.json.',
   level: 'error',
   requiresPolicy: true,
   check(context) {
@@ -46,11 +46,11 @@ export const lockfileForbiddenSource: Rule = {
     eachLockfile(context, 'lockfile-forbidden-source', (lockfile) => {
       for (const entry of lockfile.entries) {
         if (entry.source === 'unknown' && denies) {
-          // Fail closed: a source depgate cannot recognize may be one the policy denies.
+          // Fail closed: a source depcurfew cannot recognize may be one the policy denies.
           context.report({
             level: 'warning',
             location: location(lockfile, entry),
-            message: `${lockfile.file} installs ${entry.name} from a source depgate does not recognize (${shownSpec(entry.spec) || 'no source given'}); it may be one ${POLICY_FILE} denies`,
+            message: `${lockfile.file} installs ${entry.name} from a source depcurfew does not recognize (${shownSpec(entry.spec) || 'no source given'}); it may be one ${POLICY_FILE} denies`,
             fix: `Check where ${entry.name} comes from, and regenerate the lockfile with the package manager if the entry is damaged`,
           });
           continue;
@@ -108,10 +108,10 @@ function scriptsDisabledBy(context: RuleContext, tool: ToolKnowledge): string | 
 
 export const lockfileInstallScripts: Rule = {
   id: 'lockfile-install-scripts',
-  summary: 'The lockfile has packages with install scripts that depgate.json does not allow.',
+  summary: 'The lockfile has packages with install scripts that depcurfew.json does not allow.',
   description:
     'Install scripts run arbitrary code during installation. Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile.',
-  help: 'Remove or replace the package, or add it to installScripts.allow in depgate.json after reviewing its scripts.',
+  help: 'Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing its scripts.',
   level: 'error',
   requiresPolicy: true,
   check(context) {

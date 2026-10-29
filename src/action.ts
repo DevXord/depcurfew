@@ -1,4 +1,4 @@
-// Entry point of the GitHub Action (action.yml, bundled into action/depgate.mjs): runs doctor on a directory of the
+// Entry point of the GitHub Action (action.yml, bundled into action/depcurfew.mjs): runs doctor on a directory of the
 // workspace, prints the readable report to the log, adds annotations and a job summary for people, writes SARIF
 // with paths relative to the repository root for code scanning and sets the step outputs. It does not fail the
 // step itself, so the SARIF upload still runs; action.yml decides.
@@ -18,7 +18,7 @@ export interface ActionOutputs {
   errors: number;
   warnings: number;
   notes: number;
-  /** Set when doctor could not run, e.g. because depgate.json is invalid. */
+  /** Set when doctor could not run, e.g. because depcurfew.json is invalid. */
   failure: string;
 }
 
@@ -88,20 +88,20 @@ function unsafeOutput(workspace: string, file: string): string | undefined {
     current = resolve(current, part);
     const stats = lstatSync(current, { throwIfNoEntry: false });
     if (stats === undefined) return undefined;
-    if (stats.isSymbolicLink()) return `${relative(workspace, current).split(sep).join('/')} is a symlink; depgate does not write through symlinks`;
+    if (stats.isSymbolicLink()) return `${relative(workspace, current).split(sep).join('/')} is a symlink; depcurfew does not write through symlinks`;
   }
   return lstatSync(file).isFile() ? undefined : `${relative(workspace, file).split(sep).join('/')} is not a regular file`;
 }
 
 export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   const workspace = resolve(env['GITHUB_WORKSPACE'] ?? process.cwd());
-  const sarifInput = input(env, 'sarif-file', 'depgate.sarif');
+  const sarifInput = input(env, 'sarif-file', 'depcurfew.sarif');
   const sarifFile = resolve(workspace, sarifInput);
   const outputs: ActionOutputs = { 'sarif-file': '', errors: 0, warnings: 0, notes: 0, failure: '' };
   const summary = enabled(env, 'job-summary');
   const fail = (message: string): ActionOutputs => {
     outputs.failure = message;
-    io.log(untrusted(`depgate: ${message}\n`));
+    io.log(untrusted(`depcurfew: ${message}\n`));
     if (summary) io.summary(failureSummary(message));
     return outputs;
   };
@@ -115,7 +115,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     outputs.failure = [error.message, ...error.issues].join('; ');
-    io.log(untrusted(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`));
+    io.log(untrusted(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`));
     if (summary) io.summary(failureSummary(outputs.failure));
     return outputs;
   }

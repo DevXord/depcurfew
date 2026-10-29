@@ -21,7 +21,7 @@ describe('describeRequirements', () => {
         { setting: 'allowScripts', since: '11.16.0' },
       ]),
     ).toBe(
-      'min-release-age (since 11.10.0), allow-file (since 11.15.0), allowScripts (since 11.16.0); where official sources disagree on the version, depgate assumes the later one',
+      'min-release-age (since 11.10.0), allow-file (since 11.15.0), allowScripts (since 11.16.0); where official sources disagree on the version, depcurfew assumes the later one',
     );
   });
 

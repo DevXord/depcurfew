@@ -11,10 +11,10 @@ describe('policy fixtures', () => {
   });
 
   it.each(names)('%s', (name) => {
-    const input = readFixture(name, 'depgate.json');
+    const input = readFixture(name, 'depcurfew.json');
     const resolved = readFixture(name, 'resolved.json');
     const errors = readFixture(name, 'errors.txt');
-    expect(input, 'depgate.json').toBeDefined();
+    expect(input, 'depcurfew.json').toBeDefined();
     expect((resolved === undefined) !== (errors === undefined), 'exactly one of resolved.json and errors.txt').toBe(true);
 
     const result = parsePolicy(input ?? '');

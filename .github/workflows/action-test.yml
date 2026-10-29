@@ -1,4 +1,4 @@
-# Runs the action from this checkout (uses: ./) on depgate itself and on fixture repositories.
+# Runs the action from this checkout (uses: ./) on depcurfew itself and on fixture repositories.
 name: Action test
 
 on:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   self:
-    name: depgate on itself, with upload
+    name: depcurfew on itself, with upload
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,13 +21,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./
-        id: depgate
+        id: depcurfew
         with:
-          category: depgate-self
+          category: depcurfew-self
       - name: No errors and a SARIF report
         env:
-          ERRORS: ${{ steps.depgate.outputs.errors }}
-          SARIF: ${{ steps.depgate.outputs.sarif-file }}
+          ERRORS: ${{ steps.depcurfew.outputs.errors }}
+          SARIF: ${{ steps.depcurfew.outputs.sarif-file }}
         run: |
           test "$ERRORS" = 0
           test -s "$SARIF"
@@ -43,16 +43,16 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./
-        id: depgate
+        id: depcurfew
         with:
           directory: tests/fixtures/doctor/bot-cooldown-mismatch/passes-consistent/repo
           sarif-file: reports/clean.sarif
-          category: depgate-fixture-clean
+          category: depcurfew-fixture-clean
       - name: No findings
         env:
-          ERRORS: ${{ steps.depgate.outputs.errors }}
-          WARNINGS: ${{ steps.depgate.outputs.warnings }}
-          SARIF: ${{ steps.depgate.outputs.sarif-file }}
+          ERRORS: ${{ steps.depcurfew.outputs.errors }}
+          WARNINGS: ${{ steps.depcurfew.outputs.warnings }}
+          SARIF: ${{ steps.depcurfew.outputs.sarif-file }}
         run: |
           test "$ERRORS" = 0
           test "$WARNINGS" = 0
@@ -66,16 +66,16 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./
-        id: depgate
+        id: depcurfew
         continue-on-error: true
         with:
           directory: tests/fixtures/doctor/bot-cooldown-mismatch/fires-dependabot-shorter/repo
           upload-sarif: 'false'
       - name: The step failed with one error and repository-relative paths
         env:
-          OUTCOME: ${{ steps.depgate.outcome }}
-          ERRORS: ${{ steps.depgate.outputs.errors }}
-          SARIF: ${{ steps.depgate.outputs.sarif-file }}
+          OUTCOME: ${{ steps.depcurfew.outcome }}
+          ERRORS: ${{ steps.depcurfew.outputs.errors }}
+          SARIF: ${{ steps.depcurfew.outputs.sarif-file }}
         run: |
           test "$OUTCOME" = failure
           test "$ERRORS" = 1
@@ -93,11 +93,11 @@ jobs:
           node-version: 20
           package-manager-cache: false
       - uses: ./
-        id: depgate
+        id: depcurfew
         with:
           directory: tests/fixtures/doctor/bot-cooldown-mismatch/passes-consistent/repo
           upload-sarif: 'false'
       - name: The action ran
         env:
-          ERRORS: ${{ steps.depgate.outputs.errors }}
+          ERRORS: ${{ steps.depcurfew.outputs.errors }}
         run: test "$ERRORS" = 0

@@ -1,4 +1,4 @@
-// `depgate apply`: turns the policy into configuration for every target tool. Package managers go first, so that
+// `depcurfew apply`: turns the policy into configuration for every target tool. Package managers go first, so that
 // bots can be given a delay at least as long as the longest one a manager enforces (otherwise a bot would
 // propose versions the package manager then refuses to install).
 import { detectedTargets } from '../cli/describe.ts';
@@ -67,7 +67,7 @@ function allowListWarnings(root: string, policy: ResolvedPolicy, detection: Dete
     .filter((entry) => !scripts.allow.some((pattern) => matchesPattern(entry.package, pattern)))
     .map(
       (entry) =>
-        `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depgate apply does not remove entries it did not write, so remove ${entry.name} from ${entry.setting} by hand or add ${entry.name === entry.package ? 'it' : entry.package} to installScripts.allow in ${POLICY_FILE}`,
+        `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write, so remove ${entry.name} from ${entry.setting} by hand or add ${entry.name === entry.package ? 'it' : entry.package} to installScripts.allow in ${POLICY_FILE}`,
     );
 }
 
@@ -82,12 +82,12 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     if (!manager.supported && (policy.targets === 'auto' || targets.has(manager.id))) {
       const berry = tools.find((tool) => tool.id === manager.id);
       const since = berry === undefined ? undefined : sinceOf(berry.cooldown.availableSince);
-      const advice = manager.variant === 'classic' && berry !== undefined ? `. Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depgate configures` : '';
+      const advice = manager.variant === 'classic' && berry !== undefined ? `. Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depcurfew configures` : '';
       warnings.push(`${manager.variant === 'classic' ? 'Yarn Classic (1.x)' : manager.id} is not supported; nothing written for it${advice}`);
       targets.delete(manager.id);
     }
   }
-  if (targets.size === 0) warnings.push('no tools to configure: depgate found no supported package manager or bot here (depgate explain shows what it detects)');
+  if (targets.size === 0) warnings.push('no tools to configure: depcurfew found no supported package manager or bot here (depcurfew explain shows what it detects)');
 
   const run = (tool: ToolKnowledge, version: Version | undefined, action: (context: ReturnType<typeof createContext>) => void) => {
     const context = createContext({ tool, policy, version, workspace, warnings, snippets, failures });
@@ -108,7 +108,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     if (version === undefined) {
       const latest = latestVersion(tool);
       warnings.push(
-        `${tool.name}: no exact version is pinned, so depgate configures for ${tool.name} ${latest ?? 'latest'}, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it`,
+        `${tool.name}: no exact version is pinned, so depcurfew configures for ${tool.name} ${latest ?? 'latest'}, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it`,
       );
     }
     run(tool, version, (context) => {
@@ -138,7 +138,7 @@ export class PolicyError extends Error {
   }
 }
 
-/** The policy of the repository; undefined when it has no depgate.json. Throws PolicyError when it cannot be used. */
+/** The policy of the repository; undefined when it has no depcurfew.json. Throws PolicyError when it cannot be used. */
 export function loadPolicyIfPresent(root: string): ResolvedPolicy | undefined {
   const file = readPolicyFile(root);
   if (file.status === 'missing') return undefined;
@@ -150,7 +150,7 @@ export function loadPolicyIfPresent(root: string): ResolvedPolicy | undefined {
 
 export function loadPolicy(root: string): ResolvedPolicy {
   const policy = loadPolicyIfPresent(root);
-  if (policy === undefined) throw new PolicyError(`no ${POLICY_FILE} in ${root}; run 'depgate init' first`);
+  if (policy === undefined) throw new PolicyError(`no ${POLICY_FILE} in ${root}; run 'depcurfew init' first`);
   return policy;
 }
 

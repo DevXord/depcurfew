@@ -24,16 +24,16 @@ afterAll(() => {
 
 describe('doctor after apply', () => {
   it.each(names)('%s', (name) => {
-    const directory = mkdtempSync(join(tmpdir(), `depgate-doctor-${name}-`));
+    const directory = mkdtempSync(join(tmpdir(), `depcurfew-doctor-${name}-`));
     temporary.push(directory);
     cpSync(join(REPOS, name), directory, { recursive: true });
     let policy = POLICY;
     try {
-      policy = readFileSync(join(EXPECTED, name, 'depgate.json'), 'utf8');
+      policy = readFileSync(join(EXPECTED, name, 'depcurfew.json'), 'utf8');
     } catch {
       // the shared policy
     }
-    writeFileSync(join(directory, 'depgate.json'), policy);
+    writeFileSync(join(directory, 'depcurfew.json'), policy);
     applyProject(directory, { write: true });
     const report = runDoctor(directory);
     expect(report.findings.filter((finding) => finding.rule === 'config-drift' && finding.level === 'error')).toEqual([]);

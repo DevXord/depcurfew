@@ -6,7 +6,7 @@ export function policyJsonSchema(): Record<string, unknown> {
   return {
     $schema: 'http://json-schema.org/draft-07/schema#',
     $id: SCHEMA_URL,
-    title: 'depgate policy',
+    title: 'depcurfew policy',
     ...policyShape.toJsonSchema(),
   };
 }

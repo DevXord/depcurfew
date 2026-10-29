@@ -11,28 +11,32 @@ const pkg = JSON.parse(readFileSync(new URL('package.json', root), 'utf8')) as {
   version: string;
   bin: Record<string, string>;
 };
-const binPath = fileURLToPath(new URL(pkg.bin['depgate'] ?? '', root));
+const binPath = fileURLToPath(new URL(pkg.bin['depcurfew'] ?? '', root));
 
 // Plain output whatever the environment running the tests sets; the color tests set these themselves.
 const { FORCE_COLOR: _force, NO_COLOR: _no, ...plainEnv } = process.env;
 
-function depgate(...args: string[]) {
+function depcurfew(...args: string[]) {
   return spawnSync(process.execPath, [binPath, ...args], { encoding: 'utf8', env: plainEnv });
 }
 
-function depgateIn(cwd: string, ...args: string[]) {
+function depcurfewIn(cwd: string, ...args: string[]) {
   return spawnSync(process.execPath, [binPath, ...args], { encoding: 'utf8', cwd, env: plainEnv });
 }
 
-function depgateWith(env: Record<string, string>, ...args: string[]) {
+function depcurfewWith(env: Record<string, string>, ...args: string[]) {
   return spawnSync(process.execPath, [binPath, ...args], { encoding: 'utf8', env: { ...plainEnv, ...env } });
 }
 
-describe('built depgate executable', () => {
+describe('built depcurfew executable', () => {
   beforeAll(() => {
     if (!existsSync(binPath)) {
       throw new Error(`${binPath} does not exist. Run \`npm test\` (it builds first) or \`npm run build\`.`);
     }
+  });
+
+  it('installs the short command dcf as the same executable', () => {
+    expect(pkg.bin['dcf']).toBe(pkg.bin['depcurfew']);
   });
 
   it('starts with a node shebang', () => {
@@ -40,49 +44,49 @@ describe('built depgate executable', () => {
   });
 
   it('--help exits with 0 and prints usage', () => {
-    const result = depgate('--help');
+    const result = depcurfew('--help');
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('Usage: depgate <command> [options]');
+    expect(result.stdout).toContain('Usage: depcurfew <command> [options]');
   });
 
   it('prints plain text to a pipe, colors with FORCE_COLOR and none with NO_COLOR', () => {
     const directory = fileURLToPath(new URL('tests/fixtures/doctor/config-drift/fires-hand-edited/repo', root));
     const ansi = /\u001b\[/u;
-    expect(depgate('doctor', directory).stdout).not.toMatch(ansi);
-    const colored = depgateWith({ FORCE_COLOR: '1' }, 'doctor', directory);
+    expect(depcurfew('doctor', directory).stdout).not.toMatch(ansi);
+    const colored = depcurfewWith({ FORCE_COLOR: '1' }, 'doctor', directory);
     expect(colored.stdout).toMatch(/\u001b\[1m\u001b\[31merror\u001b\[39m\u001b\[22m/u);
-    expect(depgateWith({ FORCE_COLOR: '1' }, 'doctor', '--json', directory).stdout).not.toMatch(ansi);
-    expect(depgateWith({ FORCE_COLOR: '1' }, 'doctor', '--sarif', directory).stdout).not.toMatch(ansi);
-    expect(depgateWith({ NO_COLOR: '1' }, 'doctor', directory).stdout).not.toMatch(ansi);
-    expect(depgateWith({ FORCE_COLOR: '1' }, 'frobnicate').stderr).toMatch(/^\u001b\[31m\u001b\[1mdepgate:/u);
+    expect(depcurfewWith({ FORCE_COLOR: '1' }, 'doctor', '--json', directory).stdout).not.toMatch(ansi);
+    expect(depcurfewWith({ FORCE_COLOR: '1' }, 'doctor', '--sarif', directory).stdout).not.toMatch(ansi);
+    expect(depcurfewWith({ NO_COLOR: '1' }, 'doctor', directory).stdout).not.toMatch(ansi);
+    expect(depcurfewWith({ FORCE_COLOR: '1' }, 'frobnicate').stderr).toMatch(/^\u001b\[31m\u001b\[1mdepcurfew:/u);
   });
 
   it('--version prints the package version', () => {
-    const result = depgate('--version');
+    const result = depcurfew('--version');
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe(pkg.version);
   });
 
   it('init writes the default policy into the current directory', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'depgate-e2e-'));
+    const directory = mkdtempSync(join(tmpdir(), 'depcurfew-e2e-'));
     try {
-      const first = depgateIn(directory, 'init');
+      const first = depcurfewIn(directory, 'init');
       expect(first.status).toBe(0);
-      expect(first.stdout).toBe('Created depgate.json with the default policy.\nDetected tools: none.\n');
-      expect(readFileSync(join(directory, 'depgate.json'), 'utf8')).toBe(
-        readFileSync(new URL('tests/fixtures/init/depgate.json', root), 'utf8'),
+      expect(first.stdout).toBe('Created depcurfew.json with the default policy.\nDetected tools: none.\n');
+      expect(readFileSync(join(directory, 'depcurfew.json'), 'utf8')).toBe(
+        readFileSync(new URL('tests/fixtures/init/depcurfew.json', root), 'utf8'),
       );
 
-      const second = depgateIn(directory, 'init');
+      const second = depcurfewIn(directory, 'init');
       expect(second.status).toBe(1);
-      expect(second.stderr).toContain('depgate.json already exists; pass --force to overwrite it.');
+      expect(second.stderr).toContain('depcurfew.json already exists; pass --force to overwrite it.');
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
   });
 
   it('explain --json describes a fixture repository', () => {
-    const result = depgate('explain', '--json', fileURLToPath(new URL('tests/fixtures/repos/npm-basic', root)));
+    const result = depcurfew('explain', '--json', fileURLToPath(new URL('tests/fixtures/repos/npm-basic', root)));
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
       schemaVersion: 1,
@@ -92,37 +96,37 @@ describe('built depgate executable', () => {
   });
 
   it('apply writes the expected files into a copy of a fixture repository', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'depgate-e2e-'));
+    const directory = mkdtempSync(join(tmpdir(), 'depcurfew-e2e-'));
     try {
       cpSync(fileURLToPath(new URL('tests/fixtures/repos/pnpm11-dependabot', root)), directory, { recursive: true });
-      writeFileSync(join(directory, 'depgate.json'), readFileSync(new URL('tests/fixtures/apply/policy.json', root)));
+      writeFileSync(join(directory, 'depcurfew.json'), readFileSync(new URL('tests/fixtures/apply/policy.json', root)));
       const expected = new URL('tests/fixtures/expected/pnpm11-dependabot/after/', root);
 
-      const dryRun = depgateIn(directory, 'apply', '--dry-run');
+      const dryRun = depcurfewIn(directory, 'apply', '--dry-run');
       expect(dryRun.status).toBe(0);
       expect(dryRun.stdout).toContain('+++ b/pnpm-workspace.yaml\n');
       expect(dryRun.stderr).toContain('nothing written.\n');
 
-      const result = depgateIn(directory, 'apply');
+      const result = depcurfewIn(directory, 'apply');
       expect(result.status).toBe(0);
       for (const file of readdirSync(expected, { recursive: true, encoding: 'utf8' })) {
         if (!statSync(new URL(file, expected)).isFile()) continue;
         expect(readFileSync(join(directory, file), 'utf8'), file).toBe(readFileSync(new URL(file, expected), 'utf8'));
       }
-      expect(depgateIn(directory, 'apply').stdout).toBe('No files changed; what depgate could not apply is listed below.\n');
+      expect(depcurfewIn(directory, 'apply').stdout).toBe('No files changed; what depcurfew could not apply is listed below.\n');
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
   });
 
   it('apply without a policy exits with 1', () => {
-    const result = depgate('apply', fileURLToPath(new URL('tests/fixtures/repos/npm-basic', root)));
+    const result = depcurfew('apply', fileURLToPath(new URL('tests/fixtures/repos/npm-basic', root)));
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("run 'depgate init' first");
+    expect(result.stderr).toContain("run 'depcurfew init' first");
   });
 
   it('doctor --sarif reports a fixture repository and fails on its error', () => {
-    const result = depgate('doctor', '--sarif', fileURLToPath(new URL('tests/fixtures/doctor/bot-cooldown-mismatch/fires-dependabot-shorter/repo', root)));
+    const result = depcurfew('doctor', '--sarif', fileURLToPath(new URL('tests/fixtures/doctor/bot-cooldown-mismatch/fires-dependabot-shorter/repo', root)));
     expect(result.status).toBe(1);
     const sarif = JSON.parse(result.stdout) as { version: string; runs: { results: { ruleId: string }[] }[] };
     expect(sarif.version).toBe('2.1.0');
@@ -130,13 +134,13 @@ describe('built depgate executable', () => {
   });
 
   it('doctor exits with 0 on a clean repository', () => {
-    const result = depgate('doctor', fileURLToPath(new URL('tests/fixtures/doctor/bot-cooldown-mismatch/passes-consistent/repo', root)));
+    const result = depcurfew('doctor', fileURLToPath(new URL('tests/fixtures/doctor/bot-cooldown-mismatch/passes-consistent/repo', root)));
     expect(result.status).toBe(0);
     expect(result.stdout.startsWith('No problems found.\n')).toBe(true);
   });
 
   it('an unknown command exits with 2', () => {
-    const result = depgate('frobnicate');
+    const result = depcurfew('frobnicate');
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("unknown command 'frobnicate'");
   });

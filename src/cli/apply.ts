@@ -1,4 +1,4 @@
-// `depgate apply [directory] [--dry-run]`. The result goes to stdout (the files written, or with --dry-run a
+// `depcurfew apply [directory] [--dry-run]`. The result goes to stdout (the files written, or with --dry-run a
 // unified diff that `git apply` accepts); warnings, snippets to add by hand and errors go to stderr. When any file
 // cannot be edited, nothing is written and stdout stays empty, also with --dry-run.
 import { applyProject, PolicyError, type ApplyReport } from '../apply/index.ts';
@@ -46,7 +46,7 @@ export function apply(directory: string | undefined, dryRun: boolean, io: CliIo)
     report = applyProject(absolute, { write: !dryRun });
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
-    io.stderr(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
+    io.stderr(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
     return EXIT_FAILURE;
   }
 
@@ -59,13 +59,13 @@ export function apply(directory: string | undefined, dryRun: boolean, io: CliIo)
       report.changes.length === 0
         ? report.warnings.length + report.snippets.length === 0
           ? colors.green('Nothing to change; the configuration already matches the policy.') + '\n'
-          : 'No files changed; what depgate could not apply is listed below.\n'
+          : 'No files changed; what depcurfew could not apply is listed below.\n'
         : report.changes.map((change) => `${colors.green(change.before === null ? 'Created' : 'Updated')} ${change.file}\n`).join(''),
     );
   }
   io.stderr(diagnostics(report, paint(io.colors?.stderr)));
   if (report.errors.length > 0) {
-    io.stderr(dryRun ? 'depgate: apply would write nothing because of the errors above.\n' : 'depgate: nothing written because of the errors above.\n');
+    io.stderr(dryRun ? 'depcurfew: apply would write nothing because of the errors above.\n' : 'depcurfew: nothing written because of the errors above.\n');
     return EXIT_FAILURE;
   }
   if (dryRun) io.stderr(report.changes.length === 0 ? 'Dry run: nothing to change.\n' : `Dry run: ${count(report.changes.length)} would change; nothing written.\n`);

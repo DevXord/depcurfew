@@ -4,15 +4,15 @@
     "location": {
       "file": ".github/dependabot.yml"
     },
-    "message": "depgate apply cannot edit .github/dependabot.yml for Dependabot (Flow map in block collection must be sufficiently indented and end with a } at line 6, column 1), so it cannot be checked against depgate.json",
-    "fix": "Fix what the message describes, then run depgate apply; or add the settings by hand"
+    "message": "depcurfew apply cannot edit .github/dependabot.yml for Dependabot (Flow map in block collection must be sufficiently indented and end with a } at line 6, column 1), so it cannot be checked against depcurfew.json",
+    "fix": "Fix what the message describes, then run depcurfew apply; or add the settings by hand"
   },
   {
     "level": "error",
     "location": {
       "file": ".github/workflows/ci.yml"
     },
-    "message": "cannot parse .github/workflows/ci.yml: Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1; depgate cannot check it",
-    "fix": "Fix the syntax error, so that depgate can check the file"
+    "message": "cannot parse .github/workflows/ci.yml: Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1; depcurfew cannot check it",
+    "fix": "Fix the syntax error, so that depcurfew can check the file"
   }
 ]

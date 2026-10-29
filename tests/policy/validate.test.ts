@@ -53,7 +53,7 @@ describe('validatePolicy', () => {
   });
 
   it('accepts the init fixture, which is what init writes', () => {
-    const fixture = readFileSync(new URL('../fixtures/init/depgate.json', import.meta.url), 'utf8');
+    const fixture = readFileSync(new URL('../fixtures/init/depcurfew.json', import.meta.url), 'utf8');
     expect(parsePolicy(fixture)).toMatchObject({ ok: true });
   });
 

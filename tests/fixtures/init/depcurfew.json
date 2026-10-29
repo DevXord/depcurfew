@@ -1,5 +1,5 @@
 {
-  "$schema": "https://unpkg.com/depgate/schema.json",
+  "$schema": "https://unpkg.com/depcurfew/schema.json",
   "version": 1,
   "cooldown": {
     "minimum": "3d",
