@@ -1,4 +1,4 @@
-// depgate check on recorded registry responses, with a fixed clock: existence, age against the cooldown, install
+// depcurfew check on recorded registry responses, with a fixed clock: existence, age against the cooldown, install
 // scripts, deprecation, look-alike names, sources and registry errors.
 import { describe, expect, it } from 'vitest';
 import { checkSpec, checkSpecs, describeAge, pickVersion, type CheckOptions } from '../../src/check/index.ts';
@@ -25,7 +25,7 @@ function options(overrides: Partial<CheckOptions> = {}): CheckOptions {
 
 const codes = (findings: { code: string; level: string }[]) => findings.map((finding) => `${finding.level}:${finding.code}`);
 
-describe('depgate check on registry packages', () => {
+describe('depcurfew check on registry packages', () => {
   it('passes an old package without install scripts', async () => {
     const report = await checkSpec('lodash', options());
     expect(report).toMatchObject({ kind: 'registry', name: 'lodash', findings: [] });
@@ -42,7 +42,7 @@ describe('depgate check on registry packages', () => {
   it('reports install scripts the policy does not allow', async () => {
     const report = await checkSpec('esbuild@0.28.1', options());
     expect(codes(report.findings)).toEqual(['error:install-scripts']);
-    expect(report.findings[0]?.message).toBe('esbuild@0.28.1 runs install scripts (postinstall: node install.js) that depgate.json does not allow');
+    expect(report.findings[0]?.message).toBe('esbuild@0.28.1 runs install scripts (postinstall: node install.js) that depcurfew.json does not allow');
   });
 
   it('passes install scripts of an allowed package', async () => {
@@ -54,7 +54,7 @@ describe('depgate check on registry packages', () => {
     const allowed = policy({ cooldown: { minimum: '3d' }, installScripts: { default: 'deny', allow: ['esbuild'] } });
     const report = await checkSpec('esbuild', options({ policy: allowed, now: new Date('2026-08-09T20:01:00Z') }));
     expect(codes(report.findings)).toEqual(['error:too-young']);
-    expect(report.findings[0]?.message).toBe('esbuild@0.28.2 was published 1 day ago; depgate.json requires 3 days (esbuild@0.28.1 is old enough)');
+    expect(report.findings[0]?.message).toBe('esbuild@0.28.2 was published 1 day ago; depcurfew.json requires 3 days (esbuild@0.28.1 is old enough)');
   });
 
   it('respects cooldown exclusions', async () => {
@@ -107,7 +107,7 @@ describe('depgate check on registry packages', () => {
   });
 });
 
-describe('depgate check on other sources', () => {
+describe('depcurfew check on other sources', () => {
   it.each([
     ['github:user/repo', 'error:forbidden-source'],
     ['https://example.com/pkg.tgz', 'error:forbidden-source'],
@@ -126,8 +126,8 @@ describe('depgate check on other sources', () => {
       {
         level: 'error',
         code: 'forbidden-source',
-        message: 'it installs from a URL that may be read as a tarball or a git repository, which depgate.json denies (sources.git)',
-        fix: 'Install the package from the registry instead, or set sources.git to "allow" in depgate.json if this source is intended',
+        message: 'it installs from a URL that may be read as a tarball or a git repository, which depcurfew.json denies (sources.git)',
+        fix: 'Install the package from the registry instead, or set sources.git to "allow" in depcurfew.json if this source is intended',
       },
     ]);
     expect(codes((await checkSpec('https://example.com/pkg.tgz', options({ policy: tarballsOnly }))).findings)).toEqual(['warning:unchecked-source']);
@@ -143,12 +143,12 @@ describe('what to do about a finding', () => {
 
   it('points to installScripts.allow for install scripts', async () => {
     const report = await checkSpec('esbuild@0.28.1', options());
-    expect(report.findings[0]?.fix).toBe('Pick a package without install scripts, or add esbuild to installScripts.allow in depgate.json if you trust them');
+    expect(report.findings[0]?.fix).toBe('Pick a package without install scripts, or add esbuild to installScripts.allow in depcurfew.json if you trust them');
   });
 
   it('points to the sources setting for a denied source', async () => {
     const report = await checkSpec('github:user/repo', options());
-    expect(report.findings[0]?.fix).toBe('Install the package from the registry instead, or set sources.git to "allow" in depgate.json if this source is intended');
+    expect(report.findings[0]?.fix).toBe('Install the package from the registry instead, or set sources.git to "allow" in depcurfew.json if this source is intended');
   });
 
   it.each([
@@ -169,7 +169,7 @@ describe('what to do about a finding', () => {
 
   it('says what to do when the registry cannot be reached', async () => {
     const report = await checkSpec('lodash', options({ fetch: async () => Promise.reject(new Error('getaddrinfo ENOTFOUND')) }));
-    expect(report.findings[0]?.fix).toBe('Run depgate check again when the registry is reachable, or pass --registry with a registry you can reach');
+    expect(report.findings[0]?.fix).toBe('Run depcurfew check again when the registry is reachable, or pass --registry with a registry you can reach');
   });
 });
 

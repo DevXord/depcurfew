@@ -2,7 +2,7 @@
 
 # Package manager knowledge base
 
-The facts depgate relies on, each linked to the official documentation or changelog it was verified against.
+The facts depcurfew relies on, each linked to the official documentation or changelog it was verified against.
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
@@ -38,7 +38,7 @@ Whether dependency lifecycle scripts run, and how to allow specific packages.
 
 ## Project files
 
-How depgate recognizes each package manager in a repository.
+How depcurfew recognizes each package manager in a repository.
 
 | Tool | Lockfiles | Manifests | Workspaces | Object form key |
 | --- | --- | --- | --- | --- |
@@ -298,7 +298,7 @@ Context recorded with verified facts.
 
 - `cooldown.configFiles`: Also YARN_NPM_MINIMAL_AGE_GATE (general YARN_ env rule) and, since 4.17.0, npmScopes.<scope>.npmMinimalAgeGate. package.json cannot set it. [↗](https://yarnpkg.com/configuration/yarnrc)
 - `cooldown.unit`: Bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect. [↗](https://github.com/yarnpkg/berry/pull/6942)
-- `cooldown.availableSince`: The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: "Bust the metadata cache" (#6908) and "support registries without publish times using minimalAgeGate" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old ("No candidates found"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depgate writes the setting from 4.10.2 on. [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.10.2)
+- `cooldown.availableSince`: The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: "Bust the metadata cache" (#6908) and "support registries without publish times using minimalAgeGate" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old ("No candidates found"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depcurfew writes the setting from 4.10.2 on. [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.10.2)
 - `installScripts.defaultPolicy`: Workspace scripts still run. Upgraded projects with an old lockfile get enableScripts: true written to .yarnrc.yml. Yarn 1 runs scripts unless --ignore-scripts is passed. [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.14.0)
 - `installScripts.allowList.file`: Root package.json only; ignored inside workspaces. [↗](https://yarnpkg.com/configuration/manifest#dependenciesMeta)
 - `installScripts.disableAll`: Set in .yarnrc.yml; the default since 4.14.0. yarn install --mode=skip-build skips builds for one run. Berry ignores YARN_IGNORE_SCRIPTS. [↗](https://yarnpkg.com/configuration/yarnrc#enableScripts)
@@ -313,7 +313,7 @@ Context recorded with verified facts.
 - `extra.excludeWildcards`: Name globs such as @scope/* or package* in npmPreapprovedPackages. [↗](https://yarnpkg.com/configuration/yarnrc#npmPreapprovedPackages)
 - `extra.classicLockfileHeader`: Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js). [↗](https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js)
 - `extra.latestVersion`: Yarn 6 is still in preview. [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.18.1)
-- `extra.upgradeMigration`: Explicit values written by depgate prevent the migration. [↗](https://github.com/yarnpkg/berry/pull/7135)
+- `extra.upgradeMigration`: Explicit values written by depcurfew prevent the migration. [↗](https://github.com/yarnpkg/berry/pull/7135)
 
 ### Bun
 
@@ -377,7 +377,7 @@ Context recorded with verified facts.
 - `extra.excludeRule`: The documented opt-out: a packageRules entry with matchPackageNames and minimumReleaseAge: null. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `extra.securityUpdatesSetting`: The vulnerabilityAlerts default sets minimumReleaseAge to null, so security updates skip the delay unless a value is set there. [↗](https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts)
 - `extra.excludeWildcards`: matchPackageNames accepts globs (and regex) since 38.0.0. [↗](https://docs.renovatebot.com/configuration-options/#matchpackagenames)
-- `extra.ruleDescription`: A human-readable description allowed inside any configuration object; depgate uses it to recognize the packageRules entry it manages. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description)
+- `extra.ruleDescription`: A human-readable description allowed inside any configuration object; depcurfew uses it to recognize the packageRules entry it manages. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description)
 - `extra.packageJsonConfig`: Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated. [↗](https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts)
 - `extra.durationUnits`: Units shown in the docs: minimumReleaseAge=1 hour on this page and "3 days" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `extra.missingTimestamp`: minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open. [↗](https://github.com/renovatebot/renovate/releases/tag/42.0.0)

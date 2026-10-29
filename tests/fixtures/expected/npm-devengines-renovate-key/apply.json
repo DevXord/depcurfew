@@ -4,15 +4,15 @@
     "package.json"
   ],
   "warnings": [
-    "npm: no exact version is pinned, so depgate configures for npm 12.2.1, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
+    "npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
     "npm: allowScripts takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
-    "Renovate: configuration in package.json is deprecated and depgate does not edit it; move it to renovate.json or add the snippet by hand"
+    "Renovate: configuration in package.json is deprecated and depcurfew does not edit it; move it to renovate.json or add the snippet by hand"
   ],
   "snippets": [
     {
       "tool": "renovate",
       "file": "package.json",
-      "text": "{\n  \"minimumReleaseAge\": \"3 days\",\n  \"packageRules\": [\n    {\n      \"description\": \"depgate: packages excluded from minimumReleaseAge\",\n      \"matchPackageNames\": [\n        \"@acme/*\",\n        \"left-pad\"\n      ],\n      \"minimumReleaseAge\": null\n    }\n  ],\n  \"vulnerabilityAlerts\": {\n    \"minimumReleaseAge\": null\n  }\n}"
+      "text": "{\n  \"minimumReleaseAge\": \"3 days\",\n  \"packageRules\": [\n    {\n      \"description\": \"depcurfew: packages excluded from minimumReleaseAge\",\n      \"matchPackageNames\": [\n        \"@acme/*\",\n        \"left-pad\"\n      ],\n      \"minimumReleaseAge\": null\n    }\n  ],\n  \"vulnerabilityAlerts\": {\n    \"minimumReleaseAge\": null\n  }\n}"
     }
   ]
 }

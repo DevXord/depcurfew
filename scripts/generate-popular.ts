@@ -1,4 +1,4 @@
-// Regenerates src/knowledge/popular.ts: the most downloaded packages of the npm registry, which depgate check compares
+// Regenerates src/knowledge/popular.ts: the most downloaded packages of the npm registry, which depcurfew check compares
 // package names with to find look-alikes. The registry has no "most downloaded" listing, and its search returns at most
 // 250 results per query, so the script searches many common keywords and terms, keeps the weekly download count each
 // result carries and writes the top packages. Run it by hand with network access: npm run data:popular
@@ -124,7 +124,7 @@ import { verifiedOn } from './define.ts';
 
 /**
  * The ${names.length} most downloaded packages found with ${queries.length} searches of the npm registry, sorted by name. The
- * least downloaded of them had ${minimum} weekly downloads. depgate check flags names that are close to one of them.
+ * least downloaded of them had ${minimum} weekly downloads. depcurfew check flags names that are close to one of them.
  */
 export const popularPackages = verifiedOn('${today}').uncertain(
   ${JSON.stringify(names)},

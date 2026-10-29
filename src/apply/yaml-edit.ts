@@ -1,11 +1,11 @@
 // Edits YAML text with minimal changes: the parser (yaml) locates nodes, and only the changed value or the new
-// key is written, so comments, quoting and spacing elsewhere stay byte for byte. Keys depgate sets get a
-// "# managed by depgate" comment on the line above.
+// key is written, so comments, quoting and spacing elsewhere stay byte for byte. Keys depcurfew sets get a
+// "# managed by depcurfew" comment on the line above.
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, stringify, type Node, type Pair } from 'yaml';
 
 type Path = readonly (string | number)[];
 
-export const YAML_MARKER = '# managed by depgate';
+export const YAML_MARKER = '# managed by depcurfew';
 
 function parse(text: string) {
   const lineCounter = new LineCounter();
@@ -85,7 +85,7 @@ function isFlow(node: Node): boolean {
 function refuseFlow(path: Path, index: number, value: unknown): never {
   const where = index === 0 ? 'the document' : path.slice(0, index).join('.');
   throw new Error(
-    `${where} is written in flow style ({ ... } or [ ... ]), which depgate does not edit; rewrite it in block style, or set ${path.join('.')} to ${JSON.stringify(value)} by hand`,
+    `${where} is written in flow style ({ ... } or [ ... ]), which depcurfew does not edit; rewrite it in block style, or set ${path.join('.')} to ${JSON.stringify(value)} by hand`,
   );
 }
 

@@ -23,7 +23,7 @@ async function exec(...argv: string[]): Promise<{ code: number; stdout: string; 
   return { code, stdout, stderr };
 }
 
-describe('depgate explain --json', () => {
+describe('depcurfew explain --json', () => {
   it('prints the detection of a repository without a policy', async () => {
     const result = await exec('explain', '--json', repo('pnpm10-monorepo'));
     expect(result.code).toBe(EXIT_OK);
@@ -35,7 +35,7 @@ describe('depgate explain --json', () => {
     let directory: string;
 
     beforeEach(() => {
-      directory = mkdtempSync(join(tmpdir(), 'depgate-explain-'));
+      directory = mkdtempSync(join(tmpdir(), 'depcurfew-explain-'));
       cpSync(repo('pnpm11-dependabot'), directory, { recursive: true });
     });
 
@@ -44,11 +44,11 @@ describe('depgate explain --json', () => {
     });
 
     it('converts the cooldown for every detected tool when targets is auto', async () => {
-      writeFileSync(join(directory, 'depgate.json'), JSON.stringify({ version: 1, cooldown: { minimum: '36h' } }));
+      writeFileSync(join(directory, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '36h' } }));
       const result = await exec('explain', directory, '--json');
       expect(result.code).toBe(EXIT_OK);
       expect(JSON.parse(result.stdout).policy).toEqual({
-        file: 'depgate.json',
+        file: 'depcurfew.json',
         valid: true,
         targets: { mode: 'auto', tools: ['pnpm', 'dependabot'] },
         cooldown: {
@@ -63,12 +63,12 @@ describe('depgate explain --json', () => {
 
     it('uses the listed targets and reports tools that cannot take the cooldown', async () => {
       writeFileSync(
-        join(directory, 'depgate.json'),
+        join(directory, 'depcurfew.json'),
         JSON.stringify({ version: 1, cooldown: { minimum: '1w' }, targets: ['npm', 'renovate'] }),
       );
       const result = await exec('explain', directory, '--json');
       expect(JSON.parse(result.stdout).policy).toEqual({
-        file: 'depgate.json',
+        file: 'depcurfew.json',
         valid: true,
         targets: { mode: 'listed', tools: ['npm', 'renovate'] },
         cooldown: {
@@ -82,7 +82,7 @@ describe('depgate explain --json', () => {
     });
 
     it('reports a detected tool that cannot take the cooldown instead of shortening it', async () => {
-      writeFileSync(join(directory, 'depgate.json'), JSON.stringify({ version: 1, cooldown: { minimum: '13w' } }));
+      writeFileSync(join(directory, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '13w' } }));
       const json = await exec('explain', directory, '--json');
       expect(json.code).toBe(EXIT_OK);
       expect(JSON.parse(json.stdout).policy.cooldown.tools).toEqual([
@@ -94,18 +94,18 @@ describe('depgate explain --json', () => {
     });
 
     it('reports an invalid policy and exits with 1', async () => {
-      writeFileSync(join(directory, 'depgate.json'), JSON.stringify({ version: 1, cooldown: { minimum: '3 days' } }));
+      writeFileSync(join(directory, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '3 days' } }));
       const result = await exec('explain', directory, '--json');
       expect(result.code).toBe(EXIT_FAILURE);
       expect(JSON.parse(result.stdout).policy).toEqual({
-        file: 'depgate.json',
+        file: 'depcurfew.json',
         valid: false,
         issues: ['cooldown.minimum: invalid duration "3 days": spaces are not allowed; write "3d"'],
       });
     });
 
     it('prints a readable summary without --json', async () => {
-      writeFileSync(join(directory, 'depgate.json'), JSON.stringify({ version: 1, cooldown: { minimum: '36h' } }));
+      writeFileSync(join(directory, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '36h' } }));
       const result = await exec('explain', directory);
       expect(result.code).toBe(EXIT_OK);
       expect(result.stdout).toBe(
@@ -123,7 +123,7 @@ describe('depgate explain --json', () => {
           'GitHub Actions workflows: none',
           'Warnings: none',
           '',
-          'Policy (depgate.json):',
+          'Policy (depcurfew.json):',
           '  targets: pnpm, Dependabot (detected)',
           '  cooldown 36h:',
           '    pnpm: 2160 minutes',
@@ -141,17 +141,17 @@ describe('depgate explain --json', () => {
         'Warnings:',
         '  multiple-lockfiles: lockfiles of several package managers: package-lock.json, yarn.lock',
         '  package-manager-mismatch: packageManager names pnpm, but no pnpm lockfile exists',
-        '  yarn-classic-unsupported: Yarn Classic (1.x) is not supported; depgate configures Yarn 2 and later',
+        '  yarn-classic-unsupported: Yarn Classic (1.x) is not supported; depcurfew configures Yarn 2 and later',
       ].join('\n'),
     );
     expect(result.stdout).toContain('  Yarn Classic (not supported)\n');
-    expect(result.stdout).toContain('Policy: no depgate.json\n');
+    expect(result.stdout).toContain('Policy: no depcurfew.json\n');
   });
 
   it('uses listed targets even when they are not detected', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'depgate-explain-'));
+    const directory = mkdtempSync(join(tmpdir(), 'depcurfew-explain-'));
     try {
-      writeFileSync(join(directory, 'depgate.json'), JSON.stringify({ version: 1, cooldown: { minimum: '1d' }, targets: ['dependabot'] }));
+      writeFileSync(join(directory, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '1d' }, targets: ['dependabot'] }));
       writeFileSync(join(directory, 'package.json'), '{}');
       const json = await exec('explain', '--json', directory);
       expect(JSON.parse(json.stdout).policy.cooldown).toEqual({
@@ -172,9 +172,9 @@ describe('depgate explain --json', () => {
   });
 
   it('fails when the directory does not exist', async () => {
-    const result = await exec('explain', join(tmpdir(), 'depgate-missing-directory'));
+    const result = await exec('explain', join(tmpdir(), 'depcurfew-missing-directory'));
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toMatch(/^depgate: directory not found: /);
+    expect(result.stderr).toMatch(/^depcurfew: directory not found: /);
   });
 
   it('accepts at most one directory', async () => {

@@ -1,4 +1,4 @@
-// `depgate check`: whether installing a package now would follow the policy. For a registry package: whether it exists,
+// `depcurfew check`: whether installing a package now would follow the policy. For a registry package: whether it exists,
 // how old the version the spec picks is compared with the cooldown, whether it runs install scripts the policy does
 // not allow, whether it is deprecated and whether its name imitates a popular package. Git, tarball and local sources
 // are checked against the policy's sources section only. Anything that cannot be checked is an error, so callers fail
@@ -119,12 +119,12 @@ function sourceFindings(spec: PackageSpec, kind: SourceKind, policy: ResolvedPol
       {
         level: 'error',
         code: 'forbidden-source',
-        message: `it installs from ${label}, which depgate.json denies (sources.${denied})`,
-        fix: `Install the package from the registry instead, or set sources.${denied} to "allow" in depgate.json if this source is intended`,
+        message: `it installs from ${label}, which depcurfew.json denies (sources.${denied})`,
+        fix: `Install the package from the registry instead, or set sources.${denied} to "allow" in depcurfew.json if this source is intended`,
       },
     ];
   }
-  return [{ level: 'warning', code: 'unchecked-source', message: `it installs from ${label}; depgate looks up registry packages only`, fix: CHECK_BY_HAND }];
+  return [{ level: 'warning', code: 'unchecked-source', message: `it installs from ${label}; depcurfew looks up registry packages only`, fix: CHECK_BY_HAND }];
 }
 
 async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions): Promise<void> {
@@ -136,7 +136,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
     add({
       level: 'error',
       code: 'unverified',
-      message: `${scope} packages come from ${scopeRegistry} (.npmrc); depgate looks up the public registry only`,
+      message: `${scope} packages come from ${scopeRegistry} (.npmrc); depcurfew looks up the public registry only`,
       fix: `Check the package in ${scopeRegistry} yourself before installing it`,
     });
     return;
@@ -155,7 +155,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   const lookup = await fetchPackument(name, { registry: options.registry, fetch: options.fetch });
   if (lookup.status === 'not-found') {
     if (scope !== undefined) {
-      // A scope may belong to a private registry that no .npmrc depgate reads names, so a person decides.
+      // A scope may belong to a private registry that no .npmrc depcurfew reads names, so a person decides.
       add({
         level: 'error',
         code: 'unverified',
@@ -177,7 +177,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
       level: 'error',
       code: 'unverified',
       message: `it cannot be checked: ${lookup.reason}`,
-      fix: 'Run depgate check again when the registry is reachable, or pass --registry with a registry you can reach',
+      fix: 'Run depcurfew check again when the registry is reachable, or pass --registry with a registry you can reach',
     });
     return;
   }
@@ -218,7 +218,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
         add({
           level: 'error',
           code: 'too-young',
-          message: `${name}@${version} was published ${describeAge(age)} ago; depgate.json requires ${formatMinutes(cooldown.minimum.minutes)}${instead === undefined ? '' : ` (${name}@${instead} is old enough)`}`,
+          message: `${name}@${version} was published ${describeAge(age)} ago; depcurfew.json requires ${formatMinutes(cooldown.minimum.minutes)}${instead === undefined ? '' : ` (${name}@${instead} is old enough)`}`,
           fix: `${instead === undefined ? 'Wait' : `Install ${name}@${instead} instead, or wait`} until ${name}@${version} is ${formatMinutes(cooldown.minimum.minutes)} old`,
         });
       }
@@ -234,8 +234,8 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
     add({
       level: 'error',
       code: 'install-scripts',
-      message: `${name}@${version} runs install scripts (${listed}) that depgate.json does not allow`,
-      fix: `Pick a package without install scripts, or add ${name} to installScripts.allow in depgate.json if you trust them`,
+      message: `${name}@${version} runs install scripts (${listed}) that depcurfew.json does not allow`,
+      fix: `Pick a package without install scripts, or add ${name} to installScripts.allow in depcurfew.json if you trust them`,
     });
   }
   if (typeof document?.deprecated === 'string' && document.deprecated !== '') {
@@ -259,7 +259,7 @@ export async function checkSpec(raw: string, options: CheckOptions): Promise<Pac
     report.findings.push({
       level: 'warning',
       code: 'unchecked-source',
-      message: 'it is a package of this workspace; depgate looks up registry packages only',
+      message: 'it is a package of this workspace; depcurfew looks up registry packages only',
       fix: 'Nothing to do if the package is part of this repository',
     });
   } else if (spec.kind === 'other') {

@@ -1,5 +1,5 @@
-name: depgate doctor
-description: Find package manager configuration that silently does not work, and drift from depgate.json; report it to code scanning.
+name: depcurfew doctor
+description: Find package manager configuration that silently does not work, and drift from depcurfew.json; report it to code scanning.
 author: DevXord
 branding:
   icon: shield
@@ -11,13 +11,13 @@ inputs:
     default: '.'
   sarif-file:
     description: Where to write the SARIF report, relative to the workspace.
-    default: depgate.sarif
+    default: depcurfew.sarif
   upload-sarif:
     description: Upload the SARIF report to GitHub code scanning. The job needs the security-events write permission.
     default: 'true'
   category:
-    description: Code scanning category of the upload, to tell several depgate runs in one workflow apart.
-    default: depgate
+    description: Code scanning category of the upload, to tell several depcurfew runs in one workflow apart.
+    default: depcurfew
   fail-on-error:
     description: Fail the step when doctor reports an error.
     default: 'true'
@@ -59,7 +59,7 @@ runs:
         node-version: 22
         package-manager-cache: false
 
-    - name: Run depgate doctor
+    - name: Run depcurfew doctor
       id: doctor
       shell: bash
       env:
@@ -67,7 +67,7 @@ runs:
         INPUT_SARIF_FILE: ${{ inputs.sarif-file }}
         INPUT_ANNOTATIONS: ${{ inputs.annotations }}
         INPUT_JOB_SUMMARY: ${{ inputs.job-summary }}
-      run: node "$GITHUB_ACTION_PATH/action/depgate.mjs"
+      run: node "$GITHUB_ACTION_PATH/action/depcurfew.mjs"
 
     - name: Upload SARIF to code scanning
       if: inputs.upload-sarif == 'true' && steps.doctor.outputs.sarif-file != ''
@@ -84,8 +84,8 @@ runs:
         ERRORS: ${{ steps.doctor.outputs.errors }}
       run: |
         if [ -n "$FAILURE" ]; then
-          echo "::error title=depgate::$FAILURE"
+          echo "::error title=depcurfew::$FAILURE"
         else
-          echo "::error title=depgate::depgate doctor reported $ERRORS error(s); the job summary and the log of the Run depgate doctor step say how to fix each one"
+          echo "::error title=depcurfew::depcurfew doctor reported $ERRORS error(s); the job summary and the log of the Run depcurfew doctor step say how to fix each one"
         fi
         exit 1

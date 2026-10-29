@@ -127,7 +127,7 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
     dynamic = true;
     started = true;
     const inner = read(line, inside, close, level + 1);
-    // The shell refuses a line with an open bracket, but depgate cannot tell where the command would have ended.
+    // The shell refuses a line with an open bracket, but depcurfew cannot tell where the command would have ended.
     if (!inner.closed) throw new Unreadable(`${line.slice(from, inside)} is not closed`);
     // ${...} is a parameter, whose default value may hold command substitutions; the others are command lines.
     if (close === '}') substitutions.push(...inner.substitutions);
@@ -599,7 +599,7 @@ function sameRegistry(value: string, registry: string): boolean {
 }
 
 function anotherRegistry(name: string): string {
-  return `${name} may point the package manager at another registry, which depgate does not look up`;
+  return `${name} may point the package manager at another registry, which depcurfew does not look up`;
 }
 
 /** Why an option may change where the tool fetches packages from; undefined when it does not. */
@@ -700,7 +700,7 @@ function finish(tool: ToolCommands, line: string, outcome: Outcome, depth: numbe
   return scan;
 }
 
-/** A package manager, shell or wrapper further along the words, run by a command depgate does not know (strace, find -exec). */
+/** A package manager, shell or wrapper further along the words, run by a command depcurfew does not know (strace, find -exec). */
 function laterCommand(words: readonly Word[], depth: number): CommandScan {
   const { runners } = commands();
   const index = words.findIndex((word) => !word.dynamic && runners.has(basename(word.text)));
@@ -725,7 +725,7 @@ function scanShell(words: readonly Word[], command: SimpleCommand, depth: number
   }
   let operand = words[index];
   if (!commandString) {
-    // A -c after an option depgate does not know still gives a command string; reading it costs nothing.
+    // A -c after an option depcurfew does not know still gives a command string; reading it costs nothing.
     const flag = words.findIndex((word, position) => position > index && /^-[A-Za-z]*c[A-Za-z]*$/u.test(word.text));
     if (flag !== -1) {
       commandString = true;

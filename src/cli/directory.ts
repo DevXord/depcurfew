@@ -10,11 +10,11 @@ export function resolveDirectory(directory: string | undefined, io: CliIo): stri
   try {
     isDirectory = statSync(absolute).isDirectory();
   } catch {
-    io.stderr(`depgate: directory not found: ${shown}\n`);
+    io.stderr(`depcurfew: directory not found: ${shown}\n`);
     return undefined;
   }
   if (!isDirectory) {
-    io.stderr(`depgate: not a directory: ${shown}\n`);
+    io.stderr(`depcurfew: not a directory: ${shown}\n`);
     return undefined;
   }
   return absolute;

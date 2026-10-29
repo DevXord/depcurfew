@@ -1,4 +1,4 @@
-// depgate check through the CLI and as a Claude Code PreToolUse hook, on recorded registry responses.
+// depcurfew check through the CLI and as a Claude Code PreToolUse hook, on recorded registry responses.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,16 +8,16 @@ import { recordedFetch } from './support.ts';
 
 const NOW = new Date('2026-10-29T12:00:00Z');
 const temporary: string[] = [];
-const HOME = mkdtempSync(join(tmpdir(), 'depgate-home-'));
+const HOME = mkdtempSync(join(tmpdir(), 'depcurfew-home-'));
 temporary.push(HOME);
 afterAll(() => {
   for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
 });
 
 function project(policy?: object): string {
-  const directory = mkdtempSync(join(tmpdir(), 'depgate-check-'));
+  const directory = mkdtempSync(join(tmpdir(), 'depcurfew-check-'));
   temporary.push(directory);
-  if (policy !== undefined) writeFileSync(join(directory, 'depgate.json'), JSON.stringify({ version: 1, ...policy }));
+  if (policy !== undefined) writeFileSync(join(directory, 'depcurfew.json'), JSON.stringify({ version: 1, ...policy }));
   return directory;
 }
 
@@ -37,7 +37,7 @@ function event(command: string, cwd: string, tool = 'Bash'): string {
   return JSON.stringify({ session_id: 'test', hook_event_name: 'PreToolUse', tool_name: tool, tool_input: { command }, cwd });
 }
 
-describe('depgate check', () => {
+describe('depcurfew check', () => {
   it('passes an old package without install scripts', async () => {
     const result = await exec(['check', '--dir', project({ cooldown: { minimum: '3d' } }), 'lodash']);
     expect(result.code).toBe(EXIT_OK);
@@ -45,12 +45,12 @@ describe('depgate check', () => {
     expect(result.stderr).toBe('');
   });
 
-  it('uses the default policy without depgate.json and fails on install scripts', async () => {
+  it('uses the default policy without depcurfew.json and fails on install scripts', async () => {
     const result = await exec(['check', '--dir', project(), 'esbuild', 'request']);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toBe('note: no depgate.json found; checking against the default policy of depgate init (depgate init writes it)\n');
+    expect(result.stderr).toBe('note: no depcurfew.json found; checking against the default policy of depcurfew init (depcurfew init writes it)\n');
     expect(result.stdout).toContain(
-      'esbuild@0.28.2:\n  error: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depgate.json does not allow\n    fix: Pick a package without install scripts, or add esbuild to installScripts.allow in depgate.json if you trust them\n',
+      'esbuild@0.28.2:\n  error: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depcurfew.json does not allow\n    fix: Pick a package without install scripts, or add esbuild to installScripts.allow in depcurfew.json if you trust them\n',
     );
     expect(result.stdout).toContain('  warning: request@2.88.2 is deprecated');
     expect(result.stdout).toContain('2 packages: 1 with errors, 1 with warnings\n');
@@ -90,7 +90,7 @@ describe('depgate check', () => {
   });
 
   it("reads scope registries from the user's .npmrc and asks about an unknown scoped package", async () => {
-    const home = mkdtempSync(join(tmpdir(), 'depgate-home-'));
+    const home = mkdtempSync(join(tmpdir(), 'depcurfew-home-'));
     temporary.push(home);
     writeFileSync(join(home, '.npmrc'), '@corp:registry=https://corp.example/\n');
     let stdout = '';
@@ -105,14 +105,14 @@ describe('depgate check', () => {
 
   it('refuses an invalid policy', async () => {
     const directory = project();
-    writeFileSync(join(directory, 'depgate.json'), '{"version": 2}');
+    writeFileSync(join(directory, 'depcurfew.json'), '{"version": 2}');
     const result = await exec(['check', '--dir', directory, 'lodash']);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toContain('depgate.json is invalid');
+    expect(result.stderr).toContain('depcurfew.json is invalid');
   });
 });
 
-describe('depgate check --hook claude-code', () => {
+describe('depcurfew check --hook claude-code', () => {
   const decision = (stdout: string) => (JSON.parse(stdout) as { hookSpecificOutput: { hookEventName: string; permissionDecision: string; permissionDecisionReason: string } }).hookSpecificOutput;
 
   it('denies installing a package that breaks the policy', async () => {
@@ -122,7 +122,7 @@ describe('depgate check --hook claude-code', () => {
       hookEventName: 'PreToolUse',
       permissionDecision: 'deny',
       permissionDecisionReason:
-        "depgate blocked this command because it breaks the project's supply-chain policy (depgate.json):\n- esbuild: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depgate.json does not allow\nChoose another package or version. Only the user may change depgate.json: ask them instead of editing it.",
+        "depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n- esbuild: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depcurfew.json does not allow\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.",
     });
   });
 
@@ -134,11 +134,11 @@ describe('depgate check --hook claude-code', () => {
     );
   });
 
-  it('does not suggest that the agent edit depgate.json', async () => {
+  it('does not suggest that the agent edit depcurfew.json', async () => {
     const result = await exec(['check', '--hook', 'claude-code'], event('npm install esbuild github:user/repo', project({ installScripts: { default: 'deny', allow: [] }, sources: { git: 'deny' } })));
     const reason = decision(result.stdout).permissionDecisionReason;
     expect(reason).not.toMatch(/installScripts\.allow|sources\.git to/u);
-    expect(reason).toContain('Only the user may change depgate.json');
+    expect(reason).toContain('Only the user may change depcurfew.json');
   });
 
   it('colors the text output on a terminal', async () => {
@@ -176,16 +176,16 @@ describe('depgate check --hook claude-code', () => {
     expect(result).toEqual({ code: EXIT_OK, stdout: '', stderr: '' });
   });
 
-  it('finds depgate.json in a parent of the working directory', async () => {
+  it('finds depcurfew.json in a parent of the working directory', async () => {
     const directory = project({ installScripts: { default: 'deny', allow: ['esbuild'] } });
     mkdirSync(join(directory, 'packages', 'app'), { recursive: true });
     const result = await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', join(directory, 'packages', 'app')));
     expect(result.stdout).toBe('');
   });
 
-  it('asks when depgate.json is invalid', async () => {
+  it('asks when depcurfew.json is invalid', async () => {
     const directory = project();
-    writeFileSync(join(directory, 'depgate.json'), '{"version": 2}');
+    writeFileSync(join(directory, 'depcurfew.json'), '{"version": 2}');
     const result = await exec(['check', '--hook', 'claude-code'], event('npm install lodash', directory));
     expect(decision(result.stdout)).toMatchObject({ permissionDecision: 'ask' });
   });
@@ -194,7 +194,7 @@ describe('depgate check --hook claude-code', () => {
     const result = await exec(['check', '--hook', 'claude-code'], 'not json');
     expect(result.code).toBe(2);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toMatch(/^depgate: cannot read the hook event: /u);
+    expect(result.stderr).toMatch(/^depcurfew: cannot read the hook event: /u);
   });
 
   it('exits with the blocking exit code when stdin cannot be read', async () => {
@@ -206,7 +206,7 @@ describe('depgate check --hook claude-code', () => {
       home: () => HOME,
     });
     expect(code).toBe(2);
-    expect(stderr).toBe('depgate: cannot read the hook event: the input is larger than 1 MiB\n');
+    expect(stderr).toBe('depcurfew: cannot read the hook event: the input is larger than 1 MiB\n');
   });
 
   it('asks when the check itself fails', async () => {
@@ -220,7 +220,7 @@ describe('depgate check --hook claude-code', () => {
       home: () => HOME,
     });
     expect(code).toBe(EXIT_OK);
-    expect(decision(stdout)).toMatchObject({ permissionDecision: 'ask', permissionDecisionReason: 'depgate cannot check this command: no clock' });
+    expect(decision(stdout)).toMatchObject({ permissionDecision: 'ask', permissionDecisionReason: 'depcurfew cannot check this command: no clock' });
   });
 
   it('rejects an unknown hook and packages next to --hook', async () => {

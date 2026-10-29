@@ -1,9 +1,9 @@
-// The GitHub Action runs action/depgate.mjs from the action's own checkout, without npm install, so the bundle
+// The GitHub Action runs action/depcurfew.mjs from the action's own checkout, without npm install, so the bundle
 // includes the yaml dependency. It is committed and must equal a fresh build (tests/action/bundle.test.ts).
 import { defineConfig } from 'tsdown';
 
 export default defineConfig({
-  entry: { depgate: 'src/action-main.ts' },
+  entry: { depcurfew: 'src/action-main.ts' },
   outDir: 'action',
   format: 'esm',
   platform: 'node',

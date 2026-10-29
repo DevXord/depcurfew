@@ -41,7 +41,7 @@ describe('parseSpec', () => {
     ['link:../pkg', { kind: 'directory' }],
     ['~/pkg', { kind: 'directory' }],
     ['portal:../pkg', { kind: 'directory' }],
-    ['jsr:@std/path', { kind: 'other', reason: 'it uses the jsr: protocol, which depgate does not look up' }],
+    ['jsr:@std/path', { kind: 'other', reason: 'it uses the jsr: protocol, which depcurfew does not look up' }],
     ['pkg:npm/lodash', { kind: 'other' }],
     ['shared@workspace:*', { kind: 'workspace' }],
     ['react@catalog:', { kind: 'other' }],

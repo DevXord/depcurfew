@@ -1,5 +1,5 @@
 // Reading the knowledge base for generators. Where official sources disagree about the first version with a
-// setting, the latest variant wins, so depgate never writes a key that the pinned version might not know.
+// setting, the latest variant wins, so depcurfew never writes a key that the pinned version might not know.
 import { evidenceOf } from '../knowledge/facts.ts';
 import type { Fact, ToolKnowledge } from '../knowledge/types.ts';
 import { compareVersions, parseVersion } from './version.ts';

@@ -2,6 +2,6 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - '!packages/legacy'
-# managed by depgate
+# managed by depcurfew
 onlyBuiltDependencies:
   - esbuild

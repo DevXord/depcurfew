@@ -112,12 +112,12 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 
 ## D-015 · Plik polityki i jego znaczenie (2026-10-28)
 - **Decyzja (zatwierdzona przez właściciela):**
-  - plik `depgate.json` w katalogu repozytorium, format JSON, wymagane jest tylko `version: 1`;
-  - brak sekcji oznacza, że depgate nie zarządza tym obszarem;
+  - plik `depcurfew.json` w katalogu repozytorium, format JSON, wymagane jest tylko `version: 1`;
+  - brak sekcji oznacza, że depcurfew nie zarządza tym obszarem;
   - w obecnej sekcji wymagane są `cooldown.minimum` i `installScripts.default`;
   - wartości domyślne: `exclude` i `allow` to `[]`, `securityUpdates` to `"bypass"`, `targets` to `"auto"`; pominięte pole w `sources` jest niezarządzane;
   - `securityUpdates` przyjmuje `"bypass"` albo `"delay"`; `sources` ma pola `git`, `remoteTarball`, `file` i `directory` z wartościami `"allow"` albo `"deny"`.
-- **Wzorce paczek:** to własna, celowo luźna gramatyka depgate, a nie kopia reguł nazw npm.
+- **Wzorce paczek:** to własna, celowo luźna gramatyka depcurfew, a nie kopia reguł nazw npm.
   - Dozwolona jest nazwa lub wzorzec z `*`, np. `@moja-firma/*`.
   - Odrzucane są: wersja, spacje, wzorzec złożony z samych `*` (pasowałby do każdej paczki) i powtórzenia.
   - Czy dane narzędzie obsługuje wzorzec, rozstrzygają generatory w fazie 4.
@@ -140,7 +140,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **Zgodność schematu z walidatorem:**
   - sprawdza ją w testach mały interpreter podzbioru JSON Schema (`tests/policy/json-schema-subset.ts`), bez nowej zależności; na nieznanym słowie kluczowym rzuca błąd;
   - walidator jest surowszy w trzech miejscach: limit wielkości czasu, maksimum narzędzia przy jawnych `targets` oraz lista `allow` bez efektu.
-- **`$schema`:** wartość `https://unpkg.com/depgate/schema.json`, zgodnie z planem. Adres zadziała po publikacji i nie jest przypięty do wersji.
+- **`$schema`:** wartość `https://unpkg.com/depcurfew/schema.json`, zgodnie z planem. Adres zadziała po publikacji i nie jest przypięty do wersji.
 - **Komunikaty:**
   - format to `ścieżka: komunikat`, ścieżka w notacji `cooldown.exclude[2]`, a `(root)` oznacza cały dokument;
   - walidator zgłasza wszystkie błędy naraz, w tym błędy zależne od kilku pól, nawet gdy inna część pliku jest błędna;
@@ -170,8 +170,8 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - przy sporze o maksimum wygrywa najniższe.
 - **Żadne narzędzie nie dostaje `0`**, bo wszędzie oznacza ono wyłączenie opóźnienia.
 
-## D-019 · `depgate init` (2026-10-28)
-- **Polecenie:** `depgate init [katalog] [--force]` zapisuje `depgate.json` z domyślną polityką: JSON z wcięciem 2 spacji, LF, stała kolejność kluczy.
+## D-019 · `depcurfew init` (2026-10-28)
+- **Polecenie:** `depcurfew init [katalog] [--force]` zapisuje `depcurfew.json` z domyślną polityką: JSON z wcięciem 2 spacji, LF, stała kolejność kluczy.
 - **Domyślna polityka (zatwierdzona przez właściciela):**
   - cooldown `3d` z `"bypass"` i pustym `exclude`;
   - skrypty `"deny"` z pustą listą `allow`;
@@ -271,9 +271,9 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - nie są śledzone: `lock.path` w `deno.json`, inny `package_json_file` w akcji pnpm, workflow wielokrotnego użytku i akcje złożone;
   - `npm install -g npm@…` w krokach `run` rozpoznaje wyrażenie regularne.
 
-## D-026 · `depgate explain` i fikstury repozytoriów (2026-10-28)
-- **Polecenie:** `depgate explain [katalog] [--json]` zwraca JSON `{ schemaVersion: 1, project, policy }`.
-  - Bez `depgate.json` pole `policy` ma wartość `null`.
+## D-026 · `depcurfew explain` i fikstury repozytoriów (2026-10-28)
+- **Polecenie:** `depcurfew explain [katalog] [--json]` zwraca JSON `{ schemaVersion: 1, project, policy }`.
+  - Bez `depcurfew.json` pole `policy` ma wartość `null`.
   - Z poprawną polityką raport zawiera `targets`. Przy `"auto"` są to wykryte obsługiwane menedżery i boty, przy liście dokładnie wymienione narzędzia.
   - Raport zawiera też `cooldown: { minimum, tools }` z wartościami przeliczonymi jak w fazie 2. Narzędzie, którego maksimum na to nie pozwala, dostaje `ok: false` z powodem.
   - Niepoprawna polityka daje listę błędów i kod wyjścia 1.
@@ -288,20 +288,20 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 ## D-027 · Zatwierdzenie decyzji fazy 3 (2026-10-28)
 - **Zatwierdzenie:** właściciel zaakceptował decyzje podjęte w trakcie fazy 3 poza planem:
   - domyślny npm z ostrzeżeniem `package-manager-assumed`, gdy jest `package.json`, ale brak dowodu użycia menedżera (D-025);
-  - format JSON `explain` (`{ schemaVersion: 1, project, policy }`, `cooldown: { minimum, tools }`) i kod wyjścia 1 przy niepoprawnym `depgate.json` (D-026);
+  - format JSON `explain` (`{ schemaVersion: 1, project, policy }`, `cooldown: { minimum, tools }`) i kod wyjścia 1 przy niepoprawnym `depcurfew.json` (D-026);
   - obsługa akcji `pnpm/setup` obok `pnpm/action-setup` (D-023);
   - eksport `detectProject` i typów wyniku w publicznym API (D-026);
   - matcher workspace'ów, w którym `*` dopasowuje też katalogi zaczynające się od kropki (D-025);
   - spostrzeżenia dla faz 4–5 (D-024).
 
-## D-028 · `depgate apply`: przebieg i wyjście (2026-10-28)
-- **Polecenie:** `depgate apply [katalog] [--dry-run]`.
+## D-028 · `depcurfew apply`: przebieg i wyjście (2026-10-28)
+- **Polecenie:** `depcurfew apply [katalog] [--dry-run]`.
   - Najpierw cały plan powstaje w pamięci (`planApply`, bufor `Workspace`), dopiero potem pliki są zapisywane.
   - `--dry-run` niczego nie zapisuje i wypisuje zunifikowany diff (Myers, 3 linie kontekstu) ze znacznikiem `\ No newline at end of file`, więc diff przyjmuje `git apply`.
   - Na stdout trafia wynik: lista utworzonych i zmienionych plików albo diff. Na stderr trafiają ostrzeżenia (`warning:`), fragmenty do wklejenia ręcznie i błędy (`error:`), więc wyjście `--dry-run` można zapisać jako łatkę.
 - **Kody wyjścia:**
   - 0 także przy ostrzeżeniach (zatwierdzona decyzja 8);
-  - 1 przy braku albo niepoprawnym `depgate.json` i przy pliku, którego nie da się edytować.
+  - 1 przy braku albo niepoprawnym `depcurfew.json` i przy pliku, którego nie da się edytować.
 - **Wszystko albo nic:** jeśli choć jednego pliku nie da się edytować (np. zepsuty JSON albo symlink), `apply` nie zapisuje żadnego pliku. Generator, który trafił na błąd, przerywa pracę, ale pozostałe dalej działają, żeby jeden przebieg zgłosił wszystkie zepsute pliki.
 - **Cele:**
   - `targets: "auto"` oznacza wykryte obsługiwane menedżery i boty;
@@ -318,18 +318,18 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 
 ## D-029 · Edytory plików konfiguracyjnych (2026-10-28)
 - **Styl pliku:** edycja pracuje na tekście z LF. Przy zapisie przywracane są oryginalne końce linii, BOM i końcowy znak nowej linii. Nowe pliki mają LF i końcowy znak nowej linii.
-- **INI (`.npmrc`) i TOML (`bunfig.toml`):** zarządzany blok ze znacznikami `# >>> depgate managed block: edit depgate.json and run depgate apply instead` i `# <<< depgate managed block` (zatwierdzona decyzja 6).
+- **INI (`.npmrc`) i TOML (`bunfig.toml`):** zarządzany blok ze znacznikami `# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead` i `# <<< depcurfew managed block` (zatwierdzona decyzja 6).
   - Istniejący blok jest podmieniany w miejscu, nowy trafia na koniec pliku (w TOML na koniec tabeli `[install]`, którą w razie potrzeby tworzy).
-  - Zarządzany klucz ustawiony poza blokiem jest zakomentowany jako `# depgate: superseded by the managed block: <linia>` (zatwierdzona decyzja 7). W TOML dotyczy to także zapisu z kropką na najwyższym poziomie (`install.klucz`), a podtabele są pomijane.
-  - Gdy polityka nie ma już nic do zapisania, depgate usuwa tylko własny blok.
+  - Zarządzany klucz ustawiony poza blokiem jest zakomentowany jako `# depcurfew: superseded by the managed block: <linia>` (zatwierdzona decyzja 7). W TOML dotyczy to także zapisu z kropką na najwyższym poziomie (`install.klucz`), a podtabele są pomijane.
+  - Gdy polityka nie ma już nic do zapisania, depcurfew usuwa tylko własny blok.
 - **YAML (`pnpm-workspace.yaml`, `.yarnrc.yml`, `dependabot.yml`):**
   - biblioteka `yaml` tylko znajduje węzły, a zmiana to minimalna edycja tekstu, bo `toString()` przeformatowuje cały dokument;
   - komentarze, cudzysłowy i odstępy poza zmienianą wartością zostają bajt w bajt, komentarz w tej samej linii co skalar też;
-  - nad każdym zapisanym kluczem pojawia się linia `# managed by depgate` (zatwierdzona decyzja 6);
+  - nad każdym zapisanym kluczem pojawia się linia `# managed by depcurfew` (zatwierdzona decyzja 6);
   - wcięcie i styl list są wykrywane z pliku.
 - **JSON i JSONC (`package.json`, `deno.json(c)`, `renovate.json(c)`):** własny edytor na drzewie z pozycjami. Zachowuje komentarze, przecinki na końcu, kolejność kluczy, wcięcie (tabulator albo najmniejsze wcięcie spacjami) i jednolinijkowe kontenery. Bez znaczników, bo JSON nie ma komentarzy (zatwierdzona decyzja 6).
 - **Bezpieczeństwo zapisu:**
-  - depgate nie zapisuje przez symlinki ani poza repozytorium;
+  - depcurfew nie zapisuje przez symlinki ani poza repozytorium;
   - zapis idzie przez plik tymczasowy (`wx`) i `rename`;
   - istniejący plik zachowuje uprawnienia.
 
@@ -346,11 +346,11 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **Bun:** utworzenie `trustedDependencies` daje ostrzeżenie, bo lista zastępuje wbudowaną listę zaufanych paczek. Bun nie ma ustawienia „pozwól na wszystkie skrypty”, więc `default: "allow"` daje ostrzeżenie.
 - **Renovate:**
   - edytowany jest pierwszy istniejący plik konfiguracyjny `.json`/`.jsonc`;
-  - depgate zarządza `minimumReleaseAge`, regułą w `packageRules` rozpoznawaną po `description: "depgate: packages excluded from minimumReleaseAge"` (usuwaną, gdy polityka nie ma wyjątków) i `vulnerabilityAlerts.minimumReleaseAge` (`null` przy `bypass`, wartość przy `delay`);
-  - `renovate.json5` i klucz `renovate` w `package.json` nie są edytowane; depgate wypisuje fragment do wklejenia (zatwierdzona decyzja 9);
+  - depcurfew zarządza `minimumReleaseAge`, regułą w `packageRules` rozpoznawaną po `description: "depcurfew: packages excluded from minimumReleaseAge"` (usuwaną, gdy polityka nie ma wyjątków) i `vulnerabilityAlerts.minimumReleaseAge` (`null` przy `bypass`, wartość przy `delay`);
+  - `renovate.json5` i klucz `renovate` w `package.json` nie są edytowane; depcurfew wypisuje fragment do wklejenia (zatwierdzona decyzja 9);
   - brak pliku daje ostrzeżenie zamiast tworzenia konfiguracji (zatwierdzona decyzja 10).
 - **Dependabot:**
-  - depgate edytuje każdy wpis `updates` z ekosystemem npm, bun lub deno;
+  - depcurfew edytuje każdy wpis `updates` z ekosystemem npm, bun lub deno;
   - ustawia `cooldown.default-days` i `cooldown.exclude`, a pozostałe klucze `cooldown` (`semver-*-days`, `include`) zostawia;
   - Dependabot nie opóźnia aktualizacji bezpieczeństwa, więc `securityUpdates: "delay"` daje ostrzeżenie;
   - pliku nie tworzy (zatwierdzona decyzja 10).
@@ -371,7 +371,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **Układ (zatwierdzona decyzja 3):**
   - `tests/fixtures/expected/<nazwa>/after/` zawiera tylko pliki, które `apply` zmienia;
   - `apply.json` zawiera `{ changed, warnings, snippets }`;
-  - wspólna polityka leży w `tests/fixtures/apply/policy.json`, a fikstura może mieć własny `expected/<nazwa>/depgate.json`.
+  - wspólna polityka leży w `tests/fixtures/apply/policy.json`, a fikstura może mieć własny `expected/<nazwa>/depcurfew.json`.
 - **Test każdej fikstury sprawdza, że:**
   - wynik i raport są zgodne z oczekiwanymi;
   - pozostałe pliki się nie zmieniły;
@@ -394,12 +394,12 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - eksport API `apply` w `src/index.ts` (D-028);
   - wyjątek w `.gitattributes` dla fikstury z CRLF (D-032).
 
-## D-034 · `depgate doctor`: model i wyjście (2026-10-29)
-- **Polecenie:** `depgate doctor [katalog] [--json | --sarif]` (zatwierdzone decyzje 1–4 fazy 5).
+## D-034 · `depcurfew doctor`: model i wyjście (2026-10-29)
+- **Polecenie:** `depcurfew doctor [katalog] [--json | --sarif]` (zatwierdzone decyzje 1–4 fazy 5).
   - Niczego nie zapisuje i niczego nie uruchamia. Czyta repozytorium tym samym `Repository` co wykrywanie, więc nie wychodzi poza katalog.
   - Każda reguła ma stały identyfikator kebab-case, opis, poziom (`error`, `warning`, `note`) i podpowiedź naprawy. Zgłoszenie ma plik i linię, a często też własną podpowiedź.
-  - Kod wyjścia 1 tylko przy zgłoszeniu `error`. Ostrzeżenia i uwagi dają 0, niepoprawny `depgate.json` 1, a `--json` razem z `--sarif` 2.
-  - Bez `depgate.json` działają tylko reguły niezależne od polityki.
+  - Kod wyjścia 1 tylko przy zgłoszeniu `error`. Ostrzeżenia i uwagi dają 0, niepoprawny `depcurfew.json` 1, a `--json` razem z `--sarif` 2.
+  - Bez `depcurfew.json` działają tylko reguły niezależne od polityki.
 - **Zgłoszenia a uwagi:** problem w repozytorium to zgłoszenie. Coś, czego doctor nie umiał sprawdzić (brak polityki, nieczytelny plik, format pliku blokady bez danych o skryptach), to uwaga (`notices`). W SARIF uwagi trafiają do `invocations[0].toolExecutionNotifications`, a nie do wyników.
 - **Wyjście:**
   - tekst: zgłoszenia pogrupowane po plikach, potem uwagi;
@@ -409,7 +409,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 
 ## D-035 · Reguły `doctor` (2026-10-29)
 - **`manager-version-too-old`** (error, warning dla zakresu):
-  - każda wersja zadeklarowana w `packageManager`, `devEngines`, Volcie, `.tool-versions` i CI musi znać każde używane ustawienie, czyli to, którego wymaga `depgate.json`, i to, które już jest w pliku menedżera;
+  - każda wersja zadeklarowana w `packageManager`, `devEngines`, Volcie, `.tool-versions` i CI musi znać każde używane ustawienie, czyli to, którego wymaga `depcurfew.json`, i to, które już jest w pliku menedżera;
   - przy zakresie liczy się najniższa dopuszczalna wersja (`^`, `~`, `>=`, `x`, `||`, zakres z łącznikiem);
   - wyrażeń `${{ … }}` nie da się ocenić, więc dają uwagę (zatwierdzona decyzja 9).
 - **`setting-ignored-by-version`** (zatwierdzona decyzja 10): ustawienie lub plik, którego używana wersja nie czyta:
@@ -423,12 +423,12 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **`pnpm-shared-workspace-lockfile`** (warning): pnpm 10 z `sharedWorkspaceLockfile: false` i `.npmrc` pakietu z ustawieniem bezpieczeństwa, które nadpisuje ustawienie workspace'u dla tego pakietu. Szczegóły w D-036.
 - **`config-drift`:**
   - `apply` zaplanowane w pamięci: każdy plik, który `apply` by zmieniło, daje błąd przy pierwszej różnicy;
-  - brakujący plik daje błąd wskazujący `depgate.json`;
+  - brakujący plik daje błąd wskazujący `depcurfew.json`;
   - wpis w allowliście narzędzia spoza `installScripts.allow` daje ostrzeżenie, bo `apply` celowo nie usuwa cudzych wpisów, a taki wpis pozwala na skrypty wbrew polityce.
 - **`bot-cooldown-mismatch`:**
   - bot czeka krócej niż menedżer (error). Liczą się wartości efektywne: ustawienie w pliku, jeśli wersja je czyta, a w przeciwnym razie wartość domyślna dla tej wersji. Przy sporze źródeł bierzemy najdłuższą. Uwzględniamy `default-days` i `semver-*-days` Dependabota, domyślne 3 dni Dependabota oraz preset `config:best-practices` Renovate;
   - aktualizacje bezpieczeństwa omijają opóźnienie bota, a menedżer ponownie sprawdza plik blokady, czyli pnpm 11.1.3+ (warning).
-- **`broad-exclusion`:** `@*/*` w `depgate.json` oraz `*`, `**`, `npm:*` i regex „wszystko” w listach wyjątków npm, pnpm, Yarn, Deno i Dependabota. Do tego reguła Renovate wyłączająca `minimumReleaseAge` dla wszystkich paczek, także bez żadnego `match*`.
+- **`broad-exclusion`:** `@*/*` w `depcurfew.json` oraz `*`, `**`, `npm:*` i regex „wszystko” w listach wyjątków npm, pnpm, Yarn, Deno i Dependabota. Do tego reguła Renovate wyłączająca `minimumReleaseAge` dla wszystkich paczek, także bez żadnego `match*`.
 - **`lockfile-forbidden-source`:** paczka z gita, z tarballa z URL, z lokalnego tarballa lub z katalogu, gdy polityka tego zabrania. Działa dla `package-lock.json` (v2+), `pnpm-lock.yaml` (9.0), `yarn.lock` (Berry) i `bun.lock`. Pakiety workspace'u nie są zgłaszane. Binarny `bun.lockb`, starsze wersje formatów i pliki, których nie da się sparsować, dają uwagę.
 - **`lockfile-install-scripts`:**
   - paczka ze skryptami instalacyjnymi spoza `installScripts.allow`;
@@ -472,13 +472,13 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - ostrzeżenia nie powodują porażki; `--strict` można dodać później (D-034).
 
 ## D-040 · GitHub Action (2026-10-29)
-- **Typ:** akcja composite w `action.yml` w katalogu głównym repozytorium, używana jako `uses: DevXord/depgate@<pełny SHA>`.
+- **Typ:** akcja composite w `action.yml` w katalogu głównym repozytorium, używana jako `uses: DevXord/depcurfew@<pełny SHA>`.
 - **Kroki:**
   - sprawdza wersję Node na runnerze i tylko przy wersji starszej niż 22 uruchamia `actions/setup-node` (bez cache menedżera paczek);
-  - uruchamia `doctor` przez `action/depgate.mjs`;
+  - uruchamia `doctor` przez `action/depcurfew.mjs`;
   - wysyła SARIF przez `github/codeql-action/upload-sarif`;
   - kończy krok błędem.
-- **Dlaczego błąd jest w osobnym kroku:** krok z `doctor` nigdy nie kończy się błędem z powodu zgłoszeń, więc wysyłka SARIF działa także wtedy, gdy są błędy. O porażce decyduje ostatni krok: błąd `doctor` przy `fail-on-error: true` albo brak możliwości uruchomienia (np. niepoprawny `depgate.json`).
+- **Dlaczego błąd jest w osobnym kroku:** krok z `doctor` nigdy nie kończy się błędem z powodu zgłoszeń, więc wysyłka SARIF działa także wtedy, gdy są błędy. O porażce decyduje ostatni krok: błąd `doctor` przy `fail-on-error: true` albo brak możliwości uruchomienia (np. niepoprawny `depcurfew.json`).
 - **Wejścia:** `directory`, `sarif-file`, `upload-sarif`, `category`, `fail-on-error`.
   - Trafiają do skryptu przez zmienne środowiskowe, a nie przez `${{ }}` w poleceniu powłoki, więc nie da się nimi wstrzyknąć polecenia.
   - Katalog spoza workspace'u jest odrzucany.
@@ -486,7 +486,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **Ścieżki w SARIF:** przy `directory` innym niż `.` ścieżki dostają ten katalog jako prefiks, bo code scanning liczy je od katalogu głównego repozytorium.
 
 ## D-041 · Zbudowany plik akcji w repozytorium (2026-10-29)
-- **Plik:** `action/depgate.mjs` powstaje z `src/action-main.ts` przez `npm run build:action` (`tsdown.action.config.ts`). To jeden plik bez minifikacji, z dołączonym `yaml`, więc akcja nie instaluje niczego przy uruchomieniu (zatwierdzona decyzja 1).
+- **Plik:** `action/depcurfew.mjs` powstaje z `src/action-main.ts` przez `npm run build:action` (`tsdown.action.config.ts`). To jeden plik bez minifikacji, z dołączonym `yaml`, więc akcja nie instaluje niczego przy uruchomieniu (zatwierdzona decyzja 1).
 - **Ograniczenie importów:** `deps.onlyBundle` dopuszcza tylko `yaml`, a `deps.onlyImport: []` pozwala wynikowi importować wyłącznie moduły wbudowane Node.
 - **Licencja:** licencja `yaml` (ISC) leży w `action/THIRD_PARTY_LICENSES.md`.
 - **Pilnowanie zgodności ze źródłem:**
@@ -518,14 +518,14 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - przykładowy workflow bierze uprawnienia z bazy wiedzy, a pin `actions/checkout` z `ci.yml`.
 - **Testy (`tests/docs/readme.test.ts`):**
   - README jest zgodny z generatorem;
-  - poza sekcjami generowanymi nie pada żadna nazwa ustawienia z bazy wiedzy, z wyjątkiem nazw, które są też polami `depgate.json` (np. `cooldown`). README nie podaje więc własnych faktów o menedżerach paczek.
-- **Instalacja:** opis docelowy (`npx depgate`) z adnotacją o braku publikacji i instrukcją uruchomienia ze źródeł (zatwierdzona decyzja 3).
-- **Przykład Action:** `DevXord/depgate@<full-commit-sha>` (zatwierdzona decyzja 4).
+  - poza sekcjami generowanymi nie pada żadna nazwa ustawienia z bazy wiedzy, z wyjątkiem nazw, które są też polami `depcurfew.json` (np. `cooldown`). README nie podaje więc własnych faktów o menedżerach paczek.
+- **Instalacja:** opis docelowy (`npx depcurfew`) z adnotacją o braku publikacji i instrukcją uruchomienia ze źródeł (zatwierdzona decyzja 3).
+- **Przykład Action:** `DevXord/depcurfew@<full-commit-sha>` (zatwierdzona decyzja 4).
 
 ## D-044 · Test akcji na repozytorium testowym (2026-10-29)
-- **Repozytorium testowe:** samo depgate z fiksturami. Workflow `action-test.yml` używa `uses: ./`:
-  - depgate na sobie, z wysyłką SARIF (kategoria `depgate-self`);
-  - czysta fikstura, z wysyłką (`depgate-fixture-clean`);
+- **Repozytorium testowe:** samo depcurfew z fiksturami. Workflow `action-test.yml` używa `uses: ./`:
+  - depcurfew na sobie, z wysyłką SARIF (kategoria `depcurfew-self`);
+  - czysta fikstura, z wysyłką (`depcurfew-fixture-clean`);
   - fikstura z błędem, bez wysyłki, żeby nie tworzyć alertów z celowo złych fikstur: krok musi się nie udać, `errors` musi wynosić 1, a ścieżka w SARIF musi zaczynać się od katalogu fikstury (zatwierdzona decyzja 5);
   - runner z Node 20: akcja sama instaluje Node 22.
 - **Wynik:** sprawdzony na GitHubie przy commicie `3bead20` (przebiegi 40838113951 i 40838113787). Wszystkie zadania przeszły. Upload-sarif zwalidował i przetworzył raport („Successfully uploaded results”, „Analysis upload status is complete”). Na runnerze z Node 20 akcja zainstalowała Node 22.23.4 i uruchomiła `doctor`.
@@ -535,7 +535,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **Zatwierdzenie:** właściciel zaakceptował decyzje podjęte w trakcie fazy 6:
   - Node 22 zainstalowany przez akcję zostaje w kolejnych krokach zadania użytkownika (D-040);
   - workflow repozytorium uruchamiają się przy pushu na każdą gałąź i przy PR (D-042);
-  - test akcji wysyła przy każdym pushu analizy `depgate-self` i `depgate-fixture-clean` do code scanning (D-044);
+  - test akcji wysyła przy każdym pushu analizy `depcurfew-self` i `depcurfew-fixture-clean` do code scanning (D-044);
   - przykładowy workflow w README podaje `actions: read` i `contents: read` tylko dla repozytoriów prywatnych, jak przykład w dokumentacji GitHuba (D-043);
   - opisy reguł w README pochodzą z metadanych reguł, a fakty, które przywołują, są w bazie wiedzy (D-043);
   - wymaganie „Node.js 22 or later” w README jest wpisane ręcznie i trzeba je zmieniać razem z `engines`;
@@ -546,7 +546,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - uruchamia się tylko na tagach stabilnych `vX.Y.Z` (zatwierdzona decyzja 2);
   - ma uprawnienia `permissions: {}`, a zadanie dostaje tylko `contents: read` i `id-token: write`;
   - Node 24 (npm 11.19.1) i jawne sprawdzenie npm 11.15.0+ oraz Node 22.14+;
-  - zgodność tagu z `package.json`, `npm ci`, wszystkie testy, `typecheck`, `check:pkg`, zgodność bundla akcji i `depgate doctor` na sobie;
+  - zgodność tagu z `package.json`, `npm ci`, wszystkie testy, `typecheck`, `check:pkg`, zgodność bundla akcji i `depcurfew doctor` na sobie;
   - na końcu `npm stage publish --provenance`;
   - nie ma tokenu npm ani sekretów, a akcje są przypięte do SHA.
 - **Tylko etapowanie:** trusted publisher ma prawo tylko do `npm stage publish`, bez `npm publish`, więc każde wydanie wymaga zatwierdzenia z 2FA (zatwierdzona decyzja 1). Bez środowiska GitHub; bramką jest zatwierdzenie na npm (zatwierdzona decyzja 6).
@@ -559,9 +559,9 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - kolejności sprawdzeń przed etapowaniem;
   - wyłączonego cache i `persist-credentials: false`.
 
-## D-047 · Polityka depgate dla samego projektu (2026-10-29)
-- **`depgate.json`:** opóźnienie 7 dni (jak wcześniej w `.npmrc`), skrypty instalacyjne `deny` bez wyjątków, wszystkie źródła spoza rejestru `deny`.
-- **Zastosowanie:** `depgate apply` zapisało blok w `.npmrc`. Dawny wiersz `min-release-age=7` zastąpił komentarz wskazujący na `depgate.json`.
+## D-047 · Polityka depcurfew dla samego projektu (2026-10-29)
+- **`depcurfew.json`:** opóźnienie 7 dni (jak wcześniej w `.npmrc`), skrypty instalacyjne `deny` bez wyjątków, wszystkie źródła spoza rejestru `deny`.
+- **Zastosowanie:** `depcurfew apply` zapisało blok w `.npmrc`. Dawny wiersz `min-release-age=7` zastąpił komentarz wskazujący na `depcurfew.json`.
 - **`packageManager: "npm@11.19.1"`** w `package.json`, czyli wersja npm z Node 24 LTS, na którym powstają wydania. `apply` i `doctor` liczą się z nią, a nie z najnowszą znaną wersją (zatwierdzona decyzja 3).
 - **Wersja w `package.json`:** 1.0.0, repozytorium jest gotowe do wydania. Notę „pre-release” w README zmienię po publikacji (zatwierdzona decyzja 4).
 - **`doctor` na sobie:**
@@ -570,7 +570,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - w CI `doctor` na sobie uruchamia zadanie `self` w `action-test.yml` (przez akcję), a przed etapowaniem także workflow wydania.
 
 ## D-048 · `lockfile-install-scripts` uwzględnia wyłącznik wszystkich skryptów (2026-10-29)
-- **Skąd zmiana:** wyszła przy stosowaniu polityki na samym depgate. Przy npm 11.19.1 jeden ze spornych wariantów bazy mówi, że npm uruchamia skrypty z ostrzeżeniem, więc reguła zgłaszała błąd dla `fsevents`. Nie widziała `ignore-scripts=true` w `.npmrc`.
+- **Skąd zmiana:** wyszła przy stosowaniu polityki na samym depcurfew. Przy npm 11.19.1 jeden ze spornych wariantów bazy mówi, że npm uruchamia skrypty z ostrzeżeniem, więc reguła zgłaszała błąd dla `fsevents`. Nie widziała `ignore-scripts=true` w `.npmrc`.
 - **Zmiana:** reguła czyta teraz zweryfikowany wyłącznik `installScripts.disableAll` danego narzędzia (`ignore-scripts`, `ignoreScripts`, `enableScripts: false`, `install.ignoreScripts`) z jego pliku konfiguracyjnego. Gdy wyłącznik jest ustawiony, zgłoszenie ma poziom ostrzeżenia z informacją, co wyłącza skrypty. Niepewny wyłącznik Deno jest pomijany.
 - **Fikstura:** `lockfile-install-scripts/fires-npm11-ignore-scripts`.
 
@@ -580,7 +580,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - `trustedPublishing`: npm 11.5.1+, Node 22.14+, `id-token: write`, automatyczna proweniencja (tylko publiczna paczka z publicznego repozytorium), wygasanie nowej konfiguracji po 2 dniach;
   - `stagedPublishing`: npm 11.15.0+, polecenia `npm stage publish`, `approve` i `reject`, 2FA tylko przy zatwierdzaniu i odrzucaniu, wersja zastępcza `0.0.0-stage` dla nowej paczki, `--provenance` także przy etapowaniu;
   - `trustCommand`: `npm trust github`, paczka musi istnieć, flagi uprawnień.
-- **Wersje i nazwa:** wersje npm w Node 24.22.2 (npm 11.19.1) i 22.23.4 (npm 10.9.9) pochodzą z `nodejs.org/dist/index.json`. Nazwa `depgate` była 2026-10-29 wolna (rejestr npm zwrócił 404).
+- **Wersje i nazwa:** wersje npm w Node 24.22.2 (npm 11.19.1) i 22.23.4 (npm 10.9.9) pochodzą z `nodejs.org/dist/index.json`. Nazwa `depcurfew` była 2026-10-29 wolna (rejestr npm zwrócił 404).
 
 ## D-050 · Kryterium „wydanie 1.0.0 ma proweniencję” (2026-10-29)
 - **Stan:** wymaga ręcznych kroków właściciela opisanych w `docs/RELEASING.md` (2FA, utworzenie paczki, trusted publisher, zakaz tokenów). Po nich, wyłącznie za osobną zgodą, wypchnę tag `v1.0.0`. Po zatwierdzeniu wydania z 2FA sprawdzę proweniencję w rejestrze (zatwierdzona decyzja 7).
@@ -590,8 +590,8 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **Zatwierdzenie:** właściciel zaakceptował decyzje podjęte w trakcie fazy 8:
   - `lockfile-install-scripts` uwzględnia wyłącznik wszystkich skryptów (D-048);
   - utworzenie paczki przez etapowanie zostawia w jej historii publiczną wersję zastępczą `0.0.0-stage` (D-046);
-  - `$schema` w `depgate.json` projektu wskazuje lokalny `./schema.json` do czasu publikacji;
-  - komentarz o opóźnieniu w `.npmrc` zastąpił odnośnik do `depgate.json` (D-047);
+  - `$schema` w `depcurfew.json` projektu wskazuje lokalny `./schema.json` do czasu publikacji;
+  - komentarz o opóźnieniu w `.npmrc` zastąpił odnośnik do `depcurfew.json` (D-047);
   - zadanie CI na Node 22 używa npm 10.9.9, który nie zna nowych kluczy `.npmrc`; wydania idą przez Node 24 z npm 11.19.1 (D-046, D-047);
   - wydanie uruchamia każdy tag `vX.Y.Z` od osoby z prawem push; zalecana reguła ochrony tagów jest krokiem po stronie właściciela (`docs/RELEASING.md`);
   - nota „pre-release” w README zostaje do czasu publikacji 1.0.0.
@@ -610,7 +610,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - zawartość paczki npm (9 plików).
 - **Znalezione i poprawione (decyzje P1–P12 zatwierdzone przez właściciela):**
   - **Symlinki (P2):**
-    - `depgate.json` jest czytany przez `Repository`, czyli nie przez symlink wychodzący poza repozytorium i nie powyżej 1 MiB (`src/policy/file.ts`);
+    - `depcurfew.json` jest czytany przez `Repository`, czyli nie przez symlink wychodzący poza repozytorium i nie powyżej 1 MiB (`src/policy/file.ts`);
     - `init --force` odmawia zapisu przez symlink i zapisuje przez plik tymczasowy;
     - Action odrzuca symlink w ścieżce pliku SARIF wewnątrz workspace'u, porównuje `directory` po `realpath` i czyta linie do SARIF przez `Repository`;
     - generatory sprawdzają istnienie i czytają pliki wewnątrz `guard`, więc symlink to zgłoszony błąd, a nie wywrotka.
@@ -618,7 +618,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
     - nowa reguła `unreadable-config` (błąd, bez polityki): plik, którego nie da się odczytać, sparsować albo zaplanować do edycji, w tym lockfile;
     - wcześniej takie przypadki były uwagami albo ginęły (ostrzeżenia detekcji), a `doctor` kończył się kodem 0;
     - jeden plik daje jedno zgłoszenie.
-  - **Przełączniki „pozwól na wszystkie skrypty” (P4):** przy polityce `deny` npm komentuje ręczne `dangerously-allow-all-scripts` także bez listy dozwolonych. Komentarz bez bloku ma osobną notatkę („turned off; depgate.json manages this setting”).
+  - **Przełączniki „pozwól na wszystkie skrypty” (P4):** przy polityce `deny` npm komentuje ręczne `dangerously-allow-all-scripts` także bez listy dozwolonych. Komentarz bez bloku ma osobną notatkę („turned off; depcurfew.json manages this setting”).
   - **Edycja plików (P5, P10):**
     - mapy w stylu `{ ... }` w YAML: `apply` nie dopisuje do nich kluczy, tylko zgłasza błąd z wartością do wpisania ręcznie; skalary w środku dalej podmienia;
     - TOML: wartości wieloliniowe są komentowane w całości, a linie w tablicach i wieloliniowych stringach nie są brane za klucze ani nagłówki; `[[...]]` kończy tabelę;
@@ -636,7 +636,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
     - wpisy na listach dozwolonych z wersją (`esbuild@0.25.0`) są porównywane po nazwie (P9);
     - Renovate w kluczu `renovate` w `package.json` jest czytany, a podpowiedź nie odsyła do `apply` tam, gdzie `apply` nie edytuje pliku.
   - **Log Action (P11):** raport i błędy polityki są wypisywane między `::stop-commands::<losowy token>` a `::<token>::`. Fakt `githubActions.stopCommands` jest w bazie wiedzy ze źródłem.
-  - **Lockfile npm:** wpis bez `resolved` npm instaluje jako `<nazwa>@<version>` (`reify.js`, `#extractOrLink`), więc źródło wynika z `version` (fakt `specWithoutResolved`). Źródło, którego depgate nie rozpoznaje, daje ostrzeżenie `lockfile-forbidden-source`, gdy polityka czegoś zabrania.
+  - **Lockfile npm:** wpis bez `resolved` npm instaluje jako `<nazwa>@<version>` (`reify.js`, `#extractOrLink`), więc źródło wynika z `version` (fakt `specWithoutResolved`). Źródło, którego depcurfew nie rozpoznaje, daje ostrzeżenie `lockfile-forbidden-source`, gdy polityka czegoś zabrania.
 - **Ponowny przegląd poprawek (P12)** znalazł 10 drobniejszych problemów, wszystkie poprawione:
   - koniec tabeli TOML przy `[[...]]`;
   - podwójne zgłoszenie jednego pliku;
@@ -651,7 +651,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 ## D-053 · Zatwierdzony plan fazy 7 (2026-10-29)
 - **Kolejność (F1):** faza 7 po wydaniu 1.0.0, jako 1.1.0. Dodaje kod sieciowy, który dostanie osobny przegląd.
 - **Polecenie (F1, F2):**
-  - `depgate check <paczka>[@wersja|@tag|@zakres]... [--json] [--registry <url>]`;
+  - `depcurfew check <paczka>[@wersja|@tag|@zakres]... [--json] [--registry <url>]`;
   - sprawdza istnienie (404 to „możliwa wymyślona nazwa”), wiek wybranej wersji względem `cooldown` z `exclude`, skrypty `preinstall`/`install`/`postinstall` względem `installScripts`, podobieństwo nazwy do popularnej paczki i wycofanie (ostrzeżenie);
   - specyfikacje git, URL i `file:` sprawdza bez sieci względem `sources`;
   - kod 1 przy naruszeniu albo braku możliwości sprawdzenia.
@@ -665,11 +665,11 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - porównanie po usunięciu separatorów i scope'u.
 - **Testy (F5):** nagrane i przycięte odpowiedzi rejestru w `tests/fixtures/registry/`, podmieniony `fetch` i stały zegar, bez sieci.
 - **Hook (F6–F8):**
-  - `depgate check --hook claude-code` czyta zdarzenie PreToolUse ze stdin i rozpoznaje instalacje oraz uruchamianie paczek w poleceniach Bash;
+  - `depcurfew check --hook claude-code` czyta zdarzenie PreToolUse ze stdin i rozpoznaje instalacje oraz uruchamianie paczek w poleceniach Bash;
   - zwraca `deny` z powodem, a przy samym podobieństwie nazwy albo poleceniu nie do rozebrania zwraca `ask`;
   - przykład `.claude/settings.json` w README: forma exec i `onFailure: "block"`, z zastrzeżeniem, że hook to zabezpieczenie typu „best effort”;
-  - bez `depgate.json` hook stosuje domyślną politykę z `init`.
-- **MCP (F9):** nie w tej fazie. Protokół jest w przejściu na rewizję 2026-07-28, bez `initialize` i z `server/discover`. Agent może wołać `depgate check --json`.
+  - bez `depcurfew.json` hook stosuje domyślną politykę z `init`.
+- **MCP (F9):** nie w tej fazie. Protokół jest w przejściu na rewizję 2026-07-28, bez `initialize` i z `server/discover`. Agent może wołać `depcurfew check --json`.
 
 ## D-054 · Fakty fazy 7 (2026-10-29)
 - **Rejestr npm** (`environment.npmRegistry`, źródło `npm/registry` `package-metadata.md` i `REGISTRY-API.md`):
@@ -697,7 +697,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - Fakty o wierszu poleceń zawierają tylko to, co dokumentacja pokazuje. Krótkie opcje Buna `-F` i `-c` dla `bun add` nie są w `valueOptions`, bo `bunx` ich nie dokumentuje, a opcja błędnie uznana za przyjmującą wartość ukryłaby paczkę za nią.
 
 ## D-055 · Skaner poleceń: zakres i model zagrożeń (2026-10-29)
-- **Zakres.** Hook to zabezpieczenie przed pomyłkami i prostym maskowaniem, nie piaskownica. Nie widzi programu, który sam instaluje paczki (`node -e`, skrypt, `make`). Agent, który może pisać pliki, może też zmienić `depgate.json`, `.npmrc` albo wykonać `npm config set` w osobnym poleceniu. Prawdziwą ochroną pozostaje konfiguracja z `apply`, którą menedżery stosują przy każdej instalacji. README mówi to wprost.
+- **Zakres.** Hook to zabezpieczenie przed pomyłkami i prostym maskowaniem, nie piaskownica. Nie widzi programu, który sam instaluje paczki (`node -e`, skrypt, `make`). Agent, który może pisać pliki, może też zmienić `depcurfew.json`, `.npmrc` albo wykonać `npm config set` w osobnym poleceniu. Prawdziwą ochroną pozostaje konfiguracja z `apply`, którą menedżery stosują przy każdej instalacji. README mówi to wprost.
 - **Co skaner czyta jak powłoka:**
   - cudzysłowy, `$'...'`, here-documenty (ciało to dane, chyba że czyta je powłoka) i here-stringi;
   - `$(...)`, odwrotne apostrofy, `<(...)` oraz `${...:-$(...)}`;
@@ -724,10 +724,10 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **`deny`:** zakazane źródło, nieistniejąca paczka, brak pasującej wersji, wersja młodsza niż `cooldown`, niedozwolone skrypty instalacji.
 - **`ask`:** każdy inny błąd (podobna nazwa, rejestr nieosiągalny, prywatny rejestr scope'u, nieznany protokół) i polecenie nie do przeczytania.
 - **Brak decyzji:** ostrzeżenia, np. wycofana wersja. Wtedy działa zwykły przepływ uprawnień Claude Code.
-- **Paczka ze scope'em, której nie ma w rejestrze,** daje `ask`, a nie `deny`: scope może należeć do prywatnego rejestru ustawionego poza plikami, które depgate czyta.
+- **Paczka ze scope'em, której nie ma w rejestrze,** daje `ask`, a nie `deny`: scope może należeć do prywatnego rejestru ustawionego poza plikami, które depcurfew czyta.
 - **Fail closed:**
   - zdarzenie, którego nie da się odczytać (zły JSON, stdin ponad 1 MiB), kończy się kodem 2 z faktu `blockingExitCode`, który blokuje wywołanie w każdej wersji Claude Code, także bez `onFailure`;
-  - własny błąd depgate po odczytaniu zdarzenia daje `ask`;
+  - własny błąd depcurfew po odczytaniu zdarzenia daje `ask`;
   - błąd użycia (`--hook` z nieznaną nazwą) też kończy się kodem 2, więc blokuje.
 
 ## D-057 · Podobne nazwy: odejście od F4 (2026-10-29)
@@ -759,13 +759,13 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **Wydajność:** złośliwe wejście do 1,6 MB (zagnieżdżenia, cudzysłowy, here-documenty) jest skanowane w czasie poniżej 0,6 s.
 ## D-060 · Poprawki po testach na projektach przykładowych (2026-10-29)
 Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wydanie 1.1.0).
-- **Testy:** projekty przykładowe dla npm 12, pnpm 12 i 10, Yarn 4, Bun 1.4.4, Deno 2.9 i npm 11 z ręczną konfiguracją. depgate był instalowany z tarballa (`npm pack`), a w każdym projekcie sprawdzałem, czy menedżer naprawdę egzekwuje to, co zapisał `apply`.
+- **Testy:** projekty przykładowe dla npm 12, pnpm 12 i 10, Yarn 4, Bun 1.4.4, Deno 2.9 i npm 11 z ręczną konfiguracją. depcurfew był instalowany z tarballa (`npm pack`), a w każdym projekcie sprawdzałem, czy menedżer naprawdę egzekwuje to, co zapisał `apply`.
 - **pnpm 12 (lockfile z dwoma dokumentami).**
   - Gdy projekt przypina pnpm 12 albo nowszy, ma zależności konfiguracji albo `devEngines.packageManager`, pnpm zapisuje najpierw dokument rozruchowy, a po nim właściwy lockfile. Plik zaczyna się wtedy od `---`.
   - `doctor` czytał plik jako jeden dokument i zgłaszał `unreadable-config` w każdym takim projekcie.
   - Teraz czyta ostatni dokument (fakt `lockfileDocuments`, źródło: pnpm.io `docs/lockfile.md`), a numery linii liczy od jego początku.
 - **Bun (wbudowana lista zaufanych paczek).**
-  - Przy `installScripts.default: deny` i pustej liście `allow` depgate nic nie zapisywał. Bun nadal uruchamiał wtedy skrypty paczek ze swojej wbudowanej listy: postinstall esbuild wykonał się w Bun 1.4.4.
+  - Przy `installScripts.default: deny` i pustej liście `allow` depcurfew nic nie zapisywał. Bun nadal uruchamiał wtedy skrypty paczek ze swojej wbudowanej listy: postinstall esbuild wykonał się w Bun 1.4.4.
   - Teraz `apply` zapisuje `"trustedDependencies": []`, co zastępuje wbudowaną listę; test potwierdził blokadę.
   - Istniejąca lista nie jest zmieniana, poza dopisaniem paczek z polityki.
 - **npm 11.16–11.x (skrypty z ostrzeżeniem).**
@@ -773,8 +773,8 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - Decyzja właściciela (wariant a): dla przypiętego npm od 11.16 do wersji poniżej 12 `apply` zapisuje `strict-allow-scripts=true`. Instalacja paczki z niezatwierdzonym skryptem kończy się wtedy błędem.
   - Dla npm poniżej 11.16, który nie ma listy dozwolonych, `apply` ostrzega, że zakazu nie da się wyegzekwować.
   - `lockfile-install-scripts` traktuje `strict-allow-scripts` jak blokadę.
-  - Przy nieprzypiętej wersji depgate konfiguruje pod najnowszą znaną (npm 12), jak dotąd.
-- **Repozytorium depgate** przypina npm 11.19.1, więc jego `.npmrc` dostał `strict-allow-scripts=true`. `ignore-scripts=true` nadal ma pierwszeństwo.
+  - Przy nieprzypiętej wersji depcurfew konfiguruje pod najnowszą znaną (npm 12), jak dotąd.
+- **Repozytorium depcurfew** przypina npm 11.19.1, więc jego `.npmrc` dostał `strict-allow-scripts=true`. `ignore-scripts=true` nadal ma pierwszeństwo.
 - **Macierz wersji (druga runda).** 26 wersji, każda w czystym projekcie. Sprawdzone: `init`, `apply`, drugie `apply` bez zmian i `doctor`, a następnie prawdziwe instalacje: wersji sprzed 4 godzin, esbuild ze skryptem `postinstall` i paczki z gita.
   - npm: 11.9.0, 11.10.0, 11.16.0, 11.21.1, 12.0.0, 12.2.1.
   - pnpm: 10.15.0, 10.16.0, 10.26.0, 10.34.9, 11.0.0, 11.28.9, 12.0.0, 12.16.1.
@@ -783,23 +783,23 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - Deno: 2.5.4, 2.5.5, 2.6.0, 2.9.6.
 - **pnpm 11.0.0–11.0.3 i 12.0.0–12.2.x** domyślnie nie są ścisłe: zainstalowały wersję sprzed 4 godzin, a 12.0.0 dopisał ją do `minimumReleaseAgeExclude`. Od 11.0.0 `apply` zapisuje `minimumReleaseAgeStrict: true` (źródło: pnpm.io dependency-resolution). Po zmianie obie wersje ją odrzucają.
 - **pnpm 10.16.x** pomija opóźnienie dla paczek zamawianych w dokładnej wersji; poprawił to 10.17.0 (changelog). `apply` ostrzega, a `manager-version-too-old` zgłasza to jako brak „minimumReleaseAge for packages requested by exact version (since 10.17.0)”. Komunikat pomija tę lukę, gdy brakuje całego ustawienia.
-- **Yarn: `npmMinimalAgeGate` od 4.10.2.** Spór 4.10.0 albo 4.12.0 jest rozstrzygnięty testem: 4.10.1 z tym ustawieniem odrzucał też wersje sprzed ponad roku, a 4.10.2 („Bust the metadata cache”, poprawka danych bez czasu publikacji), 4.10.3, 4.11.0 i 4.12.0 działają poprawnie. depgate wpisuje ustawienie od 4.10.2, a dla starszych wersji `doctor` zgłasza za starą wersję.
+- **Yarn: `npmMinimalAgeGate` od 4.10.2.** Spór 4.10.0 albo 4.12.0 jest rozstrzygnięty testem: 4.10.1 z tym ustawieniem odrzucał też wersje sprzed ponad roku, a 4.10.2 („Bust the metadata cache”, poprawka danych bez czasu publikacji), 4.10.3, 4.11.0 i 4.12.0 działają poprawnie. depcurfew wpisuje ustawienie od 4.10.2, a dla starszych wersji `doctor` zgłasza za starą wersję.
 - **Wynik macierzy:**
   - Każda wspierana wersja odrzuca zbyt świeżą wersję i blokuje skrypty: Bun od 1.3.0 dzięki pustemu `trustedDependencies`, npm 11.16+ przez `strict-allow-scripts`; Deno bez `allowScripts` skryptów nie uruchamia.
   - Git jest blokowany tam, gdzie menedżer ma odpowiednie ustawienie: npm od 11.10, Yarn od 4.14.
   - Drugie `apply` nigdy nic nie zmienia.
   - Kod 1 z `doctor` dają tylko wersje, którym naprawdę brakuje ustawienia, i każda jest nazwana.
-- **Yarn Classic (1.x):** `apply` ostrzegał, że nic nie zapisze, ale `doctor` kończył się kodem 0, więc polityka po cichu nie działała. Teraz `manager-version-too-old` zgłasza błąd, gdy jest polityka, i podaje wersję Yarna, od której depgate konfiguruje opóźnienie (4.10.2).
+- **Yarn Classic (1.x):** `apply` ostrzegał, że nic nie zapisze, ale `doctor` kończył się kodem 0, więc polityka po cichu nie działała. Teraz `manager-version-too-old` zgłasza błąd, gdy jest polityka, i podaje wersję Yarna, od której depcurfew konfiguruje opóźnienie (4.10.2).
 
 ## D-061 · Komunikaty dla ludzi i maszyn, kolory, pomoc poleceń, Action poza logiem (2026-10-29)
 
 - **Zasada.** Tekst jest dla człowieka: jeden język (angielski), pełne zdania i przy każdym błędzie i ostrzeżeniu informacja, co zrobić. Programy i agenci AI czytają `--json` i `--sarif`. Te formaty się nie zmieniają, poza tym, że więcej znalezisk ma pole `fix`.
 - **Wskazówki.**
-  - Każde znalezisko `doctor` ma `fix`; `config-drift` mówi, czy uruchomić `depgate apply`, czy zmienić `depgate.json`.
+  - Każde znalezisko `doctor` ma `fix`; `config-drift` mówi, czy uruchomić `depcurfew apply`, czy zmienić `depcurfew.json`.
   - Każde ostrzeżenie `apply` kończy się działaniem: wymaganą wersją narzędzia, miejscem, gdzie przypiąć wersję, ustawieniem w polityce do zmiany albo informacją, że `doctor` nadal pilnuje lockfile'a.
   - Brakujące ustawienia jednej wersji narzędzia są w jednym ostrzeżeniu, pogrupowane według wersji (`src/apply/requirements.ts`). Ta sama funkcja opisuje braki w `manager-version-too-old`.
 - **Pisownia:** amerykańska (recognize, honors, behavior) i zwykły apostrof `'` zamiast typograficznego.
-- **Pomoc.** `depgate <polecenie> --help`, `-h` i `depgate help <polecenie>` opisują polecenie: co robi, jakie ma opcje, przykłady i kody wyjścia. Błąd użycia odsyła do pomocy tego polecenia.
+- **Pomoc.** `depcurfew <polecenie> --help`, `-h` i `depcurfew help <polecenie>` opisują polecenie: co robi, jakie ma opcje, przykłady i kody wyjścia. Błąd użycia odsyła do pomocy tego polecenia.
 - **Kolory.**
   - Własny moduł `src/color.ts` z kodami ANSI, bez nowej zależności.
   - Kolory są tylko na terminalu (osobno dla stdout i stderr) i nie dla `TERM=dumb`. `NO_COLOR` z niepustą wartością je wyłącza. `FORCE_COLOR` ma pierwszeństwo, jak w Node.js: `0` i `false` wyłączają, każda inna wartość włącza.
@@ -812,9 +812,9 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
     - `annotationLimits`: 10 na poziom na krok, 50 na zadanie (problem-matchers.md);
     - `stepSummary`: zmienna i limit 1 MiB (dokumentacja workflow commands).
   - Tekst z repozytorium jest escapowany, więc spreparowana nazwa pliku nie doda polecenia przepływu pracy ani w Markdownie linku, HTML-a czy komórki tabeli. Wiersze, które przekroczyłyby limit podsumowania, są pomijane i liczone.
-- **GitLab i inne CI.** Action działa tylko na GitHubie. Na innym CI uruchamia się CLI (`npx --yes depgate@1 doctor`; `--yes`, bo npx bez niego pyta przed instalacją według docs/lib/content/commands/npx.md w npm/cli). Format raportu GitLaba nie jest obsługiwany: wymagałby najpierw zweryfikowanych faktów.
+- **GitLab i inne CI.** Action działa tylko na GitHubie. Na innym CI uruchamia się CLI (`npx --yes depcurfew@1 doctor`; `--yes`, bo npx bez niego pyta przed instalacją według docs/lib/content/commands/npx.md w npm/cli). Format raportu GitLaba nie jest obsługiwany: wymagałby najpierw zweryfikowanych faktów.
 - **Pozycje spoza polityki na listach dozwolonych.** `apply` dopisuje do list, ale z nich nie usuwa (zasada z CLAUDE.md). Dlatego ostrzega o każdej paczce, na którą lista pozwala, a polityka nie: podaje plik, ustawienie i dwie drogi naprawy. Korzysta z tego samego odczytu list co `config-drift` (`src/doctor/allow-lists.ts`).
 - **`check` i hook (faza 7).**
   - Każde znalezisko `check` ma pole `fix`, w tekście jako wiersz `fix:`, a w `--json` jako pole.
-  - Hook przekazuje agentowi tylko te poprawki, które nie zmieniają `depgate.json`, i dopisuje, że politykę zmienia wyłącznie użytkownik. Agent nie powinien obchodzić strażnika edycją polityki.
+  - Hook przekazuje agentowi tylko te poprawki, które nie zmieniają `depcurfew.json`, i dopisuje, że politykę zmienia wyłącznie użytkownik. Agent nie powinien obchodzić strażnika edycją polityki.
   - Informacja o domyślnej polityce zaczyna się od `note:`, bo to nie jest błąd.

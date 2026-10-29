@@ -91,7 +91,7 @@ function source(raw: string, text: string, afterName: boolean): PackageSpec | un
   }
   if (prefixOf(text, known.local) !== undefined || (afterName ? PATH_AFTER_NAME : PATH).test(text)) return { raw, kind: isTarball(text) ? 'file' : 'directory' };
   const protocol = PROTOCOL.exec(text)?.[0];
-  if (protocol !== undefined) return { raw, kind: 'other', reason: `it uses the ${protocol} protocol, which depgate does not look up` };
+  if (protocol !== undefined) return { raw, kind: 'other', reason: `it uses the ${protocol} protocol, which depcurfew does not look up` };
   return undefined;
 }
 

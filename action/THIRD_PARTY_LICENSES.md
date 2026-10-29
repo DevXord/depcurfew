@@ -1,6 +1,6 @@
 # Third-party licenses
 
-`depgate.mjs` is built from this repository (MIT, see `../LICENSE`) and bundles the following package, so that the
+`depcurfew.mjs` is built from this repository (MIT, see `../LICENSE`) and bundles the following package, so that the
 GitHub Action runs without installing dependencies.
 
 ## yaml 2.9.1

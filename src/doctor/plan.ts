@@ -1,4 +1,4 @@
-// The changes depgate apply would make, planned once per doctor run and shared by the rules that need them.
+// The changes depcurfew apply would make, planned once per doctor run and shared by the rules that need them.
 import { planApply, type ApplyReport } from '../apply/index.ts';
 import type { Detection } from '../detect/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';

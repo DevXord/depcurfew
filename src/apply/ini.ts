@@ -1,4 +1,4 @@
-// .npmrc: settings that depgate manages live in one marked block. The same keys set elsewhere are commented out
+// .npmrc: settings that depcurfew manages live in one marked block. The same keys set elsewhere are commented out
 // (with a note) rather than deleted, because npm would otherwise use whichever value it reads last.
 import { insertBlock, joinLines, removeBlock, splitLines, SUPERSEDED, TURNED_OFF } from './block.ts';
 

@@ -14,8 +14,8 @@ function write(path: string, content: string): void {
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'depgate-detect-'));
-  outside = mkdtempSync(join(tmpdir(), 'depgate-outside-'));
+  root = mkdtempSync(join(tmpdir(), 'depcurfew-detect-'));
+  outside = mkdtempSync(join(tmpdir(), 'depcurfew-outside-'));
 });
 
 afterEach(() => {
@@ -52,7 +52,7 @@ describe('detectProject on broken input', () => {
   it.each([
     ['pnpm', 'packageManager "pnpm" is not in the form name@version'],
     ['pnpm@', 'packageManager "pnpm@" is not in the form name@version'],
-    ['cnpm@9.0.0', 'packageManager names cnpm, which depgate does not know'],
+    ['cnpm@9.0.0', 'packageManager names cnpm, which depcurfew does not know'],
   ])('reports packageManager %j', (value, message) => {
     write('package.json', JSON.stringify({ packageManager: value }));
     write('package-lock.json', '{}');

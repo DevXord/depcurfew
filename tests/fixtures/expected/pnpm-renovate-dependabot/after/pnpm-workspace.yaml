@@ -2,17 +2,17 @@
 packages:
   - 'packages/*'   # all packages
 
-# managed by depgate
+# managed by depcurfew
 minimumReleaseAge: 4320 # one day, set by hand
 allowBuilds:
   sharp: true
-  # managed by depgate
+  # managed by depcurfew
   esbuild: true
-# managed by depgate
+# managed by depcurfew
 minimumReleaseAgeStrict: true
-# managed by depgate
+# managed by depcurfew
 minimumReleaseAgeExclude:
   - "@acme/*"
   - left-pad
-# managed by depgate
+# managed by depcurfew
 blockExoticSubdeps: true

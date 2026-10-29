@@ -11,7 +11,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Writes the default policy to depgate.json in `directory` (default: the current directory). */
+/** Writes the default policy to depcurfew.json in `directory` (default: the current directory). */
 export function init(directory: string | undefined, force: boolean, io: CliIo): number {
   const absolute = resolveDirectory(directory, io);
   if (absolute === undefined) return EXIT_FAILURE;
@@ -25,7 +25,7 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
       // 'wx' fails if the file appeared in the meantime, so nothing is overwritten without --force.
       writeFileSync(target, text, { flag: 'wx' });
     } else if (existing.isSymbolicLink()) {
-      io.stderr(`depgate: ${shownTarget} is a symlink; depgate does not write through symlinks\n`);
+      io.stderr(`depcurfew: ${shownTarget} is a symlink; depcurfew does not write through symlinks\n`);
       return EXIT_FAILURE;
     } else {
       // Through a temporary file and a rename, like apply: the directory entry is replaced, never followed.
@@ -33,9 +33,9 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-      io.stderr(`depgate: ${shownTarget} already exists; pass --force to overwrite it.\n`);
+      io.stderr(`depcurfew: ${shownTarget} already exists; pass --force to overwrite it.\n`);
     } else {
-      io.stderr(`depgate: cannot write ${shownTarget}: ${errorMessage(error)}\n`);
+      io.stderr(`depcurfew: cannot write ${shownTarget}: ${errorMessage(error)}\n`);
     }
     return EXIT_FAILURE;
   }

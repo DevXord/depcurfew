@@ -1,20 +1,20 @@
 {
-  "name": "depgate",
+  "name": "depcurfew",
   "version": "1.0.0",
   "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot, plus a doctor that finds config that silently does nothing.",
   "license": "MIT",
   "author": "DevXord",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DevXord/depgate.git"
+    "url": "git+https://github.com/DevXord/depcurfew.git"
   },
-  "homepage": "https://github.com/DevXord/depgate#readme",
+  "homepage": "https://github.com/DevXord/depcurfew#readme",
   "bugs": {
-    "url": "https://github.com/DevXord/depgate/issues"
+    "url": "https://github.com/DevXord/depcurfew/issues"
   },
   "type": "module",
   "bin": {
-    "depgate": "./dist/cli.js"
+    "depcurfew": "./dist/cli.js"
   },
   "exports": {
     ".": {

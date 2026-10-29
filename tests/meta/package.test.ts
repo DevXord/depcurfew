@@ -35,8 +35,8 @@ describe('package.json', () => {
     },
   );
 
-  it('exposes the depgate executable', () => {
-    expect(pkg['bin']).toEqual({ depgate: './dist/cli.js' });
+  it('exposes the depcurfew executable', () => {
+    expect(pkg['bin']).toEqual({ depcurfew: './dist/cli.js' });
   });
 
   it('declares supported Node versions', () => {

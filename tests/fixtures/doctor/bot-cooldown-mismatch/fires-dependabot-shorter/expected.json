@@ -6,6 +6,6 @@
       "line": 7
     },
     "message": "Dependabot proposes npm updates after 3 days (default-days: 3 in .github/dependabot.yml), but pnpm waits 1 week (minimumReleaseAge: 10080 in pnpm-workspace.yaml); its pull requests bring in versions younger than pnpm accepts, or fail where the lockfile is re-checked",
-    "fix": "Make the Dependabot delay at least 1 week, or run depgate apply"
+    "fix": "Make the Dependabot delay at least 1 week, or run depcurfew apply"
   }
 ]

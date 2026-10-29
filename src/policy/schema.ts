@@ -1,5 +1,5 @@
 // The policy file, defined once. The validator, the TypeScript types and schema.json all come from this definition.
-// A section that is absent means depgate does not manage that area.
+// A section that is absent means depcurfew does not manage that area.
 import { TOOL_IDS } from '../knowledge/schema.ts';
 import { DURATION_PATTERN, parseDuration } from './duration.ts';
 import { PACKAGE_PATTERN, validatePackagePattern } from './package-pattern.ts';
@@ -83,7 +83,7 @@ export const sourcesShape = object(
 export const targetsShape = anyOf(
   [
     literal('auto', { description: 'Configure the tools detected in the repository.' }),
-    list(oneOfStrings(TOOL_IDS, { description: 'A tool depgate can configure.' }), {
+    list(oneOfStrings(TOOL_IDS, { description: 'A tool depcurfew can configure.' }), {
       label: 'a list of tools',
       unique: true,
       nonEmpty: 'use "auto" to detect tools',
@@ -105,7 +105,7 @@ export const policyShape = object(
   { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot.' },
 );
 
-/** The policy as written in depgate.json. */
+/** The policy as written in depcurfew.json. */
 export type Policy = Input<typeof policyShape>;
 /** The policy after validation: defaults filled in, durations parsed. */
 export type ResolvedPolicy = Output<typeof policyShape>;

@@ -5,7 +5,7 @@
   "packageRules": [
     { "matchPackageNames": ["eslint"], "automerge": true }, // keep
     {
-      "description": "depgate: packages excluded from minimumReleaseAge",
+      "description": "depcurfew: packages excluded from minimumReleaseAge",
       "matchPackageNames": [
         "@acme/*",
         "left-pad"

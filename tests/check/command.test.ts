@@ -88,7 +88,7 @@ describe('scanCommandLine reads shell syntax', () => {
     ['npm install lodash # add lodash', ['npm:lodash']],
     ['npm install \\\n  lodash \\\n  chalk', ['npm:lodash', 'npm:chalk']],
     ['git commit -m "npm install lodash"', []],
-    // A package manager later in the line runs under a command depgate does not know.
+    // A package manager later in the line runs under a command depcurfew does not know.
     ['echo npm install lodash', ['npm:lodash']],
     ['strace -f npm install lodash', ['npm:lodash']],
     ['npx cross-env NODE_ENV=production npm install lodash', ['npm:cross-env', 'npm:lodash']],

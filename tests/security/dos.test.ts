@@ -1,5 +1,5 @@
-// Inputs from an untrusted repository cannot make depgate run for minutes (decision P7 of the review before 1.0.0):
-// wildcard patterns from depgate.json or workspace declarations, and many ** segments in a workspace pattern.
+// Inputs from an untrusted repository cannot make depcurfew run for minutes (decision P7 of the review before 1.0.0):
+// wildcard patterns from depcurfew.json or workspace declarations, and many ** segments in a workspace pattern.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -48,7 +48,7 @@ describe('patterns that make regular expressions backtrack', () => {
   });
 
   it('expands a workspace pattern with many stars quickly', () => {
-    const root = mkdtempSync(join(tmpdir(), 'depgate-dos-'));
+    const root = mkdtempSync(join(tmpdir(), 'depcurfew-dos-'));
     temporary.push(root);
     mkdirSync(join(root, 'a'.repeat(60)));
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'x', packageManager: 'npm@11.19.1', workspaces: [`${'*a'.repeat(30)}*b`] }));
@@ -56,7 +56,7 @@ describe('patterns that make regular expressions backtrack', () => {
   });
 
   it('walks the tree once for a pattern with many ** segments', () => {
-    const root = mkdtempSync(join(tmpdir(), 'depgate-dos-'));
+    const root = mkdtempSync(join(tmpdir(), 'depcurfew-dos-'));
     temporary.push(root);
     mkdirSync(join(root, 'd1/d2/d3/d4/d5/d6/d7/d8/d9/d10/d11/d12/pkg'), { recursive: true });
     writeFileSync(join(root, 'd1/d2/d3/d4/d5/d6/d7/d8/d9/d10/d11/d12/pkg/package.json'), '{"name": "pkg"}');

@@ -7,14 +7,14 @@ import { writeTomlBlock } from '../../src/apply/toml.ts';
 import { yamlSet } from '../../src/apply/yaml-edit.ts';
 import { parseJsonc } from '../../src/detect/jsonc.ts';
 
-const START = '# >>> depgate managed block: edit depgate.json and run depgate apply instead';
-const END = '# <<< depgate managed block';
-const SUPERSEDED = '# depgate: superseded by the managed block: ';
+const START = '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead';
+const END = '# <<< depcurfew managed block';
+const SUPERSEDED = '# depcurfew: superseded by the managed block: ';
 
 describe('yamlSet and flow collections', () => {
   it('refuses to add a key to a flow map', () => {
     expect(() => yamlSet('allowBuilds: { esbuild: true }\n', ['allowBuilds', 'sharp'], true)).toThrow(
-      'allowBuilds is written in flow style ({ ... } or [ ... ]), which depgate does not edit; rewrite it in block style, or set allowBuilds.sharp to true by hand',
+      'allowBuilds is written in flow style ({ ... } or [ ... ]), which depcurfew does not edit; rewrite it in block style, or set allowBuilds.sharp to true by hand',
     );
   });
 
@@ -77,7 +77,7 @@ describe('writeTomlBlock and values over several lines', () => {
 
   it('notes keys it comments out without writing a block accurately', () => {
     expect(writeTomlBlock('[install]\nminimumReleaseAge = 5\n', 'install', [], ['minimumReleaseAge'])).toBe(
-      '[install]\n# depgate: turned off; depgate.json manages this setting: minimumReleaseAge = 5\n',
+      '[install]\n# depcurfew: turned off; depcurfew.json manages this setting: minimumReleaseAge = 5\n',
     );
   });
 
@@ -109,14 +109,14 @@ describe('parseJsonc and trailing commas', () => {
 
 describe('JSON editing keeps comments', () => {
   it('keeps the comment of the next element when removing the first one', () => {
-    const text = '{\n  "packageRules": [\n    { "description": "depgate" }, // Group eslint: keep this comment\n    { "groupName": "eslint" }\n  ]\n}\n';
+    const text = '{\n  "packageRules": [\n    { "description": "depcurfew" }, // Group eslint: keep this comment\n    { "groupName": "eslint" }\n  ]\n}\n';
     const result = jsonArrayRemove(text, ['packageRules'], 0);
     expect(result).toContain('// Group eslint: keep this comment');
     expect(parseJsonc(result)).toEqual({ packageRules: [{ groupName: 'eslint' }] });
   });
 
   it('keeps the trailing comment of the previous element when removing the last one', () => {
-    const text = '{\n  "packageRules": [\n    { "groupName": "eslint" }, // keep\n    { "description": "depgate" }\n  ]\n}\n';
+    const text = '{\n  "packageRules": [\n    { "groupName": "eslint" }, // keep\n    { "description": "depcurfew" }\n  ]\n}\n';
     const result = jsonArrayRemove(text, ['packageRules'], 1);
     expect(result).toBe('{\n  "packageRules": [\n    { "groupName": "eslint" } // keep\n  ]\n}\n');
   });
@@ -154,7 +154,7 @@ describe('writeIniBlock without a block', () => {
   it('notes keys it comments out accurately', async () => {
     const { writeIniBlock } = await import('../../src/apply/ini.ts');
     expect(writeIniBlock('dangerously-allow-all-scripts=true\n', [], ['dangerously-allow-all-scripts'])).toBe(
-      '# depgate: turned off; depgate.json manages this setting: dangerously-allow-all-scripts=true\n',
+      '# depcurfew: turned off; depcurfew.json manages this setting: dangerously-allow-all-scripts=true\n',
     );
   });
 });

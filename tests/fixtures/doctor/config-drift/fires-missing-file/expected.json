@@ -2,9 +2,9 @@
   {
     "level": "error",
     "location": {
-      "file": "depgate.json"
+      "file": "depcurfew.json"
     },
-    "message": "pnpm-workspace.yaml is missing; depgate apply would create it with the settings from depgate.json",
-    "fix": "Run depgate apply to create pnpm-workspace.yaml (depgate apply --dry-run shows its content first)"
+    "message": "pnpm-workspace.yaml is missing; depcurfew apply would create it with the settings from depcurfew.json",
+    "fix": "Run depcurfew apply to create pnpm-workspace.yaml (depcurfew apply --dry-run shows its content first)"
   }
 ]

@@ -1,4 +1,4 @@
-// Wildcard matching without regular expressions: patterns come from untrusted files (depgate.json, workspace
+// Wildcard matching without regular expressions: patterns come from untrusted files (depcurfew.json, workspace
 // patterns), and a regular expression built from `*a*a*a…` backtracks exponentially. This greedy matcher with one
 // backtracking point takes at most length(text) × length(pattern) steps.
 

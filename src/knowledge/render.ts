@@ -71,7 +71,7 @@ export const TABLE_SECTIONS: readonly TableSection[] = [
   {
     heading: 'Project files',
     kinds: ['package-manager'],
-    intro: 'How depgate recognizes each package manager in a repository.',
+    intro: 'How depcurfew recognizes each package manager in a repository.',
     rows: singleRow,
     columns: [
       { title: 'Lockfiles', path: 'project.lockfiles', style: 'code' },
@@ -268,7 +268,7 @@ export function renderKnowledgeMarkdown(tools: readonly ToolKnowledge[], environ
     '',
     '# Package manager knowledge base',
     '',
-    'The facts depgate relies on, each linked to the official documentation or changelog it was verified against.',
+    'The facts depcurfew relies on, each linked to the official documentation or changelog it was verified against.',
     '',
     'Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".',
     '',

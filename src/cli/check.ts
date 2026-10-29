@@ -1,5 +1,5 @@
-// `depgate check [options] <package...>` and `depgate check --hook claude-code`. The policy is the depgate.json of the
-// directory (or the nearest parent that has one), else the default policy of `depgate init`. Packages are looked up in
+// `depcurfew check [options] <package...>` and `depcurfew check --hook claude-code`. The policy is the depcurfew.json of the
+// directory (or the nearest parent that has one), else the default policy of `depcurfew init`. Packages are looked up in
 // the registry given with --registry, else the one the project's or the user's .npmrc sets, else the public npm registry. Exit code 1 when any
 // package breaks the policy or cannot be checked; in hook mode the decision goes to stdout as JSON and the exit code is 0.
 import { lstatSync, readFileSync } from 'node:fs';
@@ -40,7 +40,7 @@ export interface CheckFlags {
   hook: string | undefined;
 }
 
-/** The directory with the depgate.json that applies to `start`: itself or the nearest parent. */
+/** The directory with the depcurfew.json that applies to `start`: itself or the nearest parent. */
 function policyDirectory(start: string): string | undefined {
   for (let directory = resolve(start); ; directory = dirname(directory)) {
     if (lstatSync(join(directory, POLICY_FILE), { throwIfNoEntry: false }) !== undefined) return directory;
@@ -127,8 +127,8 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
   try {
     event = readHookEvent(await dependencies.stdin());
   } catch (error) {
-    // Without the event depgate cannot tell what would run; this exit code blocks the call even without onFailure.
-    io.stderr(`depgate: cannot read the hook event: ${messageOf(error)}\n`);
+    // Without the event depcurfew cannot tell what would run; this exit code blocks the call even without onFailure.
+    io.stderr(`depcurfew: cannot read the hook event: ${messageOf(error)}\n`);
     return blockingExitCode();
   }
   if (event === undefined) return EXIT_OK;
@@ -146,7 +146,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     });
     io.stdout(formatDecision(decide(reports, unreadable)) ?? '');
   } catch (error) {
-    io.stdout(formatDecision({ decision: 'ask', reason: `depgate cannot check this command: ${messageOf(error)}` }) ?? '');
+    io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${messageOf(error)}` }) ?? '');
   }
   return EXIT_OK;
 }
@@ -154,17 +154,17 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
 export async function check(specs: readonly string[], flags: CheckFlags, io: CliIo, dependencies: CheckDependencies): Promise<number> {
   if (flags.hook !== undefined) {
     if (!(HOOKS as readonly string[]).includes(flags.hook)) {
-      io.stderr(`depgate: unknown hook '${flags.hook}'; supported: ${HOOKS.join(', ')}\nRun 'depgate check --help' for usage.\n`);
+      io.stderr(`depcurfew: unknown hook '${flags.hook}'; supported: ${HOOKS.join(', ')}\nRun 'depcurfew check --help' for usage.\n`);
       return EXIT_USAGE;
     }
     if (specs.length > 0) {
-      io.stderr("depgate: '--hook' reads the command from stdin and takes no packages\nRun 'depgate check --help' for usage.\n");
+      io.stderr("depcurfew: '--hook' reads the command from stdin and takes no packages\nRun 'depcurfew check --help' for usage.\n");
       return EXIT_USAGE;
     }
     return hook(flags, io, dependencies);
   }
   if (specs.length === 0) {
-    io.stderr("depgate: 'check' needs at least one package, e.g. depgate check lodash@4\nRun 'depgate check --help' for usage.\n");
+    io.stderr("depcurfew: 'check' needs at least one package, e.g. depcurfew check lodash@4\nRun 'depcurfew check --help' for usage.\n");
     return EXIT_USAGE;
   }
   let loaded: ReturnType<typeof load>;
@@ -172,10 +172,10 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     loaded = load(flags.dir ?? process.cwd(), dependencies.home?.() ?? homedir());
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
-    io.stderr(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
+    io.stderr(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
     return EXIT_FAILURE;
   }
-  if (loaded.file === undefined) io.stderr(`note: no ${POLICY_FILE} found; checking against the default policy of depgate init (depgate init writes it)\n`);
+  if (loaded.file === undefined) io.stderr(`note: no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)\n`);
   const reports = await checkSpecs(specs, {
     policy: loaded.policy,
     fetch: dependencies.fetch,

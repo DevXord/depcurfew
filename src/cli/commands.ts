@@ -15,7 +15,7 @@ export interface CommandInfo {
   options?: readonly OptionInfo[];
   /** Whether the command takes any number of positional arguments. */
   variadic?: boolean;
-  /** What the command does, for `depgate <command> --help`. */
+  /** What the command does, for `depcurfew <command> --help`. */
   details: string;
   examples: readonly string[];
   /** Exit codes and what they mean. */
@@ -25,16 +25,16 @@ export interface CommandInfo {
 export const COMMANDS: readonly CommandInfo[] = [
   {
     name: 'init',
-    summary: 'Create a default policy file (depgate.json)',
+    summary: 'Create a default policy file (depcurfew.json)',
     implemented: true,
     arguments: '[directory]',
-    options: [{ name: 'force', summary: 'Overwrite an existing depgate.json' }],
+    options: [{ name: 'force', summary: 'Overwrite an existing depcurfew.json' }],
     details:
-      'Writes depgate.json with the default policy: a 3-day release-age delay, install scripts denied, and git and tarball URL dependencies denied. Other files are not changed; run depgate apply next to configure the tools.',
-    examples: ['depgate init', 'depgate init --force'],
+      'Writes depcurfew.json with the default policy: a 3-day release-age delay, install scripts denied, and git and tarball URL dependencies denied. Other files are not changed; run depcurfew apply next to configure the tools.',
+    examples: ['depcurfew init', 'depcurfew init --force'],
     exitCodes: [
-      [0, 'depgate.json was written'],
-      [1, 'depgate.json already exists (pass --force) or cannot be written'],
+      [0, 'depcurfew.json was written'],
+      [1, 'depcurfew.json already exists (pass --force) or cannot be written'],
       [2, 'a usage error'],
     ],
   },
@@ -45,11 +45,11 @@ export const COMMANDS: readonly CommandInfo[] = [
     arguments: '[directory]',
     options: [{ name: 'dry-run', summary: 'Print a diff of the changes instead of writing them' }],
     details:
-      'Reads depgate.json and writes the matching settings into the configuration files of every package manager and bot it detects (or of the tools listed under targets). Comments and formatting are kept, settings depgate does not manage are never removed, and nothing is written when any file cannot be edited. Running it again without changing depgate.json changes nothing.',
-    examples: ['depgate apply --dry-run', 'depgate apply', 'depgate apply path/to/project'],
+      'Reads depcurfew.json and writes the matching settings into the configuration files of every package manager and bot it detects (or of the tools listed under targets). Comments and formatting are kept, settings depcurfew does not manage are never removed, and nothing is written when any file cannot be edited. Running it again without changing depcurfew.json changes nothing.',
+    examples: ['depcurfew apply --dry-run', 'depcurfew apply', 'depcurfew apply path/to/project'],
     exitCodes: [
       [0, 'the files match the policy (warnings included)'],
-      [1, 'depgate.json is missing or invalid, or a file cannot be edited'],
+      [1, 'depcurfew.json is missing or invalid, or a file cannot be edited'],
       [2, 'a usage error'],
     ],
   },
@@ -63,11 +63,11 @@ export const COMMANDS: readonly CommandInfo[] = [
       { name: 'sarif', summary: 'Print the findings as SARIF 2.1.0 for code scanning' },
     ],
     details:
-      'Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depgate.json. Every finding says where it is and how to fix it. Without depgate.json, only the rules that do not need a policy run.',
-    examples: ['depgate doctor', 'depgate doctor --json', 'depgate doctor --sarif > depgate.sarif'],
+      'Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depcurfew.json. Every finding says where it is and how to fix it. Without depcurfew.json, only the rules that do not need a policy run.',
+    examples: ['depcurfew doctor', 'depcurfew doctor --json', 'depcurfew doctor --sarif > depcurfew.sarif'],
     exitCodes: [
       [0, 'no finding with level error (warnings and notes included)'],
-      [1, 'at least one finding with level error, or depgate.json is invalid'],
+      [1, 'at least one finding with level error, or depcurfew.json is invalid'],
       [2, 'a usage error'],
     ],
   },
@@ -79,16 +79,16 @@ export const COMMANDS: readonly CommandInfo[] = [
     variadic: true,
     options: [
       { name: 'json', summary: 'Print the result as JSON' },
-      { name: 'dir', value: 'directory', summary: 'Use the depgate.json of this directory (default: the current one)' },
+      { name: 'dir', value: 'directory', summary: 'Use the depcurfew.json of this directory (default: the current one)' },
       { name: 'registry', value: 'url', summary: 'Look packages up in this registry (default: the registry of .npmrc, else the public npm registry)' },
       { name: 'hook', value: 'name', summary: 'Run as a hook that guards installs: claude-code' },
     ],
     details:
-      'Looks each package up in the registry before it is installed and checks it against depgate.json (or the default policy of depgate init): a name the registry does not know, which is how mistyped and made-up names show up, a version younger than the cooldown, install scripts the policy does not allow, a name that looks like a popular package, and sources the policy denies. Every problem comes with what to do instead. With --hook claude-code it reads a Claude Code hook event from stdin and denies or asks about shell commands that would install such packages; the decision goes to stdout as JSON and the exit code is 0, except when the event cannot be read: then depgate exits with the code that makes Claude Code block the command.',
-    examples: ['depgate check zod@4 left-pad', 'depgate check --json react@19', 'depgate check --dir path/to/project @acme/ui', 'depgate check --hook claude-code'],
+      'Looks each package up in the registry before it is installed and checks it against depcurfew.json (or the default policy of depcurfew init): a name the registry does not know, which is how mistyped and made-up names show up, a version younger than the cooldown, install scripts the policy does not allow, a name that looks like a popular package, and sources the policy denies. Every problem comes with what to do instead. With --hook claude-code it reads a Claude Code hook event from stdin and denies or asks about shell commands that would install such packages; the decision goes to stdout as JSON and the exit code is 0, except when the event cannot be read: then depcurfew exits with the code that makes Claude Code block the command.',
+    examples: ['depcurfew check zod@4 left-pad', 'depcurfew check --json react@19', 'depcurfew check --dir path/to/project @acme/ui', 'depcurfew check --hook claude-code'],
     exitCodes: [
       [0, 'every package checks out (warnings included)'],
-      [1, 'a package breaks the policy or cannot be checked, or depgate.json is invalid'],
+      [1, 'a package breaks the policy or cannot be checked, or depcurfew.json is invalid'],
       [2, 'a usage error'],
     ],
   },
@@ -99,11 +99,11 @@ export const COMMANDS: readonly CommandInfo[] = [
     arguments: '[directory]',
     options: [{ name: 'json', summary: 'Print the result as JSON' }],
     details:
-      'Shows what depgate detects in the repository (package managers and their versions, bots, workspaces, .npmrc files, GitHub Actions workflows) and, with depgate.json, the value written for each tool.',
-    examples: ['depgate explain', 'depgate explain --json'],
+      'Shows what depcurfew detects in the repository (package managers and their versions, bots, workspaces, .npmrc files, GitHub Actions workflows) and, with depcurfew.json, the value written for each tool.',
+    examples: ['depcurfew explain', 'depcurfew explain --json'],
     exitCodes: [
       [0, 'the repository was described'],
-      [1, 'depgate.json is invalid'],
+      [1, 'depcurfew.json is invalid'],
       [2, 'a usage error'],
     ],
   },

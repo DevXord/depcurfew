@@ -1,11 +1,11 @@
 import type { Policy } from './schema.ts';
 
-export const POLICY_FILE = 'depgate.json';
+export const POLICY_FILE = 'depcurfew.json';
 
 /** Where the published package serves schema.json; init writes it into `$schema`. */
-export const SCHEMA_URL = 'https://unpkg.com/depgate/schema.json';
+export const SCHEMA_URL = 'https://unpkg.com/depcurfew/schema.json';
 
-/** What `depgate init` writes. Every section is explicit, so the file shows what can be configured. */
+/** What `depcurfew init` writes. Every section is explicit, so the file shows what can be configured. */
 export const DEFAULT_POLICY = {
   $schema: SCHEMA_URL,
   version: 1,

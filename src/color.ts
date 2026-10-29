@@ -44,9 +44,9 @@ export function colorsFor(stream: { isTTY?: boolean }, env: Readonly<Record<stri
   return stream.isTTY === true && env['TERM'] !== 'dumb';
 }
 
-/** Colors the prefix of diagnostic lines on stderr: "depgate:" and "error:" red, "warning:" yellow, "note:" cyan. */
+/** Colors the prefix of diagnostic lines on stderr: "depcurfew:" and "error:" red, "warning:" yellow, "note:" cyan. */
 export function paintDiagnostics(text: string, colors: Paint): string {
-  return text.replace(/^(depgate:|error:|warning:|note:)/gmu, (prefix) => {
+  return text.replace(/^(depcurfew:|error:|warning:|note:)/gmu, (prefix) => {
     if (prefix === 'warning:') return colors.yellow(prefix);
     return prefix === 'note:' ? colors.cyan(prefix) : colors.red(colors.bold(prefix));
   });

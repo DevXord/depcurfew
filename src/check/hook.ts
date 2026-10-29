@@ -1,6 +1,6 @@
-// `depgate check --hook claude-code`: a Claude Code PreToolUse hook for the Bash tool. It reads the event from stdin,
+// `depcurfew check --hook claude-code`: a Claude Code PreToolUse hook for the Bash tool. It reads the event from stdin,
 // finds the packages the command would install or run, checks them and answers with a decision: deny when a package
-// breaks the policy, ask when depgate cannot tell (an unreadable command, a look-alike name, a registry it cannot
+// breaks the policy, ask when depcurfew cannot tell (an unreadable command, a look-alike name, a registry it cannot
 // reach), and nothing when everything checks out, which leaves the call to Claude Code's normal permission flow.
 import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
@@ -8,7 +8,7 @@ import type { ClaudeCodeHooksKnowledge } from '../knowledge/types.ts';
 import { scanCommandLine } from './command.ts';
 import type { CheckFinding, FindingCode, PackageReport } from './index.ts';
 
-/** Findings that break the policy outright; other errors only mean that depgate cannot vouch for the package. */
+/** Findings that break the policy outright; other errors only mean that depcurfew cannot vouch for the package. */
 const DENY: ReadonlySet<FindingCode> = new Set(['forbidden-source', 'not-found', 'no-version', 'too-young', 'install-scripts']);
 
 export type HookDecision = { decision: 'deny' | 'ask'; reason: string } | { decision: 'none' };
@@ -46,11 +46,11 @@ export function readHookEvent(input: string): HookEvent | undefined {
 }
 
 /**
- * One finding for the agent. Fixes that change depgate.json are left out: the policy is the user's to change, and the
+ * One finding for the agent. Fixes that change depcurfew.json are left out: the policy is the user's to change, and the
  * reason says to ask them.
  */
 function line(report: PackageReport, finding: CheckFinding): string {
-  return `- ${report.spec}: ${finding.message}${finding.fix.includes('depgate.json') ? '' : `. Fix: ${finding.fix}`}`;
+  return `- ${report.spec}: ${finding.message}${finding.fix.includes('depcurfew.json') ? '' : `. Fix: ${finding.fix}`}`;
 }
 
 /** The decision for the checked packages of one command. */
@@ -60,14 +60,14 @@ export function decide(reports: readonly PackageReport[], unreadable: string | u
   if (denied.length > 0) {
     return {
       decision: 'deny',
-      reason: `depgate blocked this command because it breaks the project's supply-chain policy (depgate.json):\n${denied.map(({ report, finding }) => line(report, finding)).join('\n')}\nChoose another package or version. Only the user may change depgate.json: ask them instead of editing it.`,
+      reason: `depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n${denied.map(({ report, finding }) => line(report, finding)).join('\n')}\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.`,
     };
   }
   const doubts = [
-    ...(unreadable === undefined ? [] : [`- ${unreadable}. Fix: Write the package names out in the command, so depgate can check them`]),
+    ...(unreadable === undefined ? [] : [`- ${unreadable}. Fix: Write the package names out in the command, so depcurfew can check them`]),
     ...errors.map(({ report, finding }) => line(report, finding)),
   ];
-  if (doubts.length > 0) return { decision: 'ask', reason: `depgate cannot vouch for what this command installs:\n${doubts.join('\n')}` };
+  if (doubts.length > 0) return { decision: 'ask', reason: `depcurfew cannot vouch for what this command installs:\n${doubts.join('\n')}` };
   return { decision: 'none' };
 }
 

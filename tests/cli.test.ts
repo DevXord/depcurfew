@@ -18,11 +18,11 @@ async function exec(...argv: string[]): Promise<{ code: number; stdout: string; 
   return { code, stdout, stderr };
 }
 
-describe('depgate CLI', () => {
+describe('depcurfew CLI', () => {
   it.each([['--help'], ['-h'], ['help']])('%s prints usage and the command list', async (flag) => {
     const result = await exec(flag);
     expect(result.code).toBe(EXIT_OK);
-    expect(result.stdout).toContain('Usage: depgate <command> [options]');
+    expect(result.stdout).toContain('Usage: depcurfew <command> [options]');
     for (const command of ['init', 'apply', 'doctor', 'explain']) {
       expect(result.stdout).toMatch(new RegExp(`^\\s+${command}\\s`, 'm'));
     }
@@ -32,7 +32,7 @@ describe('depgate CLI', () => {
   it('prints help when called without arguments', async () => {
     const result = await exec();
     expect(result.code).toBe(EXIT_OK);
-    expect(result.stdout).toContain('Usage: depgate');
+    expect(result.stdout).toContain('Usage: depcurfew');
   });
 
   it.each([['--version'], ['-v']])('%s prints the package version', async (flag) => {
@@ -46,7 +46,7 @@ describe('depgate CLI', () => {
     expect(result.code).toBe(EXIT_USAGE);
     expect(result.stdout).toBe('');
     expect(result.stderr).toContain("unknown command 'frobnicate'");
-    expect(result.stderr).toContain('depgate --help');
+    expect(result.stderr).toContain('depcurfew --help');
   });
 
   it('rejects an unknown flag with a usage error', async () => {
@@ -73,17 +73,17 @@ describe('depgate CLI', () => {
   it('shows help instead of running a command when --help is given', async () => {
     const result = await exec('doctor', '--help');
     expect(result.code).toBe(EXIT_OK);
-    expect(result.stdout).toContain('Usage: depgate');
+    expect(result.stdout).toContain('Usage: depcurfew');
   });
 
   it.each([['doctor', '--help'], ['doctor', '-h'], ['help', 'doctor']])('%s %s describes the command, its options, examples and exit codes', async (...argv) => {
     const result = await exec(...argv);
     expect(result.code).toBe(EXIT_OK);
     expect(result.stderr).toBe('');
-    expect(result.stdout).toMatch(/^Usage: depgate doctor \[directory\] \[options\]$/m);
+    expect(result.stdout).toMatch(/^Usage: depcurfew doctor \[directory\] \[options\]$/m);
     expect(result.stdout).toMatch(/^ {2}--sarif {2,}Print the findings as SARIF/m);
     expect(result.stdout).toMatch(/^ {2}-h, --help {2,}Show this help$/m);
-    expect(result.stdout).toMatch(/^Examples:\n {2}depgate doctor$/m);
+    expect(result.stdout).toMatch(/^Examples:\n {2}depcurfew doctor$/m);
     expect(result.stdout).toMatch(/^ {2}1 {2}at least one finding with level error/m);
     expect(result.stdout.split('\n').every((line) => line.length <= 80)).toBe(true);
   });
@@ -91,7 +91,7 @@ describe('depgate CLI', () => {
   it('describes every command in its own help', async () => {
     for (const command of ['init', 'apply', 'doctor', 'explain', 'check']) {
       const result = await exec(command, '--help');
-      expect(result.stdout).toMatch(new RegExp(`^Usage: depgate ${command} `, 'm'));
+      expect(result.stdout).toMatch(new RegExp(`^Usage: depcurfew ${command} `, 'm'));
       expect(result.stdout).toMatch(/^Exit codes:\n {2}0 /m);
       expect(result.stdout.split('\n').filter((line) => line.length > 80)).toEqual([]);
     }
@@ -100,12 +100,12 @@ describe('depgate CLI', () => {
   it('points an unknown option of a command to that command\'s help', async () => {
     const result = await exec('apply', '--frobnicate');
     expect(result.code).toBe(EXIT_USAGE);
-    expect(result.stderr).toBe("depgate: unknown option '--frobnicate'\nRun 'depgate apply --help' for its options.\n");
+    expect(result.stderr).toBe("depcurfew: unknown option '--frobnicate'\nRun 'depcurfew apply --help' for its options.\n");
   });
 
   it('points too many arguments to the command help', async () => {
     const result = await exec('doctor', 'a', 'b');
     expect(result.code).toBe(EXIT_USAGE);
-    expect(result.stderr).toContain("Run 'depgate doctor --help' for usage.");
+    expect(result.stderr).toContain("Run 'depcurfew doctor --help' for usage.");
   });
 });

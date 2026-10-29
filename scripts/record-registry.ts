@@ -1,4 +1,4 @@
-// Records registry responses for the tests of depgate check (tests/fixtures/registry/), which run without network
+// Records registry responses for the tests of depcurfew check (tests/fixtures/registry/), which run without network
 // access. Each package document is cut down to what check reads: dist-tags, the publish times and, for the kept
 // versions, scripts and deprecated. A name the registry does not know is recorded as a 404.
 // Run by hand with network access: npm run record:registry

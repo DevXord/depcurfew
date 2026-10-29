@@ -1,6 +1,6 @@
 // manager-version-too-old: a setting only works from some version on. Every version the repository declares for a
 // package manager (packageManager, devEngines, Volta, .tool-versions, CI) must have every setting in use: the ones
-// depgate.json needs and the ones already written in the manager's configuration.
+// depcurfew.json needs and the ones already written in the manager's configuration.
 import { compareVersions, formatVersion, parseVersion, type Version } from '../../apply/version.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf, values } from '../../apply/facts.ts';
 import { describeRequirements } from '../../apply/requirements.ts';
@@ -26,7 +26,7 @@ function feature(setting: string | null, since: Fact<string | null> | string | u
   return { setting, since: version, disputed: typeof since !== 'string' && since.status === 'disputed' };
 }
 
-/** Settings depgate.json makes `apply` write for this tool. */
+/** Settings depcurfew.json makes `apply` write for this tool. */
 function policyFeatures(tool: ToolKnowledge, policy: ResolvedPolicy): Feature[] {
   const features: (Feature | undefined)[] = [];
   if (policy.cooldown !== undefined) {
@@ -148,7 +148,7 @@ export const managerVersionTooOld: Rule = {
         level: 'error',
         location: line === undefined ? { file } : { file, line },
         message: `Yarn Classic (1.x) has none of the settings ${POLICY_FILE} needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it`,
-        fix: `Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depgate configures`,
+        fix: `Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depcurfew configures`,
       });
     }
   },

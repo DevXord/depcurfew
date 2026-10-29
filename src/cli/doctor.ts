@@ -1,4 +1,4 @@
-// `depgate doctor [directory] [--json | --sarif]`. Exit code 1 when any finding is an error or depgate.json is invalid.
+// `depcurfew doctor [directory] [--json | --sarif]`. Exit code 1 when any finding is an error or depcurfew.json is invalid.
 import { PolicyError } from '../apply/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { countLevels, renderText, RULES, runDoctor, toSarif, type DoctorReport } from '../doctor/index.ts';
@@ -9,7 +9,7 @@ import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
 export function doctor(directory: string | undefined, format: { json: boolean; sarif: boolean }, io: CliIo): number {
   if (format.json && format.sarif) {
-    io.stderr("depgate: '--json' and '--sarif' cannot be used together; pick one\nRun 'depgate doctor --help' for usage.\n");
+    io.stderr("depcurfew: '--json' and '--sarif' cannot be used together; pick one\nRun 'depcurfew doctor --help' for usage.\n");
     return EXIT_USAGE;
   }
   const absolute = resolveDirectory(directory, io);
@@ -19,7 +19,7 @@ export function doctor(directory: string | undefined, format: { json: boolean; s
     report = runDoctor(absolute);
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
-    io.stderr(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
+    io.stderr(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
     return EXIT_FAILURE;
   }
   if (format.sarif) {

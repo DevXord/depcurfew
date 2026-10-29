@@ -1,5 +1,5 @@
 {
-  "$schema": "https://unpkg.com/depgate/schema.json",
+  "$schema": "https://unpkg.com/depcurfew/schema.json",
   "version": 1,
   "cooldown": { "minimum": { "text": "3d", "minutes": 4320 }, "exclude": ["@moja-firma/*"], "securityUpdates": "bypass" },
   "installScripts": { "default": "deny", "allow": ["esbuild", "sharp", "@playwright/test"] },

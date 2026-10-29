@@ -59,7 +59,7 @@ describe('SARIF output', () => {
     };
     expect(sarif.$schema).toMatch(/^https:\/\//u);
     const run = sarif.runs[0];
-    expect(run?.tool.driver.name).toBe('depgate');
+    expect(run?.tool.driver.name).toBe('depcurfew');
     for (const rule of run?.tool.driver.rules ?? []) {
       expect(rule.shortDescription.text.length).toBeLessThanOrEqual(1024);
       expect(rule.fullDescription.text.length).toBeLessThanOrEqual(1024);

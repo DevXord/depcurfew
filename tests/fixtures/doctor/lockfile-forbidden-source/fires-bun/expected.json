@@ -5,8 +5,8 @@
       "file": "bun.lock",
       "line": 7
     },
-    "message": "bun.lock installs bar from a local tarball (./bar-0.0.2.tgz), which depgate.json denies",
-    "fix": "Use a registry version of bar, or set sources.file to \"allow\" in depgate.json"
+    "message": "bun.lock installs bar from a local tarball (./bar-0.0.2.tgz), which depcurfew.json denies",
+    "fix": "Use a registry version of bar, or set sources.file to \"allow\" in depcurfew.json"
   },
   {
     "level": "error",
@@ -14,8 +14,8 @@
       "file": "bun.lock",
       "line": 8
     },
-    "message": "bun.lock installs nameless from a git repository (github:testowner/nameless#ddddddd), which depgate.json denies",
-    "fix": "Use a registry version of nameless, or set sources.git to \"allow\" in depgate.json"
+    "message": "bun.lock installs nameless from a git repository (github:testowner/nameless#ddddddd), which depcurfew.json denies",
+    "fix": "Use a registry version of nameless, or set sources.git to \"allow\" in depcurfew.json"
   },
   {
     "level": "error",
@@ -23,8 +23,8 @@
       "file": "bun.lock",
       "line": 9
     },
-    "message": "bun.lock installs gitdep from a git repository (git+https://example.com/gitdep.git#0123456789abcdef0123456789abcdef01234567), which depgate.json denies",
-    "fix": "Use a registry version of gitdep, or set sources.git to \"allow\" in depgate.json"
+    "message": "bun.lock installs gitdep from a git repository (git+https://example.com/gitdep.git#0123456789abcdef0123456789abcdef01234567), which depcurfew.json denies",
+    "fix": "Use a registry version of gitdep, or set sources.git to \"allow\" in depcurfew.json"
   },
   {
     "level": "error",
@@ -32,7 +32,7 @@
       "file": "bun.lock",
       "line": 11
     },
-    "message": "bun.lock installs lib from a local directory (link:../lib), which depgate.json denies",
-    "fix": "Use a registry version of lib, or set sources.directory to \"allow\" in depgate.json"
+    "message": "bun.lock installs lib from a local directory (link:../lib), which depcurfew.json denies",
+    "fix": "Use a registry version of lib, or set sources.directory to \"allow\" in depcurfew.json"
   }
 ]

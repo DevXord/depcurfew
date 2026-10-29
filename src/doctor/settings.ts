@@ -16,7 +16,7 @@ export interface IniEntry {
   key: string;
   value: string;
   line: number;
-  /** Inside depgate's managed block. */
+  /** Inside depcurfew's managed block. */
   managed: boolean;
 }
 

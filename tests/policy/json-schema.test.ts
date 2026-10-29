@@ -53,8 +53,8 @@ describe('schema.json', () => {
 
 describe('schema.json agrees with the validator', () => {
   it.each(policyFixtureNames())('on fixture %s', (name) => {
-    const document: unknown = JSON.parse(readFixture(name, 'depgate.json') ?? '');
-    const valid = parsePolicy(readFixture(name, 'depgate.json') ?? '').ok;
+    const document: unknown = JSON.parse(readFixture(name, 'depcurfew.json') ?? '');
+    const valid = parsePolicy(readFixture(name, 'depcurfew.json') ?? '').ok;
     expect(matchesSchema(schema, document)).toBe(valid || VALIDATOR_ONLY.has(name));
     if (VALIDATOR_ONLY.has(name)) expect(valid).toBe(false);
   });

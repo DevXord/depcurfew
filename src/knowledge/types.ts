@@ -138,7 +138,7 @@ export interface ToolKnowledge {
 
 /**
  * How a package manager's command line adds packages or downloads and runs them, for the install guard
- * (`depgate check --hook`). Commands are the executable followed by the subcommand, e.g. ["npm", "install"].
+ * (`depcurfew check --hook`). Commands are the executable followed by the subcommand, e.g. ["npm", "install"].
  */
 /** A command that downloads packages, with the options that name packages and the options whose value is a command line. */
 export interface DownloadCommand {
@@ -280,7 +280,7 @@ export interface StopCommandsKnowledge {
   resume: string;
 }
 
-/** The public npm registry, as depgate check reads it. */
+/** The public npm registry, as depcurfew check reads it. */
 export interface NpmRegistryKnowledge {
   url: string;
   /** Path of a package document; scoped names have their slash escaped as %2f. */
@@ -301,7 +301,7 @@ export interface NpmRegistryKnowledge {
   installScripts: readonly string[];
 }
 
-/** Claude Code hooks that run before a tool call and can block it (used by depgate check --hook claude-code). */
+/** Claude Code hooks that run before a tool call and can block it (used by depcurfew check --hook claude-code). */
 export interface ClaudeCodeHooksKnowledge {
   /** Project settings file that can be committed. */
   settingsFile: string;
