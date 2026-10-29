@@ -134,8 +134,8 @@ const bun$1 = {
 	kind: "package-manager",
 	cooldown: {
 		setting: verified$7("install.minimumReleaseAge", `${BUNFIG}#install-minimumreleaseage`),
-		configFiles: verified$7(["bunfig.toml"], BUNFIG, "Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun’s .npmrc support has no min-release-age key."),
-		cliFlag: verified$7("--minimum-release-age", DOCS_1_3_0, "bun install, add and update; bunx honours it only since 1.4.4."),
+		configFiles: verified$7(["bunfig.toml"], BUNFIG, "Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun's .npmrc support has no min-release-age key."),
+		cliFlag: verified$7("--minimum-release-age", DOCS_1_3_0, "bun install, add and update; bunx honors it only since 1.4.4."),
 		unit: verified$7("seconds", `${BUNFIG}#install-minimumreleaseage`, "Plain numbers are seconds; 0 turns it off. Since 1.4.4 duration strings such as 90m, 12 hours, 3d or 2 weeks also work (the bunfig reference still documents seconds only)."),
 		availableSince: verified$7("1.3.0", "https://bun.com/blog/bun-v1.3#minimum-release-age"),
 		default: disputed$5("The bunfig reference says the default is null (off) and an open docs pull request (oven-sh/bun#41545) says the feature is off by default; the install page lists 259200 (3 days) under \"These are the default values\".", evidence$5([{
@@ -156,14 +156,14 @@ const bun$1 = {
 		defaultPolicy: verified$7([{
 			since: "0.0.0",
 			value: "deny-except-allowlist"
-		}], `${LIFECYCLE}#trusteddependencies`, "Dependency scripts run only for Bun’s built-in trusted list (npm-registry packages only since 1.4) or trustedDependencies; the root project’s scripts run. First version of this policy not tracked."),
+		}], `${LIFECYCLE}#trusteddependencies`, "Dependency scripts run only for Bun's built-in trusted list (npm-registry packages only since 1.4) or trustedDependencies; the root project's scripts run. First version of this policy not tracked."),
 		allowList: {
 			setting: verified$7("trustedDependencies", `${LIFECYCLE}#trusteddependencies`, "Replaces the built-in default list rather than extending it. bun pm trust and bun add --trust write it."),
 			file: verified$7("package.json", `${LIFECYCLE}#trusteddependencies`),
 			availableSince: uncertain$6("1.0.5", "https://bun.com/blog/release-notes/bun-v1.0.5", "Upper bound: 1.0.5 already persists trustedDependencies in bun.lockb; the first version was not pinned down. bun pm trust and bun add --trust arrived in 1.0.31."),
 			format: verified$7("Array of package names, e.g. [\"node-sass\"]", `${LIFECYCLE}#trusteddependencies`)
 		},
-		disableAll: verified$7("install.ignoreScripts", `${BUNFIG}#install-ignorescripts`, "Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project’s own scripts and trustedDependencies too.")
+		disableAll: verified$7("install.ignoreScripts", `${BUNFIG}#install-ignorescripts`, "Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project's own scripts and trustedDependencies too.")
 	},
 	sources: {
 		git: noSetting$1("git-dependencies", "Git"),
@@ -228,7 +228,7 @@ const deno$1 = {
 	cooldown: {
 		setting: verified$6("minimumDependencyAge", DENO_JSON, "A number or string, or the object form { \"age\": ..., \"exclude\": [...] }. Covers npm and JSR packages."),
 		configFiles: verified$6(["deno.json", ".npmrc"], SUPPLY_CHAIN, "min-release-age in .npmrc since 2.8; also NPM_CONFIG_MIN_RELEASE_AGE. This page does not state precedence; denoland/deno#35458 gives CLI flag, deno.json, .npmrc, environment, built-in default."),
-		cliFlag: verified$6("--minimum-dependency-age", DENO_JSON, "Alias --min-dep-age since 2.9.3. deno install honours it since 2.5.5; deno add, deno remove and deno x since 2.9.4."),
+		cliFlag: verified$6("--minimum-dependency-age", DENO_JSON, "Alias --min-dep-age since 2.9.3. deno install honors it since 2.5.5; deno add, deno remove and deno x since 2.9.4."),
 		unit: verified$6("minutes", SCHEMA$1, "Numbers are minutes; strings may be an ISO-8601 duration (P3D, PT72H), an absolute date or an RFC3339 timestamp; 0 turns it off. The .npmrc format differs (see npmrcFormat)."),
 		availableSince: disputed$4("The 2.5.5 release notes ship the flag, the deno.json key and exclude as unstable; the release blog says the feature was introduced in 2.6.", evidence$4("2.5.5", release$4("2.5.5")), evidence$4("2.6.0", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
 		default: verified$6([{
@@ -299,8 +299,8 @@ const deno$1 = {
 		}, SCHEMA$1, "allowScripts: true allows every npm lifecycle script."),
 		latestVersion: verified$6("2.9.8", release$4("2.9.8")),
 		npmrcFormat: disputed$4("The safe choice is an integer number of days, which also matches npm.", evidence$4("whole days only, e.g. min-release-age=3", SUPPLY_CHAIN), evidence$4("a duration with a unit, e.g. min-release-age=72h", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
-		fileLinkSkipped: disputed$4("Official pages disagree on whether the project’s own file: and link: dependencies are skipped, or only those in published packages’ metadata.", evidence$4("file: and link: dependencies in the project package.json are silently skipped", NOT_SUPPORTED), evidence$4("file: and link: specifiers in registry metadata of npm packages are skipped", "https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages")),
-		denoXCooldown: verified$6("deno x honours minimumDependencyAge only since 2.9.4", release$4("2.9.4")),
+		fileLinkSkipped: disputed$4("Official pages disagree on whether the project's own file: and link: dependencies are skipped, or only those in published packages' metadata.", evidence$4("file: and link: dependencies in the project package.json are silently skipped", NOT_SUPPORTED), evidence$4("file: and link: specifiers in registry metadata of npm packages are skipped", "https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages")),
+		denoXCooldown: verified$6("deno x honors minimumDependencyAge only since 2.9.4", release$4("2.9.4")),
 		dxRunsScripts: verified$6("dx defaults to --allow-all and runs lifecycle scripts once the download prompt is accepted", "https://deno.com/blog/v2.6")
 	}
 };
@@ -366,7 +366,7 @@ const dependabot$1 = {
 			bun: ["bun"],
 			deno: ["deno"]
 		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. Cooldown is supported for all three."),
-		dayRange: disputed$3("Matters for opting out of the default cooldown; cooldown.exclude: [\"*\"] works under the documented precedence rule either way. The announcement does not state its author’s role.", evidence$3("1 to 90 days", "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates"), evidence$3("0 removes the cooldown", "https://github.com/dependabot/dependabot-core/discussions/15582")),
+		dayRange: disputed$3("Matters for opting out of the default cooldown; cooldown.exclude: [\"*\"] works under the documented precedence rule either way. The announcement does not state its author's role.", evidence$3("1 to 90 days", "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates"), evidence$3("0 removes the cooldown", "https://github.com/dependabot/dependabot-core/discussions/15582")),
 		maximumDays: verified$5(90, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates", "The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange)."),
 		missingPublishDate: verified$5("Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used", `${CORE}/docker/README.md`),
 		transitiveGating: uncertain$4("Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none", `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb`, "Read from dependabot-core source."),
@@ -505,7 +505,7 @@ const npm$1 = {
 			files: ["package.json"],
 			key: "workspaces"
 		}, `${PACKAGE_JSON$1}#workspaces`, "An array of folder paths or globs."),
-		workspacesObjectKey: uncertain$3("packages", "https://github.com/npm/map-workspaces/blob/main/lib/index.js", "Not documented; npm’s map-workspaces also accepts { \"packages\": [...] } and negated patterns.")
+		workspacesObjectKey: uncertain$3("packages", "https://github.com/npm/map-workspaces/blob/main/lib/index.js", "Not documented; npm's map-workspaces also accepts { \"packages\": [...] } and negated patterns.")
 	},
 	extra: {
 		trustedPublishing: checked$3.verified({
@@ -630,7 +630,7 @@ const pnpm$1 = {
 			availableSince: verified$3("10.26.0", SETTINGS_V10),
 			format: verified$3("Map of package matcher to true (allow) or false (deny), e.g. esbuild: true or \"nx@21.6.4 || 21.6.5\": true; a bare name never approves git or tarball dependencies (pnpm 11+)", BUILD_V11)
 		},
-		disableAll: verified$3("ignoreScripts", "https://pnpm.io/cli/install", "Default false; --ignore-scripts on the CLI. Also skips the project’s own scripts.")
+		disableAll: verified$3("ignoreScripts", "https://pnpm.io/cli/install", "Default false; --ignore-scripts on the CLI. Also skips the project's own scripts.")
 	},
 	sources: {
 		git: exoticSubdeps,
@@ -764,7 +764,7 @@ const pnpm$1 = {
 		}, {
 			since: "11.1.3",
 			value: "lockfile entries are re-checked; trustLockfile: true (11.3.0) turns this off"
-		}], release$2("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behaviour rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
+		}], release$2("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
 		unknownWorkspaceKeys: verified$3("pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns", "https://pnpm.io/blog/releases/12.0")
 	}
 };
@@ -838,7 +838,7 @@ const renovate$1 = {
 			since: "38.0.0",
 			trailingOnly: false
 		}, `${OPTIONS}#matchpackagenames`, "matchPackageNames accepts globs (and regex) since 38.0.0."),
-		ruleDescription: verified$2("description", "https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description", "A human-readable description allowed inside any configuration object; depgate uses it to recognise the packageRules entry it manages."),
+		ruleDescription: verified$2("description", "https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description", "A human-readable description allowed inside any configuration object; depgate uses it to recognize the packageRules entry it manages."),
 		packageJsonConfig: verified$2({
 			file: "package.json",
 			key: "renovate"
@@ -853,7 +853,7 @@ const renovate$1 = {
 			value: "minimumReleaseAgeBehaviour timestamp-required: such updates are held"
 		}], release$1("42.0.0"), "minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open."),
 		internalChecksFilter: verified$2("Defaults to \"strict\" since 33.0.0; with \"none\" or \"flexible\" branches and PRs are created before the delay ends and only automerge waits", release$1("33.0.0")),
-		independentOfPackageManager: verified$2("minimumReleaseAge is set independently of the package manager’s own release-age configuration", MINIMUM_RELEASE_AGE, "Source code passes --before to npm only; pnpm, Yarn and Bun gates are not read."),
+		independentOfPackageManager: verified$2("minimumReleaseAge is set independently of the package manager's own release-age configuration", MINIMUM_RELEASE_AGE, "Source code passes --before to npm only; pnpm, Yarn and Bun gates are not read."),
 		digestBypassFixed: disputed$1("Digest updates could bypass minimumReleaseAge; the advisory and a maintainer comment give different fixed versions. Rebase requests could bypass strict checks before 44.61.3 (GHSA-2frq-pm48-6j4h).", evidence$1("44.3.1", "https://github.com/renovatebot/renovate/security/advisories/GHSA-g4qr-hw2h-687r"), evidence$1("44.10.0", "https://github.com/renovatebot/renovate/discussions/42260"))
 	}
 };
@@ -1132,7 +1132,33 @@ const environment = {
 		stopCommands: checked.verified({
 			stop: "::stop-commands::{token}",
 			resume: "::{token}::"
-		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands", "Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs.")
+		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands", "Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs."),
+		annotations: checked.verified({
+			commands: {
+				error: "error",
+				warning: "warning",
+				note: "notice"
+			},
+			properties: {
+				file: "file",
+				line: "line",
+				title: "title"
+			},
+			escape: [
+				["%", "%25"],
+				["\r", "%0D"],
+				["\n", "%0A"]
+			],
+			escapeProperty: [[":", "%3A"], [",", "%2C"]]
+		}, "https://github.com/actions/toolkit/blob/main/packages/core/src/command.ts", "escapeData and escapeProperty in @actions/core: the message and property values replace %, CR and LF; property values also replace : and , because properties are separated by commas. The commands and their file, line and title parameters are on https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (line counts from 1)."),
+		annotationLimits: checked.verified({
+			perLevelPerStep: 10,
+			perJob: 50
+		}, "https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations", "10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown."),
+		stepSummary: checked.verified({
+			variable: "GITHUB_STEP_SUMMARY",
+			maxBytes: 1048576
+		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary", "GitHub flavored Markdown appended to the file named by the variable; at most 1 MiB per step (over that the upload fails with an error annotation), and at most 20 step summaries are shown per job.")
 	}
 };
 
@@ -8021,7 +8047,7 @@ var Repository = class {
 		const text = readFileSync(real, "utf8");
 		return text.startsWith("﻿") ? text.slice(1) : text;
 	}
-	/** The first bytes of a file, e.g. to recognise a lockfile format without reading a large file. */
+	/** The first bytes of a file, e.g. to recognize a lockfile format without reading a large file. */
 	readHead(path, bytes = 4096) {
 		const real = this.#resolve(path, true);
 		if (real === void 0 || !statSync(real).isFile()) return void 0;
@@ -9097,7 +9123,7 @@ const duration = text({
 		"36h",
 		"1w"
 	],
-	description: "Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool’s unit, always rounding up.",
+	description: "Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool's unit, always rounding up.",
 	parse: (input) => {
 		const result = parseDuration(input);
 		return result.ok ? {
@@ -9343,7 +9369,7 @@ function exclusions(context) {
 	return patterns.filter((pattern) => {
 		if (!pattern.includes("*")) return true;
 		const accepted = wildcardsWork && (!wildcards.trailingOnly || pattern.indexOf("*") === pattern.length - 1);
-		if (!accepted) context.warn(`${context.name}: ${setting} does not support the pattern "${pattern}"; not written`);
+		if (!accepted) context.warn(`${context.name}: ${setting} does not support the pattern "${pattern}"; not written. List the exact package names in cooldown.exclude`);
 		return accepted;
 	});
 }
@@ -9351,9 +9377,15 @@ function exclusions(context) {
 function allowedNames(context, setting) {
 	return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
 		if (!pattern.includes("*")) return true;
-		context.warn(`${context.name}: ${setting} takes package names only; "${pattern}" not written`);
+		context.warn(`${context.name}: ${setting} takes package names only; "${pattern}" not written. List the package names in installScripts.allow`);
 		return false;
 	});
+}
+/** Whether depgate doctor can tell dependency sources apart in the tool's lockfile. */
+function lockfileShowsSources(tool) {
+	const fact = tool.extra?.["lockfileFormat"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(format) && format["sources"] !== null;
 }
 /** Calls `apply` for every dependency source the policy manages and the tool has a setting for. */
 function eachSource(context, apply) {
@@ -9365,7 +9397,10 @@ function eachSource(context, apply) {
 		const knowledge = context.tool.sources?.[kind];
 		const setting = settingOf(knowledge?.setting);
 		if (setting === null) {
-			if (access === "deny") context.warn(`${context.name} has no setting for ${SOURCE_LABELS[kind]} dependencies; "deny" cannot be enforced`);
+			if (access === "deny") {
+				const checked = lockfileShowsSources(context.tool) ? "; depgate doctor still reports such dependencies in the lockfile" : "; depgate doctor cannot see them in the lockfile either, so review new dependencies by hand";
+				context.warn(`${context.name} has no setting for ${SOURCE_LABELS[kind]} dependencies, so "deny" cannot be enforced${checked}`);
+			}
 			continue;
 		}
 		if (!context.supports(sinceOf(knowledge?.availableSince), setting)) continue;
@@ -9413,7 +9448,7 @@ const bun = (context) => {
 		}
 	}
 	if (policy.installScripts !== void 0) {
-		if (policy.installScripts.default === "allow") context.warn(`${context.name} has no setting that allows every install script; "allow" not written`);
+		if (policy.installScripts.default === "allow") context.warn(`${context.name} has no setting that allows every install script; "allow" not written. List the packages under installScripts.allow instead`);
 		else {
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			const since = sinceOf(tool.installScripts.allowList.availableSince);
@@ -9421,7 +9456,7 @@ const bun = (context) => {
 				const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
 				const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
 				const current = context.json(listFile).get([setting]);
-				if (current === void 0) context.warn(`${context.name}: ${setting} replaces Bun's built-in list of trusted packages; packages on that list no longer run install scripts unless listed`);
+				if (current === void 0) context.warn(`${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed; add the ones that need their scripts to installScripts.allow`);
 				const list = Array.isArray(current) ? [...current] : [];
 				const merged = [...list, ...names.filter((name) => !list.includes(name))];
 				if (current === void 0 || !sameList(current, merged)) context.json(listFile).set([setting], merged);
@@ -9712,6 +9747,35 @@ function jsonArrayRemove(text, path, index) {
 	return dropBlankLine(`${text.slice(0, comma)}${text.slice(comma + 1, element.start)}${text.slice(element.end)}`, element.start - 1);
 }
 
+// src/apply/requirements.ts
+/** "a", "a and b", "a, b and c". */
+function listing(items) {
+	if (items.length <= 1) return items[0] ?? "";
+	return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
+}
+function describeRequirements(requirements) {
+	const groups = /* @__PURE__ */ new Map();
+	for (const { setting, since, disputed } of requirements) {
+		const group = groups.get(since) ?? {
+			settings: [],
+			disputed: false
+		};
+		if (!group.settings.includes(setting)) group.settings.push(setting);
+		group.disputed ||= disputed === true;
+		groups.set(since, group);
+	}
+	const order = (a, b) => compareVersions$1(parseVersion(a) ?? [
+		0,
+		0,
+		0
+	], parseVersion(b) ?? [
+		0,
+		0,
+		0
+	]);
+	return [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since}${group.disputed ? "; official sources disagree, so depgate assumes this later version" : ""})`).join(", ");
+}
+
 // src/apply/toml.ts
 const HEADER = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/u;
 function keyOf(line) {
@@ -9959,6 +10023,7 @@ function createContext(options) {
 		const required = since === void 0 ? void 0 : parseVersion(since);
 		return options.version === void 0 || required === void 0 || compareVersions$1(options.version, required) >= 0;
 	};
+	const unsupported = [];
 	const warn = (message) => {
 		if (!warnings.includes(message)) warnings.push(message);
 	};
@@ -9992,12 +10057,28 @@ function createContext(options) {
 		}),
 		supports(since, setting) {
 			if (atLeast(since)) return true;
+			if (since !== void 0) unsupported.push({
+				setting,
+				since
+			});
+			return false;
+		},
+		finish() {
+			if (unsupported.length === 0) return;
+			const needed = unsupported.map((item) => item.since).reduce((a, b) => compareVersions$1(parseVersion(a) ?? [
+				0,
+				0,
+				0
+			], parseVersion(b) ?? [
+				0,
+				0,
+				0
+			]) >= 0 ? a : b);
 			warn(`${tool.name} ${formatVersion(options.version ?? [
 				0,
 				0,
 				0
-			])} does not support ${setting} (since ${since}); not written`);
-			return false;
+			])} does not support ${describeRequirements(unsupported)}; not written. To apply ${unsupported.length === 1 ? "it" : "them"}, require ${tool.name} ${needed} or later where the version is pinned`);
 		},
 		atLeast,
 		json: (file) => ({
@@ -10074,7 +10155,7 @@ const dependabot = (context, duration) => {
 	if (policy.cooldown === void 0 || duration === void 0) return;
 	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
 	if (file === void 0) {
-		context.warn(`${context.name}: no configuration file found; depgate does not create one`);
+		context.warn(`${context.name}: no configuration file found; depgate does not create one. Add .github/dependabot.yml if you use Dependabot, then run depgate apply again`);
 		return;
 	}
 	if (policy.cooldown.securityUpdates === "delay") context.warn(`${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`);
@@ -10169,11 +10250,14 @@ const npm = (context) => {
 			if (defaults === "run-with-warning" && context.supports(strict.since, strict.setting)) {
 				entries.push(`${strict.setting}=${String(strict.value)}`);
 				managed.push(strict.setting);
-			} else if (defaults === "run") context.warn(`${context.name} ${formatVersion(context.version ?? [
-				0,
-				0,
-				0
-			])} runs every dependency install script and has no allow-list; "deny" cannot be enforced (npm 11.16.0 added allowScripts, npm 12 blocks scripts by default)`);
+			} else if (defaults === "run") {
+				const since = sinceOf(tool.installScripts.allowList.availableSince) ?? "";
+				context.warn(`${context.name} ${formatVersion(context.version ?? [
+					0,
+					0,
+					0
+				])} runs every dependency install script and has no allow-list, so "deny" cannot be enforced; require npm ${since} or later (npm 12 blocks dependency scripts by default)`);
+			}
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
 			if (setting !== null) {
@@ -10212,7 +10296,7 @@ const pnpm = (context) => {
 				0,
 				0,
 				0
-			])} skips ${setting} for packages requested by exact version (fixed in ${exact})`);
+			])} skips ${setting} for packages requested by exact version; require pnpm ${exact} or later`);
 		}
 		const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 		const patterns = cooldown === void 0 ? void 0 : exclusions(context);
@@ -10260,7 +10344,7 @@ const pnpm = (context) => {
 	if (exoticSetting !== void 0) {
 		const denied = [...exotic].filter(([, access]) => access === "deny").map(([kind]) => kind === "git" ? "git" : "remote tarball");
 		if (denied.length > 0) {
-			context.warn(`pnpm: ${exoticSetting} blocks git and tarball dependencies only when they are subdependencies; direct ones stay allowed`);
+			context.warn(`pnpm: ${exoticSetting} stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depgate doctor reports them in pnpm-lock.yaml`);
 			if (denied.length < exotic.size) context.warn(`pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(" and ")}`);
 		}
 		yaml.set([exoticSetting], denied.length > 0);
@@ -10302,7 +10386,7 @@ const renovate = (context, duration) => {
 		const packageJson = extraOf(tool, "packageJsonConfig", isRecord);
 		const where = file ?? (context.exists("package.json") && context.json("package.json").get([String(packageJson["key"])]) !== void 0 ? "package.json" : void 0);
 		if (where === void 0) {
-			context.warn(`${context.name}: no configuration file found; depgate does not create one`);
+			context.warn(`${context.name}: no configuration file found; depgate does not create one. Add renovate.json if you use Renovate, then run depgate apply again`);
 			return;
 		}
 		context.warn(where === "package.json" ? `${context.name}: configuration in package.json is deprecated and depgate does not edit it; move it to renovate.json or add the snippet by hand` : `${context.name}: ${where} is not plain JSON or JSONC, so depgate does not edit it; add the snippet by hand`);
@@ -10485,10 +10569,13 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	const failures = [];
 	const targets = new Set(policy.targets === "auto" ? detectedTargets(detection) : policy.targets);
 	for (const manager of detection.packageManagers) if (!manager.supported && (policy.targets === "auto" || targets.has(manager.id))) {
-		warnings.push(`${manager.variant === "classic" ? "Yarn Classic (1.x)" : manager.id} is not supported; nothing written for it`);
+		const berry = tools.find((tool) => tool.id === manager.id);
+		const since = berry === void 0 ? void 0 : sinceOf(berry.cooldown.availableSince);
+		const advice = manager.variant === "classic" && berry !== void 0 ? `. Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depgate configures` : "";
+		warnings.push(`${manager.variant === "classic" ? "Yarn Classic (1.x)" : manager.id} is not supported; nothing written for it${advice}`);
 		targets.delete(manager.id);
 	}
-	if (targets.size === 0) warnings.push("no tools to configure");
+	if (targets.size === 0) warnings.push("no tools to configure: depgate found no supported package manager or bot here (depgate explain shows what it detects)");
 	const run = (tool, version, action) => {
 		const context = createContext({
 			tool,
@@ -10504,6 +10591,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		} catch (error) {
 			if (!(error instanceof EditFailed)) throw error;
 		}
+		context.finish();
 	};
 	const managerMinutes = [];
 	for (const tool of tools) {
@@ -10513,7 +10601,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		const version = manager === void 0 ? void 0 : pinnedVersion(manager);
 		if (version === void 0) {
 			const latest = latestVersion$1(tool);
-			warnings.push(`${tool.name}: no exact version is pinned; configuring for ${tool.name} ${latest ?? "latest"}, the latest known version`);
+			warnings.push(`${tool.name}: no exact version is pinned, so depgate configures for ${tool.name} ${latest ?? "latest"}, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it`);
 		}
 		run(tool, version, (context) => {
 			const minutes = generator(context);
@@ -10868,7 +10956,7 @@ const isEcosystems = (value) => isRecord(value) && Object.values(value).every((l
 const isPresets = (value) => isRecord(value) && Array.isArray(value["presets"]) && typeof value["value"] === "string";
 const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && Array.isArray(value["semverDays"]);
 const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
-function describe(minutes) {
+function describe$1(minutes) {
 	return minutes === 0 ? "no delay" : formatMinutes(minutes);
 }
 function dependabotDelays(context, bot, file) {
@@ -10890,7 +10978,7 @@ function dependabotDelays(context, bot, file) {
 		const semver = keys.semverDays.filter((key) => typeof cooldown?.[key] === "number");
 		const days = Math.min(base, ...semver.map((key) => cooldown?.[key]));
 		const shortest = semver.find((key) => cooldown?.[key] === days);
-		const origin = cooldown === void 0 ? `Dependabot's default (${describe(days * 1440)})` : shortest !== void 0 && days < base ? `${shortest}: ${days} in ${file}` : typeof cooldown[keys.days] === "number" ? `${keys.days}: ${days} in ${file}` : `Dependabot's default (${describe(days * 1440)})`;
+		const origin = cooldown === void 0 ? `Dependabot's default (${describe$1(days * 1440)})` : shortest !== void 0 && days < base ? `${shortest}: ${days} in ${file}` : typeof cooldown[keys.days] === "number" ? `${keys.days}: ${days} in ${file}` : `Dependabot's default (${describe$1(days * 1440)})`;
 		const line = yamlSetting(text, [
 			"updates",
 			String(index),
@@ -10979,7 +11067,7 @@ const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	summary: "An update bot waits less than the package manager before proposing a new version.",
 	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile.",
-	help: "Give the bot a delay at least as long as the package manager’s (depgate apply does this).",
+	help: "Give the bot a delay at least as long as the package manager's (depgate apply does this).",
 	level: "error",
 	requiresPolicy: false,
 	check(context) {
@@ -10999,13 +11087,13 @@ const botCooldownMismatch = {
 			if (own === void 0 || delay.location === void 0) continue;
 			if (delay.minutes < own.minutes) context.report({
 				location: delay.location,
-				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
-				fix: delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe(own.minutes)} in ${delay.location.file} (depgate apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe(own.minutes)}, or run depgate apply`
+				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
+				fix: delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depgate apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depgate apply`
 			});
 			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager)) context.report({
 				level: "warning",
 				location: delay.location,
-				message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
+				message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe$1(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
 				fix: `When a security update fails, exempt the fixed package in the ${tool.name} exclusion list until the delay has passed`
 			});
 		}
@@ -11569,7 +11657,18 @@ function plannedApply(context) {
 function clean(line) {
 	return line.replace(/[\r\u0000]/gu, "").trim();
 }
-/** The line of `before` where the first difference starts, and what apply would remove or add there. */
+/** A line without the trailing comma that JSON needs before a following key. */
+function withoutComma(line) {
+	return line.replace(/,$/u, "");
+}
+/** Lines depgate writes around its settings, which say nothing about a setting themselves. */
+function isFrame(line) {
+	return line === "" || line === "# managed by depgate" || line === "# >>> depgate managed block: edit depgate.json and run depgate apply instead" || line === "# <<< depgate managed block";
+}
+/**
+* The first block of lines that apply would change, without the lines that only gain or lose a trailing comma
+* (adding a JSON key changes the line before it) and without depgate's frame lines.
+*/
 function firstDifference(before, after) {
 	const operations = myers(lines(before), lines(after));
 	let line = 1;
@@ -11578,20 +11677,45 @@ function firstDifference(before, after) {
 		line += 1;
 		index += 1;
 	}
-	let removed;
-	let added;
+	let removed = [];
+	let added = [];
 	for (; index < operations.length && operations[index]?.kind !== "same"; index++) {
 		const operation = operations[index];
 		if (operation === void 0) break;
-		const text = clean(operation.line);
-		if (operation.kind === "delete") removed ??= text;
-		else if (text !== "" && text !== "# managed by depgate") added ??= text;
+		(operation.kind === "delete" ? removed : added).push(clean(operation.line));
 	}
+	const commaOnly = new Set(removed.filter((text) => added.some((other) => withoutComma(other) === withoutComma(text))).map(withoutComma));
+	removed = removed.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
+	added = added.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
 	return {
 		line: Math.min(line, Math.max(lines(before).length, 1)),
 		removed,
 		added
 	};
+}
+function code$1(text) {
+	return `\`${withoutComma(text)}\``;
+}
+/** Added lines for a message: a short JSON object or array on one line, otherwise the first line and a count. */
+function addedText(added) {
+	const [first = ""] = added;
+	if (added.length === 1) return code$1(first);
+	const joined = added.join(" ").replaceAll(/\s+/gu, " ");
+	if (/[{[]$/u.test(first) && joined.length <= 100) return code$1(joined);
+	return `${code$1(first)} (and ${added.length - 1} more ${added.length === 2 ? "line" : "lines"})`;
+}
+/** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
+function describe(difference) {
+	const commented = difference.added.find((text) => text.startsWith("# depgate: superseded by the managed block: ") || text.startsWith("# depgate: turned off; depgate.json manages this setting: "));
+	if (commented !== void 0) {
+		if (commented.startsWith("# depgate: superseded by the managed block: ")) return `${code$1(commented.slice(SUPERSEDED.length))} is set outside the block that depgate manages; depgate apply comments it out, and the block sets what ${POLICY_FILE} requires`;
+		return `${code$1(commented.slice(TURNED_OFF.length))} is set by hand, but ${POLICY_FILE} manages this setting; depgate apply comments it out`;
+	}
+	const [removed] = difference.removed;
+	if (removed !== void 0 && difference.added.length > 0) return `${code$1(removed)} should be ${addedText(difference.added)}`;
+	if (difference.added.length > 0) return `${addedText(difference.added)} is missing`;
+	if (removed !== void 0) return `${code$1(removed)} should not be there`;
+	return "its layout differs from what depgate apply writes";
 }
 /** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
 function checkAllowLists(context) {
@@ -11628,18 +11752,19 @@ const configDrift = {
 			if (change.before === null) {
 				context.report({
 					location: { file: POLICY_FILE },
-					message: `${change.file} is missing; depgate apply would create it with the settings from ${POLICY_FILE}`
+					message: `${change.file} is missing; depgate apply would create it with the settings from ${POLICY_FILE}`,
+					fix: `Run depgate apply to create ${change.file} (depgate apply --dry-run shows its content first)`
 				});
 				continue;
 			}
 			const difference = firstDifference(change.before, change.after);
-			const detail = difference.removed !== void 0 && difference.added !== void 0 ? `"${difference.removed}" should be "${difference.added}"` : difference.added !== void 0 ? `"${difference.added}" is missing` : `"${difference.removed ?? ""}" should not be there`;
 			context.report({
 				location: {
 					file: change.file,
 					line: difference.line
 				},
-				message: `${change.file} does not match ${POLICY_FILE}: ${detail}`
+				message: `${change.file} does not match ${POLICY_FILE}: ${describe(difference)}`,
+				fix: `Run depgate apply to bring ${change.file} back in line with ${POLICY_FILE} (depgate apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`
 			});
 		}
 		checkAllowLists(context);
@@ -11740,7 +11865,7 @@ function checkDurationStrings(context, tool, manager, version, label) {
 			line: found.line
 		},
 		message: `${label} ignores the duration string ${JSON.stringify(found.value)} in ${setting}; strings work only since ${String(format["since"])}, so no delay applies`,
-		fix: `Write the delay as a number in ${tool.cooldown.unit.status === "disputed" ? "the tool’s unit" : String(values$1(tool.cooldown.unit)[0])}, or require ${tool.name} ${String(format["since"])} or later`
+		fix: `Write the delay as a number in ${tool.cooldown.unit.status === "disputed" ? "the tool's unit" : String(values$1(tool.cooldown.unit)[0])}, or require ${tool.name} ${String(format["since"])} or later`
 	});
 }
 const settingIgnoredByVersion = {
@@ -11805,7 +11930,7 @@ const lockfileForbiddenSource = {
 					context.report({
 						level: "warning",
 						location: location(lockfile, entry),
-						message: `${lockfile.file} installs ${entry.name} from a source depgate does not recognise (${entry.spec || "no source given"}); it may be one ${POLICY_FILE} denies`,
+						message: `${lockfile.file} installs ${entry.name} from a source depgate does not recognize (${shownSpec(entry.spec) || "no source given"}); it may be one ${POLICY_FILE} denies`,
 						fix: `Check where ${entry.name} comes from, and regenerate the lockfile with the package manager if the entry is damaged`
 					});
 					continue;
@@ -11814,13 +11939,19 @@ const lockfileForbiddenSource = {
 				if (sources[entry.source] !== "deny") continue;
 				context.report({
 					location: location(lockfile, entry),
-					message: `${lockfile.file} installs ${entry.name} from ${LABELS[entry.source]} (${entry.spec}), which ${POLICY_FILE} denies`,
+					message: `${lockfile.file} installs ${entry.name} from ${LABELS[entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
 					fix: `Use a registry version of ${entry.name}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
 				});
 			}
 		});
 	}
 };
+/** A lockfile spec for messages, without Yarn's locator parameters (::hash=…&locator=…) and repeated local paths. */
+function shownSpec(spec) {
+	const text = spec.split("::")[0] ?? spec;
+	const hash = text.indexOf("#");
+	return /^(?:file|portal|link):/u.test(text) && hash !== -1 ? text.slice(0, hash) : text;
+}
 /** Whether the version in use runs dependency install scripts without an allow-list, under any official reading. */
 function runsScripts(context, tool) {
 	const manager = context.detection.packageManagers.find((entry) => entry.id === tool.id);
@@ -12079,7 +12210,7 @@ function checkManager(context, manager, tool) {
 		const missing = below.filter((item) => !below.some((other) => other !== item && item.setting.startsWith(`${other.setting} for `)));
 		if (missing.length === 0) continue;
 		const needed = missing.map((item) => parseVersion(item.since)).reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
-		const list = missing.map((item) => `${item.setting} (since ${item.since}${item.disputed ? ", sources disagree; the later version is assumed" : ""})`).join(", ");
+		const list = describeRequirements(missing);
 		const line = declarationLine(context, declaration);
 		const subject = lowest.kind === "exact" ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
 		context.report({
@@ -12239,7 +12370,7 @@ const npmrcOverridesPolicy = {
 const pnpmSharedWorkspaceLockfile = {
 	id: "pnpm-shared-workspace-lockfile",
 	summary: "pnpm 10 without a shared lockfile lets a package .npmrc change the release-age delay.",
-	description: "With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project separately with that project’s own .npmrc layered over the workspace settings (read from the pnpm 10 source code), so a setting such as minimum-release-age=0 in a package .npmrc applies to that package.",
+	description: "With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project separately with that project's own .npmrc layered over the workspace settings (read from the pnpm 10 source code), so a setting such as minimum-release-age=0 in a package .npmrc applies to that package.",
 	help: "Remove security settings from package .npmrc files, or keep the default shared lockfile.",
 	level: "warning",
 	requiresPolicy: false,
@@ -12322,6 +12453,34 @@ const RULES = [
 	unreadableConfig
 ];
 
+// src/color.ts
+const CODES = {
+	red: [31, 39],
+	yellow: [33, 39],
+	green: [32, 39],
+	cyan: [36, 39],
+	bold: [1, 22],
+	dim: [2, 22]
+};
+const style = ([open, close]) => (text) => text === "" ? text : `\u001b[${open}m${text}\u001b[${close}m`;
+const same = (text) => text;
+const PLAIN = {
+	red: same,
+	yellow: same,
+	green: same,
+	cyan: same,
+	bold: same,
+	dim: same
+};
+const COLORED = {
+	red: style(CODES.red),
+	yellow: style(CODES.yellow),
+	green: style(CODES.green),
+	cyan: style(CODES.cyan),
+	bold: style(CODES.bold),
+	dim: style(CODES.dim)
+};
+
 // src/doctor/render.ts
 function countLevels(findings) {
 	const counts = {
@@ -12332,28 +12491,33 @@ function countLevels(findings) {
 	for (const finding of findings) counts[finding.level] += 1;
 	return counts;
 }
-function plural(count, word) {
+function plural$1(count, word) {
 	return `${count} ${count === 1 ? word : `${word}s`}`;
 }
-function renderText(report, rules) {
+function levelColor(level, colors) {
+	if (level === "error") return (text) => colors.bold(colors.red(text));
+	return level === "warning" ? colors.yellow : colors.cyan;
+}
+function renderText(report, rules, colors = PLAIN) {
 	const counts = countLevels(report.findings);
 	const lines = [];
-	if (report.findings.length === 0) lines.push("No problems found.");
+	if (report.findings.length === 0) lines.push(colors.green("No problems found."));
 	else {
-		lines.push(`${plural(counts.error, "error")}, ${plural(counts.warning, "warning")}, ${plural(counts.note, "note")}`);
+		const count = (level) => counts[level] === 0 ? plural$1(0, level) : levelColor(level, colors)(plural$1(counts[level], level));
+		lines.push(`${count("error")}, ${count("warning")}, ${count("note")}`);
 		let file;
 		for (const finding of report.findings) {
 			if (finding.location.file !== file) {
 				file = finding.location.file;
-				lines.push("", file);
+				lines.push("", colors.bold(file));
 			}
 			const where = finding.location.line === void 0 ? "" : `${finding.location.line}: `;
 			const help = finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
-			lines.push(`  ${where}${finding.level} ${finding.message} (${finding.rule})`);
-			if (help !== void 0) lines.push(`    fix: ${help}`);
+			lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${finding.message} ${colors.dim(`(${finding.rule})`)}`);
+			if (help !== void 0) lines.push(`    ${colors.green("fix:")} ${help}`);
 		}
 	}
-	if (report.notices.length > 0) lines.push("", "Notes:", ...report.notices.map((notice) => `  ${notice.message}`));
+	if (report.notices.length > 0) lines.push("", colors.bold("Notes:"), ...report.notices.map((notice) => `  ${notice.message}`));
 	return `${lines.join("\n")}\n`;
 }
 
@@ -12416,6 +12580,102 @@ function toSarif(report, rules, version, readLine = () => void 0) {
 			}))
 		}]
 	};
+}
+
+// src/doctor/github.ts
+const LEVELS = [
+	"error",
+	"warning",
+	"note"
+];
+function fixOf(finding, rules) {
+	return finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
+}
+function plural(count, word) {
+	return `${count} ${count === 1 ? word : `${word}s`}`;
+}
+function escaped(text, replacements) {
+	return replacements.reduce((result, [from, to]) => result.replaceAll(from, to), text);
+}
+/** Annotation commands for the findings, errors first, within the number GitHub shows in one step. */
+function annotationCommands(report, rules, format = values$1(environment.githubActions.annotations)[0], limits = values$1(environment.githubActions.annotationLimits)[0]) {
+	if (format === void 0 || limits === void 0) return {
+		lines: [],
+		omitted: report.findings.length
+	};
+	const data = (text) => escaped(text, format.escape);
+	const property = (text) => escaped(escaped(text, format.escape), format.escapeProperty);
+	const lines = [];
+	for (const level of LEVELS) {
+		const findings = report.findings.filter((finding) => finding.level === level);
+		for (const finding of findings.slice(0, Math.min(limits.perLevelPerStep, limits.perJob - lines.length))) {
+			const properties = [
+				[format.properties.file, finding.location.file],
+				[format.properties.line, finding.location.line === void 0 ? void 0 : String(finding.location.line)],
+				[format.properties.title, `depgate: ${finding.rule}`]
+			].flatMap(([name, value]) => value === void 0 ? [] : [`${name}=${property(value)}`]);
+			const fix = fixOf(finding, rules);
+			const message = fix === void 0 ? finding.message : `${finding.message}\nFix: ${fix}`;
+			lines.push(`::${format.commands[level]} ${properties.join(",")}::${data(message)}`);
+		}
+	}
+	return {
+		lines,
+		omitted: report.findings.length - lines.length
+	};
+}
+/** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
+function markdown(text) {
+	return text.replaceAll(/\s*[\r\n]+\s*/gu, " ").split(/(`[^`]*`)/u).map((part, index) => index % 2 === 1 ? part.replaceAll("|", "\\|") : part.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll(/([\\`*_[\]|~#!])/gu, "\\$1").replaceAll(/(https?|www)(?=[:.])/gu, "$1&#8203;")).join("");
+}
+function code(text) {
+	return text.includes("`") ? markdown(text) : `\`${text.replaceAll("|", "\\|")}\``;
+}
+/**
+* The job summary: the counts, a table of findings with how to fix each one and the notices. Rows that would make it
+* longer than `maxBytes` are left out and counted instead, so the summary upload does not fail.
+*/
+function jobSummary(report, rules, directory, maxBytes) {
+	const counts = countLevels(report.findings);
+	const where = directory === "" ? "" : ` in ${code(directory)}`;
+	const head = ["## depgate doctor", ""];
+	if (report.findings.length === 0) head.push(`No problems found${where}.`);
+	else {
+		const count = (level) => counts[level] === 0 ? plural(0, level) : `**${plural(counts[level], level)}**`;
+		head.push(`${count("error")}, ${count("warning")}, ${count("note")}${where}.`, "", "| Level | Where | Problem | How to fix |", "| --- | --- | --- | --- |");
+	}
+	const tail = [...report.notices.length === 0 ? [] : [
+		"",
+		"### Notes",
+		"",
+		...report.notices.map((notice) => `- ${markdown(notice.message)}`)
+	], ""];
+	let size = Buffer.byteLength([...head, ...tail].join("\n")) + 200;
+	const rows = [];
+	for (const finding of report.findings) {
+		const location = finding.location.line === void 0 ? finding.location.file : `${finding.location.file}:${finding.location.line}`;
+		const row = `| ${finding.level === "error" ? "**error**" : finding.level} | ${code(location)} | ${markdown(finding.message)} (${code(finding.rule)}) | ${markdown(fixOf(finding, rules) ?? "")} |`;
+		size += Buffer.byteLength(row) + 1;
+		if (size > maxBytes) break;
+		rows.push(row);
+	}
+	const omitted = report.findings.length - rows.length;
+	const more = omitted === 0 ? [] : ["", `${plural(omitted, "more finding")} did not fit in the summary; the step log lists every finding.`];
+	return [
+		...head,
+		...rows,
+		...more,
+		...tail
+	].join("\n");
+}
+/** The job summary when doctor could not run. */
+function failureSummary(message) {
+	return [
+		"## depgate doctor",
+		"",
+		`depgate could not check the repository: ${markdown(message)}`,
+		""
+	].join("\n");
 }
 
 // src/doctor/index.ts
@@ -12482,6 +12742,12 @@ function getVersion() {
 function input(env, name, fallback) {
 	const value = env[`INPUT_${name.toUpperCase().replaceAll("-", "_")}`]?.trim();
 	return value === void 0 || value === "" ? fallback : value;
+}
+function enabled(env, name) {
+	return input(env, name, "true") !== "false";
+}
+function summaryLimit() {
+	return values$1(environment.githubActions.stepSummary)[0]?.maxBytes ?? 0;
 }
 /** Report paths relative to the workspace instead of the scanned directory, as code scanning expects. */
 function relativeToWorkspace(report, prefix) {
@@ -12550,9 +12816,11 @@ function runAction(env, io) {
 		notes: 0,
 		failure: ""
 	};
+	const summary = enabled(env, "job-summary");
 	const fail = (message) => {
 		outputs.failure = message;
-		io.log(`depgate: ${message}\n`);
+		io.log(untrusted(`depgate: ${message}\n`));
+		if (summary) io.summary(failureSummary(message));
 		return outputs;
 	};
 	const directory = scannedDirectory(workspace, input(env, "directory", "."));
@@ -12565,10 +12833,17 @@ function runAction(env, io) {
 		if (!(error instanceof PolicyError)) throw error;
 		outputs.failure = [error.message, ...error.issues].join("; ");
 		io.log(untrusted(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join("")}`));
+		if (summary) io.summary(failureSummary(outputs.failure));
 		return outputs;
 	}
 	io.log(untrusted(renderText(report, RULES)));
 	const moved = relativeToWorkspace(report, prefix);
+	if (enabled(env, "annotations")) {
+		const annotations = annotationCommands(moved, RULES);
+		if (annotations.lines.length > 0) io.log(`${annotations.lines.join("\n")}\n`);
+		if (annotations.omitted > 0) io.log(`GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? "finding is" : "findings are"} in the report above.\n`);
+	}
+	if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
 	const repository = new Repository(workspace);
 	const readLine = (file, line) => repository.readText(file)?.split(/\r?\n/u)[line - 1];
 	const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), readLine), null, 2)}\n`;
@@ -12600,7 +12875,14 @@ function formatOutputs(outputs) {
 	return Object.entries(outputs).map(([name, value]) => `${name}=${String(value).replaceAll(/[\r\n]+/gu, " ")}\n`).join("");
 }
 function main(env = process.env) {
-	const outputs = runAction(env, { log: (text) => process.stdout.write(text) });
+	const summaryVariable = values$1(environment.githubActions.stepSummary)[0]?.variable;
+	const summaryFile = summaryVariable === void 0 ? void 0 : env[summaryVariable];
+	const outputs = runAction(env, {
+		log: (text) => process.stdout.write(text),
+		summary: (markdown) => {
+			if (summaryFile !== void 0 && summaryFile !== "") appendFileSync(summaryFile, markdown);
+		}
+	});
 	const file = env["GITHUB_OUTPUT"];
 	if (file !== void 0 && file !== "") appendFileSync(file, formatOutputs(outputs));
 }

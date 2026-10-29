@@ -6,6 +6,7 @@ import type { ResolvedPolicy } from '../../policy/schema.ts';
 import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
 import { writeIniBlock } from '../ini.ts';
 import { jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonSet } from '../json-edit.ts';
+import { describeRequirements, type Requirement } from '../requirements.ts';
 import { writeTomlBlock } from '../toml.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
 import type { Workspace } from '../workspace.ts';
@@ -37,10 +38,12 @@ export interface Context {
   read(file: string): string;
   warn(message: string): void;
   snippet(file: string, text: string): void;
-  /** Whether the pinned version has a setting available since `since`; warns when it is too old. */
+  /** Whether the pinned version has a setting available since `since`; when it is too old, finish() reports it. */
   supports(since: string | undefined, setting: string): boolean;
   /** The same check without a warning. */
   atLeast(since: string | undefined): boolean;
+  /** Reports what the version did not support; called once the generator has run. */
+  finish(): void;
   json(file: string): JsonFile;
   yaml(file: string): YamlFile;
   ini(file: string, entries: readonly string[], managedKeys: readonly string[]): void;
@@ -80,6 +83,7 @@ export function createContext(options: {
     const required = since === undefined ? undefined : parseVersion(since);
     return options.version === undefined || required === undefined || compareVersions(options.version, required) >= 0;
   };
+  const unsupported: Requirement[] = [];
   const warn = (message: string) => {
     if (!warnings.includes(message)) warnings.push(message);
   };
@@ -106,8 +110,16 @@ export function createContext(options: {
     snippet: (file, text) => options.snippets.push({ tool: tool.id, file, text }),
     supports(since, setting) {
       if (atLeast(since)) return true;
-      warn(`${tool.name} ${formatVersion(options.version ?? [0, 0, 0])} does not support ${setting} (since ${since}); not written`);
+      if (since !== undefined) unsupported.push({ setting, since });
       return false;
+    },
+    finish() {
+      // One warning for every setting the version is too old for, grouped by the version that added them.
+      if (unsupported.length === 0) return;
+      const needed = unsupported.map((item) => item.since).reduce((a, b) => (compareVersions(parseVersion(a) ?? [0, 0, 0], parseVersion(b) ?? [0, 0, 0]) >= 0 ? a : b));
+      warn(
+        `${tool.name} ${formatVersion(options.version ?? [0, 0, 0])} does not support ${describeRequirements(unsupported)}; not written. To apply ${unsupported.length === 1 ? 'it' : 'them'}, require ${tool.name} ${needed} or later where the version is pinned`,
+      );
     },
     atLeast,
     json: (file) => ({

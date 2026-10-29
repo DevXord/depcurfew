@@ -1,9 +1,10 @@
 import { parseArgs } from 'node:util';
 import { getVersion } from '../version.ts';
 import { apply } from './apply.ts';
+import { paint, paintDiagnostics } from '../color.ts';
 import { COMMANDS, findCommand } from './commands.ts';
 import { doctor } from './doctor.ts';
-import { helpText } from './help.ts';
+import { commandHelpText, helpText } from './help.ts';
 import { explain } from './explain.ts';
 import { init } from './init.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
@@ -19,7 +20,9 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export async function run(argv: readonly string[], io: CliIo): Promise<number> {
+export async function run(argv: readonly string[], output: CliIo): Promise<number> {
+  const errors = paint(output.colors?.stderr);
+  const io: CliIo = { ...output, stderr: (text) => output.stderr(paintDiagnostics(text, errors)) };
   const commandOptions = Object.fromEntries(
     COMMANDS.flatMap((command) => command.options ?? []).map((option) => [option.name, { type: 'boolean' as const }]),
   );
@@ -36,7 +39,11 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
       strict: true,
     });
   } catch (error) {
-    io.stderr(`depgate: ${errorMessage(error)}\n${USAGE_HINT}`);
+    // parseArgs explains how to pass a positional that starts with '-'; an unknown option is the usual case.
+    const unknown = /Unknown option '([^']+)'/u.exec(errorMessage(error))?.[1];
+    const named = findCommand(argv.find((argument) => !argument.startsWith('-')) ?? '');
+    const hint = named === undefined ? USAGE_HINT : `Run 'depgate ${named.name} --help' for its options.\n`;
+    io.stderr(`depgate: ${unknown === undefined ? errorMessage(error) : `unknown option '${unknown}'`}\n${hint}`);
     return EXIT_USAGE;
   }
 
@@ -47,8 +54,14 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
     io.stdout(`${getVersion()}\n`);
     return EXIT_OK;
   }
+  // depgate <command> --help and depgate help <command> describe that command.
+  const helpFor = commandName === 'help' ? findCommand(rest[0] ?? '') : values['help'] === true ? findCommand(commandName ?? '') : undefined;
+  if (helpFor !== undefined) {
+    io.stdout(commandHelpText(helpFor, paint(io.colors?.stdout)));
+    return EXIT_OK;
+  }
   if (values['help'] === true || commandName === undefined || commandName === 'help') {
-    io.stdout(helpText());
+    io.stdout(helpText(paint(io.colors?.stdout)));
     return EXIT_OK;
   }
 
@@ -60,12 +73,12 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
   const allowed = new Set([...GLOBAL_OPTIONS, ...(command.options ?? []).map((option) => option.name)]);
   const foreign = Object.keys(values).find((name) => !allowed.has(name));
   if (foreign !== undefined) {
-    io.stderr(`depgate: option '--${foreign}' is not supported by '${command.name}'\n${USAGE_HINT}`);
+    io.stderr(`depgate: option '--${foreign}' is not supported by '${command.name}'\nRun 'depgate ${command.name} --help' for its options.\n`);
     return EXIT_USAGE;
   }
 
   if (command.implemented && rest.length > 1) {
-    io.stderr(`depgate: too many arguments for '${command.name}'\n${USAGE_HINT}`);
+    io.stderr(`depgate: too many arguments for '${command.name}'\nRun 'depgate ${command.name} --help' for usage.\n`);
     return EXIT_USAGE;
   }
   if (command.name === 'init') return init(rest[0], values['force'] === true, io);

@@ -196,6 +196,29 @@ export interface StopCommandsKnowledge {
   resume: string;
 }
 
+/**
+ * Annotation workflow commands: `::{command} {property}={value},…::{message}` on a line of its own. Values are
+ * escaped by replacing each character listed in `escape` (in order), properties also with `escapeProperty`.
+ */
+export interface AnnotationsKnowledge {
+  commands: { error: string; warning: string; note: string };
+  properties: { file: string; line: string; title: string };
+  escape: readonly (readonly [string, string])[];
+  escapeProperty: readonly (readonly [string, string])[];
+}
+
+/** How many annotations GitHub shows: per level in one step, and in all steps of a job together. */
+export interface AnnotationLimitsKnowledge {
+  perLevelPerStep: number;
+  perJob: number;
+}
+
+/** The Markdown job summary of a step: the environment variable naming its file and its size limit. */
+export interface StepSummaryKnowledge {
+  variable: string;
+  maxBytes: number;
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
@@ -224,5 +247,8 @@ export interface EnvironmentKnowledge {
     setupDeno: Fact<SetupActionKnowledge>;
     codeScanningUpload: Fact<CodeScanningUploadKnowledge>;
     stopCommands: Fact<StopCommandsKnowledge>;
+    annotations: Fact<AnnotationsKnowledge>;
+    annotationLimits: Fact<AnnotationLimitsKnowledge>;
+    stepSummary: Fact<StepSummaryKnowledge>;
   };
 }

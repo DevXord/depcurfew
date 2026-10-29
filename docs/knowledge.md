@@ -6,7 +6,7 @@ The facts depgate relies on, each linked to the official documentation or change
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-7 tools · 269 facts · 35 uncertain · 12 disputed · verified 2026-10-28 to 2026-10-29.
+7 tools · 272 facts · 35 uncertain · 12 disputed · verified 2026-10-28 to 2026-10-29.
 
 ## Release-age cooldown
 
@@ -38,7 +38,7 @@ Whether dependency lifecycle scripts run, and how to allow specific packages.
 
 ## Project files
 
-How depgate recognises each package manager in a repository.
+How depgate recognizes each package manager in a repository.
 
 | Tool | Lockfiles | Manifests | Workspaces | Object form key |
 | --- | --- | --- | --- | --- |
@@ -154,7 +154,7 @@ Further facts used by generators and `doctor`.
 - `latestVersion` (✅ verified): 2.9.8 [↗](https://github.com/denoland/deno/releases/tag/v2.9.8)
 - `npmrcFormat` (⚠️ disputed): ⚠️ whole days only, e.g. min-release-age=3 [↗](https://docs.deno.com/runtime/packages/supply_chain/#minimum-dependency-age) / a duration with a unit, e.g. min-release-age=72h [↗](https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default)
 - `fileLinkSkipped` (⚠️ disputed): ⚠️ file: and link: dependencies in the project package.json are silently skipped [↗](https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported) / file: and link: specifiers in registry metadata of npm packages are skipped [↗](https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages)
-- `denoXCooldown` (✅ verified): deno x honours minimumDependencyAge only since 2.9.4 [↗](https://github.com/denoland/deno/releases/tag/v2.9.4)
+- `denoXCooldown` (✅ verified): deno x honors minimumDependencyAge only since 2.9.4 [↗](https://github.com/denoland/deno/releases/tag/v2.9.4)
 - `dxRunsScripts` (✅ verified): dx defaults to --allow-all and runs lifecycle scripts once the download prompt is accepted [↗](https://deno.com/blog/v2.6)
 
 ### Renovate
@@ -170,7 +170,7 @@ Further facts used by generators and `doctor`.
 - `presets` (✅ verified): config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): "3 days" and internalChecksFilter "strict" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm)
 - `missingTimestamp` (✅ verified): earlier: updates without a release timestamp pass the check<br>42.0.0+: minimumReleaseAgeBehaviour timestamp-required: such updates are held [↗](https://github.com/renovatebot/renovate/releases/tag/42.0.0)
 - `internalChecksFilter` (✅ verified): Defaults to "strict" since 33.0.0; with "none" or "flexible" branches and PRs are created before the delay ends and only automerge waits [↗](https://github.com/renovatebot/renovate/releases/tag/33.0.0)
-- `independentOfPackageManager` (✅ verified): minimumReleaseAge is set independently of the package manager’s own release-age configuration [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/)
+- `independentOfPackageManager` (✅ verified): minimumReleaseAge is set independently of the package manager's own release-age configuration [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/)
 - `digestBypassFixed` (⚠️ disputed): ⚠️ 44.3.1 [↗](https://github.com/renovatebot/renovate/security/advisories/GHSA-g4qr-hw2h-687r) / 44.10.0 [↗](https://github.com/renovatebot/renovate/discussions/42260)
 
 ### Dependabot
@@ -206,6 +206,9 @@ How repositories pin tool versions (Corepack, devEngines, Volta, asdf) and how G
 - `githubActions.setupDeno` (✅ verified): `{"action":"denoland/setup-deno","installs":["deno"],"inputs":[{"name":"deno-version","kind":"version","tool":"deno"},{"name":"deno-version-file","kind":"version-file","tool":"deno"}]}` [↗](https://github.com/denoland/setup-deno/blob/main/action.yml)
 - `githubActions.codeScanningUpload` (✅ verified): `{"action":"github/codeql-action/upload-sarif","inputs":{"sarifFile":"sarif_file","category":"category"},"permissions":{"always":{"security-events":"write"},"privateRepositories":{"actions":"read","contents":"read"}}}` [↗](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file)
 - `githubActions.stopCommands` (✅ verified): `{"stop":"::stop-commands::{token}","resume":"::{token}::"}` [↗](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands)
+- `githubActions.annotations` (✅ verified): `{"commands":{"error":"error","warning":"warning","note":"notice"},"properties":{"file":"file","line":"line","title":"title"},"escape":[["%","%25"],["\r","%0D"],["\n","%0A"]],"escapeProperty":[[":","%3A"],[",","%2C"]]}` [↗](https://github.com/actions/toolkit/blob/main/packages/core/src/command.ts)
+- `githubActions.annotationLimits` (✅ verified): `{"perLevelPerStep":10,"perJob":50}` [↗](https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations)
+- `githubActions.stepSummary` (✅ verified): `{"variable":"GITHUB_STEP_SUMMARY","maxBytes":1048576}` [↗](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary)
 
 ## Notes
 
@@ -247,7 +250,7 @@ Context recorded with verified facts.
 - `cooldown.securityUpdates`: No setting bypasses the delay. Since 11.0.0, pnpm audit --fix adds the minimum patched version of each advisory to minimumReleaseAgeExclude (since 11.22.0 only while it is still inside the window). [↗](https://pnpm.io/cli/audit)
 - `installScripts.defaultPolicy`: Unreviewed builds only warn in pnpm 10; strictDepBuilds is true by default since 11.0.0, so they fail the install. Prepare scripts of git-hosted dependencies are blocked since 10.26.0. [↗](https://github.com/pnpm/pnpm/releases/tag/v10.0.0)
 - `installScripts.allowList.setting`: Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds. [↗](https://pnpm.io/settings/build)
-- `installScripts.disableAll`: Default false; --ignore-scripts on the CLI. Also skips the project’s own scripts. [↗](https://pnpm.io/cli/install)
+- `installScripts.disableAll`: Default false; --ignore-scripts on the CLI. Also skips the project's own scripts. [↗](https://pnpm.io/cli/install)
 - `sources.git.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `sources.remoteTarball.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `project.workspaces`: Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md)
@@ -285,13 +288,13 @@ Context recorded with verified facts.
 
 ### Bun
 
-- `cooldown.configFiles`: Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun’s .npmrc support has no min-release-age key. [↗](https://bun.com/docs/runtime/bunfig)
-- `cooldown.cliFlag`: bun install, add and update; bunx honours it only since 1.4.4. [↗](https://github.com/oven-sh/bun/blob/bun-v1.3.0/docs/cli/install.md)
+- `cooldown.configFiles`: Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun's .npmrc support has no min-release-age key. [↗](https://bun.com/docs/runtime/bunfig)
+- `cooldown.cliFlag`: bun install, add and update; bunx honors it only since 1.4.4. [↗](https://github.com/oven-sh/bun/blob/bun-v1.3.0/docs/cli/install.md)
 - `cooldown.unit`: Plain numbers are seconds; 0 turns it off. Since 1.4.4 duration strings such as 90m, 12 hours, 3d or 2 weeks also work (the bunfig reference still documents seconds only). [↗](https://bun.com/docs/runtime/bunfig#install-minimumreleaseage)
 - `cooldown.exclude.patternSyntax`: Since 1.4.4 --minimum-release-age-excludes replaces the bunfig list for one command. [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
-- `installScripts.defaultPolicy`: Dependency scripts run only for Bun’s built-in trusted list (npm-registry packages only since 1.4) or trustedDependencies; the root project’s scripts run. First version of this policy not tracked. [↗](https://bun.com/docs/pm/lifecycle#trusteddependencies)
+- `installScripts.defaultPolicy`: Dependency scripts run only for Bun's built-in trusted list (npm-registry packages only since 1.4) or trustedDependencies; the root project's scripts run. First version of this policy not tracked. [↗](https://bun.com/docs/pm/lifecycle#trusteddependencies)
 - `installScripts.allowList.setting`: Replaces the built-in default list rather than extending it. bun pm trust and bun add --trust write it. [↗](https://bun.com/docs/pm/lifecycle#trusteddependencies)
-- `installScripts.disableAll`: Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project’s own scripts and trustedDependencies too. [↗](https://bun.com/docs/runtime/bunfig#install-ignorescripts)
+- `installScripts.disableAll`: Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project's own scripts and trustedDependencies too. [↗](https://bun.com/docs/runtime/bunfig#install-ignorescripts)
 - `project.workspaces`: Full glob syntax, including ! patterns. [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx)
 - `project.workspacesObjectKey`: The object form also holds catalog and catalogs. [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx)
 - `extra.lockfileFormat`: bun.lock (text, the default since 1.2) maps each package to a tuple starting with name@<spec>: name@<version> followed by the registry for npm, name@git+<repo>#<sha> and name@github:<owner>/<repo>#<sha> for git, name@https://… for tarball URLs, name@./x.tgz (without file:) for local tarballs, name@file:<dir> and name@link:<dir> for directories, name@workspace:<dir> for workspace packages. The info object carries hasInstallScript: true only since 1.4.4, with no lockfileVersion change, so a missing flag proves nothing for older files. bun.lockb is an undocumented binary format. [↗](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/lockfile/bun.lock.rs)
@@ -303,7 +306,7 @@ Context recorded with verified facts.
 
 - `cooldown.setting`: A number or string, or the object form { "age": ..., "exclude": [...] }. Covers npm and JSR packages. [↗](https://docs.deno.com/runtime/reference/deno_json/#minimum-dependency-age)
 - `cooldown.configFiles`: min-release-age in .npmrc since 2.8; also NPM_CONFIG_MIN_RELEASE_AGE. This page does not state precedence; denoland/deno#35458 gives CLI flag, deno.json, .npmrc, environment, built-in default. [↗](https://docs.deno.com/runtime/packages/supply_chain/#minimum-dependency-age)
-- `cooldown.cliFlag`: Alias --min-dep-age since 2.9.3. deno install honours it since 2.5.5; deno add, deno remove and deno x since 2.9.4. [↗](https://docs.deno.com/runtime/reference/deno_json/#minimum-dependency-age)
+- `cooldown.cliFlag`: Alias --min-dep-age since 2.9.3. deno install honors it since 2.5.5; deno add, deno remove and deno x since 2.9.4. [↗](https://docs.deno.com/runtime/reference/deno_json/#minimum-dependency-age)
 - `cooldown.unit`: Numbers are minutes; strings may be an ISO-8601 duration (P3D, PT72H), an absolute date or an RFC3339 timestamp; 0 turns it off. The .npmrc format differs (see npmrcFormat). [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `cooldown.default`: Since 2.9 a 24-hour minimum applies when nothing is configured; set 0 to turn it off. Whether the default covers JSR is not stated. [↗](https://docs.deno.com/runtime/reference/deno_json/#minimum-dependency-age)
 - `cooldown.exclude.patternSyntax`: Before 2.9.2 wildcard entries were stored literally and never matched. No CLI flag or .npmrc key for exclusions. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
@@ -341,7 +344,7 @@ Context recorded with verified facts.
 - `extra.excludeRule`: The documented opt-out: a packageRules entry with matchPackageNames and minimumReleaseAge: null. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `extra.securityUpdatesSetting`: The vulnerabilityAlerts default sets minimumReleaseAge to null, so security updates skip the delay unless a value is set there. [↗](https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts)
 - `extra.excludeWildcards`: matchPackageNames accepts globs (and regex) since 38.0.0. [↗](https://docs.renovatebot.com/configuration-options/#matchpackagenames)
-- `extra.ruleDescription`: A human-readable description allowed inside any configuration object; depgate uses it to recognise the packageRules entry it manages. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description)
+- `extra.ruleDescription`: A human-readable description allowed inside any configuration object; depgate uses it to recognize the packageRules entry it manages. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description)
 - `extra.packageJsonConfig`: Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated. [↗](https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts)
 - `extra.durationUnits`: Units shown in the docs: minimumReleaseAge=1 hour on this page and "3 days" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `extra.missingTimestamp`: minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open. [↗](https://github.com/renovatebot/renovate/releases/tag/42.0.0)
@@ -380,6 +383,9 @@ Context recorded with verified facts.
 - `githubActions.setupDeno`: Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions. [↗](https://github.com/denoland/setup-deno/blob/main/action.yml)
 - `githubActions.codeScanningUpload`: The example workflow on this page needs security-events: write in every repository and actions: read with contents: read only in private ones. The inputs come from upload-sarif/action.yml in github/codeql-action (current major v4, v4.39.1 checked); category tells analyses of the same tool and commit apart. [↗](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file)
 - `githubActions.stopCommands`: Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs. [↗](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands)
+- `githubActions.annotations`: escapeData and escapeProperty in @actions/core: the message and property values replace %, CR and LF; property values also replace : and , because properties are separated by commas. The commands and their file, line and title parameters are on https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (line counts from 1). [↗](https://github.com/actions/toolkit/blob/main/packages/core/src/command.ts)
+- `githubActions.annotationLimits`: 10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown. [↗](https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations)
+- `githubActions.stepSummary`: GitHub flavored Markdown appended to the file named by the variable; at most 1 MiB per step (over that the upload fails with an error annotation), and at most 20 step summaries are shown per job. [↗](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary)
 
 ## To review
 
@@ -421,7 +427,7 @@ The 11.14.0 release notes add the flag; the GitHub changelog dates it to 11.15.0
 
 ### npm · `project.workspacesObjectKey` ❓ uncertain
 
-Not documented; npm’s map-workspaces also accepts { "packages": [...] } and negated patterns.
+Not documented; npm's map-workspaces also accepts { "packages": [...] } and negated patterns.
 
 - `packages` · [source](https://github.com/npm/map-workspaces/blob/main/lib/index.js), verified 2026-10-28.
 
@@ -476,7 +482,7 @@ Structured form of lockfileVerification: whether a frozen-lockfile install re-ch
 
 ### pnpm · `extra.lockfileVerification` ❓ uncertain
 
-The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behaviour rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs.
+The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs.
 
 - 10.16.0+: `frozen-lockfile installs do not re-check versions already in the lockfile`<br>11.1.3+: `lockfile entries are re-checked; trustLockfile: true (11.3.0) turns this off` · [source](https://github.com/pnpm/pnpm/releases/tag/v11.1.3), verified 2026-10-28.
 
@@ -618,7 +624,7 @@ The safe choice is an integer number of days, which also matches npm.
 
 ### Deno · `extra.fileLinkSkipped` ⚠️ disputed
 
-Official pages disagree on whether the project’s own file: and link: dependencies are skipped, or only those in published packages’ metadata.
+Official pages disagree on whether the project's own file: and link: dependencies are skipped, or only those in published packages' metadata.
 
 - Variant 1: `file: and link: dependencies in the project package.json are silently skipped` · [source](https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported), verified 2026-10-28.
 - Variant 2: `file: and link: specifiers in registry metadata of npm packages are skipped` · [source](https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages), verified 2026-10-28.
@@ -668,7 +674,7 @@ Nothing to configure for JavaScript ecosystems: scripts are always disabled (sou
 
 ### Dependabot · `extra.dayRange` ⚠️ disputed
 
-Matters for opting out of the default cooldown; cooldown.exclude: ["*"] works under the documented precedence rule either way. The announcement does not state its author’s role.
+Matters for opting out of the default cooldown; cooldown.exclude: ["*"] works under the documented precedence rule either way. The announcement does not state its author's role.
 
 - Variant 1: `1 to 90 days` · [source](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates), verified 2026-10-28.
 - Variant 2: `0 removes the cooldown` · [source](https://github.com/dependabot/dependabot-core/discussions/15582), verified 2026-10-28.

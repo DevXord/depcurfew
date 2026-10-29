@@ -1,6 +1,7 @@
 // Entry point of the GitHub Action (action.yml, bundled into action/depgate.mjs): runs doctor on a directory of the
-// workspace, prints the readable report to the log, writes SARIF with paths relative to the repository root and
-// sets the step outputs. It does not fail the step itself, so the SARIF upload still runs; action.yml decides.
+// workspace, prints the readable report to the log, adds annotations and a job summary for people, writes SARIF
+// with paths relative to the repository root for code scanning and sets the step outputs. It does not fail the
+// step itself, so the SARIF upload still runs; action.yml decides.
 import { appendFileSync, lstatSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -8,7 +9,7 @@ import { values } from './apply/facts.ts';
 import { PolicyError } from './apply/index.ts';
 import { writeChanges } from './apply/workspace.ts';
 import { Repository } from './detect/repository.ts';
-import { countLevels, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
+import { annotationCommands, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
 import { environment } from './knowledge/environment.ts';
 import { getVersion } from './version.ts';
 
@@ -23,11 +24,21 @@ export interface ActionOutputs {
 
 export interface ActionIo {
   log(text: string): void;
+  /** Appends Markdown to the job summary. */
+  summary(markdown: string): void;
 }
 
 function input(env: NodeJS.ProcessEnv, name: string, fallback: string): string {
   const value = env[`INPUT_${name.toUpperCase().replaceAll('-', '_')}`]?.trim();
   return value === undefined || value === '' ? fallback : value;
+}
+
+function enabled(env: NodeJS.ProcessEnv, name: string): boolean {
+  return input(env, name, 'true') !== 'false';
+}
+
+function summaryLimit(): number {
+  return values(environment.githubActions.stepSummary)[0]?.maxBytes ?? 0;
 }
 
 /** Report paths relative to the workspace instead of the scanned directory, as code scanning expects. */
@@ -87,9 +98,11 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   const sarifInput = input(env, 'sarif-file', 'depgate.sarif');
   const sarifFile = resolve(workspace, sarifInput);
   const outputs: ActionOutputs = { 'sarif-file': '', errors: 0, warnings: 0, notes: 0, failure: '' };
+  const summary = enabled(env, 'job-summary');
   const fail = (message: string): ActionOutputs => {
     outputs.failure = message;
-    io.log(`depgate: ${message}\n`);
+    io.log(untrusted(`depgate: ${message}\n`));
+    if (summary) io.summary(failureSummary(message));
     return outputs;
   };
   const directory = scannedDirectory(workspace, input(env, 'directory', '.'));
@@ -103,11 +116,20 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
     if (!(error instanceof PolicyError)) throw error;
     outputs.failure = [error.message, ...error.issues].join('; ');
     io.log(untrusted(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`));
+    if (summary) io.summary(failureSummary(outputs.failure));
     return outputs;
   }
   io.log(untrusted(renderText(report, RULES)));
 
   const moved = relativeToWorkspace(report, prefix);
+  if (enabled(env, 'annotations')) {
+    const annotations = annotationCommands(moved, RULES);
+    if (annotations.lines.length > 0) io.log(`${annotations.lines.join('\n')}\n`);
+    if (annotations.omitted > 0) {
+      io.log(`GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? 'finding is' : 'findings are'} in the report above.\n`);
+    }
+  }
+  if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
   const repository = new Repository(workspace);
   const readLine = (file: string, line: number) => repository.readText(file)?.split(/\r?\n/u)[line - 1];
   const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), readLine), null, 2)}\n`;
@@ -133,7 +155,14 @@ export function formatOutputs(outputs: ActionOutputs): string {
 }
 
 export function main(env: NodeJS.ProcessEnv = process.env): void {
-  const outputs = runAction(env, { log: (text) => process.stdout.write(text) });
+  const summaryVariable = values(environment.githubActions.stepSummary)[0]?.variable;
+  const summaryFile = summaryVariable === undefined ? undefined : env[summaryVariable];
+  const outputs = runAction(env, {
+    log: (text) => process.stdout.write(text),
+    summary: (markdown) => {
+      if (summaryFile !== undefined && summaryFile !== '') appendFileSync(summaryFile, markdown);
+    },
+  });
   const file = env['GITHUB_OUTPUT'];
   if (file !== undefined && file !== '') appendFileSync(file, formatOutputs(outputs));
 }

@@ -19,7 +19,7 @@
       "type": "object",
       "properties": {
         "minimum": {
-          "description": "Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool’s unit, always rounding up.",
+          "description": "Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool's unit, always rounding up.",
           "type": "string",
           "pattern": "^[1-9][0-9]*[mhdw]$",
           "examples": [

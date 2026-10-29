@@ -1,6 +1,7 @@
 // config-drift: what `depgate apply` would change is exactly what no longer matches the policy, so the rule plans
 // an apply in memory and reports the first difference in every file.
 import { lines, myers } from '../../apply/diff.ts';
+import { BLOCK_END, BLOCK_START, SUPERSEDED, TURNED_OFF } from '../../apply/block.ts';
 import { YAML_MARKER } from '../../apply/yaml-edit.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { allowEntries, matchesPattern } from '../allow-lists.ts';
@@ -11,8 +12,28 @@ function clean(line: string): string {
   return line.replace(/[\r\u0000]/gu, '').trim();
 }
 
-/** The line of `before` where the first difference starts, and what apply would remove or add there. */
-function firstDifference(before: string, after: string): { line: number; removed: string | undefined; added: string | undefined } {
+/** A line without the trailing comma that JSON needs before a following key. */
+function withoutComma(line: string): string {
+  return line.replace(/,$/u, '');
+}
+
+/** Lines depgate writes around its settings, which say nothing about a setting themselves. */
+function isFrame(line: string): boolean {
+  return line === '' || line === YAML_MARKER || line === BLOCK_START || line === BLOCK_END;
+}
+
+interface Difference {
+  /** 1-based line of the file where the first difference starts. */
+  line: number;
+  removed: string[];
+  added: string[];
+}
+
+/**
+ * The first block of lines that apply would change, without the lines that only gain or lose a trailing comma
+ * (adding a JSON key changes the line before it) and without depgate's frame lines.
+ */
+function firstDifference(before: string, after: string): Difference {
   const operations = myers(lines(before), lines(after));
   let line = 1;
   let index = 0;
@@ -20,16 +41,46 @@ function firstDifference(before: string, after: string): { line: number; removed
     line += 1;
     index += 1;
   }
-  let removed: string | undefined;
-  let added: string | undefined;
+  let removed: string[] = [];
+  let added: string[] = [];
   for (; index < operations.length && operations[index]?.kind !== 'same'; index++) {
     const operation = operations[index];
     if (operation === undefined) break;
-    const text = clean(operation.line);
-    if (operation.kind === 'delete') removed ??= text;
-    else if (text !== '' && text !== YAML_MARKER) added ??= text;
+    (operation.kind === 'delete' ? removed : added).push(clean(operation.line));
   }
+  const commaOnly = new Set(removed.filter((text) => added.some((other) => withoutComma(other) === withoutComma(text))).map(withoutComma));
+  removed = removed.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
+  added = added.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
   return { line: Math.min(line, Math.max(lines(before).length, 1)), removed, added };
+}
+
+function code(text: string): string {
+  return `\`${withoutComma(text)}\``;
+}
+
+/** Added lines for a message: a short JSON object or array on one line, otherwise the first line and a count. */
+function addedText(added: readonly string[]): string {
+  const [first = ''] = added;
+  if (added.length === 1) return code(first);
+  const joined = added.join(' ').replaceAll(/\s+/gu, ' ');
+  if (/[{[]$/u.test(first) && joined.length <= 100) return code(joined);
+  return `${code(first)} (and ${added.length - 1} more ${added.length === 2 ? 'line' : 'lines'})`;
+}
+
+/** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
+function describe(difference: Difference): string {
+  const commented = difference.added.find((text) => text.startsWith(SUPERSEDED) || text.startsWith(TURNED_OFF));
+  if (commented !== undefined) {
+    if (commented.startsWith(SUPERSEDED)) {
+      return `${code(commented.slice(SUPERSEDED.length))} is set outside the block that depgate manages; depgate apply comments it out, and the block sets what ${POLICY_FILE} requires`;
+    }
+    return `${code(commented.slice(TURNED_OFF.length))} is set by hand, but ${POLICY_FILE} manages this setting; depgate apply comments it out`;
+  }
+  const [removed] = difference.removed;
+  if (removed !== undefined && difference.added.length > 0) return `${code(removed)} should be ${addedText(difference.added)}`;
+  if (difference.added.length > 0) return `${addedText(difference.added)} is missing`;
+  if (removed !== undefined) return `${code(removed)} should not be there`;
+  return 'its layout differs from what depgate apply writes';
 }
 
 /** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
@@ -65,17 +116,19 @@ export const configDrift: Rule = {
     // Files apply cannot edit are reported by unreadable-config.
     for (const change of plan.changes) {
       if (change.before === null) {
-        context.report({ location: { file: POLICY_FILE }, message: `${change.file} is missing; depgate apply would create it with the settings from ${POLICY_FILE}` });
+        context.report({
+          location: { file: POLICY_FILE },
+          message: `${change.file} is missing; depgate apply would create it with the settings from ${POLICY_FILE}`,
+          fix: `Run depgate apply to create ${change.file} (depgate apply --dry-run shows its content first)`,
+        });
         continue;
       }
       const difference = firstDifference(change.before, change.after);
-      const detail =
-        difference.removed !== undefined && difference.added !== undefined
-          ? `"${difference.removed}" should be "${difference.added}"`
-          : difference.added !== undefined
-            ? `"${difference.added}" is missing`
-            : `"${difference.removed ?? ''}" should not be there`;
-      context.report({ location: { file: change.file, line: difference.line }, message: `${change.file} does not match ${POLICY_FILE}: ${detail}` });
+      context.report({
+        location: { file: change.file, line: difference.line },
+        message: `${change.file} does not match ${POLICY_FILE}: ${describe(difference)}`,
+        fix: `Run depgate apply to bring ${change.file} back in line with ${POLICY_FILE} (depgate apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`,
+      });
     }
     checkAllowLists(context);
   },

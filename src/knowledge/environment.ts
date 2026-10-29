@@ -136,5 +136,32 @@ export const environment: EnvironmentKnowledge = {
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands',
       'Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs.',
     ),
+    annotations: checked.verified(
+      {
+        commands: { error: 'error', warning: 'warning', note: 'notice' },
+        properties: { file: 'file', line: 'line', title: 'title' },
+        escape: [
+          ['%', '%25'],
+          ['\r', '%0D'],
+          ['\n', '%0A'],
+        ],
+        escapeProperty: [
+          [':', '%3A'],
+          [',', '%2C'],
+        ],
+      },
+      'https://github.com/actions/toolkit/blob/main/packages/core/src/command.ts',
+      'escapeData and escapeProperty in @actions/core: the message and property values replace %, CR and LF; property values also replace : and , because properties are separated by commas. The commands and their file, line and title parameters are on https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (line counts from 1).',
+    ),
+    annotationLimits: checked.verified(
+      { perLevelPerStep: 10, perJob: 50 },
+      'https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations',
+      '10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown.',
+    ),
+    stepSummary: checked.verified(
+      { variable: 'GITHUB_STEP_SUMMARY', maxBytes: 1024 * 1024 },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary',
+      'GitHub flavored Markdown appended to the file named by the variable; at most 1 MiB per step (over that the upload fails with an error annotation), and at most 20 step summaries are shown per job.',
+    ),
   },
 };
