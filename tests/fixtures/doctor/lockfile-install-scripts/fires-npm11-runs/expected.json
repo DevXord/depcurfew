@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 41
+    },
+    "message": "core-js has install scripts and npm runs them by default, but depgate.json does not allow it",
+    "fix": "Review its scripts and add core-js to installScripts.allow in depgate.json, or replace the package"
+  }
+]

@@ -1,0 +1,3 @@
+{
+  "imports": { "@aa/pkg": "npm:@aa/pkg@2.1.5" }
+}

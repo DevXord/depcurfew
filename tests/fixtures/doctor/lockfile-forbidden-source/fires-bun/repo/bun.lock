@@ -1,0 +1,13 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": { "": { "name": "app", "dependencies": { "dummy-package": "file:./bar-0.0.2.tgz", "nameless": "github:testowner/nameless#main", "esbuild": "^0.21.5", "lib": "link:../lib" } } },
+  "trustedDependencies": ["esbuild"],
+  "packages": {
+    "dummy-package": ["bar@./bar-0.0.2.tgz", {}, "sha512-DXWxn8qZ4n87XMJjwZUdYPnsrl8Ntz66PudFoxDVkaPEkZBBzENAKsJPgbBacD782W8RwD/v4mjwVyqlPpQ59w=="],
+    "nameless": ["nameless@github:testowner/nameless#ddddddd", {}, "testowner-nameless-ddddddd", "sha512-AAAA"],
+    "gitdep": ["gitdep@git+https://example.com/gitdep.git#0123456789abcdef0123456789abcdef01234567", {}, "0123456789abcdef0123456789abcdef01234567"],
+    "esbuild": ["esbuild@0.21.5", "", { "bin": { "esbuild": "bin/esbuild" }, "hasInstallScript": true }, "sha512-mg3OPMV4hXywwpoDxu3Qda5xCKQi+vCTZq8S9J/EpkhB2HzKXq4SNFZE3+NK93JYxc8VMSep+lOUSC/RVKaBqw=="],
+    "lib": ["lib@link:../lib", {}],
+  }
+}

@@ -5,6 +5,8 @@ export { applyProject, botDuration, loadPolicy, planApply, PolicyError } from '.
 export type { ApplyReport, FileChange, Snippet } from './apply/index.ts';
 export { unifiedDiff } from './apply/diff.ts';
 export { detectProject } from './detect/index.ts';
+export { countLevels, renderText, RULES, runDoctor, toSarif } from './doctor/index.ts';
+export type { DoctorReport, Finding, Level, Location, Notice, Rule } from './doctor/index.ts';
 export type { Detection, DetectionWarning, PackageManagerInfo, VersionDeclaration } from './detect/types.ts';
 export { convertCooldown, convertMinutes, toDurationString } from './policy/convert.ts';
 export type { CooldownConversion, Converted, DurationStringUnit, NumericDelayUnit } from './policy/convert.ts';

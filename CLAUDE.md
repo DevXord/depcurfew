@@ -23,7 +23,8 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 - `npm run check:pkg` – publint i @arethetypeswrong/cli
 - `npm run docs:knowledge` – generuje docs/knowledge.md z src/knowledge/
 - `npm run schema` – generuje schema.json z definicji polityki w src/policy/schema.ts
-- `node dist/cli.js explain tests/fixtures/repos/<nazwa>` – ręczne sprawdzenie wykrywania na fiksturze (później także `doctor`)
+- `node dist/cli.js explain tests/fixtures/repos/<nazwa>` – ręczne sprawdzenie wykrywania na fiksturze
+- `node dist/cli.js doctor tests/fixtures/doctor/<reguła>/<przypadek>/repo` – ręczne sprawdzenie reguły `doctor` na fiksturze (`--json`, `--sarif`)
 - `node dist/cli.js apply --dry-run <katalog>` – podgląd zmian `apply` bez zapisu (katalog musi mieć `depgate.json`)
 
 ## Środowisko

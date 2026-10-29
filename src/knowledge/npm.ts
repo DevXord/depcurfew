@@ -167,6 +167,17 @@ export const npm: ToolKnowledge = {
     ),
   },
   extra: {
+    lockfileFormat: checked.verified(
+      {
+        installScripts: 'hasInstallScript',
+        gitPrefixes: ['git+', 'git:'],
+        filePrefix: 'file:',
+        linkFlag: 'link',
+        registryTarball: '^https?://[^/]+/.+/-/[^/]+-\\d',
+      },
+      'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md',
+      'Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package.',
+    ),
     npmrcScope: checked.verified(
       { read: 'project root', workspacePackages: 'ignored' },
       'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md',

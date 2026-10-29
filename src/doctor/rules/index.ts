@@ -3,6 +3,7 @@ import { botCooldownMismatch } from './bot-cooldown.ts';
 import { broadExclusion } from './broad-exclusion.ts';
 import { configDrift } from './config-drift.ts';
 import { settingIgnoredByVersion } from './ignored-setting.ts';
+import { lockfileForbiddenSource, lockfileInstallScripts } from './lockfile.ts';
 import { managerVersionTooOld } from './manager-version.ts';
 import { npmrcOverridesPolicy, pnpmSharedWorkspaceLockfile } from './npmrc.ts';
 
@@ -15,4 +16,6 @@ export const RULES: readonly Rule[] = [
   configDrift,
   botCooldownMismatch,
   broadExclusion,
+  lockfileForbiddenSource,
+  lockfileInstallScripts,
 ];

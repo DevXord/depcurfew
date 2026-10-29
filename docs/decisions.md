@@ -393,3 +393,70 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - zachowywanie komentarzy w linii zmienianej wartości, nawet gdy przestają być aktualne (D-029);
   - eksport API `apply` w `src/index.ts` (D-028);
   - wyjątek w `.gitattributes` dla fikstury z CRLF (D-032).
+
+## D-034 · `depgate doctor`: model i wyjście (2026-10-29)
+- **Polecenie:** `depgate doctor [katalog] [--json | --sarif]` (zatwierdzone decyzje 1–4 fazy 5).
+  - Niczego nie zapisuje i niczego nie uruchamia. Czyta repozytorium tym samym `Repository` co wykrywanie, więc nie wychodzi poza katalog.
+  - Każda reguła ma stały identyfikator kebab-case, opis, poziom (`error`, `warning`, `note`) i podpowiedź naprawy. Zgłoszenie ma plik i linię, a często też własną podpowiedź.
+  - Kod wyjścia 1 tylko przy zgłoszeniu `error`. Ostrzeżenia i uwagi dają 0, niepoprawny `depgate.json` 1, a `--json` razem z `--sarif` 2.
+  - Bez `depgate.json` działają tylko reguły niezależne od polityki.
+- **Zgłoszenia a uwagi:** problem w repozytorium to zgłoszenie. Coś, czego doctor nie umiał sprawdzić (brak polityki, nieczytelny plik, format pliku blokady bez danych o skryptach), to uwaga (`notices`). W SARIF uwagi trafiają do `invocations[0].toolExecutionNotifications`, a nie do wyników.
+- **Wyjście:**
+  - tekst: zgłoszenia pogrupowane po plikach, potem uwagi;
+  - JSON: `{ schemaVersion: 1, policy, findings, notices, summary }`;
+  - SARIF 2.1.0: `$schema` OASIS (z erratą 01) i wszystkie reguły w `tool.driver.rules`. Region obejmuje całą linię (`startColumn`, `endLine`, `endColumn`), bo dokumentacja GitHub code scanning oznacza te pola jako wymagane. `partialFingerprints` zostawiamy akcji `upload-sarif`, która je uzupełnia.
+- **Publiczne API:** `runDoctor`, `RULES`, `toSarif`, `renderText`, `countLevels` i typy raportu.
+
+## D-035 · Reguły `doctor` (2026-10-29)
+- **`manager-version-too-old`** (error, warning dla zakresu):
+  - każda wersja zadeklarowana w `packageManager`, `devEngines`, Volcie, `.tool-versions` i CI musi znać każde używane ustawienie, czyli to, którego wymaga `depgate.json`, i to, które już jest w pliku menedżera;
+  - przy zakresie liczy się najniższa dopuszczalna wersja (`^`, `~`, `>=`, `x`, `||`, zakres z łącznikiem);
+  - wyrażeń `${{ … }}` nie da się ocenić, więc dają uwagę (zatwierdzona decyzja 9).
+- **`setting-ignored-by-version`** (zatwierdzona decyzja 10): ustawienie lub plik, którego używana wersja nie czyta:
+  - `npm-shrinkwrap.json` w npm 12;
+  - pole `pnpm` w `package.json` i ustawienia bezpieczeństwa w `.npmrc` w pnpm 11+;
+  - `onlyBuiltDependencies` po usunięciu w pnpm 11;
+  - tekstowa wartość `npmMinimalAgeGate` w Yarn 4.10.
+- **`npmrc-overrides-policy`:**
+  - `.npmrc` w pakiecie workspace'u, którego npm nie czyta (ostrzeżenie);
+  - w pnpm 10 wartość z głównego `.npmrc`, która działa, bo `pnpm-workspace.yaml` jej nie ustawia, a osłabia politykę (krótsze opóźnienie, wyjątek spoza polityki).
+- **`pnpm-shared-workspace-lockfile`** (warning): pnpm 10 z `sharedWorkspaceLockfile: false` i `.npmrc` pakietu z ustawieniem bezpieczeństwa, które nadpisuje ustawienie workspace'u dla tego pakietu. Szczegóły w D-036.
+- **`config-drift`:**
+  - `apply` zaplanowane w pamięci: każdy plik, który `apply` by zmieniło, daje błąd przy pierwszej różnicy;
+  - brakujący plik daje błąd wskazujący `depgate.json`;
+  - wpis w allowliście narzędzia spoza `installScripts.allow` daje ostrzeżenie, bo `apply` celowo nie usuwa cudzych wpisów, a taki wpis pozwala na skrypty wbrew polityce.
+- **`bot-cooldown-mismatch`:**
+  - bot czeka krócej niż menedżer (error). Liczą się wartości efektywne: ustawienie w pliku, jeśli wersja je czyta, a w przeciwnym razie wartość domyślna dla tej wersji. Przy sporze źródeł bierzemy najdłuższą. Uwzględniamy `default-days` i `semver-*-days` Dependabota, domyślne 3 dni Dependabota oraz preset `config:best-practices` Renovate;
+  - aktualizacje bezpieczeństwa omijają opóźnienie bota, a menedżer ponownie sprawdza plik blokady, czyli pnpm 11.1.3+ (warning).
+- **`broad-exclusion`:** `@*/*` w `depgate.json` oraz `*`, `**`, `npm:*` i regex „wszystko” w listach wyjątków npm, pnpm, Yarn, Deno i Dependabota. Do tego reguła Renovate wyłączająca `minimumReleaseAge` dla wszystkich paczek, także bez żadnego `match*`.
+- **`lockfile-forbidden-source`:** paczka z gita, z tarballa z URL, z lokalnego tarballa lub z katalogu, gdy polityka tego zabrania. Działa dla `package-lock.json` (v2+), `pnpm-lock.yaml` (9.0), `yarn.lock` (Berry) i `bun.lock`. Pakiety workspace'u nie są zgłaszane. Binarny `bun.lockb`, starsze wersje formatów i pliki, których nie da się sparsować, dają uwagę.
+- **`lockfile-install-scripts`:**
+  - paczka ze skryptami instalacyjnymi spoza `installScripts.allow`;
+  - błąd, gdy używana wersja menedżera uruchamia skrypty domyślnie (przy sporze źródeł wystarczy jeden wariant), a ostrzeżenie, gdy je blokuje;
+  - dane są tylko w npm, Bun 1.4.4+ i Deno (plik blokady v5). Dla pnpm, Yarn i Deno v4 jest uwaga (zatwierdzona decyzja 6).
+
+## D-036 · Odstępstwa od planu fazy 5 (2026-10-29)
+- **`shared-workspace-lockfile=false` w pnpm 10:**
+  - plan zakładał, że to ustawienie „unieważnia opóźnienie”, ale żadne oficjalne źródło tego nie mówi (changelogi pnpm 10 i 11, dokumentacja);
+  - z kodu pnpm 10 (`recursive.ts`) wynika natomiast, że bez wspólnego pliku blokady każdy projekt jest instalowany z własnym `.npmrc` nałożonym na ustawienia workspace'u;
+  - reguła zgłasza więc konkretny przypadek: `.npmrc` pakietu z ustawieniem bezpieczeństwa. Fakt jest niepewny (tylko z kodu), dlatego poziom to `warning`.
+- **`config-drift` ostrzega o wpisach w allowlistach spoza polityki.** Planu to nie obejmowało, ale bez tego ręcznie dopisany `"sharp": true` pozwalałby na skrypty po cichu.
+- **`setting-ignored-by-version`** to reguła spoza listy w planie (zatwierdzona decyzja 10). `corepack-unavailable` przesunęliśmy na później.
+
+## D-037 · Fakty fazy 5 (2026-10-29)
+- **Sposób ustalenia:** fakty zebrałem w dwóch wątkach (pliki blokad; `.npmrc`, Renovate i SARIF) z dosłownymi cytatami. Kluczowe cytaty sprawdziłem ponownie w źródłach: kolejność czytania konfiguracji w pnpm 10, nakładanie lokalnego `.npmrc` w `recursive.ts`, `npmrc.md`, pola `hasInstallScript` i `resolved` npm, typy pliku blokady pnpm 10, `hasInstallScript` w `bun.lock` 1.4.4, pole `scripts` w `deno.lock`, sumę kontrolną schematu SARIF.
+- **Nowe fakty (data 2026-10-29):**
+  - `lockfileFormat` dla npm, pnpm, Yarn, Bun i Deno: jak plik blokady zapisuje źródło paczki i skrypty instalacyjne;
+  - npm `npmrcScope`: tylko `.npmrc` w katalogu głównym projektu;
+  - pnpm `npmrcPrecedence`: `pnpm-workspace.yaml` wygrywa z `.npmrc`;
+  - pnpm `sharedWorkspaceLockfile` (domyślnie `true`) i niepewny `perProjectNpmrc`.
+- **Ustrukturyzowane formy faktów z fazy 1** (te same źródła): `durationStrings` dla Yarn, Bun, Deno i Renovate, `minimumReleaseAgePresets` Renovate, `lockfileRecheck` pnpm (niepewny, jak oryginał) i `ignoredSince` pnpm 11.
+- **Wymagania GitHub code scanning wobec SARIF** dotyczą formatu wyjścia, a nie menedżera paczek, więc nie trafiły do bazy. Źródło jest w kodzie (`src/doctor/sarif.ts`) i w D-034.
+
+## D-038 · Walidacja SARIF i fikstury `doctor` (2026-10-29)
+- **Schemat:** oficjalny schemat SARIF 2.1.0 (OASIS, errata 01) leży niezmieniony w `tests/fixtures/sarif/`, z adresem źródła i sumą SHA-256, którą sprawdza test (zatwierdzona decyzja 7).
+- **Walidator:** własny, w `tests/support/json-schema.ts`, bez nowych zależności. Słowo kluczowe, którego nie obsługuje, kończy się błędem, więc schemat nie może przejść walidacji zrozumiany tylko częściowo. Raport SARIF każdej fikstury przechodzi walidację.
+- **Fikstury (zatwierdzona decyzja 8):**
+  - `tests/fixtures/doctor/<reguła>/fires-*/repo` z oczekiwanymi zgłoszeniami tej reguły w `expected.json` oraz `passes-*/repo`, w których reguła nic nie zgłasza;
+  - test pilnuje, że każda reguła ma oba rodzaje;
+  - na wszystkich 18 fiksturach repozytoriów po `apply` reguła `config-drift` nie zgłasza błędów, a żadna reguła nie rzuca wyjątkiem.

@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+const checked = verifiedOn('2026-10-29');
 
 const DENO_JSON = 'https://docs.deno.com/runtime/reference/deno_json/#minimum-dependency-age';
 const SUPPLY_CHAIN = 'https://docs.deno.com/runtime/packages/supply_chain/#minimum-dependency-age';
@@ -116,6 +117,11 @@ export const deno: ToolKnowledge = {
     workspacesObjectKey: verified('members', WORKSPACES),
   },
   extra: {
+    lockfileFormat: checked.verified(
+      { installScripts: 'scripts', installScriptsSinceLockfile: '5', sources: null },
+      'https://github.com/denoland/deno/blob/v2.9.8/libs/lockfile/printer.rs',
+      'deno.lock version 5 (the default since Deno 2.3) marks npm packages with lifecycle scripts as scripts: true (hasInstallScript from the registry or a preinstall, install or postinstall script, libs/npm/resolution/graph.rs); version 4 has no such field. tarball is written only for registries other than the default one. Deno rejects git and http(s) dependencies in package.json and keeps file: dependencies out of the lockfile.',
+    ),
     durationStrings: verified(
       { since: null, syntax: 'iso8601' },
       SCHEMA,
