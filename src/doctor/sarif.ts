@@ -3,7 +3,7 @@
 import type { DoctorReport, Rule } from './types.ts';
 
 export const SARIF_SCHEMA = 'https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json';
-const INFORMATION_URI = 'https://github.com/DevXord/depcurfew';
+const INFORMATION_URI = 'https://github.com/depcurfew/depcurfew';
 
 function ruleName(id: string): string {
   return id.replace(/(^|-)([a-z])/gu, (_match, _dash: string, letter: string) => letter.toUpperCase());

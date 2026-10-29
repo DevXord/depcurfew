@@ -2,8 +2,6 @@
 
 One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot, and a doctor that finds configuration that silently does nothing.
 
-> **Status: pre-release.** depcurfew is not on npm yet. Until it is, run it from source (see [Installation](#installation)).
-
 ## Why
 
 Package managers and update bots now each protect you against freshly published malicious versions: a release-age delay, an allow-list for install scripts, limits on git and tarball dependencies. Each tool names these settings differently, counts time in its own unit, reads them from its own files and supports them only from some version on. A setting can also look right and do nothing, for example because CI pins an older version of the package manager, or because a bot proposes versions the package manager would refuse.
@@ -65,10 +63,10 @@ Who needs it installed:
 
 A global install (`npm install -g depcurfew`) works, but teams should not rely on it: each machine may run a different version, the lockfile does not pin it, and npm does not read the project's `.npmrc` in global mode, so the project's release-age delay does not cover the install.
 
-Until the package is published, run it from a clone of this repository:
+To work on depcurfew itself, run it from a clone of this repository:
 
 ```bash
-git clone https://github.com/DevXord/depcurfew.git
+git clone https://github.com/depcurfew/depcurfew.git
 cd depcurfew
 npm ci
 npm run build
@@ -252,7 +250,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: DevXord/depcurfew@<full-commit-sha> # pin a commit, not a tag
+      - uses: depcurfew/depcurfew@<full-commit-sha> # pin a commit, not a tag
 ```
 <!-- END GENERATED: action-workflow -->
 

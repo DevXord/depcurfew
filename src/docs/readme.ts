@@ -164,7 +164,7 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
     `      - uses: ${checkout}`,
     '        with:',
     '          persist-credentials: false',
-    '      - uses: DevXord/depcurfew@<full-commit-sha> # pin a commit, not a tag',
+    '      - uses: depcurfew/depcurfew@<full-commit-sha> # pin a commit, not a tag',
     '```',
   ].join('\n');
 }
