@@ -1,6 +1,7 @@
 // Reading lockfiles for doctor: where each package comes from (registry, git, tarball URL, local tarball, local
 // directory, workspace) and, where the format records it, whether it has install scripts. The spelling of every
 // format comes from the knowledge base (extra.lockfileFormat).
+import { posix } from 'node:path';
 import { parse as parseYaml, parseAllDocuments } from 'yaml';
 import { isRecord, values } from '../apply/facts.ts';
 import { parseJsonc } from '../detect/jsonc.ts';
@@ -75,23 +76,72 @@ export function splitSpec(key: string): { name: string; spec: string } {
 const HTTP = /^https?:\/\//u;
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 
-function npmEntries(text: string, format: Format, workspaces: readonly string[]): LockEntry[] {
+/** Where npm installs the dependency `name` of the package at `from`: its own node_modules, else the nearest parent's. */
+function installedAt(packages: Format, from: string, name: string): string | undefined {
+  for (let base = from; ; ) {
+    const location = base === '' ? `node_modules/${name}` : `${base}/node_modules/${name}`;
+    if (location in packages) return location;
+    if (base === '') return undefined;
+    const parent = base.lastIndexOf('/node_modules/');
+    base = parent === -1 ? '' : base.slice(0, parent);
+  }
+}
+
+function urlPath(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return '';
+  }
+}
+
+interface UrlOverride {
+  name: string;
+  /** Path of the tarball URL, matched at the end of resolved, whose host npm may have rewritten. */
+  path: string;
+}
+
+/** Packages that overrides (npm, root package.json only) replace with a tarball URL, at any depth of nesting. */
+function urlOverrides(overrides: unknown, parent: string | undefined, selfKey: string, found: UrlOverride[] = []): UrlOverride[] {
+  if (!isRecord(overrides)) return found;
+  for (const [key, value] of Object.entries(overrides)) {
+    const name = key === selfKey ? parent : splitSpec(key).name;
+    if (typeof value === 'string') {
+      const path = HTTP.test(value) ? urlPath(value) : '';
+      if (name !== undefined && path !== '') found.push({ name, path });
+    } else {
+      urlOverrides(value, name, selfKey, found);
+    }
+  }
+  return found;
+}
+
+function npmEntries(text: string, format: Format, workspaces: readonly string[], manifest: unknown, overridesFormat: Format | undefined): LockEntry[] {
   const document = JSON.parse(text) as unknown;
   if (!isRecord(document) || !isRecord(document['packages'])) throw new UnsupportedLockfile('it has no "packages" section (lockfileVersion 1 is not read)');
   const packages = document['packages'];
   const registry = new RegExp(String(format['registryTarball']), 'u');
   const scriptsKey = String(format['installScripts']);
-  // A dependency declared as a URL is a tarball URL even when the URL points at a registry host, where its resolved
-  // URL looks like any registry package's (an AI agent can pin a version that way and skip the release-age check).
-  const declaredUrls = new Set<string>();
-  for (const value of Object.values(packages)) {
+  const fields = strings(format['dependencyFields']);
+  // A package declared or overridden with a URL comes from that URL, also when the URL is a registry tarball: its
+  // resolved URL then looks like any registry package's (and npm may rewrite the host to the configured registry),
+  // while npm skips the release-age check for it. An AI agent can pin a fresh version that way.
+  const fromUrl = new Set<string>();
+  for (const [key, value] of Object.entries(packages)) {
     if (!isRecord(value)) continue;
-    for (const field of strings(format['dependencyFields'])) {
+    for (const field of fields) {
       const dependencies = value[field];
       if (!isRecord(dependencies)) continue;
-      for (const spec of Object.values(dependencies)) if (typeof spec === 'string' && HTTP.test(spec)) declaredUrls.add(spec);
+      for (const [name, spec] of Object.entries(dependencies)) {
+        const location = typeof spec === 'string' && HTTP.test(spec) ? installedAt(packages, key, name) : undefined;
+        if (location !== undefined) fromUrl.add(location);
+      }
     }
   }
+  const overrides =
+    overridesFormat !== undefined && isRecord(manifest)
+      ? urlOverrides(manifest[String(overridesFormat['field'])], undefined, String(overridesFormat['selfKey']))
+      : [];
   const entries: LockEntry[] = [];
   for (const [key, value] of Object.entries(packages)) {
     if (!key.includes('node_modules/') || !isRecord(value)) continue;
@@ -104,7 +154,10 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[])
     if (value[String(format['linkFlag'])] === true) source = workspaces.includes(resolved) ? 'workspace' : 'directory';
     else if (strings(format['gitPrefixes']).some((prefix) => spec.startsWith(prefix))) source = 'git';
     else if (spec.startsWith(String(format['filePrefix']))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? 'file' : 'directory';
-    else if (HTTP.test(spec)) source = registry.test(spec) && !declaredUrls.has(spec) ? 'registry' : 'remoteTarball';
+    else if (HTTP.test(spec)) {
+      const overridden = overrides.some((override) => override.name === name && urlPath(spec).endsWith(override.path));
+      source = registry.test(spec) && !fromUrl.has(key) && !overridden ? 'registry' : 'remoteTarball';
+    }
     else if (resolved === '' && (spec === '' || EXACT_VERSION.test(spec))) source = 'registry';
     entries.push({ name, spec, source, installScript: value[scriptsKey] === true, anchor: `${JSON.stringify(key)}: {` });
   }
@@ -244,6 +297,23 @@ function documentsOf(tool: ToolKnowledge): Format | undefined {
 }
 
 /** The lockfiles a package manager uses in the repository root, parsed. */
+/** The package.json next to a lockfile, or undefined when it is missing or not JSON. */
+function readManifest(repository: Repository, lockfile: string): unknown {
+  const text = repository.readText(posix.join(posix.dirname(lockfile), 'package.json'));
+  if (text === undefined) return undefined;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function overridesFormatOf(tool: ToolKnowledge): Format | undefined {
+  const fact = tool.extra?.['overrides'];
+  const value = fact === undefined ? undefined : values(fact)[0];
+  return isRecord(value) ? value : undefined;
+}
+
 export function readLockfiles(repository: Repository, manager: PackageManagerInfo, tool: ToolKnowledge, workspaces: readonly string[]): LockfileResult[] {
   const fact = tool.extra?.['lockfileFormat'];
   const format = fact === undefined ? undefined : values(fact)[0];
@@ -260,7 +330,7 @@ export function readLockfiles(repository: Repository, manager: PackageManagerInf
       let entries: LockEntry[];
       let recordsScripts = format['installScripts'] !== null;
       let start = 0;
-      if (tool.id === 'npm') entries = npmEntries(text, format, workspaces);
+      if (tool.id === 'npm') entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool));
       else if (tool.id === 'pnpm') ({ entries, start } = pnpmEntries(text, format, documentsOf(tool)));
       else if (tool.id === 'yarn') entries = yarnEntries(text, format);
       else if (tool.id === 'bun') entries = bunEntries(text, format);

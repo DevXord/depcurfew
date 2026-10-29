@@ -30,6 +30,32 @@ describe('lockfiles', () => {
     expect(splitSpec(key)).toEqual(expected);
   });
 
+  it('marks only the copy a package declares with a URL, found the way Node resolves it', () => {
+    const url = 'https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz';
+    const lock = {
+      name: 'x',
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'x', dependencies: { a: '1.0.0', b: '1.0.0' } },
+        'node_modules/a': { version: '1.0.0', resolved: 'https://registry.npmjs.org/a/-/a-1.0.0.tgz', dependencies: { 'left-pad': url } },
+        'node_modules/a/node_modules/left-pad': { version: '1.3.0', resolved: url },
+        'node_modules/b': { version: '1.0.0', resolved: 'https://registry.npmjs.org/b/-/b-1.0.0.tgz', dependencies: { 'left-pad': '^1.3.0' } },
+        'node_modules/left-pad': { version: '1.3.0', resolved: url },
+      },
+    };
+    const text = `${JSON.stringify(lock, null, 2)}\n`;
+    const directory = repository({
+      'package.json': '{ "name": "x", "packageManager": "npm@11.21.1" }\n',
+      'package-lock.json': text,
+      'depcurfew.json': '{ "version": 1, "sources": { "remoteTarball": "deny" }, "targets": "auto" }\n',
+    });
+    const nested = text.split('\n').findIndex((line) => line.includes('"node_modules/a/node_modules/left-pad": {')) + 1;
+    const findings = runDoctor(directory).findings.filter((finding) => finding.rule === 'lockfile-forbidden-source');
+    // b reaches the hoisted left-pad through a range, so only a's own copy comes from the URL.
+    expect(findings.map((finding) => finding.location.line)).toEqual([nested]);
+    expect(findings[0]?.message).toContain('installs left-pad from a tarball URL');
+  });
+
   it('reports an npm lockfile version 1 as not checked', () => {
     const directory = repository({
       'package.json': '{ "name": "x", "packageManager": "npm@12.2.1" }\n',

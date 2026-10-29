@@ -186,6 +186,11 @@ export const npm: ToolKnowledge = {
       'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md',
       'Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package. An entry without resolved is installed as <name>@<version> (workspaces/arborist/lib/arborist/reify.js, #extractOrLink, in 11.19.1 and 12.2.1), so its version field is the source then. Entries keep the dependency fields of their package.json: dependencies, optionalDependencies and peerDependencies for every package, devDependencies for the root (workspaces/arborist/lib/shrinkwrap.js, pkgMetaKeys and the isTop branch, in 11.21.1 and 12.2.1); a dependency declared there as a URL comes from that URL even when it is a registry tarball.',
     ),
+    overrides: checked.verified(
+      { field: 'overrides', selfKey: '.' },
+      'https://github.com/npm/cli/blob/v11.21.1/docs/lib/content/configuring-npm/package-json.md#overrides',
+      'Only the root package.json counts. Keys are package names, optionally with a version or range (name@range), and nest to any depth to scope an override under a parent; "." inside a nested object overrides the parent package itself; values take any dependency specifier, including tarball URLs, and $name refers to the spec of a direct dependency. Overrides are not written to package-lock.json (checked with npm 11.21.1), so a URL override of a registry tarball looks like a registry package there. With replace-registry-host at its default npmjs, npm writes the configured registry in place of registry.npmjs.org in resolved URLs (workspaces/config/lib/definitions/definitions.js).',
+    ),
     npmrcScope: checked.verified(
       { read: 'project root', workspacePackages: 'ignored', globalMode: 'ignored' },
       'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md',
