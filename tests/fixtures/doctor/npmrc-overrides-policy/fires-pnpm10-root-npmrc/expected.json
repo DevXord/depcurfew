@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".npmrc",
+      "line": 2
+    },
+    "message": "minimum-release-age=60 in .npmrc sets pnpm 10.20.0 to wait 1 hour, shorter than 3d in depgate.json, because pnpm-workspace.yaml does not set minimumReleaseAge",
+    "fix": "Remove the line and run depgate apply, which writes the delay to pnpm-workspace.yaml"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".npmrc",
+      "line": 3
+    },
+    "message": "minimum-release-age-exclude[] in .npmrc exempts lodash from the pnpm 10.20.0 delay, but depgate.json does not",
+    "fix": "Remove the line, or add lodash to cooldown.exclude in depgate.json and run depgate apply"
+  }
+]

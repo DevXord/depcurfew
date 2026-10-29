@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
+const checked = verifiedOn('2026-10-29');
 
 const RESOLUTION = 'https://pnpm.io/settings/dependency-resolution';
 const SETTINGS_V10 = 'https://pnpm.io/10.x/settings';
@@ -126,6 +127,21 @@ export const pnpm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, WORKSPACE_YAML_V10, 'The docs show packages only as a list; concluded from the absence of an object form.'),
   },
   extra: {
+    npmrcPrecedence: checked.verified(
+      { winner: 'pnpm-workspace.yaml', over: ['.npmrc', 'npm_config_*'] },
+      'https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts',
+      'pnpm 10 applies pnpm-workspace.yaml settings over .npmrc and npm_config_* variables; command-line options win over both (same order on v10.16.0). The 10.18.3 changelog says pnpm config set --location=project writes to pnpm-workspace.yaml "matching read priority". The 10.x docs do not state the order.',
+    ),
+    sharedWorkspaceLockfile: checked.verified(
+      { setting: 'sharedWorkspaceLockfile', npmrcKey: 'shared-workspace-lockfile', default: true },
+      'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/versioned_docs/version-10.x/workspaces.md',
+      'Same name and default in pnpm 11 and 12, where it is read only from pnpm-workspace.yaml.',
+    ),
+    perProjectNpmrc: checked.uncertain(
+      { sharedWorkspaceLockfile: false, until: '11.0.0' },
+      'https://github.com/pnpm/pnpm/blob/v10.34.9/pkg-manager/plugin-commands-installation/src/recursive.ts',
+      'Without a shared lockfile, pnpm 10 installs every workspace project with its own .npmrc layered over the workspace settings, without filtering keys, so a package .npmrc can change minimum-release-age for that project. Read from code; no documentation or test covers it. No official source says this combination turns minimumReleaseAge off.',
+    ),
     ignoredSince: verified(
       { since: '11.0.0', npmrc: 'auth and registry settings', packageJsonField: 'pnpm' },
       release('11.0.0'),

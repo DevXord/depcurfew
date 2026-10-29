@@ -1,0 +1,6 @@
+{
+  "name": "npm-workspace-npmrc",
+  "private": true,
+  "packageManager": "npm@12.2.1",
+  "workspaces": ["packages/*"]
+}

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "packages/app/.npmrc",
+      "line": 1
+    },
+    "message": "sharedWorkspaceLockfile is false (pnpm-workspace.yaml), so pnpm 10.20.0 installs this package with its own .npmrc and minimum-release-age=0 replaces the workspace setting for it",
+    "fix": "Remove the line from packages/app/.npmrc, or set sharedWorkspaceLockfile: true"
+  }
+]

@@ -9,16 +9,21 @@ function ruleName(id: string): string {
   return id.replace(/(^|-)([a-z])/gu, (_match, _dash: string, letter: string) => letter.toUpperCase());
 }
 
-function location(file: string, line: number | undefined) {
-  return {
-    physicalLocation: {
-      artifactLocation: { uri: file, uriBaseId: '%SRCROOT%' },
-      region: { startLine: line ?? 1 },
-    },
-  };
-}
+/** The text of a line in a repository file, to give regions the end column GitHub asks for. */
+export type LineReader = (file: string, line: number) => string | undefined;
 
-export function toSarif(report: DoctorReport, rules: readonly Rule[], version: string): object {
+export function toSarif(report: DoctorReport, rules: readonly Rule[], version: string, readLine: LineReader = () => undefined): object {
+  // GitHub code scanning marks startColumn, endLine and endColumn as required; the region spans the whole line.
+  const location = (file: string, line: number | undefined) => {
+    const startLine = line ?? 1;
+    const text = readLine(file, startLine) ?? '';
+    return {
+      physicalLocation: {
+        artifactLocation: { uri: file, uriBaseId: '%SRCROOT%' },
+        region: { startLine, startColumn: 1, endLine: startLine, endColumn: Math.max(text.length, 1) + 1 },
+      },
+    };
+  };
   const index = new Map(rules.map((rule, position) => [rule.id, position]));
   return {
     $schema: SARIF_SCHEMA,
