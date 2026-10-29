@@ -1,0 +1,76 @@
+// The action entry point: SARIF paths relative to the workspace, step outputs and failures, without GitHub.
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, describe, expect, it } from 'vitest';
+import { formatOutputs, runAction } from '../../src/action.ts';
+
+const DOCTOR = fileURLToPath(new URL('../fixtures/doctor/', import.meta.url));
+const temporary: string[] = [];
+afterAll(() => {
+  for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
+});
+
+/** A workspace with a fixture repository copied into `subdirectory` (or the root). */
+function workspace(fixture: string, subdirectory = ''): string {
+  const root = mkdtempSync(join(tmpdir(), 'depgate-action-'));
+  temporary.push(root);
+  cpSync(join(DOCTOR, fixture, 'repo'), join(root, subdirectory), { recursive: true });
+  return root;
+}
+
+function run(env: Record<string, string>): { outputs: ReturnType<typeof runAction>; log: string } {
+  let log = '';
+  const outputs = runAction(env, { log: (text) => (log += text) });
+  return { outputs, log };
+}
+
+describe('GitHub Action entry point', () => {
+  it('prints the report, writes SARIF and counts the findings', () => {
+    const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter');
+    const { outputs, log } = run({ GITHUB_WORKSPACE: root });
+    expect(outputs).toEqual({ 'sarif-file': 'depgate.sarif', errors: 1, warnings: 0, notes: 0, failure: '' });
+    expect(log).toContain('1 error, 0 warnings, 0 notes');
+    const sarif = JSON.parse(readFileSync(join(root, 'depgate.sarif'), 'utf8')) as { runs: { results: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[] }[] };
+    expect(sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('.github/dependabot.yml');
+  });
+
+  it('makes paths relative to the workspace when checking a subdirectory', () => {
+    const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter', 'packages/app');
+    const { outputs } = run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'packages/app', INPUT_SARIF_FILE: 'out/report.sarif' });
+    expect(outputs['sarif-file']).toBe('out/report.sarif');
+    const sarif = JSON.parse(readFileSync(join(root, 'out/report.sarif'), 'utf8')) as {
+      runs: { results: { locations: { physicalLocation: { artifactLocation: { uri: string }; region: { endColumn: number } } }[] }[] }[];
+    };
+    const location = sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation;
+    expect(location?.artifactLocation.uri).toBe('packages/app/.github/dependabot.yml');
+    expect(location?.region.endColumn).toBe(14);
+  });
+
+  it('reports a clean repository with zero counts', () => {
+    const { outputs } = run({ GITHUB_WORKSPACE: workspace('bot-cooldown-mismatch/passes-consistent') });
+    expect(outputs).toMatchObject({ errors: 0, warnings: 0, failure: '' });
+  });
+
+  it('refuses a directory outside the workspace', () => {
+    const { outputs, log } = run({ GITHUB_WORKSPACE: workspace('bot-cooldown-mismatch/passes-consistent'), INPUT_DIRECTORY: '../elsewhere' });
+    expect(outputs).toMatchObject({ 'sarif-file': '', failure: 'directory "../elsewhere" is not a directory inside the workspace' });
+    expect(log).toContain('is not a directory inside the workspace');
+  });
+
+  it('turns an invalid policy into a failure without a SARIF file', () => {
+    const root = workspace('bot-cooldown-mismatch/passes-consistent');
+    writeFileSync(join(root, 'depgate.json'), '{ "version": 2 }');
+    const { outputs, log } = run({ GITHUB_WORKSPACE: root });
+    expect(outputs['sarif-file']).toBe('');
+    expect(outputs.failure).toMatch(/^depgate\.json is invalid; /u);
+    expect(log).toMatch(/^depgate: depgate\.json is invalid\n/u);
+  });
+
+  it('formats outputs for GITHUB_OUTPUT on single lines', () => {
+    expect(formatOutputs({ 'sarif-file': 'a.sarif', errors: 2, warnings: 0, notes: 1, failure: 'one\ntwo' })).toBe(
+      'sarif-file=a.sarif\nerrors=2\nwarnings=0\nnotes=1\nfailure=one two\n',
+    );
+  });
+});

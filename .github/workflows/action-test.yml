@@ -1,0 +1,103 @@
+# Runs the action from this checkout (uses: ./) on depgate itself and on fixture repositories.
+name: Action test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  self:
+    name: depgate on itself, with upload
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        id: depgate
+        with:
+          category: depgate-self
+      - name: No errors and a SARIF report
+        env:
+          ERRORS: ${{ steps.depgate.outputs.errors }}
+          SARIF: ${{ steps.depgate.outputs.sarif-file }}
+        run: |
+          test "$ERRORS" = 0
+          test -s "$SARIF"
+
+  clean-fixture:
+    name: Clean fixture, with upload
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        id: depgate
+        with:
+          directory: tests/fixtures/doctor/bot-cooldown-mismatch/passes-consistent/repo
+          sarif-file: reports/clean.sarif
+          category: depgate-fixture-clean
+      - name: No findings
+        env:
+          ERRORS: ${{ steps.depgate.outputs.errors }}
+          WARNINGS: ${{ steps.depgate.outputs.warnings }}
+          SARIF: ${{ steps.depgate.outputs.sarif-file }}
+        run: |
+          test "$ERRORS" = 0
+          test "$WARNINGS" = 0
+          test "$SARIF" = reports/clean.sarif
+
+  failing-fixture:
+    name: Failing fixture, without upload
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        id: depgate
+        continue-on-error: true
+        with:
+          directory: tests/fixtures/doctor/bot-cooldown-mismatch/fires-dependabot-shorter/repo
+          upload-sarif: 'false'
+      - name: The step failed with one error and repository-relative paths
+        env:
+          OUTCOME: ${{ steps.depgate.outcome }}
+          ERRORS: ${{ steps.depgate.outputs.errors }}
+          SARIF: ${{ steps.depgate.outputs.sarif-file }}
+        run: |
+          test "$OUTCOME" = failure
+          test "$ERRORS" = 1
+          grep -q '"uri": "tests/fixtures/doctor/bot-cooldown-mismatch/fires-dependabot-shorter/repo/.github/dependabot.yml"' "$SARIF"
+
+  old-node:
+    name: Sets up Node.js 22 on a runner with Node.js 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          package-manager-cache: false
+      - uses: ./
+        id: depgate
+        with:
+          directory: tests/fixtures/doctor/bot-cooldown-mismatch/passes-consistent/repo
+          upload-sarif: 'false'
+      - name: The action ran
+        env:
+          ERRORS: ${{ steps.depgate.outputs.errors }}
+        run: test "$ERRORS" = 0

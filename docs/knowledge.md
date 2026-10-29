@@ -6,7 +6,7 @@ The facts depgate relies on, each linked to the official documentation or change
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-7 tools · 261 facts · 35 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-29.
+7 tools · 262 facts · 35 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-29.
 
 ## Release-age cooldown
 
@@ -198,6 +198,7 @@ How repositories pin tool versions (Corepack, devEngines, Volta, asdf) and how G
 - `githubActions.pnpmSetup` (✅ verified): `{"action":"pnpm/setup","installs":["pnpm"],"inputs":[{"name":"version","kind":"version","tool":"pnpm"},{"name":"runtime","kind":"runtime"},{"name":"node-version-file","kind":"version-file","tool":"node"}]}` [↗](https://github.com/pnpm/setup/blob/main/action.yml)
 - `githubActions.setupBun` (✅ verified): `{"action":"oven-sh/setup-bun","installs":["bun"],"inputs":[{"name":"bun-version","kind":"version","tool":"bun"},{"name":"bun-version-file","kind":"version-file","tool":"bun"}]}` [↗](https://github.com/oven-sh/setup-bun/blob/main/action.yml)
 - `githubActions.setupDeno` (✅ verified): `{"action":"denoland/setup-deno","installs":["deno"],"inputs":[{"name":"deno-version","kind":"version","tool":"deno"},{"name":"deno-version-file","kind":"version-file","tool":"deno"}]}` [↗](https://github.com/denoland/setup-deno/blob/main/action.yml)
+- `githubActions.codeScanningUpload` (✅ verified): `{"action":"github/codeql-action/upload-sarif","inputs":{"sarifFile":"sarif_file","category":"category"},"permissions":{"always":{"security-events":"write"},"privateRepositories":{"actions":"read","contents":"read"}}}` [↗](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file)
 
 ## Notes
 
@@ -360,6 +361,7 @@ Context recorded with verified facts.
 - `githubActions.pnpmSetup`: For pnpm 11 and later. Without version it reads devEngines.packageManager or packageManager; runtime takes <name>@<version> for node, bun or deno. [↗](https://github.com/pnpm/setup/blob/main/action.yml)
 - `githubActions.setupBun`: Current major v2. Without bun-version it reads packageManager (bun@x), then engines.bun, then installs latest. [↗](https://github.com/oven-sh/setup-bun/blob/main/action.yml)
 - `githubActions.setupDeno`: Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions. [↗](https://github.com/denoland/setup-deno/blob/main/action.yml)
+- `githubActions.codeScanningUpload`: The example workflow on this page needs security-events: write in every repository and actions: read with contents: read only in private ones. The inputs come from upload-sarif/action.yml in github/codeql-action (current major v4, v4.39.1 checked); category tells analyses of the same tool and commit apart. [↗](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file)
 
 ## To review
 

@@ -182,6 +182,14 @@ export interface SetupActionKnowledge {
   inputs: readonly SetupActionInput[];
 }
 
+/** Uploading SARIF to GitHub code scanning from a workflow. */
+export interface CodeScanningUploadKnowledge {
+  action: string;
+  inputs: { sarifFile: string; category: string };
+  /** Workflow permissions needed in every repository, and in addition in private ones. */
+  permissions: { always: Readonly<Record<string, string>>; privateRepositories: Readonly<Record<string, string>> };
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
@@ -208,5 +216,6 @@ export interface EnvironmentKnowledge {
     pnpmSetup: Fact<SetupActionKnowledge>;
     setupBun: Fact<SetupActionKnowledge>;
     setupDeno: Fact<SetupActionKnowledge>;
+    codeScanningUpload: Fact<CodeScanningUploadKnowledge>;
   };
 }

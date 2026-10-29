@@ -1,0 +1,83 @@
+name: depgate doctor
+description: Find package manager configuration that silently does not work, and drift from depgate.json; report it to code scanning.
+author: DevXord
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  directory:
+    description: Directory to check, relative to the workspace.
+    default: '.'
+  sarif-file:
+    description: Where to write the SARIF report, relative to the workspace.
+    default: depgate.sarif
+  upload-sarif:
+    description: Upload the SARIF report to GitHub code scanning. The job needs the security-events write permission.
+    default: 'true'
+  category:
+    description: Code scanning category of the upload, to tell several depgate runs in one workflow apart.
+    default: depgate
+  fail-on-error:
+    description: Fail the step when doctor reports an error.
+    default: 'true'
+
+outputs:
+  errors:
+    description: Number of findings with level error.
+    value: ${{ steps.doctor.outputs.errors }}
+  warnings:
+    description: Number of findings with level warning.
+    value: ${{ steps.doctor.outputs.warnings }}
+  notes:
+    description: Number of findings with level note.
+    value: ${{ steps.doctor.outputs.notes }}
+  sarif-file:
+    description: Path of the SARIF report, relative to the workspace; empty when doctor could not run.
+    value: ${{ steps.doctor.outputs.sarif-file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the Node.js version
+      id: node
+      shell: bash
+      run: |
+        major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+        if [ "$major" -ge 22 ]; then echo "setup=false" >> "$GITHUB_OUTPUT"; else echo "setup=true" >> "$GITHUB_OUTPUT"; fi
+
+    - name: Set up Node.js 22
+      if: steps.node.outputs.setup == 'true'
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 22
+        package-manager-cache: false
+
+    - name: Run depgate doctor
+      id: doctor
+      shell: bash
+      env:
+        INPUT_DIRECTORY: ${{ inputs.directory }}
+        INPUT_SARIF_FILE: ${{ inputs.sarif-file }}
+      run: node "$GITHUB_ACTION_PATH/action/depgate.mjs"
+
+    - name: Upload SARIF to code scanning
+      if: inputs.upload-sarif == 'true' && steps.doctor.outputs.sarif-file != ''
+      uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      with:
+        sarif_file: ${{ steps.doctor.outputs.sarif-file }}
+        category: ${{ inputs.category }}
+
+    - name: Fail on errors
+      if: steps.doctor.outputs.failure != '' || (inputs.fail-on-error == 'true' && steps.doctor.outputs.errors != '0')
+      shell: bash
+      env:
+        FAILURE: ${{ steps.doctor.outputs.failure }}
+        ERRORS: ${{ steps.doctor.outputs.errors }}
+      run: |
+        if [ -n "$FAILURE" ]; then
+          echo "::error title=depgate::$FAILURE"
+        else
+          echo "::error title=depgate::depgate doctor reported $ERRORS error(s); see the log of the previous step"
+        fi
+        exit 1
