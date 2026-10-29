@@ -17,22 +17,23 @@ Fakty o npm, na których opiera się ta procedura (wymagane wersje, zachowanie e
 
 Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać pierwszą wersję. Nowa konfiguracja trusted publishera wygasa, jeśli w tym czasie nie przejdzie przez nią udana publikacja.
 
-1. **Konto npm z 2FA i lokalny npm 11.15.0 lub nowszy.** Sprawdź `npm --version`; Node 24 LTS ma npm 11.19.1. Tuż przed pierwszą publikacją sprawdź jeszcze, czy nazwa jest wolna: `npm view depcurfew` musi zwrócić `E404`.
+1. **Konto npm z 2FA i lokalny npm 11.15.0 lub nowszy.** Sprawdź `npm --version`.
+   - Node 24 LTS ma npm 11.19.1.
+   - Najnowszy npm 12 nie działa na Node 25, więc tam trzeba zainstalować `npm install -g npm@11`.
+   - Pracuj w świeżym klonie: `node -p "require('./package.json').name"` musi pokazać `depcurfew`.
 
-2. **Utworzenie paczki bez publikowania kodu.** Trusted publishera można skonfigurować tylko dla istniejącej paczki. Etapowanie nowej paczki tworzy ją z publiczną wersją zastępczą `0.0.0-stage`; wersję próbną odrzucamy, więc żaden kod nie trafia do rejestru. W czystym klonie:
+2. **Utworzenie paczki bez publikowania kodu.** Trusted publishera można skonfigurować tylko dla istniejącej paczki. Etapowanie nowej paczki tworzy ją z publiczną wersją zastępczą `0.0.0-stage`, a wersja próbna nie trafia do publicznego rejestru, dopóki czeka na zatwierdzenie. W czystym klonie:
 
    ```bash
    npm login
    npm ci
    npm run build
-   npm version 0.0.1-bootstrap.0 --no-git-tag-version
+   npm version 0.0.2-bootstrap.0 --no-git-tag-version
    npm stage publish --tag bootstrap
-   npm stage list depcurfew
-   npm stage reject <stage-id>
    git checkout -- package.json package-lock.json
    ```
 
-   `npm stage reject` poprosi o 2FA.
+   **Etapu próbnego nie odrzucaj przed wydaniem 1.0.0.** Odrzucenie jedynego etapu wycofuje też wersję zastępczą. Paczka wtedy znika, a npm blokuje jej nazwę na 24 godziny i nie da się skonfigurować trusted publishera. Tak było 2026-10-29: etap `0.0.1-bootstrap.0` odrzucony o 21:41 UTC wycofał `0.0.0-stage`. Etap próbny odrzuć dopiero po wydaniu 1.0.0 (krok 8 w „Każde wydanie”).
 
 3. **Trusted publisher z prawem tylko do etapowania** (decyzja z fazy 8: bez `--allow-publish`):
 
@@ -70,7 +71,8 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
    Pobrany plik `.tgz` można porównać z `npm pack --dry-run` w checkoucie tagu.
 5. **Zatwierdzenie z 2FA:** na npmjs.com zakładka **Staged Packages** → **Approve**, albo `npm stage approve <stage-id>`.
 6. **Sprawdzenie proweniencji:** strona paczki na npmjs.com pokazuje proweniencję (repozytorium, workflow, commit). W dowolnym projekcie po instalacji `depcurfew@X.Y.Z` polecenie `npm audit signatures` powinno wykazać zweryfikowaną attestację.
-7. **Po wydaniu** w README wpisać w przykładzie Action pełny SHA commita wydania. README trafia do paczki w chwili publikacji i to ono jest na stronie npm, więc wszystko, co ma się tam znaleźć, musi być w `main` przed tagiem.
+7. **Po wydaniu** w README wpisać w przykładzie Action pełny SHA commita wydania.
+8. **Tylko po pierwszym wydaniu:** odrzuć etap próbny z kroku 2 jednorazowej konfiguracji (`npm stage list depcurfew`, potem `npm stage reject <stage-id>`, z 2FA). Opublikowana 1.0.0 zostaje. README trafia do paczki w chwili publikacji i to ono jest na stronie npm, więc wszystko, co ma się tam znaleźć, musi być w `main` przed tagiem.
 
 ## Gdy coś nie działa
 
