@@ -1,7 +1,7 @@
 // Reading lockfiles for doctor: where each package comes from (registry, git, tarball URL, local tarball, local
 // directory, workspace) and, where the format records it, whether it has install scripts. The spelling of every
 // format comes from the knowledge base (extra.lockfileFormat).
-import { parse as parseYaml } from 'yaml';
+import { parse as parseYaml, parseAllDocuments } from 'yaml';
 import { isRecord, values } from '../apply/facts.ts';
 import { parseJsonc } from '../detect/jsonc.ts';
 import type { Repository } from '../detect/repository.ts';
@@ -39,9 +39,9 @@ type Format = Record<string, unknown>;
  * Finds the 1-based line of each anchor. Rules ask in the order the entries were parsed, which is the order of the
  * file, so each search continues where the last one stopped and a large lockfile is not scanned once per entry.
  */
-function lineFinder(text: string): (anchor: string) => number | undefined {
+function lineFinder(text: string, start = 0): (anchor: string) => number | undefined {
   let newlines: number[] | undefined;
-  let cursor = 0;
+  let cursor = start;
   return (anchor) => {
     let offset = text.indexOf(anchor, cursor);
     if (offset === -1) offset = text.indexOf(anchor);
@@ -100,9 +100,20 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[])
   return entries;
 }
 
-function pnpmEntries(text: string, format: Format): LockEntry[] {
-  const document = parseYaml(text) as unknown;
-  if (!isRecord(document)) return [];
+/** The project lockfile of a pnpm-lock.yaml and where it starts: the last document when a boot document comes first. */
+function pnpmGraph(text: string, documents: Format | undefined): { document: unknown; start: number } {
+  const marker = documents?.['bootMarker'];
+  if (typeof marker !== 'string' || documents?.['graph'] !== 'last' || text.split(/\r?\n/u, 1)[0] !== marker) return { document: parseYaml(text), start: 0 };
+  const parsed = parseAllDocuments(text);
+  const all = Array.isArray(parsed) ? parsed : [parsed];
+  for (const document of all) if (document.errors.length > 0) throw document.errors[0] as Error;
+  const last = all.at(-1);
+  return { document: last?.toJS() as unknown, start: last?.range[0] ?? 0 };
+}
+
+function pnpmEntries(text: string, format: Format, documents: Format | undefined): { entries: LockEntry[]; start: number } {
+  const { document, start } = pnpmGraph(text, documents);
+  if (!isRecord(document)) return { entries: [], start };
   if (!String(document['lockfileVersion']).startsWith('9')) throw new UnsupportedLockfile(`its lockfileVersion ${String(document['lockfileVersion'])} is not read; depgate reads 9.0`);
   const hosts = strings(format['gitHostedTarballHosts']);
   const entries: LockEntry[] = [];
@@ -140,7 +151,7 @@ function pnpmEntries(text: string, format: Format): LockEntry[] {
       }
     }
   }
-  return entries;
+  return { entries, start };
 }
 
 function yarnSource(locator: string, format: Format): Source {
@@ -215,6 +226,12 @@ class UnsupportedLockfile extends Error {}
  */
 export type LockfileResult = { ok: true; lockfile: Lockfile } | { ok: false; file: string; reason: string; unreadable: boolean };
 
+function documentsOf(tool: ToolKnowledge): Format | undefined {
+  const fact = tool.extra?.['lockfileDocuments'];
+  const value = fact === undefined ? undefined : values(fact)[0];
+  return isRecord(value) ? value : undefined;
+}
+
 /** The lockfiles a package manager uses in the repository root, parsed. */
 export function readLockfiles(repository: Repository, manager: PackageManagerInfo, tool: ToolKnowledge, workspaces: readonly string[]): LockfileResult[] {
   const fact = tool.extra?.['lockfileFormat'];
@@ -231,12 +248,13 @@ export function readLockfiles(repository: Repository, manager: PackageManagerInf
     try {
       let entries: LockEntry[];
       let recordsScripts = format['installScripts'] !== null;
+      let start = 0;
       if (tool.id === 'npm') entries = npmEntries(text, format, workspaces);
-      else if (tool.id === 'pnpm') entries = pnpmEntries(text, format);
+      else if (tool.id === 'pnpm') ({ entries, start } = pnpmEntries(text, format, documentsOf(tool)));
       else if (tool.id === 'yarn') entries = yarnEntries(text, format);
       else if (tool.id === 'bun') entries = bunEntries(text, format);
       else ({ entries, recordsScripts } = denoEntries(text, format));
-      const find = lineFinder(text);
+      const find = lineFinder(text, start);
       return { ok: true, lockfile: { file, entries, recordsScripts, lineOf: (entry) => find(entry.anchor) } };
     } catch (error) {
       if (error instanceof UnsupportedLockfile) return { ok: false, file, reason: error.message, unreadable: false };

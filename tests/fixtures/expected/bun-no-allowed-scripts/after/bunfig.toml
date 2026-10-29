@@ -1,0 +1,6 @@
+[install]
+exact = true
+
+# >>> depgate managed block: edit depgate.json and run depgate apply instead
+minimumReleaseAge = 259200
+# <<< depgate managed block

@@ -161,6 +161,21 @@ export const pnpm: ToolKnowledge = {
       'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/npmrc.md',
       '--registry and --@scope:registry on the command line win over the other registry settings. The page shows pnpm_config_<key> environment variables for keys of .npmrc (pnpm_config__auth, pnpm_config_//registry.npmjs.org/:_authToken) overriding the project .npmrc; that pnpm_config_registry works the same is inferred.',
     ),
+    minimumReleaseAgeStrict: checked.verified(
+      { setting: 'minimumReleaseAgeStrict', value: true, since: '11.0.0' },
+      RESOLUTION,
+      'When false, pnpm falls back to a version that does not meet minimumReleaseAge; when true, resolution fails. It defaults to true when minimumReleaseAge is set explicitly, except in 11.0.0-11.0.3 and 12.0.0-12.2.x (see strictMode): pnpm 11.0.0 and 12.0.0 installed a version 4 hours old with minimumReleaseAge: 4320 on 2026-10-29, and 12.0.0 added it to minimumReleaseAgeExclude.',
+    ),
+    cooldownExactVersions: checked.verified(
+      '10.17.0',
+      release('10.17.0'),
+      'pnpm 10.17.0: "Don\'t ignore the minimumReleaseAge check, when the package is requested by exact version". pnpm 10.16.0 installed typescript@7.1.0-dev.20261029.1, 4 hours old, with minimumReleaseAge: 4320 on 2026-10-29.',
+    ),
+    lockfileDocuments: checked.verified(
+      { bootMarker: '---', graph: 'last' },
+      'https://github.com/pnpm/pnpm.io/blob/main/docs/lockfile.md',
+      'A lockfile whose first line is --- has two YAML documents: a boot document with configDependencies and packageManagerDependencies, written when the project has config dependencies, declares devEngines.packageManager or pins pnpm 12 or newer; then the project lockfile (importers, packages, snapshots), which is always the last document. Seen with pnpm 12.16.1 and packageManager pnpm@12.16.1 on 2026-10-29.',
+    ),
     lockfileFormat: checked.verified(
       {
         installScripts: null,

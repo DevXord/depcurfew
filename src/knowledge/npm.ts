@@ -27,6 +27,7 @@ const PACKAGE_JSON = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/c
 const NPM_DEFINITIONS = 'https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js';
 const CMD_LIST = 'https://github.com/npm/cli/blob/v12.2.1/lib/utils/cmd-list.js';
 const INSTALL_ALIASES = ['install', 'add', 'i', 'in', 'ins', 'inst', 'insta', 'instal', 'isnt', 'isnta', 'isntal', 'isntall', 'install-test', 'it'];
+const NPM_DEFINITIONS_V11_16 = 'https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js';
 
 export const npm: ToolKnowledge = {
   id: 'npm',
@@ -62,24 +63,14 @@ export const npm: ToolKnowledge = {
     ),
   },
   installScripts: {
-    defaultPolicy: disputed(
-      'npm 12 blocking dependency scripts is undisputed. For npm 11.16-11.21 the install-scripts command page says scripts are blocked by default, while the v11 config reference, the 11.16.0 pull request and the GitHub changelog say unreviewed scripts still run with a notice.',
-      evidence(
-        [
-          { since: '0.0.0', value: 'run' },
-          { since: '11.16.0', value: 'run-with-warning' },
-          { since: '12.0.0', value: 'deny-except-allowlist' },
-        ],
-        `${CONFIG_V11}#strict-allow-scripts`,
-        'npm 12 also blocks implicit node-gyp builds and prepare scripts of git, file and link dependencies.',
-      ),
-      evidence(
-        [
-          { since: '0.0.0', value: 'run' },
-          { since: '11.16.0', value: 'deny-except-allowlist' },
-        ],
-        'https://docs.npmjs.com/cli/v11/commands/npm-install-scripts',
-      ),
+    defaultPolicy: checked.verified(
+      [
+        { since: '0.0.0', value: 'run' },
+        { since: '11.16.0', value: 'run-with-warning' },
+        { since: '12.0.0', value: 'deny-except-allowlist' },
+      ],
+      NPM_DEFINITIONS_V11_16,
+      'strict-allow-scripts (default false) turns a dependency script that allowScripts does not cover "from a warning into a hard error ... instead of running with a notice", so from 11.16.0 such scripts still run. npm 11.21.1 ran esbuild\'s postinstall on 2026-10-29 ("has install scripts not yet covered by allowScripts"); npm 12.2.1 blocked it ("had install scripts blocked"). The v11 install-scripts command page says scripts are blocked by default, which the config definition, the 11.16.0 pull request, the GitHub changelog and the test contradict. npm 12 also blocks implicit node-gyp builds and prepare scripts of git, file and link dependencies.',
     ),
     allowList: {
       setting: verified('allowScripts', 'https://docs.npmjs.com/cli/v12/commands/npm-install-scripts'),
@@ -228,9 +219,10 @@ export const npm: ToolKnowledge = {
       ],
       release('11.15.0'),
     ),
-    strictAllowScripts: verified(
-      'strict-allow-scripts=true makes dependency scripts not covered by allowScripts fail the install (default false)',
-      'https://docs.npmjs.com/cli/v12/commands/npm-install#strict-allow-scripts',
+    strictAllowScripts: checked.verified(
+      { setting: 'strict-allow-scripts', value: true, since: '11.16.0' },
+      NPM_DEFINITIONS_V11_16,
+      'strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it.',
     ),
     unknownNpmrcKeys: disputed(
       'Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.',

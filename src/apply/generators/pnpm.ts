@@ -3,6 +3,7 @@
 import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { allowedNames, cooldownValue, eachSource, exclusions, sameList, type SourceKind } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
+import { formatVersion } from '../version.ts';
 
 interface LegacyAllowList {
   since: string;
@@ -25,6 +26,11 @@ export const pnpm: ManagerGenerator = (context) => {
     if (cooldown !== undefined) {
       minutes = cooldown.minutes;
       yaml.set([setting], cooldown.value);
+      // Some versions fall back to a version that is too young unless strict mode is set explicitly.
+      const strict = extraOf(tool, 'minimumReleaseAgeStrict', isSwitch);
+      if (context.atLeast(strict.since) && yaml.get([strict.setting]) !== strict.value) yaml.set([strict.setting], strict.value);
+      const exact = extraOf(tool, 'cooldownExactVersions', (value): value is string => typeof value === 'string');
+      if (!context.atLeast(exact)) context.warn(`${context.name} ${formatVersion(context.version ?? [0, 0, 0])} skips ${setting} for packages requested by exact version (fixed in ${exact})`);
     }
     const excludeSetting = settingOf(tool.cooldown.exclude.setting);
     const patterns = cooldown === undefined ? undefined : exclusions(context);

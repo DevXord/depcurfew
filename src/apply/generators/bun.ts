@@ -35,21 +35,20 @@ export const bun: ManagerGenerator = (context) => {
       context.warn(`${context.name} has no setting that allows every install script; "allow" not written`);
     } else {
       const setting = settingOf(tool.installScripts.allowList.setting);
-      if (setting !== null) {
-        const wanted = policy.installScripts.allow.length > 0;
-        const names = wanted && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting) ? allowedNames(context, setting) : [];
-        if (names.length > 0) {
-          const json = context.json(settingOf(tool.installScripts.allowList.file) ?? 'package.json');
-          const current = json.get([setting]);
-          if (current === undefined) {
-            context.warn(
-              `${context.name}: ${setting} replaces Bun's built-in list of trusted packages; packages on that list no longer run install scripts unless listed`,
-            );
-          }
-          const list = Array.isArray(current) ? [...(current as unknown[])] : [];
-          const merged = [...list, ...names.filter((name) => !list.includes(name))];
-          if (!sameList(current, merged)) json.set([setting], merged);
+      const since = sinceOf(tool.installScripts.allowList.availableSince);
+      if (setting !== null && context.supports(since, setting)) {
+        const listFile = settingOf(tool.installScripts.allowList.file) ?? 'package.json';
+        const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
+        const current = context.json(listFile).get([setting]);
+        if (current === undefined) {
+          context.warn(
+            `${context.name}: ${setting} replaces Bun's built-in list of trusted packages; packages on that list no longer run install scripts unless listed`,
+          );
         }
+        // Even an empty list is written: without one, the packages on Bun's built-in list still run their scripts.
+        const list = Array.isArray(current) ? [...(current as unknown[])] : [];
+        const merged = [...list, ...names.filter((name) => !list.includes(name))];
+        if (current === undefined || !sameList(current, merged)) context.json(listFile).set([setting], merged);
       }
     }
   }

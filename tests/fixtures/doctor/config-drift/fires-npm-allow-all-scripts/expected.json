@@ -5,6 +5,6 @@
       "file": ".npmrc",
       "line": 2
     },
-    "message": ".npmrc does not match depgate.json: \"dangerously-allow-all-scripts=true\" should be \"# depgate: turned off; depgate.json manages this setting: dangerously-allow-all-scripts=true\""
+    "message": ".npmrc does not match depgate.json: \"dangerously-allow-all-scripts=true\" should be \"# depgate: superseded by the managed block: dangerously-allow-all-scripts=true\""
   }
 ]

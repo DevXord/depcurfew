@@ -2,6 +2,19 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Testy na projektach przykładowych i poprawki przed 1.0.0
+
+- **Testy:** projekty przykładowe dla npm 12, pnpm 12/10, Yarn 4, Bun, Deno i npm 11 z ręczną konfiguracją; depgate zainstalowany z tarballa. Opóźnienie, źródła i skrypty sprawdzone prawdziwymi instalacjami (D-060).
+- **Poprawione:**
+  - `doctor` czyta dwudokumentowy `pnpm-lock.yaml` z pnpm 12;
+  - Bun dostaje `"trustedDependencies": []`, żeby wbudowana lista zaufanych paczek nie uruchamiała skryptów;
+  - npm 11.16+ dostaje `strict-allow-scripts=true`;
+  - starszy npm daje ostrzeżenie, że zakazu skryptów nie da się wyegzekwować.
+- **Macierz 26 wersji** npm, pnpm, Yarn, Bun i Deno, od najstarszej wspieranej do najnowszej:
+  - pnpm 11.0–11.0.3 i 12.0–12.2 dostają `minimumReleaseAgeStrict: true`;
+  - dla pnpm 10.16.x `apply` ostrzega, a `doctor` zgłasza pominięte dokładne wersje;
+  - Yarn dostaje `npmMinimalAgeGate` od 4.10.2, bo 4.10.0–4.10.1 odrzucały też dojrzałe wersje (D-060).
+- **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
 ## 2026-10-29 · Faza 7: strażnik instalacji (`depgate check`, hook Claude Code)
 
 - **`depgate check <spec...> [--json] [--dir] [--registry]`:**

@@ -4,7 +4,7 @@
     "package.json"
   ],
   "warnings": [
-    "Yarn (Berry) 4.9.2 does not support npmMinimalAgeGate (since 4.12.0); not written",
+    "Yarn (Berry) 4.9.2 does not support npmMinimalAgeGate (since 4.10.2); not written",
     "Yarn (Berry): dependenciesMeta takes package names only; \"@scope/*\" not written",
     "Yarn (Berry) 4.9.2 does not support approvedGitRepositories (since 4.14.0); not written",
     "Yarn (Berry) has no setting for remote tarball dependencies; \"deny\" cannot be enforced"

@@ -159,9 +159,10 @@ export const bun: ToolKnowledge = {
       'minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards.',
     ),
     latestVersion: verified('1.4.4', 'https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4'),
-    trustedDependenciesReplacesDefaults: verified(
+    trustedDependenciesReplacesDefaults: checked.verified(
       'Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts',
       `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`,
+      'So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild\'s postinstall (esbuild is on the built-in list); with "trustedDependencies": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29.',
     ),
     lockedVersionsNotRechecked: verified(
       'minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept',

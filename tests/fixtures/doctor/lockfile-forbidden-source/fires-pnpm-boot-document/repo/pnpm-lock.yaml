@@ -1,0 +1,84 @@
+---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 12.16.1
+        version: 12.16.1
+
+packages:
+
+  '@pnpm/exe.linux-x64@12.16.1':
+    resolution: {integrity: sha512-xdu7gMbB98pdvhwMeA6612Of515FDlRUtfA/1f7nWPZfPLnEdSRBO2u+1N0XBtQ/ennhPH/lrxB1gC6gnR/cdg==}
+    cpu: [x64]
+    os: [linux]
+
+  pnpm@12.16.1:
+    resolution: {integrity: sha512-PKf78Ew+i0CBYf0Xc+eMcqQiqyBT+u8XCVg1F5roc98/6wWfdYlWhrUMmEBiKWaJ3JqHxrtt8l1NwZ7qfJt2/Q==}
+    hasBin: true
+
+snapshots:
+
+  '@pnpm/exe.linux-x64@12.16.1':
+    optional: true
+
+  pnpm@12.16.1:
+    optionalDependencies:
+      '@pnpm/exe.linux-x64': 12.16.1
+
+---
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      is-negative:
+        specifier: github:kevva/is-negative#master
+        version: https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c
+      tar-pkg:
+        specifier: file:../tar-pkg-1.0.0.tgz
+        version: file:../tar-pkg-1.0.0.tgz
+      sub-dep:
+        specifier: file:./sub-dep
+        version: file:sub-dep
+      is-positive:
+        specifier: workspace:^
+        version: link:../is-positive
+
+packages:
+
+  foo@git+https://example.com/foo.git#0123456789abcdef0123456789abcdef01234567:
+    resolution: {commit: 0123456789abcdef0123456789abcdef01234567, repo: https://example.com/foo.git, type: git}
+    version: 1.0.0
+
+  is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c:
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c}
+    version: 2.1.0
+    engines: {node: '>=0.10.0'}
+
+  sub-dep@file:sub-dep:
+    resolution: {directory: sub-dep, type: directory}
+    version: 1.0.0
+
+  tar-pkg@file:../tar-pkg-1.0.0.tgz:
+    resolution: {integrity: sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==, tarball: file:../tar-pkg-1.0.0.tgz}
+    version: 1.0.0
+
+snapshots:
+
+  foo@git+https://example.com/foo.git#0123456789abcdef0123456789abcdef01234567: {}
+
+  is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c: {}
+
+  sub-dep@file:sub-dep: {}
+
+  tar-pkg@file:../tar-pkg-1.0.0.tgz: {}
