@@ -72,7 +72,11 @@ export const dependabot: ToolKnowledge = {
     ),
   },
   extra: {
-    cooldownKeys: verified({ days: 'default-days', exclude: 'exclude' }, `${OPTIONS}#cooldown`, 'Keys inside the cooldown block of an updates entry.'),
+    cooldownKeys: verified(
+      { days: 'default-days', exclude: 'exclude', semverDays: ['semver-major-days', 'semver-minor-days', 'semver-patch-days'] },
+      `${OPTIONS}#cooldown`,
+      'Keys inside the cooldown block of an updates entry; the semver-* keys override default-days for that kind of update.',
+    ),
     excludeWildcards: verified({ since: '0.0.0', trailingOnly: false }, `${OPTIONS}#cooldown`, 'cooldown.exclude accepts * wildcards.'),
     ecosystems: verified(
       { npm: ['npm', 'pnpm', 'yarn'], bun: ['bun'], deno: ['deno'] },

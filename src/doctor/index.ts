@@ -1,14 +1,13 @@
 // `depgate doctor`: finds configuration that does not do what it seems to, and drift from depgate.json. Every rule
 // reads the repository through the same read-only Repository as detection; nothing is written or executed.
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { loadPolicy } from '../apply/index.ts';
+import { loadPolicyIfPresent } from '../apply/index.ts';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { RULES } from './rules/index.ts';
+import { UNREADABLE_WARNINGS, unreadableConfig } from './rules/unreadable-config.ts';
 import type { DoctorReport, Finding, Notice, Rule } from './types.ts';
 
 export type { DoctorReport, Finding, Level, Location, Notice, Rule } from './types.ts';
@@ -26,7 +25,7 @@ function byLocation(a: Finding, b: Finding): number {
 /** Runs the rules on a repository. Throws PolicyError when depgate.json exists but is invalid. */
 export function runDoctor(root: string, options: { rules?: readonly Rule[]; tools?: readonly ToolKnowledge[] } = {}): DoctorReport {
   const tools = options.tools ?? knowledgeBase;
-  const policy = existsSync(join(root, POLICY_FILE)) ? loadPolicy(root) : undefined;
+  const policy = loadPolicyIfPresent(root);
   const detection = detectProject(root);
   const repository = new Repository(root);
   const findings: Finding[] = [];
@@ -36,7 +35,8 @@ export function runDoctor(root: string, options: { rules?: readonly Rule[]; tool
   };
   if (policy === undefined) notice(`no ${POLICY_FILE}: only the rules that do not need a policy ran`);
 
-  for (const rule of options.rules ?? RULES) {
+  const rules = options.rules ?? RULES;
+  for (const rule of rules) {
     if (rule.requiresPolicy && policy === undefined) continue;
     rule.check({
       root,
@@ -48,6 +48,9 @@ export function runDoctor(root: string, options: { rules?: readonly Rule[]; tool
       notice,
     });
   }
-  for (const warning of repository.warnings) notice(warning.message, warning.files[0]);
+  const reported = rules.includes(unreadableConfig);
+  for (const warning of repository.warnings) {
+    if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
+  }
   return { schemaVersion: 1, policy: policy === undefined ? 'missing' : 'valid', findings: findings.sort(byLocation), notices };
 }

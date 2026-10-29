@@ -1,0 +1,9 @@
+{
+  "name": "app",
+  "packageManager": "npm@11.19.1",
+  "dependencies": {
+    "evil": "^1.0.0",
+    "odd": "^1.0.0",
+    "fine": "^1.0.0"
+  }
+}

@@ -17,6 +17,13 @@ export interface Snippet {
   text: string;
 }
 
+/** A file a generator could not read or edit; nothing is written when there is one. */
+export interface EditFailure {
+  tool: ToolId;
+  file: string;
+  message: string;
+}
+
 export interface Context {
   tool: ToolKnowledge;
   name: string;
@@ -24,6 +31,10 @@ export interface Context {
   /** undefined: no exact version is pinned, so the latest known version is assumed. */
   version: Version | undefined;
   workspace: Workspace;
+  /** Whether the file exists; a file that cannot be read stops the generator with an error. */
+  exists(file: string): boolean;
+  /** The file's text (empty when missing); a file that cannot be read stops the generator with an error. */
+  read(file: string): string;
   warn(message: string): void;
   snippet(file: string, text: string): void;
   /** Whether the pinned version has a setting available since `since`; warns when it is too old. */
@@ -62,9 +73,9 @@ export function createContext(options: {
   workspace: Workspace;
   warnings: string[];
   snippets: Snippet[];
-  errors: string[];
+  failures: EditFailure[];
 }): Context {
-  const { tool, workspace, warnings, errors } = options;
+  const { tool, workspace, warnings, failures } = options;
   const atLeast = (since: string | undefined): boolean => {
     const required = since === undefined ? undefined : parseVersion(since);
     return options.version === undefined || required === undefined || compareVersions(options.version, required) >= 0;
@@ -77,8 +88,9 @@ export function createContext(options: {
       return action();
     } catch (error) {
       if (error instanceof EditFailed) throw error;
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`${tool.name}: cannot edit ${file}: ${message}`);
+      // Parsers put a code frame after the first line; the first line says what is wrong.
+      const message = (error instanceof Error ? error.message : String(error)).split('\n', 1)[0]?.replace(/:$/u, '') ?? '';
+      failures.push({ tool: tool.id, file, message });
       throw new EditFailed(message);
     }
   };
@@ -88,6 +100,8 @@ export function createContext(options: {
     policy: options.policy,
     version: options.version,
     workspace,
+    exists: (file) => guard(file, () => workspace.exists(file)),
+    read: (file) => guard(file, () => workspace.read(file)),
     warn,
     snippet: (file, text) => options.snippets.push({ tool: tool.id, file, text }),
     supports(since, setting) {

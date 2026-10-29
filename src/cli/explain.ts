@@ -1,11 +1,10 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { detectProject } from '../detect/index.ts';
 import type { Detection, VersionDeclaration } from '../detect/types.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId } from '../knowledge/types.ts';
 import { convertCooldown } from '../policy/convert.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
+import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
 import { detectedTargets, managerName, toolName } from './describe.ts';
@@ -48,9 +47,10 @@ function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[]): { min
 }
 
 function policyReport(directory: string, detection: Detection): PolicyReport | null {
-  const path = join(directory, POLICY_FILE);
-  if (!existsSync(path)) return null;
-  const result = parsePolicy(readFileSync(path, 'utf8'));
+  const file = readPolicyFile(directory);
+  if (file.status === 'missing') return null;
+  if (file.status === 'unreadable') return { file: POLICY_FILE, valid: false, issues: [file.reason] };
+  const result = parsePolicy(file.text);
   if (!result.ok) return { file: POLICY_FILE, valid: false, issues: result.issues.map(formatIssue) };
   const targets =
     result.policy.targets === 'auto'

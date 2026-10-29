@@ -1,10 +1,10 @@
 // config-drift: what `depgate apply` would change is exactly what no longer matches the policy, so the rule plans
 // an apply in memory and reports the first difference in every file.
 import { lines, myers } from '../../apply/diff.ts';
-import { planApply } from '../../apply/index.ts';
 import { YAML_MARKER } from '../../apply/yaml-edit.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { allowEntries, matchesPattern } from '../allow-lists.ts';
+import { plannedApply } from '../plan.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
 function clean(line: string): string {
@@ -40,12 +40,12 @@ function checkAllowLists(context: RuleContext): void {
   for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
     if (targets !== undefined && targets !== 'auto' && !targets.includes(manager.id)) continue;
     for (const entry of allowEntries(context.repository, manager.id, manager.configFiles)) {
-      if (scripts.allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+      if (scripts.allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
       context.report({
         level: 'warning',
         location: entry.line === undefined ? { file: entry.file } : { file: entry.file, line: entry.line },
         message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
-        fix: `Remove ${entry.name} from ${entry.setting}, or add it to installScripts.allow in ${POLICY_FILE}`,
+        fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.name === entry.package ? 'it' : entry.package} to installScripts.allow in ${POLICY_FILE}`,
       });
     }
   }
@@ -60,9 +60,9 @@ export const configDrift: Rule = {
   level: 'error',
   requiresPolicy: true,
   check(context) {
-    if (context.policy === undefined) return;
-    const plan = planApply(context.root, context.policy, context.detection, context.tools);
-    for (const error of plan.errors) context.notice(`config-drift could not check a file: ${error}`);
+    const plan = plannedApply(context);
+    if (plan === undefined) return;
+    // Files apply cannot edit are reported by unreadable-config.
     for (const change of plan.changes) {
       if (change.before === null) {
         context.report({ location: { file: POLICY_FILE }, message: `${change.file} is missing; depgate apply would create it with the settings from ${POLICY_FILE}` });

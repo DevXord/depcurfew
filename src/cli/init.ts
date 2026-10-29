@@ -1,5 +1,6 @@
-import { existsSync, writeFileSync } from 'node:fs';
+import { lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { writeChanges } from '../apply/workspace.ts';
 import { detectProject } from '../detect/index.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
 import { detectedNames } from './describe.ts';
@@ -17,10 +18,19 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
 
   const target = join(absolute, POLICY_FILE);
   const shownTarget = directory === undefined ? POLICY_FILE : join(directory, POLICY_FILE);
-  const existed = existsSync(target);
+  const existing = lstatSync(target, { throwIfNoEntry: false });
+  const text = renderPolicy(DEFAULT_POLICY);
   try {
-    // 'wx' fails if the file appeared in the meantime, so nothing is overwritten without --force.
-    writeFileSync(target, renderPolicy(DEFAULT_POLICY), { flag: force ? 'w' : 'wx' });
+    if (existing === undefined || !force) {
+      // 'wx' fails if the file appeared in the meantime, so nothing is overwritten without --force.
+      writeFileSync(target, text, { flag: 'wx' });
+    } else if (existing.isSymbolicLink()) {
+      io.stderr(`depgate: ${shownTarget} is a symlink; depgate does not write through symlinks\n`);
+      return EXIT_FAILURE;
+    } else {
+      // Through a temporary file and a rename, like apply: the directory entry is replaced, never followed.
+      writeChanges(absolute, [{ file: POLICY_FILE, before: readFileSync(target, 'utf8'), after: text }]);
+    }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
       io.stderr(`depgate: ${shownTarget} already exists; pass --force to overwrite it.\n`);
@@ -30,7 +40,7 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
     return EXIT_FAILURE;
   }
   const detected = detectedNames(detectProject(absolute));
-  io.stdout(`${existed ? 'Overwrote' : 'Created'} ${shownTarget} with the default policy.\n`);
+  io.stdout(`${existing === undefined ? 'Created' : 'Overwrote'} ${shownTarget} with the default policy.\n`);
   io.stdout(`Detected tools: ${detected.length === 0 ? 'none' : detected.join(', ')}.\n`);
   return EXIT_OK;
 }

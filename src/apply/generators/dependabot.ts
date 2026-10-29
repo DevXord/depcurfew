@@ -1,5 +1,5 @@
-// Dependabot: cooldown in every updates entry of a JavaScript ecosystem in dependabot.yml. Keys inside an
-// existing cooldown block that depgate does not manage (semver-*-days, include) stay as they are.
+// Dependabot: cooldown in every updates entry of a JavaScript ecosystem in dependabot.yml. semver-*-days keys that
+// are already there are raised to the policy's delay (never lowered, never added); other keys (include) stay.
 import { convertCooldown } from '../../policy/convert.ts';
 import { extraOf, isRecord, settingOf, values } from '../facts.ts';
 import { exclusions, sameList } from './common.ts';
@@ -8,15 +8,20 @@ import type { BotGenerator } from './context.ts';
 interface CooldownKeys {
   days: string;
   exclude: string;
+  semverDays: string[];
 }
 
 const isKeys = (value: unknown): value is CooldownKeys =>
-  isRecord(value) && typeof value['days'] === 'string' && typeof value['exclude'] === 'string';
+  isRecord(value) &&
+  typeof value['days'] === 'string' &&
+  typeof value['exclude'] === 'string' &&
+  Array.isArray(value['semverDays']) &&
+  value['semverDays'].every((key) => typeof key === 'string');
 
 export const dependabot: BotGenerator = (context, duration) => {
-  const { tool, policy, workspace } = context;
+  const { tool, policy } = context;
   if (policy.cooldown === undefined || duration === undefined) return;
-  const file = (values(tool.cooldown.configFiles)[0] ?? []).find((name) => workspace.exists(name));
+  const file = (values(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
   if (file === undefined) {
     context.warn(`${context.name}: no configuration file found; depgate does not create one`);
     return;
@@ -45,6 +50,10 @@ export const dependabot: BotGenerator = (context, duration) => {
       return;
     }
     yaml.set(['updates', index, setting, keys.days], result.value);
+    for (const key of keys.semverDays) {
+      const days = current[key];
+      if (typeof days === 'number' && typeof result.value === 'number' && days < result.value) yaml.set(['updates', index, setting, key], result.value);
+    }
     if ((patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) {
       yaml.set(['updates', index, setting, keys.exclude], patterns);
     }

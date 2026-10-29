@@ -73,6 +73,22 @@ function findPair(node: Node, key: string): Pair<Node, Node | null> | undefined 
   return (node.items as Pair<Node, Node | null>[]).filter((pair) => isScalar(pair.key) && String(pair.key.value) === key).at(-1);
 }
 
+/** Whether a map or sequence is written in flow style ({ ... } or [ ... ]). */
+function isFlow(node: Node): boolean {
+  return (isMap(node) || isSeq(node)) && node.flow === true;
+}
+
+/**
+ * New keys and block values cannot be written into a flow collection without rewriting it, which would not keep the
+ * file as it is; the user rewrites it or sets the value by hand. Scalars inside it are still replaced in place.
+ */
+function refuseFlow(path: Path, index: number, value: unknown): never {
+  const where = index === 0 ? 'the document' : path.slice(0, index).join('.');
+  throw new Error(
+    `${where} is written in flow style ({ ... } or [ ... ]), which depgate does not edit; rewrite it in block style, or set ${path.join('.')} to ${JSON.stringify(value)} by hand`,
+  );
+}
+
 /** Sets the value at `path`, creating missing maps on the way, and marks the key that was written. */
 export function yamlSet(text: string, path: Path, value: unknown): string {
   const { document, lineCounter } = parse(text);
@@ -94,6 +110,7 @@ export function yamlSet(text: string, path: Path, value: unknown): string {
     if (!isMap(node)) throw new Error(`${path.slice(0, index).join('.')} is not a map`);
     const pair = findPair(node, segment);
     if (pair === undefined) {
+      if (isFlow(node)) refuseFlow(path, index, value);
       // Append a new key at the end of this map, at the indentation of its first key.
       const first = node.items[0] as Pair<Node, Node | null> | undefined;
       const indent = first === undefined || first.key.range === null || first.key.range === undefined ? '' : ' '.repeat(column(first.key.range[0]));
@@ -113,6 +130,7 @@ export function yamlSet(text: string, path: Path, value: unknown): string {
         const [start, end] = valueNode.range as [number, number, number];
         replaced = `${text.slice(0, start)}${render(value, text).trimEnd()}${text.slice(end)}`;
       } else {
+        if (isFlow(node)) refuseFlow(path, index, value);
         const colon = text.indexOf(':', keyRange[1]);
         const end = valueNode === null ? text.indexOf('\n', colon) : (valueNode.range as [number, number, number])[2];
         const stop = end === -1 ? text.length : end;
@@ -129,6 +147,7 @@ export function yamlSet(text: string, path: Path, value: unknown): string {
       return mark(replaced, keyRange[0]);
     }
     if (pair.value === null || !(isMap(pair.value) || isSeq(pair.value))) {
+      if (isFlow(node)) refuseFlow(path, index, value);
       // A scalar stands where a map is needed: replace it with the nested map.
       return yamlSet(text, path.slice(0, index + 1), nest(path.slice(index + 1), value));
     }

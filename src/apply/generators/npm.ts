@@ -56,6 +56,10 @@ export const npm: ManagerGenerator = (context) => {
     managed.push(setting);
   });
 
-  if (entries.length > 0 || context.workspace.read(file).includes(BLOCK_START)) context.ini(file, entries, managed);
+  // Without entries, the file is still edited when it sets a managed key by hand (such as the switch that allows
+  // every install script while the policy denies them), so that the key is commented out.
+  if (entries.length > 0 || context.read(file).includes(BLOCK_START) || (managed.length > 0 && context.exists(file))) {
+    context.ini(file, entries, managed);
+  }
   return minutes;
 };

@@ -3,10 +3,15 @@
 import { isRecord } from '../apply/facts.ts';
 import type { PackageManagerId } from '../detect/types.ts';
 import type { Repository } from '../detect/repository.ts';
+import { wildcardMatch } from '../detect/wildcard.ts';
+import { splitSpec } from './lockfiles.ts';
 import { jsonSetting, lineOf, yamlSetting } from './settings.ts';
 
 export interface AllowEntry {
+  /** As written, possibly with a version (esbuild@0.25.0, which npm install-scripts approve writes). */
   name: string;
+  /** The package it names, without a version. */
+  package: string;
   file: string;
   line: number | undefined;
   /** The setting as written, e.g. "allowBuilds" or "dependenciesMeta". */
@@ -21,14 +26,17 @@ function fromKeys(text: string, file: string, setting: string, value: unknown, e
   if (!isRecord(value)) return [];
   return Object.entries(value)
     .filter(([, entry]) => enabled(entry))
-    .map(([name]) => ({ name, file, line: lineOf(text, JSON.stringify(name)) ?? lineOf(text, `${name}:`), setting }));
+    .map(([name]) => ({ name, package: splitSpec(name).name, file, line: lineOf(text, JSON.stringify(name)) ?? lineOf(text, `${name}:`), setting }));
 }
 
 function fromList(text: string, file: string, setting: string, value: unknown, prefix = ''): AllowEntry[] {
   if (!Array.isArray(value)) return [];
   return (value as unknown[])
     .filter((item): item is string => typeof item === 'string')
-    .map((item) => ({ name: item.startsWith(prefix) ? item.slice(prefix.length) : item, file, line: lineOf(text, item), setting }));
+    .map((item) => {
+      const name = item.startsWith(prefix) ? item.slice(prefix.length) : item;
+      return { name, package: splitSpec(name).name, file, line: lineOf(text, item), setting };
+    });
 }
 
 /** Entries that let a package run its install scripts, per manager. Unreadable files give no entries. */
@@ -71,6 +79,5 @@ export function allowEntries(repository: Repository, manager: PackageManagerId, 
 
 /** Whether a package name matches a policy pattern; `*` stands for any characters except `/`. */
 export function matchesPattern(name: string, pattern: string): boolean {
-  const expression = pattern.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/gu, '\\$&')).join('[^/]*');
-  return new RegExp(`^${expression}$`, 'u').test(name);
+  return wildcardMatch(name, pattern);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lowestVersion } from '../../src/doctor/version-range.ts';
+import { belowVersion, lowestVersion } from '../../src/doctor/version-range.ts';
 
 describe('lowestVersion', () => {
   it.each([
@@ -19,12 +19,28 @@ describe('lowestVersion', () => {
     ['*', { kind: 'range', version: [0, 0, 0] }],
     ['1.2.3 - 2.0.0', { kind: 'range', version: [1, 2, 3] }],
     ['^9.0.0 || ^10.16.0', { kind: 'range', version: [9, 0, 0] }],
-    ['11.0.0-rc.1', { kind: 'exact', version: [11, 0, 0] }],
+    ['11.0.0-rc.1', { kind: 'exact', version: [11, 0, 0], prerelease: 'rc.1' }],
+    ['^10.16.0-beta.2', { kind: 'range', version: [10, 16, 0], prerelease: 'beta.2' }],
+    ['>10.16.0-rc.1', { kind: 'range', version: [10, 16, 0], prerelease: 'rc.1' }],
+    ['10.16.0+build.5', { kind: 'exact', version: [10, 16, 0] }],
+    ['>= 10.0.0', { kind: 'range', version: [10, 0, 0] }],
+    ['^ 10.2.0', { kind: 'range', version: [10, 2, 0] }],
+    ['>= 4.10 < 5', { kind: 'range', version: [4, 10, 0] }],
+    ['= 4.12.0', { kind: 'exact', version: [4, 12, 0] }],
     ['latest', { kind: 'unknown' }],
     ['lts/*', { kind: 'unknown' }],
     ['${{ matrix.pnpm }}', { kind: 'unknown' }],
     ['', { kind: 'unknown' }],
   ])('%s', (text, expected) => {
     expect(lowestVersion(text)).toEqual(expected);
+  });
+});
+
+describe('belowVersion', () => {
+  it('orders a prerelease before its release', () => {
+    expect(belowVersion({ version: [10, 16, 0], prerelease: 'rc.1' }, [10, 16, 0])).toBe(true);
+    expect(belowVersion({ version: [10, 16, 0] }, [10, 16, 0])).toBe(false);
+    expect(belowVersion({ version: [10, 16, 1], prerelease: 'rc.1' }, [10, 16, 0])).toBe(false);
+    expect(belowVersion({ version: [10, 15, 9] }, [10, 16, 0])).toBe(true);
   });
 });

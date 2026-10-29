@@ -56,6 +56,6 @@ export const bun: ManagerGenerator = (context) => {
 
   eachSource(context, () => undefined);
 
-  if (entries.length > 0 || context.workspace.read(file).includes(BLOCK_START)) context.toml(file, table, entries, managed);
+  if (entries.length > 0 || context.read(file).includes(BLOCK_START)) context.toml(file, table, entries, managed);
   return minutes;
 };

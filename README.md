@@ -197,6 +197,14 @@ Fix: Replace the dependency with a registry version, or allow that source in dep
 Install scripts run arbitrary code during installation. Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile.
 
 Fix: Remove or replace the package, or add it to installScripts.allow in depgate.json after reviewing its scripts.
+
+### `unreadable-config`
+
+**error** · A configuration file or lockfile cannot be read, parsed or edited, so depgate cannot check it.
+
+A package manager or bot may still read the file and its settings may weaken the policy; depgate fails closed and reports an error instead of passing silently.
+
+Fix: Fix what the message describes: invalid syntax, a symlink, a file over the size limit or a style depgate apply cannot edit.
 <!-- END GENERATED: rules -->
 
 ## GitHub Action

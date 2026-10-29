@@ -1,10 +1,87 @@
 import { createRequire } from "node:module";
-import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, posix, relative, resolve, sep } from "node:path";
+import { appendFileSync, chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
+import { randomUUID } from "node:crypto";
 
 // \0rolldown/runtime.js
 var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod, mod.exports), cb = null), mod.exports);
 var __require = /* #__PURE__ */ (() => createRequire(import.meta.url))();
+
+// src/knowledge/facts.ts
+/** The evidence behind a fact: one entry, or every variant of a disputed fact. */
+function evidenceOf(fact) {
+	return fact.status === "disputed" ? fact.variants : [fact];
+}
+
+// src/apply/version.ts
+/** An exact version such as 11.6.0 or v2.9.8; ranges, tags and expressions are not exact. */
+function parseVersion(text) {
+	const match = /^v?(\d+)\.(\d+)\.(\d+)$/u.exec(text.trim());
+	return match === null ? void 0 : [
+		Number(match[1]),
+		Number(match[2]),
+		Number(match[3])
+	];
+}
+function compareVersions$1(a, b) {
+	return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+}
+function formatVersion(version) {
+	return version.join(".");
+}
+/** The first exact version the repository pins, in the order of the detection (packageManager first). */
+function pinnedVersion(manager) {
+	for (const declaration of manager.versions) {
+		const version = "version" in declaration ? parseVersion(declaration.version) : void 0;
+		if (version !== void 0) return version;
+	}
+}
+
+// src/apply/facts.ts
+function values$1(fact) {
+	return evidenceOf(fact).map((evidence) => evidence.value);
+}
+/** The first file of a list of configuration files. */
+function firstFile(fact) {
+	return values$1(fact)[0]?.[0];
+}
+/** The setting name, or null if any official source says it does not exist. */
+function settingOf(fact) {
+	if (fact === void 0) return null;
+	const all = values$1(fact);
+	return all.includes(null) ? null : all[0] ?? null;
+}
+/** The latest first version among the variants; undefined when not recorded. */
+function sinceOf(fact) {
+	if (fact === void 0) return void 0;
+	const versions = values$1(fact).filter((value) => value !== null && parseVersion(value) !== void 0);
+	if (versions.length === 0) return void 0;
+	return versions.sort((a, b) => compareVersions$1(parseVersion(a) ?? [
+		0,
+		0,
+		0
+	], parseVersion(b) ?? [
+		0,
+		0,
+		0
+	])).at(-1);
+}
+/** A structured fact from `extra`; throws when the knowledge base lacks it, which tests catch. */
+function extraOf(tool, key, check) {
+	const fact = tool.extra?.[key];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	if (!check(value)) throw new Error(`knowledge base: ${tool.id} extra.${key} is missing or malformed`);
+	return value;
+}
+function isRecord(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isSwitch(value) {
+	return isRecord(value) && typeof value["setting"] === "string" && "value" in value;
+}
+function isWildcards(value) {
+	return isRecord(value) && (typeof value["since"] === "string" || value["since"] === null) && typeof value["trailingOnly"] === "boolean";
+}
 
 // src/knowledge/define.ts
 /** Fact constructors that stamp every fact of one tool module with the date it was verified. */
@@ -269,8 +346,13 @@ const dependabot$1 = {
 	extra: {
 		cooldownKeys: verified$5({
 			days: "default-days",
-			exclude: "exclude"
-		}, `${OPTIONS$1}#cooldown`, "Keys inside the cooldown block of an updates entry."),
+			exclude: "exclude",
+			semverDays: [
+				"semver-major-days",
+				"semver-minor-days",
+				"semver-patch-days"
+			]
+		}, `${OPTIONS$1}#cooldown`, "Keys inside the cooldown block of an updates entry; the semver-* keys override default-days for that kind of update."),
 		excludeWildcards: verified$5({
 			since: "0.0.0",
 			trailingOnly: false
@@ -458,8 +540,9 @@ const npm$1 = {
 			gitPrefixes: ["git+", "git:"],
 			filePrefix: "file:",
 			linkFlag: "link",
-			registryTarball: "^https?://[^/]+/.+/-/[^/]+-\\d"
-		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md", "Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package."),
+			registryTarball: "^https?://[^/]+/.+/-/[^/]+-\\d",
+			specWithoutResolved: "version"
+		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md", "Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package. An entry without resolved is installed as <name>@<version> (workspaces/arborist/lib/arborist/reify.js, #extractOrLink, in 11.19.1 and 12.2.1), so its version field is the source then."),
 		npmrcScope: checked$3.verified({
 			read: "project root",
 			workspacePackages: "ignored"
@@ -1038,7 +1121,11 @@ const environment = {
 					contents: "read"
 				}
 			}
-		}, "https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file", "The example workflow on this page needs security-events: write in every repository and actions: read with contents: read only in private ones. The inputs come from upload-sarif/action.yml in github/codeql-action (current major v4, v4.39.1 checked); category tells analyses of the same tool and commit apart.")
+		}, "https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file", "The example workflow on this page needs security-events: write in every repository and actions: read with contents: read only in private ones. The inputs come from upload-sarif/action.yml in github/codeql-action (current major v4, v4.39.1 checked); category tells analyses of the same tool and commit apart."),
+		stopCommands: checked.verified({
+			stop: "::stop-commands::{token}",
+			resume: "::{token}::"
+		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands", "Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs.")
 	}
 };
 
@@ -7728,6 +7815,19 @@ var require_dist = /* @__PURE__ */ __commonJSMin(((exports) => {
 
 // src/detect/jsonc.ts
 var import_dist = require_dist();
+/** The index of the first character from `from` on that is neither whitespace nor inside a comment. */
+function nextSignificant(text, from) {
+	let index = from;
+	for (;;) {
+		while (index < text.length && /\s/u.test(text[index])) index += 1;
+		if (text.startsWith("//", index)) while (index < text.length && text[index] !== "\n") index += 1;
+		else if (text.startsWith("/*", index)) {
+			const end = text.indexOf("*/", index + 2);
+			if (end === -1) return text.length;
+			index = end + 2;
+		} else return index;
+	}
+}
 /** Parses JSON that may contain comments and trailing commas (JSONC), as used by deno.json and deno.jsonc. */
 function parseJsonc(text) {
 	let output = "";
@@ -7747,18 +7847,16 @@ function parseJsonc(text) {
 			if (end === -1) throw new SyntaxError("unterminated block comment");
 			output += text.slice(index, end + 2).replace(/[^\n]/gu, " ");
 			index = end + 2;
+		} else if (char === ",") {
+			const following = text[nextSignificant(text, index + 1)];
+			output += following === "}" || following === "]" ? " " : ",";
+			index += 1;
 		} else {
 			output += char;
 			index += 1;
 		}
 	}
-	return JSON.parse(output.replace(/,(\s*[}\]])/gu, "$1"));
-}
-
-// src/knowledge/facts.ts
-/** The evidence behind a fact: one entry, or every variant of a disputed fact. */
-function evidenceOf(fact) {
-	return fact.status === "disputed" ? fact.variants : [fact];
+	return JSON.parse(output);
 }
 
 // src/detect/knowledge.ts
@@ -7771,12 +7869,12 @@ const PACKAGE_MANAGERS = [
 ];
 const BOTS$1 = ["renovate", "dependabot"];
 const SHARED_FILES = /* @__PURE__ */ new Set(["package.json", ".npmrc"]);
-function values$1(fact) {
+function values(fact) {
 	return evidenceOf(fact).map((evidence) => evidence.value);
 }
 /** The value of a fact; for a disputed fact the first variant, which must agree with the others in shape. */
 function first(fact) {
-	const [value] = values$1(fact);
+	const [value] = values(fact);
 	return value;
 }
 function unique(items) {
@@ -7801,11 +7899,11 @@ function detectionFacts(tools, environment) {
 		const entry = tool$1(tools, id);
 		const project = entry.project;
 		if (project === void 0) throw new Error(`knowledge base: ${id} has no project facts`);
-		const manifests = unique(values$1(project.manifests).flat());
-		const ownConfig = values$1(entry.cooldown.configFiles).flat();
+		const manifests = unique(values(project.manifests).flat());
+		const ownConfig = values(entry.cooldown.configFiles).flat();
 		return {
 			id,
-			lockfiles: unique(values$1(project.lockfiles).flatMap(allVersions)),
+			lockfiles: unique(values(project.lockfiles).flatMap(allVersions)),
 			manifests,
 			configFiles: unique([...ownConfig, ...manifests]).filter((file) => !SHARED_FILES.has(file)),
 			workspaces: {
@@ -7820,7 +7918,7 @@ function detectionFacts(tools, environment) {
 		const key = packageJson === void 0 ? null : first(packageJson).key;
 		return {
 			id,
-			configFiles: unique(values$1(entry.cooldown.configFiles).flat()),
+			configFiles: unique(values(entry.cooldown.configFiles).flat()),
 			packageJsonKey: typeof key === "string" ? key : null
 		};
 	});
@@ -8068,29 +8166,68 @@ function readWorkflows(repository, facts) {
 	return findings;
 }
 
+// src/detect/wildcard.ts
+/** Whether `text` matches `pattern`, in which `*` stands for any run of characters (including none). */
+function matchSegment(text, pattern) {
+	let at = 0;
+	let index = 0;
+	let star = -1;
+	let resume = 0;
+	while (at < text.length) if (index < pattern.length && pattern[index] === "*") {
+		star = index;
+		index += 1;
+		resume = at;
+	} else if (index < pattern.length && pattern[index] === text[at]) {
+		index += 1;
+		at += 1;
+	} else if (star !== -1) {
+		index = star + 1;
+		resume += 1;
+		at = resume;
+	} else return false;
+	while (pattern[index] === "*") index += 1;
+	return index === pattern.length;
+}
+/** Whether `text` matches `pattern`, in which `*` stands for any characters except `/`. */
+function wildcardMatch(text, pattern) {
+	const parts = text.split("/");
+	const patternParts = pattern.split("/");
+	return parts.length === patternParts.length && parts.every((part, index) => matchSegment(part, patternParts[index] ?? ""));
+}
+
 // src/detect/workspaces.ts
 function segmentsOf(pattern) {
-	return pattern.split("/").filter((segment) => segment !== "" && segment !== ".").map((segment) => {
-		if (segment === "**") return { kind: "any-depth" };
-		const source = segment.replace(/[.+?^${}()|[\]\\]/gu, "\\$&").replaceAll("*", "[^/]*");
-		return {
+	const segments = [];
+	for (const segment of pattern.split("/")) {
+		if (segment === "" || segment === ".") continue;
+		if (segment === "**") {
+			if (segments.at(-1)?.kind !== "any-depth") segments.push({ kind: "any-depth" });
+		} else segments.push({
 			kind: "pattern",
-			regex: new RegExp(`^${source}$`, "u")
-		};
-	});
+			pattern: segment
+		});
+	}
+	return segments;
 }
-function matchDirectories(repository, segments, directory, found) {
-	const [segment, ...rest] = segments;
+/**
+* Adds to `found` the directories under `directory` that match the segments from `index` on. Each pair of directory
+* and segment is visited once, so several ** in one pattern cannot multiply the walk.
+*/
+function matchDirectories(repository, segments, index, directory, found, visited) {
+	const key = `${index}\0${directory}`;
+	if (visited.has(key)) return;
+	visited.add(key);
+	const segment = segments[index];
 	if (segment === void 0) {
 		found.add(directory);
 		return;
 	}
 	if (segment.kind === "any-depth") {
-		matchDirectories(repository, rest, directory, found);
-		for (const child of repository.listDirectories(directory)) matchDirectories(repository, segments, joinPath(directory, child), found);
+		matchDirectories(repository, segments, index + 1, directory, found, visited);
+		for (const child of repository.listDirectories(directory)) matchDirectories(repository, segments, index, joinPath(directory, child), found, visited);
 		return;
 	}
-	for (const child of repository.listDirectories(directory)) if (segment.regex.test(child)) matchDirectories(repository, rest, joinPath(directory, child), found);
+	for (const child of repository.listDirectories(directory)) if (wildcardMatch(child, segment.pattern)) matchDirectories(repository, segments, index + 1, joinPath(directory, child), found, visited);
 }
 /** Package directories (without the root) matched by the patterns that contain one of the manifests. */
 function expandWorkspaces(repository, patterns, manifests, declaredIn) {
@@ -8103,7 +8240,7 @@ function expandWorkspaces(repository, patterns, manifests, declaredIn) {
 			repository.warn("workspace-outside-repository", `workspace pattern "${raw}" points outside the repository`, [declaredIn]);
 			continue;
 		}
-		matchDirectories(repository, segmentsOf(pattern), ".", negated ? excluded : included);
+		matchDirectories(repository, segmentsOf(pattern), 0, ".", negated ? excluded : included, /* @__PURE__ */ new Set());
 	}
 	return [...included].filter((directory) => directory !== "." && !excluded.has(directory)).filter((directory) => manifests.some((manifest) => repository.isFile(joinPath(directory, manifest)))).sort();
 }
@@ -8137,7 +8274,7 @@ function devEngineEntries(value) {
 		...typeof entry["version"] === "string" ? { version: entry["version"] } : {}
 	}] : []);
 }
-function compareVersions$1(a, b) {
+function compareVersions(a, b) {
 	return SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source) || a.file.localeCompare(b.file) || (a.line ?? 0) - (b.line ?? 0);
 }
 function compareEvidence(a, b) {
@@ -8337,7 +8474,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 			...yarn === void 0 ? {} : { variant: yarn.variant },
 			supported: yarn?.variant !== "classic",
 			evidence: [...evidence].sort(compareEvidence),
-			versions: [...collector.versions.get(manager.id) ?? []].sort(compareVersions$1),
+			versions: [...collector.versions.get(manager.id) ?? []].sort(compareVersions),
 			configFiles: configFiles(repository, manager, directories)
 		});
 	}
@@ -8362,7 +8499,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	if (manifest === void 0 && packageManagers.length === 0 && !repository.isFile("package.json")) repository.warn("nothing-detected", "no package.json, deno.json or lockfile found", []);
 	return {
 		packageManagers,
-		node: { versions: [...collector.versions.get("node") ?? []].sort(compareVersions$1) },
+		node: { versions: [...collector.versions.get("node") ?? []].sort(compareVersions) },
 		bots,
 		workspaces,
 		npmrcFiles: directories.map((directory) => joinPath(directory, ".npmrc")).filter((file) => repository.isFile(file)).sort(byPath),
@@ -8491,6 +8628,25 @@ function parseDuration(input) {
 	const [first] = tokens;
 	const suggestion = tokens.length === 1 && first !== void 0 ? `${BigInt(first.number)}${units[0]}` : formatDuration(Number(minutes));
 	return failure(`${/\s/u.test(input) ? "spaces are not allowed" : tokens.some((token) => token.unit !== token.unit.toLowerCase()) ? "units are lowercase" : tokens.some((token) => token.unit.length > 1) ? "use the short unit" : tokens.length > 1 ? "use a single unit" : "leading zeros are not allowed"}; write "${suggestion}"`);
+}
+
+// src/policy/file.ts
+function readPolicyFile(root) {
+	try {
+		lstatSync(join(root, POLICY_FILE));
+	} catch {
+		return { status: "missing" };
+	}
+	const repository = new Repository(root);
+	const text = repository.readText(POLICY_FILE);
+	if (text !== void 0) return {
+		status: "ok",
+		text
+	};
+	return {
+		status: "unreadable",
+		reason: repository.warnings[0]?.message ?? `${"depgate.json"} is not a regular file and was not read`
+	};
 }
 
 // src/policy/convert.ts
@@ -9074,80 +9230,12 @@ function formatIssue(issue) {
 	return `${issue.path}: ${issue.message}`;
 }
 
-// src/apply/version.ts
-/** An exact version such as 11.6.0 or v2.9.8; ranges, tags and expressions are not exact. */
-function parseVersion(text) {
-	const match = /^v?(\d+)\.(\d+)\.(\d+)$/u.exec(text.trim());
-	return match === null ? void 0 : [
-		Number(match[1]),
-		Number(match[2]),
-		Number(match[3])
-	];
-}
-function compareVersions(a, b) {
-	return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-}
-function formatVersion(version) {
-	return version.join(".");
-}
-/** The first exact version the repository pins, in the order of the detection (packageManager first). */
-function pinnedVersion(manager) {
-	for (const declaration of manager.versions) {
-		const version = "version" in declaration ? parseVersion(declaration.version) : void 0;
-		if (version !== void 0) return version;
-	}
-}
-
-// src/apply/facts.ts
-function values(fact) {
-	return evidenceOf(fact).map((evidence) => evidence.value);
-}
-/** The first file of a list of configuration files. */
-function firstFile(fact) {
-	return values(fact)[0]?.[0];
-}
-/** The setting name, or null if any official source says it does not exist. */
-function settingOf(fact) {
-	if (fact === void 0) return null;
-	const all = values(fact);
-	return all.includes(null) ? null : all[0] ?? null;
-}
-/** The latest first version among the variants; undefined when not recorded. */
-function sinceOf(fact) {
-	if (fact === void 0) return void 0;
-	const versions = values(fact).filter((value) => value !== null && parseVersion(value) !== void 0);
-	if (versions.length === 0) return void 0;
-	return versions.sort((a, b) => compareVersions(parseVersion(a) ?? [
-		0,
-		0,
-		0
-	], parseVersion(b) ?? [
-		0,
-		0,
-		0
-	])).at(-1);
-}
-/** A structured fact from `extra`; throws when the knowledge base lacks it, which tests catch. */
-function extraOf(tool, key, check) {
-	const fact = tool.extra?.[key];
-	const value = fact === void 0 ? void 0 : values(fact)[0];
-	if (!check(value)) throw new Error(`knowledge base: ${tool.id} extra.${key} is missing or malformed`);
-	return value;
-}
-function isRecord(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function isSwitch(value) {
-	return isRecord(value) && typeof value["setting"] === "string" && "value" in value;
-}
-function isWildcards(value) {
-	return isRecord(value) && (typeof value["since"] === "string" || value["since"] === null) && typeof value["trailingOnly"] === "boolean";
-}
-
 // src/apply/block.ts
 const BLOCK_START = "# >>> depgate managed block: edit depgate.json and run depgate apply instead";
 const BLOCK_END = "# <<< depgate managed block";
 const SUPERSEDED = "# depgate: superseded by the managed block: ";
+/** For a managed key commented out when no block is written, such as a switch the policy turns off. */
+const TURNED_OFF = "# depgate: turned off; depgate.json manages this setting: ";
 /** The lines without the managed block, where it was, and whether a blank line separated it from what came before. */
 function removeBlock(lines) {
 	const start = lines.findIndex((line) => line.trim() === BLOCK_START);
@@ -9335,7 +9423,7 @@ const bun = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.workspace.read(file).includes("# >>> depgate managed block: edit depgate.json and run depgate apply instead")) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || context.read(file).includes("# >>> depgate managed block: edit depgate.json and run depgate apply instead")) context.toml(file, table, entries, managed);
 	return minutes;
 };
 
@@ -9352,7 +9440,7 @@ function writeIniBlock(body, entries, managedKeys) {
 	const removed = removeBlock(splitLines(body));
 	const lines = removed.lines.map((line) => {
 		const key = keyOf$1(line);
-		return key !== void 0 && managed.has(key) ? `${SUPERSEDED}${line.trim()}` : line;
+		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}` : line;
 	});
 	if (entries.length === 0) return joinLines(lines);
 	return joinLines(removed.at === void 0 ? insertBlock(lines, lines.length, entries) : insertBlock(lines, removed.at, entries, removed.separated));
@@ -9505,7 +9593,12 @@ function insertItem(text, container, lastEnd, firstStart, entry) {
 	const containerIndent = lineIndent(text, container.start);
 	if (lastEnd === void 0 || firstStart === void 0) {
 		const indent = containerIndent + unit;
-		return `${text.slice(0, container.start + 1)}\n${indent}${entry(indent)}\n${containerIndent}${text.slice(container.end - 1)}`;
+		let at = container.start + 1;
+		if (text.slice(container.start + 1, container.end - 1).trim() !== "") {
+			at = container.end - 1;
+			while (at > container.start + 1 && /\s/u.test(text[at - 1])) at -= 1;
+		}
+		return `${text.slice(0, at)}\n${indent}${entry(indent)}\n${containerIndent}${text.slice(container.end - 1)}`;
 	}
 	if (isSameLine(text, container.start, firstStart)) return `${text.slice(0, lastEnd)}, ${entry("").replaceAll(/\n\s*/gu, " ")}${text.slice(lastEnd)}`;
 	const indent = lineIndent(text, firstStart);
@@ -9582,15 +9675,35 @@ function jsonArrayReplace(text, path, index, value) {
 	if (element === void 0) throw new Error(`no element ${index} at ${path.join(".")}`);
 	return `${text.slice(0, element.start)}${serialize(value, indentUnit$1(text), lineIndent(text, element.start))}${text.slice(element.end)}`;
 }
+/** Removes the line around `at` when only whitespace is left on it. */
+function dropBlankLine(text, at) {
+	const lineStart = text.lastIndexOf("\n", at - 1) + 1;
+	const newline = text.indexOf("\n", at);
+	const lineEnd = newline === -1 ? text.length : newline;
+	return lineStart > 0 && text.slice(lineStart, lineEnd).trim() === "" ? `${text.slice(0, lineStart - 1)}${text.slice(lineEnd)}` : text;
+}
+/**
+* Removes the element and the comma that separates it (the one after it, or before it for the last element), and its
+* line when nothing else is left on it. Comments stay, also those next to the element.
+*/
 function jsonArrayRemove(text, path, index) {
 	const { elements, start, end } = arrayAt(text, path);
 	const element = elements[index];
 	if (element === void 0) throw new Error(`no element ${index} at ${path.join(".")}`);
+	const blank = (from, to) => text.slice(from, to).trim() === "";
+	if (elements.length === 1 && `${text.slice(start + 1, element.start)}${text.slice(element.end, end - 1)}`.replaceAll(",", "").trim() === "") return `${text.slice(0, start + 1)}${text.slice(end - 1)}`;
+	const after = nextSignificant(text, element.end);
+	if (text[after] === ",") {
+		if (!blank(element.end, after)) return dropBlankLine(`${text.slice(0, element.start)}${text.slice(element.end, after)}${text.slice(after + 1)}`, element.start);
+		let stop = after + 1;
+		while (text[stop] === " " || text[stop] === "	") stop += 1;
+		return dropBlankLine(`${text.slice(0, element.start)}${text.slice(stop)}`, element.start);
+	}
 	const previous = elements[index - 1];
-	const next = elements[index + 1];
-	if (previous !== void 0) return `${text.slice(0, previous.end)}${text.slice(element.end)}`;
-	if (next !== void 0) return `${text.slice(0, element.start)}${text.slice(next.start)}`;
-	return `${text.slice(0, start + 1)}${text.slice(end - 1)}`;
+	const comma = previous === void 0 ? void 0 : nextSignificant(text, previous.end);
+	if (previous === void 0 || comma === void 0 || text[comma] !== ",") return dropBlankLine(`${text.slice(0, element.start)}${text.slice(element.end)}`, element.start);
+	if (blank(previous.end, comma) && blank(comma + 1, element.start)) return `${text.slice(0, comma)}${text.slice(element.end)}`;
+	return dropBlankLine(`${text.slice(0, comma)}${text.slice(comma + 1, element.start)}${text.slice(element.end)}`, element.start - 1);
 }
 
 // src/apply/toml.ts
@@ -9602,25 +9715,88 @@ function keyOf(line) {
 	if (equals === -1) return void 0;
 	return trimmed.slice(0, equals).trim().replace(/^["']|["']$/gu, "");
 }
+/** Follows a value through one line: strings (with escapes), multi-line strings, arrays, inline tables, comments. */
+function scanLine(line, state) {
+	let { depth, string } = state;
+	for (let index = 0; index < line.length; index++) {
+		const char = line[index];
+		if (string === "\"\"\"" || string === "'''") {
+			if (string === "\"\"\"" && char === "\\") index += 1;
+			else if (line.startsWith(string, index)) {
+				string = "";
+				index += 2;
+			}
+			continue;
+		}
+		if (string === "\"") {
+			if (char === "\\") index += 1;
+			else if (char === "\"") string = "";
+			continue;
+		}
+		if (string === "'") {
+			if (char === "'") string = "";
+			continue;
+		}
+		if (char === "#") break;
+		if (line.startsWith("\"\"\"", index) || line.startsWith("'''", index)) {
+			string = line.startsWith("\"\"\"", index) ? "\"\"\"" : "'''";
+			index += 2;
+		} else if (char === "\"" || char === "'") string = char;
+		else if (char === "[" || char === "{") depth += 1;
+		else if (char === "]" || char === "}") depth -= 1;
+	}
+	return {
+		depth,
+		string: string === "\"" || string === "'" ? "" : string
+	};
+}
+/** The index of the last line of the value that starts after the `=` on line `index`. */
+function valueEnd(lines, index) {
+	const line = lines[index] ?? "";
+	let state = scanLine(line.slice(line.indexOf("=") + 1), {
+		depth: 0,
+		string: ""
+	});
+	let end = index;
+	while ((state.depth > 0 || state.string !== "") && end + 1 < lines.length) {
+		end += 1;
+		state = scanLine(lines[end] ?? "", state);
+	}
+	return end;
+}
 function writeTomlBlock(body, table, entries, managedKeys) {
 	const managed = new Set(managedKeys);
 	const removed = removeBlock(splitLines(body));
+	const lines = [...removed.lines];
+	const headers = /* @__PURE__ */ new Map();
+	const boundaries = [];
 	let current;
-	const lines = removed.lines.map((line) => {
+	let definedAtTop = false;
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
 		const header = HEADER.exec(line);
 		if (header !== null) {
 			current = header[1];
-			return line;
+			boundaries.push(index);
+			if (!line.trim().startsWith("[[") && current !== void 0) headers.set(index, current);
+			continue;
 		}
 		const key = keyOf(line);
-		if (key === void 0) return line;
+		if (key === void 0) continue;
+		const end = valueEnd(lines, index);
 		const inTable = current === table && managed.has(key);
 		const dotted = current === void 0 && key.startsWith(`${table}.`) && managed.has(key.slice(table.length + 1));
-		return inTable || dotted ? `${SUPERSEDED}${line.trim()}` : line;
-	});
+		if (inTable || dotted) {
+			lines[index] = `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}`;
+			for (let next = index + 1; next <= end; next++) lines[next] = `# ${lines[next] ?? ""}`;
+		} else if (current === void 0 && (key === table || key.startsWith(`${table}.`))) definedAtTop = true;
+		index = end;
+	}
 	if (entries.length === 0) return joinLines(lines);
-	const headerIndex = lines.findIndex((line) => HEADER.exec(line)?.[1] === table && !line.trim().startsWith("[["));
+	const headerIndex = [...headers].find(([, name]) => name === table)?.[0] ?? -1;
+	const nextHeaderAfter = (from) => boundaries.find((index) => index > from) ?? -1;
 	if (headerIndex === -1) {
+		if (definedAtTop) throw new Error(`${table} is defined with dotted keys or an inline table, so a [${table}] table cannot be added; move its settings under a [${table}] header`);
 		const prefix = lines.length > 0 && lines.at(-1)?.trim() !== "" ? [...lines, ""] : lines;
 		return joinLines([
 			...prefix,
@@ -9629,10 +9805,10 @@ function writeTomlBlock(body, table, entries, managedKeys) {
 		]);
 	}
 	if (removed.at !== void 0 && removed.at > headerIndex) {
-		const nextHeader = lines.findIndex((line, index) => index > headerIndex && HEADER.test(line));
+		const nextHeader = nextHeaderAfter(headerIndex);
 		if (nextHeader === -1 || removed.at <= nextHeader) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
 	}
-	let end = lines.findIndex((line, index) => index > headerIndex && HEADER.test(line));
+	let end = nextHeaderAfter(headerIndex);
 	if (end === -1) end = lines.length;
 	while (end > headerIndex + 1 && lines[end - 1]?.trim() === "") end -= 1;
 	return joinLines(insertBlock(lines, end, entries));
@@ -9698,6 +9874,18 @@ function findPair(node, key) {
 	if (!(0, import_dist.isMap)(node)) return void 0;
 	return node.items.filter((pair) => (0, import_dist.isScalar)(pair.key) && String(pair.key.value) === key).at(-1);
 }
+/** Whether a map or sequence is written in flow style ({ ... } or [ ... ]). */
+function isFlow(node) {
+	return ((0, import_dist.isMap)(node) || (0, import_dist.isSeq)(node)) && node.flow === true;
+}
+/**
+* New keys and block values cannot be written into a flow collection without rewriting it, which would not keep the
+* file as it is; the user rewrites it or sets the value by hand. Scalars inside it are still replaced in place.
+*/
+function refuseFlow(path, index, value) {
+	const where = index === 0 ? "the document" : path.slice(0, index).join(".");
+	throw new Error(`${where} is written in flow style ({ ... } or [ ... ]), which depgate does not edit; rewrite it in block style, or set ${path.join(".")} to ${JSON.stringify(value)} by hand`);
+}
 /** Sets the value at `path`, creating missing maps on the way, and marks the key that was written. */
 function yamlSet(text, path, value) {
 	const { document, lineCounter } = parse(text);
@@ -9714,6 +9902,7 @@ function yamlSet(text, path, value) {
 		if (!(0, import_dist.isMap)(node)) throw new Error(`${path.slice(0, index).join(".")} is not a map`);
 		const pair = findPair(node, segment);
 		if (pair === void 0) {
+			if (isFlow(node)) refuseFlow(path, index, value);
 			const first = node.items[0];
 			const indent = first === void 0 || first.key.range === null || first.key.range === void 0 ? "" : " ".repeat(column(first.key.range[0]));
 			let insertAt = (node.range ?? [
@@ -9734,6 +9923,7 @@ function yamlSet(text, path, value) {
 				const [start, end] = valueNode.range;
 				replaced = `${text.slice(0, start)}${render(value, text).trimEnd()}${text.slice(end)}`;
 			} else {
+				if (isFlow(node)) refuseFlow(path, index, value);
 				const colon = text.indexOf(":", keyRange[1]);
 				const end = valueNode === null ? text.indexOf("\n", colon) : valueNode.range[2];
 				const stop = end === -1 ? text.length : end;
@@ -9746,7 +9936,10 @@ function yamlSet(text, path, value) {
 			}
 			return mark(replaced, keyRange[0]);
 		}
-		if (pair.value === null || !((0, import_dist.isMap)(pair.value) || (0, import_dist.isSeq)(pair.value))) return yamlSet(text, path.slice(0, index + 1), nest(path.slice(index + 1), value));
+		if (pair.value === null || !((0, import_dist.isMap)(pair.value) || (0, import_dist.isSeq)(pair.value))) {
+			if (isFlow(node)) refuseFlow(path, index, value);
+			return yamlSet(text, path.slice(0, index + 1), nest(path.slice(index + 1), value));
+		}
 		node = pair.value;
 	}
 	return text;
@@ -9755,10 +9948,10 @@ function yamlSet(text, path, value) {
 // src/apply/generators/context.ts
 var EditFailed = class extends Error {};
 function createContext(options) {
-	const { tool, workspace, warnings, errors } = options;
+	const { tool, workspace, warnings, failures } = options;
 	const atLeast = (since) => {
 		const required = since === void 0 ? void 0 : parseVersion(since);
-		return options.version === void 0 || required === void 0 || compareVersions(options.version, required) >= 0;
+		return options.version === void 0 || required === void 0 || compareVersions$1(options.version, required) >= 0;
 	};
 	const warn = (message) => {
 		if (!warnings.includes(message)) warnings.push(message);
@@ -9768,8 +9961,12 @@ function createContext(options) {
 			return action();
 		} catch (error) {
 			if (error instanceof EditFailed) throw error;
-			const message = error instanceof Error ? error.message : String(error);
-			errors.push(`${tool.name}: cannot edit ${file}: ${message}`);
+			const message = (error instanceof Error ? error.message : String(error)).split("\n", 1)[0]?.replace(/:$/u, "") ?? "";
+			failures.push({
+				tool: tool.id,
+				file,
+				message
+			});
 			throw new EditFailed(message);
 		}
 	};
@@ -9779,6 +9976,8 @@ function createContext(options) {
 		policy: options.policy,
 		version: options.version,
 		workspace,
+		exists: (file) => guard(file, () => workspace.exists(file)),
+		read: (file) => guard(file, () => workspace.read(file)),
 		warn,
 		snippet: (file, text) => options.snippets.push({
 			tool: tool.id,
@@ -9816,7 +10015,7 @@ const isString$2 = (value) => typeof value === "string";
 function configFile(context) {
 	const manifests = context.tool.project?.manifests;
 	const names = manifests !== void 0 && manifests.status !== "disputed" ? [...manifests.value] : ["deno.json"];
-	return names.find((name) => context.workspace.exists(name)) ?? names[0] ?? "deno.json";
+	return names.find((name) => context.exists(name)) ?? names[0] ?? "deno.json";
 }
 const deno = (context) => {
 	const { tool, policy } = context;
@@ -9863,11 +10062,11 @@ const deno = (context) => {
 };
 
 // src/apply/generators/dependabot.ts
-const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string";
+const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
 const dependabot = (context, duration) => {
-	const { tool, policy, workspace } = context;
+	const { tool, policy } = context;
 	if (policy.cooldown === void 0 || duration === void 0) return;
-	const file = (values(tool.cooldown.configFiles)[0] ?? []).find((name) => workspace.exists(name));
+	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
 	if (file === void 0) {
 		context.warn(`${context.name}: no configuration file found; depgate does not create one`);
 		return;
@@ -9906,6 +10105,15 @@ const dependabot = (context, duration) => {
 			setting,
 			keys.days
 		], result.value);
+		for (const key of keys.semverDays) {
+			const days = current[key];
+			if (typeof days === "number" && typeof result.value === "number" && days < result.value) yaml.set([
+				"updates",
+				index,
+				setting,
+				key
+			], result.value);
+		}
 		if ((patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) yaml.set([
 			"updates",
 			index,
@@ -9963,7 +10171,7 @@ const npm = (context) => {
 		entries.push(`${setting}=${access === "deny" ? "none" : "all"}`);
 		managed.push(setting);
 	});
-	if (entries.length > 0 || context.workspace.read(file).includes("# >>> depgate managed block: edit depgate.json and run depgate apply instead")) context.ini(file, entries, managed);
+	if (entries.length > 0 || context.read(file).includes("# >>> depgate managed block: edit depgate.json and run depgate apply instead") || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
 	return minutes;
 };
 
@@ -10041,7 +10249,7 @@ const isString = (value) => typeof value === "string";
 const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
 const isPath = (value) => Array.isArray(value) && value.every(isString);
 const renovate = (context, duration) => {
-	const { tool, policy, workspace } = context;
+	const { tool, policy } = context;
 	if (policy.cooldown === void 0 || duration === void 0) return;
 	const result = convertCooldown(tool, duration);
 	if (!result.ok) {
@@ -10059,7 +10267,7 @@ const renovate = (context, duration) => {
 		[setting]: rule.value
 	};
 	const security = policy.cooldown.securityUpdates === "delay" ? result.value : null;
-	const file = (values(tool.cooldown.configFiles)[0] ?? []).find((name) => workspace.exists(name));
+	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
 	const snippet = () => JSON.stringify({
 		[setting]: result.value,
 		...patterns.length > 0 ? { [rule.list]: [exclusionRule] } : {},
@@ -10067,7 +10275,7 @@ const renovate = (context, duration) => {
 	}, null, 2);
 	if (file === void 0 || !/\.jsonc?$/u.test(file)) {
 		const packageJson = extraOf(tool, "packageJsonConfig", isRecord);
-		const where = file ?? (workspace.exists("package.json") && context.json("package.json").get([String(packageJson["key"])]) !== void 0 ? "package.json" : void 0);
+		const where = file ?? (context.exists("package.json") && context.json("package.json").get([String(packageJson["key"])]) !== void 0 ? "package.json" : void 0);
 		if (where === void 0) {
 			context.warn(`${context.name}: no configuration file found; depgate does not create one`);
 			return;
@@ -10207,6 +10415,17 @@ var Workspace = class {
 		return changes.sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : 0);
 	}
 };
+/** Writes each changed file through a temporary file and a rename, keeping the permissions of existing files. */
+function writeChanges(root, changes) {
+	for (const change of changes) {
+		const path = join(root, change.file);
+		mkdirSync(dirname(path), { recursive: true });
+		const temporary = `${path}.depgate-${process.pid}-${Date.now()}`;
+		writeFileSync(temporary, change.after, { flag: "wx" });
+		if (change.before !== null) chmodSync(temporary, statSync(path).mode);
+		renameSync(temporary, path);
+	}
+}
 
 // src/apply/index.ts
 const MANAGERS = {
@@ -10222,7 +10441,7 @@ const BOTS = {
 };
 function latestVersion$1(tool) {
 	const fact = tool.extra?.["latestVersion"];
-	const value = fact === void 0 ? void 0 : values(fact)[0];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	return typeof value === "string" ? value : void 0;
 }
 /** The bots' delay: the policy's, or longer if a package manager rounded its delay up further. */
@@ -10238,7 +10457,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	const workspace = new Workspace(root);
 	const warnings = [];
 	const snippets = [];
-	const errors = [];
+	const failures = [];
 	const targets = new Set(policy.targets === "auto" ? detectedTargets(detection) : policy.targets);
 	for (const manager of detection.packageManagers) if (!manager.supported && (policy.targets === "auto" || targets.has(manager.id))) {
 		warnings.push(`${manager.variant === "classic" ? "Yarn Classic (1.x)" : manager.id} is not supported; nothing written for it`);
@@ -10253,7 +10472,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 			workspace,
 			warnings,
 			snippets,
-			errors
+			failures
 		});
 		try {
 			action(context);
@@ -10282,11 +10501,13 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		if (generator === void 0 || !targets.has(tool.id)) continue;
 		run(tool, void 0, (context) => generator(context, duration));
 	}
+	const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
 	return {
 		changes: workspace.changes(),
 		warnings,
 		snippets,
-		errors
+		errors,
+		failures
 	};
 }
 var PolicyError = class extends Error {
@@ -10296,14 +10517,12 @@ var PolicyError = class extends Error {
 		this.issues = issues;
 	}
 };
-function loadPolicy(root) {
-	let text;
-	try {
-		text = readFileSync(join(root, POLICY_FILE), "utf8");
-	} catch {
-		throw new PolicyError(`no ${POLICY_FILE} in ${root}; run 'depgate init' first`);
-	}
-	const result = parsePolicy(text);
+/** The policy of the repository; undefined when it has no depgate.json. Throws PolicyError when it cannot be used. */
+function loadPolicyIfPresent(root) {
+	const file = readPolicyFile(root);
+	if (file.status === "missing") return void 0;
+	if (file.status === "unreadable") throw new PolicyError(file.reason);
+	const result = parsePolicy(file.text);
 	if (!result.ok) throw new PolicyError(`${POLICY_FILE} is invalid`, result.issues.map(formatIssue));
 	return result.policy;
 }
@@ -10362,7 +10581,7 @@ function delayMinutes(tool, value, version) {
 		minutes: 0
 	};
 	if (typeof value === "number") {
-		const unit = values(tool.cooldown.unit)[0];
+		const unit = values$1(tool.cooldown.unit)[0];
 		const factor = unit === null || unit === void 0 ? void 0 : UNIT_MINUTES[unit];
 		return factor === void 0 ? {
 			ok: false,
@@ -10379,13 +10598,13 @@ function delayMinutes(tool, value, version) {
 	const text = value.trim();
 	if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
 	const fact = tool.extra?.["durationStrings"];
-	const format = fact === void 0 ? void 0 : values(fact)[0];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
 	if (!isRecord(format) || typeof format["syntax"] !== "string") return {
 		ok: false,
 		reason: `${tool.name} takes no duration strings`
 	};
 	const since = typeof format["since"] === "string" ? parseVersion(format["since"]) : void 0;
-	if (since !== void 0 && version !== void 0 && compareVersions(version, since) < 0) return {
+	if (since !== void 0 && version !== void 0 && compareVersions$1(version, since) < 0) return {
 		ok: false,
 		reason: `${tool.name} accepts duration strings only since ${format["since"]}`
 	};
@@ -10555,7 +10774,7 @@ function lineOf(text, needle) {
 // src/doctor/effective.ts
 function latestVersion(tool) {
 	const fact = tool.extra?.["latestVersion"];
-	const value = fact === void 0 ? void 0 : values(fact)[0];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	return typeof value === "string" ? parseVersion(value) : void 0;
 }
 /** The value in effect at `version` (or the latest entry when the version is unknown). */
@@ -10563,13 +10782,13 @@ function versionedValue(list, version) {
 	let current;
 	for (const entry of list) {
 		const since = parseVersion(entry.since);
-		if (version === void 0 || since === void 0 || compareVersions(version, since) >= 0) current = entry.value;
+		if (version === void 0 || since === void 0 || compareVersions$1(version, since) >= 0) current = entry.value;
 	}
 	return current;
 }
 function managerConfigFiles(tool, manager) {
 	if (tool.id === "deno") return manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file));
-	return (values(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== ".npmrc" || tool.id === "npm").slice(0, 1);
+	return (values$1(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== ".npmrc" || tool.id === "npm").slice(0, 1);
 }
 /** The package manager's delay, or undefined (with a notice) when a configured value cannot be read. */
 function managerDelay(context, manager, tool) {
@@ -10577,7 +10796,7 @@ function managerDelay(context, manager, tool) {
 	const versionText = version === void 0 ? tool.name : `${tool.name} ${formatVersion(version)}`;
 	const setting = settingOf(tool.cooldown.setting);
 	const since = sinceOf(tool.cooldown.availableSince);
-	if (!(since === void 0 || version === void 0 || compareVersions(version, parseVersion(since) ?? [
+	if (!(since === void 0 || version === void 0 || compareVersions$1(version, parseVersion(since) ?? [
 		0,
 		0,
 		0
@@ -10622,6 +10841,8 @@ function managerDelay(context, manager, tool) {
 // src/doctor/rules/bot-cooldown.ts
 const isEcosystems = (value) => isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
 const isPresets = (value) => isRecord(value) && Array.isArray(value["presets"]) && typeof value["value"] === "string";
+const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && Array.isArray(value["semverDays"]);
+const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
 function describe(minutes) {
 	return minutes === 0 ? "no delay" : formatMinutes(minutes);
 }
@@ -10631,22 +10852,20 @@ function dependabotDelays(context, bot, file) {
 	const updates = yamlSetting(text, ["updates"]);
 	if (updates === void 0 || !Array.isArray(updates.value)) return [];
 	const ecosystems = extraOf(bot, "ecosystems", isEcosystems);
-	const fallback = versionedValue(values(bot.cooldown.default)[0] ?? [], void 0);
-	const securityBypass = values(bot.cooldown.securityUpdates).includes("bypass");
+	const keys = extraOf(bot, "cooldownKeys", isCooldownKeys);
+	const fallback = versionedValue(values$1(bot.cooldown.default)[0] ?? [], void 0);
+	const securityBypass = values$1(bot.cooldown.securityUpdates).includes("bypass");
 	return updates.value.flatMap((entry, index) => {
 		if (!isRecord(entry) || typeof entry["package-ecosystem"] !== "string") return [];
 		const managers = ecosystems[entry["package-ecosystem"]] ?? [];
 		if (managers.length === 0) return [];
 		const cooldown = isRecord(entry["cooldown"]) ? entry["cooldown"] : void 0;
-		const base = typeof cooldown?.["default-days"] === "number" ? cooldown["default-days"] : typeof fallback === "number" ? fallback : 0;
-		const semver = [
-			"semver-major-days",
-			"semver-minor-days",
-			"semver-patch-days"
-		].filter((key) => typeof cooldown?.[key] === "number");
+		const configuredDays = cooldown?.[keys.days];
+		const base = typeof configuredDays === "number" ? configuredDays : typeof fallback === "number" ? fallback : 0;
+		const semver = keys.semverDays.filter((key) => typeof cooldown?.[key] === "number");
 		const days = Math.min(base, ...semver.map((key) => cooldown?.[key]));
 		const shortest = semver.find((key) => cooldown?.[key] === days);
-		const origin = cooldown === void 0 ? `Dependabot's default (${describe(days * 1440)})` : shortest !== void 0 && days < base ? `${shortest}: ${days} in ${file}` : typeof cooldown["default-days"] === "number" ? `default-days: ${days} in ${file}` : `Dependabot's default (${describe(days * 1440)})`;
+		const origin = cooldown === void 0 ? `Dependabot's default (${describe(days * 1440)})` : shortest !== void 0 && days < base ? `${shortest}: ${days} in ${file}` : typeof cooldown[keys.days] === "number" ? `${keys.days}: ${days} in ${file}` : `Dependabot's default (${describe(days * 1440)})`;
 		const line = yamlSetting(text, [
 			"updates",
 			String(index),
@@ -10680,19 +10899,25 @@ function renovateDelays(context, bot, file) {
 		"bun",
 		"deno"
 	];
-	const configured = jsonSetting(text, ["minimumReleaseAge"]);
-	const security = jsonSetting(text, ["vulnerabilityAlerts", "minimumReleaseAge"]);
-	const securityBypass = security === void 0 ? values(bot.cooldown.securityUpdates).includes("bypass") : security.value === null;
+	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig);
+	const base = file === packageJson.file ? [packageJson.key] : [];
+	const configured = jsonSetting(text, [...base, "minimumReleaseAge"]);
+	const security = jsonSetting(text, [
+		...base,
+		"vulnerabilityAlerts",
+		"minimumReleaseAge"
+	]);
+	const securityBypass = security === void 0 ? values$1(bot.cooldown.securityUpdates).includes("bypass") : security.value === null;
 	let value = null;
 	let origin = "Renovate has no delay by default";
 	let line = 1;
 	if (configured !== void 0) {
 		value = configured.value;
-		origin = `minimumReleaseAge: ${JSON.stringify(configured.value)} in ${file}`;
+		origin = `${[...base, "minimumReleaseAge"].join(".")}: ${JSON.stringify(configured.value)} in ${file}`;
 		line = configured.line;
 	} else {
 		const presets = extraOf(bot, "minimumReleaseAgePresets", isPresets);
-		const extendsList = jsonSetting(text, ["extends"]);
+		const extendsList = jsonSetting(text, [...base, "extends"]);
 		const preset = Array.isArray(extendsList?.value) ? extendsList.value.find((item) => typeof item === "string" && presets.presets.includes(item)) : void 0;
 		if (typeof preset === "string") {
 			value = presets.value;
@@ -10715,13 +10940,14 @@ function renovateDelays(context, bot, file) {
 			line
 		},
 		securityBypass,
-		scope: "updates"
+		scope: "updates",
+		applies: base.length === 0 && /\.jsonc?$/u.test(file)
 	}];
 }
 function rechecksLockfile(tool, manager) {
 	const fact = tool.extra?.["lockfileRecheck"];
 	if (fact === void 0) return false;
-	const list = values(fact)[0];
+	const list = values$1(fact)[0];
 	return Array.isArray(list) && versionedValue(list, pinnedVersion(manager) ?? latestVersion(tool)) === true;
 }
 const botCooldownMismatch = {
@@ -10749,7 +10975,7 @@ const botCooldownMismatch = {
 			if (delay.minutes < own.minutes) context.report({
 				location: delay.location,
 				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
-				fix: `Make the ${delay.bot.name} delay at least ${describe(own.minutes)}, or run depgate apply`
+				fix: delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe(own.minutes)} in ${delay.location.file} (depgate apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe(own.minutes)}, or run depgate apply`
 			});
 			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager)) context.report({
 				level: "warning",
@@ -10794,7 +11020,7 @@ function checkManagers(context) {
 		if (knowledge === void 0) continue;
 		const setting = settingOf(knowledge.cooldown.exclude.setting);
 		if (setting === null) continue;
-		const files = manager.id === "deno" ? manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file)) : (values(knowledge.cooldown.configFiles)[0] ?? []).slice(0, 1);
+		const files = manager.id === "deno" ? manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file)) : (values$1(knowledge.cooldown.configFiles)[0] ?? []).slice(0, 1);
 		for (const file of files) {
 			const found = readSetting(context.repository, file, setting);
 			if (found === void 0 || !Array.isArray(found.value)) continue;
@@ -10935,271 +11161,35 @@ function myers(a, b) {
 	return operations.reverse();
 }
 
-// src/doctor/allow-lists.ts
-function read(repository, file) {
-	return repository.readText(file);
-}
-function fromKeys(text, file, setting, value, enabled) {
-	if (!isRecord(value)) return [];
-	return Object.entries(value).filter(([, entry]) => enabled(entry)).map(([name]) => ({
-		name,
-		file,
-		line: lineOf(text, JSON.stringify(name)) ?? lineOf(text, `${name}:`),
-		setting
-	}));
-}
-function fromList(text, file, setting, value, prefix = "") {
-	if (!Array.isArray(value)) return [];
-	return value.filter((item) => typeof item === "string").map((item) => ({
-		name: item.startsWith(prefix) ? item.slice(prefix.length) : item,
-		file,
-		line: lineOf(text, item),
-		setting
-	}));
-}
-/** Entries that let a package run its install scripts, per manager. Unreadable files give no entries. */
-function allowEntries(repository, manager, configFiles) {
-	const manifest = read(repository, "package.json");
-	const entries = [];
-	const json = (path) => manifest === void 0 ? void 0 : jsonSetting(manifest, path)?.value;
-	switch (manager) {
-		case "npm":
-			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "allowScripts", json(["allowScripts"]), (entry) => entry === true));
-			break;
-		case "pnpm": {
-			const workspace = read(repository, "pnpm-workspace.yaml");
-			if (workspace !== void 0) {
-				entries.push(...fromKeys(workspace, "pnpm-workspace.yaml", "allowBuilds", yamlSetting(workspace, ["allowBuilds"])?.value, (entry) => entry === true));
-				entries.push(...fromList(workspace, "pnpm-workspace.yaml", "onlyBuiltDependencies", yamlSetting(workspace, ["onlyBuiltDependencies"])?.value));
-			}
-			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "pnpm.onlyBuiltDependencies", json(["pnpm", "onlyBuiltDependencies"])));
-			break;
-		}
-		case "yarn":
-			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "dependenciesMeta", json(["dependenciesMeta"]), (entry) => isRecord(entry) && entry["built"] === true));
-			break;
-		case "bun":
-			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "trustedDependencies", json(["trustedDependencies"])));
-			break;
-		case "deno": for (const file of configFiles.filter((name) => /^deno\.jsonc?$/u.test(name))) {
-			const text = read(repository, file);
-			if (text === void 0) continue;
-			const value = jsonSetting(text, ["allowScripts"])?.value;
-			entries.push(...fromList(text, file, "allowScripts", isRecord(value) ? value["allow"] : value, "npm:"));
-		}
-	}
-	return entries;
-}
-/** Whether a package name matches a policy pattern; `*` stands for any characters except `/`. */
-function matchesPattern(name, pattern) {
-	const expression = pattern.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/gu, "\\$&")).join("[^/]*");
-	return new RegExp(`^${expression}$`, "u").test(name);
-}
-
-// src/doctor/rules/config-drift.ts
-function clean(line) {
-	return line.replace(/[\r\u0000]/gu, "").trim();
-}
-/** The line of `before` where the first difference starts, and what apply would remove or add there. */
-function firstDifference(before, after) {
-	const operations = myers(lines(before), lines(after));
-	let line = 1;
-	let index = 0;
-	while (index < operations.length && operations[index]?.kind === "same") {
-		line += 1;
-		index += 1;
-	}
-	let removed;
-	let added;
-	for (; index < operations.length && operations[index]?.kind !== "same"; index++) {
-		const operation = operations[index];
-		if (operation === void 0) break;
-		const text = clean(operation.line);
-		if (operation.kind === "delete") removed ??= text;
-		else if (text !== "" && text !== "# managed by depgate") added ??= text;
-	}
-	return {
-		line: Math.min(line, Math.max(lines(before).length, 1)),
-		removed,
-		added
-	};
-}
-/** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
-function checkAllowLists(context) {
-	const scripts = context.policy?.installScripts;
-	if (scripts?.default !== "deny") return;
-	const targets = context.policy?.targets;
-	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
-		if (targets !== void 0 && targets !== "auto" && !targets.includes(manager.id)) continue;
-		for (const entry of allowEntries(context.repository, manager.id, manager.configFiles)) {
-			if (scripts.allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
-			context.report({
-				level: "warning",
-				location: entry.line === void 0 ? { file: entry.file } : {
-					file: entry.file,
-					line: entry.line
-				},
-				message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
-				fix: `Remove ${entry.name} from ${entry.setting}, or add it to installScripts.allow in ${POLICY_FILE}`
-			});
-		}
-	}
-}
-const configDrift = {
-	id: "config-drift",
-	summary: "A configuration file does not match what depgate apply writes for depgate.json.",
-	description: "A generated setting was edited by hand, or depgate.json changed without running depgate apply, so the tools enforce something other than the policy.",
-	help: "Run depgate apply (depgate apply --dry-run shows the difference), or change depgate.json if the edit was intended.",
-	level: "error",
-	requiresPolicy: true,
-	check(context) {
-		if (context.policy === void 0) return;
-		const plan = planApply(context.root, context.policy, context.detection, context.tools);
-		for (const error of plan.errors) context.notice(`config-drift could not check a file: ${error}`);
-		for (const change of plan.changes) {
-			if (change.before === null) {
-				context.report({
-					location: { file: POLICY_FILE },
-					message: `${change.file} is missing; depgate apply would create it with the settings from ${POLICY_FILE}`
-				});
-				continue;
-			}
-			const difference = firstDifference(change.before, change.after);
-			const detail = difference.removed !== void 0 && difference.added !== void 0 ? `"${difference.removed}" should be "${difference.added}"` : difference.added !== void 0 ? `"${difference.added}" is missing` : `"${difference.removed ?? ""}" should not be there`;
-			context.report({
-				location: {
-					file: change.file,
-					line: difference.line
-				},
-				message: `${change.file} does not match ${POLICY_FILE}: ${detail}`
-			});
-		}
-		checkAllowLists(context);
-	}
-};
-
-// src/doctor/rules/ignored-setting.ts
-function atLeast(version, since) {
-	const required = typeof since === "string" ? parseVersion(since) : void 0;
-	return required !== void 0 && compareVersions(version, required) >= 0;
-}
-function kebab$1(setting) {
-	return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
-}
-/** Lockfiles an older version read but this one does not (only from verified facts). */
-function checkLockfiles(context, tool, version, label) {
-	const fact = tool.project?.lockfiles;
-	if (fact === void 0 || fact.status !== "verified") return;
-	const current = new Set(versionedValue(fact.value, version) ?? []);
-	const known = new Set(fact.value.flatMap((entry) => [...entry.value]));
-	for (const name of [...known].filter((file) => !current.has(file))) {
-		if (!context.repository.isFile(name)) continue;
-		context.report({
-			level: "warning",
-			location: { file: name },
-			message: `${label} does not read ${name}, so installs ignore the versions locked in it`,
-			fix: `Rename ${name} to ${[...current][0] ?? "the lockfile this version reads"}, or remove it`
-		});
-	}
-}
-function checkPnpm(context, tool, version, label) {
-	const ignored = extraOf(tool, "ignoredSince", isRecord);
-	const workspace = context.repository.readText("pnpm-workspace.yaml");
-	if (atLeast(version, ignored["since"])) {
-		const manifest = context.repository.readText("package.json");
-		const field = String(ignored["packageJsonField"]);
-		const found = manifest === void 0 ? void 0 : jsonSetting(manifest, [field]);
-		if (found !== void 0 && isRecord(found.value) && Object.keys(found.value).length > 0) context.report({
-			location: {
-				file: "package.json",
-				line: found.line
-			},
-			message: `${label} ignores the "${field}" field in package.json (${Object.keys(found.value).join(", ")})`,
-			fix: "Move these settings to pnpm-workspace.yaml"
-		});
-		const allowAll = tool.extra?.["allowAllBuilds"] === void 0 ? void 0 : extraOf(tool, "allowAllBuilds", isSwitch);
-		const settings = [
-			settingOf(tool.cooldown.setting),
-			settingOf(tool.cooldown.exclude.setting),
-			settingOf(tool.installScripts.allowList.setting),
-			"onlyBuiltDependencies",
-			allowAll?.setting ?? null,
-			settingOf(tool.sources?.git.setting)
-		].filter((setting) => setting !== null);
-		const npmrc = context.repository.readText(".npmrc");
-		for (const entry of npmrc === void 0 ? [] : iniEntries(npmrc)) {
-			const setting = settings.find((name) => kebab$1(name) === entry.key.replace(/\[\]$/u, ""));
-			if (setting === void 0) continue;
-			const inWorkspace = workspace !== void 0 && yamlSetting(workspace, [setting]) !== void 0;
-			context.report({
-				level: inWorkspace ? "warning" : "error",
-				location: {
-					file: ".npmrc",
-					line: entry.line
-				},
-				message: `${label} reads only ${String(ignored["npmrc"])} from .npmrc, so ${entry.key} has no effect${inWorkspace ? ` (pnpm-workspace.yaml sets ${setting})` : ""}`,
-				fix: `Set ${setting} in pnpm-workspace.yaml and remove the line from .npmrc`
-			});
-		}
-	}
-	const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord);
-	if (legacy !== void 0 && atLeast(version, legacy["removedIn"]) && workspace !== void 0) {
-		const found = yamlSetting(workspace, ["onlyBuiltDependencies"]);
-		if (found !== void 0) context.report({
-			level: "warning",
-			location: {
-				file: "pnpm-workspace.yaml",
-				line: found.line
-			},
-			message: `onlyBuiltDependencies was removed in pnpm ${String(legacy["removedIn"])}, so ${label} builds none of these packages`,
-			fix: `List the packages under ${settingOf(tool.installScripts.allowList.setting) ?? "allowBuilds"} instead`
-		});
-	}
-}
-/** Duration strings written for a version that silently ignores them. */
-function checkDurationStrings(context, tool, manager, version, label) {
-	const fact = tool.extra?.["durationStrings"];
-	const format = fact === void 0 ? void 0 : values(fact)[0];
-	if (!isRecord(format) || format["before"] !== "no effect" || atLeast(version, format["since"])) return;
-	const setting = settingOf(tool.cooldown.setting);
-	const file = values(tool.cooldown.configFiles)[0]?.[0];
-	if (setting === null || file === void 0 || !manager.configFiles.includes(file)) return;
-	const found = readSetting(context.repository, file, setting);
-	if (found === void 0 || typeof found.value !== "string" || /^\d+$/u.test(found.value.trim())) return;
-	context.report({
-		location: {
-			file,
-			line: found.line
-		},
-		message: `${label} ignores the duration string ${JSON.stringify(found.value)} in ${setting}; strings work only since ${String(format["since"])}, so no delay applies`,
-		fix: `Write the delay as a number in ${tool.cooldown.unit.status === "disputed" ? "the tool’s unit" : String(values(tool.cooldown.unit)[0])}, or require ${tool.name} ${String(format["since"])} or later`
-	});
-}
-const settingIgnoredByVersion = {
-	id: "setting-ignored-by-version",
-	summary: "A setting or file is ignored by the package manager version in use.",
-	description: "Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it.",
-	help: "Move the setting to the place and form this version reads.",
-	level: "error",
-	requiresPolicy: false,
-	check(context) {
-		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
-			const tool = context.tools.find((entry) => entry.id === manager.id);
-			if (tool === void 0) continue;
-			const pinned = pinnedVersion(manager);
-			const version = pinned ?? latestVersion(tool);
-			if (version === void 0) continue;
-			const label = `${tool.name} ${formatVersion(version)}${pinned === void 0 ? " (the latest known version; none is pinned)" : ""}`;
-			checkLockfiles(context, tool, version, label);
-			if (tool.id === "pnpm") checkPnpm(context, tool, version, label);
-			checkDurationStrings(context, tool, manager, version, label);
-		}
-	}
-};
-
 // src/doctor/lockfiles.ts
 /** Lockfiles are often larger than configuration files. */
 const MAX_LOCKFILE_SIZE = 67108864;
+/**
+* Finds the 1-based line of each anchor. Rules ask in the order the entries were parsed, which is the order of the
+* file, so each search continues where the last one stopped and a large lockfile is not scanned once per entry.
+*/
+function lineFinder(text) {
+	let newlines;
+	let cursor = 0;
+	return (anchor) => {
+		let offset = text.indexOf(anchor, cursor);
+		if (offset === -1) offset = text.indexOf(anchor);
+		if (offset === -1) return void 0;
+		cursor = offset + anchor.length;
+		if (newlines === void 0) {
+			newlines = [];
+			for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1)) newlines.push(index);
+		}
+		let low = 0;
+		let high = newlines.length;
+		while (low < high) {
+			const middle = low + high >> 1;
+			if ((newlines[middle] ?? 0) < offset) low = middle + 1;
+			else high = middle;
+		}
+		return low + 1;
+	};
+}
 function strings(value) {
 	return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 }
@@ -11215,6 +11205,7 @@ function splitSpec(key) {
 	};
 }
 const HTTP = /^https?:\/\//u;
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 function npmEntries(text, format, workspaces) {
 	const document = JSON.parse(text);
 	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
@@ -11226,15 +11217,17 @@ function npmEntries(text, format, workspaces) {
 		if (!key.includes("node_modules/") || !isRecord(value)) continue;
 		const name = typeof value["name"] === "string" ? value["name"] : key.slice(key.lastIndexOf("node_modules/") + 13);
 		const resolved = typeof value["resolved"] === "string" ? value["resolved"] : "";
+		const version = typeof value["version"] === "string" ? value["version"] : "";
+		const spec = resolved !== "" || format["specWithoutResolved"] !== "version" ? resolved : version;
 		let source = "unknown";
 		if (value[String(format["linkFlag"])] === true) source = workspaces.includes(resolved) ? "workspace" : "directory";
-		else if (strings(format["gitPrefixes"]).some((prefix) => resolved.startsWith(prefix))) source = "git";
-		else if (resolved.startsWith(String(format["filePrefix"]))) source = /\.(?:tgz|tar\.gz)$/u.test(resolved) ? "file" : "directory";
-		else if (HTTP.test(resolved)) source = registry.test(resolved) ? "registry" : "remoteTarball";
-		else if (resolved === "") source = "registry";
+		else if (strings(format["gitPrefixes"]).some((prefix) => spec.startsWith(prefix))) source = "git";
+		else if (spec.startsWith(String(format["filePrefix"]))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? "file" : "directory";
+		else if (HTTP.test(spec)) source = registry.test(spec) ? "registry" : "remoteTarball";
+		else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
 		entries.push({
 			name,
-			spec: resolved,
+			spec,
 			source,
 			installScript: value[scriptsKey] === true,
 			anchor: `${JSON.stringify(key)}: {`
@@ -11379,20 +11372,25 @@ var UnsupportedLockfile = class extends Error {};
 /** The lockfiles a package manager uses in the repository root, parsed. */
 function readLockfiles(repository, manager, tool, workspaces) {
 	const fact = tool.extra?.["lockfileFormat"];
-	const format = fact === void 0 ? void 0 : values(fact)[0];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
 	if (!isRecord(format)) return [];
 	return [...new Set(manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file))].map((file) => {
 		if (file.endsWith(".lockb")) return {
 			ok: false,
 			file,
-			reason: "it is a binary file in an undocumented format"
+			reason: "it is a binary file in an undocumented format",
+			unreadable: false
 		};
 		const text = repository.readText(file, MAX_LOCKFILE_SIZE);
-		if (text === void 0) return {
-			ok: false,
-			file,
-			reason: "it cannot be read"
-		};
+		if (text === void 0) {
+			if (!repository.warnings.some((warning) => warning.files.includes(file))) repository.warn("invalid-file", `cannot read ${file}`, [file]);
+			return {
+				ok: false,
+				file,
+				reason: "it cannot be read",
+				unreadable: true
+			};
+		}
 		try {
 			let entries;
 			let recordsScripts = format["installScripts"] !== null;
@@ -11401,29 +11399,318 @@ function readLockfiles(repository, manager, tool, workspaces) {
 			else if (tool.id === "yarn") entries = yarnEntries(text, format);
 			else if (tool.id === "bun") entries = bunEntries(text, format);
 			else ({entries, recordsScripts} = denoEntries(text, format));
+			const find = lineFinder(text);
 			return {
 				ok: true,
 				lockfile: {
 					file,
 					entries,
 					recordsScripts,
-					lineOf: (entry) => lineOf(text, entry.anchor)
+					lineOf: (entry) => find(entry.anchor)
 				}
 			};
 		} catch (error) {
 			if (error instanceof UnsupportedLockfile) return {
 				ok: false,
 				file,
-				reason: error.message
+				reason: error.message,
+				unreadable: false
 			};
+			const message = error instanceof Error ? error.message.split("\n")[0] ?? "" : String(error);
+			repository.warn("invalid-file", `cannot parse ${file}: ${message}`, [file]);
 			return {
 				ok: false,
 				file,
-				reason: `it cannot be parsed (${error instanceof Error ? error.message.split("\n")[0] ?? "" : String(error)})`
+				reason: `it cannot be parsed (${message})`,
+				unreadable: true
 			};
 		}
 	});
 }
+
+// src/doctor/allow-lists.ts
+function read(repository, file) {
+	return repository.readText(file);
+}
+function fromKeys(text, file, setting, value, enabled) {
+	if (!isRecord(value)) return [];
+	return Object.entries(value).filter(([, entry]) => enabled(entry)).map(([name]) => ({
+		name,
+		package: splitSpec(name).name,
+		file,
+		line: lineOf(text, JSON.stringify(name)) ?? lineOf(text, `${name}:`),
+		setting
+	}));
+}
+function fromList(text, file, setting, value, prefix = "") {
+	if (!Array.isArray(value)) return [];
+	return value.filter((item) => typeof item === "string").map((item) => {
+		const name = item.startsWith(prefix) ? item.slice(prefix.length) : item;
+		return {
+			name,
+			package: splitSpec(name).name,
+			file,
+			line: lineOf(text, item),
+			setting
+		};
+	});
+}
+/** Entries that let a package run its install scripts, per manager. Unreadable files give no entries. */
+function allowEntries(repository, manager, configFiles) {
+	const manifest = read(repository, "package.json");
+	const entries = [];
+	const json = (path) => manifest === void 0 ? void 0 : jsonSetting(manifest, path)?.value;
+	switch (manager) {
+		case "npm":
+			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "allowScripts", json(["allowScripts"]), (entry) => entry === true));
+			break;
+		case "pnpm": {
+			const workspace = read(repository, "pnpm-workspace.yaml");
+			if (workspace !== void 0) {
+				entries.push(...fromKeys(workspace, "pnpm-workspace.yaml", "allowBuilds", yamlSetting(workspace, ["allowBuilds"])?.value, (entry) => entry === true));
+				entries.push(...fromList(workspace, "pnpm-workspace.yaml", "onlyBuiltDependencies", yamlSetting(workspace, ["onlyBuiltDependencies"])?.value));
+			}
+			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "pnpm.onlyBuiltDependencies", json(["pnpm", "onlyBuiltDependencies"])));
+			break;
+		}
+		case "yarn":
+			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "dependenciesMeta", json(["dependenciesMeta"]), (entry) => isRecord(entry) && entry["built"] === true));
+			break;
+		case "bun":
+			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "trustedDependencies", json(["trustedDependencies"])));
+			break;
+		case "deno": for (const file of configFiles.filter((name) => /^deno\.jsonc?$/u.test(name))) {
+			const text = read(repository, file);
+			if (text === void 0) continue;
+			const value = jsonSetting(text, ["allowScripts"])?.value;
+			entries.push(...fromList(text, file, "allowScripts", isRecord(value) ? value["allow"] : value, "npm:"));
+		}
+	}
+	return entries;
+}
+/** Whether a package name matches a policy pattern; `*` stands for any characters except `/`. */
+function matchesPattern(name, pattern) {
+	return wildcardMatch(name, pattern);
+}
+
+// src/doctor/plan.ts
+const plans = /* @__PURE__ */ new WeakMap();
+/** undefined when the repository has no policy. */
+function plannedApply(context) {
+	const { policy, detection } = context;
+	if (policy === void 0) return void 0;
+	let byDetection = plans.get(policy);
+	if (byDetection === void 0) {
+		byDetection = /* @__PURE__ */ new WeakMap();
+		plans.set(policy, byDetection);
+	}
+	let plan = byDetection.get(detection);
+	if (plan === void 0) {
+		plan = planApply(context.root, policy, detection, context.tools);
+		byDetection.set(detection, plan);
+	}
+	return plan;
+}
+
+// src/doctor/rules/config-drift.ts
+function clean(line) {
+	return line.replace(/[\r\u0000]/gu, "").trim();
+}
+/** The line of `before` where the first difference starts, and what apply would remove or add there. */
+function firstDifference(before, after) {
+	const operations = myers(lines(before), lines(after));
+	let line = 1;
+	let index = 0;
+	while (index < operations.length && operations[index]?.kind === "same") {
+		line += 1;
+		index += 1;
+	}
+	let removed;
+	let added;
+	for (; index < operations.length && operations[index]?.kind !== "same"; index++) {
+		const operation = operations[index];
+		if (operation === void 0) break;
+		const text = clean(operation.line);
+		if (operation.kind === "delete") removed ??= text;
+		else if (text !== "" && text !== "# managed by depgate") added ??= text;
+	}
+	return {
+		line: Math.min(line, Math.max(lines(before).length, 1)),
+		removed,
+		added
+	};
+}
+/** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
+function checkAllowLists(context) {
+	const scripts = context.policy?.installScripts;
+	if (scripts?.default !== "deny") return;
+	const targets = context.policy?.targets;
+	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+		if (targets !== void 0 && targets !== "auto" && !targets.includes(manager.id)) continue;
+		for (const entry of allowEntries(context.repository, manager.id, manager.configFiles)) {
+			if (scripts.allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
+			context.report({
+				level: "warning",
+				location: entry.line === void 0 ? { file: entry.file } : {
+					file: entry.file,
+					line: entry.line
+				},
+				message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
+				fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.name === entry.package ? "it" : entry.package} to installScripts.allow in ${POLICY_FILE}`
+			});
+		}
+	}
+}
+const configDrift = {
+	id: "config-drift",
+	summary: "A configuration file does not match what depgate apply writes for depgate.json.",
+	description: "A generated setting was edited by hand, or depgate.json changed without running depgate apply, so the tools enforce something other than the policy.",
+	help: "Run depgate apply (depgate apply --dry-run shows the difference), or change depgate.json if the edit was intended.",
+	level: "error",
+	requiresPolicy: true,
+	check(context) {
+		const plan = plannedApply(context);
+		if (plan === void 0) return;
+		for (const change of plan.changes) {
+			if (change.before === null) {
+				context.report({
+					location: { file: POLICY_FILE },
+					message: `${change.file} is missing; depgate apply would create it with the settings from ${POLICY_FILE}`
+				});
+				continue;
+			}
+			const difference = firstDifference(change.before, change.after);
+			const detail = difference.removed !== void 0 && difference.added !== void 0 ? `"${difference.removed}" should be "${difference.added}"` : difference.added !== void 0 ? `"${difference.added}" is missing` : `"${difference.removed ?? ""}" should not be there`;
+			context.report({
+				location: {
+					file: change.file,
+					line: difference.line
+				},
+				message: `${change.file} does not match ${POLICY_FILE}: ${detail}`
+			});
+		}
+		checkAllowLists(context);
+	}
+};
+
+// src/doctor/rules/ignored-setting.ts
+function atLeast(version, since) {
+	const required = typeof since === "string" ? parseVersion(since) : void 0;
+	return required !== void 0 && compareVersions$1(version, required) >= 0;
+}
+function kebab$1(setting) {
+	return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
+}
+/** Lockfiles an older version read but this one does not (only from verified facts). */
+function checkLockfiles(context, tool, version, label) {
+	const fact = tool.project?.lockfiles;
+	if (fact === void 0 || fact.status !== "verified") return;
+	const current = new Set(versionedValue(fact.value, version) ?? []);
+	const known = new Set(fact.value.flatMap((entry) => [...entry.value]));
+	for (const name of [...known].filter((file) => !current.has(file))) {
+		if (!context.repository.isFile(name)) continue;
+		context.report({
+			level: "warning",
+			location: { file: name },
+			message: `${label} does not read ${name}, so installs ignore the versions locked in it`,
+			fix: `Rename ${name} to ${[...current][0] ?? "the lockfile this version reads"}, or remove it`
+		});
+	}
+}
+function checkPnpm(context, tool, version, label) {
+	const ignored = extraOf(tool, "ignoredSince", isRecord);
+	const workspace = context.repository.readText("pnpm-workspace.yaml");
+	if (atLeast(version, ignored["since"])) {
+		const manifest = context.repository.readText("package.json");
+		const field = String(ignored["packageJsonField"]);
+		const found = manifest === void 0 ? void 0 : jsonSetting(manifest, [field]);
+		if (found !== void 0 && isRecord(found.value) && Object.keys(found.value).length > 0) context.report({
+			location: {
+				file: "package.json",
+				line: found.line
+			},
+			message: `${label} ignores the "${field}" field in package.json (${Object.keys(found.value).join(", ")})`,
+			fix: "Move these settings to pnpm-workspace.yaml"
+		});
+		const allowAll = tool.extra?.["allowAllBuilds"] === void 0 ? void 0 : extraOf(tool, "allowAllBuilds", isSwitch);
+		const settings = [
+			settingOf(tool.cooldown.setting),
+			settingOf(tool.cooldown.exclude.setting),
+			settingOf(tool.installScripts.allowList.setting),
+			"onlyBuiltDependencies",
+			allowAll?.setting ?? null,
+			settingOf(tool.sources?.git.setting)
+		].filter((setting) => setting !== null);
+		const npmrc = context.repository.readText(".npmrc");
+		for (const entry of npmrc === void 0 ? [] : iniEntries(npmrc)) {
+			const setting = settings.find((name) => kebab$1(name) === entry.key.replace(/\[\]$/u, ""));
+			if (setting === void 0) continue;
+			const inWorkspace = workspace !== void 0 && yamlSetting(workspace, [setting]) !== void 0;
+			context.report({
+				level: inWorkspace ? "warning" : "error",
+				location: {
+					file: ".npmrc",
+					line: entry.line
+				},
+				message: `${label} reads only ${String(ignored["npmrc"])} from .npmrc, so ${entry.key} has no effect${inWorkspace ? ` (pnpm-workspace.yaml sets ${setting})` : ""}`,
+				fix: `Set ${setting} in pnpm-workspace.yaml and remove the line from .npmrc`
+			});
+		}
+	}
+	const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord);
+	if (legacy !== void 0 && atLeast(version, legacy["removedIn"]) && workspace !== void 0) {
+		const found = yamlSetting(workspace, ["onlyBuiltDependencies"]);
+		if (found !== void 0) context.report({
+			level: "warning",
+			location: {
+				file: "pnpm-workspace.yaml",
+				line: found.line
+			},
+			message: `onlyBuiltDependencies was removed in pnpm ${String(legacy["removedIn"])}, so ${label} builds none of these packages`,
+			fix: `List the packages under ${settingOf(tool.installScripts.allowList.setting) ?? "allowBuilds"} instead`
+		});
+	}
+}
+/** Duration strings written for a version that silently ignores them. */
+function checkDurationStrings(context, tool, manager, version, label) {
+	const fact = tool.extra?.["durationStrings"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	if (!isRecord(format) || format["before"] !== "no effect" || atLeast(version, format["since"])) return;
+	const setting = settingOf(tool.cooldown.setting);
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
+	if (setting === null || file === void 0 || !manager.configFiles.includes(file)) return;
+	const found = readSetting(context.repository, file, setting);
+	if (found === void 0 || typeof found.value !== "string" || /^\d+$/u.test(found.value.trim())) return;
+	context.report({
+		location: {
+			file,
+			line: found.line
+		},
+		message: `${label} ignores the duration string ${JSON.stringify(found.value)} in ${setting}; strings work only since ${String(format["since"])}, so no delay applies`,
+		fix: `Write the delay as a number in ${tool.cooldown.unit.status === "disputed" ? "the tool’s unit" : String(values$1(tool.cooldown.unit)[0])}, or require ${tool.name} ${String(format["since"])} or later`
+	});
+}
+const settingIgnoredByVersion = {
+	id: "setting-ignored-by-version",
+	summary: "A setting or file is ignored by the package manager version in use.",
+	description: "Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it.",
+	help: "Move the setting to the place and form this version reads.",
+	level: "error",
+	requiresPolicy: false,
+	check(context) {
+		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+			const tool = context.tools.find((entry) => entry.id === manager.id);
+			if (tool === void 0) continue;
+			const pinned = pinnedVersion(manager);
+			const version = pinned ?? latestVersion(tool);
+			if (version === void 0) continue;
+			const label = `${tool.name} ${formatVersion(version)}${pinned === void 0 ? " (the latest known version; none is pinned)" : ""}`;
+			checkLockfiles(context, tool, version, label);
+			if (tool.id === "pnpm") checkPnpm(context, tool, version, label);
+			checkDurationStrings(context, tool, manager, version, label);
+		}
+	}
+};
 
 // src/doctor/rules/lockfile.ts
 const LABELS = {
@@ -11438,7 +11725,7 @@ function eachLockfile(context, rule, visit) {
 		const tool = context.tools.find((entry) => entry.id === manager.id);
 		if (tool === void 0) continue;
 		for (const result of readLockfiles(context.repository, manager, tool, workspaces)) if (result.ok) visit(result.lockfile, tool);
-		else context.notice(`${rule} could not check ${result.file}: ${result.reason}`, result.file);
+		else if (!result.unreadable) context.notice(`${rule} could not check ${result.file}: ${result.reason}`, result.file);
 	}
 }
 function location(lockfile, entry) {
@@ -11458,8 +11745,18 @@ const lockfileForbiddenSource = {
 	check(context) {
 		const sources = context.policy?.sources;
 		if (sources === void 0) return;
+		const denies = Object.values(sources).includes("deny");
 		eachLockfile(context, "lockfile-forbidden-source", (lockfile) => {
 			for (const entry of lockfile.entries) {
+				if (entry.source === "unknown" && denies) {
+					context.report({
+						level: "warning",
+						location: location(lockfile, entry),
+						message: `${lockfile.file} installs ${entry.name} from a source depgate does not recognise (${entry.spec || "no source given"}); it may be one ${POLICY_FILE} denies`,
+						fix: `Check where ${entry.name} comes from, and regenerate the lockfile with the package manager if the entry is damaged`
+					});
+					continue;
+				}
 				if (entry.source !== "git" && entry.source !== "remoteTarball" && entry.source !== "file" && entry.source !== "directory") continue;
 				if (sources[entry.source] !== "deny") continue;
 				context.report({
@@ -11485,7 +11782,7 @@ function scriptsDisabledBy(context, tool) {
 	const fact = tool.installScripts.disableAll;
 	const value = fact.status === "verified" ? fact.value : void 0;
 	const match = typeof value === "string" ? /^([\w.-]+)(?::\s*(\S+))?$/u.exec(value) : null;
-	const file = values(tool.cooldown.configFiles)[0]?.[0];
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
 	if (match === null || file === void 0) return void 0;
 	const [, key = "", expected] = match;
 	const found = readSetting(context.repository, file, key);
@@ -11524,7 +11821,9 @@ const lockfileInstallScripts = {
 };
 
 // src/doctor/version-range.ts
-const PARTIAL = /^v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
+const PARTIAL = /^v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+/** Comparator operators; a space between an operator and its version is allowed, as in semver. */
+const OPERATOR = /(\^|~>?|>=|<=|>|<|=)\s+/gu;
 function partial(text) {
 	const match = PARTIAL.exec(text);
 	if (match === null) return void 0;
@@ -11532,14 +11831,30 @@ function partial(text) {
 	const major = Number(match[1]);
 	const minor = number(match[2]);
 	const patch = minor === void 0 ? void 0 : number(match[3]);
+	const complete = minor !== void 0 && patch !== void 0;
+	const version = [
+		major,
+		minor ?? 0,
+		patch ?? 0
+	];
 	return {
-		version: [
-			major,
-			minor ?? 0,
-			patch ?? 0
-		],
-		complete: minor !== void 0 && patch !== void 0
+		bound: complete && match[4] !== void 0 ? {
+			version,
+			prerelease: match[4]
+		} : { version },
+		complete
 	};
+}
+/** Orders bounds: by version, and a prerelease before its release. Prereleases of one version count as equal. */
+function compareBounds(a, b) {
+	return compareVersions$1(a.version, b.version) || (a.prerelease === void 0 ? 0 : -1) - (b.prerelease === void 0 ? 0 : -1);
+}
+/** Whether `bound` comes before the release `version`. */
+function belowVersion(bound, version) {
+	return compareBounds(bound, { version }) < 0;
+}
+function formatBound(bound) {
+	return bound.prerelease === void 0 ? formatVersion(bound.version) : `${formatVersion(bound.version)}-${bound.prerelease}`;
 }
 /** Lower bound of one comparator set (space-separated comparators that must all hold). */
 function setLowerBound(set) {
@@ -11547,27 +11862,27 @@ function setLowerBound(set) {
 	if (hyphen !== null) {
 		const from = partial(hyphen[1] ?? "");
 		return from === void 0 ? void 0 : {
-			version: from.version,
+			bound: from.bound,
 			exact: false
 		};
 	}
-	const comparators = set.split(/\s+/u).filter(Boolean);
+	const comparators = set.replaceAll(OPERATOR, "$1").split(/\s+/u).filter(Boolean);
 	if (comparators.length === 0 || comparators.every((part) => /^[xX*]$/u.test(part))) return {
-		version: [
+		bound: { version: [
 			0,
 			0,
 			0
-		],
+		] },
 		exact: false
 	};
-	let lowest = [
+	let lowest = { version: [
 		0,
 		0,
 		0
-	];
+	] };
 	let exact = comparators.length === 1;
 	for (const comparator of comparators) {
-		const match = /^(\^|~>?|>=|<=|>|<|=)?\s*(.+)$/u.exec(comparator);
+		const match = /^(\^|~>?|>=|<=|>|<|=)?(.+)$/u.exec(comparator);
 		if (match === null) return void 0;
 		const operator = match[1] ?? "";
 		const value = partial(match[2] ?? "");
@@ -11576,29 +11891,30 @@ function setLowerBound(set) {
 			exact = false;
 			continue;
 		}
-		let bound = value.version;
-		if (operator === ">") {
+		let bound = value.bound;
+		if (operator === ">" && bound.prerelease === void 0) {
 			const given = (match[2] ?? "").split(".").filter((part) => /^\d+$/u.test(part)).length;
-			bound = given >= 3 ? [
-				bound[0],
-				bound[1],
-				bound[2] + 1
+			const [major, minor, patch] = bound.version;
+			bound = { version: given >= 3 ? [
+				major,
+				minor,
+				patch + 1
 			] : given === 2 ? [
-				bound[0],
-				bound[1] + 1,
+				major,
+				minor + 1,
 				0
 			] : [
-				bound[0] + 1,
+				major + 1,
 				0,
 				0
-			];
+			] };
 		}
 		if (operator !== "" && operator !== "=") exact = false;
 		if (!value.complete) exact = false;
-		if (compareVersions(bound, lowest) > 0) lowest = bound;
+		if (compareBounds(bound, lowest) > 0) lowest = bound;
 	}
 	return {
-		version: lowest,
+		bound: lowest,
 		exact
 	};
 }
@@ -11607,22 +11923,20 @@ function lowestVersion(text) {
 	if (trimmed === "" || trimmed.includes("${{")) return { kind: "unknown" };
 	let result;
 	for (const set of trimmed.split("||")) {
-		const bound = setLowerBound(set.trim());
-		if (bound === void 0) return { kind: "unknown" };
-		if (result === void 0 || compareVersions(bound.version, result.version) < 0) result = bound;
-		else if (compareVersions(bound.version, result.version) === 0) result = {
-			version: result.version,
-			exact: result.exact && bound.exact
+		const lower = setLowerBound(set.trim());
+		if (lower === void 0) return { kind: "unknown" };
+		const order = result === void 0 ? -1 : compareBounds(lower.bound, result.bound);
+		if (result === void 0 || order < 0) result = lower;
+		else if (order === 0) result = {
+			bound: result.bound,
+			exact: result.exact && lower.exact
 		};
 	}
 	if (result === void 0) return { kind: "unknown" };
 	const sets = trimmed.split("||").length;
-	return result.exact && sets === 1 ? {
-		kind: "exact",
-		version: result.version
-	} : {
-		kind: "range",
-		version: result.version
+	return {
+		kind: result.exact && sets === 1 ? "exact" : "range",
+		...result.bound
 	};
 }
 
@@ -11646,7 +11960,7 @@ function policyFeatures(tool, policy) {
 	}
 	if (policy.installScripts !== void 0) {
 		const allowAll = tool.extra?.["allowAllScripts"] ?? tool.extra?.["allowAllBuilds"];
-		const switchFact = allowAll === void 0 ? void 0 : values(allowAll)[0];
+		const switchFact = allowAll === void 0 ? void 0 : values$1(allowAll)[0];
 		if (policy.installScripts.default === "allow" && isSwitch(switchFact)) features.push(feature(switchFact.setting, switchFact.since));
 		if (policy.installScripts.default === "deny" && policy.installScripts.allow.length > 0) {
 			const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord);
@@ -11662,7 +11976,7 @@ function policyFeatures(tool, policy) {
 }
 /** Settings already present in the manager's own configuration file. */
 function configuredFeatures(context, tool) {
-	const file = values(tool.cooldown.configFiles)[0]?.[0];
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
 	if (file === void 0) return [];
 	const candidates = [
 		[settingOf(tool.cooldown.setting), tool.cooldown.availableSince],
@@ -11698,12 +12012,12 @@ function checkManager(context, manager, tool) {
 			context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
 			continue;
 		}
-		const missing = [...features.values()].filter((item) => compareVersions(lowest.version, parseVersion(item.since)) < 0);
+		const missing = [...features.values()].filter((item) => belowVersion(lowest, parseVersion(item.since)));
 		if (missing.length === 0) continue;
-		const needed = missing.map((item) => parseVersion(item.since)).reduce((a, b) => compareVersions(a, b) >= 0 ? a : b);
+		const needed = missing.map((item) => parseVersion(item.since)).reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
 		const list = missing.map((item) => `${item.setting} (since ${item.since}${item.disputed ? ", sources disagree; the later version is assumed" : ""})`).join(", ");
 		const line = declarationLine(context, declaration);
-		const subject = lowest.kind === "exact" ? `${tool.name} ${formatVersion(lowest.version)} in ${where} does not support ${list}` : `${where} allows ${tool.name} ${formatVersion(lowest.version)} ("${declaration.version}"), which does not support ${list}`;
+		const subject = lowest.kind === "exact" ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
 		context.report({
 			level: lowest.kind === "exact" ? "error" : "warning",
 			location: line === void 0 ? { file: declaration.file } : {
@@ -11736,7 +12050,7 @@ function kebab(setting) {
 }
 function before(version, limit) {
 	const until = typeof limit === "string" ? parseVersion(limit) : void 0;
-	return until !== void 0 && compareVersions(version, until) < 0;
+	return until !== void 0 && compareVersions$1(version, until) < 0;
 }
 function managerOf(context, id) {
 	const manager = context.detection.packageManagers.find((entry) => entry.id === id && entry.supported);
@@ -11871,8 +12185,49 @@ const pnpmSharedWorkspaceLockfile = {
 	}
 };
 
+// src/doctor/rules/unreadable-config.ts
+/** Repository warnings that mean a file was not checked. */
+const UNREADABLE_WARNINGS = {
+	"invalid-file": "Fix the syntax error, so that depgate can check the file",
+	"file-too-large": "Make the file smaller than the limit, or check its settings by hand",
+	"outside-repository": "Replace the symlink with a regular file inside the repository",
+	"workspace-outside-repository": "Keep workspace packages inside the repository"
+};
+const unreadableConfig = {
+	id: "unreadable-config",
+	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depgate cannot check it.",
+	description: "A package manager or bot may still read the file and its settings may weaken the policy; depgate fails closed and reports an error instead of passing silently.",
+	help: "Fix what the message describes: invalid syntax, a symlink, a file over the size limit or a style depgate apply cannot edit.",
+	level: "error",
+	requiresPolicy: false,
+	check(context) {
+		const reported = /* @__PURE__ */ new Set();
+		const warnings = [...context.detection.warnings, ...context.repository.warnings];
+		for (const warning of warnings) {
+			const fix = UNREADABLE_WARNINGS[warning.code];
+			const file = warning.files[0] ?? "depgate.json";
+			if (fix === void 0 || reported.has(file)) continue;
+			reported.add(file);
+			context.report({
+				location: { file },
+				message: `${warning.message.replace(/:$/u, "")}; depgate cannot check it`,
+				fix
+			});
+		}
+		for (const failure of plannedApply(context)?.failures ?? []) {
+			if (reported.has(failure.file)) continue;
+			reported.add(failure.file);
+			context.report({
+				location: { file: failure.file },
+				message: `depgate apply cannot edit ${failure.file} for ${context.tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool} (${failure.message}), so it cannot be checked against ${POLICY_FILE}`,
+				fix: "Fix what the message describes, then run depgate apply; or add the settings by hand"
+			});
+		}
+	}
+};
+
 // src/doctor/rules/index.ts
-/** Every doctor rule, in the order they are documented. */
+/** Every doctor rule, in the order they are documented. unreadable-config runs last, after every other rule has read its files. */
 const RULES = [
 	managerVersionTooOld,
 	settingIgnoredByVersion,
@@ -11882,7 +12237,8 @@ const RULES = [
 	botCooldownMismatch,
 	broadExclusion,
 	lockfileForbiddenSource,
-	lockfileInstallScripts
+	lockfileInstallScripts,
+	unreadableConfig
 ];
 
 // src/doctor/render.ts
@@ -11994,7 +12350,7 @@ function byLocation(a, b) {
 /** Runs the rules on a repository. Throws PolicyError when depgate.json exists but is invalid. */
 function runDoctor(root, options = {}) {
 	const tools = options.tools ?? knowledgeBase;
-	const policy = existsSync(join(root, "depgate.json")) ? loadPolicy(root) : void 0;
+	const policy = loadPolicyIfPresent(root);
 	const detection = detectProject(root);
 	const repository = new Repository(root);
 	const findings = [];
@@ -12006,7 +12362,8 @@ function runDoctor(root, options = {}) {
 		});
 	};
 	if (policy === void 0) notice(`no ${POLICY_FILE}: only the rules that do not need a policy ran`);
-	for (const rule of options.rules ?? RULES) {
+	const rules = options.rules ?? RULES;
+	for (const rule of rules) {
 		if (rule.requiresPolicy && policy === void 0) continue;
 		rule.check({
 			root,
@@ -12022,7 +12379,8 @@ function runDoctor(root, options = {}) {
 			notice
 		});
 	}
-	for (const warning of repository.warnings) notice(warning.message, warning.files[0]);
+	const reported = rules.includes(unreadableConfig);
+	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
 	return {
 		schemaVersion: 1,
 		policy: policy === void 0 ? "missing" : "valid",
@@ -12062,10 +12420,48 @@ function relativeToWorkspace(report, prefix) {
 		})
 	};
 }
+/**
+* Text from the repository (file and package names, policy errors) goes to the log with workflow commands turned
+* off, so a crafted name cannot add annotations or other commands to the run.
+*/
+function untrusted(text) {
+	const commands = values$1(environment.githubActions.stopCommands)[0];
+	if (commands === void 0) return text.replaceAll(/^::/gmu, ": :");
+	const token = randomUUID();
+	return `${commands.stop.replace("{token}", token)}\n${text.endsWith("\n") ? text : `${text}\n`}${commands.resume.replace("{token}", token)}\n`;
+}
+function inside(root, path) {
+	const part = relative(root, path);
+	return part !== ".." && !part.startsWith(`..${sep}`) && !isAbsolute(part);
+}
+/** The real path of a directory inside the workspace, following symlinks only as far as they stay inside it. */
+function scannedDirectory(workspace, input) {
+	try {
+		const real = realpathSync(resolve(workspace, input));
+		return inside(realpathSync(workspace), real) && statSync(real).isDirectory() ? real : void 0;
+	} catch {
+		return;
+	}
+}
+/**
+* Why the SARIF file cannot be written, or undefined. The repository being checked may come from a pull request, so
+* no part of the path inside the workspace may be a symlink, which could send the report over a file elsewhere.
+*/
+function unsafeOutput(workspace, file) {
+	if (!inside(workspace, file)) return void 0;
+	let current = workspace;
+	for (const part of relative(workspace, file).split(sep)) {
+		current = resolve(current, part);
+		const stats = lstatSync(current, { throwIfNoEntry: false });
+		if (stats === void 0) return void 0;
+		if (stats.isSymbolicLink()) return `${relative(workspace, current).split(sep).join("/")} is a symlink; depgate does not write through symlinks`;
+	}
+	return lstatSync(file).isFile() ? void 0 : `${relative(workspace, file).split(sep).join("/")} is not a regular file`;
+}
 function runAction(env, io) {
 	const workspace = resolve(env["GITHUB_WORKSPACE"] ?? process.cwd());
-	const directory = resolve(workspace, input(env, "directory", "."));
-	const sarifFile = resolve(workspace, input(env, "sarif-file", "depgate.sarif"));
+	const sarifInput = input(env, "sarif-file", "depgate.sarif");
+	const sarifFile = resolve(workspace, sarifInput);
 	const outputs = {
 		"sarif-file": "",
 		errors: 0,
@@ -12073,36 +12469,46 @@ function runAction(env, io) {
 		notes: 0,
 		failure: ""
 	};
-	const prefix = relative(workspace, directory).split(sep).join("/");
-	if (prefix.startsWith("..") || !statSync(directory, { throwIfNoEntry: false })?.isDirectory()) {
-		outputs.failure = `directory "${input(env, "directory", ".")}" is not a directory inside the workspace`;
-		io.log(`depgate: ${outputs.failure}\n`);
+	const fail = (message) => {
+		outputs.failure = message;
+		io.log(`depgate: ${message}\n`);
 		return outputs;
-	}
+	};
+	const directory = scannedDirectory(workspace, input(env, "directory", "."));
+	if (directory === void 0) return fail(`directory "${input(env, "directory", ".")}" is not a directory inside the workspace`);
+	const prefix = relative(realpathSync(workspace), directory).split(sep).join("/");
 	let report;
 	try {
 		report = runDoctor(directory);
 	} catch (error) {
 		if (!(error instanceof PolicyError)) throw error;
 		outputs.failure = [error.message, ...error.issues].join("; ");
-		io.log(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join("")}`);
+		io.log(untrusted(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join("")}`));
 		return outputs;
 	}
-	io.log(renderText(report, RULES));
+	io.log(untrusted(renderText(report, RULES)));
 	const moved = relativeToWorkspace(report, prefix);
-	const readLine = (file, line) => {
-		try {
-			return readFileSync(resolve(workspace, file), "utf8").split(/\r?\n/u)[line - 1];
-		} catch {
-			return;
-		}
-	};
-	mkdirSync(dirname(sarifFile), { recursive: true });
-	writeFileSync(sarifFile, `${JSON.stringify(toSarif(moved, RULES, getVersion(), readLine), null, 2)}\n`);
+	const repository = new Repository(workspace);
+	const readLine = (file, line) => repository.readText(file)?.split(/\r?\n/u)[line - 1];
+	const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), readLine), null, 2)}\n`;
+	const shownSarif = inside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join("/") : sarifFile;
+	try {
+		const unsafe = unsafeOutput(workspace, sarifFile);
+		if (unsafe !== void 0) return fail(`cannot write the SARIF file ${sarifInput}: ${unsafe}`);
+		const before = lstatSync(sarifFile, { throwIfNoEntry: false }) === void 0 ? null : "";
+		mkdirSync(dirname(sarifFile), { recursive: true });
+		writeChanges(dirname(sarifFile), [{
+			file: basename(sarifFile),
+			before,
+			after: sarif
+		}]);
+	} catch (error) {
+		return fail(`cannot write the SARIF file ${sarifInput}: ${error instanceof Error ? error.message : String(error)}`);
+	}
 	const counts = countLevels(report.findings);
 	return {
 		...outputs,
-		"sarif-file": relative(workspace, sarifFile).split(sep).join("/"),
+		"sarif-file": shownSarif,
 		errors: counts.error,
 		warnings: counts.warning,
 		notes: counts.note

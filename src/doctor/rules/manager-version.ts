@@ -9,7 +9,7 @@ import type { Fact, ToolKnowledge } from '../../knowledge/types.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import { lineOf, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
-import { lowestVersion } from '../version-range.ts';
+import { belowVersion, formatBound, lowestVersion } from '../version-range.ts';
 
 interface Feature {
   setting: string;
@@ -97,15 +97,15 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
       context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
       continue;
     }
-    const missing = [...features.values()].filter((item) => compareVersions(lowest.version, parseVersion(item.since) as Version) < 0);
+    const missing = [...features.values()].filter((item) => belowVersion(lowest, parseVersion(item.since) as Version));
     if (missing.length === 0) continue;
     const needed = missing.map((item) => parseVersion(item.since) as Version).reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b));
     const list = missing.map((item) => `${item.setting} (since ${item.since}${item.disputed ? ', sources disagree; the later version is assumed' : ''})`).join(', ');
     const line = declarationLine(context, declaration);
     const subject =
       lowest.kind === 'exact'
-        ? `${tool.name} ${formatVersion(lowest.version)} in ${where} does not support ${list}`
-        : `${where} allows ${tool.name} ${formatVersion(lowest.version)} ("${declaration.version}"), which does not support ${list}`;
+        ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}`
+        : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
     context.report({
       level: lowest.kind === 'exact' ? 'error' : 'warning',
       location: line === undefined ? { file: declaration.file } : { file: declaration.file, line },

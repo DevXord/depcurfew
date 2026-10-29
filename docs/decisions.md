@@ -595,3 +595,78 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - zadanie CI na Node 22 używa npm 10.9.9, który nie zna nowych kluczy `.npmrc`; wydania idą przez Node 24 z npm 11.19.1 (D-046, D-047);
   - wydanie uruchamia każdy tag `vX.Y.Z` od osoby z prawem push; zalecana reguła ochrony tagów jest krokiem po stronie właściciela (`docs/RELEASING.md`);
   - nota „pre-release” w README zostaje do czasu publikacji 1.0.0.
+
+## D-052 · Przegląd przed wydaniem 1.0.0 i poprawki (2026-10-29)
+- **Zakres przeglądu:**
+  - przegląd kodu całego `src/`, workflowów i `action.yml`;
+  - osobny przegląd bezpieczeństwa z modelem zagrożeń „repozytorium jest niezaufane” (PR z forka w Action, sklonowane obce repo);
+  - instalacja paczki z tarballa w czystym katalogu i wszystkie polecenia na 18 fiksturach na Node 22.0.0, 22.22 i 24.22.2.
+- **Bez zastrzeżeń:**
+  - workflowy: minimalne uprawnienia, akcje przypięte do SHA, brak `pull_request_target`;
+  - brak wstrzyknięć w `action.yml`;
+  - brak zanieczyszczania prototypów;
+  - limit aliasów YAML;
+  - parsery przy zagnieżdżeniu 200 000 poziomów;
+  - zawartość paczki npm (9 plików).
+- **Znalezione i poprawione (decyzje P1–P12 zatwierdzone przez właściciela):**
+  - **Symlinki (P2):**
+    - `depgate.json` jest czytany przez `Repository`, czyli nie przez symlink wychodzący poza repozytorium i nie powyżej 1 MiB (`src/policy/file.ts`);
+    - `init --force` odmawia zapisu przez symlink i zapisuje przez plik tymczasowy;
+    - Action odrzuca symlink w ścieżce pliku SARIF wewnątrz workspace'u, porównuje `directory` po `realpath` i czyta linie do SARIF przez `Repository`;
+    - generatory sprawdzają istnienie i czytają pliki wewnątrz `guard`, więc symlink to zgłoszony błąd, a nie wywrotka.
+  - **Odmowa przy wątpliwościach (P3):**
+    - nowa reguła `unreadable-config` (błąd, bez polityki): plik, którego nie da się odczytać, sparsować albo zaplanować do edycji, w tym lockfile;
+    - wcześniej takie przypadki były uwagami albo ginęły (ostrzeżenia detekcji), a `doctor` kończył się kodem 0;
+    - jeden plik daje jedno zgłoszenie.
+  - **Przełączniki „pozwól na wszystkie skrypty” (P4):** przy polityce `deny` npm komentuje ręczne `dangerously-allow-all-scripts` także bez listy dozwolonych. Komentarz bez bloku ma osobną notatkę („turned off; depgate.json manages this setting”).
+  - **Edycja plików (P5, P10):**
+    - mapy w stylu `{ ... }` w YAML: `apply` nie dopisuje do nich kluczy, tylko zgłasza błąd z wartością do wpisania ręcznie; skalary w środku dalej podmienia;
+    - TOML: wartości wieloliniowe są komentowane w całości, a linie w tablicach i wieloliniowych stringach nie są brane za klucze ani nagłówki; `[[...]]` kończy tabelę;
+    - TOML: `install` zdefiniowane kluczami z kropką albo tabelą inline to błąd zamiast drugiego nagłówka;
+    - JSONC: przecinki końcowe są usuwane tylko poza stringami;
+    - edycja JSON zachowuje komentarze przy usuwaniu elementów i wstawianiu do pustych kontenerów;
+    - przy błędach `apply --dry-run` nie wypisuje diffu.
+  - **Wersje (P6):** wersja przedpremierowa (`10.16.0-rc.1`) jest wcześniejsza niż wydanie, jak w semver; operatory ze spacją (`>= 10.0.0`) są rozpoznawane.
+  - **DoS (P7):**
+    - wzorce z `*` dopasowuje liniowy algorytm bez regexów (`src/detect/wildcard.ts`), który zastąpił wykładniczy backtracking;
+    - kolejne `**` są łączone, a każda para katalogu i segmentu jest odwiedzana raz;
+    - numery linii w lockfile'ach są liczone jednym przejściem.
+  - **Zgodność `apply` i `doctor`:**
+    - Dependabot: istniejące `semver-*-days` są podnoszone do polityki (P8); nazwy kluczy są w `cooldownKeys` w bazie wiedzy;
+    - wpisy na listach dozwolonych z wersją (`esbuild@0.25.0`) są porównywane po nazwie (P9);
+    - Renovate w kluczu `renovate` w `package.json` jest czytany, a podpowiedź nie odsyła do `apply` tam, gdzie `apply` nie edytuje pliku.
+  - **Log Action (P11):** raport i błędy polityki są wypisywane między `::stop-commands::<losowy token>` a `::<token>::`. Fakt `githubActions.stopCommands` jest w bazie wiedzy ze źródłem.
+  - **Lockfile npm:** wpis bez `resolved` npm instaluje jako `<nazwa>@<version>` (`reify.js`, `#extractOrLink`), więc źródło wynika z `version` (fakt `specWithoutResolved`). Źródło, którego depgate nie rozpoznaje, daje ostrzeżenie `lockfile-forbidden-source`, gdy polityka czegoś zabrania.
+- **Ponowny przegląd poprawek (P12)** znalazł 10 drobniejszych problemów, wszystkie poprawione:
+  - koniec tabeli TOML przy `[[...]]`;
+  - podwójne zgłoszenie jednego pliku;
+  - nazwy zaczynające się od `..` w Action;
+  - podpowiedź dla `.renovaterc`;
+  - odstępy w jednoliniowych tablicach JSON;
+  - notatka bez bloku;
+  - YAML w całości w stylu `{ ... }`;
+  - trzy duplikaty kodu.
+- **Testy:** 794, w tym nowe testy w `tests/security/` (symlinki, DoS), `tests/apply/review-*.test.ts` i nowe fikstury `doctor`.
+
+## D-053 · Zatwierdzony plan fazy 7 (2026-10-29)
+- **Kolejność (F1):** faza 7 po wydaniu 1.0.0, jako 1.1.0. Dodaje kod sieciowy, który dostanie osobny przegląd.
+- **Polecenie (F1, F2):**
+  - `depgate check <paczka>[@wersja|@tag|@zakres]... [--json] [--registry <url>]`;
+  - sprawdza istnienie (404 to „możliwa wymyślona nazwa”), wiek wybranej wersji względem `cooldown` z `exclude`, skrypty `preinstall`/`install`/`postinstall` względem `installScripts`, podobieństwo nazwy do popularnej paczki i wycofanie (ostrzeżenie);
+  - specyfikacje git, URL i `file:` sprawdza bez sieci względem `sources`;
+  - kod 1 przy naruszeniu albo braku możliwości sprawdzenia.
+- **Dane (F3):**
+  - pełny dokument paczki z `GET /<nazwa>`, bo skrócony nie ma czasów publikacji;
+  - wbudowany `fetch`, limit 15 s i 64 MiB, bez tokenów;
+  - paczki z prywatnych rejestrów mają status „niesprawdzone”.
+- **Podobne nazwy (F4):**
+  - lista około 5000 najczęściej pobieranych paczek w `src/knowledge/` ze źródłem i datą, generowana skryptem z wyszukiwarki rejestru (pole `downloads.weekly`);
+  - odległość edycyjna 1 dla nazw do 8 znaków, 2 dla dłuższych;
+  - porównanie po usunięciu separatorów i scope'u.
+- **Testy (F5):** nagrane i przycięte odpowiedzi rejestru w `tests/fixtures/registry/`, podmieniony `fetch` i stały zegar, bez sieci.
+- **Hook (F6–F8):**
+  - `depgate check --hook claude-code` czyta zdarzenie PreToolUse ze stdin i rozpoznaje instalacje oraz uruchamianie paczek w poleceniach Bash;
+  - zwraca `deny` z powodem, a przy samym podobieństwie nazwy albo poleceniu nie do rozebrania zwraca `ask`;
+  - przykład `.claude/settings.json` w README: forma exec i `onFailure: "block"`, z zastrzeżeniem, że hook to zabezpieczenie typu „best effort”;
+  - bez `depgate.json` hook stosuje domyślną politykę z `init`.
+- **MCP (F9):** nie w tej fazie. Protokół jest w przejściu na rewizję 2026-07-28, bez `initialize` i z `server/discover`. Agent może wołać `depgate check --json`.
