@@ -1,0 +1,13 @@
+{
+  "name": "ai-app",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.34.9",
+  "dependencies": {
+    "is-number": "7.0.0",
+    "left-pad": "https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz"
+  },
+  "devDependencies": {
+    "is-odd": "https://registry.npmjs.org/is-odd/-/is-odd-3.0.1.tgz"
+  }
+}

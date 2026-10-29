@@ -59,6 +59,12 @@ describe('README.md', () => {
     }
   });
 
+  it('says npm skips the project .npmrc in global mode only while the knowledge base says so', () => {
+    const fact = knowledgeBase.find((tool) => tool.id === 'npm')?.extra?.['npmrcScope'];
+    const scope = fact === undefined ? undefined : (values(fact)[0] as Record<string, unknown> | undefined);
+    expect(readme.includes("npm does not read the project's `.npmrc` in global mode")).toBe(scope?.['globalMode'] === 'ignored');
+  });
+
   it('keeps the generated sections between markers', () => {
     for (const name of ['default-policy', 'policy-fields', 'tools', 'rules', 'action-workflow', 'action-reference', 'claude-code-hook']) {
       expect(readme).toContain(`<!-- BEGIN GENERATED: ${name} -->`);

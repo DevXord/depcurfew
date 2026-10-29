@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 14
+    },
+    "message": "package-lock.json installs is-number from a tarball URL (https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz), which depcurfew.json denies",
+    "fix": "Use a registry version of is-number, or set sources.remoteTarball to \"allow\" in depcurfew.json"
+  }
+]

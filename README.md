@@ -50,7 +50,22 @@ The default policy:
 
 depcurfew needs Node.js 22 or later and has a single runtime dependency, [`yaml`](https://github.com/eemeli/yaml).
 
-Once published, run it with `npx depcurfew <command>` or add it as a development dependency. Until then, run it from a clone of this repository:
+Add it to the project as a development dependency, so the team, CI and coding agents all run the version pinned in the lockfile. Once `apply` has written the project's release-age delay, later updates of depcurfew go through that delay as well:
+
+```bash
+npm install --save-dev depcurfew
+npx dcf doctor
+```
+
+Who needs it installed:
+
+- **Developers working on the project:** nothing to do. The protection does not depend on depcurfew being installed: it lives in the package manager configuration that `apply` writes into the repository (`.npmrc`, `pnpm-workspace.yaml`, `.yarnrc.yml`, `bunfig.toml`, `deno.json` and the bot configuration), and the package managers read it on their own. The project install brings depcurfew along as a development dependency anyway.
+- **Whoever changes `depcurfew.json`:** runs `npx dcf apply` and commits the result.
+- **CI:** runs `doctor`, with the GitHub Action below or with the project's own copy on other CI systems.
+
+A global install (`npm install -g depcurfew`) works, but teams should not rely on it: each machine may run a different version, the lockfile does not pin it, and npm does not read the project's `.npmrc` in global mode, so the project's release-age delay does not cover the install.
+
+Until the package is published, run it from a clone of this repository:
 
 ```bash
 git clone https://github.com/DevXord/depcurfew.git
@@ -264,14 +279,17 @@ jobs:
 
 ### Other CI systems
 
-The action works only on GitHub. On GitLab CI or any other CI, run the CLI in a job that has Node.js; the job fails when doctor finds an error (exit code 1):
+The action works only on GitHub. On GitLab CI or any other CI, install the project's dependencies without running their install scripts, so nothing from the lockfile runs before doctor has checked it, then run the depcurfew version the lockfile pins; the job fails when doctor finds an error (exit code 1):
 
 ```yaml
 depcurfew:
   image: node:22
   script:
-    - npx --yes depcurfew@1 doctor
+    - npm ci --ignore-scripts
+    - npx --no depcurfew doctor
 ```
+
+`--no` makes npx fail instead of downloading the latest depcurfew when the project does not have it; in CI npx otherwise downloads without asking. With pnpm, Yarn or Bun, use their frozen-lockfile install with install scripts turned off instead of `npm ci --ignore-scripts`.
 
 `depcurfew doctor --json` and `--sarif` write the findings for other tools; set `FORCE_COLOR=1` if the CI log shows colors.
 

@@ -612,12 +612,23 @@ const npm$1 = {
 			filePrefix: "file:",
 			linkFlag: "link",
 			registryTarball: "^https?://[^/]+/.+/-/[^/]+-\\d",
-			specWithoutResolved: "version"
-		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md", "Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package. An entry without resolved is installed as <name>@<version> (workspaces/arborist/lib/arborist/reify.js, #extractOrLink, in 11.19.1 and 12.2.1), so its version field is the source then."),
+			specWithoutResolved: "version",
+			dependencyFields: [
+				"dependencies",
+				"optionalDependencies",
+				"peerDependencies",
+				"devDependencies"
+			]
+		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md", "Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package. An entry without resolved is installed as <name>@<version> (workspaces/arborist/lib/arborist/reify.js, #extractOrLink, in 11.19.1 and 12.2.1), so its version field is the source then. Entries keep the dependency fields of their package.json: dependencies, optionalDependencies and peerDependencies for every package, devDependencies for the root (workspaces/arborist/lib/shrinkwrap.js, pkgMetaKeys and the isTop branch, in 11.21.1 and 12.2.1); a dependency declared there as a URL comes from that URL even when it is a registry tarball."),
+		overrides: checked$3.verified({
+			field: "overrides",
+			selfKey: "."
+		}, "https://github.com/npm/cli/blob/v11.21.1/docs/lib/content/configuring-npm/package-json.md#overrides", "Only the root package.json counts. Keys are package names, optionally with a version or range (name@range), and nest to any depth to scope an override under a parent; \".\" inside a nested object overrides the parent package itself; values take any dependency specifier, including tarball URLs, and $name refers to the spec of a direct dependency. Overrides are not written to package-lock.json (checked with npm 11.21.1), so a URL override of a registry tarball looks like a registry package there. With replace-registry-host at its default npmjs, npm writes the configured registry in place of registry.npmjs.org in resolved URLs (workspaces/config/lib/definitions/definitions.js)."),
 		npmrcScope: checked$3.verified({
 			read: "project root",
-			workspacePackages: "ignored"
-		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns \"ignoring workspace config\" for the package .npmrc (workspaces/config/lib/index.js)."),
+			workspacePackages: "ignored",
+			globalMode: "ignored"
+		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns \"ignoring workspace config\" for the package .npmrc (workspaces/config/lib/index.js). The project .npmrc \"is not read in global mode, such as when running npm install -g\" (same page, v11.21.1 and v12.2.1)."),
 		npmrcListSyntax: verified$4("[]", "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*."),
 		allowAllScripts: verified$4({
 			setting: "dangerously-allow-all-scripts",
@@ -999,7 +1010,7 @@ const pnpm$1 = {
 			],
 			gitType: "git",
 			directoryType: "directory"
-		}, "https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/types/src/index.ts", "lockfileVersion 9.0 (pnpm 9 to 12). Registry packages are keyed name@version; git dependencies name@git+<repo>#<commit> with resolution type git, or a tarball from a git host (gitHosted: true; older lockfiles lack the flag, so the host decides); tarball URLs name@https://…; local tarballs name@file:….tgz; local directories have resolution type directory; link: and workspace: dependencies appear only under importers. requiresBuild was removed in lockfile v9, so install scripts are not recorded."),
+		}, "https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/types/src/index.ts", "lockfileVersion 9.0 (pnpm 9 to 12). Registry packages are keyed name@version; git dependencies name@git+<repo>#<commit> with resolution type git, or a tarball from a git host (gitHosted: true; older lockfiles lack the flag, so the host decides); tarball URLs name@https://…; local tarballs name@file:….tgz; local directories have resolution type directory; link: and workspace: dependencies appear only under importers. requiresBuild was removed in lockfile v9, so install scripts are not recorded. A tarball URL under the configured registry is resolved as that registry package and version (resolving/npm-resolver/src/parseBareSpecifier.ts in v10.34.9), so it is keyed name@version and keeps the URL only in the importer specifier; seen in lockfiles written by pnpm 10.34.9 and 12.16.1."),
 		npmrcPrecedence: checked$2.verified({
 			winner: "pnpm-workspace.yaml",
 			over: [".npmrc", "npm_config_*"]
@@ -9001,12 +9012,58 @@ function splitSpec(key) {
 }
 const HTTP = /^https?:\/\//u;
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
-function npmEntries(text, format, workspaces) {
+/** Where npm installs the dependency `name` of the package at `from`: its own node_modules, else the nearest parent's. */
+function installedAt(packages, from, name) {
+	for (let base = from;;) {
+		const location = base === "" ? `node_modules/${name}` : `${base}/node_modules/${name}`;
+		if (location in packages) return location;
+		if (base === "") return void 0;
+		const parent = base.lastIndexOf("/node_modules/");
+		base = parent === -1 ? "" : base.slice(0, parent);
+	}
+}
+function urlPath(url) {
+	try {
+		return new URL(url).pathname;
+	} catch {
+		return "";
+	}
+}
+/** Packages that overrides (npm, root package.json only) replace with a tarball URL, at any depth of nesting. */
+function urlOverrides(overrides, parent, selfKey, found = []) {
+	if (!isRecord(overrides)) return found;
+	for (const [key, value] of Object.entries(overrides)) {
+		const name = key === selfKey ? parent : splitSpec(key).name;
+		if (typeof value === "string") {
+			const path = HTTP.test(value) ? urlPath(value) : "";
+			if (name !== void 0 && path !== "") found.push({
+				name,
+				path
+			});
+		} else urlOverrides(value, name, selfKey, found);
+	}
+	return found;
+}
+function npmEntries(text, format, workspaces, manifest, overridesFormat) {
 	const document = JSON.parse(text);
 	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
 	const packages = document["packages"];
 	const registry = new RegExp(String(format["registryTarball"]), "u");
 	const scriptsKey = String(format["installScripts"]);
+	const fields = strings(format["dependencyFields"]);
+	const fromUrl = /* @__PURE__ */ new Set();
+	for (const [key, value] of Object.entries(packages)) {
+		if (!isRecord(value)) continue;
+		for (const field of fields) {
+			const dependencies = value[field];
+			if (!isRecord(dependencies)) continue;
+			for (const [name, spec] of Object.entries(dependencies)) {
+				const location = typeof spec === "string" && HTTP.test(spec) ? installedAt(packages, key, name) : void 0;
+				if (location !== void 0) fromUrl.add(location);
+			}
+		}
+	}
+	const overrides = overridesFormat !== void 0 && isRecord(manifest) ? urlOverrides(manifest[String(overridesFormat["field"])], void 0, String(overridesFormat["selfKey"])) : [];
 	const entries = [];
 	for (const [key, value] of Object.entries(packages)) {
 		if (!key.includes("node_modules/") || !isRecord(value)) continue;
@@ -9018,8 +9075,10 @@ function npmEntries(text, format, workspaces) {
 		if (value[String(format["linkFlag"])] === true) source = workspaces.includes(resolved) ? "workspace" : "directory";
 		else if (strings(format["gitPrefixes"]).some((prefix) => spec.startsWith(prefix))) source = "git";
 		else if (spec.startsWith(String(format["filePrefix"]))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? "file" : "directory";
-		else if (HTTP.test(spec)) source = registry.test(spec) ? "registry" : "remoteTarball";
-		else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
+		else if (HTTP.test(spec)) {
+			const overridden = overrides.some((override) => override.name === name && urlPath(spec).endsWith(override.path));
+			source = registry.test(spec) && !fromUrl.has(key) && !overridden ? "registry" : "remoteTarball";
+		} else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
 		entries.push({
 			name,
 			spec,
@@ -9192,6 +9251,21 @@ function documentsOf(tool) {
 	return isRecord(value) ? value : void 0;
 }
 /** The lockfiles a package manager uses in the repository root, parsed. */
+/** The package.json next to a lockfile, or undefined when it is missing or not JSON. */
+function readManifest(repository, lockfile) {
+	const text = repository.readText(posix.join(posix.dirname(lockfile), "package.json"));
+	if (text === void 0) return void 0;
+	try {
+		return JSON.parse(text);
+	} catch {
+		return;
+	}
+}
+function overridesFormatOf(tool) {
+	const fact = tool.extra?.["overrides"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(value) ? value : void 0;
+}
 function readLockfiles(repository, manager, tool, workspaces) {
 	const fact = tool.extra?.["lockfileFormat"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
@@ -9217,7 +9291,7 @@ function readLockfiles(repository, manager, tool, workspaces) {
 			let entries;
 			let recordsScripts = format["installScripts"] !== null;
 			let start = 0;
-			if (tool.id === "npm") entries = npmEntries(text, format, workspaces);
+			if (tool.id === "npm") entries = npmEntries(text, format, workspaces, readManifest(repository, file), overridesFormatOf(tool));
 			else if (tool.id === "pnpm") ({entries, start} = pnpmEntries(text, format, documentsOf(tool)));
 			else if (tool.id === "yarn") entries = yarnEntries(text, format);
 			else if (tool.id === "bun") entries = bunEntries(text, format);
