@@ -585,3 +585,13 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 ## D-050 · Kryterium „wydanie 1.0.0 ma proweniencję” (2026-10-29)
 - **Stan:** wymaga ręcznych kroków właściciela opisanych w `docs/RELEASING.md` (2FA, utworzenie paczki, trusted publisher, zakaz tokenów). Po nich, wyłącznie za osobną zgodą, wypchnę tag `v1.0.0`. Po zatwierdzeniu wydania z 2FA sprawdzę proweniencję w rejestrze (zatwierdzona decyzja 7).
 - **Do tego czasu** faza 8 jest gotowa, ale niezamknięta.
+
+## D-051 · Zatwierdzenie decyzji fazy 8 (2026-10-29)
+- **Zatwierdzenie:** właściciel zaakceptował decyzje podjęte w trakcie fazy 8:
+  - `lockfile-install-scripts` uwzględnia wyłącznik wszystkich skryptów (D-048);
+  - utworzenie paczki przez etapowanie zostawia w jej historii publiczną wersję zastępczą `0.0.0-stage` (D-046);
+  - `$schema` w `depgate.json` projektu wskazuje lokalny `./schema.json` do czasu publikacji;
+  - komentarz o opóźnieniu w `.npmrc` zastąpił odnośnik do `depgate.json` (D-047);
+  - zadanie CI na Node 22 używa npm 10.9.9, który nie zna nowych kluczy `.npmrc`; wydania idą przez Node 24 z npm 11.19.1 (D-046, D-047);
+  - wydanie uruchamia każdy tag `vX.Y.Z` od osoby z prawem push; zalecana reguła ochrony tagów jest krokiem po stronie właściciela (`docs/RELEASING.md`);
+  - nota „pre-release” w README zostaje do czasu publikacji 1.0.0.
