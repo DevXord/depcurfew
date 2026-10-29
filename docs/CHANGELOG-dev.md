@@ -2,6 +2,12 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Przygotowanie wydania 1.0.0: marka zamiast danych autora, README na stronę npm
+
+- Marka `depcurfew` zamiast danych autora: autor i `informationUri` w SARIF (strona paczki na npm); licencja wskazuje właściciela praw (DevXord). `DevXord` zostaje tylko tam, gdzie wymaga go GitHub lub npm: w `uses:` w workflow i w adresie repozytorium (D-064).
+- README bez noty „pre-release”, bo trafi na stronę npm.
+- Plan: kolejność wydań 1.1.0 (`check` i hook), 1.2.0 (Python: uv, pip, Poetry), 1.3.0 (`--user`), 2.x (kolejne języki).
+
 ## 2026-10-29 · Luka: tarball z URL na hoście rejestru; instalacja w projekcie
 
 - `doctor` zgłasza w `package-lock.json` zależności zadeklarowane jako adres tarballa, także na hoście rejestru. npm pobiera je z pominięciem `min-release-age` (D-063). Sprawdziłem też pnpm, Yarn i Bun na prawdziwych lockfile'ach.
