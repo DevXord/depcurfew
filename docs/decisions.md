@@ -540,3 +540,48 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - opisy reguł w README pochodzą z metadanych reguł, a fakty, które przywołują, są w bazie wiedzy (D-043);
   - wymaganie „Node.js 22 or later” w README jest wpisane ręcznie i trzeba je zmieniać razem z `engines`;
   - w workflow repozytorium cache menedżera paczek jest wyłączony, a `actions/checkout` nie zostawia tokenu (`persist-credentials: false`) (D-042).
+
+## D-046 · Wydawanie przez trusted publishing i publikację etapową (2026-10-29)
+- **Workflow `.github/workflows/release.yml`:**
+  - uruchamia się tylko na tagach stabilnych `vX.Y.Z` (zatwierdzona decyzja 2);
+  - ma uprawnienia `permissions: {}`, a zadanie dostaje tylko `contents: read` i `id-token: write`;
+  - Node 24 (npm 11.19.1) i jawne sprawdzenie npm 11.15.0+ oraz Node 22.14+;
+  - zgodność tagu z `package.json`, `npm ci`, wszystkie testy, `typecheck`, `check:pkg`, zgodność bundla akcji i `depgate doctor` na sobie;
+  - na końcu `npm stage publish --provenance`;
+  - nie ma tokenu npm ani sekretów, a akcje są przypięte do SHA.
+- **Tylko etapowanie:** trusted publisher ma prawo tylko do `npm stage publish`, bez `npm publish`, więc każde wydanie wymaga zatwierdzenia z 2FA (zatwierdzona decyzja 1). Bez środowiska GitHub; bramką jest zatwierdzenie na npm (zatwierdzona decyzja 6).
+- **Utworzenie nowej paczki:** trusted publishera da się skonfigurować tylko dla istniejącej paczki. `docs/RELEASING.md` opisuje utworzenie paczki przez etapowanie wersji próbnej, które publikuje wersję zastępczą `0.0.0-stage`, i odrzucenie tej wersji. Opisuje też konfigurację `npm trust github … --allow-stage-publish`, wyłączenie publikacji tokenami i wydanie w ciągu 2 dni od konfiguracji.
+- **Test `tests/meta/release.test.ts`** pilnuje:
+  - tagów tylko w postaci `vX.Y.Z`;
+  - uprawnień;
+  - braku sekretów i tokenów;
+  - `npm stage publish --provenance` zamiast `npm publish`;
+  - kolejności sprawdzeń przed etapowaniem;
+  - wyłączonego cache i `persist-credentials: false`.
+
+## D-047 · Polityka depgate dla samego projektu (2026-10-29)
+- **`depgate.json`:** opóźnienie 7 dni (jak wcześniej w `.npmrc`), skrypty instalacyjne `deny` bez wyjątków, wszystkie źródła spoza rejestru `deny`.
+- **Zastosowanie:** `depgate apply` zapisało blok w `.npmrc`. Dawny wiersz `min-release-age=7` zastąpił komentarz wskazujący na `depgate.json`.
+- **`packageManager: "npm@11.19.1"`** w `package.json`, czyli wersja npm z Node 24 LTS, na którym powstają wydania. `apply` i `doctor` liczą się z nią, a nie z najnowszą znaną wersją (zatwierdzona decyzja 3).
+- **Wersja w `package.json`:** 1.0.0, repozytorium jest gotowe do wydania. Notę „pre-release” w README zmienię po publikacji (zatwierdzona decyzja 4).
+- **`doctor` na sobie:**
+  - kończy się kodem 0 z jednym ostrzeżeniem: `fsevents` (opcjonalny, tylko macOS) ma skrypt instalacyjny, którego npm nie uruchomi (zatwierdzona decyzja 5);
+  - test `tests/meta/self-doctor.test.ts` pilnuje, że `apply` nie ma nic do zmiany, a `doctor` nie zgłasza błędów;
+  - w CI `doctor` na sobie uruchamia zadanie `self` w `action-test.yml` (przez akcję), a przed etapowaniem także workflow wydania.
+
+## D-048 · `lockfile-install-scripts` uwzględnia wyłącznik wszystkich skryptów (2026-10-29)
+- **Skąd zmiana:** wyszła przy stosowaniu polityki na samym depgate. Przy npm 11.19.1 jeden ze spornych wariantów bazy mówi, że npm uruchamia skrypty z ostrzeżeniem, więc reguła zgłaszała błąd dla `fsevents`. Nie widziała `ignore-scripts=true` w `.npmrc`.
+- **Zmiana:** reguła czyta teraz zweryfikowany wyłącznik `installScripts.disableAll` danego narzędzia (`ignore-scripts`, `ignoreScripts`, `enableScripts: false`, `install.ignoreScripts`) z jego pliku konfiguracyjnego. Gdy wyłącznik jest ustawiony, zgłoszenie ma poziom ostrzeżenia z informacją, co wyłącza skrypty. Niepewny wyłącznik Deno jest pomijany.
+- **Fikstura:** `lockfile-install-scripts/fires-npm11-ignore-scripts`.
+
+## D-049 · Fakty fazy 8 (2026-10-29)
+- **Źródło:** oficjalna dokumentacja npm z repozytorium `npm/documentation`, przypięta do commita `514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b` (strony serwisu docs.npmjs.com są z tej sieci zablokowane).
+- **Nowe fakty w `extra` npm:**
+  - `trustedPublishing`: npm 11.5.1+, Node 22.14+, `id-token: write`, automatyczna proweniencja (tylko publiczna paczka z publicznego repozytorium), wygasanie nowej konfiguracji po 2 dniach;
+  - `stagedPublishing`: npm 11.15.0+, polecenia `npm stage publish`, `approve` i `reject`, 2FA tylko przy zatwierdzaniu i odrzucaniu, wersja zastępcza `0.0.0-stage` dla nowej paczki, `--provenance` także przy etapowaniu;
+  - `trustCommand`: `npm trust github`, paczka musi istnieć, flagi uprawnień.
+- **Wersje i nazwa:** wersje npm w Node 24.22.2 (npm 11.19.1) i 22.23.4 (npm 10.9.9) pochodzą z `nodejs.org/dist/index.json`. Nazwa `depgate` była 2026-10-29 wolna (rejestr npm zwrócił 404).
+
+## D-050 · Kryterium „wydanie 1.0.0 ma proweniencję” (2026-10-29)
+- **Stan:** wymaga ręcznych kroków właściciela opisanych w `docs/RELEASING.md` (2FA, utworzenie paczki, trusted publisher, zakaz tokenów). Po nich, wyłącznie za osobną zgodą, wypchnę tag `v1.0.0`. Po zatwierdzeniu wydania z 2FA sprawdzę proweniencję w rejestrze (zatwierdzona decyzja 7).
+- **Do tego czasu** faza 8 jest gotowa, ale niezamknięta.

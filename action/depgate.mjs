@@ -432,6 +432,27 @@ const npm$1 = {
 		workspacesObjectKey: uncertain$3("packages", "https://github.com/npm/map-workspaces/blob/main/lib/index.js", "Not documented; npm’s map-workspaces also accepts { \"packages\": [...] } and negated patterns.")
 	},
 	extra: {
+		trustedPublishing: checked$3.verified({
+			minimumNpm: "11.5.1",
+			minimumNode: "22.14.0",
+			githubPermission: "id-token: write",
+			automaticProvenance: true,
+			firstPublishWithinDays: 2
+		}, "https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/packages-and-modules/securing-your-code/trusted-publishers.mdx", "Publishing from GitHub-hosted runners with OIDC instead of a token. Provenance is generated automatically, only for a public package from a public repository. A new trusted publisher configuration expires unless its first publish succeeds within 2 days. It can be limited to npm stage publish (the default for configurations created after 2026-09-03)."),
+		stagedPublishing: checked$3.verified({
+			minimumNpm: "11.15.0",
+			minimumNode: "22.14.0",
+			stage: "npm stage publish",
+			approve: "npm stage approve",
+			reject: "npm stage reject",
+			newPackagePlaceholder: "0.0.0-stage"
+		}, "https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-stage.mdx", "Staging needs no 2FA, so CI can do it; approving or rejecting needs 2FA (CLI or npmjs.com). Staging a package that does not exist yet creates it with the public placeholder version 0.0.0-stage. Pre-release versions need an explicit --tag. --provenance also applies to npm stage publish."),
+		trustCommand: checked$3.verified({
+			command: "npm trust github",
+			minimumNpm: "11.15.0",
+			packageMustExist: true,
+			permissions: ["--allow-publish", "--allow-stage-publish"]
+		}, "https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-trust.mdx", "Configures a trusted publisher from the CLI; needs 2FA on the account and write access, and the package must already exist. At least one permission flag is required."),
 		lockfileFormat: checked$3.verified({
 			installScripts: "hasInstallScript",
 			gitPrefixes: ["git+", "git:"],
@@ -11459,6 +11480,17 @@ function runsScripts(context, tool) {
 		return policy === "run" || policy === "run-with-warning";
 	});
 }
+/** Where the repository turns off every dependency script with the tool's own switch (e.g. ignore-scripts in .npmrc). */
+function scriptsDisabledBy(context, tool) {
+	const fact = tool.installScripts.disableAll;
+	const value = fact.status === "verified" ? fact.value : void 0;
+	const match = typeof value === "string" ? /^([\w.-]+)(?::\s*(\S+))?$/u.exec(value) : null;
+	const file = values(tool.cooldown.configFiles)[0]?.[0];
+	if (match === null || file === void 0) return void 0;
+	const [, key = "", expected] = match;
+	const found = readSetting(context.repository, file, key);
+	return found !== void 0 && found.value === (expected === void 0 ? true : iniValue(expected)) ? `${key} in ${file}` : void 0;
+}
 const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
 	summary: "The lockfile has packages with install scripts that depgate.json does not allow.",
@@ -11476,13 +11508,14 @@ const lockfileInstallScripts = {
 			}
 			const flagged = lockfile.entries.filter((entry) => entry.installScript === true);
 			if (flagged.length === 0 && tool.id === "bun") context.notice(`${lockfile.file} marks no package with install scripts; Bun records them only since 1.4.4, so an older lockfile may hide some`, lockfile.file);
-			const running = runsScripts(context, tool);
+			const disabledBy = scriptsDisabledBy(context, tool);
+			const running = disabledBy === void 0 && runsScripts(context, tool);
 			for (const entry of flagged) {
 				if (scripts.allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
 				context.report({
 					level: running ? "error" : "warning",
 					location: location(lockfile, entry),
-					message: running ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it` : `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them`,
+					message: running ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it` : disabledBy === void 0 ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them` : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy} turns them off; the package may need them`,
 					fix: `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package`
 				});
 			}

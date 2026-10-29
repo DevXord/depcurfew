@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "package-lock.json",
+      "line": 41
+    },
+    "message": "core-js has install scripts that npm will not run because ignore-scripts in .npmrc turns them off; the package may need them",
+    "fix": "Review its scripts and add core-js to installScripts.allow in depgate.json, or replace the package"
+  }
+]

@@ -1,0 +1,54 @@
+# Stages a release on npm with trusted publishing (OIDC) and provenance, without an npm token. The staged version
+# becomes public only after a maintainer approves it with 2FA. See docs/RELEASING.md.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions: {}
+
+jobs:
+  stage:
+    name: Stage the release on npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: npm supports staged publishing with trusted publishing
+        run: |
+          node -e '
+            const [major, minor] = process.versions.node.split(".").map(Number);
+            const npm = require("child_process").execSync("npm --version", { encoding: "utf8" }).trim();
+            const [npmMajor, npmMinor] = npm.split(".").map(Number);
+            if (major < 22 || (major === 22 && minor < 14)) throw new Error(`Node.js ${process.versions.node} is older than 22.14.0`);
+            if (npmMajor < 11 || (npmMajor === 11 && npmMinor < 15)) throw new Error(`npm ${npm} is older than 11.15.0`);
+            console.log(`Node.js ${process.versions.node}, npm ${npm}`);
+          '
+      - name: The tag matches the version in package.json
+        env:
+          TAG: ${{ github.ref_name }}
+        run: test "v$(node -p 'require("./package.json").version')" = "$TAG"
+      # The project .npmrc sets ignore-scripts, so no dependency script runs.
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run check:pkg
+      - name: The committed action bundle matches the sources
+        run: |
+          npm run build:action
+          git diff --exit-code -- action/
+      - name: depgate doctor on itself
+        run: node dist/cli.js doctor .
+      - name: Stage the package (approve it on npmjs.com or with npm stage approve, using 2FA)
+        run: npm stage publish --provenance

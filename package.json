@@ -1,6 +1,6 @@
 {
   "name": "depgate",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot, plus a doctor that finds config that silently does nothing.",
   "license": "MIT",
   "author": "DevXord",
@@ -30,6 +30,7 @@
   "engines": {
     "node": ">=22"
   },
+  "packageManager": "npm@11.19.1",
   "scripts": {
     "build": "tsdown",
     "build:action": "tsdown -c tsdown.action.config.ts",

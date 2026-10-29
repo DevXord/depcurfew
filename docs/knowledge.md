@@ -6,7 +6,7 @@ The facts depgate relies on, each linked to the official documentation or change
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-7 tools · 262 facts · 35 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-29.
+7 tools · 265 facts · 35 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-29.
 
 ## Release-age cooldown
 
@@ -81,6 +81,9 @@ Further facts used by generators and `doctor`.
 
 ### npm
 
+- `trustedPublishing` (✅ verified): `{"minimumNpm":"11.5.1","minimumNode":"22.14.0","githubPermission":"id-token: write","automaticProvenance":true,"firstPublishWithinDays":2}` [↗](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/packages-and-modules/securing-your-code/trusted-publishers.mdx)
+- `stagedPublishing` (✅ verified): `{"minimumNpm":"11.15.0","minimumNode":"22.14.0","stage":"npm stage publish","approve":"npm stage approve","reject":"npm stage reject","newPackagePlaceholder":"0.0.0-stage"}` [↗](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-stage.mdx)
+- `trustCommand` (✅ verified): `{"command":"npm trust github","minimumNpm":"11.15.0","packageMustExist":true,"permissions":["--allow-publish","--allow-stage-publish"]}` [↗](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-trust.mdx)
 - `lockfileFormat` (✅ verified): `{"installScripts":"hasInstallScript","gitPrefixes":["git+","git:"],"filePrefix":"file:","linkFlag":"link","registryTarball":"^https?://[^/]+/.+/-/[^/]+-\\d"}` [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md)
 - `npmrcScope` (✅ verified): `{"read":"project root","workspacePackages":"ignored"}` [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
 - `npmrcListSyntax` (✅ verified): [] [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
@@ -220,6 +223,9 @@ Context recorded with verified facts.
 - `sources.directory.default`: npm 12 did not change the default. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#allow-directory)
 - `project.lockfiles`: npm 11 and earlier prefer npm-shrinkwrap.json over package-lock.json when both exist; npm 12 no longer reads or writes npm-shrinkwrap.json (same format, rename it). [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md)
 - `project.workspaces`: An array of folder paths or globs. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md#workspaces)
+- `extra.trustedPublishing`: Publishing from GitHub-hosted runners with OIDC instead of a token. Provenance is generated automatically, only for a public package from a public repository. A new trusted publisher configuration expires unless its first publish succeeds within 2 days. It can be limited to npm stage publish (the default for configurations created after 2026-09-03). [↗](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/packages-and-modules/securing-your-code/trusted-publishers.mdx)
+- `extra.stagedPublishing`: Staging needs no 2FA, so CI can do it; approving or rejecting needs 2FA (CLI or npmjs.com). Staging a package that does not exist yet creates it with the public placeholder version 0.0.0-stage. Pre-release versions need an explicit --tag. --provenance also applies to npm stage publish. [↗](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-stage.mdx)
+- `extra.trustCommand`: Configures a trusted publisher from the CLI; needs 2FA on the account and write access, and the package must already exist. At least one permission flag is required. [↗](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-trust.mdx)
 - `extra.lockfileFormat`: Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md)
 - `extra.npmrcScope`: Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns "ignoring workspace config" for the package .npmrc (workspaces/config/lib/index.js). [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
 - `extra.npmrcListSyntax`: Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
