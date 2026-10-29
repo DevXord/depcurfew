@@ -13024,7 +13024,7 @@ function renderText(report, rules, colors = PLAIN) {
 
 // src/doctor/sarif.ts
 const SARIF_SCHEMA = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
-const INFORMATION_URI = "https://github.com/DevXord/depcurfew";
+const INFORMATION_URI = "https://www.npmjs.com/package/depcurfew";
 function ruleName(id) {
 	return id.replace(/(^|-)([a-z])/gu, (_match, _dash, letter) => letter.toUpperCase());
 }

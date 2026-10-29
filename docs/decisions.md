@@ -857,7 +857,7 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - Programiści nie muszą go instalować, bo ochronę daje zapisana konfiguracja.
   - Inne CI uruchamia kopię z projektu (`npm ci`, potem `npx depcurfew doctor`) zamiast `npx --yes depcurfew@1`, które pobierało najnowszą wersję bez opóźnienia.
   - Instalacja globalna działa, ale nie jest polecana zespołom: wersje się rozjeżdżają, a npm nie czyta `.npmrc` projektu w trybie globalnym (fakt `npmrcScope.globalMode`).
-- **Plan.** `dcf apply --user` (ochrona całego komputera programisty) i ostrzeżenie o starszej wersji wchodzą do planu jako faza 8b, wersja 1.2.0.
+- **Plan.** `dcf apply --user` (ochrona całego komputera programisty) i ostrzeżenie o starszej wersji wchodzą do planu jako faza 11, wersja 1.3.0 (po fazie 10 z Pythonem w 1.2.0).
 - **Po przeglądzie kodu (PR #11).**
   - **Dopasowanie po ścieżce, nie po tekście adresu.** Zależność z URL jest przypisywana wpisowi tak, jak Node szuka paczki: najpierw `node_modules` deklarującego pakietu, potem rodziców. Nie porównujemy tekstu adresu z `resolved`, bo npm przy domyślnym `replace-registry-host=npmjs` może zapisać tam host skonfigurowanego rejestru. Kopia tej samej paczki osiągnięta przez zakres wersji nie jest oznaczana.
   - **`overrides` z URL.** Nie trafiają do lockfile, więc są czytane z `package.json` obok lockfile (nowy fakt `overrides`; zagnieżdżenia i klucz `.`). Wpis tej paczki, którego ścieżka w `resolved` kończy się ścieżką adresu, ma źródło `remoteTarball`.
@@ -867,3 +867,17 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
     - opóźnienie obejmuje aktualizacje depcurfew dopiero po pierwszym `apply`.
   - Test pilnuje, że zdanie README o trybie globalnym zgadza się z faktem `npmrcScope.globalMode`.
 
+## D-064 · Marka zamiast danych autora tam, gdzie to możliwe; README gotowe na stronę npm (2026-10-29)
+
+- **Zasada (decyzja właściciela).** Programista nie musi wpisywać w plikach swojego projektu niczego z danymi autora. Tam, gdzie nazwę właściciela wymaga GitHub albo npm, zostaje `DevXord`. Organizacja GitHub nie jest potrzebna.
+- **Wymagane:**
+  - wiersz `uses: DevXord/depcurfew@<SHA>` w workflow użytkownika, bo GitHub buduje go z właściciela repozytorium;
+  - `repository` w `package.json`, bo npm porównuje go przy proweniencji z repozytorium, z którego zbudowano paczkę (stąd też `homepage` i `bugs`);
+  - trusted publisher w `docs/RELEASING.md`;
+  - `LICENSE`: „Copyright (c) 2026 DevXord”. Informacja o prawach autorskich nikomu nie przeszkadza, bo nikt jej nie wpisuje we własne pliki, a jednoznacznie wskazuje właściciela praw.
+- **Marka zamiast danych autora:**
+  - `author: depcurfew` w `package.json` i `action.yml`;
+  - `informationUri` w SARIF wskazuje stronę paczki na npm, więc wyniki code scanning u użytkownika nie wskazują konta autora.
+- **Pliki zapisywane w projektach użytkowników:** `depcurfew.json` (`$schema` na unpkg.com/depcurfew) i znaczniki zapisywane przez `apply` od początku zawierały tylko markę.
+- **Poza kodem:** rejestr npm pokazuje publicznie nazwę i mail opiekuna paczki (pole `maintainers`), a historia commitów na GitHubie — dotychczasowych autorów.
+- **README na stronie npm.** npm pokazuje README z opublikowanej paczki, więc nota „pre-release” i instrukcja „until the package is published” znikają przed tagiem `v1.0.0`, nie po nim.

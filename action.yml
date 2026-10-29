@@ -1,6 +1,6 @@
 name: depcurfew doctor
 description: Find package manager configuration that silently does not work, and drift from depcurfew.json; report it to code scanning.
-author: DevXord
+author: depcurfew
 branding:
   icon: shield
   color: blue
