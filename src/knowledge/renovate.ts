@@ -123,7 +123,7 @@ export const renovate: ToolKnowledge = {
     ruleDescription: verified(
       'description',
       'https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description',
-      'A human-readable description allowed inside any configuration object; depgate uses it to recognise the packageRules entry it manages.',
+      'A human-readable description allowed inside any configuration object; depgate uses it to recognize the packageRules entry it manages.',
     ),
     packageJsonConfig: verified(
       { file: 'package.json', key: 'renovate' },
@@ -152,7 +152,7 @@ export const renovate: ToolKnowledge = {
       release('33.0.0'),
     ),
     independentOfPackageManager: verified(
-      'minimumReleaseAge is set independently of the package manager’s own release-age configuration',
+      'minimumReleaseAge is set independently of the package manager\'s own release-age configuration',
       MINIMUM_RELEASE_AGE,
       'Source code passes --before to npm only; pnpm, Yarn and Bun gates are not read.',
     ),

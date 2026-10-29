@@ -49,7 +49,10 @@ export const npm: ManagerGenerator = (context) => {
         entries.push(`${strict.setting}=${String(strict.value)}`);
         managed.push(strict.setting);
       } else if (defaults === 'run') {
-        context.warn(`${context.name} ${formatVersion(context.version ?? [0, 0, 0])} runs every dependency install script and has no allow-list; "deny" cannot be enforced (npm 11.16.0 added allowScripts, npm 12 blocks scripts by default)`);
+        const since = sinceOf(tool.installScripts.allowList.availableSince) ?? '';
+        context.warn(
+          `${context.name} ${formatVersion(context.version ?? [0, 0, 0])} runs every dependency install script and has no allow-list, so "deny" cannot be enforced; require npm ${since} or later (npm 12 blocks dependency scripts by default)`,
+        );
       }
       const setting = settingOf(tool.installScripts.allowList.setting);
       const listFile = settingOf(tool.installScripts.allowList.file) ?? 'package.json';

@@ -4,7 +4,7 @@
     "package.json"
   ],
   "warnings": [
-    "npm: allowScripts takes package names only; \"@scope/*\" not written"
+    "npm: allowScripts takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow"
   ],
   "snippets": []
 }

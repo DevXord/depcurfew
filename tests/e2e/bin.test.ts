@@ -13,12 +13,19 @@ const pkg = JSON.parse(readFileSync(new URL('package.json', root), 'utf8')) as {
 };
 const binPath = fileURLToPath(new URL(pkg.bin['depgate'] ?? '', root));
 
+// Plain output whatever the environment running the tests sets; the color tests set these themselves.
+const { FORCE_COLOR: _force, NO_COLOR: _no, ...plainEnv } = process.env;
+
 function depgate(...args: string[]) {
-  return spawnSync(process.execPath, [binPath, ...args], { encoding: 'utf8' });
+  return spawnSync(process.execPath, [binPath, ...args], { encoding: 'utf8', env: plainEnv });
 }
 
 function depgateIn(cwd: string, ...args: string[]) {
-  return spawnSync(process.execPath, [binPath, ...args], { encoding: 'utf8', cwd });
+  return spawnSync(process.execPath, [binPath, ...args], { encoding: 'utf8', cwd, env: plainEnv });
+}
+
+function depgateWith(env: Record<string, string>, ...args: string[]) {
+  return spawnSync(process.execPath, [binPath, ...args], { encoding: 'utf8', env: { ...plainEnv, ...env } });
 }
 
 describe('built depgate executable', () => {
@@ -36,6 +43,18 @@ describe('built depgate executable', () => {
     const result = depgate('--help');
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Usage: depgate <command> [options]');
+  });
+
+  it('prints plain text to a pipe, colors with FORCE_COLOR and none with NO_COLOR', () => {
+    const directory = fileURLToPath(new URL('tests/fixtures/doctor/config-drift/fires-hand-edited/repo', root));
+    const ansi = /\u001b\[/u;
+    expect(depgate('doctor', directory).stdout).not.toMatch(ansi);
+    const colored = depgateWith({ FORCE_COLOR: '1' }, 'doctor', directory);
+    expect(colored.stdout).toMatch(/\u001b\[1m\u001b\[31merror\u001b\[39m\u001b\[22m/u);
+    expect(depgateWith({ FORCE_COLOR: '1' }, 'doctor', '--json', directory).stdout).not.toMatch(ansi);
+    expect(depgateWith({ FORCE_COLOR: '1' }, 'doctor', '--sarif', directory).stdout).not.toMatch(ansi);
+    expect(depgateWith({ NO_COLOR: '1' }, 'doctor', directory).stdout).not.toMatch(ansi);
+    expect(depgateWith({ FORCE_COLOR: '1' }, 'frobnicate').stderr).toMatch(/^\u001b\[31m\u001b\[1mdepgate:/u);
   });
 
   it('--version prints the package version', () => {

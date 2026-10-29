@@ -118,7 +118,7 @@ export const botCooldownMismatch: Rule = {
   summary: 'An update bot waits less than the package manager before proposing a new version.',
   description:
     'The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile.',
-  help: 'Give the bot a delay at least as long as the package manager’s (depgate apply does this).',
+  help: 'Give the bot a delay at least as long as the package manager\'s (depgate apply does this).',
   level: 'error',
   requiresPolicy: false,
   check(context) {

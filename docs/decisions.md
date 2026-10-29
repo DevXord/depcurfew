@@ -704,3 +704,26 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - Drugie `apply` nigdy nic nie zmienia.
   - Kod 1 z `doctor` dają tylko wersje, którym naprawdę brakuje ustawienia, i każda jest nazwana.
 - **Yarn Classic (1.x):** `apply` ostrzegał, że nic nie zapisze, ale `doctor` kończył się kodem 0, więc polityka po cichu nie działała. Teraz `manager-version-too-old` zgłasza błąd, gdy jest polityka, i podaje wersję Yarna, od której depgate konfiguruje opóźnienie (4.10.2).
+
+## D-061 · Komunikaty dla ludzi i maszyn, kolory, pomoc poleceń, Action poza logiem (2026-10-29)
+
+- **Zasada.** Tekst jest dla człowieka: jeden język (angielski), pełne zdania i przy każdym błędzie i ostrzeżeniu informacja, co zrobić. Programy i agenci AI czytają `--json` i `--sarif`. Te formaty się nie zmieniają, poza tym, że więcej znalezisk ma pole `fix`.
+- **Wskazówki.**
+  - Każde znalezisko `doctor` ma `fix`; `config-drift` mówi, czy uruchomić `depgate apply`, czy zmienić `depgate.json`.
+  - Każde ostrzeżenie `apply` kończy się działaniem: wymaganą wersją narzędzia, miejscem, gdzie przypiąć wersję, ustawieniem w polityce do zmiany albo informacją, że `doctor` nadal pilnuje lockfile'a.
+  - Brakujące ustawienia jednej wersji narzędzia są w jednym ostrzeżeniu, pogrupowane według wersji (`src/apply/requirements.ts`). Ta sama funkcja opisuje braki w `manager-version-too-old`.
+- **Pisownia:** amerykańska (recognize, honors, behavior) i zwykły apostrof `'` zamiast typograficznego.
+- **Pomoc.** `depgate <polecenie> --help`, `-h` i `depgate help <polecenie>` opisują polecenie: co robi, jakie ma opcje, przykłady i kody wyjścia. Błąd użycia odsyła do pomocy tego polecenia.
+- **Kolory.**
+  - Własny moduł `src/color.ts` z kodami ANSI, bez nowej zależności.
+  - Kolory są tylko na terminalu (osobno dla stdout i stderr) i nie dla `TERM=dumb`. `NO_COLOR` z niepustą wartością je wyłącza. `FORCE_COLOR` ma pierwszeństwo, jak w Node.js: `0` i `false` wyłączają, każda inna wartość włącza.
+  - JSON, SARIF i diff przekierowany do pliku nigdy nie dostają kodów. Testy sprawdzają, że po usunięciu kodów tekst jest identyczny z wersją bez kolorów.
+- **GitHub Action.**
+  - Log pozostaje zwykłym tekstem w bloku `stop-commands`.
+  - Doszły adnotacje (`::error`/`::warning`/`::notice` z plikiem, linią i poprawką) i tabela w podsumowaniu zadania (`GITHUB_STEP_SUMMARY`). Obie można wyłączyć wejściami `annotations` i `job-summary`.
+  - Nowe fakty w bazie wiedzy:
+    - `annotations`: składnia i escapowanie jak `escapeData`/`escapeProperty` w @actions/core;
+    - `annotationLimits`: 10 na poziom na krok, 50 na zadanie (problem-matchers.md);
+    - `stepSummary`: zmienna i limit 1 MiB (dokumentacja workflow commands).
+  - Tekst z repozytorium jest escapowany, więc spreparowana nazwa pliku nie doda polecenia przepływu pracy ani w Markdownie linku, HTML-a czy komórki tabeli. Wiersze, które przekroczyłyby limit podsumowania, są pomijane i liczone.
+- **GitLab i inne CI.** Action działa tylko na GitHubie. Na innym CI uruchamia się CLI (`npx --yes depgate@1 doctor`; `--yes`, bo npx bez niego pyta przed instalacją według docs/lib/content/commands/npx.md w npm/cli). Format raportu GitLaba nie jest obsługiwany: wymagałby najpierw zweryfikowanych faktów.

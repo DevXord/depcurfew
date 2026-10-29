@@ -30,12 +30,12 @@ export const bun: ToolKnowledge = {
     configFiles: verified(
       ['bunfig.toml'],
       BUNFIG,
-      'Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun’s .npmrc support has no min-release-age key.',
+      'Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun\'s .npmrc support has no min-release-age key.',
     ),
     cliFlag: verified(
       '--minimum-release-age',
       DOCS_1_3_0,
-      'bun install, add and update; bunx honours it only since 1.4.4.',
+      'bun install, add and update; bunx honors it only since 1.4.4.',
     ),
     unit: verified(
       'seconds',
@@ -67,7 +67,7 @@ export const bun: ToolKnowledge = {
     defaultPolicy: verified(
       [{ since: '0.0.0', value: 'deny-except-allowlist' }],
       `${LIFECYCLE}#trusteddependencies`,
-      'Dependency scripts run only for Bun’s built-in trusted list (npm-registry packages only since 1.4) or trustedDependencies; the root project’s scripts run. First version of this policy not tracked.',
+      'Dependency scripts run only for Bun\'s built-in trusted list (npm-registry packages only since 1.4) or trustedDependencies; the root project\'s scripts run. First version of this policy not tracked.',
     ),
     allowList: {
       setting: verified(
@@ -86,7 +86,7 @@ export const bun: ToolKnowledge = {
     disableAll: verified(
       'install.ignoreScripts',
       `${BUNFIG}#install-ignorescripts`,
-      'Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project’s own scripts and trustedDependencies too.',
+      'Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project\'s own scripts and trustedDependencies too.',
     ),
   },
   sources: {

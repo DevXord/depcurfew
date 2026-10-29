@@ -3,12 +3,13 @@ import { PolicyError } from '../apply/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { countLevels, renderText, RULES, runDoctor, toSarif, type DoctorReport } from '../doctor/index.ts';
 import { getVersion } from '../version.ts';
+import { paint } from '../color.ts';
 import { resolveDirectory } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
 export function doctor(directory: string | undefined, format: { json: boolean; sarif: boolean }, io: CliIo): number {
   if (format.json && format.sarif) {
-    io.stderr("depgate: '--json' and '--sarif' cannot be used together\nRun 'depgate --help' for usage.\n");
+    io.stderr("depgate: '--json' and '--sarif' cannot be used together; pick one\nRun 'depgate doctor --help' for usage.\n");
     return EXIT_USAGE;
   }
   const absolute = resolveDirectory(directory, io);
@@ -28,7 +29,7 @@ export function doctor(directory: string | undefined, format: { json: boolean; s
   } else if (format.json) {
     io.stdout(`${JSON.stringify({ ...report, summary: countLevels(report.findings) }, null, 2)}\n`);
   } else {
-    io.stdout(renderText(report, RULES));
+    io.stdout(renderText(report, RULES, paint(io.colors?.stdout)));
   }
   return countLevels(report.findings).error > 0 ? EXIT_FAILURE : EXIT_OK;
 }

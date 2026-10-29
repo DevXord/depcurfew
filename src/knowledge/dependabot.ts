@@ -84,7 +84,7 @@ export const dependabot: ToolKnowledge = {
       'The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. Cooldown is supported for all three.',
     ),
     dayRange: disputed(
-      'Matters for opting out of the default cooldown; cooldown.exclude: ["*"] works under the documented precedence rule either way. The announcement does not state its author’s role.',
+      'Matters for opting out of the default cooldown; cooldown.exclude: ["*"] works under the documented precedence rule either way. The announcement does not state its author\'s role.',
       evidence('1 to 90 days', 'https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates'),
       evidence('0 removes the cooldown', 'https://github.com/dependabot/dependabot-core/discussions/15582'),
     ),

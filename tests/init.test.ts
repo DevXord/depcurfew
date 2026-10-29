@@ -117,9 +117,17 @@ describe('command options', () => {
   });
 
   it('documents init and --force in the help', async () => {
-    const result = await exec('init', '--help');
+    const result = await exec('--help');
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout).toMatch(/^ {2}init {2,}Create a default policy file \(depgate\.json\)$/m);
     expect(result.stdout).toMatch(/^ {2}--force {2,}Overwrite an existing depgate\.json$/m);
+  });
+
+  it('describes init, its options and exit codes in depgate init --help', async () => {
+    const result = await exec('init', '--help');
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toMatch(/^Usage: depgate init \[directory\] \[options\]$/m);
+    expect(result.stdout).toMatch(/^ {2}--force {2,}Overwrite an existing depgate\.json$/m);
+    expect(result.stdout).toMatch(/^Exit codes:$/m);
   });
 });

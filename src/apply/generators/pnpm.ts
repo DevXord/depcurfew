@@ -30,7 +30,7 @@ export const pnpm: ManagerGenerator = (context) => {
       const strict = extraOf(tool, 'minimumReleaseAgeStrict', isSwitch);
       if (context.atLeast(strict.since) && yaml.get([strict.setting]) !== strict.value) yaml.set([strict.setting], strict.value);
       const exact = extraOf(tool, 'cooldownExactVersions', (value): value is string => typeof value === 'string');
-      if (!context.atLeast(exact)) context.warn(`${context.name} ${formatVersion(context.version ?? [0, 0, 0])} skips ${setting} for packages requested by exact version (fixed in ${exact})`);
+      if (!context.atLeast(exact)) context.warn(`${context.name} ${formatVersion(context.version ?? [0, 0, 0])} skips ${setting} for packages requested by exact version; require pnpm ${exact} or later`);
     }
     const excludeSetting = settingOf(tool.cooldown.exclude.setting);
     const patterns = cooldown === undefined ? undefined : exclusions(context);
@@ -79,7 +79,7 @@ export const pnpm: ManagerGenerator = (context) => {
   if (exoticSetting !== undefined) {
     const denied = [...exotic].filter(([, access]) => access === 'deny').map(([kind]) => (kind === 'git' ? 'git' : 'remote tarball'));
     if (denied.length > 0) {
-      context.warn(`pnpm: ${exoticSetting} blocks git and tarball dependencies only when they are subdependencies; direct ones stay allowed`);
+      context.warn(`pnpm: ${exoticSetting} stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depgate doctor reports them in pnpm-lock.yaml`);
       if (denied.length < exotic.size) context.warn(`pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(' and ')}`);
     }
     yaml.set([exoticSetting], denied.length > 0);

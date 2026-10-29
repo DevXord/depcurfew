@@ -11,7 +11,7 @@ import { formatDuration, type Duration } from '../policy/duration.ts';
 import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
-import { values } from './facts.ts';
+import { sinceOf, values } from './facts.ts';
 import { bun } from './generators/bun.ts';
 import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet } from './generators/context.ts';
 import { deno } from './generators/deno.ts';
@@ -60,11 +60,14 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   const targets = new Set<ToolId>(policy.targets === 'auto' ? detectedTargets(detection) : policy.targets);
   for (const manager of detection.packageManagers) {
     if (!manager.supported && (policy.targets === 'auto' || targets.has(manager.id))) {
-      warnings.push(`${manager.variant === 'classic' ? 'Yarn Classic (1.x)' : manager.id} is not supported; nothing written for it`);
+      const berry = tools.find((tool) => tool.id === manager.id);
+      const since = berry === undefined ? undefined : sinceOf(berry.cooldown.availableSince);
+      const advice = manager.variant === 'classic' && berry !== undefined ? `. Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depgate configures` : '';
+      warnings.push(`${manager.variant === 'classic' ? 'Yarn Classic (1.x)' : manager.id} is not supported; nothing written for it${advice}`);
       targets.delete(manager.id);
     }
   }
-  if (targets.size === 0) warnings.push('no tools to configure');
+  if (targets.size === 0) warnings.push('no tools to configure: depgate found no supported package manager or bot here (depgate explain shows what it detects)');
 
   const run = (tool: ToolKnowledge, version: Version | undefined, action: (context: ReturnType<typeof createContext>) => void) => {
     const context = createContext({ tool, policy, version, workspace, warnings, snippets, failures });
@@ -73,6 +76,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     } catch (error) {
       if (!(error instanceof EditFailed)) throw error;
     }
+    context.finish();
   };
 
   const managerMinutes: number[] = [];
@@ -83,7 +87,9 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     const version = manager === undefined ? undefined : pinnedVersion(manager);
     if (version === undefined) {
       const latest = latestVersion(tool);
-      warnings.push(`${tool.name}: no exact version is pinned; configuring for ${tool.name} ${latest ?? 'latest'}, the latest known version`);
+      warnings.push(
+        `${tool.name}: no exact version is pinned, so depgate configures for ${tool.name} ${latest ?? 'latest'}, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it`,
+      );
     }
     run(tool, version, (context) => {
       const minutes = generator(context);

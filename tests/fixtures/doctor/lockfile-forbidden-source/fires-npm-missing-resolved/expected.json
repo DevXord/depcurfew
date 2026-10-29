@@ -14,7 +14,7 @@
       "file": "package-lock.json",
       "line": 20
     },
-    "message": "package-lock.json installs odd from a source depgate does not recognise (someone/odd); it may be one depgate.json denies",
+    "message": "package-lock.json installs odd from a source depgate does not recognize (someone/odd); it may be one depgate.json denies",
     "fix": "Check where odd comes from, and regenerate the lockfile with the package manager if the entry is damaged"
   }
 ]

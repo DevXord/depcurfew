@@ -94,8 +94,8 @@ describe('depgate apply', () => {
     expect(first.stdout).toBe('Created .npmrc\nUpdated package.json\n');
     expect(first.stderr).toBe(
       [
-        'warning: npm: no exact version is pinned; configuring for npm 12.2.1, the latest known version',
-        'warning: npm: allowScripts takes package names only; "@scope/*" not written',
+        'warning: npm: no exact version is pinned, so depgate configures for npm 12.2.1, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it',
+        'warning: npm: allowScripts takes package names only; "@scope/*" not written. List the package names in installScripts.allow',
         '',
       ].join('\n'),
     );

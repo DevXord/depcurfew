@@ -1,5 +1,6 @@
 // Readable doctor output: findings grouped by file, then notices.
-import type { DoctorReport, Finding, Rule } from './types.ts';
+import { PLAIN, type Paint } from '../color.ts';
+import type { DoctorReport, Finding, Level, Rule } from './types.ts';
 
 export function countLevels(findings: readonly Finding[]): Record<'error' | 'warning' | 'note', number> {
   const counts = { error: 0, warning: 0, note: 0 };
@@ -11,27 +12,33 @@ function plural(count: number, word: string): string {
   return `${count} ${count === 1 ? word : `${word}s`}`;
 }
 
-export function renderText(report: DoctorReport, rules: readonly Rule[]): string {
+function levelColor(level: Level, colors: Paint): (text: string) => string {
+  if (level === 'error') return (text) => colors.bold(colors.red(text));
+  return level === 'warning' ? colors.yellow : colors.cyan;
+}
+
+export function renderText(report: DoctorReport, rules: readonly Rule[], colors: Paint = PLAIN): string {
   const counts = countLevels(report.findings);
   const lines: string[] = [];
   if (report.findings.length === 0) {
-    lines.push('No problems found.');
+    lines.push(colors.green('No problems found.'));
   } else {
-    lines.push(`${plural(counts.error, 'error')}, ${plural(counts.warning, 'warning')}, ${plural(counts.note, 'note')}`);
+    const count = (level: Level) => (counts[level] === 0 ? plural(0, level) : levelColor(level, colors)(plural(counts[level], level)));
+    lines.push(`${count('error')}, ${count('warning')}, ${count('note')}`);
     let file: string | undefined;
     for (const finding of report.findings) {
       if (finding.location.file !== file) {
         file = finding.location.file;
-        lines.push('', file);
+        lines.push('', colors.bold(file));
       }
       const where = finding.location.line === undefined ? '' : `${finding.location.line}: `;
       const help = finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
-      lines.push(`  ${where}${finding.level} ${finding.message} (${finding.rule})`);
-      if (help !== undefined) lines.push(`    fix: ${help}`);
+      lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${finding.message} ${colors.dim(`(${finding.rule})`)}`);
+      if (help !== undefined) lines.push(`    ${colors.green('fix:')} ${help}`);
     }
   }
   if (report.notices.length > 0) {
-    lines.push('', 'Notes:', ...report.notices.map((notice) => `  ${notice.message}`));
+    lines.push('', colors.bold('Notes:'), ...report.notices.map((notice) => `  ${notice.message}`));
   }
   return `${lines.join('\n')}\n`;
 }

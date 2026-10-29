@@ -154,7 +154,7 @@ export const npm: ToolKnowledge = {
     workspacesObjectKey: uncertain(
       'packages',
       'https://github.com/npm/map-workspaces/blob/main/lib/index.js',
-      'Not documented; npm’s map-workspaces also accepts { "packages": [...] } and negated patterns.',
+      'Not documented; npm\'s map-workspaces also accepts { "packages": [...] } and negated patterns.',
     ),
   },
   extra: {

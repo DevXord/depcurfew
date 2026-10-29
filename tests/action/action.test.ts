@@ -20,10 +20,11 @@ function workspace(fixture: string, subdirectory = ''): string {
   return root;
 }
 
-function run(env: Record<string, string>): { outputs: ReturnType<typeof runAction>; log: string } {
+function run(env: Record<string, string>): { outputs: ReturnType<typeof runAction>; log: string; summary: string } {
   let log = '';
-  const outputs = runAction(env, { log: (text) => (log += text) });
-  return { outputs, log };
+  let summary = '';
+  const outputs = runAction(env, { log: (text) => (log += text), summary: (text) => (summary += text) });
+  return { outputs, log, summary };
 }
 
 describe('GitHub Action entry point', () => {
@@ -42,8 +43,32 @@ describe('GitHub Action entry point', () => {
     const second = run({ GITHUB_WORKSPACE: root }).log;
     const token = /^::stop-commands::([0-9a-f-]{36})\n/u.exec(first)?.[1];
     expect(token).toBeDefined();
-    expect(first.endsWith(`::${token}::\n`)).toBe(true);
+    expect(first).toMatch(new RegExp(`\\n::${token}::\\n::error `, 'u'));
     expect(second).not.toContain(token);
+  });
+
+  it('adds an annotation with the fix after the report, unless turned off', () => {
+    const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter');
+    const { log } = run({ GITHUB_WORKSPACE: root });
+    const annotation = log.split('\n').filter((line) => line.startsWith('::error '));
+    expect(annotation).toHaveLength(1);
+    expect(annotation[0]).toMatch(/^::error file=\.github\/dependabot\.yml,line=\d+,title=depgate%3A bot-cooldown-mismatch::.+%0AFix: .+/u);
+    expect(run({ GITHUB_WORKSPACE: root, INPUT_ANNOTATIONS: 'false' }).log).not.toMatch(/^::error /mu);
+  });
+
+  it('writes a job summary with a row and the fix for every finding, unless turned off', () => {
+    const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter', 'packages/app');
+    const { summary } = run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'packages/app' });
+    expect(summary).toMatch(/^## depgate doctor\n\n\*\*1 error\*\*, 0 warnings, 0 notes in `packages\/app`\.\n/u);
+    expect(summary).toContain('| Level | Where | Problem | How to fix |');
+    expect(summary).toMatch(/^\| \*\*error\*\* \| `packages\/app\/\.github\/dependabot\.yml:\d+` \| .+ \(`bot-cooldown-mismatch`\) \| .+ \|$/mu);
+    expect(run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'packages/app', INPUT_JOB_SUMMARY: 'false' }).summary).toBe('');
+  });
+
+  it('says in the job summary when doctor could not run', () => {
+    const root = workspace('bot-cooldown-mismatch/passes-consistent');
+    writeFileSync(join(root, 'depgate.json'), '{ "version": 2 }');
+    expect(run({ GITHUB_WORKSPACE: root }).summary).toMatch(/^## depgate doctor\n\ndepgate could not check the repository: depgate\.json is invalid; /u);
   });
 
   it('makes paths relative to the workspace when checking a subdirectory', () => {
