@@ -530,3 +530,13 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - runner z Node 20: akcja sama instaluje Node 22.
 - **Wynik:** sprawdzony na GitHubie przy commicie `3bead20` (przebiegi 40838113951 i 40838113787). Wszystkie zadania przeszły. Upload-sarif zwalidował i przetworzył raport („Successfully uploaded results”, „Analysis upload status is complete”). Na runnerze z Node 20 akcja zainstalowała Node 22.23.4 i uruchomiła `doctor`.
 - **Baza wiedzy:** nowy fakt w dziale „środowisko”, `githubActions.codeScanningUpload` (akcja, wejścia `sarif_file` i `category`, uprawnienia `security-events: write` oraz `actions: read` i `contents: read` w repozytoriach prywatnych), ze źródłem w dokumentacji GitHuba (zatwierdzona decyzja 2).
+
+## D-045 · Zatwierdzenie decyzji fazy 6 (2026-10-29)
+- **Zatwierdzenie:** właściciel zaakceptował decyzje podjęte w trakcie fazy 6:
+  - Node 22 zainstalowany przez akcję zostaje w kolejnych krokach zadania użytkownika (D-040);
+  - workflow repozytorium uruchamiają się przy pushu na każdą gałąź i przy PR (D-042);
+  - test akcji wysyła przy każdym pushu analizy `depgate-self` i `depgate-fixture-clean` do code scanning (D-044);
+  - przykładowy workflow w README podaje `actions: read` i `contents: read` tylko dla repozytoriów prywatnych, jak przykład w dokumentacji GitHuba (D-043);
+  - opisy reguł w README pochodzą z metadanych reguł, a fakty, które przywołują, są w bazie wiedzy (D-043);
+  - wymaganie „Node.js 22 or later” w README jest wpisane ręcznie i trzeba je zmieniać razem z `engines`;
+  - w workflow repozytorium cache menedżera paczek jest wyłączony, a `actions/checkout` nie zostawia tokenu (`persist-credentials: false`) (D-042).
