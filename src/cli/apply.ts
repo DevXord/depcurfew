@@ -57,7 +57,9 @@ export function apply(directory: string | undefined, dryRun: boolean, io: CliIo)
   } else if (report.errors.length === 0) {
     io.stdout(
       report.changes.length === 0
-        ? colors.green('Nothing to change; the configuration already matches the policy.') + '\n'
+        ? report.warnings.length + report.snippets.length === 0
+          ? colors.green('Nothing to change; the configuration already matches the policy.') + '\n'
+          : 'No files changed; what depgate could not apply is listed below.\n'
         : report.changes.map((change) => `${colors.green(change.before === null ? 'Created' : 'Updated')} ${change.file}\n`).join(''),
     );
   }
