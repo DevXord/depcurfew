@@ -9773,7 +9773,8 @@ function describeRequirements(requirements) {
 		0,
 		0
 	]);
-	return [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since}${group.disputed ? "; official sources disagree, so depgate assumes this later version" : ""})`).join(", ");
+	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since})`).join(", ");
+	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depgate assumes the later one` : text;
 }
 
 // src/apply/toml.ts
