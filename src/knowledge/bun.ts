@@ -108,6 +108,11 @@ export const bun: ToolKnowledge = {
     workspacesObjectKey: verified('packages', 'https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx', 'The object form also holds catalog and catalogs.'),
   },
   extra: {
+    durationStrings: verified(
+      { since: '1.4.4', syntax: 'compact-or-words' },
+      BUN_1_4_4,
+      'Since 1.4.4 minimumReleaseAge also takes duration strings such as 90m, 12 hours, 3d or 2 weeks; plain numbers stay seconds.',
+    ),
     excludeWildcards: verified(
       { since: null, trailingOnly: false },
       BUN_1_4_4,

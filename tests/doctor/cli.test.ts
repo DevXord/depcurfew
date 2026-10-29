@@ -1,0 +1,103 @@
+// `depgate doctor` through the CLI: the three output formats, exit codes and policy errors.
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, describe, expect, it } from 'vitest';
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../../src/cli/run.ts';
+import { RULES } from '../../src/doctor/index.ts';
+
+const DOCTOR = fileURLToPath(new URL('../fixtures/doctor/', import.meta.url));
+const FAILING = join(DOCTOR, 'bot-cooldown-mismatch/fires-dependabot-shorter/repo');
+const WARNING_ONLY = join(DOCTOR, 'bot-cooldown-mismatch/fires-security-recheck/repo');
+const CLEAN = join(DOCTOR, 'bot-cooldown-mismatch/passes-consistent/repo');
+
+const temporary: string[] = [];
+afterAll(() => {
+  for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
+});
+
+async function exec(...argv: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+  let stdout = '';
+  let stderr = '';
+  const code = await run(argv, {
+    stdout: (text) => {
+      stdout += text;
+    },
+    stderr: (text) => {
+      stderr += text;
+    },
+  });
+  return { code, stdout, stderr };
+}
+
+describe('depgate doctor', () => {
+  it('prints findings grouped by file and fails on errors', async () => {
+    const result = await exec('doctor', FAILING);
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stdout).toMatch(/^1 error, 0 warnings, 0 notes\n\n\.github\/dependabot\.yml\n {2}7: error Dependabot proposes npm updates after 3 days/u);
+    expect(result.stdout).toContain('(bot-cooldown-mismatch)\n    fix: Make the Dependabot delay at least 1 week, or run depgate apply\n');
+    expect(result.stdout).toContain('\nNotes:\n  no depgate.json: only the rules that do not need a policy ran\n');
+    expect(result.stderr).toBe('');
+  });
+
+  it('exits with 0 when there are only warnings', async () => {
+    const result = await exec('doctor', WARNING_ONLY);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout.startsWith('0 errors, 1 warning, 0 notes\n')).toBe(true);
+  });
+
+  it('says so when nothing is found', async () => {
+    const result = await exec('doctor', CLEAN);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout.startsWith('No problems found.\n')).toBe(true);
+  });
+
+  it('--json prints the report with a summary', async () => {
+    const result = await exec('doctor', '--json', FAILING);
+    expect(result.code).toBe(EXIT_FAILURE);
+    const report = JSON.parse(result.stdout) as Record<string, unknown>;
+    expect(report).toMatchObject({ schemaVersion: 1, policy: 'missing', summary: { error: 1, warning: 0, note: 0 } });
+    expect(report['findings']).toEqual([
+      expect.objectContaining({ rule: 'bot-cooldown-mismatch', level: 'error', location: { file: '.github/dependabot.yml', line: 7 } }),
+    ]);
+  });
+
+  it('--sarif prints SARIF with every rule and a location for every result', async () => {
+    const result = await exec('doctor', '--sarif', FAILING);
+    expect(result.code).toBe(EXIT_FAILURE);
+    const sarif = JSON.parse(result.stdout) as { version: string; runs: { tool: { driver: { rules: { id: string }[] } }; results: unknown[] }[] };
+    expect(sarif.version).toBe('2.1.0');
+    expect(sarif.runs[0]?.tool.driver.rules.map((rule) => rule.id)).toEqual(RULES.map((rule) => rule.id));
+    expect(sarif.runs[0]?.results).toEqual([
+      expect.objectContaining({
+        ruleId: 'bot-cooldown-mismatch',
+        level: 'error',
+        locations: [{ physicalLocation: { artifactLocation: { uri: '.github/dependabot.yml', uriBaseId: '%SRCROOT%' }, region: { startLine: 7 } } }],
+      }),
+    ]);
+  });
+
+  it('rejects --json together with --sarif', async () => {
+    const result = await exec('doctor', '--json', '--sarif', CLEAN);
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stderr).toContain("'--json' and '--sarif' cannot be used together");
+  });
+
+  it('fails with an invalid policy file', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'depgate-doctor-cli-'));
+    temporary.push(directory);
+    cpSync(CLEAN, directory, { recursive: true });
+    writeFileSync(join(directory, 'depgate.json'), '{ "version": 2 }');
+    const result = await exec('doctor', directory);
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toMatch(/^depgate: depgate\.json is invalid\n {2}\S/u);
+  });
+
+  it('fails for a directory that does not exist', async () => {
+    const result = await exec('doctor', join(tmpdir(), 'depgate-does-not-exist'));
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stderr).toContain('directory not found');
+  });
+});

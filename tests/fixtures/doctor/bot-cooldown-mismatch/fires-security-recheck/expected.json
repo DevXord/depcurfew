@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 7
+    },
+    "message": "Dependabot security updates skip its delay, but pnpm re-checks the lockfile and waits 1 day (the default of pnpm 11.2.0); a security fix younger than that fails to install",
+    "fix": "When a security update fails, exempt the fixed package in the pnpm exclusion list until the delay has passed"
+  }
+]

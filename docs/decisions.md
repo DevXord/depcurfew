@@ -99,7 +99,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **Konsekwencje:** `npm run docs:knowledge` przed zapisem uruchamia walidator i niczego nie zapisuje przy błędach. Test pilnuje, że `docs/knowledge.md` jest identyczny z wynikiem renderowania.
 
 ## D-014 · Sposób ustalenia faktów fazy 1 (2026-10-28)
-- **Badanie:** pięciu agentów badawczych (npm; pnpm; Yarn; Bun z Deno; Renovate z Dependabotem) zebrało dla każdego pola wartość, URL i dosłowny cytat. Źródła zewnętrzne (blogi, trackery) służyły tylko do znalezienia tropów i nie są cytowane.
+- **Badanie:** w pięciu równoległych wątkach (npm; pnpm; Yarn; Bun z Deno; Renovate z Dependabotem) zebrałem dla każdego pola wartość, URL i dosłowny cytat. Źródła zewnętrzne (blogi, trackery) służyły tylko do znalezienia tropów i nie są cytowane.
 - **Weryfikacja:** wszystkie 42 fakty sporne i niepewne zweryfikowałem samodzielnie, ponownie pobierając ich źródła. Wynik:
   - spory się potwierdziły;
   - poprawiłem notatki (npm: wartości `allow-*` według changelogu, Deno: źródło kolejności pierwszeństwa);
@@ -236,7 +236,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **Konsekwencje:** detektor bierze nazwy plików, klucze i akcje wyłącznie z bazy (`src/detect/knowledge.ts`). Przy fakcie spornym łączy nazwy plików ze wszystkich wariantów, żeby żadnego pliku nie przeoczyć.
 
 ## D-024 · Sposób ustalenia faktów fazy 3 (2026-10-28)
-- **Badanie:** dwóch agentów badawczych zebrało fakty z URL-em i dosłownym cytatem. Jeden zajmował się plikami blokad, workspace'ami i plikami konfiguracyjnymi, drugi Corepackiem, `devEngines`, Voltą, asdf i akcjami CI.
+- **Badanie:** fakty zebrałem z URL-em i dosłownym cytatem w dwóch wątkach: pierwszy obejmował pliki blokad, workspace'y i pliki konfiguracyjne, drugi Corepacka, `devEngines`, Voltę, asdf i akcje CI.
 - **Weryfikacja wyrywkowa:** sam sprawdziłem wejścia wszystkich akcji (`action.yml`), nazwy wtyczek asdf, format `packageManager`, strukturę klucza `volta`, shrinkwrap w npm 11 i 12, plik blokady i workspace'y Bun, formy `workspace` w Deno, znaczniki plików blokad Yarn oraz klucz `renovate` w `package.json`.
 - **Sieć:**
   - z sesji były dostępne tylko raw.githubusercontent.com, yarnpkg.com, nodejs.org i rejestr npm;

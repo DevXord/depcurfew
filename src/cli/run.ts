@@ -2,6 +2,7 @@ import { parseArgs } from 'node:util';
 import { getVersion } from '../version.ts';
 import { apply } from './apply.ts';
 import { COMMANDS, findCommand } from './commands.ts';
+import { doctor } from './doctor.ts';
 import { helpText } from './help.ts';
 import { explain } from './explain.ts';
 import { init } from './init.ts';
@@ -70,6 +71,7 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
   if (command.name === 'init') return init(rest[0], values['force'] === true, io);
   if (command.name === 'explain') return explain(rest[0], values['json'] === true, io);
   if (command.name === 'apply') return apply(rest[0], values['dry-run'] === true, io);
+  if (command.name === 'doctor') return doctor(rest[0], { json: values['json'] === true, sarif: values['sarif'] === true }, io);
 
   io.stderr(`depgate: '${command.name}' is not implemented yet.\n`);
   return EXIT_FAILURE;

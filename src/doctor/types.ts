@@ -1,0 +1,63 @@
+import type { Repository } from '../detect/repository.ts';
+import type { Detection } from '../detect/types.ts';
+import type { ToolKnowledge } from '../knowledge/types.ts';
+import type { ResolvedPolicy } from '../policy/schema.ts';
+
+/** The SARIF levels: an error fails `doctor`, warnings and notes do not. */
+export type Level = 'error' | 'warning' | 'note';
+
+export interface Location {
+  /** Repository-relative path with `/` separators. */
+  file: string;
+  /** 1-based; absent when the finding concerns the whole file. */
+  line?: number;
+}
+
+export interface Finding {
+  rule: string;
+  level: Level;
+  message: string;
+  location: Location;
+  /** A fix for this finding; the rule's general help applies when absent. */
+  fix?: string;
+}
+
+/** Something doctor could not check, such as an unreadable file. Not a problem in the repository itself. */
+export interface Notice {
+  message: string;
+  file?: string;
+}
+
+export interface RuleContext {
+  root: string;
+  repository: Repository;
+  detection: Detection;
+  /** undefined when the repository has no depgate.json. */
+  policy: ResolvedPolicy | undefined;
+  tools: readonly ToolKnowledge[];
+  report(finding: Omit<Finding, 'rule' | 'level'> & { level?: Level }): void;
+  notice(message: string, file?: string): void;
+}
+
+export interface Rule {
+  /** Stable kebab-case identifier, used in SARIF and in the documentation. */
+  id: string;
+  /** One sentence: what the rule finds. */
+  summary: string;
+  /** Why it matters. */
+  description: string;
+  /** How to fix it in general. */
+  help: string;
+  /** Default level of its findings. */
+  level: Level;
+  /** Rules that compare the repository with depgate.json do not run without one. */
+  requiresPolicy: boolean;
+  check(context: RuleContext): void;
+}
+
+export interface DoctorReport {
+  schemaVersion: 1;
+  policy: 'valid' | 'missing';
+  findings: Finding[];
+  notices: Notice[];
+}

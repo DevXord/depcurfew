@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".yarnrc.yml",
+      "line": 2
+    },
+    "message": "Yarn (Berry) 4.10.3 ignores the duration string \"7d\" in npmMinimalAgeGate; strings work only since 4.11.0, so no delay applies",
+    "fix": "Write the delay as a number in minutes, or require Yarn (Berry) 4.11.0 or later"
+  }
+]

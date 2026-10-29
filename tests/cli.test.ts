@@ -55,16 +55,13 @@ describe('depgate CLI', () => {
     expect(result.stderr).toContain('--frobnicate');
   });
 
-  it('the planned doctor command reports that it is not implemented yet', async () => {
-    const result = await exec('doctor');
-    expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toContain("'doctor' is not implemented yet");
-  });
-
   it('lists the options of apply in the help', async () => {
     const result = await exec('--help');
     expect(result.stdout).toContain('apply [directory]:');
     expect(result.stdout).toMatch(/^\s+--dry-run\s+Print a diff/mu);
+    expect(result.stdout).toContain('doctor [directory]:');
+    expect(result.stdout).toMatch(/^\s+--sarif\s+Print the findings as SARIF/mu);
+    expect(result.stdout).not.toContain('(planned)');
   });
 
   it('rejects an option of another command', async () => {

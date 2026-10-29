@@ -102,6 +102,20 @@ describe('built depgate executable', () => {
     expect(result.stderr).toContain("run 'depgate init' first");
   });
 
+  it('doctor --sarif reports a fixture repository and fails on its error', () => {
+    const result = depgate('doctor', '--sarif', fileURLToPath(new URL('tests/fixtures/doctor/bot-cooldown-mismatch/fires-dependabot-shorter/repo', root)));
+    expect(result.status).toBe(1);
+    const sarif = JSON.parse(result.stdout) as { version: string; runs: { results: { ruleId: string }[] }[] };
+    expect(sarif.version).toBe('2.1.0');
+    expect(sarif.runs[0]?.results.map((entry) => entry.ruleId)).toEqual(['bot-cooldown-mismatch']);
+  });
+
+  it('doctor exits with 0 on a clean repository', () => {
+    const result = depgate('doctor', fileURLToPath(new URL('tests/fixtures/doctor/bot-cooldown-mismatch/passes-consistent/repo', root)));
+    expect(result.status).toBe(0);
+    expect(result.stdout.startsWith('No problems found.\n')).toBe(true);
+  });
+
   it('an unknown command exits with 2', () => {
     const result = depgate('frobnicate');
     expect(result.status).toBe(2);

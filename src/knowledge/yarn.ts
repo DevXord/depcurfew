@@ -139,6 +139,11 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    durationStrings: verified(
+      { since: '4.11.0', syntax: 'compact', before: 'no effect' },
+      'https://github.com/yarnpkg/berry/pull/6942',
+      'npmMinimalAgeGate accepts a number followed by ms, s, m, h, d or w (e.g. 3d, 1w) since 4.11.0; on 4.10.x such a string silently had no effect.',
+    ),
     scriptsSwitch: verified({ setting: 'enableScripts', allow: true, deny: false }, `${YARNRC}#enableScripts`),
     excludeWildcards: verified(
       { since: '4.10.0', trailingOnly: false },

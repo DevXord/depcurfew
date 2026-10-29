@@ -1,0 +1,8 @@
+{
+  "extends": ["config:recommended"],
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchPackageNames": ["eslint"], "automerge": true },
+    { "matchPackageNames": ["@acme/*"], "minimumReleaseAge": null }
+  ]
+}

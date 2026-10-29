@@ -1,0 +1,5 @@
+{
+  "name": "broad-tools",
+  "private": true,
+  "packageManager": "pnpm@11.2.0"
+}

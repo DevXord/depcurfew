@@ -116,6 +116,11 @@ export const deno: ToolKnowledge = {
     workspacesObjectKey: verified('members', WORKSPACES),
   },
   extra: {
+    durationStrings: verified(
+      { since: null, syntax: 'iso8601' },
+      SCHEMA,
+      'Strings are ISO-8601 durations (P3D, PT72H), an absolute date or an RFC3339 timestamp; the last two set a fixed cut-off instead of a delay.',
+    ),
     ageObjectKey: verified('age', SCHEMA, 'In the object form of minimumDependencyAge, age holds the delay and exclude the exemptions.'),
     excludeWildcards: verified(
       { since: '2.9.2', trailingOnly: true },

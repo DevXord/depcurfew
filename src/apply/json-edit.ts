@@ -188,6 +188,15 @@ function find(text: string, path: Path): JsonNode | undefined {
   return node;
 }
 
+/** The offset where the value at `path` starts, or undefined; for reporting line numbers. */
+export function jsonOffset(text: string, path: Path): number | undefined {
+  try {
+    return find(text, path)?.start;
+  } catch {
+    return undefined;
+  }
+}
+
 export function jsonGet(text: string, path: Path): unknown {
   let value: unknown = parseJsonc(text);
   for (const segment of path) {

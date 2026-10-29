@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "cooldown": {
+    "minimum": "3d",
+    "exclude": ["@*/*"]
+  },
+  "targets": "auto"
+}

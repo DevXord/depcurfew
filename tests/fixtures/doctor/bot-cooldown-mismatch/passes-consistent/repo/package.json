@@ -1,0 +1,5 @@
+{
+  "name": "consistent",
+  "private": true,
+  "packageManager": "pnpm@10.20.0"
+}

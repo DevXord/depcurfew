@@ -1,0 +1,9 @@
+{
+  "name": "applied",
+  "private": true,
+  "packageManager": "npm@12.2.1",
+  "allowScripts": {
+    "esbuild": true,
+    "sharp": true
+  }
+}

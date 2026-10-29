@@ -1,0 +1,9 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "depgate.json"
+    },
+    "message": "pnpm-workspace.yaml is missing; depgate apply would create it with the settings from depgate.json"
+  }
+]

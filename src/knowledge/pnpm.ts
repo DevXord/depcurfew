@@ -126,6 +126,19 @@ export const pnpm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, WORKSPACE_YAML_V10, 'The docs show packages only as a list; concluded from the absence of an object form.'),
   },
   extra: {
+    ignoredSince: verified(
+      { since: '11.0.0', npmrc: 'auth and registry settings', packageJsonField: 'pnpm' },
+      release('11.0.0'),
+      'Structured form of npmrcIgnored: from 11.0.0 on, other .npmrc settings and the package.json "pnpm" field have no effect.',
+    ),
+    lockfileRecheck: uncertain(
+      [
+        { since: '10.16.0', value: false },
+        { since: '11.1.3', value: true },
+      ],
+      release('11.1.3'),
+      'Structured form of lockfileVerification: whether a frozen-lockfile install re-checks the age of versions already in the lockfile. trustLockfile: true (11.3.0) turns the check off.',
+    ),
     allowAllBuilds: verified(
       { setting: 'dangerouslyAllowAllBuilds', since: '10.9.0', value: true },
       'https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md',
