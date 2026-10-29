@@ -818,3 +818,26 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - Każde znalezisko `check` ma pole `fix`, w tekście jako wiersz `fix:`, a w `--json` jako pole.
   - Hook przekazuje agentowi tylko te poprawki, które nie zmieniają `depcurfew.json`, i dopisuje, że politykę zmienia wyłącznie użytkownik. Agent nie powinien obchodzić strażnika edycją polityki.
   - Informacja o domyślnej polityce zaczyna się od `note:`, bo to nie jest błąd.
+
+## D-062 · Nowa nazwa: depcurfew i krótkie polecenie dcf (2026-10-29)
+
+- **Powód.** Nazwę `depgate` od września 2025 nosi inne narzędzie z tej samej branży: DepGate autorstwa cognitivegears (PyPI `depgate`, GitHub `cognitivegears/depgate`, zakres npm `@depgate`). Wykrywa dependency confusion i ma bramkę wieku wydania. Groziło to pomyleniem narzędzi, sporem o nazwę w npm i kłopotem z rejestracją znaku towarowego. Nazwę zmieniamy przed 1.0.0, bo jest to najtańszy moment: nikt jeszcze nie używa `depgate.json` ani Action.
+- **Wybór (decyzja właściciela).** `depcurfew`, czyli „godzina policyjna dla zależności”. W dniu decyzji nazwa była wolna:
+  - w npm (paczka i zakres), w PyPI i w crates.io;
+  - na GitHubie nie było repozytorium ani użytkownika o tej nazwie;
+  - wyszukiwarka nie zwracała żadnych wyników.
+- **Odrzucone kandydatki:**
+  - depfence, lockward, pkgward, depward(en), installgate, supplyward(en), pinward: istnieją narzędzia o tych nazwach z tej samej branży;
+  - depmoat: kojarzy się z LavaMoat i laravel/moat;
+  - depcordon: nazwa „cordon” jest zatłoczona wśród narzędzi do bezpieczeństwa agentów AI.
+- **Nie sprawdzone w tej sesji:** rejestry znaków towarowych (TMview) i domeny, bo te serwisy były niedostępne. Sprawdza je właściciel.
+- **Zakres zmiany.** Zmieniły się:
+  - nazwa paczki i polecenia;
+  - plik polityki `depcurfew.json`;
+  - znaczniki zarządzanych fragmentów (`# >>> depcurfew managed block`, `# managed by depcurfew`);
+  - adres schematu `https://unpkg.com/depcurfew/schema.json`;
+  - paczka Action `action/depcurfew.mjs`;
+  - adres repozytorium `DevXord/depcurfew` (repozytorium na GitHubie zmienia nazwę właściciel).
+
+  Starych nazw nie obsługujemy, bo wersja z nazwą `depgate` nigdy nie została wydana.
+- **Krótkie polecenie `dcf`.** Drugi wpis w `bin`, wskazujący ten sam plik. Paczka npm `dcf` instaluje polecenie `dcf-shell`, a nie `dcf`, i nie ma polecenia systemowego o tej nazwie. Pomoc i komunikaty używają pełnej nazwy; pomoc ogólna mówi o skrócie.

@@ -85,6 +85,8 @@ Every section is optional: a section that is absent means depcurfew does not man
 
 ## Commands
 
+The package installs two names for the same command: `depcurfew` and the short `dcf`, so `dcf doctor` works like `depcurfew doctor`.
+
 | Command | What it does |
 | --- | --- |
 | `depcurfew init [directory] [--force]` | Writes `depcurfew.json` with the default policy; `--force` overwrites an existing one. |

@@ -23,6 +23,7 @@ describe('depcurfew CLI', () => {
     const result = await exec(flag);
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout).toContain('Usage: depcurfew <command> [options]');
+    expect(result.stdout).toContain("'dcf' is a short name for 'depcurfew'");
     for (const command of ['init', 'apply', 'doctor', 'explain']) {
       expect(result.stdout).toMatch(new RegExp(`^\\s+${command}\\s`, 'm'));
     }

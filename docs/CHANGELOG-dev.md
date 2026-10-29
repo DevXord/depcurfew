@@ -2,6 +2,12 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Nowa nazwa: depcurfew, krótkie polecenie dcf
+
+- Projekt nazywa się teraz `depcurfew`, bo nazwę `depgate` nosi już inne narzędzie z tej samej branży (D-062). Plik polityki to `depcurfew.json`.
+- Paczka instaluje też krótkie polecenie `dcf`, które działa tak samo jak `depcurfew`.
+- **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą; paczka zainstalowana z tarballa uruchamia oba polecenia.
+
 ## 2026-10-29 · Poprawki komunikatów po teście w konsoli
 
 - Gdy `apply` niczego nie zmienił, ale czegoś nie dało się zastosować (ostrzeżenia, fragmenty do dopisania ręcznie), pisze „No files changed; what depcurfew could not apply is listed below.” zamiast mylącego „the configuration already matches the policy”.

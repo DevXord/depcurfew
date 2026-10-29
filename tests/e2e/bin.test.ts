@@ -35,6 +35,10 @@ describe('built depcurfew executable', () => {
     }
   });
 
+  it('installs the short command dcf as the same executable', () => {
+    expect(pkg.bin['dcf']).toBe(pkg.bin['depcurfew']);
+  });
+
   it('starts with a node shebang', () => {
     expect(readFileSync(binPath, 'utf8').split('\n', 1)[0]).toBe('#!/usr/bin/env node');
   });

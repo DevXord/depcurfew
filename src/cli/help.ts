@@ -50,6 +50,7 @@ export function helpText(colors: Paint = PLAIN): string {
     ...commandOptions,
     '',
     "Run 'depcurfew <command> --help' for what a command does, examples and exit codes.",
+    "'dcf' is a short name for 'depcurfew': dcf doctor works like depcurfew doctor.",
     '',
   ].join('\n');
   return headings(text, colors);
