@@ -12105,6 +12105,23 @@ const managerVersionTooOld = {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
 			if (tool !== void 0) checkManager(context, manager, tool);
 		}
+		for (const manager of context.detection.packageManagers.filter((entry) => !entry.supported && entry.variant === "classic")) {
+			const berry = context.tools.find((entry) => entry.id === manager.id);
+			if (context.policy === void 0 || berry === void 0) continue;
+			const declaration = manager.versions.find((entry) => entry.source === "packageManager");
+			const file = declaration?.file ?? manager.evidence[0]?.file ?? "package.json";
+			const line = declaration === void 0 ? void 0 : declarationLine(context, declaration);
+			const since = sinceOf(berry.cooldown.availableSince);
+			context.report({
+				level: "error",
+				location: line === void 0 ? { file } : {
+					file,
+					line
+				},
+				message: `Yarn Classic (1.x) has none of the settings ${POLICY_FILE} needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it`,
+				fix: `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depgate configures`
+			});
+		}
 	}
 };
 

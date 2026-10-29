@@ -703,3 +703,4 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - Git jest blokowany tam, gdzie menedżer ma odpowiednie ustawienie: npm od 11.10, Yarn od 4.14.
   - Drugie `apply` nigdy nic nie zmienia.
   - Kod 1 z `doctor` dają tylko wersje, którym naprawdę brakuje ustawienia, i każda jest nazwana.
+- **Yarn Classic (1.x):** `apply` ostrzegał, że nic nie zapisze, ale `doctor` kończył się kodem 0, więc polityka po cichu nie działała. Teraz `manager-version-too-old` zgłasza błąd, gdy jest polityka, i podaje wersję Yarna, od której depgate konfiguruje opóźnienie (4.10.2).

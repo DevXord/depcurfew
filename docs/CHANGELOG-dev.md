@@ -14,6 +14,7 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
   - pnpm 11.0–11.0.3 i 12.0–12.2 dostają `minimumReleaseAgeStrict: true`;
   - dla pnpm 10.16.x `apply` ostrzega, a `doctor` zgłasza pominięte dokładne wersje;
   - Yarn dostaje `npmMinimalAgeGate` od 4.10.2, bo 4.10.0–4.10.1 odrzucały też dojrzałe wersje (D-060).
+- **Yarn Classic:** przy obecnej polityce `doctor` zgłasza błąd, bo żadne ustawienie nie działa w Yarn 1.x.
 - **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
 
 ## 2026-10-29 · Przegląd przed wydaniem 1.0.0
