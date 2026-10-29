@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+const checked = verifiedOn('2026-10-29');
 
 const BUNFIG = 'https://bun.com/docs/runtime/bunfig';
 const INSTALL = 'https://bun.com/docs/pm/cli/install';
@@ -108,6 +109,18 @@ export const bun: ToolKnowledge = {
     workspacesObjectKey: verified('packages', 'https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx', 'The object form also holds catalog and catalogs.'),
   },
   extra: {
+    lockfileFormat: checked.verified(
+      {
+        installScripts: 'hasInstallScript',
+        installScriptsSince: '1.4.4',
+        git: ['git+', 'github:'],
+        directory: ['file:', 'link:'],
+        workspace: 'workspace:',
+        tarball: '\\.(?:tar\\.gz|tgz)$',
+      },
+      'https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/lockfile/bun.lock.rs',
+      'bun.lock (text, the default since 1.2) maps each package to a tuple starting with name@<spec>: name@<version> followed by the registry for npm, name@git+<repo>#<sha> and name@github:<owner>/<repo>#<sha> for git, name@https://… for tarball URLs, name@./x.tgz (without file:) for local tarballs, name@file:<dir> and name@link:<dir> for directories, name@workspace:<dir> for workspace packages. The info object carries hasInstallScript: true only since 1.4.4, with no lockfileVersion change, so a missing flag proves nothing for older files. bun.lockb is an undocumented binary format.',
+    ),
     durationStrings: verified(
       { since: '1.4.4', syntax: 'compact-or-words' },
       BUN_1_4_4,

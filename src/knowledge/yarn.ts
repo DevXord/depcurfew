@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+const checked = verifiedOn('2026-10-29');
 
 const YARNRC = 'https://yarnpkg.com/configuration/yarnrc';
 const MANIFEST = 'https://yarnpkg.com/configuration/manifest';
@@ -139,6 +140,20 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    lockfileFormat: checked.verified(
+      {
+        installScripts: null,
+        registry: 'npm:',
+        workspace: 'workspace:',
+        patch: 'patch:',
+        file: 'file:',
+        directory: ['portal:', 'link:'],
+        gitCommit: '#commit=',
+        tarball: '\\.(?:tar\\.gz|tgz)$',
+      },
+      'https://github.com/yarnpkg/berry/blob/@yarnpkg/cli/4.18.1/packages/yarnpkg-core/sources/Project.ts',
+      'Each entry has resolution: name@<locator>: npm:<version> for the registry, <repository>#commit=<sha> for git (GitHub shortcuts become https://github.com/<owner>/<repo>.git), an http(s) URL for tarballs, file:<path> (a .tgz or .tar.gz path is a tarball, anything else a directory), portal: and link: for directories, workspace: for workspace packages, and patch: around the URL-encoded original locator. No field records install scripts; dependenciesMeta.built: false is a user opt-out.',
+    ),
     durationStrings: verified(
       { since: '4.11.0', syntax: 'compact', before: 'no effect' },
       'https://github.com/yarnpkg/berry/pull/6942',

@@ -2,6 +2,28 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Faza 5: `depgate doctor`
+
+- `depgate doctor [katalog] [--json | --sarif]` wykrywa konfigurację, która po cichu nie działa, i odchylenia od `depgate.json` (D-034):
+  - zgłoszenia mają poziom, plik, linię i podpowiedź naprawy;
+  - kod wyjścia 1 przy błędach;
+  - SARIF 2.1.0 do skanowania kodu w GitHubie;
+  - bez polityki działają reguły, które jej nie potrzebują.
+- Dziewięć reguł (D-035):
+  - `manager-version-too-old`, `setting-ignored-by-version`;
+  - `npmrc-overrides-policy`, `pnpm-shared-workspace-lockfile`;
+  - `config-drift`, `bot-cooldown-mismatch`, `broad-exclusion`;
+  - `lockfile-forbidden-source`, `lockfile-install-scripts`.
+- Odstępstwo od planu: `shared-workspace-lockfile=false` w pnpm 10 nie ma oficjalnego potwierdzenia, że „unieważnia opóźnienie”. Reguła zgłasza `.npmrc` pakietu, który w tym trybie nadpisuje ustawienia workspace'u, co wynika z kodu pnpm (D-036).
+- `config-drift` ostrzega też o wpisach w allowlistach narzędzi spoza polityki, których `apply` celowo nie usuwa.
+- Baza wiedzy: 9 nowych faktów (formaty plików blokad, `.npmrc` w npm i pnpm 10) i 7 ustrukturyzowanych form faktów z fazy 1, wszystkie ze źródłami (D-037).
+- Testy (686, wszystkie przechodzą):
+  - fikstury „uruchamia się” i „nie uruchamia się” dla każdej reguły (D-038);
+  - raport SARIF każdej fikstury przechodzi walidację oficjalnym schematem OASIS (własny walidator, bez nowych zależności);
+  - po `apply` na wszystkich 18 fiksturach repozytoriów `config-drift` nie zgłasza błędów;
+  - CLI w procesie i e2e.
+- Weryfikacja: `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą. `node dist/cli.js doctor .` na samym depgate nie zgłasza problemów.
+
 ## 2026-10-28 · Faza 4: generatory konfiguracji
 
 - `depgate apply [katalog] [--dry-run]` zapisuje politykę w konfiguracji każdego narzędzia docelowego (D-028):

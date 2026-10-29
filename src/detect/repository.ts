@@ -61,13 +61,13 @@ export class Repository {
   }
 
   /** The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. */
-  readText(path: string): string | undefined {
+  readText(path: string, limit = MAX_FILE_SIZE): string | undefined {
     const real = this.#resolve(path, true);
     if (real === undefined) return undefined;
     const stats = statSync(real);
     if (!stats.isFile()) return undefined;
-    if (stats.size > MAX_FILE_SIZE) {
-      this.warn('file-too-large', `${path} is larger than 1 MiB and was not read`, [path]);
+    if (stats.size > limit) {
+      this.warn('file-too-large', `${path} is larger than ${limit / (1024 * 1024)} MiB and was not read`, [path]);
       return undefined;
     }
     const text = readFileSync(real, 'utf8');

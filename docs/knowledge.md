@@ -6,7 +6,7 @@ The facts depgate relies on, each linked to the official documentation or change
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-7 tools · 256 facts · 35 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-29.
+7 tools · 261 facts · 35 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-29.
 
 ## Release-age cooldown
 
@@ -81,6 +81,7 @@ Further facts used by generators and `doctor`.
 
 ### npm
 
+- `lockfileFormat` (✅ verified): `{"installScripts":"hasInstallScript","gitPrefixes":["git+","git:"],"filePrefix":"file:","linkFlag":"link","registryTarball":"^https?://[^/]+/.+/-/[^/]+-\\d"}` [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md)
 - `npmrcScope` (✅ verified): `{"read":"project root","workspacePackages":"ignored"}` [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
 - `npmrcListSyntax` (✅ verified): [] [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
 - `allowAllScripts` (✅ verified): `{"setting":"dangerously-allow-all-scripts","since":"11.16.0","value":true}` [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
@@ -93,6 +94,7 @@ Further facts used by generators and `doctor`.
 
 ### pnpm
 
+- `lockfileFormat` (✅ verified): `{"installScripts":null,"gitKeyPrefix":"git+","gitHostedFlag":"gitHosted","gitHostedTarballHosts":["codeload.github.com","bitbucket.org","gitlab.com"],"gitType":"git","directoryType":"directory"}` [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/types/src/index.ts)
 - `npmrcPrecedence` (✅ verified): `{"winner":"pnpm-workspace.yaml","over":[".npmrc","npm_config_*"]}` [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts)
 - `sharedWorkspaceLockfile` (✅ verified): `{"setting":"sharedWorkspaceLockfile","npmrcKey":"shared-workspace-lockfile","default":true}` [↗](https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/versioned_docs/version-10.x/workspaces.md)
 - `perProjectNpmrc` (❓ uncertain): `{"sharedWorkspaceLockfile":false,"until":"11.0.0"}` ❓ [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/pkg-manager/plugin-commands-installation/src/recursive.ts)
@@ -112,6 +114,7 @@ Further facts used by generators and `doctor`.
 
 ### Yarn (Berry)
 
+- `lockfileFormat` (✅ verified): `{"installScripts":null,"registry":"npm:","workspace":"workspace:","patch":"patch:","file":"file:","directory":["portal:","link:"],"gitCommit":"#commit=","tarball":"\\.(?:tar\\.gz|tgz)$"}` [↗](https://github.com/yarnpkg/berry/blob/@yarnpkg/cli/4.18.1/packages/yarnpkg-core/sources/Project.ts)
 - `durationStrings` (✅ verified): `{"since":"4.11.0","syntax":"compact","before":"no effect"}` [↗](https://github.com/yarnpkg/berry/pull/6942)
 - `scriptsSwitch` (✅ verified): `{"setting":"enableScripts","allow":true,"deny":false}` [↗](https://yarnpkg.com/configuration/yarnrc#enableScripts)
 - `excludeWildcards` (✅ verified): `{"since":"4.10.0","trailingOnly":false}` [↗](https://yarnpkg.com/configuration/yarnrc#npmPreapprovedPackages)
@@ -126,6 +129,7 @@ Further facts used by generators and `doctor`.
 
 ### Bun
 
+- `lockfileFormat` (✅ verified): `{"installScripts":"hasInstallScript","installScriptsSince":"1.4.4","git":["git+","github:"],"directory":["file:","link:"],"workspace":"workspace:","tarball":"\\.(?:tar\\.gz|tgz)$"}` [↗](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/lockfile/bun.lock.rs)
 - `durationStrings` (✅ verified): `{"since":"1.4.4","syntax":"compact-or-words"}` [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 - `excludeWildcards` (✅ verified): `{"since":null,"trailingOnly":false}` [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 - `latestVersion` (✅ verified): 1.4.4 [↗](https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4)
@@ -135,6 +139,7 @@ Further facts used by generators and `doctor`.
 
 ### Deno
 
+- `lockfileFormat` (✅ verified): `{"installScripts":"scripts","installScriptsSinceLockfile":"5","sources":null}` [↗](https://github.com/denoland/deno/blob/v2.9.8/libs/lockfile/printer.rs)
 - `durationStrings` (✅ verified): `{"since":null,"syntax":"iso8601"}` [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `ageObjectKey` (✅ verified): age [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `excludeWildcards` (✅ verified): `{"since":"2.9.2","trailingOnly":true}` [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
@@ -214,6 +219,7 @@ Context recorded with verified facts.
 - `sources.directory.default`: npm 12 did not change the default. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#allow-directory)
 - `project.lockfiles`: npm 11 and earlier prefer npm-shrinkwrap.json over package-lock.json when both exist; npm 12 no longer reads or writes npm-shrinkwrap.json (same format, rename it). [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md)
 - `project.workspaces`: An array of folder paths or globs. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md#workspaces)
+- `extra.lockfileFormat`: Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md)
 - `extra.npmrcScope`: Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns "ignoring workspace config" for the package .npmrc (workspaces/config/lib/index.js). [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
 - `extra.npmrcListSyntax`: Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
 - `extra.allowAllScripts`: Boolean, default false: runs every dependency install script whether or not allowScripts approves it; --ignore-scripts still wins. First present in the 11.16.0 definitions. [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
@@ -232,6 +238,7 @@ Context recorded with verified facts.
 - `sources.git.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `sources.remoteTarball.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `project.workspaces`: Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md)
+- `extra.lockfileFormat`: lockfileVersion 9.0 (pnpm 9 to 12). Registry packages are keyed name@version; git dependencies name@git+<repo>#<commit> with resolution type git, or a tarball from a git host (gitHosted: true; older lockfiles lack the flag, so the host decides); tarball URLs name@https://…; local tarballs name@file:….tgz; local directories have resolution type directory; link: and workspace: dependencies appear only under importers. requiresBuild was removed in lockfile v9, so install scripts are not recorded. [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/types/src/index.ts)
 - `extra.npmrcPrecedence`: pnpm 10 applies pnpm-workspace.yaml settings over .npmrc and npm_config_* variables; command-line options win over both (same order on v10.16.0). The 10.18.3 changelog says pnpm config set --location=project writes to pnpm-workspace.yaml "matching read priority". The 10.x docs do not state the order. [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts)
 - `extra.sharedWorkspaceLockfile`: Same name and default in pnpm 11 and 12, where it is read only from pnpm-workspace.yaml. [↗](https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/versioned_docs/version-10.x/workspaces.md)
 - `extra.ignoredSince`: Structured form of npmrcIgnored: from 11.0.0 on, other .npmrc settings and the package.json "pnpm" field have no effect. [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
@@ -252,6 +259,7 @@ Context recorded with verified facts.
 - `sources.git.default`: Upgraded projects with an old lockfile get ["**"] written to .yarnrc.yml. [↗](https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json)
 - `project.lockfiles`: Yarn Classic uses the same name; see berryLockfileMarker and classicLockfileHeader to tell them apart. [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-fslib/sources/path.ts)
 - `project.workspaces`: Array of folder glob patterns. [↗](https://yarnpkg.com/configuration/manifest#workspaces)
+- `extra.lockfileFormat`: Each entry has resolution: name@<locator>: npm:<version> for the registry, <repository>#commit=<sha> for git (GitHub shortcuts become https://github.com/<owner>/<repo>.git), an http(s) URL for tarballs, file:<path> (a .tgz or .tar.gz path is a tarball, anything else a directory), portal: and link: for directories, workspace: for workspace packages, and patch: around the URL-encoded original locator. No field records install scripts; dependenciesMeta.built: false is a user opt-out. [↗](https://github.com/yarnpkg/berry/blob/@yarnpkg/cli/4.18.1/packages/yarnpkg-core/sources/Project.ts)
 - `extra.durationStrings`: npmMinimalAgeGate accepts a number followed by ms, s, m, h, d or w (e.g. 3d, 1w) since 4.11.0; on 4.10.x such a string silently had no effect. [↗](https://github.com/yarnpkg/berry/pull/6942)
 - `extra.excludeWildcards`: Name globs such as @scope/* or package* in npmPreapprovedPackages. [↗](https://yarnpkg.com/configuration/yarnrc#npmPreapprovedPackages)
 - `extra.classicLockfileHeader`: Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js). [↗](https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js)
@@ -269,6 +277,7 @@ Context recorded with verified facts.
 - `installScripts.disableAll`: Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project’s own scripts and trustedDependencies too. [↗](https://bun.com/docs/runtime/bunfig#install-ignorescripts)
 - `project.workspaces`: Full glob syntax, including ! patterns. [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx)
 - `project.workspacesObjectKey`: The object form also holds catalog and catalogs. [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx)
+- `extra.lockfileFormat`: bun.lock (text, the default since 1.2) maps each package to a tuple starting with name@<spec>: name@<version> followed by the registry for npm, name@git+<repo>#<sha> and name@github:<owner>/<repo>#<sha> for git, name@https://… for tarball URLs, name@./x.tgz (without file:) for local tarballs, name@file:<dir> and name@link:<dir> for directories, name@workspace:<dir> for workspace packages. The info object carries hasInstallScript: true only since 1.4.4, with no lockfileVersion change, so a missing flag proves nothing for older files. bun.lockb is an undocumented binary format. [↗](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/lockfile/bun.lock.rs)
 - `extra.durationStrings`: Since 1.4.4 minimumReleaseAge also takes duration strings such as 90m, 12 hours, 3d or 2 weeks; plain numbers stay seconds. [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 - `extra.excludeWildcards`: minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards. [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 
@@ -289,6 +298,7 @@ Context recorded with verified facts.
 - `sources.directory.setting`: No setting; local directories behave like file: and link: entries (see fileLinkSkipped). [↗](https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported)
 - `project.lockfiles`: The default location; lock.path in deno.json can move it and "lock": false turns it off. [↗](https://github.com/denoland/docs/blob/main/runtime/reference/deno_json.md)
 - `project.workspaces`: Paths of members; globs and ! exclusions since Deno 2.1. [↗](https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md)
+- `extra.lockfileFormat`: deno.lock version 5 (the default since Deno 2.3) marks npm packages with lifecycle scripts as scripts: true (hasInstallScript from the registry or a preinstall, install or postinstall script, libs/npm/resolution/graph.rs); version 4 has no such field. tarball is written only for registries other than the default one. Deno rejects git and http(s) dependencies in package.json and keeps file: dependencies out of the lockfile. [↗](https://github.com/denoland/deno/blob/v2.9.8/libs/lockfile/printer.rs)
 - `extra.durationStrings`: Strings are ISO-8601 durations (P3D, PT72H), an absolute date or an RFC3339 timestamp; the last two set a fixed cut-off instead of a delay. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `extra.ageObjectKey`: In the object form of minimumDependencyAge, age holds the delay and exclude the exemptions. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `extra.excludeWildcards`: A trailing * matches by prefix (npm:@scope/*) since 2.9.2; earlier wildcard entries never matched. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)

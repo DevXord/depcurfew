@@ -127,6 +127,18 @@ export const pnpm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, WORKSPACE_YAML_V10, 'The docs show packages only as a list; concluded from the absence of an object form.'),
   },
   extra: {
+    lockfileFormat: checked.verified(
+      {
+        installScripts: null,
+        gitKeyPrefix: 'git+',
+        gitHostedFlag: 'gitHosted',
+        gitHostedTarballHosts: ['codeload.github.com', 'bitbucket.org', 'gitlab.com'],
+        gitType: 'git',
+        directoryType: 'directory',
+      },
+      'https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/types/src/index.ts',
+      'lockfileVersion 9.0 (pnpm 9 to 12). Registry packages are keyed name@version; git dependencies name@git+<repo>#<commit> with resolution type git, or a tarball from a git host (gitHosted: true; older lockfiles lack the flag, so the host decides); tarball URLs name@https://…; local tarballs name@file:….tgz; local directories have resolution type directory; link: and workspace: dependencies appear only under importers. requiresBuild was removed in lockfile v9, so install scripts are not recorded.',
+    ),
     npmrcPrecedence: checked.verified(
       { winner: 'pnpm-workspace.yaml', over: ['.npmrc', 'npm_config_*'] },
       'https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts',

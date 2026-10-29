@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "bun.lock",
+      "line": 10
+    },
+    "message": "esbuild has install scripts that Bun will not run because depgate.json does not allow it; the package may need them",
+    "fix": "Review its scripts and add esbuild to installScripts.allow in depgate.json, or replace the package"
+  }
+]

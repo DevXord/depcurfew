@@ -1,0 +1,40 @@
+__metadata:
+  version: 10
+  cacheKey: 10
+
+"pem@dexus/pem":
+  version: 1.14.5
+  resolution: "pem@https://github.com/dexus/pem.git#commit=71dae3346801dafb5a8bcebcd4c7267fd182666f"
+  languageName: node
+  linkType: hard
+
+"fsevents@patch:fsevents@npm%3A~2.3.2#optional!builtin<compat/fsevents>":
+  version: 2.3.2
+  resolution: "fsevents@patch:fsevents@npm%3A2.3.2#optional!builtin<compat/fsevents>::version=2.3.2&hash=df0bf1"
+  conditions: os=darwin
+  languageName: node
+  linkType: hard
+
+"local-tgz@file:./vendor/local-tgz-1.0.0.tgz::locator=app%40workspace%3A.":
+  version: 1.0.0
+  resolution: "local-tgz@file:./vendor/local-tgz-1.0.0.tgz#./vendor/local-tgz-1.0.0.tgz::hash=a1b2c3&locator=app%40workspace%3A."
+  languageName: node
+  linkType: hard
+
+"remote-tgz@https://example.com/remote-tgz-1.0.0.tgz":
+  version: 1.0.0
+  resolution: "remote-tgz@https://example.com/remote-tgz-1.0.0.tgz"
+  languageName: node
+  linkType: hard
+
+"my-portal@portal:../my-portal::locator=app%40workspace%3A.":
+  version: 0.0.0-use.local
+  resolution: "my-portal@portal:../my-portal::locator=app%40workspace%3A."
+  languageName: node
+  linkType: soft
+
+"app@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "app@workspace:."
+  languageName: unknown
+  linkType: soft

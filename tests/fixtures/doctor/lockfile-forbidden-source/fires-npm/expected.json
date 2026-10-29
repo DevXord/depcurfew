@@ -1,0 +1,38 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 20
+    },
+    "message": "package-lock.json installs ghshort from a git repository (git+ssh://git@github.com/isaacs/abbrev-js.git#a9ee72ebc8fe3975f1b0c7aeb3a8f2a806a432eb), which depgate.json denies",
+    "fix": "Use a registry version of ghshort, or set sources.git to \"allow\" in depgate.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 24
+    },
+    "message": "package-lock.json installs ghtgz from a tarball URL (https://codeload.github.com/isaacs/abbrev-js/tar.gz/a9ee72ebc8fe3975f1b0c7aeb3a8f2a806a432eb), which depgate.json denies",
+    "fix": "Use a registry version of ghtgz, or set sources.remoteTarball to \"allow\" in depgate.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 29
+    },
+    "message": "package-lock.json installs tarball from a local tarball (file:abbrev-1.1.1.tgz), which depgate.json denies",
+    "fix": "Use a registry version of tarball, or set sources.file to \"allow\" in depgate.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 34
+    },
+    "message": "package-lock.json installs symlink from a local directory (abbrev-link-target), which depgate.json denies",
+    "fix": "Use a registry version of symlink, or set sources.directory to \"allow\" in depgate.json"
+  }
+]
