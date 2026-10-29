@@ -162,7 +162,7 @@ describe('depgate check --hook claude-code', () => {
   it('asks when it cannot read the command', async () => {
     const result = await exec(['check', '--hook', 'claude-code'], event('npm install $PACKAGE', project({})));
     expect(decision(result.stdout)).toMatchObject({ permissionDecision: 'ask' });
-    expect(decision(result.stdout).permissionDecisionReason).toContain('"$PACKAGE" is expanded by the shell');
+    expect(decision(result.stdout).permissionDecisionReason).toContain('"$PACKAGE" is expanded by the shell. Fix: Write the package names out in the command');
   });
 
   it('stays silent for a command that passes or installs nothing', async () => {

@@ -63,7 +63,10 @@ export function decide(reports: readonly PackageReport[], unreadable: string | u
       reason: `depgate blocked this command because it breaks the project's supply-chain policy (depgate.json):\n${denied.map(({ report, finding }) => line(report, finding)).join('\n')}\nChoose another package or version. Only the user may change depgate.json: ask them instead of editing it.`,
     };
   }
-  const doubts = [...(unreadable === undefined ? [] : [`- ${unreadable}`]), ...errors.map(({ report, finding }) => line(report, finding))];
+  const doubts = [
+    ...(unreadable === undefined ? [] : [`- ${unreadable}. Fix: Write the package names out in the command, so depgate can check them`]),
+    ...errors.map(({ report, finding }) => line(report, finding)),
+  ];
   if (doubts.length > 0) return { decision: 'ask', reason: `depgate cannot vouch for what this command installs:\n${doubts.join('\n')}` };
   return { decision: 'none' };
 }
