@@ -6,6 +6,7 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
 
 - Gdy `apply` niczego nie zmienił, ale czegoś nie dało się zastosować (ostrzeżenia, fragmenty do dopisania ręcznie), pisze „No files changed; what depgate could not apply is listed below.” zamiast mylącego „the configuration already matches the policy”.
 - Uwaga o spornych wersjach w bazie wiedzy pojawia się raz, na końcu listy brakujących ustawień, a nie przy każdej wersji.
+- `apply` ostrzega o paczkach dopisanych ręcznie do listy dozwolonych skryptów (`allowScripts`, `allowBuilds`, `trustedDependencies` i podobnych), na które polityka nie pozwala. Mówi, że ich nie usuwa i co zrobić. Dotąd mówił o tym tylko `doctor`.
 
 ## 2026-10-29 · Czytelne komunikaty, kolory, pomoc poleceń i Action
 

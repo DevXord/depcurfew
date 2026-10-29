@@ -8541,6 +8541,828 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	};
 }
 
+// src/doctor/lockfiles.ts
+/** Lockfiles are often larger than configuration files. */
+const MAX_LOCKFILE_SIZE = 67108864;
+/**
+* Finds the 1-based line of each anchor. Rules ask in the order the entries were parsed, which is the order of the
+* file, so each search continues where the last one stopped and a large lockfile is not scanned once per entry.
+*/
+function lineFinder(text, start = 0) {
+	let newlines;
+	let cursor = start;
+	return (anchor) => {
+		let offset = text.indexOf(anchor, cursor);
+		if (offset === -1) offset = text.indexOf(anchor);
+		if (offset === -1) return void 0;
+		cursor = offset + anchor.length;
+		if (newlines === void 0) {
+			newlines = [];
+			for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1)) newlines.push(index);
+		}
+		let low = 0;
+		let high = newlines.length;
+		while (low < high) {
+			const middle = low + high >> 1;
+			if ((newlines[middle] ?? 0) < offset) low = middle + 1;
+			else high = middle;
+		}
+		return low + 1;
+	};
+}
+function strings(value) {
+	return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+}
+/** Splits name@spec, where the name may be scoped and the spec may contain @ (git@host). */
+function splitSpec(key) {
+	const at = key.startsWith("@") ? key.indexOf("@", key.indexOf("/") + 1) : key.indexOf("@");
+	return at <= 0 ? {
+		name: key,
+		spec: ""
+	} : {
+		name: key.slice(0, at),
+		spec: key.slice(at + 1)
+	};
+}
+const HTTP = /^https?:\/\//u;
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
+function npmEntries(text, format, workspaces) {
+	const document = JSON.parse(text);
+	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
+	const packages = document["packages"];
+	const registry = new RegExp(String(format["registryTarball"]), "u");
+	const scriptsKey = String(format["installScripts"]);
+	const entries = [];
+	for (const [key, value] of Object.entries(packages)) {
+		if (!key.includes("node_modules/") || !isRecord(value)) continue;
+		const name = typeof value["name"] === "string" ? value["name"] : key.slice(key.lastIndexOf("node_modules/") + 13);
+		const resolved = typeof value["resolved"] === "string" ? value["resolved"] : "";
+		const version = typeof value["version"] === "string" ? value["version"] : "";
+		const spec = resolved !== "" || format["specWithoutResolved"] !== "version" ? resolved : version;
+		let source = "unknown";
+		if (value[String(format["linkFlag"])] === true) source = workspaces.includes(resolved) ? "workspace" : "directory";
+		else if (strings(format["gitPrefixes"]).some((prefix) => spec.startsWith(prefix))) source = "git";
+		else if (spec.startsWith(String(format["filePrefix"]))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? "file" : "directory";
+		else if (HTTP.test(spec)) source = registry.test(spec) ? "registry" : "remoteTarball";
+		else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
+		entries.push({
+			name,
+			spec,
+			source,
+			installScript: value[scriptsKey] === true,
+			anchor: `${JSON.stringify(key)}: {`
+		});
+	}
+	return entries;
+}
+/** The project lockfile of a pnpm-lock.yaml and where it starts: the last document when a boot document comes first. */
+function pnpmGraph(text, documents) {
+	const marker = documents?.["bootMarker"];
+	if (typeof marker !== "string" || documents?.["graph"] !== "last" || text.split(/\r?\n/u, 1)[0] !== marker) return {
+		document: (0, import_dist.parse)(text),
+		start: 0
+	};
+	const parsed = (0, import_dist.parseAllDocuments)(text);
+	const all = Array.isArray(parsed) ? parsed : [parsed];
+	for (const document of all) if (document.errors.length > 0) throw document.errors[0];
+	const last = all.at(-1);
+	return {
+		document: last?.toJS(),
+		start: last?.range[0] ?? 0
+	};
+}
+function pnpmEntries(text, format, documents) {
+	const { document, start } = pnpmGraph(text, documents);
+	if (!isRecord(document)) return {
+		entries: [],
+		start
+	};
+	if (!String(document["lockfileVersion"]).startsWith("9")) throw new UnsupportedLockfile(`its lockfileVersion ${String(document["lockfileVersion"])} is not read; depgate reads 9.0`);
+	const hosts = strings(format["gitHostedTarballHosts"]);
+	const entries = [];
+	const packages = isRecord(document["packages"]) ? document["packages"] : {};
+	for (const [key, value] of Object.entries(packages)) {
+		const { name, spec } = splitSpec(key);
+		const resolution = isRecord(value) && isRecord(value["resolution"]) ? value["resolution"] : {};
+		const tarball = typeof resolution["tarball"] === "string" ? resolution["tarball"] : "";
+		let host = "";
+		try {
+			host = HTTP.test(tarball) ? new URL(tarball).hostname : HTTP.test(spec) ? new URL(spec).hostname : "";
+		} catch {
+			host = "";
+		}
+		let source = "registry";
+		if (spec.startsWith(String(format["gitKeyPrefix"])) || resolution["type"] === format["gitType"]) source = "git";
+		else if (resolution[String(format["gitHostedFlag"])] === true || host !== "" && hosts.includes(host)) source = "git";
+		else if (resolution["type"] === format["directoryType"]) source = "directory";
+		else if (spec.startsWith("file:")) source = "file";
+		else if (HTTP.test(spec)) source = "remoteTarball";
+		entries.push({
+			name,
+			spec,
+			source,
+			installScript: void 0,
+			anchor: key
+		});
+	}
+	const importers = isRecord(document["importers"]) ? document["importers"] : {};
+	for (const importer of Object.values(importers)) {
+		if (!isRecord(importer)) continue;
+		for (const group of [
+			"dependencies",
+			"devDependencies",
+			"optionalDependencies"
+		]) {
+			const dependencies = isRecord(importer[group]) ? importer[group] : {};
+			for (const [name, dependency] of Object.entries(dependencies)) {
+				if (!isRecord(dependency) || typeof dependency["version"] !== "string") continue;
+				const specifier = typeof dependency["specifier"] === "string" ? dependency["specifier"] : "";
+				if (dependency["version"].startsWith("link:") && !specifier.startsWith("workspace:")) entries.push({
+					name,
+					spec: specifier,
+					source: "directory",
+					installScript: void 0,
+					anchor: `specifier: ${specifier}`
+				});
+			}
+		}
+	}
+	return {
+		entries,
+		start
+	};
+}
+function yarnSource(locator, format) {
+	if (locator.startsWith(String(format["workspace"]))) return "workspace";
+	if (locator.startsWith(String(format["registry"]))) return "registry";
+	if (locator.startsWith(String(format["patch"]))) return yarnSource(splitSpec(decodeURIComponent(locator.slice(String(format["patch"]).length).split("#")[0] ?? "")).spec, format);
+	if (locator.startsWith(String(format["file"]))) {
+		const path = locator.slice(String(format["file"]).length).split("#")[0]?.split("::")[0] ?? "";
+		return new RegExp(String(format["tarball"]), "u").test(path) ? "file" : "directory";
+	}
+	if (strings(format["directory"]).some((prefix) => locator.startsWith(prefix))) return "directory";
+	if (locator.includes(String(format["gitCommit"])) || /^(git\+|git:|ssh:|git@|github:)/u.test(locator)) return "git";
+	if (HTTP.test(locator)) return "remoteTarball";
+	return "unknown";
+}
+function yarnEntries(text, format) {
+	const document = (0, import_dist.parse)(text);
+	if (!isRecord(document)) return [];
+	return Object.entries(document).filter(([key, value]) => key !== "__metadata" && isRecord(value) && typeof value["resolution"] === "string").map(([, value]) => {
+		const resolution = value["resolution"];
+		const { name, spec } = splitSpec(resolution);
+		return {
+			name,
+			spec,
+			source: yarnSource(spec, format),
+			installScript: void 0,
+			anchor: `resolution: "${resolution}"`
+		};
+	});
+}
+function bunEntries(text, format) {
+	const document = parseJsonc(text);
+	const packages = isRecord(document) && isRecord(document["packages"]) ? document["packages"] : {};
+	const tarball = new RegExp(String(format["tarball"]), "u");
+	const scriptsKey = String(format["installScripts"]);
+	const entries = [];
+	for (const [key, value] of Object.entries(packages)) {
+		if (!Array.isArray(value) || typeof value[0] !== "string") continue;
+		const { name, spec } = splitSpec(value[0]);
+		let source = "registry";
+		if (strings(format["git"]).some((prefix) => spec.startsWith(prefix))) source = "git";
+		else if (spec.startsWith(String(format["workspace"]))) source = "workspace";
+		else if (strings(format["directory"]).some((prefix) => spec.startsWith(prefix))) source = "directory";
+		else if (HTTP.test(spec)) source = "remoteTarball";
+		else if (/^(\.{1,2}\/|\/)/u.test(spec) && tarball.test(spec)) source = "file";
+		const info = value.find((item) => isRecord(item));
+		entries.push({
+			name,
+			spec,
+			source,
+			installScript: isRecord(info) && info[scriptsKey] === true,
+			anchor: `${JSON.stringify(key)}: [`
+		});
+	}
+	return entries;
+}
+function denoEntries(text, format) {
+	const document = JSON.parse(text);
+	if (!isRecord(document)) return {
+		entries: [],
+		recordsScripts: false
+	};
+	const recordsScripts = Number(document["version"]) >= Number(format["installScriptsSinceLockfile"]);
+	const npm = isRecord(document["npm"]) ? document["npm"] : {};
+	const scriptsKey = String(format["installScripts"]);
+	return {
+		entries: Object.entries(npm).map(([key, value]) => {
+			const { name, spec } = splitSpec(key);
+			return {
+				name,
+				spec,
+				source: "registry",
+				installScript: recordsScripts ? isRecord(value) && value[scriptsKey] === true : void 0,
+				anchor: `${JSON.stringify(key)}: {`
+			};
+		}),
+		recordsScripts
+	};
+}
+/** A lockfile in a version or shape depgate does not read; the message says why. */
+var UnsupportedLockfile = class extends Error {};
+function documentsOf(tool) {
+	const fact = tool.extra?.["lockfileDocuments"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(value) ? value : void 0;
+}
+/** The lockfiles a package manager uses in the repository root, parsed. */
+function readLockfiles(repository, manager, tool, workspaces) {
+	const fact = tool.extra?.["lockfileFormat"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	if (!isRecord(format)) return [];
+	return [...new Set(manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file))].map((file) => {
+		if (file.endsWith(".lockb")) return {
+			ok: false,
+			file,
+			reason: "it is a binary file in an undocumented format",
+			unreadable: false
+		};
+		const text = repository.readText(file, MAX_LOCKFILE_SIZE);
+		if (text === void 0) {
+			if (!repository.warnings.some((warning) => warning.files.includes(file))) repository.warn("invalid-file", `cannot read ${file}`, [file]);
+			return {
+				ok: false,
+				file,
+				reason: "it cannot be read",
+				unreadable: true
+			};
+		}
+		try {
+			let entries;
+			let recordsScripts = format["installScripts"] !== null;
+			let start = 0;
+			if (tool.id === "npm") entries = npmEntries(text, format, workspaces);
+			else if (tool.id === "pnpm") ({entries, start} = pnpmEntries(text, format, documentsOf(tool)));
+			else if (tool.id === "yarn") entries = yarnEntries(text, format);
+			else if (tool.id === "bun") entries = bunEntries(text, format);
+			else ({entries, recordsScripts} = denoEntries(text, format));
+			const find = lineFinder(text, start);
+			return {
+				ok: true,
+				lockfile: {
+					file,
+					entries,
+					recordsScripts,
+					lineOf: (entry) => find(entry.anchor)
+				}
+			};
+		} catch (error) {
+			if (error instanceof UnsupportedLockfile) return {
+				ok: false,
+				file,
+				reason: error.message,
+				unreadable: false
+			};
+			const message = error instanceof Error ? error.message.split("\n")[0] ?? "" : String(error);
+			repository.warn("invalid-file", `cannot parse ${file}: ${message}`, [file]);
+			return {
+				ok: false,
+				file,
+				reason: `it cannot be parsed (${message})`,
+				unreadable: true
+			};
+		}
+	});
+}
+
+// src/apply/json-edit.ts
+var Parser = class {
+	index = 0;
+	text;
+	constructor(text) {
+		this.text = text;
+	}
+	skip() {
+		for (;;) {
+			const char = this.text[this.index];
+			if (char === " " || char === "	" || char === "\n" || char === "\r") this.index += 1;
+			else if (char === "/" && this.text[this.index + 1] === "/") while (this.index < this.text.length && this.text[this.index] !== "\n") this.index += 1;
+			else if (char === "/" && this.text[this.index + 1] === "*") {
+				const end = this.text.indexOf("*/", this.index + 2);
+				this.index = end === -1 ? this.text.length : end + 2;
+			} else return;
+		}
+	}
+	string() {
+		const start = this.index;
+		this.index += 1;
+		while (this.index < this.text.length && this.text[this.index] !== "\"") this.index += this.text[this.index] === "\\" ? 2 : 1;
+		this.index += 1;
+		return JSON.parse(this.text.slice(start, this.index));
+	}
+	value() {
+		this.skip();
+		const start = this.index;
+		const char = this.text[this.index];
+		if (char === "{") {
+			this.index += 1;
+			const members = [];
+			for (;;) {
+				this.skip();
+				if (this.text[this.index] === "}") break;
+				if (this.text[this.index] === ",") {
+					this.index += 1;
+					continue;
+				}
+				if (this.text[this.index] !== "\"") throw new SyntaxError(`unexpected character at ${this.index}`);
+				const keyStart = this.index;
+				const key = this.string();
+				this.skip();
+				if (this.text[this.index] !== ":") throw new SyntaxError(`expected ':' at ${this.index}`);
+				this.index += 1;
+				members.push({
+					key,
+					keyStart,
+					value: this.value()
+				});
+			}
+			this.index += 1;
+			return {
+				kind: "object",
+				start,
+				end: this.index,
+				members
+			};
+		}
+		if (char === "[") {
+			this.index += 1;
+			const elements = [];
+			for (;;) {
+				this.skip();
+				if (this.text[this.index] === "]") break;
+				if (this.text[this.index] === ",") {
+					this.index += 1;
+					continue;
+				}
+				elements.push(this.value());
+			}
+			this.index += 1;
+			return {
+				kind: "array",
+				start,
+				end: this.index,
+				elements
+			};
+		}
+		if (char === "\"") {
+			this.string();
+			return {
+				kind: "value",
+				start,
+				end: this.index
+			};
+		}
+		const match = /^(?:-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)/u.exec(this.text.slice(this.index));
+		if (match === null) throw new SyntaxError(`unexpected character at ${this.index}`);
+		this.index += match[0].length;
+		return {
+			kind: "value",
+			start,
+			end: this.index
+		};
+	}
+};
+function parse$1(text) {
+	return new Parser(text).value();
+}
+function lineIndent(text, position) {
+	const lineStart = text.lastIndexOf("\n", position - 1) + 1;
+	return /^[ \t]*/u.exec(text.slice(lineStart))?.[0] ?? "";
+}
+/** The indentation unit of the file: a tab, or the smallest indentation in spaces; two spaces by default. */
+function indentUnit$1(text) {
+	const indents = [...text.matchAll(/\n([ \t]+)\S/gu)].map((match) => match[1] ?? "");
+	if (indents.some((indent) => indent.startsWith("	"))) return "	";
+	const sizes = indents.map((indent) => indent.length).filter((size) => size > 0);
+	return " ".repeat(sizes.length === 0 ? 2 : Math.min(...sizes));
+}
+function serialize(value, unit, indent) {
+	return JSON.stringify(value, null, unit).replaceAll("\n", `\n${indent}`);
+}
+function isSameLine(text, from, to) {
+	return !text.slice(from, to).includes("\n");
+}
+/** Position after `from` skipping spaces and a comment on the same line; stops at the line break. */
+function endOfLine(text, from) {
+	let index = from;
+	for (;;) {
+		while (text[index] === " " || text[index] === "	") index += 1;
+		if (text.startsWith("//", index)) {
+			while (index < text.length && text[index] !== "\n") index += 1;
+			return index;
+		}
+		if (text.startsWith("/*", index)) {
+			const end = text.indexOf("*/", index + 2);
+			if (end === -1 || text.slice(index, end).includes("\n")) return index;
+			index = end + 2;
+			continue;
+		}
+		return index;
+	}
+}
+function nest$1(path, value) {
+	return path.reduceRight((inner, segment) => ({ [String(segment)]: inner }), value);
+}
+function equal$1(a, b) {
+	return JSON.stringify(a) === JSON.stringify(b);
+}
+/** Inserts `entry` (already serialized) after the last of `items` in a container that spans start..end. */
+function insertItem(text, container, lastEnd, firstStart, entry) {
+	const unit = indentUnit$1(text);
+	const containerIndent = lineIndent(text, container.start);
+	if (lastEnd === void 0 || firstStart === void 0) {
+		const indent = containerIndent + unit;
+		let at = container.start + 1;
+		if (text.slice(container.start + 1, container.end - 1).trim() !== "") {
+			at = container.end - 1;
+			while (at > container.start + 1 && /\s/u.test(text[at - 1])) at -= 1;
+		}
+		return `${text.slice(0, at)}\n${indent}${entry(indent)}\n${containerIndent}${text.slice(container.end - 1)}`;
+	}
+	if (isSameLine(text, container.start, firstStart)) return `${text.slice(0, lastEnd)}, ${entry("").replaceAll(/\n\s*/gu, " ")}${text.slice(lastEnd)}`;
+	const indent = lineIndent(text, firstStart);
+	let after = lastEnd;
+	while (text[after] === " " || text[after] === "	") after += 1;
+	if (text[after] === ",") {
+		const lineEnd = endOfLine(text, after + 1);
+		return `${text.slice(0, lineEnd)}\n${indent}${entry(indent)},${text.slice(lineEnd)}`;
+	}
+	const lineEnd = endOfLine(text, lastEnd);
+	const tail = text[lineEnd] === "}" || text[lineEnd] === "]" ? `\n${containerIndent}` : "";
+	return `${text.slice(0, lastEnd)},${text.slice(lastEnd, lineEnd)}\n${indent}${entry(indent)}${tail}${text.slice(lineEnd)}`;
+}
+function rootObject(text) {
+	const root = parse$1(text);
+	if (root.kind !== "object") throw new Error("the JSON document is not an object");
+	return root;
+}
+function find(text, path) {
+	let node = rootObject(text);
+	for (const segment of path) if (node?.kind === "object") node = node.members.filter((member) => member.key === segment).at(-1)?.value;
+	else if (node?.kind === "array" && typeof segment === "number") node = node.elements[segment];
+	else return void 0;
+	return node;
+}
+/** The offset where the value at `path` starts, or undefined; for reporting line numbers. */
+function jsonOffset(text, path) {
+	try {
+		return find(text, path)?.start;
+	} catch {
+		return;
+	}
+}
+function jsonGet(text, path) {
+	let value = parseJsonc(text);
+	for (const segment of path) {
+		if (typeof value !== "object" || value === null) return void 0;
+		value = value[String(segment)];
+	}
+	return value;
+}
+/** Sets the value at `path`, creating missing objects on the way. */
+function jsonSet(text, path, value) {
+	const unit = indentUnit$1(text);
+	let node = rootObject(text);
+	for (const [index, segment] of path.entries()) if (node.kind === "object") {
+		const member = node.members.filter((item) => item.key === segment).at(-1);
+		if (member === void 0) {
+			const rest = path.slice(index + 1);
+			const last = node.members.at(-1);
+			return insertItem(text, node, last?.value.end, node.members[0]?.keyStart, (indent) => `${JSON.stringify(String(segment))}: ${serialize(nest$1(rest, value), unit, indent)}`);
+		}
+		node = member.value;
+	} else if (node.kind === "array" && typeof segment === "number" && node.elements[segment] !== void 0) node = node.elements[segment];
+	else {
+		const replacement = serialize(nest$1(path.slice(index), value), unit, lineIndent(text, node.start));
+		return `${text.slice(0, node.start)}${replacement}${text.slice(node.end)}`;
+	}
+	if (equal$1(jsonGet(text, path), value)) return text;
+	return `${text.slice(0, node.start)}${serialize(value, unit, lineIndent(text, node.start))}${text.slice(node.end)}`;
+}
+function arrayAt(text, path) {
+	const node = find(text, path);
+	if (node?.kind !== "array") throw new Error(`no array at ${path.join(".")}`);
+	return node;
+}
+function jsonArrayAppend(text, path, value) {
+	const unit = indentUnit$1(text);
+	const array = arrayAt(text, path);
+	return insertItem(text, array, array.elements.at(-1)?.end, array.elements[0]?.start, (indent) => serialize(value, unit, indent));
+}
+function jsonArrayReplace(text, path, index, value) {
+	const element = arrayAt(text, path).elements[index];
+	if (element === void 0) throw new Error(`no element ${index} at ${path.join(".")}`);
+	return `${text.slice(0, element.start)}${serialize(value, indentUnit$1(text), lineIndent(text, element.start))}${text.slice(element.end)}`;
+}
+/** Removes the line around `at` when only whitespace is left on it. */
+function dropBlankLine(text, at) {
+	const lineStart = text.lastIndexOf("\n", at - 1) + 1;
+	const newline = text.indexOf("\n", at);
+	const lineEnd = newline === -1 ? text.length : newline;
+	return lineStart > 0 && text.slice(lineStart, lineEnd).trim() === "" ? `${text.slice(0, lineStart - 1)}${text.slice(lineEnd)}` : text;
+}
+/**
+* Removes the element and the comma that separates it (the one after it, or before it for the last element), and its
+* line when nothing else is left on it. Comments stay, also those next to the element.
+*/
+function jsonArrayRemove(text, path, index) {
+	const { elements, start, end } = arrayAt(text, path);
+	const element = elements[index];
+	if (element === void 0) throw new Error(`no element ${index} at ${path.join(".")}`);
+	const blank = (from, to) => text.slice(from, to).trim() === "";
+	if (elements.length === 1 && `${text.slice(start + 1, element.start)}${text.slice(element.end, end - 1)}`.replaceAll(",", "").trim() === "") return `${text.slice(0, start + 1)}${text.slice(end - 1)}`;
+	const after = nextSignificant(text, element.end);
+	if (text[after] === ",") {
+		if (!blank(element.end, after)) return dropBlankLine(`${text.slice(0, element.start)}${text.slice(element.end, after)}${text.slice(after + 1)}`, element.start);
+		let stop = after + 1;
+		while (text[stop] === " " || text[stop] === "	") stop += 1;
+		return dropBlankLine(`${text.slice(0, element.start)}${text.slice(stop)}`, element.start);
+	}
+	const previous = elements[index - 1];
+	const comma = previous === void 0 ? void 0 : nextSignificant(text, previous.end);
+	if (previous === void 0 || comma === void 0 || text[comma] !== ",") return dropBlankLine(`${text.slice(0, element.start)}${text.slice(element.end)}`, element.start);
+	if (blank(previous.end, comma) && blank(comma + 1, element.start)) return `${text.slice(0, comma)}${text.slice(element.end)}`;
+	return dropBlankLine(`${text.slice(0, comma)}${text.slice(comma + 1, element.start)}${text.slice(element.end)}`, element.start - 1);
+}
+
+// src/apply/block.ts
+const BLOCK_START = "# >>> depgate managed block: edit depgate.json and run depgate apply instead";
+const BLOCK_END = "# <<< depgate managed block";
+const SUPERSEDED = "# depgate: superseded by the managed block: ";
+/** For a managed key commented out when no block is written, such as a switch the policy turns off. */
+const TURNED_OFF = "# depgate: turned off; depgate.json manages this setting: ";
+/** The lines without the managed block, where it was, and whether a blank line separated it from what came before. */
+function removeBlock(lines) {
+	const start = lines.findIndex((line) => line.trim() === BLOCK_START);
+	if (start === -1) return {
+		lines: [...lines],
+		at: void 0,
+		separated: false
+	};
+	const end = lines.findIndex((line, index) => index > start && line.trim() === "# <<< depgate managed block");
+	const stop = end === -1 ? start : end;
+	const rest = [...lines.slice(0, start), ...lines.slice(stop + 1)];
+	let at = start;
+	let separated = false;
+	if (at > 0 && rest[at - 1]?.trim() === "" && (at === rest.length || rest[at]?.trim() !== "")) {
+		rest.splice(at - 1, 1);
+		at -= 1;
+		separated = true;
+	}
+	return {
+		lines: rest,
+		at,
+		separated
+	};
+}
+function blockLines(entries) {
+	return [
+		BLOCK_START,
+		...entries,
+		BLOCK_END
+	];
+}
+function splitLines(body) {
+	if (body === "") return [];
+	const lines = body.split("\n");
+	if (lines.at(-1) === "") lines.pop();
+	return lines;
+}
+function joinLines(lines) {
+	return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
+}
+/** Inserts the block at `at`; a new block is separated by a blank line from preceding content. */
+function insertBlock(lines, at, entries, separate) {
+	const block = blockLines(entries);
+	const before = lines.slice(0, at);
+	if ((separate ?? true) && before.length > 0 && before.at(-1)?.trim() !== "") block.unshift("");
+	return [
+		...before,
+		...block,
+		...lines.slice(at)
+	];
+}
+
+// src/doctor/settings.ts
+/** Every key=value line of an .npmrc file; `key[]` keeps its brackets. */
+function iniEntries(text) {
+	const entries = [];
+	let managed = false;
+	text.split(/\r?\n/u).forEach((raw, index) => {
+		const line = raw.trim();
+		if (line === "# >>> depgate managed block: edit depgate.json and run depgate apply instead") managed = true;
+		else if (line === "# <<< depgate managed block") managed = false;
+		if (line === "" || line.startsWith("#") || line.startsWith(";")) return;
+		const equals = line.indexOf("=");
+		if (equals === -1) return;
+		const value = line.slice(equals + 1).trim().replace(/^"(.*)"$/u, "$1");
+		entries.push({
+			key: line.slice(0, equals).trim(),
+			value,
+			line: index + 1,
+			managed
+		});
+	});
+	return entries;
+}
+/** A parsed INI value: true/false, numbers and strings as npm reads them. */
+function iniValue(value) {
+	if (value === "true") return true;
+	if (value === "false") return false;
+	if (value === "null") return null;
+	if (/^-?\d+(\.\d+)?$/u.test(value)) return Number(value);
+	return value;
+}
+function lineAt(text, offset) {
+	let line = 1;
+	for (let index = 0; index < offset && index < text.length; index++) if (text[index] === "\n") line += 1;
+	return line;
+}
+/** The YAML value at `path` and the line of its key. */
+function yamlSetting(text, path) {
+	const lineCounter = new import_dist.LineCounter();
+	const document = (0, import_dist.parseDocument)(text, { lineCounter });
+	if (document.errors.length > 0) return void 0;
+	let node = document.contents;
+	let keyOffset = 0;
+	for (const segment of path) {
+		if (node !== null && (0, import_dist.isSeq)(node) && /^\d+$/u.test(segment)) {
+			const item = node.items[Number(segment)];
+			if (item === void 0) return void 0;
+			keyOffset = item.range?.[0] ?? keyOffset;
+			node = item;
+			continue;
+		}
+		if (node === null || !(0, import_dist.isMap)(node)) return void 0;
+		const pair = node.items.filter((item) => (0, import_dist.isScalar)(item.key) && String(item.key.value) === segment).at(-1);
+		if (pair === void 0) return void 0;
+		keyOffset = pair.key.range?.[0] ?? 0;
+		node = pair.value;
+	}
+	return {
+		value: node === null ? null : (0, import_dist.isMap)(node) || (0, import_dist.isSeq)(node) || (0, import_dist.isScalar)(node) ? node.toJSON() : void 0,
+		line: lineCounter.linePos(keyOffset).line
+	};
+}
+/** The JSON value at `path` and the line where it starts. */
+function jsonSetting(text, path) {
+	let value;
+	try {
+		value = jsonGet(text, path);
+	} catch {
+		return;
+	}
+	if (value === void 0) return void 0;
+	const offset = jsonOffset(text, path);
+	return {
+		value,
+		line: offset === void 0 ? 1 : lineAt(text, offset)
+	};
+}
+function tomlScalar(raw) {
+	const text = raw.replace(/\s+#.*$/u, "").trim();
+	if (text === "true") return true;
+	if (text === "false") return false;
+	if (/^[+-]?\d[\d_]*(\.\d+)?$/u.test(text)) return Number(text.replaceAll("_", ""));
+	const string = /^"((?:[^"\\]|\\.)*)"$|^'([^']*)'$/u.exec(text);
+	if (string !== null) return string[1] === void 0 ? string[2] : JSON.parse(`"${string[1]}"`);
+	if (text.startsWith("[") && text.endsWith("]")) return (text.slice(1, -1).match(/"(?:[^"\\]|\\.)*"|'[^']*'|[^,\s][^,]*/gu) ?? []).map((item) => tomlScalar(item.trim()));
+	return text;
+}
+/** A key of a TOML table (`[table]` section or a dotted `table.key` at the top level). Single-line values only. */
+function tomlSetting(text, table, key) {
+	let current = "";
+	let found;
+	text.split(/\r?\n/u).forEach((raw, index) => {
+		const line = raw.trim();
+		const header = /^\[\s*([^\]]+?)\s*\]/u.exec(line);
+		if (header !== null) {
+			current = header[1] ?? "";
+			return;
+		}
+		if (line === "" || line.startsWith("#")) return;
+		const equals = line.indexOf("=");
+		if (equals === -1) return;
+		const name = line.slice(0, equals).trim().replace(/^["']|["']$/gu, "");
+		if (current === table && name === key || current === "" && name === `${table}.${key}`) found = {
+			value: tomlScalar(line.slice(equals + 1)),
+			line: index + 1
+		};
+	});
+	return found;
+}
+/**
+* A setting as the knowledge base names it, read from one configuration file: `.npmrc` keys, YAML and JSON paths
+* with dots, TOML `table.key`. For `.npmrc` the last line wins, as in npm.
+*/
+function readSetting(repository, file, setting) {
+	if (setting.includes("<")) return void 0;
+	const text = repository.readText(file);
+	if (text === void 0) return void 0;
+	const name = file.split("/").at(-1) ?? file;
+	let found;
+	if (name === ".npmrc") {
+		const entries = iniEntries(text).filter((entry) => entry.key === setting || entry.key === `${setting}[]`);
+		const last = entries.at(-1);
+		if (last !== void 0) found = last.key.endsWith("[]") ? {
+			value: entries.filter((entry) => entry.key.endsWith("[]")).map((entry) => entry.value),
+			line: entries[0]?.line ?? last.line
+		} : {
+			value: iniValue(last.value),
+			line: last.line
+		};
+	} else if (/\.ya?ml$/u.test(name)) found = yamlSetting(text, setting.split("."));
+	else if (name.endsWith(".toml")) {
+		const dot = setting.indexOf(".");
+		found = dot === -1 ? tomlSetting(text, "", setting) : tomlSetting(text, setting.slice(0, dot), setting.slice(dot + 1));
+	} else if (/\.jsonc?$/u.test(name)) found = jsonSetting(text, setting.split("."));
+	return found === void 0 ? void 0 : {
+		file,
+		...found
+	};
+}
+/** The 1-based line of the first occurrence of `needle`, or undefined. */
+function lineOf(text, needle) {
+	const offset = text.indexOf(needle);
+	return offset === -1 ? void 0 : lineAt(text, offset);
+}
+
+// src/doctor/allow-lists.ts
+function read(repository, file) {
+	return repository.readText(file);
+}
+function fromKeys(text, file, setting, value, enabled) {
+	if (!isRecord(value)) return [];
+	return Object.entries(value).filter(([, entry]) => enabled(entry)).map(([name]) => ({
+		name,
+		package: splitSpec(name).name,
+		file,
+		line: lineOf(text, JSON.stringify(name)) ?? lineOf(text, `${name}:`),
+		setting
+	}));
+}
+function fromList(text, file, setting, value, prefix = "") {
+	if (!Array.isArray(value)) return [];
+	return value.filter((item) => typeof item === "string").map((item) => {
+		const name = item.startsWith(prefix) ? item.slice(prefix.length) : item;
+		return {
+			name,
+			package: splitSpec(name).name,
+			file,
+			line: lineOf(text, item),
+			setting
+		};
+	});
+}
+/** Entries that let a package run its install scripts, per manager. Unreadable files give no entries. */
+function allowEntries(repository, manager, configFiles) {
+	const manifest = read(repository, "package.json");
+	const entries = [];
+	const json = (path) => manifest === void 0 ? void 0 : jsonSetting(manifest, path)?.value;
+	switch (manager) {
+		case "npm":
+			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "allowScripts", json(["allowScripts"]), (entry) => entry === true));
+			break;
+		case "pnpm": {
+			const workspace = read(repository, "pnpm-workspace.yaml");
+			if (workspace !== void 0) {
+				entries.push(...fromKeys(workspace, "pnpm-workspace.yaml", "allowBuilds", yamlSetting(workspace, ["allowBuilds"])?.value, (entry) => entry === true));
+				entries.push(...fromList(workspace, "pnpm-workspace.yaml", "onlyBuiltDependencies", yamlSetting(workspace, ["onlyBuiltDependencies"])?.value));
+			}
+			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "pnpm.onlyBuiltDependencies", json(["pnpm", "onlyBuiltDependencies"])));
+			break;
+		}
+		case "yarn":
+			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "dependenciesMeta", json(["dependenciesMeta"]), (entry) => isRecord(entry) && entry["built"] === true));
+			break;
+		case "bun":
+			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "trustedDependencies", json(["trustedDependencies"])));
+			break;
+		case "deno": for (const file of configFiles.filter((name) => /^deno\.jsonc?$/u.test(name))) {
+			const text = read(repository, file);
+			if (text === void 0) continue;
+			const value = jsonSetting(text, ["allowScripts"])?.value;
+			entries.push(...fromList(text, file, "allowScripts", isRecord(value) ? value["allow"] : value, "npm:"));
+		}
+	}
+	return entries;
+}
+/** Whether a package name matches a policy pattern; `*` stands for any characters except `/`. */
+function matchesPattern(name, pattern) {
+	return wildcardMatch(name, pattern);
+}
+
 // src/policy/defaults.ts
 const POLICY_FILE = "depgate.json";
 
@@ -9263,64 +10085,6 @@ function formatIssue(issue) {
 	return `${issue.path}: ${issue.message}`;
 }
 
-// src/apply/block.ts
-const BLOCK_START = "# >>> depgate managed block: edit depgate.json and run depgate apply instead";
-const BLOCK_END = "# <<< depgate managed block";
-const SUPERSEDED = "# depgate: superseded by the managed block: ";
-/** For a managed key commented out when no block is written, such as a switch the policy turns off. */
-const TURNED_OFF = "# depgate: turned off; depgate.json manages this setting: ";
-/** The lines without the managed block, where it was, and whether a blank line separated it from what came before. */
-function removeBlock(lines) {
-	const start = lines.findIndex((line) => line.trim() === BLOCK_START);
-	if (start === -1) return {
-		lines: [...lines],
-		at: void 0,
-		separated: false
-	};
-	const end = lines.findIndex((line, index) => index > start && line.trim() === "# <<< depgate managed block");
-	const stop = end === -1 ? start : end;
-	const rest = [...lines.slice(0, start), ...lines.slice(stop + 1)];
-	let at = start;
-	let separated = false;
-	if (at > 0 && rest[at - 1]?.trim() === "" && (at === rest.length || rest[at]?.trim() !== "")) {
-		rest.splice(at - 1, 1);
-		at -= 1;
-		separated = true;
-	}
-	return {
-		lines: rest,
-		at,
-		separated
-	};
-}
-function blockLines(entries) {
-	return [
-		BLOCK_START,
-		...entries,
-		BLOCK_END
-	];
-}
-function splitLines(body) {
-	if (body === "") return [];
-	const lines = body.split("\n");
-	if (lines.at(-1) === "") lines.pop();
-	return lines;
-}
-function joinLines(lines) {
-	return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
-}
-/** Inserts the block at `at`; a new block is separated by a blank line from preceding content. */
-function insertBlock(lines, at, entries, separate) {
-	const block = blockLines(entries);
-	const before = lines.slice(0, at);
-	if ((separate ?? true) && before.length > 0 && before.at(-1)?.trim() !== "") block.unshift("");
-	return [
-		...before,
-		...block,
-		...lines.slice(at)
-	];
-}
-
 // src/apply/generators/common.ts
 const MINUTES$1 = {
 	seconds: 1 / 60,
@@ -9485,266 +10249,6 @@ function writeIniBlock(body, entries, managedKeys) {
 	});
 	if (entries.length === 0) return joinLines(lines);
 	return joinLines(removed.at === void 0 ? insertBlock(lines, lines.length, entries) : insertBlock(lines, removed.at, entries, removed.separated));
-}
-
-// src/apply/json-edit.ts
-var Parser = class {
-	index = 0;
-	text;
-	constructor(text) {
-		this.text = text;
-	}
-	skip() {
-		for (;;) {
-			const char = this.text[this.index];
-			if (char === " " || char === "	" || char === "\n" || char === "\r") this.index += 1;
-			else if (char === "/" && this.text[this.index + 1] === "/") while (this.index < this.text.length && this.text[this.index] !== "\n") this.index += 1;
-			else if (char === "/" && this.text[this.index + 1] === "*") {
-				const end = this.text.indexOf("*/", this.index + 2);
-				this.index = end === -1 ? this.text.length : end + 2;
-			} else return;
-		}
-	}
-	string() {
-		const start = this.index;
-		this.index += 1;
-		while (this.index < this.text.length && this.text[this.index] !== "\"") this.index += this.text[this.index] === "\\" ? 2 : 1;
-		this.index += 1;
-		return JSON.parse(this.text.slice(start, this.index));
-	}
-	value() {
-		this.skip();
-		const start = this.index;
-		const char = this.text[this.index];
-		if (char === "{") {
-			this.index += 1;
-			const members = [];
-			for (;;) {
-				this.skip();
-				if (this.text[this.index] === "}") break;
-				if (this.text[this.index] === ",") {
-					this.index += 1;
-					continue;
-				}
-				if (this.text[this.index] !== "\"") throw new SyntaxError(`unexpected character at ${this.index}`);
-				const keyStart = this.index;
-				const key = this.string();
-				this.skip();
-				if (this.text[this.index] !== ":") throw new SyntaxError(`expected ':' at ${this.index}`);
-				this.index += 1;
-				members.push({
-					key,
-					keyStart,
-					value: this.value()
-				});
-			}
-			this.index += 1;
-			return {
-				kind: "object",
-				start,
-				end: this.index,
-				members
-			};
-		}
-		if (char === "[") {
-			this.index += 1;
-			const elements = [];
-			for (;;) {
-				this.skip();
-				if (this.text[this.index] === "]") break;
-				if (this.text[this.index] === ",") {
-					this.index += 1;
-					continue;
-				}
-				elements.push(this.value());
-			}
-			this.index += 1;
-			return {
-				kind: "array",
-				start,
-				end: this.index,
-				elements
-			};
-		}
-		if (char === "\"") {
-			this.string();
-			return {
-				kind: "value",
-				start,
-				end: this.index
-			};
-		}
-		const match = /^(?:-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)/u.exec(this.text.slice(this.index));
-		if (match === null) throw new SyntaxError(`unexpected character at ${this.index}`);
-		this.index += match[0].length;
-		return {
-			kind: "value",
-			start,
-			end: this.index
-		};
-	}
-};
-function parse$1(text) {
-	return new Parser(text).value();
-}
-function lineIndent(text, position) {
-	const lineStart = text.lastIndexOf("\n", position - 1) + 1;
-	return /^[ \t]*/u.exec(text.slice(lineStart))?.[0] ?? "";
-}
-/** The indentation unit of the file: a tab, or the smallest indentation in spaces; two spaces by default. */
-function indentUnit$1(text) {
-	const indents = [...text.matchAll(/\n([ \t]+)\S/gu)].map((match) => match[1] ?? "");
-	if (indents.some((indent) => indent.startsWith("	"))) return "	";
-	const sizes = indents.map((indent) => indent.length).filter((size) => size > 0);
-	return " ".repeat(sizes.length === 0 ? 2 : Math.min(...sizes));
-}
-function serialize(value, unit, indent) {
-	return JSON.stringify(value, null, unit).replaceAll("\n", `\n${indent}`);
-}
-function isSameLine(text, from, to) {
-	return !text.slice(from, to).includes("\n");
-}
-/** Position after `from` skipping spaces and a comment on the same line; stops at the line break. */
-function endOfLine(text, from) {
-	let index = from;
-	for (;;) {
-		while (text[index] === " " || text[index] === "	") index += 1;
-		if (text.startsWith("//", index)) {
-			while (index < text.length && text[index] !== "\n") index += 1;
-			return index;
-		}
-		if (text.startsWith("/*", index)) {
-			const end = text.indexOf("*/", index + 2);
-			if (end === -1 || text.slice(index, end).includes("\n")) return index;
-			index = end + 2;
-			continue;
-		}
-		return index;
-	}
-}
-function nest$1(path, value) {
-	return path.reduceRight((inner, segment) => ({ [String(segment)]: inner }), value);
-}
-function equal$1(a, b) {
-	return JSON.stringify(a) === JSON.stringify(b);
-}
-/** Inserts `entry` (already serialized) after the last of `items` in a container that spans start..end. */
-function insertItem(text, container, lastEnd, firstStart, entry) {
-	const unit = indentUnit$1(text);
-	const containerIndent = lineIndent(text, container.start);
-	if (lastEnd === void 0 || firstStart === void 0) {
-		const indent = containerIndent + unit;
-		let at = container.start + 1;
-		if (text.slice(container.start + 1, container.end - 1).trim() !== "") {
-			at = container.end - 1;
-			while (at > container.start + 1 && /\s/u.test(text[at - 1])) at -= 1;
-		}
-		return `${text.slice(0, at)}\n${indent}${entry(indent)}\n${containerIndent}${text.slice(container.end - 1)}`;
-	}
-	if (isSameLine(text, container.start, firstStart)) return `${text.slice(0, lastEnd)}, ${entry("").replaceAll(/\n\s*/gu, " ")}${text.slice(lastEnd)}`;
-	const indent = lineIndent(text, firstStart);
-	let after = lastEnd;
-	while (text[after] === " " || text[after] === "	") after += 1;
-	if (text[after] === ",") {
-		const lineEnd = endOfLine(text, after + 1);
-		return `${text.slice(0, lineEnd)}\n${indent}${entry(indent)},${text.slice(lineEnd)}`;
-	}
-	const lineEnd = endOfLine(text, lastEnd);
-	const tail = text[lineEnd] === "}" || text[lineEnd] === "]" ? `\n${containerIndent}` : "";
-	return `${text.slice(0, lastEnd)},${text.slice(lastEnd, lineEnd)}\n${indent}${entry(indent)}${tail}${text.slice(lineEnd)}`;
-}
-function rootObject(text) {
-	const root = parse$1(text);
-	if (root.kind !== "object") throw new Error("the JSON document is not an object");
-	return root;
-}
-function find(text, path) {
-	let node = rootObject(text);
-	for (const segment of path) if (node?.kind === "object") node = node.members.filter((member) => member.key === segment).at(-1)?.value;
-	else if (node?.kind === "array" && typeof segment === "number") node = node.elements[segment];
-	else return void 0;
-	return node;
-}
-/** The offset where the value at `path` starts, or undefined; for reporting line numbers. */
-function jsonOffset(text, path) {
-	try {
-		return find(text, path)?.start;
-	} catch {
-		return;
-	}
-}
-function jsonGet(text, path) {
-	let value = parseJsonc(text);
-	for (const segment of path) {
-		if (typeof value !== "object" || value === null) return void 0;
-		value = value[String(segment)];
-	}
-	return value;
-}
-/** Sets the value at `path`, creating missing objects on the way. */
-function jsonSet(text, path, value) {
-	const unit = indentUnit$1(text);
-	let node = rootObject(text);
-	for (const [index, segment] of path.entries()) if (node.kind === "object") {
-		const member = node.members.filter((item) => item.key === segment).at(-1);
-		if (member === void 0) {
-			const rest = path.slice(index + 1);
-			const last = node.members.at(-1);
-			return insertItem(text, node, last?.value.end, node.members[0]?.keyStart, (indent) => `${JSON.stringify(String(segment))}: ${serialize(nest$1(rest, value), unit, indent)}`);
-		}
-		node = member.value;
-	} else if (node.kind === "array" && typeof segment === "number" && node.elements[segment] !== void 0) node = node.elements[segment];
-	else {
-		const replacement = serialize(nest$1(path.slice(index), value), unit, lineIndent(text, node.start));
-		return `${text.slice(0, node.start)}${replacement}${text.slice(node.end)}`;
-	}
-	if (equal$1(jsonGet(text, path), value)) return text;
-	return `${text.slice(0, node.start)}${serialize(value, unit, lineIndent(text, node.start))}${text.slice(node.end)}`;
-}
-function arrayAt(text, path) {
-	const node = find(text, path);
-	if (node?.kind !== "array") throw new Error(`no array at ${path.join(".")}`);
-	return node;
-}
-function jsonArrayAppend(text, path, value) {
-	const unit = indentUnit$1(text);
-	const array = arrayAt(text, path);
-	return insertItem(text, array, array.elements.at(-1)?.end, array.elements[0]?.start, (indent) => serialize(value, unit, indent));
-}
-function jsonArrayReplace(text, path, index, value) {
-	const element = arrayAt(text, path).elements[index];
-	if (element === void 0) throw new Error(`no element ${index} at ${path.join(".")}`);
-	return `${text.slice(0, element.start)}${serialize(value, indentUnit$1(text), lineIndent(text, element.start))}${text.slice(element.end)}`;
-}
-/** Removes the line around `at` when only whitespace is left on it. */
-function dropBlankLine(text, at) {
-	const lineStart = text.lastIndexOf("\n", at - 1) + 1;
-	const newline = text.indexOf("\n", at);
-	const lineEnd = newline === -1 ? text.length : newline;
-	return lineStart > 0 && text.slice(lineStart, lineEnd).trim() === "" ? `${text.slice(0, lineStart - 1)}${text.slice(lineEnd)}` : text;
-}
-/**
-* Removes the element and the comma that separates it (the one after it, or before it for the last element), and its
-* line when nothing else is left on it. Comments stay, also those next to the element.
-*/
-function jsonArrayRemove(text, path, index) {
-	const { elements, start, end } = arrayAt(text, path);
-	const element = elements[index];
-	if (element === void 0) throw new Error(`no element ${index} at ${path.join(".")}`);
-	const blank = (from, to) => text.slice(from, to).trim() === "";
-	if (elements.length === 1 && `${text.slice(start + 1, element.start)}${text.slice(element.end, end - 1)}`.replaceAll(",", "").trim() === "") return `${text.slice(0, start + 1)}${text.slice(end - 1)}`;
-	const after = nextSignificant(text, element.end);
-	if (text[after] === ",") {
-		if (!blank(element.end, after)) return dropBlankLine(`${text.slice(0, element.start)}${text.slice(element.end, after)}${text.slice(after + 1)}`, element.start);
-		let stop = after + 1;
-		while (text[stop] === " " || text[stop] === "	") stop += 1;
-		return dropBlankLine(`${text.slice(0, element.start)}${text.slice(stop)}`, element.start);
-	}
-	const previous = elements[index - 1];
-	const comma = previous === void 0 ? void 0 : nextSignificant(text, previous.end);
-	if (previous === void 0 || comma === void 0 || text[comma] !== ",") return dropBlankLine(`${text.slice(0, element.start)}${text.slice(element.end)}`, element.start);
-	if (blank(previous.end, comma) && blank(comma + 1, element.start)) return `${text.slice(0, comma)}${text.slice(element.end)}`;
-	return dropBlankLine(`${text.slice(0, comma)}${text.slice(comma + 1, element.start)}${text.slice(element.end)}`, element.start - 1);
 }
 
 // src/apply/requirements.ts
@@ -10562,6 +11066,16 @@ function botDuration(policy, managerMinutes) {
 		minutes: Math.ceil(minutes)
 	};
 }
+/**
+* apply only adds to install-script allow-lists, so a package someone listed by hand keeps running its scripts after
+* the policy denies them; say so, and what to do about it.
+*/
+function allowListWarnings(root, policy, detection, targets) {
+	const scripts = policy.installScripts;
+	if (scripts?.default !== "deny") return [];
+	const repository = new Repository(root);
+	return detection.packageManagers.filter((manager) => manager.supported && targets.has(manager.id)).flatMap((manager) => allowEntries(repository, manager.id, manager.configFiles)).filter((entry) => !scripts.allow.some((pattern) => matchesPattern(entry.package, pattern))).map((entry) => `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depgate apply does not remove entries it did not write, so remove ${entry.name} from ${entry.setting} by hand or add ${entry.name === entry.package ? "it" : entry.package} to installScripts.allow in ${POLICY_FILE}`);
+}
 /** Computes every change without writing anything. */
 function planApply(root, policy, detection, tools = knowledgeBase) {
 	const workspace = new Workspace(root);
@@ -10615,6 +11129,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		if (generator === void 0 || !targets.has(tool.id)) continue;
 		run(tool, void 0, (context) => generator(context, duration));
 	}
+	warnings.push(...allowListWarnings(root, policy, detection, targets));
 	const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
 	return {
 		changes: workspace.changes(),
@@ -10739,150 +11254,6 @@ function formatMinutes(minutes) {
 	]) if (minutes >= size && minutes % size === 0) return `${minutes / size} ${unit}${minutes === size ? "" : "s"}`;
 	const rounded = Math.round(minutes * 100) / 100;
 	return `${rounded} minute${rounded === 1 ? "" : "s"}`;
-}
-
-// src/doctor/settings.ts
-/** Every key=value line of an .npmrc file; `key[]` keeps its brackets. */
-function iniEntries(text) {
-	const entries = [];
-	let managed = false;
-	text.split(/\r?\n/u).forEach((raw, index) => {
-		const line = raw.trim();
-		if (line === "# >>> depgate managed block: edit depgate.json and run depgate apply instead") managed = true;
-		else if (line === "# <<< depgate managed block") managed = false;
-		if (line === "" || line.startsWith("#") || line.startsWith(";")) return;
-		const equals = line.indexOf("=");
-		if (equals === -1) return;
-		const value = line.slice(equals + 1).trim().replace(/^"(.*)"$/u, "$1");
-		entries.push({
-			key: line.slice(0, equals).trim(),
-			value,
-			line: index + 1,
-			managed
-		});
-	});
-	return entries;
-}
-/** A parsed INI value: true/false, numbers and strings as npm reads them. */
-function iniValue(value) {
-	if (value === "true") return true;
-	if (value === "false") return false;
-	if (value === "null") return null;
-	if (/^-?\d+(\.\d+)?$/u.test(value)) return Number(value);
-	return value;
-}
-function lineAt(text, offset) {
-	let line = 1;
-	for (let index = 0; index < offset && index < text.length; index++) if (text[index] === "\n") line += 1;
-	return line;
-}
-/** The YAML value at `path` and the line of its key. */
-function yamlSetting(text, path) {
-	const lineCounter = new import_dist.LineCounter();
-	const document = (0, import_dist.parseDocument)(text, { lineCounter });
-	if (document.errors.length > 0) return void 0;
-	let node = document.contents;
-	let keyOffset = 0;
-	for (const segment of path) {
-		if (node !== null && (0, import_dist.isSeq)(node) && /^\d+$/u.test(segment)) {
-			const item = node.items[Number(segment)];
-			if (item === void 0) return void 0;
-			keyOffset = item.range?.[0] ?? keyOffset;
-			node = item;
-			continue;
-		}
-		if (node === null || !(0, import_dist.isMap)(node)) return void 0;
-		const pair = node.items.filter((item) => (0, import_dist.isScalar)(item.key) && String(item.key.value) === segment).at(-1);
-		if (pair === void 0) return void 0;
-		keyOffset = pair.key.range?.[0] ?? 0;
-		node = pair.value;
-	}
-	return {
-		value: node === null ? null : (0, import_dist.isMap)(node) || (0, import_dist.isSeq)(node) || (0, import_dist.isScalar)(node) ? node.toJSON() : void 0,
-		line: lineCounter.linePos(keyOffset).line
-	};
-}
-/** The JSON value at `path` and the line where it starts. */
-function jsonSetting(text, path) {
-	let value;
-	try {
-		value = jsonGet(text, path);
-	} catch {
-		return;
-	}
-	if (value === void 0) return void 0;
-	const offset = jsonOffset(text, path);
-	return {
-		value,
-		line: offset === void 0 ? 1 : lineAt(text, offset)
-	};
-}
-function tomlScalar(raw) {
-	const text = raw.replace(/\s+#.*$/u, "").trim();
-	if (text === "true") return true;
-	if (text === "false") return false;
-	if (/^[+-]?\d[\d_]*(\.\d+)?$/u.test(text)) return Number(text.replaceAll("_", ""));
-	const string = /^"((?:[^"\\]|\\.)*)"$|^'([^']*)'$/u.exec(text);
-	if (string !== null) return string[1] === void 0 ? string[2] : JSON.parse(`"${string[1]}"`);
-	if (text.startsWith("[") && text.endsWith("]")) return (text.slice(1, -1).match(/"(?:[^"\\]|\\.)*"|'[^']*'|[^,\s][^,]*/gu) ?? []).map((item) => tomlScalar(item.trim()));
-	return text;
-}
-/** A key of a TOML table (`[table]` section or a dotted `table.key` at the top level). Single-line values only. */
-function tomlSetting(text, table, key) {
-	let current = "";
-	let found;
-	text.split(/\r?\n/u).forEach((raw, index) => {
-		const line = raw.trim();
-		const header = /^\[\s*([^\]]+?)\s*\]/u.exec(line);
-		if (header !== null) {
-			current = header[1] ?? "";
-			return;
-		}
-		if (line === "" || line.startsWith("#")) return;
-		const equals = line.indexOf("=");
-		if (equals === -1) return;
-		const name = line.slice(0, equals).trim().replace(/^["']|["']$/gu, "");
-		if (current === table && name === key || current === "" && name === `${table}.${key}`) found = {
-			value: tomlScalar(line.slice(equals + 1)),
-			line: index + 1
-		};
-	});
-	return found;
-}
-/**
-* A setting as the knowledge base names it, read from one configuration file: `.npmrc` keys, YAML and JSON paths
-* with dots, TOML `table.key`. For `.npmrc` the last line wins, as in npm.
-*/
-function readSetting(repository, file, setting) {
-	if (setting.includes("<")) return void 0;
-	const text = repository.readText(file);
-	if (text === void 0) return void 0;
-	const name = file.split("/").at(-1) ?? file;
-	let found;
-	if (name === ".npmrc") {
-		const entries = iniEntries(text).filter((entry) => entry.key === setting || entry.key === `${setting}[]`);
-		const last = entries.at(-1);
-		if (last !== void 0) found = last.key.endsWith("[]") ? {
-			value: entries.filter((entry) => entry.key.endsWith("[]")).map((entry) => entry.value),
-			line: entries[0]?.line ?? last.line
-		} : {
-			value: iniValue(last.value),
-			line: last.line
-		};
-	} else if (/\.ya?ml$/u.test(name)) found = yamlSetting(text, setting.split("."));
-	else if (name.endsWith(".toml")) {
-		const dot = setting.indexOf(".");
-		found = dot === -1 ? tomlSetting(text, "", setting) : tomlSetting(text, setting.slice(0, dot), setting.slice(dot + 1));
-	} else if (/\.jsonc?$/u.test(name)) found = jsonSetting(text, setting.split("."));
-	return found === void 0 ? void 0 : {
-		file,
-		...found
-	};
-}
-/** The 1-based line of the first occurrence of `needle`, or undefined. */
-function lineOf(text, needle) {
-	const offset = text.indexOf(needle);
-	return offset === -1 ? void 0 : lineAt(text, offset);
 }
 
 // src/doctor/effective.ts
@@ -11273,366 +11644,6 @@ function myers(a, b) {
 		y = previousY;
 	}
 	return operations.reverse();
-}
-
-// src/doctor/lockfiles.ts
-/** Lockfiles are often larger than configuration files. */
-const MAX_LOCKFILE_SIZE = 67108864;
-/**
-* Finds the 1-based line of each anchor. Rules ask in the order the entries were parsed, which is the order of the
-* file, so each search continues where the last one stopped and a large lockfile is not scanned once per entry.
-*/
-function lineFinder(text, start = 0) {
-	let newlines;
-	let cursor = start;
-	return (anchor) => {
-		let offset = text.indexOf(anchor, cursor);
-		if (offset === -1) offset = text.indexOf(anchor);
-		if (offset === -1) return void 0;
-		cursor = offset + anchor.length;
-		if (newlines === void 0) {
-			newlines = [];
-			for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1)) newlines.push(index);
-		}
-		let low = 0;
-		let high = newlines.length;
-		while (low < high) {
-			const middle = low + high >> 1;
-			if ((newlines[middle] ?? 0) < offset) low = middle + 1;
-			else high = middle;
-		}
-		return low + 1;
-	};
-}
-function strings(value) {
-	return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
-}
-/** Splits name@spec, where the name may be scoped and the spec may contain @ (git@host). */
-function splitSpec(key) {
-	const at = key.startsWith("@") ? key.indexOf("@", key.indexOf("/") + 1) : key.indexOf("@");
-	return at <= 0 ? {
-		name: key,
-		spec: ""
-	} : {
-		name: key.slice(0, at),
-		spec: key.slice(at + 1)
-	};
-}
-const HTTP = /^https?:\/\//u;
-const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
-function npmEntries(text, format, workspaces) {
-	const document = JSON.parse(text);
-	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
-	const packages = document["packages"];
-	const registry = new RegExp(String(format["registryTarball"]), "u");
-	const scriptsKey = String(format["installScripts"]);
-	const entries = [];
-	for (const [key, value] of Object.entries(packages)) {
-		if (!key.includes("node_modules/") || !isRecord(value)) continue;
-		const name = typeof value["name"] === "string" ? value["name"] : key.slice(key.lastIndexOf("node_modules/") + 13);
-		const resolved = typeof value["resolved"] === "string" ? value["resolved"] : "";
-		const version = typeof value["version"] === "string" ? value["version"] : "";
-		const spec = resolved !== "" || format["specWithoutResolved"] !== "version" ? resolved : version;
-		let source = "unknown";
-		if (value[String(format["linkFlag"])] === true) source = workspaces.includes(resolved) ? "workspace" : "directory";
-		else if (strings(format["gitPrefixes"]).some((prefix) => spec.startsWith(prefix))) source = "git";
-		else if (spec.startsWith(String(format["filePrefix"]))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? "file" : "directory";
-		else if (HTTP.test(spec)) source = registry.test(spec) ? "registry" : "remoteTarball";
-		else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
-		entries.push({
-			name,
-			spec,
-			source,
-			installScript: value[scriptsKey] === true,
-			anchor: `${JSON.stringify(key)}: {`
-		});
-	}
-	return entries;
-}
-/** The project lockfile of a pnpm-lock.yaml and where it starts: the last document when a boot document comes first. */
-function pnpmGraph(text, documents) {
-	const marker = documents?.["bootMarker"];
-	if (typeof marker !== "string" || documents?.["graph"] !== "last" || text.split(/\r?\n/u, 1)[0] !== marker) return {
-		document: (0, import_dist.parse)(text),
-		start: 0
-	};
-	const parsed = (0, import_dist.parseAllDocuments)(text);
-	const all = Array.isArray(parsed) ? parsed : [parsed];
-	for (const document of all) if (document.errors.length > 0) throw document.errors[0];
-	const last = all.at(-1);
-	return {
-		document: last?.toJS(),
-		start: last?.range[0] ?? 0
-	};
-}
-function pnpmEntries(text, format, documents) {
-	const { document, start } = pnpmGraph(text, documents);
-	if (!isRecord(document)) return {
-		entries: [],
-		start
-	};
-	if (!String(document["lockfileVersion"]).startsWith("9")) throw new UnsupportedLockfile(`its lockfileVersion ${String(document["lockfileVersion"])} is not read; depgate reads 9.0`);
-	const hosts = strings(format["gitHostedTarballHosts"]);
-	const entries = [];
-	const packages = isRecord(document["packages"]) ? document["packages"] : {};
-	for (const [key, value] of Object.entries(packages)) {
-		const { name, spec } = splitSpec(key);
-		const resolution = isRecord(value) && isRecord(value["resolution"]) ? value["resolution"] : {};
-		const tarball = typeof resolution["tarball"] === "string" ? resolution["tarball"] : "";
-		let host = "";
-		try {
-			host = HTTP.test(tarball) ? new URL(tarball).hostname : HTTP.test(spec) ? new URL(spec).hostname : "";
-		} catch {
-			host = "";
-		}
-		let source = "registry";
-		if (spec.startsWith(String(format["gitKeyPrefix"])) || resolution["type"] === format["gitType"]) source = "git";
-		else if (resolution[String(format["gitHostedFlag"])] === true || host !== "" && hosts.includes(host)) source = "git";
-		else if (resolution["type"] === format["directoryType"]) source = "directory";
-		else if (spec.startsWith("file:")) source = "file";
-		else if (HTTP.test(spec)) source = "remoteTarball";
-		entries.push({
-			name,
-			spec,
-			source,
-			installScript: void 0,
-			anchor: key
-		});
-	}
-	const importers = isRecord(document["importers"]) ? document["importers"] : {};
-	for (const importer of Object.values(importers)) {
-		if (!isRecord(importer)) continue;
-		for (const group of [
-			"dependencies",
-			"devDependencies",
-			"optionalDependencies"
-		]) {
-			const dependencies = isRecord(importer[group]) ? importer[group] : {};
-			for (const [name, dependency] of Object.entries(dependencies)) {
-				if (!isRecord(dependency) || typeof dependency["version"] !== "string") continue;
-				const specifier = typeof dependency["specifier"] === "string" ? dependency["specifier"] : "";
-				if (dependency["version"].startsWith("link:") && !specifier.startsWith("workspace:")) entries.push({
-					name,
-					spec: specifier,
-					source: "directory",
-					installScript: void 0,
-					anchor: `specifier: ${specifier}`
-				});
-			}
-		}
-	}
-	return {
-		entries,
-		start
-	};
-}
-function yarnSource(locator, format) {
-	if (locator.startsWith(String(format["workspace"]))) return "workspace";
-	if (locator.startsWith(String(format["registry"]))) return "registry";
-	if (locator.startsWith(String(format["patch"]))) return yarnSource(splitSpec(decodeURIComponent(locator.slice(String(format["patch"]).length).split("#")[0] ?? "")).spec, format);
-	if (locator.startsWith(String(format["file"]))) {
-		const path = locator.slice(String(format["file"]).length).split("#")[0]?.split("::")[0] ?? "";
-		return new RegExp(String(format["tarball"]), "u").test(path) ? "file" : "directory";
-	}
-	if (strings(format["directory"]).some((prefix) => locator.startsWith(prefix))) return "directory";
-	if (locator.includes(String(format["gitCommit"])) || /^(git\+|git:|ssh:|git@|github:)/u.test(locator)) return "git";
-	if (HTTP.test(locator)) return "remoteTarball";
-	return "unknown";
-}
-function yarnEntries(text, format) {
-	const document = (0, import_dist.parse)(text);
-	if (!isRecord(document)) return [];
-	return Object.entries(document).filter(([key, value]) => key !== "__metadata" && isRecord(value) && typeof value["resolution"] === "string").map(([, value]) => {
-		const resolution = value["resolution"];
-		const { name, spec } = splitSpec(resolution);
-		return {
-			name,
-			spec,
-			source: yarnSource(spec, format),
-			installScript: void 0,
-			anchor: `resolution: "${resolution}"`
-		};
-	});
-}
-function bunEntries(text, format) {
-	const document = parseJsonc(text);
-	const packages = isRecord(document) && isRecord(document["packages"]) ? document["packages"] : {};
-	const tarball = new RegExp(String(format["tarball"]), "u");
-	const scriptsKey = String(format["installScripts"]);
-	const entries = [];
-	for (const [key, value] of Object.entries(packages)) {
-		if (!Array.isArray(value) || typeof value[0] !== "string") continue;
-		const { name, spec } = splitSpec(value[0]);
-		let source = "registry";
-		if (strings(format["git"]).some((prefix) => spec.startsWith(prefix))) source = "git";
-		else if (spec.startsWith(String(format["workspace"]))) source = "workspace";
-		else if (strings(format["directory"]).some((prefix) => spec.startsWith(prefix))) source = "directory";
-		else if (HTTP.test(spec)) source = "remoteTarball";
-		else if (/^(\.{1,2}\/|\/)/u.test(spec) && tarball.test(spec)) source = "file";
-		const info = value.find((item) => isRecord(item));
-		entries.push({
-			name,
-			spec,
-			source,
-			installScript: isRecord(info) && info[scriptsKey] === true,
-			anchor: `${JSON.stringify(key)}: [`
-		});
-	}
-	return entries;
-}
-function denoEntries(text, format) {
-	const document = JSON.parse(text);
-	if (!isRecord(document)) return {
-		entries: [],
-		recordsScripts: false
-	};
-	const recordsScripts = Number(document["version"]) >= Number(format["installScriptsSinceLockfile"]);
-	const npm = isRecord(document["npm"]) ? document["npm"] : {};
-	const scriptsKey = String(format["installScripts"]);
-	return {
-		entries: Object.entries(npm).map(([key, value]) => {
-			const { name, spec } = splitSpec(key);
-			return {
-				name,
-				spec,
-				source: "registry",
-				installScript: recordsScripts ? isRecord(value) && value[scriptsKey] === true : void 0,
-				anchor: `${JSON.stringify(key)}: {`
-			};
-		}),
-		recordsScripts
-	};
-}
-/** A lockfile in a version or shape depgate does not read; the message says why. */
-var UnsupportedLockfile = class extends Error {};
-function documentsOf(tool) {
-	const fact = tool.extra?.["lockfileDocuments"];
-	const value = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(value) ? value : void 0;
-}
-/** The lockfiles a package manager uses in the repository root, parsed. */
-function readLockfiles(repository, manager, tool, workspaces) {
-	const fact = tool.extra?.["lockfileFormat"];
-	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	if (!isRecord(format)) return [];
-	return [...new Set(manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file))].map((file) => {
-		if (file.endsWith(".lockb")) return {
-			ok: false,
-			file,
-			reason: "it is a binary file in an undocumented format",
-			unreadable: false
-		};
-		const text = repository.readText(file, MAX_LOCKFILE_SIZE);
-		if (text === void 0) {
-			if (!repository.warnings.some((warning) => warning.files.includes(file))) repository.warn("invalid-file", `cannot read ${file}`, [file]);
-			return {
-				ok: false,
-				file,
-				reason: "it cannot be read",
-				unreadable: true
-			};
-		}
-		try {
-			let entries;
-			let recordsScripts = format["installScripts"] !== null;
-			let start = 0;
-			if (tool.id === "npm") entries = npmEntries(text, format, workspaces);
-			else if (tool.id === "pnpm") ({entries, start} = pnpmEntries(text, format, documentsOf(tool)));
-			else if (tool.id === "yarn") entries = yarnEntries(text, format);
-			else if (tool.id === "bun") entries = bunEntries(text, format);
-			else ({entries, recordsScripts} = denoEntries(text, format));
-			const find = lineFinder(text, start);
-			return {
-				ok: true,
-				lockfile: {
-					file,
-					entries,
-					recordsScripts,
-					lineOf: (entry) => find(entry.anchor)
-				}
-			};
-		} catch (error) {
-			if (error instanceof UnsupportedLockfile) return {
-				ok: false,
-				file,
-				reason: error.message,
-				unreadable: false
-			};
-			const message = error instanceof Error ? error.message.split("\n")[0] ?? "" : String(error);
-			repository.warn("invalid-file", `cannot parse ${file}: ${message}`, [file]);
-			return {
-				ok: false,
-				file,
-				reason: `it cannot be parsed (${message})`,
-				unreadable: true
-			};
-		}
-	});
-}
-
-// src/doctor/allow-lists.ts
-function read(repository, file) {
-	return repository.readText(file);
-}
-function fromKeys(text, file, setting, value, enabled) {
-	if (!isRecord(value)) return [];
-	return Object.entries(value).filter(([, entry]) => enabled(entry)).map(([name]) => ({
-		name,
-		package: splitSpec(name).name,
-		file,
-		line: lineOf(text, JSON.stringify(name)) ?? lineOf(text, `${name}:`),
-		setting
-	}));
-}
-function fromList(text, file, setting, value, prefix = "") {
-	if (!Array.isArray(value)) return [];
-	return value.filter((item) => typeof item === "string").map((item) => {
-		const name = item.startsWith(prefix) ? item.slice(prefix.length) : item;
-		return {
-			name,
-			package: splitSpec(name).name,
-			file,
-			line: lineOf(text, item),
-			setting
-		};
-	});
-}
-/** Entries that let a package run its install scripts, per manager. Unreadable files give no entries. */
-function allowEntries(repository, manager, configFiles) {
-	const manifest = read(repository, "package.json");
-	const entries = [];
-	const json = (path) => manifest === void 0 ? void 0 : jsonSetting(manifest, path)?.value;
-	switch (manager) {
-		case "npm":
-			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "allowScripts", json(["allowScripts"]), (entry) => entry === true));
-			break;
-		case "pnpm": {
-			const workspace = read(repository, "pnpm-workspace.yaml");
-			if (workspace !== void 0) {
-				entries.push(...fromKeys(workspace, "pnpm-workspace.yaml", "allowBuilds", yamlSetting(workspace, ["allowBuilds"])?.value, (entry) => entry === true));
-				entries.push(...fromList(workspace, "pnpm-workspace.yaml", "onlyBuiltDependencies", yamlSetting(workspace, ["onlyBuiltDependencies"])?.value));
-			}
-			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "pnpm.onlyBuiltDependencies", json(["pnpm", "onlyBuiltDependencies"])));
-			break;
-		}
-		case "yarn":
-			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "dependenciesMeta", json(["dependenciesMeta"]), (entry) => isRecord(entry) && entry["built"] === true));
-			break;
-		case "bun":
-			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "trustedDependencies", json(["trustedDependencies"])));
-			break;
-		case "deno": for (const file of configFiles.filter((name) => /^deno\.jsonc?$/u.test(name))) {
-			const text = read(repository, file);
-			if (text === void 0) continue;
-			const value = jsonSetting(text, ["allowScripts"])?.value;
-			entries.push(...fromList(text, file, "allowScripts", isRecord(value) ? value["allow"] : value, "npm:"));
-		}
-	}
-	return entries;
-}
-/** Whether a package name matches a policy pattern; `*` stands for any characters except `/`. */
-function matchesPattern(name, pattern) {
-	return wildcardMatch(name, pattern);
 }
 
 // src/doctor/plan.ts
