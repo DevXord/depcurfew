@@ -108,7 +108,10 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
   let cases = 0;
   const finish = () => {
     if (started) {
-      const expands = dynamic || BRACES.test(bare) || GLOB.test(bare);
+      // A glob after name@ (lodash@4.*, @demo/api@workspace:*) would have to match a file named like a package with
+      // its version; only globs in the rest count.
+      const versionAt = bare.indexOf('@', bare.startsWith('@') ? 1 : 0);
+      const expands = dynamic || BRACES.test(bare) || GLOB.test(versionAt > 0 ? bare.slice(0, versionAt) : bare);
       items.push({ kind: 'word', word: { text, dynamic: expands } });
       if (!quoted && !expands && text === 'case') cases += 1;
       if (!quoted && !expands && text === 'esac' && cases > 0) cases -= 1;

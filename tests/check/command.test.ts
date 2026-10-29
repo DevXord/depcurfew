@@ -166,6 +166,9 @@ describe('scanCommandLine reads shell syntax', () => {
     ['deno install -g -n tool npm:cowsay', ['deno:npm:cowsay']],
     ['deno install --entrypoint main.ts other.ts', []],
     ['deno install', []],
+    // A glob in the version part does not make the spec unreadable.
+    ['pnpm add @demo/api@workspace:*', ['pnpm:@demo/api@workspace:*']],
+    ['npm i lodash@4.*', ['npm:lodash@4.*']],
     // The public registry named explicitly changes nothing.
     ['npm_config_registry=https://registry.npmjs.org/ npm i lodash', ['npm:lodash']],
     ['npm i lodash --registry=https://registry.npmjs.org', ['npm:lodash']],
