@@ -36,7 +36,8 @@ describe('package.json', () => {
   );
 
   it('exposes the depcurfew executable and its short name dcf', () => {
-    expect(pkg['bin']).toEqual({ depcurfew: './dist/cli.js', dcf: './dist/cli.js' });
+    // Written the way npm normalizes it, so publishing does not warn that it rewrote the paths.
+    expect(pkg['bin']).toEqual({ depcurfew: 'dist/cli.js', dcf: 'dist/cli.js' });
   });
 
   it('declares supported Node versions', () => {

@@ -14,8 +14,8 @@
   },
   "type": "module",
   "bin": {
-    "depcurfew": "./dist/cli.js",
-    "dcf": "./dist/cli.js"
+    "depcurfew": "dist/cli.js",
+    "dcf": "dist/cli.js"
   },
   "exports": {
     ".": {
