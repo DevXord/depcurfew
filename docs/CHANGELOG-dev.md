@@ -2,6 +2,12 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Luka: tarball z URL na hoście rejestru; instalacja w projekcie
+
+- `doctor` zgłasza w `package-lock.json` zależności zadeklarowane jako adres tarballa, także na hoście rejestru. npm pobiera je z pominięciem `min-release-age` (D-063). Sprawdziłem też pnpm, Yarn i Bun na prawdziwych lockfile'ach.
+- README: depcurfew jako zależność deweloperska projektu. Programiści nie muszą go instalować; inne CI uruchamia kopię z lockfile; instalacji globalnej nie polecamy zespołom.
+- **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
+
 ## 2026-10-29 · Nowa nazwa: depcurfew, krótkie polecenie dcf
 
 - Projekt nazywa się teraz `depcurfew`, bo nazwę `depgate` nosi już inne narzędzie z tej samej branży (D-062). Plik polityki to `depcurfew.json`.

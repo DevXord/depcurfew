@@ -726,7 +726,7 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
     - `annotationLimits`: 10 na poziom na krok, 50 na zadanie (problem-matchers.md);
     - `stepSummary`: zmienna i limit 1 MiB (dokumentacja workflow commands).
   - Tekst z repozytorium jest escapowany, więc spreparowana nazwa pliku nie doda polecenia przepływu pracy ani w Markdownie linku, HTML-a czy komórki tabeli. Wiersze, które przekroczyłyby limit podsumowania, są pomijane i liczone.
-- **GitLab i inne CI.** Action działa tylko na GitHubie. Na innym CI uruchamia się CLI (`npx --yes depcurfew@1 doctor`; `--yes`, bo npx bez niego pyta przed instalacją według docs/lib/content/commands/npx.md w npm/cli). Format raportu GitLaba nie jest obsługiwany: wymagałby najpierw zweryfikowanych faktów.
+- **GitLab i inne CI.** Action działa tylko na GitHubie. Na innym CI uruchamia się CLI (od D-063: kopia z projektu, `npm ci`, potem `npx depcurfew doctor`). Format raportu GitLaba nie jest obsługiwany: wymagałby najpierw zweryfikowanych faktów.
 - **Pozycje spoza polityki na listach dozwolonych.** `apply` dopisuje do list, ale z nich nie usuwa (zasada z CLAUDE.md). Dlatego ostrzega o każdej paczce, na którą lista pozwala, a polityka nie: podaje plik, ustawienie i dwie drogi naprawy. Korzysta z tego samego odczytu list co `config-drift` (`src/doctor/allow-lists.ts`).
 
 ## D-062 · Nowa nazwa: depcurfew i krótkie polecenie dcf (2026-10-29)
@@ -751,4 +751,20 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 
   Starych nazw nie obsługujemy, bo wersja z nazwą `depgate` nigdy nie została wydana.
 - **Krótkie polecenie `dcf`.** Drugi wpis w `bin`, wskazujący ten sam plik. Paczka npm `dcf` instaluje polecenie `dcf-shell`, a nie `dcf`, i nie ma polecenia systemowego o tej nazwie. Pomoc i komunikaty używają pełnej nazwy; pomoc ogólna mówi o skrócie.
+
+## D-063 · Tarball z URL na hoście rejestru w lockfile npm; instalacja w projekcie zamiast globalnej (2026-10-29)
+
+- **Luka.** W `package-lock.json` zależność zadeklarowana jako adres tarballa na hoście rejestru wyglądała jak zwykła paczka z rejestru. Na przykład `left-pad@https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz` ma ten sam `resolved` co paczka zainstalowana zakresem. `lockfile-forbidden-source` jej nie zgłaszał.
+  - npm traktuje taki adres jako źródło zdalne. Blokuje go `allow-remote=none` (`EALLOWREMOTE`, sprawdzone na npm 11.21.1), ale `min-release-age` go nie obejmuje.
+  - Agent AI mógł więc przypiąć świeżą wersję z pominięciem opóźnienia, jeśli polityka nie była jeszcze zastosowana. Do tej pory `doctor` o tym milczał.
+- **Poprawka.** Odczyt lockfile npm zbiera adresy URL zadeklarowane w polach zależności wpisów (fakt `dependencyFields`: `dependencies`, `optionalDependencies` i `peerDependencies` każdej paczki oraz `devDependencies` projektu; źródło: shrinkwrap.js w npm/cli). Wpis, którego `resolved` jest jednym z tych adresów, ma źródło `remoteTarball`, także na hoście rejestru.
+- **Pozostałe menedżery** (sprawdzone na prawdziwych lockfile'ach):
+  - Yarn 4.18.1 i Bun 1.4.4 już zapisywały taki adres jako tarball i były zgłaszane;
+  - npm 12 domyślnie odmawia instalacji (`allow-remote`);
+  - pnpm (10.34.9 i 12.16.1) rozwiązuje adres pod skonfigurowanym rejestrem jako paczkę z rejestru o tej wersji (`parseBareSpecifier.ts`). Nie pobiera więc z adresu z pominięciem rejestru i nie jest to zgłaszane. Fikstura `passes-pnpm-registry-tarball-url` utrwala to zachowanie.
+- **Instalacja.** README zaleca depcurfew jako zależność deweloperską projektu, przypiętą w lockfile i instalowaną pod opóźnieniem projektu.
+  - Programiści nie muszą go instalować, bo ochronę daje zapisana konfiguracja.
+  - Inne CI uruchamia kopię z projektu (`npm ci`, potem `npx depcurfew doctor`) zamiast `npx --yes depcurfew@1`, które pobierało najnowszą wersję bez opóźnienia.
+  - Instalacja globalna działa, ale nie jest polecana zespołom: wersje się rozjeżdżają, a npm nie czyta `.npmrc` projektu w trybie globalnym (fakt `npmrcScope.globalMode`).
+- **Plan.** `dcf apply --user` (ochrona całego komputera programisty) i ostrzeżenie o starszej wersji wchodzą do planu jako faza 8b, wersja 1.2.0.
 

@@ -535,12 +535,19 @@ const npm$1 = {
 			filePrefix: "file:",
 			linkFlag: "link",
 			registryTarball: "^https?://[^/]+/.+/-/[^/]+-\\d",
-			specWithoutResolved: "version"
-		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md", "Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package. An entry without resolved is installed as <name>@<version> (workspaces/arborist/lib/arborist/reify.js, #extractOrLink, in 11.19.1 and 12.2.1), so its version field is the source then."),
+			specWithoutResolved: "version",
+			dependencyFields: [
+				"dependencies",
+				"optionalDependencies",
+				"peerDependencies",
+				"devDependencies"
+			]
+		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md", "Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package. An entry without resolved is installed as <name>@<version> (workspaces/arborist/lib/arborist/reify.js, #extractOrLink, in 11.19.1 and 12.2.1), so its version field is the source then. Entries keep the dependency fields of their package.json: dependencies, optionalDependencies and peerDependencies for every package, devDependencies for the root (workspaces/arborist/lib/shrinkwrap.js, pkgMetaKeys and the isTop branch, in 11.21.1 and 12.2.1); a dependency declared there as a URL comes from that URL even when it is a registry tarball."),
 		npmrcScope: checked$3.verified({
 			read: "project root",
-			workspacePackages: "ignored"
-		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns \"ignoring workspace config\" for the package .npmrc (workspaces/config/lib/index.js)."),
+			workspacePackages: "ignored",
+			globalMode: "ignored"
+		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns \"ignoring workspace config\" for the package .npmrc (workspaces/config/lib/index.js). The project .npmrc \"is not read in global mode, such as when running npm install -g\" (same page, v11.21.1 and v12.2.1)."),
 		npmrcListSyntax: verified$4("[]", "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*."),
 		allowAllScripts: verified$4({
 			setting: "dangerously-allow-all-scripts",
@@ -676,7 +683,7 @@ const pnpm$1 = {
 			],
 			gitType: "git",
 			directoryType: "directory"
-		}, "https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/types/src/index.ts", "lockfileVersion 9.0 (pnpm 9 to 12). Registry packages are keyed name@version; git dependencies name@git+<repo>#<commit> with resolution type git, or a tarball from a git host (gitHosted: true; older lockfiles lack the flag, so the host decides); tarball URLs name@https://…; local tarballs name@file:….tgz; local directories have resolution type directory; link: and workspace: dependencies appear only under importers. requiresBuild was removed in lockfile v9, so install scripts are not recorded."),
+		}, "https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/types/src/index.ts", "lockfileVersion 9.0 (pnpm 9 to 12). Registry packages are keyed name@version; git dependencies name@git+<repo>#<commit> with resolution type git, or a tarball from a git host (gitHosted: true; older lockfiles lack the flag, so the host decides); tarball URLs name@https://…; local tarballs name@file:….tgz; local directories have resolution type directory; link: and workspace: dependencies appear only under importers. requiresBuild was removed in lockfile v9, so install scripts are not recorded. A tarball URL under the configured registry is resolved as that registry package and version (resolving/npm-resolver/src/parseBareSpecifier.ts in v10.34.9), so it is keyed name@version and keeps the URL only in the importer specifier; seen in lockfiles written by pnpm 10.34.9 and 12.16.1."),
 		npmrcPrecedence: checked$2.verified({
 			winner: "pnpm-workspace.yaml",
 			over: [".npmrc", "npm_config_*"]
@@ -8592,6 +8599,15 @@ function npmEntries(text, format, workspaces) {
 	const packages = document["packages"];
 	const registry = new RegExp(String(format["registryTarball"]), "u");
 	const scriptsKey = String(format["installScripts"]);
+	const declaredUrls = /* @__PURE__ */ new Set();
+	for (const value of Object.values(packages)) {
+		if (!isRecord(value)) continue;
+		for (const field of strings(format["dependencyFields"])) {
+			const dependencies = value[field];
+			if (!isRecord(dependencies)) continue;
+			for (const spec of Object.values(dependencies)) if (typeof spec === "string" && HTTP.test(spec)) declaredUrls.add(spec);
+		}
+	}
 	const entries = [];
 	for (const [key, value] of Object.entries(packages)) {
 		if (!key.includes("node_modules/") || !isRecord(value)) continue;
@@ -8603,7 +8619,7 @@ function npmEntries(text, format, workspaces) {
 		if (value[String(format["linkFlag"])] === true) source = workspaces.includes(resolved) ? "workspace" : "directory";
 		else if (strings(format["gitPrefixes"]).some((prefix) => spec.startsWith(prefix))) source = "git";
 		else if (spec.startsWith(String(format["filePrefix"]))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? "file" : "directory";
-		else if (HTTP.test(spec)) source = registry.test(spec) ? "registry" : "remoteTarball";
+		else if (HTTP.test(spec)) source = registry.test(spec) && !declaredUrls.has(spec) ? "registry" : "remoteTarball";
 		else if (resolved === "" && (spec === "" || EXACT_VERSION.test(spec))) source = "registry";
 		entries.push({
 			name,

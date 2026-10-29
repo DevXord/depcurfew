@@ -81,6 +81,17 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[])
   const packages = document['packages'];
   const registry = new RegExp(String(format['registryTarball']), 'u');
   const scriptsKey = String(format['installScripts']);
+  // A dependency declared as a URL is a tarball URL even when the URL points at a registry host, where its resolved
+  // URL looks like any registry package's (an AI agent can pin a version that way and skip the release-age check).
+  const declaredUrls = new Set<string>();
+  for (const value of Object.values(packages)) {
+    if (!isRecord(value)) continue;
+    for (const field of strings(format['dependencyFields'])) {
+      const dependencies = value[field];
+      if (!isRecord(dependencies)) continue;
+      for (const spec of Object.values(dependencies)) if (typeof spec === 'string' && HTTP.test(spec)) declaredUrls.add(spec);
+    }
+  }
   const entries: LockEntry[] = [];
   for (const [key, value] of Object.entries(packages)) {
     if (!key.includes('node_modules/') || !isRecord(value)) continue;
@@ -93,7 +104,7 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[])
     if (value[String(format['linkFlag'])] === true) source = workspaces.includes(resolved) ? 'workspace' : 'directory';
     else if (strings(format['gitPrefixes']).some((prefix) => spec.startsWith(prefix))) source = 'git';
     else if (spec.startsWith(String(format['filePrefix']))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? 'file' : 'directory';
-    else if (HTTP.test(spec)) source = registry.test(spec) ? 'registry' : 'remoteTarball';
+    else if (HTTP.test(spec)) source = registry.test(spec) && !declaredUrls.has(spec) ? 'registry' : 'remoteTarball';
     else if (resolved === '' && (spec === '' || EXACT_VERSION.test(spec))) source = 'registry';
     entries.push({ name, spec, source, installScript: value[scriptsKey] === true, anchor: `${JSON.stringify(key)}: {` });
   }
