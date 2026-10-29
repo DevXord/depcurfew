@@ -73,7 +73,14 @@ describe('depgate doctor', () => {
       expect.objectContaining({
         ruleId: 'bot-cooldown-mismatch',
         level: 'error',
-        locations: [{ physicalLocation: { artifactLocation: { uri: '.github/dependabot.yml', uriBaseId: '%SRCROOT%' }, region: { startLine: 7 } } }],
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: { uri: '.github/dependabot.yml', uriBaseId: '%SRCROOT%' },
+              region: { startLine: 7, startColumn: 1, endLine: 7, endColumn: 14 },
+            },
+          },
+        ],
       }),
     ]);
   });

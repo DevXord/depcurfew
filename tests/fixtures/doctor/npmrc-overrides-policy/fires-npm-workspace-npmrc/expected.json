@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "packages/app/.npmrc",
+      "line": 2
+    },
+    "message": "npm reads .npmrc only at the project root, so min-release-age in packages/app/.npmrc has no effect",
+    "fix": "Set it in the root .npmrc, or in depgate.json and run depgate apply"
+  }
+]

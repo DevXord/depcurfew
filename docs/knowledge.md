@@ -6,7 +6,7 @@ The facts depgate relies on, each linked to the official documentation or change
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-7 tools · 252 facts · 34 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-28.
+7 tools · 256 facts · 35 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-29.
 
 ## Release-age cooldown
 
@@ -81,6 +81,7 @@ Further facts used by generators and `doctor`.
 
 ### npm
 
+- `npmrcScope` (✅ verified): `{"read":"project root","workspacePackages":"ignored"}` [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
 - `npmrcListSyntax` (✅ verified): [] [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
 - `allowAllScripts` (✅ verified): `{"setting":"dangerously-allow-all-scripts","since":"11.16.0","value":true}` [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
 - `excludeWildcards` (✅ verified): `{"since":"11.17.0","trailingOnly":false}` [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
@@ -92,6 +93,9 @@ Further facts used by generators and `doctor`.
 
 ### pnpm
 
+- `npmrcPrecedence` (✅ verified): `{"winner":"pnpm-workspace.yaml","over":[".npmrc","npm_config_*"]}` [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts)
+- `sharedWorkspaceLockfile` (✅ verified): `{"setting":"sharedWorkspaceLockfile","npmrcKey":"shared-workspace-lockfile","default":true}` [↗](https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/versioned_docs/version-10.x/workspaces.md)
+- `perProjectNpmrc` (❓ uncertain): `{"sharedWorkspaceLockfile":false,"until":"11.0.0"}` ❓ [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/pkg-manager/plugin-commands-installation/src/recursive.ts)
 - `ignoredSince` (✅ verified): `{"since":"11.0.0","npmrc":"auth and registry settings","packageJsonField":"pnpm"}` [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `lockfileRecheck` (❓ uncertain): 10.16.0+: false<br>11.1.3+: true ❓ [↗](https://github.com/pnpm/pnpm/releases/tag/v11.1.3)
 - `allowAllBuilds` (✅ verified): `{"setting":"dangerouslyAllowAllBuilds","since":"10.9.0","value":true}` [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md)
@@ -210,6 +214,7 @@ Context recorded with verified facts.
 - `sources.directory.default`: npm 12 did not change the default. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#allow-directory)
 - `project.lockfiles`: npm 11 and earlier prefer npm-shrinkwrap.json over package-lock.json when both exist; npm 12 no longer reads or writes npm-shrinkwrap.json (same format, rename it). [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md)
 - `project.workspaces`: An array of folder paths or globs. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md#workspaces)
+- `extra.npmrcScope`: Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns "ignoring workspace config" for the package .npmrc (workspaces/config/lib/index.js). [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
 - `extra.npmrcListSyntax`: Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*. [↗](https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md)
 - `extra.allowAllScripts`: Boolean, default false: runs every dependency install script whether or not allowScripts approves it; --ignore-scripts still wins. First present in the 11.16.0 definitions. [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
 - `extra.excludeWildcards`: min-release-age-exclude takes package names or minimatch globs from its first version. [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
@@ -227,6 +232,8 @@ Context recorded with verified facts.
 - `sources.git.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `sources.remoteTarball.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `project.workspaces`: Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md)
+- `extra.npmrcPrecedence`: pnpm 10 applies pnpm-workspace.yaml settings over .npmrc and npm_config_* variables; command-line options win over both (same order on v10.16.0). The 10.18.3 changelog says pnpm config set --location=project writes to pnpm-workspace.yaml "matching read priority". The 10.x docs do not state the order. [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts)
+- `extra.sharedWorkspaceLockfile`: Same name and default in pnpm 11 and 12, where it is read only from pnpm-workspace.yaml. [↗](https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/versioned_docs/version-10.x/workspaces.md)
 - `extra.ignoredSince`: Structured form of npmrcIgnored: from 11.0.0 on, other .npmrc settings and the package.json "pnpm" field have no effect. [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `extra.allowAllBuilds`: Boolean, default false; packages denied in allowBuilds stay blocked. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md)
 - `extra.excludeWildcards`: Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0. [↗](https://pnpm.io/10.x/settings)
@@ -431,6 +438,12 @@ No setting restricts file: or link: dependencies (concluded from the full settin
 The docs show packages only as a list; concluded from the absence of an object form.
 
 - `null` · [source](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md), verified 2026-10-28.
+
+### pnpm · `extra.perProjectNpmrc` ❓ uncertain
+
+Without a shared lockfile, pnpm 10 installs every workspace project with its own .npmrc layered over the workspace settings, without filtering keys, so a package .npmrc can change minimum-release-age for that project. Read from code; no documentation or test covers it. No official source says this combination turns minimumReleaseAge off.
+
+- `{"sharedWorkspaceLockfile":false,"until":"11.0.0"}` · [source](https://github.com/pnpm/pnpm/blob/v10.34.9/pkg-manager/plugin-commands-installation/src/recursive.ts), verified 2026-10-29.
 
 ### pnpm · `extra.lockfileRecheck` ❓ uncertain
 

@@ -1,5 +1,6 @@
 // `depgate doctor [directory] [--json | --sarif]`. Exit code 1 when any finding is an error or depgate.json is invalid.
 import { PolicyError } from '../apply/index.ts';
+import { Repository } from '../detect/repository.ts';
 import { countLevels, renderText, RULES, runDoctor, toSarif, type DoctorReport } from '../doctor/index.ts';
 import { getVersion } from '../version.ts';
 import { resolveDirectory } from './directory.ts';
@@ -20,8 +21,14 @@ export function doctor(directory: string | undefined, format: { json: boolean; s
     io.stderr(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
     return EXIT_FAILURE;
   }
-  if (format.sarif) io.stdout(`${JSON.stringify(toSarif(report, RULES, getVersion()), null, 2)}\n`);
-  else if (format.json) io.stdout(`${JSON.stringify({ ...report, summary: countLevels(report.findings) }, null, 2)}\n`);
-  else io.stdout(renderText(report, RULES));
+  if (format.sarif) {
+    const repository = new Repository(absolute);
+    const readLine = (file: string, line: number) => repository.readText(file)?.split(/\r?\n/u)[line - 1];
+    io.stdout(`${JSON.stringify(toSarif(report, RULES, getVersion(), readLine), null, 2)}\n`);
+  } else if (format.json) {
+    io.stdout(`${JSON.stringify({ ...report, summary: countLevels(report.findings) }, null, 2)}\n`);
+  } else {
+    io.stdout(renderText(report, RULES));
+  }
   return countLevels(report.findings).error > 0 ? EXIT_FAILURE : EXIT_OK;
 }

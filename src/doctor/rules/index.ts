@@ -4,6 +4,15 @@ import { broadExclusion } from './broad-exclusion.ts';
 import { configDrift } from './config-drift.ts';
 import { settingIgnoredByVersion } from './ignored-setting.ts';
 import { managerVersionTooOld } from './manager-version.ts';
+import { npmrcOverridesPolicy, pnpmSharedWorkspaceLockfile } from './npmrc.ts';
 
 /** Every doctor rule, in the order they are documented. */
-export const RULES: readonly Rule[] = [managerVersionTooOld, settingIgnoredByVersion, configDrift, botCooldownMismatch, broadExclusion];
+export const RULES: readonly Rule[] = [
+  managerVersionTooOld,
+  settingIgnoredByVersion,
+  npmrcOverridesPolicy,
+  pnpmSharedWorkspaceLockfile,
+  configDrift,
+  botCooldownMismatch,
+  broadExclusion,
+];
