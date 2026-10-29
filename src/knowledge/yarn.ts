@@ -33,10 +33,10 @@ export const yarn: ToolKnowledge = {
       'https://github.com/yarnpkg/berry/pull/6942',
       'Bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect.',
     ),
-    availableSince: disputed(
-      'Release notes, the pull request and the 4.10.0 source all show 4.10.0; the security docs page says 4.12.',
-      evidence('4.10.0', release('4.10.0')),
-      evidence('4.12.0', SECURITY),
+    availableSince: checked.verified(
+      '4.10.2',
+      release('4.10.2'),
+      'The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: "Bust the metadata cache" (#6908) and "support registries without publish times using minimalAgeGate" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old ("No candidates found"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depgate writes the setting from 4.10.2 on.',
     ),
     default: disputed(
       'The code is unambiguous: off until 4.14.x, 1d from 4.15.0. The published settings schema claimed 3d for 4.11.0-4.14.x and 0m in 4.16.0; the live yarnrc page shows "1w", which is an example value. Upgraded projects with an old lockfile get npmMinimalAgeGate: 0 written to .yarnrc.yml (see upgradeMigration).',

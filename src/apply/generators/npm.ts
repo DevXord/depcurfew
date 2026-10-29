@@ -1,6 +1,7 @@
 // npm: .npmrc keys in a managed block; the allowScripts allow-list in the root package.json.
 import { BLOCK_START } from '../block.ts';
-import { extraOf, firstFile, isSwitch, settingOf, sinceOf } from '../facts.ts';
+import { extraOf, firstFile, isSwitch, settingOf, sinceOf, values } from '../facts.ts';
+import { formatVersion } from '../version.ts';
 import { allowedNames, cooldownValue, eachSource, exclusions } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
 
@@ -39,6 +40,17 @@ export const npm: ManagerGenerator = (context) => {
       }
     } else {
       if (context.atLeast(allowAll.since)) managed.push(allowAll.setting);
+      // Before npm 12, dependency scripts that allowScripts does not cover still run (with a notice from 11.16.0):
+      // strict-allow-scripts turns them into an error; older versions have no allow-list at all.
+      let defaults: unknown;
+      for (const entry of values(tool.installScripts.defaultPolicy)[0] ?? []) if (context.atLeast(entry.since)) defaults = entry.value;
+      const strict = extraOf(tool, 'strictAllowScripts', isSwitch);
+      if (defaults === 'run-with-warning' && context.supports(strict.since, strict.setting)) {
+        entries.push(`${strict.setting}=${String(strict.value)}`);
+        managed.push(strict.setting);
+      } else if (defaults === 'run') {
+        context.warn(`${context.name} ${formatVersion(context.version ?? [0, 0, 0])} runs every dependency install script and has no allow-list; "deny" cannot be enforced (npm 11.16.0 added allowScripts, npm 12 blocks scripts by default)`);
+      }
       const setting = settingOf(tool.installScripts.allowList.setting);
       const listFile = settingOf(tool.installScripts.allowList.file) ?? 'package.json';
       if (setting !== null) {

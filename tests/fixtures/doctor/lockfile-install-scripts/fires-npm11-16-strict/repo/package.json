@@ -1,0 +1,5 @@
+{
+  "name": "app",
+  "private": true,
+  "packageManager": "npm@11.19.1"
+}

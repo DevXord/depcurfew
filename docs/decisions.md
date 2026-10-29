@@ -670,3 +670,37 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - przykład `.claude/settings.json` w README: forma exec i `onFailure: "block"`, z zastrzeżeniem, że hook to zabezpieczenie typu „best effort”;
   - bez `depgate.json` hook stosuje domyślną politykę z `init`.
 - **MCP (F9):** nie w tej fazie. Protokół jest w przejściu na rewizję 2026-07-28, bez `initialize` i z `server/discover`. Agent może wołać `depgate check --json`.
+
+## D-060 · Poprawki po testach na projektach przykładowych (2026-10-29)
+Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wydanie 1.1.0).
+- **Testy:** projekty przykładowe dla npm 12, pnpm 12 i 10, Yarn 4, Bun 1.4.4, Deno 2.9 i npm 11 z ręczną konfiguracją. depgate był instalowany z tarballa (`npm pack`), a w każdym projekcie sprawdzałem, czy menedżer naprawdę egzekwuje to, co zapisał `apply`.
+- **pnpm 12 (lockfile z dwoma dokumentami).**
+  - Gdy projekt przypina pnpm 12 albo nowszy, ma zależności konfiguracji albo `devEngines.packageManager`, pnpm zapisuje najpierw dokument rozruchowy, a po nim właściwy lockfile. Plik zaczyna się wtedy od `---`.
+  - `doctor` czytał plik jako jeden dokument i zgłaszał `unreadable-config` w każdym takim projekcie.
+  - Teraz czyta ostatni dokument (fakt `lockfileDocuments`, źródło: pnpm.io `docs/lockfile.md`), a numery linii liczy od jego początku.
+- **Bun (wbudowana lista zaufanych paczek).**
+  - Przy `installScripts.default: deny` i pustej liście `allow` depgate nic nie zapisywał. Bun nadal uruchamiał wtedy skrypty paczek ze swojej wbudowanej listy: postinstall esbuild wykonał się w Bun 1.4.4.
+  - Teraz `apply` zapisuje `"trustedDependencies": []`, co zastępuje wbudowaną listę; test potwierdził blokadę.
+  - Istniejąca lista nie jest zmieniana, poza dopisaniem paczek z polityki.
+- **npm 11.16–11.x (skrypty z ostrzeżeniem).**
+  - Spór w bazie wiedzy jest rozstrzygnięty. Definicja `strict-allow-scripts` w npm 11.16.0 i test na npm 11.21.1 pokazują, że skrypty nieobjęte `allowScripts` działają z ostrzeżeniem: postinstall esbuild wykonał się i podmienił `bin/esbuild` na binarkę.
+  - Decyzja właściciela (wariant a): dla przypiętego npm od 11.16 do wersji poniżej 12 `apply` zapisuje `strict-allow-scripts=true`. Instalacja paczki z niezatwierdzonym skryptem kończy się wtedy błędem.
+  - Dla npm poniżej 11.16, który nie ma listy dozwolonych, `apply` ostrzega, że zakazu nie da się wyegzekwować.
+  - `lockfile-install-scripts` traktuje `strict-allow-scripts` jak blokadę.
+  - Przy nieprzypiętej wersji depgate konfiguruje pod najnowszą znaną (npm 12), jak dotąd.
+- **Repozytorium depgate** przypina npm 11.19.1, więc jego `.npmrc` dostał `strict-allow-scripts=true`. `ignore-scripts=true` nadal ma pierwszeństwo.
+- **Macierz wersji (druga runda).** 26 wersji, każda w czystym projekcie. Sprawdzone: `init`, `apply`, drugie `apply` bez zmian i `doctor`, a następnie prawdziwe instalacje: wersji sprzed 4 godzin, esbuild ze skryptem `postinstall` i paczki z gita.
+  - npm: 11.9.0, 11.10.0, 11.16.0, 11.21.1, 12.0.0, 12.2.1.
+  - pnpm: 10.15.0, 10.16.0, 10.26.0, 10.34.9, 11.0.0, 11.28.9, 12.0.0, 12.16.1.
+  - Yarn: 4.9.4, 4.10.1, 4.10.2, 4.11.0, 4.12.0, 4.14.0, 4.18.1.
+  - Bun: 1.2.23, 1.3.0, 1.4.4.
+  - Deno: 2.5.4, 2.5.5, 2.6.0, 2.9.6.
+- **pnpm 11.0.0–11.0.3 i 12.0.0–12.2.x** domyślnie nie są ścisłe: zainstalowały wersję sprzed 4 godzin, a 12.0.0 dopisał ją do `minimumReleaseAgeExclude`. Od 11.0.0 `apply` zapisuje `minimumReleaseAgeStrict: true` (źródło: pnpm.io dependency-resolution). Po zmianie obie wersje ją odrzucają.
+- **pnpm 10.16.x** pomija opóźnienie dla paczek zamawianych w dokładnej wersji; poprawił to 10.17.0 (changelog). `apply` ostrzega, a `manager-version-too-old` zgłasza to jako brak „minimumReleaseAge for packages requested by exact version (since 10.17.0)”. Komunikat pomija tę lukę, gdy brakuje całego ustawienia.
+- **Yarn: `npmMinimalAgeGate` od 4.10.2.** Spór 4.10.0 albo 4.12.0 jest rozstrzygnięty testem: 4.10.1 z tym ustawieniem odrzucał też wersje sprzed ponad roku, a 4.10.2 („Bust the metadata cache”, poprawka danych bez czasu publikacji), 4.10.3, 4.11.0 i 4.12.0 działają poprawnie. depgate wpisuje ustawienie od 4.10.2, a dla starszych wersji `doctor` zgłasza za starą wersję.
+- **Wynik macierzy:**
+  - Każda wspierana wersja odrzuca zbyt świeżą wersję i blokuje skrypty: Bun od 1.3.0 dzięki pustemu `trustedDependencies`, npm 11.16+ przez `strict-allow-scripts`; Deno bez `allowScripts` skryptów nie uruchamia.
+  - Git jest blokowany tam, gdzie menedżer ma odpowiednie ustawienie: npm od 11.10, Yarn od 4.14.
+  - Drugie `apply` nigdy nic nie zmienia.
+  - Kod 1 z `doctor` dają tylko wersje, którym naprawdę brakuje ustawienia, i każda jest nazwana.
+- **Yarn Classic (1.x):** `apply` ostrzegał, że nic nie zapisze, ale `doctor` kończył się kodem 0, więc polityka po cichu nie działała. Teraz `manager-version-too-old` zgłasza błąd, gdy jest polityka, i podaje wersję Yarna, od której depgate konfiguruje opóźnienie (4.10.2).
