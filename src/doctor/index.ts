@@ -14,6 +14,7 @@ export type { DoctorReport, Finding, Level, Location, Notice, Rule } from './typ
 export { RULES } from './rules/index.ts';
 export { countLevels, renderText } from './render.ts';
 export { toSarif } from './sarif.ts';
+export { annotationCommands, failureSummary, jobSummary } from './github.ts';
 
 const LEVEL_ORDER = { error: 0, warning: 1, note: 2 } as const;
 

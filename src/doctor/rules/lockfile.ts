@@ -46,11 +46,11 @@ export const lockfileForbiddenSource: Rule = {
     eachLockfile(context, 'lockfile-forbidden-source', (lockfile) => {
       for (const entry of lockfile.entries) {
         if (entry.source === 'unknown' && denies) {
-          // Fail closed: a source depgate cannot recognise may be one the policy denies.
+          // Fail closed: a source depgate cannot recognize may be one the policy denies.
           context.report({
             level: 'warning',
             location: location(lockfile, entry),
-            message: `${lockfile.file} installs ${entry.name} from a source depgate does not recognise (${entry.spec || 'no source given'}); it may be one ${POLICY_FILE} denies`,
+            message: `${lockfile.file} installs ${entry.name} from a source depgate does not recognize (${shownSpec(entry.spec) || 'no source given'}); it may be one ${POLICY_FILE} denies`,
             fix: `Check where ${entry.name} comes from, and regenerate the lockfile with the package manager if the entry is damaged`,
           });
           continue;
@@ -59,13 +59,20 @@ export const lockfileForbiddenSource: Rule = {
         if (sources[entry.source] !== 'deny') continue;
         context.report({
           location: location(lockfile, entry),
-          message: `${lockfile.file} installs ${entry.name} from ${LABELS[entry.source]} (${entry.spec}), which ${POLICY_FILE} denies`,
+          message: `${lockfile.file} installs ${entry.name} from ${LABELS[entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
           fix: `Use a registry version of ${entry.name}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`,
         });
       }
     });
   },
 };
+
+/** A lockfile spec for messages, without Yarn's locator parameters (::hash=…&locator=…) and repeated local paths. */
+function shownSpec(spec: string): string {
+  const text = spec.split('::')[0] ?? spec;
+  const hash = text.indexOf('#');
+  return /^(?:file|portal|link):/u.test(text) && hash !== -1 ? text.slice(0, hash) : text;
+}
 
 /** Whether the version in use runs dependency install scripts without an allow-list, under any official reading. */
 function runsScripts(context: RuleContext, tool: ToolKnowledge): boolean {

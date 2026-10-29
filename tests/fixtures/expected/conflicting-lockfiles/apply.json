@@ -4,12 +4,11 @@
     "package.json"
   ],
   "warnings": [
-    "Yarn Classic (1.x) is not supported; nothing written for it",
-    "npm: no exact version is pinned; configuring for npm 12.2.1, the latest known version",
-    "npm: allowScripts takes package names only; \"@scope/*\" not written",
-    "pnpm 10.0.0 does not support minimumReleaseAge (since 10.16.0); not written",
-    "pnpm: onlyBuiltDependencies takes package names only; \"@scope/*\" not written",
-    "pnpm 10.0.0 does not support blockExoticSubdeps (since 10.26.0); not written"
+    "Yarn Classic (1.x) is not supported; nothing written for it. Move to Yarn (Berry) 4.10.2 or later, or to another package manager depgate configures",
+    "npm: no exact version is pinned, so depgate configures for npm 12.2.1, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
+    "npm: allowScripts takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
+    "pnpm: onlyBuiltDependencies takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
+    "pnpm 10.0.0 does not support minimumReleaseAge (since 10.16.0), blockExoticSubdeps (since 10.26.0); not written. To apply them, require pnpm 10.26.0 or later where the version is pinned"
   ],
   "snippets": []
 }

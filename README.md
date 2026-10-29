@@ -69,7 +69,7 @@ Every section is optional: a section that is absent means depgate does not manag
 | --- | --- | --- | --- |
 | `version` |  |  | Version of the policy format. |
 | `cooldown` |  |  | Release-age delay (cooldown): freshly published versions wait before they are used. |
-| `cooldown.minimum` |  |  | Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool’s unit, always rounding up. |
+| `cooldown.minimum` |  |  | Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool's unit, always rounding up. |
 | `cooldown.exclude` |  | `[]` | Packages that skip the release-age delay, e.g. your own scope. |
 | `cooldown.securityUpdates` | `"bypass"`, `"delay"` | `"bypass"` | Whether security updates skip the delay ("bypass") or wait like other updates ("delay"), where the tool can tell them apart. |
 | `installScripts` |  |  | Dependency lifecycle scripts. |
@@ -94,7 +94,9 @@ Every section is optional: a section that is absent means depgate does not manag
 | `depgate check <package...> [--json] [--dir <directory>] [--registry <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
 | `depgate check --hook claude-code` | The same check as a Claude Code hook that blocks install commands breaking the policy. |
 
-Exit codes: `0` success (warnings included), `1` an error (an invalid policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error.
+Exit codes: `0` success (warnings included), `1` an error (an invalid policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error. `depgate <command> --help` describes a command with examples and its exit codes.
+
+Every finding and warning says what to do about it. Text for people is colored on a terminal; `NO_COLOR=1` turns colors off and `FORCE_COLOR=1` turns them on, for example in a CI log that shows them. `--json`, `--sarif` and a diff written to a file stay plain, for programs and AI agents.
 
 How `apply` edits files:
 
@@ -156,7 +158,7 @@ Fix: Keep security settings out of .npmrc files that are ignored or that overrid
 
 **warning** · pnpm 10 without a shared lockfile lets a package .npmrc change the release-age delay.
 
-With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project separately with that project’s own .npmrc layered over the workspace settings (read from the pnpm 10 source code), so a setting such as minimum-release-age=0 in a package .npmrc applies to that package.
+With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project separately with that project's own .npmrc layered over the workspace settings (read from the pnpm 10 source code), so a setting such as minimum-release-age=0 in a package .npmrc applies to that package.
 
 Fix: Remove security settings from package .npmrc files, or keep the default shared lockfile.
 
@@ -174,7 +176,7 @@ Fix: Run depgate apply (depgate apply --dry-run shows the difference), or change
 
 The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile.
 
-Fix: Give the bot a delay at least as long as the package manager’s (depgate apply does this).
+Fix: Give the bot a delay at least as long as the package manager's (depgate apply does this).
 
 ### `broad-exclusion`
 
@@ -211,7 +213,7 @@ Fix: Fix what the message describes: invalid syntax, a symlink, a file over the 
 
 ## GitHub Action
 
-The action runs `depgate doctor`, prints the report to the job log, uploads the SARIF report to code scanning and fails the job when doctor finds an error. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
+The action runs `depgate doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
 
 Pin it to a full commit SHA, like every action in your workflows. If the repository cannot use code scanning, set `upload-sarif: false`; the findings stay in the job log.
 
@@ -247,6 +249,8 @@ jobs:
 | `upload-sarif` | `true` | Upload the SARIF report to GitHub code scanning. The job needs the security-events write permission. |
 | `category` | `depgate` | Code scanning category of the upload, to tell several depgate runs in one workflow apart. |
 | `fail-on-error` | `true` | Fail the step when doctor reports an error. |
+| `annotations` | `true` | Show the findings as annotations on the files, each with how to fix it. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them. |
+| `job-summary` | `true` | Add a table of the findings, each with how to fix it, to the job summary. |
 
 | Output | Description |
 | --- | --- |
@@ -255,6 +259,19 @@ jobs:
 | `notes` | Number of findings with level note. |
 | `sarif-file` | Path of the SARIF report, relative to the workspace; empty when doctor could not run. |
 <!-- END GENERATED: action-reference -->
+
+### Other CI systems
+
+The action works only on GitHub. On GitLab CI or any other CI, run the CLI in a job that has Node.js; the job fails when doctor finds an error (exit code 1):
+
+```yaml
+depgate:
+  image: node:22
+  script:
+    - npx --yes depgate@1 doctor
+```
+
+`depgate doctor --json` and `--sarif` write the findings for other tools; set `FORCE_COLOR=1` if the CI log shows colors.
 
 ## Guarding installs
 
@@ -327,7 +344,7 @@ Commands the guard reads (an add subcommand of any package manager, such as `ins
 | Deno | `deno add`, `deno install` | none | none |
 <!-- END GENERATED: claude-code-hook -->
 
-The hook reads commands the way a shell splits them, but it is a safety net, not a sandbox: a command can install packages in ways it does not recognise (a script, another tool). Keep the package manager configuration from `depgate apply` in place; it is what enforces the policy for every install.
+The hook reads commands the way a shell splits them, but it is a safety net, not a sandbox: a command can install packages in ways it does not recognize (a script, another tool). Keep the package manager configuration from `depgate apply` in place; it is what enforces the policy for every install.
 
 ## Library
 

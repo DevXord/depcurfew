@@ -33,7 +33,7 @@ export const deno: ToolKnowledge = {
     cliFlag: verified(
       '--minimum-dependency-age',
       DENO_JSON,
-      'Alias --min-dep-age since 2.9.3. deno install honours it since 2.5.5; deno add, deno remove and deno x since 2.9.4.',
+      'Alias --min-dep-age since 2.9.3. deno install honors it since 2.5.5; deno add, deno remove and deno x since 2.9.4.',
     ),
     unit: verified(
       'minutes',
@@ -157,14 +157,14 @@ export const deno: ToolKnowledge = {
       evidence('a duration with a unit, e.g. min-release-age=72h', 'https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default'),
     ),
     fileLinkSkipped: disputed(
-      'Official pages disagree on whether the project’s own file: and link: dependencies are skipped, or only those in published packages’ metadata.',
+      'Official pages disagree on whether the project\'s own file: and link: dependencies are skipped, or only those in published packages\' metadata.',
       evidence('file: and link: dependencies in the project package.json are silently skipped', NOT_SUPPORTED),
       evidence(
         'file: and link: specifiers in registry metadata of npm packages are skipped',
         'https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages',
       ),
     ),
-    denoXCooldown: verified('deno x honours minimumDependencyAge only since 2.9.4', release('2.9.4')),
+    denoXCooldown: verified('deno x honors minimumDependencyAge only since 2.9.4', release('2.9.4')),
     dxRunsScripts: verified('dx defaults to --allow-all and runs lifecycle scripts once the download prompt is accepted', 'https://deno.com/blog/v2.6'),
   },
 };

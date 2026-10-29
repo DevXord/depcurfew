@@ -24,7 +24,7 @@ const duration = text({
   pattern: DURATION_PATTERN,
   examples: ['3d', '36h', '1w'],
   description:
-    'Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool’s unit, always rounding up.',
+    'Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool\'s unit, always rounding up.',
   parse: (input) => {
     const result = parseDuration(input);
     return result.ok ? { ok: true, value: result.duration } : result;

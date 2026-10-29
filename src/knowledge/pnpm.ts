@@ -104,7 +104,7 @@ export const pnpm: ToolKnowledge = {
     disableAll: verified(
       'ignoreScripts',
       'https://pnpm.io/cli/install',
-      'Default false; --ignore-scripts on the CLI. Also skips the project’s own scripts.',
+      'Default false; --ignore-scripts on the CLI. Also skips the project\'s own scripts.',
     ),
   },
   sources: {
@@ -276,7 +276,7 @@ export const pnpm: ToolKnowledge = {
         { since: '11.1.3', value: 'lockfile entries are re-checked; trustLockfile: true (11.3.0) turns this off' },
       ],
       release('11.1.3'),
-      'The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behaviour rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs.',
+      'The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs.',
     ),
     unknownWorkspaceKeys: verified(
       'pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns',

@@ -5,8 +5,8 @@
     "renovate.jsonc"
   ],
   "warnings": [
-    "pnpm: allowBuilds takes package names only; \"@scope/*\" not written",
-    "pnpm: blockExoticSubdeps blocks git and tarball dependencies only when they are subdependencies; direct ones stay allowed"
+    "pnpm: allowBuilds takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
+    "pnpm: blockExoticSubdeps stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depgate doctor reports them in pnpm-lock.yaml"
   ],
   "snippets": []
 }

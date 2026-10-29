@@ -71,7 +71,7 @@ export const TABLE_SECTIONS: readonly TableSection[] = [
   {
     heading: 'Project files',
     kinds: ['package-manager'],
-    intro: 'How depgate recognises each package manager in a repository.',
+    intro: 'How depgate recognizes each package manager in a repository.',
     rows: singleRow,
     columns: [
       { title: 'Lockfiles', path: 'project.lockfiles', style: 'code' },

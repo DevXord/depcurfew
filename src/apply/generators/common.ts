@@ -4,7 +4,7 @@
 import { convertCooldown } from '../../policy/convert.ts';
 import type { Duration } from '../../policy/duration.ts';
 import { SOURCE_KINDS } from '../../knowledge/schema.ts';
-import { extraOf, isWildcards, settingOf, sinceOf } from '../facts.ts';
+import { extraOf, isRecord, isWildcards, settingOf, sinceOf, values } from '../facts.ts';
 import type { Context } from './context.ts';
 
 const MINUTES: Record<string, number> = { seconds: 1 / 60, minutes: 1, hours: 60, days: 1440, weeks: 10080 };
@@ -52,7 +52,7 @@ export function exclusions(context: Context): string[] | undefined {
   return patterns.filter((pattern) => {
     if (!pattern.includes('*')) return true;
     const accepted = wildcardsWork && (!wildcards.trailingOnly || pattern.indexOf('*') === pattern.length - 1);
-    if (!accepted) context.warn(`${context.name}: ${setting} does not support the pattern "${pattern}"; not written`);
+    if (!accepted) context.warn(`${context.name}: ${setting} does not support the pattern "${pattern}"; not written. List the exact package names in cooldown.exclude`);
     return accepted;
   });
 }
@@ -61,9 +61,16 @@ export function exclusions(context: Context): string[] | undefined {
 export function allowedNames(context: Context, setting: string): string[] {
   return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
     if (!pattern.includes('*')) return true;
-    context.warn(`${context.name}: ${setting} takes package names only; "${pattern}" not written`);
+    context.warn(`${context.name}: ${setting} takes package names only; "${pattern}" not written. List the package names in installScripts.allow`);
     return false;
   });
+}
+
+/** Whether depgate doctor can tell dependency sources apart in the tool's lockfile. */
+function lockfileShowsSources(tool: Context['tool']): boolean {
+  const fact = tool.extra?.['lockfileFormat'];
+  const format = fact === undefined ? undefined : values(fact)[0];
+  return isRecord(format) && format['sources'] !== null;
 }
 
 /** Calls `apply` for every dependency source the policy manages and the tool has a setting for. */
@@ -76,7 +83,12 @@ export function eachSource(context: Context, apply: (kind: SourceKind, setting: 
     const knowledge = context.tool.sources?.[kind];
     const setting = settingOf(knowledge?.setting);
     if (setting === null) {
-      if (access === 'deny') context.warn(`${context.name} has no setting for ${SOURCE_LABELS[kind]} dependencies; "deny" cannot be enforced`);
+      if (access === 'deny') {
+        const checked = lockfileShowsSources(context.tool)
+          ? '; depgate doctor still reports such dependencies in the lockfile'
+          : '; depgate doctor cannot see them in the lockfile either, so review new dependencies by hand';
+        context.warn(`${context.name} has no setting for ${SOURCE_LABELS[kind]} dependencies, so "deny" cannot be enforced${checked}`);
+      }
       continue;
     }
     if (!context.supports(sinceOf(knowledge?.availableSince), setting)) continue;

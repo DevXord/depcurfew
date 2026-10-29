@@ -2,6 +2,14 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Czytelne komunikaty, kolory, pomoc poleceń i Action
+
+- **Komunikaty:** wszystkie po angielsku i każdy błąd lub ostrzeżenie mówi, co zrobić. `apply` łączy brakujące ustawienia jednej wersji w jedno ostrzeżenie i podaje wersję, której trzeba wymagać (D-061).
+- **Pomoc:** `depgate <polecenie> --help` z opisem, opcjami, przykładami i kodami wyjścia.
+- **Kolory** w terminalu, bez zależności: obsługa `NO_COLOR` i `FORCE_COLOR`, a JSON i SARIF zostają bez zmian.
+- **GitHub Action:** adnotacje na plikach i tabela w podsumowaniu zadania, każda z poprawką; nowe wejścia `annotations` i `job-summary`. README opisuje uruchomienie na GitLab CI.
+- **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
+
 ## 2026-10-29 · Testy na projektach przykładowych i poprawki przed 1.0.0
 
 - **Testy:** projekty przykładowe dla npm 12, pnpm 12/10, Yarn 4, Bun, Deno i npm 11 z ręczną konfiguracją; depgate zainstalowany z tarballa. Opóźnienie, źródła i skrypty sprawdzone prawdziwymi instalacjami (D-060).

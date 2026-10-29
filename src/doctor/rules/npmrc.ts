@@ -122,7 +122,7 @@ export const pnpmSharedWorkspaceLockfile: Rule = {
   id: 'pnpm-shared-workspace-lockfile',
   summary: 'pnpm 10 without a shared lockfile lets a package .npmrc change the release-age delay.',
   description:
-    'With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project separately with that project’s own .npmrc layered over the workspace settings (read from the pnpm 10 source code), so a setting such as minimum-release-age=0 in a package .npmrc applies to that package.',
+    'With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project separately with that project\'s own .npmrc layered over the workspace settings (read from the pnpm 10 source code), so a setting such as minimum-release-age=0 in a package .npmrc applies to that package.',
   help: 'Remove security settings from package .npmrc files, or keep the default shared lockfile.',
   level: 'warning',
   requiresPolicy: false,

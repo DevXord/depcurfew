@@ -1,7 +1,7 @@
 {
   "changed": [],
   "warnings": [
-    "no tools to configure"
+    "no tools to configure: depgate found no supported package manager or bot here (depgate explain shows what it detects)"
   ],
   "snippets": []
 }

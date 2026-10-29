@@ -3,7 +3,7 @@
     "deno.json"
   ],
   "warnings": [
-    "Deno: no exact version is pinned; configuring for Deno 2.9.8, the latest known version",
+    "Deno: no exact version is pinned, so depgate configures for Deno 2.9.8, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
     "Deno: allowScripts allowed every install script; replaced with the policy's allow-list"
   ],
   "snippets": []

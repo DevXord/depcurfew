@@ -75,4 +75,37 @@ describe('depgate CLI', () => {
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout).toContain('Usage: depgate');
   });
+
+  it.each([['doctor', '--help'], ['doctor', '-h'], ['help', 'doctor']])('%s %s describes the command, its options, examples and exit codes', async (...argv) => {
+    const result = await exec(...argv);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stderr).toBe('');
+    expect(result.stdout).toMatch(/^Usage: depgate doctor \[directory\] \[options\]$/m);
+    expect(result.stdout).toMatch(/^ {2}--sarif {2,}Print the findings as SARIF/m);
+    expect(result.stdout).toMatch(/^ {2}-h, --help {2,}Show this help$/m);
+    expect(result.stdout).toMatch(/^Examples:\n {2}depgate doctor$/m);
+    expect(result.stdout).toMatch(/^ {2}1 {2}at least one finding with level error/m);
+    expect(result.stdout.split('\n').every((line) => line.length <= 80)).toBe(true);
+  });
+
+  it('describes every command in its own help', async () => {
+    for (const command of ['init', 'apply', 'doctor', 'explain', 'check']) {
+      const result = await exec(command, '--help');
+      expect(result.stdout).toMatch(new RegExp(`^Usage: depgate ${command} `, 'm'));
+      expect(result.stdout).toMatch(/^Exit codes:\n {2}0 /m);
+      expect(result.stdout.split('\n').filter((line) => line.length > 80)).toEqual([]);
+    }
+  });
+
+  it('points an unknown option of a command to that command\'s help', async () => {
+    const result = await exec('apply', '--frobnicate');
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stderr).toBe("depgate: unknown option '--frobnicate'\nRun 'depgate apply --help' for its options.\n");
+  });
+
+  it('points too many arguments to the command help', async () => {
+    const result = await exec('doctor', 'a', 'b');
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stderr).toContain("Run 'depgate doctor --help' for usage.");
+  });
 });

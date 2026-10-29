@@ -8,6 +8,7 @@ import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
 import { detectedTargets, managerName, toolName } from './describe.ts';
+import { paint, PLAIN, type Paint } from '../color.ts';
 import { resolveDirectory } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, type CliIo } from './io.ts';
 
@@ -123,14 +124,22 @@ function policyLines(policy: PolicyReport | null): string[] {
   return lines;
 }
 
-export function renderReport(report: ExplainReport): string {
-  return `${[...projectLines(report.project), '', ...policyLines(report.policy)].join('\n')}\n`;
+/** Section headings (unindented lines up to their first colon) in bold, "cannot apply" and "invalid" in yellow. */
+function paintReport(lines: readonly string[], colors: Paint): string[] {
+  return lines.map((line) => {
+    const marked = line.replace(/: (cannot apply|invalid)(?=:|$)/u, (_match, word: string) => `: ${colors.yellow(word)}`);
+    return /^\S/u.test(marked) ? marked.replace(/^[^:]+:/u, (heading) => colors.bold(heading)) : marked;
+  });
+}
+
+export function renderReport(report: ExplainReport, colors: Paint = PLAIN): string {
+  return `${paintReport([...projectLines(report.project), '', ...policyLines(report.policy)], colors).join('\n')}\n`;
 }
 
 export function explain(directory: string | undefined, json: boolean, io: CliIo): number {
   const absolute = resolveDirectory(directory, io);
   if (absolute === undefined) return EXIT_FAILURE;
   const report = buildReport(absolute);
-  io.stdout(json ? `${JSON.stringify(report, null, 2)}\n` : renderReport(report));
+  io.stdout(json ? `${JSON.stringify(report, null, 2)}\n` : renderReport(report, paint(io.colors?.stdout)));
   return report.policy !== null && !report.policy.valid ? EXIT_FAILURE : EXIT_OK;
 }

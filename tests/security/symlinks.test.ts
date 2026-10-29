@@ -148,7 +148,7 @@ describe('GitHub Action', () => {
     const root = workspace();
     const { outside } = layout();
     symlinkSync(join(outside, 'secret.json'), join(root, 'depgate.sarif'));
-    const outputs = runAction({ GITHUB_WORKSPACE: root }, { log: () => undefined });
+    const outputs = runAction({ GITHUB_WORKSPACE: root }, { log: () => undefined, summary: () => undefined });
     expect(outputs.failure).toBe('cannot write the SARIF file depgate.sarif: depgate.sarif is a symlink; depgate does not write through symlinks');
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
   });
@@ -157,7 +157,7 @@ describe('GitHub Action', () => {
     const root = workspace();
     const { outside } = layout();
     symlinkSync(outside, join(root, 'reports'));
-    const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: 'reports/secret.json' }, { log: () => undefined });
+    const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: 'reports/secret.json' }, { log: () => undefined, summary: () => undefined });
     expect(outputs.failure).toBe('cannot write the SARIF file reports/secret.json: reports is a symlink; depgate does not write through symlinks');
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
   });
@@ -166,7 +166,7 @@ describe('GitHub Action', () => {
     const root = workspace();
     const { outside } = layout();
     symlinkSync(outside, join(root, '..out'));
-    const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: '..out/secret.json' }, { log: () => undefined });
+    const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: '..out/secret.json' }, { log: () => undefined, summary: () => undefined });
     expect(outputs.failure).toBe('cannot write the SARIF file ..out/secret.json: ..out is a symlink; depgate does not write through symlinks');
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
   });
@@ -175,7 +175,7 @@ describe('GitHub Action', () => {
     const root = workspace();
     const { repo } = layout();
     symlinkSync(repo, join(root, 'sub'));
-    const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'sub' }, { log: () => undefined });
+    const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'sub' }, { log: () => undefined, summary: () => undefined });
     expect(outputs.failure).toBe('directory "sub" is not a directory inside the workspace');
   });
 });

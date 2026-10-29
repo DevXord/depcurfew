@@ -5,6 +5,7 @@
       "file": ".npmrc",
       "line": 2
     },
-    "message": ".npmrc does not match depgate.json: \"dangerously-allow-all-scripts=true\" should be \"# depgate: superseded by the managed block: dangerously-allow-all-scripts=true\""
+    "message": ".npmrc does not match depgate.json: `dangerously-allow-all-scripts=true` is set outside the block that depgate manages; depgate apply comments it out, and the block sets what depgate.json requires",
+    "fix": "Run depgate apply to bring .npmrc back in line with depgate.json (depgate apply --dry-run shows the change first), or change depgate.json if the edit was intended"
   }
 ]

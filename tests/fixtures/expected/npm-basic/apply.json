@@ -4,8 +4,8 @@
     "package.json"
   ],
   "warnings": [
-    "npm: no exact version is pinned; configuring for npm 12.2.1, the latest known version",
-    "npm: allowScripts takes package names only; \"@scope/*\" not written"
+    "npm: no exact version is pinned, so depgate configures for npm 12.2.1, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
+    "npm: allowScripts takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow"
   ],
   "snippets": []
 }

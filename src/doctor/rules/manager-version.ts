@@ -3,6 +3,7 @@
 // depgate.json needs and the ones already written in the manager's configuration.
 import { compareVersions, formatVersion, parseVersion, type Version } from '../../apply/version.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf, values } from '../../apply/facts.ts';
+import { describeRequirements } from '../../apply/requirements.ts';
 import type { PackageManagerInfo, VersionDeclaration } from '../../detect/types.ts';
 import { SOURCE_KINDS } from '../../knowledge/schema.ts';
 import type { Fact, ToolKnowledge } from '../../knowledge/types.ts';
@@ -107,7 +108,7 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
     const missing = below.filter((item) => !below.some((other) => other !== item && item.setting.startsWith(`${other.setting} for `)));
     if (missing.length === 0) continue;
     const needed = missing.map((item) => parseVersion(item.since) as Version).reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b));
-    const list = missing.map((item) => `${item.setting} (since ${item.since}${item.disputed ? ', sources disagree; the later version is assumed' : ''})`).join(', ');
+    const list = describeRequirements(missing);
     const line = declarationLine(context, declaration);
     const subject =
       lowest.kind === 'exact'

@@ -21,6 +21,12 @@ inputs:
   fail-on-error:
     description: Fail the step when doctor reports an error.
     default: 'true'
+  annotations:
+    description: Show the findings as annotations on the files, each with how to fix it. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them.
+    default: 'true'
+  job-summary:
+    description: Add a table of the findings, each with how to fix it, to the job summary.
+    default: 'true'
 
 outputs:
   errors:
@@ -59,6 +65,8 @@ runs:
       env:
         INPUT_DIRECTORY: ${{ inputs.directory }}
         INPUT_SARIF_FILE: ${{ inputs.sarif-file }}
+        INPUT_ANNOTATIONS: ${{ inputs.annotations }}
+        INPUT_JOB_SUMMARY: ${{ inputs.job-summary }}
       run: node "$GITHUB_ACTION_PATH/action/depgate.mjs"
 
     - name: Upload SARIF to code scanning
@@ -78,6 +86,6 @@ runs:
         if [ -n "$FAILURE" ]; then
           echo "::error title=depgate::$FAILURE"
         else
-          echo "::error title=depgate::depgate doctor reported $ERRORS error(s); see the log of the previous step"
+          echo "::error title=depgate::depgate doctor reported $ERRORS error(s); the job summary and the log of the Run depgate doctor step say how to fix each one"
         fi
         exit 1

@@ -1,4 +1,4 @@
-// Renovate: minimumReleaseAge, a packageRules entry for exclusions (recognised by its description) and the delay
+// Renovate: minimumReleaseAge, a packageRules entry for exclusions (recognized by its description) and the delay
 // for security updates. JSON5 files and the deprecated package.json key are not edited; a snippet is printed.
 import { convertCooldown } from '../../policy/convert.ts';
 import { extraOf, isRecord, settingOf, values } from '../facts.ts';
@@ -50,7 +50,7 @@ export const renovate: BotGenerator = (context, duration) => {
     const packageJson = extraOf(tool, 'packageJsonConfig', isRecord);
     const where = file ?? (context.exists('package.json') && context.json('package.json').get([String(packageJson['key'])]) !== undefined ? 'package.json' : undefined);
     if (where === undefined) {
-      context.warn(`${context.name}: no configuration file found; depgate does not create one`);
+      context.warn(`${context.name}: no configuration file found; depgate does not create one. Add renovate.json if you use Renovate, then run depgate apply again`);
       return;
     }
     context.warn(

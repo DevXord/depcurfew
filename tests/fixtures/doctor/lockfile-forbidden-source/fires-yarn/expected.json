@@ -14,7 +14,7 @@
       "file": "yarn.lock",
       "line": 20
     },
-    "message": "yarn.lock installs local-tgz from a local tarball (file:./vendor/local-tgz-1.0.0.tgz#./vendor/local-tgz-1.0.0.tgz::hash=a1b2c3&locator=app%40workspace%3A.), which depgate.json denies",
+    "message": "yarn.lock installs local-tgz from a local tarball (file:./vendor/local-tgz-1.0.0.tgz), which depgate.json denies",
     "fix": "Use a registry version of local-tgz, or set sources.file to \"allow\" in depgate.json"
   },
   {
@@ -32,7 +32,7 @@
       "file": "yarn.lock",
       "line": 32
     },
-    "message": "yarn.lock installs my-portal from a local directory (portal:../my-portal::locator=app%40workspace%3A.), which depgate.json denies",
+    "message": "yarn.lock installs my-portal from a local directory (portal:../my-portal), which depgate.json denies",
     "fix": "Use a registry version of my-portal, or set sources.directory to \"allow\" in depgate.json"
   }
 ]

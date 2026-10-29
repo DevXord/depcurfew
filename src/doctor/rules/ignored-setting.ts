@@ -98,7 +98,7 @@ function checkDurationStrings(context: RuleContext, tool: ToolKnowledge, manager
   context.report({
     location: { file, line: found.line },
     message: `${label} ignores the duration string ${JSON.stringify(found.value)} in ${setting}; strings work only since ${String(format['since'])}, so no delay applies`,
-    fix: `Write the delay as a number in ${tool.cooldown.unit.status === 'disputed' ? 'the tool’s unit' : String(values(tool.cooldown.unit)[0])}, or require ${tool.name} ${String(format['since'])} or later`,
+    fix: `Write the delay as a number in ${tool.cooldown.unit.status === 'disputed' ? 'the tool\'s unit' : String(values(tool.cooldown.unit)[0])}, or require ${tool.name} ${String(format['since'])} or later`,
   });
 }
 

@@ -48,7 +48,7 @@ describe('depgate check', () => {
   it('uses the default policy without depgate.json and fails on install scripts', async () => {
     const result = await exec(['check', '--dir', project(), 'esbuild', 'request']);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toBe('depgate: no depgate.json found; checking against the default policy of depgate init\n');
+    expect(result.stderr).toBe('note: no depgate.json found; checking against the default policy of depgate init (depgate init writes it)\n');
     expect(result.stdout).toContain('esbuild@0.28.2:\n  error: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depgate.json does not allow\n');
     expect(result.stdout).toContain('  warning: request@2.88.2 is deprecated');
     expect(result.stdout).toContain('2 packages: 1 with errors, 1 with warnings\n');

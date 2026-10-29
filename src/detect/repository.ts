@@ -74,7 +74,7 @@ export class Repository {
     return text.startsWith('﻿') ? text.slice(1) : text;
   }
 
-  /** The first bytes of a file, e.g. to recognise a lockfile format without reading a large file. */
+  /** The first bytes of a file, e.g. to recognize a lockfile format without reading a large file. */
   readHead(path: string, bytes = 4096): string | undefined {
     const real = this.#resolve(path, true);
     if (real === undefined || !statSync(real).isFile()) return undefined;

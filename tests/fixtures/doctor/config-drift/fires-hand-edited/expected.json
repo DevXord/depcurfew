@@ -5,7 +5,8 @@
       "file": ".npmrc",
       "line": 4
     },
-    "message": ".npmrc does not match depgate.json: \"min-release-age=1\" should be \"min-release-age=3\""
+    "message": ".npmrc does not match depgate.json: `min-release-age=1` should be `min-release-age=3`",
+    "fix": "Run depgate apply to bring .npmrc back in line with depgate.json (depgate apply --dry-run shows the change first), or change depgate.json if the edit was intended"
   },
   {
     "level": "warning",

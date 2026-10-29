@@ -149,17 +149,17 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
 export async function check(specs: readonly string[], flags: CheckFlags, io: CliIo, dependencies: CheckDependencies): Promise<number> {
   if (flags.hook !== undefined) {
     if (!(HOOKS as readonly string[]).includes(flags.hook)) {
-      io.stderr(`depgate: unknown hook '${flags.hook}'; supported: ${HOOKS.join(', ')}\nRun 'depgate --help' for usage.\n`);
+      io.stderr(`depgate: unknown hook '${flags.hook}'; supported: ${HOOKS.join(', ')}\nRun 'depgate check --help' for usage.\n`);
       return EXIT_USAGE;
     }
     if (specs.length > 0) {
-      io.stderr("depgate: '--hook' reads the command from stdin and takes no packages\nRun 'depgate --help' for usage.\n");
+      io.stderr("depgate: '--hook' reads the command from stdin and takes no packages\nRun 'depgate check --help' for usage.\n");
       return EXIT_USAGE;
     }
     return hook(flags, io, dependencies);
   }
   if (specs.length === 0) {
-    io.stderr("depgate: 'check' needs at least one package, e.g. depgate check lodash@4\nRun 'depgate --help' for usage.\n");
+    io.stderr("depgate: 'check' needs at least one package, e.g. depgate check lodash@4\nRun 'depgate check --help' for usage.\n");
     return EXIT_USAGE;
   }
   let loaded: ReturnType<typeof load>;
@@ -170,7 +170,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     io.stderr(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
     return EXIT_FAILURE;
   }
-  if (loaded.file === undefined) io.stderr(`depgate: no ${POLICY_FILE} found; checking against the default policy of depgate init\n`);
+  if (loaded.file === undefined) io.stderr(`note: no ${POLICY_FILE} found; checking against the default policy of depgate init (depgate init writes it)\n`);
   const reports = await checkSpecs(specs, {
     policy: loaded.policy,
     fetch: dependencies.fetch,
