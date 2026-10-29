@@ -45,8 +45,12 @@ export function readHookEvent(input: string): HookEvent | undefined {
   return typeof command === 'string' ? { command, cwd: typeof cwd === 'string' ? cwd : undefined } : undefined;
 }
 
+/**
+ * One finding for the agent. Fixes that change depgate.json are left out: the policy is the user's to change, and the
+ * reason says to ask them.
+ */
 function line(report: PackageReport, finding: CheckFinding): string {
-  return `- ${report.spec}: ${finding.message}`;
+  return `- ${report.spec}: ${finding.message}${finding.fix.includes('depgate.json') ? '' : `. Fix: ${finding.fix}`}`;
 }
 
 /** The decision for the checked packages of one command. */
@@ -56,7 +60,7 @@ export function decide(reports: readonly PackageReport[], unreadable: string | u
   if (denied.length > 0) {
     return {
       decision: 'deny',
-      reason: `depgate blocked this command because it breaks the project's supply-chain policy (depgate.json):\n${denied.map(({ report, finding }) => line(report, finding)).join('\n')}\nChoose another package or version, or ask the user to change depgate.json.`,
+      reason: `depgate blocked this command because it breaks the project's supply-chain policy (depgate.json):\n${denied.map(({ report, finding }) => line(report, finding)).join('\n')}\nChoose another package or version. Only the user may change depgate.json: ask them instead of editing it.`,
     };
   }
   const doubts = [...(unreadable === undefined ? [] : [`- ${unreadable}`]), ...errors.map(({ report, finding }) => line(report, finding))];

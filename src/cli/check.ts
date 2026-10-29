@@ -19,6 +19,7 @@ import { popularPackages } from '../knowledge/popular.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { parsePolicy } from '../policy/validate.ts';
+import { paint, type Paint } from '../color.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
 export const HOOKS = ['claude-code'] as const;
@@ -96,15 +97,19 @@ function load(start: string, home: string): { policy: ResolvedPolicy; file: stri
   };
 }
 
-function render(reports: readonly PackageReport[]): string {
+function render(reports: readonly PackageReport[], colors: Paint): string {
   const lines: string[] = [];
   for (const report of reports) {
     const label = report.version === undefined || report.name === undefined ? report.spec : `${report.name}@${report.version}`;
     if (report.findings.length === 0) {
-      lines.push(`${label}: ok${report.publishedAt === undefined ? '' : ` (published ${report.publishedAt.slice(0, 10)})`}`);
+      lines.push(`${colors.bold(label)}: ${colors.green('ok')}${report.publishedAt === undefined ? '' : ` (published ${report.publishedAt.slice(0, 10)})`}`);
       continue;
     }
-    lines.push(`${label}:`, ...report.findings.map((finding) => `  ${finding.level}: ${finding.message}`));
+    lines.push(`${colors.bold(label)}:`);
+    for (const finding of report.findings) {
+      const level = finding.level === 'error' ? colors.bold(colors.red('error:')) : colors.yellow('warning:');
+      lines.push(`  ${level} ${finding.message}`, `    ${colors.green('fix:')} ${finding.fix}`);
+    }
   }
   const errors = reports.filter((report) => report.findings.some((finding) => finding.level === 'error')).length;
   const warnings = reports.filter((report) => report.findings.some((finding) => finding.level === 'warning')).length;
@@ -179,6 +184,6 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     popular: new PopularNames(values(popularPackages)[0] ?? []),
     scopeRegistries: loaded.registries.scopes,
   });
-  io.stdout(flags.json ? `${JSON.stringify({ schemaVersion: 1, policy: loaded.file ?? null, packages: reports }, null, 2)}\n` : render(reports));
+  io.stdout(flags.json ? `${JSON.stringify({ schemaVersion: 1, policy: loaded.file ?? null, packages: reports }, null, 2)}\n` : render(reports, paint(io.colors?.stdout)));
   return reports.some((report) => report.findings.some((finding) => finding.level === 'error')) ? EXIT_FAILURE : EXIT_OK;
 }

@@ -29,7 +29,11 @@ export interface CheckFinding {
   level: 'error' | 'warning';
   code: FindingCode;
   message: string;
+  /** What to do about it. */
+  fix: string;
 }
+
+const CHECK_BY_HAND = 'Make sure you trust this source before installing it';
 
 export interface PackageReport {
   spec: string;
@@ -111,9 +115,16 @@ function sourceFindings(spec: PackageSpec, kind: SourceKind, policy: ResolvedPol
   const label = spec.maybeGit === true ? 'a URL that may be read as a tarball or a git repository' : SOURCE_LABELS[kind];
   const denied = keys.find((key) => policy.sources?.[key] === 'deny');
   if (denied !== undefined) {
-    return [{ level: 'error', code: 'forbidden-source', message: `it installs from ${label}, which depgate.json denies (sources.${denied})` }];
+    return [
+      {
+        level: 'error',
+        code: 'forbidden-source',
+        message: `it installs from ${label}, which depgate.json denies (sources.${denied})`,
+        fix: `Install the package from the registry instead, or set sources.${denied} to "allow" in depgate.json if this source is intended`,
+      },
+    ];
   }
-  return [{ level: 'warning', code: 'unchecked-source', message: `it installs from ${label}; depgate looks up registry packages only` }];
+  return [{ level: 'warning', code: 'unchecked-source', message: `it installs from ${label}; depgate looks up registry packages only`, fix: CHECK_BY_HAND }];
 }
 
 async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions): Promise<void> {
@@ -122,27 +133,52 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   const scope = name.startsWith('@') ? name.slice(0, name.indexOf('/')) : undefined;
   const scopeRegistry = scope === undefined ? undefined : options.scopeRegistries?.get(scope);
   if (scopeRegistry !== undefined) {
-    add({ level: 'error', code: 'unverified', message: `${scope} packages come from ${scopeRegistry} (.npmrc); depgate looks up the public registry only` });
+    add({
+      level: 'error',
+      code: 'unverified',
+      message: `${scope} packages come from ${scopeRegistry} (.npmrc); depgate looks up the public registry only`,
+      fix: `Check the package in ${scopeRegistry} yourself before installing it`,
+    });
     return;
   }
   const similar = options.popular.similar(name);
   if (similar !== undefined) {
     const how = similar.reason === 'edit' ? 'differs by a letter or two from' : 'differs only in separators from';
-    add({ level: 'error', code: 'similar-name', message: `the name ${how} the popular package ${similar.match}; make sure it is the package you want` });
+    add({
+      level: 'error',
+      code: 'similar-name',
+      message: `the name ${how} the popular package ${similar.match}; make sure it is the package you want`,
+      fix: `Install ${similar.match} if that is what you meant; otherwise check that ${name} is the package its documentation names`,
+    });
   }
 
   const lookup = await fetchPackument(name, { registry: options.registry, fetch: options.fetch });
   if (lookup.status === 'not-found') {
     if (scope !== undefined) {
       // A scope may belong to a private registry that no .npmrc depgate reads names, so a person decides.
-      add({ level: 'error', code: 'unverified', message: `${name} is not in ${options.registry}; if ${scope} packages come from another registry, set ${scope}:registry in .npmrc, otherwise the name may be mistyped or made up` });
+      add({
+        level: 'error',
+        code: 'unverified',
+        message: `${name} is not in ${options.registry}; if ${scope} packages come from another registry, set ${scope}:registry in .npmrc, otherwise the name may be mistyped or made up`,
+        fix: `Set ${scope}:registry in .npmrc if ${scope} packages come from another registry; otherwise check the spelling of the name`,
+      });
       return;
     }
-    add({ level: 'error', code: 'not-found', message: `${name} does not exist in the registry; the name may be mistyped or made up` });
+    add({
+      level: 'error',
+      code: 'not-found',
+      message: `${name} does not exist in the registry; the name may be mistyped or made up`,
+      fix: 'Check the spelling against the documentation of the package you want; do not install a name that was guessed',
+    });
     return;
   }
   if (lookup.status === 'error') {
-    add({ level: 'error', code: 'unverified', message: `it cannot be checked: ${lookup.reason}` });
+    add({
+      level: 'error',
+      code: 'unverified',
+      message: `it cannot be checked: ${lookup.reason}`,
+      fix: 'Run depgate check again when the registry is reachable, or pass --registry with a registry you can reach',
+    });
     return;
   }
   const packument = lookup.packument;
@@ -153,7 +189,12 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   }
   const version = pickVersion(packument, selector);
   if (version === undefined) {
-    add({ level: 'error', code: 'no-version', message: `no version of ${name} matches "${selector || 'latest'}"` });
+    add({
+      level: 'error',
+      code: 'no-version',
+      message: `no version of ${name} matches "${selector || 'latest'}"`,
+      fix: latest === undefined ? `Pick a version of ${name} that exists` : `Pick a version of ${name} that exists, such as ${name}@${latest}`,
+    });
     return;
   }
   report.version = version;
@@ -164,7 +205,12 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   if (cooldown !== undefined && !cooldown.exclude.some((pattern) => matchesPattern(name, pattern))) {
     const time = Date.parse(published ?? '');
     if (Number.isNaN(time)) {
-      add({ level: 'error', code: 'unverified', message: `the registry gives no publish time for ${name}@${version}, so its age cannot be checked` });
+      add({
+        level: 'error',
+        code: 'unverified',
+        message: `the registry gives no publish time for ${name}@${version}, so its age cannot be checked`,
+        fix: `Check when ${name}@${version} was published before installing it, or pin a version the registry dates`,
+      });
     } else {
       const age = (options.now.getTime() - time) / 60000;
       if (age < cooldown.minimum.minutes) {
@@ -173,6 +219,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
           level: 'error',
           code: 'too-young',
           message: `${name}@${version} was published ${describeAge(age)} ago; depgate.json requires ${formatMinutes(cooldown.minimum.minutes)}${instead === undefined ? '' : ` (${name}@${instead} is old enough)`}`,
+          fix: `${instead === undefined ? 'Wait' : `Install ${name}@${instead} instead, or wait`} until ${name}@${version} is ${formatMinutes(cooldown.minimum.minutes)} old`,
         });
       }
     }
@@ -184,21 +231,39 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   const allowed = policy.installScripts?.allow.some((pattern) => matchesPattern(name, pattern)) ?? false;
   if (scripts.length > 0 && policy.installScripts?.default === 'deny' && !allowed) {
     const listed = scripts.map((script) => `${script}: ${String(document?.scripts?.[script])}`).join('; ');
-    add({ level: 'error', code: 'install-scripts', message: `${name}@${version} runs install scripts (${listed}) that depgate.json does not allow` });
+    add({
+      level: 'error',
+      code: 'install-scripts',
+      message: `${name}@${version} runs install scripts (${listed}) that depgate.json does not allow`,
+      fix: `Pick a package without install scripts, or add ${name} to installScripts.allow in depgate.json if you trust them`,
+    });
   }
   if (typeof document?.deprecated === 'string' && document.deprecated !== '') {
-    add({ level: 'warning', code: 'deprecated', message: `${name}@${version} is deprecated: ${document.deprecated}` });
+    add({
+      level: 'warning',
+      code: 'deprecated',
+      message: `${name}@${version} is deprecated: ${document.deprecated}`,
+      fix: 'Pick a version or package that is not deprecated; the deprecation message often names one',
+    });
   }
 }
 
 export async function checkSpec(raw: string, options: CheckOptions): Promise<PackageReport> {
   const spec = parseSpec(raw);
-  if (spec === undefined) return { spec: raw, kind: 'invalid', findings: [{ level: 'error', code: 'invalid-spec', message: `"${raw}" is not a package spec` }] };
+  if (spec === undefined) {
+    const finding: CheckFinding = { level: 'error', code: 'invalid-spec', message: `"${raw}" is not a package spec`, fix: 'Write it as name, name@version, name@range or name@tag' };
+    return { spec: raw, kind: 'invalid', findings: [finding] };
+  }
   const report: PackageReport = { spec: raw, kind: spec.kind, findings: [] };
   if (spec.kind === 'workspace') {
-    report.findings.push({ level: 'warning', code: 'unchecked-source', message: 'it is a package of this workspace; depgate looks up registry packages only' });
+    report.findings.push({
+      level: 'warning',
+      code: 'unchecked-source',
+      message: 'it is a package of this workspace; depgate looks up registry packages only',
+      fix: 'Nothing to do if the package is part of this repository',
+    });
   } else if (spec.kind === 'other') {
-    report.findings.push({ level: 'error', code: 'unverified', message: `it is not looked up: ${spec.reason ?? 'unknown source'}` });
+    report.findings.push({ level: 'error', code: 'unverified', message: `it is not looked up: ${spec.reason ?? 'unknown source'}`, fix: CHECK_BY_HAND });
   } else if (spec.kind !== 'registry') {
     report.findings.push(...sourceFindings(spec, spec.kind, options.policy));
   } else if (spec.name !== undefined) {

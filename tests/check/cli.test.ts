@@ -49,7 +49,9 @@ describe('depgate check', () => {
     const result = await exec(['check', '--dir', project(), 'esbuild', 'request']);
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stderr).toBe('note: no depgate.json found; checking against the default policy of depgate init (depgate init writes it)\n');
-    expect(result.stdout).toContain('esbuild@0.28.2:\n  error: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depgate.json does not allow\n');
+    expect(result.stdout).toContain(
+      'esbuild@0.28.2:\n  error: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depgate.json does not allow\n    fix: Pick a package without install scripts, or add esbuild to installScripts.allow in depgate.json if you trust them\n',
+    );
     expect(result.stdout).toContain('  warning: request@2.88.2 is deprecated');
     expect(result.stdout).toContain('2 packages: 1 with errors, 1 with warnings\n');
   });
@@ -120,13 +122,35 @@ describe('depgate check --hook claude-code', () => {
       hookEventName: 'PreToolUse',
       permissionDecision: 'deny',
       permissionDecisionReason:
-        "depgate blocked this command because it breaks the project's supply-chain policy (depgate.json):\n- esbuild: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depgate.json does not allow\nChoose another package or version, or ask the user to change depgate.json.",
+        "depgate blocked this command because it breaks the project's supply-chain policy (depgate.json):\n- esbuild: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depgate.json does not allow\nChoose another package or version. Only the user may change depgate.json: ask them instead of editing it.",
     });
   });
 
-  it('denies a package that does not exist', async () => {
+  it('denies a package that does not exist and says what to do', async () => {
     const result = await exec(['check', '--hook', 'claude-code'], event('npx this-package-does-not-exist-xyz-123', project({})));
     expect(decision(result.stdout).permissionDecision).toBe('deny');
+    expect(decision(result.stdout).permissionDecisionReason).toContain(
+      '- this-package-does-not-exist-xyz-123: this-package-does-not-exist-xyz-123 does not exist in the registry; the name may be mistyped or made up. Fix: Check the spelling',
+    );
+  });
+
+  it('does not suggest that the agent edit depgate.json', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('npm install esbuild github:user/repo', project({ installScripts: { default: 'deny', allow: [] }, sources: { git: 'deny' } })));
+    const reason = decision(result.stdout).permissionDecisionReason;
+    expect(reason).not.toMatch(/installScripts\.allow|sources\.git to/u);
+    expect(reason).toContain('Only the user may change depgate.json');
+  });
+
+  it('colors the text output on a terminal', async () => {
+    let stdout = '';
+    await run(['check', '--dir', project(), 'esbuild'], { stdout: (text) => (stdout += text), stderr: () => undefined, colors: { stdout: true, stderr: true } }, {
+      fetch: recordedFetch,
+      now: () => NOW,
+      stdin: async () => '',
+      home: () => HOME,
+    });
+    expect(stdout).toContain('\u001b[1m\u001b[31merror:\u001b[39m\u001b[22m esbuild@0.28.2 runs install scripts');
+    expect(stdout).toContain('\u001b[32mfix:\u001b[39m Pick a package');
   });
 
   it('asks about a name that imitates a popular package', async () => {

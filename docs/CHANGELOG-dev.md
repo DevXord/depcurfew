@@ -7,6 +7,7 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
 - **Komunikaty:** wszystkie po angielsku i każdy błąd lub ostrzeżenie mówi, co zrobić. `apply` łączy brakujące ustawienia jednej wersji w jedno ostrzeżenie i podaje wersję, której trzeba wymagać (D-061).
 - **Pomoc:** `depgate <polecenie> --help` z opisem, opcjami, przykładami i kodami wyjścia.
 - **Kolory** w terminalu, bez zależności: obsługa `NO_COLOR` i `FORCE_COLOR`, a JSON i SARIF zostają bez zmian.
+- **`check` i hook:** każde znalezisko mówi, co zrobić. Hook nie podsuwa agentowi zmian w `depgate.json`.
 - **GitHub Action:** adnotacje na plikach i tabela w podsumowaniu zadania, każda z poprawką; nowe wejścia `annotations` i `job-summary`. README opisuje uruchomienie na GitLab CI.
 - **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
 

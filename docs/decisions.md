@@ -813,3 +813,7 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
     - `stepSummary`: zmienna i limit 1 MiB (dokumentacja workflow commands).
   - Tekst z repozytorium jest escapowany, więc spreparowana nazwa pliku nie doda polecenia przepływu pracy ani w Markdownie linku, HTML-a czy komórki tabeli. Wiersze, które przekroczyłyby limit podsumowania, są pomijane i liczone.
 - **GitLab i inne CI.** Action działa tylko na GitHubie. Na innym CI uruchamia się CLI (`npx --yes depgate@1 doctor`; `--yes`, bo npx bez niego pyta przed instalacją według docs/lib/content/commands/npx.md w npm/cli). Format raportu GitLaba nie jest obsługiwany: wymagałby najpierw zweryfikowanych faktów.
+- **`check` i hook (faza 7).**
+  - Każde znalezisko `check` ma pole `fix`, w tekście jako wiersz `fix:`, a w `--json` jako pole.
+  - Hook przekazuje agentowi tylko te poprawki, które nie zmieniają `depgate.json`, i dopisuje, że politykę zmienia wyłącznie użytkownik. Agent nie powinien obchodzić strażnika edycją polityki.
+  - Informacja o domyślnej polityce zaczyna się od `note:`, bo to nie jest błąd.

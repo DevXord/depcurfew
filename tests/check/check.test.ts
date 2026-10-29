@@ -123,9 +123,53 @@ describe('depgate check on other sources', () => {
     const tarballsOnly = policy({ sources: { git: 'deny', remoteTarball: 'allow' } });
     const report = await checkSpec('https://github.com/user/repo', options({ policy: tarballsOnly }));
     expect(report.findings).toEqual([
-      { level: 'error', code: 'forbidden-source', message: 'it installs from a URL that may be read as a tarball or a git repository, which depgate.json denies (sources.git)' },
+      {
+        level: 'error',
+        code: 'forbidden-source',
+        message: 'it installs from a URL that may be read as a tarball or a git repository, which depgate.json denies (sources.git)',
+        fix: 'Install the package from the registry instead, or set sources.git to "allow" in depgate.json if this source is intended',
+      },
     ]);
     expect(codes((await checkSpec('https://example.com/pkg.tgz', options({ policy: tarballsOnly }))).findings)).toEqual(['warning:unchecked-source']);
+  });
+});
+
+describe('what to do about a finding', () => {
+  it('names the version to install instead of a version that is too young', async () => {
+    const allowed = policy({ cooldown: { minimum: '3d' }, installScripts: { default: 'deny', allow: ['esbuild'] } });
+    const report = await checkSpec('esbuild', options({ policy: allowed, now: new Date('2026-08-09T20:01:00Z') }));
+    expect(report.findings[0]?.fix).toBe('Install esbuild@0.28.1 instead, or wait until esbuild@0.28.2 is 3 days old');
+  });
+
+  it('points to installScripts.allow for install scripts', async () => {
+    const report = await checkSpec('esbuild@0.28.1', options());
+    expect(report.findings[0]?.fix).toBe('Pick a package without install scripts, or add esbuild to installScripts.allow in depgate.json if you trust them');
+  });
+
+  it('points to the sources setting for a denied source', async () => {
+    const report = await checkSpec('github:user/repo', options());
+    expect(report.findings[0]?.fix).toBe('Install the package from the registry instead, or set sources.git to "allow" in depgate.json if this source is intended');
+  });
+
+  it.each([
+    'this-package-does-not-exist-xyz-123',
+    'esbuild@^9',
+    'lodahs',
+    'github:user/repo',
+    'https://example.com/pkg.tgz',
+    './vendor/logger',
+    'jsr:@std/path',
+    'two words',
+  ])('every finding for %s says what to do', async (spec) => {
+    const lenient = policy({ cooldown: { minimum: '3d' }, installScripts: { default: 'deny', allow: ['esbuild'] }, sources: { git: 'deny', remoteTarball: 'deny', file: 'allow', directory: 'allow' } });
+    const report = await checkSpec(spec, options({ policy: lenient }));
+    expect(report.findings.length).toBeGreaterThan(0);
+    for (const finding of report.findings) expect(finding.fix ?? '').toMatch(/^[A-Z].{10,}[^.]$/u);
+  });
+
+  it('says what to do when the registry cannot be reached', async () => {
+    const report = await checkSpec('lodash', options({ fetch: async () => Promise.reject(new Error('getaddrinfo ENOTFOUND')) }));
+    expect(report.findings[0]?.fix).toBe('Run depgate check again when the registry is reachable, or pass --registry with a registry you can reach');
   });
 });
 
