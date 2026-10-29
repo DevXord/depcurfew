@@ -139,6 +139,14 @@ describe('depgate apply', () => {
     expect(result.stdout).toContain('+    "esbuild": true\n+  }\n }\n\\ No newline at end of file\n');
   });
 
+  it('warns about allow-list entries it does not remove', async () => {
+    const result = await exec('apply', scratch('npm-existing-config'));
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stderr).toContain(
+      'warning: allowScripts in package.json lets sharp run install scripts, but depgate.json does not allow it; depgate apply does not remove entries it did not write, so remove sharp from allowScripts by hand or add it to installScripts.allow in depgate.json\n',
+    );
+  });
+
   it('says the configuration matches only when nothing was left out', async () => {
     const policy = JSON.stringify({ version: 1, cooldown: { minimum: '3d' }, installScripts: { default: 'deny', allow: ['sharp'] } });
     const directory = scratch('npm-existing-config', policy);
