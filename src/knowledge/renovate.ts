@@ -95,6 +95,16 @@ export const renovate: ToolKnowledge = {
     ),
   },
   extra: {
+    durationStrings: verified(
+      { since: null, syntax: 'words' },
+      'https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md',
+      'Values such as "3 days" or "1 hour", parsed by toMs (lib/util/pretty-time.ts).',
+    ),
+    minimumReleaseAgePresets: verified(
+      { presets: ['config:best-practices', 'security:minimumReleaseAgeNpm'], value: '3 days', since: '42.0.0', datasource: 'npm' },
+      'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm',
+      'config:best-practices extends security:minimumReleaseAgeNpm, which sets minimumReleaseAge "3 days" for the npm datasource (see presets).',
+    ),
     excludeRule: verified(
       { list: 'packageRules', match: 'matchPackageNames', value: null },
       'https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md',

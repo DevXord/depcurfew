@@ -1,0 +1,5 @@
+{
+  "name": "renovate-without-delay",
+  "private": true,
+  "packageManager": "npm@12.2.1"
+}

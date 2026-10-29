@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package.json",
+      "line": 4
+    },
+    "message": "npm 11.6.0 in packageManager (package.json) does not support min-release-age (since 11.10.0)",
+    "fix": "Require npm 11.10.0 or later in packageManager"
+  }
+]

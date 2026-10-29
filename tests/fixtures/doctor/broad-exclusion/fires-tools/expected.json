@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 9
+    },
+    "message": "cooldown.exclude in updates[0] (npm) contains \"*\", so Dependabot applies no cooldown",
+    "fix": "Remove \"*\" and list only the dependencies that need the exception"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 2
+    },
+    "message": "minimumReleaseAgeExclude contains \"*\", so pnpm applies no release-age delay to any package",
+    "fix": "Remove \"*\" and list only the packages that need the exception"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 6
+    },
+    "message": "packageRules[1] turns off minimumReleaseAge for \"*\", which matches every package",
+    "fix": "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
+  }
+]

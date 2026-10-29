@@ -1,0 +1,10 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "npm-shrinkwrap.json"
+    },
+    "message": "npm 12.2.1 does not read npm-shrinkwrap.json, so installs ignore the versions locked in it",
+    "fix": "Rename npm-shrinkwrap.json to package-lock.json, or remove it"
+  }
+]

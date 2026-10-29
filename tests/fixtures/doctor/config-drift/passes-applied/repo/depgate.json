@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3d" },
+  "installScripts": { "default": "deny", "allow": ["esbuild"] },
+  "sources": { "git": "deny" },
+  "targets": "auto"
+}

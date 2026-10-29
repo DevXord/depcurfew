@@ -1,0 +1,5 @@
+{
+  "name": "npm12-shrinkwrap",
+  "private": true,
+  "packageManager": "npm@12.2.1"
+}

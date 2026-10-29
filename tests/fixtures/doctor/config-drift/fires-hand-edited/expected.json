@@ -1,0 +1,19 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".npmrc",
+      "line": 4
+    },
+    "message": ".npmrc does not match depgate.json: \"min-release-age=1\" should be \"min-release-age=3\""
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "package.json",
+      "line": 7
+    },
+    "message": "allowScripts in package.json lets sharp run install scripts, but depgate.json does not allow it",
+    "fix": "Remove sharp from allowScripts, or add it to installScripts.allow in depgate.json"
+  }
+]

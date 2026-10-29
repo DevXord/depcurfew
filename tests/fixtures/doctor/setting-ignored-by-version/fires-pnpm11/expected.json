@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".npmrc",
+      "line": 2
+    },
+    "message": "pnpm 11.2.0 reads only auth and registry settings from .npmrc, so minimum-release-age has no effect",
+    "fix": "Set minimumReleaseAge in pnpm-workspace.yaml and remove the line from .npmrc"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "package.json",
+      "line": 5
+    },
+    "message": "pnpm 11.2.0 ignores the \"pnpm\" field in package.json (onlyBuiltDependencies)",
+    "fix": "Move these settings to pnpm-workspace.yaml"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 1
+    },
+    "message": "onlyBuiltDependencies was removed in pnpm 11.0.0, so pnpm 11.2.0 builds none of these packages",
+    "fix": "List the packages under allowBuilds instead"
+  }
+]

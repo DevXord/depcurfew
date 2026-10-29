@@ -1,11 +1,11 @@
 // Unified diff of two texts (Myers' algorithm on lines), for `apply --dry-run`.
 
-type Operation = { kind: 'same' | 'delete' | 'insert'; line: string };
+export type Operation = { kind: 'same' | 'delete' | 'insert'; line: string };
 
 /** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
 const NO_EOL = '\u0000';
 
-function lines(text: string): string[] {
+export function lines(text: string): string[] {
   if (text === '') return [];
   const result = text.split('\n');
   if (result.at(-1) === '') result.pop();
@@ -14,7 +14,7 @@ function lines(text: string): string[] {
 }
 
 /** The shortest edit script from `a` to `b`. */
-function myers(a: readonly string[], b: readonly string[]): Operation[] {
+export function myers(a: readonly string[], b: readonly string[]): Operation[] {
   const max = a.length + b.length;
   const offset = max + 1;
   const frontier = new Array<number>(2 * max + 3).fill(0);

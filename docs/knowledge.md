@@ -6,7 +6,7 @@ The facts depgate relies on, each linked to the official documentation or change
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-7 tools · 245 facts · 33 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-28.
+7 tools · 252 facts · 34 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-28.
 
 ## Release-age cooldown
 
@@ -92,6 +92,8 @@ Further facts used by generators and `doctor`.
 
 ### pnpm
 
+- `ignoredSince` (✅ verified): `{"since":"11.0.0","npmrc":"auth and registry settings","packageJsonField":"pnpm"}` [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
+- `lockfileRecheck` (❓ uncertain): 10.16.0+: false<br>11.1.3+: true ❓ [↗](https://github.com/pnpm/pnpm/releases/tag/v11.1.3)
 - `allowAllBuilds` (✅ verified): `{"setting":"dangerouslyAllowAllBuilds","since":"10.9.0","value":true}` [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md)
 - `excludeWildcards` (✅ verified): `{"since":"10.17.0","trailingOnly":false}` [↗](https://pnpm.io/10.x/settings)
 - `onlyBuiltDependencies` (✅ verified): `{"since":"10.0.0","workspaceFileSince":"10.5.0","removedIn":"11.0.0"}` [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md)
@@ -106,6 +108,7 @@ Further facts used by generators and `doctor`.
 
 ### Yarn (Berry)
 
+- `durationStrings` (✅ verified): `{"since":"4.11.0","syntax":"compact","before":"no effect"}` [↗](https://github.com/yarnpkg/berry/pull/6942)
 - `scriptsSwitch` (✅ verified): `{"setting":"enableScripts","allow":true,"deny":false}` [↗](https://yarnpkg.com/configuration/yarnrc#enableScripts)
 - `excludeWildcards` (✅ verified): `{"since":"4.10.0","trailingOnly":false}` [↗](https://yarnpkg.com/configuration/yarnrc#npmPreapprovedPackages)
 - `berryLockfileMarker` (❓ uncertain): __metadata ❓ [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Project.ts)
@@ -119,6 +122,7 @@ Further facts used by generators and `doctor`.
 
 ### Bun
 
+- `durationStrings` (✅ verified): `{"since":"1.4.4","syntax":"compact-or-words"}` [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 - `excludeWildcards` (✅ verified): `{"since":null,"trailingOnly":false}` [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 - `latestVersion` (✅ verified): 1.4.4 [↗](https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4)
 - `trustedDependenciesReplacesDefaults` (✅ verified): Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts [↗](https://bun.com/docs/pm/lifecycle#behavior-of-the-trusteddependencies-field)
@@ -127,6 +131,7 @@ Further facts used by generators and `doctor`.
 
 ### Deno
 
+- `durationStrings` (✅ verified): `{"since":null,"syntax":"iso8601"}` [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `ageObjectKey` (✅ verified): age [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `excludeWildcards` (✅ verified): `{"since":"2.9.2","trailingOnly":true}` [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `npmSpecifierPrefix` (✅ verified): npm: [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
@@ -139,6 +144,8 @@ Further facts used by generators and `doctor`.
 
 ### Renovate
 
+- `durationStrings` (✅ verified): `{"since":null,"syntax":"words"}` [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
+- `minimumReleaseAgePresets` (✅ verified): `{"presets":["config:best-practices","security:minimumReleaseAgeNpm"],"value":"3 days","since":"42.0.0","datasource":"npm"}` [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm)
 - `excludeRule` (✅ verified): `{"list":"packageRules","match":"matchPackageNames","value":null}` [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `securityUpdatesSetting` (✅ verified): vulnerabilityAlerts, minimumReleaseAge [↗](https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts)
 - `excludeWildcards` (✅ verified): `{"since":"38.0.0","trailingOnly":false}` [↗](https://docs.renovatebot.com/configuration-options/#matchpackagenames)
@@ -220,6 +227,7 @@ Context recorded with verified facts.
 - `sources.git.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `sources.remoteTarball.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `project.workspaces`: Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md)
+- `extra.ignoredSince`: Structured form of npmrcIgnored: from 11.0.0 on, other .npmrc settings and the package.json "pnpm" field have no effect. [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `extra.allowAllBuilds`: Boolean, default false; packages denied in allowBuilds stay blocked. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md)
 - `extra.excludeWildcards`: Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0. [↗](https://pnpm.io/10.x/settings)
 - `extra.onlyBuiltDependencies`: The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, also pnpm-workspace.yaml since 10.5.0; removed in 11.0.0 (see legacyAllowList). [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md)
@@ -237,6 +245,7 @@ Context recorded with verified facts.
 - `sources.git.default`: Upgraded projects with an old lockfile get ["**"] written to .yarnrc.yml. [↗](https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json)
 - `project.lockfiles`: Yarn Classic uses the same name; see berryLockfileMarker and classicLockfileHeader to tell them apart. [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-fslib/sources/path.ts)
 - `project.workspaces`: Array of folder glob patterns. [↗](https://yarnpkg.com/configuration/manifest#workspaces)
+- `extra.durationStrings`: npmMinimalAgeGate accepts a number followed by ms, s, m, h, d or w (e.g. 3d, 1w) since 4.11.0; on 4.10.x such a string silently had no effect. [↗](https://github.com/yarnpkg/berry/pull/6942)
 - `extra.excludeWildcards`: Name globs such as @scope/* or package* in npmPreapprovedPackages. [↗](https://yarnpkg.com/configuration/yarnrc#npmPreapprovedPackages)
 - `extra.classicLockfileHeader`: Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js). [↗](https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js)
 - `extra.latestVersion`: Yarn 6 is still in preview. [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.18.1)
@@ -253,6 +262,7 @@ Context recorded with verified facts.
 - `installScripts.disableAll`: Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project’s own scripts and trustedDependencies too. [↗](https://bun.com/docs/runtime/bunfig#install-ignorescripts)
 - `project.workspaces`: Full glob syntax, including ! patterns. [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx)
 - `project.workspacesObjectKey`: The object form also holds catalog and catalogs. [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx)
+- `extra.durationStrings`: Since 1.4.4 minimumReleaseAge also takes duration strings such as 90m, 12 hours, 3d or 2 weeks; plain numbers stay seconds. [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 - `extra.excludeWildcards`: minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards. [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 
 ### Deno
@@ -272,6 +282,7 @@ Context recorded with verified facts.
 - `sources.directory.setting`: No setting; local directories behave like file: and link: entries (see fileLinkSkipped). [↗](https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported)
 - `project.lockfiles`: The default location; lock.path in deno.json can move it and "lock": false turns it off. [↗](https://github.com/denoland/docs/blob/main/runtime/reference/deno_json.md)
 - `project.workspaces`: Paths of members; globs and ! exclusions since Deno 2.1. [↗](https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md)
+- `extra.durationStrings`: Strings are ISO-8601 durations (P3D, PT72H), an absolute date or an RFC3339 timestamp; the last two set a fixed cut-off instead of a delay. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `extra.ageObjectKey`: In the object form of minimumDependencyAge, age holds the delay and exclude the exemptions. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `extra.excludeWildcards`: A trailing * matches by prefix (npm:@scope/*) since 2.9.2; earlier wildcard entries never matched. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
 - `extra.npmSpecifierPrefix`: Exclusions and allowScripts entries name npm packages as npm:<name>. [↗](https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json)
@@ -290,6 +301,8 @@ Context recorded with verified facts.
 - `cooldown.securityUpdates`: The vulnerabilityAlerts defaults set minimumReleaseAge to null; a delay can still be set inside vulnerabilityAlerts. [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/#what-happens-to-security-updates)
 - `installScripts.defaultPolicy`: Renovate disables package manager scripts when it updates lockfiles; the Mend-hosted app never runs them. [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts)
 - `installScripts.disableAll`: The default; the self-hosted global allowScripts also defaults to false. [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts)
+- `extra.durationStrings`: Values such as "3 days" or "1 hour", parsed by toMs (lib/util/pretty-time.ts). [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
+- `extra.minimumReleaseAgePresets`: config:best-practices extends security:minimumReleaseAgeNpm, which sets minimumReleaseAge "3 days" for the npm datasource (see presets). [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm)
 - `extra.excludeRule`: The documented opt-out: a packageRules entry with matchPackageNames and minimumReleaseAge: null. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `extra.securityUpdatesSetting`: The vulnerabilityAlerts default sets minimumReleaseAge to null, so security updates skip the delay unless a value is set there. [↗](https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts)
 - `extra.excludeWildcards`: matchPackageNames accepts globs (and regex) since 38.0.0. [↗](https://docs.renovatebot.com/configuration-options/#matchpackagenames)
@@ -418,6 +431,12 @@ No setting restricts file: or link: dependencies (concluded from the full settin
 The docs show packages only as a list; concluded from the absence of an object form.
 
 - `null` · [source](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md), verified 2026-10-28.
+
+### pnpm · `extra.lockfileRecheck` ❓ uncertain
+
+Structured form of lockfileVerification: whether a frozen-lockfile install re-checks the age of versions already in the lockfile. trustLockfile: true (11.3.0) turns the check off.
+
+- 10.16.0+: `false`<br>11.1.3+: `true` · [source](https://github.com/pnpm/pnpm/releases/tag/v11.1.3), verified 2026-10-28.
 
 ### pnpm · `extra.lockfileVerification` ❓ uncertain
 

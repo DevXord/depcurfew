@@ -1,0 +1,5 @@
+{
+  "name": "policy-needs-newer",
+  "private": true,
+  "packageManager": "npm@11.6.0"
+}

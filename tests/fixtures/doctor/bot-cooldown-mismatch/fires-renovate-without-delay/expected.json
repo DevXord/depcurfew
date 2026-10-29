@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 1
+    },
+    "message": "Renovate proposes updates without waiting (Renovate has no delay by default), but npm waits 3 days (min-release-age: 3 in .npmrc); its pull requests bring in versions younger than npm accepts, or fail where the lockfile is re-checked",
+    "fix": "Make the Renovate delay at least 3 days, or run depgate apply"
+  }
+]

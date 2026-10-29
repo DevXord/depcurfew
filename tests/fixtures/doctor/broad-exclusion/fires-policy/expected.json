@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "depgate.json",
+      "line": 5
+    },
+    "message": "cooldown.exclude contains \"@*/*\", which matches every scoped package",
+    "fix": "List the packages or scopes that need the exception, e.g. \"@your-scope/*\""
+  }
+]
