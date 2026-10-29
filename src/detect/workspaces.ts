@@ -1,35 +1,46 @@
 // Expands workspace patterns into package directories with a small, conservative glob matcher: `*` matches
 // within one path segment, `**` matches any number of segments, and a leading `!` excludes matches.
 import { joinPath, type Repository } from './repository.ts';
+import { wildcardMatch } from './wildcard.ts';
 
-type Segment = { kind: 'any-depth' } | { kind: 'pattern'; regex: RegExp };
+type Segment = { kind: 'any-depth' } | { kind: 'pattern'; pattern: string };
 
 function segmentsOf(pattern: string): Segment[] {
-  return pattern
-    .split('/')
-    .filter((segment) => segment !== '' && segment !== '.')
-    .map((segment) => {
-      if (segment === '**') return { kind: 'any-depth' };
-      const source = segment.replace(/[.+?^${}()|[\]\\]/gu, '\\$&').replaceAll('*', '[^/]*');
-      return { kind: 'pattern', regex: new RegExp(`^${source}$`, 'u') };
-    });
+  const segments: Segment[] = [];
+  for (const segment of pattern.split('/')) {
+    if (segment === '' || segment === '.') continue;
+    // Consecutive ** match the same directories as one.
+    if (segment === '**') {
+      if (segments.at(-1)?.kind !== 'any-depth') segments.push({ kind: 'any-depth' });
+    } else {
+      segments.push({ kind: 'pattern', pattern: segment });
+    }
+  }
+  return segments;
 }
 
-function matchDirectories(repository: Repository, segments: readonly Segment[], directory: string, found: Set<string>): void {
-  const [segment, ...rest] = segments;
+/**
+ * Adds to `found` the directories under `directory` that match the segments from `index` on. Each pair of directory
+ * and segment is visited once, so several ** in one pattern cannot multiply the walk.
+ */
+function matchDirectories(repository: Repository, segments: readonly Segment[], index: number, directory: string, found: Set<string>, visited: Set<string>): void {
+  const key = `${index}\0${directory}`;
+  if (visited.has(key)) return;
+  visited.add(key);
+  const segment = segments[index];
   if (segment === undefined) {
     found.add(directory);
     return;
   }
   if (segment.kind === 'any-depth') {
-    matchDirectories(repository, rest, directory, found);
+    matchDirectories(repository, segments, index + 1, directory, found, visited);
     for (const child of repository.listDirectories(directory)) {
-      matchDirectories(repository, segments, joinPath(directory, child), found);
+      matchDirectories(repository, segments, index, joinPath(directory, child), found, visited);
     }
     return;
   }
   for (const child of repository.listDirectories(directory)) {
-    if (segment.regex.test(child)) matchDirectories(repository, rest, joinPath(directory, child), found);
+    if (wildcardMatch(child, segment.pattern)) matchDirectories(repository, segments, index + 1, joinPath(directory, child), found, visited);
   }
 }
 
@@ -49,7 +60,7 @@ export function expandWorkspaces(
       repository.warn('workspace-outside-repository', `workspace pattern "${raw}" points outside the repository`, [declaredIn]);
       continue;
     }
-    matchDirectories(repository, segmentsOf(pattern), '.', negated ? excluded : included);
+    matchDirectories(repository, segmentsOf(pattern), 0, '.', negated ? excluded : included, new Set());
   }
   return [...included]
     .filter((directory) => directory !== '.' && !excluded.has(directory))

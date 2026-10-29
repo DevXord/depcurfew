@@ -36,6 +36,16 @@ describe('GitHub Action entry point', () => {
     expect(sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('.github/dependabot.yml');
   });
 
+  it('prints the report with workflow commands turned off, with a new token in every run', () => {
+    const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter');
+    const first = run({ GITHUB_WORKSPACE: root }).log;
+    const second = run({ GITHUB_WORKSPACE: root }).log;
+    const token = /^::stop-commands::([0-9a-f-]{36})\n/u.exec(first)?.[1];
+    expect(token).toBeDefined();
+    expect(first.endsWith(`::${token}::\n`)).toBe(true);
+    expect(second).not.toContain(token);
+  });
+
   it('makes paths relative to the workspace when checking a subdirectory', () => {
     const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter', 'packages/app');
     const { outputs } = run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'packages/app', INPUT_SARIF_FILE: 'out/report.sarif' });
@@ -65,7 +75,7 @@ describe('GitHub Action entry point', () => {
     const { outputs, log } = run({ GITHUB_WORKSPACE: root });
     expect(outputs['sarif-file']).toBe('');
     expect(outputs.failure).toMatch(/^depgate\.json is invalid; /u);
-    expect(log).toMatch(/^depgate: depgate\.json is invalid\n/u);
+    expect(log).toMatch(/^::stop-commands::[0-9a-f-]{36}\ndepgate: depgate\.json is invalid\n/u);
   });
 
   it('formats outputs for GITHUB_OUTPUT on single lines', () => {

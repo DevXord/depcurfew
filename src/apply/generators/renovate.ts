@@ -18,7 +18,7 @@ const isRule = (value: unknown): value is ExcludeRule => isRecord(value) && type
 const isPath = (value: unknown): value is string[] => Array.isArray(value) && value.every(isString);
 
 export const renovate: BotGenerator = (context, duration) => {
-  const { tool, policy, workspace } = context;
+  const { tool, policy } = context;
   if (policy.cooldown === undefined || duration === undefined) return;
   const result = convertCooldown(tool, duration);
   if (!result.ok) {
@@ -34,7 +34,7 @@ export const renovate: BotGenerator = (context, duration) => {
   const security = policy.cooldown.securityUpdates === 'delay' ? result.value : null;
 
   const candidates = values(tool.cooldown.configFiles)[0] ?? [];
-  const file = candidates.find((name) => workspace.exists(name));
+  const file = candidates.find((name) => context.exists(name));
   const snippet = () =>
     JSON.stringify(
       {
@@ -48,7 +48,7 @@ export const renovate: BotGenerator = (context, duration) => {
 
   if (file === undefined || !/\.jsonc?$/u.test(file)) {
     const packageJson = extraOf(tool, 'packageJsonConfig', isRecord);
-    const where = file ?? (workspace.exists('package.json') && context.json('package.json').get([String(packageJson['key'])]) !== undefined ? 'package.json' : undefined);
+    const where = file ?? (context.exists('package.json') && context.json('package.json').get([String(packageJson['key'])]) !== undefined ? 'package.json' : undefined);
     if (where === undefined) {
       context.warn(`${context.name}: no configuration file found; depgate does not create one`);
       return;

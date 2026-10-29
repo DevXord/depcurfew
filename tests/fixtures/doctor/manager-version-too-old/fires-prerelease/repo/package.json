@@ -1,0 +1,7 @@
+{
+  "name": "app",
+  "packageManager": "pnpm@10.16.0-rc.1",
+  "devEngines": {
+    "packageManager": { "name": "pnpm", "version": ">= 10.16.0-rc.1" }
+  }
+}

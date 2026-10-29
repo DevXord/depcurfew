@@ -190,6 +190,12 @@ export interface CodeScanningUploadKnowledge {
   permissions: { always: Readonly<Record<string, string>>; privateRepositories: Readonly<Record<string, string>> };
 }
 
+/** Turning off the processing of workflow commands in a step's log; {token} stands for a unique random token. */
+export interface StopCommandsKnowledge {
+  stop: string;
+  resume: string;
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
@@ -217,5 +223,6 @@ export interface EnvironmentKnowledge {
     setupBun: Fact<SetupActionKnowledge>;
     setupDeno: Fact<SetupActionKnowledge>;
     codeScanningUpload: Fact<CodeScanningUploadKnowledge>;
+    stopCommands: Fact<StopCommandsKnowledge>;
   };
 }

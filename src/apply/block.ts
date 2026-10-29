@@ -3,6 +3,8 @@
 export const BLOCK_START = '# >>> depgate managed block: edit depgate.json and run depgate apply instead';
 export const BLOCK_END = '# <<< depgate managed block';
 export const SUPERSEDED = '# depgate: superseded by the managed block: ';
+/** For a managed key commented out when no block is written, such as a switch the policy turns off. */
+export const TURNED_OFF = '# depgate: turned off; depgate.json manages this setting: ';
 
 /** The lines without the managed block, where it was, and whether a blank line separated it from what came before. */
 export function removeBlock(lines: readonly string[]): { lines: string[]; at: number | undefined; separated: boolean } {

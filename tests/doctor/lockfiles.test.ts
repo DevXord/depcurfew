@@ -54,13 +54,17 @@ describe('lockfiles', () => {
     });
   });
 
-  it('reports a lockfile that does not parse as not checked', () => {
+  it('reports a lockfile that does not parse as an error of unreadable-config', () => {
     const directory = repository({
       'package.json': '{ "name": "x", "packageManager": "npm@12.2.1" }\n',
       'package-lock.json': '{ "lockfileVersion": 3, ',
       'depgate.json': POLICY,
     });
-    const notice = runDoctor(directory).notices.find((item) => item.file === 'package-lock.json');
-    expect(notice?.message).toMatch(/^lockfile-forbidden-source could not check package-lock\.json: it cannot be parsed \(/u);
+    const report = runDoctor(directory);
+    const findings = report.findings.filter((item) => item.rule === 'unreadable-config');
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ level: 'error', location: { file: 'package-lock.json' } });
+    expect(findings[0]?.message).toMatch(/^cannot parse package-lock\.json: .+; depgate cannot check it$/u);
+    expect(report.notices.some((item) => item.file === 'package-lock.json')).toBe(false);
   });
 });

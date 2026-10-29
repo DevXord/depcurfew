@@ -2,6 +2,28 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Przegląd przed wydaniem 1.0.0
+
+- **Przegląd:** kod, bezpieczeństwo (repozytorium jako dane niezaufane) i działanie zainstalowanej paczki na Node 22.0, 22 i 24 (D-052).
+- **Poprawione błędy, przez które `doctor` przepuszczał niedziałającą politykę:**
+  - ręczne `dangerously-allow-all-scripts`;
+  - pliki, których nie da się odczytać, sparsować albo edytować; teraz zgłasza je nowa reguła `unreadable-config`;
+  - wersje przedpremierowe;
+  - wpis lockfile'a npm bez `resolved`.
+- **Bezpieczeństwo:**
+  - żadnego odczytu ani zapisu przez symlinki wychodzące poza repozytorium: `depgate.json`, `init --force`, SARIF i `directory` w Action;
+  - wzorce bez wykładniczego backtrackingu;
+  - log Action z wyłączonymi poleceniami workflow.
+- **Edycja plików:**
+  - `apply` nie psuje YAML w stylu `{ ... }`, wieloliniowych wartości TOML ani tabel `install` zdefiniowanych kluczami z kropką;
+  - nie zmienia stringów JSONC;
+  - nie gubi komentarzy w JSON;
+  - przy błędach nie wypisuje częściowego diffu.
+- **Zgodność `apply` i `doctor`:** Dependabot `semver-*-days`, wpisy z wersją na listach dozwolonych, Renovate w `package.json`.
+- **Plan fazy 7** zatwierdzony (D-053).
+- **Testy:** 794, wszystkie przechodzą.
+- **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą, a `doctor` na sobie kończy się kodem 0.
+
 ## 2026-10-29 · Faza 8: bezpieczna publikacja (gotowa, czeka na wydanie)
 
 - **Workflow wydania** `.github/workflows/release.yml`: z tagu `vX.Y.Z` przez trusted publishing (OIDC) z proweniencją, bez tokenu npm. Wykonuje tylko `npm stage publish`, a wersja staje się publiczna po zatwierdzeniu z 2FA. Przed etapowaniem uruchamia wszystkie testy i `depgate doctor` na sobie (D-046).

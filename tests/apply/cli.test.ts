@@ -180,6 +180,16 @@ describe('depgate apply', () => {
     expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
   });
 
+  it('--dry-run prints no diff when a file cannot be edited', async () => {
+    const directory = scratch('package-json-only');
+    write(directory, { 'renovate.json': '{ "extends": [ }\n' });
+    const result = await exec('apply', '--dry-run', directory);
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('error: Renovate: cannot edit renovate.json');
+    expect(result.stderr).toContain('depgate: apply would write nothing because of the errors above.\n');
+  });
+
   it('does not write through a symlink', async () => {
     const directory = scratch('package-json-only');
     const outside = scratch(undefined, null);

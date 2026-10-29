@@ -7,7 +7,6 @@ import { parseJsonc } from '../detect/jsonc.ts';
 import type { Repository } from '../detect/repository.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
-import { lineOf } from './settings.ts';
 
 /** Lockfiles are often larger than configuration files. */
 export const MAX_LOCKFILE_SIZE = 64 * 1024 * 1024;
@@ -36,6 +35,33 @@ export interface Lockfile {
 
 type Format = Record<string, unknown>;
 
+/**
+ * Finds the 1-based line of each anchor. Rules ask in the order the entries were parsed, which is the order of the
+ * file, so each search continues where the last one stopped and a large lockfile is not scanned once per entry.
+ */
+function lineFinder(text: string): (anchor: string) => number | undefined {
+  let newlines: number[] | undefined;
+  let cursor = 0;
+  return (anchor) => {
+    let offset = text.indexOf(anchor, cursor);
+    if (offset === -1) offset = text.indexOf(anchor);
+    if (offset === -1) return undefined;
+    cursor = offset + anchor.length;
+    if (newlines === undefined) {
+      newlines = [];
+      for (let index = text.indexOf('\n'); index !== -1; index = text.indexOf('\n', index + 1)) newlines.push(index);
+    }
+    let low = 0;
+    let high = newlines.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if ((newlines[middle] ?? 0) < offset) low = middle + 1;
+      else high = middle;
+    }
+    return low + 1;
+  };
+}
+
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
@@ -47,6 +73,7 @@ export function splitSpec(key: string): { name: string; spec: string } {
 }
 
 const HTTP = /^https?:\/\//u;
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 
 function npmEntries(text: string, format: Format, workspaces: readonly string[]): LockEntry[] {
   const document = JSON.parse(text) as unknown;
@@ -59,13 +86,16 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[])
     if (!key.includes('node_modules/') || !isRecord(value)) continue;
     const name = typeof value['name'] === 'string' ? value['name'] : key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length);
     const resolved = typeof value['resolved'] === 'string' ? value['resolved'] : '';
+    // Without resolved, npm installs name@version, so a version such as git+https://… is where the package comes from.
+    const version = typeof value['version'] === 'string' ? value['version'] : '';
+    const spec = resolved !== '' || format['specWithoutResolved'] !== 'version' ? resolved : version;
     let source: Source = 'unknown';
     if (value[String(format['linkFlag'])] === true) source = workspaces.includes(resolved) ? 'workspace' : 'directory';
-    else if (strings(format['gitPrefixes']).some((prefix) => resolved.startsWith(prefix))) source = 'git';
-    else if (resolved.startsWith(String(format['filePrefix']))) source = /\.(?:tgz|tar\.gz)$/u.test(resolved) ? 'file' : 'directory';
-    else if (HTTP.test(resolved)) source = registry.test(resolved) ? 'registry' : 'remoteTarball';
-    else if (resolved === '') source = 'registry';
-    entries.push({ name, spec: resolved, source, installScript: value[scriptsKey] === true, anchor: `${JSON.stringify(key)}: {` });
+    else if (strings(format['gitPrefixes']).some((prefix) => spec.startsWith(prefix))) source = 'git';
+    else if (spec.startsWith(String(format['filePrefix']))) source = /\.(?:tgz|tar\.gz)$/u.test(spec) ? 'file' : 'directory';
+    else if (HTTP.test(spec)) source = registry.test(spec) ? 'registry' : 'remoteTarball';
+    else if (resolved === '' && (spec === '' || EXACT_VERSION.test(spec))) source = 'registry';
+    entries.push({ name, spec, source, installScript: value[scriptsKey] === true, anchor: `${JSON.stringify(key)}: {` });
   }
   return entries;
 }
@@ -179,7 +209,11 @@ function denoEntries(text: string, format: Format): { entries: LockEntry[]; reco
 /** A lockfile in a version or shape depgate does not read; the message says why. */
 class UnsupportedLockfile extends Error {}
 
-export type LockfileResult = { ok: true; lockfile: Lockfile } | { ok: false; file: string; reason: string };
+/**
+ * A lockfile that could not be checked. An unreadable one (missing, outside the repository, too large, invalid) is
+ * also a repository warning, which unreadable-config reports as an error; an unsupported format version is not.
+ */
+export type LockfileResult = { ok: true; lockfile: Lockfile } | { ok: false; file: string; reason: string; unreadable: boolean };
 
 /** The lockfiles a package manager uses in the repository root, parsed. */
 export function readLockfiles(repository: Repository, manager: PackageManagerInfo, tool: ToolKnowledge, workspaces: readonly string[]): LockfileResult[] {
@@ -188,9 +222,12 @@ export function readLockfiles(repository: Repository, manager: PackageManagerInf
   if (!isRecord(format)) return [];
   const files = [...new Set(manager.evidence.filter((item) => item.kind === 'lockfile').map((item) => item.file))];
   return files.map((file): LockfileResult => {
-    if (file.endsWith('.lockb')) return { ok: false, file, reason: 'it is a binary file in an undocumented format' };
+    if (file.endsWith('.lockb')) return { ok: false, file, reason: 'it is a binary file in an undocumented format', unreadable: false };
     const text = repository.readText(file, MAX_LOCKFILE_SIZE);
-    if (text === undefined) return { ok: false, file, reason: 'it cannot be read' };
+    if (text === undefined) {
+      if (!repository.warnings.some((warning) => warning.files.includes(file))) repository.warn('invalid-file', `cannot read ${file}`, [file]);
+      return { ok: false, file, reason: 'it cannot be read', unreadable: true };
+    }
     try {
       let entries: LockEntry[];
       let recordsScripts = format['installScripts'] !== null;
@@ -199,10 +236,13 @@ export function readLockfiles(repository: Repository, manager: PackageManagerInf
       else if (tool.id === 'yarn') entries = yarnEntries(text, format);
       else if (tool.id === 'bun') entries = bunEntries(text, format);
       else ({ entries, recordsScripts } = denoEntries(text, format));
-      return { ok: true, lockfile: { file, entries, recordsScripts, lineOf: (entry) => lineOf(text, entry.anchor) } };
+      const find = lineFinder(text);
+      return { ok: true, lockfile: { file, entries, recordsScripts, lineOf: (entry) => find(entry.anchor) } };
     } catch (error) {
-      if (error instanceof UnsupportedLockfile) return { ok: false, file, reason: error.message };
-      return { ok: false, file, reason: `it cannot be parsed (${error instanceof Error ? (error.message.split('\n')[0] ?? '') : String(error)})` };
+      if (error instanceof UnsupportedLockfile) return { ok: false, file, reason: error.message, unreadable: false };
+      const message = error instanceof Error ? (error.message.split('\n')[0] ?? '') : String(error);
+      repository.warn('invalid-file', `cannot parse ${file}: ${message}`, [file]);
+      return { ok: false, file, reason: `it cannot be parsed (${message})`, unreadable: true };
     }
   });
 }

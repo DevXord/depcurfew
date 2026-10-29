@@ -1,10 +1,15 @@
 // Entry point of the GitHub Action (action.yml, bundled into action/depgate.mjs): runs doctor on a directory of the
 // workspace, prints the readable report to the log, writes SARIF with paths relative to the repository root and
 // sets the step outputs. It does not fail the step itself, so the SARIF upload still runs; action.yml decides.
-import { appendFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, posix, relative, resolve, sep } from 'node:path';
+import { appendFileSync, lstatSync, mkdirSync, realpathSync, statSync } from 'node:fs';
+import { basename, dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { values } from './apply/facts.ts';
 import { PolicyError } from './apply/index.ts';
+import { writeChanges } from './apply/workspace.ts';
+import { Repository } from './detect/repository.ts';
 import { countLevels, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
+import { environment } from './knowledge/environment.ts';
 import { getVersion } from './version.ts';
 
 export interface ActionOutputs {
@@ -35,17 +40,61 @@ function relativeToWorkspace(report: DoctorReport, prefix: string): DoctorReport
   };
 }
 
+/**
+ * Text from the repository (file and package names, policy errors) goes to the log with workflow commands turned
+ * off, so a crafted name cannot add annotations or other commands to the run.
+ */
+function untrusted(text: string): string {
+  const commands = values(environment.githubActions.stopCommands)[0];
+  if (commands === undefined) return text.replaceAll(/^::/gmu, ': :');
+  const token = randomUUID();
+  return `${commands.stop.replace('{token}', token)}\n${text.endsWith('\n') ? text : `${text}\n`}${commands.resume.replace('{token}', token)}\n`;
+}
+
+function inside(root: string, path: string): boolean {
+  const part = relative(root, path);
+  return part !== '..' && !part.startsWith(`..${sep}`) && !isAbsolute(part);
+}
+
+/** The real path of a directory inside the workspace, following symlinks only as far as they stay inside it. */
+function scannedDirectory(workspace: string, input: string): string | undefined {
+  try {
+    const real = realpathSync(resolve(workspace, input));
+    return inside(realpathSync(workspace), real) && statSync(real).isDirectory() ? real : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Why the SARIF file cannot be written, or undefined. The repository being checked may come from a pull request, so
+ * no part of the path inside the workspace may be a symlink, which could send the report over a file elsewhere.
+ */
+function unsafeOutput(workspace: string, file: string): string | undefined {
+  if (!inside(workspace, file)) return undefined;
+  let current = workspace;
+  for (const part of relative(workspace, file).split(sep)) {
+    current = resolve(current, part);
+    const stats = lstatSync(current, { throwIfNoEntry: false });
+    if (stats === undefined) return undefined;
+    if (stats.isSymbolicLink()) return `${relative(workspace, current).split(sep).join('/')} is a symlink; depgate does not write through symlinks`;
+  }
+  return lstatSync(file).isFile() ? undefined : `${relative(workspace, file).split(sep).join('/')} is not a regular file`;
+}
+
 export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   const workspace = resolve(env['GITHUB_WORKSPACE'] ?? process.cwd());
-  const directory = resolve(workspace, input(env, 'directory', '.'));
-  const sarifFile = resolve(workspace, input(env, 'sarif-file', 'depgate.sarif'));
+  const sarifInput = input(env, 'sarif-file', 'depgate.sarif');
+  const sarifFile = resolve(workspace, sarifInput);
   const outputs: ActionOutputs = { 'sarif-file': '', errors: 0, warnings: 0, notes: 0, failure: '' };
-  const prefix = relative(workspace, directory).split(sep).join('/');
-  if (prefix.startsWith('..') || !statSync(directory, { throwIfNoEntry: false })?.isDirectory()) {
-    outputs.failure = `directory "${input(env, 'directory', '.')}" is not a directory inside the workspace`;
-    io.log(`depgate: ${outputs.failure}\n`);
+  const fail = (message: string): ActionOutputs => {
+    outputs.failure = message;
+    io.log(`depgate: ${message}\n`);
     return outputs;
-  }
+  };
+  const directory = scannedDirectory(workspace, input(env, 'directory', '.'));
+  if (directory === undefined) return fail(`directory "${input(env, 'directory', '.')}" is not a directory inside the workspace`);
+  const prefix = relative(realpathSync(workspace), directory).split(sep).join('/');
 
   let report: DoctorReport;
   try {
@@ -53,23 +102,27 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     outputs.failure = [error.message, ...error.issues].join('; ');
-    io.log(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
+    io.log(untrusted(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`));
     return outputs;
   }
-  io.log(renderText(report, RULES));
+  io.log(untrusted(renderText(report, RULES)));
 
   const moved = relativeToWorkspace(report, prefix);
-  const readLine = (file: string, line: number) => {
-    try {
-      return readFileSync(resolve(workspace, file), 'utf8').split(/\r?\n/u)[line - 1];
-    } catch {
-      return undefined;
-    }
-  };
-  mkdirSync(dirname(sarifFile), { recursive: true });
-  writeFileSync(sarifFile, `${JSON.stringify(toSarif(moved, RULES, getVersion(), readLine), null, 2)}\n`);
+  const repository = new Repository(workspace);
+  const readLine = (file: string, line: number) => repository.readText(file)?.split(/\r?\n/u)[line - 1];
+  const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), readLine), null, 2)}\n`;
+  const shownSarif = inside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join('/') : sarifFile;
+  try {
+    const unsafe = unsafeOutput(workspace, sarifFile);
+    if (unsafe !== undefined) return fail(`cannot write the SARIF file ${sarifInput}: ${unsafe}`);
+    const before = lstatSync(sarifFile, { throwIfNoEntry: false }) === undefined ? null : '';
+    mkdirSync(dirname(sarifFile), { recursive: true });
+    writeChanges(dirname(sarifFile), [{ file: basename(sarifFile), before, after: sarif }]);
+  } catch (error) {
+    return fail(`cannot write the SARIF file ${sarifInput}: ${error instanceof Error ? error.message : String(error)}`);
+  }
   const counts = countLevels(report.findings);
-  return { ...outputs, 'sarif-file': relative(workspace, sarifFile).split(sep).join('/'), errors: counts.error, warnings: counts.warning, notes: counts.note };
+  return { ...outputs, 'sarif-file': shownSarif, errors: counts.error, warnings: counts.warning, notes: counts.note };
 }
 
 /** Writes step outputs in the format of the GITHUB_OUTPUT file. */

@@ -1,5 +1,6 @@
 // `depgate apply [directory] [--dry-run]`. The result goes to stdout (the files written, or with --dry-run a
-// unified diff that `git apply` accepts); warnings, snippets to add by hand and errors go to stderr.
+// unified diff that `git apply` accepts); warnings, snippets to add by hand and errors go to stderr. When any file
+// cannot be edited, nothing is written and stdout stays empty, also with --dry-run.
 import { applyProject, PolicyError, type ApplyReport } from '../apply/index.ts';
 import { unifiedDiff } from '../apply/diff.ts';
 import { toolName } from './describe.ts';
@@ -38,7 +39,8 @@ export function apply(directory: string | undefined, dryRun: boolean, io: CliIo)
     return EXIT_FAILURE;
   }
 
-  if (dryRun) {
+  // With errors nothing would be written, so a dry run prints no diff either: applying it would apply half the policy.
+  if (report.errors.length === 0 && dryRun) {
     io.stdout(report.changes.map((change) => unifiedDiff(change.file, change.before, change.after)).join(''));
   } else if (report.errors.length === 0) {
     io.stdout(

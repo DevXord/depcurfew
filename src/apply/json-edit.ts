@@ -1,6 +1,6 @@
 // Edits JSON and JSONC text in place: values are replaced or inserted, and everything else (indentation, comments,
 // trailing commas, key order) stays as it is. New values are written with the file's indentation.
-import { parseJsonc } from '../detect/jsonc.ts';
+import { nextSignificant, parseJsonc } from '../detect/jsonc.ts';
 
 type Path = readonly (string | number)[];
 
@@ -153,7 +153,13 @@ function insertItem(text: string, container: { start: number; end: number }, las
   const containerIndent = lineIndent(text, container.start);
   if (lastEnd === undefined || firstStart === undefined) {
     const indent = containerIndent + unit;
-    return `${text.slice(0, container.start + 1)}\n${indent}${entry(indent)}\n${containerIndent}${text.slice(container.end - 1)}`;
+    let at = container.start + 1;
+    if (text.slice(container.start + 1, container.end - 1).trim() !== '') {
+      // Comments in the empty container stay; the entry goes after them.
+      at = container.end - 1;
+      while (at > container.start + 1 && /\s/u.test(text[at - 1] as string)) at -= 1;
+    }
+    return `${text.slice(0, at)}\n${indent}${entry(indent)}\n${containerIndent}${text.slice(container.end - 1)}`;
   }
   if (isSameLine(text, container.start, firstStart)) {
     // An inline container such as { "a": 1 }: keep it on one line.
@@ -249,13 +255,42 @@ export function jsonArrayReplace(text: string, path: Path, index: number, value:
   return `${text.slice(0, element.start)}${serialize(value, indentUnit(text), lineIndent(text, element.start))}${text.slice(element.end)}`;
 }
 
+/** Removes the line around `at` when only whitespace is left on it. */
+function dropBlankLine(text: string, at: number): string {
+  const lineStart = text.lastIndexOf('\n', at - 1) + 1;
+  const newline = text.indexOf('\n', at);
+  const lineEnd = newline === -1 ? text.length : newline;
+  return lineStart > 0 && text.slice(lineStart, lineEnd).trim() === '' ? `${text.slice(0, lineStart - 1)}${text.slice(lineEnd)}` : text;
+}
+
+/**
+ * Removes the element and the comma that separates it (the one after it, or before it for the last element), and its
+ * line when nothing else is left on it. Comments stay, also those next to the element.
+ */
 export function jsonArrayRemove(text: string, path: Path, index: number): string {
   const { elements, start, end } = arrayAt(text, path);
   const element = elements[index];
   if (element === undefined) throw new Error(`no element ${index} at ${path.join('.')}`);
+  const blank = (from: number, to: number) => text.slice(from, to).trim() === '';
+  if (elements.length === 1 && `${text.slice(start + 1, element.start)}${text.slice(element.end, end - 1)}`.replaceAll(',', '').trim() === '') {
+    return `${text.slice(0, start + 1)}${text.slice(end - 1)}`;
+  }
+  const after = nextSignificant(text, element.end);
+  if (text[after] === ',') {
+    if (!blank(element.end, after)) return dropBlankLine(`${text.slice(0, element.start)}${text.slice(element.end, after)}${text.slice(after + 1)}`, element.start);
+    // The element, its comma and the spaces after the comma on the same line.
+    let stop = after + 1;
+    while (text[stop] === ' ' || text[stop] === '\t') stop += 1;
+    return dropBlankLine(`${text.slice(0, element.start)}${text.slice(stop)}`, element.start);
+  }
   const previous = elements[index - 1];
-  const next = elements[index + 1];
-  if (previous !== undefined) return `${text.slice(0, previous.end)}${text.slice(element.end)}`;
-  if (next !== undefined) return `${text.slice(0, element.start)}${text.slice(next.start)}`;
-  return `${text.slice(0, start + 1)}${text.slice(end - 1)}`;
+  const comma = previous === undefined ? undefined : nextSignificant(text, previous.end);
+  if (previous === undefined || comma === undefined || text[comma] !== ',') return dropBlankLine(`${text.slice(0, element.start)}${text.slice(element.end)}`, element.start);
+  if (blank(previous.end, comma) && blank(comma + 1, element.start)) {
+    // The last element, with the comma before it and everything between them.
+    return `${text.slice(0, comma)}${text.slice(element.end)}`;
+  }
+  // A comment between them stays: remove the comma and the element on their own.
+  const removed = `${text.slice(0, comma)}${text.slice(comma + 1, element.start)}${text.slice(element.end)}`;
+  return dropBlankLine(removed, element.start - 1);
 }

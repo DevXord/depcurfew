@@ -1,0 +1,8 @@
+{
+  "name": "app",
+  "packageManager": "pnpm@11.1.0",
+  "renovate": {
+    "extends": ["config:recommended"],
+    "minimumReleaseAge": "7 days"
+  }
+}

@@ -1,8 +1,6 @@
 // `depgate apply`: turns the policy into configuration for every target tool. Package managers go first, so that
 // bots can be given a delay at least as long as the longest one a manager enforces (otherwise a bot would
 // propose versions the package manager then refuses to install).
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { detectedTargets } from '../cli/describe.ts';
 import { detectProject } from '../detect/index.ts';
 import type { Detection } from '../detect/types.ts';
@@ -10,11 +8,12 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId, ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { formatDuration, type Duration } from '../policy/duration.ts';
+import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
 import { values } from './facts.ts';
 import { bun } from './generators/bun.ts';
-import { createContext, EditFailed, type BotGenerator, type ManagerGenerator, type Snippet } from './generators/context.ts';
+import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet } from './generators/context.ts';
 import { deno } from './generators/deno.ts';
 import { dependabot } from './generators/dependabot.ts';
 import { npm } from './generators/npm.ts';
@@ -25,14 +24,16 @@ import { pinnedVersion, type Version } from './version.ts';
 import { Workspace, writeChanges, type FileChange } from './workspace.ts';
 
 export type { FileChange } from './workspace.ts';
-export type { Snippet } from './generators/context.ts';
+export type { EditFailure, Snippet } from './generators/context.ts';
 
 export interface ApplyReport {
   changes: FileChange[];
   warnings: string[];
   snippets: Snippet[];
-  /** Files that could not be edited. When there are any, nothing is written. */
+  /** Files that could not be edited, as messages. When there are any, nothing is written. */
   errors: string[];
+  /** The same failures with the tool and the file. */
+  failures: EditFailure[];
 }
 
 const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno };
@@ -55,7 +56,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   const workspace = new Workspace(root);
   const warnings: string[] = [];
   const snippets: Snippet[] = [];
-  const errors: string[] = [];
+  const failures: EditFailure[] = [];
   const targets = new Set<ToolId>(policy.targets === 'auto' ? detectedTargets(detection) : policy.targets);
   for (const manager of detection.packageManagers) {
     if (!manager.supported && (policy.targets === 'auto' || targets.has(manager.id))) {
@@ -66,7 +67,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   if (targets.size === 0) warnings.push('no tools to configure');
 
   const run = (tool: ToolKnowledge, version: Version | undefined, action: (context: ReturnType<typeof createContext>) => void) => {
-    const context = createContext({ tool, policy, version, workspace, warnings, snippets, errors });
+    const context = createContext({ tool, policy, version, workspace, warnings, snippets, failures });
     try {
       action(context);
     } catch (error) {
@@ -97,7 +98,8 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     run(tool, undefined, (context) => generator(context, duration));
   }
 
-  return { changes: workspace.changes(), warnings, snippets, errors };
+  const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
+  return { changes: workspace.changes(), warnings, snippets, errors, failures };
 }
 
 export class PolicyError extends Error {
@@ -109,16 +111,20 @@ export class PolicyError extends Error {
   }
 }
 
-export function loadPolicy(root: string): ResolvedPolicy {
-  let text: string;
-  try {
-    text = readFileSync(join(root, POLICY_FILE), 'utf8');
-  } catch {
-    throw new PolicyError(`no ${POLICY_FILE} in ${root}; run 'depgate init' first`);
-  }
-  const result = parsePolicy(text);
+/** The policy of the repository; undefined when it has no depgate.json. Throws PolicyError when it cannot be used. */
+export function loadPolicyIfPresent(root: string): ResolvedPolicy | undefined {
+  const file = readPolicyFile(root);
+  if (file.status === 'missing') return undefined;
+  if (file.status === 'unreadable') throw new PolicyError(file.reason);
+  const result = parsePolicy(file.text);
   if (!result.ok) throw new PolicyError(`${POLICY_FILE} is invalid`, result.issues.map(formatIssue));
   return result.policy;
+}
+
+export function loadPolicy(root: string): ResolvedPolicy {
+  const policy = loadPolicyIfPresent(root);
+  if (policy === undefined) throw new PolicyError(`no ${POLICY_FILE} in ${root}; run 'depgate init' first`);
+  return policy;
 }
 
 /**

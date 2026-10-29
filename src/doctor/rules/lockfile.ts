@@ -20,7 +20,8 @@ function eachLockfile(context: RuleContext, rule: string, visit: (lockfile: Lock
     if (tool === undefined) continue;
     for (const result of readLockfiles(context.repository, manager, tool, workspaces)) {
       if (result.ok) visit(result.lockfile, tool);
-      else context.notice(`${rule} could not check ${result.file}: ${result.reason}`, result.file);
+      // An unreadable lockfile is an error of unreadable-config.
+      else if (!result.unreadable) context.notice(`${rule} could not check ${result.file}: ${result.reason}`, result.file);
     }
   }
 }
@@ -41,8 +42,19 @@ export const lockfileForbiddenSource: Rule = {
   check(context) {
     const sources = context.policy?.sources;
     if (sources === undefined) return;
+    const denies = Object.values(sources).includes('deny');
     eachLockfile(context, 'lockfile-forbidden-source', (lockfile) => {
       for (const entry of lockfile.entries) {
+        if (entry.source === 'unknown' && denies) {
+          // Fail closed: a source depgate cannot recognise may be one the policy denies.
+          context.report({
+            level: 'warning',
+            location: location(lockfile, entry),
+            message: `${lockfile.file} installs ${entry.name} from a source depgate does not recognise (${entry.spec || 'no source given'}); it may be one ${POLICY_FILE} denies`,
+            fix: `Check where ${entry.name} comes from, and regenerate the lockfile with the package manager if the entry is damaged`,
+          });
+          continue;
+        }
         if (entry.source !== 'git' && entry.source !== 'remoteTarball' && entry.source !== 'file' && entry.source !== 'directory') continue;
         if (sources[entry.source] !== 'deny') continue;
         context.report({

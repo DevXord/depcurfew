@@ -8,7 +8,7 @@ const isString = (value: unknown): value is string => typeof value === 'string';
 function configFile(context: Context): string {
   const manifests = context.tool.project?.manifests;
   const names = manifests !== undefined && manifests.status !== 'disputed' ? [...manifests.value] : ['deno.json'];
-  return names.find((name) => context.workspace.exists(name)) ?? names[0] ?? 'deno.json';
+  return names.find((name) => context.exists(name)) ?? names[0] ?? 'deno.json';
 }
 
 export const deno: ManagerGenerator = (context) => {
