@@ -1,5 +1,6 @@
 // Lockfile rules. lockfile-forbidden-source: a package from a source depgate.json denies. lockfile-install-scripts:
 // a package with install scripts that depgate.json does not allow, where the lockfile records scripts.
+import { values } from '../../apply/facts.ts';
 import { pinnedVersion } from '../../apply/version.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
@@ -7,6 +8,7 @@ import { POLICY_FILE } from '../../policy/defaults.ts';
 import { matchesPattern } from '../allow-lists.ts';
 import { latestVersion, versionedValue } from '../effective.ts';
 import { readLockfiles, type Lockfile, type LockEntry } from '../lockfiles.ts';
+import { iniValue, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
 const LABELS = { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' } as const;
@@ -63,6 +65,18 @@ function runsScripts(context: RuleContext, tool: ToolKnowledge): boolean {
   });
 }
 
+/** Where the repository turns off every dependency script with the tool's own switch (e.g. ignore-scripts in .npmrc). */
+function scriptsDisabledBy(context: RuleContext, tool: ToolKnowledge): string | undefined {
+  const fact = tool.installScripts.disableAll;
+  const value = fact.status === 'verified' ? fact.value : undefined;
+  const match = typeof value === 'string' ? /^([\w.-]+)(?::\s*(\S+))?$/u.exec(value) : null;
+  const file = values(tool.cooldown.configFiles)[0]?.[0];
+  if (match === null || file === undefined) return undefined;
+  const [, key = '', expected] = match;
+  const found = readSetting(context.repository, file, key);
+  return found !== undefined && found.value === (expected === undefined ? true : iniValue(expected)) ? `${key} in ${file}` : undefined;
+}
+
 export const lockfileInstallScripts: Rule = {
   id: 'lockfile-install-scripts',
   summary: 'The lockfile has packages with install scripts that depgate.json does not allow.',
@@ -83,7 +97,8 @@ export const lockfileInstallScripts: Rule = {
       if (flagged.length === 0 && tool.id === 'bun') {
         context.notice(`${lockfile.file} marks no package with install scripts; Bun records them only since 1.4.4, so an older lockfile may hide some`, lockfile.file);
       }
-      const running = runsScripts(context, tool);
+      const disabledBy = scriptsDisabledBy(context, tool);
+      const running = disabledBy === undefined && runsScripts(context, tool);
       for (const entry of flagged) {
         if (scripts.allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
         context.report({
@@ -91,7 +106,9 @@ export const lockfileInstallScripts: Rule = {
           location: location(lockfile, entry),
           message: running
             ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it`
-            : `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them`,
+            : disabledBy === undefined
+              ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them`
+              : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy} turns them off; the package may need them`,
           fix: `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package`,
         });
       }

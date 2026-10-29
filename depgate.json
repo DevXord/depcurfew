@@ -1,0 +1,20 @@
+{
+  "$schema": "./schema.json",
+  "version": 1,
+  "cooldown": {
+    "minimum": "7d",
+    "exclude": [],
+    "securityUpdates": "bypass"
+  },
+  "installScripts": {
+    "default": "deny",
+    "allow": []
+  },
+  "sources": {
+    "git": "deny",
+    "remoteTarball": "deny",
+    "file": "deny",
+    "directory": "deny"
+  },
+  "targets": "auto"
+}

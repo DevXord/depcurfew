@@ -2,6 +2,18 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Faza 8: bezpieczna publikacja (gotowa, czeka na wydanie)
+
+- **Workflow wydania** `.github/workflows/release.yml`: z tagu `vX.Y.Z` przez trusted publishing (OIDC) z proweniencją, bez tokenu npm. Wykonuje tylko `npm stage publish`, a wersja staje się publiczna po zatwierdzeniu z 2FA. Przed etapowaniem uruchamia wszystkie testy i `depgate doctor` na sobie (D-046).
+- **`docs/RELEASING.md`:** jednorazowa konfiguracja po stronie właściciela (2FA, utworzenie paczki przez etapowanie i odrzucenie wersji próbnej, `npm trust github --allow-stage-publish`, zakaz tokenów, wydanie w ciągu 2 dni) oraz kroki każdego wydania z weryfikacją proweniencji.
+- **depgate stosuje własną politykę:** `depgate.json`, blok w `.npmrc` z `depgate apply` i `packageManager: npm@11.19.1`. `doctor` na sobie kończy się kodem 0 z jednym ostrzeżeniem (`fsevents`), czego pilnuje test (D-047).
+- **Wersja 1.0.0** w `package.json`.
+- **`lockfile-install-scripts`** uwzględnia wyłącznik wszystkich skryptów (np. `ignore-scripts=true`); zmiana wyszła przy stosowaniu polityki na sobie (D-048).
+- **Baza wiedzy:** fakty o trusted publishing, publikacji etapowej i `npm trust` (D-049).
+- **Testy:** 715, wszystkie przechodzą.
+- **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
+- **Do zamknięcia fazy** brakuje wydania 1.0.0 z proweniencją po ręcznych krokach właściciela (D-050).
+
 ## 2026-10-29 · Faza 6: GitHub Action i README
 
 - **GitHub Action** (`action.yml`, D-040): uruchamia `doctor`, wysyła SARIF do code scanning i kończy zadanie błędem przy błędach `doctor`. Działa z własnego checkoutu przez zatwierdzony bundel `action/depgate.mjs` z dołączonym `yaml`. Test i CI pilnują, że bundel jest identyczny ze świeżym buildem (D-041).
