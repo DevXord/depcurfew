@@ -24,7 +24,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
 };
 
-/** Official locations for facts about the environment: Corepack and Node.js, npm, Volta, asdf and GitHub Actions. */
+/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions and Claude Code. */
 export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'nodejs.org' },
   { host: 'github.com', pathPrefix: '/nodejs/' },
@@ -36,6 +36,7 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/pnpm/' },
   { host: 'github.com', pathPrefix: '/oven-sh/' },
   { host: 'github.com', pathPrefix: '/denoland/' },
+  { host: 'code.claude.com', pathPrefix: '/docs/' },
 ];
 
 export function isOfficialSource(url: URL, rules: readonly SourceRule[]): boolean {

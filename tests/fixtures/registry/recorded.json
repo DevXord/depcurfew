@@ -1,0 +1,13 @@
+{
+  "recordedAt": "2026-10-29T11:02:14.358Z",
+  "registry": "https://registry.npmjs.org/",
+  "status": {
+    "lodash": 200,
+    "esbuild": 200,
+    "request": 200,
+    "@types/node": 200,
+    "cross-env": 200,
+    "crossenv": 200,
+    "this-package-does-not-exist-xyz-123": 404
+  }
+}

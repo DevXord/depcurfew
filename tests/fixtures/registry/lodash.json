@@ -1,0 +1,61 @@
+{
+  "name": "lodash",
+  "dist-tags": {
+    "latest": "4.18.1"
+  },
+  "time": {
+    "created": "2012-04-23T16:37:11.912Z",
+    "modified": "2026-10-29T00:42:15.258Z",
+    "4.17.19": "2020-07-08T17:14:40.866Z",
+    "4.17.20": "2020-08-13T16:53:54.152Z",
+    "4.17.21": "2021-02-20T15:42:16.891Z",
+    "4.17.23": "2026-01-21T17:29:52.831Z",
+    "4.18.0": "2026-03-31T18:18:42.717Z",
+    "4.18.1": "2026-04-01T21:01:20.458Z"
+  },
+  "versions": {
+    "4.18.1": {
+      "name": "lodash",
+      "version": "4.18.1",
+      "scripts": {
+        "test": "echo \"See https://travis-ci.org/lodash-archive/lodash-cli for testing details.\""
+      }
+    },
+    "4.18.0": {
+      "name": "lodash",
+      "version": "4.18.0",
+      "scripts": {
+        "test": "echo \"See https://travis-ci.org/lodash-archive/lodash-cli for testing details.\""
+      },
+      "deprecated": "Bad release. Please use lodash@4.17.21 instead."
+    },
+    "4.17.23": {
+      "name": "lodash",
+      "version": "4.17.23",
+      "scripts": {
+        "test": "echo \"See https://travis-ci.org/lodash-archive/lodash-cli for testing details.\""
+      }
+    },
+    "4.17.21": {
+      "name": "lodash",
+      "version": "4.17.21",
+      "scripts": {
+        "test": "echo \"See https://travis-ci.org/lodash-archive/lodash-cli for testing details.\""
+      }
+    },
+    "4.17.20": {
+      "name": "lodash",
+      "version": "4.17.20",
+      "scripts": {
+        "test": "echo \"See https://travis-ci.org/lodash-archive/lodash-cli for testing details.\""
+      }
+    },
+    "4.17.19": {
+      "name": "lodash",
+      "version": "4.17.19",
+      "scripts": {
+        "test": "echo \"See https://travis-ci.org/lodash-archive/lodash-cli for testing details.\""
+      }
+    }
+  }
+}

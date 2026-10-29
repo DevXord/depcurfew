@@ -117,6 +117,21 @@ export const deno: ToolKnowledge = {
     workspacesObjectKey: verified('members', WORKSPACES),
   },
   extra: {
+    commandLine: checked.verified(
+      {
+        add: [
+          ['deno', 'add'],
+          ['deno', 'install'],
+        ],
+        run: [],
+        create: [],
+        createNames: 'prefix',
+        fileOptions: ['--entrypoint', '-e'],
+        valueOptions: ['--name', '-n', '--root', '--os', '--arch'],
+      },
+      'https://github.com/denoland/docs/blob/main/runtime/reference/cli/install.md',
+      'deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (runtime/reference/cli/add.md).',
+    ),
     lockfileFormat: checked.verified(
       { installScripts: 'scripts', installScriptsSinceLockfile: '5', sources: null },
       'https://github.com/denoland/deno/blob/v2.9.8/libs/lockfile/printer.rs',

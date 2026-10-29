@@ -1,0 +1,206 @@
+// depgate check through the CLI and as a Claude Code PreToolUse hook, on recorded registry responses.
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, describe, expect, it } from 'vitest';
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../../src/cli/run.ts';
+import { recordedFetch } from './support.ts';
+
+const NOW = new Date('2026-10-29T12:00:00Z');
+const temporary: string[] = [];
+const HOME = mkdtempSync(join(tmpdir(), 'depgate-home-'));
+temporary.push(HOME);
+afterAll(() => {
+  for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
+});
+
+function project(policy?: object): string {
+  const directory = mkdtempSync(join(tmpdir(), 'depgate-check-'));
+  temporary.push(directory);
+  if (policy !== undefined) writeFileSync(join(directory, 'depgate.json'), JSON.stringify({ version: 1, ...policy }));
+  return directory;
+}
+
+async function exec(argv: string[], stdin = ''): Promise<{ code: number; stdout: string; stderr: string }> {
+  let stdout = '';
+  let stderr = '';
+  const code = await run(argv, { stdout: (text) => (stdout += text), stderr: (text) => (stderr += text) }, {
+    fetch: recordedFetch,
+    now: () => NOW,
+    stdin: async () => stdin,
+    home: () => HOME,
+  });
+  return { code, stdout, stderr };
+}
+
+function event(command: string, cwd: string, tool = 'Bash'): string {
+  return JSON.stringify({ session_id: 'test', hook_event_name: 'PreToolUse', tool_name: tool, tool_input: { command }, cwd });
+}
+
+describe('depgate check', () => {
+  it('passes an old package without install scripts', async () => {
+    const result = await exec(['check', '--dir', project({ cooldown: { minimum: '3d' } }), 'lodash']);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toMatch(/^lodash@\d+\.\d+\.\d+: ok \(published \d{4}-\d{2}-\d{2}\)\n\n1 package: 0 with errors, 0 with warnings\n$/u);
+    expect(result.stderr).toBe('');
+  });
+
+  it('uses the default policy without depgate.json and fails on install scripts', async () => {
+    const result = await exec(['check', '--dir', project(), 'esbuild', 'request']);
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stderr).toBe('depgate: no depgate.json found; checking against the default policy of depgate init\n');
+    expect(result.stdout).toContain('esbuild@0.28.2:\n  error: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depgate.json does not allow\n');
+    expect(result.stdout).toContain('  warning: request@2.88.2 is deprecated');
+    expect(result.stdout).toContain('2 packages: 1 with errors, 1 with warnings\n');
+  });
+
+  it('prints JSON', async () => {
+    const result = await exec(['check', '--json', '--dir', project({}), 'this-package-does-not-exist-xyz-123']);
+    expect(result.code).toBe(EXIT_FAILURE);
+    const report = JSON.parse(result.stdout) as { schemaVersion: number; packages: { spec: string; findings: { code: string }[] }[] };
+    expect(report.schemaVersion).toBe(1);
+    expect(report.packages[0]).toMatchObject({ spec: 'this-package-does-not-exist-xyz-123', findings: [{ code: 'not-found' }] });
+  });
+
+  it('needs a package', async () => {
+    const result = await exec(['check']);
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stderr).toContain("'check' needs at least one package");
+  });
+
+  it("looks packages up in the registry of the project's .npmrc", async () => {
+    const directory = project({});
+    writeFileSync(join(directory, '.npmrc'), 'registry = "https://npm.internal.example/"\n@corp:registry=https://corp.example/\n');
+    const urls: string[] = [];
+    let stdout = '';
+    const code = await run(['check', '--dir', directory, 'lodash', '@corp/tool'], { stdout: (text) => (stdout += text), stderr: () => undefined }, {
+      fetch: async (url, init) => {
+        urls.push(url);
+        return recordedFetch(url, init);
+      },
+      now: () => NOW,
+      stdin: async () => '',
+      home: () => HOME,
+    });
+    expect(urls).toEqual(['https://npm.internal.example/lodash']);
+    expect(code).toBe(EXIT_FAILURE);
+    expect(stdout).toContain('@corp packages come from https://corp.example/ (.npmrc)');
+  });
+
+  it("reads scope registries from the user's .npmrc and asks about an unknown scoped package", async () => {
+    const home = mkdtempSync(join(tmpdir(), 'depgate-home-'));
+    temporary.push(home);
+    writeFileSync(join(home, '.npmrc'), '@corp:registry=https://corp.example/\n');
+    let stdout = '';
+    const run2 = (spec: string, directory: string) =>
+      run(['check', '--dir', directory, spec], { stdout: (text) => (stdout += text), stderr: () => undefined }, { fetch: recordedFetch, now: () => NOW, stdin: async () => '', home: () => home });
+    await run2('@corp/tool', project({}));
+    expect(stdout).toContain('@corp packages come from https://corp.example/ (.npmrc)');
+    stdout = '';
+    await run2('@nobody/made-up-xyz', project({}));
+    expect(stdout).toContain('@nobody/made-up-xyz is not in https://registry.npmjs.org/; if @nobody packages come from another registry, set @nobody:registry in .npmrc');
+  });
+
+  it('refuses an invalid policy', async () => {
+    const directory = project();
+    writeFileSync(join(directory, 'depgate.json'), '{"version": 2}');
+    const result = await exec(['check', '--dir', directory, 'lodash']);
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stderr).toContain('depgate.json is invalid');
+  });
+});
+
+describe('depgate check --hook claude-code', () => {
+  const decision = (stdout: string) => (JSON.parse(stdout) as { hookSpecificOutput: { hookEventName: string; permissionDecision: string; permissionDecisionReason: string } }).hookSpecificOutput;
+
+  it('denies installing a package that breaks the policy', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', project({ installScripts: { default: 'deny' } })));
+    expect(result.code).toBe(EXIT_OK);
+    expect(decision(result.stdout)).toEqual({
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'deny',
+      permissionDecisionReason:
+        "depgate blocked this command because it breaks the project's supply-chain policy (depgate.json):\n- esbuild: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depgate.json does not allow\nChoose another package or version, or ask the user to change depgate.json.",
+    });
+  });
+
+  it('denies a package that does not exist', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('npx this-package-does-not-exist-xyz-123', project({})));
+    expect(decision(result.stdout).permissionDecision).toBe('deny');
+  });
+
+  it('asks about a name that imitates a popular package', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('npm i crossenv', project({})));
+    expect(decision(result.stdout)).toMatchObject({ permissionDecision: 'ask' });
+    expect(decision(result.stdout).permissionDecisionReason).toContain('cross-env');
+  });
+
+  it('asks when it cannot read the command', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('npm install $PACKAGE', project({})));
+    expect(decision(result.stdout)).toMatchObject({ permissionDecision: 'ask' });
+    expect(decision(result.stdout).permissionDecisionReason).toContain('"$PACKAGE" is expanded by the shell');
+  });
+
+  it('stays silent for a command that passes or installs nothing', async () => {
+    const directory = project({ cooldown: { minimum: '3d' } });
+    expect((await exec(['check', '--hook', 'claude-code'], event('npm install lodash', directory))).stdout).toBe('');
+    expect((await exec(['check', '--hook', 'claude-code'], event('npm test && git status', directory))).stdout).toBe('');
+  });
+
+  it('ignores other tools and events', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', project({}), 'Write'));
+    expect(result).toEqual({ code: EXIT_OK, stdout: '', stderr: '' });
+  });
+
+  it('finds depgate.json in a parent of the working directory', async () => {
+    const directory = project({ installScripts: { default: 'deny', allow: ['esbuild'] } });
+    mkdirSync(join(directory, 'packages', 'app'), { recursive: true });
+    const result = await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', join(directory, 'packages', 'app')));
+    expect(result.stdout).toBe('');
+  });
+
+  it('asks when depgate.json is invalid', async () => {
+    const directory = project();
+    writeFileSync(join(directory, 'depgate.json'), '{"version": 2}');
+    const result = await exec(['check', '--hook', 'claude-code'], event('npm install lodash', directory));
+    expect(decision(result.stdout)).toMatchObject({ permissionDecision: 'ask' });
+  });
+
+  it('exits with the blocking exit code on input that is not a hook event', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], 'not json');
+    expect(result.code).toBe(2);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toMatch(/^depgate: cannot read the hook event: /u);
+  });
+
+  it('exits with the blocking exit code when stdin cannot be read', async () => {
+    let stderr = '';
+    const code = await run(['check', '--hook', 'claude-code'], { stdout: () => undefined, stderr: (text) => (stderr += text) }, {
+      fetch: recordedFetch,
+      now: () => NOW,
+      stdin: async () => Promise.reject(new Error('the input is larger than 1 MiB')),
+      home: () => HOME,
+    });
+    expect(code).toBe(2);
+    expect(stderr).toBe('depgate: cannot read the hook event: the input is larger than 1 MiB\n');
+  });
+
+  it('asks when the check itself fails', async () => {
+    let stdout = '';
+    const code = await run(['check', '--hook', 'claude-code'], { stdout: (text) => (stdout += text), stderr: () => undefined }, {
+      fetch: recordedFetch,
+      now: () => {
+        throw new Error('no clock');
+      },
+      stdin: async () => event('npm install lodash', project({})),
+      home: () => HOME,
+    });
+    expect(code).toBe(EXIT_OK);
+    expect(decision(stdout)).toMatchObject({ permissionDecision: 'ask', permissionDecisionReason: 'depgate cannot check this command: no clock' });
+  });
+
+  it('rejects an unknown hook and packages next to --hook', async () => {
+    expect((await exec(['check', '--hook', 'cursor'])).code).toBe(EXIT_USAGE);
+    expect((await exec(['check', '--hook', 'claude-code', 'lodash'])).code).toBe(EXIT_USAGE);
+  });
+});

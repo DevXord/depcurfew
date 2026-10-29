@@ -127,6 +127,40 @@ export const pnpm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, WORKSPACE_YAML_V10, 'The docs show packages only as a list; concluded from the absence of an object form.'),
   },
   extra: {
+    commandLine: checked.verified(
+      {
+        add: [['pnpm', 'add']],
+        run: [
+          { command: ['pnx'], packageOptions: ['--package'], shellOptions: ['--shell-mode', '-c'] },
+          { command: ['pnpx'], packageOptions: ['--package'], shellOptions: ['--shell-mode', '-c'] },
+          { command: ['pnpm', 'dlx'], packageOptions: ['--package'], shellOptions: ['--shell-mode', '-c'] },
+        ],
+        create: [{ command: ['pnpm', 'create'], packageOptions: [] }],
+        createNames: 'prefix-unless-prefixed',
+        valueOptions: [
+          '--save-prefix', '--save-catalog-name', '--lockfile-dir', '--filter', '-F', '--registry', '--allow-build', '--cpu', '--os', '--libc', '-C', '--dir', '--workspace-packages', '--env-file',
+        ],
+      },
+      'https://github.com/pnpm/pnpm.io/tree/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli',
+      'From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c \'echo hi | cowsay\'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx only and is listed there. -F is the short form of --filter (filtering.md).',
+    ),
+    packageSpecs: checked.verified(
+      {
+        git: ['github:', 'bitbucket:', 'gitlab:', 'gist:', 'git+ssh://'],
+        local: ['link:', 'file:'],
+        workspace: ['workspace:'],
+        remoteTarball: ['http://', 'https://'],
+        tarballExtensions: ['.tar', '.tar.gz', '.tgz'],
+        shorthand: 'github:',
+      },
+      'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/package-sources.md',
+      'Sources of pnpm add: the npm registry, jsr:, crate: and pypi: (other registries), workspace packages (the workspace: range protocol, docs/workspaces.md), local directories (./dir is saved as link:, file:./dir is copied), local tarballs ending in .tar, .tar.gz or .tgz, remote tarballs starting with http:// or https://, and git repositories as user/repo (github: by default), github:, bitbucket:, gitlab:, gist: or a full URL such as git+ssh://… or https://github.com/….git.',
+    ),
+    registryOverrides: checked.uncertain(
+      { registryOptions: ['--registry', '--@<scope>:registry'], registryVariables: ['pnpm_config_registry'], configOptions: [], configVariables: [] },
+      'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/npmrc.md',
+      '--registry and --@scope:registry on the command line win over the other registry settings. The page shows pnpm_config_<key> environment variables for keys of .npmrc (pnpm_config__auth, pnpm_config_//registry.npmjs.org/:_authToken) overriding the project .npmrc; that pnpm_config_registry works the same is inferred.',
+    ),
     lockfileFormat: checked.verified(
       {
         installScripts: null,

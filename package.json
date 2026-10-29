@@ -39,6 +39,8 @@
     "check:pkg": "tsdown && publint && attw --pack . --profile esm-only",
     "docs:knowledge": "node scripts/generate-knowledge.ts",
     "docs:readme": "node scripts/generate-readme.ts",
+    "data:popular": "node scripts/generate-popular.ts",
+    "record:registry": "node scripts/record-registry.ts",
     "schema": "node scripts/generate-schema.ts"
   },
   "keywords": [

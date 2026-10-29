@@ -1,6 +1,8 @@
 export interface OptionInfo {
   name: string;
   summary: string;
+  /** For an option that takes a value: its name in the help, e.g. `url`. Options without one are flags. */
+  value?: string;
 }
 
 export interface CommandInfo {
@@ -9,8 +11,10 @@ export interface CommandInfo {
   implemented: boolean;
   /** Positional arguments shown in the help, e.g. `[directory]`. */
   arguments?: string;
-  /** Boolean flags this command accepts besides the global ones. */
+  /** Options this command accepts besides the global ones. */
   options?: readonly OptionInfo[];
+  /** Whether the command takes any number of positional arguments. */
+  variadic?: boolean;
 }
 
 export const COMMANDS: readonly CommandInfo[] = [
@@ -36,6 +40,19 @@ export const COMMANDS: readonly CommandInfo[] = [
     options: [
       { name: 'json', summary: 'Print the findings as JSON' },
       { name: 'sarif', summary: 'Print the findings as SARIF 2.1.0 for code scanning' },
+    ],
+  },
+  {
+    name: 'check',
+    summary: 'Check packages against the policy before installing them',
+    implemented: true,
+    arguments: '<package...>',
+    variadic: true,
+    options: [
+      { name: 'json', summary: 'Print the result as JSON' },
+      { name: 'dir', value: 'directory', summary: 'Use the depgate.json of this directory (default: the current one)' },
+      { name: 'registry', value: 'url', summary: 'Look packages up in this registry (default: the registry of .npmrc, else the public npm registry)' },
+      { name: 'hook', value: 'name', summary: 'Run as a hook that guards installs: claude-code' },
     ],
   },
   {

@@ -136,6 +136,90 @@ export interface ToolKnowledge {
   extra?: Readonly<Record<string, Fact<unknown>>>;
 }
 
+/**
+ * How a package manager's command line adds packages or downloads and runs them, for the install guard
+ * (`depgate check --hook`). Commands are the executable followed by the subcommand, e.g. ["npm", "install"].
+ */
+/** A command that downloads packages, with the options that name packages and the options whose value is a command line. */
+export interface DownloadCommand {
+  command: readonly string[];
+  /** Options whose value names a package to download as well. */
+  packageOptions: readonly string[];
+  /** Options whose value is a shell command line that runs with the downloaded packages. */
+  lineOptions?: readonly string[];
+  /** Flags that make the first argument a shell command line instead of a package. */
+  shellOptions?: readonly string[];
+}
+
+export interface CommandLineKnowledge {
+  /** Commands that add the packages given as arguments, aliases included. */
+  add: readonly (readonly string[])[];
+  /** Commands that download a package and run it; without a package option the first argument names the package. */
+  run: readonly DownloadCommand[];
+  /** Commands that download and run a starter package named after their first argument. */
+  create: readonly DownloadCommand[];
+  /**
+   * How create commands name the package: `prefix` maps foo to create-foo, @s to @s/create and @s/foo to
+   * @s/create-foo; `prefix-unless-prefixed` does the same but keeps a name (or the part after the scope) that already
+   * starts with create-.
+   */
+  createNames: 'prefix' | 'prefix-unless-prefixed';
+  /** Commands that run another command of the same tool in a workspace, after the given number of operands. */
+  workspaceCommands?: readonly { command: readonly string[]; operands: number }[];
+  /** Options of the add commands after which the arguments are local files, so no package is named. */
+  fileOptions?: readonly string[];
+  /**
+   * Options of the add commands (or of every command) followed by a separate value; other options are flags. Empty
+   * when listed in a fact of its own. Package options of run and create commands are listed with those commands only.
+   */
+  valueOptions: readonly string[];
+}
+
+/** Forms of a package spec on the command line that do not name a registry package, by prefix. */
+export interface PackageSpecKnowledge {
+  /** Prefixes of specs that install a git repository. */
+  git: readonly string[];
+  /** Prefixes of specs that install a local directory, or a local tarball when the path has a tarball extension. */
+  local: readonly string[];
+  /** Prefixes of specs that name a package of the workspace. */
+  workspace: readonly string[];
+  /** Prefix of a spec that installs another registry package under the given name (name@npm:other@1). */
+  alias?: string;
+  /** Prefixes of specs that download a tarball URL. */
+  remoteTarball?: readonly string[];
+  /** Extensions that make a path a tarball rather than a directory. */
+  tarballExtensions?: readonly string[];
+  /** The git prefix a bare user/repo spec stands for. */
+  shorthand?: string;
+  /** user@host:path (the scp-like form of an ssh URL) is a git repository. */
+  scp?: boolean;
+}
+
+/**
+ * Command-line options and environment variables that change where a package manager fetches packages from. In
+ * option names, <scope> stands for any scope; variable names are compared without regard to case.
+ */
+export interface RegistryOverridesKnowledge {
+  /** Their value is the URL of a registry. */
+  registryOptions: readonly string[];
+  registryVariables: readonly string[];
+  /** Their value is another configuration file, which may set any registry. */
+  configOptions: readonly string[];
+  configVariables: readonly string[];
+}
+
+/** Where a project sets the registry packages come from, for all packages or for a scope. */
+export interface RegistryConfigKnowledge {
+  /** The project's configuration file. */
+  file: string;
+  /** The user's configuration file, which the project's file overrides. */
+  userFile: string;
+  /** The key with the base URL of the registry. */
+  key: string;
+  /** A scope followed by this suffix is the key of that scope's registry, e.g. @myco:registry. */
+  scopeKeySuffix: string;
+}
+
 // Facts about the environment around the package managers: version pinning (Corepack, Volta, asdf) and CI.
 
 /** A tool that environment facts refer to: Node.js or a package manager. */
@@ -196,6 +280,49 @@ export interface StopCommandsKnowledge {
   resume: string;
 }
 
+/** The public npm registry, as depgate check reads it. */
+export interface NpmRegistryKnowledge {
+  url: string;
+  /** Path of a package document; scoped names have their slash escaped as %2f. */
+  packagePath: string;
+  /** Field of the full document that maps versions to publish times; the abbreviated install document lacks it. */
+  timeField: string;
+  /** Field of the document that maps tags (latest, next) to versions. */
+  distTagsField: string;
+  /** The tag every package has, which a spec without a version installs. */
+  defaultTag: string;
+  /** Field of the document that maps versions to their version objects. */
+  versionsField: string;
+  /** Field of a version object with the lifecycle scripts of its package.json. */
+  scriptsField: string;
+  /** Field of a version object that holds the deprecation message. */
+  deprecatedField: string;
+  /** Lifecycle scripts a package runs when it is installed as a dependency. */
+  installScripts: readonly string[];
+}
+
+/** Claude Code hooks that run before a tool call and can block it (used by depgate check --hook claude-code). */
+export interface ClaudeCodeHooksKnowledge {
+  /** Project settings file that can be committed. */
+  settingsFile: string;
+  event: string;
+  /** The tool name of shell commands, matched by the matcher. */
+  shellTool: string;
+  /** Fields of the JSON a command hook reads on stdin. */
+  input: { event: string; tool: string; command: string; cwd: string };
+  /** Fields of the JSON object a hook prints to decide. */
+  output: { container: string; event: string; decision: string; reason: string };
+  decisions: { deny: string; ask: string };
+  /** A command hook that exits with this code blocks the call; stderr is the reason. */
+  blockingExitCode: number;
+  /** The handler field that blocks the call when the hook fails or times out, and the version that has it. */
+  onFailure: { field: string; value: string; since: string };
+  /** Placeholder for the project root in a hook command. */
+  projectDir: string;
+  /** Keys of a settings file: the hooks map, a matcher group and a command handler run without a shell. */
+  settings: { hooks: string; matcher: string; handlers: string; type: string; commandType: string; command: string; args: string };
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
@@ -224,5 +351,14 @@ export interface EnvironmentKnowledge {
     setupDeno: Fact<SetupActionKnowledge>;
     codeScanningUpload: Fact<CodeScanningUploadKnowledge>;
     stopCommands: Fact<StopCommandsKnowledge>;
+  };
+  npmRegistry: {
+    api: Fact<NpmRegistryKnowledge>;
+    notFoundStatus: Fact<number>;
+    /** Search endpoint, its result limit and the field with weekly downloads. */
+    search: Fact<{ path: string; maxSize: number; weeklyDownloadsField: string }>;
+  };
+  claudeCode: {
+    hooks: Fact<ClaudeCodeHooksKnowledge>;
   };
 }

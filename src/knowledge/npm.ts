@@ -25,6 +25,8 @@ const sourceFlagSince = () =>
 const LOCKFILE_V12 = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md';
 const PACKAGE_JSON = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md';
 const NPM_DEFINITIONS = 'https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js';
+const CMD_LIST = 'https://github.com/npm/cli/blob/v12.2.1/lib/utils/cmd-list.js';
+const INSTALL_ALIASES = ['install', 'add', 'i', 'in', 'ins', 'inst', 'insta', 'instal', 'isnt', 'isnta', 'isntal', 'isntall', 'install-test', 'it'];
 
 export const npm: ToolKnowledge = {
   id: 'npm',
@@ -234,6 +236,76 @@ export const npm: ToolKnowledge = {
       'Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.',
       evidence('npm 12 throws on unknown config keys', release('12.0.0')),
       evidence('unknown keys only warn; throwing is planned for a future major version', NPMRC),
+    ),
+    commandLine: checked.verified(
+      {
+        add: INSTALL_ALIASES.map((alias) => ['npm', alias]),
+        run: [
+          { command: ['npx'], packageOptions: ['--package', '-p'], lineOptions: ['--call', '-c'] },
+          { command: ['npm', 'exec'], packageOptions: ['--package'], lineOptions: ['--call', '-c'] },
+          { command: ['npm', 'x'], packageOptions: ['--package'], lineOptions: ['--call', '-c'] },
+        ],
+        create: [
+          { command: ['npm', 'init'], packageOptions: [] },
+          { command: ['npm', 'create'], packageOptions: [] },
+          { command: ['npm', 'innit'], packageOptions: [] },
+        ],
+        createNames: 'prefix',
+        valueOptions: [],
+      },
+      CMD_LIST,
+      'Aliases of install (add, i and the typo aliases in, ins, inst, insta, instal, isnt, isnta, isntal, isntall), install-test (it), exec (x) and init (create, innit), the same in 11.19.1. install-test takes the same arguments as install (docs/lib/content/commands/npm-install-test.md). npm exec and npx take the packages to download from --package; -p means --package only in npx (in npm it is --parseable); without --package the first positional argument names the package, and -c/--call takes a command string that runs with the packages, shell operators included (npm-exec.md). npm init <initializer> runs npm exec create-<initializer>: foo → create-foo, @usr → @usr/create, @usr/foo@2.0.0 → @usr/create-foo@2.0.0 (npm-init.md).',
+    ),
+    valueOptions: checked.verified(
+      [
+        '--access', '--allow-directory', '--allow-file', '--allow-git', '--allow-remote', '--allow-scripts',
+        '--also', '--audit-level', '--auth-type', '--before', '--ca', '--cache', '--cache-max', '--cache-min',
+        '--cafile', '--call', '--cert', '--cidr', '--cpu', '--depth', '--diff', '--diff-dst-prefix',
+        '--diff-src-prefix', '--diff-unified', '--edit-dir', '--editor', '--expect-result-count', '--expires',
+        '--extension-file', '--fetch-retries', '--fetch-retry-factor', '--fetch-retry-maxtimeout',
+        '--fetch-retry-mintimeout', '--fetch-timeout', '--git', '--global-ignore-file', '--globalconfig',
+        '--heading', '--https-proxy', '--include', '--init-author-email', '--init-author-name', '--init-author-url',
+        '--init-license', '--init-module', '--init-type', '--init-version', '--install-strategy', '--key', '--libc',
+        '--local-address', '--location', '--lockfile-version', '--loglevel', '--logs-dir', '--logs-max',
+        '--maxsockets', '--message', '--min-release-age', '--min-release-age-exclude', '--name', '--node-gyp',
+        '--node-options', '--noproxy', '--omit', '--only', '--orgs', '--orgs-permission', '--os', '--otp',
+        '--pack-destination', '--package', '--packages', '--packages-and-scopes-permission', '--password',
+        '--patches-dir', '--prefix', '--preid', '--provenance-file', '--proxy', '--registry',
+        '--replace-registry-host', '--save-prefix', '--sbom-format', '--sbom-type', '--scope', '--scopes',
+        '--script-shell', '--searchexclude', '--searchlimit', '--searchopts', '--searchstaleness', '--shell',
+        '--tag', '--tag-version-prefix', '--to', '--token-description', '--umask', '--user-agent', '--userconfig',
+        '--viewer', '--which', '--workspace', '-C', '-L', '-c', '-m', '-w',
+      ],
+      NPM_DEFINITIONS,
+      'npm options that always take a value: every definition whose type does not include Boolean, as --name, and the short forms -C (prefix), -L (location), -c (call), -m (message) and -w (workspace). Options whose type includes Boolean (such as color and browser) may stand alone, so they are taken for flags.',
+    ),
+    packageSpecs: checked.verified(
+      {
+        git: ['git://', 'git+ssh://', 'git+http://', 'git+https://', 'git+file://', 'github:', 'gist:', 'bitbucket:', 'gitlab:'],
+        local: ['file:'],
+        workspace: [],
+        alias: 'npm:',
+        remoteTarball: ['http://', 'https://'],
+        tarballExtensions: ['.tar', '.tar.gz', '.tgz'],
+        shorthand: 'github:',
+      },
+      'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-install.md',
+      'Forms of npm install <spec>: a folder; a tarball file, whose name must end in .tar, .tar.gz or .tgz; a tarball URL, which must start with http:// or https://; a git remote URL with the protocol git, git+ssh, git+http, git+https or git+file; <githubname>/<githubrepo> or github:<githubname>/<githubrepo>; gist:, bitbucket: and gitlab: shorthands; <alias>@npm:<name>. The file: prefix for local paths is documented in docs/lib/content/configuring-npm/package-json.md (Local Paths).',
+    ),
+    registryConfig: checked.verified(
+      { file: '.npmrc', userFile: '~/.npmrc', key: 'registry', scopeKeySuffix: ':registry' },
+      NPM_DEFINITIONS,
+      'userconfig, the location of user-level settings, defaults to ~/.npmrc; registry is the base URL of the npm registry (default https://registry.npmjs.org/); a per-project .npmrc can set it like any config key (docs/lib/content/using-npm/config.md). npm config set @myco:registry=http://reg.example.com associates a scope with a registry, and any npm install of a package with that scope then requests it from there (https://docs.npmjs.com/cli/v12/using-npm/scope#associating-a-scope-with-a-registry).',
+    ),
+    registryOverrides: checked.verified(
+      {
+        registryOptions: ['--registry', '--@<scope>:registry'],
+        registryVariables: ['npm_config_registry'],
+        configOptions: ['--userconfig', '--globalconfig'],
+        configVariables: ['npm_config_userconfig', 'npm_config_globalconfig'],
+      },
+      NPM_DEFINITIONS,
+      'registry is a URL; userconfig and globalconfig are the user and global configuration files. Putting --foo bar on the command line sets the foo configuration parameter, and environment variables that start with npm_config_ are configuration parameters too, without regard to case (docs/lib/content/using-npm/config.md); @scope:registry is the key of a scope\'s registry (https://docs.npmjs.com/cli/v12/using-npm/scope).',
     ),
     lockfileInstalls: uncertain(
       'npm ci installs versions pinned in package-lock.json without applying min-release-age',

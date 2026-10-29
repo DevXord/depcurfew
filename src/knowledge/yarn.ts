@@ -140,6 +140,28 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    commandLine: checked.verified(
+      {
+        add: [['yarn', 'add']],
+        run: [{ command: ['yarn', 'dlx'], packageOptions: ['-p', '--package'] }],
+        create: [{ command: ['yarn', 'create'], packageOptions: ['-p', '--package'] }],
+        createNames: 'prefix-unless-prefixed',
+        workspaceCommands: [{ command: ['yarn', 'workspace'], operands: 1 }],
+        valueOptions: ['--mode'],
+      },
+      'https://github.com/yarnpkg/berry/tree/master/packages/plugin-dlx/sources/commands',
+      'dlx.ts (documented at https://yarnpkg.com/cli/dlx) downloads the package named by the command, or the ones given with -p/--package, into a temporary environment and runs it. create.ts (yarn create, not on yarnpkg.com) takes -p/--package as well and runs create-<name>: @foo becomes @foo/create, @foo/app becomes @foo/create-app, foo becomes create-foo, and a name that already matches ^create(-|$) is kept (so is create alone). yarn add (https://yarnpkg.com/cli/add) takes packages as arguments; of its options only --mode takes a value. yarn workspace <workspaceName> <commandName> … runs a command within that workspace, e.g. yarn workspace components add -D react (https://yarnpkg.com/cli/workspace).',
+    ),
+    packageSpecs: checked.verified(
+      { git: [], local: ['link:', 'portal:', 'file:'], workspace: ['workspace:'] },
+      'https://yarnpkg.com/protocols',
+      'Protocols besides npm: and git: exec:, file:, jsr:, link:, patch:, portal: and workspace:. link: connects an external directory (https://yarnpkg.com/protocol/link), portal: a relative path to a package folder (https://yarnpkg.com/protocol/portal) and file: copies a folder or tarball.',
+    ),
+    registryOverrides: checked.verified(
+      { registryOptions: [], registryVariables: ['YARN_NPM_REGISTRY_SERVER'], configOptions: [], configVariables: ['YARN_RC_FILENAME'] },
+      'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts',
+      'Environment variables that start with yarn_ (any case) set the setting named by the camel-cased rest, so YARN_NPM_REGISTRY_SERVER sets npmRegistryServer, the registry packages are fetched from (https://yarnpkg.com/configuration/yarnrc#npmRegistryServer). getRcFilename reads yarn_rc_filename (any case) as the name of the configuration file instead of .yarnrc.yml. npmScopes, an object, cannot be set this way.',
+    ),
     lockfileFormat: checked.verified(
       {
         installScripts: null,

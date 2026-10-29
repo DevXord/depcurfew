@@ -137,4 +137,49 @@ export const environment: EnvironmentKnowledge = {
       'Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs.',
     ),
   },
+  npmRegistry: {
+    api: checked.verified(
+      {
+        url: 'https://registry.npmjs.org/',
+        packagePath: '/{escaped name}',
+        timeField: 'time',
+        distTagsField: 'dist-tags',
+        defaultTag: 'latest',
+        versionsField: 'versions',
+        scriptsField: 'scripts',
+        deprecatedField: 'deprecated',
+        installScripts: ['preinstall', 'install', 'postinstall'],
+      },
+      'https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md',
+      'GET /{package} returns the full document by default: dist-tags maps tags to versions (every package has latest), versions maps versions to version objects, time maps every version to its publish time, and a version object carries scripts (from its package.json) and deprecated. The abbreviated document (Accept: application/vnd.npm.install-v1+json) has no time field and adds hasInstallScript. Scoped names are escaped with %2f (escapedName in github.com/npm/npm-package-arg); the registry answered the same document for @types/node and @types%2fnode on 2026-10-29. Install scripts: preinstall, install and postinstall run for a dependency, and npm runs node-gyp rebuild as install when the package has binding.gyp and no install or preinstall script (github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/scripts.md); binding.gyp is not visible in the document.',
+    ),
+    notFoundStatus: checked.uncertain(
+      404,
+      'https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md',
+      'The API description leaves its Errors section empty; a name that does not exist answered 404 with {"error":"Not found"} on 2026-10-29.',
+    ),
+    search: checked.uncertain(
+      { path: '/-/v1/search', maxSize: 250, weeklyDownloadsField: 'downloads.weekly' },
+      'https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md',
+      'The description documents text, size (at most 250) and from. Results carried downloads.weekly on 2026-10-29, which the description does not list, and from was ignored, so one query returns at most 250 packages.',
+    ),
+  },
+  claudeCode: {
+    hooks: checked.verified(
+      {
+        settingsFile: '.claude/settings.json',
+        event: 'PreToolUse',
+        shellTool: 'Bash',
+        input: { event: 'hook_event_name', tool: 'tool_name', command: 'tool_input.command', cwd: 'cwd' },
+        output: { container: 'hookSpecificOutput', event: 'hookEventName', decision: 'permissionDecision', reason: 'permissionDecisionReason' },
+        decisions: { deny: 'deny', ask: 'ask' },
+        blockingExitCode: 2,
+        onFailure: { field: 'onFailure', value: 'block', since: '2.1.295' },
+        projectDir: '${CLAUDE_PROJECT_DIR}',
+        settings: { hooks: 'hooks', matcher: 'matcher', handlers: 'hooks', type: 'type', commandType: 'command', command: 'command', args: 'args' },
+      },
+      'https://code.claude.com/docs/en/hooks',
+      'A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.',
+    ),
+  },
 };

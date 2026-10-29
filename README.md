@@ -91,6 +91,8 @@ Every section is optional: a section that is absent means depgate does not manag
 | `depgate explain [directory] [--json]` | Describes the detected package managers, versions, bots and workspaces, and the policy values for each tool. |
 | `depgate apply [directory] [--dry-run]` | Writes the policy into the configuration of every target tool; `--dry-run` prints a unified diff instead. |
 | `depgate doctor [directory] [--json \| --sarif]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning. |
+| `depgate check <package...> [--json] [--dir <directory>] [--registry <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
+| `depgate check --hook claude-code` | The same check as a Claude Code hook that blocks install commands breaking the policy. |
 
 Exit codes: `0` success (warnings included), `1` an error (an invalid policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error.
 
@@ -254,9 +256,82 @@ jobs:
 | `sarif-file` | Path of the SARIF report, relative to the workspace; empty when doctor could not run. |
 <!-- END GENERATED: action-reference -->
 
+## Guarding installs
+
+The configuration `apply` writes is what really protects a project: the package managers themselves wait out the release-age delay and refuse install scripts and sources the policy denies. `depgate check` adds a check before something is installed, which matters most for AI coding agents that add packages on their own:
+
+```bash
+npx depgate check zod@4 left-pad
+```
+
+For each package it looks up the public npm registry and reports:
+
+- a name the registry does not know, which is how made-up package names show up;
+- a version younger than the cooldown in `depgate.json`, with the newest version that is old enough;
+- install scripts the policy does not allow;
+- a name that differs by a letter or two, or only in separators, from one of the 5,000 most downloaded packages;
+- a deprecated version (a warning).
+
+Git repositories, tarball URLs and local paths are checked against the `sources` section only. Without a `depgate.json` in the directory or one of its parents, the default policy applies. When the registry cannot be reached, the package counts as failed: `check` exits with 1 whenever a package breaks the policy or cannot be checked.
+
+### Claude Code
+
+`depgate check --hook claude-code` runs as a Claude Code hook before every shell command. It finds the packages the command would install or download to run, checks them and answers:
+
+- **deny** when a package breaks the policy (Claude sees the reason and can pick another package or version);
+- **ask** when depgate cannot vouch for the command: a look-alike name, a registry it cannot reach, an error of its own, or a command it cannot read, such as one with `$(...)` or variables in its arguments, or a shell that runs commands from a pipe (`curl … | sh`);
+- nothing when everything checks out, so the command goes through Claude Code's usual permission prompts.
+
+It follows the command lines inside a command: `$(...)` and backticks, `sh -c`, `eval`, `npx -c`, `yarn workspace <name>`, and wrappers such as `sudo`, `env`, `timeout` and `xargs`. When it cannot read the hook event at all, it exits with code 2, which blocks the command in every Claude Code version.
+
+Install depgate as a development dependency of the project, then add the hook:
+
+<!-- BEGIN GENERATED: claude-code-hook -->
+In `.claude/settings.json` of the project:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/node_modules/depgate/dist/cli.js",
+              "check",
+              "--hook",
+              "claude-code"
+            ],
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+`onFailure: "block"` needs Claude Code 2.1.295 or later; without it, a hook that fails to start, crashes or times out lets the command through.
+
+Commands the guard reads (an add subcommand of any package manager, such as `install` or `i`, is checked for all of them):
+
+| Package manager | Add packages | Download and run | Starter kits |
+| --- | --- | --- | --- |
+| npm | `npm install`, `npm add`, `npm i`, `npm in`, `npm ins`, `npm inst`, `npm insta`, `npm instal`, `npm isnt`, `npm isnta`, `npm isntal`, `npm isntall`, `npm install-test`, `npm it` | `npx`, `npm exec`, `npm x` | `npm init`, `npm create`, `npm innit` |
+| pnpm | `pnpm add` | `pnx`, `pnpx`, `pnpm dlx` | `pnpm create` |
+| Yarn (Berry) | `yarn add` | `yarn dlx` | `yarn create` |
+| Bun | `bun add` | `bunx`, `bun x` | `bun create` |
+| Deno | `deno add`, `deno install` | none | none |
+<!-- END GENERATED: claude-code-hook -->
+
+The hook reads commands the way a shell splits them, but it is a safety net, not a sandbox: a command can install packages in ways it does not recognise (a script, another tool). Keep the package manager configuration from `depgate apply` in place; it is what enforces the policy for every install.
+
 ## Library
 
-The same functions are available from the package: `detectProject`, `planApply` and `applyProject`, `runDoctor` with `toSarif`, and the policy parser and converters. See `src/index.ts`.
+The same functions are available from the package: `detectProject`, `planApply` and `applyProject`, `runDoctor` with `toSarif`, `checkSpecs` with `scanCommandLine`, and the policy parser and converters. See `src/index.ts`.
 
 ## Contributing
 

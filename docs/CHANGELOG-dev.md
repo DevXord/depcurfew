@@ -2,6 +2,26 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Faza 7: strażnik instalacji (`depgate check`, hook Claude Code)
+
+- **`depgate check <spec...> [--json] [--dir] [--registry]`:**
+  - sprawdza paczki przed instalacją: istnienie (możliwa wymyślona nazwa), wiek wybranej wersji względem `cooldown` z propozycją starszej, skrypty instalacji, podobieństwo do 5000 popularnych nazw i wycofanie;
+  - git, URL-e i ścieżki porównuje z `sources`;
+  - kod 1 przy naruszeniu albo braku możliwości sprawdzenia (D-056, D-058).
+- **`depgate check --hook claude-code`:**
+  - hook PreToolUse dla Bash: `deny` przy naruszeniu polityki, `ask`, gdy depgate nie może poręczyć za polecenie;
+  - fail closed: nieczytelne zdarzenie daje kod 2.
+  - Skaner czyta polecenie jak powłoka i śledzi zagnieżdżone polecenia (D-055). Sekcja README z przykładem `.claude/settings.json` jest generowana z bazy wiedzy.
+- **Baza wiedzy** (D-054): rejestr npm, hooki Claude Code, wiersz poleceń npm/pnpm/Yarn/Bun/Deno, formy specyfikacji, rejestry z `.npmrc` i ich nadpisania; lista popularnych paczek (D-057).
+- **Testy:**
+  - nagrane odpowiedzi rejestru w `tests/fixtures/registry/` (`npm run record:registry`), bez sieci;
+  - testy semver, specyfikacji, podobnych nazw, skanera i CLI.
+- **Przeglądy:** trzy rundy po 10 ustaleń, wszystkie poprawione (D-059).
+- **Odejście od planu:** bez porównania nazw z pominięciem scope'u (13% fałszywych alarmów, D-057).
+- **Wydanie:** faza czeka na wydanie 1.0.0 i trafi do 1.1.0 (F1).
+- **Testy:** 1132, wszystkie przechodzą.
+- **Weryfikacja:** `npm test`, `npm run typecheck`, `npm run check:pkg` i `npm run build:action` przechodzą.
+
 ## 2026-10-29 · Przegląd przed wydaniem 1.0.0
 
 - **Przegląd:** kod, bezpieczeństwo (repozytorium jako dane niezaufane) i działanie zainstalowanej paczki na Node 22.0, 22 i 24 (D-052).

@@ -28,6 +28,9 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 - `node dist/cli.js explain tests/fixtures/repos/<nazwa>` – ręczne sprawdzenie wykrywania na fiksturze
 - `node dist/cli.js doctor tests/fixtures/doctor/<reguła>/<przypadek>/repo` – ręczne sprawdzenie reguły `doctor` na fiksturze (`--json`, `--sarif`)
 - `node dist/cli.js apply --dry-run <katalog>` – podgląd zmian `apply` bez zapisu (katalog musi mieć `depgate.json`)
+- `node dist/cli.js check <paczka>` – ręczne sprawdzenie paczki w prawdziwym rejestrze npm (wymaga sieci; testy jej nie używają)
+- `npm run data:popular` – odświeża listę popularnych paczek w src/knowledge/popular.ts (wymaga sieci)
+- `npm run record:registry` – nagrywa na nowo odpowiedzi rejestru dla testów `check` w tests/fixtures/registry (wymaga sieci)
 
 ## Środowisko
 - Praca nad repozytorium wymaga Node ≥ 22.18: skrypty w scripts/ uruchamiamy natywnie z plików `.ts` (type stripping), a importy względne mają końcówkę `.ts`.

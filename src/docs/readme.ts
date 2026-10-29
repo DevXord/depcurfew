@@ -6,7 +6,7 @@ import { isRecord, values } from '../apply/facts.ts';
 import { RULES } from '../doctor/index.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
-import type { EnvironmentKnowledge, Fact, ToolKnowledge } from '../knowledge/types.ts';
+import type { CommandLineKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge } from '../knowledge/types.ts';
 import { DEFAULT_POLICY, renderPolicy } from '../policy/defaults.ts';
 import { policyJsonSchema } from '../policy/json-schema.ts';
 
@@ -169,6 +169,58 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
   ].join('\n');
 }
 
+function commandList(entries: readonly (readonly string[])[]): string {
+  return entries.map((entry) => `\`${entry.join(' ')}\``).join(', ');
+}
+
+/** The Claude Code hook settings and the install commands the guard reads, from the knowledge base. */
+function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolKnowledge[]): string {
+  const hooks = values(environment.claudeCode.hooks)[0];
+  if (hooks === undefined) throw new Error('README: missing the Claude Code hooks fact');
+  const keys = hooks.settings;
+  const settings = {
+    [keys.hooks]: {
+      [hooks.event]: [
+        {
+          [keys.matcher]: hooks.shellTool,
+          [keys.handlers]: [
+            {
+              [keys.type]: keys.commandType,
+              [keys.command]: 'node',
+              [keys.args]: [`${hooks.projectDir}/node_modules/depgate/dist/cli.js`, 'check', '--hook', 'claude-code'],
+              [hooks.onFailure.field]: hooks.onFailure.value,
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const rows = tools.flatMap((tool) => {
+    const fact = tool.extra?.['commandLine'];
+    const commandLine = fact === undefined ? undefined : (values(fact)[0] as CommandLineKnowledge | undefined);
+    if (commandLine === undefined) return [];
+    const add = commandList(commandLine.add);
+    const run = commandList(commandLine.run.map((entry) => entry.command));
+    const create = commandList(commandLine.create.map((entry) => entry.command));
+    return [`| ${tool.name} | ${add} | ${run === '' ? 'none' : run} | ${create === '' ? 'none' : create} |`];
+  });
+  return [
+    `In \`${hooks.settingsFile}\` of the project:`,
+    '',
+    '```json',
+    JSON.stringify(settings, null, 2),
+    '```',
+    '',
+    `\`${hooks.onFailure.field}: "${hooks.onFailure.value}"\` needs Claude Code ${hooks.onFailure.since} or later; without it, a hook that fails to start, crashes or times out lets the command through.`,
+    '',
+    'Commands the guard reads (an add subcommand of any package manager, such as `install` or `i`, is checked for all of them):',
+    '',
+    '| Package manager | Add packages | Download and run | Starter kits |',
+    '| --- | --- | --- | --- |',
+    ...rows,
+  ].join('\n');
+}
+
 export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
   return {
     'default-policy': ['```json', renderPolicy(DEFAULT_POLICY).trimEnd(), '```'].join('\n'),
@@ -177,6 +229,7 @@ export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
     rules: rulesList(),
     'action-reference': actionTables(inputs.action),
     'action-workflow': exampleWorkflow(inputs.environment, inputs.workflow),
+    'claude-code-hook': claudeCodeHook(inputs.environment, inputs.tools),
   };
 }
 

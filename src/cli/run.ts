@@ -1,12 +1,14 @@
 import { parseArgs } from 'node:util';
 import { getVersion } from '../version.ts';
 import { apply } from './apply.ts';
+import { check, type CheckDependencies } from './check.ts';
 import { COMMANDS, findCommand } from './commands.ts';
 import { doctor } from './doctor.ts';
 import { helpText } from './help.ts';
 import { explain } from './explain.ts';
 import { init } from './init.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
+import { readStdin } from './stdin.ts';
 
 export { EXIT_FAILURE, EXIT_OK, EXIT_USAGE } from './io.ts';
 export type { CliIo } from './io.ts';
@@ -19,9 +21,15 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export async function run(argv: readonly string[], io: CliIo): Promise<number> {
+const DEFAULT_DEPENDENCIES: CheckDependencies = {
+  fetch: (url, init) => fetch(url, init),
+  now: () => new Date(),
+  stdin: () => readStdin(),
+};
+
+export async function run(argv: readonly string[], io: CliIo, dependencies: CheckDependencies = DEFAULT_DEPENDENCIES): Promise<number> {
   const commandOptions = Object.fromEntries(
-    COMMANDS.flatMap((command) => command.options ?? []).map((option) => [option.name, { type: 'boolean' as const }]),
+    COMMANDS.flatMap((command) => command.options ?? []).map((option) => [option.name, { type: option.value === undefined ? ('boolean' as const) : ('string' as const) }]),
   );
   let parsed;
   try {
@@ -41,7 +49,8 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
   }
 
   const [commandName, ...rest] = parsed.positionals;
-  const values = parsed.values as Record<string, boolean | undefined>;
+  const values = parsed.values as Record<string, boolean | string | undefined>;
+  const text = (name: string) => (typeof values[name] === 'string' ? (values[name] as string) : undefined);
 
   if (values['version'] === true) {
     io.stdout(`${getVersion()}\n`);
@@ -64,7 +73,7 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
     return EXIT_USAGE;
   }
 
-  if (command.implemented && rest.length > 1) {
+  if (command.implemented && command.variadic !== true && rest.length > 1) {
     io.stderr(`depgate: too many arguments for '${command.name}'\n${USAGE_HINT}`);
     return EXIT_USAGE;
   }
@@ -72,6 +81,9 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
   if (command.name === 'explain') return explain(rest[0], values['json'] === true, io);
   if (command.name === 'apply') return apply(rest[0], values['dry-run'] === true, io);
   if (command.name === 'doctor') return doctor(rest[0], { json: values['json'] === true, sarif: values['sarif'] === true }, io);
+  if (command.name === 'check') {
+    return check(rest, { json: values['json'] === true, dir: text('dir'), registry: text('registry'), hook: text('hook') }, io, dependencies);
+  }
 
   io.stderr(`depgate: '${command.name}' is not implemented yet.\n`);
   return EXIT_FAILURE;

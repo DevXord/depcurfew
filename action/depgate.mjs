@@ -187,6 +187,52 @@ const bun$1 = {
 		workspacesObjectKey: verified$7("packages", "https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx", "The object form also holds catalog and catalogs.")
 	},
 	extra: {
+		commandLine: checked$5.verified({
+			add: [["bun", "add"]],
+			run: [{
+				command: ["bunx"],
+				packageOptions: ["-p", "--package"]
+			}, {
+				command: ["bun", "x"],
+				packageOptions: ["-p", "--package"]
+			}],
+			create: [{
+				command: ["bun", "create"],
+				packageOptions: []
+			}],
+			createNames: "prefix",
+			valueOptions: [
+				"--omit",
+				"--filter",
+				"--ca",
+				"--cafile",
+				"--registry",
+				"--network-concurrency",
+				"--backend",
+				"--concurrent-scripts",
+				"--cache-dir",
+				"--config",
+				"--cwd",
+				"--env-file",
+				"--minimum-release-age"
+			]
+		}, "https://github.com/oven-sh/bun/tree/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/snippets/cli", "Options of bun add (snippets/cli/add.mdx) and bunx (snippets/cli/bunx.mdx) typed string or number; --catalog takes its name only after =. -p is --package for bunx but the flag --production for bun add, so it is listed with bunx only. The short forms -F (--filter) and -c (--config) of bun add are left out because bunx does not document them, and an option wrongly read as taking a value would hide the package after it. bunx is an alias for bun x (docs/pm/bunx.mdx). bun create <template> runs the create-<template> package from npm unless a local template has that name; it also takes GitHub repositories and local paths (docs/runtime/templating/create.mdx)."),
+		packageSpecs: checked$5.verified({
+			git: [
+				"github:",
+				"git+ssh://",
+				"git+https://"
+			],
+			local: [],
+			workspace: [],
+			scp: true
+		}, "https://github.com/oven-sh/bun/blob/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/pm/cli/add.mdx", "Git dependencies: \"Bun supports a variety of protocols, including github, git, git+ssh, and git+https\", with the examples git@github.com:moment/moment.git and github:colinhacks/zod. Tarball URLs, local folders and local .tgz files are accepted too."),
+		registryOverrides: checked$5.verified({
+			registryOptions: ["--registry"],
+			registryVariables: ["BUN_CONFIG_REGISTRY"],
+			configOptions: ["--config", "-c"],
+			configVariables: []
+		}, "https://github.com/oven-sh/bun/tree/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs", "bun add takes --registry and --config (-c), a configuration file (snippets/cli/add.mdx). BUN_CONFIG_REGISTRY sets the npm registry and environment variables take priority over bunfig.toml (pm/cli/install.mdx)."),
 		lockfileFormat: checked$5.verified({
 			installScripts: "hasInstallScript",
 			installScriptsSince: "1.4.4",
@@ -277,6 +323,20 @@ const deno$1 = {
 		workspacesObjectKey: verified$6("members", WORKSPACES)
 	},
 	extra: {
+		commandLine: checked$4.verified({
+			add: [["deno", "add"], ["deno", "install"]],
+			run: [],
+			create: [],
+			createNames: "prefix",
+			fileOptions: ["--entrypoint", "-e"],
+			valueOptions: [
+				"--name",
+				"-n",
+				"--root",
+				"--os",
+				"--arch"
+			]
+		}, "https://github.com/denoland/docs/blob/main/runtime/reference/cli/install.md", "deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (runtime/reference/cli/add.md)."),
 		lockfileFormat: checked$4.verified({
 			installScripts: "scripts",
 			installScriptsSinceLockfile: "5",
@@ -388,6 +448,23 @@ const sourceFlagSince = () => disputed$2(SOURCE_FLAGS_SINCE_NOTE, evidence$2("11
 const LOCKFILE_V12 = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md";
 const PACKAGE_JSON$1 = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
 const NPM_DEFINITIONS = "https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js";
+const CMD_LIST = "https://github.com/npm/cli/blob/v12.2.1/lib/utils/cmd-list.js";
+const INSTALL_ALIASES = [
+	"install",
+	"add",
+	"i",
+	"in",
+	"ins",
+	"inst",
+	"insta",
+	"instal",
+	"isnt",
+	"isnta",
+	"isntal",
+	"isntall",
+	"install-test",
+	"it"
+];
 const npm$1 = {
 	id: "npm",
 	name: "npm",
@@ -567,6 +644,187 @@ const npm$1 = {
 		}], release$3("11.15.0")),
 		strictAllowScripts: verified$4("strict-allow-scripts=true makes dependency scripts not covered by allowScripts fail the install (default false)", "https://docs.npmjs.com/cli/v12/commands/npm-install#strict-allow-scripts"),
 		unknownNpmrcKeys: disputed$2("Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.", evidence$2("npm 12 throws on unknown config keys", release$3("12.0.0")), evidence$2("unknown keys only warn; throwing is planned for a future major version", NPMRC)),
+		commandLine: checked$3.verified({
+			add: INSTALL_ALIASES.map((alias) => ["npm", alias]),
+			run: [
+				{
+					command: ["npx"],
+					packageOptions: ["--package", "-p"],
+					lineOptions: ["--call", "-c"]
+				},
+				{
+					command: ["npm", "exec"],
+					packageOptions: ["--package"],
+					lineOptions: ["--call", "-c"]
+				},
+				{
+					command: ["npm", "x"],
+					packageOptions: ["--package"],
+					lineOptions: ["--call", "-c"]
+				}
+			],
+			create: [
+				{
+					command: ["npm", "init"],
+					packageOptions: []
+				},
+				{
+					command: ["npm", "create"],
+					packageOptions: []
+				},
+				{
+					command: ["npm", "innit"],
+					packageOptions: []
+				}
+			],
+			createNames: "prefix",
+			valueOptions: []
+		}, CMD_LIST, "Aliases of install (add, i and the typo aliases in, ins, inst, insta, instal, isnt, isnta, isntal, isntall), install-test (it), exec (x) and init (create, innit), the same in 11.19.1. install-test takes the same arguments as install (docs/lib/content/commands/npm-install-test.md). npm exec and npx take the packages to download from --package; -p means --package only in npx (in npm it is --parseable); without --package the first positional argument names the package, and -c/--call takes a command string that runs with the packages, shell operators included (npm-exec.md). npm init <initializer> runs npm exec create-<initializer>: foo → create-foo, @usr → @usr/create, @usr/foo@2.0.0 → @usr/create-foo@2.0.0 (npm-init.md)."),
+		valueOptions: checked$3.verified([
+			"--access",
+			"--allow-directory",
+			"--allow-file",
+			"--allow-git",
+			"--allow-remote",
+			"--allow-scripts",
+			"--also",
+			"--audit-level",
+			"--auth-type",
+			"--before",
+			"--ca",
+			"--cache",
+			"--cache-max",
+			"--cache-min",
+			"--cafile",
+			"--call",
+			"--cert",
+			"--cidr",
+			"--cpu",
+			"--depth",
+			"--diff",
+			"--diff-dst-prefix",
+			"--diff-src-prefix",
+			"--diff-unified",
+			"--edit-dir",
+			"--editor",
+			"--expect-result-count",
+			"--expires",
+			"--extension-file",
+			"--fetch-retries",
+			"--fetch-retry-factor",
+			"--fetch-retry-maxtimeout",
+			"--fetch-retry-mintimeout",
+			"--fetch-timeout",
+			"--git",
+			"--global-ignore-file",
+			"--globalconfig",
+			"--heading",
+			"--https-proxy",
+			"--include",
+			"--init-author-email",
+			"--init-author-name",
+			"--init-author-url",
+			"--init-license",
+			"--init-module",
+			"--init-type",
+			"--init-version",
+			"--install-strategy",
+			"--key",
+			"--libc",
+			"--local-address",
+			"--location",
+			"--lockfile-version",
+			"--loglevel",
+			"--logs-dir",
+			"--logs-max",
+			"--maxsockets",
+			"--message",
+			"--min-release-age",
+			"--min-release-age-exclude",
+			"--name",
+			"--node-gyp",
+			"--node-options",
+			"--noproxy",
+			"--omit",
+			"--only",
+			"--orgs",
+			"--orgs-permission",
+			"--os",
+			"--otp",
+			"--pack-destination",
+			"--package",
+			"--packages",
+			"--packages-and-scopes-permission",
+			"--password",
+			"--patches-dir",
+			"--prefix",
+			"--preid",
+			"--provenance-file",
+			"--proxy",
+			"--registry",
+			"--replace-registry-host",
+			"--save-prefix",
+			"--sbom-format",
+			"--sbom-type",
+			"--scope",
+			"--scopes",
+			"--script-shell",
+			"--searchexclude",
+			"--searchlimit",
+			"--searchopts",
+			"--searchstaleness",
+			"--shell",
+			"--tag",
+			"--tag-version-prefix",
+			"--to",
+			"--token-description",
+			"--umask",
+			"--user-agent",
+			"--userconfig",
+			"--viewer",
+			"--which",
+			"--workspace",
+			"-C",
+			"-L",
+			"-c",
+			"-m",
+			"-w"
+		], NPM_DEFINITIONS, "npm options that always take a value: every definition whose type does not include Boolean, as --name, and the short forms -C (prefix), -L (location), -c (call), -m (message) and -w (workspace). Options whose type includes Boolean (such as color and browser) may stand alone, so they are taken for flags."),
+		packageSpecs: checked$3.verified({
+			git: [
+				"git://",
+				"git+ssh://",
+				"git+http://",
+				"git+https://",
+				"git+file://",
+				"github:",
+				"gist:",
+				"bitbucket:",
+				"gitlab:"
+			],
+			local: ["file:"],
+			workspace: [],
+			alias: "npm:",
+			remoteTarball: ["http://", "https://"],
+			tarballExtensions: [
+				".tar",
+				".tar.gz",
+				".tgz"
+			],
+			shorthand: "github:"
+		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-install.md", "Forms of npm install <spec>: a folder; a tarball file, whose name must end in .tar, .tar.gz or .tgz; a tarball URL, which must start with http:// or https://; a git remote URL with the protocol git, git+ssh, git+http, git+https or git+file; <githubname>/<githubrepo> or github:<githubname>/<githubrepo>; gist:, bitbucket: and gitlab: shorthands; <alias>@npm:<name>. The file: prefix for local paths is documented in docs/lib/content/configuring-npm/package-json.md (Local Paths)."),
+		registryConfig: checked$3.verified({
+			file: ".npmrc",
+			userFile: "~/.npmrc",
+			key: "registry",
+			scopeKeySuffix: ":registry"
+		}, NPM_DEFINITIONS, "userconfig, the location of user-level settings, defaults to ~/.npmrc; registry is the base URL of the npm registry (default https://registry.npmjs.org/); a per-project .npmrc can set it like any config key (docs/lib/content/using-npm/config.md). npm config set @myco:registry=http://reg.example.com associates a scope with a registry, and any npm install of a package with that scope then requests it from there (https://docs.npmjs.com/cli/v12/using-npm/scope#associating-a-scope-with-a-registry)."),
+		registryOverrides: checked$3.verified({
+			registryOptions: ["--registry", "--@<scope>:registry"],
+			registryVariables: ["npm_config_registry"],
+			configOptions: ["--userconfig", "--globalconfig"],
+			configVariables: ["npm_config_userconfig", "npm_config_globalconfig"]
+		}, NPM_DEFINITIONS, "registry is a URL; userconfig and globalconfig are the user and global configuration files. Putting --foo bar on the command line sets the foo configuration parameter, and environment variables that start with npm_config_ are configuration parameters too, without regard to case (docs/lib/content/using-npm/config.md); @scope:registry is the key of a scope's registry (https://docs.npmjs.com/cli/v12/using-npm/scope)."),
 		lockfileInstalls: uncertain$3("npm ci installs versions pinned in package-lock.json without applying min-release-age", "https://docs.npmjs.com/cli/v12/commands/npm-ci", "Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window.")
 	}
 };
@@ -657,6 +915,71 @@ const pnpm$1 = {
 		workspacesObjectKey: uncertain$2(null, WORKSPACE_YAML_V10, "The docs show packages only as a list; concluded from the absence of an object form.")
 	},
 	extra: {
+		commandLine: checked$2.verified({
+			add: [["pnpm", "add"]],
+			run: [
+				{
+					command: ["pnx"],
+					packageOptions: ["--package"],
+					shellOptions: ["--shell-mode", "-c"]
+				},
+				{
+					command: ["pnpx"],
+					packageOptions: ["--package"],
+					shellOptions: ["--shell-mode", "-c"]
+				},
+				{
+					command: ["pnpm", "dlx"],
+					packageOptions: ["--package"],
+					shellOptions: ["--shell-mode", "-c"]
+				}
+			],
+			create: [{
+				command: ["pnpm", "create"],
+				packageOptions: []
+			}],
+			createNames: "prefix-unless-prefixed",
+			valueOptions: [
+				"--save-prefix",
+				"--save-catalog-name",
+				"--lockfile-dir",
+				"--filter",
+				"-F",
+				"--registry",
+				"--allow-build",
+				"--cpu",
+				"--os",
+				"--libc",
+				"-C",
+				"--dir",
+				"--workspace-packages",
+				"--env-file"
+			]
+		}, "https://github.com/pnpm/pnpm.io/tree/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli", "From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c 'echo hi | cowsay'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx only and is listed there. -F is the short form of --filter (filtering.md)."),
+		packageSpecs: checked$2.verified({
+			git: [
+				"github:",
+				"bitbucket:",
+				"gitlab:",
+				"gist:",
+				"git+ssh://"
+			],
+			local: ["link:", "file:"],
+			workspace: ["workspace:"],
+			remoteTarball: ["http://", "https://"],
+			tarballExtensions: [
+				".tar",
+				".tar.gz",
+				".tgz"
+			],
+			shorthand: "github:"
+		}, "https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/package-sources.md", "Sources of pnpm add: the npm registry, jsr:, crate: and pypi: (other registries), workspace packages (the workspace: range protocol, docs/workspaces.md), local directories (./dir is saved as link:, file:./dir is copied), local tarballs ending in .tar, .tar.gz or .tgz, remote tarballs starting with http:// or https://, and git repositories as user/repo (github: by default), github:, bitbucket:, gitlab:, gist: or a full URL such as git+ssh://… or https://github.com/….git."),
+		registryOverrides: checked$2.uncertain({
+			registryOptions: ["--registry", "--@<scope>:registry"],
+			registryVariables: ["pnpm_config_registry"],
+			configOptions: [],
+			configVariables: []
+		}, "https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/npmrc.md", "--registry and --@scope:registry on the command line win over the other registry settings. The page shows pnpm_config_<key> environment variables for keys of .npmrc (pnpm_config__auth, pnpm_config_//registry.npmjs.org/:_authToken) overriding the project .npmrc; that pnpm_config_registry works the same is inferred."),
 		lockfileFormat: checked$2.verified({
 			installScripts: null,
 			gitKeyPrefix: "git+",
@@ -939,6 +1262,38 @@ const yarn$1 = {
 		workspacesObjectKey: uncertain("packages", "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Manifest.ts", "Not documented; the manifest parser also accepts { \"packages\": [...] }.")
 	},
 	extra: {
+		commandLine: checked$1.verified({
+			add: [["yarn", "add"]],
+			run: [{
+				command: ["yarn", "dlx"],
+				packageOptions: ["-p", "--package"]
+			}],
+			create: [{
+				command: ["yarn", "create"],
+				packageOptions: ["-p", "--package"]
+			}],
+			createNames: "prefix-unless-prefixed",
+			workspaceCommands: [{
+				command: ["yarn", "workspace"],
+				operands: 1
+			}],
+			valueOptions: ["--mode"]
+		}, "https://github.com/yarnpkg/berry/tree/master/packages/plugin-dlx/sources/commands", "dlx.ts (documented at https://yarnpkg.com/cli/dlx) downloads the package named by the command, or the ones given with -p/--package, into a temporary environment and runs it. create.ts (yarn create, not on yarnpkg.com) takes -p/--package as well and runs create-<name>: @foo becomes @foo/create, @foo/app becomes @foo/create-app, foo becomes create-foo, and a name that already matches ^create(-|$) is kept (so is create alone). yarn add (https://yarnpkg.com/cli/add) takes packages as arguments; of its options only --mode takes a value. yarn workspace <workspaceName> <commandName> … runs a command within that workspace, e.g. yarn workspace components add -D react (https://yarnpkg.com/cli/workspace)."),
+		packageSpecs: checked$1.verified({
+			git: [],
+			local: [
+				"link:",
+				"portal:",
+				"file:"
+			],
+			workspace: ["workspace:"]
+		}, "https://yarnpkg.com/protocols", "Protocols besides npm: and git: exec:, file:, jsr:, link:, patch:, portal: and workspace:. link: connects an external directory (https://yarnpkg.com/protocol/link), portal: a relative path to a package folder (https://yarnpkg.com/protocol/portal) and file: copies a folder or tarball."),
+		registryOverrides: checked$1.verified({
+			registryOptions: [],
+			registryVariables: ["YARN_NPM_REGISTRY_SERVER"],
+			configOptions: [],
+			configVariables: ["YARN_RC_FILENAME"]
+		}, "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts", "Environment variables that start with yarn_ (any case) set the setting named by the camel-cased rest, so YARN_NPM_REGISTRY_SERVER sets npmRegistryServer, the registry packages are fetched from (https://yarnpkg.com/configuration/yarnrc#npmRegistryServer). getRcFilename reads yarn_rc_filename (any case) as the name of the configuration file instead of .yarnrc.yml. npmScopes, an object, cannot be set this way."),
 		lockfileFormat: checked$1.verified({
 			installScripts: null,
 			registry: "npm:",
@@ -1126,7 +1481,67 @@ const environment = {
 			stop: "::stop-commands::{token}",
 			resume: "::{token}::"
 		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands", "Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs.")
-	}
+	},
+	npmRegistry: {
+		api: checked.verified({
+			url: "https://registry.npmjs.org/",
+			packagePath: "/{escaped name}",
+			timeField: "time",
+			distTagsField: "dist-tags",
+			defaultTag: "latest",
+			versionsField: "versions",
+			scriptsField: "scripts",
+			deprecatedField: "deprecated",
+			installScripts: [
+				"preinstall",
+				"install",
+				"postinstall"
+			]
+		}, "https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md", "GET /{package} returns the full document by default: dist-tags maps tags to versions (every package has latest), versions maps versions to version objects, time maps every version to its publish time, and a version object carries scripts (from its package.json) and deprecated. The abbreviated document (Accept: application/vnd.npm.install-v1+json) has no time field and adds hasInstallScript. Scoped names are escaped with %2f (escapedName in github.com/npm/npm-package-arg); the registry answered the same document for @types/node and @types%2fnode on 2026-10-29. Install scripts: preinstall, install and postinstall run for a dependency, and npm runs node-gyp rebuild as install when the package has binding.gyp and no install or preinstall script (github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/scripts.md); binding.gyp is not visible in the document."),
+		notFoundStatus: checked.uncertain(404, "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md", "The API description leaves its Errors section empty; a name that does not exist answered 404 with {\"error\":\"Not found\"} on 2026-10-29."),
+		search: checked.uncertain({
+			path: "/-/v1/search",
+			maxSize: 250,
+			weeklyDownloadsField: "downloads.weekly"
+		}, "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md", "The description documents text, size (at most 250) and from. Results carried downloads.weekly on 2026-10-29, which the description does not list, and from was ignored, so one query returns at most 250 packages.")
+	},
+	claudeCode: { hooks: checked.verified({
+		settingsFile: ".claude/settings.json",
+		event: "PreToolUse",
+		shellTool: "Bash",
+		input: {
+			event: "hook_event_name",
+			tool: "tool_name",
+			command: "tool_input.command",
+			cwd: "cwd"
+		},
+		output: {
+			container: "hookSpecificOutput",
+			event: "hookEventName",
+			decision: "permissionDecision",
+			reason: "permissionDecisionReason"
+		},
+		decisions: {
+			deny: "deny",
+			ask: "ask"
+		},
+		blockingExitCode: 2,
+		onFailure: {
+			field: "onFailure",
+			value: "block",
+			since: "2.1.295"
+		},
+		projectDir: "${CLAUDE_PROJECT_DIR}",
+		settings: {
+			hooks: "hooks",
+			matcher: "matcher",
+			handlers: "hooks",
+			type: "type",
+			commandType: "command",
+			command: "command",
+			args: "args"
+		}
+	}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.") }
 };
 
 // src/knowledge/index.ts

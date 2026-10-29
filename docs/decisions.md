@@ -670,3 +670,90 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - przykład `.claude/settings.json` w README: forma exec i `onFailure: "block"`, z zastrzeżeniem, że hook to zabezpieczenie typu „best effort”;
   - bez `depgate.json` hook stosuje domyślną politykę z `init`.
 - **MCP (F9):** nie w tej fazie. Protokół jest w przejściu na rewizję 2026-07-28, bez `initialize` i z `server/discover`. Agent może wołać `depgate check --json`.
+
+## D-054 · Fakty fazy 7 (2026-10-29)
+- **Rejestr npm** (`environment.npmRegistry`, źródło `npm/registry` `package-metadata.md` i `REGISTRY-API.md`):
+  - pełny dokument z `GET /<nazwa>` (scope z `%2f`) z polami `dist-tags`, `versions`, `time`;
+  - w obiekcie wersji `scripts` i `deprecated`, domyślny tag `latest`;
+  - skrypty instalacji `preinstall`, `install`, `postinstall`;
+  - 404 dla nieznanej nazwy (fakt niepewny, bo opis API ma pustą sekcję błędów);
+  - wyszukiwarka zwraca najwyżej 250 wyników z polem `downloads.weekly`.
+- **Hooki Claude Code** (`environment.claudeCode.hooks`, źródło code.claude.com/docs, nowa reguła w `ENVIRONMENT_SOURCES`): zdarzenie PreToolUse narzędzia Bash, pola wejścia i wyjścia, decyzje `deny`/`ask`, kod 2 blokuje, `onFailure: "block"` od 2.1.295, forma exec i `${CLAUDE_PROJECT_DIR}`.
+- **Wiersz poleceń menedżerów** (`extra.commandLine`, `extra.valueOptions`):
+  - npm: aliasy `install` i `exec` z `cmd-list.js` 12.2.1, `npx -c`/`--call` oraz opcje z wartością z `definitions.js`;
+  - pnpm: `pnx`/`pnpx`/`pnpm dlx` z `--package` i `--shell-mode`, `pnpm create`, `-F` (z pnpm.io);
+  - Yarn: `yarn dlx`, `yarn create` (z kodu `plugin-dlx`, bo nie ma go na yarnpkg.com), `yarn workspace <nazwa>`;
+  - Bun: `bun add`, `bunx`/`bun x`, `bun create`;
+  - Deno: `deno add`/`deno install` (z `denoland/docs`, bo docs.deno.com nie jest osiągalne z tej sesji).
+- **Formy specyfikacji** (`extra.packageSpecs`):
+  - npm (`npm-install.md`): git, `file:`, `npm:`, tarballe `.tar`/`.tar.gz`/`.tgz`, `user/repo`;
+  - pnpm (`package-sources.md`): `link:`, `file:`, `workspace:`;
+  - Yarn (`/protocols`): `link:`, `portal:`, `file:`, `workspace:`;
+  - Bun (`add.mdx`): zapis scp `git@host:ścieżka`.
+  - Każdy inny protokół (`jsr:`, `catalog:`, `patch:`, `crate:`, `pypi:` …) jest „niesprawdzony”, więc nie potrzebuje osobnego faktu.
+- **Rejestry z konfiguracji:**
+  - npm `registryConfig` (`definitions.js`): `registry`, `@scope:registry` i plik użytkownika `~/.npmrc`;
+  - `registryOverrides` dla npm, pnpm (niepewny), Yarn i Bun: opcje i zmienne środowiskowe, które zmieniają rejestr albo plik konfiguracji.
+- Fakty o wierszu poleceń zawierają tylko to, co dokumentacja pokazuje. Krótkie opcje Buna `-F` i `-c` dla `bun add` nie są w `valueOptions`, bo `bunx` ich nie dokumentuje, a opcja błędnie uznana za przyjmującą wartość ukryłaby paczkę za nią.
+
+## D-055 · Skaner poleceń: zakres i model zagrożeń (2026-10-29)
+- **Zakres.** Hook to zabezpieczenie przed pomyłkami i prostym maskowaniem, nie piaskownica. Nie widzi programu, który sam instaluje paczki (`node -e`, skrypt, `make`). Agent, który może pisać pliki, może też zmienić `depgate.json`, `.npmrc` albo wykonać `npm config set` w osobnym poleceniu. Prawdziwą ochroną pozostaje konfiguracja z `apply`, którą menedżery stosują przy każdej instalacji. README mówi to wprost.
+- **Co skaner czyta jak powłoka:**
+  - cudzysłowy, `$'...'`, here-documenty (ciało to dane, chyba że czyta je powłoka) i here-stringi;
+  - `$(...)`, odwrotne apostrofy, `<(...)` oraz `${...:-$(...)}`;
+  - arytmetykę `$((...))`, słowa zastrzeżone, `case` w `$(...)` i funkcje.
+- **Co skaner śledzi:**
+  - `sh -c` (także po opcjach z wartością `-o`/`-O`/`--rcfile`), `eval`, `env -S`, `su -c`, `npx -c`, `pnpm dlx -c`, `yarn workspace`;
+  - wrappery `sudo`, `env`, `timeout`, `nice`, `xargs` (z `-I`) i inne;
+  - menedżer paczek, powłokę albo wrapper dalej w słowach nieznanego polecenia (`strace`, `find -exec`, `npx cross-env … npm i`).
+- **Niepewne przypadki dają `ask` (fail closed):**
+  - słowa rozwijane przez powłokę w poleceniu instalacji, także globy i `{a,b}`;
+  - polecenie złożone w całości z rozwinięcia wewnątrz ciągu poleceń (`eval "$CMD"`, `sh -c "$X"`);
+  - powłoka czytająca polecenia z potoku albo pliku (`curl … | sh`);
+  - niezamknięty nawias i zagnieżdżenie głębsze niż 4 poziomy;
+  - opcja albo zmienna z `registryOverrides`, chyba że wskazuje publiczny rejestr.
+- **Wybory zachowawcze:**
+  - podkomenda dodająca paczki u któregokolwiek menedżera (np. `install`, `i`) jest sprawdzana u każdego;
+  - podkomenda kończąca się `add` (`yarn global add`, `yarn workspaces foreach -A add`) też;
+  - zastąpiło to stałą listę `install`/`i` w kodzie.
+- **Poza zakresem:**
+  - `update`/`up`/`upgrade` nie są sprawdzane: nazwy muszą już być zależnościami, wersję wybiera zakres z `package.json`, którego hook nie czyta, a aktualizacje i tak przechodzą przez opóźnienie zapisane przez `apply`;
+  - `deno run npm:…` też nie jest sprawdzane.
+
+## D-056 · Decyzje hooka i zachowanie przy błędach (2026-10-29)
+- **`deny`:** zakazane źródło, nieistniejąca paczka, brak pasującej wersji, wersja młodsza niż `cooldown`, niedozwolone skrypty instalacji.
+- **`ask`:** każdy inny błąd (podobna nazwa, rejestr nieosiągalny, prywatny rejestr scope'u, nieznany protokół) i polecenie nie do przeczytania.
+- **Brak decyzji:** ostrzeżenia, np. wycofana wersja. Wtedy działa zwykły przepływ uprawnień Claude Code.
+- **Paczka ze scope'em, której nie ma w rejestrze,** daje `ask`, a nie `deny`: scope może należeć do prywatnego rejestru ustawionego poza plikami, które depgate czyta.
+- **Fail closed:**
+  - zdarzenie, którego nie da się odczytać (zły JSON, stdin ponad 1 MiB), kończy się kodem 2 z faktu `blockingExitCode`, który blokuje wywołanie w każdej wersji Claude Code, także bez `onFailure`;
+  - własny błąd depgate po odczytaniu zdarzenia daje `ask`;
+  - błąd użycia (`--hook` z nieznaną nazwą) też kończy się kodem 2, więc blokuje.
+
+## D-057 · Podobne nazwy: odejście od F4 (2026-10-29)
+- **Lista:** 5000 najczęściej pobieranych paczek w `src/knowledge/popular.ts` (fakt niepewny, źródło: opis API rejestru).
+  - Skrypt `npm run data:popular` wykonał 742 zapytania (około 370 haseł jako tekst i jako `keywords:`), pominął 50, które rejestr stale odrzucał, i widział 102 100 paczek.
+  - Najrzadziej pobierana paczka na liście ma 3 758 933 pobrania tygodniowo.
+  - Wyszukiwarka ignoruje `from`, więc lista jest przybliżeniem czołówki, nie dokładnym rankingiem.
+- **Odejście od F4:** porównanie nazw z pominięciem scope'u zostało usunięte.
+  - Na 818 paczkach opublikowanych 2026-10-29 uznawało `@any/cli` za podobne do `@angular/cli` i oznaczało 107 z nich (13%).
+  - Odległość edycyjna i separatory oznaczyły 0.
+  - Scope jest porównywany jako część nazwy.
+- Nazwy krótsze niż 4 znaki nie są porównywane odległością edycyjną, bo jedna zmiana zamienia większość z nich w inną prawdziwą nazwę.
+
+## D-058 · Rejestr i źródła w `check` (2026-10-29)
+- **Wybór rejestru:**
+  - paczki są szukane w rejestrze z `--registry`, potem w `registry=` z `.npmrc` projektu, potem z `~/.npmrc`, a na końcu w publicznym rejestrze;
+  - `@scope:registry=` z obu plików oznacza paczki tego scope'u jako niesprawdzone (`ask`);
+  - plik `.npmrc` jest czytany parserem INI z `doctor`.
+- **URL bez rozszerzenia tarballa** może zostać sklonowany jako repozytorium git, więc jest sprawdzany względem `sources.remoteTarball` i `sources.git`. Zastąpiło to stałą listę hostów git w kodzie.
+- `v1.2.3` i `1.2.3+build` wybierają wersję 1.2.3 jak w npm. Tagi są czytane tylko z własnych pól dokumentu, bez prototypu obiektu.
+- **Równoległość:** najwyżej 6 zapytań naraz, kolejność raportów zgodna z kolejnością specyfikacji.
+
+## D-059 · Przeglądy kodu fazy 7 (2026-10-29)
+- **Przebieg:** trzy rundy przeglądu, po 10 ustaleń każda, wszystkie sprawdzone i poprawione. Wyjątki są opisane w D-055 jako poza zakresem.
+  - Runda 1: podstawienia poleceń, słowa zastrzeżone, `eval`/`timeout`, `$'...'`, `bun add -p`, `yarn create`, fail closed hooka, równoległość, fakty spoza `src/knowledge/`.
+  - Runda 2: apostrof w here-documencie, który ukrywał dalsze polecenia, here-string, `name@~`, `pnpm -F`, długie opcje wrapperów, `bash -O`, nadpisanie rejestru, `eval "$CMD"`, `yarn global add`, `v1.2.3`.
+  - Runda 3: powłoka za innym poleceniem, `bun -c` i `YARN_RC_FILENAME`, `case` w `$(...)`, fałszywe `ask` przy `[ -f a ]`, zapis scp, `~/.npmrc`, Deno, tagi z prototypu, nazwy opcji spoza bazy wiedzy, drugi parser `.npmrc`.
+- **Sprawdzenie na typowych poleceniach agenta** (git, testy, buildy, here-documenty w commitach, `npx tsc`): bez fałszywych `ask`.
+- **Wydajność:** złośliwe wejście do 1,6 MB (zagnieżdżenia, cudzysłowy, here-documenty) jest skanowane w czasie poniżej 0,6 s.

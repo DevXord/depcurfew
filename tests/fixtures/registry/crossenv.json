@@ -1,0 +1,38 @@
+{
+  "name": "crossenv",
+  "dist-tags": {
+    "latest": "0.0.2-security"
+  },
+  "time": {
+    "modified": "2023-03-07T23:22:15.505Z",
+    "created": "2017-07-19T04:21:00.066Z",
+    "0.0.1-security": "2017-08-01T15:18:40.480Z",
+    "1.0.0": "2017-08-01T23:02:20.143Z",
+    "1.0.1": "2017-08-01T23:04:34.345Z",
+    "0.0.2-security": "2017-08-02T17:51:51.323Z"
+  },
+  "versions": {
+    "0.0.2-security": {
+      "name": "crossenv",
+      "version": "0.0.2-security"
+    },
+    "1.0.1": {
+      "name": "crossenv",
+      "version": "1.0.1",
+      "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+      }
+    },
+    "1.0.0": {
+      "name": "crossenv",
+      "version": "1.0.0",
+      "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+      }
+    },
+    "0.0.1-security": {
+      "name": "crossenv",
+      "version": "0.0.1-security"
+    }
+  }
+}
