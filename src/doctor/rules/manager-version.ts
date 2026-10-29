@@ -29,6 +29,10 @@ function policyFeatures(tool: ToolKnowledge, policy: ResolvedPolicy): Feature[] 
   const features: (Feature | undefined)[] = [];
   if (policy.cooldown !== undefined) {
     features.push(feature(settingOf(tool.cooldown.setting), tool.cooldown.availableSince));
+    // A version that has the setting but skips it in some cases (pnpm before 10.17.0: exact versions).
+    const exact = tool.extra?.['cooldownExactVersions'] === undefined ? undefined : values(tool.extra['cooldownExactVersions'])[0];
+    const setting = settingOf(tool.cooldown.setting);
+    if (typeof exact === 'string' && setting !== null) features.push(feature(`${setting} for packages requested by exact version`, exact));
     if (policy.cooldown.exclude.length > 0) features.push(feature(settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince));
   }
   if (policy.installScripts !== undefined) {
@@ -97,7 +101,9 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
       context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
       continue;
     }
-    const missing = [...features.values()].filter((item) => belowVersion(lowest, parseVersion(item.since) as Version));
+    const below = [...features.values()].filter((item) => belowVersion(lowest, parseVersion(item.since) as Version));
+    // "minimumReleaseAge for packages requested by exact version" says nothing new when minimumReleaseAge itself is missing.
+    const missing = below.filter((item) => !below.some((other) => other !== item && item.setting.startsWith(`${other.setting} for `)));
     if (missing.length === 0) continue;
     const needed = missing.map((item) => parseVersion(item.since) as Version).reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b));
     const list = missing.map((item) => `${item.setting} (since ${item.since}${item.disputed ? ', sources disagree; the later version is assumed' : ''})`).join(', ');

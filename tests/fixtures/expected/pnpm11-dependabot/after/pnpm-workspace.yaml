@@ -1,6 +1,8 @@
 # managed by depgate
 minimumReleaseAge: 4320
 # managed by depgate
+minimumReleaseAgeStrict: true
+# managed by depgate
 minimumReleaseAgeExclude:
   - "@acme/*"
   - left-pad

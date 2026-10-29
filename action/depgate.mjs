@@ -655,6 +655,12 @@ const pnpm$1 = {
 		workspacesObjectKey: uncertain$2(null, WORKSPACE_YAML_V10, "The docs show packages only as a list; concluded from the absence of an object form.")
 	},
 	extra: {
+		minimumReleaseAgeStrict: checked$2.verified({
+			setting: "minimumReleaseAgeStrict",
+			value: true,
+			since: "11.0.0"
+		}, RESOLUTION, "When false, pnpm falls back to a version that does not meet minimumReleaseAge; when true, resolution fails. It defaults to true when minimumReleaseAge is set explicitly, except in 11.0.0-11.0.3 and 12.0.0-12.2.x (see strictMode): pnpm 11.0.0 and 12.0.0 installed a version 4 hours old with minimumReleaseAge: 4320 on 2026-10-29, and 12.0.0 added it to minimumReleaseAgeExclude."),
+		cooldownExactVersions: checked$2.verified("10.17.0", release$2("10.17.0"), "pnpm 10.17.0: \"Don't ignore the minimumReleaseAge check, when the package is requested by exact version\". pnpm 10.16.0 installed typescript@7.1.0-dev.20261029.1, 4 hours old, with minimumReleaseAge: 4320 on 2026-10-29."),
 		lockfileDocuments: checked$2.verified({
 			bootMarker: "---",
 			graph: "last"
@@ -857,7 +863,6 @@ const { verified: verified$1, uncertain, disputed, evidence } = verifiedOn("2026
 const checked$1 = verifiedOn("2026-10-29");
 const YARNRC = "https://yarnpkg.com/configuration/yarnrc";
 const MANIFEST = "https://yarnpkg.com/configuration/manifest";
-const SECURITY = "https://yarnpkg.com/features/security";
 const SCHEMA = "https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json";
 const release = (version) => `https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F${version}`;
 const noSetting = (source, note) => ({ setting: uncertain(null, source, note) });
@@ -870,7 +875,7 @@ const yarn$1 = {
 		configFiles: verified$1([".yarnrc.yml"], YARNRC, "Also YARN_NPM_MINIMAL_AGE_GATE (general YARN_ env rule) and, since 4.17.0, npmScopes.<scope>.npmMinimalAgeGate. package.json cannot set it."),
 		cliFlag: uncertain(null, "https://yarnpkg.com/cli/install", "No flag sets the gate. --no-time-gate on yarn add and yarn up (4.15.0+) disables it for one command; yarn install has no such flag."),
 		unit: verified$1("minutes", "https://github.com/yarnpkg/berry/pull/6942", "Bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect."),
-		availableSince: disputed("Release notes, the pull request and the 4.10.0 source all show 4.10.0; the security docs page says 4.12.", evidence("4.10.0", release("4.10.0")), evidence("4.12.0", SECURITY)),
+		availableSince: checked$1.verified("4.10.2", release("4.10.2"), "The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: \"Bust the metadata cache\" (#6908) and \"support registries without publish times using minimalAgeGate\" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old (\"No candidates found\"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depgate writes the setting from 4.10.2 on."),
 		default: disputed("The code is unambiguous: off until 4.14.x, 1d from 4.15.0. The published settings schema claimed 3d for 4.11.0-4.14.x and 0m in 4.16.0; the live yarnrc page shows \"1w\", which is an example value. Upgraded projects with an old lockfile get npmMinimalAgeGate: 0 written to .yarnrc.yml (see upgradeMigration).", evidence([{
 			since: "4.10.0",
 			value: 0
@@ -10200,6 +10205,14 @@ const pnpm = (context) => {
 		if (cooldown !== void 0) {
 			minutes = cooldown.minutes;
 			yaml.set([setting], cooldown.value);
+			const strict = extraOf(tool, "minimumReleaseAgeStrict", isSwitch);
+			if (context.atLeast(strict.since) && yaml.get([strict.setting]) !== strict.value) yaml.set([strict.setting], strict.value);
+			const exact = extraOf(tool, "cooldownExactVersions", (value) => typeof value === "string");
+			if (!context.atLeast(exact)) context.warn(`${context.name} ${formatVersion(context.version ?? [
+				0,
+				0,
+				0
+			])} skips ${setting} for packages requested by exact version (fixed in ${exact})`);
 		}
 		const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 		const patterns = cooldown === void 0 ? void 0 : exclusions(context);
@@ -12003,6 +12016,9 @@ function policyFeatures(tool, policy) {
 	const features = [];
 	if (policy.cooldown !== void 0) {
 		features.push(feature(settingOf(tool.cooldown.setting), tool.cooldown.availableSince));
+		const exact = tool.extra?.["cooldownExactVersions"] === void 0 ? void 0 : values$1(tool.extra["cooldownExactVersions"])[0];
+		const setting = settingOf(tool.cooldown.setting);
+		if (typeof exact === "string" && setting !== null) features.push(feature(`${setting} for packages requested by exact version`, exact));
 		if (policy.cooldown.exclude.length > 0) features.push(feature(settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince));
 	}
 	if (policy.installScripts !== void 0) {
@@ -12059,7 +12075,8 @@ function checkManager(context, manager, tool) {
 			context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
 			continue;
 		}
-		const missing = [...features.values()].filter((item) => belowVersion(lowest, parseVersion(item.since)));
+		const below = [...features.values()].filter((item) => belowVersion(lowest, parseVersion(item.since)));
+		const missing = below.filter((item) => !below.some((other) => other !== item && item.setting.startsWith(`${other.setting} for `)));
 		if (missing.length === 0) continue;
 		const needed = missing.map((item) => parseVersion(item.since)).reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
 		const list = missing.map((item) => `${item.setting} (since ${item.since}${item.disputed ? ", sources disagree; the later version is assumed" : ""})`).join(", ");

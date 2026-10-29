@@ -9,6 +9,8 @@ allowBuilds:
   # managed by depgate
   esbuild: true
 # managed by depgate
+minimumReleaseAgeStrict: true
+# managed by depgate
 minimumReleaseAgeExclude:
   - "@acme/*"
   - left-pad
