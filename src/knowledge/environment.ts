@@ -4,6 +4,7 @@ import { verifiedOn } from './define.ts';
 import type { EnvironmentKnowledge } from './types.ts';
 
 const { verified } = verifiedOn('2026-10-28');
+const checked = verifiedOn('2026-10-29');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -120,6 +121,15 @@ export const environment: EnvironmentKnowledge = {
       },
       'https://github.com/denoland/setup-deno/blob/main/action.yml',
       'Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions.',
+    ),
+    codeScanningUpload: checked.verified(
+      {
+        action: 'github/codeql-action/upload-sarif',
+        inputs: { sarifFile: 'sarif_file', category: 'category' },
+        permissions: { always: { 'security-events': 'write' }, privateRepositories: { actions: 'read', contents: 'read' } },
+      },
+      'https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file',
+      'The example workflow on this page needs security-events: write in every repository and actions: read with contents: read only in private ones. The inputs come from upload-sarif/action.yml in github/codeql-action (current major v4, v4.39.1 checked); category tells analyses of the same tool and commit apart.',
     ),
   },
 };
