@@ -460,3 +460,13 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - `tests/fixtures/doctor/<reguła>/fires-*/repo` z oczekiwanymi zgłoszeniami tej reguły w `expected.json` oraz `passes-*/repo`, w których reguła nic nie zgłasza;
   - test pilnuje, że każda reguła ma oba rodzaje;
   - na wszystkich 18 fiksturach repozytoriów po `apply` reguła `config-drift` nie zgłasza błędów, a żadna reguła nie rzuca wyjątkiem.
+
+## D-039 · Zatwierdzenie decyzji fazy 5 (2026-10-29)
+- **Zatwierdzenie:** właściciel zaakceptował decyzje podjęte w trakcie fazy 5 poza planem:
+  - reguła `pnpm-shared-workspace-lockfile` zgłasza `.npmrc` pakietu nadpisujący ustawienia workspace'u, na poziomie `warning`, bo teza z planu nie ma oficjalnego źródła (D-036);
+  - `config-drift` ostrzega o wpisach w allowlistach narzędzi spoza polityki (D-035);
+  - rozdzielenie zgłoszeń i uwag; uwagi w SARIF jako powiadomienia narzędzia, `partialFingerprints` uzupełnia `upload-sarif` (D-034);
+  - poziomy zgłoszeń: `lockfile-install-scripts` zależnie od tego, czy menedżer uruchamia skrypty, ostrzeżenie o aktualizacjach bezpieczeństwa tylko dla pnpm 11.1.3+, zakres wersji jako ostrzeżenie (D-035);
+  - wartości efektywne: przy sporze źródeł najdłuższa wartość domyślna, bez przypiętej wersji najnowsza z bazy (D-035);
+  - nadpisanie w głównym `.npmrc` npm zgłasza tylko `config-drift` (D-035);
+  - ostrzeżenia nie powodują porażki; `--strict` można dodać później (D-034).
