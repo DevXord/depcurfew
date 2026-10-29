@@ -7,6 +7,7 @@ import type { PackageManagerInfo, VersionDeclaration } from '../../detect/types.
 import { SOURCE_KINDS } from '../../knowledge/schema.ts';
 import type { Fact, ToolKnowledge } from '../../knowledge/types.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
+import { POLICY_FILE } from '../../policy/defaults.ts';
 import { lineOf, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { belowVersion, formatBound, lowestVersion } from '../version-range.ts';
@@ -133,6 +134,21 @@ export const managerVersionTooOld: Rule = {
     for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
       const tool = context.tools.find((entry) => entry.id === manager.id);
       if (tool !== undefined) checkManager(context, manager, tool);
+    }
+    // Yarn Classic has none of the settings, so a policy silently does nothing for it.
+    for (const manager of context.detection.packageManagers.filter((entry) => !entry.supported && entry.variant === 'classic')) {
+      const berry = context.tools.find((entry) => entry.id === manager.id);
+      if (context.policy === undefined || berry === undefined) continue;
+      const declaration = manager.versions.find((entry) => entry.source === 'packageManager');
+      const file = declaration?.file ?? manager.evidence[0]?.file ?? 'package.json';
+      const line = declaration === undefined ? undefined : declarationLine(context, declaration);
+      const since = sinceOf(berry.cooldown.availableSince);
+      context.report({
+        level: 'error',
+        location: line === undefined ? { file } : { file, line },
+        message: `Yarn Classic (1.x) has none of the settings ${POLICY_FILE} needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it`,
+        fix: `Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depgate configures`,
+      });
     }
   },
 };
