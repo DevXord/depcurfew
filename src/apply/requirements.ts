@@ -24,8 +24,10 @@ export function describeRequirements(requirements: readonly Requirement[]): stri
     groups.set(since, group);
   }
   const order = (a: string, b: string) => compareVersions(parseVersion(a) ?? [0, 0, 0], parseVersion(b) ?? [0, 0, 0]);
-  return [...groups.entries()]
+  const text = [...groups.entries()]
     .sort(([a], [b]) => order(a, b))
-    .map(([since, group]) => `${listing(group.settings)} (since ${since}${group.disputed ? '; official sources disagree, so depgate assumes this later version' : ''})`)
+    .map(([since, group]) => `${listing(group.settings)} (since ${since})`)
     .join(', ');
+  const disputed = [...groups.values()].some((group) => group.disputed);
+  return disputed ? `${text}; where official sources disagree on the version, depgate assumes the later one` : text;
 }

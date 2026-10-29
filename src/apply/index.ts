@@ -3,6 +3,8 @@
 // propose versions the package manager then refuses to install).
 import { detectedTargets } from '../cli/describe.ts';
 import { detectProject } from '../detect/index.ts';
+import { Repository } from '../detect/repository.ts';
+import { allowEntries, matchesPattern } from '../doctor/allow-lists.ts';
 import type { Detection } from '../detect/types.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId, ToolKnowledge } from '../knowledge/types.ts';
@@ -49,6 +51,24 @@ function latestVersion(tool: ToolKnowledge): string | undefined {
 export function botDuration(policy: Duration, managerMinutes: readonly number[]): Duration {
   const minutes = Math.max(policy.minutes, ...managerMinutes);
   return minutes === policy.minutes ? policy : { text: formatDuration(Math.ceil(minutes)), minutes: Math.ceil(minutes) };
+}
+
+/**
+ * apply only adds to install-script allow-lists, so a package someone listed by hand keeps running its scripts after
+ * the policy denies them; say so, and what to do about it.
+ */
+function allowListWarnings(root: string, policy: ResolvedPolicy, detection: Detection, targets: ReadonlySet<ToolId>): string[] {
+  const scripts = policy.installScripts;
+  if (scripts?.default !== 'deny') return [];
+  const repository = new Repository(root);
+  return detection.packageManagers
+    .filter((manager) => manager.supported && targets.has(manager.id))
+    .flatMap((manager) => allowEntries(repository, manager.id, manager.configFiles))
+    .filter((entry) => !scripts.allow.some((pattern) => matchesPattern(entry.package, pattern)))
+    .map(
+      (entry) =>
+        `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depgate apply does not remove entries it did not write, so remove ${entry.name} from ${entry.setting} by hand or add ${entry.name === entry.package ? 'it' : entry.package} to installScripts.allow in ${POLICY_FILE}`,
+    );
 }
 
 /** Computes every change without writing anything. */
@@ -104,6 +124,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     run(tool, undefined, (context) => generator(context, duration));
   }
 
+  warnings.push(...allowListWarnings(root, policy, detection, targets));
   const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
   return { changes: workspace.changes(), warnings, snippets, errors, failures };
 }

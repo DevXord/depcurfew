@@ -2,6 +2,12 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Poprawki komunikatów po teście w konsoli
+
+- Gdy `apply` niczego nie zmienił, ale czegoś nie dało się zastosować (ostrzeżenia, fragmenty do dopisania ręcznie), pisze „No files changed; what depgate could not apply is listed below.” zamiast mylącego „the configuration already matches the policy”.
+- Uwaga o spornych wersjach w bazie wiedzy pojawia się raz, na końcu listy brakujących ustawień, a nie przy każdej wersji.
+- `apply` ostrzega o paczkach dopisanych ręcznie do listy dozwolonych skryptów (`allowScripts`, `allowBuilds`, `trustedDependencies` i podobnych), na które polityka nie pozwala. Mówi, że ich nie usuwa i co zrobić. Dotąd mówił o tym tylko `doctor`.
+
 ## 2026-10-29 · Czytelne komunikaty, kolory, pomoc poleceń i Action
 
 - **Komunikaty:** wszystkie po angielsku i każdy błąd lub ostrzeżenie mówi, co zrobić. `apply` łączy brakujące ustawienia jednej wersji w jedno ostrzeżenie i podaje wersję, której trzeba wymagać (D-061).

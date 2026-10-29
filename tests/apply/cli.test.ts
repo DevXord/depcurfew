@@ -105,7 +105,7 @@ describe('depgate apply', () => {
 
     const second = await exec('apply', directory);
     expect(second.code).toBe(EXIT_OK);
-    expect(second.stdout).toBe('Nothing to change; the configuration already matches the policy.\n');
+    expect(second.stdout).toBe('No files changed; what depgate could not apply is listed below.\n');
   });
 
   it('--dry-run prints a diff that produces the expected files and writes nothing', async () => {
@@ -139,11 +139,27 @@ describe('depgate apply', () => {
     expect(result.stdout).toContain('+    "esbuild": true\n+  }\n }\n\\ No newline at end of file\n');
   });
 
+  it('warns about allow-list entries it does not remove', async () => {
+    const result = await exec('apply', scratch('npm-existing-config'));
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stderr).toContain(
+      'warning: allowScripts in package.json lets sharp run install scripts, but depgate.json does not allow it; depgate apply does not remove entries it did not write, so remove sharp from allowScripts by hand or add it to installScripts.allow in depgate.json\n',
+    );
+  });
+
+  it('says the configuration matches only when nothing was left out', async () => {
+    const policy = JSON.stringify({ version: 1, cooldown: { minimum: '3d' }, installScripts: { default: 'deny', allow: ['sharp'] } });
+    const directory = scratch('npm-existing-config', policy);
+    expect((await exec('apply', directory)).stderr).toBe('');
+    const second = await exec('apply', directory);
+    expect(second).toEqual({ code: EXIT_OK, stdout: 'Nothing to change; the configuration already matches the policy.\n', stderr: '' });
+  });
+
   it('prints snippets for files it does not edit', async () => {
     const directory = scratch('volta-renovate');
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_OK);
-    expect(result.stdout).toBe('Nothing to change; the configuration already matches the policy.\n');
+    expect(result.stdout).toBe('No files changed; what depgate could not apply is listed below.\n');
     expect(result.stderr).toContain('Renovate: add this to .github/renovate.json5 by hand:\n  {\n    "minimumReleaseAge": "3 days",\n');
   });
 

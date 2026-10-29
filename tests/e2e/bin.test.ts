@@ -109,7 +109,7 @@ describe('built depgate executable', () => {
         if (!statSync(new URL(file, expected)).isFile()) continue;
         expect(readFileSync(join(directory, file), 'utf8'), file).toBe(readFileSync(new URL(file, expected), 'utf8'));
       }
-      expect(depgateIn(directory, 'apply').stdout).toBe('Nothing to change; the configuration already matches the policy.\n');
+      expect(depgateIn(directory, 'apply').stdout).toBe('No files changed; what depgate could not apply is listed below.\n');
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
