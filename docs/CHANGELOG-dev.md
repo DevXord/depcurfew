@@ -2,6 +2,16 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Faza 6: GitHub Action i README
+
+- **GitHub Action** (`action.yml`, D-040): uruchamia `doctor`, wysyła SARIF do code scanning i kończy zadanie błędem przy błędach `doctor`. Działa z własnego checkoutu przez zatwierdzony bundel `action/depgate.mjs` z dołączonym `yaml`. Test i CI pilnują, że bundel jest identyczny ze świeżym buildem (D-041).
+- **Przypięcie do SHA:** wszystkie akcje (`actions/checkout`, `actions/setup-node`, `github/codeql-action/upload-sarif`) są przypięte do pełnych SHA, czego pilnuje test (D-042).
+- **Workflow:** `ci.yml` (Node 22 i 24) i `action-test.yml`, czyli test akcji na samym depgate i na fiksturach. Oba przeszły na GitHubie, łącznie z prawdziwą wysyłką SARIF i instalacją Node 22 na runnerze z Node 20 (D-044).
+- **README:** start w 5 minut, polecenia, polityka, tabela narzędzi z bazy wiedzy z datą weryfikacji, opis każdej reguły `doctor` i użycie Action. Sekcje z faktami generuje `npm run docs:readme`, a test pilnuje, że proza nie podaje nazw ustawień spoza tych sekcji (D-043).
+- **Baza wiedzy:** fakt o wysyłce SARIF (akcja, wejścia, uprawnienia) w dziale „środowisko”.
+- **Testy:** 704, wszystkie przechodzą.
+- **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą lokalnie i w CI.
+
 ## 2026-10-29 · Faza 5: `depgate doctor`
 
 - `depgate doctor [katalog] [--json | --sarif]` wykrywa konfigurację, która po cichu nie działa, i odchylenia od `depgate.json` (D-034):

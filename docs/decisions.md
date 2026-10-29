@@ -470,3 +470,63 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - wartości efektywne: przy sporze źródeł najdłuższa wartość domyślna, bez przypiętej wersji najnowsza z bazy (D-035);
   - nadpisanie w głównym `.npmrc` npm zgłasza tylko `config-drift` (D-035);
   - ostrzeżenia nie powodują porażki; `--strict` można dodać później (D-034).
+
+## D-040 · GitHub Action (2026-10-29)
+- **Typ:** akcja composite w `action.yml` w katalogu głównym repozytorium, używana jako `uses: DevXord/depgate@<pełny SHA>`.
+- **Kroki:**
+  - sprawdza wersję Node na runnerze i tylko przy wersji starszej niż 22 uruchamia `actions/setup-node` (bez cache menedżera paczek);
+  - uruchamia `doctor` przez `action/depgate.mjs`;
+  - wysyła SARIF przez `github/codeql-action/upload-sarif`;
+  - kończy krok błędem.
+- **Dlaczego błąd jest w osobnym kroku:** krok z `doctor` nigdy nie kończy się błędem z powodu zgłoszeń, więc wysyłka SARIF działa także wtedy, gdy są błędy. O porażce decyduje ostatni krok: błąd `doctor` przy `fail-on-error: true` albo brak możliwości uruchomienia (np. niepoprawny `depgate.json`).
+- **Wejścia:** `directory`, `sarif-file`, `upload-sarif`, `category`, `fail-on-error`.
+  - Trafiają do skryptu przez zmienne środowiskowe, a nie przez `${{ }}` w poleceniu powłoki, więc nie da się nimi wstrzyknąć polecenia.
+  - Katalog spoza workspace'u jest odrzucany.
+- **Wyjścia:** `errors`, `warnings`, `notes`, `sarif-file`.
+- **Ścieżki w SARIF:** przy `directory` innym niż `.` ścieżki dostają ten katalog jako prefiks, bo code scanning liczy je od katalogu głównego repozytorium.
+
+## D-041 · Zbudowany plik akcji w repozytorium (2026-10-29)
+- **Plik:** `action/depgate.mjs` powstaje z `src/action-main.ts` przez `npm run build:action` (`tsdown.action.config.ts`). To jeden plik bez minifikacji, z dołączonym `yaml`, więc akcja nie instaluje niczego przy uruchomieniu (zatwierdzona decyzja 1).
+- **Ograniczenie importów:** `deps.onlyBundle` dopuszcza tylko `yaml`, a `deps.onlyImport: []` pozwala wynikowi importować wyłącznie moduły wbudowane Node.
+- **Licencja:** licencja `yaml` (ISC) leży w `action/THIRD_PARTY_LICENSES.md`.
+- **Pilnowanie zgodności ze źródłem:**
+  - test (`tests/action/bundle.test.ts`) buduje akcję do katalogu tymczasowego i porównuje wynik z zatwierdzonym plikiem bajt po bajcie;
+  - sprawdza też importy i licencje;
+  - CI dodatkowo uruchamia `npm run build:action` i `git diff --exit-code -- action/`.
+  - Zatwierdzony plik nie może więc rozjechać się ze źródłem.
+
+## D-042 · Przypięcie akcji i workflow repozytorium (2026-10-29)
+- **Przypięte wersje** (pełny SHA commita i komentarz z wersją, ustalone przez `git ls-remote` 2026-10-29):
+  - `actions/checkout` v7.0.1 (`3d3c42e5aac5ba805825da76410c181273ba90b1`);
+  - `actions/setup-node` v7.1.0 (`949feb2413d6458794dcd2491c4babbbce0c15c1`);
+  - `github/codeql-action/upload-sarif` v4.39.1 (`9b3254085494b55a0f7c4c2b3d2d52cc712ce370`, commit, nie obiekt tagu).
+- **Test przypięcia** (`tests/meta/pinned-actions.test.ts`) pilnuje, że każde `uses:` w `action.yml` i w `.github/workflows/` ma pełny SHA z komentarzem `# vX.Y.Z` oraz że dana akcja ma wszędzie ten sam SHA.
+- **`ci.yml`:**
+  - Node 22 i 24;
+  - `npm ci` (projektowy `.npmrc` wyłącza skrypty), `npm test`, `typecheck`, `check:pkg` i zgodność bundla akcji;
+  - `permissions: contents: read`, `persist-credentials: false`, `package-manager-cache: false`.
+- **`action-test.yml`:** test akcji, opisany w D-044.
+
+## D-043 · README (2026-10-29)
+- **Język i treść:** README po angielsku (D-011): po co, 5-minutowy start, instalacja, plik polityki, polecenia, wspierane narzędzia, reguły `doctor`, GitHub Action, biblioteka, zasady wkładu.
+- **Sekcje generowane:**
+  - `npm run docs:readme` (`src/docs/readme.ts`, `scripts/generate-readme.ts`) przepisuje tekst między znacznikami `<!-- BEGIN GENERATED: … -->`;
+  - polityka domyślna i pola pochodzą z definicji polityki;
+  - tabela narzędzi z datą weryfikacji pochodzi z bazy wiedzy;
+  - reguły pochodzą z `RULES`;
+  - wejścia i wyjścia pochodzą z `action.yml`;
+  - przykładowy workflow bierze uprawnienia z bazy wiedzy, a pin `actions/checkout` z `ci.yml`.
+- **Testy (`tests/docs/readme.test.ts`):**
+  - README jest zgodny z generatorem;
+  - poza sekcjami generowanymi nie pada żadna nazwa ustawienia z bazy wiedzy, z wyjątkiem nazw, które są też polami `depgate.json` (np. `cooldown`). README nie podaje więc własnych faktów o menedżerach paczek.
+- **Instalacja:** opis docelowy (`npx depgate`) z adnotacją o braku publikacji i instrukcją uruchomienia ze źródeł (zatwierdzona decyzja 3).
+- **Przykład Action:** `DevXord/depgate@<full-commit-sha>` (zatwierdzona decyzja 4).
+
+## D-044 · Test akcji na repozytorium testowym (2026-10-29)
+- **Repozytorium testowe:** samo depgate z fiksturami. Workflow `action-test.yml` używa `uses: ./`:
+  - depgate na sobie, z wysyłką SARIF (kategoria `depgate-self`);
+  - czysta fikstura, z wysyłką (`depgate-fixture-clean`);
+  - fikstura z błędem, bez wysyłki, żeby nie tworzyć alertów z celowo złych fikstur: krok musi się nie udać, `errors` musi wynosić 1, a ścieżka w SARIF musi zaczynać się od katalogu fikstury (zatwierdzona decyzja 5);
+  - runner z Node 20: akcja sama instaluje Node 22.
+- **Wynik:** sprawdzony na GitHubie przy commicie `3bead20` (przebiegi 40838113951 i 40838113787). Wszystkie zadania przeszły. Upload-sarif zwalidował i przetworzył raport („Successfully uploaded results”, „Analysis upload status is complete”). Na runnerze z Node 20 akcja zainstalowała Node 22.23.4 i uruchomiła `doctor`.
+- **Baza wiedzy:** nowy fakt w dziale „środowisko”, `githubActions.codeScanningUpload` (akcja, wejścia `sarif_file` i `category`, uprawnienia `security-events: write` oraz `actions: read` i `contents: read` w repozytoriach prywatnych), ze źródłem w dokumentacji GitHuba (zatwierdzona decyzja 2).

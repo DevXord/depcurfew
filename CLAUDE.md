@@ -22,6 +22,8 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 - `npm run typecheck` – sprawdzenie typów (tsc, bez emisji)
 - `npm run check:pkg` – publint i @arethetypeswrong/cli
 - `npm run docs:knowledge` – generuje docs/knowledge.md z src/knowledge/
+- `npm run docs:readme` – przepisuje wygenerowane sekcje README.md (baza wiedzy, polityka, reguły `doctor`, `action.yml`)
+- `npm run build:action` – buduje action/depgate.mjs dla GitHub Action; zatwierdzany w repozytorium, musi być zgodny ze źródłem
 - `npm run schema` – generuje schema.json z definicji polityki w src/policy/schema.ts
 - `node dist/cli.js explain tests/fixtures/repos/<nazwa>` – ręczne sprawdzenie wykrywania na fiksturze
 - `node dist/cli.js doctor tests/fixtures/doctor/<reguła>/<przypadek>/repo` – ręczne sprawdzenie reguły `doctor` na fiksturze (`--json`, `--sarif`)

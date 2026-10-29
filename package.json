@@ -37,6 +37,7 @@
     "typecheck": "tsc --noEmit",
     "check:pkg": "tsdown && publint && attw --pack . --profile esm-only",
     "docs:knowledge": "node scripts/generate-knowledge.ts",
+    "docs:readme": "node scripts/generate-readme.ts",
     "schema": "node scripts/generate-schema.ts"
   },
   "keywords": [
