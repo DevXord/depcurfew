@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://unpkg.com/depgate/schema.json",
-  "title": "depgate policy",
+  "$id": "https://unpkg.com/depcurfew/schema.json",
+  "title": "depcurfew policy",
   "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot.",
   "type": "object",
   "properties": {
@@ -134,7 +134,7 @@
           "description": "Configure exactly these tools.",
           "type": "array",
           "items": {
-            "description": "A tool depgate can configure.",
+            "description": "A tool depcurfew can configure.",
             "type": "string",
             "enum": [
               "npm",

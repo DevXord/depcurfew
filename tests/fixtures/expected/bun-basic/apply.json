@@ -7,8 +7,8 @@
     "Bun: install.minimumReleaseAgeExcludes does not support the pattern \"@acme/*\"; not written. List the exact package names in cooldown.exclude",
     "Bun: trustedDependencies takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
     "Bun: trustedDependencies replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed; add the ones that need their scripts to installScripts.allow",
-    "Bun has no setting for git dependencies, so \"deny\" cannot be enforced; depgate doctor still reports such dependencies in the lockfile",
-    "Bun has no setting for remote tarball dependencies, so \"deny\" cannot be enforced; depgate doctor still reports such dependencies in the lockfile"
+    "Bun has no setting for git dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile",
+    "Bun has no setting for remote tarball dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile"
   ],
   "snippets": []
 }

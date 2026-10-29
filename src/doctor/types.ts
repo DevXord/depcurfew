@@ -32,7 +32,7 @@ export interface RuleContext {
   root: string;
   repository: Repository;
   detection: Detection;
-  /** undefined when the repository has no depgate.json. */
+  /** undefined when the repository has no depcurfew.json. */
   policy: ResolvedPolicy | undefined;
   tools: readonly ToolKnowledge[];
   report(finding: Omit<Finding, 'rule' | 'level'> & { level?: Level }): void;
@@ -50,7 +50,7 @@ export interface Rule {
   help: string;
   /** Default level of its findings. */
   level: Level;
-  /** Rules that compare the repository with depgate.json do not run without one. */
+  /** Rules that compare the repository with depcurfew.json do not run without one. */
   requiresPolicy: boolean;
   check(context: RuleContext): void;
 }

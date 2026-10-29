@@ -114,7 +114,7 @@ function pnpmGraph(text: string, documents: Format | undefined): { document: unk
 function pnpmEntries(text: string, format: Format, documents: Format | undefined): { entries: LockEntry[]; start: number } {
   const { document, start } = pnpmGraph(text, documents);
   if (!isRecord(document)) return { entries: [], start };
-  if (!String(document['lockfileVersion']).startsWith('9')) throw new UnsupportedLockfile(`its lockfileVersion ${String(document['lockfileVersion'])} is not read; depgate reads 9.0`);
+  if (!String(document['lockfileVersion']).startsWith('9')) throw new UnsupportedLockfile(`its lockfileVersion ${String(document['lockfileVersion'])} is not read; depcurfew reads 9.0`);
   const hosts = strings(format['gitHostedTarballHosts']);
   const entries: LockEntry[] = [];
   const packages = isRecord(document['packages']) ? document['packages'] : {};
@@ -217,7 +217,7 @@ function denoEntries(text: string, format: Format): { entries: LockEntry[]; reco
   return { entries, recordsScripts };
 }
 
-/** A lockfile in a version or shape depgate does not read; the message says why. */
+/** A lockfile in a version or shape depcurfew does not read; the message says why. */
 class UnsupportedLockfile extends Error {}
 
 /**

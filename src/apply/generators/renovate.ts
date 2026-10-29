@@ -5,7 +5,7 @@ import { extraOf, isRecord, settingOf, values } from '../facts.ts';
 import { exclusions } from './common.ts';
 import type { BotGenerator } from './context.ts';
 
-export const RULE_DESCRIPTION = 'depgate: packages excluded from minimumReleaseAge';
+export const RULE_DESCRIPTION = 'depcurfew: packages excluded from minimumReleaseAge';
 
 interface ExcludeRule {
   list: string;
@@ -50,13 +50,13 @@ export const renovate: BotGenerator = (context, duration) => {
     const packageJson = extraOf(tool, 'packageJsonConfig', isRecord);
     const where = file ?? (context.exists('package.json') && context.json('package.json').get([String(packageJson['key'])]) !== undefined ? 'package.json' : undefined);
     if (where === undefined) {
-      context.warn(`${context.name}: no configuration file found; depgate does not create one. Add renovate.json if you use Renovate, then run depgate apply again`);
+      context.warn(`${context.name}: no configuration file found; depcurfew does not create one. Add renovate.json if you use Renovate, then run depcurfew apply again`);
       return;
     }
     context.warn(
       where === 'package.json'
-        ? `${context.name}: configuration in package.json is deprecated and depgate does not edit it; move it to renovate.json or add the snippet by hand`
-        : `${context.name}: ${where} is not plain JSON or JSONC, so depgate does not edit it; add the snippet by hand`,
+        ? `${context.name}: configuration in package.json is deprecated and depcurfew does not edit it; move it to renovate.json or add the snippet by hand`
+        : `${context.name}: ${where} is not plain JSON or JSONC, so depcurfew does not edit it; add the snippet by hand`,
     );
     context.snippet(where, snippet());
     return;

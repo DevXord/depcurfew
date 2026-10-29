@@ -14,7 +14,7 @@ afterAll(() => {
 
 /** A workspace with a fixture repository copied into `subdirectory` (or the root). */
 function workspace(fixture: string, subdirectory = ''): string {
-  const root = mkdtempSync(join(tmpdir(), 'depgate-action-'));
+  const root = mkdtempSync(join(tmpdir(), 'depcurfew-action-'));
   temporary.push(root);
   cpSync(join(DOCTOR, fixture, 'repo'), join(root, subdirectory), { recursive: true });
   return root;
@@ -31,9 +31,9 @@ describe('GitHub Action entry point', () => {
   it('prints the report, writes SARIF and counts the findings', () => {
     const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter');
     const { outputs, log } = run({ GITHUB_WORKSPACE: root });
-    expect(outputs).toEqual({ 'sarif-file': 'depgate.sarif', errors: 1, warnings: 0, notes: 0, failure: '' });
+    expect(outputs).toEqual({ 'sarif-file': 'depcurfew.sarif', errors: 1, warnings: 0, notes: 0, failure: '' });
     expect(log).toContain('1 error, 0 warnings, 0 notes');
-    const sarif = JSON.parse(readFileSync(join(root, 'depgate.sarif'), 'utf8')) as { runs: { results: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[] }[] };
+    const sarif = JSON.parse(readFileSync(join(root, 'depcurfew.sarif'), 'utf8')) as { runs: { results: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[] }[] };
     expect(sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('.github/dependabot.yml');
   });
 
@@ -52,14 +52,14 @@ describe('GitHub Action entry point', () => {
     const { log } = run({ GITHUB_WORKSPACE: root });
     const annotation = log.split('\n').filter((line) => line.startsWith('::error '));
     expect(annotation).toHaveLength(1);
-    expect(annotation[0]).toMatch(/^::error file=\.github\/dependabot\.yml,line=\d+,title=depgate%3A bot-cooldown-mismatch::.+%0AFix: .+/u);
+    expect(annotation[0]).toMatch(/^::error file=\.github\/dependabot\.yml,line=\d+,title=depcurfew%3A bot-cooldown-mismatch::.+%0AFix: .+/u);
     expect(run({ GITHUB_WORKSPACE: root, INPUT_ANNOTATIONS: 'false' }).log).not.toMatch(/^::error /mu);
   });
 
   it('writes a job summary with a row and the fix for every finding, unless turned off', () => {
     const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter', 'packages/app');
     const { summary } = run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'packages/app' });
-    expect(summary).toMatch(/^## depgate doctor\n\n\*\*1 error\*\*, 0 warnings, 0 notes in `packages\/app`\.\n/u);
+    expect(summary).toMatch(/^## depcurfew doctor\n\n\*\*1 error\*\*, 0 warnings, 0 notes in `packages\/app`\.\n/u);
     expect(summary).toContain('| Level | Where | Problem | How to fix |');
     expect(summary).toMatch(/^\| \*\*error\*\* \| `packages\/app\/\.github\/dependabot\.yml:\d+` \| .+ \(`bot-cooldown-mismatch`\) \| .+ \|$/mu);
     expect(run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'packages/app', INPUT_JOB_SUMMARY: 'false' }).summary).toBe('');
@@ -67,8 +67,8 @@ describe('GitHub Action entry point', () => {
 
   it('says in the job summary when doctor could not run', () => {
     const root = workspace('bot-cooldown-mismatch/passes-consistent');
-    writeFileSync(join(root, 'depgate.json'), '{ "version": 2 }');
-    expect(run({ GITHUB_WORKSPACE: root }).summary).toMatch(/^## depgate doctor\n\ndepgate could not check the repository: depgate\.json is invalid; /u);
+    writeFileSync(join(root, 'depcurfew.json'), '{ "version": 2 }');
+    expect(run({ GITHUB_WORKSPACE: root }).summary).toMatch(/^## depcurfew doctor\n\ndepcurfew could not check the repository: depcurfew\.json is invalid; /u);
   });
 
   it('makes paths relative to the workspace when checking a subdirectory', () => {
@@ -96,11 +96,11 @@ describe('GitHub Action entry point', () => {
 
   it('turns an invalid policy into a failure without a SARIF file', () => {
     const root = workspace('bot-cooldown-mismatch/passes-consistent');
-    writeFileSync(join(root, 'depgate.json'), '{ "version": 2 }');
+    writeFileSync(join(root, 'depcurfew.json'), '{ "version": 2 }');
     const { outputs, log } = run({ GITHUB_WORKSPACE: root });
     expect(outputs['sarif-file']).toBe('');
-    expect(outputs.failure).toMatch(/^depgate\.json is invalid; /u);
-    expect(log).toMatch(/^::stop-commands::[0-9a-f-]{36}\ndepgate: depgate\.json is invalid\n/u);
+    expect(outputs.failure).toMatch(/^depcurfew\.json is invalid; /u);
+    expect(log).toMatch(/^::stop-commands::[0-9a-f-]{36}\ndepcurfew: depcurfew\.json is invalid\n/u);
   });
 
   it('formats outputs for GITHUB_OUTPUT on single lines', () => {

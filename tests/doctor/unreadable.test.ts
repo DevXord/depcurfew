@@ -13,17 +13,17 @@ afterAll(() => {
 
 describe('unreadable-config', () => {
   it('reports an invalid package.json as an error', () => {
-    const root = mkdtempSync(join(tmpdir(), 'depgate-unreadable-'));
+    const root = mkdtempSync(join(tmpdir(), 'depcurfew-unreadable-'));
     temporary.push(root);
     writeFileSync(join(root, 'package.json'), '{"name": "app", "packageManager": "npm@11.19.1",}\n');
     const findings = runDoctor(root).findings.filter((finding) => finding.rule === 'unreadable-config');
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ level: 'error', location: { file: 'package.json' } });
-    expect(findings[0]?.message).toMatch(/^cannot parse package\.json: .+; depgate cannot check it$/u);
+    expect(findings[0]?.message).toMatch(/^cannot parse package\.json: .+; depcurfew cannot check it$/u);
   });
 
   it('is not repeated as a notice', () => {
-    const root = mkdtempSync(join(tmpdir(), 'depgate-unreadable-'));
+    const root = mkdtempSync(join(tmpdir(), 'depcurfew-unreadable-'));
     temporary.push(root);
     writeFileSync(join(root, 'package.json'), '{"name": "app",\n');
     expect(runDoctor(root).notices.some((notice) => notice.message.includes('cannot parse package.json'))).toBe(false);

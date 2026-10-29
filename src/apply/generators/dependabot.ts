@@ -23,7 +23,7 @@ export const dependabot: BotGenerator = (context, duration) => {
   if (policy.cooldown === undefined || duration === undefined) return;
   const file = (values(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
   if (file === undefined) {
-    context.warn(`${context.name}: no configuration file found; depgate does not create one. Add .github/dependabot.yml if you use Dependabot, then run depgate apply again`);
+    context.warn(`${context.name}: no configuration file found; depcurfew does not create one. Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again`);
     return;
   }
   if (policy.cooldown.securityUpdates === 'delay') {

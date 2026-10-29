@@ -79,7 +79,7 @@ export const pnpm: ManagerGenerator = (context) => {
   if (exoticSetting !== undefined) {
     const denied = [...exotic].filter(([, access]) => access === 'deny').map(([kind]) => (kind === 'git' ? 'git' : 'remote tarball'));
     if (denied.length > 0) {
-      context.warn(`pnpm: ${exoticSetting} stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depgate doctor reports them in pnpm-lock.yaml`);
+      context.warn(`pnpm: ${exoticSetting} stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depcurfew doctor reports them in pnpm-lock.yaml`);
       if (denied.length < exotic.size) context.warn(`pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(' and ')}`);
     }
     yaml.set([exoticSetting], denied.length > 0);

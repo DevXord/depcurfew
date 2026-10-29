@@ -1,5 +1,5 @@
-// Reads depgate.json like any other file of the repository: never through a symlink that leads outside it and never
-// beyond the size limit for configuration files, so an untrusted repository cannot make depgate read (and echo in
+// Reads depcurfew.json like any other file of the repository: never through a symlink that leads outside it and never
+// beyond the size limit for configuration files, so an untrusted repository cannot make depcurfew read (and echo in
 // validation errors) a file of the machine it runs on.
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';

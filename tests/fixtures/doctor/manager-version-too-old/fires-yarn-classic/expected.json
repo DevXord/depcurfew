@@ -5,7 +5,7 @@
       "file": "package.json",
       "line": 4
     },
-    "message": "Yarn Classic (1.x) has none of the settings depgate.json needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it",
-    "fix": "Move to Yarn (Berry) 4.10.2 or later, or to another package manager depgate configures"
+    "message": "Yarn Classic (1.x) has none of the settings depcurfew.json needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it",
+    "fix": "Move to Yarn (Berry) 4.10.2 or later, or to another package manager depcurfew configures"
   }
 ]

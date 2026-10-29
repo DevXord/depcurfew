@@ -1,5 +1,5 @@
 // Package patterns in the policy: a package name or a name pattern with *, without a version.
-// This is depgate's own grammar, deliberately permissive; generators decide per tool whether a pattern is supported.
+// This is depcurfew's own grammar, deliberately permissive; generators decide per tool whether a pattern is supported.
 
 const NAME = '[A-Za-z0-9~*-][A-Za-z0-9._~*-]*';
 

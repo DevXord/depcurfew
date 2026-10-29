@@ -5,7 +5,7 @@
       "file": ".npmrc",
       "line": 2
     },
-    "message": ".npmrc does not match depgate.json: `dangerously-allow-all-scripts=true` is set outside the block that depgate manages; depgate apply comments it out, and the block sets what depgate.json requires",
-    "fix": "Run depgate apply to bring .npmrc back in line with depgate.json (depgate apply --dry-run shows the change first), or change depgate.json if the edit was intended"
+    "message": ".npmrc does not match depcurfew.json: `dangerously-allow-all-scripts=true` is set outside the block that depcurfew manages; depcurfew apply comments it out, and the block sets what depcurfew.json requires",
+    "fix": "Run depcurfew apply to bring .npmrc back in line with depcurfew.json (depcurfew apply --dry-run shows the change first), or change depcurfew.json if the edit was intended"
   }
 ]

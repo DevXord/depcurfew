@@ -1,4 +1,4 @@
-// config-drift: what `depgate apply` would change is exactly what no longer matches the policy, so the rule plans
+// config-drift: what `depcurfew apply` would change is exactly what no longer matches the policy, so the rule plans
 // an apply in memory and reports the first difference in every file.
 import { lines, myers } from '../../apply/diff.ts';
 import { BLOCK_END, BLOCK_START, SUPERSEDED, TURNED_OFF } from '../../apply/block.ts';
@@ -17,7 +17,7 @@ function withoutComma(line: string): string {
   return line.replace(/,$/u, '');
 }
 
-/** Lines depgate writes around its settings, which say nothing about a setting themselves. */
+/** Lines depcurfew writes around its settings, which say nothing about a setting themselves. */
 function isFrame(line: string): boolean {
   return line === '' || line === YAML_MARKER || line === BLOCK_START || line === BLOCK_END;
 }
@@ -31,7 +31,7 @@ interface Difference {
 
 /**
  * The first block of lines that apply would change, without the lines that only gain or lose a trailing comma
- * (adding a JSON key changes the line before it) and without depgate's frame lines.
+ * (adding a JSON key changes the line before it) and without depcurfew's frame lines.
  */
 function firstDifference(before: string, after: string): Difference {
   const operations = myers(lines(before), lines(after));
@@ -72,15 +72,15 @@ function describe(difference: Difference): string {
   const commented = difference.added.find((text) => text.startsWith(SUPERSEDED) || text.startsWith(TURNED_OFF));
   if (commented !== undefined) {
     if (commented.startsWith(SUPERSEDED)) {
-      return `${code(commented.slice(SUPERSEDED.length))} is set outside the block that depgate manages; depgate apply comments it out, and the block sets what ${POLICY_FILE} requires`;
+      return `${code(commented.slice(SUPERSEDED.length))} is set outside the block that depcurfew manages; depcurfew apply comments it out, and the block sets what ${POLICY_FILE} requires`;
     }
-    return `${code(commented.slice(TURNED_OFF.length))} is set by hand, but ${POLICY_FILE} manages this setting; depgate apply comments it out`;
+    return `${code(commented.slice(TURNED_OFF.length))} is set by hand, but ${POLICY_FILE} manages this setting; depcurfew apply comments it out`;
   }
   const [removed] = difference.removed;
   if (removed !== undefined && difference.added.length > 0) return `${code(removed)} should be ${addedText(difference.added)}`;
   if (difference.added.length > 0) return `${addedText(difference.added)} is missing`;
   if (removed !== undefined) return `${code(removed)} should not be there`;
-  return 'its layout differs from what depgate apply writes';
+  return 'its layout differs from what depcurfew apply writes';
 }
 
 /** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
@@ -104,10 +104,10 @@ function checkAllowLists(context: RuleContext): void {
 
 export const configDrift: Rule = {
   id: 'config-drift',
-  summary: 'A configuration file does not match what depgate apply writes for depgate.json.',
+  summary: 'A configuration file does not match what depcurfew apply writes for depcurfew.json.',
   description:
-    'A generated setting was edited by hand, or depgate.json changed without running depgate apply, so the tools enforce something other than the policy.',
-  help: 'Run depgate apply (depgate apply --dry-run shows the difference), or change depgate.json if the edit was intended.',
+    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy.',
+  help: 'Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.',
   level: 'error',
   requiresPolicy: true,
   check(context) {
@@ -118,8 +118,8 @@ export const configDrift: Rule = {
       if (change.before === null) {
         context.report({
           location: { file: POLICY_FILE },
-          message: `${change.file} is missing; depgate apply would create it with the settings from ${POLICY_FILE}`,
-          fix: `Run depgate apply to create ${change.file} (depgate apply --dry-run shows its content first)`,
+          message: `${change.file} is missing; depcurfew apply would create it with the settings from ${POLICY_FILE}`,
+          fix: `Run depcurfew apply to create ${change.file} (depcurfew apply --dry-run shows its content first)`,
         });
         continue;
       }
@@ -127,7 +127,7 @@ export const configDrift: Rule = {
       context.report({
         location: { file: change.file, line: difference.line },
         message: `${change.file} does not match ${POLICY_FILE}: ${describe(difference)}`,
-        fix: `Run depgate apply to bring ${change.file} back in line with ${POLICY_FILE} (depgate apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`,
+        fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`,
       });
     }
     checkAllowLists(context);

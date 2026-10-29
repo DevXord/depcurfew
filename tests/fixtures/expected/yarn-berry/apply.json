@@ -5,7 +5,7 @@
   ],
   "warnings": [
     "Yarn (Berry): dependenciesMeta takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
-    "Yarn (Berry) has no setting for remote tarball dependencies, so \"deny\" cannot be enforced; depgate doctor still reports such dependencies in the lockfile",
+    "Yarn (Berry) has no setting for remote tarball dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile",
     "Yarn (Berry) 4.9.2 does not support npmMinimalAgeGate (since 4.10.2), approvedGitRepositories (since 4.14.0); not written. To apply them, require Yarn (Berry) 4.14.0 or later where the version is pinned"
   ],
   "snippets": []

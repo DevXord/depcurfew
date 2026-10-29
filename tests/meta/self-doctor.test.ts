@@ -1,4 +1,4 @@
-// depgate applies its own policy: depgate.json is valid, apply has nothing to change and doctor finds no error.
+// depcurfew applies its own policy: depcurfew.json is valid, apply has nothing to change and doctor finds no error.
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { applyProject } from '../../src/apply/index.ts';
@@ -6,7 +6,7 @@ import { runDoctor } from '../../src/doctor/index.ts';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
-describe('depgate on itself', () => {
+describe('depcurfew on itself', () => {
   it('has applied its policy', () => {
     const report = applyProject(ROOT, { write: false });
     expect(report.errors).toEqual([]);

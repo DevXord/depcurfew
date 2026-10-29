@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 describe('test environment', () => {
   it('blocks fetch', async () => {
-    await expect(fetch('https://registry.npmjs.org/depgate')).rejects.toThrow(/Network access is disabled/);
+    await expect(fetch('https://registry.npmjs.org/depcurfew')).rejects.toThrow(/Network access is disabled/);
   });
 
   it('blocks raw sockets', () => {

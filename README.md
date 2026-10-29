@@ -1,22 +1,22 @@
-# depgate
+# depcurfew
 
 One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot, and a doctor that finds configuration that silently does nothing.
 
-> **Status: pre-release.** depgate is not on npm yet. Until it is, run it from source (see [Installation](#installation)).
+> **Status: pre-release.** depcurfew is not on npm yet. Until it is, run it from source (see [Installation](#installation)).
 
 ## Why
 
 Package managers and update bots now each protect you against freshly published malicious versions: a release-age delay, an allow-list for install scripts, limits on git and tarball dependencies. Each tool names these settings differently, counts time in its own unit, reads them from its own files and supports them only from some version on. A setting can also look right and do nothing, for example because CI pins an older version of the package manager, or because a bot proposes versions the package manager would refuse.
 
-depgate keeps one policy file, `depgate.json`, writes it into the configuration of every tool in the repository, and checks that the result really works.
+depcurfew keeps one policy file, `depcurfew.json`, writes it into the configuration of every tool in the repository, and checks that the result really works.
 
 ## Five-minute start
 
-1. `npx depgate init` writes `depgate.json` with the default policy below and lists the tools it detected.
-2. `npx depgate explain` shows what it detected and what the policy means for each tool.
-3. `npx depgate apply --dry-run` prints the changes as a diff, without writing anything.
-4. `npx depgate apply` writes them. Run it again whenever `depgate.json` changes; a second run with the same policy changes nothing.
-5. `npx depgate doctor` reports configuration that silently does not work and drift from the policy, and exits with 1 when it finds an error.
+1. `npx depcurfew init` writes `depcurfew.json` with the default policy below and lists the tools it detected.
+2. `npx depcurfew explain` shows what it detected and what the policy means for each tool.
+3. `npx depcurfew apply --dry-run` prints the changes as a diff, without writing anything.
+4. `npx depcurfew apply` writes them. Run it again whenever `depcurfew.json` changes; a second run with the same policy changes nothing.
+5. `npx depcurfew doctor` reports configuration that silently does not work and drift from the policy, and exits with 1 when it finds an error.
 6. Add the [GitHub Action](#github-action) so that doctor runs on every push and reports to code scanning.
 
 The default policy:
@@ -24,7 +24,7 @@ The default policy:
 <!-- BEGIN GENERATED: default-policy -->
 ```json
 {
-  "$schema": "https://unpkg.com/depgate/schema.json",
+  "$schema": "https://unpkg.com/depcurfew/schema.json",
   "version": 1,
   "cooldown": {
     "minimum": "3d",
@@ -48,13 +48,13 @@ The default policy:
 
 ## Installation
 
-depgate needs Node.js 22 or later and has a single runtime dependency, [`yaml`](https://github.com/eemeli/yaml).
+depcurfew needs Node.js 22 or later and has a single runtime dependency, [`yaml`](https://github.com/eemeli/yaml).
 
-Once published, run it with `npx depgate <command>` or add it as a development dependency. Until then, run it from a clone of this repository:
+Once published, run it with `npx depcurfew <command>` or add it as a development dependency. Until then, run it from a clone of this repository:
 
 ```bash
-git clone https://github.com/DevXord/depgate.git
-cd depgate
+git clone https://github.com/DevXord/depcurfew.git
+cd depcurfew
 npm ci
 npm run build
 node dist/cli.js doctor /path/to/your/repository
@@ -62,7 +62,7 @@ node dist/cli.js doctor /path/to/your/repository
 
 ## The policy file
 
-Every section is optional: a section that is absent means depgate does not manage that area. Durations are converted to each tool's own unit and always rounded up, so a tool never waits less than the policy says. Where a tool cannot express part of the policy, depgate says so instead of skipping it silently.
+Every section is optional: a section that is absent means depcurfew does not manage that area. Durations are converted to each tool's own unit and always rounded up, so a tool never waits less than the policy says. Where a tool cannot express part of the policy, depcurfew says so instead of skipping it silently.
 
 <!-- BEGIN GENERATED: policy-fields -->
 | Field | Values | Default | Meaning |
@@ -85,27 +85,29 @@ Every section is optional: a section that is absent means depgate does not manag
 
 ## Commands
 
+The package installs two names for the same command: `depcurfew` and the short `dcf`, so `dcf doctor` works like `depcurfew doctor`.
+
 | Command | What it does |
 | --- | --- |
-| `depgate init [directory] [--force]` | Writes `depgate.json` with the default policy; `--force` overwrites an existing one. |
-| `depgate explain [directory] [--json]` | Describes the detected package managers, versions, bots and workspaces, and the policy values for each tool. |
-| `depgate apply [directory] [--dry-run]` | Writes the policy into the configuration of every target tool; `--dry-run` prints a unified diff instead. |
-| `depgate doctor [directory] [--json \| --sarif]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning. |
+| `depcurfew init [directory] [--force]` | Writes `depcurfew.json` with the default policy; `--force` overwrites an existing one. |
+| `depcurfew explain [directory] [--json]` | Describes the detected package managers, versions, bots and workspaces, and the policy values for each tool. |
+| `depcurfew apply [directory] [--dry-run]` | Writes the policy into the configuration of every target tool; `--dry-run` prints a unified diff instead. |
+| `depcurfew doctor [directory] [--json \| --sarif]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning. |
 
-Exit codes: `0` success (warnings included), `1` an error (an invalid policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error. `depgate <command> --help` describes a command with examples and its exit codes.
+Exit codes: `0` success (warnings included), `1` an error (an invalid policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error. `depcurfew <command> --help` describes a command with examples and its exit codes.
 
 Every finding and warning says what to do about it. Text for people is colored on a terminal; `NO_COLOR=1` turns colors off and `FORCE_COLOR=1` turns them on, for example in a CI log that shows them. `--json`, `--sarif` and a diff written to a file stay plain, for programs and AI agents.
 
 How `apply` edits files:
 
-- It keeps comments, formatting, line endings and key order. In line-based files (INI, TOML) it writes a block between `# >>> depgate managed block` and `# <<< depgate managed block` markers and comments out older copies of the settings it manages; in YAML it marks the keys it writes with `# managed by depgate`; JSON files keep their comments and indentation.
+- It keeps comments, formatting, line endings and key order. In line-based files (INI, TOML) it writes a block between `# >>> depcurfew managed block` and `# <<< depcurfew managed block` markers and comments out older copies of the settings it manages; in YAML it marks the keys it writes with `# managed by depcurfew`; JSON files keep their comments and indentation.
 - It never removes settings it does not manage. Allow-lists are only added to; exception lists follow the policy.
 - If any file cannot be edited, nothing is written.
 - It does not create bot configuration files; it creates a package manager's configuration file when it is missing.
 
 ## Supported tools
 
-What depgate configures and checks for each tool, from its [knowledge base](docs/knowledge.md), where every value links to the official documentation or changelog it was verified against.
+What depcurfew configures and checks for each tool, from its [knowledge base](docs/knowledge.md), where every value links to the official documentation or changelog it was verified against.
 
 <!-- BEGIN GENERATED: tools -->
 | Tool | Release-age delay | Exceptions | Install-script allow-list | Dependency sources | Verified |
@@ -118,14 +120,14 @@ What depgate configures and checks for each tool, from its [knowledge base](docs
 | Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 |
 | Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 |
 
-⚠️ official sources disagree (depgate takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](docs/knowledge.md).
+⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](docs/knowledge.md).
 <!-- END GENERATED: tools -->
 
 Yarn Classic (1.x) is detected but not supported.
 
 ## doctor rules
 
-Findings have a level: an **error** makes `depgate doctor` exit with 1, a **warning** or a **note** does not. Things doctor could not check (a binary lockfile, a lockfile format without install-script data, a missing policy) are listed as notes after the findings, not as findings.
+Findings have a level: an **error** makes `depcurfew doctor` exit with 1, a **warning** or a **note** does not. Things doctor could not check (a binary lockfile, a lockfile format without install-script data, a missing policy) are listed as notes after the findings, not as findings.
 
 <!-- BEGIN GENERATED: rules -->
 ### `manager-version-too-old`
@@ -150,7 +152,7 @@ Fix: Move the setting to the place and form this version reads.
 
 Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages, and pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy.
 
-Fix: Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depgate.json and depgate apply.
+Fix: Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.
 
 ### `pnpm-shared-workspace-lockfile`
 
@@ -162,11 +164,11 @@ Fix: Remove security settings from package .npmrc files, or keep the default sha
 
 ### `config-drift`
 
-**error** · needs depgate.json · A configuration file does not match what depgate apply writes for depgate.json.
+**error** · needs depcurfew.json · A configuration file does not match what depcurfew apply writes for depcurfew.json.
 
-A generated setting was edited by hand, or depgate.json changed without running depgate apply, so the tools enforce something other than the policy.
+A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy.
 
-Fix: Run depgate apply (depgate apply --dry-run shows the difference), or change depgate.json if the edit was intended.
+Fix: Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.
 
 ### `bot-cooldown-mismatch`
 
@@ -174,7 +176,7 @@ Fix: Run depgate apply (depgate apply --dry-run shows the difference), or change
 
 The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile.
 
-Fix: Give the bot a delay at least as long as the package manager's (depgate apply does this).
+Fix: Give the bot a delay at least as long as the package manager's (depcurfew apply does this).
 
 ### `broad-exclusion`
 
@@ -186,38 +188,38 @@ Fix: Replace the pattern with the packages or scopes that really need the except
 
 ### `lockfile-forbidden-source`
 
-**error** · needs depgate.json · The lockfile installs a package from a source depgate.json denies.
+**error** · needs depcurfew.json · The lockfile installs a package from a source depcurfew.json denies.
 
 A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say.
 
-Fix: Replace the dependency with a registry version, or allow that source in depgate.json.
+Fix: Replace the dependency with a registry version, or allow that source in depcurfew.json.
 
 ### `lockfile-install-scripts`
 
-**error** · needs depgate.json · The lockfile has packages with install scripts that depgate.json does not allow.
+**error** · needs depcurfew.json · The lockfile has packages with install scripts that depcurfew.json does not allow.
 
 Install scripts run arbitrary code during installation. Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile.
 
-Fix: Remove or replace the package, or add it to installScripts.allow in depgate.json after reviewing its scripts.
+Fix: Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing its scripts.
 
 ### `unreadable-config`
 
-**error** · A configuration file or lockfile cannot be read, parsed or edited, so depgate cannot check it.
+**error** · A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.
 
-A package manager or bot may still read the file and its settings may weaken the policy; depgate fails closed and reports an error instead of passing silently.
+A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.
 
-Fix: Fix what the message describes: invalid syntax, a symlink, a file over the size limit or a style depgate apply cannot edit.
+Fix: Fix what the message describes: invalid syntax, a symlink, a file over the size limit or a style depcurfew apply cannot edit.
 <!-- END GENERATED: rules -->
 
 ## GitHub Action
 
-The action runs `depgate doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
+The action runs `depcurfew doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
 
 Pin it to a full commit SHA, like every action in your workflows. If the repository cannot use code scanning, set `upload-sarif: false`; the findings stay in the job log.
 
 <!-- BEGIN GENERATED: action-workflow -->
 ```yaml
-name: depgate
+name: depcurfew
 
 on:
   push:
@@ -235,7 +237,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: DevXord/depgate@<full-commit-sha> # pin a commit, not a tag
+      - uses: DevXord/depcurfew@<full-commit-sha> # pin a commit, not a tag
 ```
 <!-- END GENERATED: action-workflow -->
 
@@ -243,9 +245,9 @@ jobs:
 | Input | Default | Description |
 | --- | --- | --- |
 | `directory` | `.` | Directory to check, relative to the workspace. |
-| `sarif-file` | `depgate.sarif` | Where to write the SARIF report, relative to the workspace. |
+| `sarif-file` | `depcurfew.sarif` | Where to write the SARIF report, relative to the workspace. |
 | `upload-sarif` | `true` | Upload the SARIF report to GitHub code scanning. The job needs the security-events write permission. |
-| `category` | `depgate` | Code scanning category of the upload, to tell several depgate runs in one workflow apart. |
+| `category` | `depcurfew` | Code scanning category of the upload, to tell several depcurfew runs in one workflow apart. |
 | `fail-on-error` | `true` | Fail the step when doctor reports an error. |
 | `annotations` | `true` | Show the findings as annotations on the files, each with how to fix it. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them. |
 | `job-summary` | `true` | Add a table of the findings, each with how to fix it, to the job summary. |
@@ -263,13 +265,13 @@ jobs:
 The action works only on GitHub. On GitLab CI or any other CI, run the CLI in a job that has Node.js; the job fails when doctor finds an error (exit code 1):
 
 ```yaml
-depgate:
+depcurfew:
   image: node:22
   script:
-    - npx --yes depgate@1 doctor
+    - npx --yes depcurfew@1 doctor
 ```
 
-`depgate doctor --json` and `--sarif` write the findings for other tools; set `FORCE_COLOR=1` if the CI log shows colors.
+`depcurfew doctor --json` and `--sarif` write the findings for other tools; set `FORCE_COLOR=1` if the CI log shows colors.
 
 ## Library
 

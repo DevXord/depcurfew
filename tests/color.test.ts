@@ -43,8 +43,8 @@ describe('colored output', () => {
     schemaVersion: 1,
     policy: 'valid',
     findings: [
-      { rule: 'config-drift', level: 'error', location: { file: '.npmrc', line: 2 }, message: 'drift', fix: 'Run depgate apply' },
-      { rule: 'broad-exclusion', level: 'warning', location: { file: 'depgate.json' }, message: 'broad' },
+      { rule: 'config-drift', level: 'error', location: { file: '.npmrc', line: 2 }, message: 'drift', fix: 'Run depcurfew apply' },
+      { rule: 'broad-exclusion', level: 'warning', location: { file: 'depcurfew.json' }, message: 'broad' },
     ],
     notices: [{ message: 'a notice' }],
   };
@@ -62,14 +62,14 @@ describe('colored output', () => {
     expect(colored).toContain('\u001b[33mwarning\u001b[39m broad');
     expect(colored).toContain('\u001b[1m.npmrc\u001b[22m');
     expect(colored).toContain('\u001b[2m(config-drift)\u001b[22m');
-    expect(colored).toContain('\u001b[32mfix:\u001b[39m Run depgate apply');
+    expect(colored).toContain('\u001b[32mfix:\u001b[39m Run depcurfew apply');
   });
 
   it('colors the prefix of diagnostics only', () => {
-    expect(paintDiagnostics("depgate: no\nRun 'depgate --help'\nwarning: w\nerror: e\n", COLORED)).toBe(
-      "\u001b[31m\u001b[1mdepgate:\u001b[22m\u001b[39m no\nRun 'depgate --help'\n\u001b[33mwarning:\u001b[39m w\n\u001b[31m\u001b[1merror:\u001b[22m\u001b[39m e\n",
+    expect(paintDiagnostics("depcurfew: no\nRun 'depcurfew --help'\nwarning: w\nerror: e\n", COLORED)).toBe(
+      "\u001b[31m\u001b[1mdepcurfew:\u001b[22m\u001b[39m no\nRun 'depcurfew --help'\n\u001b[33mwarning:\u001b[39m w\n\u001b[31m\u001b[1merror:\u001b[22m\u001b[39m e\n",
     );
-    expect(paintDiagnostics('depgate: no\n', PLAIN)).toBe('depgate: no\n');
+    expect(paintDiagnostics('depcurfew: no\n', PLAIN)).toBe('depcurfew: no\n');
   });
 
   it('colors each stream only when that stream allows it', async () => {

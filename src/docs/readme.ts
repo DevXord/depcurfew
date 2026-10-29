@@ -90,7 +90,7 @@ function toolsTable(tools: readonly ToolKnowledge[]): string {
     '| --- | --- | --- | --- | --- | --- |',
     ...rows,
     '',
-    '⚠️ official sources disagree (depgate takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](docs/knowledge.md).',
+    '⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](docs/knowledge.md).',
   ].join('\n');
 }
 
@@ -116,7 +116,7 @@ function rulesList(): string {
     [
       `### \`${rule.id}\``,
       '',
-      `**${rule.level}**${rule.requiresPolicy ? ' · needs depgate.json' : ''} · ${rule.summary}`,
+      `**${rule.level}**${rule.requiresPolicy ? ' · needs depcurfew.json' : ''} · ${rule.summary}`,
       '',
       rule.description,
       '',
@@ -147,7 +147,7 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
   const permissions = (map: Readonly<Record<string, string>>, indent: string) => Object.entries(map).map(([name, access]) => `${indent}${name}: ${access}`);
   return [
     '```yaml',
-    'name: depgate',
+    'name: depcurfew',
     '',
     'on:',
     '  push:',
@@ -164,7 +164,7 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
     `      - uses: ${checkout}`,
     '        with:',
     '          persist-credentials: false',
-    '      - uses: DevXord/depgate@<full-commit-sha> # pin a commit, not a tag',
+    '      - uses: DevXord/depcurfew@<full-commit-sha> # pin a commit, not a tag',
     '```',
   ].join('\n');
 }

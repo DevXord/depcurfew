@@ -24,7 +24,7 @@
   "warnings": [
     {
       "code": "yarn-classic-unsupported",
-      "message": "Yarn Classic (1.x) is not supported; depgate configures Yarn 2 and later",
+      "message": "Yarn Classic (1.x) is not supported; depcurfew configures Yarn 2 and later",
       "files": [
         "yarn.lock"
       ]

@@ -2,7 +2,7 @@
   {
     "level": "error",
     "location": {
-      "file": "depgate.json",
+      "file": "depcurfew.json",
       "line": 5
     },
     "message": "cooldown.exclude contains \"@*/*\", which matches every scoped package",

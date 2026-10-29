@@ -11,7 +11,7 @@ run(process.argv.slice(2), {
     process.exitCode = code;
   },
   (error: unknown) => {
-    process.stderr.write(`depgate: unexpected error: ${error instanceof Error ? error.stack : String(error)}\n`);
+    process.stderr.write(`depcurfew: unexpected error: ${error instanceof Error ? error.stack : String(error)}\n`);
     process.exitCode = EXIT_FAILURE;
   },
 );

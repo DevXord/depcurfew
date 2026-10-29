@@ -3,13 +3,13 @@
   "warnings": [
     "npm 11.6.2 runs every dependency install script and has no allow-list, so \"deny\" cannot be enforced; require npm 11.16.0 or later (npm 12 blocks dependency scripts by default)",
     "npm 11.6.2 does not support min-release-age and allow-git (since 11.10.0), allow-remote, allow-file and allow-directory (since 11.15.0), allowScripts (since 11.16.0); not written. To apply them, require npm 11.16.0 or later where the version is pinned",
-    "Renovate: .github/renovate.json5 is not plain JSON or JSONC, so depgate does not edit it; add the snippet by hand"
+    "Renovate: .github/renovate.json5 is not plain JSON or JSONC, so depcurfew does not edit it; add the snippet by hand"
   ],
   "snippets": [
     {
       "tool": "renovate",
       "file": ".github/renovate.json5",
-      "text": "{\n  \"minimumReleaseAge\": \"3 days\",\n  \"packageRules\": [\n    {\n      \"description\": \"depgate: packages excluded from minimumReleaseAge\",\n      \"matchPackageNames\": [\n        \"@acme/*\",\n        \"left-pad\"\n      ],\n      \"minimumReleaseAge\": null\n    }\n  ],\n  \"vulnerabilityAlerts\": {\n    \"minimumReleaseAge\": null\n  }\n}"
+      "text": "{\n  \"minimumReleaseAge\": \"3 days\",\n  \"packageRules\": [\n    {\n      \"description\": \"depcurfew: packages excluded from minimumReleaseAge\",\n      \"matchPackageNames\": [\n        \"@acme/*\",\n        \"left-pad\"\n      ],\n      \"minimumReleaseAge\": null\n    }\n  ],\n  \"vulnerabilityAlerts\": {\n    \"minimumReleaseAge\": null\n  }\n}"
     }
   ]
 }

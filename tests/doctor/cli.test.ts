@@ -1,4 +1,4 @@
-// `depgate doctor` through the CLI: the three output formats, exit codes and policy errors.
+// `depcurfew doctor` through the CLI: the three output formats, exit codes and policy errors.
 import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,13 +31,13 @@ async function exec(...argv: string[]): Promise<{ code: number; stdout: string; 
   return { code, stdout, stderr };
 }
 
-describe('depgate doctor', () => {
+describe('depcurfew doctor', () => {
   it('prints findings grouped by file and fails on errors', async () => {
     const result = await exec('doctor', FAILING);
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toMatch(/^1 error, 0 warnings, 0 notes\n\n\.github\/dependabot\.yml\n {2}7: error Dependabot proposes npm updates after 3 days/u);
-    expect(result.stdout).toContain('(bot-cooldown-mismatch)\n    fix: Make the Dependabot delay at least 1 week, or run depgate apply\n');
-    expect(result.stdout).toContain('\nNotes:\n  no depgate.json: only the rules that do not need a policy ran\n');
+    expect(result.stdout).toContain('(bot-cooldown-mismatch)\n    fix: Make the Dependabot delay at least 1 week, or run depcurfew apply\n');
+    expect(result.stdout).toContain('\nNotes:\n  no depcurfew.json: only the rules that do not need a policy ran\n');
     expect(result.stderr).toBe('');
   });
 
@@ -92,18 +92,18 @@ describe('depgate doctor', () => {
   });
 
   it('fails with an invalid policy file', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'depgate-doctor-cli-'));
+    const directory = mkdtempSync(join(tmpdir(), 'depcurfew-doctor-cli-'));
     temporary.push(directory);
     cpSync(CLEAN, directory, { recursive: true });
-    writeFileSync(join(directory, 'depgate.json'), '{ "version": 2 }');
+    writeFileSync(join(directory, 'depcurfew.json'), '{ "version": 2 }');
     const result = await exec('doctor', directory);
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toMatch(/^depgate: depgate\.json is invalid\n {2}\S/u);
+    expect(result.stderr).toMatch(/^depcurfew: depcurfew\.json is invalid\n {2}\S/u);
   });
 
   it('fails for a directory that does not exist', async () => {
-    const result = await exec('doctor', join(tmpdir(), 'depgate-does-not-exist'));
+    const result = await exec('doctor', join(tmpdir(), 'depcurfew-does-not-exist'));
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stderr).toContain('directory not found');
   });

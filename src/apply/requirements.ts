@@ -29,5 +29,5 @@ export function describeRequirements(requirements: readonly Requirement[]): stri
     .map(([since, group]) => `${listing(group.settings)} (since ${since})`)
     .join(', ');
   const disputed = [...groups.values()].some((group) => group.disputed);
-  return disputed ? `${text}; where official sources disagree on the version, depgate assumes the later one` : text;
+  return disputed ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
 }

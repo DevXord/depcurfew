@@ -1,4 +1,4 @@
-// `depgate doctor`: finds configuration that does not do what it seems to, and drift from depgate.json. Every rule
+// `depcurfew doctor`: finds configuration that does not do what it seems to, and drift from depcurfew.json. Every rule
 // reads the repository through the same read-only Repository as detection; nothing is written or executed.
 import { loadPolicyIfPresent } from '../apply/index.ts';
 import { detectProject } from '../detect/index.ts';
@@ -23,7 +23,7 @@ function byLocation(a: Finding, b: Finding): number {
   return (a.location.line ?? 0) - (b.location.line ?? 0) || LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0);
 }
 
-/** Runs the rules on a repository. Throws PolicyError when depgate.json exists but is invalid. */
+/** Runs the rules on a repository. Throws PolicyError when depcurfew.json exists but is invalid. */
 export function runDoctor(root: string, options: { rules?: readonly Rule[]; tools?: readonly ToolKnowledge[] } = {}): DoctorReport {
   const tools = options.tools ?? knowledgeBase;
   const policy = loadPolicyIfPresent(root);

@@ -5,7 +5,7 @@
       "file": "deno.lock",
       "line": 4
     },
-    "message": "@aa/pkg has install scripts that Deno will not run because depgate.json does not allow it; the package may need them",
-    "fix": "Review its scripts and add @aa/pkg to installScripts.allow in depgate.json, or replace the package"
+    "message": "@aa/pkg has install scripts that Deno will not run because depcurfew.json does not allow it; the package may need them",
+    "fix": "Review its scripts and add @aa/pkg to installScripts.allow in depcurfew.json, or replace the package"
   }
 ]

@@ -65,7 +65,7 @@ function checkNpmWorkspaces(context: RuleContext): void {
         level: 'warning',
         location: { file, line: entry.line },
         message: `npm reads .npmrc only at the project root, so ${entry.key} in ${file} has no effect`,
-        fix: `Set it in the root .npmrc, or in ${POLICY_FILE} and run depgate apply`,
+        fix: `Set it in the root .npmrc, or in ${POLICY_FILE} and run depcurfew apply`,
       });
     }
   }
@@ -92,13 +92,13 @@ function checkPnpmRoot(context: RuleContext): void {
       context.report({
         location: { file: '.npmrc', line: entry.line },
         message: `${entry.key}=${entry.value} in .npmrc sets ${label} to wait ${actual.minutes === 0 ? 'not at all' : formatMinutes(actual.minutes)}, shorter than ${policy.cooldown.minimum.text} in ${POLICY_FILE}, because pnpm-workspace.yaml does not set ${entry.setting}`,
-        fix: 'Remove the line and run depgate apply, which writes the delay to pnpm-workspace.yaml',
+        fix: 'Remove the line and run depcurfew apply, which writes the delay to pnpm-workspace.yaml',
       });
     } else if (entry.setting === excludeSetting && !policy.cooldown.exclude.some((pattern) => matchesPattern(entry.value, pattern) || pattern === entry.value)) {
       context.report({
         location: { file: '.npmrc', line: entry.line },
         message: `${entry.key} in .npmrc exempts ${entry.value} from the ${label} delay, but ${POLICY_FILE} does not`,
-        fix: `Remove the line, or add ${entry.value} to cooldown.exclude in ${POLICY_FILE} and run depgate apply`,
+        fix: `Remove the line, or add ${entry.value} to cooldown.exclude in ${POLICY_FILE} and run depcurfew apply`,
       });
     }
   }
@@ -109,7 +109,7 @@ export const npmrcOverridesPolicy: Rule = {
   summary: 'An .npmrc file changes a security setting in a way the policy does not see, or is ignored.',
   description:
     'Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages, and pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy.',
-  help: 'Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depgate.json and depgate apply.',
+  help: 'Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.',
   level: 'error',
   requiresPolicy: false,
   check(context) {

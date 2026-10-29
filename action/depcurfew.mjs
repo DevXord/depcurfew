@@ -838,7 +838,7 @@ const renovate$1 = {
 			since: "38.0.0",
 			trailingOnly: false
 		}, `${OPTIONS}#matchpackagenames`, "matchPackageNames accepts globs (and regex) since 38.0.0."),
-		ruleDescription: verified$2("description", "https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description", "A human-readable description allowed inside any configuration object; depgate uses it to recognize the packageRules entry it manages."),
+		ruleDescription: verified$2("description", "https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description", "A human-readable description allowed inside any configuration object; depcurfew uses it to recognize the packageRules entry it manages."),
 		packageJsonConfig: verified$2({
 			file: "package.json",
 			key: "renovate"
@@ -875,7 +875,7 @@ const yarn$1 = {
 		configFiles: verified$1([".yarnrc.yml"], YARNRC, "Also YARN_NPM_MINIMAL_AGE_GATE (general YARN_ env rule) and, since 4.17.0, npmScopes.<scope>.npmMinimalAgeGate. package.json cannot set it."),
 		cliFlag: uncertain(null, "https://yarnpkg.com/cli/install", "No flag sets the gate. --no-time-gate on yarn add and yarn up (4.15.0+) disables it for one command; yarn install has no such flag."),
 		unit: verified$1("minutes", "https://github.com/yarnpkg/berry/pull/6942", "Bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect."),
-		availableSince: checked$1.verified("4.10.2", release("4.10.2"), "The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: \"Bust the metadata cache\" (#6908) and \"support registries without publish times using minimalAgeGate\" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old (\"No candidates found\"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depgate writes the setting from 4.10.2 on."),
+		availableSince: checked$1.verified("4.10.2", release("4.10.2"), "The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: \"Bust the metadata cache\" (#6908) and \"support registries without publish times using minimalAgeGate\" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old (\"No candidates found\"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depcurfew writes the setting from 4.10.2 on."),
 		default: disputed("The code is unambiguous: off until 4.14.x, 1d from 4.15.0. The published settings schema claimed 3d for 4.11.0-4.14.x and 0m in 4.16.0; the live yarnrc page shows \"1w\", which is an example value. Upgraded projects with an old lockfile get npmMinimalAgeGate: 0 written to .yarnrc.yml (see upgradeMigration).", evidence([{
 			since: "4.10.0",
 			value: 0
@@ -975,7 +975,7 @@ const yarn$1 = {
 		latestVersion: verified$1("4.18.1", release("4.18.1"), "Yarn 6 is still in preview."),
 		bypassFlag: verified$1("--no-time-gate on yarn add and yarn up (4.15.0+)", "https://yarnpkg.com/cli/add"),
 		perScopeGate: verified$1("npmScopes.<scope>.npmMinimalAgeGate overrides the global gate (4.17.0+)", release("4.17.0")),
-		upgradeMigration: verified$1("When the lockfile predates the new defaults and the key is unset, yarn install writes enableScripts: true, approvedGitRepositories: [\"**\"] and npmMinimalAgeGate: 0 into .yarnrc.yml", "https://github.com/yarnpkg/berry/pull/7135", "Explicit values written by depgate prevent the migration."),
+		upgradeMigration: verified$1("When the lockfile predates the new defaults and the key is unset, yarn install writes enableScripts: true, approvedGitRepositories: [\"**\"] and npmMinimalAgeGate: 0 into .yarnrc.yml", "https://github.com/yarnpkg/berry/pull/7135", "Explicit values written by depcurfew prevent the migration."),
 		missingPublishTime: verified$1("Versions without a publish time are quarantined while the gate is on", "https://github.com/yarnpkg/berry/pull/6907"),
 		unknownSettings: uncertain("Unknown keys in the project .yarnrc.yml throw (unless enableStrictSettings is false), so settings newer than the pinned Yarn break installs", "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts", "Read from the current source code; older releases were not checked.")
 	}
@@ -8349,7 +8349,7 @@ function readPackageManagerField(repository, facts, manifest, collector) {
 	const [, name = "", version = ""] = match;
 	const manager = facts.managers.find((entry) => entry.id === name);
 	if (manager === void 0) {
-		repository.warn("invalid-package-manager", `${facts.packageManagerKey} names ${name}, which depgate does not know`, ["package.json"]);
+		repository.warn("invalid-package-manager", `${facts.packageManagerKey} names ${name}, which depcurfew does not know`, ["package.json"]);
 		return;
 	}
 	collector.addEvidence(manager.id, "packageManager", "package.json");
@@ -8501,7 +8501,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		const evidence = collector.evidence.get(manager.id);
 		if (evidence === void 0) continue;
 		const yarn = manager.id === "yarn" ? yarnVariant(repository, facts, collector) : void 0;
-		if (yarn?.variant === "classic") repository.warn("yarn-classic-unsupported", "Yarn Classic (1.x) is not supported; depgate configures Yarn 2 and later", [yarn.file]);
+		if (yarn?.variant === "classic") repository.warn("yarn-classic-unsupported", "Yarn Classic (1.x) is not supported; depcurfew configures Yarn 2 and later", [yarn.file]);
 		packageManagers.push({
 			id: manager.id,
 			...yarn === void 0 ? {} : { variant: yarn.variant },
@@ -8516,7 +8516,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		const files = bot.configFiles.filter((file) => repository.isFile(file));
 		if (bot.packageJsonKey !== null && manifest !== void 0 && bot.packageJsonKey in manifest) {
 			files.push("package.json");
-			repository.warn("renovate-config-in-package-json", "Renovate configuration in package.json is deprecated and depgate does not edit it; move it to renovate.json", ["package.json"]);
+			repository.warn("renovate-config-in-package-json", "Renovate configuration in package.json is deprecated and depcurfew does not edit it; move it to renovate.json", ["package.json"]);
 		}
 		if (files.length > 0) bots.push({
 			id: bot.id,
@@ -8637,7 +8637,7 @@ function pnpmEntries(text, format, documents) {
 		entries: [],
 		start
 	};
-	if (!String(document["lockfileVersion"]).startsWith("9")) throw new UnsupportedLockfile(`its lockfileVersion ${String(document["lockfileVersion"])} is not read; depgate reads 9.0`);
+	if (!String(document["lockfileVersion"]).startsWith("9")) throw new UnsupportedLockfile(`its lockfileVersion ${String(document["lockfileVersion"])} is not read; depcurfew reads 9.0`);
 	const hosts = strings(format["gitHostedTarballHosts"]);
 	const entries = [];
 	const packages = isRecord(document["packages"]) ? document["packages"] : {};
@@ -8769,7 +8769,7 @@ function denoEntries(text, format) {
 		recordsScripts
 	};
 }
-/** A lockfile in a version or shape depgate does not read; the message says why. */
+/** A lockfile in a version or shape depcurfew does not read; the message says why. */
 var UnsupportedLockfile = class extends Error {};
 function documentsOf(tool) {
 	const fact = tool.extra?.["lockfileDocuments"];
@@ -9097,11 +9097,11 @@ function jsonArrayRemove(text, path, index) {
 }
 
 // src/apply/block.ts
-const BLOCK_START = "# >>> depgate managed block: edit depgate.json and run depgate apply instead";
-const BLOCK_END = "# <<< depgate managed block";
-const SUPERSEDED = "# depgate: superseded by the managed block: ";
+const BLOCK_START = "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead";
+const BLOCK_END = "# <<< depcurfew managed block";
+const SUPERSEDED = "# depcurfew: superseded by the managed block: ";
 /** For a managed key commented out when no block is written, such as a switch the policy turns off. */
-const TURNED_OFF = "# depgate: turned off; depgate.json manages this setting: ";
+const TURNED_OFF = "# depcurfew: turned off; depcurfew.json manages this setting: ";
 /** The lines without the managed block, where it was, and whether a blank line separated it from what came before. */
 function removeBlock(lines) {
 	const start = lines.findIndex((line) => line.trim() === BLOCK_START);
@@ -9110,7 +9110,7 @@ function removeBlock(lines) {
 		at: void 0,
 		separated: false
 	};
-	const end = lines.findIndex((line, index) => index > start && line.trim() === "# <<< depgate managed block");
+	const end = lines.findIndex((line, index) => index > start && line.trim() === "# <<< depcurfew managed block");
 	const stop = end === -1 ? start : end;
 	const rest = [...lines.slice(0, start), ...lines.slice(stop + 1)];
 	let at = start;
@@ -9161,8 +9161,8 @@ function iniEntries(text) {
 	let managed = false;
 	text.split(/\r?\n/u).forEach((raw, index) => {
 		const line = raw.trim();
-		if (line === "# >>> depgate managed block: edit depgate.json and run depgate apply instead") managed = true;
-		else if (line === "# <<< depgate managed block") managed = false;
+		if (line === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead") managed = true;
+		else if (line === "# <<< depcurfew managed block") managed = false;
 		if (line === "" || line.startsWith("#") || line.startsWith(";")) return;
 		const equals = line.indexOf("=");
 		if (equals === -1) return;
@@ -9364,7 +9364,7 @@ function matchesPattern(name, pattern) {
 }
 
 // src/policy/defaults.ts
-const POLICY_FILE = "depgate.json";
+const POLICY_FILE = "depcurfew.json";
 
 // src/policy/duration.ts
 const MINUTES$2 = {
@@ -9500,7 +9500,7 @@ function readPolicyFile(root) {
 	};
 	return {
 		status: "unreadable",
-		reason: repository.warnings[0]?.message ?? `${"depgate.json"} is not a regular file and was not read`
+		reason: repository.warnings[0]?.message ?? `${"depcurfew.json"} is not a regular file and was not read`
 	};
 }
 
@@ -9989,7 +9989,7 @@ const sourcesShape = object({
 	file: optional(access("Dependencies installed from local tarball files.")),
 	directory: optional(access("Dependencies installed from local directories."))
 }, { description: "Where dependencies may come from besides the registry. An absent field is not managed." });
-const targetsShape = anyOf([literal("auto", { description: "Configure the tools detected in the repository." }), list(oneOfStrings(TOOL_IDS, { description: "A tool depgate can configure." }), {
+const targetsShape = anyOf([literal("auto", { description: "Configure the tools detected in the repository." }), list(oneOfStrings(TOOL_IDS, { description: "A tool depcurfew can configure." }), {
 	label: "a list of tools",
 	unique: true,
 	nonEmpty: "use \"auto\" to detect tools",
@@ -10145,7 +10145,7 @@ function allowedNames(context, setting) {
 		return false;
 	});
 }
-/** Whether depgate doctor can tell dependency sources apart in the tool's lockfile. */
+/** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
 function lockfileShowsSources(tool) {
 	const fact = tool.extra?.["lockfileFormat"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
@@ -10162,7 +10162,7 @@ function eachSource(context, apply) {
 		const setting = settingOf(knowledge?.setting);
 		if (setting === null) {
 			if (access === "deny") {
-				const checked = lockfileShowsSources(context.tool) ? "; depgate doctor still reports such dependencies in the lockfile" : "; depgate doctor cannot see them in the lockfile either, so review new dependencies by hand";
+				const checked = lockfileShowsSources(context.tool) ? "; depcurfew doctor still reports such dependencies in the lockfile" : "; depcurfew doctor cannot see them in the lockfile either, so review new dependencies by hand";
 				context.warn(`${context.name} has no setting for ${SOURCE_LABELS[kind]} dependencies, so "deny" cannot be enforced${checked}`);
 			}
 			continue;
@@ -10228,7 +10228,7 @@ const bun = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.read(file).includes("# >>> depgate managed block: edit depgate.json and run depgate apply instead")) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.toml(file, table, entries, managed);
 	return minutes;
 };
 
@@ -10278,7 +10278,7 @@ function describeRequirements(requirements) {
 		0
 	]);
 	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since})`).join(", ");
-	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depgate assumes the later one` : text;
+	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
 }
 
 // src/apply/toml.ts
@@ -10390,7 +10390,7 @@ function writeTomlBlock(body, table, entries, managedKeys) {
 }
 
 // src/apply/yaml-edit.ts
-const YAML_MARKER = "# managed by depgate";
+const YAML_MARKER = "# managed by depcurfew";
 function parse(text) {
 	const lineCounter = new import_dist.LineCounter();
 	const document = (0, import_dist.parseDocument)(text, { lineCounter });
@@ -10434,7 +10434,7 @@ function mark(text, keyStart) {
 	const indent = text.slice(start, keyStart);
 	if (!/^[ \t]*$/u.test(indent)) return text;
 	const previousStart = lineStart(text, start - 1);
-	if (start > 0 && text.slice(previousStart, start - 1).trim() === "# managed by depgate") return text;
+	if (start > 0 && text.slice(previousStart, start - 1).trim() === "# managed by depcurfew") return text;
 	return `${text.slice(0, start)}${indent}${YAML_MARKER}\n${text.slice(start)}`;
 }
 function yamlGet(text, path) {
@@ -10459,7 +10459,7 @@ function isFlow(node) {
 */
 function refuseFlow(path, index, value) {
 	const where = index === 0 ? "the document" : path.slice(0, index).join(".");
-	throw new Error(`${where} is written in flow style ({ ... } or [ ... ]), which depgate does not edit; rewrite it in block style, or set ${path.join(".")} to ${JSON.stringify(value)} by hand`);
+	throw new Error(`${where} is written in flow style ({ ... } or [ ... ]), which depcurfew does not edit; rewrite it in block style, or set ${path.join(".")} to ${JSON.stringify(value)} by hand`);
 }
 /** Sets the value at `path`, creating missing maps on the way, and marks the key that was written. */
 function yamlSet(text, path, value) {
@@ -10660,7 +10660,7 @@ const dependabot = (context, duration) => {
 	if (policy.cooldown === void 0 || duration === void 0) return;
 	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
 	if (file === void 0) {
-		context.warn(`${context.name}: no configuration file found; depgate does not create one. Add .github/dependabot.yml if you use Dependabot, then run depgate apply again`);
+		context.warn(`${context.name}: no configuration file found; depcurfew does not create one. Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again`);
 		return;
 	}
 	if (policy.cooldown.securityUpdates === "delay") context.warn(`${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`);
@@ -10777,7 +10777,7 @@ const npm = (context) => {
 		entries.push(`${setting}=${access === "deny" ? "none" : "all"}`);
 		managed.push(setting);
 	});
-	if (entries.length > 0 || context.read(file).includes("# >>> depgate managed block: edit depgate.json and run depgate apply instead") || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
+	if (entries.length > 0 || context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead") || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
 	return minutes;
 };
 
@@ -10849,7 +10849,7 @@ const pnpm = (context) => {
 	if (exoticSetting !== void 0) {
 		const denied = [...exotic].filter(([, access]) => access === "deny").map(([kind]) => kind === "git" ? "git" : "remote tarball");
 		if (denied.length > 0) {
-			context.warn(`pnpm: ${exoticSetting} stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depgate doctor reports them in pnpm-lock.yaml`);
+			context.warn(`pnpm: ${exoticSetting} stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depcurfew doctor reports them in pnpm-lock.yaml`);
 			if (denied.length < exotic.size) context.warn(`pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(" and ")}`);
 		}
 		yaml.set([exoticSetting], denied.length > 0);
@@ -10858,7 +10858,7 @@ const pnpm = (context) => {
 };
 
 // src/apply/generators/renovate.ts
-const RULE_DESCRIPTION = "depgate: packages excluded from minimumReleaseAge";
+const RULE_DESCRIPTION = "depcurfew: packages excluded from minimumReleaseAge";
 const isString = (value) => typeof value === "string";
 const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
 const isPath = (value) => Array.isArray(value) && value.every(isString);
@@ -10891,17 +10891,17 @@ const renovate = (context, duration) => {
 		const packageJson = extraOf(tool, "packageJsonConfig", isRecord);
 		const where = file ?? (context.exists("package.json") && context.json("package.json").get([String(packageJson["key"])]) !== void 0 ? "package.json" : void 0);
 		if (where === void 0) {
-			context.warn(`${context.name}: no configuration file found; depgate does not create one. Add renovate.json if you use Renovate, then run depgate apply again`);
+			context.warn(`${context.name}: no configuration file found; depcurfew does not create one. Add renovate.json if you use Renovate, then run depcurfew apply again`);
 			return;
 		}
-		context.warn(where === "package.json" ? `${context.name}: configuration in package.json is deprecated and depgate does not edit it; move it to renovate.json or add the snippet by hand` : `${context.name}: ${where} is not plain JSON or JSONC, so depgate does not edit it; add the snippet by hand`);
+		context.warn(where === "package.json" ? `${context.name}: configuration in package.json is deprecated and depcurfew does not edit it; move it to renovate.json or add the snippet by hand` : `${context.name}: ${where} is not plain JSON or JSONC, so depcurfew does not edit it; add the snippet by hand`);
 		context.snippet(where, snippet());
 		return;
 	}
 	const json = context.json(file);
 	json.set([setting], result.value);
 	const rules = json.get([rule.list]);
-	const index = Array.isArray(rules) ? rules.findIndex((entry) => isRecord(entry) && entry[descriptionKey] === "depgate: packages excluded from minimumReleaseAge") : -1;
+	const index = Array.isArray(rules) ? rules.findIndex((entry) => isRecord(entry) && entry[descriptionKey] === "depcurfew: packages excluded from minimumReleaseAge") : -1;
 	if (patterns.length > 0) {
 		if (index >= 0) {
 			if (JSON.stringify(rules[index]) !== JSON.stringify(exclusionRule)) json.replace([rule.list], index, exclusionRule);
@@ -10990,7 +10990,7 @@ var Workspace = class {
 		if (parent !== this.root && !parent.startsWith(this.root + sep)) throw new Error(`${file} is outside the repository`);
 		let original = null;
 		try {
-			if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depgate does not write through symlinks`);
+			if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
 			original = readFileSync(path, "utf8");
 		} catch (error) {
 			if (error.code !== "ENOENT") throw error;
@@ -11034,7 +11034,7 @@ function writeChanges(root, changes) {
 	for (const change of changes) {
 		const path = join(root, change.file);
 		mkdirSync(dirname(path), { recursive: true });
-		const temporary = `${path}.depgate-${process.pid}-${Date.now()}`;
+		const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}`;
 		writeFileSync(temporary, change.after, { flag: "wx" });
 		if (change.before !== null) chmodSync(temporary, statSync(path).mode);
 		renameSync(temporary, path);
@@ -11074,7 +11074,7 @@ function allowListWarnings(root, policy, detection, targets) {
 	const scripts = policy.installScripts;
 	if (scripts?.default !== "deny") return [];
 	const repository = new Repository(root);
-	return detection.packageManagers.filter((manager) => manager.supported && targets.has(manager.id)).flatMap((manager) => allowEntries(repository, manager.id, manager.configFiles)).filter((entry) => !scripts.allow.some((pattern) => matchesPattern(entry.package, pattern))).map((entry) => `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depgate apply does not remove entries it did not write, so remove ${entry.name} from ${entry.setting} by hand or add ${entry.name === entry.package ? "it" : entry.package} to installScripts.allow in ${POLICY_FILE}`);
+	return detection.packageManagers.filter((manager) => manager.supported && targets.has(manager.id)).flatMap((manager) => allowEntries(repository, manager.id, manager.configFiles)).filter((entry) => !scripts.allow.some((pattern) => matchesPattern(entry.package, pattern))).map((entry) => `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write, so remove ${entry.name} from ${entry.setting} by hand or add ${entry.name === entry.package ? "it" : entry.package} to installScripts.allow in ${POLICY_FILE}`);
 }
 /** Computes every change without writing anything. */
 function planApply(root, policy, detection, tools = knowledgeBase) {
@@ -11086,11 +11086,11 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	for (const manager of detection.packageManagers) if (!manager.supported && (policy.targets === "auto" || targets.has(manager.id))) {
 		const berry = tools.find((tool) => tool.id === manager.id);
 		const since = berry === void 0 ? void 0 : sinceOf(berry.cooldown.availableSince);
-		const advice = manager.variant === "classic" && berry !== void 0 ? `. Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depgate configures` : "";
+		const advice = manager.variant === "classic" && berry !== void 0 ? `. Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures` : "";
 		warnings.push(`${manager.variant === "classic" ? "Yarn Classic (1.x)" : manager.id} is not supported; nothing written for it${advice}`);
 		targets.delete(manager.id);
 	}
-	if (targets.size === 0) warnings.push("no tools to configure: depgate found no supported package manager or bot here (depgate explain shows what it detects)");
+	if (targets.size === 0) warnings.push("no tools to configure: depcurfew found no supported package manager or bot here (depcurfew explain shows what it detects)");
 	const run = (tool, version, action) => {
 		const context = createContext({
 			tool,
@@ -11116,7 +11116,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		const version = manager === void 0 ? void 0 : pinnedVersion(manager);
 		if (version === void 0) {
 			const latest = latestVersion$1(tool);
-			warnings.push(`${tool.name}: no exact version is pinned, so depgate configures for ${tool.name} ${latest ?? "latest"}, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it`);
+			warnings.push(`${tool.name}: no exact version is pinned, so depcurfew configures for ${tool.name} ${latest ?? "latest"}, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it`);
 		}
 		run(tool, version, (context) => {
 			const minutes = generator(context);
@@ -11146,7 +11146,7 @@ var PolicyError = class extends Error {
 		this.issues = issues;
 	}
 };
-/** The policy of the repository; undefined when it has no depgate.json. Throws PolicyError when it cannot be used. */
+/** The policy of the repository; undefined when it has no depcurfew.json. Throws PolicyError when it cannot be used. */
 function loadPolicyIfPresent(root) {
 	const file = readPolicyFile(root);
 	if (file.status === "missing") return void 0;
@@ -11439,7 +11439,7 @@ const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	summary: "An update bot waits less than the package manager before proposing a new version.",
 	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile.",
-	help: "Give the bot a delay at least as long as the package manager's (depgate apply does this).",
+	help: "Give the bot a delay at least as long as the package manager's (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
 	check(context) {
@@ -11460,7 +11460,7 @@ const botCooldownMismatch = {
 			if (delay.minutes < own.minutes) context.report({
 				location: delay.location,
 				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
-				fix: delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depgate apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depgate apply`
+				fix: delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`
 			});
 			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager)) context.report({
 				level: "warning",
@@ -11484,7 +11484,7 @@ function tool(context, id) {
 function checkPolicy(context) {
 	const policy = context.policy;
 	if (policy === void 0) return;
-	const text = context.repository.readText("depgate.json") ?? "";
+	const text = context.repository.readText("depcurfew.json") ?? "";
 	const lists = [["cooldown.exclude", policy.cooldown?.exclude ?? []], ["installScripts.allow", policy.installScripts?.allow ?? []]];
 	for (const [field, patterns] of lists) for (const pattern of patterns.filter(isBroad)) {
 		const line = lineOf(text, JSON.stringify(pattern));
@@ -11673,13 +11673,13 @@ function clean(line) {
 function withoutComma(line) {
 	return line.replace(/,$/u, "");
 }
-/** Lines depgate writes around its settings, which say nothing about a setting themselves. */
+/** Lines depcurfew writes around its settings, which say nothing about a setting themselves. */
 function isFrame(line) {
-	return line === "" || line === "# managed by depgate" || line === "# >>> depgate managed block: edit depgate.json and run depgate apply instead" || line === "# <<< depgate managed block";
+	return line === "" || line === "# managed by depcurfew" || line === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead" || line === "# <<< depcurfew managed block";
 }
 /**
 * The first block of lines that apply would change, without the lines that only gain or lose a trailing comma
-* (adding a JSON key changes the line before it) and without depgate's frame lines.
+* (adding a JSON key changes the line before it) and without depcurfew's frame lines.
 */
 function firstDifference(before, after) {
 	const operations = myers(lines(before), lines(after));
@@ -11718,16 +11718,16 @@ function addedText(added) {
 }
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
 function describe(difference) {
-	const commented = difference.added.find((text) => text.startsWith("# depgate: superseded by the managed block: ") || text.startsWith("# depgate: turned off; depgate.json manages this setting: "));
+	const commented = difference.added.find((text) => text.startsWith("# depcurfew: superseded by the managed block: ") || text.startsWith("# depcurfew: turned off; depcurfew.json manages this setting: "));
 	if (commented !== void 0) {
-		if (commented.startsWith("# depgate: superseded by the managed block: ")) return `${code$1(commented.slice(SUPERSEDED.length))} is set outside the block that depgate manages; depgate apply comments it out, and the block sets what ${POLICY_FILE} requires`;
-		return `${code$1(commented.slice(TURNED_OFF.length))} is set by hand, but ${POLICY_FILE} manages this setting; depgate apply comments it out`;
+		if (commented.startsWith("# depcurfew: superseded by the managed block: ")) return `${code$1(commented.slice(SUPERSEDED.length))} is set outside the block that depcurfew manages; depcurfew apply comments it out, and the block sets what ${POLICY_FILE} requires`;
+		return `${code$1(commented.slice(TURNED_OFF.length))} is set by hand, but ${POLICY_FILE} manages this setting; depcurfew apply comments it out`;
 	}
 	const [removed] = difference.removed;
 	if (removed !== void 0 && difference.added.length > 0) return `${code$1(removed)} should be ${addedText(difference.added)}`;
 	if (difference.added.length > 0) return `${addedText(difference.added)} is missing`;
 	if (removed !== void 0) return `${code$1(removed)} should not be there`;
-	return "its layout differs from what depgate apply writes";
+	return "its layout differs from what depcurfew apply writes";
 }
 /** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
 function checkAllowLists(context) {
@@ -11752,9 +11752,9 @@ function checkAllowLists(context) {
 }
 const configDrift = {
 	id: "config-drift",
-	summary: "A configuration file does not match what depgate apply writes for depgate.json.",
-	description: "A generated setting was edited by hand, or depgate.json changed without running depgate apply, so the tools enforce something other than the policy.",
-	help: "Run depgate apply (depgate apply --dry-run shows the difference), or change depgate.json if the edit was intended.",
+	summary: "A configuration file does not match what depcurfew apply writes for depcurfew.json.",
+	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy.",
+	help: "Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.",
 	level: "error",
 	requiresPolicy: true,
 	check(context) {
@@ -11764,8 +11764,8 @@ const configDrift = {
 			if (change.before === null) {
 				context.report({
 					location: { file: POLICY_FILE },
-					message: `${change.file} is missing; depgate apply would create it with the settings from ${POLICY_FILE}`,
-					fix: `Run depgate apply to create ${change.file} (depgate apply --dry-run shows its content first)`
+					message: `${change.file} is missing; depcurfew apply would create it with the settings from ${POLICY_FILE}`,
+					fix: `Run depcurfew apply to create ${change.file} (depcurfew apply --dry-run shows its content first)`
 				});
 				continue;
 			}
@@ -11776,7 +11776,7 @@ const configDrift = {
 					line: difference.line
 				},
 				message: `${change.file} does not match ${POLICY_FILE}: ${describe(difference)}`,
-				fix: `Run depgate apply to bring ${change.file} back in line with ${POLICY_FILE} (depgate apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`
+				fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`
 			});
 		}
 		checkAllowLists(context);
@@ -11927,9 +11927,9 @@ function location(lockfile, entry) {
 }
 const lockfileForbiddenSource = {
 	id: "lockfile-forbidden-source",
-	summary: "The lockfile installs a package from a source depgate.json denies.",
+	summary: "The lockfile installs a package from a source depcurfew.json denies.",
 	description: "A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say.",
-	help: "Replace the dependency with a registry version, or allow that source in depgate.json.",
+	help: "Replace the dependency with a registry version, or allow that source in depcurfew.json.",
 	level: "error",
 	requiresPolicy: true,
 	check(context) {
@@ -11942,7 +11942,7 @@ const lockfileForbiddenSource = {
 					context.report({
 						level: "warning",
 						location: location(lockfile, entry),
-						message: `${lockfile.file} installs ${entry.name} from a source depgate does not recognize (${shownSpec(entry.spec) || "no source given"}); it may be one ${POLICY_FILE} denies`,
+						message: `${lockfile.file} installs ${entry.name} from a source depcurfew does not recognize (${shownSpec(entry.spec) || "no source given"}); it may be one ${POLICY_FILE} denies`,
 						fix: `Check where ${entry.name} comes from, and regenerate the lockfile with the package manager if the entry is damaged`
 					});
 					continue;
@@ -11993,9 +11993,9 @@ function scriptsDisabledBy(context, tool) {
 }
 const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
-	summary: "The lockfile has packages with install scripts that depgate.json does not allow.",
+	summary: "The lockfile has packages with install scripts that depcurfew.json does not allow.",
 	description: "Install scripts run arbitrary code during installation. Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile.",
-	help: "Remove or replace the package, or add it to installScripts.allow in depgate.json after reviewing its scripts.",
+	help: "Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing its scripts.",
 	level: "error",
 	requiresPolicy: true,
 	check(context) {
@@ -12154,7 +12154,7 @@ function feature(setting, since) {
 		disputed: typeof since !== "string" && since.status === "disputed"
 	};
 }
-/** Settings depgate.json makes `apply` write for this tool. */
+/** Settings depcurfew.json makes `apply` write for this tool. */
 function policyFeatures(tool, policy) {
 	const features = [];
 	if (policy.cooldown !== void 0) {
@@ -12262,7 +12262,7 @@ const managerVersionTooOld = {
 					line
 				},
 				message: `Yarn Classic (1.x) has none of the settings ${POLICY_FILE} needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it`,
-				fix: `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depgate configures`
+				fix: `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures`
 			});
 		}
 	}
@@ -12328,7 +12328,7 @@ function checkNpmWorkspaces(context) {
 			line: entry.line
 		},
 		message: `npm reads .npmrc only at the project root, so ${entry.key} in ${file} has no effect`,
-		fix: `Set it in the root .npmrc, or in ${POLICY_FILE} and run depgate apply`
+		fix: `Set it in the root .npmrc, or in ${POLICY_FILE} and run depcurfew apply`
 	});
 }
 /** pnpm 10 reads .npmrc too, but pnpm-workspace.yaml wins; a root .npmrc value counts only when the YAML lacks it. */
@@ -12355,7 +12355,7 @@ function checkPnpmRoot(context) {
 					line: entry.line
 				},
 				message: `${entry.key}=${entry.value} in .npmrc sets ${label} to wait ${actual.minutes === 0 ? "not at all" : formatMinutes(actual.minutes)}, shorter than ${policy.cooldown.minimum.text} in ${POLICY_FILE}, because pnpm-workspace.yaml does not set ${entry.setting}`,
-				fix: "Remove the line and run depgate apply, which writes the delay to pnpm-workspace.yaml"
+				fix: "Remove the line and run depcurfew apply, which writes the delay to pnpm-workspace.yaml"
 			});
 		} else if (entry.setting === excludeSetting && !policy.cooldown.exclude.some((pattern) => matchesPattern(entry.value, pattern) || pattern === entry.value)) context.report({
 			location: {
@@ -12363,7 +12363,7 @@ function checkPnpmRoot(context) {
 				line: entry.line
 			},
 			message: `${entry.key} in .npmrc exempts ${entry.value} from the ${label} delay, but ${POLICY_FILE} does not`,
-			fix: `Remove the line, or add ${entry.value} to cooldown.exclude in ${POLICY_FILE} and run depgate apply`
+			fix: `Remove the line, or add ${entry.value} to cooldown.exclude in ${POLICY_FILE} and run depcurfew apply`
 		});
 	}
 }
@@ -12371,7 +12371,7 @@ const npmrcOverridesPolicy = {
 	id: "npmrc-overrides-policy",
 	summary: "An .npmrc file changes a security setting in a way the policy does not see, or is ignored.",
 	description: "Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages, and pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy.",
-	help: "Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depgate.json and depgate apply.",
+	help: "Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.",
 	level: "error",
 	requiresPolicy: false,
 	check(context) {
@@ -12412,16 +12412,16 @@ const pnpmSharedWorkspaceLockfile = {
 // src/doctor/rules/unreadable-config.ts
 /** Repository warnings that mean a file was not checked. */
 const UNREADABLE_WARNINGS = {
-	"invalid-file": "Fix the syntax error, so that depgate can check the file",
+	"invalid-file": "Fix the syntax error, so that depcurfew can check the file",
 	"file-too-large": "Make the file smaller than the limit, or check its settings by hand",
 	"outside-repository": "Replace the symlink with a regular file inside the repository",
 	"workspace-outside-repository": "Keep workspace packages inside the repository"
 };
 const unreadableConfig = {
 	id: "unreadable-config",
-	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depgate cannot check it.",
-	description: "A package manager or bot may still read the file and its settings may weaken the policy; depgate fails closed and reports an error instead of passing silently.",
-	help: "Fix what the message describes: invalid syntax, a symlink, a file over the size limit or a style depgate apply cannot edit.",
+	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.",
+	description: "A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.",
+	help: "Fix what the message describes: invalid syntax, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
 	level: "error",
 	requiresPolicy: false,
 	check(context) {
@@ -12429,12 +12429,12 @@ const unreadableConfig = {
 		const warnings = [...context.detection.warnings, ...context.repository.warnings];
 		for (const warning of warnings) {
 			const fix = UNREADABLE_WARNINGS[warning.code];
-			const file = warning.files[0] ?? "depgate.json";
+			const file = warning.files[0] ?? "depcurfew.json";
 			if (fix === void 0 || reported.has(file)) continue;
 			reported.add(file);
 			context.report({
 				location: { file },
-				message: `${warning.message.replace(/:$/u, "")}; depgate cannot check it`,
+				message: `${warning.message.replace(/:$/u, "")}; depcurfew cannot check it`,
 				fix
 			});
 		}
@@ -12443,8 +12443,8 @@ const unreadableConfig = {
 			reported.add(failure.file);
 			context.report({
 				location: { file: failure.file },
-				message: `depgate apply cannot edit ${failure.file} for ${context.tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool} (${failure.message}), so it cannot be checked against ${POLICY_FILE}`,
-				fix: "Fix what the message describes, then run depgate apply; or add the settings by hand"
+				message: `depcurfew apply cannot edit ${failure.file} for ${context.tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool} (${failure.message}), so it cannot be checked against ${POLICY_FILE}`,
+				fix: "Fix what the message describes, then run depcurfew apply; or add the settings by hand"
 			});
 		}
 	}
@@ -12535,7 +12535,7 @@ function renderText(report, rules, colors = PLAIN) {
 
 // src/doctor/sarif.ts
 const SARIF_SCHEMA = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
-const INFORMATION_URI = "https://github.com/DevXord/depgate";
+const INFORMATION_URI = "https://github.com/DevXord/depcurfew";
 function ruleName(id) {
 	return id.replace(/(^|-)([a-z])/gu, (_match, _dash, letter) => letter.toUpperCase());
 }
@@ -12562,7 +12562,7 @@ function toSarif(report, rules, version, readLine = () => void 0) {
 		version: "2.1.0",
 		runs: [{
 			tool: { driver: {
-				name: "depgate",
+				name: "depcurfew",
 				version,
 				informationUri: INFORMATION_URI,
 				rules: rules.map((rule) => ({
@@ -12624,7 +12624,7 @@ function annotationCommands(report, rules, format = values$1(environment.githubA
 			const properties = [
 				[format.properties.file, finding.location.file],
 				[format.properties.line, finding.location.line === void 0 ? void 0 : String(finding.location.line)],
-				[format.properties.title, `depgate: ${finding.rule}`]
+				[format.properties.title, `depcurfew: ${finding.rule}`]
 			].flatMap(([name, value]) => value === void 0 ? [] : [`${name}=${property(value)}`]);
 			const fix = fixOf(finding, rules);
 			const message = fix === void 0 ? finding.message : `${finding.message}\nFix: ${fix}`;
@@ -12650,7 +12650,7 @@ function code(text) {
 function jobSummary(report, rules, directory, maxBytes) {
 	const counts = countLevels(report.findings);
 	const where = directory === "" ? "" : ` in ${code(directory)}`;
-	const head = ["## depgate doctor", ""];
+	const head = ["## depcurfew doctor", ""];
 	if (report.findings.length === 0) head.push(`No problems found${where}.`);
 	else {
 		const count = (level) => counts[level] === 0 ? plural(0, level) : `**${plural(counts[level], level)}**`;
@@ -12683,9 +12683,9 @@ function jobSummary(report, rules, directory, maxBytes) {
 /** The job summary when doctor could not run. */
 function failureSummary(message) {
 	return [
-		"## depgate doctor",
+		"## depcurfew doctor",
 		"",
-		`depgate could not check the repository: ${markdown(message)}`,
+		`depcurfew could not check the repository: ${markdown(message)}`,
 		""
 	].join("\n");
 }
@@ -12700,7 +12700,7 @@ function byLocation(a, b) {
 	if (a.location.file !== b.location.file) return a.location.file < b.location.file ? -1 : 1;
 	return (a.location.line ?? 0) - (b.location.line ?? 0) || LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0);
 }
-/** Runs the rules on a repository. Throws PolicyError when depgate.json exists but is invalid. */
+/** Runs the rules on a repository. Throws PolicyError when depcurfew.json exists but is invalid. */
 function runDoctor(root, options = {}) {
 	const tools = options.tools ?? knowledgeBase;
 	const policy = loadPolicyIfPresent(root);
@@ -12813,13 +12813,13 @@ function unsafeOutput(workspace, file) {
 		current = resolve(current, part);
 		const stats = lstatSync(current, { throwIfNoEntry: false });
 		if (stats === void 0) return void 0;
-		if (stats.isSymbolicLink()) return `${relative(workspace, current).split(sep).join("/")} is a symlink; depgate does not write through symlinks`;
+		if (stats.isSymbolicLink()) return `${relative(workspace, current).split(sep).join("/")} is a symlink; depcurfew does not write through symlinks`;
 	}
 	return lstatSync(file).isFile() ? void 0 : `${relative(workspace, file).split(sep).join("/")} is not a regular file`;
 }
 function runAction(env, io) {
 	const workspace = resolve(env["GITHUB_WORKSPACE"] ?? process.cwd());
-	const sarifInput = input(env, "sarif-file", "depgate.sarif");
+	const sarifInput = input(env, "sarif-file", "depcurfew.sarif");
 	const sarifFile = resolve(workspace, sarifInput);
 	const outputs = {
 		"sarif-file": "",
@@ -12831,7 +12831,7 @@ function runAction(env, io) {
 	const summary = enabled(env, "job-summary");
 	const fail = (message) => {
 		outputs.failure = message;
-		io.log(untrusted(`depgate: ${message}\n`));
+		io.log(untrusted(`depcurfew: ${message}\n`));
 		if (summary) io.summary(failureSummary(message));
 		return outputs;
 	};
@@ -12844,7 +12844,7 @@ function runAction(env, io) {
 	} catch (error) {
 		if (!(error instanceof PolicyError)) throw error;
 		outputs.failure = [error.message, ...error.issues].join("; ");
-		io.log(untrusted(`depgate: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join("")}`));
+		io.log(untrusted(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join("")}`));
 		if (summary) io.summary(failureSummary(outputs.failure));
 		return outputs;
 	}
@@ -12903,7 +12903,7 @@ function main(env = process.env) {
 try {
 	main();
 } catch (error) {
-	process.stderr.write(`depgate: unexpected error: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+	process.stderr.write(`depcurfew: unexpected error: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
 	process.exitCode = 1;
 }
 

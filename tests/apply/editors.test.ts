@@ -6,8 +6,8 @@ import { detectStyle, restoreStyle, toLf } from '../../src/apply/text.ts';
 import { writeTomlBlock } from '../../src/apply/toml.ts';
 import { yamlGet, yamlSet } from '../../src/apply/yaml-edit.ts';
 
-const START = '# >>> depgate managed block: edit depgate.json and run depgate apply instead';
-const END = '# <<< depgate managed block';
+const START = '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead';
+const END = '# <<< depcurfew managed block';
 
 describe('text style', () => {
   it('detects and restores CRLF, a byte order mark and a missing final newline', () => {
@@ -45,8 +45,8 @@ describe('writeIniBlock (.npmrc)', () => {
     const before = 'min-release-age = 1\nmin-release-age-exclude[]=old\nsave-exact=true\n';
     expect(writeIniBlock(before, ['min-release-age=3'], ['min-release-age', 'min-release-age-exclude'])).toBe(
       [
-        '# depgate: superseded by the managed block: min-release-age = 1',
-        '# depgate: superseded by the managed block: min-release-age-exclude[]=old',
+        '# depcurfew: superseded by the managed block: min-release-age = 1',
+        '# depcurfew: superseded by the managed block: min-release-age-exclude[]=old',
         'save-exact=true',
         '',
         START,
@@ -86,9 +86,9 @@ describe('writeTomlBlock (bunfig.toml)', () => {
     const before = 'install.minimumReleaseAge = 1\n[install]\nminimumReleaseAge = 2\n[install.scopes]\nminimumReleaseAge = "kept"\n';
     expect(writeTomlBlock(before, 'install', ['minimumReleaseAge = 3'], ['minimumReleaseAge'])).toBe(
       [
-        '# depgate: superseded by the managed block: install.minimumReleaseAge = 1',
+        '# depcurfew: superseded by the managed block: install.minimumReleaseAge = 1',
         '[install]',
-        '# depgate: superseded by the managed block: minimumReleaseAge = 2',
+        '# depcurfew: superseded by the managed block: minimumReleaseAge = 2',
         '',
         START,
         'minimumReleaseAge = 3',
@@ -122,7 +122,7 @@ describe('yamlSet', () => {
 
   it('replaces a scalar in place, keeps its comment and marks the key', () => {
     expect(yamlSet(pnpm, ['minimumReleaseAge'], 4320)).toBe(
-      pnpm.replace('minimumReleaseAge: 1440 # one day', '# managed by depgate\nminimumReleaseAge: 4320 # one day'),
+      pnpm.replace('minimumReleaseAge: 1440 # one day', '# managed by depcurfew\nminimumReleaseAge: 4320 # one day'),
     );
   });
 
@@ -132,22 +132,22 @@ describe('yamlSet', () => {
 
   it('appends a new key with a marker, using the file’s sequence style', () => {
     expect(yamlSet(pnpm, ['minimumReleaseAgeExclude'], ['@acme/*'])).toBe(
-      `${pnpm}# managed by depgate\nminimumReleaseAgeExclude:\n  - "@acme/*"\n`,
+      `${pnpm}# managed by depcurfew\nminimumReleaseAgeExclude:\n  - "@acme/*"\n`,
     );
     const flat = 'packages:\n- a\n';
     expect(yamlSet(flat, ['onlyBuiltDependencies'], ['esbuild'])).toBe(
-      `${flat}# managed by depgate\nonlyBuiltDependencies:\n- esbuild\n`,
+      `${flat}# managed by depcurfew\nonlyBuiltDependencies:\n- esbuild\n`,
     );
   });
 
   it('adds an entry to a nested map without touching the other entries', () => {
-    expect(yamlSet(pnpm, ['allowBuilds', 'esbuild'], true)).toBe(`${pnpm.replace('  sharp: true\n', '  sharp: true\n  # managed by depgate\n  esbuild: true\n')}`);
+    expect(yamlSet(pnpm, ['allowBuilds', 'esbuild'], true)).toBe(`${pnpm.replace('  sharp: true\n', '  sharp: true\n  # managed by depcurfew\n  esbuild: true\n')}`);
   });
 
   it('replaces a list with a new list', () => {
     const before = 'npmPreapprovedPackages: [old]\nother: 1\n';
     expect(yamlSet(before, ['npmPreapprovedPackages'], ['@acme/*', 'b'])).toBe(
-      '# managed by depgate\nnpmPreapprovedPackages:\n  - "@acme/*"\n  - b\nother: 1\n',
+      '# managed by depcurfew\nnpmPreapprovedPackages:\n  - "@acme/*"\n  - b\nother: 1\n',
     );
   });
 
@@ -159,7 +159,7 @@ describe('yamlSet', () => {
         'updates:',
         '  - package-ecosystem: npm',
         '    directory: /',
-        '    # managed by depgate',
+        '    # managed by depcurfew',
         '    cooldown:',
         '      default-days: 3',
         '      exclude:',
@@ -174,13 +174,13 @@ describe('yamlSet', () => {
   it('sets a key inside an existing nested map and keeps its siblings', () => {
     const before = 'updates:\n  - package-ecosystem: npm\n    cooldown:\n      semver-major-days: 7\n';
     expect(yamlSet(before, ['updates', 0, 'cooldown', 'default-days'], 3)).toBe(
-      'updates:\n  - package-ecosystem: npm\n    cooldown:\n      semver-major-days: 7\n      # managed by depgate\n      default-days: 3\n',
+      'updates:\n  - package-ecosystem: npm\n    cooldown:\n      semver-major-days: 7\n      # managed by depcurfew\n      default-days: 3\n',
     );
   });
 
   it('writes into an empty document and adds a final newline when missing', () => {
-    expect(yamlSet('', ['minimumReleaseAge'], 4320)).toBe('# managed by depgate\nminimumReleaseAge: 4320\n');
-    expect(yamlSet('a: 1', ['b'], 2)).toBe('a: 1\n# managed by depgate\nb: 2\n');
+    expect(yamlSet('', ['minimumReleaseAge'], 4320)).toBe('# managed by depcurfew\nminimumReleaseAge: 4320\n');
+    expect(yamlSet('a: 1', ['b'], 2)).toBe('a: 1\n# managed by depcurfew\nb: 2\n');
   });
 
   it('does not add a second marker', () => {

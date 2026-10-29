@@ -5,8 +5,8 @@
       "file": "package-lock.json",
       "line": 14
     },
-    "message": "package-lock.json installs evil from a git repository (git+https://example.com/evil.git#4f5c2a1), which depgate.json denies",
-    "fix": "Use a registry version of evil, or set sources.git to \"allow\" in depgate.json"
+    "message": "package-lock.json installs evil from a git repository (git+https://example.com/evil.git#4f5c2a1), which depcurfew.json denies",
+    "fix": "Use a registry version of evil, or set sources.git to \"allow\" in depcurfew.json"
   },
   {
     "level": "warning",
@@ -14,7 +14,7 @@
       "file": "package-lock.json",
       "line": 20
     },
-    "message": "package-lock.json installs odd from a source depgate does not recognize (someone/odd); it may be one depgate.json denies",
+    "message": "package-lock.json installs odd from a source depcurfew does not recognize (someone/odd); it may be one depcurfew.json denies",
     "fix": "Check where odd comes from, and regenerate the lockfile with the package manager if the entry is damaged"
   }
 ]

@@ -5,8 +5,8 @@
       "file": ".npmrc",
       "line": 4
     },
-    "message": ".npmrc does not match depgate.json: `min-release-age=1` should be `min-release-age=3`",
-    "fix": "Run depgate apply to bring .npmrc back in line with depgate.json (depgate apply --dry-run shows the change first), or change depgate.json if the edit was intended"
+    "message": ".npmrc does not match depcurfew.json: `min-release-age=1` should be `min-release-age=3`",
+    "fix": "Run depcurfew apply to bring .npmrc back in line with depcurfew.json (depcurfew apply --dry-run shows the change first), or change depcurfew.json if the edit was intended"
   },
   {
     "level": "warning",
@@ -14,7 +14,7 @@
       "file": "package.json",
       "line": 7
     },
-    "message": "allowScripts in package.json lets sharp run install scripts, but depgate.json does not allow it",
-    "fix": "Remove sharp from allowScripts, or add it to installScripts.allow in depgate.json"
+    "message": "allowScripts in package.json lets sharp run install scripts, but depcurfew.json does not allow it",
+    "fix": "Remove sharp from allowScripts, or add it to installScripts.allow in depcurfew.json"
   }
 ]

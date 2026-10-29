@@ -18,7 +18,7 @@ interface BotDelay extends Delay {
   securityBypass: boolean;
   /** For messages, e.g. "npm updates" for one Dependabot entry. */
   scope: string;
-  /** Whether depgate apply edits the file (it prints a snippet for .renovaterc and the deprecated package.json key). */
+  /** Whether depcurfew apply edits the file (it prints a snippet for .renovaterc and the deprecated package.json key). */
   applies?: boolean;
 }
 
@@ -118,7 +118,7 @@ export const botCooldownMismatch: Rule = {
   summary: 'An update bot waits less than the package manager before proposing a new version.',
   description:
     'The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile.',
-  help: 'Give the bot a delay at least as long as the package manager\'s (depgate apply does this).',
+  help: 'Give the bot a delay at least as long as the package manager\'s (depcurfew apply does this).',
   level: 'error',
   requiresPolicy: false,
   check(context) {
@@ -143,8 +143,8 @@ export const botCooldownMismatch: Rule = {
             message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? 'without waiting' : `after ${describe(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
             fix:
               delay.applies === false
-                ? `Make the ${delay.bot.name} delay at least ${describe(own.minutes)} in ${delay.location.file} (depgate apply does not edit it)`
-                : `Make the ${delay.bot.name} delay at least ${describe(own.minutes)}, or run depgate apply`,
+                ? `Make the ${delay.bot.name} delay at least ${describe(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)`
+                : `Make the ${delay.bot.name} delay at least ${describe(own.minutes)}, or run depcurfew apply`,
           });
         } else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager)) {
           context.report({

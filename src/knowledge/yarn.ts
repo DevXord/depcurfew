@@ -36,7 +36,7 @@ export const yarn: ToolKnowledge = {
     availableSince: checked.verified(
       '4.10.2',
       release('4.10.2'),
-      'The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: "Bust the metadata cache" (#6908) and "support registries without publish times using minimalAgeGate" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old ("No candidates found"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depgate writes the setting from 4.10.2 on.',
+      'The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: "Bust the metadata cache" (#6908) and "support registries without publish times using minimalAgeGate" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old ("No candidates found"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depcurfew writes the setting from 4.10.2 on.',
     ),
     default: disputed(
       'The code is unambiguous: off until 4.14.x, 1d from 4.15.0. The published settings schema claimed 3d for 4.11.0-4.14.x and 0m in 4.16.0; the live yarnrc page shows "1w", which is an example value. Upgraded projects with an old lockfile get npmMinimalAgeGate: 0 written to .yarnrc.yml (see upgradeMigration).',
@@ -181,7 +181,7 @@ export const yarn: ToolKnowledge = {
     upgradeMigration: verified(
       'When the lockfile predates the new defaults and the key is unset, yarn install writes enableScripts: true, approvedGitRepositories: ["**"] and npmMinimalAgeGate: 0 into .yarnrc.yml',
       'https://github.com/yarnpkg/berry/pull/7135',
-      'Explicit values written by depgate prevent the migration.',
+      'Explicit values written by depcurfew prevent the migration.',
     ),
     missingPublishTime: verified(
       'Versions without a publish time are quarantined while the gate is on',

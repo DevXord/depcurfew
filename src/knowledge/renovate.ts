@@ -123,7 +123,7 @@ export const renovate: ToolKnowledge = {
     ruleDescription: verified(
       'description',
       'https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description',
-      'A human-readable description allowed inside any configuration object; depgate uses it to recognize the packageRules entry it manages.',
+      'A human-readable description allowed inside any configuration object; depcurfew uses it to recognize the packageRules entry it manages.',
     ),
     packageJsonConfig: verified(
       { file: 'package.json', key: 'renovate' },
