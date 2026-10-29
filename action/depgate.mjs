@@ -204,7 +204,7 @@ const bun$1 = {
 			trailingOnly: false
 		}, BUN_1_4_4, "minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards."),
 		latestVersion: verified$7("1.4.4", "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4"),
-		trustedDependenciesReplacesDefaults: verified$7("Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts", `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`),
+		trustedDependenciesReplacesDefaults: checked$5.verified("Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts", `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`, "So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild's postinstall (esbuild is on the built-in list); with \"trustedDependencies\": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29."),
 		lockedVersionsNotRechecked: verified$7("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$1}#minimum-release-age`),
 		bunxCooldown: verified$7("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4")
 	}
@@ -378,7 +378,6 @@ const dependabot$1 = {
 const { verified: verified$4, uncertain: uncertain$3, disputed: disputed$2, evidence: evidence$2 } = verifiedOn("2026-10-28");
 const checked$3 = verifiedOn("2026-10-29");
 const CONFIG = "https://docs.npmjs.com/cli/v12/using-npm/config";
-const CONFIG_V11 = "https://docs.npmjs.com/cli/v11/using-npm/config";
 const NPMRC = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$3 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
 const INSTALL_TIME_CONTROLS = "https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/";
@@ -388,6 +387,7 @@ const sourceFlagSince = () => disputed$2(SOURCE_FLAGS_SINCE_NOTE, evidence$2("11
 const LOCKFILE_V12 = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md";
 const PACKAGE_JSON$1 = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
 const NPM_DEFINITIONS = "https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js";
+const NPM_DEFINITIONS_V11_16 = "https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js";
 const npm$1 = {
 	id: "npm",
 	name: "npm",
@@ -410,7 +410,7 @@ const npm$1 = {
 		securityUpdates: verified$4("applies", `${CONFIG}#min-release-age`, "npm audit fix keeps the vulnerable version, warns that the fix was blocked (since 11.18.0) and exits non-zero. Add the package to min-release-age-exclude or relax the delay.")
 	},
 	installScripts: {
-		defaultPolicy: disputed$2("npm 12 blocking dependency scripts is undisputed. For npm 11.16-11.21 the install-scripts command page says scripts are blocked by default, while the v11 config reference, the 11.16.0 pull request and the GitHub changelog say unreviewed scripts still run with a notice.", evidence$2([
+		defaultPolicy: checked$3.verified([
 			{
 				since: "0.0.0",
 				value: "run"
@@ -423,13 +423,7 @@ const npm$1 = {
 				since: "12.0.0",
 				value: "deny-except-allowlist"
 			}
-		], `${CONFIG_V11}#strict-allow-scripts`, "npm 12 also blocks implicit node-gyp builds and prepare scripts of git, file and link dependencies."), evidence$2([{
-			since: "0.0.0",
-			value: "run"
-		}, {
-			since: "11.16.0",
-			value: "deny-except-allowlist"
-		}], "https://docs.npmjs.com/cli/v11/commands/npm-install-scripts")),
+		], NPM_DEFINITIONS_V11_16, "strict-allow-scripts (default false) turns a dependency script that allowScripts does not cover \"from a warning into a hard error ... instead of running with a notice\", so from 11.16.0 such scripts still run. npm 11.21.1 ran esbuild's postinstall on 2026-10-29 (\"has install scripts not yet covered by allowScripts\"); npm 12.2.1 blocked it (\"had install scripts blocked\"). The v11 install-scripts command page says scripts are blocked by default, which the config definition, the 11.16.0 pull request, the GitHub changelog and the test contradict. npm 12 also blocks implicit node-gyp builds and prepare scripts of git, file and link dependencies."),
 		allowList: {
 			setting: verified$4("allowScripts", "https://docs.npmjs.com/cli/v12/commands/npm-install-scripts"),
 			file: verified$4("package.json", "https://docs.npmjs.com/cli/v12/commands/npm-install-scripts", "Only the root package.json counts; allowScripts in dependencies is ignored. npx, npm exec and global installs use the allow-scripts config instead."),
@@ -565,7 +559,11 @@ const npm$1 = {
 			since: "11.15.0",
 			value: "both may be set; before wins within the same config source"
 		}], release$3("11.15.0")),
-		strictAllowScripts: verified$4("strict-allow-scripts=true makes dependency scripts not covered by allowScripts fail the install (default false)", "https://docs.npmjs.com/cli/v12/commands/npm-install#strict-allow-scripts"),
+		strictAllowScripts: checked$3.verified({
+			setting: "strict-allow-scripts",
+			value: true,
+			since: "11.16.0"
+		}, NPM_DEFINITIONS_V11_16, "strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it."),
 		unknownNpmrcKeys: disputed$2("Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.", evidence$2("npm 12 throws on unknown config keys", release$3("12.0.0")), evidence$2("unknown keys only warn; throwing is planned for a future major version", NPMRC)),
 		lockfileInstalls: uncertain$3("npm ci installs versions pinned in package-lock.json without applying min-release-age", "https://docs.npmjs.com/cli/v12/commands/npm-ci", "Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window.")
 	}
@@ -657,6 +655,10 @@ const pnpm$1 = {
 		workspacesObjectKey: uncertain$2(null, WORKSPACE_YAML_V10, "The docs show packages only as a list; concluded from the absence of an object form.")
 	},
 	extra: {
+		lockfileDocuments: checked$2.verified({
+			bootMarker: "---",
+			graph: "last"
+		}, "https://github.com/pnpm/pnpm.io/blob/main/docs/lockfile.md", "A lockfile whose first line is --- has two YAML documents: a boot document with configDependencies and packageManagerDependencies, written when the project has config dependencies, declares devEngines.packageManager or pins pnpm 12 or newer; then the project lockfile (importers, packages, snapshots), which is always the last document. Seen with pnpm 12.16.1 and packageManager pnpm@12.16.1 on 2026-10-29."),
 		lockfileFormat: checked$2.verified({
 			installScripts: null,
 			gitKeyPrefix: "git+",
@@ -9409,16 +9411,15 @@ const bun = (context) => {
 		if (policy.installScripts.default === "allow") context.warn(`${context.name} has no setting that allows every install script; "allow" not written`);
 		else {
 			const setting = settingOf(tool.installScripts.allowList.setting);
-			if (setting !== null) {
-				const names = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting) ? allowedNames(context, setting) : [];
-				if (names.length > 0) {
-					const json = context.json(settingOf(tool.installScripts.allowList.file) ?? "package.json");
-					const current = json.get([setting]);
-					if (current === void 0) context.warn(`${context.name}: ${setting} replaces Bun's built-in list of trusted packages; packages on that list no longer run install scripts unless listed`);
-					const list = Array.isArray(current) ? [...current] : [];
-					const merged = [...list, ...names.filter((name) => !list.includes(name))];
-					if (!sameList(current, merged)) json.set([setting], merged);
-				}
+			const since = sinceOf(tool.installScripts.allowList.availableSince);
+			if (setting !== null && context.supports(since, setting)) {
+				const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
+				const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
+				const current = context.json(listFile).get([setting]);
+				if (current === void 0) context.warn(`${context.name}: ${setting} replaces Bun's built-in list of trusted packages; packages on that list no longer run install scripts unless listed`);
+				const list = Array.isArray(current) ? [...current] : [];
+				const merged = [...list, ...names.filter((name) => !list.includes(name))];
+				if (current === void 0 || !sameList(current, merged)) context.json(listFile).set([setting], merged);
 			}
 		}
 	}
@@ -10157,6 +10158,17 @@ const npm = (context) => {
 			}
 		} else {
 			if (context.atLeast(allowAll.since)) managed.push(allowAll.setting);
+			let defaults;
+			for (const entry of values$1(tool.installScripts.defaultPolicy)[0] ?? []) if (context.atLeast(entry.since)) defaults = entry.value;
+			const strict = extraOf(tool, "strictAllowScripts", isSwitch);
+			if (defaults === "run-with-warning" && context.supports(strict.since, strict.setting)) {
+				entries.push(`${strict.setting}=${String(strict.value)}`);
+				managed.push(strict.setting);
+			} else if (defaults === "run") context.warn(`${context.name} ${formatVersion(context.version ?? [
+				0,
+				0,
+				0
+			])} runs every dependency install script and has no allow-list; "deny" cannot be enforced (npm 11.16.0 added allowScripts, npm 12 blocks scripts by default)`);
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
 			if (setting !== null) {
@@ -11168,9 +11180,9 @@ const MAX_LOCKFILE_SIZE = 67108864;
 * Finds the 1-based line of each anchor. Rules ask in the order the entries were parsed, which is the order of the
 * file, so each search continues where the last one stopped and a large lockfile is not scanned once per entry.
 */
-function lineFinder(text) {
+function lineFinder(text, start = 0) {
 	let newlines;
-	let cursor = 0;
+	let cursor = start;
 	return (anchor) => {
 		let offset = text.indexOf(anchor, cursor);
 		if (offset === -1) offset = text.indexOf(anchor);
@@ -11235,9 +11247,28 @@ function npmEntries(text, format, workspaces) {
 	}
 	return entries;
 }
-function pnpmEntries(text, format) {
-	const document = (0, import_dist.parse)(text);
-	if (!isRecord(document)) return [];
+/** The project lockfile of a pnpm-lock.yaml and where it starts: the last document when a boot document comes first. */
+function pnpmGraph(text, documents) {
+	const marker = documents?.["bootMarker"];
+	if (typeof marker !== "string" || documents?.["graph"] !== "last" || text.split(/\r?\n/u, 1)[0] !== marker) return {
+		document: (0, import_dist.parse)(text),
+		start: 0
+	};
+	const parsed = (0, import_dist.parseAllDocuments)(text);
+	const all = Array.isArray(parsed) ? parsed : [parsed];
+	for (const document of all) if (document.errors.length > 0) throw document.errors[0];
+	const last = all.at(-1);
+	return {
+		document: last?.toJS(),
+		start: last?.range[0] ?? 0
+	};
+}
+function pnpmEntries(text, format, documents) {
+	const { document, start } = pnpmGraph(text, documents);
+	if (!isRecord(document)) return {
+		entries: [],
+		start
+	};
 	if (!String(document["lockfileVersion"]).startsWith("9")) throw new UnsupportedLockfile(`its lockfileVersion ${String(document["lockfileVersion"])} is not read; depgate reads 9.0`);
 	const hosts = strings(format["gitHostedTarballHosts"]);
 	const entries = [];
@@ -11288,7 +11319,10 @@ function pnpmEntries(text, format) {
 			}
 		}
 	}
-	return entries;
+	return {
+		entries,
+		start
+	};
 }
 function yarnSource(locator, format) {
 	if (locator.startsWith(String(format["workspace"]))) return "workspace";
@@ -11369,6 +11403,11 @@ function denoEntries(text, format) {
 }
 /** A lockfile in a version or shape depgate does not read; the message says why. */
 var UnsupportedLockfile = class extends Error {};
+function documentsOf(tool) {
+	const fact = tool.extra?.["lockfileDocuments"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(value) ? value : void 0;
+}
 /** The lockfiles a package manager uses in the repository root, parsed. */
 function readLockfiles(repository, manager, tool, workspaces) {
 	const fact = tool.extra?.["lockfileFormat"];
@@ -11394,12 +11433,13 @@ function readLockfiles(repository, manager, tool, workspaces) {
 		try {
 			let entries;
 			let recordsScripts = format["installScripts"] !== null;
+			let start = 0;
 			if (tool.id === "npm") entries = npmEntries(text, format, workspaces);
-			else if (tool.id === "pnpm") entries = pnpmEntries(text, format);
+			else if (tool.id === "pnpm") ({entries, start} = pnpmEntries(text, format, documentsOf(tool)));
 			else if (tool.id === "yarn") entries = yarnEntries(text, format);
 			else if (tool.id === "bun") entries = bunEntries(text, format);
 			else ({entries, recordsScripts} = denoEntries(text, format));
-			const find = lineFinder(text);
+			const find = lineFinder(text, start);
 			return {
 				ok: true,
 				lockfile: {
@@ -11777,16 +11817,23 @@ function runsScripts(context, tool) {
 		return policy === "run" || policy === "run-with-warning";
 	});
 }
-/** Where the repository turns off every dependency script with the tool's own switch (e.g. ignore-scripts in .npmrc). */
+/**
+* How the repository keeps dependency scripts from running with the tool's own switch: ignore-scripts in .npmrc turns
+* them all off, strict-allow-scripts makes the install fail on scripts that are not allowed.
+*/
 function scriptsDisabledBy(context, tool) {
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
+	if (file === void 0) return void 0;
 	const fact = tool.installScripts.disableAll;
 	const value = fact.status === "verified" ? fact.value : void 0;
 	const match = typeof value === "string" ? /^([\w.-]+)(?::\s*(\S+))?$/u.exec(value) : null;
-	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
-	if (match === null || file === void 0) return void 0;
-	const [, key = "", expected] = match;
-	const found = readSetting(context.repository, file, key);
-	return found !== void 0 && found.value === (expected === void 0 ? true : iniValue(expected)) ? `${key} in ${file}` : void 0;
+	if (match !== null) {
+		const [, key = "", expected] = match;
+		const found = readSetting(context.repository, file, key);
+		if (found !== void 0 && found.value === (expected === void 0 ? true : iniValue(expected))) return `${key} in ${file} turns them off`;
+	}
+	const strict = tool.extra?.["strictAllowScripts"] === void 0 ? void 0 : extraOf(tool, "strictAllowScripts", isSwitch);
+	if (strict !== void 0 && readSetting(context.repository, file, strict.setting)?.value === strict.value) return `${strict.setting} in ${file} stops the install until they are allowed`;
 }
 const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
@@ -11812,7 +11859,7 @@ const lockfileInstallScripts = {
 				context.report({
 					level: running ? "error" : "warning",
 					location: location(lockfile, entry),
-					message: running ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it` : disabledBy === void 0 ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them` : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy} turns them off; the package may need them`,
+					message: running ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it` : disabledBy === void 0 ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them` : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy}; the package may need them`,
 					fix: `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package`
 				});
 			}

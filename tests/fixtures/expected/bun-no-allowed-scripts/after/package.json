@@ -1,0 +1,6 @@
+{
+  "name": "bun-no-allowed-scripts",
+  "version": "1.0.0",
+  "packageManager": "bun@1.4.4",
+  "trustedDependencies": []
+}

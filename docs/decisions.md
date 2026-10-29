@@ -670,3 +670,22 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - przykład `.claude/settings.json` w README: forma exec i `onFailure: "block"`, z zastrzeżeniem, że hook to zabezpieczenie typu „best effort”;
   - bez `depgate.json` hook stosuje domyślną politykę z `init`.
 - **MCP (F9):** nie w tej fazie. Protokół jest w przejściu na rewizję 2026-07-28, bez `initialize` i z `server/discover`. Agent może wołać `depgate check --json`.
+
+## D-060 · Poprawki po testach na projektach przykładowych (2026-10-29)
+Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wydanie 1.1.0).
+- **Testy:** projekty przykładowe dla npm 12, pnpm 12 i 10, Yarn 4, Bun 1.4.4, Deno 2.9 i npm 11 z ręczną konfiguracją. depgate był instalowany z tarballa (`npm pack`), a w każdym projekcie sprawdzałem, czy menedżer naprawdę egzekwuje to, co zapisał `apply`.
+- **pnpm 12 (lockfile z dwoma dokumentami).**
+  - Gdy projekt przypina pnpm 12 albo nowszy, ma zależności konfiguracji albo `devEngines.packageManager`, pnpm zapisuje najpierw dokument rozruchowy, a po nim właściwy lockfile. Plik zaczyna się wtedy od `---`.
+  - `doctor` czytał plik jako jeden dokument i zgłaszał `unreadable-config` w każdym takim projekcie.
+  - Teraz czyta ostatni dokument (fakt `lockfileDocuments`, źródło: pnpm.io `docs/lockfile.md`), a numery linii liczy od jego początku.
+- **Bun (wbudowana lista zaufanych paczek).**
+  - Przy `installScripts.default: deny` i pustej liście `allow` depgate nic nie zapisywał. Bun nadal uruchamiał wtedy skrypty paczek ze swojej wbudowanej listy: postinstall esbuild wykonał się w Bun 1.4.4.
+  - Teraz `apply` zapisuje `"trustedDependencies": []`, co zastępuje wbudowaną listę; test potwierdził blokadę.
+  - Istniejąca lista nie jest zmieniana, poza dopisaniem paczek z polityki.
+- **npm 11.16–11.x (skrypty z ostrzeżeniem).**
+  - Spór w bazie wiedzy jest rozstrzygnięty. Definicja `strict-allow-scripts` w npm 11.16.0 i test na npm 11.21.1 pokazują, że skrypty nieobjęte `allowScripts` działają z ostrzeżeniem: postinstall esbuild wykonał się i podmienił `bin/esbuild` na binarkę.
+  - Decyzja właściciela (wariant a): dla przypiętego npm od 11.16 do wersji poniżej 12 `apply` zapisuje `strict-allow-scripts=true`. Instalacja paczki z niezatwierdzonym skryptem kończy się wtedy błędem.
+  - Dla npm poniżej 11.16, który nie ma listy dozwolonych, `apply` ostrzega, że zakazu nie da się wyegzekwować.
+  - `lockfile-install-scripts` traktuje `strict-allow-scripts` jak blokadę.
+  - Przy nieprzypiętej wersji depgate konfiguruje pod najnowszą znaną (npm 12), jak dotąd.
+- **Repozytorium depgate** przypina npm 11.19.1, więc jego `.npmrc` dostał `strict-allow-scripts=true`. `ignore-scripts=true` nadal ma pierwszeństwo.

@@ -1,6 +1,6 @@
 // Lockfile rules. lockfile-forbidden-source: a package from a source depgate.json denies. lockfile-install-scripts:
 // a package with install scripts that depgate.json does not allow, where the lockfile records scripts.
-import { values } from '../../apply/facts.ts';
+import { extraOf, isSwitch, values } from '../../apply/facts.ts';
 import { pinnedVersion } from '../../apply/version.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
@@ -77,16 +77,26 @@ function runsScripts(context: RuleContext, tool: ToolKnowledge): boolean {
   });
 }
 
-/** Where the repository turns off every dependency script with the tool's own switch (e.g. ignore-scripts in .npmrc). */
+/**
+ * How the repository keeps dependency scripts from running with the tool's own switch: ignore-scripts in .npmrc turns
+ * them all off, strict-allow-scripts makes the install fail on scripts that are not allowed.
+ */
 function scriptsDisabledBy(context: RuleContext, tool: ToolKnowledge): string | undefined {
+  const file = values(tool.cooldown.configFiles)[0]?.[0];
+  if (file === undefined) return undefined;
   const fact = tool.installScripts.disableAll;
   const value = fact.status === 'verified' ? fact.value : undefined;
   const match = typeof value === 'string' ? /^([\w.-]+)(?::\s*(\S+))?$/u.exec(value) : null;
-  const file = values(tool.cooldown.configFiles)[0]?.[0];
-  if (match === null || file === undefined) return undefined;
-  const [, key = '', expected] = match;
-  const found = readSetting(context.repository, file, key);
-  return found !== undefined && found.value === (expected === undefined ? true : iniValue(expected)) ? `${key} in ${file}` : undefined;
+  if (match !== null) {
+    const [, key = '', expected] = match;
+    const found = readSetting(context.repository, file, key);
+    if (found !== undefined && found.value === (expected === undefined ? true : iniValue(expected))) return `${key} in ${file} turns them off`;
+  }
+  const strict = tool.extra?.['strictAllowScripts'] === undefined ? undefined : extraOf(tool, 'strictAllowScripts', isSwitch);
+  if (strict !== undefined && readSetting(context.repository, file, strict.setting)?.value === strict.value) {
+    return `${strict.setting} in ${file} stops the install until they are allowed`;
+  }
+  return undefined;
 }
 
 export const lockfileInstallScripts: Rule = {
@@ -120,7 +130,7 @@ export const lockfileInstallScripts: Rule = {
             ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it`
             : disabledBy === undefined
               ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them`
-              : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy} turns them off; the package may need them`,
+              : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy}; the package may need them`,
           fix: `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package`,
         });
       }

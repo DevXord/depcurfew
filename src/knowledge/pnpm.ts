@@ -127,6 +127,11 @@ export const pnpm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, WORKSPACE_YAML_V10, 'The docs show packages only as a list; concluded from the absence of an object form.'),
   },
   extra: {
+    lockfileDocuments: checked.verified(
+      { bootMarker: '---', graph: 'last' },
+      'https://github.com/pnpm/pnpm.io/blob/main/docs/lockfile.md',
+      'A lockfile whose first line is --- has two YAML documents: a boot document with configDependencies and packageManagerDependencies, written when the project has config dependencies, declares devEngines.packageManager or pins pnpm 12 or newer; then the project lockfile (importers, packages, snapshots), which is always the last document. Seen with pnpm 12.16.1 and packageManager pnpm@12.16.1 on 2026-10-29.',
+    ),
     lockfileFormat: checked.verified(
       {
         installScripts: null,

@@ -2,6 +2,16 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-29 · Testy na projektach przykładowych i poprawki przed 1.0.0
+
+- **Testy:** projekty przykładowe dla npm 12, pnpm 12/10, Yarn 4, Bun, Deno i npm 11 z ręczną konfiguracją; depgate zainstalowany z tarballa. Opóźnienie, źródła i skrypty sprawdzone prawdziwymi instalacjami (D-060).
+- **Poprawione:**
+  - `doctor` czyta dwudokumentowy `pnpm-lock.yaml` z pnpm 12;
+  - Bun dostaje `"trustedDependencies": []`, żeby wbudowana lista zaufanych paczek nie uruchamiała skryptów;
+  - npm 11.16+ dostaje `strict-allow-scripts=true`;
+  - starszy npm daje ostrzeżenie, że zakazu skryptów nie da się wyegzekwować.
+- **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
+
 ## 2026-10-29 · Przegląd przed wydaniem 1.0.0
 
 - **Przegląd:** kod, bezpieczeństwo (repozytorium jako dane niezaufane) i działanie zainstalowanej paczki na Node 22.0, 22 i 24 (D-052).

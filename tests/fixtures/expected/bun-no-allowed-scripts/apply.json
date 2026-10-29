@@ -1,0 +1,10 @@
+{
+  "changed": [
+    "bunfig.toml",
+    "package.json"
+  ],
+  "warnings": [
+    "Bun: trustedDependencies replaces Bun's built-in list of trusted packages; packages on that list no longer run install scripts unless listed"
+  ],
+  "snippets": []
+}

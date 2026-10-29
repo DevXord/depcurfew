@@ -6,7 +6,7 @@ The facts depgate relies on, each linked to the official documentation or change
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-7 tools · 266 facts · 35 uncertain · 14 disputed · verified 2026-10-28 to 2026-10-29.
+7 tools · 267 facts · 35 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-29.
 
 ## Release-age cooldown
 
@@ -28,7 +28,7 @@ Whether dependency lifecycle scripts run, and how to allow specific packages.
 
 | Tool | Default policy | Allow-list setting | Allow-list file | Allow-list since | Allow-list format | Disable all |
 | --- | --- | --- | --- | --- | --- | --- |
-| npm | ⚠️ earlier: run<br>11.16.0+: run-with-warning<br>12.0.0+: deny-except-allowlist [↗](https://docs.npmjs.com/cli/v11/using-npm/config#strict-allow-scripts) / earlier: run<br>11.16.0+: deny-except-allowlist [↗](https://docs.npmjs.com/cli/v11/commands/npm-install-scripts) | `allowScripts` [↗](https://docs.npmjs.com/cli/v12/commands/npm-install-scripts) | `package.json` [↗](https://docs.npmjs.com/cli/v12/commands/npm-install-scripts) | 11.16.0 [↗](https://github.com/npm/cli/releases/tag/v11.16.0) | Object keyed by name, name@version or name@v1 \|\| v2 with true (allow) or false (deny); npm install-scripts approve writes pinned name@version entries ❓ [↗](https://github.com/npm/rfcs/blob/main/accepted/0054-make-scripts-install-opt-in.md) | `ignore-scripts` [↗](https://docs.npmjs.com/cli/v12/using-npm/config#ignore-scripts) |
+| npm | earlier: run<br>11.16.0+: run-with-warning<br>12.0.0+: deny-except-allowlist [↗](https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js) | `allowScripts` [↗](https://docs.npmjs.com/cli/v12/commands/npm-install-scripts) | `package.json` [↗](https://docs.npmjs.com/cli/v12/commands/npm-install-scripts) | 11.16.0 [↗](https://github.com/npm/cli/releases/tag/v11.16.0) | Object keyed by name, name@version or name@v1 \|\| v2 with true (allow) or false (deny); npm install-scripts approve writes pinned name@version entries ❓ [↗](https://github.com/npm/rfcs/blob/main/accepted/0054-make-scripts-install-opt-in.md) | `ignore-scripts` [↗](https://docs.npmjs.com/cli/v12/using-npm/config#ignore-scripts) |
 | pnpm | earlier: run<br>10.0.0+: deny-except-allowlist [↗](https://github.com/pnpm/pnpm/releases/tag/v10.0.0) | `allowBuilds` [↗](https://pnpm.io/settings/build) | `pnpm-workspace.yaml` [↗](https://pnpm.io/settings/build) | 10.26.0 [↗](https://pnpm.io/10.x/settings) | Map of package matcher to true (allow) or false (deny), e.g. esbuild: true or "nx@21.6.4 \|\| 21.6.5": true; a bare name never approves git or tarball dependencies (pnpm 11+) [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md) | `ignoreScripts` [↗](https://pnpm.io/cli/install) |
 | Yarn (Berry) | 2.0.0+: run<br>4.14.0+: deny-except-allowlist [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.14.0) | `dependenciesMeta.<package>.built` [↗](https://yarnpkg.com/configuration/manifest#dependenciesMeta.built) | `package.json` [↗](https://yarnpkg.com/configuration/manifest#dependenciesMeta) | 2.0.0 ❓ [↗](https://github.com/yarnpkg/berry/blob/master/CHANGELOG.md) | Object keyed by package name or name@version: { built: true } allows a package when enableScripts is false; { built: false } denies it when enableScripts is true [↗](https://yarnpkg.com/configuration/manifest#dependenciesMeta.built) | `enableScripts: false` [↗](https://yarnpkg.com/configuration/yarnrc#enableScripts) |
 | Bun | all versions: deny-except-allowlist [↗](https://bun.com/docs/pm/lifecycle#trusteddependencies) | `trustedDependencies` [↗](https://bun.com/docs/pm/lifecycle#trusteddependencies) | `package.json` [↗](https://bun.com/docs/pm/lifecycle#trusteddependencies) | 1.0.5 ❓ [↗](https://bun.com/blog/release-notes/bun-v1.0.5) | Array of package names, e.g. ["node-sass"] [↗](https://bun.com/docs/pm/lifecycle#trusteddependencies) | `install.ignoreScripts` [↗](https://bun.com/docs/runtime/bunfig#install-ignorescripts) |
@@ -91,12 +91,13 @@ Further facts used by generators and `doctor`.
 - `excludeWildcards` (✅ verified): `{"since":"11.17.0","trailingOnly":false}` [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
 - `latestVersion` (✅ verified): 12.2.1 [↗](https://github.com/npm/cli/releases/tag/v12.2.1)
 - `beforeInteraction` (✅ verified): 11.10.0+: min-release-age and before are mutually exclusive<br>11.15.0+: both may be set; before wins within the same config source [↗](https://github.com/npm/cli/releases/tag/v11.15.0)
-- `strictAllowScripts` (✅ verified): strict-allow-scripts=true makes dependency scripts not covered by allowScripts fail the install (default false) [↗](https://docs.npmjs.com/cli/v12/commands/npm-install#strict-allow-scripts)
+- `strictAllowScripts` (✅ verified): `{"setting":"strict-allow-scripts","value":true,"since":"11.16.0"}` [↗](https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js)
 - `unknownNpmrcKeys` (⚠️ disputed): ⚠️ npm 12 throws on unknown config keys [↗](https://github.com/npm/cli/releases/tag/v12.0.0) / unknown keys only warn; throwing is planned for a future major version [↗](https://docs.npmjs.com/cli/v12/configuring-npm/npmrc)
 - `lockfileInstalls` (❓ uncertain): npm ci installs versions pinned in package-lock.json without applying min-release-age ❓ [↗](https://docs.npmjs.com/cli/v12/commands/npm-ci)
 
 ### pnpm
 
+- `lockfileDocuments` (✅ verified): `{"bootMarker":"---","graph":"last"}` [↗](https://github.com/pnpm/pnpm.io/blob/main/docs/lockfile.md)
 - `lockfileFormat` (✅ verified): `{"installScripts":null,"gitKeyPrefix":"git+","gitHostedFlag":"gitHosted","gitHostedTarballHosts":["codeload.github.com","bitbucket.org","gitlab.com"],"gitType":"git","directoryType":"directory"}` [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/types/src/index.ts)
 - `npmrcPrecedence` (✅ verified): `{"winner":"pnpm-workspace.yaml","over":[".npmrc","npm_config_*"]}` [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts)
 - `sharedWorkspaceLockfile` (✅ verified): `{"setting":"sharedWorkspaceLockfile","npmrcKey":"shared-workspace-lockfile","default":true}` [↗](https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/versioned_docs/version-10.x/workspaces.md)
@@ -214,6 +215,7 @@ Context recorded with verified facts.
 - `cooldown.unit`: Type is null or Number; 0 turns the delay off. Fractional days are not documented. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#min-release-age)
 - `cooldown.default`: Unchanged in npm 12. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#min-release-age)
 - `cooldown.securityUpdates`: npm audit fix keeps the vulnerable version, warns that the fix was blocked (since 11.18.0) and exits non-zero. Add the package to min-release-age-exclude or relax the delay. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#min-release-age)
+- `installScripts.defaultPolicy`: strict-allow-scripts (default false) turns a dependency script that allowScripts does not cover "from a warning into a hard error ... instead of running with a notice", so from 11.16.0 such scripts still run. npm 11.21.1 ran esbuild's postinstall on 2026-10-29 ("has install scripts not yet covered by allowScripts"); npm 12.2.1 blocked it ("had install scripts blocked"). The v11 install-scripts command page says scripts are blocked by default, which the config definition, the 11.16.0 pull request, the GitHub changelog and the test contradict. npm 12 also blocks implicit node-gyp builds and prepare scripts of git, file and link dependencies. [↗](https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js)
 - `installScripts.allowList.file`: Only the root package.json counts; allowScripts in dependencies is ignored. npx, npm exec and global installs use the allow-scripts config instead. [↗](https://docs.npmjs.com/cli/v12/commands/npm-install-scripts)
 - `installScripts.disableAll`: Default false. Overrides allowScripts and dangerously-allow-all-scripts. npm run/test/start still run the named script, but not its pre/post scripts. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#ignore-scripts)
 - `sources.git.values`: root allows only git dependencies listed in the project package.json. [↗](https://docs.npmjs.com/cli/v12/using-npm/config#allow-git)
@@ -233,6 +235,7 @@ Context recorded with verified facts.
 - `extra.allowAllScripts`: Boolean, default false: runs every dependency install script whether or not allowScripts approves it; --ignore-scripts still wins. First present in the 11.16.0 definitions. [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
 - `extra.excludeWildcards`: min-release-age-exclude takes package names or minimatch globs from its first version. [↗](https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js)
 - `extra.latestVersion`: Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1). [↗](https://github.com/npm/cli/releases/tag/v12.2.1)
+- `extra.strictAllowScripts`: strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it. [↗](https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js)
 
 ### pnpm
 
@@ -246,6 +249,7 @@ Context recorded with verified facts.
 - `sources.git.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `sources.remoteTarball.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `project.workspaces`: Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md)
+- `extra.lockfileDocuments`: A lockfile whose first line is --- has two YAML documents: a boot document with configDependencies and packageManagerDependencies, written when the project has config dependencies, declares devEngines.packageManager or pins pnpm 12 or newer; then the project lockfile (importers, packages, snapshots), which is always the last document. Seen with pnpm 12.16.1 and packageManager pnpm@12.16.1 on 2026-10-29. [↗](https://github.com/pnpm/pnpm.io/blob/main/docs/lockfile.md)
 - `extra.lockfileFormat`: lockfileVersion 9.0 (pnpm 9 to 12). Registry packages are keyed name@version; git dependencies name@git+<repo>#<commit> with resolution type git, or a tarball from a git host (gitHosted: true; older lockfiles lack the flag, so the host decides); tarball URLs name@https://…; local tarballs name@file:….tgz; local directories have resolution type directory; link: and workspace: dependencies appear only under importers. requiresBuild was removed in lockfile v9, so install scripts are not recorded. [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/types/src/index.ts)
 - `extra.npmrcPrecedence`: pnpm 10 applies pnpm-workspace.yaml settings over .npmrc and npm_config_* variables; command-line options win over both (same order on v10.16.0). The 10.18.3 changelog says pnpm config set --location=project writes to pnpm-workspace.yaml "matching read priority". The 10.x docs do not state the order. [↗](https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts)
 - `extra.sharedWorkspaceLockfile`: Same name and default in pnpm 11 and 12, where it is read only from pnpm-workspace.yaml. [↗](https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/versioned_docs/version-10.x/workspaces.md)
@@ -288,6 +292,7 @@ Context recorded with verified facts.
 - `extra.lockfileFormat`: bun.lock (text, the default since 1.2) maps each package to a tuple starting with name@<spec>: name@<version> followed by the registry for npm, name@git+<repo>#<sha> and name@github:<owner>/<repo>#<sha> for git, name@https://… for tarball URLs, name@./x.tgz (without file:) for local tarballs, name@file:<dir> and name@link:<dir> for directories, name@workspace:<dir> for workspace packages. The info object carries hasInstallScript: true only since 1.4.4, with no lockfileVersion change, so a missing flag proves nothing for older files. bun.lockb is an undocumented binary format. [↗](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/lockfile/bun.lock.rs)
 - `extra.durationStrings`: Since 1.4.4 minimumReleaseAge also takes duration strings such as 90m, 12 hours, 3d or 2 weeks; plain numbers stay seconds. [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
 - `extra.excludeWildcards`: minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards. [↗](https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions)
+- `extra.trustedDependenciesReplacesDefaults`: So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild's postinstall (esbuild is on the built-in list); with "trustedDependencies": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29. [↗](https://bun.com/docs/pm/lifecycle#behavior-of-the-trusteddependencies-field)
 
 ### Deno
 
@@ -374,13 +379,6 @@ Context recorded with verified facts.
 ## To review
 
 Uncertain facts rest on incomplete official sources; disputed facts have official sources that disagree.
-
-### npm · `installScripts.defaultPolicy` ⚠️ disputed
-
-npm 12 blocking dependency scripts is undisputed. For npm 11.16-11.21 the install-scripts command page says scripts are blocked by default, while the v11 config reference, the 11.16.0 pull request and the GitHub changelog say unreviewed scripts still run with a notice.
-
-- Variant 1: earlier: `run`<br>11.16.0+: `run-with-warning`<br>12.0.0+: `deny-except-allowlist` · [source](https://docs.npmjs.com/cli/v11/using-npm/config#strict-allow-scripts), verified 2026-10-28. npm 12 also blocks implicit node-gyp builds and prepare scripts of git, file and link dependencies.
-- Variant 2: earlier: `run`<br>11.16.0+: `deny-except-allowlist` · [source](https://docs.npmjs.com/cli/v11/commands/npm-install-scripts), verified 2026-10-28.
 
 ### npm · `installScripts.allowList.format` ❓ uncertain
 
