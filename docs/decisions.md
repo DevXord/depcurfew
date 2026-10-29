@@ -782,10 +782,10 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 - **Wymagane:**
   - wiersz `uses: DevXord/depcurfew@<SHA>` w workflow użytkownika, bo GitHub buduje go z właściciela repozytorium;
   - `repository` w `package.json`, bo npm porównuje go przy proweniencji z repozytorium, z którego zbudowano paczkę (stąd też `homepage` i `bugs`);
-  - trusted publisher w `docs/RELEASING.md`.
+  - trusted publisher w `docs/RELEASING.md`;
+  - `LICENSE`: „Copyright (c) 2026 DevXord”. Informacja o prawach autorskich nikomu nie przeszkadza, bo nikt jej nie wpisuje we własne pliki, a jednoznacznie wskazuje właściciela praw.
 - **Marka zamiast danych autora:**
   - `author: depcurfew` w `package.json` i `action.yml`;
-  - `LICENSE`: „The depcurfew authors”;
   - `informationUri` w SARIF wskazuje stronę paczki na npm, więc wyniki code scanning u użytkownika nie wskazują konta autora.
 - **Pliki zapisywane w projektach użytkowników:** `depcurfew.json` (`$schema` na unpkg.com/depcurfew) i znaczniki zapisywane przez `apply` od początku zawierały tylko markę.
 - **Poza kodem:** rejestr npm pokazuje publicznie nazwę i mail opiekuna paczki (pole `maintainers`), a historia commitów na GitHubie — dotychczasowych autorów.

@@ -4,7 +4,7 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
 
 ## 2026-10-29 · Przygotowanie wydania 1.0.0: marka zamiast danych autora, README na stronę npm
 
-- Marka `depcurfew` zamiast danych autora: autor, licencja i `informationUri` w SARIF (strona paczki na npm). `DevXord` zostaje tylko tam, gdzie wymaga go GitHub lub npm: w `uses:` w workflow i w adresie repozytorium (D-064).
+- Marka `depcurfew` zamiast danych autora: autor i `informationUri` w SARIF (strona paczki na npm); licencja wskazuje właściciela praw (DevXord). `DevXord` zostaje tylko tam, gdzie wymaga go GitHub lub npm: w `uses:` w workflow i w adresie repozytorium (D-064).
 - README bez noty „pre-release”, bo trafi na stronę npm.
 - Plan: kolejność wydań 1.1.0 (`check` i hook), 1.2.0 (Python: uv, pip, Poetry), 1.3.0 (`--user`), 2.x (kolejne języki).
 
