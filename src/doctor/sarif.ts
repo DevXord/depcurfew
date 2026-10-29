@@ -3,7 +3,8 @@
 import type { DoctorReport, Rule } from './types.ts';
 
 export const SARIF_SCHEMA = 'https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json';
-const INFORMATION_URI = 'https://github.com/depcurfew/depcurfew';
+// The npm page: it names only the product, so nothing in a user's code scanning results points to the author's account.
+const INFORMATION_URI = 'https://www.npmjs.com/package/depcurfew';
 
 function ruleName(id: string): string {
   return id.replace(/(^|-)([a-z])/gu, (_match, _dash: string, letter: string) => letter.toUpperCase());

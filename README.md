@@ -66,7 +66,7 @@ A global install (`npm install -g depcurfew`) works, but teams should not rely o
 To work on depcurfew itself, run it from a clone of this repository:
 
 ```bash
-git clone https://github.com/depcurfew/depcurfew.git
+git clone https://github.com/DevXord/depcurfew.git
 cd depcurfew
 npm ci
 npm run build
@@ -250,7 +250,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: depcurfew/depcurfew@<full-commit-sha> # pin a commit, not a tag
+      - uses: DevXord/depcurfew@<full-commit-sha> # pin a commit, not a tag
 ```
 <!-- END GENERATED: action-workflow -->
 

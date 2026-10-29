@@ -37,10 +37,10 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
 3. **Trusted publisher z prawem tylko do etapowania** (decyzja z fazy 8: bez `--allow-publish`):
 
    ```bash
-   npm trust github depcurfew --file release.yml --repo depcurfew/depcurfew --allow-stage-publish
+   npm trust github depcurfew --file release.yml --repo DevXord/depcurfew --allow-stage-publish
    ```
 
-   To samo można zrobić na npmjs.com: paczka → **Settings** → **Trusted Publisher** → GitHub Actions; organizacja `depcurfew`, repozytorium `depcurfew`, plik workflow `release.yml`, bez środowiska, dozwolone tylko `npm stage publish`. npm nie sprawdza konfiguracji przy zapisie, więc literówka wyjdzie dopiero przy publikacji.
+   To samo można zrobić na npmjs.com: paczka → **Settings** → **Trusted Publisher** → GitHub Actions; użytkownik `DevXord`, repozytorium `depcurfew`, plik workflow `release.yml`, bez środowiska, dozwolone tylko `npm stage publish`. npm nie sprawdza konfiguracji przy zapisie, więc literówka wyjdzie dopiero przy publikacji.
 
 4. **Wyłączenie publikacji tokenami:** paczka → **Settings** → **Publishing access** → „Require two-factor authentication and disallow tokens” → **Update Package Settings**. Trusted publishing działa dalej, bo nie używa tokenów.
 

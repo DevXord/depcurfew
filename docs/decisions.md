@@ -776,22 +776,17 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
     - opóźnienie obejmuje aktualizacje depcurfew dopiero po pierwszym `apply`.
   - Test pilnuje, że zdanie README o trybie globalnym zgadza się z faktem `npmrcScope.globalMode`.
 
-## D-064 · Tożsamość marki zamiast danych autora; README gotowe na stronę npm (2026-10-29)
+## D-064 · Marka zamiast danych autora tam, gdzie to możliwe; README gotowe na stronę npm (2026-10-29)
 
-- **Zasada (decyzja właściciela).** Ani paczka, ani pliki, które depcurfew zapisuje w projektach użytkowników, nie zawierają nazwy użytkownika ani maila autora. Wszędzie występuje marka `depcurfew`.
-- **Zmiany:**
-  - `package.json`: `author: depcurfew`, a `repository`, `homepage` i `bugs` wskazują `github.com/depcurfew/depcurfew`;
+- **Zasada (decyzja właściciela).** Programista nie musi wpisywać w plikach swojego projektu niczego z danymi autora. Tam, gdzie nazwę właściciela wymaga GitHub albo npm, zostaje `DevXord`. Organizacja GitHub nie jest potrzebna.
+- **Wymagane:**
+  - wiersz `uses: DevXord/depcurfew@<SHA>` w workflow użytkownika, bo GitHub buduje go z właściciela repozytorium;
+  - `repository` w `package.json`, bo npm porównuje go przy proweniencji z repozytorium, z którego zbudowano paczkę (stąd też `homepage` i `bugs`);
+  - trusted publisher w `docs/RELEASING.md`.
+- **Marka zamiast danych autora:**
+  - `author: depcurfew` w `package.json` i `action.yml`;
   - `LICENSE`: „The depcurfew authors”;
-  - `action.yml`: `author: depcurfew`;
-  - `informationUri` w SARIF wskazuje repozytorium organizacji;
-  - przykład Action w README: `depcurfew/depcurfew@<SHA>`;
-  - `docs/RELEASING.md`: trusted publisher dla `depcurfew/depcurfew`.
-- **Warunek:** repozytorium musi przejść do organizacji GitHub `depcurfew` przed scaleniem tej zmiany i przed konfiguracją publikacji.
-  - npm sprawdza przy proweniencji, czy `repository.url` w `package.json` zgadza się z repozytorium, z którego zbudowano paczkę.
-  - Zarówno proweniencja, jak i przykład Action w plikach workflow użytkowników pokazują właściciela repozytorium.
-- **Czego zmiana w kodzie nie obejmie:**
-  - rejestr npm pokazuje publicznie nazwę i mail opiekunów paczki (pole `maintainers`), więc publikuje konto npm z marką w nazwie i z mailem marki;
-  - historia commitów na GitHubie zawiera dotychczasowych autorów;
-  - pliki `depcurfew.json` i znaczniki zapisywane przez `apply` od początku zawierały tylko markę.
+  - `informationUri` w SARIF wskazuje stronę paczki na npm, więc wyniki code scanning u użytkownika nie wskazują konta autora.
+- **Pliki zapisywane w projektach użytkowników:** `depcurfew.json` (`$schema` na unpkg.com/depcurfew) i znaczniki zapisywane przez `apply` od początku zawierały tylko markę.
+- **Poza kodem:** rejestr npm pokazuje publicznie nazwę i mail opiekuna paczki (pole `maintainers`), a historia commitów na GitHubie — dotychczasowych autorów.
 - **README na stronie npm.** npm pokazuje README z opublikowanej paczki, więc nota „pre-release” i instrukcja „until the package is published” znikają przed tagiem `v1.0.0`, nie po nim.
-

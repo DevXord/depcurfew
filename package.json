@@ -6,11 +6,11 @@
   "author": "depcurfew",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/depcurfew/depcurfew.git"
+    "url": "git+https://github.com/DevXord/depcurfew.git"
   },
-  "homepage": "https://github.com/depcurfew/depcurfew#readme",
+  "homepage": "https://github.com/DevXord/depcurfew#readme",
   "bugs": {
-    "url": "https://github.com/depcurfew/depcurfew/issues"
+    "url": "https://github.com/DevXord/depcurfew/issues"
   },
   "type": "module",
   "bin": {
