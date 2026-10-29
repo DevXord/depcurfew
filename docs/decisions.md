@@ -381,3 +381,15 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
   - `npm-existing-config`: CRLF, tabulatory, stary blok, zarządzany klucz poza blokiem;
   - `pnpm-renovate-dependabot`: komentarze w YAML, JSONC z przecinkiem na końcu, istniejący `semver-major-days`, wpis github-actions;
   - `pnpm-allow-all-builds` i `deno-allow-all-scripts`: przełączniki „pozwól na wszystko” przy `deny`.
+
+## D-033 · Zatwierdzenie decyzji fazy 4 (2026-10-29)
+- **Zatwierdzenie:** właściciel zaakceptował decyzje podjęte w trakcie fazy 4 poza planem:
+  - „wszystko albo nic”: przy pliku, którego nie da się edytować, `apply` nic nie zapisuje i kończy się kodem 1 (D-028);
+  - podział wyjścia: diff lub lista plików na stdout, ostrzeżenia, fragmenty i błędy na stderr (D-028);
+  - listy wyjątków od opóźnienia zastępowane polityką, allowlisty skryptów tylko uzupełniane (D-030);
+  - wyłączanie przełączników „pozwól na wszystkie skrypty” przy `deny`: pnpm `dangerouslyAllowAllBuilds` i Deno `allowScripts: true` (D-030);
+  - opóźnienie botów nie krótsze niż najdłuższe zapisane przez menedżera, bez zmiany w `explain` (D-028);
+  - pnpm `blockExoticSubdeps: true`, gdy polityka blokuje git albo zdalne tarballe (D-030);
+  - zachowywanie komentarzy w linii zmienianej wartości, nawet gdy przestają być aktualne (D-029);
+  - eksport API `apply` w `src/index.ts` (D-028);
+  - wyjątek w `.gitattributes` dla fikstury z CRLF (D-032).
