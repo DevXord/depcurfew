@@ -166,7 +166,7 @@ export const npm: ToolKnowledge = {
     stagedPublishing: checked.verified(
       { minimumNpm: '11.15.0', minimumNode: '22.14.0', stage: 'npm stage publish', approve: 'npm stage approve', reject: 'npm stage reject', newPackagePlaceholder: '0.0.0-stage' },
       'https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-stage.mdx',
-      'Staging needs no 2FA, so CI can do it; approving or rejecting needs 2FA (CLI or npmjs.com). Staging a package that does not exist yet creates it with the public placeholder version 0.0.0-stage. Pre-release versions need an explicit --tag. --provenance also applies to npm stage publish.',
+      'Staging needs no 2FA, so CI can do it; approving or rejecting needs 2FA (CLI or npmjs.com). Staging a package that does not exist yet creates it with the public placeholder version 0.0.0-stage. Pre-release versions need an explicit --tag. --provenance also applies to npm stage publish. Rejecting the only staged version of such a new package also unpublished the placeholder (observed 2026-10-29 with npm 11.21.1), and after a whole package is unpublished its name is blocked for 24 hours (https://github.com/npm/documentation/blob/main/content/policies/unpublish.mdx).',
     ),
     trustCommand: checked.verified(
       { command: 'npm trust github', minimumNpm: '11.15.0', packageMustExist: true, permissions: ['--allow-publish', '--allow-stage-publish'] },

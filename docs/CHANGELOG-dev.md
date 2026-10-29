@@ -6,6 +6,7 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
 
 - Marka `depcurfew` zamiast danych autora: autor i `informationUri` w SARIF (strona paczki na npm); licencja wskazuje właściciela praw (DevXord). `DevXord` zostaje tylko tam, gdzie wymaga go GitHub lub npm: w `uses:` w workflow i w adresie repozytorium (D-064).
 - README bez noty „pre-release”, bo trafi na stronę npm.
+- Publikacja: odrzucenie jedynego etapu próbnego wycofało wersję zastępczą `0.0.0-stage`, a npm blokuje nazwę na 24 godziny. `docs/RELEASING.md` każe teraz zostawić etap próbny do wydania 1.0.0. `bin` jest zapisany tak, jak normalizuje go npm (`dist/cli.js`), więc publikacja nie ostrzega o przepisaniu ścieżek.
 - Plan: kolejność wydań 1.1.0 (`check` i hook), 1.2.0 (Python: uv, pip, Poetry), 1.3.0 (`--user`), 2.x (kolejne języki).
 
 ## 2026-10-29 · Luka: tarball z URL na hoście rejestru; instalacja w projekcie
