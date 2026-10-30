@@ -1,3 +1,21 @@
+// depcurfew GitHub Action (MIT), built from https://github.com/DevXord/depcurfew with npm run build:action.
+// It bundles the runtime helpers of rolldown (MIT) and yaml; their licenses are in THIRD_PARTY_LICENSES.md.
+//
+// yaml 2.9.1 (ISC):
+//
+// Copyright Eemeli Aro <eemeli@gmail.com>
+//
+// Permission to use, copy, modify, and/or distribute this software for any purpose
+// with or without fee is hereby granted, provided that the above copyright notice
+// and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+// REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+// FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+// INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+// OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+// TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+// THIS SOFTWARE.
 import { createRequire } from "node:module";
 import { appendFileSync, chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";

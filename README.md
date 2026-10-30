@@ -388,7 +388,7 @@ For each package it looks up the public npm registry, or PyPI for names with the
 - a name the registry does not know, which is how made-up package names show up;
 - a version younger than the cooldown in `depcurfew.json`, with the newest version that is old enough;
 - install scripts the policy does not allow; for a Python package, a version without wheels, which is built from source and so runs its build code;
-- a name that differs by a letter or two, or only in separators, from one of the 5,000 most downloaded packages of its registry;
+- a name that differs by a letter or two, or only in separators, from a popular package of its registry: 5,000 npm packages with the most weekly downloads among the results of several hundred registry searches (the npm registry has no download ranking, so a popular package can be missing), and the 5,000 most downloaded PyPI projects of a recent month;
 - a deprecated version (a warning).
 
 Python packages are written as pip takes them after the prefix (`pypi:name`, `pypi:name==1.2`, `pypi:name[extra]>=1.2,<2`), or as `pypi:name@1.2`, `pypi:name@^1.2` and `pypi:name@latest`, as `uvx` and `poetry add` take them. The version is picked as pip picks it: the newest match, pre-releases only when asked for or when nothing else matches, and yanked versions only when pinned with `==` (a warning). A version is as old as its newest file, because files can be added to a release later. A project PyPI quarantines (as malware, for example) is an error; an archived or deprecated one, a warning. `--index` looks Python packages up in another index that serves the JSON form of the simple repository API.
@@ -456,6 +456,10 @@ Commands the guard reads (an add subcommand of any npm package manager, such as 
 
 The hook reads commands the way a shell splits them, but it is a safety net, not a sandbox: a command can install packages in ways it does not recognize (a script, another tool). Keep the package manager configuration from `depcurfew apply` in place; it is what enforces the policy for every install.
 
+## Network and privacy
+
+Only `check` and the Claude Code hook use the network. For each package they request one URL with the package name in it: from the public npm registry (`registry.npmjs.org`) or PyPI (`pypi.org`), or from the registry that the project's or your `.npmrc` sets, `--registry` or `--index`. They send no credentials (tokens in `.npmrc` are not read) and nothing else about the project, and depcurfew has no telemetry. A private package whose scope has no registry in `.npmrc` is looked up in the public registry, so its name reaches that registry; set `@scope:registry` in `.npmrc` or pass `--registry` first. `init`, `explain`, `apply` and `doctor` work without network access, and so does the doctor step of the GitHub Action (the SARIF upload to code scanning is a separate step that runs GitHub's own action). An editor that reads the `$schema` of `depcurfew.json` may download the schema from unpkg.com.
+
 ## Library
 
 The same functions are available from the package: `detectProject`, `planApply` and `applyProject`, `runDoctor` with `toSarif`, `checkSpecs` with `scanCommandLine`, and the policy parser and converters. See `src/index.ts`.
@@ -467,3 +471,7 @@ Facts about package managers live only in `src/knowledge/`, each with the offici
 ## License
 
 [MIT](LICENSE)
+
+## Trademarks
+
+npm is a registered trademark of npm, Inc. "Python" and "PyPI" are trademarks of the Python Software Foundation. pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate, Dependabot, GitHub, Claude Code and the other names in this document belong to their owners. depcurfew is an independent project and is not affiliated with or endorsed by any of them.
