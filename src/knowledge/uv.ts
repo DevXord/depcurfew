@@ -235,6 +235,28 @@ export const uv: ToolKnowledge = {
       `${UV}/crates/uv-static/src/env_vars.rs`,
       'IndexArgs (lib.rs): --index adds an index (name=url allowed), --default-index replaces PyPI, --index-url and --extra-index-url are their deprecated forms, --find-links adds a page or directory of archives; each has the variable named here. --config-file and UV_CONFIG_FILE name a uv.toml that may set any index. uv does not read pip.conf or PIP_INDEX_URL (docs/pip/compatibility.md).',
     ),
+    selection: verified(
+      {
+        prereleases: {
+          onFlags: ['--pre'],
+          modeOptions: ['--prerelease'],
+          packageModeOptions: ['--prerelease-package'],
+          onModes: ['allow'],
+          offModes: ['disallow'],
+          modeVariables: ['UV_PRERELEASE'],
+        },
+        buildFromSource: {
+          onFlags: ['--no-binary'],
+          offFlags: ['--binary'],
+          onPackages: ['--no-binary-package'],
+          flagVariables: ['UV_NO_BINARY'],
+          onPackageVariables: ['UV_NO_BINARY_PACKAGE'],
+        },
+        commands: [{ command: ['uv', 'pip', 'install'], buildFromSource: { onLists: ['--no-binary'], offLists: ['--only-binary'] } }],
+      },
+      CLI,
+      'VersionSelectionArgs: --prerelease takes disallow, allow, if-necessary, explicit or if-necessary-or-explicit (UV_PRERELEASE); allow considers pre-releases of every package and disallow none (docs/concepts/resolution.md); --prerelease-package takes PACKAGE=MODE; the hidden --pre means allow. BuildOptionsArgs of uv add, uv run, uv tool install and uv tool run (uvx): --no-binary (UV_NO_BINARY, a boolean) installs every package from source, --binary turns it off, --no-binary-package names one package (UV_NO_BINARY_PACKAGE, separated by spaces). uv pip install takes --no-binary and --only-binary as lists separated by commas with :all: and :none:, as pip does (PipInstallArgs).',
+    ),
     latestVersion: verified('0.13.6', `${UV}/CHANGELOG.md`, 'Released on 2026-10-26.'),
   },
 };

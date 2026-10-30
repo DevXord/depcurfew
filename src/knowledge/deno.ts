@@ -3,6 +3,11 @@ import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
+const reviewed = verifiedOn('2026-10-30');
+const X_VALUE_OPTIONS = [
+  '--package', '-p', '--config', '-c', '--import-map', '--cert', '--min-dep-age', '--location', '--seed', '--preload', '--require',
+  '--conditions', '--inspect-publish-uid',
+];
 
 const DENO_JSON = 'https://docs.deno.com/runtime/reference/deno_json/#minimum-dependency-age';
 const SUPPLY_CHAIN = 'https://docs.deno.com/runtime/packages/supply_chain/#minimum-dependency-age';
@@ -117,20 +122,31 @@ export const deno: ToolKnowledge = {
     workspacesObjectKey: verified('members', WORKSPACES),
   },
   extra: {
-    commandLine: checked.verified(
+    commandLine: reviewed.verified(
       {
         add: [
           ['deno', 'add'],
           ['deno', 'install'],
         ],
-        run: [],
+        run: [
+          { command: ['deno', 'x'], packageOptions: ['--package', '-p'], binaryPath: true },
+          { command: ['dx'], packageOptions: ['--package', '-p'], binaryPath: true },
+          { command: ['denox'], packageOptions: ['--package', '-p'], binaryPath: true },
+          { command: ['dnx'], packageOptions: ['--package', '-p'], binaryPath: true },
+        ],
         create: [],
         createNames: 'prefix',
         fileOptions: ['--entrypoint', '-e'],
-        valueOptions: ['--name', '-n', '--root', '--os', '--arch'],
+        valueOptions: ['--name', '-n', '--root', '--os', '--arch', '-L', '--log-level'],
+        commandOptions: [
+          { command: ['deno', 'x'], valueOptions: X_VALUE_OPTIONS },
+          { command: ['dx'], valueOptions: X_VALUE_OPTIONS },
+          { command: ['denox'], valueOptions: X_VALUE_OPTIONS },
+          { command: ['dnx'], valueOptions: X_VALUE_OPTIONS },
+        ],
       },
-      'https://github.com/denoland/docs/blob/main/runtime/reference/cli/install.md',
-      'deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (runtime/reference/cli/add.md).',
+      'https://github.com/denoland/docs/tree/74beb7585f7e798fe0bc8d867295bff23fc2e38e/runtime/reference/cli',
+      'install.md: deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (add.md). x.md: deno x runs a package from npm or JSR without installing it, like npx (deno x npm:create-vite my-app); --package (-p) names the package when the binary differs (deno x -p typescript tsc), and npm:<package>/<binary> picks one binary; deno x --install-alias creates the dx alias. In Deno 2.9.8 (github.com/denoland/deno, cli/args/flags.rs) an executable whose name ends in dx, denox or dnx runs as deno x, and libs/cli_parser/src/defs.rs (X_SUBCOMMAND with COMPILE_ARGS, PERMISSION_ARGS, RUNTIME_MISC_ARGS and INSPECT_ARGS) gives the options of deno x that take a separate value; the permission flags take theirs after =. -L/--log-level is a global option with a value.',
     ),
     lockfileFormat: checked.verified(
       { installScripts: 'scripts', installScriptsSinceLockfile: '5', sources: null },

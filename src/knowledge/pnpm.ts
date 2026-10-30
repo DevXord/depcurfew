@@ -3,6 +3,8 @@ import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
+const reviewed = verifiedOn('2026-10-30');
+const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
 
 const RESOLUTION = 'https://pnpm.io/settings/dependency-resolution';
 const SETTINGS_V10 = 'https://pnpm.io/10.x/settings';
@@ -156,10 +158,33 @@ export const pnpm: ToolKnowledge = {
       'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/package-sources.md',
       'Sources of pnpm add: the npm registry, jsr:, crate: and pypi: (other registries), workspace packages (the workspace: range protocol, docs/workspaces.md), local directories (./dir is saved as link:, file:./dir is copied), local tarballs ending in .tar, .tar.gz or .tgz, remote tarballs starting with http:// or https://, and git repositories as user/repo (github: by default), github:, bitbucket:, gitlab:, gist: or a full URL such as git+ssh://… or https://github.com/….git.',
     ),
-    registryOverrides: checked.uncertain(
-      { registryOptions: ['--registry', '--@<scope>:registry'], registryVariables: ['pnpm_config_registry'], configOptions: [], configVariables: [] },
-      'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/npmrc.md',
-      '--registry and --@scope:registry on the command line win over the other registry settings. The page shows pnpm_config_<key> environment variables for keys of .npmrc (pnpm_config__auth, pnpm_config_//registry.npmjs.org/:_authToken) overriding the project .npmrc; that pnpm_config_registry works the same is inferred.',
+    registryOverrides: reviewed.verified(
+      {
+        registryOptions: ['--registry', '--@<scope>:registry'],
+        registryVariables: ['pnpm_config_registry'],
+        configOptions: ['--userconfig', '--npmrc-auth-file'],
+        configVariables: ['pnpm_config_npmrc_auth_file', 'pnpm_config_userconfig'],
+      },
+      `${PNPM_V12}/pnpm11/config/reader/src/index.ts`,
+      'registry and @scope:registry are read from the command line over .npmrc (docs/npmrc.md in pnpm/pnpm.io). Every pnpm_config_<key> or PNPM_CONFIG_<KEY> variable whose key is a setting sets it (src/env.ts, parseEnvVars), registry included. The user-level .npmrc, which may set any registry, is the file named by --npmrc-auth-file, --userconfig, pnpm_config_npmrc_auth_file, pnpm_config_userconfig, npmrcAuthFile in the global config.yaml or npm_config_userconfig (getNpmrcAuthFile; src/loadNpmrcFiles.ts reads it in place of ~/.npmrc). pnpm 10 reads npm_config_* variables as npm does.',
+    ),
+    parsing: reviewed.verified(
+      {
+        abbreviations: true,
+        anyDashes: true,
+        negation: '--no-',
+        settingPrefix: '--config.',
+        shorthands: {
+          s: ['--reporter=silent'], d: ['--loglevel=info'], dd: ['--loglevel=verbose'], ddd: ['--loglevel=silly'], L: ['--latest'],
+          r: ['--recursive'], silent: ['--reporter=silent'], verbose: ['--loglevel=verbose'], quiet: ['--loglevel=warn'],
+          q: ['--loglevel=warn'], h: ['--help'], H: ['--help'], '?': ['--help'], usage: ['--help'], v: ['--version'], f: ['--force'],
+          local: ['--no-global'], l: ['--long'], p: ['--parseable'], porcelain: ['--parseable'], prod: ['--production'],
+          development: ['--dev'], g: ['--global'], S: ['--save'], D: ['--save-dev'], P: ['--save-prod'], E: ['--save-exact'],
+          O: ['--save-optional'], C: ['--dir'], w: ['--workspace-root'], i: ['--interactive'], F: ['--filter'], y: ['--yes'],
+        },
+      },
+      `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`,
+      'pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag. Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y.',
     ),
     minimumReleaseAgeStrict: checked.verified(
       { setting: 'minimumReleaseAgeStrict', value: true, since: '11.0.0' },

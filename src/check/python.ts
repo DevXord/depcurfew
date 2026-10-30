@@ -10,7 +10,18 @@ import { formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
 import { policyFor } from '../policy/ecosystem.ts';
 import { PYPI_PREFIX } from '../policy/package-pattern.ts';
-import { CHECK_BY_HAND, describeAge, PYTHON_SOURCE_LABELS, sourceFindings, type CheckFinding, type CheckOptions, type PackageReport } from './findings.ts';
+import { normalizePythonName } from '../policy/python-names.ts';
+import {
+  CHECK_BY_HAND,
+  describeAge,
+  insecureFinding,
+  PYTHON_SOURCE_LABELS,
+  sourceFindings,
+  type CheckFinding,
+  type CheckOptions,
+  type CheckRequest,
+  type PackageReport,
+} from './findings.ts';
 import { matchesSpecifiers, pickVersion, pinsVersion, type Clause } from './pep440.ts';
 import { defaultIndex, fetchProject, type PypiFile, type PypiProject } from './pypi.ts';
 import { parsePythonSpec } from './python-spec.ts';
@@ -38,6 +49,13 @@ function earliest(files: readonly PypiFile[]): PypiFile | undefined {
   return [...files].sort((a, b) => Date.parse(a.uploadedAt ?? '') - Date.parse(b.uploadedAt ?? ''))[0];
 }
 
+type Chosen = Omit<CheckRequest, 'spec'>;
+
+/** Whether a policy pattern matches a Python name: both are compared after normalization (PEP 503), as doctor does. */
+function matchesName(name: string, patterns: readonly string[]): boolean {
+  return patterns.some((pattern) => matchesPattern(name, normalizePythonName(pattern)));
+}
+
 /** Versions with files an installer may pick for these clauses. */
 function candidates(project: PypiProject, clauses: readonly Clause[]): string[] {
   const pinned = pinsVersion(clauses);
@@ -45,14 +63,14 @@ function candidates(project: PypiProject, clauses: readonly Clause[]): string[] 
 }
 
 /** The newest version the clauses allow whose files are all older than the cutoff, to suggest instead. */
-function oldEnough(project: PypiProject, clauses: readonly Clause[], cutoff: number): string | undefined {
+function oldEnough(project: PypiProject, clauses: readonly Clause[], cutoff: number, prereleases: Chosen['prereleases']): string | undefined {
   const pinned = pinsVersion(clauses);
   const versions = candidates(project, clauses).filter((version) => {
     const files = usable(project.releases.get(version) ?? [], pinned);
     const known = times(files);
     return known.length === files.length && known.every((time) => time <= cutoff);
   });
-  return pickVersion(versions, clauses);
+  return pickVersion(versions, clauses, prereleases);
 }
 
 function statusFindings(project: PypiProject, label: string): CheckFinding[] {
@@ -74,11 +92,13 @@ function statusFindings(project: PypiProject, label: string): CheckFinding[] {
   return [{ level: 'warning', code: 'deprecated', message: `${label} is ${project.status}${reason}`, fix: 'Pick a package that is not deprecated; the reason often names one' }];
 }
 
-async function checkIndexPackage(report: PackageReport, name: string, clauses: readonly Clause[], selector: string, options: CheckOptions): Promise<void> {
+async function checkIndexPackage(report: PackageReport, name: string, clauses: readonly Clause[], selector: string, options: CheckOptions, chosen: Chosen): Promise<void> {
   const policy = policyFor(options.policy, 'pypi');
   const label = `${PYPI_PREFIX}${name}`;
   const index = options.index ?? defaultIndex();
   const add = (finding: CheckFinding) => report.findings.push(finding);
+  const insecure = insecureFinding(index, 'index');
+  if (insecure !== undefined) add(insecure);
   const similar = options.popularPython?.similar(name);
   if (similar !== undefined) {
     const how = similar.reason === 'edit' ? 'differs by a letter or two from' : 'differs only in separators from';
@@ -101,7 +121,7 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
     return;
   }
   if (lookup.status === 'error') {
-    add({ level: 'error', code: 'unverified', message: `it cannot be checked: ${lookup.reason}`, fix: 'Run depcurfew check again when the index is reachable' });
+    add({ level: 'error', code: 'unverified', message: `it cannot be checked: ${lookup.reason}`, fix: lookup.fix ?? 'Run depcurfew check again when the index is reachable' });
     return;
   }
   const project = lookup.project;
@@ -114,7 +134,7 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
     report.latest = first?.uploadedAt === undefined ? { version: latest } : { version: latest, publishedAt: first.uploadedAt };
   }
   const pinned = pinsVersion(clauses);
-  const version = pickVersion(candidates(project, clauses), clauses);
+  const version = pickVersion(candidates(project, clauses), clauses, chosen.prereleases);
   if (version === undefined) {
     const yankedOnly = [...project.releases.keys()].some((candidate) => matchesSpecifiers(candidate, clauses));
     add({
@@ -142,7 +162,7 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
   }
 
   const cooldown = policy.cooldown;
-  if (cooldown !== undefined && !cooldown.exclude.some((pattern) => matchesPattern(name, pattern))) {
+  if (cooldown !== undefined && !matchesName(name, cooldown.exclude)) {
     const known = times(files);
     if (known.length < files.length) {
       add({
@@ -162,7 +182,7 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
           firstAge >= cooldown.minimum.minutes && newestFile !== undefined
             ? `was published ${describeAge(firstAge)} ago, but its file ${newestFile.filename} was uploaded ${describeAge(age)} ago`
             : `was published ${describeAge(age)} ago`;
-        const instead = oldEnough(project, clauses, options.now.getTime() - cooldown.minimum.minutes * 60000);
+        const instead = oldEnough(project, clauses, options.now.getTime() - cooldown.minimum.minutes * 60000, chosen.prereleases);
         add({
           level: 'error',
           code: 'too-young',
@@ -173,18 +193,28 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
     }
   }
 
-  const allowed = policy.installScripts?.allow.some((pattern) => matchesPattern(name, pattern)) ?? false;
-  if (policy.installScripts?.default === 'deny' && !allowed && files.length > 0 && files.every((file) => file.kind === 'sdist')) {
+  const allowed = matchesName(name, policy.installScripts?.allow ?? []);
+  const sdists = files.filter((file) => file.kind === 'sdist');
+  // Without a wheel, or with wheels refused by the command (--no-binary), the installer builds the source distribution.
+  const builds = sdists.length > 0 && (sdists.length === files.length || chosen.buildFromSource === true);
+  if (policy.installScripts?.default === 'deny' && !allowed && builds) {
+    const why =
+      sdists.length === files.length
+        ? 'has no wheel, only a source distribution, so installing it builds it from source'
+        : 'is built from its source distribution, because the command refuses wheels (no-binary),';
     add({
       level: 'error',
       code: 'install-scripts',
-      message: `${versionLabel} has no wheel, only a source distribution, so installing it builds it from source and runs its build code, which depcurfew.json does not allow (installScripts)`,
-      fix: `Pick a version or package with wheels, or add ${label} to installScripts.allow in depcurfew.json if you trust its build`,
+      message: `${versionLabel} ${why} and runs its build code, which depcurfew.json does not allow (installScripts)`,
+      fix:
+        sdists.length === files.length
+          ? `Pick a version or package with wheels, or add ${label} to installScripts.allow in depcurfew.json if you trust its build`
+          : `Install it from a wheel (leave out --no-binary), or add ${label} to installScripts.allow in depcurfew.json if you trust its build`,
     });
   }
 }
 
-export async function checkPythonSpec(raw: string, options: CheckOptions): Promise<PackageReport> {
+export async function checkPythonSpec(raw: string, options: CheckOptions, chosen: Chosen = {}): Promise<PackageReport> {
   const spec = parsePythonSpec(raw.trim().slice(PYPI_PREFIX.length));
   if (spec === undefined) {
     const finding: CheckFinding = {
@@ -195,7 +225,13 @@ export async function checkPythonSpec(raw: string, options: CheckOptions): Promi
     };
     return { spec: raw, kind: 'invalid', findings: [finding] };
   }
-  const report: PackageReport = { spec: raw, kind: spec.kind, findings: [] };
+  const report: PackageReport = {
+    spec: raw,
+    kind: spec.kind,
+    ...(chosen.prereleases === undefined ? {} : { prereleases: chosen.prereleases }),
+    ...(chosen.buildFromSource === undefined ? {} : { buildFromSource: chosen.buildFromSource }),
+    findings: [],
+  };
   if (spec.name !== undefined) report.name = `${PYPI_PREFIX}${spec.name}`;
   if (spec.kind === 'workspace') {
     report.findings.push({
@@ -210,7 +246,7 @@ export async function checkPythonSpec(raw: string, options: CheckOptions): Promi
     report.findings.push(...sourceFindings({}, spec.kind, options.policy, PYTHON_SOURCE_LABELS));
   } else if (spec.name !== undefined) {
     const selector = raw.trim().slice(PYPI_PREFIX.length).split(';', 1)[0]?.replace(/^[A-Za-z0-9._-]+\s*(\[[^\]]*\])?\s*/u, '').trim() ?? '';
-    await checkIndexPackage(report, spec.name, spec.clauses ?? [], selector, options);
+    await checkIndexPackage(report, spec.name, spec.clauses ?? [], selector, options, chosen);
   }
   return report;
 }

