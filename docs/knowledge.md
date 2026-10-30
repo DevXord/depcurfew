@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-12 tools · 501 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
+12 tools · 502 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
 
 ## Release-age cooldown
 
@@ -326,6 +326,7 @@ Further facts used by generators and `doctor`.
 
 - `cooldownKeys` (✅ verified): `{"days":"default-days","exclude":"exclude","semverDays":["semver-major-days","semver-minor-days","semver-patch-days"]}` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
 - `excludeWildcards` (✅ verified): `{"since":"0.0.0","trailingOnly":false}` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
+- `cooldownInclude` (✅ verified): `{"key":"include","everything":"*"}` [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates#setting-up-a-cooldown-period-for-dependency-updates)
 - `ecosystems` (✅ verified): `{"npm":["npm","pnpm","yarn"],"bun":["bun"],"deno":["deno"],"pip":["pip","poetry","pipenv"],"uv":["uv"]}` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#package-ecosystem)
 - `dayRange` (⚠️ disputed): ⚠️ 1 to 90 days [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates) / 0 removes the cooldown [↗](https://github.com/dependabot/dependabot-core/discussions/15582)
 - `maximumDays` (✅ verified): 90 [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates)
@@ -692,6 +693,7 @@ Context recorded with verified facts.
 - `installScripts.allowList.setting`: insecure-external-code-execution: allow exists only for bundler, mix and pip; nothing allows npm, pnpm, Yarn or Bun scripts. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution)
 - `extra.cooldownKeys`: Keys inside the cooldown block of an updates entry; the semver-* keys override default-days for that kind of update. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
 - `extra.excludeWildcards`: cooldown.exclude accepts * wildcards. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
+- `extra.cooldownInclude`: An include list in the cooldown block limits the cooldown to the dependencies it names (* wildcards, up to 150 entries): the example applies the cooldown to requests, numpy and names starting with pandas or django, and to cover all dependencies one omits include or uses "*". The other dependencies get no cooldown at all, not even the default 3 days: dependabot-core skips the cooldown for a dependency that the include list does not match (ReleaseCooldownOptions#included? with File.fnmatch? and CooldownCalculation.skip_cooldown? in common/lib/dependabot, commit 03892a3e8ee26d43eb96f31c5136c98a85d63b14). exclude wins over include. [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates#setting-up-a-cooldown-period-for-dependency-updates)
 - `extra.ecosystems`: The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). Cooldown, including the semver-* keys, is supported for all of them. PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0). [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#package-ecosystem)
 - `extra.maximumDays`: The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange). [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates)
 

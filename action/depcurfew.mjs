@@ -418,6 +418,10 @@ const dependabot$1 = {
 			since: "0.0.0",
 			trailingOnly: false
 		}, `${OPTIONS$1}#cooldown`, "cooldown.exclude accepts * wildcards."),
+		cooldownInclude: python$2.verified({
+			key: "include",
+			everything: "*"
+		}, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates#setting-up-a-cooldown-period-for-dependency-updates", "An include list in the cooldown block limits the cooldown to the dependencies it names (* wildcards, up to 150 entries): the example applies the cooldown to requests, numpy and names starting with pandas or django, and to cover all dependencies one omits include or uses \"*\". The other dependencies get no cooldown at all, not even the default 3 days: dependabot-core skips the cooldown for a dependency that the include list does not match (ReleaseCooldownOptions#included? with File.fnmatch? and CooldownCalculation.skip_cooldown? in common/lib/dependabot, commit 03892a3e8ee26d43eb96f31c5136c98a85d63b14). exclude wins over include."),
 		ecosystems: python$2.verified({
 			npm: [
 				"npm",
@@ -14926,7 +14930,7 @@ function renovateDelay(bot, config, ecosystem) {
 
 // src/doctor/rules/bot-cooldown.ts
 const isEcosystems = (value) => isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
-const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && Array.isArray(value["semverDays"]);
+const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]);
 const isPackageJsonConfig$1 = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
 function describe$1(minutes) {
 	return minutes === 0 ? "no delay" : formatMinutes(minutes);
@@ -14940,6 +14944,7 @@ function dependabotDelays(context, bot, file) {
 	const keys = extraOf(bot, "cooldownKeys", isCooldownKeys);
 	const fallback = versionedValue(values$1(bot.cooldown.default)[0] ?? [], void 0);
 	const securityBypass = values$1(bot.cooldown.securityUpdates).includes("bypass");
+	const include = extraOf(bot, "cooldownInclude", (value) => isRecord(value) && typeof value["key"] === "string");
 	return updates.value.flatMap((entry, index) => {
 		if (!isRecord(entry) || typeof entry["package-ecosystem"] !== "string") return [];
 		const managers = ecosystems[entry["package-ecosystem"]] ?? [];
@@ -14956,7 +14961,7 @@ function dependabotDelays(context, bot, file) {
 			String(index),
 			cooldown === void 0 ? "package-ecosystem" : "cooldown"
 		])?.line ?? updates.line;
-		return [{
+		const delays = [{
 			bot,
 			managers,
 			minutes: days * 1440,
@@ -14968,6 +14973,30 @@ function dependabotDelays(context, bot, file) {
 			securityBypass,
 			scope: `${entry["package-ecosystem"]} updates`
 		}];
+		const included = cooldown?.[include.key];
+		const patterns = Array.isArray(included) ? included.filter((item) => typeof item === "string") : [];
+		if (patterns.length > 0 && !patterns.some((pattern) => /^\*+$/u.test(pattern))) {
+			const at = yamlSetting(text, [
+				"updates",
+				String(index),
+				"cooldown",
+				include.key
+			])?.line ?? line;
+			delays.push({
+				bot,
+				managers,
+				minutes: 0,
+				origin: `cooldown.${include.key} in ${file} names only ${listing$1(patterns)}`,
+				location: {
+					file,
+					line: at
+				},
+				securityBypass,
+				scope: `${entry["package-ecosystem"]} updates of dependencies that cooldown.${include.key} does not name`,
+				fix: `Remove ${include.key} from the cooldown of updates[${index}] in ${file}, so that the cooldown covers every dependency, and list exceptions under ${keys.exclude} instead`
+			});
+		}
+		return delays;
 	});
 }
 function renovateDelays(context, bot, file) {
@@ -15047,7 +15076,7 @@ function rechecksLockfile(tool, manager) {
 const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	summary: "An update bot waits less than the package manager before proposing a new version.",
-	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile.",
+	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type.",
 	help: "Give the bot a delay at least as long as the package manager's (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
@@ -15079,7 +15108,7 @@ const botCooldownMismatch = {
 			if (delay.minutes < own.minutes) context.report({
 				location: delay.location,
 				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
-				fix: delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(own.minutes)}, or limit the rule to the packages that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`
+				fix: delay.fix ?? (delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(own.minutes)}, or limit the rule to the packages that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`)
 			});
 			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager)) context.report({
 				level: "warning",
