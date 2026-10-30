@@ -40,7 +40,7 @@ export function packumentUrl(registry: string, name: string): string {
   return new URL(escaped, registry.endsWith('/') ? registry : `${registry}/`).href;
 }
 
-async function readLimited(response: Response, limit: number): Promise<string> {
+export async function readLimited(response: Response, limit: number): Promise<string> {
   const declared = Number(response.headers.get('content-length') ?? Number.NaN);
   if (declared > limit) throw new Error(`the document is larger than ${limit / (1024 * 1024)} MiB`);
   if (response.body === null) return '';

@@ -172,12 +172,26 @@ export function requirementsIncludes(input: string, format: Format): { path: str
   });
 }
 
-/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
-export function requirementsEntries(input: string, format: Format): LockEntry[] {
+/** Where one requirement comes from, as pip reads it. */
+export interface RequirementSource {
+  source: Source;
+  /** The URL or path, or the whole requirement for a registry package. */
+  target: string;
+  /** From "name @", #egg= or, for a registry package, the requirement itself; undefined when the requirement has no name. */
+  name?: string;
+  /** Whether installing it builds it from source; undefined when the index decides (a registry package). */
+  builds: boolean | undefined;
+}
+
+/**
+ * Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
+ * directory, the project itself, or a registry package. `editable` is set for the value of -e, which is always a path
+ * or a VCS URL.
+ */
+export function requirementSource(requirement: string, format: Format, editable: boolean): RequirementSource {
   const vcs = isRecord(format['vcs']) ? format['vcs'] : {};
   const gitPrefixes = strings(vcs['git']);
   const otherPrefixes = strings(vcs['other']);
-  const editable = strings(format['editable']);
   const egg = new RegExp(`${escapeRegExp(String(format['egg']))}([^&\\s]+)`, 'u');
   const paths = isRecord(format['paths']) ? format['paths'] : {};
   const separators = strings(paths['separators']);
@@ -190,6 +204,34 @@ export function requirementsEntries(input: string, format: Format): LockEntry[] 
   // pip takes anything with a path separator, or starting with ., for a path, and an archive name for a file.
   const looksLikePath = (text: string) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
   const isArchive = (text: string) => archives.some((extension) => text.toLowerCase().endsWith(extension));
+  const named = reference.exec(requirement);
+  const target = named?.[2] ?? requirement;
+  // The name comes from "name @" or #egg=; a guess from a file or directory name could match the allow-list for
+  // the wrong code, so a requirement without either stays unnamed.
+  const name = named?.[1] ?? egg.exec(target)?.[1];
+  const located = (source: Source, location: string, builds: boolean): RequirementSource => ({
+    source,
+    target: location,
+    ...(name !== undefined && PYTHON_NAME.test(name) ? { name } : {}),
+    builds,
+  });
+  if (gitPrefixes.some((prefix) => target.startsWith(prefix))) return located('git', target, true);
+  if (otherPrefixes.some((prefix) => target.startsWith(prefix))) return located('unknown', target, true);
+  if (urlSchemes.test(target)) return located('remoteTarball', target, !isWheel(target));
+  if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || editable) {
+    const path = target.replace(fileScheme, '');
+    // The project itself (-e . or .) is built as part of the work on it, not as a dependency.
+    if (/^\.\/?$/u.test(path)) return { source: 'workspace', target, name: '.', builds: false };
+    const archive = isArchive(path);
+    return located(archive ? 'file' : 'directory', path, archive ? !isWheel(path) : true);
+  }
+  const registryName = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
+  return { source: 'registry', target: requirement, ...(registryName === undefined ? {} : { name: registryName }), builds: undefined };
+}
+
+/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
+export function requirementsEntries(input: string, format: Format): LockEntry[] {
+  const editable = strings(format['editable']);
   const entries: LockEntry[] = [];
   for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
     let requirement = body;
@@ -197,31 +239,16 @@ export function requirementsEntries(input: string, format: Format): LockEntry[] 
     if (flag !== undefined) requirement = requirement.slice(flag.length + 1).trim();
     else if (requirement.startsWith('-')) continue;
     requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(';', 1)[0]?.trim() ?? requirement;
-    const named = reference.exec(requirement);
-    const target = named?.[2] ?? requirement;
-    // The name comes from "name @" or #egg=; a guess from a file or directory name could match the allow-list for
-    // the wrong code, so a requirement without either stays unnamed and is shown by its location.
-    const add = (location: string, source: Source, builds: boolean | undefined) => {
-      const name = named?.[1] ?? egg.exec(target)?.[1];
-      entries.push(name !== undefined && PYTHON_NAME.test(name) ? entry(name, target, source, builds, lineNumber) : { ...entry('', target, source, builds, lineNumber), name: location, unnamed: true });
-    };
-    if (gitPrefixes.some((prefix) => target.startsWith(prefix))) add(target, 'git', true);
-    else if (otherPrefixes.some((prefix) => target.startsWith(prefix))) add(target, 'unknown', true);
-    else if (urlSchemes.test(target)) add(target, 'remoteTarball', !isWheel(target));
-    else if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || flag !== undefined) {
-      const path = target.replace(fileScheme, '');
-      // The project itself (-e . or .) is built as part of the work on it, not as a dependency.
-      if (/^\.\/?$/u.test(path)) {
-        entries.push({ ...entry('', target, 'workspace', false, lineNumber), name: '.' });
-        continue;
-      }
-      const archive = isArchive(path);
-      add(path, archive ? 'file' : 'directory', archive ? !isWheel(path) : true);
+    const found = requirementSource(requirement, format, flag !== undefined);
+    if (found.source === 'workspace') {
+      entries.push({ ...entry('', found.target, 'workspace', false, lineNumber), name: '.' });
+    } else if (found.source === 'registry') {
+      if (found.name !== undefined) entries.push(entry(found.name, requirement, 'registry', undefined, lineNumber));
+    } else if (found.name !== undefined) {
+      entries.push(entry(found.name, found.target, found.source, found.builds, lineNumber));
     } else {
-      const name = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
-      if (name !== undefined) entries.push(entry(name, requirement, 'registry', undefined, lineNumber));
+      entries.push({ ...entry('', found.target, found.source, found.builds, lineNumber), name: found.target, unnamed: true });
     }
   }
   return entries;
 }
-

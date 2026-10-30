@@ -12,6 +12,7 @@ const BUILD_OPTIONS = `${UV}/crates/uv-configuration/src/build_options.rs`;
 const DEPENDENCIES = `${UV}/docs/concepts/projects/dependencies.md`;
 const WORKSPACES = `${UV}/docs/concepts/projects/workspaces.md`;
 const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
+const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor: string, version: string) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll('.', '')}`;
 
 const noSetting = (kind: string): SourceKnowledge => ({
@@ -186,6 +187,53 @@ export const uv: ToolKnowledge = {
       ['exclude-newer', 'exclude-newer-package'],
       SERIALIZE,
       'uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again ("Resolving despite existing lockfile due to addition of global exclude newer", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded.',
+    ),
+    commandLine: verified(
+      {
+        add: [['uv', 'add'], ['uv', 'pip', 'install'], ['uv', 'tool', 'install']],
+        run: [
+          { command: ['uvx'], packageOptions: ['--from'], extraPackageOptions: ['-w', '--with', '--with-editable'] },
+          { command: ['uv', 'tool', 'run'], packageOptions: ['--from'], extraPackageOptions: ['-w', '--with', '--with-editable'] },
+          { command: ['uv', 'run'], packageOptions: [], extraPackageOptions: ['-w', '--with', '--with-editable'], packageArgument: false, scriptUrls: true },
+        ],
+        create: [],
+        valueOptions: [
+          '--cache-dir', '--config-file', '--color', '--allow-insecure-host', '--trusted-host', '--directory', '--project',
+          '--python-preference', '--python-fetch', '--preview-features', '--preview-feature', '--index', '--default-index', '-i',
+          '--index-url', '--extra-index-url', '-f', '--find-links', '-P', '--upgrade-package', '--upgrade-group',
+          '--reinstall-package', '--index-strategy', '--keyring-provider', '--resolution', '--prerelease', '--prerelease-package',
+          '--fork-strategy', '-C', '--config-setting', '--config-settings', '--config-settings-package',
+          '--no-build-isolation-package', '--exclude-newer', '--exclude-newer-package', '--link-mode', '--no-sources-package',
+          '--refresh-package', '--no-build-package', '--no-binary-package', '-c', '--constraints', '--constraint', '--overrides',
+          '--override', '--excludes', '--exclude', '-b', '--build-constraints', '--build-constraint', '-r', '--requirements',
+          '--requirement', '--group', '--extra', '--no-editable-package', '-p', '--python', '-t', '--target', '--prefix',
+          '--python-version', '--python-platform', '--output-format', '--torch-backend', '--optional', '--bounds', '--rev',
+          '--tag', '--branch', '--package', '--script', '--no-install-package', '--only-install-package', '-w', '--with',
+          '--with-editable', '--with-requirements', '--no-extra', '--no-group', '--only-group', '--env-file',
+          '--max-recursion-depth', '--from', '--with-executables-from',
+        ],
+        parsing: { groupedShortOptions: true },
+        addPackageOptions: ['-w', '--with', '--with-editable', '--with-executables-from'],
+        editableOptions: ['--with-editable'],
+        commaSeparatedOptions: ['-w', '--with', '--with-editable', '--with-executables-from'],
+        interpreterNames: ['python', 'pythonw', 'cpython', 'pypy', 'graalpy', 'pyodide'],
+        commandOptions: [
+          { command: ['uv', 'pip', 'install'], valueOptions: ['-e', '--editable', '--no-binary', '--only-binary'], editableOptions: ['-e', '--editable'] },
+          { command: ['uv', 'add'], valueOptions: ['-m', '--marker'] },
+        ],
+      },
+      CLI,
+      'clap arguments of uv add, uv pip install, uv tool install, uv run and uv tool run (uvx), with the global options, IndexArgs, ResolverInstallerArgs, BuildOptionsArgs and DependencyConstraintsArgs they share. --opt value, --opt=value, -o value and -ovalue all work; long options cannot be shortened. Options of uv run, uv tool run and uvx come before the command. --with, --with-editable and --with-executables-from add packages, as a list split at commas outside [...] that are not followed by !, =, <, > or ~ (comma.rs). uvx and uv tool run take the package from the first argument (name@version is ==version, name@latest the newest) unless --from names it; a first argument such as python, python3.12, pypy@3.8 or graalpy runs an interpreter (PythonRequest::try_from_tool_name in uv-python-types, implementation names cpython, pypy, graalpy and pyodide). uv run runs a command and downloads only what --with names, or a script given as an http or https URL. -e takes a path in uv pip install but is a flag in uv tool install, and --editable a flag in uv add; --no-binary and --only-binary take values in uv pip install only, -m is --marker in uv add and --module in uv run.',
+    ),
+    registryOverrides: verified(
+      {
+        registryOptions: ['--index', '--default-index', '-i', '--index-url', '--extra-index-url', '-f', '--find-links'],
+        registryVariables: ['UV_INDEX', 'UV_DEFAULT_INDEX', 'UV_INDEX_URL', 'UV_EXTRA_INDEX_URL', 'UV_FIND_LINKS'],
+        configOptions: ['--config-file'],
+        configVariables: ['UV_CONFIG_FILE'],
+      },
+      `${UV}/crates/uv-static/src/env_vars.rs`,
+      'IndexArgs (lib.rs): --index adds an index (name=url allowed), --default-index replaces PyPI, --index-url and --extra-index-url are their deprecated forms, --find-links adds a page or directory of archives; each has the variable named here. --config-file and UV_CONFIG_FILE name a uv.toml that may set any index. uv does not read pip.conf or PIP_INDEX_URL (docs/pip/compatibility.md).',
     ),
     latestVersion: verified('0.13.6', `${UV}/CHANGELOG.md`, 'Released on 2026-10-26.'),
   },

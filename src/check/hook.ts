@@ -6,10 +6,10 @@ import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import type { ClaudeCodeHooksKnowledge } from '../knowledge/types.ts';
 import { scanCommandLine } from './command.ts';
-import type { CheckFinding, FindingCode, PackageReport } from './index.ts';
+import type { CheckFinding, FindingCode, PackageReport } from './findings.ts';
 
 /** Findings that break the policy outright; other errors only mean that depcurfew cannot vouch for the package. */
-const DENY: ReadonlySet<FindingCode> = new Set(['forbidden-source', 'not-found', 'no-version', 'too-young', 'install-scripts']);
+const DENY: ReadonlySet<FindingCode> = new Set(['forbidden-source', 'not-found', 'no-version', 'too-young', 'install-scripts', 'quarantined']);
 
 export type HookDecision = { decision: 'deny' | 'ask'; reason: string } | { decision: 'none' };
 

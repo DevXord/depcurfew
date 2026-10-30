@@ -975,3 +975,24 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 - **Jedno źródło `fix`.** `policyErrorFix` w `src/apply/index.ts` daje tę samą poprawkę dla reguły `invalid-policy` w `doctor` i dla JSON z `apply` i `check`; `apply --json` ma teraz `fix` także dla `policy-invalid`.
 - **Bez zmian.** Tryb tekstowy `check` (błąd na stderr, kod 1) i hook Claude Code, który przy błędnej polityce już wcześniej odpowiadał decyzją `ask` w JSON.
 - **`schemaVersion` zostaje 1.** Nowe pola nie psują dotychczasowych odbiorców (zasada z CLAUDE.md).
+
+## D-071 · Python w `check` i w hooku Claude Code (2026-10-30)
+
+- **Problem.** `check` i hook sprawdzały tylko paczki npm. Polecenia `pip install`, `uv add`, `uvx`, `poetry add` i `pipx` przechodziły bez sprawdzenia, choć faza 10 obsługuje Pythona w `apply` i `doctor`.
+- **Decyzja: paczki Pythona mają prefiks `pypi:`,** tak jak nazwy w polityce (D-065). `check pypi:<wymaganie>` przyjmuje wymaganie jak pip (PEP 508: nazwa, extras, specyfikatory, znaczniki środowiska są pomijane) albo `nazwa@wersja`, `nazwa@^1.2` i `nazwa@latest` jak `uvx` i `poetry add`. Ograniczenia Poetry (`^`, `~`, `1.*`) są przeliczane na PEP 440 według tabel z dokumentacji Poetry 2.5.1.
+- **Źródło danych: Index API PyPI (JSON, PEP 691/700/792),** a nie `/pypi/<nazwa>/json`, którego klucz `releases` dokumentacja PyPI oznacza jako przestarzały. Strona projektu nie mówi, do której wersji należy plik, więc wersja pochodzi z nazwy pliku (wheel: `{nazwa}-{wersja}-…`, sdist: `{nazwa}-{wersja}.<archiwum>`, ze starymi nazwami z myślnikami). Jaja i instalatory Windows są pomijane, bo pip i uv ich z indeksu nie instalują.
+- **Co jest sprawdzane:**
+  - brak projektu (`not-found`) i podobne nazwy (`similar-name`): 5000 najpopularniejszych projektów PyPI z miesięcznego rankingu opartego na publicznych statystykach PyPI w BigQuery, porównanie po normalizacji PEP 503, więc `python_dateutil` to ta sama paczka co `python-dateutil`;
+  - wybór wersji jak w pip (PEP 440): najnowsza pasująca, wydania przedpremierowe tylko na żądanie albo gdy nic innego nie pasuje, wersje wycofane (yanked) tylko przy przypięciu `==`/`===` (wtedy ostrzeżenie `yanked`, PEP 592);
+  - wiek: według najnowszego pliku wersji, bo do wydania można później dodać pliki, a instalator może wybrać każdy z nich (zaokrąglenie w stronę dłuższego opóźnienia). Brak czasu przesłania to `unverified`;
+  - brak wheel (same sdisty): `install-scripts`, bo instalacja buduje paczkę ze źródeł i uruchamia jej kod budowania (D-065);
+  - status projektu (PEP 792): `quarantined` to błąd i odmowa w hooku, `archived` i `deprecated` to ostrzeżenia;
+  - git, URL i ścieżki według reguł pip, wspólnych z `doctor` (`requirementSource` w `src/doctor/python-lockfiles.ts`): tylko sekcja `sources`; `.` (sam projekt) to ostrzeżenie, inne systemy kontroli wersji to `unverified`.
+- **Nowe kody:** `yanked`, `archived`, `quarantined`. `schemaVersion` zostaje 1, bo nowe wartości nie psują odbiorców; nazwa paczki w raporcie ma prefiks `pypi:`.
+- **Hook:** czyta `pip install` (też `pip3`, `pip3.12`, `python -m pip`, `py -m pip`), `uv add`, `uv pip install`, `uv tool install`, `uvx`, `uv tool run`, `uv run --with`, `poetry add`, `pipx install` i `pipx run`.
+  - Polecenia Pythona są dopasowywane słowo po słowie. Wspólna lista podpoleceń zostaje tylko dla npm, bo `poetry install` czy `uv sync` niczego nie dodają.
+  - Opcje są czytane tak jak przez dane narzędzie: skróty długich opcji w pip i pipx (optparse, argparse), grupy krótkich opcji i wartość w tym samym słowie (`-Uihttps://…`) oraz opcje różne w poszczególnych poleceniach (`-e` w `uv pip install` ma wartość, w `uv tool install` to flaga). Bez tego hook dałoby się obejść.
+  - Opcja albo zmienna, która wskazuje inny indeks (`--index-url`, `--extra-index-url`, `--find-links`, `--index`, `--source`, `--pip-args`, `PIP_INDEX_URL`, `UV_INDEX`, `PIP_CONFIG_FILE` i inne), daje „ask”. Sam PyPI jest dozwolony.
+  - `uvx python…`, `uvx pypy@3.10` uruchamiają interpreter, nie paczkę. Skrypt pobierany z URL (`uv run https://…`, `pipx run https://….py`) daje „ask”.
+- **Poza zakresem:** paczki z plików wymagań (`pip install -r`) i z plików projektu (`uv sync`, `poetry install`) nie są sprawdzane, tak jak `npm install` bez nazw; lockfile'e sprawdza `doctor`. Indeks ustawiony w konfiguracji projektu nie jest czytany; inny indeks podaje się przez `--index`.
+- **Fakty** są w bazie wiedzy ze źródłami przypiętymi do wersji: polecenia i opcje w `pip.ts` (z pipx), `uv.ts` i `poetry.ts`, Index API, statusy projektów, rozszerzenia sdistów i interpreter w `environment.ts`. Nowe oficjalne źródła: `github.com/pypi/` (dokumentacja PyPI) i `github.com/python/` (dokumentacja CPython).

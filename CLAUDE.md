@@ -35,9 +35,9 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 - `node dist/cli.js explain tests/fixtures/repos/<nazwa>` – ręczne sprawdzenie wykrywania na fiksturze
 - `node dist/cli.js doctor tests/fixtures/doctor/<reguła>/<przypadek>/repo` – ręczne sprawdzenie reguły `doctor` na fiksturze (`--json`, `--sarif`)
 - `node dist/cli.js apply --dry-run <katalog>` – podgląd zmian `apply` bez zapisu (katalog musi mieć `depcurfew.json`)
-- `node dist/cli.js check <paczka>` – ręczne sprawdzenie paczki w prawdziwym rejestrze npm (wymaga sieci; testy jej nie używają)
-- `npm run data:popular` – odświeża listę popularnych paczek w src/knowledge/popular.ts (wymaga sieci)
-- `npm run record:registry` – nagrywa na nowo odpowiedzi rejestru dla testów `check` w tests/fixtures/registry (wymaga sieci)
+- `node dist/cli.js check <paczka>` – ręczne sprawdzenie paczki w prawdziwym rejestrze npm, a `pypi:<paczka>` na PyPI (wymaga sieci; testy jej nie używają)
+- `npm run data:popular` – odświeża listę popularnych paczek npm w src/knowledge/popular.ts; z `-- pypi` listę projektów PyPI w src/knowledge/popular-python.ts (wymaga sieci)
+- `npm run record:registry` – nagrywa na nowo odpowiedzi rejestru npm i PyPI dla testów `check` w tests/fixtures/registry i tests/fixtures/pypi; `-- npm` albo `-- pypi` tylko jeden z nich (wymaga sieci)
 
 ## Środowisko
 - Praca nad repozytorium wymaga Node ≥ 22.18: skrypty w scripts/ uruchamiamy natywnie z plików `.ts` (type stripping), a importy względne mają końcówkę `.ts`.
@@ -47,3 +47,4 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 - Jedna faza planu na sesję. Na początku sesji przeczytaj docs/PLAN.md i docs/decisions.md.
 - Najpierw testy (fikstura wejściowa i oczekiwany wynik), potem implementacja.
 - Po każdej fazie: krótkie podsumowanie w docs/CHANGELOG-dev.md i commit.
+- Projekty testowe do ręcznych testów (poza tests/fixtures) usuwamy po teście; zostaje tylko zapis konsoli. Testy automatyczne też sprzątają po sobie, również uruchomione z filtrem `-t`.

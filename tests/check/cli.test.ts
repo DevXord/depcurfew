@@ -2,14 +2,18 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../../src/cli/run.ts';
 import { recordedFetch } from './support.ts';
 
 const NOW = new Date('2026-10-29T12:00:00Z');
 const temporary: string[] = [];
-const HOME = mkdtempSync(join(tmpdir(), 'depcurfew-home-'));
-temporary.push(HOME);
+// Created in beforeAll: a run filtered with -t that skips this file skips its hooks too, and must not leave a directory.
+let HOME = '';
+beforeAll(() => {
+  HOME = mkdtempSync(join(tmpdir(), 'depcurfew-home-'));
+  temporary.push(HOME);
+});
 afterAll(() => {
   for (const directory of temporary) rmSync(directory, { recursive: true, force: true });
 });
@@ -257,5 +261,49 @@ describe('depcurfew check --hook claude-code', () => {
   it('rejects an unknown hook and packages next to --hook', async () => {
     expect((await exec(['check', '--hook', 'cursor'])).code).toBe(EXIT_USAGE);
     expect((await exec(['check', '--hook', 'claude-code', 'lodash'])).code).toBe(EXIT_USAGE);
+  });
+});
+
+describe('depcurfew check for Python packages', () => {
+  const decision = (stdout: string) => (JSON.parse(stdout) as { hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string } }).hookSpecificOutput;
+
+  it('checks pypi: packages and writes their versions as pip takes them', async () => {
+    const result = await exec(['check', '--dir', project({ cooldown: { minimum: '3d' }, installScripts: { default: 'deny' } }), 'pypi:requests', 'pypi:pycrypto']);
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stdout).toContain('pypi:requests==2.34.2: ok (published 2026-05-14)\n');
+    expect(result.stdout).toContain('pypi:pycrypto==2.6.1:\n  error: pypi:pycrypto 2.6.1 has no wheel, only a source distribution');
+    const json = JSON.parse((await exec(['check', '--json', '--dir', project({}), 'pypi:Requests'])).stdout) as { packages: { name: string; version: string }[] };
+    expect(json.packages[0]).toMatchObject({ name: 'pypi:requests', version: '2.34.2' });
+  });
+
+  it('denies pip installing a package without wheels', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('python3 -m pip install pycrypto', project({ installScripts: { default: 'deny' } })));
+    expect(decision(result.stdout).permissionDecision).toBe('deny');
+    expect(decision(result.stdout).permissionDecisionReason).toContain('- pypi:pycrypto: pypi:pycrypto 2.6.1 has no wheel, only a source distribution');
+  });
+
+  it('denies uv adding a name the index does not know', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('uv add reqeusts', project({})));
+    expect(decision(result.stdout).permissionDecision).toBe('deny');
+    expect(decision(result.stdout).permissionDecisionReason).toContain('pypi:reqeusts does not exist in https://pypi.org/simple/');
+  });
+
+  it('asks when the command points pip at another index', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('pip install --extra-index-url https://evil.example/simple requests', project({})));
+    expect(decision(result.stdout).permissionDecision).toBe('ask');
+    expect(decision(result.stdout).permissionDecisionReason).toContain('--extra-index-url may point the package manager at another registry');
+  });
+
+  it('denies uvx running a version younger than the cooldown and names one that is old enough', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('uvx ruff@latest check .', project({ cooldown: { minimum: '3d' } })));
+    expect(decision(result.stdout).permissionDecision).toBe('deny');
+    expect(decision(result.stdout).permissionDecisionReason).toContain(
+      '- pypi:ruff@latest: pypi:ruff 0.17.3 was published 2 days ago; depcurfew.json requires 3 days (pypi:ruff 0.17.2 is old enough). Fix: Install pypi:ruff==0.17.2 instead',
+    );
+  });
+
+  it('lets packages that check out through', async () => {
+    const result = await exec(['check', '--hook', 'claude-code'], event('uvx ruff@0.17.2 check . && poetry add requests@^2.33', project({ cooldown: { minimum: '3d' } })));
+    expect(result.stdout).toBe('');
   });
 });

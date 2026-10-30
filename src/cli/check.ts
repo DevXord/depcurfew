@@ -1,12 +1,14 @@
 // `depcurfew check [options] <package...>` and `depcurfew check --hook claude-code`. The policy is the depcurfew.json of the
 // directory (or the nearest parent that has one), else the default policy of `depcurfew init`. Packages are looked up in
-// the registry given with --registry, else the one the project's or the user's .npmrc sets, else the public npm registry. Exit code 1 when any
-// package breaks the policy or cannot be checked; in hook mode the decision goes to stdout as JSON and the exit code is 0.
+// the registry given with --registry, else the one the project's or the user's .npmrc sets, else the public npm registry;
+// pypi: packages in the index given with --index, else PyPI. Exit code 1 when any package breaks the policy or cannot be
+// checked; in hook mode the decision goes to stdout as JSON and the exit code is 0.
 import { lstatSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { loadPolicyIfPresent, PolicyError, policyErrorFix } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
+import { isPythonSpec } from '../check/python.ts';
 import { blockingExitCode, decide, formatDecision, readHookEvent, requestedSpecs } from '../check/hook.ts';
 import { defaultRegistry, type FetchLike } from '../check/registry.ts';
 import { PopularNames } from '../check/similar.ts';
@@ -16,6 +18,8 @@ import { extraOf, isRecord, values } from '../apply/facts.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { RegistryConfigKnowledge } from '../knowledge/types.ts';
 import { popularPackages } from '../knowledge/popular.ts';
+import { popularPythonPackages } from '../knowledge/popular-python.ts';
+import { normalizePythonName } from '../policy/python-names.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { parsePolicy } from '../policy/validate.ts';
@@ -36,6 +40,8 @@ export interface CheckDependencies {
 export interface CheckFlags {
   json: boolean;
   registry: string | undefined;
+  /** The Python package index for pypi: packages. */
+  index?: string | undefined;
   dir: string | undefined;
   hook: string | undefined;
 }
@@ -100,7 +106,8 @@ function load(start: string, home: string): { policy: ResolvedPolicy; file: stri
 function render(reports: readonly PackageReport[], colors: Paint): string {
   const lines: string[] = [];
   for (const report of reports) {
-    const label = report.version === undefined || report.name === undefined ? report.spec : `${report.name}@${report.version}`;
+    // Python versions are written name==version, as pip takes them.
+    const label = report.version === undefined || report.name === undefined ? report.spec : `${report.name}${isPythonSpec(report.spec) ? '==' : '@'}${report.version}`;
     if (report.findings.length === 0) {
       lines.push(`${colors.bold(label)}: ${colors.green('ok')}${report.publishedAt === undefined ? '' : ` (published ${report.publishedAt.slice(0, 10)})`}`);
       continue;
@@ -115,6 +122,11 @@ function render(reports: readonly PackageReport[], colors: Paint): string {
   const warnings = reports.filter((report) => report.findings.some((finding) => finding.level === 'warning')).length;
   lines.push('', `${reports.length} ${reports.length === 1 ? 'package' : 'packages'}: ${errors} with errors, ${warnings} with warnings`);
   return `${lines.join('\n')}\n`;
+}
+
+/** Popular Python projects by normalized name, so that names differing only in case or separators are the same. */
+function popularPython(): PopularNames {
+  return new PopularNames((values(popularPythonPackages)[0] ?? []).map(normalizePythonName));
 }
 
 function messageOf(error: unknown): string {
@@ -142,7 +154,9 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       now: dependencies.now(),
       registry: flags.registry ?? loaded.registries.registry ?? defaultRegistry(),
       popular: new PopularNames(values(popularPackages)[0] ?? []),
+      popularPython: popularPython(),
       scopeRegistries: loaded.registries.scopes,
+      ...(flags.index === undefined ? {} : { index: flags.index }),
     });
     io.stdout(formatDecision(decide(reports, unreadable)) ?? '');
   } catch (error) {
@@ -200,7 +214,9 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     now: dependencies.now(),
     registry: flags.registry ?? loaded.registries.registry ?? defaultRegistry(),
     popular: new PopularNames(values(popularPackages)[0] ?? []),
+    popularPython: popularPython(),
     scopeRegistries: loaded.registries.scopes,
+    ...(flags.index === undefined ? {} : { index: flags.index }),
   });
   io.stdout(flags.json ? `${JSON.stringify({ schemaVersion: 1, policy: loaded.file ?? null, packages: reports, notices, errors: [] }, null, 2)}\n` : render(reports, paint(io.colors?.stdout)));
   return reports.some((report) => report.findings.some((finding) => finding.level === 'error')) ? EXIT_FAILURE : EXIT_OK;

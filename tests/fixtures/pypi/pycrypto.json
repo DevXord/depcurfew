@@ -1,0 +1,53 @@
+{
+  "name": "pycrypto",
+  "meta": {
+    "_last-serial": 1131459,
+    "api-version": "1.4"
+  },
+  "project-status": {
+    "status": "active"
+  },
+  "versions": [
+    "2.0.1",
+    "2.1.0",
+    "2.2",
+    "2.3",
+    "2.4",
+    "2.4.1",
+    "2.5",
+    "2.6",
+    "2.6.1"
+  ],
+  "files": [
+    {
+      "filename": "pycrypto-2.0.1.tar.gz",
+      "upload-time": "2013-08-11T11:19:28.592712Z",
+      "yanked": false
+    },
+    {
+      "filename": "pycrypto-2.1.0.tar.gz",
+      "upload-time": "2013-08-11T11:20:08.658397Z",
+      "yanked": false
+    },
+    {
+      "filename": "pycrypto-2.2.tar.gz",
+      "upload-time": "2013-08-11T11:20:32.313484Z",
+      "yanked": false
+    },
+    {
+      "filename": "pycrypto-2.5.tar.gz",
+      "upload-time": "2012-01-13T18:31:25.949014Z",
+      "yanked": false
+    },
+    {
+      "filename": "pycrypto-2.6.tar.gz",
+      "upload-time": "2012-05-24T15:09:51.090707Z",
+      "yanked": false
+    },
+    {
+      "filename": "pycrypto-2.6.1.tar.gz",
+      "upload-time": "2014-06-20T08:10:20.813938Z",
+      "yanked": false
+    }
+  ]
+}

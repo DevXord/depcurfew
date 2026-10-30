@@ -8,67 +8,14 @@ import { matchesPattern } from '../doctor/allow-lists.ts';
 import { formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
 import { policyFor } from '../policy/ecosystem.ts';
-import type { ResolvedPolicy } from '../policy/schema.ts';
-import { fetchPackument, type FetchLike, type Packument } from './registry.ts';
+import { CHECK_BY_HAND, describeAge, sourceFindings, type CheckFinding, type CheckOptions, type PackageReport } from './findings.ts';
+import { checkPythonSpec, isPythonSpec } from './python.ts';
+import { fetchPackument, type Packument } from './registry.ts';
 import { compareSemver, maxSatisfying, parseRange, parseSemver, satisfies } from './semver.ts';
-import type { PopularNames } from './similar.ts';
-import { parseSpec, type PackageSpec, type SpecKind } from './spec.ts';
+import { parseSpec } from './spec.ts';
 
-export type FindingCode =
-  | 'invalid-spec'
-  | 'forbidden-source'
-  | 'unchecked-source'
-  | 'unverified'
-  | 'not-found'
-  | 'no-version'
-  | 'too-young'
-  | 'install-scripts'
-  | 'similar-name'
-  | 'deprecated';
-
-export interface CheckFinding {
-  level: 'error' | 'warning';
-  code: FindingCode;
-  message: string;
-  /** What to do about it. */
-  fix: string;
-}
-
-const CHECK_BY_HAND = 'Make sure you trust this source before installing it';
-
-export interface PackageReport {
-  spec: string;
-  kind: SpecKind | 'invalid';
-  name?: string;
-  version?: string;
-  publishedAt?: string;
-  latest?: { version: string; publishedAt?: string };
-  findings: CheckFinding[];
-}
-
-export interface CheckOptions {
-  policy: ResolvedPolicy;
-  fetch: FetchLike;
-  now: Date;
-  registry: string;
-  popular: PopularNames;
-  /** Registries the project assigns to scopes (@scope:registry in .npmrc); those packages are not looked up. */
-  scopeRegistries?: ReadonlyMap<string, string>;
-}
-
-const SOURCE_LABELS: Record<'git' | 'remoteTarball' | 'file' | 'directory', string> = {
-  git: 'a git repository',
-  remoteTarball: 'a tarball URL',
-  file: 'a local tarball',
-  directory: 'a local directory',
-};
-
-/** An age in whole units, rounded down: 59 minutes, 23 hours, 6 days. */
-export function describeAge(minutes: number): string {
-  const [size, unit] = minutes >= 1440 ? [1440, 'day'] : minutes >= 60 ? [60, 'hour'] : [1, 'minute'];
-  const count = Math.max(0, Math.floor(minutes / size));
-  return `${count} ${unit}${count === 1 ? '' : 's'}`;
-}
+export { describeAge } from './findings.ts';
+export type { CheckFinding, CheckOptions, FindingCode, PackageReport } from './findings.ts';
 
 function defaultTag(): string {
   return values(environment.npmRegistry.api)[0]?.defaultTag ?? 'latest';
@@ -106,26 +53,6 @@ function oldEnough(packument: Packument, selector: string, cutoff: number): stri
     return !Number.isNaN(time) && time <= cutoff && packument.versions[version]?.deprecated === undefined;
   });
   return maxSatisfying(versions, range);
-}
-
-type SourceKind = keyof typeof SOURCE_LABELS;
-
-function sourceFindings(spec: PackageSpec, kind: SourceKind, policy: ResolvedPolicy): CheckFinding[] {
-  // A URL without a tarball extension may be cloned as a git repository instead, so both settings apply to it.
-  const keys: SourceKind[] = spec.maybeGit === true ? [kind, 'git'] : [kind];
-  const label = spec.maybeGit === true ? 'a URL that may be read as a tarball or a git repository' : SOURCE_LABELS[kind];
-  const denied = keys.find((key) => policy.sources?.[key] === 'deny');
-  if (denied !== undefined) {
-    return [
-      {
-        level: 'error',
-        code: 'forbidden-source',
-        message: `it installs from ${label}, which depcurfew.json denies (sources.${denied})`,
-        fix: `Install the package from the registry instead, or set sources.${denied} to "allow" in depcurfew.json if this source is intended`,
-      },
-    ];
-  }
-  return [{ level: 'warning', code: 'unchecked-source', message: `it installs from ${label}; depcurfew looks up registry packages only`, fix: CHECK_BY_HAND }];
 }
 
 async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions): Promise<void> {
@@ -251,6 +178,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
 }
 
 export async function checkSpec(raw: string, options: CheckOptions): Promise<PackageReport> {
+  if (isPythonSpec(raw)) return checkPythonSpec(raw, options);
   const spec = parseSpec(raw);
   if (spec === undefined) {
     const finding: CheckFinding = { level: 'error', code: 'invalid-spec', message: `"${raw}" is not a package spec`, fix: 'Write it as name, name@version, name@range or name@tag' };

@@ -369,15 +369,18 @@ The configuration `apply` writes is what really protects a project: the package 
 
 ```bash
 npx depcurfew check zod@4 left-pad
+npx depcurfew check pypi:requests "pypi:django>=5.2,<6"
 ```
 
-For each package it looks up the public npm registry and reports:
+For each package it looks up the public npm registry, or PyPI for names with the `pypi:` prefix, and reports:
 
 - a name the registry does not know, which is how made-up package names show up;
 - a version younger than the cooldown in `depcurfew.json`, with the newest version that is old enough;
-- install scripts the policy does not allow;
-- a name that differs by a letter or two, or only in separators, from one of the 5,000 most downloaded packages;
+- install scripts the policy does not allow; for a Python package, a version without wheels, which is built from source and so runs its build code;
+- a name that differs by a letter or two, or only in separators, from one of the 5,000 most downloaded packages of its registry;
 - a deprecated version (a warning).
+
+Python packages are written as pip takes them after the prefix (`pypi:name`, `pypi:name==1.2`, `pypi:name[extra]>=1.2,<2`), or as `pypi:name@1.2`, `pypi:name@^1.2` and `pypi:name@latest`, as `uvx` and `poetry add` take them. The version is picked as pip picks it: the newest match, pre-releases only when asked for or when nothing else matches, and yanked versions only when pinned with `==` (a warning). A version is as old as its newest file, because files can be added to a release later. A project PyPI quarantines (as malware, for example) is an error; an archived or deprecated one, a warning. `--index` looks Python packages up in another index that serves the JSON form of the simple repository API.
 
 Git repositories, tarball URLs and local paths are checked against the `sources` section only. Without a `depcurfew.json` in the directory or one of its parents, the default policy applies. When the registry cannot be reached, the package counts as failed: `check` exits with 1 whenever a package breaks the policy or cannot be checked. With `--json` it prints one document and nothing on stderr: `packages` with their findings (each with `code`, `level`, `message` and `fix`), `notices`, and `errors` for a `depcurfew.json` that cannot be used, in which case no package is checked.
 
@@ -389,7 +392,7 @@ Git repositories, tarball URLs and local paths are checked against the `sources`
 - **ask** when depcurfew cannot vouch for the command: a look-alike name, a registry it cannot reach, an error of its own, or a command it cannot read, such as one with `$(...)` or variables in its arguments, or a shell that runs commands from a pipe (`curl … | sh`);
 - nothing when everything checks out, so the command goes through Claude Code's usual permission prompts.
 
-It follows the command lines inside a command: `$(...)` and backticks, `sh -c`, `eval`, `npx -c`, `yarn workspace <name>`, and wrappers such as `sudo`, `env`, `timeout` and `xargs`. When it cannot read the hook event at all, it exits with code 2, which blocks the command in every Claude Code version.
+It follows the command lines inside a command: `$(...)` and backticks, `sh -c`, `eval`, `npx -c`, `yarn workspace <name>`, `python -m pip`, the command `uv run` runs, and wrappers such as `sudo`, `env`, `timeout` and `xargs`. It reads options the way each tool does, including abbreviated long options of pip and pipx (`--extra` for `--extra-index-url`) and short options with their value in the same word (`-ihttps://…`), so an option, or a variable such as `PIP_INDEX_URL` or `UV_INDEX`, that points the tool at another index makes it ask. Packages from requirements files (`pip install -r`) and the project's own files (`uv sync`, `poetry install`) are not checked, as with `npm install` without names; `depcurfew doctor` checks the lockfiles. When it cannot read the hook event at all, it exits with code 2, which blocks the command in every Claude Code version.
 
 Install depcurfew as a development dependency of the project, then add the hook:
 
@@ -423,7 +426,7 @@ In `.claude/settings.json` of the project:
 
 `onFailure: "block"` needs Claude Code 2.1.295 or later; without it, a hook that fails to start, crashes or times out lets the command through.
 
-Commands the guard reads (an add subcommand of any package manager, such as `install` or `i`, is checked for all of them):
+Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; Python commands are matched word for word, and `python -m pip` counts as `pip`):
 
 | Package manager | Add packages | Download and run | Starter kits |
 | --- | --- | --- | --- |
@@ -432,6 +435,10 @@ Commands the guard reads (an add subcommand of any package manager, such as `ins
 | Yarn (Berry) | `yarn add` | `yarn dlx` | `yarn create` |
 | Bun | `bun add` | `bunx`, `bun x` | `bun create` |
 | Deno | `deno add`, `deno install` | none | none |
+| uv | `uv add`, `uv pip install`, `uv tool install` | `uvx`, `uv tool run`, `uv run` | none |
+| pip | `pip install`, `pip3 install` | none | none |
+| pipx | `pipx install` | `pipx run` | none |
+| Poetry | `poetry add` | none | none |
 <!-- END GENERATED: claude-code-hook -->
 
 The hook reads commands the way a shell splits them, but it is a safety net, not a sandbox: a command can install packages in ways it does not recognize (a script, another tool). Keep the package manager configuration from `depcurfew apply` in place; it is what enforces the policy for every install.

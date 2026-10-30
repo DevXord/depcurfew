@@ -2,6 +2,13 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · Python w `check` i w hooku (D-071)
+
+- `check pypi:<wymaganie>` sprawdza paczki PyPI przez Index API: istnienie, podobne nazwy (5000 popularnych projektów), wiek najnowszego pliku wobec cooldownu, brak wheel (budowanie ze źródeł), wersje wycofane i status projektu. Nowe kody `yanked`, `archived`, `quarantined`; opcja `--index`.
+- Własne PEP 440 (`src/check/pep440.ts`), parser wymagań z przeliczaniem ograniczeń Poetry (`src/check/python-spec.ts`) i klient indeksu (`src/check/pypi.ts`); klasyfikacja źródeł pip wspólna z `doctor`.
+- Hook czyta polecenia pip, uv, Poetry i pipx, w tym `python -m pip`, skróty opcji, grupy krótkich opcji i zmienne wskazujące inny indeks.
+- Nagrane odpowiedzi PyPI w `tests/fixtures/pypi` (`npm run record:registry -- pypi`), lista popularnych projektów w `src/knowledge/popular-python.ts` (`npm run data:popular -- pypi`).
+
 ## 2026-10-30 · `check --json` przy błędnej polityce (D-070)
 
 - `check --json` przy błędnym albo nieczytelnym `depcurfew.json` daje dokument z `errors` (kształt jak w `apply --json`) i puste `packages` zamiast tekstu na stderr; kod wyjścia 1.

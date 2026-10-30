@@ -204,15 +204,21 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
       ],
     },
   };
-  const rows = tools.flatMap((tool) => {
-    const fact = tool.extra?.['commandLine'];
-    const commandLine = fact === undefined ? undefined : (values(fact)[0] as CommandLineKnowledge | undefined);
-    if (commandLine === undefined) return [];
-    const add = commandList(commandLine.add);
-    const run = commandList(commandLine.run.map((entry) => entry.command));
-    const create = commandList(commandLine.create.map((entry) => entry.command));
-    return [`| ${tool.name} | ${add} | ${run === '' ? 'none' : run} | ${create === '' ? 'none' : create} |`];
-  });
+  // A tool may have several command-line facts (pip has pipx's too); each makes a row named after its executable.
+  const rows = tools.flatMap((tool) =>
+    Object.keys(tool.extra ?? {})
+      .filter((key) => /(?:^c|C)ommandLine$/u.test(key))
+      .flatMap((key) => {
+        const fact = tool.extra?.[key];
+        const commandLine = fact === undefined ? undefined : (values(fact)[0] as CommandLineKnowledge | undefined);
+        if (commandLine === undefined) return [];
+        const add = commandList(commandLine.add);
+        const run = commandList(commandLine.run.map((entry) => entry.command));
+        const create = commandList(commandLine.create.map((entry) => entry.command));
+        const name = key === 'commandLine' ? tool.name : (commandLine.add[0]?.[0] ?? commandLine.run[0]?.command[0] ?? key);
+        return [`| ${name} | ${add === '' ? 'none' : add} | ${run === '' ? 'none' : run} | ${create === '' ? 'none' : create} |`];
+      }),
+  );
   return [
     `In \`${hooks.settingsFile}\` of the project:`,
     '',
@@ -222,7 +228,7 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     '',
     `\`${hooks.onFailure.field}: "${hooks.onFailure.value}"\` needs Claude Code ${hooks.onFailure.since} or later; without it, a hook that fails to start, crashes or times out lets the command through.`,
     '',
-    'Commands the guard reads (an add subcommand of any package manager, such as `install` or `i`, is checked for all of them):',
+    'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
     '',
     '| Package manager | Add packages | Download and run | Starter kits |',
     '| --- | --- | --- | --- |',

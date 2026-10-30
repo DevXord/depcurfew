@@ -47,6 +47,11 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'code.claude.com', pathPrefix: '/docs/' },
   { host: 'packaging.python.org' },
   { host: 'github.com', pathPrefix: '/pypa/' },
+  // PyPI: docs.pypi.org is built from docs/user in pypi/warehouse.
+  { host: 'github.com', pathPrefix: '/pypi/' },
+  // CPython: docs.python.org is built from Doc/ in python/cpython.
+  { host: 'docs.python.org' },
+  { host: 'github.com', pathPrefix: '/python/' },
   { host: 'github.com', pathPrefix: '/astral-sh/' },
   { host: 'github.com', pathPrefix: '/python-poetry/' },
   // Third-party actions that install Poetry: their own repositories describe their inputs.

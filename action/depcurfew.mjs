@@ -851,6 +851,8 @@ const SECURE_INSTALLS = `${PIP}/docs/html/topics/secure-installs.md`;
 const REQUIREMENTS_FORMAT = `${PIP}/docs/html/reference/requirements-file-format.md`;
 const REQ_FILE = `${PIP}/src/pip/_internal/req/req_file.py`;
 const FORMAT_CONTROL = `${PIP}/src/pip/_internal/models/format_control.py`;
+const CMDOPTIONS = `${PIP}/src/pip/_internal/cli/cmdoptions.py`;
+const PIPX = "https://github.com/pypa/pipx/blob/1.18.10";
 const PYLOCK = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst";
 const noSetting$3 = (kind) => ({ setting: uncertain$5(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
 const pip$1 = {
@@ -997,6 +999,200 @@ const pip$1 = {
 			fileScheme: "file:"
 		}, `${PIP}/src/pip/_internal/req/constructors.py`, "A requirement that contains a path separator (/, and \\ on Windows) or starts with . looks like a path (_looks_like_path): a directory there is a project built from source. A name with an archive extension (utils/filetypes.py) is a local archive, even when the file does not exist. http, https, ftp and file URLs are links (utils/urls.py, is_url)."),
 		lockfilePattern: verified$6("^pylock\\.([^.]+)\\.toml$", `${PYLOCK}#file-name`, "A named lock file, next to or instead of pylock.toml; pip lock -o writes any name."),
+		commandLine: verified$6({
+			add: [["pip", "install"], ["pip3", "install"]],
+			run: [],
+			create: [],
+			valueOptions: [
+				"-r",
+				"--requirement",
+				"-c",
+				"--constraint",
+				"--build-constraint",
+				"--requirements-from-script",
+				"-e",
+				"--editable",
+				"--group",
+				"-t",
+				"--target",
+				"--platform",
+				"--python-version",
+				"--implementation",
+				"--abi",
+				"--root",
+				"--prefix",
+				"--src",
+				"--source",
+				"--source-dir",
+				"--source-directory",
+				"--upgrade-strategy",
+				"-C",
+				"--config-settings",
+				"--progress-bar",
+				"--root-user-action",
+				"--report",
+				"-i",
+				"--index-url",
+				"--pypi-url",
+				"--extra-index-url",
+				"-f",
+				"--find-links",
+				"--refresh-package",
+				"--uploaded-prior-to",
+				"--no-binary",
+				"--only-binary",
+				"--all-releases",
+				"--only-final",
+				"--python",
+				"--log",
+				"--log-file",
+				"--local-log",
+				"--keyring-provider",
+				"--proxy",
+				"--retries",
+				"--resume-retries",
+				"--timeout",
+				"--default-timeout",
+				"--exists-action",
+				"--trusted-host",
+				"--cert",
+				"--client-cert",
+				"--cache-dir",
+				"--use-feature",
+				"--use-deprecated"
+			],
+			flagOptions: [
+				"--no-deps",
+				"--no-dependencies",
+				"--only-deps",
+				"--only-dependencies",
+				"--dry-run",
+				"--user",
+				"--no-user",
+				"-U",
+				"--upgrade",
+				"--force-reinstall",
+				"-I",
+				"--ignore-installed",
+				"--ignore-requires-python",
+				"--no-build-isolation",
+				"--use-pep517",
+				"--check-build-dependencies",
+				"--break-system-packages",
+				"--compile",
+				"--no-compile",
+				"--no-warn-script-location",
+				"--no-warn-conflicts",
+				"--require-hashes",
+				"--no-require-hashes",
+				"--no-clean",
+				"--no-index",
+				"--pre",
+				"--prefer-binary",
+				"-h",
+				"--help",
+				"--debug",
+				"--isolated",
+				"--require-virtualenv",
+				"--require-venv",
+				"-v",
+				"--verbose",
+				"-V",
+				"--version",
+				"-q",
+				"--quiet",
+				"--no-input",
+				"--no-proxy-env",
+				"--no-cache-dir",
+				"--disable-pip-version-check",
+				"--no-color",
+				"--no-python-version-warning"
+			],
+			parsing: {
+				abbreviations: true,
+				groupedShortOptions: true
+			},
+			editableOptions: ["-e", "--editable"]
+		}, `${PIP}/src/pip/_internal/commands/install.py`, "pip and pip3 are the console scripts of the package (pyproject.toml). The options of pip install (install.py) and the general options of every command (cmdoptions.py, general_group), which may also come before install. pip reads them with optparse: --opt value and --opt=value, -rFILE and -r FILE, grouped short flags, and a long option shortened to any prefix that names one option (cli/parser.py keeps optparse's matching), so --extra means --extra-index-url. -e takes a local project path or a VCS URL to install in editable mode. -r, -c, --requirements-from-script and --group read requirements from files of the project."),
+		registryOverrides: verified$6({
+			registryOptions: [
+				"-i",
+				"--index-url",
+				"--pypi-url",
+				"--extra-index-url",
+				"-f",
+				"--find-links"
+			],
+			registryVariables: [
+				"PIP_INDEX_URL",
+				"PIP_PYPI_URL",
+				"PIP_EXTRA_INDEX_URL",
+				"PIP_FIND_LINKS"
+			],
+			configOptions: [],
+			configVariables: ["PIP_CONFIG_FILE"]
+		}, CMDOPTIONS, "index_group: --index-url (alias -i, --pypi-url) is the base URL of the package index, --extra-index-url adds indexes, --find-links (-f) adds an HTML page or a directory of archives. Every long option can be set as PIP_<UPPER_LONG_NAME>, dashes replaced by underscores (docs/html/topics/configuration.md); PIP_CONFIG_FILE names a configuration file loaded last, which may set any index. Requirements files may set --index-url, --extra-index-url and --find-links too (req/req_file.py)."),
+		pipxCommandLine: verified$6({
+			add: [["pipx", "install"]],
+			run: [{
+				command: ["pipx", "run"],
+				packageOptions: ["--spec"],
+				extraPackageOptions: ["--with"],
+				scriptSuffixes: [".py"]
+			}],
+			create: [],
+			valueOptions: [
+				"-i",
+				"--index-url",
+				"--pip-args",
+				"--preinstall",
+				"--lock",
+				"--include-resources-from",
+				"--upgrade-strategy",
+				"--suffix",
+				"--python",
+				"--fetch-python",
+				"--app",
+				"--cooldown",
+				"--backend",
+				"--output",
+				"--python-args"
+			],
+			flagOptions: [
+				"-q",
+				"--quiet",
+				"-v",
+				"--verbose",
+				"--skip-maintenance",
+				"--global",
+				"-f",
+				"--force",
+				"-U",
+				"--upgrade",
+				"--include-deps",
+				"--system-site-packages",
+				"--fetch-missing-python",
+				"-e",
+				"--editable",
+				"--no-cache",
+				"--refresh",
+				"--no-path-check",
+				"--path",
+				"--pypackages",
+				"--version"
+			],
+			parsing: {
+				abbreviations: true,
+				groupedShortOptions: true
+			},
+			addPackageOptions: ["--preinstall"]
+		}, `${PIPX}/src/pipx/main.py`, "pipx installs applications from PyPI with pip (or uv) in environments of their own. pipx install takes one or more package specs, a VCS URL, a local path or archive, or a script (--preinstall adds packages to the environment; -f is --force, not find-links). pipx run takes the app first (argparse REMAINDER, so its options come before it), --spec names the package to install and run, --with adds packages; a first argument ending in .py is a local script, or a script to download when it is a URL (docs/how-to/run-scripts.rst). argparse accepts abbreviated long options."),
+		pipxRegistryOverrides: verified$6({
+			registryOptions: ["-i", "--index-url"],
+			registryVariables: [],
+			configOptions: ["--pip-args"],
+			configVariables: []
+		}, `${PIPX}/src/pipx/main.py`, "--index-url is the base URL of the index; --pip-args is split and handed to pip, so it may carry --extra-index-url, --find-links or --no-index. With the pip backend pipx passes the PIP_* variables on to pip; with the uv backend it ignores them and uv reads its own (docs/how-to/use-uv-backend.rst); both kinds are registry variables of pip and uv."),
 		latestVersion: verified$6("26.2.2", NEWS, "Released on 2026-10-20.")
 	}
 };
@@ -1361,6 +1557,40 @@ const poetry$1 = {
 			source: "source",
 			files: "files"
 		}, LOCKER, "poetry.lock has no documented format. Each [[package]] from PyPI has no [package.source]; others have type git, url, file, directory or legacy (a named index). files lists {file, hash} for every distribution, empty for git and directory packages; a package from an index without a .whl file is built when installed."),
+		commandLine: verified$4({
+			add: [["poetry", "add"]],
+			run: [],
+			create: [],
+			valueOptions: [
+				"-C",
+				"--directory",
+				"-P",
+				"--project",
+				"-G",
+				"--group",
+				"-E",
+				"--extras",
+				"--optional",
+				"--python",
+				"--platform",
+				"--markers",
+				"--source"
+			],
+			parsing: { groupedShortOptions: true }
+		}, `${POETRY}/docs/cli.md#add`, "poetry add takes package specs: a name, name@constraint, a PEP 508 requirement, a git URL, a path or an archive URL. Options with a value: --group (-G), --extras (-E), --optional, --python, --platform, --markers and --source of add, and the global --directory (-C) and --project (-P); -e/--editable, -D/--dev, --allow-prereleases, --dry-run and --lock are flags (src/poetry/console/commands/add.py). cleo reads -Gdocs and -G docs; long options cannot be shortened. poetry install takes no package specs."),
+		registryOverrides: verified$4({
+			registryOptions: ["--source"],
+			registryVariables: [],
+			configOptions: [],
+			configVariables: []
+		}, `${POETRY}/docs/repositories.md`, "--source names a package source of [[tool.poetry.source]] in pyproject.toml (or pypi) to take the package from. The POETRY_REPOSITORIES_<NAME>_URL variables are for publishing only; no variable sets a package source."),
+		versionConstraints: verified$4({
+			separator: "@",
+			latest: "latest",
+			caret: "^",
+			tilde: "~",
+			any: "*"
+		}, `${POETRY}/docs/dependency-specification.md#using-the--operator`, "poetry add name@constraint takes any constraint valid in pyproject.toml, and name@latest the newest release; extras go before the @ (name[extra]@^4.0.0). ^ keeps the left-most non-zero part of major.minor.patch: ^1.2.3 is >=1.2.3 <2.0.0, ^1.2 is >=1.2.0 <2.0.0, ^1 is >=1.0.0 <2.0.0, ^0.2.3 is >=0.2.3 <0.3.0, ^0.0.3 is >=0.0.3 <0.0.4, ^0.0 is >=0.0.0 <0.1.0, ^0 is >=0.0.0 <1.0.0. ~ allows patch changes, or minor changes when only a major version is given: ~1.2.3 is >=1.2.3 <1.3.0, ~1.2 is >=1.2.0 <1.3.0, ~1 is >=1.0.0 <2.0.0. * is any version, 1.* is >=1.0.0 <2.0.0, 1.2.* is >=1.2.0 <1.3.0. ~=, inequalities and == as in PEP 440, several separated by commas; a bare version (1.2.3) is that version only. Poetry prefers stable releases and takes a pre-release only when no stable release satisfies the constraint."),
 		latestVersion: verified$4("2.5.1", CHANGELOG, "Released on 2026-09-20.")
 	}
 };
@@ -1487,6 +1717,7 @@ const SETTINGS = `${UV}/crates/uv-settings/src/settings.rs`;
 const BUILD_OPTIONS = `${UV}/crates/uv-configuration/src/build_options.rs`;
 const WORKSPACES = `${UV}/docs/concepts/projects/workspaces.md`;
 const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
+const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor, version) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll(".", "")}`;
 const noSetting$1 = (kind) => ({ setting: uncertain$1(null, `${UV}/uv.schema.json`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings). no-sources only ignores the tool.uv.sources table; a URL dependency introduced by a registry package is rejected during resolution (docs/pip/compatibility.md).`) });
 const uv$1 = {
@@ -1601,6 +1832,203 @@ const uv$1 = {
 		}, SERIALIZE, "uv.lock has no documented format (the docs say only that it is managed by uv). Each [[package]] has source = { registry = URL } for an index, { git = URL?rev#commit }, { url = URL }, { path = archive }, { directory = dir }, { editable = dir } or { virtual = dir } (a directory that is not built). Index packages list sdist and wheels; a package without wheels, or from git, a directory or a source archive, is built when installed."),
 		ignoredByToolCommands: verified$2("uv tool install, uv tool run and uvx ignore pyproject.toml and uv.toml in the project and read only user and system configuration", CONFIGURATION),
 		lockedSettings: verified$2(["exclude-newer", "exclude-newer-package"], SERIALIZE, "uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again (\"Resolving despite existing lockfile due to addition of global exclude newer\", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded."),
+		commandLine: verified$2({
+			add: [
+				["uv", "add"],
+				[
+					"uv",
+					"pip",
+					"install"
+				],
+				[
+					"uv",
+					"tool",
+					"install"
+				]
+			],
+			run: [
+				{
+					command: ["uvx"],
+					packageOptions: ["--from"],
+					extraPackageOptions: [
+						"-w",
+						"--with",
+						"--with-editable"
+					]
+				},
+				{
+					command: [
+						"uv",
+						"tool",
+						"run"
+					],
+					packageOptions: ["--from"],
+					extraPackageOptions: [
+						"-w",
+						"--with",
+						"--with-editable"
+					]
+				},
+				{
+					command: ["uv", "run"],
+					packageOptions: [],
+					extraPackageOptions: [
+						"-w",
+						"--with",
+						"--with-editable"
+					],
+					packageArgument: false,
+					scriptUrls: true
+				}
+			],
+			create: [],
+			valueOptions: [
+				"--cache-dir",
+				"--config-file",
+				"--color",
+				"--allow-insecure-host",
+				"--trusted-host",
+				"--directory",
+				"--project",
+				"--python-preference",
+				"--python-fetch",
+				"--preview-features",
+				"--preview-feature",
+				"--index",
+				"--default-index",
+				"-i",
+				"--index-url",
+				"--extra-index-url",
+				"-f",
+				"--find-links",
+				"-P",
+				"--upgrade-package",
+				"--upgrade-group",
+				"--reinstall-package",
+				"--index-strategy",
+				"--keyring-provider",
+				"--resolution",
+				"--prerelease",
+				"--prerelease-package",
+				"--fork-strategy",
+				"-C",
+				"--config-setting",
+				"--config-settings",
+				"--config-settings-package",
+				"--no-build-isolation-package",
+				"--exclude-newer",
+				"--exclude-newer-package",
+				"--link-mode",
+				"--no-sources-package",
+				"--refresh-package",
+				"--no-build-package",
+				"--no-binary-package",
+				"-c",
+				"--constraints",
+				"--constraint",
+				"--overrides",
+				"--override",
+				"--excludes",
+				"--exclude",
+				"-b",
+				"--build-constraints",
+				"--build-constraint",
+				"-r",
+				"--requirements",
+				"--requirement",
+				"--group",
+				"--extra",
+				"--no-editable-package",
+				"-p",
+				"--python",
+				"-t",
+				"--target",
+				"--prefix",
+				"--python-version",
+				"--python-platform",
+				"--output-format",
+				"--torch-backend",
+				"--optional",
+				"--bounds",
+				"--rev",
+				"--tag",
+				"--branch",
+				"--package",
+				"--script",
+				"--no-install-package",
+				"--only-install-package",
+				"-w",
+				"--with",
+				"--with-editable",
+				"--with-requirements",
+				"--no-extra",
+				"--no-group",
+				"--only-group",
+				"--env-file",
+				"--max-recursion-depth",
+				"--from",
+				"--with-executables-from"
+			],
+			parsing: { groupedShortOptions: true },
+			addPackageOptions: [
+				"-w",
+				"--with",
+				"--with-editable",
+				"--with-executables-from"
+			],
+			editableOptions: ["--with-editable"],
+			commaSeparatedOptions: [
+				"-w",
+				"--with",
+				"--with-editable",
+				"--with-executables-from"
+			],
+			interpreterNames: [
+				"python",
+				"pythonw",
+				"cpython",
+				"pypy",
+				"graalpy",
+				"pyodide"
+			],
+			commandOptions: [{
+				command: [
+					"uv",
+					"pip",
+					"install"
+				],
+				valueOptions: [
+					"-e",
+					"--editable",
+					"--no-binary",
+					"--only-binary"
+				],
+				editableOptions: ["-e", "--editable"]
+			}, {
+				command: ["uv", "add"],
+				valueOptions: ["-m", "--marker"]
+			}]
+		}, CLI, "clap arguments of uv add, uv pip install, uv tool install, uv run and uv tool run (uvx), with the global options, IndexArgs, ResolverInstallerArgs, BuildOptionsArgs and DependencyConstraintsArgs they share. --opt value, --opt=value, -o value and -ovalue all work; long options cannot be shortened. Options of uv run, uv tool run and uvx come before the command. --with, --with-editable and --with-executables-from add packages, as a list split at commas outside [...] that are not followed by !, =, <, > or ~ (comma.rs). uvx and uv tool run take the package from the first argument (name@version is ==version, name@latest the newest) unless --from names it; a first argument such as python, python3.12, pypy@3.8 or graalpy runs an interpreter (PythonRequest::try_from_tool_name in uv-python-types, implementation names cpython, pypy, graalpy and pyodide). uv run runs a command and downloads only what --with names, or a script given as an http or https URL. -e takes a path in uv pip install but is a flag in uv tool install, and --editable a flag in uv add; --no-binary and --only-binary take values in uv pip install only, -m is --marker in uv add and --module in uv run."),
+		registryOverrides: verified$2({
+			registryOptions: [
+				"--index",
+				"--default-index",
+				"-i",
+				"--index-url",
+				"--extra-index-url",
+				"-f",
+				"--find-links"
+			],
+			registryVariables: [
+				"UV_INDEX",
+				"UV_DEFAULT_INDEX",
+				"UV_INDEX_URL",
+				"UV_EXTRA_INDEX_URL",
+				"UV_FIND_LINKS"
+			],
+			configOptions: ["--config-file"],
+			configVariables: ["UV_CONFIG_FILE"]
+		}, `${UV}/crates/uv-static/src/env_vars.rs`, "IndexArgs (lib.rs): --index adds an index (name=url allowed), --default-index replaces PyPI, --index-url and --extra-index-url are their deprecated forms, --find-links adds a page or directory of archives; each has the variable named here. --config-file and UV_CONFIG_FILE name a uv.toml that may set any index. uv does not read pip.conf or PIP_INDEX_URL (docs/pip/compatibility.md)."),
 		latestVersion: verified$2("0.13.6", `${UV}/CHANGELOG.md`, "Released on 2026-10-26.")
 	}
 };
@@ -1767,6 +2195,7 @@ const python = verifiedOn("2026-10-30");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
 const NPM_PACKAGE_JSON = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
+const SPECIFICATIONS = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications";
 const environment = {
 	corepack: {
 		packageManagerField: verified({
@@ -2018,6 +2447,25 @@ const environment = {
 			weeklyDownloadsField: "downloads.weekly"
 		}, "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md", "The description documents text, size (at most 250) and from. Results carried downloads.weekly on 2026-10-29, which the description does not list, and from was ignored, so one query returns at most 250 packages.")
 	},
+	pypiIndex: {
+		api: python.verified({
+			url: "https://pypi.org/simple/",
+			accept: "application/vnd.pypi.simple.v1+json",
+			notFoundStatus: 404,
+			filesField: "files",
+			filenameField: "filename",
+			uploadTimeField: "upload-time",
+			yankedField: "yanked",
+			versionsField: "versions",
+			statusField: "project-status",
+			statusValueField: "status",
+			statusReasonField: "reason"
+		}, `${SPECIFICATIONS}/simple-repository-api.rst`, "GET /simple/<project>/ with Accept: application/vnd.pypi.simple.v1+json returns name, files, meta, versions and project-status; the project is matched case-insensitively with _, - and . considered equal (index-api.md in pypi/warehouse, the source of docs.pypi.org/api/index-api/, which recommends the JSON form for new integrations; the JSON API of /pypi/<project>/json marks its releases key deprecated). A file has filename, url, hashes, size, an optional upload-time (yyyy-mm-ddThh:mm:ss.ffffffZ, UTC) and an optional yanked (true or a reason string). Every file belongs to a version listed in versions, but the response does not say which: the version is part of the file name. On 2026-10-30 pypi.org answered api-version 1.4 for requests and 404 for a name it does not know."),
+		projectStatus: python.verified({
+			blocked: ["quarantined"],
+			warned: ["archived", "deprecated"]
+		}, `${SPECIFICATIONS}/project-status-markers.rst`, "A project has exactly one status, active when none is given. quarantined: considered generally unsafe (for example malware), and the index must not offer any of its files. archived: no new uploads, existing files stay; installers may warn. deprecated: obsolete, perhaps superseded by another project; installers may warn.")
+	},
 	claudeCode: { hooks: checked.verified({
 		settingsFile: ".claude/settings.json",
 		event: "PreToolUse",
@@ -2062,7 +2510,34 @@ const environment = {
 		}, "https://packaging.python.org/en/latest/specifications/name-normalization/", "Names are lowercased and every run of ., - or _ becomes a single -, before lookups and comparisons (PEP 503): Friendly.Bard and friendly_bard are the same package. Read from the page source in pypa/packaging.python.org."),
 		namePattern: python.verified("^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9])$", "https://packaging.python.org/en/latest/specifications/name-normalization/", "The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\\Z run with re.IGNORECASE (PEP 508)."),
 		projectFile: python.verified("pyproject.toml", "https://packaging.python.org/en/latest/specifications/pyproject-toml/", "The configuration file of a Python project, in the project root; tools keep their own settings in its [tool.<name>] tables."),
-		wheelExtension: python.verified(".whl", "https://packaging.python.org/en/latest/specifications/binary-distribution-format/", "A wheel is a ZIP archive with the .whl extension; installing it unpacks files and runs no build code. Read from the page source in pypa/packaging.python.org.")
+		wheelExtension: python.verified(".whl", "https://packaging.python.org/en/latest/specifications/binary-distribution-format/", "A wheel is a ZIP archive with the .whl extension; installing it unpacks files and runs no build code. Read from the page source in pypa/packaging.python.org."),
+		sourceDistributionExtensions: python.verified([
+			".tar.gz",
+			".zip",
+			".tar.bz2",
+			".tbz",
+			".tgz",
+			".tar",
+			".tar.xz",
+			".txz",
+			".tlz",
+			".tar.lz",
+			".tar.lzma"
+		], "https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py", "ARCHIVE_EXTENSIONS of pip without .whl: the archives pip accepts from an index besides wheels (index/package_finder.py rejects any other extension), all of them built when installed. A standard sdist is named {name}-{version}.tar.gz with the name normalized (PEP 625, source-distribution-format.rst); older uploads use the other extensions and names that are not normalized."),
+		interpreter: python.verified({
+			executables: [
+				"python",
+				"python3",
+				"py"
+			],
+			moduleOption: "-m",
+			commandOption: "-c",
+			valueOptions: [
+				"-W",
+				"-X",
+				"--check-hash-based-pycs"
+			]
+		}, "https://github.com/python/cpython/blob/v3.14.0/Doc/using/cmdline.rst", "python [-bBdEhiIOPqRsSuvVWx?] [-c command | -m module-name | script | - ] [args]: -m and -c end the interpreter options, and what follows goes to the module or the command; -W arg, -X option and --check-hash-based-pycs mode take a value, the other options are flags. pip documents running itself as python -m pip, and as py -m pip with the Windows launcher (github.com/pypa/pip/blob/26.2.2/docs/html/cli/pip_install.rst).")
 	}
 };
 
@@ -10122,12 +10597,15 @@ function requirementsIncludes(input, format) {
 		}];
 	});
 }
-/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
-function requirementsEntries(input, format) {
+/**
+* Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
+* directory, the project itself, or a registry package. `editable` is set for the value of -e, which is always a path
+* or a VCS URL.
+*/
+function requirementSource(requirement, format, editable) {
 	const vcs = isRecord(format["vcs"]) ? format["vcs"] : {};
 	const gitPrefixes = strings$1(vcs["git"]);
 	const otherPrefixes = strings$1(vcs["other"]);
-	const editable = strings$1(format["editable"]);
 	const egg = new RegExp(`${escapeRegExp(String(format["egg"]))}([^&\\s]+)`, "u");
 	const paths = isRecord(format["paths"]) ? format["paths"] : {};
 	const separators = strings$1(paths["separators"]);
@@ -10138,6 +10616,40 @@ function requirementsEntries(input, format) {
 	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp(String(format["direct"]).trim())}\\s*(.+)$`, "u");
 	const looksLikePath = (text) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
 	const isArchive = (text) => archives.some((extension) => text.toLowerCase().endsWith(extension));
+	const named = reference.exec(requirement);
+	const target = named?.[2] ?? requirement;
+	const name = named?.[1] ?? egg.exec(target)?.[1];
+	const located = (source, location, builds) => ({
+		source,
+		target: location,
+		...name !== void 0 && PYTHON_NAME$1.test(name) ? { name } : {},
+		builds
+	});
+	if (gitPrefixes.some((prefix) => target.startsWith(prefix))) return located("git", target, true);
+	if (otherPrefixes.some((prefix) => target.startsWith(prefix))) return located("unknown", target, true);
+	if (urlSchemes.test(target)) return located("remoteTarball", target, !isWheel(target));
+	if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || editable) {
+		const path = target.replace(fileScheme, "");
+		if (/^\.\/?$/u.test(path)) return {
+			source: "workspace",
+			target,
+			name: ".",
+			builds: false
+		};
+		const archive = isArchive(path);
+		return located(archive ? "file" : "directory", path, archive ? !isWheel(path) : true);
+	}
+	const registryName = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
+	return {
+		source: "registry",
+		target: requirement,
+		...registryName === void 0 ? {} : { name: registryName },
+		builds: void 0
+	};
+}
+/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
+function requirementsEntries(input, format) {
+	const editable = strings$1(format["editable"]);
 	const entries = [];
 	for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
 		let requirement = body;
@@ -10145,34 +10657,19 @@ function requirementsEntries(input, format) {
 		if (flag !== void 0) requirement = requirement.slice(flag.length + 1).trim();
 		else if (requirement.startsWith("-")) continue;
 		requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(";", 1)[0]?.trim() ?? requirement;
-		const named = reference.exec(requirement);
-		const target = named?.[2] ?? requirement;
-		const add = (location, source, builds) => {
-			const name = named?.[1] ?? egg.exec(target)?.[1];
-			entries.push(name !== void 0 && PYTHON_NAME$1.test(name) ? entry(name, target, source, builds, lineNumber) : {
-				...entry("", target, source, builds, lineNumber),
-				name: location,
-				unnamed: true
-			});
-		};
-		if (gitPrefixes.some((prefix) => target.startsWith(prefix))) add(target, "git", true);
-		else if (otherPrefixes.some((prefix) => target.startsWith(prefix))) add(target, "unknown", true);
-		else if (urlSchemes.test(target)) add(target, "remoteTarball", !isWheel(target));
-		else if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || flag !== void 0) {
-			const path = target.replace(fileScheme, "");
-			if (/^\.\/?$/u.test(path)) {
-				entries.push({
-					...entry("", target, "workspace", false, lineNumber),
-					name: "."
-				});
-				continue;
-			}
-			const archive = isArchive(path);
-			add(path, archive ? "file" : "directory", archive ? !isWheel(path) : true);
-		} else {
-			const name = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
-			if (name !== void 0) entries.push(entry(name, requirement, "registry", void 0, lineNumber));
-		}
+		const found = requirementSource(requirement, format, flag !== void 0);
+		if (found.source === "workspace") entries.push({
+			...entry("", found.target, "workspace", false, lineNumber),
+			name: "."
+		});
+		else if (found.source === "registry") {
+			if (found.name !== void 0) entries.push(entry(found.name, requirement, "registry", void 0, lineNumber));
+		} else if (found.name !== void 0) entries.push(entry(found.name, found.target, found.source, found.builds, lineNumber));
+		else entries.push({
+			...entry("", found.target, found.source, found.builds, lineNumber),
+			name: found.target,
+			unnamed: true
+		});
 	}
 	return entries;
 }
