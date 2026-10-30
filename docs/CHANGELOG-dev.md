@@ -2,6 +2,27 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · Faza 10: Python (uv, pip, Poetry)
+
+- **Baza wiedzy:** uv 0.13.6, pip 26.2.2 i Poetry 2.5.1, każdy fakt ze źródłem pod tagiem: opóźnienie wydań, budowanie ze źródeł, źródła zależności, pliki projektu, lockfile'e, przypinanie wersji. Do tego Dependabot (ekosystemy `pip` i `uv`), Renovate (datasource `pypi`, preset `security:minimumReleaseAgePypi`) oraz akcje CI: setup-python, setup-uv, snok/install-poetry i abatilo/actions-poetry.
+- **Polityka (D-065, decyzja właściciela):**
+  - paczki Pythona mają prefiks `pypi:`, a nazwy bez prefiksu zostają nazwami npm;
+  - `installScripts` w Pythonie oznacza budowanie ze źródeł: zakaz budowania, a paczki z listy dozwolonych są zawsze budowane ze źródeł.
+- **Wykrywanie:** `uv.lock`, `poetry.lock`, `pylock.toml`, `requirements.txt`, `[tool.uv]` i `[tool.poetry]` w `pyproject.toml`, `uv.toml`, `poetry.toml`, `required-version` i `requires-poetry`, kroki CI oraz workspace uv.
+- **apply:**
+  - uv: blok w `uv.toml` albo w `[tool.uv]`;
+  - Poetry: bloki `[solver]` i `[installer]` w `poetry.toml`;
+  - pip: blok opcji w `requirements.txt` i instrukcja dla zmiennej środowiskowej;
+  - Dependabot i Renovate dostają wyjątki swojego rejestru.
+- **doctor:**
+  - `lockfile-forbidden-source` i `lockfile-install-scripts` dla `uv.lock`, `poetry.lock`, `pylock.toml` i `requirements.txt`;
+  - `bot-cooldown-mismatch` porównuje boty z uv i Poetry;
+  - `manager-version-too-old` sprawdza wersje z konfiguracji narzędzi;
+  - nowa reguła `python-config-ignored`.
+- **Własny czytnik TOML** bez zależności, zgodny z `tomllib` na 1089 z 1090 plików z dysku.
+- **Macierz prawdziwych wersji:** uv 0.9.16, 0.9.17, 0.9.25 i 0.13.6; Poetry 2.3.4, 2.4.0 i 2.5.1; pip 25.3, 26.0, 26.1 i 26.2.2. Za stare wersje po cichu wyłączają ochronę (szczegóły w D-065).
+- **Weryfikacja:** `npm test` (1335 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-29 · Przygotowanie wydania 1.0.0: marka zamiast danych autora, README na stronę npm
 
 - Marka `depcurfew` zamiast danych autora: autor i `informationUri` w SARIF (strona paczki na npm); licencja wskazuje właściciela praw (DevXord). `DevXord` zostaje tylko tam, gdzie wymaga go GitHub lub npm: w `uses:` w workflow i w adresie repozytorium (D-064).

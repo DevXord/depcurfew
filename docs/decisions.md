@@ -900,4 +900,12 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 - **Lista `allow`.** Żadne z trzech narzędzi nie ma ustawienia „tej paczce wolno budować”. Ma tylko wyjątek od zakazu, który wymusza budowanie danej paczki ze źródeł przy każdej instalacji, nawet gdy jest koło: uv `no-binary-package`, Poetry `installer.no-binary` (wyjątek działa od 2.2.0), pip `--no-binary`.
   - Decyzja: zapisujemy zakaz i wymuszone wyjątki, z ostrzeżeniem, co to znaczy. Zgody potrzebują zwykle paczki bez kół, a dla nich nic się nie zmienia; `doctor` wskaże je w lockfile'u.
   - Poetry przed 2.2.0: paczka z obu list nie ma pliku do instalacji, więc wyjątków nie zapisujemy i ostrzegamy.
-- **Czego zakaz nie obejmuje.** Zależności z gita, katalogów i URL wszystkie trzy narzędzia budują mimo zakazu, a Poetry może budować sdist już przy rozwiązywaniu zależności. Pilnuje ich sekcja `sources` (żadne narzędzie nie ma ustawienia, które ich zabrania) oraz `doctor` na lockfile'u.
+- **Czego zakaz nie obejmuje.** Poetry i pip budują zależności z gita, katalogów i URL mimo zakazu, a Poetry może budować sdist już przy rozwiązywaniu zależności. uv z `no-build = true` odmawia też gita i lokalnych katalogów (poza członkami workspace'u), co sprawdziłem na uv 0.13.6. Zakres przełącznika zapisuje fakt `buildSwitch.covers`. Zależności spoza zakresu pilnuje sekcja `sources` (żadne narzędzie nie ma ustawienia, które ich zabrania) oraz `doctor` na lockfile'u.
+- **Macierz prawdziwych wersji (2026-10-30).** Za stara wersja nie kończy się błędem, tylko po cichu wyłącza ochronę:
+  - uv 0.9.16 nie rozumie okresu w `exclude-newer`, ostrzega i rozwiązuje bez opóźnienia;
+  - uv 0.9.17 z wyjątkiem `= false` (dopiero od 0.9.25) ignoruje całe `[tool.uv]`;
+  - Poetry 2.3.4 bez słowa ignoruje `solver.min-release-age`;
+  - pip 25.3 bez słowa ignoruje `PIP_UPLOADED_PRIOR_TO`, a pip 26.0 przyjmuje tylko daty.
+
+  Dlatego `apply` pisze ustawienie tylko dla wersji, która je zna, a `doctor` (`manager-version-too-old`) zgłasza za stare wersje przypięte w projekcie. Projekty testowe miały wyłącznie paczki z kołami, więc nic nie było budowane ani uruchamiane.
+- **Nowa reguła `python-config-ignored`.** Wykrywa ustawienia Pythona zapisane tam, gdzie narzędzie ich nie czyta: `[tool.uv]` obok `uv.toml`, ustawienia uv w członkach workspace'u, `pip.conf` w projekcie, opcje odrzucane przez pip w `requirements.txt` oraz datę w `exclude-newer`, która zamraża zależności.

@@ -67,10 +67,12 @@ function toolsTable(tools: readonly ToolKnowledge[]): string {
       const list = Array.isArray(value) ? (value as unknown[]).map(String) : [String(value)];
       return list.length > 2 ? `${list.slice(0, 2).map(code).join(', ')} …` : list.map(code).join(', ');
     });
+    // A tool without a project file for the setting (pip) takes it from the environment or the command line.
+    const where = files === undefined || files === '' ? 'on the command line or in the environment (no project file)' : `in ${files}`;
     const delay =
       cooldownSetting === undefined
         ? 'none'
-        : `${cooldownSetting} in ${files ?? 'n/a'} (${shown(tool.cooldown.unit, plain) ?? 'n/a'}), since ${shown(tool.cooldown.availableSince, plain) ?? 'n/a'}`;
+        : `${cooldownSetting} ${where} (${shown(tool.cooldown.unit, plain) ?? 'n/a'}), since ${shown(tool.cooldown.availableSince, plain) ?? 'n/a'}`;
     const excludeSetting = setting(tool.cooldown.exclude.setting);
     const exceptions = excludeSetting === undefined ? 'none' : `${excludeSetting}, since ${shown(tool.cooldown.exclude.availableSince, plain) ?? 'n/a'}`;
     const allowSetting = setting(tool.installScripts.allowList.setting);
@@ -86,7 +88,7 @@ function toolsTable(tools: readonly ToolKnowledge[]): string {
     return `| ${[tool.name, delay, exceptions, scripts, sources, verifiedRange(tool)].map(cell).join(' | ')} |`;
   });
   return [
-    '| Tool | Release-age delay | Exceptions | Install-script allow-list | Dependency sources | Verified |',
+    '| Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source) | Dependency sources | Verified |',
     '| --- | --- | --- | --- | --- | --- |',
     ...rows,
     '',
