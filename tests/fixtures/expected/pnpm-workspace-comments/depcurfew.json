@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3d", "exclude": ["@acme/*", "left-pad"] },
+  "installScripts": { "default": "deny", "allow": ["esbuild", "core-js"] },
+  "targets": "auto"
+}

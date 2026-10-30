@@ -2,7 +2,7 @@
 // unified diff that `git apply` accepts); warnings, snippets to add by hand and errors go to stderr. When any file
 // cannot be edited, nothing is written and stdout stays empty, also with --dry-run. With --json, stdout holds one JSON
 // document with all of it (each change with its diff, warnings and errors with a code) and stderr stays empty.
-import { applyProject, PolicyError, policyErrorFix, type ApplyReport } from '../apply/index.ts';
+import { applyProject, ApplyWriteError, PolicyError, policyErrorFix, type ApplyReport } from '../apply/index.ts';
 import { unifiedDiff } from '../apply/diff.ts';
 import type { ApplyErrorCode, ApplyWarning } from '../apply/warnings.ts';
 import { paint, type Paint } from '../color.ts';
@@ -82,6 +82,19 @@ function jsonReport(dryRun: boolean, policy: 'valid' | 'missing' | 'invalid', re
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 
+/** A file could not be written: the warnings of the plan and the error, in text or as the JSON document. */
+function writeError(error: ApplyWriteError, json: boolean, io: CliIo): number {
+  if (json) {
+    io.stdout(jsonReport(false, 'valid', error.report, [{ code: error.code, level: 'error', location: { file: error.file }, message: error.message, fix: error.fix }]));
+    return EXIT_FAILURE;
+  }
+  const colors = paint(io.colors?.stderr);
+  const lines = [diagnostics({ ...error.report, errors: [], failures: [] }, colors), `error: ${error.message} ${colors.dim(`(${error.code})`)}\n`, `  ${colors.green('fix:')} ${error.fix}\n`];
+  lines.push(error.unrestored.length === 0 ? 'depcurfew: nothing written because of the errors above.\n' : 'depcurfew: some files were changed; see the error above.\n');
+  io.stderr(lines.join(''));
+  return EXIT_FAILURE;
+}
+
 export function apply(directory: string | undefined, options: { dryRun: boolean; json: boolean }, io: CliIo): number {
   const { dryRun } = options;
   const absolute = resolveDirectory(directory, io);
@@ -90,6 +103,7 @@ export function apply(directory: string | undefined, options: { dryRun: boolean;
   try {
     report = applyProject(absolute, { write: !dryRun });
   } catch (error) {
+    if (error instanceof ApplyWriteError) return writeError(error, options.json, io);
     if (!(error instanceof PolicyError)) throw error;
     if (options.json) {
       const failure: JsonError = {

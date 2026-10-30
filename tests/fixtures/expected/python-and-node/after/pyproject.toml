@@ -6,7 +6,7 @@ dependencies = []
 
 [tool.uv]
 
-# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+# >>> depcurfew managed block [tool.uv]: edit depcurfew.json and run depcurfew apply instead
 exclude-newer = "3 days"
 exclude-newer-package = { "acme-lib" = false }
 no-build = true

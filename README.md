@@ -115,9 +115,9 @@ Every finding and warning says what to do about it. Text for people is colored o
 
 How `apply` edits files:
 
-- It keeps comments, formatting, line endings and key order. In line-based files (INI, TOML) it writes a block between `# >>> depcurfew managed block` and `# <<< depcurfew managed block` markers and comments out older copies of the settings it manages; in YAML it marks the keys it writes with `# managed by depcurfew`; JSON files keep their comments and indentation.
+- It keeps comments, formatting, line endings and key order. In line-based files (INI, TOML) it writes a block between `# >>> depcurfew managed block` and `# <<< depcurfew managed block` markers and comments out older copies of the settings it manages (they come back when the policy stops managing them); in YAML it marks the keys it writes with `# managed by depcurfew`; JSON files keep their comments and indentation.
 - It never removes settings it does not manage. Allow-lists are only added to; exception lists follow the policy.
-- If any file cannot be edited, nothing is written.
+- If any file cannot be edited, nothing is written. If a file cannot be written, the files already written are put back.
 - It does not create bot configuration files; it creates a package manager's configuration file when it is missing.
 
 ### apply warnings and errors
@@ -160,6 +160,7 @@ Warnings:
 Errors (nothing is written):
 
 - `cannot-edit`: A file cannot be read or edited safely (invalid syntax, a symlink, a style depcurfew does not edit), so nothing is written.
+- `cannot-write`: A file cannot be written (no permission, a read-only file system, a full disk); the files already written are put back, so nothing changes.
 - `policy-missing`: The directory has no depcurfew.json.
 - `policy-invalid`: depcurfew.json does not follow the schema; issues lists the problems.
 - `policy-unreadable`: depcurfew.json cannot be read.

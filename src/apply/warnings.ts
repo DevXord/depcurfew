@@ -37,6 +37,7 @@ export const APPLY_WARNINGS = {
 
 export const APPLY_ERRORS = {
   'cannot-edit': 'A file cannot be read or edited safely (invalid syntax, a symlink, a style depcurfew does not edit), so nothing is written.',
+  'cannot-write': 'A file cannot be written (no permission, a read-only file system, a full disk); the files already written are put back, so nothing changes.',
   'policy-missing': 'The directory has no depcurfew.json.',
   'policy-invalid': 'depcurfew.json does not follow the schema; issues lists the problems.',
   'policy-unreadable': 'depcurfew.json cannot be read.',

@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { appendFileSync, chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -119,7 +119,7 @@ function verifiedOn(verifiedAt) {
 
 // src/knowledge/bun.ts
 const { verified: verified$12, uncertain: uncertain$11, disputed: disputed$6, evidence: evidence$6 } = verifiedOn("2026-10-28");
-const checked$5 = verifiedOn("2026-10-29");
+const checked$6 = verifiedOn("2026-10-29");
 const BUNFIG = "https://bun.com/docs/runtime/bunfig";
 const INSTALL$1 = "https://bun.com/docs/pm/cli/install";
 const LIFECYCLE = "https://bun.com/docs/pm/lifecycle";
@@ -187,7 +187,7 @@ const bun$1 = {
 		workspacesObjectKey: verified$12("packages", "https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx", "The object form also holds catalog and catalogs.")
 	},
 	extra: {
-		commandLine: checked$5.verified({
+		commandLine: checked$6.verified({
 			add: [["bun", "add"]],
 			run: [{
 				command: ["bunx"],
@@ -217,7 +217,7 @@ const bun$1 = {
 				"--minimum-release-age"
 			]
 		}, "https://github.com/oven-sh/bun/tree/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/snippets/cli", "Options of bun add (snippets/cli/add.mdx) and bunx (snippets/cli/bunx.mdx) typed string or number; --catalog takes its name only after =. -p is --package for bunx but the flag --production for bun add, so it is listed with bunx only. The short forms -F (--filter) and -c (--config) of bun add are left out because bunx does not document them, and an option wrongly read as taking a value would hide the package after it. bunx is an alias for bun x (docs/pm/bunx.mdx). bun create <template> runs the create-<template> package from npm unless a local template has that name; it also takes GitHub repositories and local paths (docs/runtime/templating/create.mdx)."),
-		packageSpecs: checked$5.verified({
+		packageSpecs: checked$6.verified({
 			git: [
 				"github:",
 				"git+ssh://",
@@ -227,13 +227,13 @@ const bun$1 = {
 			workspace: [],
 			scp: true
 		}, "https://github.com/oven-sh/bun/blob/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/pm/cli/add.mdx", "Git dependencies: \"Bun supports a variety of protocols, including github, git, git+ssh, and git+https\", with the examples git@github.com:moment/moment.git and github:colinhacks/zod. Tarball URLs, local folders and local .tgz files are accepted too."),
-		registryOverrides: checked$5.verified({
+		registryOverrides: checked$6.verified({
 			registryOptions: ["--registry"],
 			registryVariables: ["BUN_CONFIG_REGISTRY"],
 			configOptions: ["--config", "-c"],
 			configVariables: []
 		}, "https://github.com/oven-sh/bun/tree/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs", "bun add takes --registry and --config (-c), a configuration file (snippets/cli/add.mdx). BUN_CONFIG_REGISTRY sets the npm registry and environment variables take priority over bunfig.toml (pm/cli/install.mdx)."),
-		lockfileFormat: checked$5.verified({
+		lockfileFormat: checked$6.verified({
 			installScripts: "hasInstallScript",
 			installScriptsSince: "1.4.4",
 			git: ["git+", "github:"],
@@ -250,7 +250,7 @@ const bun$1 = {
 			trailingOnly: false
 		}, BUN_1_4_4, "minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards."),
 		latestVersion: verified$12("1.4.4", "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4"),
-		trustedDependenciesReplacesDefaults: checked$5.verified("Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts", `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`, "So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild's postinstall (esbuild is on the built-in list); with \"trustedDependencies\": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29."),
+		trustedDependenciesReplacesDefaults: checked$6.verified("Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts", `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`, "So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild's postinstall (esbuild is on the built-in list); with \"trustedDependencies\": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29."),
 		lockedVersionsNotRechecked: verified$12("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$1}#minimum-release-age`),
 		bunxCooldown: verified$12("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4")
 	}
@@ -258,7 +258,7 @@ const bun$1 = {
 
 // src/knowledge/deno.ts
 const { verified: verified$11, uncertain: uncertain$10, disputed: disputed$5, evidence: evidence$5 } = verifiedOn("2026-10-28");
-const checked$4 = verifiedOn("2026-10-29");
+const checked$5 = verifiedOn("2026-10-29");
 const DENO_JSON = "https://docs.deno.com/runtime/reference/deno_json/#minimum-dependency-age";
 const SUPPLY_CHAIN = "https://docs.deno.com/runtime/packages/supply_chain/#minimum-dependency-age";
 const SCHEMA$1 = "https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json";
@@ -323,7 +323,7 @@ const deno$1 = {
 		workspacesObjectKey: verified$11("members", WORKSPACES$1)
 	},
 	extra: {
-		commandLine: checked$4.verified({
+		commandLine: checked$5.verified({
 			add: [["deno", "add"], ["deno", "install"]],
 			run: [],
 			create: [],
@@ -337,7 +337,7 @@ const deno$1 = {
 				"--arch"
 			]
 		}, "https://github.com/denoland/docs/blob/main/runtime/reference/cli/install.md", "deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (runtime/reference/cli/add.md)."),
-		lockfileFormat: checked$4.verified({
+		lockfileFormat: checked$5.verified({
 			installScripts: "scripts",
 			installScriptsSinceLockfile: "5",
 			sources: null
@@ -443,7 +443,7 @@ const dependabot$1 = {
 
 // src/knowledge/npm.ts
 const { verified: verified$9, uncertain: uncertain$8, disputed: disputed$3, evidence: evidence$3 } = verifiedOn("2026-10-28");
-const checked$3 = verifiedOn("2026-10-29");
+const checked$4 = verifiedOn("2026-10-29");
 const CONFIG = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$3 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -494,7 +494,7 @@ const npm$1 = {
 		securityUpdates: verified$9("applies", `${CONFIG}#min-release-age`, "npm audit fix keeps the vulnerable version, warns that the fix was blocked (since 11.18.0) and exits non-zero. Add the package to min-release-age-exclude or relax the delay.")
 	},
 	installScripts: {
-		defaultPolicy: checked$3.verified([
+		defaultPolicy: checked$4.verified([
 			{
 				since: "0.0.0",
 				value: "run"
@@ -592,14 +592,14 @@ const npm$1 = {
 		workspacesObjectKey: uncertain$8("packages", "https://github.com/npm/map-workspaces/blob/main/lib/index.js", "Not documented; npm's map-workspaces also accepts { \"packages\": [...] } and negated patterns.")
 	},
 	extra: {
-		trustedPublishing: checked$3.verified({
+		trustedPublishing: checked$4.verified({
 			minimumNpm: "11.5.1",
 			minimumNode: "22.14.0",
 			githubPermission: "id-token: write",
 			automaticProvenance: true,
 			firstPublishWithinDays: 2
 		}, "https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/packages-and-modules/securing-your-code/trusted-publishers.mdx", "Publishing from GitHub-hosted runners with OIDC instead of a token. Provenance is generated automatically, only for a public package from a public repository. A new trusted publisher configuration expires unless its first publish succeeds within 2 days. It can be limited to npm stage publish (the default for configurations created after 2026-09-03)."),
-		stagedPublishing: checked$3.verified({
+		stagedPublishing: checked$4.verified({
 			minimumNpm: "11.15.0",
 			minimumNode: "22.14.0",
 			stage: "npm stage publish",
@@ -607,13 +607,13 @@ const npm$1 = {
 			reject: "npm stage reject",
 			newPackagePlaceholder: "0.0.0-stage"
 		}, "https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-stage.mdx", "Staging needs no 2FA, so CI can do it; approving or rejecting needs 2FA (CLI or npmjs.com). Staging a package that does not exist yet creates it with the public placeholder version 0.0.0-stage. Pre-release versions need an explicit --tag. --provenance also applies to npm stage publish. Rejecting the only staged version of such a new package also unpublished the placeholder (observed 2026-10-29 with npm 11.21.1), and after a whole package is unpublished its name is blocked for 24 hours (https://github.com/npm/documentation/blob/main/content/policies/unpublish.mdx)."),
-		trustCommand: checked$3.verified({
+		trustCommand: checked$4.verified({
 			command: "npm trust github",
 			minimumNpm: "11.15.0",
 			packageMustExist: true,
 			permissions: ["--allow-publish", "--allow-stage-publish"]
 		}, "https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-trust.mdx", "Configures a trusted publisher from the CLI; needs 2FA on the account and write access, and the package must already exist. At least one permission flag is required."),
-		lockfileFormat: checked$3.verified({
+		lockfileFormat: checked$4.verified({
 			installScripts: "hasInstallScript",
 			gitPrefixes: ["git+", "git:"],
 			filePrefix: "file:",
@@ -627,11 +627,11 @@ const npm$1 = {
 				"devDependencies"
 			]
 		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md", "Entries under packages: resolved is the registry tarball URL, the git URL with its commit (git+ssh://… or git+https://…#sha), file:<path> for local tarballs and directories, or the link target when link is true. hasInstallScript marks a preinstall, install or postinstall script (prepare scripts of non-registry sources are not flagged). npm tells registry tarballs from other URLs with the registryTarball pattern (workspaces/arborist/lib/install-scripts.js), so a tarball URL on a registry host looks like a registry package. An entry without resolved is installed as <name>@<version> (workspaces/arborist/lib/arborist/reify.js, #extractOrLink, in 11.19.1 and 12.2.1), so its version field is the source then. Entries keep the dependency fields of their package.json: dependencies, optionalDependencies and peerDependencies for every package, devDependencies for the root (workspaces/arborist/lib/shrinkwrap.js, pkgMetaKeys and the isTop branch, in 11.21.1 and 12.2.1); a dependency declared there as a URL comes from that URL even when it is a registry tarball."),
-		overrides: checked$3.verified({
+		overrides: checked$4.verified({
 			field: "overrides",
 			selfKey: "."
 		}, "https://github.com/npm/cli/blob/v11.21.1/docs/lib/content/configuring-npm/package-json.md#overrides", "Only the root package.json counts. Keys are package names, optionally with a version or range (name@range), and nest to any depth to scope an override under a parent; \".\" inside a nested object overrides the parent package itself; values take any dependency specifier, including tarball URLs, and $name refers to the spec of a direct dependency. Overrides are not written to package-lock.json (checked with npm 11.21.1), so a URL override of a registry tarball looks like a registry package there. With replace-registry-host at its default npmjs, npm writes the configured registry in place of registry.npmjs.org in resolved URLs (workspaces/config/lib/definitions/definitions.js)."),
-		npmrcScope: checked$3.verified({
+		npmrcScope: checked$4.verified({
 			read: "project root",
 			workspacePackages: "ignored",
 			globalMode: "ignored"
@@ -654,13 +654,13 @@ const npm$1 = {
 			since: "11.15.0",
 			value: "both may be set; before wins within the same config source"
 		}], release$3("11.15.0")),
-		strictAllowScripts: checked$3.verified({
+		strictAllowScripts: checked$4.verified({
 			setting: "strict-allow-scripts",
 			value: true,
 			since: "11.16.0"
 		}, NPM_DEFINITIONS_V11_16, "strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it."),
 		unknownNpmrcKeys: disputed$3("Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.", evidence$3("npm 12 throws on unknown config keys", release$3("12.0.0")), evidence$3("unknown keys only warn; throwing is planned for a future major version", NPMRC)),
-		commandLine: checked$3.verified({
+		commandLine: checked$4.verified({
 			add: INSTALL_ALIASES.map((alias) => ["npm", alias]),
 			run: [
 				{
@@ -696,7 +696,7 @@ const npm$1 = {
 			createNames: "prefix",
 			valueOptions: []
 		}, CMD_LIST, "Aliases of install (add, i and the typo aliases in, ins, inst, insta, instal, isnt, isnta, isntal, isntall), install-test (it), exec (x) and init (create, innit), the same in 11.19.1. install-test takes the same arguments as install (docs/lib/content/commands/npm-install-test.md). npm exec and npx take the packages to download from --package; -p means --package only in npx (in npm it is --parseable); without --package the first positional argument names the package, and -c/--call takes a command string that runs with the packages, shell operators included (npm-exec.md). npm init <initializer> runs npm exec create-<initializer>: foo → create-foo, @usr → @usr/create, @usr/foo@2.0.0 → @usr/create-foo@2.0.0 (npm-init.md)."),
-		valueOptions: checked$3.verified([
+		valueOptions: checked$4.verified([
 			"--access",
 			"--allow-directory",
 			"--allow-file",
@@ -806,7 +806,7 @@ const npm$1 = {
 			"-m",
 			"-w"
 		], NPM_DEFINITIONS, "npm options that always take a value: every definition whose type does not include Boolean, as --name, and the short forms -C (prefix), -L (location), -c (call), -m (message) and -w (workspace). Options whose type includes Boolean (such as color and browser) may stand alone, so they are taken for flags."),
-		packageSpecs: checked$3.verified({
+		packageSpecs: checked$4.verified({
 			git: [
 				"git://",
 				"git+ssh://",
@@ -829,13 +829,13 @@ const npm$1 = {
 			],
 			shorthand: "github:"
 		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-install.md", "Forms of npm install <spec>: a folder; a tarball file, whose name must end in .tar, .tar.gz or .tgz; a tarball URL, which must start with http:// or https://; a git remote URL with the protocol git, git+ssh, git+http, git+https or git+file; <githubname>/<githubrepo> or github:<githubname>/<githubrepo>; gist:, bitbucket: and gitlab: shorthands; <alias>@npm:<name>. The file: prefix for local paths is documented in docs/lib/content/configuring-npm/package-json.md (Local Paths)."),
-		registryConfig: checked$3.verified({
+		registryConfig: checked$4.verified({
 			file: ".npmrc",
 			userFile: "~/.npmrc",
 			key: "registry",
 			scopeKeySuffix: ":registry"
 		}, NPM_DEFINITIONS, "userconfig, the location of user-level settings, defaults to ~/.npmrc; registry is the base URL of the npm registry (default https://registry.npmjs.org/); a per-project .npmrc can set it like any config key (docs/lib/content/using-npm/config.md). npm config set @myco:registry=http://reg.example.com associates a scope with a registry, and any npm install of a package with that scope then requests it from there (https://docs.npmjs.com/cli/v12/using-npm/scope#associating-a-scope-with-a-registry)."),
-		registryOverrides: checked$3.verified({
+		registryOverrides: checked$4.verified({
 			registryOptions: ["--registry", "--@<scope>:registry"],
 			registryVariables: ["npm_config_registry"],
 			configOptions: ["--userconfig", "--globalconfig"],
@@ -1517,7 +1517,7 @@ const pipenv$1 = {
 
 // src/knowledge/pnpm.ts
 const { verified: verified$5, uncertain: uncertain$4 } = verifiedOn("2026-10-28");
-const checked$2 = verifiedOn("2026-10-29");
+const checked$3 = verifiedOn("2026-10-29");
 const RESOLUTION$1 = "https://pnpm.io/settings/dependency-resolution";
 const SETTINGS_V10 = "https://pnpm.io/10.x/settings";
 const BUILD = "https://pnpm.io/settings/build";
@@ -1601,7 +1601,7 @@ const pnpm$1 = {
 		workspacesObjectKey: uncertain$4(null, WORKSPACE_YAML_V10, "The docs show packages only as a list; concluded from the absence of an object form.")
 	},
 	extra: {
-		commandLine: checked$2.verified({
+		commandLine: checked$3.verified({
 			add: [["pnpm", "add"]],
 			run: [
 				{
@@ -1642,7 +1642,7 @@ const pnpm$1 = {
 				"--env-file"
 			]
 		}, "https://github.com/pnpm/pnpm.io/tree/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli", "From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c 'echo hi | cowsay'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx only and is listed there. -F is the short form of --filter (filtering.md)."),
-		packageSpecs: checked$2.verified({
+		packageSpecs: checked$3.verified({
 			git: [
 				"github:",
 				"bitbucket:",
@@ -1660,23 +1660,23 @@ const pnpm$1 = {
 			],
 			shorthand: "github:"
 		}, "https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/package-sources.md", "Sources of pnpm add: the npm registry, jsr:, crate: and pypi: (other registries), workspace packages (the workspace: range protocol, docs/workspaces.md), local directories (./dir is saved as link:, file:./dir is copied), local tarballs ending in .tar, .tar.gz or .tgz, remote tarballs starting with http:// or https://, and git repositories as user/repo (github: by default), github:, bitbucket:, gitlab:, gist: or a full URL such as git+ssh://… or https://github.com/….git."),
-		registryOverrides: checked$2.uncertain({
+		registryOverrides: checked$3.uncertain({
 			registryOptions: ["--registry", "--@<scope>:registry"],
 			registryVariables: ["pnpm_config_registry"],
 			configOptions: [],
 			configVariables: []
 		}, "https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/npmrc.md", "--registry and --@scope:registry on the command line win over the other registry settings. The page shows pnpm_config_<key> environment variables for keys of .npmrc (pnpm_config__auth, pnpm_config_//registry.npmjs.org/:_authToken) overriding the project .npmrc; that pnpm_config_registry works the same is inferred."),
-		minimumReleaseAgeStrict: checked$2.verified({
+		minimumReleaseAgeStrict: checked$3.verified({
 			setting: "minimumReleaseAgeStrict",
 			value: true,
 			since: "11.0.0"
 		}, RESOLUTION$1, "When false, pnpm falls back to a version that does not meet minimumReleaseAge; when true, resolution fails. It defaults to true when minimumReleaseAge is set explicitly, except in 11.0.0-11.0.3 and 12.0.0-12.2.x (see strictMode): pnpm 11.0.0 and 12.0.0 installed a version 4 hours old with minimumReleaseAge: 4320 on 2026-10-29, and 12.0.0 added it to minimumReleaseAgeExclude."),
-		cooldownExactVersions: checked$2.verified("10.17.0", release$2("10.17.0"), "pnpm 10.17.0: \"Don't ignore the minimumReleaseAge check, when the package is requested by exact version\". pnpm 10.16.0 installed typescript@7.1.0-dev.20261029.1, 4 hours old, with minimumReleaseAge: 4320 on 2026-10-29."),
-		lockfileDocuments: checked$2.verified({
+		cooldownExactVersions: checked$3.verified("10.17.0", release$2("10.17.0"), "pnpm 10.17.0: \"Don't ignore the minimumReleaseAge check, when the package is requested by exact version\". pnpm 10.16.0 installed typescript@7.1.0-dev.20261029.1, 4 hours old, with minimumReleaseAge: 4320 on 2026-10-29."),
+		lockfileDocuments: checked$3.verified({
 			bootMarker: "---",
 			graph: "last"
 		}, "https://github.com/pnpm/pnpm.io/blob/main/docs/lockfile.md", "A lockfile whose first line is --- has two YAML documents: a boot document with configDependencies and packageManagerDependencies, written when the project has config dependencies, declares devEngines.packageManager or pins pnpm 12 or newer; then the project lockfile (importers, packages, snapshots), which is always the last document. Seen with pnpm 12.16.1 and packageManager pnpm@12.16.1 on 2026-10-29."),
-		lockfileFormat: checked$2.verified({
+		lockfileFormat: checked$3.verified({
 			installScripts: null,
 			gitKeyPrefix: "git+",
 			gitHostedFlag: "gitHosted",
@@ -1688,16 +1688,16 @@ const pnpm$1 = {
 			gitType: "git",
 			directoryType: "directory"
 		}, "https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/types/src/index.ts", "lockfileVersion 9.0 (pnpm 9 to 12). Registry packages are keyed name@version; git dependencies name@git+<repo>#<commit> with resolution type git, or a tarball from a git host (gitHosted: true; older lockfiles lack the flag, so the host decides); tarball URLs name@https://…; local tarballs name@file:….tgz; local directories have resolution type directory; link: and workspace: dependencies appear only under importers. requiresBuild was removed in lockfile v9, so install scripts are not recorded. A tarball URL under the configured registry is resolved as that registry package and version (resolving/npm-resolver/src/parseBareSpecifier.ts in v10.34.9), so it is keyed name@version and keeps the URL only in the importer specifier; seen in lockfiles written by pnpm 10.34.9 and 12.16.1."),
-		npmrcPrecedence: checked$2.verified({
+		npmrcPrecedence: checked$3.verified({
 			winner: "pnpm-workspace.yaml",
 			over: [".npmrc", "npm_config_*"]
 		}, "https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts", "pnpm 10 applies pnpm-workspace.yaml settings over .npmrc and npm_config_* variables; command-line options win over both (same order on v10.16.0). The 10.18.3 changelog says pnpm config set --location=project writes to pnpm-workspace.yaml \"matching read priority\". The 10.x docs do not state the order."),
-		sharedWorkspaceLockfile: checked$2.verified({
+		sharedWorkspaceLockfile: checked$3.verified({
 			setting: "sharedWorkspaceLockfile",
 			npmrcKey: "shared-workspace-lockfile",
 			default: true
 		}, "https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/versioned_docs/version-10.x/workspaces.md", "Same name and default in pnpm 11 and 12, where it is read only from pnpm-workspace.yaml."),
-		perProjectNpmrc: checked$2.uncertain({
+		perProjectNpmrc: checked$3.uncertain({
 			sharedWorkspaceLockfile: false,
 			until: "11.0.0"
 		}, "https://github.com/pnpm/pnpm/blob/v10.34.9/pkg-manager/plugin-commands-installation/src/recursive.ts", "Without a shared lockfile, pnpm 10 installs every workspace project with its own .npmrc layered over the workspace settings, without filtering keys, so a package .npmrc can change minimum-release-age for that project. Read from code; no documentation or test covers it. No official source says this combination turns minimumReleaseAge off."),
@@ -2355,7 +2355,7 @@ const uv$1 = {
 
 // src/knowledge/yarn.ts
 const { verified: verified$1, uncertain, disputed, evidence } = verifiedOn("2026-10-28");
-const checked$1 = verifiedOn("2026-10-29");
+const checked$2 = verifiedOn("2026-10-29");
 const YARNRC = "https://yarnpkg.com/configuration/yarnrc";
 const MANIFEST = "https://yarnpkg.com/configuration/manifest";
 const SCHEMA = "https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json";
@@ -2370,7 +2370,7 @@ const yarn$1 = {
 		configFiles: verified$1([".yarnrc.yml"], YARNRC, "Also YARN_NPM_MINIMAL_AGE_GATE (general YARN_ env rule) and, since 4.17.0, npmScopes.<scope>.npmMinimalAgeGate. package.json cannot set it."),
 		cliFlag: uncertain(null, "https://yarnpkg.com/cli/install", "No flag sets the gate. --no-time-gate on yarn add and yarn up (4.15.0+) disables it for one command; yarn install has no such flag."),
 		unit: verified$1("minutes", "https://github.com/yarnpkg/berry/pull/6942", "Bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect."),
-		availableSince: checked$1.verified("4.10.2", release("4.10.2"), "The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: \"Bust the metadata cache\" (#6908) and \"support registries without publish times using minimalAgeGate\" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old (\"No candidates found\"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depcurfew writes the setting from 4.10.2 on."),
+		availableSince: checked$2.verified("4.10.2", release("4.10.2"), "The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: \"Bust the metadata cache\" (#6908) and \"support registries without publish times using minimalAgeGate\" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old (\"No candidates found\"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depcurfew writes the setting from 4.10.2 on."),
 		default: disputed("The code is unambiguous: off until 4.14.x, 1d from 4.15.0. The published settings schema claimed 3d for 4.11.0-4.14.x and 0m in 4.16.0; the live yarnrc page shows \"1w\", which is an example value. Upgraded projects with an old lockfile get npmMinimalAgeGate: 0 written to .yarnrc.yml (see upgradeMigration).", evidence([{
 			since: "4.10.0",
 			value: 0
@@ -2441,7 +2441,7 @@ const yarn$1 = {
 		workspacesObjectKey: uncertain("packages", "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Manifest.ts", "Not documented; the manifest parser also accepts { \"packages\": [...] }.")
 	},
 	extra: {
-		commandLine: checked$1.verified({
+		commandLine: checked$2.verified({
 			add: [["yarn", "add"]],
 			run: [{
 				command: ["yarn", "dlx"],
@@ -2458,7 +2458,7 @@ const yarn$1 = {
 			}],
 			valueOptions: ["--mode"]
 		}, "https://github.com/yarnpkg/berry/tree/master/packages/plugin-dlx/sources/commands", "dlx.ts (documented at https://yarnpkg.com/cli/dlx) downloads the package named by the command, or the ones given with -p/--package, into a temporary environment and runs it. create.ts (yarn create, not on yarnpkg.com) takes -p/--package as well and runs create-<name>: @foo becomes @foo/create, @foo/app becomes @foo/create-app, foo becomes create-foo, and a name that already matches ^create(-|$) is kept (so is create alone). yarn add (https://yarnpkg.com/cli/add) takes packages as arguments; of its options only --mode takes a value. yarn workspace <workspaceName> <commandName> … runs a command within that workspace, e.g. yarn workspace components add -D react (https://yarnpkg.com/cli/workspace)."),
-		packageSpecs: checked$1.verified({
+		packageSpecs: checked$2.verified({
 			git: [],
 			local: [
 				"link:",
@@ -2467,13 +2467,13 @@ const yarn$1 = {
 			],
 			workspace: ["workspace:"]
 		}, "https://yarnpkg.com/protocols", "Protocols besides npm: and git: exec:, file:, jsr:, link:, patch:, portal: and workspace:. link: connects an external directory (https://yarnpkg.com/protocol/link), portal: a relative path to a package folder (https://yarnpkg.com/protocol/portal) and file: copies a folder or tarball."),
-		registryOverrides: checked$1.verified({
+		registryOverrides: checked$2.verified({
 			registryOptions: [],
 			registryVariables: ["YARN_NPM_REGISTRY_SERVER"],
 			configOptions: [],
 			configVariables: ["YARN_RC_FILENAME"]
 		}, "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts", "Environment variables that start with yarn_ (any case) set the setting named by the camel-cased rest, so YARN_NPM_REGISTRY_SERVER sets npmRegistryServer, the registry packages are fetched from (https://yarnpkg.com/configuration/yarnrc#npmRegistryServer). getRcFilename reads yarn_rc_filename (any case) as the name of the configuration file instead of .yarnrc.yml. npmScopes, an object, cannot be set this way."),
-		lockfileFormat: checked$1.verified({
+		lockfileFormat: checked$2.verified({
 			installScripts: null,
 			registry: "npm:",
 			workspace: "workspace:",
@@ -2510,7 +2510,7 @@ const yarn$1 = {
 
 // src/knowledge/environment.ts
 const { verified } = verifiedOn("2026-10-28");
-const checked = verifiedOn("2026-10-29");
+const checked$1 = verifiedOn("2026-10-29");
 const python = verifiedOn("2026-10-30");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
@@ -2699,7 +2699,7 @@ const environment = {
 				tool: "poetry"
 			}]
 		}, "https://github.com/abatilo/actions-poetry/blob/v4.0.0/action.yml", "A third-party action (current v4.0.0); poetry-version defaults to latest."),
-		codeScanningUpload: checked.verified({
+		codeScanningUpload: checked$1.verified({
 			action: "github/codeql-action/upload-sarif",
 			inputs: {
 				sarifFile: "sarif_file",
@@ -2713,11 +2713,11 @@ const environment = {
 				}
 			}
 		}, "https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file", "The example workflow on this page needs security-events: write in every repository and actions: read with contents: read only in private ones. The inputs come from upload-sarif/action.yml in github/codeql-action (current major v4, v4.39.1 checked); category tells analyses of the same tool and commit apart."),
-		stopCommands: checked.verified({
+		stopCommands: checked$1.verified({
 			stop: "::stop-commands::{token}",
 			resume: "::{token}::"
 		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#stopping-and-starting-workflow-commands", "Lines between the two are logged without being processed as workflow commands. The token must be randomly generated and unique for each run. Read from the page source in github/docs."),
-		annotations: checked.verified({
+		annotations: checked$1.verified({
 			commands: {
 				error: "error",
 				warning: "warning",
@@ -2735,17 +2735,17 @@ const environment = {
 			],
 			escapeProperty: [[":", "%3A"], [",", "%2C"]]
 		}, "https://github.com/actions/toolkit/blob/main/packages/core/src/command.ts", "escapeData and escapeProperty in @actions/core: the message and property values replace %, CR and LF; property values also replace : and , because properties are separated by commas. The commands and their file, line and title parameters are on https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands (line counts from 1)."),
-		annotationLimits: checked.verified({
+		annotationLimits: checked$1.verified({
 			perLevelPerStep: 10,
 			perJob: 50
 		}, "https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations", "10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown."),
-		stepSummary: checked.verified({
+		stepSummary: checked$1.verified({
 			variable: "GITHUB_STEP_SUMMARY",
 			maxBytes: 1048576
 		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary", "GitHub flavored Markdown appended to the file named by the variable; at most 1 MiB per step (over that the upload fails with an error annotation), and at most 20 step summaries are shown per job.")
 	},
 	npmRegistry: {
-		api: checked.verified({
+		api: checked$1.verified({
 			url: "https://registry.npmjs.org/",
 			packagePath: "/{escaped name}",
 			timeField: "time",
@@ -2760,8 +2760,8 @@ const environment = {
 				"postinstall"
 			]
 		}, "https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md", "GET /{package} returns the full document by default: dist-tags maps tags to versions (every package has latest), versions maps versions to version objects, time maps every version to its publish time, and a version object carries scripts (from its package.json) and deprecated. The abbreviated document (Accept: application/vnd.npm.install-v1+json) has no time field and adds hasInstallScript. Scoped names are escaped with %2f (escapedName in github.com/npm/npm-package-arg); the registry answered the same document for @types/node and @types%2fnode on 2026-10-29. Install scripts: preinstall, install and postinstall run for a dependency, and npm runs node-gyp rebuild as install when the package has binding.gyp and no install or preinstall script (github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/scripts.md); binding.gyp is not visible in the document."),
-		notFoundStatus: checked.uncertain(404, "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md", "The API description leaves its Errors section empty; a name that does not exist answered 404 with {\"error\":\"Not found\"} on 2026-10-29."),
-		search: checked.uncertain({
+		notFoundStatus: checked$1.uncertain(404, "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md", "The API description leaves its Errors section empty; a name that does not exist answered 404 with {\"error\":\"Not found\"} on 2026-10-29."),
+		search: checked$1.uncertain({
 			path: "/-/v1/search",
 			maxSize: 250,
 			weeklyDownloadsField: "downloads.weekly"
@@ -2786,7 +2786,7 @@ const environment = {
 			warned: ["archived", "deprecated"]
 		}, `${SPECIFICATIONS}/project-status-markers.rst`, "A project has exactly one status, active when none is given. quarantined: considered generally unsafe (for example malware), and the index must not offer any of its files. archived: no new uploads, existing files stay; installers may warn. deprecated: obsolete, perhaps superseded by another project; installers may warn.")
 	},
-	claudeCode: { hooks: checked.verified({
+	claudeCode: { hooks: checked$1.verified({
 		settingsFile: ".claude/settings.json",
 		event: "PreToolUse",
 		shellTool: "Bash",
@@ -10436,7 +10436,7 @@ const SOURCE_ORDER = [
 	"tool-versions",
 	"github-actions"
 ];
-function isObject(value) {
+function isObject$1(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function stringList(value) {
@@ -10444,7 +10444,7 @@ function stringList(value) {
 }
 /** devEngines entries may be one object or a list of objects with a name and an optional version. */
 function devEngineEntries(value) {
-	return (Array.isArray(value) ? value : [value]).flatMap((entry) => isObject(entry) && typeof entry["name"] === "string" ? [{
+	return (Array.isArray(value) ? value : [value]).flatMap((entry) => isObject$1(entry) && typeof entry["name"] === "string" ? [{
 		name: entry["name"],
 		...typeof entry["version"] === "string" ? { version: entry["version"] } : {}
 	}] : []);
@@ -10492,7 +10492,7 @@ var Collector = class {
 function readPackageJson(repository) {
 	if (!repository.isFile("package.json")) return void 0;
 	const parsed = repository.parse("package.json", (text) => JSON.parse(text));
-	return isObject(parsed) ? parsed : void 0;
+	return isObject$1(parsed) ? parsed : void 0;
 }
 function readPackageManagerField(repository, facts, manifest, collector) {
 	const value = manifest[facts.packageManagerKey];
@@ -10518,7 +10518,7 @@ function readPackageManagerField(repository, facts, manifest, collector) {
 }
 function readDevEngines(facts, manifest, collector) {
 	const devEngines = manifest[facts.devEngines.key];
-	if (!isObject(devEngines)) return;
+	if (!isObject$1(devEngines)) return;
 	for (const entry of devEngineEntries(devEngines[facts.devEngines.packageManagerKey])) {
 		const manager = facts.managers.find((item) => item.id === entry.name);
 		if (manager === void 0) continue;
@@ -10537,7 +10537,7 @@ function readDevEngines(facts, manifest, collector) {
 }
 function readVolta(facts, manifest, collector) {
 	const volta = manifest[facts.volta.key];
-	if (!isObject(volta)) return;
+	if (!isObject$1(volta)) return;
 	for (const tool of facts.volta.tools) {
 		const version = volta[tool];
 		if (typeof version === "string") collector.addVersion(tool, {
@@ -10595,10 +10595,10 @@ function readWorkspaces(repository, facts, manifest) {
 			if (seen.has(id) || !repository.isFile(file)) continue;
 			seen.add(id);
 			const document = file.endsWith(".toml") ? readToml(repository, file)?.root : readDocument(repository, file, manifest);
-			if (!isObject(document)) continue;
-			const value = key.split(".").reduce((node, part) => isObject(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
-			const patterns = stringList(value) ?? (objectKey !== null && isObject(value) ? stringList(value[objectKey]) : void 0);
-			const excluded = excludeKey !== void 0 && isObject(value) ? stringList(value[excludeKey]) ?? [] : [];
+			if (!isObject$1(document)) continue;
+			const value = key.split(".").reduce((node, part) => isObject$1(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
+			const patterns = stringList(value) ?? (objectKey !== null && isObject$1(value) ? stringList(value[objectKey]) : void 0);
+			const excluded = excludeKey !== void 0 && isObject$1(value) ? stringList(value[excludeKey]) ?? [] : [];
 			const manifests = [...new Set(facts.managers.filter((other) => other.ecosystem === manager.ecosystem).flatMap((other) => other.manifests))];
 			if (patterns !== void 0) declarations.push({
 				file,
@@ -11451,6 +11451,41 @@ function readLockfiles(repository, manager, tool, workspaces) {
 	});
 }
 
+// src/apply/expected.ts
+function isObject(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+/** A copy of `data` with `value` at `path`; missing objects on the way, or values that are not objects, become objects. */
+function withValue(data, path, value) {
+	const [segment, ...rest] = path;
+	if (segment === void 0) return value;
+	if (Array.isArray(data) && typeof segment === "number") {
+		const copy = [...data];
+		copy[segment] = withValue(data[segment], rest, value);
+		return copy;
+	}
+	const copy = isObject(data) ? { ...data } : {};
+	const key = String(segment);
+	const current = Object.hasOwn(copy, key) ? copy[key] : void 0;
+	Object.defineProperty(copy, key, {
+		value: withValue(current, rest, value),
+		enumerable: true,
+		writable: true,
+		configurable: true
+	});
+	return copy;
+}
+/** A copy of `data` with the array at `path` changed by `change`. */
+function withArray(data, path, change) {
+	let current = data;
+	for (const segment of path) current = (isObject(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
+	return withValue(data, path, change(Array.isArray(current) ? [...current] : []));
+}
+/** Whether two parsed documents hold the same data, keys in the same order. */
+function sameData(a, b) {
+	return JSON.stringify(a) === JSON.stringify(b);
+}
+
 // src/apply/json-edit.ts
 var Parser = class {
 	index = 0;
@@ -11551,6 +11586,39 @@ var Parser = class {
 function parse$1(text) {
 	return new Parser(text).value();
 }
+/** A syntax error with the line and column of the position JSON.parse reports. */
+function invalidJson(text, error) {
+	const message = error instanceof Error ? error.message : String(error);
+	const reason = message.replace(/ in JSON at position \d+.*$/u, "");
+	const position = /at position (\d+)/u.exec(message);
+	if (position === null) return /* @__PURE__ */ new Error(`invalid JSON: ${reason}`);
+	const offset = Math.min(Number(position[1]), text.length);
+	const line = text.slice(0, offset).split("\n").length;
+	const column = offset - text.lastIndexOf("\n", offset - 1);
+	return /* @__PURE__ */ new Error(`invalid JSON at line ${line}, column ${column}: ${reason}`);
+}
+/** The data of JSON or JSONC text, strictly: the editor's own parser skips commas, so it does not check syntax. */
+function parseStrict(text) {
+	try {
+		return parseJsonc(text);
+	} catch (error) {
+		throw invalidJson(text, error);
+	}
+}
+/** Makes an edit only on text that parses, and returns its result only when it holds exactly the expected data. */
+function checked(text, what, edit, expected) {
+	const before = parseStrict(text);
+	const edited = edit(text);
+	if (edited === text) return text;
+	let after;
+	try {
+		after = parseStrict(edited);
+	} catch (error) {
+		throw new Error(`${what} would leave ${error instanceof Error ? error.message : String(error)}, so depcurfew did not edit the file; make the change by hand`);
+	}
+	if (!sameData(after, expected(before))) throw new Error(`${what} would change other settings in the file, so depcurfew did not edit it; make the change by hand`);
+	return edited;
+}
 function lineIndent(text, position) {
 	const lineStart = text.lastIndexOf("\n", position - 1) + 1;
 	return /^[ \t]*/u.exec(text.slice(lineStart))?.[0] ?? "";
@@ -11638,7 +11706,7 @@ function jsonOffset(text, path) {
 	}
 }
 function jsonGet(text, path) {
-	let value = parseJsonc(text);
+	let value = parseStrict(text);
 	for (const segment of path) {
 		if (typeof value !== "object" || value === null) return void 0;
 		value = value[String(segment)];
@@ -11647,6 +11715,9 @@ function jsonGet(text, path) {
 }
 /** Sets the value at `path`, creating missing objects on the way. */
 function jsonSet(text, path, value) {
+	return checked(text, `setting ${path.join(".")}`, (body) => setText(body, path, value), (data) => withValue(data, path, value));
+}
+function setText(text, path, value) {
 	const unit = indentUnit$1(text);
 	let node = rootObject(text);
 	for (const [index, segment] of path.entries()) if (node.kind === "object") {
@@ -11671,14 +11742,18 @@ function arrayAt(text, path) {
 	return node;
 }
 function jsonArrayAppend(text, path, value) {
-	const unit = indentUnit$1(text);
-	const array = arrayAt(text, path);
-	return insertItem(text, array, array.elements.at(-1)?.end, array.elements[0]?.start, (indent) => serialize(value, unit, indent));
+	return checked(text, `adding ${JSON.stringify(value)} to ${path.join(".")}`, (body) => {
+		const unit = indentUnit$1(body);
+		const array = arrayAt(body, path);
+		return insertItem(body, array, array.elements.at(-1)?.end, array.elements[0]?.start, (indent) => serialize(value, unit, indent));
+	}, (data) => withArray(data, path, (array) => [...array, value]));
 }
 function jsonArrayReplace(text, path, index, value) {
-	const element = arrayAt(text, path).elements[index];
-	if (element === void 0) throw new Error(`no element ${index} at ${path.join(".")}`);
-	return `${text.slice(0, element.start)}${serialize(value, indentUnit$1(text), lineIndent(text, element.start))}${text.slice(element.end)}`;
+	return checked(text, `replacing element ${index} of ${path.join(".")}`, (body) => {
+		const element = arrayAt(body, path).elements[index];
+		if (element === void 0) throw new Error(`no element ${index} at ${path.join(".")}`);
+		return `${body.slice(0, element.start)}${serialize(value, indentUnit$1(body), lineIndent(body, element.start))}${body.slice(element.end)}`;
+	}, (data) => withArray(data, path, (array) => array.map((item, position) => position === index ? value : item)));
 }
 /** Removes the line around `at` when only whitespace is left on it. */
 function dropBlankLine(text, at) {
@@ -11692,6 +11767,9 @@ function dropBlankLine(text, at) {
 * line when nothing else is left on it. Comments stay, also those next to the element.
 */
 function jsonArrayRemove(text, path, index) {
+	return checked(text, `removing element ${index} of ${path.join(".")}`, (body) => removeElement(body, path, index), (data) => withArray(data, path, (array) => array.filter((_item, position) => position !== index)));
+}
+function removeElement(text, path, index) {
 	const { elements, start, end } = arrayAt(text, path);
 	const element = elements[index];
 	if (element === void 0) throw new Error(`no element ${index} at ${path.join(".")}`);
@@ -11726,14 +11804,17 @@ function isBlockStart(line) {
 	const trimmed = line.trim();
 	return trimmed === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead" || LABELED_START.test(trimmed);
 }
-/** The lines without the managed block, where it was, and whether a blank line separated it from what came before. */
-function removeBlock(lines, marker = BLOCK_START) {
-	const start = lines.findIndex((line) => line.trim() === marker);
-	if (start === -1) return {
-		lines: [...lines],
-		at: void 0,
-		separated: false
-	};
+/** The original line, when `line` is one that apply commented out (superseded or turned off). */
+function commentedOut(line) {
+	const trimmed = line.trimStart();
+	for (const note of [SUPERSEDED, TURNED_OFF]) if (trimmed.startsWith(note)) return trimmed.slice(note.length);
+}
+/** Whether apply wrote anything into the text: a managed block, or a line it commented out. */
+function hasManagedLines(body) {
+	return splitLines(body).some((line) => isBlockStart(line) || commentedOut(line) !== void 0);
+}
+/** The lines without the block that starts at line `start`. */
+function removeBlockAt(lines, start) {
 	const end = lines.findIndex((line, index) => index > start && line.trim() === "# <<< depcurfew managed block");
 	const stop = end === -1 ? start : end;
 	const rest = [...lines.slice(0, start), ...lines.slice(stop + 1)];
@@ -11748,6 +11829,23 @@ function removeBlock(lines, marker = BLOCK_START) {
 		lines: rest,
 		at,
 		separated
+	};
+}
+/** The lines without the managed block, and without every copy of it when it is there more than once. */
+function removeBlock(lines, marker = BLOCK_START) {
+	const start = lines.findIndex((line) => line.trim() === marker);
+	if (start === -1) return {
+		lines: [...lines],
+		at: void 0,
+		separated: false
+	};
+	const first = removeBlockAt(lines, start);
+	let rest = first.lines;
+	for (let next = rest.findIndex((line) => line.trim() === marker); next !== -1; next = rest.findIndex((line) => line.trim() === marker)) rest = removeBlockAt(rest, next).lines;
+	return {
+		lines: rest,
+		at: Math.min(first.at ?? 0, rest.length),
+		separated: first.separated
 	};
 }
 function blockLines(entries, marker = BLOCK_START) {
@@ -12931,7 +13029,7 @@ const bun = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || hasManagedLines(context.read(file))) context.toml(file, table, entries, managed);
 	return minutes;
 };
 
@@ -12947,6 +13045,8 @@ function writeIniBlock(body, entries, managedKeys) {
 	const managed = new Set(managedKeys);
 	const removed = removeBlock(splitLines(body));
 	const lines = removed.lines.map((line) => {
+		const original = commentedOut(line);
+		if (original !== void 0) return managed.has(keyOf$1(original) ?? "") ? line : original;
 		const key = keyOf$1(line);
 		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}` : line;
 	});
@@ -12965,6 +13065,8 @@ function writeRequirementsBlock(body, entries, managedOptions) {
 	let at = 0;
 	while (at < removed.lines.length && (removed.lines[at]?.trim().startsWith("#") ?? false)) at += 1;
 	const lines = removed.lines.map((line) => {
+		const original = commentedOut(line);
+		if (original !== void 0) return managed.has(optionOf(original) ?? "") ? line : original;
 		const option = optionOf(line);
 		return option !== void 0 && managed.has(option) ? `${SUPERSEDED}${line.trim()}` : line;
 	});
@@ -13030,10 +13132,83 @@ function valueEnd(lines, index) {
 	}
 	return end;
 }
+/** The table each line is in (undefined before the first table), following values over several lines. */
+function tablesOf(lines) {
+	const tables = [];
+	let current;
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const header = HEADER.exec(line);
+		if (header !== null) current = header[1];
+		tables[index] = current;
+		if (header === null && keyOf(line) !== void 0) {
+			const end = valueEnd(lines, index);
+			for (let next = index + 1; next <= end; next++) tables[next] = current;
+			index = end;
+		}
+	}
+	return tables;
+}
+/**
+* Removes the block with this marker. A labeled block that is not there yet may have been written by an earlier
+* version without the label: an unlabeled block inside the same table is then taken for it.
+*/
+function removeOwnBlock(lines, table, label) {
+	const removed = removeBlock(lines, blockStart(label));
+	if (removed.at !== void 0 || label === void 0) return removed;
+	const tables = tablesOf(lines);
+	const legacy = lines.findIndex((line, index) => line.trim() === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead" && (tables[index] ?? "") === table);
+	return legacy === -1 ? removed : removeBlockAt(lines, legacy);
+}
+/**
+* Lines apply commented out in this table (and the dotted keys and subtables of it) come back as they were, every
+* line of the value, when the policy no longer manages their key. Lines commented out in other tables stay.
+*/
+function restoreLines(lines, table, isManaged) {
+	const topLevel = table === "";
+	const prefix = topLevel ? "" : `${table}.`;
+	let current;
+	let section = "table";
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const header = HEADER.exec(line);
+		if (header !== null) {
+			current = header[1];
+			section = "table";
+			continue;
+		}
+		const original = commentedOut(line);
+		if (original === void 0) {
+			if (keyOf(line) !== void 0) index = valueEnd(lines, index);
+			continue;
+		}
+		const noted = HEADER.exec(original);
+		if (noted !== null) {
+			const name = noted[1] ?? "";
+			section = name.startsWith(prefix) && !isManaged(name.slice(prefix.length)) ? "restored" : "kept";
+			if (section === "restored") lines[index] = original;
+			continue;
+		}
+		const key = keyOf(original);
+		if (key === void 0 || section === "kept") continue;
+		const dotted = !topLevel && current === void 0 && key.startsWith(prefix);
+		if (section === "table" && !((topLevel ? current === void 0 : current === table) && !isManaged(key) || dotted && !isManaged(key.slice(prefix.length)))) continue;
+		lines[index] = original;
+		let state = scanLine(original.slice(original.indexOf("=") + 1), {
+			depth: 0,
+			string: ""
+		});
+		while ((state.depth > 0 || state.string !== "") && lines[index + 1]?.startsWith("# ") === true) {
+			index += 1;
+			lines[index] = (lines[index] ?? "").slice(2);
+			state = scanLine(lines[index] ?? "", state);
+		}
+	}
+}
 function writeTomlBlock(body, table, entries, managedKeys, label) {
 	const managed = new Set(managedKeys);
 	const marker = blockStart(label);
-	const removed = removeBlock(splitLines(body), marker);
+	const removed = removeOwnBlock(splitLines(body), table, label);
 	const lines = [...removed.lines];
 	const topLevel = table === "";
 	if (topLevel && removed.at === 0 && lines[0]?.trim() === "") lines.shift();
@@ -13042,6 +13217,7 @@ function writeTomlBlock(body, table, entries, managedKeys, label) {
 	let current;
 	let definedAtTop = false;
 	const isManaged = (key) => managed.has(key) || [...managed].some((name) => key.startsWith(`${name}.`));
+	restoreLines(lines, table, isManaged);
 	const prefix = topLevel ? "" : `${table}.`;
 	const note = entries.length === 0 ? TURNED_OFF : SUPERSEDED;
 	let inManagedTable = false;
@@ -13124,6 +13300,48 @@ function equal(a, b) {
 function lineStart(text, position) {
 	return text.lastIndexOf("\n", position - 1) + 1;
 }
+/** The line break that ends the line of `position`, or the end of the text. */
+function lineEnd(text, position) {
+	const newline = text.indexOf("\n", position);
+	return newline === -1 ? text.length : newline;
+}
+/**
+* Where the content of a node ends: the end of its last scalar, alias or flow collection. The yaml library counts
+* the comments after a block collection, and the indentation of the next line, as part of it; an edit that ended
+* there would take that indentation away from the next line.
+*/
+function contentEnd(node) {
+	if (((0, import_dist.isMap)(node) || (0, import_dist.isSeq)(node)) && !isFlow(node)) {
+		const last = node.items.at(-1);
+		const child = last === void 0 ? void 0 : (0, import_dist.isMap)(node) ? last.value ?? last.key : last;
+		if (child?.range !== void 0 && child.range !== null) return contentEnd(child);
+	}
+	return node.range[1];
+}
+/** The line break after the content of a node (after a comment on its last line), or the end of the text. */
+function contentLineEnd(text, node) {
+	const end = contentEnd(node);
+	return end > 0 && text[end - 1] === "\n" ? end - 1 : lineEnd(text, end);
+}
+/**
+* After the line break at `end`, the comment lines indented deeper than `indent` (and blank lines between them)
+* still belong to the last value, such as a commented-out list item; returns the line break after the last of them.
+*/
+function nestedCommentsEnd(text, end, indent) {
+	let result = end;
+	let position = end;
+	while (position < text.length) {
+		const stop = lineEnd(text, position + 1);
+		const line = text.slice(position + 1, stop);
+		const trimmed = line.trimStart();
+		if (trimmed !== "") {
+			if (!trimmed.startsWith("#") || line.length - trimmed.length <= indent) break;
+			result = stop;
+		}
+		position = stop;
+	}
+	return result;
+}
 /** Whether block sequences in the document are indented under their key (the yaml default) or not. */
 function indentsSequences(text) {
 	const match = /^([ \t]*)[^\s#-][^\n]*:[ \t]*(?:#[^\n]*)?\n([ \t]*)- /mu.exec(text);
@@ -13158,6 +13376,34 @@ function mark(text, keyStart) {
 	if (!/^[ \t]*$/u.test(indent) || marked(text, keyStart)) return text;
 	return `${text.slice(0, start)}${indent}${YAML_MARKER}\n${text.slice(start)}`;
 }
+/**
+* Replaces the value of the key at `keyRange` with a block value or an inline one ([], {} or a scalar). The old value
+* ends with its last line of content: comments after it and the next line stay as they are, and so do a comment on
+* the key's line and comments before the first item of a block collection.
+*/
+function replaceValue(text, keyRange, valueNode, value, keyIndent) {
+	const colon = text.indexOf(":", keyRange[1]);
+	const keyLineEnd = lineEnd(text, colon);
+	const block = value !== null && typeof value === "object" && Object.keys(value).length > 0;
+	const blockIndent = " ".repeat(Array.isArray(value) && !indentsSequences(text) ? keyIndent : keyIndent + indentUnit(text));
+	const rendered = block ? indentLines(render(value, text), blockIndent).replace(/\n$/u, "") : render(value, text).trimEnd();
+	const valueStart = valueNode === null ? colon + 1 : valueNode.range[0];
+	if (valueNode === null || valueStart <= keyLineEnd) {
+		let end = valueNode === null ? colon + 1 : contentEnd(valueNode);
+		if (end > 0 && text[end - 1] === "\n") end -= 1;
+		const rest = text.slice(end);
+		if (!block) {
+			const space = /\s$/u.test(text.slice(0, valueStart)) ? "" : " ";
+			return `${text.slice(0, valueStart)}${space}${rendered}${rest.startsWith("#") ? " " : ""}${rest}`;
+		}
+		const restOfLine = text.slice(end, lineEnd(text, end));
+		return `${text.slice(0, valueStart).trimEnd()}${restOfLine.startsWith("#") ? " " : ""}${restOfLine}\n${rendered}${text.slice(lineEnd(text, end))}`;
+	}
+	const start = lineStart(text, valueStart) - 1;
+	const end = contentLineEnd(text, valueNode);
+	if (block) return `${text.slice(0, start)}\n${rendered}${text.slice(end)}`;
+	return `${text.slice(0, colon + 1)} ${rendered}${text.slice(colon + 1, start)}${text.slice(end)}`;
+}
 function yamlGet(text, path) {
 	let current = parse(text).document.toJS();
 	for (const segment of path) {
@@ -13182,8 +13428,45 @@ function refuseFlow(path, index, value) {
 	const where = index === 0 ? "the document" : path.slice(0, index).join(".");
 	throw new Error(`${where} is written in flow style ({ ... } or [ ... ]), which depcurfew does not edit; rewrite it in block style, or set ${path.join(".")} to ${JSON.stringify(value)} by hand`);
 }
-/** Sets the value at `path`, creating missing maps on the way, and marks the key that was written. */
+/** The 1-based line of the deepest key of `path` that exists in the document, if any. */
+function pathLine(text, path) {
+	const { document, lineCounter } = parse(text);
+	let node = document.contents;
+	let line;
+	for (const segment of path) {
+		if (node === null) break;
+		if (typeof segment === "number") {
+			node = (0, import_dist.isSeq)(node) ? node.items[segment] ?? null : null;
+			continue;
+		}
+		const pair = findPair(node, segment);
+		if (pair === void 0) break;
+		if (pair.key.range !== null && pair.key.range !== void 0) line = lineCounter.linePos(pair.key.range[0]).line;
+		node = pair.value;
+	}
+	return line;
+}
+/**
+* Sets the value at `path`, creating missing maps on the way, and marks the key that was written. The result must
+* parse and hold the same data as before apart from that value; otherwise nothing is changed and an error says so.
+*/
 function yamlSet(text, path, value) {
+	const before = parse(text).document.toJS();
+	const edited = setValue(text, path, value);
+	if (edited === text) return text;
+	const line = pathLine(text, path);
+	const setting = `${path.join(".")}${line === void 0 ? "" : ` (line ${line})`}`;
+	const byHand = `set ${path.join(".")} to ${JSON.stringify(value)} by hand`;
+	let after;
+	try {
+		after = parse(edited).document.toJS();
+	} catch (error) {
+		throw new Error(`setting ${setting} would leave invalid YAML (${error instanceof Error ? error.message : String(error)}), so depcurfew did not edit it; ${byHand}`);
+	}
+	if (!sameData(after, withValue(before, path, value))) throw new Error(`setting ${setting} would change other settings in the file, so depcurfew did not edit it; ${byHand}`);
+	return edited;
+}
+function setValue(text, path, value) {
 	const { document, lineCounter } = parse(text);
 	const column = (offset) => lineCounter.linePos(offset).col - 1;
 	if (document.contents === null || (0, import_dist.isScalar)(document.contents) && document.contents.value === null) return `${text.trim() === "" ? "" : text.endsWith("\n") ? text : `${text}\n`}${YAML_MARKER}\n${render(nest(path, value), text)}`;
@@ -13201,15 +13484,10 @@ function yamlSet(text, path, value) {
 		if (pair === void 0) {
 			if (isFlow(node)) refuseFlow(path, index, value);
 			const first = node.items[0];
-			const indent = first === void 0 || first.key.range === null || first.key.range === void 0 ? "" : " ".repeat(column(first.key.range[0]));
-			let insertAt = (node.range ?? [
-				text.length,
-				text.length,
-				text.length
-			])[2];
-			const prefix = insertAt > 0 && text[insertAt - 1] !== "\n" ? "\n" : "";
-			const addition = indentLines(`${insideMarked ? "" : `${YAML_MARKER}\n`}${render({ [segment]: nest(path.slice(index + 1), value) }, text)}`, indent);
-			return `${text.slice(0, insertAt)}${prefix}${addition}${text.slice(insertAt)}`;
+			const keyColumn = first === void 0 || first.key.range === null || first.key.range === void 0 ? 0 : column(first.key.range[0]);
+			const at = nestedCommentsEnd(text, contentLineEnd(text, node), keyColumn);
+			const addition = indentLines(`${insideMarked ? "" : `${YAML_MARKER}\n`}${render({ [segment]: nest(path.slice(index + 1), value) }, text)}`, " ".repeat(keyColumn));
+			return at >= text.length ? `${text}\n${addition}` : `${text.slice(0, at + 1)}${addition}${text.slice(at + 1)}`;
 		}
 		if (index === path.length - 1) {
 			if (equal(pair.value === null ? null : pair.value.toJSON(), value)) return text;
@@ -13218,24 +13496,18 @@ function yamlSet(text, path, value) {
 			let replaced;
 			if (valueNode !== null && (0, import_dist.isScalar)(valueNode) && (value === null || typeof value !== "object")) {
 				const [start, end] = valueNode.range;
-				replaced = `${text.slice(0, start)}${render(value, text).trimEnd()}${text.slice(end)}`;
+				const before = start > 0 && !/\s/u.test(text[start - 1]) ? " " : "";
+				const after = text[end] === "#" ? " " : "";
+				replaced = `${text.slice(0, start)}${before}${render(value, text).trimEnd()}${after}${text.slice(end)}`;
 			} else {
 				if (isFlow(node)) refuseFlow(path, index, value);
-				const colon = text.indexOf(":", keyRange[1]);
-				const end = valueNode === null ? text.indexOf("\n", colon) : valueNode.range[2];
-				const stop = end === -1 ? text.length : end;
-				const keyIndent = column(keyRange[0]);
-				const seq = Array.isArray(value);
-				const blockIndent = " ".repeat(seq && !indentsSequences(text) ? keyIndent : keyIndent + indentUnit(text));
-				const body = value !== null && typeof value === "object" && Object.keys(value).length > 0 ? `\n${indentLines(render(value, text), blockIndent)}` : ` ${render(value, text).trimEnd()}\n`;
-				const tail = text.slice(stop);
-				replaced = `${text.slice(0, colon + 1)}${body}${tail.startsWith("\n") && body.endsWith("\n") ? tail.slice(1) : tail}`;
+				replaced = replaceValue(text, keyRange, valueNode, value, column(keyRange[0]));
 			}
 			return insideMarked ? replaced : mark(replaced, keyRange[0]);
 		}
 		if (pair.value === null || !((0, import_dist.isMap)(pair.value) || (0, import_dist.isSeq)(pair.value))) {
 			if (isFlow(node)) refuseFlow(path, index, value);
-			return yamlSet(text, path.slice(0, index + 1), nest(path.slice(index + 1), value));
+			return setValue(text, path.slice(0, index + 1), nest(path.slice(index + 1), value));
 		}
 		if (pair.key.range !== null && pair.key.range !== void 0 && marked(text, pair.key.range[0])) insideMarked = true;
 		node = pair.value;
@@ -13546,7 +13818,7 @@ const npm = (context) => {
 		entries.push(`${setting}=${access === "deny" ? "none" : "all"}`);
 		managed.push(setting);
 	});
-	if (entries.length > 0 || context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead") || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
+	if (entries.length > 0 || hasManagedLines(context.read(file)) || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
 	return minutes;
 };
 
@@ -13635,7 +13907,7 @@ const pip = (context) => {
 		});
 		return;
 	}
-	if (entries.length > 0 || context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.requirements(file, entries, managed);
+	if (entries.length > 0 || hasManagedLines(context.read(file))) context.requirements(file, entries, managed);
 };
 
 // src/apply/generators/pnpm.ts
@@ -13770,7 +14042,7 @@ const pdm = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.exists(file) && context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) context.toml(file, table, entries, managed, table);
 	return minutes;
 };
 
@@ -13802,13 +14074,13 @@ const pipenv = (context) => {
 		fix: "Set PIP_ONLY_BINARY=:all: where Pipenv installs packages (CI, Dockerfile); Pipenv passes it on to pip"
 	});
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.exists(file) && context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) context.toml(file, table, entries, managed);
 	return minutes;
 };
 
 // src/apply/generators/poetry.ts
 function writeTable(context, file, table, entries, managed) {
-	if (entries.length > 0 || context.exists(file) && context.read(file).includes(blockStart(table))) context.toml(file, table, entries, managed, table);
+	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) context.toml(file, table, entries, managed, table);
 }
 const poetry = (context) => {
 	const { tool, policy } = context;
@@ -14006,9 +14278,10 @@ const uv = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.exists(file) && context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) {
-		relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed));
-		context.toml(file, table, entries, managed);
+	const label = table === "" ? void 0 : table;
+	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) {
+		relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, label));
+		context.toml(file, table, entries, managed, label);
 	}
 	return minutes;
 };
@@ -14093,6 +14366,68 @@ function warningText(warning) {
 	return warning.fix === void 0 ? warning.message : `${warning.message}. ${warning.fix}`;
 }
 
+// src/apply/diff.ts
+/** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
+const NO_EOL = "\0";
+function lines(text) {
+	if (text === "") return [];
+	const result = text.split("\n");
+	if (result.at(-1) === "") result.pop();
+	else result[result.length - 1] += NO_EOL;
+	return result;
+}
+/** The shortest edit script from `a` to `b`. */
+function myers(a, b) {
+	const max = a.length + b.length;
+	const offset = max + 1;
+	const frontier = new Array(2 * max + 3).fill(0);
+	const trace = [];
+	outer: for (let d = 0; d <= max; d++) {
+		trace.push([...frontier]);
+		for (let k = -d; k <= d; k += 2) {
+			let x = k === -d || k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0) ? frontier[offset + k + 1] ?? 0 : (frontier[offset + k - 1] ?? 0) + 1;
+			let y = x - k;
+			while (x < a.length && y < b.length && a[x] === b[y]) {
+				x += 1;
+				y += 1;
+			}
+			frontier[offset + k] = x;
+			if (x >= a.length && y >= b.length) break outer;
+		}
+	}
+	const operations = [];
+	let x = a.length;
+	let y = b.length;
+	for (let d = trace.length - 1; d >= 0; d--) {
+		const v = trace[d];
+		const k = x - y;
+		const previousK = k === -d || k !== d && (v[offset + k - 1] ?? 0) < (v[offset + k + 1] ?? 0) ? k + 1 : k - 1;
+		const previousX = v[offset + previousK] ?? 0;
+		const previousY = previousX - previousK;
+		while (x > previousX && y > previousY) {
+			operations.push({
+				kind: "same",
+				line: a[x - 1]
+			});
+			x -= 1;
+			y -= 1;
+		}
+		if (d > 0) {
+			if (x === previousX) operations.push({
+				kind: "insert",
+				line: b[y - 1]
+			});
+			else operations.push({
+				kind: "delete",
+				line: a[x - 1]
+			});
+		}
+		x = previousX;
+		y = previousY;
+	}
+	return operations.reverse();
+}
+
 // src/apply/text.ts
 function detectStyle(text) {
 	const body = text.startsWith("﻿") ? text.slice(1) : text;
@@ -14105,13 +14440,83 @@ function detectStyle(text) {
 function toLf(text) {
 	return (text.startsWith("﻿") ? text.slice(1) : text).replaceAll("\r\n", "\n");
 }
-function restoreStyle(body, style) {
+/**
+* The edited text in the style of the original. A file with both CRLF and LF line endings keeps the ending of every
+* line apply did not change (`original` is needed for that); a changed line takes the ending of the line it
+* replaces, a new line the ending of the line before it.
+*/
+function restoreStyle(body, style, original) {
+	if (original !== void 0 && isMixed(original)) return withMixedEndings(body, style, original);
 	let text = style.finalNewline || !body.endsWith("\n") ? body : body.slice(0, -1);
 	if (style.eol === "\r\n") text = text.replaceAll("\n", "\r\n");
 	return style.bom ? `﻿${text}` : text;
 }
+/** Whether a text has CRLF and LF line endings both. */
+function isMixed(text) {
+	return text.includes("\r\n") && /(?:^|[^\r])\n/u.test(text);
+}
+function withMixedEndings(body, style, original) {
+	const old = (style.bom ? original.slice(1) : original).split(/(?<=\n)/u);
+	const ending = (line) => line?.endsWith("\r\n") === true ? "\r\n" : line?.endsWith("\n") === true ? "\n" : "";
+	const lines = body.split("\n");
+	if (lines.at(-1) === "") lines.pop();
+	const output = [];
+	let added = [];
+	let removed = [];
+	const add = (line, own) => {
+		const previous = output.at(-1);
+		output.push(`${line}${own === void 0 || own === "" ? previous === void 0 ? style.eol : ending(previous) : own}`);
+	};
+	const flush = () => {
+		added.forEach((line, index) => add(line, removed[index]));
+		added = [];
+		removed = [];
+	};
+	let next = 0;
+	for (const operation of myers(old.map((line) => line.slice(0, line.length - ending(line).length)), lines)) {
+		if (operation.kind === "insert") {
+			added.push(operation.line);
+			continue;
+		}
+		const own = ending(old[next]);
+		next += 1;
+		if (operation.kind === "delete") {
+			removed.push(own);
+			continue;
+		}
+		flush();
+		add(operation.line, own);
+	}
+	flush();
+	let text = output.join("");
+	if (!style.finalNewline) text = text.replace(/\r?\n$/u, "");
+	return style.bom ? `﻿${text}` : text;
+}
 
 // src/apply/workspace.ts
+/** Why a file system call failed, in plain words; the error code when there are none. */
+function fileSystemReason(error) {
+	const code = error.code;
+	const reasons = {
+		EACCES: "permission denied",
+		EPERM: "operation not permitted",
+		EROFS: "the file system is read-only",
+		ENOSPC: "no space left on the device",
+		EDQUOT: "the disk quota is exceeded",
+		EISDIR: "it is a directory",
+		ENOTDIR: "a part of its path is not a directory",
+		EEXIST: "a file of the same name is in the way",
+		EBUSY: "the file is busy",
+		ENAMETOOLONG: "its name is too long"
+	};
+	if (code !== void 0 && reasons[code] !== void 0) return reasons[code];
+	return code ?? (error instanceof Error ? error.message : String(error));
+}
+/** Decodes UTF-8 strictly: a byte sequence that is not UTF-8 would otherwise become U+FFFD and be written back so. */
+const UTF8 = new TextDecoder("utf-8", {
+	fatal: true,
+	ignoreBOM: true
+});
 var Workspace = class {
 	root;
 	#files = /* @__PURE__ */ new Map();
@@ -14129,12 +14534,19 @@ var Workspace = class {
 			parent = this.root;
 		}
 		if (parent !== this.root && !parent.startsWith(this.root + sep)) throw new Error(`${file} is outside the repository`);
-		let original = null;
+		let bytes;
 		try {
 			if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
-			original = readFileSync(path, "utf8");
+			bytes = readFileSync(path);
 		} catch (error) {
-			if (error.code !== "ENOENT") throw error;
+			if (error.code === void 0) throw error;
+			if (error.code !== "ENOENT") throw new Error(`${file} cannot be read: ${fileSystemReason(error)}`);
+		}
+		let original = null;
+		if (bytes !== void 0) try {
+			original = UTF8.decode(bytes);
+		} catch {
+			throw new Error(`${file} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`);
 		}
 		const entry = {
 			original,
@@ -14160,7 +14572,7 @@ var Workspace = class {
 		const changes = [];
 		for (const [file, entry] of this.#files) {
 			if (entry.original === null && entry.body === "") continue;
-			const after = restoreStyle(entry.body, entry.style);
+			const after = restoreStyle(entry.body, entry.style, entry.original ?? void 0);
 			if (after !== entry.original) changes.push({
 				file,
 				before: entry.original,
@@ -14170,15 +14582,95 @@ var Workspace = class {
 		return changes.sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : 0);
 	}
 };
-/** Writes each changed file through a temporary file and a rename, keeping the permissions of existing files. */
+/**
+* A file could not be written. writeChanges has removed its temporary files and put back the files it had already
+* replaced, so nothing changed, except for the files in `unrestored`. The message says why, without the file name.
+*/
+var WriteFailed = class extends Error {
+	file;
+	/** Why, in plain words. */
+	reason;
+	/** Files already replaced that could not be put back (normally none). */
+	unrestored;
+	constructor(file, error, unrestored) {
+		const reason = fileSystemReason(error);
+		super(unrestored.length === 0 ? reason : `${reason}; ${unrestored.join(", ")} had already been replaced and could not be put back`, { cause: error });
+		this.file = file;
+		this.reason = reason;
+		this.unrestored = unrestored;
+	}
+};
+let counter = 0;
+/** Writes `text` to a new temporary file next to `path`, created with `mode`; the file is removed if writing fails. */
+function stage(path, text, mode) {
+	counter += 1;
+	const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}-${counter}`;
+	try {
+		writeFileSync(temporary, text, {
+			flag: "wx",
+			mode
+		});
+		chmodSync(temporary, mode);
+	} catch (error) {
+		if (error.code !== "EEXIST") rmSync(temporary, { force: true });
+		throw error;
+	}
+	return temporary;
+}
+/** Removes the directories mkdirSync created (`created`, the topmost of each) for `paths`, deepest first, if empty. */
+function removeDirectories(created, paths) {
+	const directories = /* @__PURE__ */ new Set();
+	for (const top of created) for (const path of paths) for (let directory = dirname(path); directory === top || directory.startsWith(top + sep); directory = dirname(directory)) directories.add(directory);
+	for (const directory of [...directories].sort((a, b) => b.length - a.length)) try {
+		rmdirSync(directory);
+	} catch {}
+}
+/**
+* Writes each changed file through a temporary file and a rename, keeping the permissions of existing files. All
+* files or none: every temporary file is written first and only then are they renamed; if anything fails, the
+* temporary files are removed and the files already replaced get their old text back, and WriteFailed is thrown.
+*/
 function writeChanges(root, changes) {
-	for (const change of changes) {
-		const path = join(root, change.file);
-		mkdirSync(dirname(path), { recursive: true });
-		const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}`;
-		writeFileSync(temporary, change.after, { flag: "wx" });
-		if (change.before !== null) chmodSync(temporary, statSync(path).mode);
-		renameSync(temporary, path);
+	const staged = [];
+	const created = [];
+	let current = changes[0]?.file ?? "";
+	try {
+		for (const change of changes) {
+			current = change.file;
+			const path = join(root, change.file);
+			const directory = mkdirSync(dirname(path), { recursive: true });
+			if (directory !== void 0) created.push(directory);
+			const mode = change.before === null ? 438 : statSync(path).mode & 4095;
+			staged.push({
+				change,
+				path,
+				temporary: stage(path, change.after, mode),
+				mode
+			});
+		}
+	} catch (error) {
+		for (const entry of staged) rmSync(entry.temporary, { force: true });
+		removeDirectories(created, changes.map((change) => join(root, change.file)));
+		throw new WriteFailed(current, error, []);
+	}
+	const renamed = [];
+	try {
+		for (const entry of staged) {
+			current = entry.change.file;
+			renameSync(entry.temporary, entry.path);
+			renamed.push(entry);
+		}
+	} catch (error) {
+		for (const entry of staged.slice(renamed.length)) rmSync(entry.temporary, { force: true });
+		const unrestored = [];
+		for (const entry of renamed.reverse()) try {
+			if (entry.change.before === null) rmSync(entry.path, { force: true });
+			else renameSync(stage(entry.path, entry.change.before, entry.mode), entry.path);
+		} catch {
+			unrestored.push(entry.change.file);
+		}
+		removeDirectories(created, changes.map((change) => join(root, change.file)));
+		throw new WriteFailed(current, error, unrestored.reverse());
 	}
 }
 
@@ -14864,68 +15356,6 @@ const broadExclusion = {
 		}
 	}
 };
-
-// src/apply/diff.ts
-/** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
-const NO_EOL = "\0";
-function lines(text) {
-	if (text === "") return [];
-	const result = text.split("\n");
-	if (result.at(-1) === "") result.pop();
-	else result[result.length - 1] += NO_EOL;
-	return result;
-}
-/** The shortest edit script from `a` to `b`. */
-function myers(a, b) {
-	const max = a.length + b.length;
-	const offset = max + 1;
-	const frontier = new Array(2 * max + 3).fill(0);
-	const trace = [];
-	outer: for (let d = 0; d <= max; d++) {
-		trace.push([...frontier]);
-		for (let k = -d; k <= d; k += 2) {
-			let x = k === -d || k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0) ? frontier[offset + k + 1] ?? 0 : (frontier[offset + k - 1] ?? 0) + 1;
-			let y = x - k;
-			while (x < a.length && y < b.length && a[x] === b[y]) {
-				x += 1;
-				y += 1;
-			}
-			frontier[offset + k] = x;
-			if (x >= a.length && y >= b.length) break outer;
-		}
-	}
-	const operations = [];
-	let x = a.length;
-	let y = b.length;
-	for (let d = trace.length - 1; d >= 0; d--) {
-		const v = trace[d];
-		const k = x - y;
-		const previousK = k === -d || k !== d && (v[offset + k - 1] ?? 0) < (v[offset + k + 1] ?? 0) ? k + 1 : k - 1;
-		const previousX = v[offset + previousK] ?? 0;
-		const previousY = previousX - previousK;
-		while (x > previousX && y > previousY) {
-			operations.push({
-				kind: "same",
-				line: a[x - 1]
-			});
-			x -= 1;
-			y -= 1;
-		}
-		if (d > 0) {
-			if (x === previousX) operations.push({
-				kind: "insert",
-				line: b[y - 1]
-			});
-			else operations.push({
-				kind: "delete",
-				line: a[x - 1]
-			});
-		}
-		x = previousX;
-		y = previousY;
-	}
-	return operations.reverse();
-}
 
 // src/doctor/plan.ts
 const plans = /* @__PURE__ */ new WeakMap();

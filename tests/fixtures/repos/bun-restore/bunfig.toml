@@ -1,0 +1,3 @@
+[install]
+exact = true
+# depcurfew: turned off; depcurfew.json manages this setting: minimumReleaseAge = 100

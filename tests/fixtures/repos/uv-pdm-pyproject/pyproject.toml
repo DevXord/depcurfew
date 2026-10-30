@@ -1,0 +1,14 @@
+[project]
+name = "demo"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["idna"]
+
+[tool.uv]
+dev-dependencies = []
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.resolution]
+prefer-binary = "idna"

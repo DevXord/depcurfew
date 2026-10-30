@@ -1,5 +1,5 @@
 // npm: .npmrc keys in a managed block; the allowScripts allow-list in the root package.json.
-import { BLOCK_START } from '../block.ts';
+import { hasManagedLines } from '../block.ts';
 import { extraOf, firstFile, isSwitch, settingOf, sinceOf, values } from '../facts.ts';
 import { formatVersion } from '../version.ts';
 import { allowedNames, cooldownValue, eachSource, exclusions } from './common.ts';
@@ -75,7 +75,7 @@ export const npm: ManagerGenerator = (context) => {
 
   // Without entries, the file is still edited when it sets a managed key by hand (such as the switch that allows
   // every install script while the policy denies them), so that the key is commented out.
-  if (entries.length > 0 || context.read(file).includes(BLOCK_START) || (managed.length > 0 && context.exists(file))) {
+  if (entries.length > 0 || hasManagedLines(context.read(file)) || (managed.length > 0 && context.exists(file))) {
     context.ini(file, entries, managed);
   }
   return minutes;
