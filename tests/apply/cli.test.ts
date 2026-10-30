@@ -303,7 +303,13 @@ describe('depcurfew apply --json', () => {
     const invalid = await exec('apply', '--json', scratch('npm-basic', '{ "version": 1, "cooldown": { "minimum": "soon" } }'));
     expect(invalid.code).toBe(EXIT_FAILURE);
     const error = parse(invalid.stdout).errors[0];
-    expect(error).toMatchObject({ code: 'policy-invalid', level: 'error', location: { file: 'depcurfew.json' }, message: 'depcurfew.json is invalid' });
+    expect(error).toMatchObject({
+      code: 'policy-invalid',
+      level: 'error',
+      location: { file: 'depcurfew.json' },
+      message: 'depcurfew.json is invalid',
+      fix: 'Fix these problems in depcurfew.json; an editor that reads its $schema shows them as you type',
+    });
     expect((error?.['issues'] as string[]).length).toBeGreaterThan(0);
   });
 });

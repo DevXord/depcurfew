@@ -110,6 +110,37 @@ describe('depcurfew check', () => {
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stderr).toContain('depcurfew.json is invalid');
   });
+
+  it('prints an invalid policy as JSON, checks no package and writes nothing on stderr', async () => {
+    const directory = project();
+    writeFileSync(join(directory, 'depcurfew.json'), '{"version": 2}');
+    const result = await exec(['check', '--json', '--dir', directory, 'lodash']);
+    expect([result.code, result.stderr]).toEqual([EXIT_FAILURE, '']);
+    expect(JSON.parse(result.stdout)).toEqual({
+      schemaVersion: 1,
+      policy: join(directory, 'depcurfew.json'),
+      packages: [],
+      notices: [],
+      errors: [
+        {
+          code: 'policy-invalid',
+          level: 'error',
+          location: { file: join(directory, 'depcurfew.json') },
+          message: 'depcurfew.json is invalid',
+          fix: 'Fix these problems in depcurfew.json; an editor that reads its $schema shows them as you type',
+          issues: ['version: must be 1, got 2'],
+        },
+      ],
+    });
+  });
+
+  it('puts the note about a missing policy into the JSON instead of stderr', async () => {
+    const result = await exec(['check', '--json', '--dir', project(), 'lodash']);
+    expect([result.code, result.stderr]).toEqual([EXIT_OK, '']);
+    const report = JSON.parse(result.stdout) as { policy: unknown; notices: unknown[]; errors: unknown[] };
+    expect(report).toMatchObject({ policy: null, errors: [] });
+    expect(report.notices).toEqual([{ message: 'no depcurfew.json found; checking against the default policy of depcurfew init (depcurfew init writes it)' }]);
+  });
 });
 
 describe('depcurfew check --hook claude-code', () => {

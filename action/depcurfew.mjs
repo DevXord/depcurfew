@@ -13361,6 +13361,11 @@ var PolicyError = class extends Error {
 		return this.fix === void 0 ? this.message : `${this.message}; ${this.fix.charAt(0).toLowerCase()}${this.fix.slice(1)}`;
 	}
 };
+/** What to do about a policy that cannot be used, the same in doctor and in the JSON of apply and check. */
+function policyErrorFix(error) {
+	if (error.fix !== void 0) return error.fix;
+	return error.code === "policy-unreadable" ? `Make ${POLICY_FILE} a regular file inside the repository, so that depcurfew can read it` : `Fix these problems in ${POLICY_FILE}; an editor that reads its $schema shows them as you type`;
+}
 /** The policy of the repository; undefined when it has no depcurfew.json. Throws PolicyError when it cannot be used. */
 function loadPolicyIfPresent(root) {
 	const file = readPolicyFile(root);
@@ -14187,10 +14192,6 @@ const settingIgnoredByVersion = {
 };
 
 // src/doctor/rules/invalid-policy.ts
-const FIXES = {
-	"policy-invalid": `Fix these problems in ${POLICY_FILE}; an editor that reads its $schema shows them as you type`,
-	"policy-unreadable": `Make ${POLICY_FILE} a regular file inside the repository, so that depcurfew can read it`
-};
 const invalidPolicy = {
 	id: "invalid-policy",
 	summary: `${POLICY_FILE} does not follow the schema or cannot be read.`,
@@ -14206,7 +14207,7 @@ const invalidPolicy = {
 			context.report({
 				location: { file: POLICY_FILE },
 				message: error.issues.length === 0 ? error.text : `${error.text}: ${error.issues.join("; ")}`,
-				fix: FIXES[error.code] ?? error.fix ?? invalidPolicy.help
+				fix: policyErrorFix(error)
 			});
 		}
 	}

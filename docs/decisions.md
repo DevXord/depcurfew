@@ -964,3 +964,14 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 - **GitHub Action bez zmian.** Błędna polityka to tam nadal wynik `failure` bez pliku SARIF, jak w udokumentowanym zachowaniu.
 - **`schemaVersion` zostaje 1.** Nowa wartość `policy` i nowa reguła nie psują dotychczasowych odbiorców, a wcześniej w tym przypadku nie było żadnego dokumentu. CLAUDE.md doprecyzowuje zasadę: nowa wersja schematu tylko przy zmianie niezgodnej wstecz.
 - **Poza zakresem.** `check --json` przy błędnej polityce nadal pisze tekst na stderr.
+
+## D-070 · `check --json` przy błędnej polityce (2026-10-30)
+
+- **Problem.** `check --json` przy błędnym albo nieczytelnym `depcurfew.json` pisał tekst na stderr i nic na stdout. Uwaga o braku polityki też szła na stderr. To było ostatnie odstępstwo od zasad komunikatów w CLAUDE.md (D-069, „Poza zakresem”).
+- **Decyzja.** Dokument ma ten sam kształt co dotąd (`schemaVersion`, `policy`, `packages`) i dwa nowe pola, `notices` i `errors`; stderr zostaje pusty.
+  - Przy polityce, której nie da się użyć, `packages` jest puste, bo bez polityki nic nie jest sprawdzane, a kod wyjścia to 1.
+  - `errors` ma kształt błędu z `apply --json`: `code` (`policy-invalid`, `policy-unreadable`), `level`, `location`, `message`, `fix` i `issues`.
+  - Uwaga o braku `depcurfew.json` trafia w trybie JSON do `notices` zamiast na stderr. Wtedy `apply`, `doctor` i `check` mają w trybie JSON pusty stderr.
+- **Jedno źródło `fix`.** `policyErrorFix` w `src/apply/index.ts` daje tę samą poprawkę dla reguły `invalid-policy` w `doctor` i dla JSON z `apply` i `check`; `apply --json` ma teraz `fix` także dla `policy-invalid`.
+- **Bez zmian.** Tryb tekstowy `check` (błąd na stderr, kod 1) i hook Claude Code, który przy błędnej polityce już wcześniej odpowiadał decyzją `ask` w JSON.
+- **`schemaVersion` zostaje 1.** Nowe pola nie psują dotychczasowych odbiorców (zasada z CLAUDE.md).

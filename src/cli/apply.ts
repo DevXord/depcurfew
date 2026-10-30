@@ -2,7 +2,7 @@
 // unified diff that `git apply` accepts); warnings, snippets to add by hand and errors go to stderr. When any file
 // cannot be edited, nothing is written and stdout stays empty, also with --dry-run. With --json, stdout holds one JSON
 // document with all of it (each change with its diff, warnings and errors with a code) and stderr stays empty.
-import { applyProject, PolicyError, type ApplyReport } from '../apply/index.ts';
+import { applyProject, PolicyError, policyErrorFix, type ApplyReport } from '../apply/index.ts';
 import { unifiedDiff } from '../apply/diff.ts';
 import type { ApplyErrorCode, ApplyWarning } from '../apply/warnings.ts';
 import { paint, type Paint } from '../color.ts';
@@ -97,7 +97,7 @@ export function apply(directory: string | undefined, options: { dryRun: boolean;
         level: 'error',
         location: { file: POLICY_FILE },
         message: error.message,
-        ...(error.fix === undefined ? {} : { fix: error.fix }),
+        fix: policyErrorFix(error),
         ...(error.issues.length === 0 ? {} : { issues: error.issues }),
       };
       io.stdout(jsonReport(dryRun, error.code === 'policy-missing' ? 'missing' : 'invalid', undefined, [failure]));
