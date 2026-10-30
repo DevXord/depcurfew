@@ -1,0 +1,12 @@
+{
+  "changed": [
+    "requirements.txt"
+  ],
+  "warnings": [
+    "pip: cooldown not written: pip reads no configuration from the project and rejects --uploaded-prior-to in requirements files; set PIP_UPLOADED_PRIOR_TO=P2D where pip installs packages (CI, Dockerfile), with pip 26.1.0 or later",
+    "pip: --no-binary lets docopt be built from source while building is forbidden for everything else; pip then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
+    "pip has no setting for git dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile",
+    "pip has no setting for URL dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile"
+  ],
+  "snippets": []
+}

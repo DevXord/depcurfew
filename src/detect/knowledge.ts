@@ -2,6 +2,7 @@
 // combined from every variant, so detection never misses a file because of a disputed fact.
 import { evidenceOf } from '../knowledge/facts.ts';
 import type {
+  Ecosystem,
   EnvironmentKnowledge,
   Fact,
   RuntimeOrTool,
@@ -13,14 +14,24 @@ import type {
 } from '../knowledge/types.ts';
 import type { BotId, PackageManagerId } from './types.ts';
 
+/** Where a tool's own configuration requires a version of the tool: a key path in a TOML file. */
+export interface RequiredVersionFacts {
+  file: string;
+  path: string[];
+}
+
 export interface ManagerFacts {
   id: PackageManagerId;
+  ecosystem: Ecosystem;
   lockfiles: string[];
   manifests: string[];
   /** The tool's own configuration files, without package.json and .npmrc. */
   configFiles: string[];
   /** `null` when the tool has no workspaces. */
   workspaces: (WorkspaceDeclaration & { objectKey: string | null }) | null;
+  /** The pyproject.toml table that marks a project of this tool (Python tools only). */
+  pyprojectTable: string | null;
+  requiredVersions: RequiredVersionFacts[];
 }
 
 export interface BotFacts {
@@ -41,9 +52,10 @@ export interface DetectionFacts {
   setupActions: SetupActionKnowledge[];
 }
 
-const PACKAGE_MANAGERS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno'];
+const PACKAGE_MANAGERS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'pip', 'poetry'];
 const BOTS: readonly ToolId[] = ['renovate', 'dependabot'];
-const SHARED_FILES = new Set(['package.json', '.npmrc']);
+/** Files several tools read; a Python tool counts pyproject.toml only when it has the tool's table. */
+const SHARED_FILES = new Set(['package.json', '.npmrc', 'pyproject.toml']);
 
 function values<T>(fact: Fact<T>): T[] {
   return evidenceOf(fact).map((evidence) => evidence.value);
@@ -70,6 +82,27 @@ function extraString(tool: ToolKnowledge, key: string): string {
   return value;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function extraValue(tool: ToolKnowledge, key: string): unknown {
+  const fact = tool.extra?.[key];
+  return fact === undefined ? undefined : first(fact);
+}
+
+/** required-version in [tool.uv] of pyproject.toml and at the top of uv.toml; requires-poetry in [tool.poetry]. */
+function requiredVersions(tool: ToolKnowledge): RequiredVersionFacts[] {
+  const required = extraValue(tool, 'requiredVersion');
+  if (!isRecord(required) || typeof required['table'] !== 'string' || typeof required['key'] !== 'string') return [];
+  const key = required['key'];
+  const tables = extraValue(tool, 'configTables');
+  const files: [string, string][] = isRecord(tables)
+    ? Object.entries(tables).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    : [['pyproject.toml', required['table']]];
+  return files.map(([file, table]) => ({ file, path: [...(table === '' ? [] : table.split('.')), key] }));
+}
+
 function workspaceFacts(declaration: WorkspaceDeclaration | null, objectKey: string | null): ManagerFacts['workspaces'] {
   return declaration === null ? null : { ...declaration, objectKey };
 }
@@ -87,12 +120,16 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     if (project === undefined) throw new Error(`knowledge base: ${id} has no project facts`);
     const manifests = unique(values(project.manifests).flat());
     const ownConfig = values(entry.cooldown.configFiles).flat();
+    const pyprojectTable = extraValue(entry, 'pyprojectTable');
     return {
       id: id as PackageManagerId,
+      ecosystem: entry.ecosystem ?? 'npm',
       lockfiles: unique(values(project.lockfiles).flatMap(allVersions)),
       manifests,
       configFiles: unique([...ownConfig, ...manifests]).filter((file) => !SHARED_FILES.has(file)),
       workspaces: workspaceFacts(first(project.workspaces), first(project.workspacesObjectKey)),
+      pyprojectTable: typeof pyprojectTable === 'string' ? pyprojectTable : null,
+      requiredVersions: requiredVersions(entry),
     };
   });
 
@@ -118,6 +155,16 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     volta: first(environment.volta.manifest),
     toolVersions: { file: first(environment.asdf.toolVersionsFile), plugins: first(environment.asdf.plugins) },
     workflows: first(actions.workflows),
-    setupActions: [actions.setupNode, actions.pnpmActionSetup, actions.pnpmSetup, actions.setupBun, actions.setupDeno].map(first),
+    setupActions: [
+      actions.setupNode,
+      actions.pnpmActionSetup,
+      actions.pnpmSetup,
+      actions.setupBun,
+      actions.setupDeno,
+      actions.setupPython,
+      actions.setupUv,
+      actions.installPoetry,
+      actions.actionsPoetry,
+    ].map(first),
   };
 }

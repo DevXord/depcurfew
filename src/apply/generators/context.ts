@@ -6,6 +6,7 @@ import type { ResolvedPolicy } from '../../policy/schema.ts';
 import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
 import { writeIniBlock } from '../ini.ts';
 import { jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonSet } from '../json-edit.ts';
+import { writeRequirementsBlock } from '../pip-requirements.ts';
 import { describeRequirements, type Requirement } from '../requirements.ts';
 import { writeTomlBlock } from '../toml.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
@@ -49,7 +50,10 @@ export interface Context {
   json(file: string): JsonFile;
   yaml(file: string): YamlFile;
   ini(file: string, entries: readonly string[], managedKeys: readonly string[]): void;
-  toml(file: string, table: string, entries: readonly string[], managedKeys: readonly string[]): void;
+  /** A managed block in a TOML table ('' for the top level); `label` names the table in the marker when a file has several. */
+  toml(file: string, table: string, entries: readonly string[], managedKeys: readonly string[], label?: string): void;
+  /** A managed block of option lines in a pip requirements file. */
+  requirements(file: string, entries: readonly string[], managedOptions: readonly string[]): void;
 }
 
 export interface JsonFile {
@@ -138,7 +142,9 @@ export function createContext(options: {
       set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value))),
     }),
     ini: (file, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeIniBlock(body, entries, managedKeys))),
-    toml: (file, table, entries, managedKeys) =>
-      guard(file, () => workspace.edit(file, (body) => writeTomlBlock(body, table, entries, managedKeys))),
+    toml: (file, table, entries, managedKeys, label) =>
+      guard(file, () => workspace.edit(file, (body) => writeTomlBlock(body, table, entries, managedKeys, label))),
+    requirements: (file, entries, managedOptions) =>
+      guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions))),
   };
 }

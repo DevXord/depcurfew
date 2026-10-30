@@ -107,6 +107,55 @@ describe('writeTomlBlock (bunfig.toml)', () => {
   });
 });
 
+describe('writeTomlBlock (uv.toml, pyproject.toml, poetry.toml)', () => {
+  it('writes top-level keys after the existing ones and before the first table', () => {
+    const before = '# Shared settings.\nindex-strategy = "first-index"\nexclude-newer = "1 day"\n\n[[index]]\nname = "internal"\n';
+    expect(writeTomlBlock(before, '', ['exclude-newer = "3 days"'], ['exclude-newer'])).toBe(
+      [
+        '# Shared settings.',
+        'index-strategy = "first-index"',
+        '# depcurfew: superseded by the managed block: exclude-newer = "1 day"',
+        '',
+        START,
+        'exclude-newer = "3 days"',
+        END,
+        '',
+        '[[index]]',
+        'name = "internal"',
+        '',
+      ].join('\n'),
+    );
+    expect(writeTomlBlock('', '', ['no-build = true'], ['no-build'])).toBe(`${START}\nno-build = true\n${END}\n`);
+  });
+
+  it('keeps a top-level block in place and is idempotent', () => {
+    const once = writeTomlBlock('[[index]]\nname = "internal"\n', '', ['exclude-newer = "3 days"'], ['exclude-newer']);
+    expect(once).toBe(`${START}\nexclude-newer = "3 days"\n${END}\n\n[[index]]\nname = "internal"\n`);
+    expect(writeTomlBlock(once, '', ['exclude-newer = "3 days"'], ['exclude-newer'])).toBe(once);
+    expect(writeTomlBlock(once, '', [], ['exclude-newer'])).toBe('[[index]]\nname = "internal"\n');
+  });
+
+  it('writes into a dotted table such as [tool.uv] and leaves its subtables alone', () => {
+    const before = '[project]\nname = "demo"\n\n[tool.uv]\nrequired-version = "==0.13.6"\n\n[tool.uv.sources]\nlib = { path = "lib" }\n';
+    expect(writeTomlBlock(before, 'tool.uv', ['no-build = true'], ['no-build'])).toBe(
+      `[project]\nname = "demo"\n\n[tool.uv]\nrequired-version = "==0.13.6"\n\n${START}\nno-build = true\n${END}\n\n[tool.uv.sources]\nlib = { path = "lib" }\n`,
+    );
+  });
+
+  it('keeps one block per table when the blocks carry the table name', () => {
+    const solver = (body: string, days: number) => writeTomlBlock(body, 'solver', [`min-release-age = ${days}`], ['min-release-age'], 'solver');
+    const installer = (body: string) => writeTomlBlock(body, 'installer', ['only-binary = [":all:"]'], ['only-binary'], 'installer');
+    const once = installer(solver('[virtualenvs]\nin-project = true\n', 3));
+    const solverStart = START.replace(': ', ' [solver]: ');
+    const installerStart = START.replace(': ', ' [installer]: ');
+    expect(once).toBe(
+      `[virtualenvs]\nin-project = true\n\n[solver]\n${solverStart}\nmin-release-age = 3\n${END}\n\n[installer]\n${installerStart}\nonly-binary = [":all:"]\n${END}\n`,
+    );
+    expect(installer(solver(once, 3))).toBe(once);
+    expect(installer(solver(once, 5))).toBe(once.replace('min-release-age = 3', 'min-release-age = 5'));
+  });
+});
+
 describe('yamlSet', () => {
   const pnpm = [
     '# pnpm settings',

@@ -3,7 +3,9 @@
 // dropping it always errs on the safe side (a longer delay, fewer install scripts).
 import { convertCooldown } from '../../policy/convert.ts';
 import type { Duration } from '../../policy/duration.ts';
+import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { SOURCE_KINDS } from '../../knowledge/schema.ts';
+import type { Ecosystem } from '../../knowledge/types.ts';
 import { extraOf, isRecord, isWildcards, settingOf, sinceOf, values } from '../facts.ts';
 import type { Context } from './context.ts';
 
@@ -11,11 +13,9 @@ const MINUTES: Record<string, number> = { seconds: 1 / 60, minutes: 1, hours: 60
 
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
-const SOURCE_LABELS: Record<SourceKind, string> = {
-  git: 'git',
-  remoteTarball: 'remote tarball',
-  file: 'local tarball',
-  directory: 'local directory',
+const SOURCE_LABELS: Record<Ecosystem, Record<SourceKind, string>> = {
+  npm: { git: 'git', remoteTarball: 'remote tarball', file: 'local tarball', directory: 'local directory' },
+  pypi: { git: 'git', remoteTarball: 'URL', file: 'local archive', directory: 'local directory' },
 };
 
 export interface CooldownValue {
@@ -86,7 +86,7 @@ export function eachSource(context: Context, apply: (kind: SourceKind, setting: 
         const checked = lockfileShowsSources(context.tool)
           ? '; depcurfew doctor still reports such dependencies in the lockfile'
           : '; depcurfew doctor cannot see them in the lockfile either, so review new dependencies by hand';
-        context.warn(`${context.name} has no setting for ${SOURCE_LABELS[kind]} dependencies, so "deny" cannot be enforced${checked}`);
+        context.warn(`${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced${checked}`);
       }
       continue;
     }

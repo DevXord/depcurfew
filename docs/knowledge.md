@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-10 tools · 400 facts · 63 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
+10 tools · 405 facts · 64 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
 
 ## Release-age cooldown
 
@@ -53,7 +53,7 @@ How depcurfew recognizes each package manager in a repository.
 | Yarn (Berry) | all versions: `yarn.lock` [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-fslib/sources/path.ts) | `package.json` [↗](https://yarnpkg.com/configuration/manifest) | `{"files":["package.json"],"key":"workspaces"}` [↗](https://yarnpkg.com/configuration/manifest#workspaces) | `packages` ❓ [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Manifest.ts) |
 | Bun | earlier: `bun.lockb`<br>1.2.0+: `bun.lock`, `bun.lockb` ❓ [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/lockfile.mdx) | `package.json` [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx) | `{"files":["package.json"],"key":"workspaces"}` [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx) | `packages` [↗](https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx) |
 | Deno | all versions: `deno.lock` [↗](https://github.com/denoland/docs/blob/main/runtime/reference/deno_json.md) | `deno.json`, `deno.jsonc` [↗](https://github.com/denoland/docs/blob/main/runtime/fundamentals/configuration.md) | `{"files":["deno.json","deno.jsonc"],"key":"workspace"}` [↗](https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md) | `members` [↗](https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md) |
-| uv | all versions: `uv.lock` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/layout.md) | `pyproject.toml` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/layout.md) | `{"files":["pyproject.toml"],"key":"tool.uv.workspace"}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md) | `members` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md) |
+| uv | all versions: `uv.lock` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/layout.md) | `pyproject.toml` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/layout.md) | `{"files":["pyproject.toml"],"key":"tool.uv.workspace","excludeKey":"exclude"}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md) | `members` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md) |
 | pip | 25.1.0+: `pylock.toml` [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name) | `requirements.txt` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md) | none ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md) | none ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md) |
 | Poetry | all versions: `poetry.lock` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/factory.py) | `pyproject.toml` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/pyproject.md) | none ❓ [↗](https://github.com/python-poetry/poetry/issues/2270) | none ❓ [↗](https://github.com/python-poetry/poetry/issues/2270) |
 
@@ -197,7 +197,9 @@ Further facts used by generators and `doctor`.
 ### uv
 
 - `configTables` (✅ verified): `{"pyproject.toml":"tool.uv","uv.toml":""}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
+- `pyprojectTable` (✅ verified): tool.uv [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `configPrecedence` (✅ verified): uv.toml wins over [tool.uv] in the same directory; only the nearest directory with either is read, and in a workspace only the root [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
+- `buildSwitch` (✅ verified): `{"setting":"no-build","value":true,"since":"0.2.12"}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.2.x.md#0212)
 - `durationStrings` (✅ verified): `{"since":"0.9.17","syntax":"words-or-iso8601"}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `durationUnits` (✅ verified): hours, days, weeks [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `excludeWildcards` (✅ verified): `{"since":null,"trailingOnly":false}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs)
@@ -212,6 +214,7 @@ Further facts used by generators and `doctor`.
 ### pip
 
 - `requirementsOptions` (✅ verified): -i, --index-url, --extra-index-url, --no-index, -c, --constraint, -r, --requirement, -e, --editable, -f, --find-links, --no-binary, --only-binary, --prefer-binary, --require-hashes, --no-require-hashes, --pre, --all-releases, --only-final, --trusted-host, --use-feature [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
+- `buildSwitch` (❓ uncertain): `{"setting":"--only-binary","value":":all:","since":"7.0.0"}` ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `environmentVariable` (✅ verified): PIP_UPLOADED_PRIOR_TO [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variables)
 - `durationStrings` (✅ verified): `{"since":"26.1.0","syntax":"iso8601"}` [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `missingUploadTime` (✅ verified): Installation fails when an index gives no upload time while --uploaded-prior-to is set [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)
@@ -222,7 +225,9 @@ Further facts used by generators and `doctor`.
 ### Poetry
 
 - `configTable` (✅ verified): `{"solver":"solver","installer":"installer"}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/config/file_config_source.py)
+- `pyprojectTable` (✅ verified): tool.poetry [↗](https://github.com/python-poetry/poetry-core/blob/2.5.0/src/poetry/core/pyproject/toml.py)
 - `configLocation` (✅ verified): poetry.toml is read only from the directory of the pyproject.toml Poetry found (the current directory or the nearest parent with one) [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/factory.py)
+- `buildSwitch` (✅ verified): `{"setting":"installer.only-binary","value":[":all:"],"since":"2.0.0"}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
 - `excludeFormat` (⚠️ disputed): ⚠️ comma-separated string [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age-exclude) / TOML array [↗](https://github.com/python-poetry/poetry/pull/11087)
 - `excludeWildcards` (✅ verified): `{"since":null,"trailingOnly":false}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age-exclude)
 - `missingUploadTime` (✅ verified): A release whose source gives no upload times is not filtered by solver.min-release-age [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age)
@@ -282,7 +287,7 @@ How repositories pin tool versions (Corepack, devEngines, Volta, asdf) and how G
 - `githubActions.pnpmSetup` (✅ verified): `{"action":"pnpm/setup","installs":["pnpm"],"inputs":[{"name":"version","kind":"version","tool":"pnpm"},{"name":"runtime","kind":"runtime"},{"name":"node-version-file","kind":"version-file","tool":"node"}]}` [↗](https://github.com/pnpm/setup/blob/main/action.yml)
 - `githubActions.setupBun` (✅ verified): `{"action":"oven-sh/setup-bun","installs":["bun"],"inputs":[{"name":"bun-version","kind":"version","tool":"bun"},{"name":"bun-version-file","kind":"version-file","tool":"bun"}]}` [↗](https://github.com/oven-sh/setup-bun/blob/main/action.yml)
 - `githubActions.setupDeno` (✅ verified): `{"action":"denoland/setup-deno","installs":["deno"],"inputs":[{"name":"deno-version","kind":"version","tool":"deno"},{"name":"deno-version-file","kind":"version-file","tool":"deno"}]}` [↗](https://github.com/denoland/setup-deno/blob/main/action.yml)
-- `githubActions.setupPython` (✅ verified): `{"action":"actions/setup-python","installs":["python","pip"],"inputs":[{"name":"python-version","kind":"version","tool":"python"},{"name":"python-version-file","kind":"version-file","tool":"python"},{"name":"pip-version","kind":"version","tool":"pip"}]}` [↗](https://github.com/actions/setup-python/blob/v7.1.0/action.yml)
+- `githubActions.setupPython` (✅ verified): `{"action":"actions/setup-python","installs":["python"],"inputs":[{"name":"python-version","kind":"version","tool":"python"},{"name":"python-version-file","kind":"version-file","tool":"python"},{"name":"pip-version","kind":"version","tool":"pip"}]}` [↗](https://github.com/actions/setup-python/blob/v7.1.0/action.yml)
 - `githubActions.setupUv` (✅ verified): `{"action":"astral-sh/setup-uv","installs":["uv"],"inputs":[{"name":"version","kind":"version","tool":"uv"},{"name":"version-file","kind":"version-file","tool":"uv"}]}` [↗](https://github.com/astral-sh/setup-uv/blob/v10.3.3/action.yml)
 - `githubActions.installPoetry` (✅ verified): `{"action":"snok/install-poetry","installs":["poetry"],"inputs":[{"name":"version","kind":"version","tool":"poetry"}]}` [↗](https://github.com/snok/install-poetry/blob/v1.4.2/action.yml)
 - `githubActions.actionsPoetry` (✅ verified): `{"action":"abatilo/actions-poetry","installs":["poetry"],"inputs":[{"name":"poetry-version","kind":"version","tool":"poetry"}]}` [↗](https://github.com/abatilo/actions-poetry/blob/v4.0.0/action.yml)
@@ -449,7 +454,9 @@ Context recorded with verified facts.
 - `project.workspaces`: The [tool.uv.workspace] table of the root pyproject.toml lists members and exclude (globs or paths); exclude wins over members, and the root is a member too. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md)
 - `project.workspacesObjectKey`: The workspace guide calls members required, while the settings reference (crates/uv-workspace/src/pyproject.rs) gives it a default of []. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md)
 - `extra.configTables`: Settings sit in [tool.uv] in pyproject.toml and at the top level of uv.toml. uv.toml cannot hold workspace, sources and a few other project fields. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
+- `extra.pyprojectTable`: A pyproject.toml without a [tool.uv] table is ignored when uv searches for configuration. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `extra.configPrecedence`: A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
+- `extra.buildSwitch`: The project setting that forbids building source distributions; see installScripts.disableAll for what it does not cover. [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.2.x.md#0212)
 - `extra.durationStrings`: Either a "friendly" duration (24 hours, 1 week, 30 days) or an ISO 8601 duration (PT24H, P7D, P30D). [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `extra.durationUnits`: Units in the documented examples: 24 hours, 1 week, 30 days. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `extra.excludeWildcards`: exclude-newer-package keys are exact package names. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs)
@@ -495,6 +502,8 @@ Context recorded with verified facts.
 - `installScripts.disableAll`: Since 2.0.0; the value [":all:"] forbids source distributions for every package. Applied only when installing: resolving dependencies may still build source distributions without static metadata, and git, path and url dependencies are built regardless. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#installeronly-binary)
 - `project.lockfiles`: Next to pyproject.toml. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/factory.py)
 - `extra.configTable`: poetry config writes dotted settings as nested tables, e.g. [solver] min-release-age = 7. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/config/file_config_source.py)
+- `extra.pyprojectTable`: A [tool.poetry] table marks a Poetry project; Poetry also accepts a [project] table with a static name and version, which other tools use as well. [↗](https://github.com/python-poetry/poetry-core/blob/2.5.0/src/poetry/core/pyproject/toml.py)
+- `extra.buildSwitch`: installer.only-binary was added in 2.0.0; [":all:"] forbids source distributions for every package when installing. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
 - `extra.excludeWildcards`: Package names only. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age-exclude)
 - `extra.requiredVersion`: A version constraint in pyproject.toml; a Poetry version outside it raises an error. Poetry 1.x does not know the key. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/pyproject.md#requires-poetry)
 - `extra.latestVersion`: Released on 2026-09-20. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
@@ -558,7 +567,7 @@ Context recorded with verified facts.
 - `githubActions.pnpmSetup`: For pnpm 11 and later. Without version it reads devEngines.packageManager or packageManager; runtime takes <name>@<version> for node, bun or deno. [↗](https://github.com/pnpm/setup/blob/main/action.yml)
 - `githubActions.setupBun`: Current major v2. Without bun-version it reads packageManager (bun@x), then engines.bun, then installs latest. [↗](https://github.com/oven-sh/setup-bun/blob/main/action.yml)
 - `githubActions.setupDeno`: Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions. [↗](https://github.com/denoland/setup-deno/blob/main/action.yml)
-- `githubActions.setupPython`: Current version v7.1.0. Without python-version it reads .python-version; python-version wins over python-version-file. pip-version (major[.minor][.patch], CPython only) since v6.0.0. [↗](https://github.com/actions/setup-python/blob/v7.1.0/action.yml)
+- `githubActions.setupPython`: Current version v7.1.0. Without python-version it reads .python-version; python-version wins over python-version-file. pip-version (major[.minor][.patch], CPython only) since v6.0.0. Python comes with pip, but the step alone does not show that pip installs the project. [↗](https://github.com/actions/setup-python/blob/v7.1.0/action.yml)
 - `githubActions.setupUv`: Current version v10.3.3, with no moving v10 tag. Without version or version-file it reads required-version from uv.toml, then pyproject.toml, in the working directory, and installs the latest uv when neither has one. [↗](https://github.com/astral-sh/setup-uv/blob/v10.3.3/action.yml)
 - `githubActions.installPoetry`: A third-party action (current v1.4.2); version defaults to latest, so without it the Poetry version is not pinned. [↗](https://github.com/snok/install-poetry/blob/v1.4.2/action.yml)
 - `githubActions.actionsPoetry`: A third-party action (current v4.0.0); poetry-version defaults to latest. [↗](https://github.com/abatilo/actions-poetry/blob/v4.0.0/action.yml)
@@ -909,6 +918,12 @@ pip has no workspaces.
 No workspaces.
 
 - `null` · [source](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md), verified 2026-10-30.
+
+### pip · `extra.buildSwitch` ❓ uncertain
+
+The option exists since 7.0.0; when requirements files started to accept it is not recorded.
+
+- `{"setting":"--only-binary","value":":all:","since":"7.0.0"}` · [source](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst), verified 2026-10-30.
 
 ### Poetry · `cooldown.cliFlag` ❓ uncertain
 

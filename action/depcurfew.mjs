@@ -73,14 +73,14 @@ function extraOf(tool, key, check) {
 	if (!check(value)) throw new Error(`knowledge base: ${tool.id} extra.${key} is missing or malformed`);
 	return value;
 }
-function isRecord(value) {
+function isRecord$1(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isSwitch(value) {
-	return isRecord(value) && typeof value["setting"] === "string" && "value" in value;
+	return isRecord$1(value) && typeof value["setting"] === "string" && "value" in value;
 }
 function isWildcards(value) {
-	return isRecord(value) && (typeof value["since"] === "string" || value["since"] === null) && typeof value["trailingOnly"] === "boolean";
+	return isRecord$1(value) && (typeof value["since"] === "string" || value["since"] === null) && typeof value["trailingOnly"] === "boolean";
 }
 
 // src/knowledge/define.ts
@@ -853,7 +853,7 @@ const REQ_FILE = `${PIP}/src/pip/_internal/req/req_file.py`;
 const FORMAT_CONTROL = `${PIP}/src/pip/_internal/models/format_control.py`;
 const PYLOCK = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst";
 const noSetting$3 = (kind) => ({ setting: uncertain$5(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
-const pip = {
+const pip$1 = {
 	id: "pip",
 	name: "pip",
 	kind: "package-manager",
@@ -924,6 +924,11 @@ const pip = {
 			"--trusted-host",
 			"--use-feature"
 		], REQ_FILE, "SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse."),
+		buildSwitch: uncertain$5({
+			setting: "--only-binary",
+			value: ":all:",
+			since: "7.0.0"
+		}, NEWS, "The option exists since 7.0.0; when requirements files started to accept it is not recorded."),
 		environmentVariable: verified$6("PIP_UPLOADED_PRIOR_TO", `${CONFIGURATION$2}#environment-variables`, "Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores."),
 		durationStrings: verified$6({
 			since: "26.1.0",
@@ -1222,7 +1227,7 @@ const CHANGELOG = `${POETRY}/CHANGELOG.md`;
 const LOCKER = `${POETRY}/src/poetry/packages/locker.py`;
 const CHOOSER = `${POETRY}/src/poetry/installation/chooser.py`;
 const noSetting$2 = (kind) => ({ setting: uncertain$3(null, `${CONFIGURATION$1}#available-settings`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings and Config.default_config); dependencies of dependencies may come from such sources too.`) });
-const poetry = {
+const poetry$1 = {
 	id: "poetry",
 	name: "Poetry",
 	kind: "package-manager",
@@ -1277,7 +1282,13 @@ const poetry = {
 			solver: "solver",
 			installer: "installer"
 		}, `${POETRY}/src/poetry/config/file_config_source.py`, "poetry config writes dotted settings as nested tables, e.g. [solver] min-release-age = 7."),
+		pyprojectTable: verified$4("tool.poetry", "https://github.com/python-poetry/poetry-core/blob/2.5.0/src/poetry/core/pyproject/toml.py", "A [tool.poetry] table marks a Poetry project; Poetry also accepts a [project] table with a static name and version, which other tools use as well."),
 		configLocation: verified$4("poetry.toml is read only from the directory of the pyproject.toml Poetry found (the current directory or the nearest parent with one)", `${POETRY}/src/poetry/factory.py`),
+		buildSwitch: verified$4({
+			setting: "installer.only-binary",
+			value: [":all:"],
+			since: "2.0.0"
+		}, CHANGELOG, "installer.only-binary was added in 2.0.0; [\":all:\"] forbids source distributions for every package when installing."),
 		excludeFormat: disputed$2("The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter.", evidence$2("comma-separated string", `${CONFIGURATION$1}#solvermin-release-age-exclude`), evidence$2("TOML array", "https://github.com/python-poetry/poetry/pull/11087")),
 		excludeWildcards: verified$4({
 			since: null,
@@ -1429,7 +1440,7 @@ const WORKSPACES = `${UV}/docs/concepts/projects/workspaces.md`;
 const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
 const changelog = (minor, version) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll(".", "")}`;
 const noSetting$1 = (kind) => ({ setting: uncertain$1(null, `${UV}/uv.schema.json`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings). no-sources only ignores the tool.uv.sources table; a URL dependency introduced by a registry package is rejected during resolution (docs/pip/compatibility.md).`) });
-const uv = {
+const uv$1 = {
 	id: "uv",
 	name: "uv",
 	kind: "package-manager",
@@ -1478,7 +1489,8 @@ const uv = {
 		manifests: verified$2(["pyproject.toml"], `${UV}/docs/concepts/projects/layout.md`),
 		workspaces: verified$2({
 			files: ["pyproject.toml"],
-			key: "tool.uv.workspace"
+			key: "tool.uv.workspace",
+			excludeKey: "exclude"
 		}, WORKSPACES, "The [tool.uv.workspace] table of the root pyproject.toml lists members and exclude (globs or paths); exclude wins over members, and the root is a member too."),
 		workspacesObjectKey: verified$2("members", WORKSPACES, "The workspace guide calls members required, while the settings reference (crates/uv-workspace/src/pyproject.rs) gives it a default of [].")
 	},
@@ -1487,7 +1499,13 @@ const uv = {
 			"pyproject.toml": "tool.uv",
 			"uv.toml": ""
 		}, CONFIGURATION, "Settings sit in [tool.uv] in pyproject.toml and at the top level of uv.toml. uv.toml cannot hold workspace, sources and a few other project fields."),
+		pyprojectTable: verified$2("tool.uv", CONFIGURATION, "A pyproject.toml without a [tool.uv] table is ignored when uv searches for configuration."),
 		configPrecedence: verified$2("uv.toml wins over [tool.uv] in the same directory; only the nearest directory with either is read, and in a workspace only the root", CONFIGURATION, "A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories."),
+		buildSwitch: verified$2({
+			setting: "no-build",
+			value: true,
+			since: "0.2.12"
+		}, changelog("0.2", "0.2.12"), "The project setting that forbids building source distributions; see installScripts.disableAll for what it does not cover."),
 		durationStrings: verified$2({
 			since: "0.9.17",
 			syntax: "words-or-iso8601"
@@ -1823,7 +1841,7 @@ const environment = {
 		}, "https://github.com/denoland/setup-deno/blob/main/action.yml", "Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions."),
 		setupPython: python.verified({
 			action: "actions/setup-python",
-			installs: ["python", "pip"],
+			installs: ["python"],
 			inputs: [
 				{
 					name: "python-version",
@@ -1841,7 +1859,7 @@ const environment = {
 					tool: "pip"
 				}
 			]
-		}, "https://github.com/actions/setup-python/blob/v7.1.0/action.yml", "Current version v7.1.0. Without python-version it reads .python-version; python-version wins over python-version-file. pip-version (major[.minor][.patch], CPython only) since v6.0.0."),
+		}, "https://github.com/actions/setup-python/blob/v7.1.0/action.yml", "Current version v7.1.0. Without python-version it reads .python-version; python-version wins over python-version-file. pip-version (major[.minor][.patch], CPython only) since v6.0.0. Python comes with pip, but the step alone does not show that pip installs the project."),
 		setupUv: python.verified({
 			action: "astral-sh/setup-uv",
 			installs: ["uv"],
@@ -1994,9 +2012,9 @@ const knowledgeBase = [
 	yarn$1,
 	bun$1,
 	deno$1,
-	uv,
-	pip,
-	poetry,
+	uv$1,
+	pip$1,
+	poetry$1,
 	renovate$1,
 	dependabot$1
 ];
@@ -8726,10 +8744,18 @@ const PACKAGE_MANAGERS = [
 	"pnpm",
 	"yarn",
 	"bun",
-	"deno"
+	"deno",
+	"uv",
+	"pip",
+	"poetry"
 ];
 const BOTS$1 = ["renovate", "dependabot"];
-const SHARED_FILES = /* @__PURE__ */ new Set(["package.json", ".npmrc"]);
+/** Files several tools read; a Python tool counts pyproject.toml only when it has the tool's table. */
+const SHARED_FILES = /* @__PURE__ */ new Set([
+	"package.json",
+	".npmrc",
+	"pyproject.toml"
+]);
 function values(fact) {
 	return evidenceOf(fact).map((evidence) => evidence.value);
 }
@@ -8750,6 +8776,24 @@ function extraString(tool, key) {
 	if (typeof value !== "string") throw new Error(`knowledge base: ${tool.id} extra.${key} must be a string`);
 	return value;
 }
+function isRecord(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function extraValue(tool, key) {
+	const fact = tool.extra?.[key];
+	return fact === void 0 ? void 0 : first(fact);
+}
+/** required-version in [tool.uv] of pyproject.toml and at the top of uv.toml; requires-poetry in [tool.poetry]. */
+function requiredVersions(tool) {
+	const required = extraValue(tool, "requiredVersion");
+	if (!isRecord(required) || typeof required["table"] !== "string" || typeof required["key"] !== "string") return [];
+	const key = required["key"];
+	const tables = extraValue(tool, "configTables");
+	return (isRecord(tables) ? Object.entries(tables).filter((entry) => typeof entry[1] === "string") : [["pyproject.toml", required["table"]]]).map(([file, table]) => ({
+		file,
+		path: [...table === "" ? [] : table.split("."), key]
+	}));
+}
 function workspaceFacts(declaration, objectKey) {
 	return declaration === null ? null : {
 		...declaration,
@@ -8768,12 +8812,16 @@ function detectionFacts(tools, environment) {
 		if (project === void 0) throw new Error(`knowledge base: ${id} has no project facts`);
 		const manifests = unique(values(project.manifests).flat());
 		const ownConfig = values(entry.cooldown.configFiles).flat();
+		const pyprojectTable = extraValue(entry, "pyprojectTable");
 		return {
 			id,
+			ecosystem: entry.ecosystem ?? "npm",
 			lockfiles: unique(values(project.lockfiles).flatMap(allVersions)),
 			manifests,
 			configFiles: unique([...ownConfig, ...manifests]).filter((file) => !SHARED_FILES.has(file)),
-			workspaces: workspaceFacts(first(project.workspaces), first(project.workspacesObjectKey))
+			workspaces: workspaceFacts(first(project.workspaces), first(project.workspacesObjectKey)),
+			pyprojectTable: typeof pyprojectTable === "string" ? pyprojectTable : null,
+			requiredVersions: requiredVersions(entry)
 		};
 	});
 	const bots = BOTS$1.map((id) => {
@@ -8808,7 +8856,11 @@ function detectionFacts(tools, environment) {
 			actions.pnpmActionSetup,
 			actions.pnpmSetup,
 			actions.setupBun,
-			actions.setupDeno
+			actions.setupDeno,
+			actions.setupPython,
+			actions.setupUv,
+			actions.installPoetry,
+			actions.actionsPoetry
 		].map(first)
 	};
 }
@@ -8938,6 +8990,373 @@ var Repository = class {
 /** Joins repository-relative paths with `/`, treating `.` as the root. */
 function joinPath(directory, name) {
 	return directory === "." ? name : `${directory}/${name}`;
+}
+
+// src/detect/toml.ts
+/** A date or time value, kept as written. */
+var TomlDateTime = class {
+	text;
+	kind;
+	constructor(text, kind) {
+		this.text = text;
+		this.kind = kind;
+	}
+	toString() {
+		return this.text;
+	}
+};
+const BARE_KEY = /^[A-Za-z0-9_-]+/u;
+const DATE_TIME = /^\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}:\d{2})?)?|^\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?/u;
+const NUMBER = /^[+-]?(?:0x[0-9A-Fa-f_]+|0o[0-7_]+|0b[01_]+|inf|nan|[0-9][0-9_]*(?:\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9_]+)?)/u;
+const ESCAPES = {
+	b: "\b",
+	t: "	",
+	n: "\n",
+	f: "\f",
+	r: "\r",
+	e: "\x1B",
+	"\"": "\"",
+	"\\": "\\"
+};
+function parseToml(input) {
+	const text = input.startsWith("﻿") ? input.slice(1) : input;
+	const origins = /* @__PURE__ */ new WeakMap();
+	const arraysOfTables = /* @__PURE__ */ new WeakSet();
+	const lines = /* @__PURE__ */ new Map();
+	let index = 0;
+	let line = 1;
+	const fail = (message, at = line) => {
+		throw new SyntaxError(`invalid TOML at line ${at}: ${message}`);
+	};
+	const record = (path) => {
+		lines.set(JSON.stringify(path), line);
+	};
+	const advance = (count = 1) => {
+		for (let step = 0; step < count; step++) if (text[index++] === "\n") line += 1;
+	};
+	const skipSpaces = () => {
+		while (text[index] === " " || text[index] === "	") index += 1;
+	};
+	const skipComment = () => {
+		if (text[index] === "#") while (index < text.length && text[index] !== "\n") index += 1;
+	};
+	/** Spaces, comments and line breaks, as allowed inside arrays and (multi-line) inline tables. */
+	const skipBlank = () => {
+		for (;;) {
+			skipSpaces();
+			skipComment();
+			if (text[index] === "\n") advance();
+			else if (text.startsWith("\r\n", index)) advance(2);
+			else return;
+		}
+	};
+	const endOfLine = () => {
+		skipSpaces();
+		skipComment();
+		if (index >= text.length) return;
+		if (text[index] === "\n") advance();
+		else if (text.startsWith("\r\n", index)) advance(2);
+		else fail("expected a new line after the value");
+	};
+	const newTable = (origin) => {
+		const table = {};
+		origins.set(table, origin);
+		return table;
+	};
+	const isTable = (value) => typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof TomlDateTime);
+	const unicode = (digits) => {
+		const hex = text.slice(index, index + digits);
+		if (!/^[0-9A-Fa-f]+$/u.test(hex) || hex.length !== digits) fail(`invalid unicode escape \\${digits === 4 ? "u" : "U"}${hex}`);
+		const code = Number.parseInt(hex, 16);
+		if (code > 1114111 || code >= 55296 && code <= 57343) fail(`invalid unicode code point ${hex}`);
+		index += digits;
+		return String.fromCodePoint(code);
+	};
+	const escape = () => {
+		const char = text[index] ?? "";
+		index += 1;
+		if (char === "u") return unicode(4);
+		if (char === "U") return unicode(8);
+		if (char === "x") return unicode(2);
+		return ESCAPES[char] ?? fail(`invalid escape \\${char}`);
+	};
+	const basicString = () => {
+		const start = line;
+		index += 1;
+		let value = "";
+		for (;;) {
+			const char = text[index];
+			if (char === void 0 || char === "\n" || char === "\r" && text[index + 1] === "\n") return fail("unterminated string", start);
+			index += 1;
+			if (char === "\"") return value;
+			value += char === "\\" ? escape() : char;
+		}
+	};
+	const literalString = () => {
+		const start = line;
+		const end = text.indexOf("'", index + 1);
+		const newline = text.indexOf("\n", index + 1);
+		if (end === -1 || newline !== -1 && newline < end) fail("unterminated string", start);
+		const value = text.slice(index + 1, end).replace(/\r$/u, "");
+		index = end + 1;
+		return value;
+	};
+	const multiLineString = (quote) => {
+		const start = line;
+		advance(3);
+		if (text[index] === "\n") advance();
+		else if (text.startsWith("\r\n", index)) advance(2);
+		let value = "";
+		for (;;) {
+			if (index >= text.length) return fail("unterminated string", start);
+			if (text.startsWith(quote, index)) {
+				let extra = 0;
+				while (extra < 2 && text[index + 3 + extra] === quote[0]) extra += 1;
+				value += quote[0]?.repeat(extra) ?? "";
+				advance(3 + extra);
+				return value;
+			}
+			const char = text[index] ?? "";
+			if (quote === "\"\"\"" && char === "\\") {
+				const rest = /^\\[ \t]*\r?\n/u.exec(text.slice(index, index + 64));
+				if (rest !== null) {
+					advance(rest[0].length);
+					while (/[ \t\r\n]/u.test(text[index] ?? "")) advance();
+					continue;
+				}
+				index += 1;
+				value += escape();
+				continue;
+			}
+			if (char === "\r" && text[index + 1] === "\n") {
+				value += "\n";
+				advance(2);
+				continue;
+			}
+			value += char;
+			advance();
+		}
+	};
+	const simpleKey = () => {
+		const char = text[index];
+		if (char === "\"") return text.startsWith("\"\"\"", index) ? fail("a key cannot be a multi-line string") : basicString();
+		if (char === "'") return text.startsWith("'''", index) ? fail("a key cannot be a multi-line string") : literalString();
+		const match = BARE_KEY.exec(text.slice(index, index + 256));
+		if (match === null) return fail("expected a key");
+		index += match[0].length;
+		return match[0];
+	};
+	const key = () => {
+		const parts = [simpleKey()];
+		for (;;) {
+			skipSpaces();
+			if (text[index] !== ".") return parts;
+			index += 1;
+			skipSpaces();
+			parts.push(simpleKey());
+		}
+	};
+	const number = (raw) => {
+		const clean = raw.replaceAll("_", "");
+		if (/^[+-]?inf$/u.test(clean)) return clean.startsWith("-") ? -Infinity : Infinity;
+		if (/^[+-]?nan$/u.test(clean)) return NaN;
+		if (/^0[xob]/u.test(clean)) {
+			const value = BigInt(clean);
+			return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value;
+		}
+		if (/^[+-]?\d+$/u.test(clean)) {
+			const value = BigInt(clean);
+			return value >= BigInt(Number.MIN_SAFE_INTEGER) && value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value;
+		}
+		const value = Number(clean);
+		return Number.isNaN(value) ? fail(`invalid number ${raw}`) : value;
+	};
+	const value = (path) => {
+		const char = text[index];
+		if (char === "\"") return text.startsWith("\"\"\"", index) ? multiLineString("\"\"\"") : basicString();
+		if (char === "'") return text.startsWith("'''", index) ? multiLineString("'''") : literalString();
+		if (char === "[") return array(path);
+		if (char === "{") return inlineTable(path);
+		const rest = text.slice(index, index + 64);
+		if (/^true(?![A-Za-z0-9_-])/u.test(rest)) {
+			index += 4;
+			return true;
+		}
+		if (/^false(?![A-Za-z0-9_-])/u.test(rest)) {
+			index += 5;
+			return false;
+		}
+		const date = DATE_TIME.exec(rest);
+		if (date !== null) {
+			index += date[0].length;
+			const kind = date[0].includes(":") ? date[0].includes("-") ? /(?:[Zz]|[+-]\d{2}:\d{2})$/u.test(date[0]) ? "offset-date-time" : "local-date-time" : "local-time" : "local-date";
+			return new TomlDateTime(date[0], kind);
+		}
+		const match = NUMBER.exec(rest);
+		if (match !== null) {
+			index += match[0].length;
+			return number(match[0]);
+		}
+		return fail("expected a value");
+	};
+	const array = (path) => {
+		index += 1;
+		const items = [];
+		for (;;) {
+			skipBlank();
+			if (text[index] === "]") {
+				index += 1;
+				return items;
+			}
+			items.push(value([...path, items.length]));
+			skipBlank();
+			if (text[index] === ",") index += 1;
+			else if (text[index] !== "]") fail("expected , or ] in the array");
+		}
+	};
+	/** Puts `item` at the dotted `parts` below `table`, creating tables on the way as `origin`. */
+	const assign = (table, parts, item, path, origin) => {
+		let current = table;
+		const walked = [...path];
+		for (const part of parts.slice(0, -1)) {
+			walked.push(part);
+			const next = current[part];
+			if (next === void 0) {
+				const created = newTable(origin);
+				current[part] = created;
+				current = created;
+			} else if (isTable(next)) {
+				if (origins.get(next) === "inline" && origin !== "inline") fail(`${walked.join(".")} is an inline table, which cannot be extended`);
+				if (origins.get(next) === "header" && origin === "dotted") fail(`${walked.join(".")} is a table defined by a header, which dotted keys cannot extend`);
+				current = next;
+			} else fail(`${walked.join(".")} is already a value, not a table`);
+		}
+		const last = parts.at(-1);
+		if (Object.hasOwn(current, last)) fail(`${[...walked, last].join(".")} is defined twice`);
+		current[last] = item;
+		record([...walked, last]);
+	};
+	const inlineTable = (path) => {
+		index += 1;
+		const table = newTable("inline");
+		for (;;) {
+			skipBlank();
+			if (text[index] === "}") {
+				index += 1;
+				return table;
+			}
+			const parts = key();
+			skipSpaces();
+			if (text[index] !== "=") fail("expected = after the key");
+			index += 1;
+			skipSpaces();
+			const keyLine = line;
+			const item = value([...path, ...parts]);
+			const valueLine = line;
+			line = keyLine;
+			assign(table, parts, item, path, "inline");
+			line = valueLine;
+			skipBlank();
+			if (text[index] === ",") index += 1;
+			else if (text[index] !== "}") fail("expected , or } in the inline table");
+		}
+	};
+	const root = newTable("header");
+	let current = root;
+	let currentPath = [];
+	/** Walks the header's parent keys, creating implicit tables and stepping into the last element of arrays of tables. */
+	const parentOf = (parts) => {
+		let table = root;
+		const path = [];
+		for (const part of parts.slice(0, -1)) {
+			path.push(part);
+			const next = table[part];
+			if (next === void 0) {
+				const created = newTable("implicit");
+				table[part] = created;
+				table = created;
+			} else if (Array.isArray(next) && arraysOfTables.has(next)) {
+				const element = next.at(-1);
+				if (!isTable(element)) return fail(`${path.join(".")} is already a value, not a table`);
+				path.push(next.length - 1);
+				table = element;
+			} else if (isTable(next)) {
+				if (origins.get(next) === "inline") fail(`${path.join(".")} is an inline table, which cannot be extended`);
+				table = next;
+			} else fail(`${path.join(".")} is already a value, not a table`);
+		}
+		return {
+			table,
+			path
+		};
+	};
+	const header = () => {
+		const isArray = text.startsWith("[[", index);
+		index += isArray ? 2 : 1;
+		skipSpaces();
+		const parts = key();
+		skipSpaces();
+		if (!text.startsWith(isArray ? "]]" : "]", index)) fail(`expected ${isArray ? "]]" : "]"} after the table name`);
+		index += isArray ? 2 : 1;
+		const name = parts.join(".");
+		const { table: parent, path } = parentOf(parts);
+		const last = parts.at(-1);
+		const existing = parent[last];
+		if (isArray) {
+			let list;
+			if (existing === void 0) {
+				list = [];
+				arraysOfTables.add(list);
+				parent[last] = list;
+			} else if (Array.isArray(existing) && arraysOfTables.has(existing)) list = existing;
+			else return fail(`${name} is not an array of tables`);
+			current = newTable("header");
+			currentPath = [
+				...path,
+				last,
+				list.length
+			];
+			list.push(current);
+		} else {
+			if (existing === void 0) {
+				current = newTable("header");
+				parent[last] = current;
+			} else if (isTable(existing)) {
+				const origin = origins.get(existing);
+				if (origin === "inline") fail(`${name} is an inline table, which cannot be extended`);
+				if (origin !== "implicit") fail(`table ${name} is defined twice`);
+				origins.set(existing, "header");
+				current = existing;
+			} else return fail(Array.isArray(existing) ? `${name} is an array, not a table` : `${name} is already a value, not a table`);
+			currentPath = [...path, last];
+		}
+		record(currentPath);
+		endOfLine();
+	};
+	const keyValue = () => {
+		const parts = key();
+		skipSpaces();
+		if (text[index] !== "=") fail("expected = after the key");
+		index += 1;
+		skipSpaces();
+		const keyLine = line;
+		const item = value([...currentPath, ...parts]);
+		const valueLine = line;
+		line = keyLine;
+		assign(current, parts, item, currentPath, "dotted");
+		line = valueLine;
+		endOfLine();
+	};
+	for (;;) {
+		skipBlank();
+		if (index >= text.length) break;
+		if (text[index] === "[") header();
+		else keyValue();
+	}
+	return {
+		root,
+		lineOf: (path) => lines.get(JSON.stringify(path))
+	};
 }
 
 // src/detect/workflows.ts
@@ -9120,11 +9539,13 @@ const EVIDENCE_ORDER = [
 ];
 const SOURCE_ORDER = [
 	"packageManager",
+	"tool-config",
 	"devEngines",
 	"volta",
 	"tool-versions",
 	"github-actions"
 ];
+const PYPROJECT = "pyproject.toml";
 function isObject(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -9146,6 +9567,30 @@ function compareEvidence(a, b) {
 }
 function byPath(a, b) {
 	return a < b ? -1 : a > b ? 1 : 0;
+}
+/** The value at a dotted key path of a TOML document. */
+function tomlAt(document, path) {
+	let node = document?.root;
+	for (const key of path) node = isObject(node) ? node[key] : void 0;
+	return node;
+}
+/** A required version as written; an exact one (==1.2.3) without the operator, so that it counts as pinned. */
+function requiredVersionText(value) {
+	return /^\s*===?\s*(\d+(?:\.\d+)*)\s*$/u.exec(value)?.[1] ?? value.trim();
+}
+var TomlFiles = class {
+	#repository;
+	#cache = /* @__PURE__ */ new Map();
+	constructor(repository) {
+		this.#repository = repository;
+	}
+	read(file) {
+		if (!this.#cache.has(file)) this.#cache.set(file, this.#repository.isFile(file) ? this.#repository.parse(file, parseToml) : void 0);
+		return this.#cache.get(file);
+	}
+};
+function orList(items) {
+	return items.length < 2 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} or ${items.at(-1) ?? ""}`;
 }
 var Collector = class {
 	evidence = /* @__PURE__ */ new Map();
@@ -9259,43 +9704,64 @@ function yarnVariant(repository, facts, collector) {
 		file: "package.json"
 	};
 }
-function readWorkspaces(repository, facts, manifest) {
+function readWorkspaces(repository, facts, manifest, toml) {
 	const declarations = [];
 	const seen = /* @__PURE__ */ new Set();
 	for (const manager of facts.managers) {
 		if (manager.workspaces === null) continue;
-		const { files, key, objectKey } = manager.workspaces;
+		const { files, key, objectKey, excludeKey } = manager.workspaces;
 		for (const file of files) {
 			const id = `${file}#${key}`;
 			if (seen.has(id) || !repository.isFile(file)) continue;
 			seen.add(id);
-			const document = readConfig(repository, file, manifest);
-			if (!isObject(document)) continue;
-			const value = document[key];
+			const value = file.endsWith(".toml") ? tomlAt(toml.read(file), key.split(".")) : readConfig(repository, file, manifest, key);
 			const patterns = stringList(value) ?? (objectKey !== null && isObject(value) ? stringList(value[objectKey]) : void 0);
+			const excluded = excludeKey !== void 0 && isObject(value) ? stringList(value[excludeKey]) ?? [] : [];
 			if (patterns !== void 0) declarations.push({
 				file,
-				patterns
+				patterns: [...patterns, ...excluded.map((pattern) => `!${pattern}`)],
+				manifests: manager.manifests
 			});
 			break;
 		}
 	}
 	if (declarations.length === 0) return null;
-	const manifests = [...new Set(facts.managers.flatMap((manager) => manager.manifests))];
 	const packages = /* @__PURE__ */ new Set();
-	for (const declaration of declarations) for (const directory of expandWorkspaces(repository, declaration.patterns, manifests, declaration.file)) packages.add(directory);
+	for (const declaration of declarations) for (const directory of expandWorkspaces(repository, declaration.patterns, declaration.manifests, declaration.file)) packages.add(directory);
 	return {
-		declarations,
+		declarations: declarations.map(({ file, patterns }) => ({
+			file,
+			patterns
+		})),
 		packages: [...packages].sort(byPath)
 	};
 }
-/** Reads a workspace declaration file: package.json is already parsed, others are YAML or JSONC. */
-function readConfig(repository, file, manifest) {
-	if (file === "package.json") return manifest;
-	return repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => (0, import_dist.parse)(text) : parseJsonc);
+/** Reads the workspace key of a declaration file: package.json is already parsed, others are YAML or JSONC. */
+function readConfig(repository, file, manifest, key) {
+	const document = file === "package.json" ? manifest : repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => (0, import_dist.parse)(text) : parseJsonc);
+	return isObject(document) ? document[key] : void 0;
 }
-function configFiles(repository, manager, directories) {
-	return directories.flatMap((directory) => manager.configFiles.map((file) => joinPath(directory, file))).filter((file) => repository.isFile(file)).sort(byPath);
+/** Python tools: a pyproject.toml with the tool's table is configuration, and required versions are pinned versions. */
+function readPythonConfig(facts, toml, collector) {
+	for (const manager of facts.managers) {
+		if (manager.pyprojectTable !== null && tomlAt(toml.read(PYPROJECT), manager.pyprojectTable.split(".")) !== void 0) collector.addEvidence(manager.id, "config", PYPROJECT);
+		for (const { file, path } of manager.requiredVersions) {
+			const document = toml.read(file);
+			const value = tomlAt(document, path);
+			if (typeof value !== "string") continue;
+			const line = document?.lineOf(path);
+			collector.addVersion(manager.id, {
+				version: requiredVersionText(value),
+				source: "tool-config",
+				file,
+				...line === void 0 ? {} : { line }
+			});
+		}
+	}
+}
+function configFiles(repository, manager, directories, toml) {
+	const table = manager.pyprojectTable?.split(".");
+	return directories.flatMap((directory) => [...manager.configFiles.map((file) => joinPath(directory, file)).filter((file) => repository.isFile(file)), ...table !== void 0 && tomlAt(toml.read(joinPath(directory, PYPROJECT)), table) !== void 0 ? [joinPath(directory, PYPROJECT)] : []]).sort(byPath);
 }
 /**
 * Describes the repository at `root`. Never executes anything from the repository and never leaves it;
@@ -9305,6 +9771,9 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	const repository = new Repository(root);
 	const facts = detectionFacts(tools, environment$1);
 	const collector = new Collector();
+	const toml = new TomlFiles(repository);
+	const managerIds = new Set(facts.managers.map((manager) => manager.id));
+	const ecosystemOf = (id) => facts.managers.find((manager) => manager.id === id)?.ecosystem ?? "npm";
 	const manifest = readPackageJson(repository);
 	const declaredManager = manifest === void 0 ? void 0 : readPackageManagerField(repository, facts, manifest, collector);
 	if (manifest !== void 0) {
@@ -9312,6 +9781,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		readVolta(facts, manifest, collector);
 	}
 	readToolVersions(repository, facts, collector);
+	readPythonConfig(facts, toml, collector);
 	const lockfiles = /* @__PURE__ */ new Map();
 	for (const manager of facts.managers) {
 		const present = manager.lockfiles.filter((file) => repository.isFile(file)).sort(byPath);
@@ -9320,11 +9790,12 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, "config", file);
 	}
 	const workflows = readWorkflows(repository, facts);
-	for (const { tool, file } of workflows.installs) if (tool !== "node") collector.addEvidence(tool, "ci", file);
+	for (const { tool, file } of workflows.installs) if (managerIds.has(tool)) collector.addEvidence(tool, "ci", file);
 	for (const { tool, declaration } of workflows.versions) collector.addVersion(tool, declaration);
-	const workspaces = readWorkspaces(repository, facts, manifest);
+	const workspaces = readWorkspaces(repository, facts, manifest, toml);
 	const directories = [".", ...workspaces?.packages ?? []];
-	if (manifest !== void 0 && collector.evidence.size === 0) {
+	const hasEvidence = (ecosystem) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
+	if (manifest !== void 0 && !hasEvidence("npm")) {
 		collector.addEvidence("npm", "default", "package.json");
 		repository.warn("package-manager-assumed", "no lockfile, packageManager or devEngines found; assuming npm", ["package.json"]);
 	}
@@ -9340,7 +9811,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 			supported: yarn?.variant !== "classic",
 			evidence: [...evidence].sort(compareEvidence),
 			versions: [...collector.versions.get(manager.id) ?? []].sort(compareVersions),
-			configFiles: configFiles(repository, manager, directories)
+			configFiles: configFiles(repository, manager, directories, toml)
 		});
 	}
 	const bots = [];
@@ -9356,12 +9827,21 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		});
 	}
 	const withLockfiles = [...lockfiles.entries()];
-	if (withLockfiles.length > 1) {
-		const files = withLockfiles.flatMap(([, list]) => list).sort(byPath);
+	for (const ecosystem of ["npm", "pypi"]) {
+		const competing = withLockfiles.filter(([id]) => ecosystemOf(id) === ecosystem && id !== "pip");
+		if (competing.length < 2) continue;
+		const files = competing.flatMap(([, list]) => list).sort(byPath);
 		repository.warn("multiple-lockfiles", `lockfiles of several package managers: ${files.join(", ")}`, files);
 	}
-	if (declaredManager !== void 0 && !lockfiles.has(declaredManager) && withLockfiles.length > 0) repository.warn("package-manager-mismatch", `${facts.packageManagerKey} names ${declaredManager}, but no ${declaredManager} lockfile exists`, ["package.json"]);
-	if (manifest === void 0 && packageManagers.length === 0 && !repository.isFile("package.json")) repository.warn("nothing-detected", "no package.json, deno.json or lockfile found", []);
+	const npmLockfiles = withLockfiles.filter(([id]) => ecosystemOf(id) === "npm");
+	if (declaredManager !== void 0 && !lockfiles.has(declaredManager) && npmLockfiles.length > 0) repository.warn("package-manager-mismatch", `${facts.packageManagerKey} names ${declaredManager}, but no ${declaredManager} lockfile exists`, ["package.json"]);
+	const python = facts.managers.filter((manager) => manager.ecosystem === "pypi");
+	if (repository.isFile(PYPROJECT) && !hasEvidence("pypi")) {
+		const tables = python.flatMap((manager) => manager.pyprojectTable === null ? [] : [`[${manager.pyprojectTable}]`]);
+		const files = [...python.flatMap((manager) => manager.lockfiles), ...python.flatMap((manager) => manager.manifests.filter((file) => file !== PYPROJECT))];
+		repository.warn("python-tool-unknown", `${PYPROJECT} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none`, [PYPROJECT]);
+	}
+	if (manifest === void 0 && packageManagers.length === 0 && !repository.isFile("package.json") && !repository.isFile(PYPROJECT)) repository.warn("nothing-detected", "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found", []);
 	return {
 		packageManagers,
 		node: { versions: [...collector.versions.get("node") ?? []].sort(compareVersions) },
@@ -9437,7 +9917,7 @@ function urlPath(url) {
 }
 /** Packages that overrides (npm, root package.json only) replace with a tarball URL, at any depth of nesting. */
 function urlOverrides(overrides, parent, selfKey, found = []) {
-	if (!isRecord(overrides)) return found;
+	if (!isRecord$1(overrides)) return found;
 	for (const [key, value] of Object.entries(overrides)) {
 		const name = key === selfKey ? parent : splitSpec(key).name;
 		if (typeof value === "string") {
@@ -9452,27 +9932,27 @@ function urlOverrides(overrides, parent, selfKey, found = []) {
 }
 function npmEntries(text, format, workspaces, manifest, overridesFormat) {
 	const document = JSON.parse(text);
-	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
+	if (!isRecord$1(document) || !isRecord$1(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
 	const packages = document["packages"];
 	const registry = new RegExp(String(format["registryTarball"]), "u");
 	const scriptsKey = String(format["installScripts"]);
 	const fields = strings(format["dependencyFields"]);
 	const fromUrl = /* @__PURE__ */ new Set();
 	for (const [key, value] of Object.entries(packages)) {
-		if (!isRecord(value)) continue;
+		if (!isRecord$1(value)) continue;
 		for (const field of fields) {
 			const dependencies = value[field];
-			if (!isRecord(dependencies)) continue;
+			if (!isRecord$1(dependencies)) continue;
 			for (const [name, spec] of Object.entries(dependencies)) {
 				const location = typeof spec === "string" && HTTP.test(spec) ? installedAt(packages, key, name) : void 0;
 				if (location !== void 0) fromUrl.add(location);
 			}
 		}
 	}
-	const overrides = overridesFormat !== void 0 && isRecord(manifest) ? urlOverrides(manifest[String(overridesFormat["field"])], void 0, String(overridesFormat["selfKey"])) : [];
+	const overrides = overridesFormat !== void 0 && isRecord$1(manifest) ? urlOverrides(manifest[String(overridesFormat["field"])], void 0, String(overridesFormat["selfKey"])) : [];
 	const entries = [];
 	for (const [key, value] of Object.entries(packages)) {
-		if (!key.includes("node_modules/") || !isRecord(value)) continue;
+		if (!key.includes("node_modules/") || !isRecord$1(value)) continue;
 		const name = typeof value["name"] === "string" ? value["name"] : key.slice(key.lastIndexOf("node_modules/") + 13);
 		const resolved = typeof value["resolved"] === "string" ? value["resolved"] : "";
 		const version = typeof value["version"] === "string" ? value["version"] : "";
@@ -9513,17 +9993,17 @@ function pnpmGraph(text, documents) {
 }
 function pnpmEntries(text, format, documents) {
 	const { document, start } = pnpmGraph(text, documents);
-	if (!isRecord(document)) return {
+	if (!isRecord$1(document)) return {
 		entries: [],
 		start
 	};
 	if (!String(document["lockfileVersion"]).startsWith("9")) throw new UnsupportedLockfile(`its lockfileVersion ${String(document["lockfileVersion"])} is not read; depcurfew reads 9.0`);
 	const hosts = strings(format["gitHostedTarballHosts"]);
 	const entries = [];
-	const packages = isRecord(document["packages"]) ? document["packages"] : {};
+	const packages = isRecord$1(document["packages"]) ? document["packages"] : {};
 	for (const [key, value] of Object.entries(packages)) {
 		const { name, spec } = splitSpec(key);
-		const resolution = isRecord(value) && isRecord(value["resolution"]) ? value["resolution"] : {};
+		const resolution = isRecord$1(value) && isRecord$1(value["resolution"]) ? value["resolution"] : {};
 		const tarball = typeof resolution["tarball"] === "string" ? resolution["tarball"] : "";
 		let host = "";
 		try {
@@ -9545,17 +10025,17 @@ function pnpmEntries(text, format, documents) {
 			anchor: key
 		});
 	}
-	const importers = isRecord(document["importers"]) ? document["importers"] : {};
+	const importers = isRecord$1(document["importers"]) ? document["importers"] : {};
 	for (const importer of Object.values(importers)) {
-		if (!isRecord(importer)) continue;
+		if (!isRecord$1(importer)) continue;
 		for (const group of [
 			"dependencies",
 			"devDependencies",
 			"optionalDependencies"
 		]) {
-			const dependencies = isRecord(importer[group]) ? importer[group] : {};
+			const dependencies = isRecord$1(importer[group]) ? importer[group] : {};
 			for (const [name, dependency] of Object.entries(dependencies)) {
-				if (!isRecord(dependency) || typeof dependency["version"] !== "string") continue;
+				if (!isRecord$1(dependency) || typeof dependency["version"] !== "string") continue;
 				const specifier = typeof dependency["specifier"] === "string" ? dependency["specifier"] : "";
 				if (dependency["version"].startsWith("link:") && !specifier.startsWith("workspace:")) entries.push({
 					name,
@@ -9587,8 +10067,8 @@ function yarnSource(locator, format) {
 }
 function yarnEntries(text, format) {
 	const document = (0, import_dist.parse)(text);
-	if (!isRecord(document)) return [];
-	return Object.entries(document).filter(([key, value]) => key !== "__metadata" && isRecord(value) && typeof value["resolution"] === "string").map(([, value]) => {
+	if (!isRecord$1(document)) return [];
+	return Object.entries(document).filter(([key, value]) => key !== "__metadata" && isRecord$1(value) && typeof value["resolution"] === "string").map(([, value]) => {
 		const resolution = value["resolution"];
 		const { name, spec } = splitSpec(resolution);
 		return {
@@ -9602,7 +10082,7 @@ function yarnEntries(text, format) {
 }
 function bunEntries(text, format) {
 	const document = parseJsonc(text);
-	const packages = isRecord(document) && isRecord(document["packages"]) ? document["packages"] : {};
+	const packages = isRecord$1(document) && isRecord$1(document["packages"]) ? document["packages"] : {};
 	const tarball = new RegExp(String(format["tarball"]), "u");
 	const scriptsKey = String(format["installScripts"]);
 	const entries = [];
@@ -9615,12 +10095,12 @@ function bunEntries(text, format) {
 		else if (strings(format["directory"]).some((prefix) => spec.startsWith(prefix))) source = "directory";
 		else if (HTTP.test(spec)) source = "remoteTarball";
 		else if (/^(\.{1,2}\/|\/)/u.test(spec) && tarball.test(spec)) source = "file";
-		const info = value.find((item) => isRecord(item));
+		const info = value.find((item) => isRecord$1(item));
 		entries.push({
 			name,
 			spec,
 			source,
-			installScript: isRecord(info) && info[scriptsKey] === true,
+			installScript: isRecord$1(info) && info[scriptsKey] === true,
 			anchor: `${JSON.stringify(key)}: [`
 		});
 	}
@@ -9628,12 +10108,12 @@ function bunEntries(text, format) {
 }
 function denoEntries(text, format) {
 	const document = JSON.parse(text);
-	if (!isRecord(document)) return {
+	if (!isRecord$1(document)) return {
 		entries: [],
 		recordsScripts: false
 	};
 	const recordsScripts = Number(document["version"]) >= Number(format["installScriptsSinceLockfile"]);
-	const npm = isRecord(document["npm"]) ? document["npm"] : {};
+	const npm = isRecord$1(document["npm"]) ? document["npm"] : {};
 	const scriptsKey = String(format["installScripts"]);
 	return {
 		entries: Object.entries(npm).map(([key, value]) => {
@@ -9642,7 +10122,7 @@ function denoEntries(text, format) {
 				name,
 				spec,
 				source: "registry",
-				installScript: recordsScripts ? isRecord(value) && value[scriptsKey] === true : void 0,
+				installScript: recordsScripts ? isRecord$1(value) && value[scriptsKey] === true : void 0,
 				anchor: `${JSON.stringify(key)}: {`
 			};
 		}),
@@ -9654,7 +10134,7 @@ var UnsupportedLockfile = class extends Error {};
 function documentsOf(tool) {
 	const fact = tool.extra?.["lockfileDocuments"];
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(value) ? value : void 0;
+	return isRecord$1(value) ? value : void 0;
 }
 /** The lockfiles a package manager uses in the repository root, parsed. */
 /** The package.json next to a lockfile, or undefined when it is missing or not JSON. */
@@ -9670,12 +10150,12 @@ function readManifest(repository, lockfile) {
 function overridesFormatOf(tool) {
 	const fact = tool.extra?.["overrides"];
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(value) ? value : void 0;
+	return isRecord$1(value) ? value : void 0;
 }
 function readLockfiles(repository, manager, tool, workspaces) {
 	const fact = tool.extra?.["lockfileFormat"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	if (!isRecord(format)) return [];
+	if (!isRecord$1(format)) return [];
 	return [...new Set(manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file))].map((file) => {
 		if (file.endsWith(".lockb")) return {
 			ok: false,
@@ -9997,9 +10477,18 @@ const BLOCK_END = "# <<< depcurfew managed block";
 const SUPERSEDED = "# depcurfew: superseded by the managed block: ";
 /** For a managed key commented out when no block is written, such as a switch the policy turns off. */
 const TURNED_OFF = "# depcurfew: turned off; depcurfew.json manages this setting: ";
+/** The start marker of a managed block; a file with one block per TOML table names the table in each marker. */
+function blockStart(table) {
+	return table === void 0 ? BLOCK_START : BLOCK_START.replace(": ", ` [${table}]: `);
+}
+const LABELED_START = new RegExp(`^${BLOCK_START.replace(": ", " \\[[^\\]]*\\]: ").replace(/[.]/gu, "\\.")}$`, "u");
+function isBlockStart(line) {
+	const trimmed = line.trim();
+	return trimmed === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead" || LABELED_START.test(trimmed);
+}
 /** The lines without the managed block, where it was, and whether a blank line separated it from what came before. */
-function removeBlock(lines) {
-	const start = lines.findIndex((line) => line.trim() === BLOCK_START);
+function removeBlock(lines, marker = BLOCK_START) {
+	const start = lines.findIndex((line) => line.trim() === marker);
 	if (start === -1) return {
 		lines: [...lines],
 		at: void 0,
@@ -10021,9 +10510,9 @@ function removeBlock(lines) {
 		separated
 	};
 }
-function blockLines(entries) {
+function blockLines(entries, marker = BLOCK_START) {
 	return [
-		BLOCK_START,
+		marker,
 		...entries,
 		BLOCK_END
 	];
@@ -10038,8 +10527,8 @@ function joinLines(lines) {
 	return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
 }
 /** Inserts the block at `at`; a new block is separated by a blank line from preceding content. */
-function insertBlock(lines, at, entries, separate) {
-	const block = blockLines(entries);
+function insertBlock(lines, at, entries, separate, marker = BLOCK_START) {
+	const block = blockLines(entries, marker);
 	const before = lines.slice(0, at);
 	if ((separate ?? true) && before.length > 0 && before.at(-1)?.trim() !== "") block.unshift("");
 	return [
@@ -10198,7 +10687,7 @@ function read(repository, file) {
 	return repository.readText(file);
 }
 function fromKeys(text, file, setting, value, enabled) {
-	if (!isRecord(value)) return [];
+	if (!isRecord$1(value)) return [];
 	return Object.entries(value).filter(([, entry]) => enabled(entry)).map(([name]) => ({
 		name,
 		package: splitSpec(name).name,
@@ -10239,7 +10728,7 @@ function allowEntries(repository, manager, configFiles) {
 			break;
 		}
 		case "yarn":
-			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "dependenciesMeta", json(["dependenciesMeta"]), (entry) => isRecord(entry) && entry["built"] === true));
+			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "dependenciesMeta", json(["dependenciesMeta"]), (entry) => isRecord$1(entry) && entry["built"] === true));
 			break;
 		case "bun":
 			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "trustedDependencies", json(["trustedDependencies"])));
@@ -10248,7 +10737,7 @@ function allowEntries(repository, manager, configFiles) {
 			const text = read(repository, file);
 			if (text === void 0) continue;
 			const value = jsonSetting(text, ["allowScripts"])?.value;
-			entries.push(...fromList(text, file, "allowScripts", isRecord(value) ? value["allow"] : value, "npm:"));
+			entries.push(...fromList(text, file, "allowScripts", isRecord$1(value) ? value["allow"] : value, "npm:"));
 		}
 	}
 	return entries;
@@ -11037,10 +11526,18 @@ const MINUTES$1 = {
 	weeks: 10080
 };
 const SOURCE_LABELS = {
-	git: "git",
-	remoteTarball: "remote tarball",
-	file: "local tarball",
-	directory: "local directory"
+	npm: {
+		git: "git",
+		remoteTarball: "remote tarball",
+		file: "local tarball",
+		directory: "local directory"
+	},
+	pypi: {
+		git: "git",
+		remoteTarball: "URL",
+		file: "local archive",
+		directory: "local directory"
+	}
 };
 /** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
 function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
@@ -11091,7 +11588,7 @@ function allowedNames(context, setting) {
 function lockfileShowsSources(tool) {
 	const fact = tool.extra?.["lockfileFormat"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(format) && format["sources"] !== null;
+	return isRecord$1(format) && format["sources"] !== null;
 }
 /** Calls `apply` for every dependency source the policy manages and the tool has a setting for. */
 function eachSource(context, apply) {
@@ -11105,7 +11602,7 @@ function eachSource(context, apply) {
 		if (setting === null) {
 			if (access === "deny") {
 				const checked = lockfileShowsSources(context.tool) ? "; depcurfew doctor still reports such dependencies in the lockfile" : "; depcurfew doctor cannot see them in the lockfile either, so review new dependencies by hand";
-				context.warn(`${context.name} has no setting for ${SOURCE_LABELS[kind]} dependencies, so "deny" cannot be enforced${checked}`);
+				context.warn(`${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced${checked}`);
 			}
 			continue;
 		}
@@ -11191,6 +11688,28 @@ function writeIniBlock(body, entries, managedKeys) {
 	});
 	if (entries.length === 0) return joinLines(lines);
 	return joinLines(removed.at === void 0 ? insertBlock(lines, lines.length, entries) : insertBlock(lines, removed.at, entries, removed.separated));
+}
+
+// src/apply/pip-requirements.ts
+/** The option a requirements line sets (--only-binary=x and --only-binary x alike), if it is an option line. */
+function optionOf(line) {
+	return /^\s*(--[a-z-]+)(?=[=\s]|$)/u.exec(line)?.[1];
+}
+function writeRequirementsBlock(body, entries, managedOptions) {
+	const managed = new Set(managedOptions);
+	const removed = removeBlock(splitLines(body));
+	const lines = removed.lines.map((line) => {
+		const option = optionOf(line);
+		return option !== void 0 && managed.has(option) ? `${SUPERSEDED}${line.trim()}` : line;
+	});
+	if (entries.length === 0) return joinLines(lines);
+	if (removed.at !== void 0) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
+	let at = 0;
+	while (at < lines.length && (lines[at]?.trim().startsWith("#") ?? false)) at += 1;
+	const result = insertBlock(lines, at, entries);
+	const after = at + (result.length - lines.length);
+	if (result[after] !== void 0 && result[after]?.trim() !== "") result.splice(after, 0, "");
+	return joinLines(result);
 }
 
 // src/apply/requirements.ts
@@ -11281,10 +11800,13 @@ function valueEnd(lines, index) {
 	}
 	return end;
 }
-function writeTomlBlock(body, table, entries, managedKeys) {
+function writeTomlBlock(body, table, entries, managedKeys, label) {
 	const managed = new Set(managedKeys);
-	const removed = removeBlock(splitLines(body));
+	const marker = blockStart(label);
+	const removed = removeBlock(splitLines(body), marker);
 	const lines = [...removed.lines];
+	const topLevel = table === "";
+	if (topLevel && removed.at === 0 && lines[0]?.trim() === "") lines.shift();
 	const headers = /* @__PURE__ */ new Map();
 	const boundaries = [];
 	let current;
@@ -11301,15 +11823,22 @@ function writeTomlBlock(body, table, entries, managedKeys) {
 		const key = keyOf(line);
 		if (key === void 0) continue;
 		const end = valueEnd(lines, index);
-		const inTable = current === table && managed.has(key);
-		const dotted = current === void 0 && key.startsWith(`${table}.`) && managed.has(key.slice(table.length + 1));
+		const inTable = (topLevel ? current === void 0 : current === table) && managed.has(key);
+		const dotted = !topLevel && current === void 0 && key.startsWith(`${table}.`) && managed.has(key.slice(table.length + 1));
 		if (inTable || dotted) {
 			lines[index] = `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}`;
 			for (let next = index + 1; next <= end; next++) lines[next] = `# ${lines[next] ?? ""}`;
-		} else if (current === void 0 && (key === table || key.startsWith(`${table}.`))) definedAtTop = true;
+		} else if (!topLevel && current === void 0 && (key === table || key.startsWith(`${table}.`) || table.startsWith(`${key}.`))) definedAtTop = true;
 		index = end;
 	}
 	if (entries.length === 0) return joinLines(lines);
+	if (topLevel) {
+		const firstTable = boundaries[0] ?? lines.length;
+		if (removed.at !== void 0 && removed.at <= firstTable) return joinLines(topBlock(lines, removed.at, entries, removed.separated, marker));
+		let end = firstTable;
+		while (end > 0 && lines[end - 1]?.trim() === "") end -= 1;
+		return joinLines(topBlock(lines, end, entries, void 0, marker));
+	}
 	const headerIndex = [...headers].find(([, name]) => name === table)?.[0] ?? -1;
 	const nextHeaderAfter = (from) => boundaries.find((index) => index > from) ?? -1;
 	if (headerIndex === -1) {
@@ -11318,17 +11847,24 @@ function writeTomlBlock(body, table, entries, managedKeys) {
 		return joinLines([
 			...prefix,
 			`[${table}]`,
-			...insertBlock([], 0, entries)
+			...insertBlock([], 0, entries, void 0, marker)
 		]);
 	}
 	if (removed.at !== void 0 && removed.at > headerIndex) {
 		const nextHeader = nextHeaderAfter(headerIndex);
-		if (nextHeader === -1 || removed.at <= nextHeader) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
+		if (nextHeader === -1 || removed.at <= nextHeader) return joinLines(insertBlock(lines, removed.at, entries, removed.separated, marker));
 	}
 	let end = nextHeaderAfter(headerIndex);
 	if (end === -1) end = lines.length;
 	while (end > headerIndex + 1 && lines[end - 1]?.trim() === "") end -= 1;
-	return joinLines(insertBlock(lines, end, entries));
+	return joinLines(insertBlock(lines, end, entries, void 0, marker));
+}
+/** A top-level block, with a blank line before the first table that follows it. */
+function topBlock(lines, at, entries, separate, marker) {
+	const result = insertBlock(lines, at, entries, separate, marker);
+	const after = at + (result.length - lines.length);
+	if (result[after] !== void 0 && result[after]?.trim() !== "") result.splice(after, 0, "");
+	return result;
 }
 
 // src/apply/yaml-edit.ts
@@ -11541,7 +12077,8 @@ function createContext(options) {
 			set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value)))
 		}),
 		ini: (file, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeIniBlock(body, entries, managedKeys))),
-		toml: (file, table, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeTomlBlock(body, table, entries, managedKeys)))
+		toml: (file, table, entries, managedKeys, label) => guard(file, () => workspace.edit(file, (body) => writeTomlBlock(body, table, entries, managedKeys, label))),
+		requirements: (file, entries, managedOptions) => guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions)))
 	};
 }
 
@@ -11580,8 +12117,8 @@ const deno = (context) => {
 			const since = sinceOf(tool.installScripts.allowList.availableSince);
 			const specifiers = (policy.installScripts.allow.length > 0 && context.supports(since, setting) ? allowedNames(context, setting) : []).map((name) => `${prefix}${name}`);
 			const current = json.get([setting]);
-			const path = isRecord(current) ? [setting, "allow"] : [setting];
-			const allowed = isRecord(current) ? current["allow"] : current;
+			const path = isRecord$1(current) ? [setting, "allow"] : [setting];
+			const allowed = isRecord$1(current) ? current["allow"] : current;
 			if (allowed === allowAll.value && context.atLeast(since)) {
 				context.warn(`${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`);
 				json.set(path, specifiers);
@@ -11597,7 +12134,7 @@ const deno = (context) => {
 };
 
 // src/apply/generators/dependabot.ts
-const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
+const isKeys = (value) => isRecord$1(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
 const dependabot = (context, duration) => {
 	const { tool, policy } = context;
 	if (policy.cooldown === void 0 || duration === void 0) return;
@@ -11613,7 +12150,7 @@ const dependabot = (context, duration) => {
 		return;
 	}
 	const keys = extraOf(tool, "cooldownKeys", isKeys);
-	const managers = extraOf(tool, "ecosystems", isRecord);
+	const managers = extraOf(tool, "ecosystems", isRecord$1);
 	const ecosystems = Object.keys(managers);
 	const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
 	const yaml = context.yaml(file);
@@ -11625,11 +12162,11 @@ const dependabot = (context, duration) => {
 	};
 	let configured = 0;
 	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
-		if (!isRecord(entry) || !ecosystems.includes(String(entry["package-ecosystem"]))) return;
+		if (!isRecord$1(entry) || !ecosystems.includes(String(entry["package-ecosystem"]))) return;
 		configured += 1;
 		const patterns = patternsOf(String(entry["package-ecosystem"]));
 		const current = entry[setting];
-		if (!isRecord(current)) {
+		if (!isRecord$1(current)) {
 			yaml.set([
 				"updates",
 				index,
@@ -11730,8 +12267,72 @@ const npm = (context) => {
 	return minutes;
 };
 
+// src/policy/python-names.ts
+const [rule] = evidenceOf(environment.python.nameNormalization);
+const SEPARATORS = new RegExp(rule?.value.separators ?? "[-_.]+", "gu");
+const REPLACEMENT = rule?.value.replacement ?? "-";
+/** The normalized form of a Python package name or name pattern; `*` stays as it is. */
+function normalizePythonName(name) {
+	return name.replace(SEPARATORS, REPLACEMENT).toLowerCase();
+}
+
+// src/apply/generators/python.ts
+/** The policy's Python allow-list as normalized names; patterns with * are dropped with a warning. */
+function buildAllowList(context, setting) {
+	return [...new Set(allowedNames(context, setting).map(normalizePythonName))];
+}
+/** Exclusions as normalized names. */
+function pythonNames(names) {
+	return [...new Set(names.map(normalizePythonName))];
+}
+function forcedBuildWarning(context, setting, names) {
+	if (names.length === 0) return;
+	context.warn(`${context.name}: ${setting} lets ${names.join(", ")} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? "it" : "them"} from source, even where a wheel exists, because it has no setting that only allows building`);
+}
+/** A TOML string or array value. */
+function tomlValue(value) {
+	return Array.isArray(value) ? `[${value.map((item) => tomlValue(item)).join(", ")}]` : JSON.stringify(value);
+}
+
+// src/apply/generators/pip.ts
+const pip = (context) => {
+	const { tool, policy } = context;
+	const file = (tool.project === void 0 ? void 0 : firstFile(tool.project.manifests)) ?? "requirements.txt";
+	if (policy.cooldown !== void 0) {
+		const flag = settingOf(tool.cooldown.setting) ?? "uploaded-prior-to";
+		const variable = extraOf(tool, "environmentVariable", (value) => typeof value === "string");
+		const since = sinceOf(tool.cooldown.availableSince);
+		const result = convertCooldown(tool, policy.cooldown.minimum);
+		const value = result.ok ? `P${String(result.value)}D` : void 0;
+		const version = context.version === void 0 || context.atLeast(since) ? "" : ` (pip ${formatVersion(context.version)} is too old for it)`;
+		context.warn(`${context.name}: cooldown not written: pip reads no configuration from the project and rejects --${flag} in requirements files; set ${variable}${value === void 0 ? "" : `=${value}`} where pip installs packages (CI, Dockerfile), with pip ${since ?? "a recent version"} or later${version}`);
+	}
+	const entries = [];
+	const managed = [];
+	if (policy.installScripts?.default === "deny") {
+		const build = extraOf(tool, "buildSwitch", isSwitch);
+		const setting = settingOf(tool.installScripts.allowList.setting);
+		if (context.supports(build.since, build.setting)) {
+			entries.push(`${build.setting}=${String(build.value)}`);
+			managed.push(build.setting);
+			if (setting !== null) {
+				managed.push(setting);
+				const names = policy.installScripts.allow.length > 0 ? buildAllowList(context, setting) : [];
+				for (const name of names) entries.push(`${setting}=${name}`);
+				forcedBuildWarning(context, setting, names);
+			}
+		}
+	}
+	eachSource(context, () => void 0);
+	if (!context.exists(file)) {
+		if (entries.length > 0) context.warn(`${context.name}: no ${file}, so ${entries.join(" and ")} not written; add ${entries.length === 1 ? "it" : "them"} to the pip command or the requirements file pip installs from`);
+		return;
+	}
+	if (entries.length > 0 || context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.requirements(file, entries, managed);
+};
+
 // src/apply/generators/pnpm.ts
-const isLegacy = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["workspaceFileSince"] === "string" && typeof value["removedIn"] === "string";
+const isLegacy = (value) => isRecord$1(value) && typeof value["since"] === "string" && typeof value["workspaceFileSince"] === "string" && typeof value["removedIn"] === "string";
 const pnpm = (context) => {
 	const { tool, policy } = context;
 	const file = firstFile(tool.cooldown.configFiles) ?? "pnpm-workspace.yaml";
@@ -11806,11 +12407,70 @@ const pnpm = (context) => {
 	return minutes;
 };
 
+// src/apply/generators/poetry.ts
+function writeTable(context, file, table, entries, managed) {
+	if (entries.length > 0 || context.exists(file) && context.read(file).includes(blockStart(table))) context.toml(file, table, entries, managed, table);
+}
+const poetry = (context) => {
+	const { tool, policy } = context;
+	const file = firstFile(tool.cooldown.configFiles) ?? "poetry.toml";
+	let minutes;
+	const solver = {
+		table: "solver",
+		entries: [],
+		managed: []
+	};
+	if (policy.cooldown !== void 0) {
+		const setting = splitDotted(settingOf(tool.cooldown.setting) ?? "solver.min-release-age");
+		solver.table = setting.table;
+		const cooldown = cooldownValue(context);
+		if (cooldown !== void 0) {
+			minutes = cooldown.minutes;
+			solver.entries.push(`${setting.key} = ${tomlValue(cooldown.value)}`);
+			solver.managed.push(setting.key);
+			const excludeSetting = settingOf(tool.cooldown.exclude.setting);
+			const patterns = exclusions(context);
+			if (excludeSetting !== null && patterns !== void 0) {
+				const { key } = splitDotted(excludeSetting);
+				solver.managed.push(key);
+				const names = pythonNames(patterns);
+				if (names.length > 0) solver.entries.push(`${key} = ${tomlValue(names)}`);
+			}
+		}
+	}
+	writeTable(context, file, solver.table, solver.entries, solver.managed);
+	const installer = {
+		table: "installer",
+		entries: [],
+		managed: []
+	};
+	if (policy.installScripts?.default === "deny") {
+		const build = extraOf(tool, "buildSwitch", isSwitch);
+		const { table, key } = splitDotted(build.setting);
+		installer.table = table;
+		if (context.supports(build.since, build.setting)) {
+			installer.entries.push(`${key} = ${tomlValue(build.value)}`);
+			installer.managed.push(key);
+			context.warn(`${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies`);
+			const setting = settingOf(tool.installScripts.allowList.setting);
+			if (setting !== null) {
+				installer.managed.push(splitDotted(setting).key);
+				const names = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting) ? buildAllowList(context, setting) : [];
+				if (names.length > 0) installer.entries.push(`${splitDotted(setting).key} = ${tomlValue(names)}`);
+				forcedBuildWarning(context, setting, names);
+			}
+		}
+	}
+	writeTable(context, file, installer.table, installer.entries, installer.managed);
+	eachSource(context, () => void 0);
+	return minutes;
+};
+
 // src/apply/generators/renovate.ts
 const RULE_DESCRIPTION = "depcurfew: packages excluded from minimumReleaseAge";
 const PYTHON_RULE_DESCRIPTION = "depcurfew: Python packages excluded from minimumReleaseAge";
 const isString = (value) => typeof value === "string";
-const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
+const isRule = (value) => isRecord$1(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
 const isPath = (value) => Array.isArray(value) && value.every(isString);
 const renovate = (context, duration) => {
 	const { tool, policy } = context;
@@ -11824,7 +12484,7 @@ const renovate = (context, duration) => {
 	const rule = extraOf(tool, "excludeRule", isRule);
 	const descriptionKey = extraOf(tool, "ruleDescription", isString);
 	const securityPath = extraOf(tool, "securityUpdatesSetting", isPath);
-	const datasources = extraOf(tool, "datasources", isRecord);
+	const datasources = extraOf(tool, "datasources", isRecord$1);
 	const excluded = policy.cooldown.exclude;
 	const patterns = exclusions(context, patternsFor(excluded, "npm")) ?? [];
 	const pythonPatterns = exclusions(context, patternsFor(excluded, "pypi")) ?? [];
@@ -11856,7 +12516,7 @@ const renovate = (context, duration) => {
 		...securityPath.reduceRight((inner, key) => ({ [key]: inner }), security)
 	}, null, 2);
 	if (file === void 0 || !/\.jsonc?$/u.test(file)) {
-		const packageJson = extraOf(tool, "packageJsonConfig", isRecord);
+		const packageJson = extraOf(tool, "packageJsonConfig", isRecord$1);
 		const where = file ?? (context.exists("package.json") && context.json("package.json").get([String(packageJson["key"])]) !== void 0 ? "package.json" : void 0);
 		if (where === void 0) {
 			context.warn(`${context.name}: no configuration file found; depcurfew does not create one. Add renovate.json if you use Renovate, then run depcurfew apply again`);
@@ -11870,7 +12530,7 @@ const renovate = (context, duration) => {
 	json.set([setting], result.value);
 	for (const managed of managedRules) {
 		const rules = json.get([rule.list]);
-		const index = Array.isArray(rules) ? rules.findIndex((entry) => isRecord(entry) && entry[descriptionKey] === managed.description) : -1;
+		const index = Array.isArray(rules) ? rules.findIndex((entry) => isRecord$1(entry) && entry[descriptionKey] === managed.description) : -1;
 		if (managed.wanted) {
 			if (index >= 0) {
 				if (JSON.stringify(rules[index]) !== JSON.stringify(managed.rule)) json.replace([rule.list], index, managed.rule);
@@ -11881,8 +12541,53 @@ const renovate = (context, duration) => {
 	json.set(securityPath, security);
 };
 
+// src/apply/generators/uv.ts
+const uv = (context) => {
+	const { tool, policy } = context;
+	const tables = extraOf(tool, "configTables", isRecord$1);
+	const file = context.exists("uv.toml") || !context.exists("pyproject.toml") ? "uv.toml" : "pyproject.toml";
+	const table = typeof tables[file] === "string" ? tables[file] : "";
+	const entries = [];
+	const managed = [];
+	let minutes;
+	if (policy.cooldown !== void 0) {
+		const setting = settingOf(tool.cooldown.setting) ?? "exclude-newer";
+		const cooldown = cooldownValue(context);
+		if (cooldown !== void 0) {
+			minutes = cooldown.minutes;
+			entries.push(`${setting} = ${tomlValue(cooldown.value)}`);
+			managed.push(setting);
+			const excludeSetting = settingOf(tool.cooldown.exclude.setting);
+			const patterns = exclusions(context);
+			if (excludeSetting !== null && patterns !== void 0) {
+				managed.push(excludeSetting);
+				const exempt = extraOf(tool, "excludeValue", (value) => typeof value === "boolean");
+				const names = pythonNames(patterns);
+				if (names.length > 0) entries.push(`${excludeSetting} = { ${names.map((name) => `${JSON.stringify(name)} = ${String(exempt)}`).join(", ")} }`);
+			}
+		}
+	}
+	if (policy.installScripts?.default === "deny") {
+		const build = extraOf(tool, "buildSwitch", isSwitch);
+		if (context.supports(build.since, build.setting)) {
+			entries.push(`${build.setting} = ${tomlValue(build.value)}`);
+			managed.push(build.setting);
+			const setting = settingOf(tool.installScripts.allowList.setting);
+			if (setting !== null) {
+				managed.push(setting);
+				const names = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting) ? buildAllowList(context, setting) : [];
+				if (names.length > 0) entries.push(`${setting} = ${tomlValue(names)}`);
+				forcedBuildWarning(context, setting, names);
+			}
+		}
+	}
+	eachSource(context, () => void 0);
+	if (entries.length > 0 || context.exists(file) && context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.toml(file, table, entries, managed);
+	return minutes;
+};
+
 // src/apply/generators/yarn.ts
-const isScriptsSwitch = (value) => isRecord(value) && typeof value["setting"] === "string" && "allow" in value && "deny" in value;
+const isScriptsSwitch = (value) => isRecord$1(value) && typeof value["setting"] === "string" && "allow" in value && "deny" in value;
 const yarn = (context) => {
 	const { tool, policy } = context;
 	const yaml = context.yaml(firstFile(tool.cooldown.configFiles) ?? ".yarnrc.yml");
@@ -12017,7 +12722,10 @@ const MANAGERS = {
 	pnpm,
 	yarn,
 	bun,
-	deno
+	deno,
+	uv,
+	pip,
+	poetry
 };
 const BOTS = {
 	renovate,
@@ -12027,6 +12735,17 @@ function latestVersion$1(tool) {
 	const fact = tool.extra?.["latestVersion"];
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	return typeof value === "string" ? value : void 0;
+}
+/** Where a repository can pin the version of a tool, for the warning when none is pinned. */
+function pinPlaces(tool) {
+	if (ecosystemOfTool(tool) === "npm") return "packageManager, devEngines, .tool-versions or a CI setup step";
+	const required = tool.extra?.["requiredVersion"];
+	const value = required === void 0 ? void 0 : values$1(required)[0];
+	const places = isRecord$1(value) && typeof value["key"] === "string" && typeof value["table"] === "string" ? [`${value["key"]} in [${value["table"]}]`] : [];
+	const plugins = values$1(environment.asdf.plugins)[0] ?? {};
+	if (Object.values(plugins).includes(tool.id)) places.push(".tool-versions");
+	if (Object.values(environment.githubActions).flatMap((fact) => values$1(fact)).some((action) => isRecord$1(action) && Array.isArray(action["inputs"]) && action["inputs"].some((input) => isRecord$1(input) && input["tool"] === tool.id))) places.push("a CI setup step");
+	return places.length < 2 ? places[0] ?? "a CI setup step" : `${places.slice(0, -1).join(", ")} or ${places.at(-1) ?? ""}`;
 }
 /** The bots' delay: the policy's, or longer if a package manager rounded its delay up further. */
 function botDuration(policy, managerMinutes) {
@@ -12091,7 +12810,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		const version = manager === void 0 ? void 0 : pinnedVersion(manager);
 		if (version === void 0) {
 			const latest = latestVersion$1(tool);
-			warnings.push(`${tool.name}: no exact version is pinned, so depcurfew configures for ${tool.name} ${latest ?? "latest"}, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it`);
+			warnings.push(`${tool.name}: no exact version is pinned, so depcurfew configures for ${tool.name} ${latest ?? "latest"}, the latest version it knows; pin the version you use (${pinPlaces(tool)}) to configure for it`);
 		}
 		run(tool, version, (context) => {
 			const minutes = generator(context);
@@ -12203,7 +12922,7 @@ function delayMinutes(tool, value, version) {
 	if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
 	const fact = tool.extra?.["durationStrings"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	if (!isRecord(format) || typeof format["syntax"] !== "string") return {
+	if (!isRecord$1(format) || typeof format["syntax"] !== "string") return {
 		ok: false,
 		reason: `${tool.name} takes no duration strings`
 	};
@@ -12268,7 +12987,7 @@ function managerDelay(context, manager, tool) {
 		let found;
 		for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
 		if (found !== void 0) {
-			const raw = isRecord(found.value) ? found.value["age"] : found.value;
+			const raw = isRecord$1(found.value) ? found.value["age"] : found.value;
 			const delay = delayMinutes(tool, raw, version);
 			if (!delay.ok) {
 				context.notice(`${tool.name}: cannot read ${setting} in ${found.file}: ${delay.reason}`, found.file);
@@ -12299,10 +13018,10 @@ function managerDelay(context, manager, tool) {
 }
 
 // src/doctor/rules/bot-cooldown.ts
-const isEcosystems = (value) => isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
-const isPresets = (value) => isRecord(value) && Array.isArray(value["presets"]) && typeof value["value"] === "string";
-const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && Array.isArray(value["semverDays"]);
-const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
+const isEcosystems = (value) => isRecord$1(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
+const isPresets = (value) => isRecord$1(value) && Array.isArray(value["presets"]) && typeof value["value"] === "string";
+const isCooldownKeys = (value) => isRecord$1(value) && typeof value["days"] === "string" && Array.isArray(value["semverDays"]);
+const isPackageJsonConfig = (value) => isRecord$1(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
 function describe$1(minutes) {
 	return minutes === 0 ? "no delay" : formatMinutes(minutes);
 }
@@ -12316,10 +13035,10 @@ function dependabotDelays(context, bot, file) {
 	const fallback = versionedValue(values$1(bot.cooldown.default)[0] ?? [], void 0);
 	const securityBypass = values$1(bot.cooldown.securityUpdates).includes("bypass");
 	return updates.value.flatMap((entry, index) => {
-		if (!isRecord(entry) || typeof entry["package-ecosystem"] !== "string") return [];
+		if (!isRecord$1(entry) || typeof entry["package-ecosystem"] !== "string") return [];
 		const managers = ecosystems[entry["package-ecosystem"]] ?? [];
 		if (managers.length === 0) return [];
-		const cooldown = isRecord(entry["cooldown"]) ? entry["cooldown"] : void 0;
+		const cooldown = isRecord$1(entry["cooldown"]) ? entry["cooldown"] : void 0;
 		const configuredDays = cooldown?.[keys.days];
 		const base = typeof configuredDays === "number" ? configuredDays : typeof fallback === "number" ? fallback : 0;
 		const semver = keys.semverDays.filter((key) => typeof cooldown?.[key] === "number");
@@ -12501,7 +13220,7 @@ function checkDependabot(context, file) {
 	const updates = yamlSetting(text, ["updates"]);
 	if (updates === void 0 || !Array.isArray(updates.value)) return;
 	updates.value.forEach((entry, index) => {
-		if (!isRecord(entry) || !isRecord(entry["cooldown"]) || !Array.isArray(entry["cooldown"]["exclude"])) return;
+		if (!isRecord$1(entry) || !isRecord$1(entry["cooldown"]) || !Array.isArray(entry["cooldown"]["exclude"])) return;
 		const broad = entry["cooldown"]["exclude"].filter((item) => typeof item === "string" && isBroad(item));
 		if (broad.length === 0) return;
 		context.report({
@@ -12527,7 +13246,7 @@ function checkRenovate(context, file) {
 	const rules = jsonSetting(text, ["packageRules"]);
 	if (rules === void 0 || !Array.isArray(rules.value)) return;
 	rules.value.forEach((rule, index) => {
-		if (!isRecord(rule) || !("minimumReleaseAge" in rule) || rule["minimumReleaseAge"] !== null && rule["minimumReleaseAge"] !== "0 days") return;
+		if (!isRecord$1(rule) || !("minimumReleaseAge" in rule) || rule["minimumReleaseAge"] !== null && rule["minimumReleaseAge"] !== "0 days") return;
 		const broad = (Array.isArray(rule["matchPackageNames"]) ? rule["matchPackageNames"] : []).find((name) => typeof name === "string" && isBroad(name));
 		const unscoped = !Object.keys(rule).some((key) => MATCHERS.test(key));
 		if (broad === void 0 && !unscoped) return;
@@ -12650,7 +13369,7 @@ function withoutComma(line) {
 }
 /** Lines depcurfew writes around its settings, which say nothing about a setting themselves. */
 function isFrame(line) {
-	return line === "" || line === "# managed by depcurfew" || line === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead" || line === "# <<< depcurfew managed block";
+	return line === "" || line === "# managed by depcurfew" || isBlockStart(line) || line === "# <<< depcurfew managed block";
 }
 /**
 * The first block of lines that apply would change, without the lines that only gain or lose a trailing comma
@@ -12785,13 +13504,13 @@ function checkLockfiles(context, tool, version, label) {
 	}
 }
 function checkPnpm(context, tool, version, label) {
-	const ignored = extraOf(tool, "ignoredSince", isRecord);
+	const ignored = extraOf(tool, "ignoredSince", isRecord$1);
 	const workspace = context.repository.readText("pnpm-workspace.yaml");
 	if (atLeast(version, ignored["since"])) {
 		const manifest = context.repository.readText("package.json");
 		const field = String(ignored["packageJsonField"]);
 		const found = manifest === void 0 ? void 0 : jsonSetting(manifest, [field]);
-		if (found !== void 0 && isRecord(found.value) && Object.keys(found.value).length > 0) context.report({
+		if (found !== void 0 && isRecord$1(found.value) && Object.keys(found.value).length > 0) context.report({
 			location: {
 				file: "package.json",
 				line: found.line
@@ -12824,7 +13543,7 @@ function checkPnpm(context, tool, version, label) {
 			});
 		}
 	}
-	const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord);
+	const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord$1);
 	if (legacy !== void 0 && atLeast(version, legacy["removedIn"]) && workspace !== void 0) {
 		const found = yamlSetting(workspace, ["onlyBuiltDependencies"]);
 		if (found !== void 0) context.report({
@@ -12842,7 +13561,7 @@ function checkPnpm(context, tool, version, label) {
 function checkDurationStrings(context, tool, manager, version, label) {
 	const fact = tool.extra?.["durationStrings"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	if (!isRecord(format) || format["before"] !== "no effect" || atLeast(version, format["since"])) return;
+	if (!isRecord$1(format) || format["before"] !== "no effect" || atLeast(version, format["since"])) return;
 	const setting = settingOf(tool.cooldown.setting);
 	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
 	if (setting === null || file === void 0 || !manager.configFiles.includes(file)) return;
@@ -13147,7 +13866,7 @@ function policyFeatures(tool, policy) {
 		const switchFact = allowAll === void 0 ? void 0 : values$1(allowAll)[0];
 		if (policy.installScripts.default === "allow" && isSwitch(switchFact)) features.push(feature(switchFact.setting, switchFact.since));
 		if (policy.installScripts.default === "deny" && policy.installScripts.allow.length > 0) {
-			const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord);
+			const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord$1);
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			features.push(legacy !== void 0 && typeof legacy["since"] === "string" ? feature(setting, legacy["since"]) : feature(setting?.includes("<") ? setting.split(".")[0] ?? setting : setting, tool.installScripts.allowList.availableSince));
 		}
@@ -13172,6 +13891,7 @@ function configuredFeatures(context, tool) {
 }
 const SOURCE_LABEL = {
 	packageManager: "packageManager",
+	"tool-config": "the required version",
 	devEngines: "devEngines",
 	volta: "Volta",
 	"tool-versions": ".tool-versions",
@@ -13297,7 +14017,7 @@ function packageNpmrcFiles(context) {
 /** npm reads only the project root's .npmrc. */
 function checkNpmWorkspaces(context) {
 	const npm = managerOf(context, "npm");
-	if (npm === void 0 || extraOf(npm.tool, "npmrcScope", isRecord)["workspacePackages"] !== "ignored") return;
+	if (npm === void 0 || extraOf(npm.tool, "npmrcScope", isRecord$1)["workspacePackages"] !== "ignored") return;
 	const keys = npmrcKeys(npm.tool, (setting) => setting);
 	for (const file of packageNpmrcFiles(context)) for (const entry of entriesFor(context, file, keys)) context.report({
 		level: "warning",
@@ -13314,9 +14034,9 @@ function checkPnpmRoot(context) {
 	const pnpm = managerOf(context, "pnpm");
 	const policy = context.policy === void 0 ? void 0 : policyFor(context.policy, "npm");
 	if (pnpm === void 0 || policy?.cooldown === void 0) return;
-	const ignored = extraOf(pnpm.tool, "ignoredSince", isRecord);
+	const ignored = extraOf(pnpm.tool, "ignoredSince", isRecord$1);
 	if (!before(pnpm.version, ignored["since"])) return;
-	const precedence = extraOf(pnpm.tool, "npmrcPrecedence", isRecord);
+	const precedence = extraOf(pnpm.tool, "npmrcPrecedence", isRecord$1);
 	const workspace = context.repository.readText("pnpm-workspace.yaml");
 	const cooldownSetting = settingOf(pnpm.tool.cooldown.setting);
 	const excludeSetting = settingOf(pnpm.tool.cooldown.exclude.setting);
@@ -13367,8 +14087,8 @@ const pnpmSharedWorkspaceLockfile = {
 	check(context) {
 		const pnpm = managerOf(context, "pnpm");
 		if (pnpm === void 0) return;
-		const perProject = extraOf(pnpm.tool, "perProjectNpmrc", isRecord);
-		const shared = extraOf(pnpm.tool, "sharedWorkspaceLockfile", isRecord);
+		const perProject = extraOf(pnpm.tool, "perProjectNpmrc", isRecord$1);
+		const shared = extraOf(pnpm.tool, "sharedWorkspaceLockfile", isRecord$1);
 		if (!before(pnpm.version, perProject["until"])) return;
 		const workspace = context.repository.readText("pnpm-workspace.yaml");
 		const fromYaml = workspace === void 0 ? void 0 : yamlSetting(workspace, [String(shared["setting"])]);

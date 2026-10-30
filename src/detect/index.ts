@@ -18,13 +18,15 @@ import type {
   VersionSource,
   WorkspaceInfo,
 } from './types.ts';
+import { parseToml, type TomlDocument, type TomlValue } from './toml.ts';
 import { readWorkflows } from './workflows.ts';
 import { expandWorkspaces } from './workspaces.ts';
 
 export type * from './types.ts';
 
 const EVIDENCE_ORDER: readonly EvidenceKind[] = ['lockfile', 'packageManager', 'devEngines', 'config', 'ci', 'default'];
-const SOURCE_ORDER: readonly VersionSource[] = ['packageManager', 'devEngines', 'volta', 'tool-versions', 'github-actions'];
+const SOURCE_ORDER: readonly VersionSource[] = ['packageManager', 'tool-config', 'devEngines', 'volta', 'tool-versions', 'github-actions'];
+const PYPROJECT = 'pyproject.toml';
 
 type Json = Record<string, unknown>;
 
@@ -60,6 +62,37 @@ function compareEvidence(a: Evidence, b: Evidence): number {
 
 function byPath(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** The value at a dotted key path of a TOML document. */
+function tomlAt(document: TomlDocument | undefined, path: readonly string[]): TomlValue | undefined {
+  let node: TomlValue | undefined = document?.root;
+  for (const key of path) node = isObject(node) ? (node as Record<string, TomlValue>)[key] : undefined;
+  return node;
+}
+
+/** A required version as written; an exact one (==1.2.3) without the operator, so that it counts as pinned. */
+function requiredVersionText(value: string): string {
+  const exact = /^\s*===?\s*(\d+(?:\.\d+)*)\s*$/u.exec(value);
+  return exact?.[1] ?? value.trim();
+}
+
+class TomlFiles {
+  readonly #repository: Repository;
+  readonly #cache = new Map<string, TomlDocument | undefined>();
+
+  constructor(repository: Repository) {
+    this.#repository = repository;
+  }
+
+  read(file: string): TomlDocument | undefined {
+    if (!this.#cache.has(file)) this.#cache.set(file, this.#repository.isFile(file) ? this.#repository.parse(file, parseToml) : undefined);
+    return this.#cache.get(file);
+  }
+}
+
+function orList(items: readonly string[]): string {
+  return items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} or ${items.at(-1) ?? ''}`;
 }
 
 class Collector {
@@ -151,43 +184,60 @@ function yarnVariant(repository: Repository, facts: DetectionFacts, collector: C
   return { variant: 'berry', file: 'package.json' };
 }
 
-function readWorkspaces(repository: Repository, facts: DetectionFacts, manifest: Json | undefined): WorkspaceInfo | null {
-  const declarations: { file: string; patterns: string[] }[] = [];
+function readWorkspaces(repository: Repository, facts: DetectionFacts, manifest: Json | undefined, toml: TomlFiles): WorkspaceInfo | null {
+  const declarations: { file: string; patterns: string[]; manifests: readonly string[] }[] = [];
   const seen = new Set<string>();
   for (const manager of facts.managers) {
     if (manager.workspaces === null) continue;
-    const { files, key, objectKey } = manager.workspaces;
+    const { files, key, objectKey, excludeKey } = manager.workspaces;
     for (const file of files) {
       const id = `${file}#${key}`;
       if (seen.has(id) || !repository.isFile(file)) continue;
       seen.add(id);
-      const document = readConfig(repository, file, manifest);
-      if (!isObject(document)) continue;
-      const value = document[key];
+      const value = file.endsWith('.toml') ? tomlAt(toml.read(file), key.split('.')) : readConfig(repository, file, manifest, key);
       const patterns = stringList(value) ?? (objectKey !== null && isObject(value) ? stringList(value[objectKey]) : undefined);
-      if (patterns !== undefined) declarations.push({ file, patterns });
+      const excluded = excludeKey !== undefined && isObject(value) ? (stringList(value[excludeKey]) ?? []) : [];
+      if (patterns !== undefined) declarations.push({ file, patterns: [...patterns, ...excluded.map((pattern) => `!${pattern}`)], manifests: manager.manifests });
       break;
     }
   }
   if (declarations.length === 0) return null;
-  const manifests = [...new Set(facts.managers.flatMap((manager) => manager.manifests))];
   const packages = new Set<string>();
   for (const declaration of declarations) {
-    for (const directory of expandWorkspaces(repository, declaration.patterns, manifests, declaration.file)) packages.add(directory);
+    for (const directory of expandWorkspaces(repository, declaration.patterns, declaration.manifests, declaration.file)) packages.add(directory);
   }
-  return { declarations, packages: [...packages].sort(byPath) };
+  return { declarations: declarations.map(({ file, patterns }) => ({ file, patterns })), packages: [...packages].sort(byPath) };
 }
 
-/** Reads a workspace declaration file: package.json is already parsed, others are YAML or JSONC. */
-function readConfig(repository: Repository, file: string, manifest: Json | undefined): unknown {
-  if (file === 'package.json') return manifest;
-  return repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => parseYaml(text) as unknown : parseJsonc);
+/** Reads the workspace key of a declaration file: package.json is already parsed, others are YAML or JSONC. */
+function readConfig(repository: Repository, file: string, manifest: Json | undefined, key: string): unknown {
+  const document = file === 'package.json' ? manifest : repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => parseYaml(text) as unknown : parseJsonc);
+  return isObject(document) ? document[key] : undefined;
 }
 
-function configFiles(repository: Repository, manager: ManagerFacts, directories: readonly string[]): string[] {
+/** Python tools: a pyproject.toml with the tool's table is configuration, and required versions are pinned versions. */
+function readPythonConfig(facts: DetectionFacts, toml: TomlFiles, collector: Collector): void {
+  for (const manager of facts.managers) {
+    if (manager.pyprojectTable !== null && tomlAt(toml.read(PYPROJECT), manager.pyprojectTable.split('.')) !== undefined) {
+      collector.addEvidence(manager.id, 'config', PYPROJECT);
+    }
+    for (const { file, path } of manager.requiredVersions) {
+      const document = toml.read(file);
+      const value = tomlAt(document, path);
+      if (typeof value !== 'string') continue;
+      const line = document?.lineOf(path);
+      collector.addVersion(manager.id, { version: requiredVersionText(value), source: 'tool-config', file, ...(line === undefined ? {} : { line }) });
+    }
+  }
+}
+
+function configFiles(repository: Repository, manager: ManagerFacts, directories: readonly string[], toml: TomlFiles): string[] {
+  const table = manager.pyprojectTable?.split('.');
   return directories
-    .flatMap((directory) => manager.configFiles.map((file) => joinPath(directory, file)))
-    .filter((file) => repository.isFile(file))
+    .flatMap((directory) => [
+      ...manager.configFiles.map((file) => joinPath(directory, file)).filter((file) => repository.isFile(file)),
+      ...(table !== undefined && tomlAt(toml.read(joinPath(directory, PYPROJECT)), table) !== undefined ? [joinPath(directory, PYPROJECT)] : []),
+    ])
     .sort(byPath);
 }
 
@@ -203,6 +253,9 @@ export function detectProject(
   const repository = new Repository(root);
   const facts = detectionFacts(tools, environment);
   const collector = new Collector();
+  const toml = new TomlFiles(repository);
+  const managerIds = new Set<string>(facts.managers.map((manager) => manager.id));
+  const ecosystemOf = (id: PackageManagerId) => facts.managers.find((manager) => manager.id === id)?.ecosystem ?? 'npm';
 
   const manifest = readPackageJson(repository);
   const declaredManager = manifest === undefined ? undefined : readPackageManagerField(repository, facts, manifest, collector);
@@ -211,6 +264,7 @@ export function detectProject(
     readVolta(facts, manifest, collector);
   }
   readToolVersions(repository, facts, collector);
+  readPythonConfig(facts, toml, collector);
 
   const lockfiles = new Map<PackageManagerId, string[]>();
   for (const manager of facts.managers) {
@@ -222,14 +276,15 @@ export function detectProject(
 
   const workflows = readWorkflows(repository, facts);
   for (const { tool, file } of workflows.installs) {
-    if (tool !== 'node') collector.addEvidence(tool as PackageManagerId, 'ci', file);
+    if (managerIds.has(tool)) collector.addEvidence(tool as PackageManagerId, 'ci', file);
   }
   for (const { tool, declaration } of workflows.versions) collector.addVersion(tool, declaration);
 
-  const workspaces = readWorkspaces(repository, facts, manifest);
+  const workspaces = readWorkspaces(repository, facts, manifest, toml);
   const directories = ['.', ...(workspaces?.packages ?? [])];
 
-  if (manifest !== undefined && collector.evidence.size === 0) {
+  const hasEvidence = (ecosystem: string) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
+  if (manifest !== undefined && !hasEvidence('npm')) {
     collector.addEvidence('npm', 'default', 'package.json');
     repository.warn('package-manager-assumed', 'no lockfile, packageManager or devEngines found; assuming npm', ['package.json']);
   }
@@ -248,7 +303,7 @@ export function detectProject(
       supported: yarn?.variant !== 'classic',
       evidence: [...evidence].sort(compareEvidence),
       versions: [...(collector.versions.get(manager.id) ?? [])].sort(compareVersions),
-      configFiles: configFiles(repository, manager, directories),
+      configFiles: configFiles(repository, manager, directories, toml),
     });
   }
 
@@ -266,20 +321,35 @@ export function detectProject(
     if (files.length > 0) bots.push({ id: bot.id, configFiles: files });
   }
 
+  // A JavaScript and a Python lockfile side by side are normal; two of one registry are not. pip lockfiles are left
+  // out, because uv and Poetry projects often export a pylock.toml for pip.
   const withLockfiles = [...lockfiles.entries()];
-  if (withLockfiles.length > 1) {
-    const files = withLockfiles.flatMap(([, list]) => list).sort(byPath);
+  for (const ecosystem of ['npm', 'pypi'] as const) {
+    const competing = withLockfiles.filter(([id]) => ecosystemOf(id) === ecosystem && id !== 'pip');
+    if (competing.length < 2) continue;
+    const files = competing.flatMap(([, list]) => list).sort(byPath);
     repository.warn('multiple-lockfiles', `lockfiles of several package managers: ${files.join(', ')}`, files);
   }
-  if (declaredManager !== undefined && !lockfiles.has(declaredManager as PackageManagerId) && withLockfiles.length > 0) {
+  const npmLockfiles = withLockfiles.filter(([id]) => ecosystemOf(id) === 'npm');
+  if (declaredManager !== undefined && !lockfiles.has(declaredManager as PackageManagerId) && npmLockfiles.length > 0) {
     repository.warn(
       'package-manager-mismatch',
       `${facts.packageManagerKey} names ${declaredManager}, but no ${declaredManager} lockfile exists`,
       ['package.json'],
     );
   }
-  if (manifest === undefined && packageManagers.length === 0 && !repository.isFile('package.json')) {
-    repository.warn('nothing-detected', 'no package.json, deno.json or lockfile found', []);
+  const python = facts.managers.filter((manager) => manager.ecosystem === 'pypi');
+  if (repository.isFile(PYPROJECT) && !hasEvidence('pypi')) {
+    const tables = python.flatMap((manager) => (manager.pyprojectTable === null ? [] : [`[${manager.pyprojectTable}]`]));
+    const files = [...python.flatMap((manager) => manager.lockfiles), ...python.flatMap((manager) => manager.manifests.filter((file) => file !== PYPROJECT))];
+    repository.warn(
+      'python-tool-unknown',
+      `${PYPROJECT} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none`,
+      [PYPROJECT],
+    );
+  }
+  if (manifest === undefined && packageManagers.length === 0 && !repository.isFile('package.json') && !repository.isFile(PYPROJECT)) {
+    repository.warn('nothing-detected', 'no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found', []);
   }
 
   return {

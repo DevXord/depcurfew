@@ -6,22 +6,26 @@ import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { allowEntries, matchesPattern } from '../doctor/allow-lists.ts';
 import type { Detection } from '../detect/types.ts';
+import { environment as environmentKnowledge } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
-import type { ToolId, ToolKnowledge } from '../knowledge/types.ts';
+import type { Fact, ToolId, ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { formatDuration, type Duration } from '../policy/duration.ts';
 import { ecosystemOfTool, policyFor } from '../policy/ecosystem.ts';
 import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
-import { sinceOf, values } from './facts.ts';
+import { isRecord, sinceOf, values } from './facts.ts';
 import { bun } from './generators/bun.ts';
 import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet } from './generators/context.ts';
 import { deno } from './generators/deno.ts';
 import { dependabot } from './generators/dependabot.ts';
 import { npm } from './generators/npm.ts';
+import { pip } from './generators/pip.ts';
 import { pnpm } from './generators/pnpm.ts';
+import { poetry } from './generators/poetry.ts';
 import { renovate } from './generators/renovate.ts';
+import { uv } from './generators/uv.ts';
 import { yarn } from './generators/yarn.ts';
 import { pinnedVersion, type Version } from './version.ts';
 import { Workspace, writeChanges, type FileChange } from './workspace.ts';
@@ -39,13 +43,28 @@ export interface ApplyReport {
   failures: EditFailure[];
 }
 
-const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno };
+const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry };
 const BOTS: Partial<Record<ToolId, BotGenerator>> = { renovate, dependabot };
 
 function latestVersion(tool: ToolKnowledge): string | undefined {
   const fact = tool.extra?.['latestVersion'];
   const value = fact === undefined ? undefined : values(fact)[0];
   return typeof value === 'string' ? value : undefined;
+}
+
+/** Where a repository can pin the version of a tool, for the warning when none is pinned. */
+function pinPlaces(tool: ToolKnowledge): string {
+  if (ecosystemOfTool(tool) === 'npm') return 'packageManager, devEngines, .tool-versions or a CI setup step';
+  const required = tool.extra?.['requiredVersion'];
+  const value = required === undefined ? undefined : values(required)[0];
+  const places = isRecord(value) && typeof value['key'] === 'string' && typeof value['table'] === 'string' ? [`${value['key']} in [${value['table']}]`] : [];
+  const plugins = values(environmentKnowledge.asdf.plugins)[0] ?? {};
+  if (Object.values(plugins).includes(tool.id)) places.push('.tool-versions');
+  const actions = Object.values(environmentKnowledge.githubActions).flatMap((fact) => values(fact as Fact<unknown>));
+  if (actions.some((action) => isRecord(action) && Array.isArray(action['inputs']) && action['inputs'].some((input: unknown) => isRecord(input) && input['tool'] === tool.id))) {
+    places.push('a CI setup step');
+  }
+  return places.length < 2 ? (places[0] ?? 'a CI setup step') : `${places.slice(0, -1).join(', ')} or ${places.at(-1) ?? ''}`;
 }
 
 /** The bots' delay: the policy's, or longer if a package manager rounded its delay up further. */
@@ -113,7 +132,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     if (version === undefined) {
       const latest = latestVersion(tool);
       warnings.push(
-        `${tool.name}: no exact version is pinned, so depcurfew configures for ${tool.name} ${latest ?? 'latest'}, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it`,
+        `${tool.name}: no exact version is pinned, so depcurfew configures for ${tool.name} ${latest ?? 'latest'}, the latest version it knows; pin the version you use (${pinPlaces(tool)}) to configure for it`,
       );
     }
     run(tool, version, (context) => {

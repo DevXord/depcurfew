@@ -78,6 +78,7 @@ function configuredFeatures(context: RuleContext, tool: ToolKnowledge): Feature[
 
 const SOURCE_LABEL: Record<VersionDeclaration['source'], string> = {
   packageManager: 'packageManager',
+  'tool-config': 'the required version',
   devEngines: 'devEngines',
   volta: 'Volta',
   'tool-versions': '.tool-versions',

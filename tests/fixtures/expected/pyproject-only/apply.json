@@ -1,0 +1,7 @@
+{
+  "changed": [],
+  "warnings": [
+    "no tools to configure: depcurfew found no supported package manager or bot here (depcurfew explain shows what it detects)"
+  ],
+  "snippets": []
+}

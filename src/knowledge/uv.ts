@@ -101,7 +101,7 @@ export const uv: ToolKnowledge = {
     lockfiles: verified([{ since: '0.0.0', value: ['uv.lock'] }], `${UV}/docs/concepts/projects/layout.md`, 'Created next to pyproject.toml.'),
     manifests: verified(['pyproject.toml'], `${UV}/docs/concepts/projects/layout.md`),
     workspaces: verified(
-      { files: ['pyproject.toml'], key: 'tool.uv.workspace' },
+      { files: ['pyproject.toml'], key: 'tool.uv.workspace', excludeKey: 'exclude' },
       WORKSPACES,
       'The [tool.uv.workspace] table of the root pyproject.toml lists members and exclude (globs or paths); exclude wins over members, and the root is a member too.',
     ),
@@ -117,10 +117,20 @@ export const uv: ToolKnowledge = {
       CONFIGURATION,
       'Settings sit in [tool.uv] in pyproject.toml and at the top level of uv.toml. uv.toml cannot hold workspace, sources and a few other project fields.',
     ),
+    pyprojectTable: verified(
+      'tool.uv',
+      CONFIGURATION,
+      'A pyproject.toml without a [tool.uv] table is ignored when uv searches for configuration.',
+    ),
     configPrecedence: verified(
       'uv.toml wins over [tool.uv] in the same directory; only the nearest directory with either is read, and in a workspace only the root',
       CONFIGURATION,
       'A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories.',
+    ),
+    buildSwitch: verified(
+      { setting: 'no-build', value: true, since: '0.2.12' },
+      changelog('0.2', '0.2.12'),
+      'The project setting that forbids building source distributions; see installScripts.disableAll for what it does not cover.',
     ),
     durationStrings: verified(
       { since: '0.9.17', syntax: 'words-or-iso8601' },

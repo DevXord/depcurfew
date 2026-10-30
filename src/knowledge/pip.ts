@@ -119,6 +119,11 @@ export const pip: ToolKnowledge = {
       REQ_FILE,
       'SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse.',
     ),
+    buildSwitch: uncertain(
+      { setting: '--only-binary', value: ':all:', since: '7.0.0' },
+      NEWS,
+      'The option exists since 7.0.0; when requirements files started to accept it is not recorded.',
+    ),
     environmentVariable: verified(
       'PIP_UPLOADED_PRIOR_TO',
       `${CONFIGURATION}#environment-variables`,

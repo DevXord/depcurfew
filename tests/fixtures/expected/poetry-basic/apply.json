@@ -1,0 +1,14 @@
+{
+  "changed": [
+    "poetry.toml",
+    "renovate.json"
+  ],
+  "warnings": [
+    "Poetry: solver.min-release-age-exclude does not support the pattern \"acme-*\"; not written. List the exact package names in cooldown.exclude",
+    "Poetry: installer.only-binary applies when packages are installed; poetry lock may still build source distributions to read their dependencies",
+    "Poetry: installer.no-binary lets docopt be built from source while building is forbidden for everything else; Poetry then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
+    "Poetry has no setting for git dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile",
+    "Poetry has no setting for URL dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile"
+  ],
+  "snippets": []
+}

@@ -1,7 +1,7 @@
 // config-drift: what `depcurfew apply` would change is exactly what no longer matches the policy, so the rule plans
 // an apply in memory and reports the first difference in every file.
 import { lines, myers } from '../../apply/diff.ts';
-import { BLOCK_END, BLOCK_START, SUPERSEDED, TURNED_OFF } from '../../apply/block.ts';
+import { BLOCK_END, isBlockStart, SUPERSEDED, TURNED_OFF } from '../../apply/block.ts';
 import { YAML_MARKER } from '../../apply/yaml-edit.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
@@ -20,7 +20,7 @@ function withoutComma(line: string): string {
 
 /** Lines depcurfew writes around its settings, which say nothing about a setting themselves. */
 function isFrame(line: string): boolean {
-  return line === '' || line === YAML_MARKER || line === BLOCK_START || line === BLOCK_END;
+  return line === '' || line === YAML_MARKER || isBlockStart(line) || line === BLOCK_END;
 }
 
 interface Difference {

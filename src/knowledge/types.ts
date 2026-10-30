@@ -111,6 +111,8 @@ export interface SourcesKnowledge {
 export interface WorkspaceDeclaration {
   files: readonly string[];
   key: string;
+  /** Key of a list of patterns that exclude packages, next to the package list; such patterns win. */
+  excludeKey?: string;
 }
 
 /** Facts for recognising a package manager in a repository. */

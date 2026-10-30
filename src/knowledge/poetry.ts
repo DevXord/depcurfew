@@ -101,9 +101,19 @@ export const poetry: ToolKnowledge = {
       `${POETRY}/src/poetry/config/file_config_source.py`,
       'poetry config writes dotted settings as nested tables, e.g. [solver] min-release-age = 7.',
     ),
+    pyprojectTable: verified(
+      'tool.poetry',
+      'https://github.com/python-poetry/poetry-core/blob/2.5.0/src/poetry/core/pyproject/toml.py',
+      'A [tool.poetry] table marks a Poetry project; Poetry also accepts a [project] table with a static name and version, which other tools use as well.',
+    ),
     configLocation: verified(
       'poetry.toml is read only from the directory of the pyproject.toml Poetry found (the current directory or the nearest parent with one)',
       `${POETRY}/src/poetry/factory.py`,
+    ),
+    buildSwitch: verified(
+      { setting: 'installer.only-binary', value: [':all:'], since: '2.0.0' },
+      CHANGELOG,
+      'installer.only-binary was added in 2.0.0; [":all:"] forbids source distributions for every package when installing.',
     ),
     excludeFormat: disputed(
       'The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter.',

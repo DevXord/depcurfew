@@ -12,7 +12,8 @@ export interface Evidence {
   file: string;
 }
 
-export type VersionSource = 'packageManager' | 'devEngines' | 'volta' | 'tool-versions' | 'github-actions';
+/** tool-config: a version the tool's own configuration requires, e.g. required-version in [tool.uv]. */
+export type VersionSource = 'packageManager' | 'tool-config' | 'devEngines' | 'volta' | 'tool-versions' | 'github-actions';
 
 /** A version declared somewhere in the repository, as written (it may be a range or an expression). */
 export type VersionDeclaration = ({ version: string } | { versionFile: string }) & {

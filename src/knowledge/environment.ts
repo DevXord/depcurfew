@@ -126,7 +126,7 @@ export const environment: EnvironmentKnowledge = {
     setupPython: python.verified(
       {
         action: 'actions/setup-python',
-        installs: ['python', 'pip'],
+        installs: ['python'],
         inputs: [
           { name: 'python-version', kind: 'version', tool: 'python' },
           { name: 'python-version-file', kind: 'version-file', tool: 'python' },
@@ -134,7 +134,7 @@ export const environment: EnvironmentKnowledge = {
         ],
       },
       'https://github.com/actions/setup-python/blob/v7.1.0/action.yml',
-      'Current version v7.1.0. Without python-version it reads .python-version; python-version wins over python-version-file. pip-version (major[.minor][.patch], CPython only) since v6.0.0.',
+      'Current version v7.1.0. Without python-version it reads .python-version; python-version wins over python-version-file. pip-version (major[.minor][.patch], CPython only) since v6.0.0. Python comes with pip, but the step alone does not show that pip installs the project.',
     ),
     setupUv: python.verified(
       {
