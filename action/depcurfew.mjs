@@ -7309,6 +7309,22 @@ const bun$1 = {
 // src/knowledge/deno.ts
 const { verified: verified$10, uncertain: uncertain$10, disputed: disputed$5, evidence: evidence$5 } = verifiedOn("2026-10-28");
 const checked$4 = verifiedOn("2026-10-29");
+const reviewed$3 = verifiedOn("2026-10-30");
+const X_VALUE_OPTIONS = [
+	"--package",
+	"-p",
+	"--config",
+	"-c",
+	"--import-map",
+	"--cert",
+	"--min-dep-age",
+	"--location",
+	"--seed",
+	"--preload",
+	"--require",
+	"--conditions",
+	"--inspect-publish-uid"
+];
 const DENO_JSON = "https://docs.deno.com/runtime/reference/deno_json/#minimum-dependency-age";
 const SUPPLY_CHAIN = "https://docs.deno.com/runtime/packages/supply_chain/#minimum-dependency-age";
 const SCHEMA$1 = "https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json";
@@ -7373,9 +7389,30 @@ const deno$1 = {
 		workspacesObjectKey: verified$10("members", WORKSPACES$1)
 	},
 	extra: {
-		commandLine: checked$4.verified({
+		commandLine: reviewed$3.verified({
 			add: [["deno", "add"], ["deno", "install"]],
-			run: [],
+			run: [
+				{
+					command: ["deno", "x"],
+					packageOptions: ["--package", "-p"],
+					binaryPath: true
+				},
+				{
+					command: ["dx"],
+					packageOptions: ["--package", "-p"],
+					binaryPath: true
+				},
+				{
+					command: ["denox"],
+					packageOptions: ["--package", "-p"],
+					binaryPath: true
+				},
+				{
+					command: ["dnx"],
+					packageOptions: ["--package", "-p"],
+					binaryPath: true
+				}
+			],
 			create: [],
 			createNames: "prefix",
 			fileOptions: ["--entrypoint", "-e"],
@@ -7384,9 +7421,29 @@ const deno$1 = {
 				"-n",
 				"--root",
 				"--os",
-				"--arch"
+				"--arch",
+				"-L",
+				"--log-level"
+			],
+			commandOptions: [
+				{
+					command: ["deno", "x"],
+					valueOptions: X_VALUE_OPTIONS
+				},
+				{
+					command: ["dx"],
+					valueOptions: X_VALUE_OPTIONS
+				},
+				{
+					command: ["denox"],
+					valueOptions: X_VALUE_OPTIONS
+				},
+				{
+					command: ["dnx"],
+					valueOptions: X_VALUE_OPTIONS
+				}
 			]
-		}, "https://github.com/denoland/docs/blob/main/runtime/reference/cli/install.md", "deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (runtime/reference/cli/add.md)."),
+		}, "https://github.com/denoland/docs/tree/74beb7585f7e798fe0bc8d867295bff23fc2e38e/runtime/reference/cli", "install.md: deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (add.md). x.md: deno x runs a package from npm or JSR without installing it, like npx (deno x npm:create-vite my-app); --package (-p) names the package when the binary differs (deno x -p typescript tsc), and npm:<package>/<binary> picks one binary; deno x --install-alias creates the dx alias. In Deno 2.9.8 (github.com/denoland/deno, cli/args/flags.rs) an executable whose name ends in dx, denox or dnx runs as deno x, and libs/cli_parser/src/defs.rs (X_SUBCOMMAND with COMPILE_ARGS, PERMISSION_ARGS, RUNTIME_MISC_ARGS and INSPECT_ARGS) gives the options of deno x that take a separate value; the permission flags take theirs after =. -L/--log-level is a global option with a value."),
 		lockfileFormat: checked$4.verified({
 			installScripts: "scripts",
 			installScriptsSinceLockfile: "5",
@@ -7527,6 +7584,7 @@ const INSTALL_ALIASES = [
 	"it"
 ];
 const NPM_DEFINITIONS_V11_16 = "https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js";
+const NPM_SHORTHANDS = "https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/index.js";
 const npm$1 = {
 	id: "npm",
 	name: "npm",
@@ -7870,6 +7928,143 @@ const npm$1 = {
 			"-m",
 			"-w"
 		], NPM_DEFINITIONS, "npm options that always take a value: every definition whose type does not include Boolean, as --name, and the short forms -C (prefix), -L (location), -c (call), -m (message) and -w (workspace). Options whose type includes Boolean (such as color and browser) may stand alone, so they are taken for flags."),
+		flagOptions: reviewed$2.verified([
+			"--all",
+			"--allow-same-version",
+			"--allow-scripts-pending",
+			"--allow-scripts-pin",
+			"--allow-unused-patches",
+			"--audit",
+			"--bin-links",
+			"--browser",
+			"--bypass-2fa",
+			"--color",
+			"--commit-hooks",
+			"--dangerously-allow-all-scripts",
+			"--description",
+			"--dev",
+			"--diff-ignore-all-space",
+			"--diff-name-only",
+			"--diff-no-prefix",
+			"--diff-text",
+			"--dry-run",
+			"--engine-strict",
+			"--expect-results",
+			"--force",
+			"--foreground-scripts",
+			"--format-package-lock",
+			"--fund",
+			"--git-tag-version",
+			"--global",
+			"--global-style",
+			"--if-present",
+			"--ignore-existing",
+			"--ignore-extension",
+			"--ignore-patch-failures",
+			"--ignore-scripts",
+			"--include-attestations",
+			"--include-staged",
+			"--include-workspace-root",
+			"--init-private",
+			"--install-links",
+			"--json",
+			"--keep-edit-dir",
+			"--legacy-bundling",
+			"--legacy-peer-deps",
+			"--link",
+			"--long",
+			"--offline",
+			"--omit-lockfile-registry-resolved",
+			"--optional",
+			"--package-lock",
+			"--package-lock-only",
+			"--packages-all",
+			"--parseable",
+			"--prefer-dedupe",
+			"--prefer-offline",
+			"--prefer-online",
+			"--production",
+			"--progress",
+			"--provenance",
+			"--read-only",
+			"--rebuild-bundle",
+			"--save",
+			"--save-bundle",
+			"--save-dev",
+			"--save-exact",
+			"--save-optional",
+			"--save-peer",
+			"--save-prod",
+			"--shrinkwrap",
+			"--sign-git-commit",
+			"--sign-git-tag",
+			"--strict-allow-scripts",
+			"--strict-npmrc",
+			"--strict-peer-deps",
+			"--strict-ssl",
+			"--timing",
+			"--unicode",
+			"--update-notifier",
+			"--usage",
+			"--version",
+			"--versions",
+			"--workspaces",
+			"--workspaces-update",
+			"--yes"
+		], NPM_DEFINITIONS, "npm options whose type includes Boolean, which may stand alone: the definitions of 12.2.1 and of 11.21.1 (where shrinkwrap is one too; 12.2.1 adds ignore-existing, ignore-extension, ignore-patch-failures, allow-unused-patches, keep-edit-dir and strict-npmrc). With valueOptions they are every npm option, so an abbreviated option can be resolved as npm resolves it."),
+		parsing: reviewed$2.verified({
+			abbreviations: true,
+			anyDashes: true,
+			negation: "--no-",
+			shorthands: {
+				"enjoy-by": ["--before"],
+				d: ["--loglevel", "info"],
+				dd: ["--loglevel", "verbose"],
+				ddd: ["--loglevel", "silly"],
+				quiet: ["--loglevel", "warn"],
+				q: ["--loglevel", "warn"],
+				s: ["--loglevel", "silent"],
+				silent: ["--loglevel", "silent"],
+				verbose: ["--loglevel", "verbose"],
+				desc: ["--description"],
+				help: ["--usage"],
+				local: ["--no-global"],
+				n: ["--no-yes"],
+				no: ["--no-yes"],
+				porcelain: ["--parseable"],
+				readonly: ["--read-only"],
+				reg: ["--registry"],
+				iwr: ["--include-workspace-root"],
+				ws: ["--workspaces"],
+				a: ["--all"],
+				c: ["--call"],
+				f: ["--force"],
+				g: ["--global"],
+				L: ["--location"],
+				l: ["--long"],
+				m: ["--message"],
+				p: ["--parseable"],
+				C: ["--prefix"],
+				S: ["--save"],
+				B: ["--save-bundle"],
+				D: ["--save-dev"],
+				E: ["--save-exact"],
+				O: ["--save-optional"],
+				P: ["--save-prod"],
+				"?": ["--usage"],
+				H: ["--usage"],
+				h: ["--usage"],
+				v: ["--version"],
+				w: ["--workspace"],
+				y: ["--yes"]
+			}
+		}, NPM_SHORTHANDS, "The shorthands npm passes to nopt: the list in definitions/index.js and the short names of the definitions (the same in 11.21.1). nopt (node_modules/nopt/lib/nopt-lib.js, versions 8.1.0 in npm 10.9.4, 9.0.0 in 11.21.1 and 10.0.1 in 12.2.1, same parse and resolveShort) strips every leading dash, so -reg, --reg and -registry work; takes an exact option first, then an exact shorthand, then a word of one-letter shorthands (-gD), then an unambiguous prefix of an option name (abbrev), then a prefix of a shorthand; and reads --no-<name> as a negated flag that takes no value. npm 10 expands abbreviations silently, npm 11 warns \"Expanding --regis to --registry. This will stop working in the next major version of npm.\" and npm 12 refuses them with EUNKNOWNCONFIG (abbrevHandler in workspaces/config/lib/index.js of 11.21.1 and 12.2.1). Shorthands are expanded only on the command line, not in .npmrc or npm_config_ variables. npx turns -p into --package and expands exact shorthands itself before npm exec reads the rest (bin/npx-cli.js)."),
+		versionSelection: reviewed$2.verified({
+			tagOption: "--tag",
+			tagVariable: "npm_config_tag",
+			tagKey: "tag",
+			bareRange: "*"
+		}, NPM_DEFINITIONS, "tag (default latest): \"If you ask npm to install a package and don't tell it a specific version, then it will install the specified tag\"; like any setting it comes from --tag, npm_config_tag or .npmrc. A name without a version is name@* (npm-package-arg 14.0.0, lib/npa.js). npm-pick-manifest 12.0.0 (node_modules/npm-pick-manifest/lib/index.js) picks the version of that dist-tag when the range is * or the version satisfies the range, unless it is deprecated; otherwise the highest satisfying version, preferring versions that are not deprecated; prereleases match a range only when it names one, so name@* with latest on a prerelease installs that prerelease. npm exec and npm init pick with the same settings."),
 		packageSpecs: checked$3.verified({
 			git: [
 				"git://",
@@ -8202,6 +8397,33 @@ const pip$1 = {
 			configOptions: [],
 			configVariables: ["PIP_CONFIG_FILE"]
 		}, CMDOPTIONS, "index_group: --index-url (alias -i, --pypi-url) is the base URL of the package index, --extra-index-url adds indexes, --find-links (-f) adds an HTML page or a directory of archives. Every long option can be set as PIP_<UPPER_LONG_NAME>, dashes replaced by underscores (docs/html/topics/configuration.md); PIP_CONFIG_FILE names a configuration file loaded last, which may set any index. Requirements files may set --index-url, --extra-index-url and --find-links too (req/req_file.py)."),
+		selection: verified$7({
+			prereleases: {
+				onFlags: ["--pre"],
+				onLists: ["--all-releases"],
+				offLists: ["--only-final"],
+				flagVariables: ["PIP_PRE"],
+				onListVariables: ["PIP_ALL_RELEASES"],
+				offListVariables: ["PIP_ONLY_FINAL"]
+			},
+			buildFromSource: {
+				onLists: ["--no-binary"],
+				offLists: ["--only-binary"],
+				onListVariables: ["PIP_NO_BINARY"],
+				offListVariables: ["PIP_ONLY_BINARY"]
+			}
+		}, CMDOPTIONS, "--pre includes pre-release and development versions (pip only finds stable versions by default) and stands for --all-releases :all:; --all-releases and --only-final take :all:, :none: or package names separated by commas and allow or forbid pre-releases of those packages (models/release_control.py, allows_prereleases: a named package first, then :all:). --no-binary and --only-binary take the same lists: --no-binary keeps pip from using wheels, so the package is built from source, --only-binary from using source distributions (models/format_control.py, handle_mutual_excludes and get_allowed_formats). Each long option can also be set as PIP_<NAME> (docs/html/topics/configuration.md), which the command line overrides."),
+		pipxSelection: verified$7({
+			prereleases: {
+				flagVariables: ["PIP_PRE"],
+				onListVariables: ["PIP_ALL_RELEASES"],
+				offListVariables: ["PIP_ONLY_FINAL"]
+			},
+			buildFromSource: {
+				onListVariables: ["PIP_NO_BINARY"],
+				offListVariables: ["PIP_ONLY_BINARY"]
+			}
+		}, `${PIPX}/docs/reference/environment-variables.rst`, "pipx forwards the standard PIP_* variables to pip (except PIP_USER, PIP_DISABLE_PIP_VERSION_CHECK, PIP_TARGET and PIP_KEYRING_PROVIDER); the uv backend ignores them (docs/how-to/use-private-index.rst). pipx has no option of its own for pre-releases or source builds; --pip-args may carry them."),
 		pipxCommandLine: verified$7({
 			add: [["pipx", "install"]],
 			run: [{
@@ -8442,6 +8664,16 @@ const pdm$1 = {
 			configOptions: ["-c", "--config"],
 			configVariables: ["PDM_CONFIG_FILE"]
 		}, `${PDM}/src/pdm/project/config.py`, "pypi.url, the index PDM uses when pyproject.toml names no source called pypi, can be set with PDM_PYPI_URL (docs/usage/config.md); -c/--config and PDM_CONFIG_FILE name another configuration file, which may set any index."),
+		selection: verified$6({
+			prereleases: {
+				onFlags: ["--pre", "--prerelease"],
+				offFlags: ["--stable"]
+			},
+			buildFromSource: {
+				onListVariables: ["PDM_NO_BINARY"],
+				offListVariables: ["PDM_ONLY_BINARY"]
+			}
+		}, `${PDM}/src/pdm/cli/options.py`, "pdm add --pre/--prerelease allows pre-releases of the added packages to be pinned and --stable only stable versions (prerelease_option; commands/add.py sets req.prerelease). PDM_NO_BINARY and PDM_ONLY_BINARY are lists of packages separated by commas, :all: for every package, of which no wheel, or only wheels, are locked and installed (docs/usage/lockfile.md; environments/base.py, _setting_list)."),
 		latestVersion: verified$6("2.29.5", CHANGELOG$2, "Released on 2026-10-30.")
 	}
 };
@@ -8579,6 +8811,13 @@ const pipenv$1 = {
 			configOptions: ["--extra-pip-args"],
 			configVariables: ["PIPENV_DOTENV_LOCATION"]
 		}, CONFIGURATION$2, "--index names a package index by URL or by a source name of the Pipfile; --pypi-mirror and PIPENV_PYPI_MIRROR replace PyPI. --extra-pip-args hands arguments to pip, which may name another index, and Pipenv loads PIP_* variables from the .env file that PIPENV_DOTENV_LOCATION names (options.py)."),
+		selection: verified$5({
+			prereleases: { onFlags: ["--pre"] },
+			buildFromSource: {
+				onListVariables: ["PIP_NO_BINARY"],
+				offListVariables: ["PIP_ONLY_BINARY"]
+			}
+		}, `${PIPENV}/pipenv/cli/options.py`, "pipenv install --pre allows pre-releases (and records allow_prereleases in the Pipfile, routines/install.py). Pipenv installs with pip, which reads PIP_NO_BINARY and PIP_ONLY_BINARY like --no-binary and --only-binary (see buildSwitch)."),
 		latestVersion: verified$5("2026.10.4", CHANGELOG$1, "Released on 2026-10-28.")
 	}
 };
@@ -8587,6 +8826,7 @@ const pipenv$1 = {
 const { verified: verified$4, uncertain: uncertain$4 } = verifiedOn("2026-10-28");
 const checked$2 = verifiedOn("2026-10-29");
 const reviewed$1 = verifiedOn("2026-10-30");
+const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
 const RESOLUTION$1 = "https://pnpm.io/settings/dependency-resolution";
 const SETTINGS_V10 = "https://pnpm.io/10.x/settings";
 const BUILD = "https://pnpm.io/settings/build";
@@ -8729,12 +8969,53 @@ const pnpm$1 = {
 			],
 			shorthand: "github:"
 		}, "https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/package-sources.md", "Sources of pnpm add: the npm registry, jsr:, crate: and pypi: (other registries), workspace packages (the workspace: range protocol, docs/workspaces.md), local directories (./dir is saved as link:, file:./dir is copied), local tarballs ending in .tar, .tar.gz or .tgz, remote tarballs starting with http:// or https://, and git repositories as user/repo (github: by default), github:, bitbucket:, gitlab:, gist: or a full URL such as git+ssh://… or https://github.com/….git."),
-		registryOverrides: checked$2.uncertain({
+		registryOverrides: reviewed$1.verified({
 			registryOptions: ["--registry", "--@<scope>:registry"],
 			registryVariables: ["pnpm_config_registry"],
-			configOptions: [],
-			configVariables: []
-		}, "https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/npmrc.md", "--registry and --@scope:registry on the command line win over the other registry settings. The page shows pnpm_config_<key> environment variables for keys of .npmrc (pnpm_config__auth, pnpm_config_//registry.npmjs.org/:_authToken) overriding the project .npmrc; that pnpm_config_registry works the same is inferred."),
+			configOptions: ["--userconfig", "--npmrc-auth-file"],
+			configVariables: ["pnpm_config_npmrc_auth_file", "pnpm_config_userconfig"]
+		}, `${PNPM_V12}/pnpm11/config/reader/src/index.ts`, "registry and @scope:registry are read from the command line over .npmrc (docs/npmrc.md in pnpm/pnpm.io). Every pnpm_config_<key> or PNPM_CONFIG_<KEY> variable whose key is a setting sets it (src/env.ts, parseEnvVars), registry included. The user-level .npmrc, which may set any registry, is the file named by --npmrc-auth-file, --userconfig, pnpm_config_npmrc_auth_file, pnpm_config_userconfig, npmrcAuthFile in the global config.yaml or npm_config_userconfig (getNpmrcAuthFile; src/loadNpmrcFiles.ts reads it in place of ~/.npmrc). pnpm 10 reads npm_config_* variables as npm does."),
+		parsing: reviewed$1.verified({
+			abbreviations: true,
+			anyDashes: true,
+			negation: "--no-",
+			settingPrefix: "--config.",
+			shorthands: {
+				s: ["--reporter=silent"],
+				d: ["--loglevel=info"],
+				dd: ["--loglevel=verbose"],
+				ddd: ["--loglevel=silly"],
+				L: ["--latest"],
+				r: ["--recursive"],
+				silent: ["--reporter=silent"],
+				verbose: ["--loglevel=verbose"],
+				quiet: ["--loglevel=warn"],
+				q: ["--loglevel=warn"],
+				h: ["--help"],
+				H: ["--help"],
+				"?": ["--help"],
+				usage: ["--help"],
+				v: ["--version"],
+				f: ["--force"],
+				local: ["--no-global"],
+				l: ["--long"],
+				p: ["--parseable"],
+				porcelain: ["--parseable"],
+				prod: ["--production"],
+				development: ["--dev"],
+				g: ["--global"],
+				S: ["--save"],
+				D: ["--save-dev"],
+				P: ["--save-prod"],
+				E: ["--save-exact"],
+				O: ["--save-optional"],
+				C: ["--dir"],
+				w: ["--workspace-root"],
+				i: ["--interactive"],
+				F: ["--filter"],
+				y: ["--yes"]
+			}
+		}, `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`, "pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag. Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y."),
 		minimumReleaseAgeStrict: checked$2.verified({
 			setting: "minimumReleaseAgeStrict",
 			value: true,
@@ -8983,6 +9264,14 @@ const poetry$1 = {
 			tilde: "~",
 			any: "*"
 		}, `${POETRY}/docs/dependency-specification.md#using-the--operator`, "poetry add name@constraint takes any constraint valid in pyproject.toml, and name@latest the newest release; extras go before the @ (name[extra]@^4.0.0). ^ keeps the left-most non-zero part of major.minor.patch: ^1.2.3 is >=1.2.3 <2.0.0, ^1.2 is >=1.2.0 <2.0.0, ^1 is >=1.0.0 <2.0.0, ^0.2.3 is >=0.2.3 <0.3.0, ^0.0.3 is >=0.0.3 <0.0.4, ^0.0 is >=0.0.0 <0.1.0, ^0 is >=0.0.0 <1.0.0. ~ allows patch changes, or minor changes when only a major version is given: ~1.2.3 is >=1.2.3 <1.3.0, ~1.2 is >=1.2.0 <1.3.0, ~1 is >=1.0.0 <2.0.0. * is any version, 1.* is >=1.0.0 <2.0.0, 1.2.* is >=1.2.0 <1.3.0. ~=, inequalities and == as in PEP 440, several separated by commas; a bare version (1.2.3) is that version only. Poetry prefers stable releases and takes a pre-release only when no stable release satisfies the constraint."),
+		selection: verified$3({
+			prereleases: { onFlags: ["--allow-prereleases"] },
+			buildFromSource: {
+				onListVariables: ["POETRY_INSTALLER_NO_BINARY"],
+				offListVariables: ["POETRY_INSTALLER_ONLY_BINARY"],
+				listBooleans: true
+			}
+		}, CONFIGURATION$1, "installer.no-binary (POETRY_INSTALLER_NO_BINARY) disallows wheels for :all: or true, none for :none: or false, or the named packages separated by commas; installer.only-binary (POETRY_INSTALLER_ONLY_BINARY, since 2.0.0) takes the same values; explicit package names win over :all:. poetry add --allow-prereleases accepts pre-releases (src/poetry/console/commands/add.py)."),
 		latestVersion: verified$3("2.5.1", CHANGELOG, "Released on 2026-09-20.")
 	}
 };
@@ -9478,6 +9767,34 @@ const uv$1 = {
 			configOptions: ["--config-file"],
 			configVariables: ["UV_CONFIG_FILE"]
 		}, `${UV}/crates/uv-static/src/env_vars.rs`, "IndexArgs (lib.rs): --index adds an index (name=url allowed), --default-index replaces PyPI, --index-url and --extra-index-url are their deprecated forms, --find-links adds a page or directory of archives; each has the variable named here. --config-file and UV_CONFIG_FILE name a uv.toml that may set any index. uv does not read pip.conf or PIP_INDEX_URL (docs/pip/compatibility.md)."),
+		selection: verified$1({
+			prereleases: {
+				onFlags: ["--pre"],
+				modeOptions: ["--prerelease"],
+				packageModeOptions: ["--prerelease-package"],
+				onModes: ["allow"],
+				offModes: ["disallow"],
+				modeVariables: ["UV_PRERELEASE"]
+			},
+			buildFromSource: {
+				onFlags: ["--no-binary"],
+				offFlags: ["--binary"],
+				onPackages: ["--no-binary-package"],
+				flagVariables: ["UV_NO_BINARY"],
+				onPackageVariables: ["UV_NO_BINARY_PACKAGE"]
+			},
+			commands: [{
+				command: [
+					"uv",
+					"pip",
+					"install"
+				],
+				buildFromSource: {
+					onLists: ["--no-binary"],
+					offLists: ["--only-binary"]
+				}
+			}]
+		}, CLI, "VersionSelectionArgs: --prerelease takes disallow, allow, if-necessary, explicit or if-necessary-or-explicit (UV_PRERELEASE); allow considers pre-releases of every package and disallow none (docs/concepts/resolution.md); --prerelease-package takes PACKAGE=MODE; the hidden --pre means allow. BuildOptionsArgs of uv add, uv run, uv tool install and uv tool run (uvx): --no-binary (UV_NO_BINARY, a boolean) installs every package from source, --binary turns it off, --no-binary-package names one package (UV_NO_BINARY_PACKAGE, separated by spaces). uv pip install takes --no-binary and --only-binary as lists separated by commas with :all: and :none:, as pip does (PipInstallArgs)."),
 		latestVersion: verified$1("0.13.6", `${UV}/CHANGELOG.md`, "Released on 2026-10-26.")
 	}
 };

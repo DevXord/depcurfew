@@ -111,6 +111,14 @@ export const pipenv: ToolKnowledge = {
       CONFIGURATION,
       '--index names a package index by URL or by a source name of the Pipfile; --pypi-mirror and PIPENV_PYPI_MIRROR replace PyPI. --extra-pip-args hands arguments to pip, which may name another index, and Pipenv loads PIP_* variables from the .env file that PIPENV_DOTENV_LOCATION names (options.py).',
     ),
+    selection: verified(
+      {
+        prereleases: { onFlags: ['--pre'] },
+        buildFromSource: { onListVariables: ['PIP_NO_BINARY'], offListVariables: ['PIP_ONLY_BINARY'] },
+      },
+      `${PIPENV}/pipenv/cli/options.py`,
+      'pipenv install --pre allows pre-releases (and records allow_prereleases in the Pipfile, routines/install.py). Pipenv installs with pip, which reads PIP_NO_BINARY and PIP_ONLY_BINARY like --no-binary and --only-binary (see buildSwitch).',
+    ),
     latestVersion: verified('2026.10.4', CHANGELOG, 'Released on 2026-10-28.'),
   },
 };

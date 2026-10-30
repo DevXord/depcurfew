@@ -5,8 +5,8 @@
 import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import type { ClaudeCodeHooksKnowledge } from '../knowledge/types.ts';
-import { scanCommandLine, unreadableFix } from './command.ts';
-import type { CheckFinding, FindingCode, PackageReport } from './findings.ts';
+import { scanCommandLine, TOO_MANY, unreadableFix } from './command.ts';
+import type { CheckFinding, CheckRequest, FindingCode, PackageReport } from './findings.ts';
 
 /** Findings that break the policy outright; other errors only mean that depcurfew cannot vouch for the package. */
 const DENY: ReadonlySet<FindingCode> = new Set(['forbidden-source', 'not-found', 'no-version', 'too-young', 'install-scripts', 'quarantined']);
@@ -45,29 +45,39 @@ export function readHookEvent(input: string): HookEvent | undefined {
   return typeof command === 'string' ? { command, cwd: typeof cwd === 'string' ? cwd : undefined } : undefined;
 }
 
+/** The spec as the agent wrote it, with what the command changes about the version or the build. */
+function label(report: PackageReport): string {
+  const notes = [
+    ...(report.tag === undefined ? [] : [`tag ${report.tag}`]),
+    ...(report.prereleases === undefined ? [] : [report.prereleases === 'allow' ? 'pre-releases allowed' : 'no pre-releases']),
+    ...(report.buildFromSource === true ? ['built from source'] : []),
+  ];
+  return notes.length === 0 ? report.spec : `${report.spec} (${notes.join(', ')})`;
+}
+
 /**
  * One finding for the agent. Fixes that change depcurfew.json are left out: the policy is the user's to change, and the
  * reason says to ask them.
  */
 function line(report: PackageReport, finding: CheckFinding): string {
-  return `- ${report.spec}: ${finding.message}${finding.fix.includes('depcurfew.json') ? '' : `. Fix: ${finding.fix}`}`;
+  return `- ${label(report)}: ${finding.message}${finding.fix.includes('depcurfew.json') ? '' : `. Fix: ${finding.fix}`}`;
 }
 
-/** The decision for the checked packages of one command. */
-export function decide(reports: readonly PackageReport[], unreadable: string | undefined): HookDecision {
+/** The decision for the checked packages of one command; `notes` (such as the registry that was asked) end the reason. */
+export function decide(reports: readonly PackageReport[], unreadable: string | undefined, notes: readonly string[] = []): HookDecision {
   const errors = reports.flatMap((report) => report.findings.filter((finding) => finding.level === 'error').map((finding) => ({ report, finding })));
   const denied = errors.filter(({ finding }) => DENY.has(finding.code));
   if (denied.length > 0) {
     return {
       decision: 'deny',
-      reason: `depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n${denied.map(({ report, finding }) => line(report, finding)).join('\n')}\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.`,
+      reason: `depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n${denied.map(({ report, finding }) => line(report, finding)).join('\n')}\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.${notes.map((note) => `\n${note}`).join('')}`,
     };
   }
   const doubts = [
     ...(unreadable === undefined ? [] : [`- ${unreadable}. Fix: ${unreadableFix(unreadable)}`]),
     ...errors.map(({ report, finding }) => line(report, finding)),
   ];
-  if (doubts.length > 0) return { decision: 'ask', reason: `depcurfew cannot vouch for what this command installs:\n${doubts.join('\n')}` };
+  if (doubts.length > 0) return { decision: 'ask', reason: `depcurfew cannot vouch for what this command installs:\n${[...doubts, ...notes].join('\n')}` };
   return { decision: 'none' };
 }
 
@@ -84,8 +94,24 @@ export function formatDecision(decision: HookDecision): string | undefined {
   })}\n`;
 }
 
-/** Specs to check for a command, without repeats, and why part of it could not be read. */
-export function requestedSpecs(command: string): { specs: string[]; unreadable: string | undefined } {
+/** How many specs of one command are checked: more would mean as many requests to the registry. */
+export const MAX_CHECKED = 50;
+
+/** Specs to check for a command, without repeats and at most MAX_CHECKED, and why part of it could not be read. */
+export function requestedSpecs(command: string): { specs: CheckRequest[]; unreadable: string | undefined } {
   const scan = scanCommandLine(command);
-  return { specs: [...new Set(scan.requests.map((request) => request.spec))], unreadable: scan.unreadable };
+  const unique = new Map<string, CheckRequest>();
+  for (const { spec, tag, prereleases, buildFromSource } of scan.requests) {
+    const request: CheckRequest = {
+      spec,
+      ...(tag === undefined ? {} : { tag }),
+      ...(prereleases === undefined ? {} : { prereleases }),
+      ...(buildFromSource === undefined ? {} : { buildFromSource }),
+    };
+    unique.set(JSON.stringify(request), request);
+  }
+  const specs = [...unique.values()];
+  if (specs.length <= MAX_CHECKED) return { specs, unreadable: scan.unreadable };
+  const tooMany = `the command names ${specs.length} packages and ${TOO_MANY} ${MAX_CHECKED} in one command; the first ${MAX_CHECKED} were checked`;
+  return { specs: specs.slice(0, MAX_CHECKED), unreadable: scan.unreadable ?? tooMany };
 }

@@ -29,6 +29,7 @@ const NPM_DEFINITIONS = 'https://github.com/npm/cli/blob/v12.2.1/workspaces/conf
 const CMD_LIST = 'https://github.com/npm/cli/blob/v12.2.1/lib/utils/cmd-list.js';
 const INSTALL_ALIASES = ['install', 'add', 'i', 'in', 'ins', 'inst', 'insta', 'instal', 'isnt', 'isnta', 'isntal', 'isntall', 'install-test', 'it'];
 const NPM_DEFINITIONS_V11_16 = 'https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js';
+const NPM_SHORTHANDS = 'https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/index.js';
 
 export const npm: ToolKnowledge = {
   id: 'npm',
@@ -280,6 +281,50 @@ export const npm: ToolKnowledge = {
       ],
       NPM_DEFINITIONS,
       'npm options that always take a value: every definition whose type does not include Boolean, as --name, and the short forms -C (prefix), -L (location), -c (call), -m (message) and -w (workspace). Options whose type includes Boolean (such as color and browser) may stand alone, so they are taken for flags.',
+    ),
+    flagOptions: reviewed.verified(
+      [
+        '--all', '--allow-same-version', '--allow-scripts-pending', '--allow-scripts-pin', '--allow-unused-patches',
+        '--audit', '--bin-links', '--browser', '--bypass-2fa', '--color', '--commit-hooks',
+        '--dangerously-allow-all-scripts', '--description', '--dev', '--diff-ignore-all-space', '--diff-name-only',
+        '--diff-no-prefix', '--diff-text', '--dry-run', '--engine-strict', '--expect-results', '--force',
+        '--foreground-scripts', '--format-package-lock', '--fund', '--git-tag-version', '--global', '--global-style',
+        '--if-present', '--ignore-existing', '--ignore-extension', '--ignore-patch-failures', '--ignore-scripts',
+        '--include-attestations', '--include-staged', '--include-workspace-root', '--init-private', '--install-links',
+        '--json', '--keep-edit-dir', '--legacy-bundling', '--legacy-peer-deps', '--link', '--long', '--offline',
+        '--omit-lockfile-registry-resolved', '--optional', '--package-lock', '--package-lock-only', '--packages-all',
+        '--parseable', '--prefer-dedupe', '--prefer-offline', '--prefer-online', '--production', '--progress',
+        '--provenance', '--read-only', '--rebuild-bundle', '--save', '--save-bundle', '--save-dev', '--save-exact',
+        '--save-optional', '--save-peer', '--save-prod', '--shrinkwrap', '--sign-git-commit', '--sign-git-tag',
+        '--strict-allow-scripts', '--strict-npmrc', '--strict-peer-deps', '--strict-ssl', '--timing', '--unicode',
+        '--update-notifier', '--usage', '--version', '--versions', '--workspaces', '--workspaces-update', '--yes',
+      ],
+      NPM_DEFINITIONS,
+      'npm options whose type includes Boolean, which may stand alone: the definitions of 12.2.1 and of 11.21.1 (where shrinkwrap is one too; 12.2.1 adds ignore-existing, ignore-extension, ignore-patch-failures, allow-unused-patches, keep-edit-dir and strict-npmrc). With valueOptions they are every npm option, so an abbreviated option can be resolved as npm resolves it.',
+    ),
+    parsing: reviewed.verified(
+      {
+        abbreviations: true,
+        anyDashes: true,
+        negation: '--no-',
+        shorthands: {
+          'enjoy-by': ['--before'], d: ['--loglevel', 'info'], dd: ['--loglevel', 'verbose'], ddd: ['--loglevel', 'silly'],
+          quiet: ['--loglevel', 'warn'], q: ['--loglevel', 'warn'], s: ['--loglevel', 'silent'], silent: ['--loglevel', 'silent'],
+          verbose: ['--loglevel', 'verbose'], desc: ['--description'], help: ['--usage'], local: ['--no-global'], n: ['--no-yes'],
+          no: ['--no-yes'], porcelain: ['--parseable'], readonly: ['--read-only'], reg: ['--registry'],
+          iwr: ['--include-workspace-root'], ws: ['--workspaces'], a: ['--all'], c: ['--call'], f: ['--force'], g: ['--global'],
+          L: ['--location'], l: ['--long'], m: ['--message'], p: ['--parseable'], C: ['--prefix'], S: ['--save'],
+          B: ['--save-bundle'], D: ['--save-dev'], E: ['--save-exact'], O: ['--save-optional'], P: ['--save-prod'],
+          '?': ['--usage'], H: ['--usage'], h: ['--usage'], v: ['--version'], w: ['--workspace'], y: ['--yes'],
+        },
+      },
+      NPM_SHORTHANDS,
+      'The shorthands npm passes to nopt: the list in definitions/index.js and the short names of the definitions (the same in 11.21.1). nopt (node_modules/nopt/lib/nopt-lib.js, versions 8.1.0 in npm 10.9.4, 9.0.0 in 11.21.1 and 10.0.1 in 12.2.1, same parse and resolveShort) strips every leading dash, so -reg, --reg and -registry work; takes an exact option first, then an exact shorthand, then a word of one-letter shorthands (-gD), then an unambiguous prefix of an option name (abbrev), then a prefix of a shorthand; and reads --no-<name> as a negated flag that takes no value. npm 10 expands abbreviations silently, npm 11 warns "Expanding --regis to --registry. This will stop working in the next major version of npm." and npm 12 refuses them with EUNKNOWNCONFIG (abbrevHandler in workspaces/config/lib/index.js of 11.21.1 and 12.2.1). Shorthands are expanded only on the command line, not in .npmrc or npm_config_ variables. npx turns -p into --package and expands exact shorthands itself before npm exec reads the rest (bin/npx-cli.js).',
+    ),
+    versionSelection: reviewed.verified(
+      { tagOption: '--tag', tagVariable: 'npm_config_tag', tagKey: 'tag', bareRange: '*' },
+      NPM_DEFINITIONS,
+      'tag (default latest): "If you ask npm to install a package and don\'t tell it a specific version, then it will install the specified tag"; like any setting it comes from --tag, npm_config_tag or .npmrc. A name without a version is name@* (npm-package-arg 14.0.0, lib/npa.js). npm-pick-manifest 12.0.0 (node_modules/npm-pick-manifest/lib/index.js) picks the version of that dist-tag when the range is * or the version satisfies the range, unless it is deprecated; otherwise the highest satisfying version, preferring versions that are not deprecated; prereleases match a range only when it names one, so name@* with latest on a prerelease installs that prerelease. npm exec and npm init pick with the same settings.',
     ),
     packageSpecs: checked.verified(
       {

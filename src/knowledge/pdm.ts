@@ -142,6 +142,14 @@ export const pdm: ToolKnowledge = {
       `${PDM}/src/pdm/project/config.py`,
       'pypi.url, the index PDM uses when pyproject.toml names no source called pypi, can be set with PDM_PYPI_URL (docs/usage/config.md); -c/--config and PDM_CONFIG_FILE name another configuration file, which may set any index.',
     ),
+    selection: verified(
+      {
+        prereleases: { onFlags: ['--pre', '--prerelease'], offFlags: ['--stable'] },
+        buildFromSource: { onListVariables: ['PDM_NO_BINARY'], offListVariables: ['PDM_ONLY_BINARY'] },
+      },
+      `${PDM}/src/pdm/cli/options.py`,
+      'pdm add --pre/--prerelease allows pre-releases of the added packages to be pinned and --stable only stable versions (prerelease_option; commands/add.py sets req.prerelease). PDM_NO_BINARY and PDM_ONLY_BINARY are lists of packages separated by commas, :all: for every package, of which no wheel, or only wheels, are locked and installed (docs/usage/lockfile.md; environments/base.py, _setting_list).',
+    ),
     latestVersion: verified('2.29.5', CHANGELOG, 'Released on 2026-10-30.'),
   },
 };

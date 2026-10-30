@@ -1,9 +1,11 @@
 // Reads package documents from the npm registry with a time limit and a size limit. No credentials are sent, so
-// packages of private registries cannot be looked up.
+// packages of private registries cannot be looked up. Redirects are followed only within the same origin: a registry
+// that sends depcurfew to another host could answer for any name, so the package is reported as not checked. Link-local
+// addresses (where cloud metadata services answer) are never asked; no registry lives there.
 import { isRecord, values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 
-export type FetchLike = (url: string, init: { headers: Record<string, string>; signal: AbortSignal }) => Promise<Response>;
+export type FetchLike = (url: string, init: { headers: Record<string, string>; signal: AbortSignal; redirect?: 'manual' }) => Promise<Response>;
 
 export interface VersionDocument {
   version: string;
@@ -19,10 +21,54 @@ export interface Packument {
   versions: Readonly<Record<string, VersionDocument>>;
 }
 
-export type Lookup = { status: 'found'; packument: Packument } | { status: 'not-found' } | { status: 'error'; reason: string };
+/** `fix` says what to do when the generic advice (try again later) does not fit. */
+export type Lookup = { status: 'found'; packument: Packument } | { status: 'not-found' } | { status: 'error'; reason: string; fix?: string };
 
 export const TIMEOUT_MS = 15_000;
 export const MAX_DOCUMENT_SIZE = 64 * 1024 * 1024;
+/** Redirects followed within the same origin before giving up. */
+export const MAX_REDIRECTS = 5;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/** Whether a host is a link-local address written out (169.254.0.0/16, fe80::/10), where cloud metadata services answer. */
+export function isLinkLocal(host: string): boolean {
+  const bare = host.replace(/^\[|\]$/gu, '').toLowerCase();
+  if (/^169\.254\.\d{1,3}\.\d{1,3}$/u.test(bare)) return true;
+  // IPv4 written inside IPv6 (::ffff:169.254.169.254, which the URL parser writes as ::ffff:a9fe:a9fe).
+  if (/^::ffff:(?:169\.254\.|a9fe:)/u.test(bare)) return true;
+  return /^fe[89ab][0-9a-f]?:/u.test(bare);
+}
+
+export type Fetched = { response: Response } | { reason: string; fix: string };
+
+/**
+ * Fetches `url`, following redirects only to the same origin and at most MAX_REDIRECTS times; `what` names the server
+ * in reasons (registry, index).
+ */
+export async function fetchSameOrigin(url: string, init: { headers: Record<string, string>; signal: AbortSignal }, fetch: FetchLike, what: string): Promise<Fetched> {
+  let current = new URL(url);
+  for (let redirects = 0; ; redirects++) {
+    if (isLinkLocal(current.hostname)) {
+      return {
+        reason: `${current.origin} is a link-local address, where cloud metadata services answer and no ${what} lives, so depcurfew does not ask it`,
+        fix: `Check where the ${what} URL comes from and set the URL of the real ${what}; install nothing from this one`,
+      };
+    }
+    const response = await fetch(current.href, { ...init, redirect: 'manual' });
+    const location = response.headers.get('location');
+    if (!REDIRECT_STATUSES.has(response.status) || location === null) return { response };
+    await response.body?.cancel();
+    const next = new URL(location, current);
+    if (next.origin !== current.origin) {
+      return {
+        reason: `the ${what} redirected to ${next.origin}, another host, which depcurfew does not follow: that host could answer for any package`,
+        fix: `Set the ${what} URL to the host that serves the packages if you trust it, or check the package there yourself before installing it`,
+      };
+    }
+    if (redirects >= MAX_REDIRECTS) return { reason: `the ${what} redirected more than ${MAX_REDIRECTS} times`, fix: `Check the ${what} URL; it keeps redirecting` };
+    current = next;
+  }
+}
 
 function api() {
   const fact = values(environment.npmRegistry.api)[0];
@@ -85,10 +131,14 @@ export async function fetchPackument(name: string, options: { registry: string; 
   const notFound = values(environment.npmRegistry.notFoundStatus)[0];
   let response: Response;
   try {
-    response = await options.fetch(packumentUrl(options.registry, name), {
-      headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS),
-    });
+    const fetched = await fetchSameOrigin(
+      packumentUrl(options.registry, name),
+      { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS) },
+      options.fetch,
+      'registry',
+    );
+    if ('reason' in fetched) return { status: 'error', reason: fetched.reason, fix: fetched.fix };
+    response = fetched.response;
   } catch (error) {
     const reason = error instanceof Error && error.name === 'TimeoutError' ? 'the registry did not answer in time' : `the registry cannot be reached (${error instanceof Error ? error.message : String(error)})`;
     return { status: 'error', reason };

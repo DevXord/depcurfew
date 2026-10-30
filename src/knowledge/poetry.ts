@@ -175,6 +175,14 @@ export const poetry: ToolKnowledge = {
       `${POETRY}/docs/dependency-specification.md#using-the--operator`,
       'poetry add name@constraint takes any constraint valid in pyproject.toml, and name@latest the newest release; extras go before the @ (name[extra]@^4.0.0). ^ keeps the left-most non-zero part of major.minor.patch: ^1.2.3 is >=1.2.3 <2.0.0, ^1.2 is >=1.2.0 <2.0.0, ^1 is >=1.0.0 <2.0.0, ^0.2.3 is >=0.2.3 <0.3.0, ^0.0.3 is >=0.0.3 <0.0.4, ^0.0 is >=0.0.0 <0.1.0, ^0 is >=0.0.0 <1.0.0. ~ allows patch changes, or minor changes when only a major version is given: ~1.2.3 is >=1.2.3 <1.3.0, ~1.2 is >=1.2.0 <1.3.0, ~1 is >=1.0.0 <2.0.0. * is any version, 1.* is >=1.0.0 <2.0.0, 1.2.* is >=1.2.0 <1.3.0. ~=, inequalities and == as in PEP 440, several separated by commas; a bare version (1.2.3) is that version only. Poetry prefers stable releases and takes a pre-release only when no stable release satisfies the constraint.',
     ),
+    selection: verified(
+      {
+        prereleases: { onFlags: ['--allow-prereleases'] },
+        buildFromSource: { onListVariables: ['POETRY_INSTALLER_NO_BINARY'], offListVariables: ['POETRY_INSTALLER_ONLY_BINARY'], listBooleans: true },
+      },
+      CONFIGURATION,
+      'installer.no-binary (POETRY_INSTALLER_NO_BINARY) disallows wheels for :all: or true, none for :none: or false, or the named packages separated by commas; installer.only-binary (POETRY_INSTALLER_ONLY_BINARY, since 2.0.0) takes the same values; explicit package names win over :all:. poetry add --allow-prereleases accepts pre-releases (src/poetry/console/commands/add.py).',
+    ),
     latestVersion: verified('2.5.1', CHANGELOG, 'Released on 2026-09-20.'),
   },
 };

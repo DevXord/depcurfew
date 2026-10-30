@@ -187,7 +187,7 @@ What depcurfew configures and checks for each tool, from its [knowledge base](do
 | pnpm | `minimumReleaseAge` in `pnpm-workspace.yaml` (minutes), since 10.16.0 | `minimumReleaseAgeExclude`, since 10.16.0 | `allowBuilds` in `pnpm-workspace.yaml` | git: `blockExoticSubdeps`<br>remote tarball: `blockExoticSubdeps` | 2026-10-28 – 2026-10-30 |
 | Yarn (Berry) | `npmMinimalAgeGate` in `.yarnrc.yml` (minutes), since 4.10.2 | `npmPreapprovedPackages`, since 4.10.0 | `dependenciesMeta.<package>.built` in `package.json` | git: `approvedGitRepositories` | 2026-10-28 – 2026-10-29 |
 | Bun | `install.minimumReleaseAge` in `bunfig.toml` (seconds), since 1.3.0 | `install.minimumReleaseAgeExcludes`, since 1.3.0 | `trustedDependencies` in `package.json` | none | 2026-10-28 – 2026-10-29 |
-| Deno | `minimumDependencyAge` in `deno.json`, `.npmrc` (minutes), since 2.5.5 / 2.6.0 ⚠️ | `minimumDependencyAge.exclude`, since 2.5.5 | `allowScripts` in `deno.json` | none | 2026-10-28 – 2026-10-29 |
+| Deno | `minimumDependencyAge` in `deno.json`, `.npmrc` (minutes), since 2.5.5 / 2.6.0 ⚠️ | `minimumDependencyAge.exclude`, since 2.5.5 | `allowScripts` in `deno.json` | none | 2026-10-28 – 2026-10-30 |
 | uv | `exclude-newer` in `uv.toml`, `pyproject.toml` (duration string), since 0.9.17 | `exclude-newer-package`, since 0.9.25 | `no-binary-package` in `pyproject.toml` | none | 2026-10-30 |
 | pip | `uploaded-prior-to` on the command line or in the environment (no project file) (days), since 26.1.0 | none | `--no-binary` in `requirements.txt` | none | 2026-10-30 |
 | Poetry | `solver.min-release-age` in `poetry.toml` (days), since 2.4.0 | `solver.min-release-age-exclude`, since 2.4.0 | `installer.no-binary` in `poetry.toml` | none | 2026-10-30 |
@@ -390,13 +390,16 @@ npx depcurfew check zod@4 left-pad
 npx depcurfew check pypi:requests "pypi:django>=5.2,<6"
 ```
 
-For each package it looks up the public npm registry, or PyPI for names with the `pypi:` prefix, and reports:
+For each package it looks up the npm registry (the one `--registry` or `registry=` in `.npmrc` names, else the public one; any other is named in a note), or PyPI for names with the `pypi:` prefix, and reports:
 
 - a name the registry does not know, which is how made-up package names show up;
 - a version younger than the cooldown in `depcurfew.json`, with the newest version that is old enough;
 - install scripts the policy does not allow; for a Python package, a version without wheels, which is built from source and so runs its build code;
 - a name that differs by a letter or two, or only in separators, from a popular package of its registry: 5,000 npm packages with the most weekly downloads among the results of several hundred registry searches (the npm registry has no download ranking, so a popular package can be missing), and the 5,000 most downloaded PyPI projects of a recent month;
-- a deprecated version (a warning).
+- a deprecated version (a warning);
+- a registry or index reached over plain HTTP (a warning).
+
+A registry that redirects to another host, and one at a link-local address, where cloud metadata services answer, is not followed or asked: the package counts as not checked. For a name without a version or with a range, npm prefers the dist-tag `tag=` in `.npmrc` names, and so does `check`.
 
 Python packages are written as pip takes them after the prefix (`pypi:name`, `pypi:name==1.2`, `pypi:name[extra]>=1.2,<2`), or as `pypi:name@1.2`, `pypi:name@^1.2` and `pypi:name@latest`, as `uvx` and `poetry add` take them. The version is picked as pip picks it: the newest match, pre-releases only when asked for or when nothing else matches, and yanked versions only when pinned with `==` (a warning). A version is as old as its newest file, because files can be added to a release later. A project PyPI quarantines (as malware, for example) is an error; an archived or deprecated one, a warning. `--index` looks Python packages up in another index that serves the JSON form of the simple repository API.
 
@@ -410,7 +413,7 @@ Git repositories, tarball URLs and local paths are checked against the `sources`
 - **ask** when depcurfew cannot vouch for the command: a look-alike name, a registry it cannot reach, an error of its own, or a command it cannot read, such as one with `$(...)` or variables in its arguments, or a shell that runs commands from a pipe (`curl … | sh`);
 - nothing when everything checks out, so the command goes through Claude Code's usual permission prompts.
 
-It follows the command lines inside a command: `$(...)` and backticks, `sh -c`, `eval`, `npx -c`, `yarn workspace <name>`, `python -m pip`, the command `uv run` runs, and wrappers such as `sudo`, `env`, `timeout` and `xargs`. It reads options the way each tool does, including abbreviated long options of pip and pipx (`--extra` for `--extra-index-url`) and short options with their value in the same word (`-ihttps://…`), so an option, or a variable such as `PIP_INDEX_URL` or `UV_INDEX`, that points the tool at another index makes it ask. Packages from requirements files (`pip install -r`) and the project's own files (`uv sync`, `poetry install`) are not checked, as with `npm install` without names; `depcurfew doctor` checks the lockfiles. When it cannot read the hook event at all, it exits with code 2, which blocks the command in every Claude Code version.
+It follows the command lines inside a command: `$(...)` and backticks, `sh -c`, PowerShell's `-Command`, `eval`, `npx -c`, `yarn workspace <name>`, `python -m pip`, the command `uv run` runs, a package manager run by `npx`, `uvx` or `pipx run`, and wrappers such as `sudo`, `su -c`, `env`, `timeout`, `flock` and `xargs`. It reads options the way each tool does, including npm's and pnpm's shorthands and abbreviations (`--reg` and `--regis` for `--registry`), abbreviated long options of pip and pipx (`--extra` for `--extra-index-url`) and short options with their value in the same word (`-ihttps://…`), so an option, or a variable such as `PIP_INDEX_URL` or `UV_INDEX`, that points the tool at another index makes it ask. It checks the version the command would install: the dist-tag `--tag` or `npm_config_tag` makes npm prefer, pre-releases that `--pre`, `--prerelease allow` and the like allow, and builds from source that the command's options or variables force (wheels refused), which count as install scripts. A script piped into an interpreter (`curl … | python3`, `irm … | iex`) or read from `<(curl …)` makes it ask, and so does a command with more than 50 packages, of which the first 50 are checked. `deno x` and `dx` are read like `npx`. Packages from requirements files (`pip install -r`) and the project's own files (`uv sync`, `poetry install`) are not checked, as with `npm install` without names; `depcurfew doctor` checks the lockfiles. When it cannot read the hook event at all, it exits with code 2, which blocks the command in every Claude Code version.
 
 Install depcurfew as a development dependency of the project, then add the hook:
 
@@ -452,7 +455,7 @@ Commands the guard reads (an add subcommand of any npm package manager, such as 
 | pnpm | `pnpm add` | `pnx`, `pnpx`, `pnpm dlx` | `pnpm create` |
 | Yarn (Berry) | `yarn add` | `yarn dlx` | `yarn create` |
 | Bun | `bun add` | `bunx`, `bun x` | `bun create` |
-| Deno | `deno add`, `deno install` | none | none |
+| Deno | `deno add`, `deno install` | `deno x`, `dx`, `denox`, `dnx` | none |
 | uv | `uv add`, `uv pip install`, `uv tool install` | `uvx`, `uv tool run`, `uv run` | none |
 | pip | `pip install`, `pip3 install` | none | none |
 | pipx | `pipx install` | `pipx run` | none |

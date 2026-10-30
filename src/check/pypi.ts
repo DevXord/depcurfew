@@ -7,7 +7,7 @@ import { environment } from '../knowledge/environment.ts';
 import type { PypiIndexKnowledge } from '../knowledge/types.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { compareVersions, parseVersion } from './pep440.ts';
-import { MAX_DOCUMENT_SIZE, readLimited, TIMEOUT_MS, type FetchLike } from './registry.ts';
+import { fetchSameOrigin, MAX_DOCUMENT_SIZE, readLimited, TIMEOUT_MS, type FetchLike } from './registry.ts';
 
 export interface PypiFile {
   filename: string;
@@ -27,7 +27,7 @@ export interface PypiProject {
   releases: ReadonlyMap<string, readonly PypiFile[]>;
 }
 
-export type PypiLookup = { status: 'found'; project: PypiProject } | { status: 'not-found' } | { status: 'error'; reason: string };
+export type PypiLookup = { status: 'found'; project: PypiProject } | { status: 'not-found' } | { status: 'error'; reason: string; fix?: string };
 
 function api(): PypiIndexKnowledge {
   const fact = values(environment.pypiIndex.api)[0];
@@ -118,10 +118,14 @@ export async function fetchProject(name: string, options: { index: string; fetch
   const fields = api();
   let response: Response;
   try {
-    response = await options.fetch(projectUrl(options.index, name), {
-      headers: { accept: fields.accept },
-      signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS),
-    });
+    const fetched = await fetchSameOrigin(
+      projectUrl(options.index, name),
+      { headers: { accept: fields.accept }, signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS) },
+      options.fetch,
+      'index',
+    );
+    if ('reason' in fetched) return { status: 'error', reason: fetched.reason, fix: fetched.fix };
+    response = fetched.response;
   } catch (error) {
     const reason = error instanceof Error && error.name === 'TimeoutError' ? 'the index did not answer in time' : `the index cannot be reached (${error instanceof Error ? error.message : String(error)})`;
     return { status: 'error', reason };

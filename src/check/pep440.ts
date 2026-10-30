@@ -244,14 +244,15 @@ function highest(versions: readonly string[]): string | undefined {
 
 /**
  * The version a specifier installs: the highest match, leaving out pre-releases unless a clause asks for them or no
- * final or post release matches.
+ * final or post release matches. `prereleases` is what the install command says: allow takes pre-releases like any
+ * other version (pip --pre), deny never takes them (pip --only-final).
  */
-export function pickVersion(versions: readonly string[], clauses: readonly Clause[]): string | undefined {
+export function pickVersion(versions: readonly string[], clauses: readonly Clause[], prereleases?: 'allow' | 'deny'): string | undefined {
   const matching = versions.filter((version) => matchesSpecifiers(version, clauses));
-  if (requestsPrereleases(clauses)) return highest(matching);
+  if (prereleases === 'allow' || (prereleases === undefined && requestsPrereleases(clauses))) return highest(matching);
   const finals = matching.filter((version) => {
     const parsed = parseVersion(version);
     return parsed !== undefined && !isPrerelease(parsed);
   });
-  return highest(finals.length > 0 ? finals : matching);
+  return highest(finals.length > 0 || prereleases === 'deny' ? finals : matching);
 }
