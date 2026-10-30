@@ -73,14 +73,14 @@ function extraOf(tool, key, check) {
 	if (!check(value)) throw new Error(`knowledge base: ${tool.id} extra.${key} is missing or malformed`);
 	return value;
 }
-function isRecord$1(value) {
+function isRecord(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isSwitch(value) {
-	return isRecord$1(value) && typeof value["setting"] === "string" && "value" in value;
+	return isRecord(value) && typeof value["setting"] === "string" && "value" in value;
 }
 function isWildcards(value) {
-	return isRecord$1(value) && (typeof value["since"] === "string" || value["since"] === null) && typeof value["trailingOnly"] === "boolean";
+	return isRecord(value) && (typeof value["since"] === "string" || value["since"] === null) && typeof value["trailingOnly"] === "boolean";
 }
 
 // src/knowledge/define.ts
@@ -931,6 +931,7 @@ const pip$1 = {
 			covers: ["registry"]
 		}, NEWS, "The option exists since 7.0.0; when requirements files started to accept it is not recorded. pip applies it only to packages found on indexes and find-links (format_control is used only by the package finder), so VCS, local directory and direct URL source requirements are still built."),
 		configFileNames: verified$6(["pip.conf", "pip.ini"], `${PIP}/src/pip/_internal/configuration.py`, "CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project."),
+		configFileVariable: verified$6("PIP_CONFIG_FILE", `${CONFIGURATION$2}#environment-variable`, "Names a configuration file pip loads last; set to os.devnull it turns all configuration files off."),
 		environmentVariable: verified$6("PIP_UPLOADED_PRIOR_TO", `${CONFIGURATION$2}#environment-variables`, "Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores. Tested on 2026-10-30: pip 25.3 ignored PIP_UPLOADED_PRIOR_TO=P100000D without a word, 26.0 rejected the duration (dates only), 26.1 and 26.2.2 found no version."),
 		durationStrings: verified$6({
 			since: "26.1.0",
@@ -1415,6 +1416,7 @@ const renovate$1 = {
 			npm: "npm",
 			pypi: "pypi"
 		}, "https://docs.renovatebot.com/modules/datasource/pypi/", "Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files."),
+		negativeMatch: python$1.verified("!", "https://docs.renovatebot.com/string-pattern-matching/", "Patterns starting with ! are negative matches, and none of them may match; matchDatasources is matched this way (matchRegexOrGlobList in lib/util/package-rules/datasources.ts at 44.198.0), so [\"!pypi\"] covers every datasource but PyPI."),
 		pypiPresets: python$1.verified({
 			presets: ["security:minimumReleaseAgePypi"],
 			value: "3 days",
@@ -8803,9 +8805,6 @@ function extraString(tool, key) {
 	if (typeof value !== "string") throw new Error(`knowledge base: ${tool.id} extra.${key} must be a string`);
 	return value;
 }
-function isRecord(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 function extraValue(tool, key) {
 	const fact = tool.extra?.[key];
 	return fact === void 0 ? void 0 : first(fact);
@@ -9385,6 +9384,12 @@ function parseToml(input) {
 		lineOf: (path) => lines.get(JSON.stringify(path))
 	};
 }
+/** The value at a key path of a parsed document, or undefined when a key on the way is missing or not a table. */
+function tomlValueAt(document, path) {
+	let node = document.root;
+	for (const key of path) node = typeof node === "object" && node !== null && !Array.isArray(node) && !(node instanceof TomlDateTime) ? node[key] : void 0;
+	return node;
+}
 
 // src/detect/workflows.ts
 const NPM_GLOBAL_UPGRADE = /\bnpm\s+(?:install|i)\s+(?:-g|--global)\s+npm@([^\s'"`;&|]+)/gu;
@@ -9595,11 +9600,8 @@ function compareEvidence(a, b) {
 function byPath(a, b) {
 	return a < b ? -1 : a > b ? 1 : 0;
 }
-/** The value at a dotted key path of a TOML document. */
 function tomlAt(document, path) {
-	let node = document?.root;
-	for (const key of path) node = isObject(node) ? node[key] : void 0;
-	return node;
+	return document === void 0 ? void 0 : tomlValueAt(document, path);
 }
 /** A required version as written; an exact one (==1.2.3) without the operator, so that it counts as pinned. */
 function requiredVersionText(value) {
@@ -9744,10 +9746,11 @@ function readWorkspaces(repository, facts, manifest, toml) {
 			const value = file.endsWith(".toml") ? tomlAt(toml.read(file), key.split(".")) : readConfig(repository, file, manifest, key);
 			const patterns = stringList(value) ?? (objectKey !== null && isObject(value) ? stringList(value[objectKey]) : void 0);
 			const excluded = excludeKey !== void 0 && isObject(value) ? stringList(value[excludeKey]) ?? [] : [];
+			const manifests = [...new Set(facts.managers.filter((other) => other.ecosystem === manager.ecosystem).flatMap((other) => other.manifests))];
 			if (patterns !== void 0) declarations.push({
 				file,
 				patterns: [...patterns, ...excluded.map((pattern) => `!${pattern}`)],
-				manifests: manager.manifests
+				manifests
 			});
 			break;
 		}
@@ -9916,13 +9919,13 @@ function entry(name, spec, source, builds, line) {
 /** uv.lock: [[package]] with source = { registry | git | url | path | directory | editable | virtual = ... }. */
 function uvEntries(input, format, workspaces) {
 	const document = parseToml(input);
-	const keys = isRecord$1(format["sources"]) ? format["sources"] : {};
+	const keys = isRecord(format["sources"]) ? format["sources"] : {};
 	const kind = (source) => Object.entries(keys).flatMap(([name, key]) => typeof key === "string" && typeof source[key] === "string" ? [[name, source[key]]] : [])[0];
 	const members = /* @__PURE__ */ new Set([".", ...workspaces]);
 	return list$1(document.root[String(format["packages"])]).flatMap((item, index) => {
-		if (!isRecord$1(item) || typeof item["name"] !== "string") return [];
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
 		const line = document.lineOf([String(format["packages"]), index]);
-		const found = isRecord$1(item["source"]) ? kind(item["source"]) : void 0;
+		const found = isRecord(item["source"]) ? kind(item["source"]) : void 0;
 		if (found === void 0) return [entry(item["name"], "no source given", "unknown", void 0, line)];
 		const [name, location] = found;
 		const wheels = list$1(item[String(format["wheels"])]);
@@ -9941,14 +9944,14 @@ function uvEntries(input, format, workspaces) {
 /** poetry.lock: [[package]] without [package.source] comes from PyPI; files list every distribution. */
 function poetryEntries(input, format) {
 	const document = parseToml(input);
-	const types = isRecord$1(format["sources"]) ? format["sources"] : {};
+	const types = isRecord(format["sources"]) ? format["sources"] : {};
 	const kindOf = (type) => Object.entries(types).find(([, value]) => value === type)?.[0];
 	return list$1(document.root[String(format["packages"])]).flatMap((item, index) => {
-		if (!isRecord$1(item) || typeof item["name"] !== "string") return [];
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
 		const line = document.lineOf([String(format["packages"]), index]);
-		const files = list$1(item[String(format["files"])]).map((file) => isRecord$1(file) ? text$1(file["file"]) : void 0).filter((file) => file !== void 0);
+		const files = list$1(item[String(format["files"])]).map((file) => isRecord(file) ? text$1(file["file"]) : void 0).filter((file) => file !== void 0);
 		const source = item[String(format["source"])];
-		if (!isRecord$1(source)) return [entry(item["name"], "PyPI", "registry", files.length > 0 && !files.some(isWheel), line)];
+		if (!isRecord(source)) return [entry(item["name"], "PyPI", "registry", files.length > 0 && !files.some(isWheel), line)];
 		const url = text$1(source["url"]) ?? "";
 		const kind = kindOf(text$1(source["type"]) ?? "");
 		switch (kind) {
@@ -9966,65 +9969,85 @@ function pylockEntries(input, format) {
 	const document = parseToml(input);
 	const key = (name) => String(format[name]);
 	return list$1(document.root[key("packages")]).flatMap((item, index) => {
-		if (!isRecord$1(item) || typeof item["name"] !== "string") return [];
+		if (!isRecord(item) || typeof item["name"] !== "string") return [];
 		const line = document.lineOf([key("packages"), index]);
-		const location = (value) => isRecord$1(value) ? text$1(value["url"]) ?? text$1(value["path"]) ?? "" : "";
+		const location = (value) => isRecord(value) ? text$1(value["url"]) ?? text$1(value["path"]) ?? "" : "";
 		const vcs = item[key("vcs")];
-		if (isRecord$1(vcs)) return [entry(item["name"], location(vcs), text$1(vcs["type"]) === "git" ? "git" : "unknown", true, line)];
+		if (isRecord(vcs)) return [entry(item["name"], location(vcs), text$1(vcs["type"]) === "git" ? "git" : "unknown", true, line)];
 		const directory = item[key("directory")];
-		if (isRecord$1(directory)) return [entry(item["name"], location(directory), "directory", true, line)];
+		if (isRecord(directory)) return [entry(item["name"], location(directory), "directory", true, line)];
 		const archive = item[key("archive")];
-		if (isRecord$1(archive)) {
+		if (isRecord(archive)) {
 			const where = location(archive);
 			return [entry(item["name"], where, text$1(archive["url"]) !== void 0 ? "remoteTarball" : "file", !isWheel(where), line)];
 		}
 		const wheels = list$1(item[key("wheels")]);
 		const sdist = item[key("sdist")];
-		if (wheels.length === 0 && !isRecord$1(sdist)) return [entry(item["name"], "no source given", "unknown", void 0, line)];
-		return [entry(item["name"], text$1(item[key("index")]) ?? "an index", "registry", isRecord$1(sdist) && wheels.length === 0, line)];
+		if (wheels.length === 0 && !isRecord(sdist)) return [entry(item["name"], "no source given", "unknown", void 0, line)];
+		return [entry(item["name"], text$1(item[key("index")]) ?? "an index", "registry", isRecord(sdist) && wheels.length === 0, line)];
 	});
 }
+/** The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on. */
+function requirementsLines(input, format) {
+	const comment = String(format["comment"]);
+	const continuation = String(format["continuation"]);
+	const commentPattern = new RegExp(`(^|\\s)${comment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}.*$`, "u");
+	const lines = input.split(/\r?\n/u);
+	const result = [];
+	for (let index = 0; index < lines.length; index++) {
+		const start = index;
+		let line = (lines[index] ?? "").replace(commentPattern, "");
+		while (line.trimEnd().endsWith(continuation) && index + 1 < lines.length) {
+			index += 1;
+			line = `${line.trimEnd().slice(0, -continuation.length)} ${(lines[index] ?? "").replace(commentPattern, "")}`;
+		}
+		const text = line.trim();
+		if (text !== "") result.push({
+			text,
+			line: start + 1
+		});
+	}
+	return result;
+}
+const PYTHON_NAME$1 = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? "^[A-Za-z0-9][A-Za-z0-9._-]*$", "iu");
 /** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
 function requirementsEntries(input, format) {
-	const vcs = isRecord$1(format["vcs"]) ? format["vcs"] : {};
+	const vcs = isRecord(format["vcs"]) ? format["vcs"] : {};
 	const gitPrefixes = strings$1(vcs["git"]);
 	const otherPrefixes = strings$1(vcs["other"]);
 	const direct = String(format["direct"]);
 	const editable = strings$1(format["editable"]);
-	const comment = String(format["comment"]);
-	const continuation = String(format["continuation"]);
 	const entries = [];
-	const lines = input.split(/\r?\n/u);
-	for (let index = 0; index < lines.length; index++) {
-		const start = index;
-		let line = lines[index] ?? "";
-		while (line.trimEnd().endsWith(continuation) && index + 1 < lines.length) {
-			index += 1;
-			line = `${line.trimEnd().slice(0, -continuation.length)} ${lines[index] ?? ""}`;
-		}
-		const body = line.replace(new RegExp(`(^|\\s)${comment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}.*$`, "u"), "").trim();
-		if (body === "") continue;
+	for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
 		let requirement = body;
 		const flag = editable.find((option) => requirement.startsWith(`${option} `) || requirement.startsWith(`${option}=`));
 		if (flag !== void 0) requirement = requirement.slice(flag.length + 1).trim();
 		else if (requirement.startsWith("-")) continue;
 		requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(";", 1)[0]?.trim() ?? requirement;
 		const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${direct.trim()}\\s*(.+)$`, "u").exec(requirement);
-		const named = reference?.[1];
 		const target = reference?.[2] ?? requirement;
-		const nameFrom = (fallback) => named ?? /#egg=([^&\s]+)/u.exec(target)?.[1] ?? fallback;
-		const baseName = (location, archive) => {
-			const base = location.split(/[?#]/u, 1)[0]?.replace(/\/+$/u, "").split("/").at(-1) ?? location;
-			return archive ? base.split("-")[0] ?? base : base;
+		const add = (location, source, builds) => {
+			const name = reference?.[1] ?? /#egg=([^&\s]+)/u.exec(target)?.[1];
+			entries.push(name !== void 0 && PYTHON_NAME$1.test(name) ? entry(name, target, source, builds, lineNumber) : {
+				...entry("", target, source, builds, lineNumber),
+				name: location,
+				unnamed: true
+			});
 		};
-		const lineNumber = start + 1;
-		if (gitPrefixes.some((prefix) => target.startsWith(prefix))) entries.push(entry(nameFrom(target), target, "git", true, lineNumber));
-		else if (otherPrefixes.some((prefix) => target.startsWith(prefix))) entries.push(entry(nameFrom(target), target, "unknown", true, lineNumber));
-		else if (/^https?:\/\//u.test(target)) entries.push(entry(nameFrom(baseName(target, true)), target, "remoteTarball", !isWheel(target), lineNumber));
-		else if (/^(\.{1,2}\/|\/|file:)/u.test(target) || flag !== void 0) {
+		if (gitPrefixes.some((prefix) => target.startsWith(prefix))) add(target, "git", true);
+		else if (otherPrefixes.some((prefix) => target.startsWith(prefix))) add(target, "unknown", true);
+		else if (/^https?:\/\//u.test(target)) add(target, "remoteTarball", !isWheel(target));
+		else if (/^(\.{1,2}(\/|$)|\/|file:)/u.test(target) || flag !== void 0) {
 			const path = target.replace(/^file:(\/\/)?/u, "");
+			if (/^\.\/?$/u.test(path)) {
+				entries.push({
+					...entry("", target, "workspace", false, lineNumber),
+					name: "."
+				});
+				continue;
+			}
 			const archive = /\.(?:whl|zip|tar\.gz|tgz|tar\.bz2|tar)$/iu.test(path);
-			entries.push(entry(nameFrom(baseName(path, archive)), target, archive ? "file" : "directory", archive ? !isWheel(path) : true, lineNumber));
+			add(path, archive ? "file" : "directory", archive ? !isWheel(path) : true);
 		} else {
 			const name = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
 			if (name !== void 0) entries.push(entry(name, requirement, "registry", void 0, lineNumber));
@@ -10097,7 +10120,7 @@ function urlPath(url) {
 }
 /** Packages that overrides (npm, root package.json only) replace with a tarball URL, at any depth of nesting. */
 function urlOverrides(overrides, parent, selfKey, found = []) {
-	if (!isRecord$1(overrides)) return found;
+	if (!isRecord(overrides)) return found;
 	for (const [key, value] of Object.entries(overrides)) {
 		const name = key === selfKey ? parent : splitSpec(key).name;
 		if (typeof value === "string") {
@@ -10112,27 +10135,27 @@ function urlOverrides(overrides, parent, selfKey, found = []) {
 }
 function npmEntries(text, format, workspaces, manifest, overridesFormat) {
 	const document = JSON.parse(text);
-	if (!isRecord$1(document) || !isRecord$1(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
+	if (!isRecord(document) || !isRecord(document["packages"])) throw new UnsupportedLockfile("it has no \"packages\" section (lockfileVersion 1 is not read)");
 	const packages = document["packages"];
 	const registry = new RegExp(String(format["registryTarball"]), "u");
 	const scriptsKey = String(format["installScripts"]);
 	const fields = strings(format["dependencyFields"]);
 	const fromUrl = /* @__PURE__ */ new Set();
 	for (const [key, value] of Object.entries(packages)) {
-		if (!isRecord$1(value)) continue;
+		if (!isRecord(value)) continue;
 		for (const field of fields) {
 			const dependencies = value[field];
-			if (!isRecord$1(dependencies)) continue;
+			if (!isRecord(dependencies)) continue;
 			for (const [name, spec] of Object.entries(dependencies)) {
 				const location = typeof spec === "string" && HTTP.test(spec) ? installedAt(packages, key, name) : void 0;
 				if (location !== void 0) fromUrl.add(location);
 			}
 		}
 	}
-	const overrides = overridesFormat !== void 0 && isRecord$1(manifest) ? urlOverrides(manifest[String(overridesFormat["field"])], void 0, String(overridesFormat["selfKey"])) : [];
+	const overrides = overridesFormat !== void 0 && isRecord(manifest) ? urlOverrides(manifest[String(overridesFormat["field"])], void 0, String(overridesFormat["selfKey"])) : [];
 	const entries = [];
 	for (const [key, value] of Object.entries(packages)) {
-		if (!key.includes("node_modules/") || !isRecord$1(value)) continue;
+		if (!key.includes("node_modules/") || !isRecord(value)) continue;
 		const name = typeof value["name"] === "string" ? value["name"] : key.slice(key.lastIndexOf("node_modules/") + 13);
 		const resolved = typeof value["resolved"] === "string" ? value["resolved"] : "";
 		const version = typeof value["version"] === "string" ? value["version"] : "";
@@ -10173,17 +10196,17 @@ function pnpmGraph(text, documents) {
 }
 function pnpmEntries(text, format, documents) {
 	const { document, start } = pnpmGraph(text, documents);
-	if (!isRecord$1(document)) return {
+	if (!isRecord(document)) return {
 		entries: [],
 		start
 	};
 	if (!String(document["lockfileVersion"]).startsWith("9")) throw new UnsupportedLockfile(`its lockfileVersion ${String(document["lockfileVersion"])} is not read; depcurfew reads 9.0`);
 	const hosts = strings(format["gitHostedTarballHosts"]);
 	const entries = [];
-	const packages = isRecord$1(document["packages"]) ? document["packages"] : {};
+	const packages = isRecord(document["packages"]) ? document["packages"] : {};
 	for (const [key, value] of Object.entries(packages)) {
 		const { name, spec } = splitSpec(key);
-		const resolution = isRecord$1(value) && isRecord$1(value["resolution"]) ? value["resolution"] : {};
+		const resolution = isRecord(value) && isRecord(value["resolution"]) ? value["resolution"] : {};
 		const tarball = typeof resolution["tarball"] === "string" ? resolution["tarball"] : "";
 		let host = "";
 		try {
@@ -10205,17 +10228,17 @@ function pnpmEntries(text, format, documents) {
 			anchor: key
 		});
 	}
-	const importers = isRecord$1(document["importers"]) ? document["importers"] : {};
+	const importers = isRecord(document["importers"]) ? document["importers"] : {};
 	for (const importer of Object.values(importers)) {
-		if (!isRecord$1(importer)) continue;
+		if (!isRecord(importer)) continue;
 		for (const group of [
 			"dependencies",
 			"devDependencies",
 			"optionalDependencies"
 		]) {
-			const dependencies = isRecord$1(importer[group]) ? importer[group] : {};
+			const dependencies = isRecord(importer[group]) ? importer[group] : {};
 			for (const [name, dependency] of Object.entries(dependencies)) {
-				if (!isRecord$1(dependency) || typeof dependency["version"] !== "string") continue;
+				if (!isRecord(dependency) || typeof dependency["version"] !== "string") continue;
 				const specifier = typeof dependency["specifier"] === "string" ? dependency["specifier"] : "";
 				if (dependency["version"].startsWith("link:") && !specifier.startsWith("workspace:")) entries.push({
 					name,
@@ -10247,8 +10270,8 @@ function yarnSource(locator, format) {
 }
 function yarnEntries(text, format) {
 	const document = (0, import_dist.parse)(text);
-	if (!isRecord$1(document)) return [];
-	return Object.entries(document).filter(([key, value]) => key !== "__metadata" && isRecord$1(value) && typeof value["resolution"] === "string").map(([, value]) => {
+	if (!isRecord(document)) return [];
+	return Object.entries(document).filter(([key, value]) => key !== "__metadata" && isRecord(value) && typeof value["resolution"] === "string").map(([, value]) => {
 		const resolution = value["resolution"];
 		const { name, spec } = splitSpec(resolution);
 		return {
@@ -10262,7 +10285,7 @@ function yarnEntries(text, format) {
 }
 function bunEntries(text, format) {
 	const document = parseJsonc(text);
-	const packages = isRecord$1(document) && isRecord$1(document["packages"]) ? document["packages"] : {};
+	const packages = isRecord(document) && isRecord(document["packages"]) ? document["packages"] : {};
 	const tarball = new RegExp(String(format["tarball"]), "u");
 	const scriptsKey = String(format["installScripts"]);
 	const entries = [];
@@ -10275,12 +10298,12 @@ function bunEntries(text, format) {
 		else if (strings(format["directory"]).some((prefix) => spec.startsWith(prefix))) source = "directory";
 		else if (HTTP.test(spec)) source = "remoteTarball";
 		else if (/^(\.{1,2}\/|\/)/u.test(spec) && tarball.test(spec)) source = "file";
-		const info = value.find((item) => isRecord$1(item));
+		const info = value.find((item) => isRecord(item));
 		entries.push({
 			name,
 			spec,
 			source,
-			installScript: isRecord$1(info) && info[scriptsKey] === true,
+			installScript: isRecord(info) && info[scriptsKey] === true,
 			anchor: `${JSON.stringify(key)}: [`
 		});
 	}
@@ -10288,12 +10311,12 @@ function bunEntries(text, format) {
 }
 function denoEntries(text, format) {
 	const document = JSON.parse(text);
-	if (!isRecord$1(document)) return {
+	if (!isRecord(document)) return {
 		entries: [],
 		recordsScripts: false
 	};
 	const recordsScripts = Number(document["version"]) >= Number(format["installScriptsSinceLockfile"]);
-	const npm = isRecord$1(document["npm"]) ? document["npm"] : {};
+	const npm = isRecord(document["npm"]) ? document["npm"] : {};
 	const scriptsKey = String(format["installScripts"]);
 	return {
 		entries: Object.entries(npm).map(([key, value]) => {
@@ -10302,7 +10325,7 @@ function denoEntries(text, format) {
 				name,
 				spec,
 				source: "registry",
-				installScript: recordsScripts ? isRecord$1(value) && value[scriptsKey] === true : void 0,
+				installScript: recordsScripts ? isRecord(value) && value[scriptsKey] === true : void 0,
 				anchor: `${JSON.stringify(key)}: {`
 			};
 		}),
@@ -10314,7 +10337,7 @@ var UnsupportedLockfile = class extends Error {};
 function documentsOf(tool) {
 	const fact = tool.extra?.["lockfileDocuments"];
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord$1(value) ? value : void 0;
+	return isRecord(value) ? value : void 0;
 }
 /** The lockfiles a package manager uses in the repository root, parsed. */
 /** The package.json next to a lockfile, or undefined when it is missing or not JSON. */
@@ -10330,12 +10353,12 @@ function readManifest(repository, lockfile) {
 function overridesFormatOf(tool) {
 	const fact = tool.extra?.["overrides"];
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord$1(value) ? value : void 0;
+	return isRecord(value) ? value : void 0;
 }
 function requirementsFormatOf(tool) {
 	const fact = tool.extra?.["requirementsFormat"];
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord$1(value) ? value : {};
+	return isRecord(value) ? value : {};
 }
 function isPylock(file) {
 	return /(^|\/)pylock(\.[^./]+)?\.toml$/u.test(file);
@@ -10343,7 +10366,7 @@ function isPylock(file) {
 function readLockfiles(repository, manager, tool, workspaces) {
 	const fact = tool.extra?.["lockfileFormat"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	if (!isRecord$1(format)) return [];
+	if (!isRecord(format)) return [];
 	const requirements = tool.id === "pip" ? manager.configFiles : [];
 	return [.../* @__PURE__ */ new Set([...manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file), ...requirements])].map((file) => {
 		if (file.endsWith(".lockb")) return {
@@ -10879,7 +10902,7 @@ function read(repository, file) {
 	return repository.readText(file);
 }
 function fromKeys(text, file, setting, value, enabled) {
-	if (!isRecord$1(value)) return [];
+	if (!isRecord(value)) return [];
 	return Object.entries(value).filter(([, entry]) => enabled(entry)).map(([name]) => ({
 		name,
 		package: splitSpec(name).name,
@@ -10920,7 +10943,7 @@ function allowEntries(repository, manager, configFiles) {
 			break;
 		}
 		case "yarn":
-			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "dependenciesMeta", json(["dependenciesMeta"]), (entry) => isRecord$1(entry) && entry["built"] === true));
+			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "dependenciesMeta", json(["dependenciesMeta"]), (entry) => isRecord(entry) && entry["built"] === true));
 			break;
 		case "bun":
 			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "trustedDependencies", json(["trustedDependencies"])));
@@ -10929,7 +10952,7 @@ function allowEntries(repository, manager, configFiles) {
 			const text = read(repository, file);
 			if (text === void 0) continue;
 			const value = jsonSetting(text, ["allowScripts"])?.value;
-			entries.push(...fromList(text, file, "allowScripts", isRecord$1(value) ? value["allow"] : value, "npm:"));
+			entries.push(...fromList(text, file, "allowScripts", isRecord(value) ? value["allow"] : value, "npm:"));
 		}
 	}
 	return entries;
@@ -11780,7 +11803,7 @@ function allowedNames(context, setting) {
 function lockfileShowsSources(tool) {
 	const fact = tool.extra?.["lockfileFormat"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord$1(format) && format["sources"] !== null;
+	return isRecord(format) && format["sources"] !== null;
 }
 /** Calls `apply` for every dependency source the policy manages and the tool has a setting for. */
 function eachSource(context, apply) {
@@ -11896,16 +11919,8 @@ function writeRequirementsBlock(body, entries, managedOptions) {
 		const option = optionOf(line);
 		return option !== void 0 && managed.has(option) ? `${SUPERSEDED}${line.trim()}` : line;
 	});
-	if (entries.length === 0) {
-		const place = removed.at;
-		if (place !== void 0 && lines[place]?.trim() === "" && (place === 0 || lines[place - 1]?.trim() === "")) lines.splice(place, 1);
-		return joinLines(lines);
-	}
-	if (removed.at !== void 0) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
-	const result = insertBlock(lines, at, entries);
-	const after = at + (result.length - lines.length);
-	if (result[after] !== void 0 && result[after]?.trim() !== "") result.splice(after, 0, "");
-	return joinLines(result);
+	if (entries.length === 0) return joinLines(lines);
+	return joinLines(insertBlock(lines, removed.at ?? at, entries, removed.at === void 0 ? void 0 : removed.separated));
 }
 
 // src/apply/requirements.ts
@@ -12007,22 +12022,32 @@ function writeTomlBlock(body, table, entries, managedKeys, label) {
 	const boundaries = [];
 	let current;
 	let definedAtTop = false;
+	const isManaged = (key) => managed.has(key) || [...managed].some((name) => key.startsWith(`${name}.`));
+	const prefix = topLevel ? "" : `${table}.`;
+	const note = entries.length === 0 ? TURNED_OFF : SUPERSEDED;
+	let inManagedTable = false;
 	for (let index = 0; index < lines.length; index++) {
 		const line = lines[index] ?? "";
 		const header = HEADER.exec(line);
 		if (header !== null) {
-			current = header[1];
+			const name = header[1] ?? "";
+			inManagedTable = name.startsWith(prefix) && isManaged(name.slice(prefix.length));
+			if (inManagedTable) {
+				lines[index] = `${note}${line.trim()}`;
+				continue;
+			}
+			current = name;
 			boundaries.push(index);
-			if (!line.trim().startsWith("[[") && current !== void 0) headers.set(index, current);
+			if (!line.trim().startsWith("[[")) headers.set(index, current);
 			continue;
 		}
 		const key = keyOf(line);
 		if (key === void 0) continue;
 		const end = valueEnd(lines, index);
-		const inTable = (topLevel ? current === void 0 : current === table) && managed.has(key);
-		const dotted = !topLevel && current === void 0 && key.startsWith(`${table}.`) && managed.has(key.slice(table.length + 1));
-		if (inTable || dotted) {
-			lines[index] = `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}`;
+		const inTable = (topLevel ? current === void 0 : current === table) && isManaged(key);
+		const dotted = !topLevel && current === void 0 && key.startsWith(`${table}.`) && isManaged(key.slice(table.length + 1));
+		if (inManagedTable || inTable || dotted) {
+			lines[index] = `${note}${line.trim()}`;
 			for (let next = index + 1; next <= end; next++) lines[next] = `# ${lines[next] ?? ""}`;
 		} else if (!topLevel && current === void 0 && (key === table || key.startsWith(`${table}.`) || table.startsWith(`${key}.`))) definedAtTop = true;
 		index = end;
@@ -12223,6 +12248,7 @@ function createContext(options) {
 	return {
 		tool,
 		tools: options.tools,
+		targets: options.targets,
 		name: tool.name,
 		policy: options.policy,
 		version: options.version,
@@ -12313,8 +12339,8 @@ const deno = (context) => {
 			const since = sinceOf(tool.installScripts.allowList.availableSince);
 			const specifiers = (policy.installScripts.allow.length > 0 && context.supports(since, setting) ? allowedNames(context, setting) : []).map((name) => `${prefix}${name}`);
 			const current = json.get([setting]);
-			const path = isRecord$1(current) ? [setting, "allow"] : [setting];
-			const allowed = isRecord$1(current) ? current["allow"] : current;
+			const path = isRecord(current) ? [setting, "allow"] : [setting];
+			const allowed = isRecord(current) ? current["allow"] : current;
 			if (allowed === allowAll.value && context.atLeast(since)) {
 				context.warn(`${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`);
 				json.set(path, specifiers);
@@ -12330,7 +12356,7 @@ const deno = (context) => {
 };
 
 // src/apply/generators/dependabot.ts
-const isKeys = (value) => isRecord$1(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
+const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
 const dependabot = (context, duration) => {
 	const { tool, policy } = context;
 	if (policy.cooldown === void 0 || duration === void 0) return;
@@ -12346,7 +12372,7 @@ const dependabot = (context, duration) => {
 		return;
 	}
 	const keys = extraOf(tool, "cooldownKeys", isKeys);
-	const managers = extraOf(tool, "ecosystems", isRecord$1);
+	const managers = extraOf(tool, "ecosystems", isRecord);
 	const ecosystems = Object.keys(managers);
 	const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
 	const yaml = context.yaml(file);
@@ -12358,11 +12384,11 @@ const dependabot = (context, duration) => {
 	};
 	let configured = 0;
 	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
-		if (!isRecord$1(entry) || !ecosystems.includes(String(entry["package-ecosystem"]))) return;
+		if (!isRecord(entry) || !ecosystems.includes(String(entry["package-ecosystem"]))) return;
 		configured += 1;
 		const patterns = patternsOf(String(entry["package-ecosystem"]));
 		const current = entry[setting];
-		if (!isRecord$1(current)) {
+		if (!isRecord(current)) {
 			yaml.set([
 				"updates",
 				index,
@@ -12525,7 +12551,7 @@ const pip = (context) => {
 };
 
 // src/apply/generators/pnpm.ts
-const isLegacy = (value) => isRecord$1(value) && typeof value["since"] === "string" && typeof value["workspaceFileSince"] === "string" && typeof value["removedIn"] === "string";
+const isLegacy = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["workspaceFileSince"] === "string" && typeof value["removedIn"] === "string";
 const pnpm = (context) => {
 	const { tool, policy } = context;
 	const file = firstFile(tool.cooldown.configFiles) ?? "pnpm-workspace.yaml";
@@ -12664,7 +12690,7 @@ const poetry = (context) => {
 const RULE_DESCRIPTION = "depcurfew: packages excluded from minimumReleaseAge";
 const PYTHON_RULE_DESCRIPTION = "depcurfew: Python packages excluded from minimumReleaseAge";
 const isString = (value) => typeof value === "string";
-const isRule = (value) => isRecord$1(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
+const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
 const isPath = (value) => Array.isArray(value) && value.every(isString);
 const renovate = (context, duration) => {
 	const { tool, policy } = context;
@@ -12678,12 +12704,15 @@ const renovate = (context, duration) => {
 	const rule = extraOf(tool, "excludeRule", isRule);
 	const descriptionKey = extraOf(tool, "ruleDescription", isString);
 	const securityPath = extraOf(tool, "securityUpdatesSetting", isPath);
-	const datasources = extraOf(tool, "datasources", isRecord$1);
+	const datasources = extraOf(tool, "datasources", isRecord);
 	const excluded = policy.cooldown.exclude;
 	const patterns = exclusions(context, patternsFor(excluded, "npm")) ?? [];
 	const pythonPatterns = exclusions(context, patternsFor(excluded, "pypi")) ?? [];
+	const negative = extraOf(tool, "negativeMatch", isString);
+	const python = context.tools.some((entry) => entry.kind === "package-manager" && ecosystemOfTool(entry) === "pypi" && context.targets.has(entry.id));
 	const exclusionRule = {
 		[descriptionKey]: RULE_DESCRIPTION,
+		...python ? { matchDatasources: [`${negative}${String(datasources["pypi"])}`] } : {},
 		[rule.match]: patterns,
 		[setting]: rule.value
 	};
@@ -12710,7 +12739,7 @@ const renovate = (context, duration) => {
 		...securityPath.reduceRight((inner, key) => ({ [key]: inner }), security)
 	}, null, 2);
 	if (file === void 0 || !/\.jsonc?$/u.test(file)) {
-		const packageJson = extraOf(tool, "packageJsonConfig", isRecord$1);
+		const packageJson = extraOf(tool, "packageJsonConfig", isRecord);
 		const where = file ?? (context.exists("package.json") && context.json("package.json").get([String(packageJson["key"])]) !== void 0 ? "package.json" : void 0);
 		if (where === void 0) {
 			context.warn(`${context.name}: no configuration file found; depcurfew does not create one. Add renovate.json if you use Renovate, then run depcurfew apply again`);
@@ -12724,7 +12753,7 @@ const renovate = (context, duration) => {
 	json.set([setting], result.value);
 	for (const managed of managedRules) {
 		const rules = json.get([rule.list]);
-		const index = Array.isArray(rules) ? rules.findIndex((entry) => isRecord$1(entry) && entry[descriptionKey] === managed.description) : -1;
+		const index = Array.isArray(rules) ? rules.findIndex((entry) => isRecord(entry) && entry[descriptionKey] === managed.description) : -1;
 		if (managed.wanted) {
 			if (index >= 0) {
 				if (JSON.stringify(rules[index]) !== JSON.stringify(managed.rule)) json.replace([rule.list], index, managed.rule);
@@ -12738,7 +12767,7 @@ const renovate = (context, duration) => {
 // src/apply/generators/uv.ts
 const uv = (context) => {
 	const { tool, policy } = context;
-	const tables = extraOf(tool, "configTables", isRecord$1);
+	const tables = extraOf(tool, "configTables", isRecord);
 	const file = context.exists("uv.toml") || !context.exists("pyproject.toml") ? "uv.toml" : "pyproject.toml";
 	const table = typeof tables[file] === "string" ? tables[file] : "";
 	const entries = [];
@@ -12781,7 +12810,7 @@ const uv = (context) => {
 };
 
 // src/apply/generators/yarn.ts
-const isScriptsSwitch = (value) => isRecord$1(value) && typeof value["setting"] === "string" && "allow" in value && "deny" in value;
+const isScriptsSwitch = (value) => isRecord(value) && typeof value["setting"] === "string" && "allow" in value && "deny" in value;
 const yarn = (context) => {
 	const { tool, policy } = context;
 	const yaml = context.yaml(firstFile(tool.cooldown.configFiles) ?? ".yarnrc.yml");
@@ -12935,10 +12964,10 @@ function pinPlaces(tool) {
 	if (ecosystemOfTool(tool) === "npm") return "packageManager, devEngines, .tool-versions or a CI setup step";
 	const required = tool.extra?.["requiredVersion"];
 	const value = required === void 0 ? void 0 : values$1(required)[0];
-	const places = isRecord$1(value) && typeof value["key"] === "string" && typeof value["table"] === "string" ? [`${value["key"]} in [${value["table"]}]`] : [];
+	const places = isRecord(value) && typeof value["key"] === "string" && typeof value["table"] === "string" ? [`${value["key"]} in [${value["table"]}]`] : [];
 	const plugins = values$1(environment.asdf.plugins)[0] ?? {};
 	if (Object.values(plugins).includes(tool.id)) places.push(".tool-versions");
-	if (Object.values(environment.githubActions).flatMap((fact) => values$1(fact)).some((action) => isRecord$1(action) && Array.isArray(action["inputs"]) && action["inputs"].some((input) => isRecord$1(input) && input["tool"] === tool.id))) places.push("a CI setup step");
+	if (Object.values(environment.githubActions).flatMap((fact) => values$1(fact)).some((action) => isRecord(action) && Array.isArray(action["inputs"]) && action["inputs"].some((input) => isRecord(input) && input["tool"] === tool.id))) places.push("a CI setup step");
 	return places.length < 2 ? places[0] ?? "a CI setup step" : `${places.slice(0, -1).join(", ")} or ${places.at(-1) ?? ""}`;
 }
 /** The bots' delay: the policy's, or longer if a package manager rounded its delay up further. */
@@ -12982,6 +13011,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		const context = createContext({
 			tool,
 			tools,
+			targets,
 			policy: view,
 			version,
 			workspace,
@@ -13117,7 +13147,7 @@ function delayMinutes(tool, value, version) {
 	if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
 	const fact = tool.extra?.["durationStrings"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	if (!isRecord$1(format) || typeof format["syntax"] !== "string") return {
+	if (!isRecord(format) || typeof format["syntax"] !== "string") return {
 		ok: false,
 		reason: `${tool.name} takes no duration strings`
 	};
@@ -13147,28 +13177,39 @@ function formatMinutes(minutes) {
 
 // src/doctor/python.ts
 const isStringList = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-function tomlSettingAt(repository, file, path) {
-	if (!repository.isFile(file)) return void 0;
-	const text = repository.readText(file);
-	if (text === void 0) return void 0;
-	let document;
-	try {
-		document = parseToml(text);
-	} catch {
-		return;
+const documents = /* @__PURE__ */ new WeakMap();
+/** The parsed TOML file, or undefined when it is missing or does not parse (unreadable-config reports that). */
+function readTomlDocument(repository, file) {
+	let cache = documents.get(repository);
+	if (cache === void 0) {
+		cache = /* @__PURE__ */ new Map();
+		documents.set(repository, cache);
 	}
-	let node = document.root;
-	for (const key of path) node = isRecord$1(node) ? node[key] : void 0;
-	if (node === void 0) return void 0;
-	return {
+	if (!cache.has(file)) {
+		const text = repository.isFile(file) ? repository.readText(file) : void 0;
+		let document;
+		try {
+			document = text === void 0 ? void 0 : parseToml(text);
+		} catch {
+			document = void 0;
+		}
+		cache.set(file, document);
+	}
+	return cache.get(file);
+}
+/** The value at a key path of a TOML file, with the line of its key. */
+function tomlSettingAt(repository, file, path) {
+	const document = readTomlDocument(repository, file);
+	const value = document === void 0 ? void 0 : tomlValueAt(document, path);
+	return document === void 0 || value === void 0 ? void 0 : {
 		file,
 		line: document.lineOf(path) ?? 1,
-		value: node
+		value
 	};
 }
 /** The files and key paths where a Python tool reads `setting`, in the order the tool uses them. */
 function pythonSettingPaths(repository, tool, setting) {
-	const tables = tool.extra?.["configTables"] === void 0 ? void 0 : extraOf(tool, "configTables", isRecord$1);
+	const tables = tool.extra?.["configTables"] === void 0 ? void 0 : extraOf(tool, "configTables", isRecord);
 	if (tables !== void 0) {
 		const files = (tool.extra?.["configFileOrder"] === void 0 ? Object.keys(tables) : extraOf(tool, "configFileOrder", isStringList)).filter((name) => name in tables);
 		const file = files.find((name) => repository.isFile(name)) ?? files[0];
@@ -13192,16 +13233,19 @@ function readPythonSetting(repository, tool, setting) {
 		if (found !== void 0) return found;
 	}
 }
-/** The option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines. */
-function requirementsOptions(repository, file) {
+/**
+* The global option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines. Options after
+* a requirement on the same logical line (--hash on a continuation line) belong to that requirement and are skipped.
+*/
+function requirementsOptions(repository, file, format) {
 	const text = repository.readText(file);
 	if (text === void 0) return [];
-	return text.split(/\r?\n/u).flatMap((raw, index) => {
-		const match = /^\s*(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(raw);
+	return requirementsLines(text, format).flatMap(({ text: line, line: number }) => {
+		const match = /^(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(line);
 		return match === null ? [] : [{
 			option: match[1] ?? "",
 			value: match[2] ?? "",
-			line: index + 1
+			line: number
 		}];
 	});
 }
@@ -13244,7 +13288,7 @@ function managerDelay(context, manager, tool) {
 		if (ecosystemOfTool(tool) === "pypi") found = readPythonSetting(context.repository, tool, setting);
 		else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
 		if (found !== void 0) {
-			const raw = isRecord$1(found.value) ? found.value["age"] : found.value;
+			const raw = isRecord(found.value) ? found.value["age"] : found.value;
 			const delay = delayMinutes(tool, raw, version);
 			if (!delay.ok) {
 				context.notice(`${tool.name}: cannot read ${setting} in ${found.file}: ${delay.reason}`, found.file);
@@ -13275,10 +13319,10 @@ function managerDelay(context, manager, tool) {
 }
 
 // src/doctor/rules/bot-cooldown.ts
-const isEcosystems = (value) => isRecord$1(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
-const isPresets = (value) => isRecord$1(value) && Array.isArray(value["presets"]) && typeof value["value"] === "string";
-const isCooldownKeys = (value) => isRecord$1(value) && typeof value["days"] === "string" && Array.isArray(value["semverDays"]);
-const isPackageJsonConfig = (value) => isRecord$1(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
+const isEcosystems = (value) => isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
+const isPresets = (value) => isRecord(value) && Array.isArray(value["presets"]) && typeof value["value"] === "string";
+const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && Array.isArray(value["semverDays"]);
+const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
 function describe$1(minutes) {
 	return minutes === 0 ? "no delay" : formatMinutes(minutes);
 }
@@ -13292,10 +13336,10 @@ function dependabotDelays(context, bot, file) {
 	const fallback = versionedValue(values$1(bot.cooldown.default)[0] ?? [], void 0);
 	const securityBypass = values$1(bot.cooldown.securityUpdates).includes("bypass");
 	return updates.value.flatMap((entry, index) => {
-		if (!isRecord$1(entry) || typeof entry["package-ecosystem"] !== "string") return [];
+		if (!isRecord(entry) || typeof entry["package-ecosystem"] !== "string") return [];
 		const managers = ecosystems[entry["package-ecosystem"]] ?? [];
 		if (managers.length === 0) return [];
-		const cooldown = isRecord$1(entry["cooldown"]) ? entry["cooldown"] : void 0;
+		const cooldown = isRecord(entry["cooldown"]) ? entry["cooldown"] : void 0;
 		const configuredDays = cooldown?.[keys.days];
 		const base = typeof configuredDays === "number" ? configuredDays : typeof fallback === "number" ? fallback : 0;
 		const semver = keys.semverDays.filter((key) => typeof cooldown?.[key] === "number");
@@ -13483,7 +13527,7 @@ function checkDependabot(context, file) {
 	const updates = yamlSetting(text, ["updates"]);
 	if (updates === void 0 || !Array.isArray(updates.value)) return;
 	updates.value.forEach((entry, index) => {
-		if (!isRecord$1(entry) || !isRecord$1(entry["cooldown"]) || !Array.isArray(entry["cooldown"]["exclude"])) return;
+		if (!isRecord(entry) || !isRecord(entry["cooldown"]) || !Array.isArray(entry["cooldown"]["exclude"])) return;
 		const broad = entry["cooldown"]["exclude"].filter((item) => typeof item === "string" && isBroad(item));
 		if (broad.length === 0) return;
 		context.report({
@@ -13509,7 +13553,7 @@ function checkRenovate(context, file) {
 	const rules = jsonSetting(text, ["packageRules"]);
 	if (rules === void 0 || !Array.isArray(rules.value)) return;
 	rules.value.forEach((rule, index) => {
-		if (!isRecord$1(rule) || !("minimumReleaseAge" in rule) || rule["minimumReleaseAge"] !== null && rule["minimumReleaseAge"] !== "0 days") return;
+		if (!isRecord(rule) || !("minimumReleaseAge" in rule) || rule["minimumReleaseAge"] !== null && rule["minimumReleaseAge"] !== "0 days") return;
 		const broad = (Array.isArray(rule["matchPackageNames"]) ? rule["matchPackageNames"] : []).find((name) => typeof name === "string" && isBroad(name));
 		const unscoped = !Object.keys(rule).some((key) => MATCHERS.test(key));
 		if (broad === void 0 && !unscoped) return;
@@ -13767,13 +13811,13 @@ function checkLockfiles(context, tool, version, label) {
 	}
 }
 function checkPnpm(context, tool, version, label) {
-	const ignored = extraOf(tool, "ignoredSince", isRecord$1);
+	const ignored = extraOf(tool, "ignoredSince", isRecord);
 	const workspace = context.repository.readText("pnpm-workspace.yaml");
 	if (atLeast(version, ignored["since"])) {
 		const manifest = context.repository.readText("package.json");
 		const field = String(ignored["packageJsonField"]);
 		const found = manifest === void 0 ? void 0 : jsonSetting(manifest, [field]);
-		if (found !== void 0 && isRecord$1(found.value) && Object.keys(found.value).length > 0) context.report({
+		if (found !== void 0 && isRecord(found.value) && Object.keys(found.value).length > 0) context.report({
 			location: {
 				file: "package.json",
 				line: found.line
@@ -13806,7 +13850,7 @@ function checkPnpm(context, tool, version, label) {
 			});
 		}
 	}
-	const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord$1);
+	const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord);
 	if (legacy !== void 0 && atLeast(version, legacy["removedIn"]) && workspace !== void 0) {
 		const found = yamlSetting(workspace, ["onlyBuiltDependencies"]);
 		if (found !== void 0) context.report({
@@ -13824,7 +13868,7 @@ function checkPnpm(context, tool, version, label) {
 function checkDurationStrings(context, tool, manager, version, label) {
 	const fact = tool.extra?.["durationStrings"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	if (!isRecord$1(format) || format["before"] !== "no effect" || atLeast(version, format["since"])) return;
+	if (!isRecord(format) || format["before"] !== "no effect" || atLeast(version, format["since"])) return;
 	const setting = settingOf(tool.cooldown.setting);
 	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
 	if (setting === null || file === void 0 || !manager.configFiles.includes(file)) return;
@@ -13928,8 +13972,8 @@ const lockfileForbiddenSource = {
 				if (sources[entry.source] !== "deny") continue;
 				context.report({
 					location: location(lockfile, entry),
-					message: `${lockfile.file} installs ${entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
-					fix: `Use a registry version of ${entry.name}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
+					message: `${lockfile.file} installs ${entry.unnamed === true ? "a package" : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
+					fix: `Use a registry version ${entry.unnamed === true ? "instead" : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
 				});
 			}
 		});
@@ -13976,12 +14020,21 @@ function buildsForbiddenBy(context, tool, lockfile) {
 	const build = tool.extra?.["buildSwitch"] === void 0 ? void 0 : extraOf(tool, "buildSwitch", isSwitch);
 	if (build === void 0) return void 0;
 	if (tool.id === "pip") {
-		const found = (lockfile.file.endsWith(".toml") ? [] : [lockfile.file]).find((file) => requirementsOptions(context.repository, file).some((line) => line.option === build.setting && line.value === build.value));
+		const format = tool.extra?.["requirementsFormat"] === void 0 ? {} : extraOf(tool, "requirementsFormat", isRecord);
+		const found = (lockfile.file.endsWith(".toml") ? [] : [lockfile.file]).find((file) => requirementsOptions(context.repository, file, format).some((line) => line.option === build.setting && line.value === build.value));
 		return found === void 0 ? void 0 : `${build.setting}=${String(build.value)} in ${found} forbids building`;
 	}
 	const found = readPythonSetting(context.repository, tool, build.setting);
-	const wanted = JSON.stringify(build.value);
-	return found !== void 0 && (JSON.stringify(found.value) === wanted || Array.isArray(found.value) && Array.isArray(build.value) && build.value.every((item) => found.value.includes(item))) ? `${build.setting} in ${found.file} forbids building` : void 0;
+	return found !== void 0 && switchIsOn(found.value, build.value) ? `${build.setting} in ${found.file} forbids building` : void 0;
+}
+/**
+* Whether a configured value turns the build switch on. A list switch (Poetry's [":all:"]) is also on when written as
+* a comma-separated string or as true, which Poetry reads as the same thing.
+*/
+function switchIsOn(value, wanted) {
+	if (!Array.isArray(wanted)) return value === wanted;
+	const items = value === true ? wanted : typeof value === "string" ? value.split(",").map((item) => item.trim()) : Array.isArray(value) ? value : [];
+	return wanted.every((item) => items.includes(item));
 }
 function reportPythonBuilds(context, lockfile, tool, allow) {
 	const forbiddenBy = buildsForbiddenBy(context, tool, lockfile);
@@ -13989,13 +14042,14 @@ function reportPythonBuilds(context, lockfile, tool, allow) {
 	const patterns = allow.map(normalizePythonName);
 	for (const entry of lockfile.entries) {
 		if (entry.installScript !== true || entry.source === "workspace") continue;
-		if (patterns.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+		if (entry.unnamed !== true && patterns.some((pattern) => matchesPattern(entry.name, pattern))) continue;
 		const stopped = forbiddenBy !== void 0 && covers.includes(entry.source);
+		const fix = entry.unnamed === true ? `Give the requirement a package name (name @ ${entry.spec}) so that it can be allowed with "${PYPI_PREFIX}name" in installScripts.allow in ${POLICY_FILE}, or remove it` : `Review ${entry.name} and add "${PYPI_PREFIX}${entry.name}" to installScripts.allow in ${POLICY_FILE} (it is then always built from source), or replace the package`;
 		context.report({
 			level: stopped ? "warning" : "error",
 			location: location(lockfile, entry),
 			message: stopped ? `${entry.name} has to be built from source (${BUILT_FROM[entry.source]}), but ${forbiddenBy}, so installing it fails until it is allowed` : forbiddenBy === void 0 ? `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code, but ${POLICY_FILE} does not allow it` : `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code: ${forbiddenBy} only for packages from an index, and ${POLICY_FILE} does not allow it`,
-			fix: `Review ${entry.name} and add "${PYPI_PREFIX}${entry.name}" to installScripts.allow in ${POLICY_FILE} (it is then always built from source), or replace the package`
+			fix
 		});
 	}
 }
@@ -14184,7 +14238,7 @@ function policyFeatures(tool, policy) {
 		const switchFact = allowAll === void 0 ? void 0 : values$1(allowAll)[0];
 		if (policy.installScripts.default === "allow" && isSwitch(switchFact)) features.push(feature(switchFact.setting, switchFact.since));
 		if (policy.installScripts.default === "deny" && policy.installScripts.allow.length > 0) {
-			const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord$1);
+			const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord);
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			features.push(legacy !== void 0 && typeof legacy["since"] === "string" ? feature(setting, legacy["since"]) : feature(setting?.includes("<") ? setting.split(".")[0] ?? setting : setting, tool.installScripts.allowList.availableSince));
 		}
@@ -14220,7 +14274,7 @@ const SOURCE_LABEL = {
 function sourceLabel(tool, declaration) {
 	if (declaration.source !== "tool-config") return SOURCE_LABEL[declaration.source];
 	const required = tool.extra?.["requiredVersion"] === void 0 ? void 0 : values$1(tool.extra["requiredVersion"])[0];
-	if (!isRecord$1(required) || typeof required["key"] !== "string") return SOURCE_LABEL[declaration.source];
+	if (!isRecord(required) || typeof required["key"] !== "string") return SOURCE_LABEL[declaration.source];
 	return declaration.file.endsWith("pyproject.toml") && typeof required["table"] === "string" ? `${required["key"]} in [${required["table"]}]` : required["key"];
 }
 function declarationLine(context, declaration) {
@@ -14344,7 +14398,7 @@ function packageNpmrcFiles(context) {
 /** npm reads only the project root's .npmrc. */
 function checkNpmWorkspaces(context) {
 	const npm = managerOf(context, "npm");
-	if (npm === void 0 || extraOf(npm.tool, "npmrcScope", isRecord$1)["workspacePackages"] !== "ignored") return;
+	if (npm === void 0 || extraOf(npm.tool, "npmrcScope", isRecord)["workspacePackages"] !== "ignored") return;
 	const keys = npmrcKeys(npm.tool, (setting) => setting);
 	for (const file of packageNpmrcFiles(context)) for (const entry of entriesFor(context, file, keys)) context.report({
 		level: "warning",
@@ -14361,9 +14415,9 @@ function checkPnpmRoot(context) {
 	const pnpm = managerOf(context, "pnpm");
 	const policy = context.policy === void 0 ? void 0 : policyFor(context.policy, "npm");
 	if (pnpm === void 0 || policy?.cooldown === void 0) return;
-	const ignored = extraOf(pnpm.tool, "ignoredSince", isRecord$1);
+	const ignored = extraOf(pnpm.tool, "ignoredSince", isRecord);
 	if (!before(pnpm.version, ignored["since"])) return;
-	const precedence = extraOf(pnpm.tool, "npmrcPrecedence", isRecord$1);
+	const precedence = extraOf(pnpm.tool, "npmrcPrecedence", isRecord);
 	const workspace = context.repository.readText("pnpm-workspace.yaml");
 	const cooldownSetting = settingOf(pnpm.tool.cooldown.setting);
 	const excludeSetting = settingOf(pnpm.tool.cooldown.exclude.setting);
@@ -14414,8 +14468,8 @@ const pnpmSharedWorkspaceLockfile = {
 	check(context) {
 		const pnpm = managerOf(context, "pnpm");
 		if (pnpm === void 0) return;
-		const perProject = extraOf(pnpm.tool, "perProjectNpmrc", isRecord$1);
-		const shared = extraOf(pnpm.tool, "sharedWorkspaceLockfile", isRecord$1);
+		const perProject = extraOf(pnpm.tool, "perProjectNpmrc", isRecord);
+		const shared = extraOf(pnpm.tool, "sharedWorkspaceLockfile", isRecord);
 		if (!before(pnpm.version, perProject["until"])) return;
 		const workspace = context.repository.readText("pnpm-workspace.yaml");
 		const fromYaml = workspace === void 0 ? void 0 : yamlSetting(workspace, [String(shared["setting"])]);
@@ -14439,7 +14493,7 @@ const isStrings = (value) => Array.isArray(value) && value.every((item) => typeo
 /** The settings depcurfew manages for a Python tool, as keys of its configuration table. */
 function managedKeys(tool) {
 	const build = tool.extra?.["buildSwitch"] === void 0 ? void 0 : extraOf(tool, "buildSwitch", isSwitch);
-	const required = tool.extra?.["requiredVersion"] === void 0 ? void 0 : extraOf(tool, "requiredVersion", isRecord$1);
+	const required = tool.extra?.["requiredVersion"] === void 0 ? void 0 : extraOf(tool, "requiredVersion", isRecord);
 	return [
 		settingOf(tool.cooldown.setting),
 		settingOf(tool.cooldown.exclude.setting),
@@ -14450,24 +14504,16 @@ function managedKeys(tool) {
 }
 /** The keys of a TOML table in a file that set one of `keys`, with their lines. */
 function keysIn(context, file, table, keys) {
-	const text = context.repository.isFile(file) ? context.repository.readText(file) : void 0;
-	if (text === void 0) return [];
-	let document;
-	try {
-		document = parseToml(text);
-	} catch {
-		return [];
-	}
-	let node = document.root;
-	for (const key of table) node = isRecord$1(node) ? node[key] : void 0;
-	if (!isRecord$1(node)) return [];
-	return keys.filter((key) => key in node).map((key) => ({
-		key,
-		line: document.lineOf([...table, key]) ?? 1
-	}));
+	return keys.flatMap((key) => {
+		const found = tomlSettingAt(context.repository, file, [...table, key]);
+		return found === void 0 ? [] : [{
+			key,
+			line: found.line
+		}];
+	});
 }
 function checkUv(context, tool) {
-	const tables = extraOf(tool, "configTables", isRecord$1);
+	const tables = extraOf(tool, "configTables", isRecord);
 	const order = extraOf(tool, "configFileOrder", isStrings);
 	const [winner, loser] = order;
 	if (winner === void 0 || loser === void 0) return;
@@ -14501,25 +14547,27 @@ function checkUv(context, tool) {
 			line: found.line
 		},
 		message: `${setting} is the fixed date ${String(found.value)}, so uv never uses versions uploaded after it; that is a freeze, not a delay that moves with time`,
-		fix: `Write a duration such as "3 days" (uv 0.9.17 or later), or let depcurfew apply write it from cooldown.minimum`
+		fix: `Write a duration such as "3 days" (${tool.name} ${sinceOf(tool.cooldown.availableSince) ?? ""} or later), or let depcurfew apply write it from cooldown.minimum`
 	});
 }
 function checkPip(context, tool, configFiles) {
 	const names = extraOf(tool, "configFileNames", isStrings);
+	const configVariable = extraOf(tool, "configFileVariable", (value) => typeof value === "string");
 	for (const directory of [".", ...context.detection.workspaces?.packages ?? []]) for (const name of names) {
 		const file = joinPath(directory, name);
 		if (!context.repository.isFile(file)) continue;
 		context.report({
 			level: "warning",
 			location: { file },
-			message: `pip reads no configuration from the project, so ${file} has no effect unless PIP_CONFIG_FILE points to it`,
-			fix: `Set PIP_CONFIG_FILE=${file} where pip runs, or put the options in the requirements file pip installs from`
+			message: `pip reads no configuration from the project, so ${file} has no effect unless ${configVariable} points to it`,
+			fix: `Set ${configVariable}=${file} where pip runs, or put the options in the requirements file pip installs from`
 		});
 	}
 	const allowed = new Set(extraOf(tool, "requirementsOptions", isStrings));
+	const format = extraOf(tool, "requirementsFormat", isRecord);
 	const cooldownFlag = `--${settingOf(tool.cooldown.setting) ?? ""}`;
 	const variable = extraOf(tool, "environmentVariable", (value) => typeof value === "string");
-	for (const file of configFiles) for (const { option, line } of requirementsOptions(context.repository, file)) {
+	for (const file of configFiles) for (const { option, line } of requirementsOptions(context.repository, file, format)) {
 		if (allowed.has(option)) continue;
 		context.report({
 			location: {

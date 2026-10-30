@@ -120,6 +120,29 @@ export function pylockEntries(input: string, format: Format): LockEntry[] {
   });
 }
 
+/** The logical lines of a requirements file: continuations joined, comments removed, with the line each starts on. */
+export function requirementsLines(input: string, format: Format): { text: string; line: number }[] {
+  const comment = String(format['comment']);
+  const continuation = String(format['continuation']);
+  // A comment starts at # preceded by whitespace (or at the start of the line).
+  const commentPattern = new RegExp(`(^|\\s)${comment.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}.*$`, 'u');
+  const lines = input.split(/\r?\n/u);
+  const result: { text: string; line: number }[] = [];
+  for (let index = 0; index < lines.length; index++) {
+    const start = index;
+    let line = (lines[index] ?? '').replace(commentPattern, '');
+    while (line.trimEnd().endsWith(continuation) && index + 1 < lines.length) {
+      index += 1;
+      line = `${line.trimEnd().slice(0, -continuation.length)} ${(lines[index] ?? '').replace(commentPattern, '')}`;
+    }
+    const text = line.trim();
+    if (text !== '') result.push({ text, line: start + 1 });
+  }
+  return result;
+}
+
+const PYTHON_NAME = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? '^[A-Za-z0-9][A-Za-z0-9._-]*$', 'iu');
+
 /** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
 export function requirementsEntries(input: string, format: Format): LockEntry[] {
   const vcs = isRecord(format['vcs']) ? format['vcs'] : {};
@@ -127,20 +150,8 @@ export function requirementsEntries(input: string, format: Format): LockEntry[] 
   const otherPrefixes = strings(vcs['other']);
   const direct = String(format['direct']);
   const editable = strings(format['editable']);
-  const comment = String(format['comment']);
-  const continuation = String(format['continuation']);
   const entries: LockEntry[] = [];
-  const lines = input.split(/\r?\n/u);
-  for (let index = 0; index < lines.length; index++) {
-    const start = index;
-    let line = lines[index] ?? '';
-    while (line.trimEnd().endsWith(continuation) && index + 1 < lines.length) {
-      index += 1;
-      line = `${line.trimEnd().slice(0, -continuation.length)} ${lines[index] ?? ''}`;
-    }
-    // A comment starts at # preceded by whitespace (or at the start of the line).
-    const body = line.replace(new RegExp(`(^|\\s)${comment.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}.*$`, 'u'), '').trim();
-    if (body === '') continue;
+  for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
     let requirement = body;
     const flag = editable.find((option) => requirement.startsWith(`${option} `) || requirement.startsWith(`${option}=`));
     if (flag !== undefined) requirement = requirement.slice(flag.length + 1).trim();
@@ -148,22 +159,25 @@ export function requirementsEntries(input: string, format: Format): LockEntry[] 
     requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(';', 1)[0]?.trim() ?? requirement;
     // name @ URL (PEP 508); the name has no : or +, so a URL with user@host is not taken for one.
     const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${direct.trim()}\\s*(.+)$`, 'u').exec(requirement);
-    const named = reference?.[1];
     const target = reference?.[2] ?? requirement;
-    const nameFrom = (fallback: string) => named ?? (/#egg=([^&\s]+)/u.exec(target)?.[1] ?? fallback);
-    // Without a name, a URL or path names its package by the file or directory name (an archive up to its version).
-    const baseName = (location: string, archive: boolean) => {
-      const base = location.split(/[?#]/u, 1)[0]?.replace(/\/+$/u, '').split('/').at(-1) ?? location;
-      return archive ? (base.split('-')[0] ?? base) : base;
+    // The name comes from "name @" or #egg=; a guess from a file or directory name could match the allow-list for
+    // the wrong code, so a requirement without either stays unnamed and is shown by its location.
+    const add = (location: string, source: Source, builds: boolean | undefined) => {
+      const name = reference?.[1] ?? /#egg=([^&\s]+)/u.exec(target)?.[1];
+      entries.push(name !== undefined && PYTHON_NAME.test(name) ? entry(name, target, source, builds, lineNumber) : { ...entry('', target, source, builds, lineNumber), name: location, unnamed: true });
     };
-    const lineNumber = start + 1;
-    if (gitPrefixes.some((prefix) => target.startsWith(prefix))) entries.push(entry(nameFrom(target), target, 'git', true, lineNumber));
-    else if (otherPrefixes.some((prefix) => target.startsWith(prefix))) entries.push(entry(nameFrom(target), target, 'unknown', true, lineNumber));
-    else if (/^https?:\/\//u.test(target)) entries.push(entry(nameFrom(baseName(target, true)), target, 'remoteTarball', !isWheel(target), lineNumber));
-    else if (/^(\.{1,2}\/|\/|file:)/u.test(target) || flag !== undefined) {
+    if (gitPrefixes.some((prefix) => target.startsWith(prefix))) add(target, 'git', true);
+    else if (otherPrefixes.some((prefix) => target.startsWith(prefix))) add(target, 'unknown', true);
+    else if (/^https?:\/\//u.test(target)) add(target, 'remoteTarball', !isWheel(target));
+    else if (/^(\.{1,2}(\/|$)|\/|file:)/u.test(target) || flag !== undefined) {
       const path = target.replace(/^file:(\/\/)?/u, '');
+      // The project itself (-e . or .) is built as part of the work on it, not as a dependency.
+      if (/^\.\/?$/u.test(path)) {
+        entries.push({ ...entry('', target, 'workspace', false, lineNumber), name: '.' });
+        continue;
+      }
       const archive = /\.(?:whl|zip|tar\.gz|tgz|tar\.bz2|tar)$/iu.test(path);
-      entries.push(entry(nameFrom(baseName(path, archive)), target, archive ? 'file' : 'directory', archive ? !isWheel(path) : true, lineNumber));
+      add(path, archive ? 'file' : 'directory', archive ? !isWheel(path) : true);
     } else {
       const name = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
       if (name !== undefined) entries.push(entry(name, requirement, 'registry', undefined, lineNumber));

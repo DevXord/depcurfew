@@ -1,6 +1,6 @@
 // Lockfile rules. lockfile-forbidden-source: a package from a source depcurfew.json denies. lockfile-install-scripts:
 // a package with install scripts that depcurfew.json does not allow, where the lockfile records scripts.
-import { extraOf, isSwitch, values } from '../../apply/facts.ts';
+import { extraOf, isRecord, isSwitch, values } from '../../apply/facts.ts';
 import { pinnedVersion } from '../../apply/version.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
@@ -77,8 +77,8 @@ export const lockfileForbiddenSource: Rule = {
         if (sources[entry.source] !== 'deny') continue;
         context.report({
           location: location(lockfile, entry),
-          message: `${lockfile.file} installs ${entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
-          fix: `Use a registry version of ${entry.name}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`,
+          message: `${lockfile.file} installs ${entry.unnamed === true ? 'a package' : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
+          fix: `Use a registry version ${entry.unnamed === true ? 'instead' : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`,
         });
       }
     });
@@ -132,15 +132,23 @@ function buildsForbiddenBy(context: RuleContext, tool: ToolKnowledge, lockfile: 
   const build = tool.extra?.['buildSwitch'] === undefined ? undefined : extraOf(tool, 'buildSwitch', isSwitch);
   if (build === undefined) return undefined;
   if (tool.id === 'pip') {
+    const format = tool.extra?.['requirementsFormat'] === undefined ? {} : extraOf(tool, 'requirementsFormat', isRecord);
     const files = lockfile.file.endsWith('.toml') ? [] : [lockfile.file];
-    const found = files.find((file) => requirementsOptions(context.repository, file).some((line) => line.option === build.setting && line.value === build.value));
+    const found = files.find((file) => requirementsOptions(context.repository, file, format).some((line) => line.option === build.setting && line.value === build.value));
     return found === undefined ? undefined : `${build.setting}=${String(build.value)} in ${found} forbids building`;
   }
   const found = readPythonSetting(context.repository, tool, build.setting);
-  const wanted = JSON.stringify(build.value);
-  return found !== undefined && (JSON.stringify(found.value) === wanted || (Array.isArray(found.value) && Array.isArray(build.value) && build.value.every((item) => (found.value as unknown[]).includes(item))))
-    ? `${build.setting} in ${found.file} forbids building`
-    : undefined;
+  return found !== undefined && switchIsOn(found.value, build.value) ? `${build.setting} in ${found.file} forbids building` : undefined;
+}
+
+/**
+ * Whether a configured value turns the build switch on. A list switch (Poetry's [":all:"]) is also on when written as
+ * a comma-separated string or as true, which Poetry reads as the same thing.
+ */
+function switchIsOn(value: unknown, wanted: unknown): boolean {
+  if (!Array.isArray(wanted)) return value === wanted;
+  const items = value === true ? wanted : typeof value === 'string' ? value.split(',').map((item) => item.trim()) : Array.isArray(value) ? value : [];
+  return wanted.every((item) => items.includes(item));
 }
 
 function reportPythonBuilds(context: RuleContext, lockfile: Lockfile, tool: ToolKnowledge, allow: readonly string[]): void {
@@ -150,8 +158,12 @@ function reportPythonBuilds(context: RuleContext, lockfile: Lockfile, tool: Tool
   const patterns = allow.map(normalizePythonName);
   for (const entry of lockfile.entries) {
     if (entry.installScript !== true || entry.source === 'workspace') continue;
-    if (patterns.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+    if (entry.unnamed !== true && patterns.some((pattern) => matchesPattern(entry.name, pattern))) continue;
     const stopped = forbiddenBy !== undefined && covers.includes(entry.source);
+    const fix =
+      entry.unnamed === true
+        ? `Give the requirement a package name (name @ ${entry.spec}) so that it can be allowed with "${PYPI_PREFIX}name" in installScripts.allow in ${POLICY_FILE}, or remove it`
+        : `Review ${entry.name} and add "${PYPI_PREFIX}${entry.name}" to installScripts.allow in ${POLICY_FILE} (it is then always built from source), or replace the package`;
     context.report({
       level: stopped ? 'warning' : 'error',
       location: location(lockfile, entry),
@@ -160,7 +172,7 @@ function reportPythonBuilds(context: RuleContext, lockfile: Lockfile, tool: Tool
         : forbiddenBy === undefined
           ? `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code, but ${POLICY_FILE} does not allow it`
           : `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code: ${forbiddenBy} only for packages from an index, and ${POLICY_FILE} does not allow it`,
-      fix: `Review ${entry.name} and add "${PYPI_PREFIX}${entry.name}" to installScripts.allow in ${POLICY_FILE} (it is then always built from source), or replace the package`,
+      fix,
     });
   }
 }

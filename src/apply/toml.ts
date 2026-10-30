@@ -83,22 +83,33 @@ export function writeTomlBlock(body: string, table: string, entries: readonly st
   let current: string | undefined;
   // Keys at the top level that define the table (install.key = ..., install = { ... }) and stay after this edit.
   let definedAtTop = false;
+  // A managed key may also be written as a dotted key (key.sub = ...) or as a table of its own ([table.key]).
+  const isManaged = (key: string) => managed.has(key) || [...managed].some((name) => key.startsWith(`${name}.`));
+  const prefix = topLevel ? '' : `${table}.`;
+  const note = entries.length === 0 ? TURNED_OFF : SUPERSEDED;
+  let inManagedTable = false;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index] ?? '';
     const header = HEADER.exec(line);
     if (header !== null) {
-      current = header[1];
+      const name = header[1] ?? '';
+      inManagedTable = name.startsWith(prefix) && isManaged(name.slice(prefix.length));
+      if (inManagedTable) {
+        lines[index] = `${note}${line.trim()}`;
+        continue;
+      }
+      current = name;
       boundaries.push(index);
-      if (!line.trim().startsWith('[[') && current !== undefined) headers.set(index, current);
+      if (!line.trim().startsWith('[[')) headers.set(index, current);
       continue;
     }
     const key = keyOf(line);
     if (key === undefined) continue;
     const end = valueEnd(lines, index);
-    const inTable = (topLevel ? current === undefined : current === table) && managed.has(key);
-    const dotted = !topLevel && current === undefined && key.startsWith(`${table}.`) && managed.has(key.slice(table.length + 1));
-    if (inTable || dotted) {
-      lines[index] = `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}`;
+    const inTable = (topLevel ? current === undefined : current === table) && isManaged(key);
+    const dotted = !topLevel && current === undefined && key.startsWith(`${table}.`) && isManaged(key.slice(table.length + 1));
+    if (inManagedTable || inTable || dotted) {
+      lines[index] = `${note}${line.trim()}`;
       for (let next = index + 1; next <= end; next++) lines[next] = `# ${lines[next] ?? ''}`;
     } else if (!topLevel && current === undefined && (key === table || key.startsWith(`${table}.`) || table.startsWith(`${key}.`))) {
       definedAtTop = true;

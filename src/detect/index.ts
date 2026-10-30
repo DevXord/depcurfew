@@ -18,7 +18,7 @@ import type {
   VersionSource,
   WorkspaceInfo,
 } from './types.ts';
-import { parseToml, type TomlDocument, type TomlValue } from './toml.ts';
+import { parseToml, tomlValueAt, type TomlDocument, type TomlValue } from './toml.ts';
 import { readWorkflows } from './workflows.ts';
 import { expandWorkspaces } from './workspaces.ts';
 
@@ -64,11 +64,8 @@ function byPath(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** The value at a dotted key path of a TOML document. */
 function tomlAt(document: TomlDocument | undefined, path: readonly string[]): TomlValue | undefined {
-  let node: TomlValue | undefined = document?.root;
-  for (const key of path) node = isObject(node) ? (node as Record<string, TomlValue>)[key] : undefined;
-  return node;
+  return document === undefined ? undefined : tomlValueAt(document, path);
 }
 
 /** A required version as written; an exact one (==1.2.3) without the operator, so that it counts as pinned. */
@@ -197,7 +194,9 @@ function readWorkspaces(repository: Repository, facts: DetectionFacts, manifest:
       const value = file.endsWith('.toml') ? tomlAt(toml.read(file), key.split('.')) : readConfig(repository, file, manifest, key);
       const patterns = stringList(value) ?? (objectKey !== null && isObject(value) ? stringList(value[objectKey]) : undefined);
       const excluded = excludeKey !== undefined && isObject(value) ? (stringList(value[excludeKey]) ?? []) : [];
-      if (patterns !== undefined) declarations.push({ file, patterns: [...patterns, ...excluded.map((pattern) => `!${pattern}`)], manifests: manager.manifests });
+      // A member is a directory with a manifest of any tool of the same registry (a Deno workspace may list npm packages).
+      const manifests = [...new Set(facts.managers.filter((other) => other.ecosystem === manager.ecosystem).flatMap((other) => other.manifests))];
+      if (patterns !== undefined) declarations.push({ file, patterns: [...patterns, ...excluded.map((pattern) => `!${pattern}`)], manifests });
       break;
     }
   }

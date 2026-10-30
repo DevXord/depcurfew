@@ -1,7 +1,9 @@
 // Renovate: minimumReleaseAge, packageRules entries for exclusions (recognized by their descriptions) and the delay
-// for security updates. npm names keep the rule they always had; pypi: names get their own rule limited to the pypi
-// datasource. JSON5 files and the deprecated package.json key are not edited; a snippet is printed.
+// for security updates. pypi: names get their own rule limited to the pypi datasource; when the repository also has
+// Python packages, the rule for npm names leaves out that datasource, so an npm exception never reaches a Python
+// package of the same name. JSON5 files and the deprecated package.json key are not edited; a snippet is printed.
 import { convertCooldown } from '../../policy/convert.ts';
+import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { patternsFor } from '../../policy/package-pattern.ts';
 import { extraOf, isRecord, settingOf, values } from '../facts.ts';
 import { exclusions } from './common.ts';
@@ -36,7 +38,14 @@ export const renovate: BotGenerator = (context, duration) => {
   const excluded = policy.cooldown.exclude;
   const patterns = exclusions(context, patternsFor(excluded, 'npm')) ?? [];
   const pythonPatterns = exclusions(context, patternsFor(excluded, 'pypi')) ?? [];
-  const exclusionRule = { [descriptionKey]: RULE_DESCRIPTION, [rule.match]: patterns, [setting]: rule.value };
+  const negative = extraOf(tool, 'negativeMatch', isString);
+  const python = context.tools.some((entry) => entry.kind === 'package-manager' && ecosystemOfTool(entry) === 'pypi' && context.targets.has(entry.id));
+  const exclusionRule = {
+    [descriptionKey]: RULE_DESCRIPTION,
+    ...(python ? { matchDatasources: [`${negative}${String(datasources['pypi'])}`] } : {}),
+    [rule.match]: patterns,
+    [setting]: rule.value,
+  };
   const pythonRule = { [descriptionKey]: PYTHON_RULE_DESCRIPTION, matchDatasources: [datasources['pypi']], [rule.match]: pythonPatterns, [setting]: rule.value };
   const managedRules = [
     { description: RULE_DESCRIPTION, rule: exclusionRule, wanted: patterns.length > 0 },

@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-10 tools · 410 facts · 64 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
+10 tools · 412 facts · 64 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
 
 ## Release-age cooldown
 
@@ -218,6 +218,7 @@ Further facts used by generators and `doctor`.
 - `requirementsOptions` (✅ verified): -i, --index-url, --extra-index-url, --no-index, -c, --constraint, -r, --requirement, -e, --editable, -f, --find-links, --no-binary, --only-binary, --prefer-binary, --require-hashes, --no-require-hashes, --pre, --all-releases, --only-final, --trusted-host, --use-feature [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
 - `buildSwitch` (❓ uncertain): `{"setting":"--only-binary","value":":all:","since":"7.0.0","covers":["registry"]}` ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `configFileNames` (✅ verified): pip.conf, pip.ini [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/configuration.py)
+- `configFileVariable` (✅ verified): PIP_CONFIG_FILE [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variable)
 - `environmentVariable` (✅ verified): PIP_UPLOADED_PRIOR_TO [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variables)
 - `durationStrings` (✅ verified): `{"since":"26.1.0","syntax":"iso8601"}` [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `missingUploadTime` (✅ verified): Installation fails when an index gives no upload time while --uploaded-prior-to is set [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)
@@ -252,6 +253,7 @@ Further facts used by generators and `doctor`.
 - `durationUnits` (✅ verified): hours, days [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `presets` (✅ verified): config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): "3 days" and internalChecksFilter "strict" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm)
 - `datasources` (✅ verified): `{"npm":"npm","pypi":"pypi"}` [↗](https://docs.renovatebot.com/modules/datasource/pypi/)
+- `negativeMatch` (✅ verified): ! [↗](https://docs.renovatebot.com/string-pattern-matching/)
 - `pypiPresets` (✅ verified): `{"presets":["security:minimumReleaseAgePypi"],"value":"3 days","since":"44.8.0","datasource":"pypi"}` [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi)
 - `pythonManagers` (✅ verified): `{"uv":"pep621","poetry":"poetry","pip":"pip_requirements"}` [↗](https://docs.renovatebot.com/modules/manager/pep621/)
 - `passesDelayToManager` (✅ verified): earlier: []<br>44.34.0+: poetry [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/)
@@ -489,6 +491,7 @@ Context recorded with verified facts.
 - `project.manifests`: "requirements.txt is usually what these files are named (although, that is not a requirement)"; the format is meant only for pip. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md)
 - `extra.requirementsOptions`: SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
 - `extra.configFileNames`: CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/configuration.py)
+- `extra.configFileVariable`: Names a configuration file pip loads last; set to os.devnull it turns all configuration files off. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variable)
 - `extra.environmentVariable`: Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores. Tested on 2026-10-30: pip 25.3 ignored PIP_UPLOADED_PRIOR_TO=P100000D without a word, 26.0 rejected the duration (dates only), 26.1 and 26.2.2 found no version. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variables)
 - `extra.durationStrings`: Only whole days, written PnD, are accepted. [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `extra.missingUploadTime`: Upload times exist only in the JSON form of the simple repository API (PEP 700); indexes that serve only HTML have none. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)
@@ -539,6 +542,7 @@ Context recorded with verified facts.
 - `extra.packageJsonConfig`: Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated. [↗](https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts)
 - `extra.durationUnits`: Units shown in the docs: minimumReleaseAge=1 hour on this page and "3 days" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values. [↗](https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md)
 - `extra.datasources`: Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files. [↗](https://docs.renovatebot.com/modules/datasource/pypi/)
+- `extra.negativeMatch`: Patterns starting with ! are negative matches, and none of them may match; matchDatasources is matched this way (matchRegexOrGlobList in lib/util/package-rules/datasources.ts at 44.198.0), so ["!pypi"] covers every datasource but PyPI. [↗](https://docs.renovatebot.com/string-pattern-matching/)
 - `extra.pypiPresets`: Added in 44.8.0; config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm). [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi)
 - `extra.pythonManagers`: pep621 updates pyproject.toml with uv.lock (there is no uv manager); poetry updates pyproject.toml with poetry.lock; pip_requirements updates requirements files. pip-compile is off by default. [↗](https://docs.renovatebot.com/modules/manager/pep621/)
 - `extra.passesDelayToManager`: Since 44.34.0 Renovate passes POETRY_SOLVER_MIN_RELEASE_AGE (rounded up to whole days) to Poetry 2.4.0 and later. It does not pass the delay to uv or read exclude-newer. [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/)

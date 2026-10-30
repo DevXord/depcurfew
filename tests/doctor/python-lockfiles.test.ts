@@ -94,6 +94,8 @@ describe('requirements files', () => {
       'pkg@https://files.example.test/pkg-1.0-py3-none-any.whl',
       '--editable ./libs/local',
       'file:///opt/wheels/tool-2.0.tar.gz',
+      '-e .',
+      'git+https://example.test/unnamed.git',
       '',
     ].join('\n');
     expect(read(text)).toEqual([
@@ -102,9 +104,12 @@ describe('requirements files', () => {
       ['demo', 'git', true, 6],
       ['hgthing', 'unknown', true, 7],
       ['pkg', 'remoteTarball', false, 8],
-      ['local', 'directory', true, 9],
-      ['tool', 'file', true, 10],
+      ['./libs/local', 'directory', true, 9],
+      ['/opt/wheels/tool-2.0.tar.gz', 'file', true, 10],
+      ['.', 'workspace', false, 11],
+      ['git+https://example.test/unnamed.git', 'git', true, 12],
     ]);
+    expect(requirementsEntries(text, format(pip, 'requirementsFormat')).at(-1)?.unnamed).toBe(true);
   });
 });
 
@@ -115,10 +120,15 @@ describe('writeRequirementsBlock', () => {
   it('puts the options after the opening comments, comments out the same options elsewhere and is idempotent', () => {
     const before = '# generated\n--only-binary=:none:\nidna==3.20\n';
     const once = writeRequirementsBlock(before, ['--only-binary=:all:', '--no-binary=docopt'], ['--only-binary', '--no-binary']);
-    expect(once).toBe(
-      `# generated\n\n${START}\n--only-binary=:all:\n--no-binary=docopt\n${END}\n\n# depcurfew: superseded by the managed block: --only-binary=:none:\nidna==3.20\n`,
-    );
+    expect(once).toBe(`# generated\n\n${START}\n--only-binary=:all:\n--no-binary=docopt\n${END}\n# depcurfew: superseded by the managed block: --only-binary=:none:\nidna==3.20\n`);
     expect(writeRequirementsBlock(once, ['--only-binary=:all:', '--no-binary=docopt'], ['--only-binary', '--no-binary'])).toBe(once);
-    expect(writeRequirementsBlock(once, [], ['--only-binary', '--no-binary'])).toBe('# generated\n\n# depcurfew: superseded by the managed block: --only-binary=:none:\nidna==3.20\n');
+    expect(writeRequirementsBlock(once, [], ['--only-binary', '--no-binary'])).toBe('# generated\n# depcurfew: superseded by the managed block: --only-binary=:none:\nidna==3.20\n');
+  });
+
+  it('leaves the file as it was when the block is removed again', () => {
+    const before = '# header\nrequests==1\n';
+    const once = writeRequirementsBlock(before, ['--only-binary=:all:'], ['--only-binary']);
+    expect(writeRequirementsBlock(once, [], ['--only-binary'])).toBe(before);
+    expect(writeRequirementsBlock(writeRequirementsBlock('requests==1\n', ['--only-binary=:all:'], ['--only-binary']), [], ['--only-binary'])).toBe('requests==1\n');
   });
 });

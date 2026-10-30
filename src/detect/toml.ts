@@ -411,3 +411,12 @@ export function parseToml(input: string): TomlDocument {
 
   return { root, lineOf: (path) => lines.get(JSON.stringify(path)) };
 }
+
+/** The value at a key path of a parsed document, or undefined when a key on the way is missing or not a table. */
+export function tomlValueAt(document: TomlDocument, path: readonly string[]): TomlValue | undefined {
+  let node: TomlValue | undefined = document.root;
+  for (const key of path) {
+    node = typeof node === 'object' && node !== null && !Array.isArray(node) && !(node instanceof TomlDateTime) ? (node as TomlTable)[key] : undefined;
+  }
+  return node;
+}

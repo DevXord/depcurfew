@@ -26,6 +26,8 @@ export interface LockEntry {
   anchor: string;
   /** The line, when the parser knows it. */
   line?: number;
+  /** A requirement without a package name (a bare URL or path): `name` is its location, and no allow-list matches it. */
+  unnamed?: boolean;
 }
 
 export interface Lockfile {

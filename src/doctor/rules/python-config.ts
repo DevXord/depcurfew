@@ -1,11 +1,10 @@
 // python-config-ignored: Python settings written where the tool does not read them, which look effective but are
 // not: [tool.uv] next to a uv.toml, uv settings in workspace members, pip.conf in the project, options pip rejects in
 // requirements files, and an exclude-newer date that never moves.
-import { extraOf, isRecord, isSwitch, settingOf } from '../../apply/facts.ts';
+import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../../apply/facts.ts';
 import { joinPath } from '../../detect/repository.ts';
-import { parseToml, type TomlValue } from '../../detect/toml.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
-import { readPythonSetting, requirementsOptions } from '../python.ts';
+import { readPythonSetting, requirementsOptions, tomlSettingAt } from '../python.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
 const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
@@ -21,18 +20,10 @@ function managedKeys(tool: ToolKnowledge): string[] {
 
 /** The keys of a TOML table in a file that set one of `keys`, with their lines. */
 function keysIn(context: RuleContext, file: string, table: readonly string[], keys: readonly string[]): { key: string; line: number }[] {
-  const text = context.repository.isFile(file) ? context.repository.readText(file) : undefined;
-  if (text === undefined) return [];
-  let document;
-  try {
-    document = parseToml(text);
-  } catch {
-    return [];
-  }
-  let node: TomlValue | undefined = document.root;
-  for (const key of table) node = isRecord(node) ? (node as Record<string, TomlValue>)[key] : undefined;
-  if (!isRecord(node)) return [];
-  return keys.filter((key) => key in node).map((key) => ({ key, line: document.lineOf([...table, key]) ?? 1 }));
+  return keys.flatMap((key) => {
+    const found = tomlSettingAt(context.repository, file, [...table, key]);
+    return found === undefined ? [] : [{ key, line: found.line }];
+  });
 }
 
 function checkUv(context: RuleContext, tool: ToolKnowledge): void {
@@ -72,13 +63,14 @@ function checkUv(context: RuleContext, tool: ToolKnowledge): void {
       level: 'warning',
       location: { file: found.file, line: found.line },
       message: `${setting} is the fixed date ${String(found.value)}, so uv never uses versions uploaded after it; that is a freeze, not a delay that moves with time`,
-      fix: `Write a duration such as "3 days" (uv 0.9.17 or later), or let depcurfew apply write it from cooldown.minimum`,
+      fix: `Write a duration such as "3 days" (${tool.name} ${sinceOf(tool.cooldown.availableSince) ?? ''} or later), or let depcurfew apply write it from cooldown.minimum`,
     });
   }
 }
 
 function checkPip(context: RuleContext, tool: ToolKnowledge, configFiles: readonly string[]): void {
   const names = extraOf(tool, 'configFileNames', isStrings);
+  const configVariable = extraOf(tool, 'configFileVariable', (value): value is string => typeof value === 'string');
   for (const directory of ['.', ...(context.detection.workspaces?.packages ?? [])]) {
     for (const name of names) {
       const file = joinPath(directory, name);
@@ -86,16 +78,17 @@ function checkPip(context: RuleContext, tool: ToolKnowledge, configFiles: readon
       context.report({
         level: 'warning',
         location: { file },
-        message: `pip reads no configuration from the project, so ${file} has no effect unless PIP_CONFIG_FILE points to it`,
-        fix: `Set PIP_CONFIG_FILE=${file} where pip runs, or put the options in the requirements file pip installs from`,
+        message: `pip reads no configuration from the project, so ${file} has no effect unless ${configVariable} points to it`,
+        fix: `Set ${configVariable}=${file} where pip runs, or put the options in the requirements file pip installs from`,
       });
     }
   }
   const allowed = new Set(extraOf(tool, 'requirementsOptions', isStrings));
+  const format = extraOf(tool, 'requirementsFormat', isRecord);
   const cooldownFlag = `--${settingOf(tool.cooldown.setting) ?? ''}`;
   const variable = extraOf(tool, 'environmentVariable', (value): value is string => typeof value === 'string');
   for (const file of configFiles) {
-    for (const { option, line } of requirementsOptions(context.repository, file)) {
+    for (const { option, line } of requirementsOptions(context.repository, file, format)) {
       if (allowed.has(option)) continue;
       context.report({
         location: { file, line },

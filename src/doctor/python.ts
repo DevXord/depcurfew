@@ -1,29 +1,42 @@
 // Where Python tools read their settings in a project, for doctor: uv reads uv.toml, or [tool.uv] of pyproject.toml
 // when there is no uv.toml; Poetry reads poetry.toml; pip reads only the requirements file it is given. Files and
-// tables come from the knowledge base.
+// tables come from the knowledge base. Parsed TOML files are kept per repository, because several rules read them.
 import { extraOf, isRecord, values } from '../apply/facts.ts';
 import type { Repository } from '../detect/repository.ts';
-import { parseToml, type TomlValue } from '../detect/toml.ts';
+import { parseToml, tomlValueAt, type TomlDocument } from '../detect/toml.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
+import { requirementsLines } from './python-lockfiles.ts';
 import type { Setting } from './settings.ts';
 
 const isStringList = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
 
-function tomlSettingAt(repository: Repository, file: string, path: readonly string[]): Setting | undefined {
-  if (!repository.isFile(file)) return undefined;
-  const text = repository.readText(file);
-  if (text === undefined) return undefined;
-  let document;
-  try {
-    document = parseToml(text);
-  } catch {
-    // unreadable-config reports files that do not parse.
-    return undefined;
+const documents = new WeakMap<Repository, Map<string, TomlDocument | undefined>>();
+
+/** The parsed TOML file, or undefined when it is missing or does not parse (unreadable-config reports that). */
+export function readTomlDocument(repository: Repository, file: string): TomlDocument | undefined {
+  let cache = documents.get(repository);
+  if (cache === undefined) {
+    cache = new Map();
+    documents.set(repository, cache);
   }
-  let node: TomlValue | undefined = document.root;
-  for (const key of path) node = isRecord(node) ? (node as Record<string, TomlValue>)[key] : undefined;
-  if (node === undefined) return undefined;
-  return { file, line: document.lineOf(path) ?? 1, value: node };
+  if (!cache.has(file)) {
+    const text = repository.isFile(file) ? repository.readText(file) : undefined;
+    let document: TomlDocument | undefined;
+    try {
+      document = text === undefined ? undefined : parseToml(text);
+    } catch {
+      document = undefined;
+    }
+    cache.set(file, document);
+  }
+  return cache.get(file);
+}
+
+/** The value at a key path of a TOML file, with the line of its key. */
+export function tomlSettingAt(repository: Repository, file: string, path: readonly string[]): Setting | undefined {
+  const document = readTomlDocument(repository, file);
+  const value = document === undefined ? undefined : tomlValueAt(document, path);
+  return document === undefined || value === undefined ? undefined : { file, line: document.lineOf(path) ?? 1, value };
 }
 
 /** The files and key paths where a Python tool reads `setting`, in the order the tool uses them. */
@@ -51,12 +64,15 @@ export function readPythonSetting(repository: Repository, tool: ToolKnowledge, s
   return undefined;
 }
 
-/** The option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines. */
-export function requirementsOptions(repository: Repository, file: string): { option: string; value: string; line: number }[] {
+/**
+ * The global option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines. Options after
+ * a requirement on the same logical line (--hash on a continuation line) belong to that requirement and are skipped.
+ */
+export function requirementsOptions(repository: Repository, file: string, format: Record<string, unknown>): { option: string; value: string; line: number }[] {
   const text = repository.readText(file);
   if (text === undefined) return [];
-  return text.split(/\r?\n/u).flatMap((raw, index) => {
-    const match = /^\s*(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(raw);
-    return match === null ? [] : [{ option: match[1] ?? '', value: match[2] ?? '', line: index + 1 }];
+  return requirementsLines(text, format).flatMap(({ text: line, line: number }) => {
+    const match = /^(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(line);
+    return match === null ? [] : [{ option: match[1] ?? '', value: match[2] ?? '', line: number }];
   });
 }

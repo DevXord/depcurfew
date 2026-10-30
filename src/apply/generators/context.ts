@@ -30,6 +30,8 @@ export interface Context {
   tool: ToolKnowledge;
   /** Every tool of the knowledge base in use, for bots that serve several package managers. */
   tools: readonly ToolKnowledge[];
+  /** The tools this run configures. */
+  targets: ReadonlySet<ToolId>;
   name: string;
   policy: ResolvedPolicy;
   /** undefined: no exact version is pinned, so the latest known version is assumed. */
@@ -78,6 +80,7 @@ export class EditFailed extends Error {}
 export function createContext(options: {
   tool: ToolKnowledge;
   tools: readonly ToolKnowledge[];
+  targets: ReadonlySet<ToolId>;
   policy: ResolvedPolicy;
   version: Version | undefined;
   workspace: Workspace;
@@ -108,6 +111,7 @@ export function createContext(options: {
   return {
     tool,
     tools: options.tools,
+    targets: options.targets,
     name: tool.name,
     policy: options.policy,
     version: options.version,

@@ -1,5 +1,6 @@
 // The facts the detector needs, read from the knowledge base. Where official sources disagree, file names are
 // combined from every variant, so detection never misses a file because of a disputed fact.
+import { isRecord } from '../apply/facts.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import type {
   Ecosystem,
@@ -80,10 +81,6 @@ function extraString(tool: ToolKnowledge, key: string): string {
   const value = fact === undefined ? undefined : first(fact);
   if (typeof value !== 'string') throw new Error(`knowledge base: ${tool.id} extra.${key} must be a string`);
   return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function extraValue(tool: ToolKnowledge, key: string): unknown {

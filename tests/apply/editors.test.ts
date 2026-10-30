@@ -4,6 +4,7 @@ import { writeIniBlock } from '../../src/apply/ini.ts';
 import { jsonGet, jsonSet, jsonArrayAppend, jsonArrayRemove, jsonArrayReplace } from '../../src/apply/json-edit.ts';
 import { detectStyle, restoreStyle, toLf } from '../../src/apply/text.ts';
 import { writeTomlBlock } from '../../src/apply/toml.ts';
+import { parseToml } from '../../src/detect/toml.ts';
 import { yamlGet, yamlSet } from '../../src/apply/yaml-edit.ts';
 
 const START = '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead';
@@ -140,6 +141,17 @@ describe('writeTomlBlock (uv.toml, pyproject.toml, poetry.toml)', () => {
     expect(writeTomlBlock(before, 'tool.uv', ['no-build = true'], ['no-build'])).toBe(
       `[project]\nname = "demo"\n\n[tool.uv]\nrequired-version = "==0.13.6"\n\n${START}\nno-build = true\n${END}\n\n[tool.uv.sources]\nlib = { path = "lib" }\n`,
     );
+  });
+
+  it('comments out a managed key written as a table of its own or with dotted keys', () => {
+    const before = '[tool.uv]\nno-build = false\n\n[tool.uv.exclude-newer-package]\nfoo = false\n\n[tool.uv.sources]\nlib = { path = "lib" }\n';
+    const after = writeTomlBlock(before, 'tool.uv', ['exclude-newer-package = { "idna" = false }'], ['exclude-newer-package']);
+    expect(after).toContain('# depcurfew: superseded by the managed block: [tool.uv.exclude-newer-package]\n# depcurfew: superseded by the managed block: foo = false');
+    expect(after).toContain('[tool.uv.sources]\nlib = { path = "lib" }');
+    expect(() => parseToml(after)).not.toThrow();
+    const top = writeTomlBlock('exclude-newer-package.foo = false\n', '', ['exclude-newer-package = { "a" = false }'], ['exclude-newer-package']);
+    expect(top.startsWith('# depcurfew: superseded by the managed block: exclude-newer-package.foo = false')).toBe(true);
+    expect(() => parseToml(top)).not.toThrow();
   });
 
   it('keeps one block per table when the blocks carry the table name', () => {

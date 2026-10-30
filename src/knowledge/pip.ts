@@ -129,6 +129,11 @@ export const pip: ToolKnowledge = {
       `${PIP}/src/pip/_internal/configuration.py`,
       'CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project.',
     ),
+    configFileVariable: verified(
+      'PIP_CONFIG_FILE',
+      `${CONFIGURATION}#environment-variable`,
+      'Names a configuration file pip loads last; set to os.devnull it turns all configuration files off.',
+    ),
     environmentVariable: verified(
       'PIP_UPLOADED_PRIOR_TO',
       `${CONFIGURATION}#environment-variables`,

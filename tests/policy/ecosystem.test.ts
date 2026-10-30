@@ -87,6 +87,22 @@ describe('package names per registry', () => {
     expect(applyProject(root).changes).toEqual([]);
   });
 
+  it('keeps npm exceptions away from Python packages in Renovate when the repository has Python', () => {
+    const root = project({
+      'package.json': '{"name": "app", "packageManager": "npm@11.19.1"}\n',
+      'pyproject.toml': '[project]\nname = "app"\nversion = "0.1.0"\n\n[tool.uv]\nrequired-version = "==0.13.6"\n',
+      'uv.lock': 'version = 1\nrevision = 5\nrequires-python = ">=3.12"\n',
+      'renovate.json': '{}\n',
+      'depcurfew.json': JSON.stringify({ version: 1, cooldown: { minimum: '3d', exclude: ['six'] } }),
+    });
+    expect(applyProject(root).errors).toEqual([]);
+    const config = JSON.parse(readFileSync(join(root, 'renovate.json'), 'utf8')) as { packageRules: unknown[] };
+    expect(config.packageRules).toEqual([
+      { description: 'depcurfew: packages excluded from minimumReleaseAge', matchDatasources: ['!pypi'], matchPackageNames: ['six'], minimumReleaseAge: null },
+    ]);
+    expect(applyProject(root).changes).toEqual([]);
+  });
+
   it('gives each Dependabot entry the exclusions of its registry', () => {
     const root = project({
       'package.json': '{"name": "app", "packageManager": "npm@11.19.1"}\n',

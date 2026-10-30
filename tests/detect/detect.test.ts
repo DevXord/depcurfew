@@ -153,3 +153,16 @@ describe('detectProject on GitHub Actions', () => {
     ]);
   });
 });
+
+describe('detectProject on workspaces of several registries', () => {
+  it('counts a package.json member of a Deno workspace, but not a Python project under a JavaScript workspace pattern', () => {
+    write('deno.json', '{ "workspace": ["./web", "./api"] }\n');
+    write('web/package.json', '{ "name": "web" }\n');
+    write('api/deno.json', '{ "name": "@app/api" }\n');
+    write('package.json', '{ "name": "root", "workspaces": ["tools/*"] }\n');
+    write('package-lock.json', '{ "lockfileVersion": 3, "packages": {} }\n');
+    write('tools/js/package.json', '{ "name": "js" }\n');
+    write('tools/py/pyproject.toml', '[project]\nname = "py"\nversion = "0.1.0"\n');
+    expect(detectProject(root).workspaces?.packages).toEqual(['api', 'tools/js', 'web']);
+  });
+});

@@ -145,6 +145,11 @@ export const renovate: ToolKnowledge = {
       'https://docs.renovatebot.com/modules/datasource/pypi/',
       'Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version\'s files.',
     ),
+    negativeMatch: python.verified(
+      '!',
+      'https://docs.renovatebot.com/string-pattern-matching/',
+      'Patterns starting with ! are negative matches, and none of them may match; matchDatasources is matched this way (matchRegexOrGlobList in lib/util/package-rules/datasources.ts at 44.198.0), so ["!pypi"] covers every datasource but PyPI.',
+    ),
     pypiPresets: python.verified(
       { presets: ['security:minimumReleaseAgePypi'], value: '3 days', since: '44.8.0', datasource: 'pypi' },
       'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi',

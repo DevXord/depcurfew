@@ -17,16 +17,7 @@ export function writeRequirementsBlock(body: string, entries: readonly string[],
     const option = optionOf(line);
     return option !== undefined && managed.has(option) ? `${SUPERSEDED}${line.trim()}` : line;
   });
-  if (entries.length === 0) {
-    // The block was set apart by blank lines; leave one.
-    const place = removed.at;
-    if (place !== undefined && lines[place]?.trim() === '' && (place === 0 || lines[place - 1]?.trim() === '')) lines.splice(place, 1);
-    return joinLines(lines);
-  }
-  if (removed.at !== undefined) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
-  const result = insertBlock(lines, at, entries);
-  const after = at + (result.length - lines.length);
-  // Keep the block apart from the requirements that follow it.
-  if (result[after] !== undefined && result[after]?.trim() !== '') result.splice(after, 0, '');
-  return joinLines(result);
+  if (entries.length === 0) return joinLines(lines);
+  // Only a blank line before the block is added, which removing the block takes away again.
+  return joinLines(insertBlock(lines, removed.at ?? at, entries, removed.at === undefined ? undefined : removed.separated));
 }

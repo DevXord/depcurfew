@@ -21,7 +21,17 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
   - nowa reguła `python-config-ignored`.
 - **Własny czytnik TOML** bez zależności, zgodny z `tomllib` na 1089 z 1090 plików z dysku.
 - **Macierz prawdziwych wersji:** uv 0.9.16, 0.9.17, 0.9.25 i 0.13.6; Poetry 2.3.4, 2.4.0 i 2.5.1; pip 25.3, 26.0, 26.1 i 26.2.2. Za stare wersje po cichu wyłączają ochronę (szczegóły w D-065).
-- **Weryfikacja:** `npm test` (1335 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+- **Przegląd kodu:** 10 ustaleń, wszystkie poprawione:
+  - `--hash` w plikach z hashami nie jest już brany za nieznaną opcję;
+  - wymaganie bez nazwy nie dostaje zmyślonej nazwy;
+  - `apply` komentuje też tabelę `[tool.uv.exclude-newer-package]` i zapis z kropką, więc nie psuje TOML;
+  - reguła Renovate dla nazw npm pomija PyPI (`!pypi`), gdy w repozytorium jest Python;
+  - członkowie workspace'u Deno z samym `package.json` znów są wykrywani;
+  - `only-binary = ":all:"` jako tekst jest rozpoznawane;
+  - fakty w komunikatach pochodzą z bazy wiedzy;
+  - usunięcie bloku z `requirements.txt` przywraca plik;
+  - parsowane pliki TOML są zapamiętywane, a powtórzony kod scalony.
+- **Weryfikacja:** `npm test` (1345 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
 
 ## 2026-10-29 · Przygotowanie wydania 1.0.0: marka zamiast danych autora, README na stronę npm
 

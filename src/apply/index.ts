@@ -114,7 +114,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   // Package managers see the policy of their registry; bots serve both and get all of it.
   const run = (tool: ToolKnowledge, version: Version | undefined, action: (context: ReturnType<typeof createContext>) => void) => {
     const view = tool.kind === 'package-manager' ? policyFor(policy, ecosystemOfTool(tool)) : policy;
-    const context = createContext({ tool, tools, policy: view, version, workspace, warnings, snippets, failures });
+    const context = createContext({ tool, tools, targets, policy: view, version, workspace, warnings, snippets, failures });
     try {
       action(context);
     } catch (error) {
