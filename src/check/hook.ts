@@ -5,7 +5,7 @@
 import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import type { ClaudeCodeHooksKnowledge } from '../knowledge/types.ts';
-import { scanCommandLine } from './command.ts';
+import { scanCommandLine, unreadableFix } from './command.ts';
 import type { CheckFinding, FindingCode, PackageReport } from './findings.ts';
 
 /** Findings that break the policy outright; other errors only mean that depcurfew cannot vouch for the package. */
@@ -64,7 +64,7 @@ export function decide(reports: readonly PackageReport[], unreadable: string | u
     };
   }
   const doubts = [
-    ...(unreadable === undefined ? [] : [`- ${unreadable}. Fix: Write the package names out in the command, so depcurfew can check them`]),
+    ...(unreadable === undefined ? [] : [`- ${unreadable}. Fix: ${unreadableFix(unreadable)}`]),
     ...errors.map(({ report, finding }) => line(report, finding)),
   ];
   if (doubts.length > 0) return { decision: 'ask', reason: `depcurfew cannot vouch for what this command installs:\n${doubts.join('\n')}` };

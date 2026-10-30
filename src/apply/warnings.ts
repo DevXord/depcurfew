@@ -5,6 +5,7 @@ import type { ToolId } from '../knowledge/types.ts';
 
 export const APPLY_WARNINGS = {
   'nothing-to-configure': 'depcurfew found no supported package manager or bot, so nothing is configured.',
+  'file-unreadable': 'A file that shows which tools a project uses cannot be parsed, so depcurfew may configure fewer tools than the project uses.',
   'tool-not-supported': 'A detected tool is not supported (Yarn Classic), so nothing is written for it.',
   'version-not-pinned': 'No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.',
   'version-too-old': 'The pinned version of a tool lacks a setting the policy needs, so that setting is not written.',

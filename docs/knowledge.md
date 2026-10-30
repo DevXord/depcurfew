@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-12 tools · 495 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
+12 tools · 496 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
 
 ## Release-age cooldown
 
@@ -368,6 +368,7 @@ How repositories pin tool versions (Corepack, devEngines, Volta, asdf) and how G
 - `python.projectFile` (✅ verified): pyproject.toml [↗](https://packaging.python.org/en/latest/specifications/pyproject-toml/)
 - `python.wheelExtension` (✅ verified): .whl [↗](https://packaging.python.org/en/latest/specifications/binary-distribution-format/)
 - `python.sourceDistributionExtensions` (✅ verified): .tar.gz, .zip, .tar.bz2, .tbz, .tgz, .tar, .tar.xz, .txz, .tlz, .tar.lz, .tar.lzma [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py)
+- `python.hatch` (✅ verified): `{"pyprojectTable":"tool.hatch","configFile":"hatch.toml"}` [↗](https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md)
 - `python.interpreter` (✅ verified): `{"executables":["python","python3","py"],"moduleOption":"-m","commandOption":"-c","valueOptions":["-W","-X","--check-hash-based-pycs"]}` [↗](https://github.com/python/cpython/blob/v3.14.0/Doc/using/cmdline.rst)
 
 ## Notes
@@ -718,6 +719,7 @@ Context recorded with verified facts.
 - `python.projectFile`: The configuration file of a Python project, in the project root; tools keep their own settings in its [tool.<name>] tables. [↗](https://packaging.python.org/en/latest/specifications/pyproject-toml/)
 - `python.wheelExtension`: A wheel is a ZIP archive with the .whl extension; installing it unpacks files and runs no build code. Read from the page source in pypa/packaging.python.org. [↗](https://packaging.python.org/en/latest/specifications/binary-distribution-format/)
 - `python.sourceDistributionExtensions`: ARCHIVE_EXTENSIONS of pip without .whl: the archives pip accepts from an index besides wheels (index/package_finder.py rejects any other extension), all of them built when installed. A standard sdist is named {name}-{version}.tar.gz with the name normalized (PEP 625, source-distribution-format.rst); older uploads use the other extensions and names that are not normalized. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py)
+- `python.hatch`: Hatch reads its project configuration from [tool.hatch] of pyproject.toml or from hatch.toml. It has no setting of its own for a release-age delay, building from source or dependency sources; its environments install with uv (installer = "uv", the default of its internal environments) or pip (docs/how-to/environment/select-installer.md), and uv reads [tool.uv] of the project under Hatch too (tested on 2026-10-30 with Hatch 1.18.2 and uv 0.13.6). [↗](https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md)
 - `python.interpreter`: python [-bBdEhiIOPqRsSuvVWx?] [-c command | -m module-name | script | - ] [args]: -m and -c end the interpreter options, and what follows goes to the module or the command; -W arg, -X option and --check-hash-based-pycs mode take a value, the other options are flags. pip documents running itself as python -m pip, and as py -m pip with the Windows launcher (github.com/pypa/pip/blob/26.2.2/docs/html/cli/pip_install.rst). [↗](https://github.com/python/cpython/blob/v3.14.0/Doc/using/cmdline.rst)
 
 ## To review

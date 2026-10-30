@@ -134,6 +134,16 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       targets.delete(manager.id);
     }
   }
+  // A file detection could not parse may hide a tool; nothing is written into it, but the user should know.
+  for (const warning of detection.warnings.filter((entry) => entry.code === 'invalid-file')) {
+    const file = warning.files[0];
+    warnings.push({
+      code: 'file-unreadable',
+      ...(file === undefined ? {} : { location: { file } }),
+      message: `${warning.message}; depcurfew cannot tell which tools it configures`,
+      fix: `Fix the syntax error${file === undefined ? '' : ` in ${file}`}, then run depcurfew apply again`,
+    });
+  }
   if (targets.size === 0) {
     warnings.push({
       code: 'nothing-to-configure',

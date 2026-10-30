@@ -48,13 +48,17 @@ function nest(path: Path, value: unknown): unknown {
   return path.reduceRight<unknown>((inner, segment) => ({ [String(segment)]: inner }), value);
 }
 
+/** Whether the line above the key at `keyStart` is the marker. */
+function marked(text: string, keyStart: number): boolean {
+  const start = lineStart(text, keyStart);
+  return start > 0 && text.slice(lineStart(text, start - 1), start - 1).trim() === YAML_MARKER;
+}
+
 /** Adds the marker line above the key at `keyStart`, unless it is already there or the key shares a line with "- ". */
 function mark(text: string, keyStart: number): string {
   const start = lineStart(text, keyStart);
   const indent = text.slice(start, keyStart);
-  if (!/^[ \t]*$/u.test(indent)) return text;
-  const previousStart = lineStart(text, start - 1);
-  if (start > 0 && text.slice(previousStart, start - 1).trim() === YAML_MARKER) return text;
+  if (!/^[ \t]*$/u.test(indent) || marked(text, keyStart)) return text;
   return `${text.slice(0, start)}${indent}${YAML_MARKER}\n${text.slice(start)}`;
 }
 
@@ -101,6 +105,8 @@ export function yamlSet(text: string, path: Path, value: unknown): string {
   let node = document.contents as Node;
   if (!isMap(node)) throw new Error('the YAML document is not a map');
 
+  // A key inside a map that already carries the marker is managed with it and gets no marker of its own.
+  let insideMarked = false;
   for (const [index, segment] of path.entries()) {
     if (typeof segment === 'number') {
       if (!isSeq(node) || node.items[segment] === undefined) throw new Error(`no item ${segment} at ${path.slice(0, index).join('.')}`);
@@ -117,7 +123,7 @@ export function yamlSet(text: string, path: Path, value: unknown): string {
       const range = node.range ?? [text.length, text.length, text.length];
       let insertAt = range[2];
       const prefix = insertAt > 0 && text[insertAt - 1] !== '\n' ? '\n' : '';
-      const addition = indentLines(`${YAML_MARKER}\n${render({ [segment]: nest(path.slice(index + 1), value) }, text)}`, indent);
+      const addition = indentLines(`${insideMarked ? '' : `${YAML_MARKER}\n`}${render({ [segment]: nest(path.slice(index + 1), value) }, text)}`, indent);
       return `${text.slice(0, insertAt)}${prefix}${addition}${text.slice(insertAt)}`;
     }
     if (index === path.length - 1) {
@@ -144,13 +150,14 @@ export function yamlSet(text: string, path: Path, value: unknown): string {
         const tail = text.slice(stop);
         replaced = `${text.slice(0, colon + 1)}${body}${tail.startsWith('\n') && body.endsWith('\n') ? tail.slice(1) : tail}`;
       }
-      return mark(replaced, keyRange[0]);
+      return insideMarked ? replaced : mark(replaced, keyRange[0]);
     }
     if (pair.value === null || !(isMap(pair.value) || isSeq(pair.value))) {
       if (isFlow(node)) refuseFlow(path, index, value);
       // A scalar stands where a map is needed: replace it with the nested map.
       return yamlSet(text, path.slice(0, index + 1), nest(path.slice(index + 1), value));
     }
+    if (pair.key.range !== null && pair.key.range !== undefined && marked(text, pair.key.range[0])) insideMarked = true;
     node = pair.value;
   }
   return text;

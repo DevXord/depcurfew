@@ -1012,3 +1012,14 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 - **Hatch (1.18.2): bez generatora.** Hatch nie ma własnych ustawień opóźnienia, budowania ani źródeł; jego środowiska instalują przez uv albo pip. Projekt Hatch z instalatorem uv obsługuje istniejący generator uv (`"uv"` w `targets`, bo uv czyta `[tool.uv]` także pod Hatchem), a środowiska z pip — zmienne środowiskowe pip. README to opisuje; osobne wykrywanie Hatch nie dawałoby nic do skonfigurowania.
 - **Boty.** Dependabot `pip` obejmuje Pipenv; PDM nie jest obsługiwany (dependabot-core pomija pyproject.toml przy pdm.lock). Renovate: `pep621` dla PDM, `pipenv` dla Pipenv.
 - **Nowe kody `apply`:** `exclude-unsupported`, `build-switch-environment-only`. Nowe narzędzia w `targets` (schema.json): `pdm`, `pipenv`.
+
+## D-073 · Poprawki z pełnego testu paczki (2026-10-30)
+
+Pełny test paczki z tarballa (`npm pack`) na projektach testowych npm, pnpm, Yarn, Bun, Deno, uv, Poetry, pip, PDM, Pipenv i Hatch, z botami, GitHub Action i biblioteką, znalazł cztery rzeczy do poprawy:
+
+- **Podwójny znacznik w YAML.** Po ręcznej zmianie `default-days` w dependabot.yml `apply` dopisywał drugi komentarz `# managed by depcurfew` wewnątrz bloku `cooldown`, który już go miał. Klucz w mapie oznaczonej znacznikiem nie dostaje teraz własnego, ani przy podmianie wartości, ani przy dopisaniu nowego klucza.
+- **Wskazówki hooka.** Polecenie wskazujące inny indeks, pobierany skrypt (`uv run https://…`) i powłoka czytająca z potoku dostawały ogólną wskazówkę „wypisz nazwy paczek”. Każdy przypadek ma teraz własną (`unreadableFix` w `src/check/command.ts`, z tych samych stałych, z których powstaje powód).
+- **Zepsuty pyproject.toml.** `explain` zgłaszał obok `invalid-file` mylące `python-tool-unknown` („brak tabeli”), a `apply` mówił tylko, że nie ma czego konfigurować. Teraz zostaje samo `invalid-file`, a `apply` ostrzega nowym kodem `file-unreadable` z położeniem i poprawką.
+- **Hatch.** Ostrzeżenie `python-tool-unknown` w projekcie z `[tool.hatch]` albo `hatch.toml` podpowiada dodanie `"uv"` do `targets`, zgodnie z D-072.
+
+Bez zmian, bo to zamierzone: puste `FORCE_COLOR=` włącza kolory, a `FORCE_COLOR` wygrywa z `NO_COLOR`, tak jak w Node i supports-color (test w `tests/color.test.ts`). Krok Node akcji kończy się kodem 0 przy błędach, a zadanie przerywa następny krok `action.yml` (`fail-on-error`).

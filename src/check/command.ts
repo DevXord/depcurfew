@@ -640,8 +640,22 @@ function sameRegistry(value: string, registry: string): boolean {
   return registry !== '' && normalized(value) === normalized(registry);
 }
 
+const ANOTHER_REGISTRY = 'may point the package manager at another registry, which depcurfew does not look up';
+const SCRIPT_DOWNLOAD = 'downloads and runs a script from';
+const FROM_INPUT = 'it runs commands from its input';
+
 function anotherRegistry(name: string): string {
-  return `${name} may point the package manager at another registry, which depcurfew does not look up`;
+  return `${name} ${ANOTHER_REGISTRY}`;
+}
+
+/** What to do about a command that cannot be read, by why it cannot be read. */
+export function unreadableFix(reason: string): string {
+  if (reason.includes(ANOTHER_REGISTRY)) {
+    return 'Leave out the option or variable so that packages come from the registry depcurfew checks; if the other registry is intended, the user decides';
+  }
+  if (reason.includes(SCRIPT_DOWNLOAD)) return 'Download the script and read it first, or install its dependencies by name so that depcurfew can check them';
+  if (reason.includes(FROM_INPUT)) return 'Download the script and read it first, or run its commands one by one so that depcurfew can check them';
+  return 'Write the package names out in the command, so depcurfew can check them';
 }
 
 /** Why an option may change where the tool fetches packages from; undefined when it does not. */
@@ -753,7 +767,7 @@ function isInterpreter(text: string, names: readonly string[] | undefined): bool
 }
 
 function scriptDownload(text: string): string {
-  return `it downloads and runs a script from ${shown(text)}, whose dependencies depcurfew cannot see`;
+  return `it ${SCRIPT_DOWNLOAD} ${shown(text)}, whose dependencies depcurfew cannot see`;
 }
 
 /**
@@ -887,7 +901,7 @@ function scanShell(words: readonly Word[], command: SimpleCommand, depth: number
   const reads = fromInput || operand === undefined || operand.text === '-';
   if (!reads || command.later === true) return NOTHING;
   // A here-document or here-string is known; a pipe or a file is not.
-  if (command.input.length === 0 || command.redirected) return unreadable(`${shown(joined(words))}: it runs commands from its input`);
+  if (command.input.length === 0 || command.redirected) return unreadable(`${shown(joined(words))}: ${FROM_INPUT}`);
   const scan: CommandScan = { requests: [], unreadable: undefined };
   for (const input of command.input) merge(scan, scanLine(input, depth + 1));
   return scan;

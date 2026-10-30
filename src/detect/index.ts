@@ -335,12 +335,15 @@ export function detectProject(
     );
   }
   const python = facts.managers.filter((manager) => manager.ecosystem === 'pypi');
-  if (repository.isFile(facts.pythonProject) && !hasEvidence('pypi')) {
+  // A project file that cannot be parsed is reported as such (invalid-file), not as one without a tool's table.
+  if (repository.isFile(facts.pythonProject) && readToml(repository, facts.pythonProject) !== undefined && !hasEvidence('pypi')) {
     const tables = python.flatMap((manager) => (manager.pyprojectTable === null ? [] : [`[${manager.pyprojectTable}]`]));
     const files = [...python.flatMap((manager) => manager.lockfiles), ...python.flatMap((manager) => manager.manifests.filter((file) => file !== facts.pythonProject))];
+    // Hatch has no settings of its own; its environments install with uv or pip, which can be configured instead.
+    const hatch = repository.isFile(facts.hatch.configFile) || tomlAt(readToml(repository, facts.pythonProject), facts.hatch.pyprojectTable.split('.')) !== undefined;
     repository.warn(
       'python-tool-unknown',
-      `${facts.pythonProject} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none`,
+      `${facts.pythonProject} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none${hatch ? '. Hatch has no supply-chain settings of its own: if its environments use the uv installer, add "uv" to targets in depcurfew.json' : ''}`,
       [facts.pythonProject],
     );
   }

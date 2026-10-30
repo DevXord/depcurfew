@@ -508,5 +508,7 @@ export interface EnvironmentKnowledge {
     /** File extensions of source distributions on an index, which are built when installed. */
     sourceDistributionExtensions: Fact<readonly string[]>;
     interpreter: Fact<PythonInterpreterKnowledge>;
+    /** Hatch, which has no supply-chain settings of its own: how a project shows it uses Hatch. */
+    hatch: Fact<{ pyprojectTable: string; configFile: string }>;
   };
 }

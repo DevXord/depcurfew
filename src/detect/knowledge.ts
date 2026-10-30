@@ -49,6 +49,8 @@ export interface DetectionFacts {
   managers: ManagerFacts[];
   /** The project file of Python projects (pyproject.toml). */
   pythonProject: string;
+  /** Hatch's table in pyproject.toml and its own file; Hatch is not configured, only pointed to uv. */
+  hatch: { pyprojectTable: string; configFile: string };
   bots: BotFacts[];
   yarn: { berryMarker: string; classicHeader: string };
   packageManagerKey: string;
@@ -158,6 +160,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
   return {
     managers,
     pythonProject,
+    hatch: first(environment.python.hatch),
     bots,
     yarn: { berryMarker: extraString(yarn, 'berryLockfileMarker'), classicHeader: extraString(yarn, 'classicLockfileHeader') },
     packageManagerKey: first(environment.corepack.packageManagerField).key,

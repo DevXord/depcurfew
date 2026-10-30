@@ -2844,6 +2844,10 @@ const environment = {
 			".tar.lz",
 			".tar.lzma"
 		], "https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py", "ARCHIVE_EXTENSIONS of pip without .whl: the archives pip accepts from an index besides wheels (index/package_finder.py rejects any other extension), all of them built when installed. A standard sdist is named {name}-{version}.tar.gz with the name normalized (PEP 625, source-distribution-format.rst); older uploads use the other extensions and names that are not normalized."),
+		hatch: python.verified({
+			pyprojectTable: "tool.hatch",
+			configFile: "hatch.toml"
+		}, "https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md", "Hatch reads its project configuration from [tool.hatch] of pyproject.toml or from hatch.toml. It has no setting of its own for a release-age delay, building from source or dependency sources; its environments install with uv (installer = \"uv\", the default of its internal environments) or pip (docs/how-to/environment/select-installer.md), and uv reads [tool.uv] of the project under Hatch too (tested on 2026-10-30 with Hatch 1.18.2 and uv 0.13.6)."),
 		interpreter: python.verified({
 			executables: [
 				"python",
@@ -9698,6 +9702,7 @@ function detectionFacts(tools, environment) {
 	return {
 		managers,
 		pythonProject,
+		hatch: first(environment.python.hatch),
 		bots,
 		yarn: {
 			berryMarker: extraString(yarn, "berryLockfileMarker"),
@@ -10716,10 +10721,11 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	const npmLockfiles = withLockfiles.filter(([id]) => ecosystemOf(id) === "npm");
 	if (declaredManager !== void 0 && !lockfiles.has(declaredManager) && npmLockfiles.length > 0) repository.warn("package-manager-mismatch", `${facts.packageManagerKey} names ${declaredManager}, but no ${declaredManager} lockfile exists`, ["package.json"]);
 	const python = facts.managers.filter((manager) => manager.ecosystem === "pypi");
-	if (repository.isFile(facts.pythonProject) && !hasEvidence("pypi")) {
+	if (repository.isFile(facts.pythonProject) && readToml(repository, facts.pythonProject) !== void 0 && !hasEvidence("pypi")) {
 		const tables = python.flatMap((manager) => manager.pyprojectTable === null ? [] : [`[${manager.pyprojectTable}]`]);
 		const files = [...python.flatMap((manager) => manager.lockfiles), ...python.flatMap((manager) => manager.manifests.filter((file) => file !== facts.pythonProject))];
-		repository.warn("python-tool-unknown", `${facts.pythonProject} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none`, [facts.pythonProject]);
+		const hatch = repository.isFile(facts.hatch.configFile) || tomlAt(readToml(repository, facts.pythonProject), facts.hatch.pyprojectTable.split(".")) !== void 0;
+		repository.warn("python-tool-unknown", `${facts.pythonProject} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none${hatch ? ". Hatch has no supply-chain settings of its own: if its environments use the uv installer, add \"uv\" to targets in depcurfew.json" : ""}`, [facts.pythonProject]);
 	}
 	if (manifest === void 0 && packageManagers.length === 0 && !repository.isFile("package.json") && !repository.isFile(facts.pythonProject)) repository.warn("nothing-detected", "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found", []);
 	return {
@@ -13140,13 +13146,16 @@ function indentLines(block, indent) {
 function nest(path, value) {
 	return path.reduceRight((inner, segment) => ({ [String(segment)]: inner }), value);
 }
+/** Whether the line above the key at `keyStart` is the marker. */
+function marked(text, keyStart) {
+	const start = lineStart(text, keyStart);
+	return start > 0 && text.slice(lineStart(text, start - 1), start - 1).trim() === "# managed by depcurfew";
+}
 /** Adds the marker line above the key at `keyStart`, unless it is already there or the key shares a line with "- ". */
 function mark(text, keyStart) {
 	const start = lineStart(text, keyStart);
 	const indent = text.slice(start, keyStart);
-	if (!/^[ \t]*$/u.test(indent)) return text;
-	const previousStart = lineStart(text, start - 1);
-	if (start > 0 && text.slice(previousStart, start - 1).trim() === "# managed by depcurfew") return text;
+	if (!/^[ \t]*$/u.test(indent) || marked(text, keyStart)) return text;
 	return `${text.slice(0, start)}${indent}${YAML_MARKER}\n${text.slice(start)}`;
 }
 function yamlGet(text, path) {
@@ -13180,6 +13189,7 @@ function yamlSet(text, path, value) {
 	if (document.contents === null || (0, import_dist.isScalar)(document.contents) && document.contents.value === null) return `${text.trim() === "" ? "" : text.endsWith("\n") ? text : `${text}\n`}${YAML_MARKER}\n${render(nest(path, value), text)}`;
 	let node = document.contents;
 	if (!(0, import_dist.isMap)(node)) throw new Error("the YAML document is not a map");
+	let insideMarked = false;
 	for (const [index, segment] of path.entries()) {
 		if (typeof segment === "number") {
 			if (!(0, import_dist.isSeq)(node) || node.items[segment] === void 0) throw new Error(`no item ${segment} at ${path.slice(0, index).join(".")}`);
@@ -13198,7 +13208,7 @@ function yamlSet(text, path, value) {
 				text.length
 			])[2];
 			const prefix = insertAt > 0 && text[insertAt - 1] !== "\n" ? "\n" : "";
-			const addition = indentLines(`${YAML_MARKER}\n${render({ [segment]: nest(path.slice(index + 1), value) }, text)}`, indent);
+			const addition = indentLines(`${insideMarked ? "" : `${YAML_MARKER}\n`}${render({ [segment]: nest(path.slice(index + 1), value) }, text)}`, indent);
 			return `${text.slice(0, insertAt)}${prefix}${addition}${text.slice(insertAt)}`;
 		}
 		if (index === path.length - 1) {
@@ -13221,12 +13231,13 @@ function yamlSet(text, path, value) {
 				const tail = text.slice(stop);
 				replaced = `${text.slice(0, colon + 1)}${body}${tail.startsWith("\n") && body.endsWith("\n") ? tail.slice(1) : tail}`;
 			}
-			return mark(replaced, keyRange[0]);
+			return insideMarked ? replaced : mark(replaced, keyRange[0]);
 		}
 		if (pair.value === null || !((0, import_dist.isMap)(pair.value) || (0, import_dist.isSeq)(pair.value))) {
 			if (isFlow(node)) refuseFlow(path, index, value);
 			return yamlSet(text, path.slice(0, index + 1), nest(path.slice(index + 1), value));
 		}
+		if (pair.key.range !== null && pair.key.range !== void 0 && marked(text, pair.key.range[0])) insideMarked = true;
 		node = pair.value;
 	}
 	return text;
@@ -14256,6 +14267,15 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 			...advice === void 0 ? {} : { fix: advice }
 		});
 		targets.delete(manager.id);
+	}
+	for (const warning of detection.warnings.filter((entry) => entry.code === "invalid-file")) {
+		const file = warning.files[0];
+		warnings.push({
+			code: "file-unreadable",
+			...file === void 0 ? {} : { location: { file } },
+			message: `${warning.message}; depcurfew cannot tell which tools it configures`,
+			fix: `Fix the syntax error${file === void 0 ? "" : ` in ${file}`}, then run depcurfew apply again`
+		});
 	}
 	if (targets.size === 0) warnings.push({
 		code: "nothing-to-configure",

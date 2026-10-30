@@ -2,6 +2,12 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · Pełny test paczki i poprawki (D-073)
+
+- Test z tarballa na projektach npm, pnpm, Yarn, Bun, Deno, uv, Poetry, pip, PDM, Pipenv i Hatch, z botami, akcją i biblioteką; projekty usunięte po teście, zapis konsoli w scratchpadzie.
+- Poprawki: brak podwójnego znacznika YAML po naprawie rozjazdu, wskazówki hooka zależne od powodu, `file-unreadable` w `apply` i brak mylącego `python-tool-unknown` przy zepsutym pyproject.toml, podpowiedź dla Hatch.
+- Weryfikacja: `npm test` (1750 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-30 · PDM i Pipenv; Hatch przez uv (D-072)
 
 - PDM: wykrywanie, `apply` w `[tool.pdm.resolution]` (opóźnienie, wyjątki, zakaz budowania z listą wyjątków), `doctor` dla `pdm.lock`, stałej daty i trybu uv, hook dla `pdm add`.

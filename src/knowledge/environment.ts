@@ -298,6 +298,11 @@ export const environment: EnvironmentKnowledge = {
       'https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py',
       'ARCHIVE_EXTENSIONS of pip without .whl: the archives pip accepts from an index besides wheels (index/package_finder.py rejects any other extension), all of them built when installed. A standard sdist is named {name}-{version}.tar.gz with the name normalized (PEP 625, source-distribution-format.rst); older uploads use the other extensions and names that are not normalized.',
     ),
+    hatch: python.verified(
+      { pyprojectTable: 'tool.hatch', configFile: 'hatch.toml' },
+      'https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md',
+      'Hatch reads its project configuration from [tool.hatch] of pyproject.toml or from hatch.toml. It has no setting of its own for a release-age delay, building from source or dependency sources; its environments install with uv (installer = "uv", the default of its internal environments) or pip (docs/how-to/environment/select-installer.md), and uv reads [tool.uv] of the project under Hatch too (tested on 2026-10-30 with Hatch 1.18.2 and uv 0.13.6).',
+    ),
     interpreter: python.verified(
       { executables: ['python', 'python3', 'py'], moduleOption: '-m', commandOption: '-c', valueOptions: ['-W', '-X', '--check-hash-based-pycs'] },
       'https://github.com/python/cpython/blob/v3.14.0/Doc/using/cmdline.rst',
