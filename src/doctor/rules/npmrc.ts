@@ -12,12 +12,8 @@ import { policyFor } from '../../policy/ecosystem.ts';
 import { matchesPattern } from '../allow-lists.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion } from '../effective.ts';
-import { iniEntries, iniLines, iniValue, yamlSetting, type IniEntry } from '../settings.ts';
+import { iniEntries, iniLines, iniValue, npmrcKey, yamlSetting, type IniEntry } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
-
-function kebab(setting: string): string {
-  return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
-}
 
 function before(version: Version, limit: unknown): boolean {
   const until = typeof limit === 'string' ? parseVersion(limit) : undefined;
@@ -185,7 +181,7 @@ function checkPnpmRoot(context: RuleContext): void {
   const cooldownSetting = settingOf(pnpm.tool.cooldown.setting);
   const excludeSetting = settingOf(pnpm.tool.cooldown.exclude.setting);
   const label = `pnpm ${formatVersion(pnpm.version)}`;
-  for (const entry of entriesFor(context, '.npmrc', npmrcKeys(pnpm.tool, kebab))) {
+  for (const entry of entriesFor(context, '.npmrc', npmrcKeys(pnpm.tool, npmrcKey))) {
     if (precedence['winner'] === 'pnpm-workspace.yaml' && workspace !== undefined && yamlSetting(workspace, [entry.setting]) !== undefined) continue;
     if (entry.setting === cooldownSetting) {
       const wanted = convertCooldown(pnpm.tool, policy.cooldown.minimum);
@@ -242,7 +238,7 @@ export const pnpmSharedWorkspaceLockfile: Rule = {
     const value = fromYaml !== undefined ? fromYaml.value : fromNpmrc !== undefined ? iniValue(fromNpmrc.value) : shared['default'];
     if (value !== perProject['sharedWorkspaceLockfile']) return;
     const where = fromYaml !== undefined ? 'pnpm-workspace.yaml' : '.npmrc';
-    const keys = npmrcKeys(pnpm.tool, kebab);
+    const keys = npmrcKeys(pnpm.tool, npmrcKey);
     for (const file of packageNpmrcFiles(context)) {
       for (const entry of entriesFor(context, file, keys)) {
         context.report({

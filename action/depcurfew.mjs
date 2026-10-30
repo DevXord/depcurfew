@@ -11879,6 +11879,10 @@ function iniLines(text) {
 function iniEntries(text) {
 	return iniLines(text).filter((entry) => entry.section === void 0);
 }
+/** A camelCase setting as pnpm 10 reads it from .npmrc, e.g. minimumReleaseAge as minimum-release-age. */
+function npmrcKey(setting) {
+	return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
+}
 /** A parsed INI value: true/false, numbers and strings as npm reads them. */
 function iniValue(value) {
 	if (value === "true") return true;
@@ -14636,6 +14640,17 @@ function managerConfigFiles(tool, manager) {
 	if (tool.id === "deno") return manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file));
 	return (values$1(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== ".npmrc" || tool.id === "npm").slice(0, 1);
 }
+/**
+* pnpm before 11 also reads its settings from the root .npmrc, spelled in kebab case, when pnpm-workspace.yaml does not
+* set them (extra.npmrcPrecedence); pnpm 11 reads only auth and registry settings there (extra.ignoredSince).
+*/
+function pnpmNpmrcSetting(context, tool, version, setting) {
+	if (tool.id !== "pnpm" || tool.extra?.["npmrcPrecedence"] === void 0 || tool.extra["ignoredSince"] === void 0) return void 0;
+	const until = parseVersion(String(extraOf(tool, "ignoredSince", isRecord)["since"]));
+	const over = extraOf(tool, "npmrcPrecedence", isRecord)["over"];
+	if (until === void 0 || version === void 0 || compareVersions$1(version, until) >= 0 || !Array.isArray(over) || !over.includes(".npmrc")) return void 0;
+	return readSetting(context.repository, ".npmrc", npmrcKey(setting));
+}
 /** The package manager's delay, or undefined (with a notice) when a configured value cannot be read. */
 function managerDelay(context, manager, tool) {
 	const version = pinnedVersion(manager) ?? latestVersion(tool);
@@ -14652,18 +14667,23 @@ function managerDelay(context, manager, tool) {
 	};
 	if (setting !== null) {
 		let found;
+		let key = setting;
 		if (ecosystemOfTool(tool) === "pypi") found = readPythonSetting(context.repository, tool, setting);
 		else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
+		if (found === void 0) {
+			found = pnpmNpmrcSetting(context, tool, version, setting);
+			if (found !== void 0) key = npmrcKey(setting);
+		}
 		if (found !== void 0) {
 			const raw = isRecord(found.value) ? found.value["age"] : found.value;
 			const delay = delayMinutes(tool, raw, version);
 			if (!delay.ok) {
-				context.notice(`${tool.name}: cannot read ${setting} in ${found.file}: ${delay.reason}`, found.file);
+				context.notice(`${tool.name}: cannot read ${key} in ${found.file}: ${delay.reason}`, found.file);
 				return;
 			}
 			return {
 				minutes: delay.minutes,
-				origin: `${setting}: ${JSON.stringify(raw)} in ${found.file}`,
+				origin: `${key}: ${JSON.stringify(raw)} in ${found.file}`,
 				location: {
 					file: found.file,
 					line: found.line
@@ -15158,9 +15178,6 @@ function atLeast(version, since) {
 	const required = typeof since === "string" ? parseVersion(since) : void 0;
 	return required !== void 0 && compareVersions$1(version, required) >= 0;
 }
-function kebab$1(setting) {
-	return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
-}
 /** Lockfiles an older version read but this one does not (only from verified facts). */
 function checkLockfiles(context, tool, version, label) {
 	const fact = tool.project?.lockfiles;
@@ -15203,7 +15220,7 @@ function checkPnpm(context, tool, version, label) {
 		].filter((setting) => setting !== null);
 		const npmrc = context.repository.readText(".npmrc");
 		for (const entry of npmrc === void 0 ? [] : iniEntries(npmrc)) {
-			const setting = settings.find((name) => kebab$1(name) === entry.key.replace(/\[\]$/u, ""));
+			const setting = settings.find((name) => npmrcKey(name) === entry.key.replace(/\[\]$/u, ""));
 			if (setting === void 0) continue;
 			const inWorkspace = workspace !== void 0 && yamlSetting(workspace, [setting]) !== void 0;
 			context.report({
@@ -15737,9 +15754,6 @@ const managerVersionTooOld = {
 };
 
 // src/doctor/rules/npmrc.ts
-function kebab(setting) {
-	return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
-}
 function before(version, limit) {
 	const until = typeof limit === "string" ? parseVersion(limit) : void 0;
 	return until !== void 0 && compareVersions$1(version, until) < 0;
@@ -15907,7 +15921,7 @@ function checkPnpmRoot(context) {
 	const cooldownSetting = settingOf(pnpm.tool.cooldown.setting);
 	const excludeSetting = settingOf(pnpm.tool.cooldown.exclude.setting);
 	const label = `pnpm ${formatVersion(pnpm.version)}`;
-	for (const entry of entriesFor(context, ".npmrc", npmrcKeys(pnpm.tool, kebab))) {
+	for (const entry of entriesFor(context, ".npmrc", npmrcKeys(pnpm.tool, npmrcKey))) {
 		if (precedence["winner"] === "pnpm-workspace.yaml" && workspace !== void 0 && yamlSetting(workspace, [entry.setting]) !== void 0) continue;
 		if (entry.setting === cooldownSetting) {
 			const wanted = convertCooldown(pnpm.tool, policy.cooldown.minimum);
@@ -15963,7 +15977,7 @@ const pnpmSharedWorkspaceLockfile = {
 		const fromNpmrc = iniEntries(context.repository.readText(".npmrc") ?? "").filter((entry) => entry.key === shared["npmrcKey"]).at(-1);
 		if ((fromYaml !== void 0 ? fromYaml.value : fromNpmrc !== void 0 ? iniValue(fromNpmrc.value) : shared["default"]) !== perProject["sharedWorkspaceLockfile"]) return;
 		const where = fromYaml !== void 0 ? "pnpm-workspace.yaml" : ".npmrc";
-		const keys = npmrcKeys(pnpm.tool, kebab);
+		const keys = npmrcKeys(pnpm.tool, npmrcKey);
 		for (const file of packageNpmrcFiles(context)) for (const entry of entriesFor(context, file, keys)) context.report({
 			location: {
 				file,

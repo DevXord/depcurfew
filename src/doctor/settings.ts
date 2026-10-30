@@ -94,6 +94,11 @@ export function iniEntries(text: string): IniEntry[] {
   return iniLines(text).filter((entry) => entry.section === undefined);
 }
 
+/** A camelCase setting as pnpm 10 reads it from .npmrc, e.g. minimumReleaseAge as minimum-release-age. */
+export function npmrcKey(setting: string): string {
+  return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
+}
+
 /** A parsed INI value: true/false, numbers and strings as npm reads them. */
 export function iniValue(value: string): unknown {
   if (value === 'true') return true;
