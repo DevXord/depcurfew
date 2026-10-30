@@ -14565,6 +14565,14 @@ function delayMinutes(tool, value, version) {
 		ok: true,
 		minutes: 0
 	};
+	if (typeof value === "number" && Number.isNaN(value)) return {
+		ok: false,
+		reason: "NaN is not a delay"
+	};
+	if (typeof value === "bigint" || typeof value === "number" && Math.abs(value) > Number.MAX_SAFE_INTEGER) return {
+		ok: false,
+		reason: `${String(value)} is too large to be a delay`
+	};
 	if (typeof value === "number") {
 		const unit = values$1(tool.cooldown.unit)[0];
 		const factor = unit === null || unit === void 0 ? void 0 : UNIT_MINUTES[unit];
@@ -14578,7 +14586,7 @@ function delayMinutes(tool, value, version) {
 	}
 	if (typeof value !== "string") return {
 		ok: false,
-		reason: `${JSON.stringify(value)} is not a delay`
+		reason: `${JSON.stringify(value) ?? String(value)} is not a delay`
 	};
 	const text = value.trim();
 	if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);

@@ -55,12 +55,17 @@ export type DelayValue = { ok: true; minutes: number } | { ok: false; reason: st
 /** A delay as written for `tool` at `version` (undefined: the latest version). null and 0 mean no delay. */
 export function delayMinutes(tool: ToolKnowledge, value: unknown, version: Version | undefined): DelayValue {
   if (value === null || value === undefined || value === false) return { ok: true, minutes: 0 };
+  if (typeof value === 'number' && Number.isNaN(value)) return { ok: false, reason: 'NaN is not a delay' };
+  // TOML integers beyond Number.MAX_SAFE_INTEGER arrive as BigInt, which JSON.stringify cannot write.
+  if (typeof value === 'bigint' || (typeof value === 'number' && Math.abs(value) > Number.MAX_SAFE_INTEGER)) {
+    return { ok: false, reason: `${String(value)} is too large to be a delay` };
+  }
   if (typeof value === 'number') {
     const unit = values(tool.cooldown.unit)[0];
     const factor = unit === null || unit === undefined ? undefined : UNIT_MINUTES[unit];
     return factor === undefined ? { ok: false, reason: `${tool.name} takes no number here` } : { ok: true, minutes: value * factor };
   }
-  if (typeof value !== 'string') return { ok: false, reason: `${JSON.stringify(value)} is not a delay` };
+  if (typeof value !== 'string') return { ok: false, reason: `${JSON.stringify(value) ?? String(value)} is not a delay` };
   const text = value.trim();
   if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
   const fact = tool.extra?.['durationStrings'];
