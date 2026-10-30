@@ -124,6 +124,11 @@ export const pip: ToolKnowledge = {
       NEWS,
       'The option exists since 7.0.0; when requirements files started to accept it is not recorded. pip applies it only to packages found on indexes and find-links (format_control is used only by the package finder), so VCS, local directory and direct URL source requirements are still built.',
     ),
+    configFileNames: verified(
+      ['pip.conf', 'pip.ini'],
+      `${PIP}/src/pip/_internal/configuration.py`,
+      'CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project.',
+    ),
     environmentVariable: verified(
       'PIP_UPLOADED_PRIOR_TO',
       `${CONFIGURATION}#environment-variables`,

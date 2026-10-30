@@ -930,6 +930,7 @@ const pip$1 = {
 			since: "7.0.0",
 			covers: ["registry"]
 		}, NEWS, "The option exists since 7.0.0; when requirements files started to accept it is not recorded. pip applies it only to packages found on indexes and find-links (format_control is used only by the package finder), so VCS, local directory and direct URL source requirements are still built."),
+		configFileNames: verified$6(["pip.conf", "pip.ini"], `${PIP}/src/pip/_internal/configuration.py`, "CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project."),
 		environmentVariable: verified$6("PIP_UPLOADED_PRIOR_TO", `${CONFIGURATION$2}#environment-variables`, "Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores."),
 		durationStrings: verified$6({
 			since: "26.1.0",
@@ -1517,6 +1518,8 @@ const uv$1 = {
 		}, CONFIGURATION, "Settings sit in [tool.uv] in pyproject.toml and at the top level of uv.toml. uv.toml cannot hold workspace, sources and a few other project fields."),
 		pyprojectTable: verified$2("tool.uv", CONFIGURATION, "A pyproject.toml without a [tool.uv] table is ignored when uv searches for configuration."),
 		configPrecedence: verified$2("uv.toml wins over [tool.uv] in the same directory; only the nearest directory with either is read, and in a workspace only the root", CONFIGURATION, "A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories."),
+		configFileOrder: verified$2(["uv.toml", "pyproject.toml"], CONFIGURATION, "\"configuration will be read from uv.toml, and the [tool.uv] section in the accompanying pyproject.toml will be ignored\"; uv prints a warning listing the ignored fields."),
+		workspaceRootOnly: verified$2(true, CONFIGURATION, "\"In workspaces, uv will begin its search at the workspace root, ignoring any configuration defined in workspace members.\" Project fields such as tool.uv.sources of a member still apply."),
 		buildSwitch: verified$2({
 			setting: "no-build",
 			value: true,
@@ -13143,6 +13146,7 @@ function formatMinutes(minutes) {
 }
 
 // src/doctor/python.ts
+const isStringList = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 function tomlSettingAt(repository, file, path) {
 	if (!repository.isFile(file)) return void 0;
 	const text = repository.readText(file);
@@ -13166,7 +13170,7 @@ function tomlSettingAt(repository, file, path) {
 function pythonSettingPaths(repository, tool, setting) {
 	const tables = tool.extra?.["configTables"] === void 0 ? void 0 : extraOf(tool, "configTables", isRecord$1);
 	if (tables !== void 0) {
-		const files = Object.keys(tables).sort((a, b) => Number(a === "pyproject.toml") - Number(b === "pyproject.toml"));
+		const files = (tool.extra?.["configFileOrder"] === void 0 ? Object.keys(tables) : extraOf(tool, "configFileOrder", isStringList)).filter((name) => name in tables);
 		const file = files.find((name) => repository.isFile(name)) ?? files[0];
 		if (file === void 0) return [];
 		const table = String(tables[file] ?? "");
@@ -14430,6 +14434,120 @@ const pnpmSharedWorkspaceLockfile = {
 	}
 };
 
+// src/doctor/rules/python-config.ts
+const isStrings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+/** The settings depcurfew manages for a Python tool, as keys of its configuration table. */
+function managedKeys(tool) {
+	const build = tool.extra?.["buildSwitch"] === void 0 ? void 0 : extraOf(tool, "buildSwitch", isSwitch);
+	const required = tool.extra?.["requiredVersion"] === void 0 ? void 0 : extraOf(tool, "requiredVersion", isRecord$1);
+	return [
+		settingOf(tool.cooldown.setting),
+		settingOf(tool.cooldown.exclude.setting),
+		build?.setting ?? null,
+		settingOf(tool.installScripts.allowList.setting),
+		typeof required?.["key"] === "string" ? required["key"] : null
+	].filter((key) => key !== null);
+}
+/** The keys of a TOML table in a file that set one of `keys`, with their lines. */
+function keysIn(context, file, table, keys) {
+	const text = context.repository.isFile(file) ? context.repository.readText(file) : void 0;
+	if (text === void 0) return [];
+	let document;
+	try {
+		document = parseToml(text);
+	} catch {
+		return [];
+	}
+	let node = document.root;
+	for (const key of table) node = isRecord$1(node) ? node[key] : void 0;
+	if (!isRecord$1(node)) return [];
+	return keys.filter((key) => key in node).map((key) => ({
+		key,
+		line: document.lineOf([...table, key]) ?? 1
+	}));
+}
+function checkUv(context, tool) {
+	const tables = extraOf(tool, "configTables", isRecord$1);
+	const order = extraOf(tool, "configFileOrder", isStrings);
+	const [winner, loser] = order;
+	if (winner === void 0 || loser === void 0) return;
+	const keys = managedKeys(tool);
+	const table = (file) => String(tables[file] ?? "") === "" ? [] : String(tables[file]).split(".");
+	if (context.repository.isFile(winner)) for (const { key, line } of keysIn(context, loser, table(loser), keys)) context.report({
+		location: {
+			file: loser,
+			line
+		},
+		message: `uv reads ${winner} and ignores [${String(tables[loser])}] in ${loser}, so ${key} here has no effect`,
+		fix: `Move ${key} to ${winner}, or remove it from ${loser}`
+	});
+	if (extraOf(tool, "workspaceRootOnly", (value) => typeof value === "boolean")) for (const member of context.detection.workspaces?.packages ?? []) for (const file of order) {
+		const path = joinPath(member, file);
+		for (const { key, line } of keysIn(context, path, table(file), keys)) context.report({
+			location: {
+				file: path,
+				line
+			},
+			message: `uv reads settings only from the workspace root, so ${key} in ${path} has no effect`,
+			fix: `Set ${key} in the root ${winner} or [${String(tables["pyproject.toml"])}] of the root pyproject.toml, and remove it from ${path}`
+		});
+	}
+	const setting = settingOf(tool.cooldown.setting);
+	const found = setting === null ? void 0 : readPythonSetting(context.repository, tool, setting);
+	if (found !== void 0 && (typeof found.value === "string" || typeof found.value === "object") && /^\d{4}-\d{2}-\d{2}/u.test(String(found.value))) context.report({
+		level: "warning",
+		location: {
+			file: found.file,
+			line: found.line
+		},
+		message: `${setting} is the fixed date ${String(found.value)}, so uv never uses versions uploaded after it; that is a freeze, not a delay that moves with time`,
+		fix: `Write a duration such as "3 days" (uv 0.9.17 or later), or let depcurfew apply write it from cooldown.minimum`
+	});
+}
+function checkPip(context, tool, configFiles) {
+	const names = extraOf(tool, "configFileNames", isStrings);
+	for (const directory of [".", ...context.detection.workspaces?.packages ?? []]) for (const name of names) {
+		const file = joinPath(directory, name);
+		if (!context.repository.isFile(file)) continue;
+		context.report({
+			level: "warning",
+			location: { file },
+			message: `pip reads no configuration from the project, so ${file} has no effect unless PIP_CONFIG_FILE points to it`,
+			fix: `Set PIP_CONFIG_FILE=${file} where pip runs, or put the options in the requirements file pip installs from`
+		});
+	}
+	const allowed = new Set(extraOf(tool, "requirementsOptions", isStrings));
+	const cooldownFlag = `--${settingOf(tool.cooldown.setting) ?? ""}`;
+	const variable = extraOf(tool, "environmentVariable", (value) => typeof value === "string");
+	for (const file of configFiles) for (const { option, line } of requirementsOptions(context.repository, file)) {
+		if (allowed.has(option)) continue;
+		context.report({
+			location: {
+				file,
+				line
+			},
+			message: `pip does not accept ${option} in requirements files, so installing from ${file} fails`,
+			fix: option === cooldownFlag ? `Remove the line and set ${variable} where pip runs instead` : `Remove the line, and pass ${option} on the pip command line instead`
+		});
+	}
+}
+const pythonConfigIgnored = {
+	id: "python-config-ignored",
+	summary: "A Python tool ignores a setting where it is written.",
+	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
+	help: "Move the setting to the file the tool reads.",
+	level: "error",
+	requiresPolicy: false,
+	check(context) {
+		for (const manager of context.detection.packageManagers) {
+			const tool = context.tools.find((entry) => entry.id === manager.id);
+			if (tool === void 0) continue;
+			if (tool.id === "uv") checkUv(context, tool);
+			if (tool.id === "pip") checkPip(context, tool, manager.configFiles);
+		}
+	}
+};
+
 // src/doctor/rules/unreadable-config.ts
 /** Repository warnings that mean a file was not checked. */
 const UNREADABLE_WARNINGS = {
@@ -14478,6 +14596,7 @@ const RULES = [
 	settingIgnoredByVersion,
 	npmrcOverridesPolicy,
 	pnpmSharedWorkspaceLockfile,
+	pythonConfigIgnored,
 	configDrift,
 	botCooldownMismatch,
 	broadExclusion,

@@ -180,6 +180,14 @@ With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project se
 
 Fix: Remove security settings from package .npmrc files, or keep the default shared lockfile.
 
+### `python-config-ignored`
+
+**error** · A Python tool ignores a setting where it is written.
+
+uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.
+
+Fix: Move the setting to the file the tool reads.
+
 ### `config-drift`
 
 **error** · needs depcurfew.json · A configuration file does not match what depcurfew apply writes for depcurfew.json.

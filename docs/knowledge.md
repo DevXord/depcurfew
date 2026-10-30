@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-10 tools · 407 facts · 64 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
+10 tools · 410 facts · 64 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
 
 ## Release-age cooldown
 
@@ -199,6 +199,8 @@ Further facts used by generators and `doctor`.
 - `configTables` (✅ verified): `{"pyproject.toml":"tool.uv","uv.toml":""}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `pyprojectTable` (✅ verified): tool.uv [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `configPrecedence` (✅ verified): uv.toml wins over [tool.uv] in the same directory; only the nearest directory with either is read, and in a workspace only the root [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
+- `configFileOrder` (✅ verified): uv.toml, pyproject.toml [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
+- `workspaceRootOnly` (✅ verified): true [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `buildSwitch` (✅ verified): `{"setting":"no-build","value":true,"since":"0.2.12","covers":["registry","git","remoteTarball","file","directory"]}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.2.x.md#0212)
 - `durationStrings` (✅ verified): `{"since":"0.9.17","syntax":"words-or-iso8601"}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `durationUnits` (✅ verified): hours, days, weeks [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
@@ -215,6 +217,7 @@ Further facts used by generators and `doctor`.
 
 - `requirementsOptions` (✅ verified): -i, --index-url, --extra-index-url, --no-index, -c, --constraint, -r, --requirement, -e, --editable, -f, --find-links, --no-binary, --only-binary, --prefer-binary, --require-hashes, --no-require-hashes, --pre, --all-releases, --only-final, --trusted-host, --use-feature [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
 - `buildSwitch` (❓ uncertain): `{"setting":"--only-binary","value":":all:","since":"7.0.0","covers":["registry"]}` ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
+- `configFileNames` (✅ verified): pip.conf, pip.ini [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/configuration.py)
 - `environmentVariable` (✅ verified): PIP_UPLOADED_PRIOR_TO [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variables)
 - `durationStrings` (✅ verified): `{"since":"26.1.0","syntax":"iso8601"}` [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `missingUploadTime` (✅ verified): Installation fails when an index gives no upload time while --uploaded-prior-to is set [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)
@@ -458,6 +461,8 @@ Context recorded with verified facts.
 - `extra.configTables`: Settings sit in [tool.uv] in pyproject.toml and at the top level of uv.toml. uv.toml cannot hold workspace, sources and a few other project fields. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `extra.pyprojectTable`: A pyproject.toml without a [tool.uv] table is ignored when uv searches for configuration. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `extra.configPrecedence`: A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
+- `extra.configFileOrder`: "configuration will be read from uv.toml, and the [tool.uv] section in the accompanying pyproject.toml will be ignored"; uv prints a warning listing the ignored fields. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
+- `extra.workspaceRootOnly`: "In workspaces, uv will begin its search at the workspace root, ignoring any configuration defined in workspace members." Project fields such as tool.uv.sources of a member still apply. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `extra.buildSwitch`: The project setting that forbids building source distributions. It also stops git and local directory dependencies (uv sync with uv 0.13.6 on 2026-10-30) and source archives, which also need a build; workspace members and editable requirements are still built. [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.2.x.md#0212)
 - `extra.durationStrings`: Either a "friendly" duration (24 hours, 1 week, 30 days) or an ISO 8601 duration (PT24H, P7D, P30D). [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `extra.durationUnits`: Units in the documented examples: 24 hours, 1 week, 30 days. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
@@ -483,6 +488,7 @@ Context recorded with verified facts.
 - `project.lockfiles`: pip lock (experimental since 25.1) writes pylock.toml; pip install -r pylock.toml is experimental since 26.1. The specification also allows pylock.<name>.toml. [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name)
 - `project.manifests`: "requirements.txt is usually what these files are named (although, that is not a requirement)"; the format is meant only for pip. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md)
 - `extra.requirementsOptions`: SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
+- `extra.configFileNames`: CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/configuration.py)
 - `extra.environmentVariable`: Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variables)
 - `extra.durationStrings`: Only whole days, written PnD, are accepted. [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `extra.missingUploadTime`: Upload times exist only in the JSON form of the simple repository API (PEP 700); indexes that serve only HTML have none. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)

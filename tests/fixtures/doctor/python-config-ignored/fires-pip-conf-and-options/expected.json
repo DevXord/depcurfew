@@ -1,0 +1,28 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "pip.conf"
+    },
+    "message": "pip reads no configuration from the project, so pip.conf has no effect unless PIP_CONFIG_FILE points to it",
+    "fix": "Set PIP_CONFIG_FILE=pip.conf where pip runs, or put the options in the requirements file pip installs from"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 3
+    },
+    "message": "pip does not accept --uploaded-prior-to in requirements files, so installing from requirements.txt fails",
+    "fix": "Remove the line and set PIP_UPLOADED_PRIOR_TO where pip runs instead"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 4
+    },
+    "message": "pip does not accept --no-cache-dir in requirements files, so installing from requirements.txt fails",
+    "fix": "Remove the line, and pass --no-cache-dir on the pip command line instead"
+  }
+]

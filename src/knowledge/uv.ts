@@ -127,6 +127,16 @@ export const uv: ToolKnowledge = {
       CONFIGURATION,
       'A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories.',
     ),
+    configFileOrder: verified(
+      ['uv.toml', 'pyproject.toml'],
+      CONFIGURATION,
+      '"configuration will be read from uv.toml, and the [tool.uv] section in the accompanying pyproject.toml will be ignored"; uv prints a warning listing the ignored fields.',
+    ),
+    workspaceRootOnly: verified(
+      true,
+      CONFIGURATION,
+      '"In workspaces, uv will begin its search at the workspace root, ignoring any configuration defined in workspace members." Project fields such as tool.uv.sources of a member still apply.',
+    ),
     buildSwitch: verified(
       { setting: 'no-build', value: true, since: '0.2.12', covers: ['registry', 'git', 'remoteTarball', 'file', 'directory'] },
       changelog('0.2', '0.2.12'),

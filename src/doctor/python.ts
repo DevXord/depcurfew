@@ -7,6 +7,8 @@ import { parseToml, type TomlValue } from '../detect/toml.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import type { Setting } from './settings.ts';
 
+const isStringList = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
+
 function tomlSettingAt(repository: Repository, file: string, path: readonly string[]): Setting | undefined {
   if (!repository.isFile(file)) return undefined;
   const text = repository.readText(file);
@@ -28,8 +30,9 @@ function tomlSettingAt(repository: Repository, file: string, path: readonly stri
 export function pythonSettingPaths(repository: Repository, tool: ToolKnowledge, setting: string): { file: string; path: string[] }[] {
   const tables = tool.extra?.['configTables'] === undefined ? undefined : extraOf(tool, 'configTables', isRecord);
   if (tables !== undefined) {
-    // uv: uv.toml when it exists, otherwise the table in pyproject.toml.
-    const files = Object.keys(tables).sort((a, b) => Number(a === 'pyproject.toml') - Number(b === 'pyproject.toml'));
+    // uv: the first file of configFileOrder that exists (uv.toml wins over [tool.uv] in pyproject.toml).
+    const order = tool.extra?.['configFileOrder'] === undefined ? Object.keys(tables) : extraOf(tool, 'configFileOrder', isStringList);
+    const files = order.filter((name) => name in tables);
     const file = files.find((name) => repository.isFile(name)) ?? files[0];
     if (file === undefined) return [];
     const table = String(tables[file] ?? '');
