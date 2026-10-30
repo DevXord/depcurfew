@@ -1,7 +1,7 @@
 // broad-exclusion: an exception list that matches every package turns the protection off while the setting still
 // looks configured. Checked in depcurfew.json, in the tools' own files and in Renovate packageRules.
-import { listing } from '../../apply/requirements.ts';
 import { extraOf, isRecord, settingOf, values } from '../../apply/facts.ts';
+import { listing } from '../../apply/requirements.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
@@ -94,7 +94,7 @@ function covers(scope: RuleScope, datasources: readonly string[], matching: { ne
 /** packageRules entries that turn minimumReleaseAge off for every package of a registry (extra.packageRuleMatching). */
 function checkRenovate(context: RuleContext, file: string): void {
   const bot = tool(context, 'renovate');
-  if (bot === undefined || !/\.jsonc?$/u.test(file)) return;
+  if (bot === undefined || !/(\.jsonc?|\.renovaterc)$/u.test(file)) return;
   const text = context.repository.readText(file);
   if (text === undefined) return;
   const packageJson = extraOf(bot, 'packageJsonConfig', isPackageJsonConfig);

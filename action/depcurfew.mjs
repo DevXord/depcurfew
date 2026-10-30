@@ -15273,7 +15273,7 @@ function covers(scope, datasources, matching) {
 /** packageRules entries that turn minimumReleaseAge off for every package of a registry (extra.packageRuleMatching). */
 function checkRenovate(context, file) {
 	const bot = tool(context, "renovate");
-	if (bot === void 0 || !/\.jsonc?$/u.test(file)) return;
+	if (bot === void 0 || !/(\.jsonc?|\.renovaterc)$/u.test(file)) return;
 	const text = context.repository.readText(file);
 	if (text === void 0) return;
 	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig);
