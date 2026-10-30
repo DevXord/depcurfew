@@ -7468,6 +7468,10 @@ const dependabot$1 = {
 			since: "0.0.0",
 			trailingOnly: false
 		}, `${OPTIONS$1}#cooldown`, "cooldown.exclude accepts * wildcards."),
+		cooldownInclude: python$1.verified({
+			key: "include",
+			everything: "*"
+		}, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates#setting-up-a-cooldown-period-for-dependency-updates", "An include list in the cooldown block limits the cooldown to the dependencies it names (* wildcards, up to 150 entries): the example applies the cooldown to requests, numpy and names starting with pandas or django, and to cover all dependencies one omits include or uses \"*\". The other dependencies get no cooldown at all, not even the default 3 days: dependabot-core skips the cooldown for a dependency that the include list does not match (ReleaseCooldownOptions#included? with File.fnmatch? and CooldownCalculation.skip_cooldown? in common/lib/dependabot, commit 03892a3e8ee26d43eb96f31c5136c98a85d63b14). exclude wins over include."),
 		ecosystems: python$1.verified({
 			npm: [
 				"npm",
@@ -7494,8 +7498,9 @@ const dependabot$1 = {
 // src/knowledge/npm.ts
 const { verified: verified$8, uncertain: uncertain$8, disputed: disputed$3, evidence: evidence$3 } = verifiedOn("2026-10-28");
 const checked$3 = verifiedOn("2026-10-29");
+const reviewed$2 = verifiedOn("2026-10-30");
 const CONFIG = "https://docs.npmjs.com/cli/v12/using-npm/config";
-const NPMRC = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
+const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$3 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
 const INSTALL_TIME_CONTROLS = "https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/";
 const SOURCE_FLAGS_SINCE_NOTE = "The 11.14.0 release notes add the flag; the GitHub changelog dates it to 11.15.0, which also moved enforcement into the resolver. Treat 11.15.0 as the safe minimum.";
@@ -7528,7 +7533,7 @@ const npm$1 = {
 	kind: "package-manager",
 	cooldown: {
 		setting: verified$8("min-release-age", `${CONFIG}#min-release-age`),
-		configFiles: verified$8([".npmrc"], NPMRC, "Any npm config layer works: project .npmrc (read only at the project root and not for global installs), ~/.npmrc, the global npmrc, npm_config_min_release_age or the CLI. package.json cannot set it."),
+		configFiles: verified$8([".npmrc"], NPMRC$1, "Any npm config layer works: project .npmrc (read only at the project root and not for global installs), ~/.npmrc, the global npmrc, npm_config_min_release_age or the CLI. package.json cannot set it."),
 		cliFlag: verified$8("--min-release-age=<days>", "https://docs.npmjs.com/cli/v12/commands/npm-install#min-release-age"),
 		unit: verified$8("days", `${CONFIG}#min-release-age`, "Type is null or Number; 0 turns the delay off. Fractional days are not documented."),
 		availableSince: verified$8("11.10.0", release$3("11.10.0")),
@@ -7686,6 +7691,14 @@ const npm$1 = {
 			workspacePackages: "ignored",
 			globalMode: "ignored"
 		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns \"ignoring workspace config\" for the package .npmrc (workspaces/config/lib/index.js). The project .npmrc \"is not read in global mode, such as when running npm install -g\" (same page, v11.21.1 and v12.2.1)."),
+		npmrcFormat: reviewed$2.verified({
+			commentLines: ["#", ";"],
+			inlineComments: ["#", ";"],
+			escape: "\\",
+			sectionHeader: "^\\[([^\\]]*)\\]\\s*$",
+			keyWithoutValue: "true",
+			settingsFrom: "top level"
+		}, "https://github.com/npm/ini/blob/v7.0.0/lib/ini.js", "npm reads .npmrc with the ini package: 7.0.0 in npm 12.2.1, and 6.0.0, whose lib/ini.js is the same, in npm 11.10.0 to 11.21.1 (package-lock.json of npm/cli). A line whose first non-blank character is # or ; is a comment. An unquoted key or value ends at the first # or ; that is not escaped with a backslash, so ignore-scripts=true # note sets true; a value in double quotes is parsed as a JSON string and one in single quotes loses its quotes, both keeping # and ;. A line without = sets the key to true. A [name] header at the start of a line, with nothing but spaces after it, starts a section: the keys below it belong to that section until the next header. npm applies only the top-level keys as settings (#loadObject in workspaces/config/lib/index.js at v12.2.1), so a key below a header has no effect."),
 		npmrcListSyntax: verified$8("[]", "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*."),
 		allowAllScripts: verified$8({
 			setting: "dangerously-allow-all-scripts",
@@ -7697,19 +7710,20 @@ const npm$1 = {
 			trailingOnly: false
 		}, NPM_DEFINITIONS, "min-release-age-exclude takes package names or minimatch globs from its first version."),
 		latestVersion: verified$8("12.2.1", release$3("12.2.1"), "Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1)."),
-		beforeInteraction: verified$8([{
-			since: "11.10.0",
-			value: "min-release-age and before are mutually exclusive"
-		}, {
-			since: "11.15.0",
-			value: "both may be set; before wins within the same config source"
-		}], release$3("11.15.0")),
+		beforeInteraction: reviewed$2.verified({
+			setting: "before",
+			exclusive: {
+				since: "11.10.0",
+				until: "11.15.0"
+			},
+			beforeWinsSince: "11.15.0"
+		}, "https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js", "before is a date: npm installs only versions available on or before it. In 11.10.0 to 11.14.x the definitions of min-release-age and before name each other as exclusive, and npm stops with \"--min-release-age cannot be provided when using --before\" (or the reverse) once both are set in its config sources (#loadObject in workspaces/config/lib/index.js and definitions.js at v11.14.1). Since 11.15.0 both may be set: \"If before and min-release-age are both set in the same source, before wins\"; across sources the usual precedence applies (cli > env > project > user > global), so a before in the project .npmrc replaces its own min-release-age (definitions.js at v11.15.0 and v12.2.1; release notes of 11.15.0)."),
 		strictAllowScripts: checked$3.verified({
 			setting: "strict-allow-scripts",
 			value: true,
 			since: "11.16.0"
 		}, NPM_DEFINITIONS_V11_16, "strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it."),
-		unknownNpmrcKeys: disputed$3("Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.", evidence$3("npm 12 throws on unknown config keys", release$3("12.0.0")), evidence$3("unknown keys only warn; throwing is planned for a future major version", NPMRC)),
+		unknownNpmrcKeys: disputed$3("Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.", evidence$3("npm 12 throws on unknown config keys", release$3("12.0.0")), evidence$3("unknown keys only warn; throwing is planned for a future major version", NPMRC$1)),
 		commandLine: checked$3.verified({
 			add: INSTALL_ALIASES.map((alias) => ["npm", alias]),
 			run: [
@@ -7956,6 +7970,7 @@ const pip$1 = {
 		workspacesObjectKey: uncertain$7(null, REQUIREMENTS_FORMAT, "No workspaces.")
 	},
 	extra: {
+		pylockCreatedBy: verified$7("pip", `${PIP}/src/pip/_internal/utils/pylock.py`, "pip lock writes created-by = \"pip\"."),
 		requirementsOptions: verified$7([
 			"-i",
 			"--index-url",
@@ -8002,12 +8017,13 @@ const pip$1 = {
 			sdist: "sdist",
 			wheels: "wheels",
 			index: "index",
+			createdBy: "created-by",
 			sources: {
 				git: "vcs",
 				remoteTarball: "archive",
 				directory: "directory"
 			}
-		}, PYLOCK, "Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed."),
+		}, PYLOCK, "Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed. A relative directory path is relative to the lock file. The required top-level created-by records the name of the tool that wrote the file, preferably its normalized Python package name."),
 		requirementsForms: verified$7("name==version with --hash options, name @ URL for an archive, a local archive or project path, and VCS URLs (name @ git+https://… or -e git+…)", REQUIREMENTS_FORMAT),
 		requirementsFormat: verified$7({
 			vcs: {
@@ -8309,6 +8325,7 @@ const pdm$1 = {
 		workspacesObjectKey: uncertain$6(null, `${PDM}/docs/usage/workspace.md`, "Not read; see workspaces.")
 	},
 	extra: {
+		pylockCreatedBy: verified$6("pdm", `${PDM}/src/pdm/formats/pylock.py`, "PDM's pylock.toml export writes created-by = \"pdm\"."),
 		configTables: verified$6({ "pyproject.toml": "tool.pdm.resolution" }, `${LOCKFILE}#exclude-packages-newer-than-specific-date`, "exclude-newer, its overrides, only-binary and no-binary share the table."),
 		pyprojectTable: verified$6("tool.pdm", `${PDM}/docs/reference/pep621.md`, "PDM keeps its settings in [tool.pdm] of pyproject.toml."),
 		buildSwitch: verified$6({
@@ -8478,6 +8495,7 @@ const pipenv$1 = {
 		workspacesObjectKey: uncertain$5(null, PIPFILE, "No workspaces.")
 	},
 	extra: {
+		pylockCreatedBy: verified$5("pipenv", `${PIPENV}/pipenv/utils/pylock.py`, "Pipenv writes created-by = \"pipenv\" in the pylock.toml it generates (docs/pylock.md). pipenv install -e . writes the project itself as { path = \".\", editable = true } (docs/pipfile.md), and Pipfile.lock keeps it as \"path\": \".\"."),
 		configTables: verified$5({ Pipfile: "pipenv" }, `${PIPFILE}#pipenv-directives`, "Directives such as cool-down-period and allow_prereleases live in [pipenv]."),
 		durationStrings: verified$5({
 			since: "2026.6.2",
@@ -8894,6 +8912,7 @@ const poetry$1 = {
 		workspacesObjectKey: uncertain$3(null, "https://github.com/python-poetry/poetry/issues/2270", "No workspaces.")
 	},
 	extra: {
+		pylockCreatedBy: verified$3("poetry-plugin-export", "https://github.com/python-poetry/poetry-plugin-export/blob/1.10.1/src/poetry_plugin_export/exporter.py", "Poetry exports pylock.toml with its export plugin (poetry export --format pylock.toml), which writes created-by = \"poetry-plugin-export\"."),
 		configTable: verified$3({
 			solver: "solver",
 			installer: "installer"
@@ -8972,6 +8991,8 @@ const poetry$1 = {
 const { verified: verified$2, uncertain: uncertain$2, disputed: disputed$1, evidence: evidence$1 } = verifiedOn("2026-10-28");
 const python = verifiedOn("2026-10-30");
 const reviewed = verifiedOn("2026-10-30");
+const rules = verifiedOn("2026-10-30");
+const AT = "https://github.com/renovatebot/renovate/blob/44.198.2";
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
 const MINIMUM_RELEASE_AGE = "https://docs.renovatebot.com/key-concepts/minimum-release-age/";
 const release$1 = (version) => `https://github.com/renovatebot/renovate/releases/tag/${version}`;
@@ -9051,6 +9072,50 @@ const renovate$1 = {
 			pypi: "pypi"
 		}, "https://docs.renovatebot.com/modules/datasource/pypi/", "Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files."),
 		negativeMatch: python.verified("!", "https://docs.renovatebot.com/string-pattern-matching/", "Patterns starting with ! are negative matches, and none of them may match; matchDatasources is matched this way (matchRegexOrGlobList in lib/util/package-rules/datasources.ts at 44.198.0), so [\"!pypi\"] covers every datasource but PyPI."),
+		packageRuleMatching: rules.verified({
+			negation: "!",
+			allPatterns: "*",
+			packageMatchers: ["matchPackageNames", "matchDepNames"],
+			datasourceMatcher: "matchDatasources",
+			updateTypeMatcher: "matchUpdateTypes"
+		}, `${AT}/docs/usage/configuration-options.md#packagerules`, "A packageRules entry applies to a dependency when all of its matchers match. Within one matcher, at least one positive pattern must match when there are any, and no negative pattern (starting with !) may match, so a list of only negative patterns matches every name it does not exclude (docs/usage/string-pattern-matching.md and matchRegexOrGlobList in lib/util/string-match.ts). matchPackageNames, matchDepNames, matchDatasources and matchUpdateTypes all match this way; \"*\" alone matches everything."),
+		packageRulesOrder: rules.verified({
+			presetsFirst: true,
+			overridesTopLevel: true,
+			laterWins: true
+		}, `${AT}/docs/usage/configuration-options.md#packagerules`, "All packageRules are evaluated and later rules override options set by earlier ones; a matching rule overrides the top-level configuration (\"Package rule config overrides any existing config\", lib/util/package-rules/index.ts). Presets in extends are merged before the repository configuration, and packageRules is mergeable, so the rules of presets come first and the repository's rules after them, while a top-level option of the repository replaces the same option of a preset (resolveConfigPresets in lib/config/presets/index.ts and mergeChildConfig in lib/config/utils.ts)."),
+		delayedUpdateTypes: rules.verified([
+			"major",
+			"minor",
+			"patch"
+		], `${AT}/docs/usage/key-concepts/minimum-release-age.md#which-update-types-take-minimumreleaseage-into-account`, "The update types that take minimumReleaseAge into account; digest and pinDigest only for some datasources, and pin, lockFileMaintenance, lockfileUpdate, rollback, bump and replacement not at all."),
+		internalPresets: rules.verified({
+			prefixes: [
+				":",
+				"default:",
+				"abandonments:",
+				"config:",
+				"customManagers:",
+				"docker:",
+				"global:",
+				"group:",
+				"helpers:",
+				"mergeConfidence:",
+				"monorepo:",
+				"packages:",
+				"preview:",
+				"replacements:",
+				"schedule:",
+				"security:",
+				"workarounds:"
+			],
+			settingDelay: [
+				"config:best-practices",
+				"security:minimumReleaseAgeCrate",
+				"security:minimumReleaseAgeNpm",
+				"security:minimumReleaseAgePypi"
+			]
+		}, `${AT}/lib/config/presets/internal/index.ts`, "The built-in preset groups; a default preset is written :name or default:name. Other presets (github>, gitlab>, local>, npm packages and so on) are fetched from elsewhere. Among the built-in presets only the security:minimumReleaseAge* presets set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource, and config:best-practices extends security:minimumReleaseAgeNpm (security.preset.ts and config.preset.ts in the same directory)."),
 		pypiPresets: python.verified({
 			presets: ["security:minimumReleaseAgePypi"],
 			value: "3 days",
@@ -9158,6 +9223,7 @@ const uv$1 = {
 		workspacesObjectKey: verified$1("members", WORKSPACES, "The workspace guide calls members required, while the settings reference (crates/uv-workspace/src/pyproject.rs) gives it a default of [].")
 	},
 	extra: {
+		pylockCreatedBy: verified$1("uv", `${UV}/crates/uv-lock/src/lock/export/pylock_toml.rs`, "uv export --format pylock.toml (and uv pip compile to pylock.toml) writes created-by = \"uv\". The project itself and workspace members are written as directory = { path = …, editable = true }, with the path relative to the lock file, \".\" for the project."),
 		configTables: verified$1({
 			"pyproject.toml": "tool.uv",
 			"uv.toml": ""
@@ -9706,6 +9772,9 @@ function detectionFacts(tools, environment) {
 		const pyprojectTable = extraValue(entry, "pyprojectTable");
 		const order = extraValue(entry, "configFileOrder");
 		const pattern = extraValue(entry, "lockfilePattern");
+		const lockfileFormat = extraValue(entry, "lockfileFormat");
+		const createdBy = isRecord(lockfileFormat) ? lockfileFormat["createdBy"] : void 0;
+		const pylockCreatedBy = extraValue(entry, "pylockCreatedBy");
 		return {
 			id,
 			ecosystem: entry.ecosystem ?? "npm",
@@ -9716,7 +9785,9 @@ function detectionFacts(tools, environment) {
 			pyprojectTable: typeof pyprojectTable === "string" ? pyprojectTable : null,
 			requiredVersions: requiredVersions(entry, pythonProject),
 			configFileOrder: Array.isArray(order) && order.every((file) => typeof file === "string") ? order : null,
-			lockfilePattern: typeof pattern === "string" ? new RegExp(pattern, "u") : null
+			lockfilePattern: typeof pattern === "string" ? new RegExp(pattern, "u") : null,
+			createdByKey: typeof createdBy === "string" ? createdBy : null,
+			pylockCreatedBy: typeof pylockCreatedBy === "string" ? pylockCreatedBy : null
 		};
 	});
 	const bots = BOTS$1.map((id) => {
@@ -9770,6 +9841,14 @@ function errorMessage(error) {
 	const message = error instanceof Error ? error.message : String(error);
 	return message.split("\n", 1)[0] ?? message;
 }
+/** A file system error without the absolute path, e.g. "EACCES: permission denied". */
+function fileError(error) {
+	const code = error?.code;
+	const message = errorMessage(error);
+	return code !== void 0 && message.startsWith(`${code}: `) ? message.split(", ", 1)[0] ?? code : code ?? "unknown error";
+}
+/** Errors that mean the path does not exist, as opposed to a file that exists but cannot be read. */
+const MISSING = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 var Repository = class {
 	root;
 	warnings = [];
@@ -9788,6 +9867,10 @@ var Repository = class {
 			files: [...files]
 		});
 	}
+	/** A file that exists but cannot be read, e.g. without read permission; unreadable-config reports it. */
+	#unreadable(path, error) {
+		this.warn("unreadable-file", `cannot read ${path} (${fileError(error)})`, [path]);
+	}
 	#inside(real) {
 		return real === this.root || real.startsWith(this.root + sep);
 	}
@@ -9796,7 +9879,8 @@ var Repository = class {
 		const full = join(this.root, path);
 		try {
 			lstatSync(full);
-		} catch {
+		} catch (error) {
+			if (report && !MISSING.has(String(error.code))) this.#unreadable(path, error);
 			return;
 		}
 		let real;
@@ -9825,7 +9909,13 @@ var Repository = class {
 			this.warn("file-too-large", `${path} is larger than ${limit / 1048576} MiB and was not read`, [path]);
 			return;
 		}
-		const text = readFileSync(real, "utf8");
+		let text;
+		try {
+			text = readFileSync(real, "utf8");
+		} catch (error) {
+			this.#unreadable(path, error);
+			return;
+		}
 		return text.startsWith("﻿") ? text.slice(1) : text;
 	}
 	/** The first bytes of a file, e.g. to recognize a lockfile format without reading a large file. */
@@ -9833,7 +9923,13 @@ var Repository = class {
 		const real = this.#resolve(path, true);
 		if (real === void 0 || !statSync(real).isFile()) return void 0;
 		const buffer = Buffer.alloc(bytes);
-		const descriptor = openSync(real, "r");
+		let descriptor;
+		try {
+			descriptor = openSync(real, "r");
+		} catch (error) {
+			this.#unreadable(path, error);
+			return;
+		}
 		try {
 			return buffer.subarray(0, readSync(descriptor, buffer, 0, bytes, 0)).toString("utf8");
 		} finally {
@@ -10451,6 +10547,15 @@ function expandWorkspaces(repository, patterns, manifests, declaredIn) {
 	return [...included].filter((directory) => directory !== "." && !excluded.has(directory)).filter((directory) => manifests.some((manifest) => repository.isFile(joinPath(directory, manifest)))).sort();
 }
 
+// src/policy/python-names.ts
+const [rule] = evidenceOf(environment.python.nameNormalization);
+const SEPARATORS = new RegExp(rule?.value.separators ?? "[-_.]+", "gu");
+const REPLACEMENT = rule?.value.replacement ?? "-";
+/** The normalized form of a Python package name or name pattern; `*` stays as it is. */
+function normalizePythonName(name) {
+	return name.replace(SEPARATORS, REPLACEMENT).toLowerCase();
+}
+
 // src/detect/index.ts
 const EVIDENCE_ORDER = [
 	"lockfile",
@@ -10500,6 +10605,26 @@ function requiredVersionText(value) {
 /** A TOML file, parsed once per repository; undefined when it is missing or cannot be parsed (a warning says so). */
 function readToml(repository, file) {
 	return repository.parseOnce(file, parseToml);
+}
+/**
+* A top-level string key of a TOML lockfile, such as created-by in pylock.toml, read from the start of the file: top-level
+* keys come before the first table, so a large lockfile is not read whole.
+*/
+function createdBy(repository, file, key) {
+	const head = repository.readHead(file, 16384) ?? "";
+	const escaped = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+	const pattern = new RegExp(`^\\s*(?:${escaped}|"${escaped}")\\s*=\\s*("(?:[^"\\\\]|\\\\.)*"|'[^']*')`, "u");
+	for (const line of head.split(/\r?\n/u)) {
+		if (/^\s*\[/u.test(line)) return void 0;
+		const value = pattern.exec(line)?.[1];
+		if (value === void 0) continue;
+		if (value.startsWith("'")) return value.slice(1, -1);
+		try {
+			return JSON.parse(value);
+		} catch {
+			return;
+		}
+	}
 }
 function orList(items) {
 	return items.length < 2 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} or ${items.at(-1) ?? ""}`;
@@ -10698,10 +10823,18 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	}
 	readToolVersions(repository, facts, collector);
 	readPythonConfig(repository, facts, collector);
-	const lockfiles = /* @__PURE__ */ new Map();
+	const owners = /* @__PURE__ */ new Map();
 	for (const manager of facts.managers) {
 		const named = manager.lockfilePattern === null ? [] : repository.listFiles(".").filter((name) => manager.lockfilePattern?.test(name) === true);
-		const present = [.../* @__PURE__ */ new Set([...manager.lockfiles.filter((file) => repository.isFile(file)), ...named])].sort(byPath);
+		for (const file of /* @__PURE__ */ new Set([...manager.lockfiles.filter((name) => repository.isFile(name)), ...named])) {
+			const creator = manager.createdByKey === null ? void 0 : createdBy(repository, file, manager.createdByKey);
+			const owner = creator === void 0 ? void 0 : facts.managers.find((other) => other.pylockCreatedBy !== null && normalizePythonName(other.pylockCreatedBy) === normalizePythonName(creator));
+			if (!owners.has(file)) owners.set(file, owner?.id ?? manager.id);
+		}
+	}
+	const lockfiles = /* @__PURE__ */ new Map();
+	for (const manager of facts.managers) {
+		const present = [...owners].filter(([, owner]) => owner === manager.id).map(([file]) => file).sort(byPath);
 		if (present.length > 0) lockfiles.set(manager.id, present);
 		for (const file of present) collector.addEvidence(manager.id, "lockfile", file);
 		for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, "config", file);
@@ -10799,15 +10932,6 @@ function describeRequirements(requirements) {
 	]);
 	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since})`).join(", ");
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
-}
-
-// src/policy/python-names.ts
-const [rule] = evidenceOf(environment.python.nameNormalization);
-const SEPARATORS = new RegExp(rule?.value.separators ?? "[-_.]+", "gu");
-const REPLACEMENT = rule?.value.replacement ?? "-";
-/** The normalized form of a Python package name or name pattern; `*` stays as it is. */
-function normalizePythonName(name) {
-	return name.replace(SEPARATORS, REPLACEMENT).toLowerCase();
 }
 
 // src/doctor/python-lockfiles.ts
@@ -10926,14 +11050,23 @@ function pipfileLockEntries(input, format) {
 			});
 			if (git !== void 0) entries.push(anchored(entry(name, git, "git", true, void 0)));
 			else if (file !== void 0) entries.push(anchored(entry(name, file, "remoteTarball", !isWheel(file), void 0)));
+			else if (path !== void 0 && isProject(path)) entries.push(anchored(entry(name, path, "workspace", false, void 0)));
 			else if (path !== void 0) entries.push(anchored(entry(name, path, "directory", true, void 0)));
 			else entries.push(anchored(entry(name, "an index", "registry", void 0, void 0)));
 		}
 	}
 	return entries;
 }
-/** pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. */
-function pylockEntries(input, format) {
+/** "." or "./": the project itself, relative to the lockfile at its root. */
+function isProject(path) {
+	return /^\.\/?$/u.test(path);
+}
+/**
+* pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. A
+* directory path is relative to the lock file, so "." is the project itself, which, like a workspace member, is part
+* of the work on the project rather than a dependency built from source.
+*/
+function pylockEntries(input, format, workspaces = []) {
 	const document = parseToml(input);
 	const key = (name) => String(format[name]);
 	return list$1(document.root[key("packages")]).flatMap((item, index) => {
@@ -10943,7 +11076,12 @@ function pylockEntries(input, format) {
 		const vcs = item[key("vcs")];
 		if (isRecord(vcs)) return [entry(item["name"], location(vcs), text$1(vcs["type"]) === "git" ? "git" : "unknown", true, line)];
 		const directory = item[key("directory")];
-		if (isRecord(directory)) return [entry(item["name"], location(directory), "directory", true, line)];
+		if (isRecord(directory)) {
+			const path = location(directory);
+			const relative = path.replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/+$/u, "");
+			const member = isProject(path) || relative === "" || workspaces.includes(relative);
+			return [entry(item["name"], path, member ? "workspace" : "directory", !member, line)];
+		}
 		const archive = item[key("archive")];
 		if (isRecord(archive)) {
 			const where = location(archive);
@@ -11415,10 +11553,24 @@ function requirementsTrees(repository, roots, format) {
 	}
 	return trees;
 }
-function readLockfiles(repository, manager, tool, workspaces) {
-	const fact = tool.extra?.["lockfileFormat"];
+/** A tool's extra.lockfileFormat. */
+function lockfileFormatOf(tool) {
+	const fact = tool?.extra?.["lockfileFormat"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	if (!isRecord(format)) return [];
+	return isRecord(format) ? format : void 0;
+}
+/** pylock.toml and pylock.<name>.toml, which pip's knowledge names; detection gives one to the tool that wrote it. */
+function isPylock(pip, file) {
+	const lockfiles = pip?.project?.lockfiles;
+	const names = lockfiles === void 0 ? [] : values$1(lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
+	const pattern = pip?.extra?.["lockfilePattern"] === void 0 ? void 0 : values$1(pip.extra["lockfilePattern"])[0];
+	return names.includes(file) || typeof pattern === "string" && new RegExp(pattern, "u").test(file);
+}
+function readLockfiles(repository, manager, tool, workspaces, tools = []) {
+	const format = lockfileFormatOf(tool);
+	if (format === void 0) return [];
+	const pip = tool.id === "pip" ? tool : tools.find((entry) => entry.id === "pip");
+	const pylockFormat = lockfileFormatOf(pip);
 	const lockfiles = manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file);
 	const requirements = tool.id === "pip" ? requirementsTrees(repository, manager.configFiles, requirementsFormatOf(tool)) : /* @__PURE__ */ new Map();
 	return [.../* @__PURE__ */ new Set([...lockfiles, ...requirements.keys()])].map((file) => {
@@ -11446,11 +11598,14 @@ function readLockfiles(repository, manager, tool, workspaces) {
 			else if (tool.id === "pnpm") ({entries, start} = pnpmEntries(text, format, documentsOf(tool)));
 			else if (tool.id === "yarn") entries = yarnEntries(text, format);
 			else if (tool.id === "bun") entries = bunEntries(text, format);
-			else if (tool.id === "uv") entries = uvEntries(text, format, workspaces);
+			else if (pylockFormat !== void 0 && lockfiles.includes(file) && isPylock(pip, file)) {
+				entries = pylockEntries(text, pylockFormat, workspaces);
+				recordsScripts = pylockFormat["installScripts"] !== null;
+			} else if (tool.id === "uv") entries = uvEntries(text, format, workspaces);
 			else if (tool.id === "poetry") entries = poetryEntries(text, format);
 			else if (tool.id === "pdm") entries = pdmEntries(text, format);
 			else if (tool.id === "pipenv") entries = pipfileLockEntries(text, format);
-			else if (tool.id === "pip") entries = lockfiles.includes(file) ? pylockEntries(text, format) : requirementsEntries(text, requirementsFormatOf(tool));
+			else if (tool.id === "pip") entries = requirementsEntries(text, requirementsFormatOf(tool));
 			else ({entries, recordsScripts} = denoEntries(text, format));
 			const find = lineFinder(text, start);
 			const optionFiles = requirements.get(file);
@@ -11909,26 +12064,74 @@ function insertBlock(lines, at, entries, separate, marker = BLOCK_START) {
 }
 
 // src/doctor/settings.ts
-/** Every key=value line of an .npmrc file; `key[]` keeps its brackets. */
-function iniEntries(text) {
+const NPMRC = extraOf(npm$1, "npmrcFormat", isRecord);
+const isChars = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const COMMENT_LINES = isChars(NPMRC["commentLines"]) ? NPMRC["commentLines"] : [];
+const INLINE_COMMENTS = isChars(NPMRC["inlineComments"]) ? NPMRC["inlineComments"] : [];
+const ESCAPE = typeof NPMRC["escape"] === "string" ? NPMRC["escape"] : "\\";
+const SECTION$1 = new RegExp(String(NPMRC["sectionHeader"]), "u");
+const KEY_WITHOUT_VALUE = String(NPMRC["keyWithoutValue"]);
+/** A key or value as the ini package reads it (its unsafe()): quotes removed, or cut at an unescaped comment. */
+function iniText(raw) {
+	const text = raw.trim();
+	const quote = text[0];
+	if ((quote === "\"" || quote === "'") && text.endsWith(quote)) {
+		const inner = quote === "'" ? text.slice(1, -1) : text;
+		try {
+			return String(JSON.parse(inner));
+		} catch {
+			return inner;
+		}
+	}
+	let result = "";
+	let escaped = false;
+	for (const character of text) if (escaped) {
+		result += character === ESCAPE || INLINE_COMMENTS.includes(character) ? character : `${ESCAPE}${character}`;
+		escaped = false;
+	} else if (INLINE_COMMENTS.includes(character)) break;
+	else if (character === ESCAPE) escaped = true;
+	else result += character;
+	return (escaped ? `${result}${ESCAPE}` : result).trim();
+}
+/**
+* Every setting line of an .npmrc file as npm reads it (extra.npmrcFormat), including keys below a [section] header,
+* which npm does not apply; `key[]` keeps its brackets.
+*/
+function iniLines(text) {
 	const entries = [];
 	let managed = false;
-	text.split(/\r?\n/u).forEach((raw, index) => {
-		const line = raw.trim();
-		if (line === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead") managed = true;
-		else if (line === "# <<< depcurfew managed block") managed = false;
-		if (line === "" || line.startsWith("#") || line.startsWith(";")) return;
-		const equals = line.indexOf("=");
-		if (equals === -1) return;
-		const value = line.slice(equals + 1).trim().replace(/^"(.*)"$/u, "$1");
+	let section;
+	text.split(/\r\n|\r|\n/u).forEach((raw, index) => {
+		const trimmed = raw.trim();
+		if (trimmed === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead") managed = true;
+		else if (trimmed === "# <<< depcurfew managed block") managed = false;
+		if (trimmed === "" || COMMENT_LINES.some((mark) => trimmed.startsWith(mark))) return;
+		const header = SECTION$1.exec(raw);
+		if (header !== null) {
+			section = iniText(header[1] ?? "");
+			return;
+		}
+		const equals = raw.indexOf("=");
+		if (equals === 0) return;
+		const key = iniText(equals === -1 ? raw : raw.slice(0, equals));
+		const value = equals === -1 ? KEY_WITHOUT_VALUE : iniText(raw.slice(equals + 1));
 		entries.push({
-			key: line.slice(0, equals).trim(),
+			key,
 			value,
 			line: index + 1,
-			managed
+			managed,
+			...section === void 0 ? {} : { section }
 		});
 	});
 	return entries;
+}
+/** The top-level settings of an .npmrc file: the keys npm applies. */
+function iniEntries(text) {
+	return iniLines(text).filter((entry) => entry.section === void 0);
+}
+/** A camelCase setting as pnpm 10 reads it from .npmrc, e.g. minimumReleaseAge as minimum-release-age. */
+function npmrcKey(setting) {
+	return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
 }
 /** A parsed INI value: true/false, numbers and strings as npm reads them. */
 function iniValue(value) {
@@ -12113,7 +12316,7 @@ function allowEntries(repository, manager, configFiles) {
 	return entries;
 }
 /** Whether a package name matches a policy pattern; `*` stands for any characters except `/`. */
-function matchesPattern(name, pattern) {
+function matchesPattern$1(name, pattern) {
 	return wildcardMatch(name, pattern);
 }
 
@@ -12963,6 +13166,14 @@ function delayMinutes(tool, value, version) {
 		ok: true,
 		minutes: 0
 	};
+	if (typeof value === "number" && Number.isNaN(value)) return {
+		ok: false,
+		reason: "NaN is not a delay"
+	};
+	if (typeof value === "bigint" || typeof value === "number" && Math.abs(value) > Number.MAX_SAFE_INTEGER) return {
+		ok: false,
+		reason: `${String(value)} is too large to be a delay`
+	};
 	if (typeof value === "number") {
 		const unit = values$1(tool.cooldown.unit)[0];
 		const factor = unit === null || unit === void 0 ? void 0 : UNIT_MINUTES[unit];
@@ -12976,7 +13187,7 @@ function delayMinutes(tool, value, version) {
 	}
 	if (typeof value !== "string") return {
 		ok: false,
-		reason: `${JSON.stringify(value)} is not a delay`
+		reason: `${JSON.stringify(value) ?? String(value)} is not a delay`
 	};
 	const text = value.trim();
 	if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
@@ -13088,6 +13299,17 @@ function managerConfigFiles(tool, manager) {
 	if (tool.id === "deno") return manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file));
 	return (values$1(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== ".npmrc" || tool.id === "npm").slice(0, 1);
 }
+/**
+* pnpm before 11 also reads its settings from the root .npmrc, spelled in kebab case, when pnpm-workspace.yaml does not
+* set them (extra.npmrcPrecedence); pnpm 11 reads only auth and registry settings there (extra.ignoredSince).
+*/
+function pnpmNpmrcSetting(context, tool, version, setting) {
+	if (tool.id !== "pnpm" || tool.extra?.["npmrcPrecedence"] === void 0 || tool.extra["ignoredSince"] === void 0) return void 0;
+	const until = parseVersion(String(extraOf(tool, "ignoredSince", isRecord)["since"]));
+	const over = extraOf(tool, "npmrcPrecedence", isRecord)["over"];
+	if (until === void 0 || version === void 0 || compareVersions$1(version, until) >= 0 || !Array.isArray(over) || !over.includes(".npmrc")) return void 0;
+	return readSetting(context.repository, ".npmrc", npmrcKey(setting));
+}
 /** The package manager's delay, or undefined (with a notice) when a configured value cannot be read. */
 function managerDelay$1(context, manager, tool) {
 	const version = pinnedVersion(manager) ?? latestVersion$1(tool);
@@ -13104,18 +13326,23 @@ function managerDelay$1(context, manager, tool) {
 	};
 	if (setting !== null) {
 		let found;
+		let key = setting;
 		if (ecosystemOfTool(tool) === "pypi") found = readPythonSetting(context.repository, tool, setting);
 		else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
+		if (found === void 0) {
+			found = pnpmNpmrcSetting(context, tool, version, setting);
+			if (found !== void 0) key = npmrcKey(setting);
+		}
 		if (found !== void 0) {
 			const raw = isRecord(found.value) ? found.value["age"] : found.value;
 			const delay = delayMinutes(tool, raw, version);
 			if (!delay.ok) {
-				context.notice(`${tool.name}: cannot read ${setting} in ${found.file}: ${delay.reason}`, found.file);
+				context.notice(`${tool.name}: cannot read ${key} in ${found.file}: ${delay.reason}`, found.file);
 				return;
 			}
 			return {
 				minutes: delay.minutes,
-				origin: `${setting}: ${JSON.stringify(raw)} in ${found.file}`,
+				origin: `${key}: ${JSON.stringify(raw)} in ${found.file}`,
 				location: {
 					file: found.file,
 					line: found.line
@@ -13373,7 +13600,7 @@ function setValue(text, path, value) {
 const isString$3 = (value) => typeof value === "string";
 const isNpmrcKey = (value) => isRecord(value) && isString$3(value["key"]) && isString$3(value["until"]);
 const isCooldownKeys$1 = (value) => isRecord(value) && isString$3(value["days"]);
-const isPackageJsonConfig$1 = (value) => isRecord(value) && isString$3(value["file"]) && isString$3(value["key"]);
+const isPackageJsonConfig$2 = (value) => isRecord(value) && isString$3(value["file"]) && isString$3(value["key"]);
 function lines$1(text) {
 	return text.split(/\r?\n/u);
 }
@@ -13505,9 +13732,9 @@ function dependabotDelays$1(repository, bot, file) {
 		}];
 	});
 }
-function renovateDelay(repository, bot, file) {
+function renovateDelay$1(repository, bot, file) {
 	if (!/\.jsonc?$/u.test(file) && !file.endsWith(".renovaterc")) return void 0;
-	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig$1);
+	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig$2);
 	const setting = settingOf(bot.cooldown.setting) ?? "minimumReleaseAge";
 	const path = file === packageJson.file ? [packageJson.key, setting] : [setting];
 	const text = repository.readText(file);
@@ -13551,7 +13778,7 @@ function configuredDelays(repository, detection, tools, only) {
 		if (bot === void 0 || file === void 0 || only !== void 0 && !only.has(bot.id)) continue;
 		if (bot.id === "dependabot") delays.push(...readable(() => dependabotDelays$1(repository, bot, file), []));
 		else {
-			const delay = readable(() => renovateDelay(repository, bot, file), void 0);
+			const delay = readable(() => renovateDelay$1(repository, bot, file), void 0);
 			if (delay !== void 0) delays.push(delay);
 		}
 	}
@@ -14080,17 +14307,25 @@ function keyOf$1(line) {
 	if (equals === -1) return void 0;
 	return trimmed.slice(0, equals).trim().replace(/\[\]$/u, "");
 }
+/** A [section] header as npm's ini parser reads it (extra.npmrcFormat): the keys below it are not npm settings. */
+const SECTION = /^\[[^\]]*\]\s*$/u;
 function writeIniBlock(body, entries, managedKeys) {
 	const managed = new Set(managedKeys);
 	const removed = removeBlock(splitLines(body));
-	const lines = removed.lines.map((line) => {
+	const header = removed.lines.findIndex((line) => SECTION.test(line));
+	const topLevel = header === -1 ? removed.lines.length : header;
+	const lines = removed.lines.map((line, index) => {
 		const original = commentedOut(line);
 		if (original !== void 0) return managed.has(keyOf$1(original) ?? "") ? line : original;
-		const key = keyOf$1(line);
+		const key = index < topLevel ? keyOf$1(line) : void 0;
 		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}` : line;
 	});
 	if (entries.length === 0) return joinLines(lines);
-	return joinLines(removed.at === void 0 ? insertBlock(lines, lines.length, entries) : insertBlock(lines, removed.at, entries, removed.separated));
+	if (removed.at !== void 0 && removed.at <= topLevel) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
+	const introduces = (line) => /^\s*[#;]/u.test(line) && !line.startsWith("# depcurfew: superseded by the managed block: ") && !line.startsWith("# depcurfew: turned off; depcurfew.json manages this setting: ");
+	let at = topLevel;
+	while (header !== -1 && at > 0 && introduces(lines[at - 1] ?? "")) at -= 1;
+	return joinLines(insertBlock(lines, at, entries));
 }
 
 // src/apply/pip-requirements.ts
@@ -15758,7 +15993,7 @@ function allowListWarnings(root, policy, detection, targets, tools) {
 	return detection.packageManagers.filter((manager) => manager.supported && targets.has(manager.id)).flatMap((manager) => {
 		const tool = tools.find((entry) => entry.id === manager.id);
 		const allow = policyFor(policy, tool === void 0 ? "npm" : ecosystemOfTool(tool)).installScripts?.allow ?? [];
-		return allowEntries(repository, manager.id, manager.configFiles).filter((entry) => !allow.some((pattern) => matchesPattern(entry.package, pattern))).map((entry) => ({
+		return allowEntries(repository, manager.id, manager.configFiles).filter((entry) => !allow.some((pattern) => matchesPattern$1(entry.package, pattern))).map((entry) => ({
 			code: "allow-list-entry-outside-policy",
 			tool: manager.id,
 			location: { file: entry.file },
@@ -15939,11 +16174,183 @@ function loadPolicyIfPresent(root) {
 	return result.policy;
 }
 
+// src/doctor/renovate.ts
+const isStrings$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$1(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
+const isPresetFact = (value) => isRecord(value) && isStrings$1(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
+const isInternal = (value) => isRecord(value) && isStrings$1(value["prefixes"]) && isStrings$1(value["settingDelay"]);
+function readRenovateConfig(text, file, base) {
+	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
+	const extendsList = jsonSetting(text, [...base, "extends"]);
+	const list = jsonSetting(text, [...base, "packageRules"]);
+	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
+		index,
+		rule,
+		line: jsonSetting(text, [
+			...base,
+			"packageRules",
+			index
+		])?.line ?? list.line
+	}] : []) : [];
+	return {
+		file,
+		base,
+		top,
+		extends: {
+			presets: isStrings$1(extendsList?.value) ? extendsList.value : [],
+			line: extendsList?.line ?? 1
+		},
+		rules
+	};
+}
+/**
+* Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
+* case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
+*/
+function matchesPattern(input, pattern, negation) {
+	const negative = pattern.startsWith(negation);
+	const body = negative ? pattern.slice(negation.length) : pattern;
+	if (!negative && body === "*") return true;
+	const regex = /^\/(.+)\/(i?)$/u.exec(body);
+	if (regex !== null) {
+		let result;
+		try {
+			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
+		} catch {
+			return;
+		}
+		return negative ? !result : result;
+	}
+	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
+	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
+	return negative ? !result : result;
+}
+/** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
+function matchesList(input, patterns, negation) {
+	if (patterns.length === 0) return false;
+	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
+	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
+	const results = positive.map((pattern) => matchesPattern(input, pattern, negation));
+	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
+	const excluded = negative.map((pattern) => matchesPattern(input, pattern, negation));
+	if (excluded.includes(false)) return false;
+	return excluded.includes(void 0) ? void 0 : true;
+}
+/** Patterns that match every package name: *, **, @*\/*, npm:*, and regexes like /.*\/. */
+function matchesEveryName(pattern) {
+	const name = pattern.replace(/^(npm|jsr):/u, "");
+	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
+}
+/**
+* The update types for which a rule applies to every package of `ecosystem`, or undefined when it narrows the
+* packages (or depcurfew cannot tell).
+*/
+function ruleScope(bot, rule, ecosystem) {
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$1);
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
+	const known = /* @__PURE__ */ new Set([
+		...matching.packageMatchers,
+		matching.datasourceMatcher,
+		matching.updateTypeMatcher
+	]);
+	if (matchers.some((key) => !known.has(key))) return void 0;
+	let names = { kind: "all" };
+	for (const key of matching.packageMatchers) {
+		if (!(key in rule)) continue;
+		const patterns = rule[key];
+		if (!isStrings$1(patterns) || patterns.length === 0) return void 0;
+		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
+		const broad = positive.find(matchesEveryName);
+		if (positive.length > 0 && broad === void 0) return void 0;
+		if (broad !== void 0 && names.kind === "all") names = {
+			kind: "pattern",
+			pattern: broad
+		};
+		else if (positive.length === 0) names = {
+			kind: "except",
+			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
+		};
+	}
+	if (matching.datasourceMatcher in rule) {
+		const patterns = rule[matching.datasourceMatcher];
+		const datasource = datasources[ecosystem];
+		if (!isStrings$1(patterns) || typeof datasource !== "string" || matchesList(datasource, patterns, matching.negation) !== true) return void 0;
+	}
+	let types = updateTypes;
+	if (matching.updateTypeMatcher in rule) {
+		const patterns = rule[matching.updateTypeMatcher];
+		if (!isStrings$1(patterns)) return void 0;
+		types = updateTypes.filter((type) => matchesList(type, patterns, matching.negation) === true);
+	}
+	return types.length === 0 ? void 0 : {
+		updateTypes: types,
+		names,
+		matchers
+	};
+}
+function presetName(preset) {
+	return preset.replace(/\(.*\)$/u, "");
+}
+/**
+* The delay Renovate applies to every package of `ecosystem`, for each delayed update type. Without a top-level value
+* or a rule, an update type has no entry: Renovate does not wait.
+*/
+function renovateDelay(bot, config, ecosystem) {
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$1);
+	const internal = extraOf(bot, "internalPresets", isInternal);
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const byType = /* @__PURE__ */ new Map();
+	const set = (types, source) => {
+		for (const type of types) byType.set(type, source);
+	};
+	const path = [...config.base, "minimumReleaseAge"].join(".");
+	if (config.top !== void 0) set(updateTypes, {
+		value: config.top.value,
+		origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`,
+		line: config.top.line
+	});
+	for (const key of ["minimumReleaseAgePresets", "pypiPresets"]) {
+		const fact = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresetFact);
+		const preset = fact === void 0 ? void 0 : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
+		if (fact === void 0 || preset === void 0 || datasources[ecosystem] !== fact.datasource) continue;
+		set(updateTypes, {
+			value: fact.value,
+			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
+			line: config.extends.line
+		});
+	}
+	let repositorySets = config.top !== void 0;
+	for (const { index, line, rule } of config.rules) {
+		if (!("minimumReleaseAge" in rule)) continue;
+		const scope = ruleScope(bot, rule, ecosystem);
+		if (scope === void 0) continue;
+		repositorySets = true;
+		set(scope.updateTypes, {
+			value: rule["minimumReleaseAge"],
+			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
+			line,
+			rule: index
+		});
+	}
+	const unreadable = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
+	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
+	if (unreadable !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
+		known: false,
+		preset: unreadable,
+		line: config.extends.line
+	};
+	return {
+		known: true,
+		byType
+	};
+}
+
 // src/doctor/rules/bot-cooldown.ts
 const isEcosystems = (value) => isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
-const isPresets = (value) => isRecord(value) && Array.isArray(value["presets"]) && typeof value["value"] === "string";
-const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && Array.isArray(value["semverDays"]);
-const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
+const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]);
+const isPackageJsonConfig$1 = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
 function describe$1(minutes) {
 	return minutes === 0 ? "no delay" : formatMinutes(minutes);
 }
@@ -15956,6 +16363,7 @@ function dependabotDelays(context, bot, file) {
 	const keys = extraOf(bot, "cooldownKeys", isCooldownKeys);
 	const fallback = versionedValue(values$1(bot.cooldown.default)[0] ?? [], void 0);
 	const securityBypass = values$1(bot.cooldown.securityUpdates).includes("bypass");
+	const include = extraOf(bot, "cooldownInclude", (value) => isRecord(value) && typeof value["key"] === "string");
 	return updates.value.flatMap((entry, index) => {
 		if (!isRecord(entry) || typeof entry["package-ecosystem"] !== "string") return [];
 		const managers = ecosystems[entry["package-ecosystem"]] ?? [];
@@ -15972,7 +16380,7 @@ function dependabotDelays(context, bot, file) {
 			String(index),
 			cooldown === void 0 ? "package-ecosystem" : "cooldown"
 		])?.line ?? updates.line;
-		return [{
+		const delays = [{
 			bot,
 			managers,
 			minutes: days * 1440,
@@ -15984,6 +16392,30 @@ function dependabotDelays(context, bot, file) {
 			securityBypass,
 			scope: `${entry["package-ecosystem"]} updates`
 		}];
+		const included = cooldown?.[include.key];
+		const patterns = Array.isArray(included) ? included.filter((item) => typeof item === "string") : [];
+		if (patterns.length > 0 && !patterns.some((pattern) => /^\*+$/u.test(pattern))) {
+			const at = yamlSetting(text, [
+				"updates",
+				String(index),
+				"cooldown",
+				include.key
+			])?.line ?? line;
+			delays.push({
+				bot,
+				managers,
+				minutes: 0,
+				origin: `cooldown.${include.key} in ${file} names only ${listing(patterns)}`,
+				location: {
+					file,
+					line: at
+				},
+				securityBypass,
+				scope: `${entry["package-ecosystem"]} updates of dependencies that cooldown.${include.key} does not name`,
+				fix: `Remove ${include.key} from the cooldown of updates[${index}] in ${file}, so that the cooldown covers every dependency, and list exceptions under ${keys.exclude} instead`
+			});
+		}
+		return delays;
 	});
 }
 function renovateDelays(context, bot, file) {
@@ -15993,10 +16425,9 @@ function renovateDelays(context, bot, file) {
 	}
 	const text = context.repository.readText(file);
 	if (text === void 0) return [];
-	const managersOf = (ecosystem) => context.tools.filter((tool) => tool.kind === "package-manager" && (ecosystem === void 0 || ecosystemOfTool(tool) === ecosystem)).map((tool) => tool.id);
-	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig);
+	const managersOf = (ecosystem) => context.tools.filter((tool) => tool.kind === "package-manager" && ecosystemOfTool(tool) === ecosystem).map((tool) => tool.id);
+	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig$1);
 	const base = file === packageJson.file ? [packageJson.key] : [];
-	const configured = jsonSetting(text, [...base, "minimumReleaseAge"]);
 	const security = jsonSetting(text, [
 		...base,
 		"vulnerabilityAlerts",
@@ -16004,50 +16435,51 @@ function renovateDelays(context, bot, file) {
 	]);
 	const securityBypass = security === void 0 ? values$1(bot.cooldown.securityUpdates).includes("bypass") : security.value === null;
 	const applies = base.length === 0 && /\.jsonc?$/u.test(file);
-	const groups = [];
-	if (configured !== void 0) groups.push({
-		managers: managersOf(),
-		value: configured.value,
-		origin: `${[...base, "minimumReleaseAge"].join(".")}: ${JSON.stringify(configured.value)} in ${file}`,
-		line: configured.line
-	});
-	else {
-		const extendsList = jsonSetting(text, [...base, "extends"]);
-		const extended = Array.isArray(extendsList?.value) ? extendsList.value.filter((item) => typeof item === "string") : [];
-		for (const [key, ecosystem] of [["minimumReleaseAgePresets", "npm"], ["pypiPresets", "pypi"]]) {
-			const presets = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresets);
-			const preset = presets === void 0 ? void 0 : extended.find((item) => presets.presets.includes(item));
-			groups.push(presets !== void 0 && preset !== void 0 ? {
-				managers: managersOf(ecosystem),
-				value: presets.value,
-				origin: `the preset ${preset} in ${file} (${presets.value})`,
-				line: extendsList?.line ?? 1
-			} : {
-				managers: managersOf(ecosystem),
-				value: null,
-				origin: "Renovate has no delay by default",
-				line: 1
-			});
-		}
-	}
-	return groups.flatMap((group) => {
-		const delay = delayMinutes(bot, group.value, latestVersion$1(bot));
-		if (!delay.ok) {
-			context.notice(`Renovate: cannot read minimumReleaseAge in ${file}: ${delay.reason}`, file);
-			return [];
-		}
-		return [{
+	const config = readRenovateConfig(text, file, base);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every((item) => typeof item === "string"));
+	return ["npm", "pypi"].flatMap((ecosystem) => {
+		const managers = managersOf(ecosystem);
+		const delay = renovateDelay(bot, config, ecosystem);
+		if (!delay.known) return [{
 			bot,
-			managers: group.managers,
-			minutes: delay.minutes,
-			origin: group.origin,
+			managers,
+			minutes: 0,
+			origin: `the preset ${delay.preset}`,
 			location: {
 				file,
-				line: group.line
+				line: delay.line
 			},
 			securityBypass,
 			scope: "updates",
-			applies
+			applies,
+			unreadablePreset: delay.preset
+		}];
+		const minutes = /* @__PURE__ */ new Map();
+		for (const type of updateTypes) {
+			const source = delay.byType.get(type);
+			const value = delayMinutes(bot, source?.value ?? null, latestVersion$1(bot));
+			if (!value.ok) {
+				context.notice(`Renovate: cannot read minimumReleaseAge in ${file}: ${value.reason}`, file);
+				return [];
+			}
+			minutes.set(type, value.minutes);
+		}
+		const shortest = Math.min(...minutes.values());
+		const types = updateTypes.filter((type) => minutes.get(type) === shortest);
+		const source = delay.byType.get(types[0] ?? "");
+		return [{
+			bot,
+			managers,
+			minutes: shortest,
+			origin: source?.origin ?? "Renovate has no delay by default",
+			location: {
+				file,
+				line: source?.line ?? 1
+			},
+			securityBypass,
+			scope: types.length === updateTypes.length ? "updates" : `${listing(types)} updates`,
+			applies,
+			...source?.rule === void 0 ? {} : { rule: source.rule }
 		}];
 	});
 }
@@ -16060,7 +16492,7 @@ function rechecksLockfile(tool, manager) {
 const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	summary: "An update bot waits less than the package manager before proposing a new version.",
-	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile.",
+	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type.",
 	help: "Give the bot a delay at least as long as the package manager's (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
@@ -16079,10 +16511,20 @@ const botCooldownMismatch = {
 			if (tool === void 0) continue;
 			const own = managerDelay$1(context, manager, tool);
 			if (own === void 0 || delay.location === void 0) continue;
+			if (delay.unreadablePreset !== void 0) {
+				if (own.minutes > 0) context.report({
+					level: "note",
+					location: delay.location,
+					message: `${delay.bot.name} extends ${delay.unreadablePreset}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
+					fix: `Make sure the preset sets minimumReleaseAge to at least ${describe$1(own.minutes)} for these packages, or set it in ${delay.location.file}${delay.applies === false ? "" : " (depcurfew apply does this)"}`
+				});
+				continue;
+			}
+			if (delay.rule !== void 0 && delay.minutes === 0) continue;
 			if (delay.minutes < own.minutes) context.report({
 				location: delay.location,
 				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
-				fix: delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`
+				fix: delay.fix ?? (delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(own.minutes)}, or limit the rule to the packages that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`)
 			});
 			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager)) context.report({
 				level: "warning",
@@ -16096,10 +16538,7 @@ const botCooldownMismatch = {
 
 // src/doctor/rules/broad-exclusion.ts
 /** Patterns that match every package (or every scoped package): *, **, @*\/*, npm:*, and regexes like /.*\/. */
-function isBroad(pattern) {
-	const name = pattern.replace(/^(npm|jsr):/u, "");
-	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
-}
+const isBroad = matchesEveryName;
 function tool(context, id) {
 	return context.tools.find((entry) => entry.id === id);
 }
@@ -16166,33 +16605,55 @@ function checkDependabot(context, file) {
 		});
 	});
 }
-const MATCHERS = /^(match|exclude)[A-Z]/u;
+const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
+const isMatching = (value) => isRecord(value) && typeof value["negation"] === "string" && typeof value["datasourceMatcher"] === "string" && typeof value["updateTypeMatcher"] === "string";
+/** What a packageRules entry covers, for the message: its update types, names and datasources. */
+function covers(scope, datasources, matching) {
+	return `${scope.matchers.includes(matching.updateTypeMatcher) ? `${listing(scope.updateTypes)} updates of ` : ""}${scope.names.kind === "except" ? `every package except ${listing(scope.names.patterns.map((pattern) => pattern.slice(matching.negation.length)))}` : "every package"}${scope.matchers.includes(matching.datasourceMatcher) ? ` from the ${listing(datasources)} datasource${datasources.length === 1 ? "" : "s"}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
+}
+/** packageRules entries that turn minimumReleaseAge off for every package of a registry (extra.packageRuleMatching). */
 function checkRenovate(context, file) {
-	if (!/\.jsonc?$/u.test(file)) return;
+	const bot = tool(context, "renovate");
+	if (bot === void 0 || !/(\.jsonc?|\.renovaterc)$/u.test(file)) return;
 	const text = context.repository.readText(file);
 	if (text === void 0) return;
-	const rules = jsonSetting(text, ["packageRules"]);
-	if (rules === void 0 || !Array.isArray(rules.value)) return;
-	rules.value.forEach((rule, index) => {
-		if (!isRecord(rule) || !("minimumReleaseAge" in rule) || rule["minimumReleaseAge"] !== null && rule["minimumReleaseAge"] !== "0 days") return;
-		const broad = (Array.isArray(rule["matchPackageNames"]) ? rule["matchPackageNames"] : []).find((name) => typeof name === "string" && isBroad(name));
-		const unscoped = !Object.keys(rule).some((key) => MATCHERS.test(key));
-		if (broad === void 0 && !unscoped) return;
-		const line = jsonSetting(text, ["packageRules", index])?.line ?? rules.line;
+	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig);
+	const config = readRenovateConfig(text, file, file === packageJson.file ? [packageJson.key] : []);
+	const matching = extraOf(bot, "packageRuleMatching", isMatching);
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const detected = [...new Set(context.detection.packageManagers.filter((entry) => entry.supported).flatMap((entry) => {
+		const knowledge = tool(context, entry.id);
+		return knowledge === void 0 ? [] : [ecosystemOfTool(knowledge)];
+	}))];
+	const ecosystems = detected.length > 0 ? detected : ["npm", "pypi"];
+	for (const { index, line, rule } of config.rules) {
+		if (!("minimumReleaseAge" in rule)) continue;
+		const delay = delayMinutes(bot, rule["minimumReleaseAge"], latestVersion$1(bot));
+		if (!delay.ok || delay.minutes !== 0) continue;
+		const covered = ecosystems.flatMap((ecosystem) => {
+			const scope = ruleScope(bot, rule, ecosystem);
+			return scope === void 0 ? [] : [{
+				scope,
+				datasource: String(datasources[ecosystem])
+			}];
+		});
+		const first = covered[0];
+		if (first === void 0) continue;
+		const { scope } = first;
 		context.report({
 			location: {
 				file,
 				line
 			},
-			message: broad === void 0 ? `packageRules[${index}] turns off minimumReleaseAge without matching any packages, so it applies to all of them` : `packageRules[${index}] turns off minimumReleaseAge for "${broad}", which matches every package`,
+			message: scope.matchers.length === 0 ? `packageRules[${index}] turns off minimumReleaseAge without matching any packages, so it applies to all of them` : scope.names.kind === "pattern" && scope.matchers.every((key) => key !== matching.datasourceMatcher && key !== matching.updateTypeMatcher) ? `packageRules[${index}] turns off minimumReleaseAge for "${scope.names.pattern}", which matches every package` : `packageRules[${index}] turns off minimumReleaseAge for ${covers(scope, covered.map((item) => item.datasource), matching)}`,
 			fix: "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
 		});
-	});
+	}
 }
 const broadExclusion = {
 	id: "broad-exclusion",
 	summary: "An exception list matches every package, which turns the protection off.",
-	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies.",
+	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name.",
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
 	level: "error",
 	requiresPolicy: false,
@@ -16299,7 +16760,7 @@ function checkAllowLists(context) {
 		const knowledge = context.tools.find((entry) => entry.id === manager.id);
 		const allow = policyFor(policy, knowledge === void 0 ? "npm" : ecosystemOfTool(knowledge)).installScripts?.allow ?? [];
 		for (const entry of allowEntries(context.repository, manager.id, manager.configFiles)) {
-			if (allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
+			if (allow.some((pattern) => matchesPattern$1(entry.package, pattern))) continue;
 			context.report({
 				level: "warning",
 				location: entry.line === void 0 ? { file: entry.file } : {
@@ -16350,9 +16811,6 @@ function atLeast(version, since) {
 	const required = typeof since === "string" ? parseVersion(since) : void 0;
 	return required !== void 0 && compareVersions$1(version, required) >= 0;
 }
-function kebab$1(setting) {
-	return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
-}
 /** Lockfiles an older version read but this one does not (only from verified facts). */
 function checkLockfiles(context, tool, version, label) {
 	const fact = tool.project?.lockfiles;
@@ -16395,7 +16853,7 @@ function checkPnpm(context, tool, version, label) {
 		].filter((setting) => setting !== null);
 		const npmrc = context.repository.readText(".npmrc");
 		for (const entry of npmrc === void 0 ? [] : iniEntries(npmrc)) {
-			const setting = settings.find((name) => kebab$1(name) === entry.key.replace(/\[\]$/u, ""));
+			const setting = settings.find((name) => npmrcKey(name) === entry.key.replace(/\[\]$/u, ""));
 			if (setting === void 0) continue;
 			const inWorkspace = workspace !== void 0 && yamlSetting(workspace, [setting]) !== void 0;
 			context.report({
@@ -16516,7 +16974,7 @@ function eachLockfile(context, rule, visit) {
 	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
 		const tool = context.tools.find((entry) => entry.id === manager.id);
 		if (tool === void 0) continue;
-		for (const result of readLockfiles(context.repository, manager, tool, workspaces)) if (result.ok) visit(result.lockfile, tool);
+		for (const result of readLockfiles(context.repository, manager, tool, workspaces, context.tools)) if (result.ok) visit(result.lockfile, tool);
 		else if (!result.unreadable) context.notice(`${rule} could not check ${result.file}: ${result.reason}`, result.file);
 	}
 }
@@ -16623,7 +17081,7 @@ function reportPythonBuilds(context, lockfile, tool, allow) {
 	const patterns = allow.map(normalizePythonName);
 	for (const entry of lockfile.entries) {
 		if (entry.installScript !== true || entry.source === "workspace") continue;
-		if (entry.unnamed !== true && patterns.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+		if (entry.unnamed !== true && patterns.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
 		const stopped = forbiddenBy !== void 0 && covers.includes(entry.source);
 		const fix = entry.unnamed === true ? `Give the requirement a package name (name @ ${entry.spec}) so that it can be allowed with "${PYPI_PREFIX}name" in installScripts.allow in ${POLICY_FILE}, or remove it` : `Review ${entry.name} and add "${PYPI_PREFIX}${entry.name}" to installScripts.allow in ${POLICY_FILE} (it is then always built from source), or replace the package`;
 		context.report({
@@ -16659,7 +17117,7 @@ const lockfileInstallScripts = {
 			const disabledBy = scriptsDisabledBy(context, tool);
 			const running = disabledBy === void 0 && runsScripts(context, tool);
 			for (const entry of flagged) {
-				if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+				if (allow.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
 				context.report({
 					level: running ? "error" : "warning",
 					location: location(lockfile, entry),
@@ -16929,9 +17387,6 @@ const managerVersionTooOld = {
 };
 
 // src/doctor/rules/npmrc.ts
-function kebab(setting) {
-	return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
-}
 function before(version, limit) {
 	const until = typeof limit === "string" ? parseVersion(limit) : void 0;
 	return until !== void 0 && compareVersions$1(version, until) < 0;
@@ -16991,6 +17446,102 @@ function checkNpmWorkspaces(context) {
 		fix: `Set it in the root .npmrc, or in ${POLICY_FILE} and run depcurfew apply`
 	});
 }
+/**
+* npm takes settings only from the top of .npmrc: a key below a [section] header belongs to that section (extra.npmrcFormat),
+* so a security setting there, or a managed block an older depcurfew apply appended there, has no effect.
+*/
+function checkNpmSections(context) {
+	const npm = managerOf(context, "npm");
+	const text = npm === void 0 ? void 0 : context.repository.readText(".npmrc");
+	if (npm === void 0 || text === void 0) return;
+	const strict = extraOf(npm.tool, "strictAllowScripts", isSwitch).setting;
+	const keys = /* @__PURE__ */ new Set([
+		...npmrcKeys(npm.tool, (setting) => setting).keys(),
+		settingOf(npm.tool.installScripts.disableAll),
+		strict
+	]);
+	const lines = iniLines(text);
+	const bare = (entry) => entry.key.replace(/\[\]$/u, "");
+	const topLevel = new Set(lines.filter((entry) => entry.section === void 0).map(bare));
+	let blockReported = false;
+	for (const entry of lines) {
+		const key = bare(entry);
+		if (entry.section === void 0 || !keys.has(key)) continue;
+		const location = {
+			file: ".npmrc",
+			line: entry.line
+		};
+		if (entry.managed) {
+			if (blockReported) continue;
+			blockReported = true;
+			context.report({
+				location,
+				message: `the depcurfew managed block in .npmrc is below the [${entry.section}] header, so npm reads its settings as ${entry.section}.${key} and so on and applies none of them`,
+				fix: "Run depcurfew apply, which moves the managed block above the first [section] header"
+			});
+		} else if (topLevel.has(key)) context.report({
+			level: "warning",
+			location,
+			message: `${key} in .npmrc is below the [${entry.section}] header, so npm reads it as ${entry.section}.${key} and does not apply it; the value above the header applies`,
+			fix: "Remove the line, or move it above the first [section] header of .npmrc if this value is the one you want"
+		});
+		else context.report({
+			location,
+			message: `${key} in .npmrc is below the [${entry.section}] header, so npm reads it as ${entry.section}.${key} and does not apply it`,
+			fix: "Move the line above the first [section] header of .npmrc"
+		});
+	}
+}
+const isBefore = (value) => isRecord(value) && typeof value["setting"] === "string" && isRecord(value["exclusive"]) && typeof value["beforeWinsSince"] === "string";
+/**
+* before= in the project .npmrc (extra.beforeInteraction): from npm 11.15.0 it takes the place of min-release-age set in
+* the same file, so a future date turns the delay off and a past one freezes every dependency; npm 11.10 to 11.14
+* refuse to run with both.
+*/
+function checkNpmBefore(context) {
+	const npm = managerOf(context, "npm");
+	const text = npm === void 0 ? void 0 : context.repository.readText(".npmrc");
+	if (npm === void 0 || text === void 0) return;
+	const fact = extraOf(npm.tool, "beforeInteraction", isBefore);
+	const ageSetting = settingOf(npm.tool.cooldown.setting);
+	const entries = iniEntries(text);
+	const date = entries.filter((entry) => entry.key === fact.setting).at(-1);
+	const age = entries.filter((entry) => entry.key === ageSetting).at(-1);
+	if (date === void 0 || ageSetting === null || before(npm.version, fact.exclusive.since)) return;
+	const policy = context.policy === void 0 ? void 0 : policyFor(context.policy, "npm");
+	const configured = age === void 0 ? void 0 : delayMinutes(npm.tool, iniValue(age.value), npm.version);
+	const wanted = policy?.cooldown?.minimum.minutes ?? (configured?.ok === true ? configured.minutes : 0);
+	if (wanted <= 0) return;
+	const label = `npm ${formatVersion(npm.version)}`;
+	const location = {
+		file: ".npmrc",
+		line: date.line
+	};
+	if (before(npm.version, fact.exclusive.until)) {
+		if (age === void 0) return;
+		context.report({
+			location,
+			message: `${label} does not accept ${fact.setting} and ${ageSetting} together and stops with an error, so every npm command fails while both are set in .npmrc`,
+			fix: `Remove the ${fact.setting} line from .npmrc (npm ${fact.beforeWinsSince} and later accept both, but ${fact.setting} then takes the place of ${ageSetting})`
+		});
+		return;
+	}
+	const cutoff = Date.parse(date.value);
+	if (Number.isNaN(cutoff)) return;
+	const now = Date.now();
+	const replaces = `${fact.setting}=${date.value} in .npmrc takes the place of ${ageSetting} (${label} uses ${fact.setting} when both are set in the same file)`;
+	if (cutoff > now - wanted * 6e4) context.report({
+		location,
+		message: cutoff > now ? `${replaces}, and the date is in the future, so npm installs new versions without any release-age delay` : `${replaces}, so npm installs versions published up to ${date.value}, less than ${formatMinutes(wanted)} ago`,
+		fix: `Remove the ${fact.setting} line from .npmrc, so that ${ageSetting} applies`
+	});
+	else context.report({
+		level: "warning",
+		location,
+		message: `${replaces}, so npm never installs a version published after ${date.value}: that freezes dependencies, security fixes included, instead of a delay that moves with time`,
+		fix: `Remove the ${fact.setting} line from .npmrc, so that ${ageSetting} applies; for a one-off install from a fixed date, pass --${fact.setting} on the command line`
+	});
+}
 /** pnpm 10 reads .npmrc too, but pnpm-workspace.yaml wins; a root .npmrc value counts only when the YAML lacks it. */
 function checkPnpmRoot(context) {
 	const pnpm = managerOf(context, "pnpm");
@@ -17003,7 +17554,7 @@ function checkPnpmRoot(context) {
 	const cooldownSetting = settingOf(pnpm.tool.cooldown.setting);
 	const excludeSetting = settingOf(pnpm.tool.cooldown.exclude.setting);
 	const label = `pnpm ${formatVersion(pnpm.version)}`;
-	for (const entry of entriesFor(context, ".npmrc", npmrcKeys(pnpm.tool, kebab))) {
+	for (const entry of entriesFor(context, ".npmrc", npmrcKeys(pnpm.tool, npmrcKey))) {
 		if (precedence["winner"] === "pnpm-workspace.yaml" && workspace !== void 0 && yamlSetting(workspace, [entry.setting]) !== void 0) continue;
 		if (entry.setting === cooldownSetting) {
 			const wanted = convertCooldown(pnpm.tool, policy.cooldown.minimum);
@@ -17017,7 +17568,7 @@ function checkPnpmRoot(context) {
 				message: `${entry.key}=${entry.value} in .npmrc sets ${label} to wait ${actual.minutes === 0 ? "not at all" : formatMinutes(actual.minutes)}, shorter than ${policy.cooldown.minimum.text} in ${POLICY_FILE}, because pnpm-workspace.yaml does not set ${entry.setting}`,
 				fix: "Remove the line and run depcurfew apply, which writes the delay to pnpm-workspace.yaml"
 			});
-		} else if (entry.setting === excludeSetting && !policy.cooldown.exclude.some((pattern) => matchesPattern(entry.value, pattern) || pattern === entry.value)) context.report({
+		} else if (entry.setting === excludeSetting && !policy.cooldown.exclude.some((pattern) => matchesPattern$1(entry.value, pattern) || pattern === entry.value)) context.report({
 			location: {
 				file: ".npmrc",
 				line: entry.line
@@ -17030,12 +17581,14 @@ function checkPnpmRoot(context) {
 const npmrcOverridesPolicy = {
 	id: "npmrc-overrides-policy",
 	summary: "An .npmrc file changes a security setting in a way the policy does not see, or is ignored.",
-	description: "Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages, and pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy.",
+	description: "Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages and the keys below a [section] header, and a before date in .npmrc takes the place of min-release-age; pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy.",
 	help: "Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.",
 	level: "error",
 	requiresPolicy: false,
 	check(context) {
 		checkNpmWorkspaces(context);
+		checkNpmSections(context);
+		checkNpmBefore(context);
 		checkPnpmRoot(context);
 	}
 };
@@ -17057,7 +17610,7 @@ const pnpmSharedWorkspaceLockfile = {
 		const fromNpmrc = iniEntries(context.repository.readText(".npmrc") ?? "").filter((entry) => entry.key === shared["npmrcKey"]).at(-1);
 		if ((fromYaml !== void 0 ? fromYaml.value : fromNpmrc !== void 0 ? iniValue(fromNpmrc.value) : shared["default"]) !== perProject["sharedWorkspaceLockfile"]) return;
 		const where = fromYaml !== void 0 ? "pnpm-workspace.yaml" : ".npmrc";
-		const keys = npmrcKeys(pnpm.tool, kebab);
+		const keys = npmrcKeys(pnpm.tool, npmrcKey);
 		for (const file of packageNpmrcFiles(context)) for (const entry of entriesFor(context, file, keys)) context.report({
 			location: {
 				file,
@@ -17228,6 +17781,7 @@ const pythonConfigIgnored = {
 /** Repository warnings that mean a file was not checked. */
 const UNREADABLE_WARNINGS = {
 	"invalid-file": "Fix the syntax error, so that depcurfew can check the file",
+	"unreadable-file": "Make the file readable for the user that runs depcurfew, so that depcurfew can check it",
 	"file-too-large": "Make the file smaller than the limit, or check its settings by hand",
 	"outside-repository": "Replace the symlink with a regular file inside the repository",
 	"workspace-outside-repository": "Keep workspace packages inside the repository",
@@ -17237,7 +17791,7 @@ const unreadableConfig = {
 	id: "unreadable-config",
 	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.",
 	description: "A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.",
-	help: "Fix what the message describes: invalid syntax, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
+	help: "Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
 	level: "error",
 	requiresPolicy: false,
 	check(context) {

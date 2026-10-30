@@ -21,6 +21,7 @@ import type {
 import { parseToml, tomlValueAt, type TomlDocument, type TomlValue } from './toml.ts';
 import { readWorkflows } from './workflows.ts';
 import { expandWorkspaces } from './workspaces.ts';
+import { normalizePythonName } from '../policy/python-names.ts';
 
 export type * from './types.ts';
 
@@ -76,6 +77,28 @@ function requiredVersionText(value: string): string {
 /** A TOML file, parsed once per repository; undefined when it is missing or cannot be parsed (a warning says so). */
 function readToml(repository: Repository, file: string): TomlDocument | undefined {
   return repository.parseOnce(file, parseToml);
+}
+
+/**
+ * A top-level string key of a TOML lockfile, such as created-by in pylock.toml, read from the start of the file: top-level
+ * keys come before the first table, so a large lockfile is not read whole.
+ */
+function createdBy(repository: Repository, file: string, key: string): string | undefined {
+  const head = repository.readHead(file, 16 * 1024) ?? '';
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  const pattern = new RegExp(`^\\s*(?:${escaped}|"${escaped}")\\s*=\\s*("(?:[^"\\\\]|\\\\.)*"|'[^']*')`, 'u');
+  for (const line of head.split(/\r?\n/u)) {
+    if (/^\s*\[/u.test(line)) return undefined;
+    const value = pattern.exec(line)?.[1];
+    if (value === undefined) continue;
+    if (value.startsWith("'")) return value.slice(1, -1);
+    try {
+      return JSON.parse(value) as string;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 function orList(items: readonly string[]): string {
@@ -261,10 +284,20 @@ export function detectProject(
   readToolVersions(repository, facts, collector);
   readPythonConfig(repository, facts, collector);
 
-  const lockfiles = new Map<PackageManagerId, string[]>();
+  // A lockfile that names the tool which wrote it (created-by in pylock.toml) belongs to that tool when depcurfew
+  // supports it: a Pipenv or uv project with an exported pylock.toml is not a pip project.
+  const owners = new Map<string, PackageManagerId>();
   for (const manager of facts.managers) {
     const named = manager.lockfilePattern === null ? [] : repository.listFiles('.').filter((name) => manager.lockfilePattern?.test(name) === true);
-    const present = [...new Set([...manager.lockfiles.filter((file) => repository.isFile(file)), ...named])].sort(byPath);
+    for (const file of new Set([...manager.lockfiles.filter((name) => repository.isFile(name)), ...named])) {
+      const creator = manager.createdByKey === null ? undefined : createdBy(repository, file, manager.createdByKey);
+      const owner = creator === undefined ? undefined : facts.managers.find((other) => other.pylockCreatedBy !== null && normalizePythonName(other.pylockCreatedBy) === normalizePythonName(creator));
+      if (!owners.has(file)) owners.set(file, owner?.id ?? manager.id);
+    }
+  }
+  const lockfiles = new Map<PackageManagerId, string[]>();
+  for (const manager of facts.managers) {
+    const present = [...owners].filter(([, owner]) => owner === manager.id).map(([file]) => file).sort(byPath);
     if (present.length > 0) lockfiles.set(manager.id, present);
     for (const file of present) collector.addEvidence(manager.id, 'lockfile', file);
     for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, 'config', file);
@@ -318,7 +351,8 @@ export function detectProject(
   }
 
   // A JavaScript and a Python lockfile side by side are normal; two of one registry are not. pip lockfiles are left
-  // out, because uv and Poetry projects often export a pylock.toml for pip.
+  // out, because projects of other tools often export a pylock.toml for pip (one that names a supported tool in
+  // created-by already belongs to that tool).
   const withLockfiles = [...lockfiles.entries()];
   for (const ecosystem of ['npm', 'pypi'] as const) {
     const competing = withLockfiles.filter(([id]) => ecosystemOf(id) === ecosystem && id !== 'pip');

@@ -6,16 +6,12 @@ import { compareVersions, formatVersion, parseVersion, pinnedVersion, type Versi
 import type { PackageManagerInfo } from '../../detect/types.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { latestVersion, versionedValue } from '../effective.ts';
-import { iniEntries, jsonSetting, readSetting, yamlSetting } from '../settings.ts';
+import { iniEntries, jsonSetting, npmrcKey, readSetting, yamlSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
 function atLeast(version: Version, since: unknown): boolean {
   const required = typeof since === 'string' ? parseVersion(since) : undefined;
   return required !== undefined && compareVersions(version, required) >= 0;
-}
-
-function kebab(setting: string): string {
-  return setting.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
 }
 
 /** Lockfiles an older version read but this one does not (only from verified facts). */
@@ -60,7 +56,7 @@ function checkPnpm(context: RuleContext, tool: ToolKnowledge, version: Version, 
     ].filter((setting): setting is string => setting !== null);
     const npmrc = context.repository.readText('.npmrc');
     for (const entry of npmrc === undefined ? [] : iniEntries(npmrc)) {
-      const setting = settings.find((name) => kebab(name) === entry.key.replace(/\[\]$/u, ''));
+      const setting = settings.find((name) => npmrcKey(name) === entry.key.replace(/\[\]$/u, ''));
       if (setting === undefined) continue;
       const inWorkspace = workspace !== undefined && yamlSetting(workspace, [setting]) !== undefined;
       context.report({

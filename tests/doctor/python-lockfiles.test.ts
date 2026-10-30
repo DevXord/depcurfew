@@ -240,3 +240,38 @@ describe('writeRequirementsBlock', () => {
     expect(writeRequirementsBlock(writeRequirementsBlock('requests==1\n', ['--only-binary=:all:'], ['--only-binary']), [], ['--only-binary'])).toBe('requests==1\n');
   });
 });
+
+describe('the project itself in a lockfile', () => {
+  it('is part of the workspace in Pipfile.lock (pipenv install -e .), not a local directory', () => {
+    const lock = JSON.stringify({
+      _meta: { sources: [] },
+      default: { myapp: { editable: true, path: '.' }, other: { path: './' }, 'local-lib': { editable: true, path: './libs/local-lib' } },
+    });
+    expect(brief(pipfileLockEntries(lock, format(pipenv))).map(([name, source, builds]) => [name, source, builds])).toEqual([
+      ['myapp', 'workspace', false],
+      ['other', 'workspace', false],
+      ['local-lib', 'directory', true],
+    ]);
+  });
+
+  it('is part of the workspace in pylock.toml, like workspace members; other directories are built', () => {
+    const lock = [
+      'lock-version = "1.0"',
+      'created-by = "uv"',
+      '[[packages]]',
+      'name = "myapp"',
+      'directory = { path = ".", editable = true }',
+      '[[packages]]',
+      'name = "member"',
+      'directory = { path = "./packages/member/", editable = true }',
+      '[[packages]]',
+      'name = "vendored"',
+      'directory = { path = "vendor/vendored" }',
+    ].join('\n');
+    expect(brief(pylockEntries(lock, format(pip), ['packages/member']))).toEqual([
+      ['myapp', 'workspace', false, 3],
+      ['member', 'workspace', false, 6],
+      ['vendored', 'directory', true, 9],
+    ]);
+  });
+});

@@ -11,17 +11,27 @@ function keyOf(line: string): string | undefined {
   return trimmed.slice(0, equals).trim().replace(/\[\]$/u, '');
 }
 
+/** A [section] header as npm's ini parser reads it (extra.npmrcFormat): the keys below it are not npm settings. */
+const SECTION = /^\[[^\]]*\]\s*$/u;
+
 export function writeIniBlock(body: string, entries: readonly string[], managedKeys: readonly string[]): string {
   const managed = new Set(managedKeys);
   const removed = removeBlock(splitLines(body));
-  const lines = removed.lines.map((line) => {
+  // npm applies only the keys above the first section header, so the block goes there (also when an older apply
+  // appended it below a header), and keys of a section are other settings, left alone.
+  const header = removed.lines.findIndex((line) => SECTION.test(line));
+  const topLevel = header === -1 ? removed.lines.length : header;
+  const lines = removed.lines.map((line, index) => {
     const original = commentedOut(line);
     if (original !== undefined) return managed.has(keyOf(original) ?? '') ? line : original;
-    const key = keyOf(line);
+    const key = index < topLevel ? keyOf(line) : undefined;
     return key !== undefined && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}` : line;
   });
   if (entries.length === 0) return joinLines(lines);
-  return joinLines(
-    removed.at === undefined ? insertBlock(lines, lines.length, entries) : insertBlock(lines, removed.at, entries, removed.separated),
-  );
+  if (removed.at !== undefined && removed.at <= topLevel) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
+  // A new block goes above the comment lines that introduce the first section (not above keys it commented out).
+  const introduces = (line: string) => /^\s*[#;]/u.test(line) && !line.startsWith(SUPERSEDED) && !line.startsWith(TURNED_OFF);
+  let at = topLevel;
+  while (header !== -1 && at > 0 && introduces(lines[at - 1] ?? '')) at -= 1;
+  return joinLines(insertBlock(lines, at, entries));
 }

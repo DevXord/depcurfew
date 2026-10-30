@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 9
+    },
+    "message": "Dependabot proposes npm updates of dependencies that cooldown.include does not name without waiting (cooldown.include in .github/dependabot.yml names only lodash and @acme/*), but npm waits 3 days (min-release-age: 3 in .npmrc); its pull requests bring in versions younger than npm accepts, or fail where the lockfile is re-checked",
+    "fix": "Remove include from the cooldown of updates[0] in .github/dependabot.yml, so that the cooldown covers every dependency, and list exceptions under exclude instead"
+  }
+]

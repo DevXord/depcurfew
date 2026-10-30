@@ -1,0 +1,6 @@
+{
+  "extends": ["config:best-practices"],
+  "packageRules": [
+    { "matchUpdateTypes": ["patch"], "minimumReleaseAge": "1 day" }
+  ]
+}

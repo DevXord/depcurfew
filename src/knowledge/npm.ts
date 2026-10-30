@@ -3,6 +3,7 @@ import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
+const reviewed = verifiedOn('2026-10-30');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -198,6 +199,11 @@ export const npm: ToolKnowledge = {
       'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md',
       'Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns "ignoring workspace config" for the package .npmrc (workspaces/config/lib/index.js). The project .npmrc "is not read in global mode, such as when running npm install -g" (same page, v11.21.1 and v12.2.1).',
     ),
+    npmrcFormat: reviewed.verified(
+      { commentLines: ['#', ';'], inlineComments: ['#', ';'], escape: '\\', sectionHeader: '^\\[([^\\]]*)\\]\\s*$', keyWithoutValue: 'true', settingsFrom: 'top level' },
+      'https://github.com/npm/ini/blob/v7.0.0/lib/ini.js',
+      'npm reads .npmrc with the ini package: 7.0.0 in npm 12.2.1, and 6.0.0, whose lib/ini.js is the same, in npm 11.10.0 to 11.21.1 (package-lock.json of npm/cli). A line whose first non-blank character is # or ; is a comment. An unquoted key or value ends at the first # or ; that is not escaped with a backslash, so ignore-scripts=true # note sets true; a value in double quotes is parsed as a JSON string and one in single quotes loses its quotes, both keeping # and ;. A line without = sets the key to true. A [name] header at the start of a line, with nothing but spaces after it, starts a section: the keys below it belong to that section until the next header. npm applies only the top-level keys as settings (#loadObject in workspaces/config/lib/index.js at v12.2.1), so a key below a header has no effect.',
+    ),
     npmrcListSyntax: verified(
       '[]',
       'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md',
@@ -218,12 +224,10 @@ export const npm: ToolKnowledge = {
       release('12.2.1'),
       'Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1).',
     ),
-    beforeInteraction: verified(
-      [
-        { since: '11.10.0', value: 'min-release-age and before are mutually exclusive' },
-        { since: '11.15.0', value: 'both may be set; before wins within the same config source' },
-      ],
-      release('11.15.0'),
+    beforeInteraction: reviewed.verified(
+      { setting: 'before', exclusive: { since: '11.10.0', until: '11.15.0' }, beforeWinsSince: '11.15.0' },
+      'https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js',
+      'before is a date: npm installs only versions available on or before it. In 11.10.0 to 11.14.x the definitions of min-release-age and before name each other as exclusive, and npm stops with "--min-release-age cannot be provided when using --before" (or the reverse) once both are set in its config sources (#loadObject in workspaces/config/lib/index.js and definitions.js at v11.14.1). Since 11.15.0 both may be set: "If before and min-release-age are both set in the same source, before wins"; across sources the usual precedence applies (cli > env > project > user > global), so a before in the project .npmrc replaces its own min-release-age (definitions.js at v11.15.0 and v12.2.1; release notes of 11.15.0).',
     ),
     strictAllowScripts: checked.verified(
       { setting: 'strict-allow-scripts', value: true, since: '11.16.0' },

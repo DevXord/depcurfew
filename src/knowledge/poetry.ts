@@ -100,6 +100,11 @@ export const poetry: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, 'https://github.com/python-poetry/poetry/issues/2270', 'No workspaces.'),
   },
   extra: {
+    pylockCreatedBy: verified(
+      'poetry-plugin-export',
+      'https://github.com/python-poetry/poetry-plugin-export/blob/1.10.1/src/poetry_plugin_export/exporter.py',
+      'Poetry exports pylock.toml with its export plugin (poetry export --format pylock.toml), which writes created-by = "poetry-plugin-export".',
+    ),
     configTable: verified(
       { solver: 'solver', installer: 'installer' },
       `${POETRY}/src/poetry/config/file_config_source.py`,

@@ -14,6 +14,16 @@ function errorMessage(error: unknown): string {
   return message.split('\n', 1)[0] ?? message;
 }
 
+/** A file system error without the absolute path, e.g. "EACCES: permission denied". */
+function fileError(error: unknown): string {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  const message = errorMessage(error);
+  return code !== undefined && message.startsWith(`${code}: `) ? (message.split(', ', 1)[0] ?? code) : (code ?? 'unknown error');
+}
+
+/** Errors that mean the path does not exist, as opposed to a file that exists but cannot be read. */
+const MISSING = new Set(['ENOENT', 'ENOTDIR']);
+
 export class Repository {
   readonly root: string;
   readonly warnings: DetectionWarning[] = [];
@@ -31,6 +41,11 @@ export class Repository {
     this.warnings.push({ code, message, files: [...files] });
   }
 
+  /** A file that exists but cannot be read, e.g. without read permission; unreadable-config reports it. */
+  #unreadable(path: string, error: unknown): void {
+    this.warn('unreadable-file', `cannot read ${path} (${fileError(error)})`, [path]);
+  }
+
   #inside(real: string): boolean {
     return real === this.root || real.startsWith(this.root + sep);
   }
@@ -40,7 +55,8 @@ export class Repository {
     const full = join(this.root, path);
     try {
       lstatSync(full);
-    } catch {
+    } catch (error) {
+      if (report && !MISSING.has(String((error as NodeJS.ErrnoException).code))) this.#unreadable(path, error);
       return undefined;
     }
     let real: string;
@@ -71,7 +87,13 @@ export class Repository {
       this.warn('file-too-large', `${path} is larger than ${limit / (1024 * 1024)} MiB and was not read`, [path]);
       return undefined;
     }
-    const text = readFileSync(real, 'utf8');
+    let text: string;
+    try {
+      text = readFileSync(real, 'utf8');
+    } catch (error) {
+      this.#unreadable(path, error);
+      return undefined;
+    }
     return text.startsWith('﻿') ? text.slice(1) : text;
   }
 
@@ -80,7 +102,13 @@ export class Repository {
     const real = this.#resolve(path, true);
     if (real === undefined || !statSync(real).isFile()) return undefined;
     const buffer = Buffer.alloc(bytes);
-    const descriptor = openSync(real, 'r');
+    let descriptor: number;
+    try {
+      descriptor = openSync(real, 'r');
+    } catch (error) {
+      this.#unreadable(path, error);
+      return undefined;
+    }
     try {
       return buffer.subarray(0, readSync(descriptor, buffer, 0, bytes, 0)).toString('utf8');
     } finally {

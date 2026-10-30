@@ -1,0 +1,8 @@
+{
+  "extends": ["config:recommended"],
+  "packageRules": [
+    { "matchPackageNames": ["*"], "minimumReleaseAge": "1 day" },
+    { "matchDatasources": ["npm"], "minimumReleaseAge": "3 days" },
+    { "matchPackageNames": ["left-pad"], "minimumReleaseAge": "1 hour" }
+  ]
+}

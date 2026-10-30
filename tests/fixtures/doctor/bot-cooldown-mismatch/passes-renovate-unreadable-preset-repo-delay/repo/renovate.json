@@ -1,0 +1,4 @@
+{
+  "extends": ["github>renovatebot/.github"],
+  "minimumReleaseAge": "3 days"
+}

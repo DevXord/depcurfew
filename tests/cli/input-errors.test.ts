@@ -54,7 +54,8 @@ describe('a depcurfew.json that cannot be read', () => {
     failing.suffix = `${directory}/depcurfew.json`;
     return directory;
   };
-  const message = (directory: string) => `cannot read depcurfew.json: EACCES: permission denied, open '${join(directory, 'depcurfew.json')}'`;
+  // The reading layer names the error code and leaves out the absolute path (decision D-076).
+  const message = (_directory: string) => 'cannot read depcurfew.json (EACCES: permission denied)';
   const fix = 'Make depcurfew.json a regular file inside the repository that the user running depcurfew can read';
 
   it('apply reports it with its code and what to do', async () => {

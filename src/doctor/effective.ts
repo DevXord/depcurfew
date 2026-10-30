@@ -2,14 +2,14 @@
 // default for that version from the knowledge base. Where official sources disagree on a default, the longest
 // value is used, because doctor asks whether a bot could wait less than the package manager.
 import { evidenceOf } from '../knowledge/facts.ts';
-import { isRecord, settingOf, sinceOf, values } from '../apply/facts.ts';
+import { extraOf, isRecord, settingOf, sinceOf, values } from '../apply/facts.ts';
 import { compareVersions, formatVersion, parseVersion, pinnedVersion, type Version } from '../apply/version.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
 import type { ToolKnowledge, Versioned } from '../knowledge/types.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { delayMinutes } from './durations.ts';
 import { readPythonSetting } from './python.ts';
-import { readSetting, type Setting } from './settings.ts';
+import { npmrcKey, readSetting, type Setting } from './settings.ts';
 import type { RuleContext } from './types.ts';
 
 export interface Delay {
@@ -40,6 +40,18 @@ function managerConfigFiles(tool: ToolKnowledge, manager: PackageManagerInfo): s
   return (values(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== '.npmrc' || tool.id === 'npm').slice(0, 1);
 }
 
+/**
+ * pnpm before 11 also reads its settings from the root .npmrc, spelled in kebab case, when pnpm-workspace.yaml does not
+ * set them (extra.npmrcPrecedence); pnpm 11 reads only auth and registry settings there (extra.ignoredSince).
+ */
+function pnpmNpmrcSetting(context: RuleContext, tool: ToolKnowledge, version: Version | undefined, setting: string): Setting | undefined {
+  if (tool.id !== 'pnpm' || tool.extra?.['npmrcPrecedence'] === undefined || tool.extra['ignoredSince'] === undefined) return undefined;
+  const until = parseVersion(String(extraOf(tool, 'ignoredSince', isRecord)['since']));
+  const over = extraOf(tool, 'npmrcPrecedence', isRecord)['over'];
+  if (until === undefined || version === undefined || compareVersions(version, until) >= 0 || !Array.isArray(over) || !over.includes('.npmrc')) return undefined;
+  return readSetting(context.repository, '.npmrc', npmrcKey(setting));
+}
+
 /** The package manager's delay, or undefined (with a notice) when a configured value cannot be read. */
 export function managerDelay(context: RuleContext, manager: PackageManagerInfo, tool: ToolKnowledge): Delay | undefined {
   const pinned = pinnedVersion(manager);
@@ -52,16 +64,21 @@ export function managerDelay(context: RuleContext, manager: PackageManagerInfo, 
 
   if (setting !== null) {
     let found: Setting | undefined;
+    let key = setting;
     if (ecosystemOfTool(tool) === 'pypi') found = readPythonSetting(context.repository, tool, setting);
     else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
+    if (found === undefined) {
+      found = pnpmNpmrcSetting(context, tool, version, setting);
+      if (found !== undefined) key = npmrcKey(setting);
+    }
     if (found !== undefined) {
       const raw = isRecord(found.value) ? found.value['age'] : found.value;
       const delay = delayMinutes(tool, raw, version);
       if (!delay.ok) {
-        context.notice(`${tool.name}: cannot read ${setting} in ${found.file}: ${delay.reason}`, found.file);
+        context.notice(`${tool.name}: cannot read ${key} in ${found.file}: ${delay.reason}`, found.file);
         return undefined;
       }
-      return { minutes: delay.minutes, origin: `${setting}: ${JSON.stringify(raw)} in ${found.file}`, location: { file: found.file, line: found.line } };
+      return { minutes: delay.minutes, origin: `${key}: ${JSON.stringify(raw)} in ${found.file}`, location: { file: found.file, line: found.line } };
     }
   }
 

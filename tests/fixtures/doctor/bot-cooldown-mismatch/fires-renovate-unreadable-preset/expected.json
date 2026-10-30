@@ -1,0 +1,11 @@
+[
+  {
+    "level": "note",
+    "location": {
+      "file": "renovate.json",
+      "line": 2
+    },
+    "message": "Renovate extends github>renovatebot/.github, which depcurfew cannot read, so it cannot tell whether Renovate waits as long as npm (3 days, min-release-age: 3 in .npmrc)",
+    "fix": "Make sure the preset sets minimumReleaseAge to at least 3 days for these packages, or set it in renovate.json (depcurfew apply does this)"
+  }
+]

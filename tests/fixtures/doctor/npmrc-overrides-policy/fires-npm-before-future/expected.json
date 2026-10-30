@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".npmrc",
+      "line": 6
+    },
+    "message": "before=2099-12-31 in .npmrc takes the place of min-release-age (npm 12.2.1 uses before when both are set in the same file), and the date is in the future, so npm installs new versions without any release-age delay",
+    "fix": "Remove the before line from .npmrc, so that min-release-age applies"
+  }
+]

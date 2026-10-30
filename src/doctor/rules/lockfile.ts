@@ -37,7 +37,7 @@ function eachLockfile(context: RuleContext, rule: string, visit: (lockfile: Lock
   for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
     const tool = context.tools.find((entry) => entry.id === manager.id);
     if (tool === undefined) continue;
-    for (const result of readLockfiles(context.repository, manager, tool, workspaces)) {
+    for (const result of readLockfiles(context.repository, manager, tool, workspaces, context.tools)) {
       if (result.ok) visit(result.lockfile, tool);
       // An unreadable lockfile is an error of unreadable-config.
       else if (!result.unreadable) context.notice(`${rule} could not check ${result.file}: ${result.reason}`, result.file);
