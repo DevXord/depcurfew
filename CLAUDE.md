@@ -1,7 +1,7 @@
 # Zasady projektu
 
 ## Cel
-CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa łańcucha dostaw dla npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, Renovate i Dependabota oraz wykrywa konfigurację, która po cichu nie działa.
+CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa łańcucha dostaw dla npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate i Dependabota oraz wykrywa konfigurację, która po cichu nie działa.
 
 ## Twarde reguły
 - To narzędzie bezpieczeństwa. Minimum zależności w czasie działania: wolno użyć wyłącznie `yaml` (zero zależności przechodnich), wszystko inne piszemy sami. Każda nowa zależność wymaga uzasadnienia w docs/decisions.md.

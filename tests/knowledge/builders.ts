@@ -13,6 +13,8 @@ const SAMPLE_SOURCE: Record<ToolId, string> = {
   uv: 'https://docs.astral.sh/uv/reference/settings/',
   pip: 'https://pip.pypa.io/en/stable/user_guide/',
   poetry: 'https://python-poetry.org/docs/configuration/',
+  pdm: 'https://pdm-project.org/latest/usage/lockfile/',
+  pipenv: 'https://pipenv.pypa.io/en/latest/pipfile/',
   renovate: 'https://docs.renovatebot.com/configuration-options/',
   dependabot: 'https://docs.github.com/en/code-security/dependabot',
 };

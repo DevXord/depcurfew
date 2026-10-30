@@ -24,6 +24,8 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     { host: 'peps.python.org' },
   ],
   poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }],
+  pdm: [{ host: 'pdm-project.org' }, { host: 'github.com', pathPrefix: '/pdm-project/' }],
+  pipenv: [{ host: 'pipenv.pypa.io' }, { host: 'github.com', pathPrefix: '/pypa/' }],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   dependabot: [
     { host: 'docs.github.com' },

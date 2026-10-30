@@ -2,6 +2,13 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · PDM i Pipenv; Hatch przez uv (D-072)
+
+- PDM: wykrywanie, `apply` w `[tool.pdm.resolution]` (opóźnienie, wyjątki, zakaz budowania z listą wyjątków), `doctor` dla `pdm.lock`, stałej daty i trybu uv, hook dla `pdm add`.
+- Pipenv: wykrywanie, `apply` z `cool-down-period` w pełnych dniach i ostrzeżeniami o brakach, `doctor` dla `Pipfile.lock` i `resolver_backend = "pure-python"`, hook dla `pipenv install`.
+- Hatch: bez własnych ustawień; README opisuje konfigurację przez uv albo zmienne pip.
+- Fikstury `pdm-basic` i `pipenv-basic` (przed i po), nowe przypadki reguł `doctor`; nowe kody `exclude-unsupported` i `build-switch-environment-only`.
+
 ## 2026-10-30 · Python w `check` i w hooku (D-071)
 
 - `check pypi:<wymaganie>` sprawdza paczki PyPI przez Index API: istnienie, podobne nazwy (5000 popularnych projektów), wiek najnowszego pliku wobec cooldownu, brak wheel (budowanie ze źródeł), wersje wycofane i status projektu. Nowe kody `yanked`, `archived`, `quarantined`; opcja `--index`.

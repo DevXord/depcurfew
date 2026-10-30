@@ -3,4 +3,4 @@ cooldown.exclude[1]: duplicate entry "@acme/*" (first at index 0)
 cooldown.securityUpdates: must be one of "bypass", "delay", got "skip"
 installScripts.default: must be one of "allow", "deny", got "dney"; did you mean "deny"?
 sources: unknown field "tarball"
-targets[1]: must be one of "npm", "pnpm", "yarn", "bun", "deno", "uv", "pip", "poetry", "renovate", "dependabot", got "pnmp"; did you mean "pnpm"?
+targets[1]: must be one of "npm", "pnpm", "yarn", "bun", "deno", "uv", "pip", "poetry", "pdm", "pipenv", "renovate", "dependabot", got "pnmp"; did you mean "pnpm"?

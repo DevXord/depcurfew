@@ -1,7 +1,7 @@
-// Python lockfiles for doctor: uv.lock, poetry.lock, pylock.toml and pip requirements files. Each package gets its
-// source (registry, git, URL, local archive or directory, workspace) and whether installing it builds it from
-// source, which runs its build code (decision D-065: the Python counterpart of install scripts). Key names come from
-// the knowledge base (extra.lockfileFormat, extra.requirementsFormat).
+// Python lockfiles for doctor: uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml and pip requirements files.
+// Each package gets its source (registry, git, URL, local archive or directory, workspace) and whether installing it
+// builds it from source, which runs its build code (decision D-065: the Python counterpart of install scripts). Key
+// names come from the knowledge base (extra.lockfileFormat, extra.requirementsFormat).
 import { isRecord, values } from '../apply/facts.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { environment } from '../knowledge/environment.ts';
@@ -13,6 +13,7 @@ import type { LockEntry, Source } from './lockfiles.ts';
 type Format = Record<string, unknown>;
 
 const WHEEL = evidenceOf(environment.python.wheelExtension)[0]?.value ?? '.whl';
+const SDISTS = evidenceOf(environment.python.sourceDistributionExtensions)[0]?.value ?? [];
 
 function text(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
@@ -95,6 +96,55 @@ export function poetryEntries(input: string, format: Format): LockEntry[] {
         return [entry(item['name'], `${text(source['type']) ?? 'unknown'} ${url}`.trim(), 'unknown', undefined, line)];
     }
   });
+}
+
+/** pdm.lock: [[package]] with files from an index, or a VCS repository (git = …), a url or a local path instead. */
+export function pdmEntries(input: string, format: Format): LockEntry[] {
+  const document = parseToml(input);
+  const key = (name: string) => String(format[name]);
+  const vcs = strings(format['vcs']);
+  return list(document.root[key('packages')]).flatMap((item, index): LockEntry[] => {
+    if (!isRecord(item) || typeof item['name'] !== 'string') return [];
+    const line = document.lineOf([key('packages'), index]);
+    const repository = vcs.find((name) => typeof item[name] === 'string');
+    if (repository !== undefined) return [entry(item['name'], String(item[repository]), repository === 'git' ? 'git' : 'unknown', true, line)];
+    const url = text(item[key('url')]);
+    if (url !== undefined) return [entry(item['name'], url, 'remoteTarball', !isWheel(url), line)];
+    const path = text(item[key('path')]);
+    if (path !== undefined) {
+      const archive = [WHEEL, ...SDISTS].some((extension) => path.toLowerCase().endsWith(extension));
+      return [entry(item['name'], path, archive ? 'file' : 'directory', archive ? !isWheel(path) : true, line)];
+    }
+    const files = list(item[key('files')]).map((file) => (isRecord(file) ? text(file[key('file')]) : undefined)).filter((file): file is string => file !== undefined);
+    return [entry(item['name'], 'an index', 'registry', files.length > 0 && !files.some(isWheel), line)];
+  });
+}
+
+/**
+ * Pipfile.lock: every key but _meta is a category of packages. Git, remote file and local path entries are built;
+ * for index packages the hashes do not tell wheels from source distributions, so whether they are built is unknown.
+ */
+export function pipfileLockEntries(input: string, format: Format): LockEntry[] {
+  const document = JSON.parse(input) as unknown;
+  if (!isRecord(document)) throw new Error('Pipfile.lock is not a JSON object');
+  const key = (name: string) => String(format[name]);
+  const entries: LockEntry[] = [];
+  for (const [category, packages] of Object.entries(document)) {
+    if (category === key('meta') || !isRecord(packages)) continue;
+    for (const [name, item] of Object.entries(packages)) {
+      if (!isRecord(item)) continue;
+      const git = text(item[key('git')]);
+      const file = text(item[key('file')]);
+      const path = text(item[key('path')]);
+      // The line is looked up by the quoted name, the way it is written in the lockfile.
+      const anchored = (found: LockEntry): LockEntry => ({ ...found, anchor: JSON.stringify(name) });
+      if (git !== undefined) entries.push(anchored(entry(name, git, 'git', true, undefined)));
+      else if (file !== undefined) entries.push(anchored(entry(name, file, 'remoteTarball', !isWheel(file), undefined)));
+      else if (path !== undefined) entries.push(anchored(entry(name, path, 'directory', true, undefined)));
+      else entries.push(anchored(entry(name, 'an index', 'registry', undefined, undefined)));
+    }
+  }
+  return entries;
 }
 
 /** pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. */

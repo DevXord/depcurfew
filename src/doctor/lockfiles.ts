@@ -9,7 +9,7 @@ import type { Repository } from '../detect/repository.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { listing } from '../apply/requirements.ts';
-import { poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
+import { pdmEntries, pipfileLockEntries, poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
 
 /** Lockfiles are often larger than configuration files. */
 export const MAX_LOCKFILE_SIZE = 64 * 1024 * 1024;
@@ -386,6 +386,8 @@ export function readLockfiles(repository: Repository, manager: PackageManagerInf
       else if (tool.id === 'bun') entries = bunEntries(text, format);
       else if (tool.id === 'uv') entries = uvEntries(text, format, workspaces);
       else if (tool.id === 'poetry') entries = poetryEntries(text, format);
+      else if (tool.id === 'pdm') entries = pdmEntries(text, format);
+      else if (tool.id === 'pipenv') entries = pipfileLockEntries(text, format);
       else if (tool.id === 'pip') entries = lockfiles.includes(file) ? pylockEntries(text, format) : requirementsEntries(text, requirementsFormatOf(tool));
       else ({ entries, recordsScripts } = denoEntries(text, format));
       const find = lineFinder(text, start);

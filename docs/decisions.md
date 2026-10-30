@@ -996,3 +996,19 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - `uvx python…`, `uvx pypy@3.10` uruchamiają interpreter, nie paczkę. Skrypt pobierany z URL (`uv run https://…`, `pipx run https://….py`) daje „ask”.
 - **Poza zakresem:** paczki z plików wymagań (`pip install -r`) i z plików projektu (`uv sync`, `poetry install`) nie są sprawdzane, tak jak `npm install` bez nazw; lockfile'e sprawdza `doctor`. Indeks ustawiony w konfiguracji projektu nie jest czytany; inny indeks podaje się przez `--index`.
 - **Fakty** są w bazie wiedzy ze źródłami przypiętymi do wersji: polecenia i opcje w `pip.ts` (z pipx), `uv.ts` i `poetry.ts`, Index API, statusy projektów, rozszerzenia sdistów i interpreter w `environment.ts`. Nowe oficjalne źródła: `github.com/pypi/` (dokumentacja PyPI) i `github.com/python/` (dokumentacja CPython).
+
+## D-072 · PDM i Pipenv; Hatch przez uv (2026-10-30)
+
+- **Problem.** Projekty Pythona z PDM, Pipenv albo Hatch nie były wykrywane ani konfigurowane, a ich lockfile'e nie były sprawdzane.
+- **PDM (2.29.5): pełna obsługa.**
+  - `apply` pisze jeden zarządzany blok w `[tool.pdm.resolution]` pliku pyproject.toml: opóźnienie w formacie PDM (`36h`, `2d`, `1w`, od 2.26.9), wyjątki jako tabelę inline z `false` (od 2.29.1), zakaz budowania `":all:"` i listę paczek zawsze budowanych ze źródeł (od 2.15.0, D-065).
+  - `doctor` czyta `pdm.lock` (źródła i paczki z indeksu bez wheel), zgłasza stałą datę zamiast opóźnienia i tryb uv (`use_uv` w pdm.toml), w którym PDM instaluje przez `uv sync` bez zakazu budowania.
+  - Hook czyta `pdm add` (w tym `-e`, skróty opcji argparse, `--venv`, które zabiera następne słowo), a `PDM_PYPI_URL`, `-c`/`--config` i `PDM_CONFIG_FILE` dają „ask”.
+- **Pipenv (2026.10.4): tylko opóźnienie,** bo Pipfile nie ma innych ustawień.
+  - `apply` pisze opóźnienie w pełnych dniach, zaokrąglonych w górę (`<int>d`, od 2026.6.2), w bloku w `[pipenv]` Pipfile. Ostrzega, że wyjątków nie ma (`exclude-unsupported`) i że zakaz budowania wymaga `PIP_ONLY_BINARY=:all:` w środowisku (`build-switch-environment-only`).
+  - `doctor` czyta `Pipfile.lock`: źródła git, URL i ścieżki. Dla paczek z indeksu hashe nie odróżniają wheel od sdista, więc budowanie jest nieznane. Zgłasza `resolver_backend = "pure-python"` (także stary klucz `resolver`), przy którym Pipenv blokuje wersje bez opóźnienia; to zachowanie nieudokumentowane, sprawdzone na 2026.10.4.
+  - Hook czyta `pipenv install <paczka>` (bez paczek to instalacja z Pipfile); `-i`, `--pypi-mirror`, `PIPENV_PYPI_MIRROR`, `--extra-pip-args` i `PIPENV_DOTENV_LOCATION` dają „ask”.
+- **Wersji nie da się przypiąć.** Ani PDM, ani Pipenv nie mają ustawienia wersji w projekcie, więc `apply` konfiguruje dla najnowszej znanej wersji, a `version-not-pinned` mówi to wprost zamiast odsyłać do nieistniejącego miejsca.
+- **Hatch (1.18.2): bez generatora.** Hatch nie ma własnych ustawień opóźnienia, budowania ani źródeł; jego środowiska instalują przez uv albo pip. Projekt Hatch z instalatorem uv obsługuje istniejący generator uv (`"uv"` w `targets`, bo uv czyta `[tool.uv]` także pod Hatchem), a środowiska z pip — zmienne środowiskowe pip. README to opisuje; osobne wykrywanie Hatch nie dawałoby nic do skonfigurowania.
+- **Boty.** Dependabot `pip` obejmuje Pipenv; PDM nie jest obsługiwany (dependabot-core pomija pyproject.toml przy pdm.lock). Renovate: `pep621` dla PDM, `pipenv` dla Pipenv.
+- **Nowe kody `apply`:** `exclude-unsupported`, `build-switch-environment-only`. Nowe narzędzia w `targets` (schema.json): `pdm`, `pipenv`.

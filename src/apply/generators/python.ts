@@ -1,4 +1,4 @@
-// Policy rules shared by the uv, Poetry and pip generators (decision D-065): installScripts "deny" forbids building
+// Policy rules shared by the Python generators (decision D-065): installScripts "deny" forbids building
 // from source, and the packages in installScripts.allow are exceptions that the tools always build from source.
 import { normalizePythonName } from '../../policy/python-names.ts';
 import { allowedNames } from './common.ts';
@@ -35,4 +35,14 @@ export function buildSwitchScopeWarning(context: Context, setting: string, cover
 /** A TOML string or array value. */
 export function tomlValue(value: unknown): string {
   return Array.isArray(value) ? `[${value.map((item) => tomlValue(item)).join(', ')}]` : JSON.stringify(value);
+}
+
+const COMPACT_UNITS: Readonly<Record<string, string>> = { hour: 'h', day: 'd', week: 'w' };
+
+/** A duration such as "36 hours" in the compact form PDM and Pipenv read: "36h". */
+export function compactDuration(value: string): string {
+  const [count = '', unit = ''] = value.split(' ');
+  const letter = COMPACT_UNITS[unit.replace(/s$/u, '')];
+  if (letter === undefined) throw new Error(`cannot write the duration "${value}" in compact form`);
+  return `${count}${letter}`;
 }

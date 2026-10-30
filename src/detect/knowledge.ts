@@ -59,7 +59,7 @@ export interface DetectionFacts {
   setupActions: SetupActionKnowledge[];
 }
 
-const PACKAGE_MANAGERS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'pip', 'poetry'];
+const PACKAGE_MANAGERS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'pip', 'poetry', 'pdm', 'pipenv'];
 const BOTS: readonly ToolId[] = ['renovate', 'dependabot'];
 /** Files several tools read; a Python tool counts the project file only when it has the tool's table. */
 const SHARED_FILES = ['package.json', '.npmrc'];
