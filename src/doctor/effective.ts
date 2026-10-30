@@ -6,7 +6,9 @@ import { isRecord, settingOf, sinceOf, values } from '../apply/facts.ts';
 import { compareVersions, formatVersion, parseVersion, pinnedVersion, type Version } from '../apply/version.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
 import type { ToolKnowledge, Versioned } from '../knowledge/types.ts';
+import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { delayMinutes } from './durations.ts';
+import { readPythonSetting } from './python.ts';
 import { readSetting, type Setting } from './settings.ts';
 import type { RuleContext } from './types.ts';
 
@@ -50,7 +52,8 @@ export function managerDelay(context: RuleContext, manager: PackageManagerInfo, 
 
   if (setting !== null) {
     let found: Setting | undefined;
-    for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
+    if (ecosystemOfTool(tool) === 'pypi') found = readPythonSetting(context.repository, tool, setting);
+    else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
     if (found !== undefined) {
       const raw = isRecord(found.value) ? found.value['age'] : found.value;
       const delay = delayMinutes(tool, raw, version);

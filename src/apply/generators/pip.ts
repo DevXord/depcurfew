@@ -6,7 +6,7 @@ import { extraOf, firstFile, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { formatVersion } from '../version.ts';
 import { eachSource } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
-import { buildAllowList, forcedBuildWarning } from './python.ts';
+import { buildAllowList, buildSwitchScopeWarning, forcedBuildWarning } from './python.ts';
 
 export const pip: ManagerGenerator = (context) => {
   const { tool, policy } = context;
@@ -32,6 +32,7 @@ export const pip: ManagerGenerator = (context) => {
     if (context.supports(build.since, build.setting)) {
       entries.push(`${build.setting}=${String(build.value)}`);
       managed.push(build.setting);
+      buildSwitchScopeWarning(context, build.setting, build.covers);
       if (setting !== null) {
         managed.push(setting);
         const names = policy.installScripts.allow.length > 0 ? buildAllowList(context, setting) : [];

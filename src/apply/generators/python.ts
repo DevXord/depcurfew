@@ -21,6 +21,14 @@ export function forcedBuildWarning(context: Context, setting: string, names: rea
   );
 }
 
+/** Says when the tool's switch does not stop git, local and URL dependencies from being built. */
+export function buildSwitchScopeWarning(context: Context, setting: string, covers: unknown): void {
+  if (Array.isArray(covers) && covers.includes('git') && covers.includes('directory')) return;
+  context.warn(
+    `${context.name}: ${setting} forbids building only packages from an index; ${context.name} still builds git, local directory and source archive dependencies, and depcurfew doctor reports them`,
+  );
+}
+
 /** A TOML string or array value. */
 export function tomlValue(value: unknown): string {
   return Array.isArray(value) ? `[${value.map((item) => tomlValue(item)).join(', ')}]` : JSON.stringify(value);

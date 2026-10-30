@@ -11,14 +11,19 @@ function optionOf(line: string): string | undefined {
 export function writeRequirementsBlock(body: string, entries: readonly string[], managedOptions: readonly string[]): string {
   const managed = new Set(managedOptions);
   const removed = removeBlock(splitLines(body));
+  let at = 0;
+  while (at < removed.lines.length && (removed.lines[at]?.trim().startsWith('#') ?? false)) at += 1;
   const lines = removed.lines.map((line) => {
     const option = optionOf(line);
     return option !== undefined && managed.has(option) ? `${SUPERSEDED}${line.trim()}` : line;
   });
-  if (entries.length === 0) return joinLines(lines);
+  if (entries.length === 0) {
+    // The block was set apart by blank lines; leave one.
+    const place = removed.at;
+    if (place !== undefined && lines[place]?.trim() === '' && (place === 0 || lines[place - 1]?.trim() === '')) lines.splice(place, 1);
+    return joinLines(lines);
+  }
   if (removed.at !== undefined) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
-  let at = 0;
-  while (at < lines.length && (lines[at]?.trim().startsWith('#') ?? false)) at += 1;
   const result = insertBlock(lines, at, entries);
   const after = at + (result.length - lines.length);
   // Keep the block apart from the requirements that follow it.

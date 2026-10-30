@@ -1,0 +1,29 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "uv.lock",
+      "line": 26
+    },
+    "message": "docopt has to be built from source (its index has only a source distribution), but no-build in pyproject.toml forbids building, so installing it fails until it is allowed",
+    "fix": "Review docopt and add \"pypi:docopt\" to installScripts.allow in depcurfew.json (it is then always built from source), or replace the package"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "uv.lock",
+      "line": 41
+    },
+    "message": "local-lib has to be built from source (it is a local directory), but no-build in pyproject.toml forbids building, so installing it fails until it is allowed",
+    "fix": "Review local-lib and add \"pypi:local-lib\" to installScripts.allow in depcurfew.json (it is then always built from source), or replace the package"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "uv.lock",
+      "line": 55
+    },
+    "message": "sampleproject has to be built from source (it comes from a git repository), but no-build in pyproject.toml forbids building, so installing it fails until it is allowed",
+    "fix": "Review sampleproject and add \"pypi:sampleproject\" to installScripts.allow in depcurfew.json (it is then always built from source), or replace the package"
+  }
+]

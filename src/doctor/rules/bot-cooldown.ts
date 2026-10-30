@@ -5,7 +5,8 @@
 import { extraOf, isRecord, values } from '../../apply/facts.ts';
 import { pinnedVersion } from '../../apply/version.ts';
 import type { PackageManagerId, PackageManagerInfo } from '../../detect/types.ts';
-import type { ToolKnowledge } from '../../knowledge/types.ts';
+import type { Ecosystem, ToolKnowledge } from '../../knowledge/types.ts';
+import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion, managerDelay, versionedValue, type Delay } from '../effective.ts';
 import { jsonSetting, yamlSetting } from '../settings.ts';
@@ -74,36 +75,40 @@ function renovateDelays(context: RuleContext, bot: ToolKnowledge, file: string):
   }
   const text = context.repository.readText(file);
   if (text === undefined) return [];
-  const all: PackageManagerId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno'];
+  const managersOf = (ecosystem?: Ecosystem): PackageManagerId[] =>
+    context.tools.filter((tool) => tool.kind === 'package-manager' && (ecosystem === undefined || ecosystemOfTool(tool) === ecosystem)).map((tool) => tool.id as PackageManagerId);
   // The deprecated configuration in package.json sits under its own key.
   const packageJson = extraOf(bot, 'packageJsonConfig', isPackageJsonConfig);
   const base = file === packageJson.file ? [packageJson.key] : [];
   const configured = jsonSetting(text, [...base, 'minimumReleaseAge']);
   const security = jsonSetting(text, [...base, 'vulnerabilityAlerts', 'minimumReleaseAge']);
   const securityBypass = security === undefined ? values(bot.cooldown.securityUpdates).includes('bypass') : security.value === null;
-  let value: unknown = null;
-  let origin = 'Renovate has no delay by default';
-  let line = 1;
+  const applies = base.length === 0 && /\.jsonc?$/u.test(file);
+  // A configured value applies to every datasource; without one, each preset covers the packages of its registry.
+  const groups: { managers: PackageManagerId[]; value: unknown; origin: string; line: number }[] = [];
   if (configured !== undefined) {
-    value = configured.value;
-    origin = `${[...base, 'minimumReleaseAge'].join('.')}: ${JSON.stringify(configured.value)} in ${file}`;
-    line = configured.line;
+    groups.push({ managers: managersOf(), value: configured.value, origin: `${[...base, 'minimumReleaseAge'].join('.')}: ${JSON.stringify(configured.value)} in ${file}`, line: configured.line });
   } else {
-    const presets = extraOf(bot, 'minimumReleaseAgePresets', isPresets);
     const extendsList = jsonSetting(text, [...base, 'extends']);
-    const preset = Array.isArray(extendsList?.value) ? (extendsList.value as unknown[]).find((item) => typeof item === 'string' && presets.presets.includes(item)) : undefined;
-    if (typeof preset === 'string') {
-      value = presets.value;
-      origin = `the preset ${preset} in ${file} (${presets.value})`;
-      line = extendsList?.line ?? 1;
+    const extended = Array.isArray(extendsList?.value) ? (extendsList.value as unknown[]).filter((item): item is string => typeof item === 'string') : [];
+    for (const [key, ecosystem] of [['minimumReleaseAgePresets', 'npm'], ['pypiPresets', 'pypi']] as const) {
+      const presets = bot.extra?.[key] === undefined ? undefined : extraOf(bot, key, isPresets);
+      const preset = presets === undefined ? undefined : extended.find((item) => presets.presets.includes(item));
+      groups.push(
+        presets !== undefined && preset !== undefined
+          ? { managers: managersOf(ecosystem), value: presets.value, origin: `the preset ${preset} in ${file} (${presets.value})`, line: extendsList?.line ?? 1 }
+          : { managers: managersOf(ecosystem), value: null, origin: 'Renovate has no delay by default', line: 1 },
+      );
     }
   }
-  const delay = delayMinutes(bot, value, latestVersion(bot));
-  if (!delay.ok) {
-    context.notice(`Renovate: cannot read minimumReleaseAge in ${file}: ${delay.reason}`, file);
-    return [];
-  }
-  return [{ bot, managers: all, minutes: delay.minutes, origin, location: { file, line }, securityBypass, scope: 'updates', applies: base.length === 0 && /\.jsonc?$/u.test(file) }];
+  return groups.flatMap((group): BotDelay[] => {
+    const delay = delayMinutes(bot, group.value, latestVersion(bot));
+    if (!delay.ok) {
+      context.notice(`Renovate: cannot read minimumReleaseAge in ${file}: ${delay.reason}`, file);
+      return [];
+    }
+    return [{ bot, managers: group.managers, minutes: delay.minutes, origin: group.origin, location: { file, line: group.line }, securityBypass, scope: 'updates', applies }];
+  });
 }
 
 function rechecksLockfile(tool: ToolKnowledge, manager: PackageManagerInfo): boolean {

@@ -111,9 +111,9 @@ export const poetry: ToolKnowledge = {
       `${POETRY}/src/poetry/factory.py`,
     ),
     buildSwitch: verified(
-      { setting: 'installer.only-binary', value: [':all:'], since: '2.0.0' },
+      { setting: 'installer.only-binary', value: [':all:'], since: '2.0.0', covers: ['registry'] },
       CHANGELOG,
-      'installer.only-binary was added in 2.0.0; [":all:"] forbids source distributions for every package when installing.',
+      'installer.only-binary was added in 2.0.0; [":all:"] forbids source distributions of index packages when installing. Git and directory dependencies, and source archives from a URL or path, are built regardless (src/poetry/installation/executor.py at 2.5.1).',
     ),
     excludeFormat: disputed(
       'The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter.',

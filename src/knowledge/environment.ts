@@ -256,5 +256,10 @@ export const environment: EnvironmentKnowledge = {
       'https://packaging.python.org/en/latest/specifications/name-normalization/',
       'The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\\Z run with re.IGNORECASE (PEP 508).',
     ),
+    wheelExtension: python.verified(
+      '.whl',
+      'https://packaging.python.org/en/latest/specifications/binary-distribution-format/',
+      'A wheel is a ZIP archive with the .whl extension; installing it unpacks files and runs no build code. Read from the page source in pypa/packaging.python.org.',
+    ),
   },
 };

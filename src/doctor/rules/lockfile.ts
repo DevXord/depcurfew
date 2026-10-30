@@ -6,13 +6,30 @@ import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
+import { PYPI_PREFIX } from '../../policy/package-pattern.ts';
+import { normalizePythonName } from '../../policy/python-names.ts';
 import { matchesPattern } from '../allow-lists.ts';
 import { latestVersion, versionedValue } from '../effective.ts';
-import { readLockfiles, type Lockfile, type LockEntry } from '../lockfiles.ts';
+import { readLockfiles, type Lockfile, type LockEntry, type Source } from '../lockfiles.ts';
+import { readPythonSetting, requirementsOptions } from '../python.ts';
 import { iniValue, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
-const LABELS = { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' } as const;
+const LABELS = {
+  npm: { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' },
+  pypi: { git: 'a git repository', remoteTarball: 'a URL', file: 'a local archive', directory: 'a local directory' },
+} as const;
+
+/** Why a Python package is built from source, for messages. */
+const BUILT_FROM: Record<Source, string> = {
+  registry: 'its index has only a source distribution',
+  git: 'it comes from a git repository',
+  remoteTarball: 'it is a source archive at a URL',
+  file: 'it is a local source archive',
+  directory: 'it is a local directory',
+  workspace: 'it is part of the workspace',
+  unknown: 'its source is not recognized',
+};
 
 function eachLockfile(context: RuleContext, rule: string, visit: (lockfile: Lockfile, tool: ToolKnowledge) => void): void {
   const workspaces = context.detection.workspaces?.packages ?? [];
@@ -44,7 +61,7 @@ export const lockfileForbiddenSource: Rule = {
     const sources = context.policy?.sources;
     if (sources === undefined) return;
     const denies = Object.values(sources).includes('deny');
-    eachLockfile(context, 'lockfile-forbidden-source', (lockfile) => {
+    eachLockfile(context, 'lockfile-forbidden-source', (lockfile, tool) => {
       for (const entry of lockfile.entries) {
         if (entry.source === 'unknown' && denies) {
           // Fail closed: a source depcurfew cannot recognize may be one the policy denies.
@@ -60,7 +77,7 @@ export const lockfileForbiddenSource: Rule = {
         if (sources[entry.source] !== 'deny') continue;
         context.report({
           location: location(lockfile, entry),
-          message: `${lockfile.file} installs ${entry.name} from ${LABELS[entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
+          message: `${lockfile.file} installs ${entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
           fix: `Use a registry version of ${entry.name}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`,
         });
       }
@@ -107,12 +124,53 @@ function scriptsDisabledBy(context: RuleContext, tool: ToolKnowledge): string | 
   return undefined;
 }
 
+/**
+ * Whether the repository forbids building Python packages from source with the tool's switch (no-build in uv,
+ * installer.only-binary in Poetry, --only-binary=:all: in a requirements file for pip), and where.
+ */
+function buildsForbiddenBy(context: RuleContext, tool: ToolKnowledge, lockfile: Lockfile): string | undefined {
+  const build = tool.extra?.['buildSwitch'] === undefined ? undefined : extraOf(tool, 'buildSwitch', isSwitch);
+  if (build === undefined) return undefined;
+  if (tool.id === 'pip') {
+    const files = lockfile.file.endsWith('.toml') ? [] : [lockfile.file];
+    const found = files.find((file) => requirementsOptions(context.repository, file).some((line) => line.option === build.setting && line.value === build.value));
+    return found === undefined ? undefined : `${build.setting}=${String(build.value)} in ${found} forbids building`;
+  }
+  const found = readPythonSetting(context.repository, tool, build.setting);
+  const wanted = JSON.stringify(build.value);
+  return found !== undefined && (JSON.stringify(found.value) === wanted || (Array.isArray(found.value) && Array.isArray(build.value) && build.value.every((item) => (found.value as unknown[]).includes(item))))
+    ? `${build.setting} in ${found.file} forbids building`
+    : undefined;
+}
+
+function reportPythonBuilds(context: RuleContext, lockfile: Lockfile, tool: ToolKnowledge, allow: readonly string[]): void {
+  const forbiddenBy = buildsForbiddenBy(context, tool, lockfile);
+  const build = tool.extra?.['buildSwitch'] === undefined ? undefined : extraOf(tool, 'buildSwitch', isSwitch);
+  const covers = build?.covers ?? [];
+  const patterns = allow.map(normalizePythonName);
+  for (const entry of lockfile.entries) {
+    if (entry.installScript !== true || entry.source === 'workspace') continue;
+    if (patterns.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+    const stopped = forbiddenBy !== undefined && covers.includes(entry.source);
+    context.report({
+      level: stopped ? 'warning' : 'error',
+      location: location(lockfile, entry),
+      message: stopped
+        ? `${entry.name} has to be built from source (${BUILT_FROM[entry.source]}), but ${forbiddenBy}, so installing it fails until it is allowed`
+        : forbiddenBy === undefined
+          ? `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code, but ${POLICY_FILE} does not allow it`
+          : `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code: ${forbiddenBy} only for packages from an index, and ${POLICY_FILE} does not allow it`,
+      fix: `Review ${entry.name} and add "${PYPI_PREFIX}${entry.name}" to installScripts.allow in ${POLICY_FILE} (it is then always built from source), or replace the package`,
+    });
+  }
+}
+
 export const lockfileInstallScripts: Rule = {
   id: 'lockfile-install-scripts',
-  summary: 'The lockfile has packages with install scripts that depcurfew.json does not allow.',
+  summary: 'The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.',
   description:
-    'Install scripts run arbitrary code during installation. Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile.',
-  help: 'Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing its scripts.',
+    'Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.',
+  help: 'Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing it (Python packages with the prefix pypi:).',
   level: 'error',
   requiresPolicy: true,
   check(context) {
@@ -120,6 +178,10 @@ export const lockfileInstallScripts: Rule = {
     if (policy?.installScripts?.default !== 'deny') return;
     eachLockfile(context, 'lockfile-install-scripts', (lockfile, tool) => {
       const allow = policyFor(policy, ecosystemOfTool(tool)).installScripts?.allow ?? [];
+      if (ecosystemOfTool(tool) === 'pypi') {
+        reportPythonBuilds(context, lockfile, tool, allow);
+        return;
+      }
       if (!lockfile.recordsScripts) {
         context.notice(`lockfile-install-scripts could not check ${lockfile.file}: ${tool.name} does not record install scripts in it`, lockfile.file);
         return;

@@ -8,6 +8,7 @@ import { parseJsonc } from '../detect/jsonc.ts';
 import type { Repository } from '../detect/repository.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
+import { poetryEntries, pylockEntries, requirementsEntries, uvEntries } from './python-lockfiles.ts';
 
 /** Lockfiles are often larger than configuration files. */
 export const MAX_LOCKFILE_SIZE = 64 * 1024 * 1024;
@@ -23,6 +24,8 @@ export interface LockEntry {
   installScript: boolean | undefined;
   /** Text to look for when reporting the line. */
   anchor: string;
+  /** The line, when the parser knows it. */
+  line?: number;
 }
 
 export interface Lockfile {
@@ -314,11 +317,23 @@ function overridesFormatOf(tool: ToolKnowledge): Format | undefined {
   return isRecord(value) ? value : undefined;
 }
 
+function requirementsFormatOf(tool: ToolKnowledge): Format {
+  const fact = tool.extra?.['requirementsFormat'];
+  const value = fact === undefined ? undefined : values(fact)[0];
+  return isRecord(value) ? value : {};
+}
+
+function isPylock(file: string): boolean {
+  return /(^|\/)pylock(\.[^./]+)?\.toml$/u.test(file);
+}
+
 export function readLockfiles(repository: Repository, manager: PackageManagerInfo, tool: ToolKnowledge, workspaces: readonly string[]): LockfileResult[] {
   const fact = tool.extra?.['lockfileFormat'];
   const format = fact === undefined ? undefined : values(fact)[0];
   if (!isRecord(format)) return [];
-  const files = [...new Set(manager.evidence.filter((item) => item.kind === 'lockfile').map((item) => item.file))];
+  // pip has no lockfile of its own beyond pylock.toml; its requirements files say where packages come from too.
+  const requirements = tool.id === 'pip' ? manager.configFiles : [];
+  const files = [...new Set([...manager.evidence.filter((item) => item.kind === 'lockfile').map((item) => item.file), ...requirements])];
   return files.map((file): LockfileResult => {
     if (file.endsWith('.lockb')) return { ok: false, file, reason: 'it is a binary file in an undocumented format', unreadable: false };
     const text = repository.readText(file, MAX_LOCKFILE_SIZE);
@@ -334,9 +349,12 @@ export function readLockfiles(repository: Repository, manager: PackageManagerInf
       else if (tool.id === 'pnpm') ({ entries, start } = pnpmEntries(text, format, documentsOf(tool)));
       else if (tool.id === 'yarn') entries = yarnEntries(text, format);
       else if (tool.id === 'bun') entries = bunEntries(text, format);
+      else if (tool.id === 'uv') entries = uvEntries(text, format, workspaces);
+      else if (tool.id === 'poetry') entries = poetryEntries(text, format);
+      else if (tool.id === 'pip') entries = isPylock(file) ? pylockEntries(text, format) : requirementsEntries(text, requirementsFormatOf(tool));
       else ({ entries, recordsScripts } = denoEntries(text, format));
       const find = lineFinder(text, start);
-      return { ok: true, lockfile: { file, entries, recordsScripts, lineOf: (entry) => find(entry.anchor) } };
+      return { ok: true, lockfile: { file, entries, recordsScripts, lineOf: (entry) => entry.line ?? find(entry.anchor) } };
     } catch (error) {
       if (error instanceof UnsupportedLockfile) return { ok: false, file, reason: error.message, unreadable: false };
       const message = error instanceof Error ? (error.message.split('\n')[0] ?? '') : String(error);

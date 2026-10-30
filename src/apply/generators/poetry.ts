@@ -4,7 +4,7 @@ import { blockStart } from '../block.ts';
 import { extraOf, firstFile, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { cooldownValue, eachSource, exclusions, splitDotted } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
-import { buildAllowList, forcedBuildWarning, pythonNames, tomlValue } from './python.ts';
+import { buildAllowList, buildSwitchScopeWarning, forcedBuildWarning, pythonNames, tomlValue } from './python.ts';
 
 function writeTable(context: Context, file: string, table: string, entries: readonly string[], managed: readonly string[]): void {
   if (entries.length > 0 || (context.exists(file) && context.read(file).includes(blockStart(table)))) context.toml(file, table, entries, managed, table);
@@ -46,6 +46,7 @@ export const poetry: ManagerGenerator = (context) => {
       installer.entries.push(`${key} = ${tomlValue(build.value)}`);
       installer.managed.push(key);
       context.warn(`${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies`);
+      buildSwitchScopeWarning(context, build.setting, build.covers);
       const setting = settingOf(tool.installScripts.allowList.setting);
       if (setting !== null) {
         installer.managed.push(splitDotted(setting).key);

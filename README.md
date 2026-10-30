@@ -214,11 +214,11 @@ Fix: Replace the dependency with a registry version, or allow that source in dep
 
 ### `lockfile-install-scripts`
 
-**error** · needs depcurfew.json · The lockfile has packages with install scripts that depcurfew.json does not allow.
+**error** · needs depcurfew.json · The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.
 
-Install scripts run arbitrary code during installation. Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile.
+Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.
 
-Fix: Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing its scripts.
+Fix: Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing it (Python packages with the prefix pypi:).
 
 ### `unreadable-config`
 

@@ -120,9 +120,9 @@ export const pip: ToolKnowledge = {
       'SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse.',
     ),
     buildSwitch: uncertain(
-      { setting: '--only-binary', value: ':all:', since: '7.0.0' },
+      { setting: '--only-binary', value: ':all:', since: '7.0.0', covers: ['registry'] },
       NEWS,
-      'The option exists since 7.0.0; when requirements files started to accept it is not recorded.',
+      'The option exists since 7.0.0; when requirements files started to accept it is not recorded. pip applies it only to packages found on indexes and find-links (format_control is used only by the package finder), so VCS, local directory and direct URL source requirements are still built.',
     ),
     environmentVariable: verified(
       'PIP_UPLOADED_PRIOR_TO',
@@ -143,6 +143,11 @@ export const pip: ToolKnowledge = {
     requirementsForms: verified(
       'name==version with --hash options, name @ URL for an archive, a local archive or project path, and VCS URLs (name @ git+https://… or -e git+…)',
       REQUIREMENTS_FORMAT,
+    ),
+    requirementsFormat: verified(
+      { vcs: { git: ['git+'], other: ['hg+', 'svn+', 'bzr+'] }, direct: ' @ ', editable: ['-e', '--editable'], comment: '#', continuation: '\\' },
+      `${PIP}/docs/html/topics/vcs-support.md`,
+      'VCS requirements start with git+, hg+, svn+ or bzr+, alone or after "name @"; a direct reference is "name @ URL" (PEP 508); -e installs a project path or VCS URL in editable mode. Lines ending with a backslash continue on the next line, and # starts a comment (requirements-file-format.md).',
     ),
     latestVersion: verified('26.2.2', NEWS, 'Released on 2026-10-20.'),
   },

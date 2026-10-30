@@ -927,8 +927,9 @@ const pip$1 = {
 		buildSwitch: uncertain$5({
 			setting: "--only-binary",
 			value: ":all:",
-			since: "7.0.0"
-		}, NEWS, "The option exists since 7.0.0; when requirements files started to accept it is not recorded."),
+			since: "7.0.0",
+			covers: ["registry"]
+		}, NEWS, "The option exists since 7.0.0; when requirements files started to accept it is not recorded. pip applies it only to packages found on indexes and find-links (format_control is used only by the package finder), so VCS, local directory and direct URL source requirements are still built."),
 		environmentVariable: verified$6("PIP_UPLOADED_PRIOR_TO", `${CONFIGURATION$2}#environment-variables`, "Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores."),
 		durationStrings: verified$6({
 			since: "26.1.0",
@@ -950,6 +951,20 @@ const pip$1 = {
 			}
 		}, PYLOCK, "Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed."),
 		requirementsForms: verified$6("name==version with --hash options, name @ URL for an archive, a local archive or project path, and VCS URLs (name @ git+https://… or -e git+…)", REQUIREMENTS_FORMAT),
+		requirementsFormat: verified$6({
+			vcs: {
+				git: ["git+"],
+				other: [
+					"hg+",
+					"svn+",
+					"bzr+"
+				]
+			},
+			direct: " @ ",
+			editable: ["-e", "--editable"],
+			comment: "#",
+			continuation: "\\"
+		}, `${PIP}/docs/html/topics/vcs-support.md`, "VCS requirements start with git+, hg+, svn+ or bzr+, alone or after \"name @\"; a direct reference is \"name @ URL\" (PEP 508); -e installs a project path or VCS URL in editable mode. Lines ending with a backslash continue on the next line, and # starts a comment (requirements-file-format.md)."),
 		latestVersion: verified$6("26.2.2", NEWS, "Released on 2026-10-20.")
 	}
 };
@@ -1287,8 +1302,9 @@ const poetry$1 = {
 		buildSwitch: verified$4({
 			setting: "installer.only-binary",
 			value: [":all:"],
-			since: "2.0.0"
-		}, CHANGELOG, "installer.only-binary was added in 2.0.0; [\":all:\"] forbids source distributions for every package when installing."),
+			since: "2.0.0",
+			covers: ["registry"]
+		}, CHANGELOG, "installer.only-binary was added in 2.0.0; [\":all:\"] forbids source distributions of index packages when installing. Git and directory dependencies, and source archives from a URL or path, are built regardless (src/poetry/installation/executor.py at 2.5.1)."),
 		excludeFormat: disputed$2("The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter.", evidence$2("comma-separated string", `${CONFIGURATION$1}#solvermin-release-age-exclude`), evidence$2("TOML array", "https://github.com/python-poetry/poetry/pull/11087")),
 		excludeWildcards: verified$4({
 			since: null,
@@ -1473,7 +1489,7 @@ const uv$1 = {
 			availableSince: verified$2("0.2.12", changelog("0.2", "0.2.12"), "Project settings no-build, no-build-package, no-binary and no-binary-package; uv sync and related commands respect them since 0.4.6."),
 			format: verified$2("A list of package names", SETTINGS)
 		},
-		disableAll: verified$2("no-build", SETTINGS, "Operations that need to build a source distribution fail. Workspace members, editable requirements and wheels built earlier and kept in the cache are still used. An explicit no-build = false in a higher-priority file makes uv ignore no-build-package.")
+		disableAll: verified$2("no-build", SETTINGS, "Operations that need to build a source distribution fail. Workspace members, editable requirements and wheels built earlier and kept in the cache are still used. With uv 0.13.6 on 2026-10-30, uv sync refused a git dependency and a non-editable local directory dependency as well (\"marked as --no-build but has no binary distribution\"), so those need an exception too. An explicit no-build = false in a higher-priority file makes uv ignore no-build-package.")
 	},
 	sources: {
 		git: noSetting$1("git"),
@@ -1504,8 +1520,15 @@ const uv$1 = {
 		buildSwitch: verified$2({
 			setting: "no-build",
 			value: true,
-			since: "0.2.12"
-		}, changelog("0.2", "0.2.12"), "The project setting that forbids building source distributions; see installScripts.disableAll for what it does not cover."),
+			since: "0.2.12",
+			covers: [
+				"registry",
+				"git",
+				"remoteTarball",
+				"file",
+				"directory"
+			]
+		}, changelog("0.2", "0.2.12"), "The project setting that forbids building source distributions. It also stops git and local directory dependencies (uv sync with uv 0.13.6 on 2026-10-30) and source archives, which also need a build; workspace members and editable requirements are still built."),
 		durationStrings: verified$2({
 			since: "0.9.17",
 			syntax: "words-or-iso8601"
@@ -2001,7 +2024,8 @@ const environment = {
 			separators: "[-_.]+",
 			replacement: "-"
 		}, "https://packaging.python.org/en/latest/specifications/name-normalization/", "Names are lowercased and every run of ., - or _ becomes a single -, before lookups and comparisons (PEP 503): Friendly.Bard and friendly_bard are the same package. Read from the page source in pypa/packaging.python.org."),
-		namePattern: python.verified("^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9])$", "https://packaging.python.org/en/latest/specifications/name-normalization/", "The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\\Z run with re.IGNORECASE (PEP 508).")
+		namePattern: python.verified("^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9])$", "https://packaging.python.org/en/latest/specifications/name-normalization/", "The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\\Z run with re.IGNORECASE (PEP 508)."),
+		wheelExtension: python.verified(".whl", "https://packaging.python.org/en/latest/specifications/binary-distribution-format/", "A wheel is a ZIP archive with the .whl extension; installing it unpacks files and runs no build code. Read from the page source in pypa/packaging.python.org.")
 	}
 };
 
@@ -9853,6 +9877,159 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	};
 }
 
+// src/policy/python-names.ts
+const [rule] = evidenceOf(environment.python.nameNormalization);
+const SEPARATORS = new RegExp(rule?.value.separators ?? "[-_.]+", "gu");
+const REPLACEMENT = rule?.value.replacement ?? "-";
+/** The normalized form of a Python package name or name pattern; `*` stays as it is. */
+function normalizePythonName(name) {
+	return name.replace(SEPARATORS, REPLACEMENT).toLowerCase();
+}
+
+// src/doctor/python-lockfiles.ts
+const WHEEL = evidenceOf(environment.python.wheelExtension)[0]?.value ?? ".whl";
+function text$1(value) {
+	return typeof value === "string" ? value : void 0;
+}
+function list$1(value) {
+	return Array.isArray(value) ? value : [];
+}
+function strings$1(value) {
+	return list$1(value).filter((item) => typeof item === "string");
+}
+function isWheel(location) {
+	return (location.split(/[?#]/u, 1)[0] ?? "").toLowerCase().endsWith(WHEEL);
+}
+function entry(name, spec, source, builds, line) {
+	return {
+		name: normalizePythonName(name),
+		spec,
+		source,
+		installScript: builds,
+		anchor: name,
+		...line === void 0 ? {} : { line }
+	};
+}
+/** uv.lock: [[package]] with source = { registry | git | url | path | directory | editable | virtual = ... }. */
+function uvEntries(input, format, workspaces) {
+	const document = parseToml(input);
+	const keys = isRecord$1(format["sources"]) ? format["sources"] : {};
+	const kind = (source) => Object.entries(keys).flatMap(([name, key]) => typeof key === "string" && typeof source[key] === "string" ? [[name, source[key]]] : [])[0];
+	const members = /* @__PURE__ */ new Set([".", ...workspaces]);
+	return list$1(document.root[String(format["packages"])]).flatMap((item, index) => {
+		if (!isRecord$1(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([String(format["packages"]), index]);
+		const found = isRecord$1(item["source"]) ? kind(item["source"]) : void 0;
+		if (found === void 0) return [entry(item["name"], "no source given", "unknown", void 0, line)];
+		const [name, location] = found;
+		const wheels = list$1(item[String(format["wheels"])]);
+		switch (name) {
+			case "registry": return [entry(item["name"], location, "registry", item[String(format["sdist"])] !== void 0 && wheels.length === 0, line)];
+			case "git": return [entry(item["name"], location, "git", true, line)];
+			case "remoteTarball": return [entry(item["name"], location, "remoteTarball", !isWheel(location), line)];
+			case "file": return [entry(item["name"], location, "file", !isWheel(location), line)];
+			case "directory":
+			case "editable": return members.has(location) ? [entry(item["name"], location, "workspace", false, line)] : [entry(item["name"], location, "directory", true, line)];
+			case "virtual": return [entry(item["name"], location, "workspace", false, line)];
+			default: return [entry(item["name"], location, "unknown", void 0, line)];
+		}
+	});
+}
+/** poetry.lock: [[package]] without [package.source] comes from PyPI; files list every distribution. */
+function poetryEntries(input, format) {
+	const document = parseToml(input);
+	const types = isRecord$1(format["sources"]) ? format["sources"] : {};
+	const kindOf = (type) => Object.entries(types).find(([, value]) => value === type)?.[0];
+	return list$1(document.root[String(format["packages"])]).flatMap((item, index) => {
+		if (!isRecord$1(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([String(format["packages"]), index]);
+		const files = list$1(item[String(format["files"])]).map((file) => isRecord$1(file) ? text$1(file["file"]) : void 0).filter((file) => file !== void 0);
+		const source = item[String(format["source"])];
+		if (!isRecord$1(source)) return [entry(item["name"], "PyPI", "registry", files.length > 0 && !files.some(isWheel), line)];
+		const url = text$1(source["url"]) ?? "";
+		const kind = kindOf(text$1(source["type"]) ?? "");
+		switch (kind) {
+			case "registry": return [entry(item["name"], text$1(source["reference"]) ?? url, "registry", files.length > 0 && !files.some(isWheel), line)];
+			case "git": return [entry(item["name"], url, "git", true, line)];
+			case "remoteTarball":
+			case "file": return [entry(item["name"], url, kind, !isWheel(url), line)];
+			case "directory": return [entry(item["name"], url, "directory", true, line)];
+			default: return [entry(item["name"], `${text$1(source["type"]) ?? "unknown"} ${url}`.trim(), "unknown", void 0, line)];
+		}
+	});
+}
+/** pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. */
+function pylockEntries(input, format) {
+	const document = parseToml(input);
+	const key = (name) => String(format[name]);
+	return list$1(document.root[key("packages")]).flatMap((item, index) => {
+		if (!isRecord$1(item) || typeof item["name"] !== "string") return [];
+		const line = document.lineOf([key("packages"), index]);
+		const location = (value) => isRecord$1(value) ? text$1(value["url"]) ?? text$1(value["path"]) ?? "" : "";
+		const vcs = item[key("vcs")];
+		if (isRecord$1(vcs)) return [entry(item["name"], location(vcs), text$1(vcs["type"]) === "git" ? "git" : "unknown", true, line)];
+		const directory = item[key("directory")];
+		if (isRecord$1(directory)) return [entry(item["name"], location(directory), "directory", true, line)];
+		const archive = item[key("archive")];
+		if (isRecord$1(archive)) {
+			const where = location(archive);
+			return [entry(item["name"], where, text$1(archive["url"]) !== void 0 ? "remoteTarball" : "file", !isWheel(where), line)];
+		}
+		const wheels = list$1(item[key("wheels")]);
+		const sdist = item[key("sdist")];
+		if (wheels.length === 0 && !isRecord$1(sdist)) return [entry(item["name"], "no source given", "unknown", void 0, line)];
+		return [entry(item["name"], text$1(item[key("index")]) ?? "an index", "registry", isRecord$1(sdist) && wheels.length === 0, line)];
+	});
+}
+/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
+function requirementsEntries(input, format) {
+	const vcs = isRecord$1(format["vcs"]) ? format["vcs"] : {};
+	const gitPrefixes = strings$1(vcs["git"]);
+	const otherPrefixes = strings$1(vcs["other"]);
+	const direct = String(format["direct"]);
+	const editable = strings$1(format["editable"]);
+	const comment = String(format["comment"]);
+	const continuation = String(format["continuation"]);
+	const entries = [];
+	const lines = input.split(/\r?\n/u);
+	for (let index = 0; index < lines.length; index++) {
+		const start = index;
+		let line = lines[index] ?? "";
+		while (line.trimEnd().endsWith(continuation) && index + 1 < lines.length) {
+			index += 1;
+			line = `${line.trimEnd().slice(0, -continuation.length)} ${lines[index] ?? ""}`;
+		}
+		const body = line.replace(new RegExp(`(^|\\s)${comment.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}.*$`, "u"), "").trim();
+		if (body === "") continue;
+		let requirement = body;
+		const flag = editable.find((option) => requirement.startsWith(`${option} `) || requirement.startsWith(`${option}=`));
+		if (flag !== void 0) requirement = requirement.slice(flag.length + 1).trim();
+		else if (requirement.startsWith("-")) continue;
+		requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(";", 1)[0]?.trim() ?? requirement;
+		const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${direct.trim()}\\s*(.+)$`, "u").exec(requirement);
+		const named = reference?.[1];
+		const target = reference?.[2] ?? requirement;
+		const nameFrom = (fallback) => named ?? /#egg=([^&\s]+)/u.exec(target)?.[1] ?? fallback;
+		const baseName = (location, archive) => {
+			const base = location.split(/[?#]/u, 1)[0]?.replace(/\/+$/u, "").split("/").at(-1) ?? location;
+			return archive ? base.split("-")[0] ?? base : base;
+		};
+		const lineNumber = start + 1;
+		if (gitPrefixes.some((prefix) => target.startsWith(prefix))) entries.push(entry(nameFrom(target), target, "git", true, lineNumber));
+		else if (otherPrefixes.some((prefix) => target.startsWith(prefix))) entries.push(entry(nameFrom(target), target, "unknown", true, lineNumber));
+		else if (/^https?:\/\//u.test(target)) entries.push(entry(nameFrom(baseName(target, true)), target, "remoteTarball", !isWheel(target), lineNumber));
+		else if (/^(\.{1,2}\/|\/|file:)/u.test(target) || flag !== void 0) {
+			const path = target.replace(/^file:(\/\/)?/u, "");
+			const archive = /\.(?:whl|zip|tar\.gz|tgz|tar\.bz2|tar)$/iu.test(path);
+			entries.push(entry(nameFrom(baseName(path, archive)), target, archive ? "file" : "directory", archive ? !isWheel(path) : true, lineNumber));
+		} else {
+			const name = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
+			if (name !== void 0) entries.push(entry(name, requirement, "registry", void 0, lineNumber));
+		}
+	}
+	return entries;
+}
+
 // src/doctor/lockfiles.ts
 /** Lockfiles are often larger than configuration files. */
 const MAX_LOCKFILE_SIZE = 67108864;
@@ -10152,11 +10329,20 @@ function overridesFormatOf(tool) {
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	return isRecord$1(value) ? value : void 0;
 }
+function requirementsFormatOf(tool) {
+	const fact = tool.extra?.["requirementsFormat"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord$1(value) ? value : {};
+}
+function isPylock(file) {
+	return /(^|\/)pylock(\.[^./]+)?\.toml$/u.test(file);
+}
 function readLockfiles(repository, manager, tool, workspaces) {
 	const fact = tool.extra?.["lockfileFormat"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
 	if (!isRecord$1(format)) return [];
-	return [...new Set(manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file))].map((file) => {
+	const requirements = tool.id === "pip" ? manager.configFiles : [];
+	return [.../* @__PURE__ */ new Set([...manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file), ...requirements])].map((file) => {
 		if (file.endsWith(".lockb")) return {
 			ok: false,
 			file,
@@ -10181,6 +10367,9 @@ function readLockfiles(repository, manager, tool, workspaces) {
 			else if (tool.id === "pnpm") ({entries, start} = pnpmEntries(text, format, documentsOf(tool)));
 			else if (tool.id === "yarn") entries = yarnEntries(text, format);
 			else if (tool.id === "bun") entries = bunEntries(text, format);
+			else if (tool.id === "uv") entries = uvEntries(text, format, workspaces);
+			else if (tool.id === "poetry") entries = poetryEntries(text, format);
+			else if (tool.id === "pip") entries = isPylock(file) ? pylockEntries(text, format) : requirementsEntries(text, requirementsFormatOf(tool));
 			else ({entries, recordsScripts} = denoEntries(text, format));
 			const find = lineFinder(text, start);
 			return {
@@ -10189,7 +10378,7 @@ function readLockfiles(repository, manager, tool, workspaces) {
 					file,
 					entries,
 					recordsScripts,
-					lineOf: (entry) => find(entry.anchor)
+					lineOf: (entry) => entry.line ?? find(entry.anchor)
 				}
 			};
 		} catch (error) {
@@ -11698,14 +11887,18 @@ function optionOf(line) {
 function writeRequirementsBlock(body, entries, managedOptions) {
 	const managed = new Set(managedOptions);
 	const removed = removeBlock(splitLines(body));
+	let at = 0;
+	while (at < removed.lines.length && (removed.lines[at]?.trim().startsWith("#") ?? false)) at += 1;
 	const lines = removed.lines.map((line) => {
 		const option = optionOf(line);
 		return option !== void 0 && managed.has(option) ? `${SUPERSEDED}${line.trim()}` : line;
 	});
-	if (entries.length === 0) return joinLines(lines);
+	if (entries.length === 0) {
+		const place = removed.at;
+		if (place !== void 0 && lines[place]?.trim() === "" && (place === 0 || lines[place - 1]?.trim() === "")) lines.splice(place, 1);
+		return joinLines(lines);
+	}
 	if (removed.at !== void 0) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
-	let at = 0;
-	while (at < lines.length && (lines[at]?.trim().startsWith("#") ?? false)) at += 1;
 	const result = insertBlock(lines, at, entries);
 	const after = at + (result.length - lines.length);
 	if (result[after] !== void 0 && result[after]?.trim() !== "") result.splice(after, 0, "");
@@ -12267,15 +12460,6 @@ const npm = (context) => {
 	return minutes;
 };
 
-// src/policy/python-names.ts
-const [rule] = evidenceOf(environment.python.nameNormalization);
-const SEPARATORS = new RegExp(rule?.value.separators ?? "[-_.]+", "gu");
-const REPLACEMENT = rule?.value.replacement ?? "-";
-/** The normalized form of a Python package name or name pattern; `*` stays as it is. */
-function normalizePythonName(name) {
-	return name.replace(SEPARATORS, REPLACEMENT).toLowerCase();
-}
-
 // src/apply/generators/python.ts
 /** The policy's Python allow-list as normalized names; patterns with * are dropped with a warning. */
 function buildAllowList(context, setting) {
@@ -12288,6 +12472,11 @@ function pythonNames(names) {
 function forcedBuildWarning(context, setting, names) {
 	if (names.length === 0) return;
 	context.warn(`${context.name}: ${setting} lets ${names.join(", ")} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? "it" : "them"} from source, even where a wheel exists, because it has no setting that only allows building`);
+}
+/** Says when the tool's switch does not stop git, local and URL dependencies from being built. */
+function buildSwitchScopeWarning(context, setting, covers) {
+	if (Array.isArray(covers) && covers.includes("git") && covers.includes("directory")) return;
+	context.warn(`${context.name}: ${setting} forbids building only packages from an index; ${context.name} still builds git, local directory and source archive dependencies, and depcurfew doctor reports them`);
 }
 /** A TOML string or array value. */
 function tomlValue(value) {
@@ -12315,6 +12504,7 @@ const pip = (context) => {
 		if (context.supports(build.since, build.setting)) {
 			entries.push(`${build.setting}=${String(build.value)}`);
 			managed.push(build.setting);
+			buildSwitchScopeWarning(context, build.setting, build.covers);
 			if (setting !== null) {
 				managed.push(setting);
 				const names = policy.installScripts.allow.length > 0 ? buildAllowList(context, setting) : [];
@@ -12452,6 +12642,7 @@ const poetry = (context) => {
 			installer.entries.push(`${key} = ${tomlValue(build.value)}`);
 			installer.managed.push(key);
 			context.warn(`${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies`);
+			buildSwitchScopeWarning(context, build.setting, build.covers);
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			if (setting !== null) {
 				installer.managed.push(splitDotted(setting).key);
@@ -12890,6 +13081,7 @@ const SYNTAX = {
 		}
 		return total;
 	},
+	"words-or-iso8601": (text) => SYNTAX["iso8601"]?.(text) ?? SYNTAX["words"]?.(text),
 	iso8601: (text) => {
 		const match = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/u.exec(text);
 		if (match === null || text === "P" || text.endsWith("T")) return void 0;
@@ -12950,6 +13142,66 @@ function formatMinutes(minutes) {
 	return `${rounded} minute${rounded === 1 ? "" : "s"}`;
 }
 
+// src/doctor/python.ts
+function tomlSettingAt(repository, file, path) {
+	if (!repository.isFile(file)) return void 0;
+	const text = repository.readText(file);
+	if (text === void 0) return void 0;
+	let document;
+	try {
+		document = parseToml(text);
+	} catch {
+		return;
+	}
+	let node = document.root;
+	for (const key of path) node = isRecord$1(node) ? node[key] : void 0;
+	if (node === void 0) return void 0;
+	return {
+		file,
+		line: document.lineOf(path) ?? 1,
+		value: node
+	};
+}
+/** The files and key paths where a Python tool reads `setting`, in the order the tool uses them. */
+function pythonSettingPaths(repository, tool, setting) {
+	const tables = tool.extra?.["configTables"] === void 0 ? void 0 : extraOf(tool, "configTables", isRecord$1);
+	if (tables !== void 0) {
+		const files = Object.keys(tables).sort((a, b) => Number(a === "pyproject.toml") - Number(b === "pyproject.toml"));
+		const file = files.find((name) => repository.isFile(name)) ?? files[0];
+		if (file === void 0) return [];
+		const table = String(tables[file] ?? "");
+		return [{
+			file,
+			path: [...table === "" ? [] : table.split("."), setting]
+		}];
+	}
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
+	return file === void 0 || !file.endsWith(".toml") ? [] : [{
+		file,
+		path: setting.split(".")
+	}];
+}
+/** A Python tool's setting as the tool reads it in the project, or undefined when it is not set. */
+function readPythonSetting(repository, tool, setting) {
+	for (const { file, path } of pythonSettingPaths(repository, tool, setting)) {
+		const found = tomlSettingAt(repository, file, path);
+		if (found !== void 0) return found;
+	}
+}
+/** The option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines. */
+function requirementsOptions(repository, file) {
+	const text = repository.readText(file);
+	if (text === void 0) return [];
+	return text.split(/\r?\n/u).flatMap((raw, index) => {
+		const match = /^\s*(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(raw);
+		return match === null ? [] : [{
+			option: match[1] ?? "",
+			value: match[2] ?? "",
+			line: index + 1
+		}];
+	});
+}
+
 // src/doctor/effective.ts
 function latestVersion(tool) {
 	const fact = tool.extra?.["latestVersion"];
@@ -12985,7 +13237,8 @@ function managerDelay(context, manager, tool) {
 	};
 	if (setting !== null) {
 		let found;
-		for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
+		if (ecosystemOfTool(tool) === "pypi") found = readPythonSetting(context.repository, tool, setting);
+		else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
 		if (found !== void 0) {
 			const raw = isRecord$1(found.value) ? found.value["age"] : found.value;
 			const delay = delayMinutes(tool, raw, version);
@@ -13071,13 +13324,7 @@ function renovateDelays(context, bot, file) {
 	}
 	const text = context.repository.readText(file);
 	if (text === void 0) return [];
-	const all = [
-		"npm",
-		"pnpm",
-		"yarn",
-		"bun",
-		"deno"
-	];
+	const managersOf = (ecosystem) => context.tools.filter((tool) => tool.kind === "package-manager" && (ecosystem === void 0 || ecosystemOfTool(tool) === ecosystem)).map((tool) => tool.id);
 	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig);
 	const base = file === packageJson.file ? [packageJson.key] : [];
 	const configured = jsonSetting(text, [...base, "minimumReleaseAge"]);
@@ -13087,41 +13334,53 @@ function renovateDelays(context, bot, file) {
 		"minimumReleaseAge"
 	]);
 	const securityBypass = security === void 0 ? values$1(bot.cooldown.securityUpdates).includes("bypass") : security.value === null;
-	let value = null;
-	let origin = "Renovate has no delay by default";
-	let line = 1;
-	if (configured !== void 0) {
-		value = configured.value;
-		origin = `${[...base, "minimumReleaseAge"].join(".")}: ${JSON.stringify(configured.value)} in ${file}`;
-		line = configured.line;
-	} else {
-		const presets = extraOf(bot, "minimumReleaseAgePresets", isPresets);
+	const applies = base.length === 0 && /\.jsonc?$/u.test(file);
+	const groups = [];
+	if (configured !== void 0) groups.push({
+		managers: managersOf(),
+		value: configured.value,
+		origin: `${[...base, "minimumReleaseAge"].join(".")}: ${JSON.stringify(configured.value)} in ${file}`,
+		line: configured.line
+	});
+	else {
 		const extendsList = jsonSetting(text, [...base, "extends"]);
-		const preset = Array.isArray(extendsList?.value) ? extendsList.value.find((item) => typeof item === "string" && presets.presets.includes(item)) : void 0;
-		if (typeof preset === "string") {
-			value = presets.value;
-			origin = `the preset ${preset} in ${file} (${presets.value})`;
-			line = extendsList?.line ?? 1;
+		const extended = Array.isArray(extendsList?.value) ? extendsList.value.filter((item) => typeof item === "string") : [];
+		for (const [key, ecosystem] of [["minimumReleaseAgePresets", "npm"], ["pypiPresets", "pypi"]]) {
+			const presets = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresets);
+			const preset = presets === void 0 ? void 0 : extended.find((item) => presets.presets.includes(item));
+			groups.push(presets !== void 0 && preset !== void 0 ? {
+				managers: managersOf(ecosystem),
+				value: presets.value,
+				origin: `the preset ${preset} in ${file} (${presets.value})`,
+				line: extendsList?.line ?? 1
+			} : {
+				managers: managersOf(ecosystem),
+				value: null,
+				origin: "Renovate has no delay by default",
+				line: 1
+			});
 		}
 	}
-	const delay = delayMinutes(bot, value, latestVersion(bot));
-	if (!delay.ok) {
-		context.notice(`Renovate: cannot read minimumReleaseAge in ${file}: ${delay.reason}`, file);
-		return [];
-	}
-	return [{
-		bot,
-		managers: all,
-		minutes: delay.minutes,
-		origin,
-		location: {
-			file,
-			line
-		},
-		securityBypass,
-		scope: "updates",
-		applies: base.length === 0 && /\.jsonc?$/u.test(file)
-	}];
+	return groups.flatMap((group) => {
+		const delay = delayMinutes(bot, group.value, latestVersion(bot));
+		if (!delay.ok) {
+			context.notice(`Renovate: cannot read minimumReleaseAge in ${file}: ${delay.reason}`, file);
+			return [];
+		}
+		return [{
+			bot,
+			managers: group.managers,
+			minutes: delay.minutes,
+			origin: group.origin,
+			location: {
+				file,
+				line: group.line
+			},
+			securityBypass,
+			scope: "updates",
+			applies
+		}];
+	});
 }
 function rechecksLockfile(tool, manager) {
 	const fact = tool.extra?.["lockfileRecheck"];
@@ -13600,10 +13859,28 @@ const settingIgnoredByVersion = {
 
 // src/doctor/rules/lockfile.ts
 const LABELS = {
-	git: "a git repository",
-	remoteTarball: "a tarball URL",
-	file: "a local tarball",
-	directory: "a local directory"
+	npm: {
+		git: "a git repository",
+		remoteTarball: "a tarball URL",
+		file: "a local tarball",
+		directory: "a local directory"
+	},
+	pypi: {
+		git: "a git repository",
+		remoteTarball: "a URL",
+		file: "a local archive",
+		directory: "a local directory"
+	}
+};
+/** Why a Python package is built from source, for messages. */
+const BUILT_FROM = {
+	registry: "its index has only a source distribution",
+	git: "it comes from a git repository",
+	remoteTarball: "it is a source archive at a URL",
+	file: "it is a local source archive",
+	directory: "it is a local directory",
+	workspace: "it is part of the workspace",
+	unknown: "its source is not recognized"
 };
 function eachLockfile(context, rule, visit) {
 	const workspaces = context.detection.workspaces?.packages ?? [];
@@ -13632,7 +13909,7 @@ const lockfileForbiddenSource = {
 		const sources = context.policy?.sources;
 		if (sources === void 0) return;
 		const denies = Object.values(sources).includes("deny");
-		eachLockfile(context, "lockfile-forbidden-source", (lockfile) => {
+		eachLockfile(context, "lockfile-forbidden-source", (lockfile, tool) => {
 			for (const entry of lockfile.entries) {
 				if (entry.source === "unknown" && denies) {
 					context.report({
@@ -13647,7 +13924,7 @@ const lockfileForbiddenSource = {
 				if (sources[entry.source] !== "deny") continue;
 				context.report({
 					location: location(lockfile, entry),
-					message: `${lockfile.file} installs ${entry.name} from ${LABELS[entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
+					message: `${lockfile.file} installs ${entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies`,
 					fix: `Use a registry version of ${entry.name}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
 				});
 			}
@@ -13687,11 +13964,42 @@ function scriptsDisabledBy(context, tool) {
 	const strict = tool.extra?.["strictAllowScripts"] === void 0 ? void 0 : extraOf(tool, "strictAllowScripts", isSwitch);
 	if (strict !== void 0 && readSetting(context.repository, file, strict.setting)?.value === strict.value) return `${strict.setting} in ${file} stops the install until they are allowed`;
 }
+/**
+* Whether the repository forbids building Python packages from source with the tool's switch (no-build in uv,
+* installer.only-binary in Poetry, --only-binary=:all: in a requirements file for pip), and where.
+*/
+function buildsForbiddenBy(context, tool, lockfile) {
+	const build = tool.extra?.["buildSwitch"] === void 0 ? void 0 : extraOf(tool, "buildSwitch", isSwitch);
+	if (build === void 0) return void 0;
+	if (tool.id === "pip") {
+		const found = (lockfile.file.endsWith(".toml") ? [] : [lockfile.file]).find((file) => requirementsOptions(context.repository, file).some((line) => line.option === build.setting && line.value === build.value));
+		return found === void 0 ? void 0 : `${build.setting}=${String(build.value)} in ${found} forbids building`;
+	}
+	const found = readPythonSetting(context.repository, tool, build.setting);
+	const wanted = JSON.stringify(build.value);
+	return found !== void 0 && (JSON.stringify(found.value) === wanted || Array.isArray(found.value) && Array.isArray(build.value) && build.value.every((item) => found.value.includes(item))) ? `${build.setting} in ${found.file} forbids building` : void 0;
+}
+function reportPythonBuilds(context, lockfile, tool, allow) {
+	const forbiddenBy = buildsForbiddenBy(context, tool, lockfile);
+	const covers = (tool.extra?.["buildSwitch"] === void 0 ? void 0 : extraOf(tool, "buildSwitch", isSwitch))?.covers ?? [];
+	const patterns = allow.map(normalizePythonName);
+	for (const entry of lockfile.entries) {
+		if (entry.installScript !== true || entry.source === "workspace") continue;
+		if (patterns.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+		const stopped = forbiddenBy !== void 0 && covers.includes(entry.source);
+		context.report({
+			level: stopped ? "warning" : "error",
+			location: location(lockfile, entry),
+			message: stopped ? `${entry.name} has to be built from source (${BUILT_FROM[entry.source]}), but ${forbiddenBy}, so installing it fails until it is allowed` : forbiddenBy === void 0 ? `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code, but ${POLICY_FILE} does not allow it` : `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code: ${forbiddenBy} only for packages from an index, and ${POLICY_FILE} does not allow it`,
+			fix: `Review ${entry.name} and add "${PYPI_PREFIX}${entry.name}" to installScripts.allow in ${POLICY_FILE} (it is then always built from source), or replace the package`
+		});
+	}
+}
 const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
-	summary: "The lockfile has packages with install scripts that depcurfew.json does not allow.",
-	description: "Install scripts run arbitrary code during installation. Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile.",
-	help: "Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing its scripts.",
+	summary: "The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.",
+	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.",
+	help: "Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing it (Python packages with the prefix pypi:).",
 	level: "error",
 	requiresPolicy: true,
 	check(context) {
@@ -13699,6 +14007,10 @@ const lockfileInstallScripts = {
 		if (policy?.installScripts?.default !== "deny") return;
 		eachLockfile(context, "lockfile-install-scripts", (lockfile, tool) => {
 			const allow = policyFor(policy, ecosystemOfTool(tool)).installScripts?.allow ?? [];
+			if (ecosystemOfTool(tool) === "pypi") {
+				reportPythonBuilds(context, lockfile, tool, allow);
+				return;
+			}
 			if (!lockfile.recordsScripts) {
 				context.notice(`lockfile-install-scripts could not check ${lockfile.file}: ${tool.name} does not record install scripts in it`, lockfile.file);
 				return;
@@ -13862,6 +14174,8 @@ function policyFeatures(tool, policy) {
 		if (policy.cooldown.exclude.length > 0) features.push(feature(settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince));
 	}
 	if (policy.installScripts !== void 0) {
+		const build = tool.extra?.["buildSwitch"] === void 0 ? void 0 : values$1(tool.extra["buildSwitch"])[0];
+		if (policy.installScripts.default === "deny" && isSwitch(build)) features.push(feature(build.setting, build.since));
 		const allowAll = tool.extra?.["allowAllScripts"] ?? tool.extra?.["allowAllBuilds"];
 		const switchFact = allowAll === void 0 ? void 0 : values$1(allowAll)[0];
 		if (policy.installScripts.default === "allow" && isSwitch(switchFact)) features.push(feature(switchFact.setting, switchFact.since));
@@ -13887,7 +14201,8 @@ function configuredFeatures(context, tool) {
 		...SOURCE_KINDS.map((kind) => [settingOf(tool.sources?.[kind]?.setting), tool.sources?.[kind]?.availableSince])
 	];
 	const files = tool.id === "deno" ? context.detection.packageManagers.find((entry) => entry.id === "deno")?.configFiles.filter((name) => /^deno\.jsonc?$/u.test(name)) ?? [] : [file];
-	return candidates.filter(([setting]) => setting !== null && files.some((name) => readSetting(context.repository, name, setting) !== void 0)).map(([setting, since]) => feature(setting, since)).filter((item) => item !== void 0);
+	const configured = (setting) => ecosystemOfTool(tool) === "pypi" ? readPythonSetting(context.repository, tool, setting) !== void 0 : files.some((name) => readSetting(context.repository, name, setting) !== void 0);
+	return candidates.filter(([setting]) => setting !== null && configured(setting)).map(([setting, since]) => feature(setting, since)).filter((item) => item !== void 0);
 }
 const SOURCE_LABEL = {
 	packageManager: "packageManager",
@@ -13897,6 +14212,13 @@ const SOURCE_LABEL = {
 	"tool-versions": ".tool-versions",
 	"github-actions": "GitHub Actions"
 };
+/** Where a version is declared, for messages; a tool's own required version is named by its key. */
+function sourceLabel(tool, declaration) {
+	if (declaration.source !== "tool-config") return SOURCE_LABEL[declaration.source];
+	const required = tool.extra?.["requiredVersion"] === void 0 ? void 0 : values$1(tool.extra["requiredVersion"])[0];
+	if (!isRecord$1(required) || typeof required["key"] !== "string") return SOURCE_LABEL[declaration.source];
+	return declaration.file.endsWith("pyproject.toml") && typeof required["table"] === "string" ? `${required["key"]} in [${required["table"]}]` : required["key"];
+}
 function declarationLine(context, declaration) {
 	if (declaration.line !== void 0) return declaration.line;
 	const text = context.repository.readText(declaration.file);
@@ -13911,7 +14233,8 @@ function checkManager(context, manager, tool) {
 	for (const declaration of manager.versions) {
 		if (!("version" in declaration)) continue;
 		const lowest = lowestVersion(declaration.version);
-		const where = `${SOURCE_LABEL[declaration.source]} (${declaration.file})`;
+		const label = sourceLabel(tool, declaration);
+		const where = `${label} (${declaration.file})`;
 		if (lowest.kind === "unknown") {
 			context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
 			continue;
@@ -13930,7 +14253,7 @@ function checkManager(context, manager, tool) {
 				line
 			},
 			message: subject,
-			fix: `Require ${tool.name} ${formatVersion(needed)} or later in ${SOURCE_LABEL[declaration.source]}`
+			fix: `Require ${tool.name} ${formatVersion(needed)} or later in ${label}`
 		});
 	}
 }

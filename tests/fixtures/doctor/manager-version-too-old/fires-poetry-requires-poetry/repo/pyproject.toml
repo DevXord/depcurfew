@@ -1,0 +1,18 @@
+[project]
+name = "demo"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "idna",
+  "docopt==0.6.2",
+  "sampleproject @ git+https://github.com/pypa/sampleproject",
+  "local-lib",
+  "six @ https://files.pythonhosted.org/packages/d9/5a/e7c31adbe875f2abbb91bd84cf2dc52d792b5a01506781dbcf25c91daf11/six-1.16.0-py2.py3-none-any.whl",
+]
+
+[tool.poetry]
+package-mode = false
+requires-poetry = ">=2.0"
+
+[tool.poetry.dependencies]
+local-lib = { path = "libs/local-lib" }

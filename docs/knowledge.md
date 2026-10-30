@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-10 tools · 405 facts · 64 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
+10 tools · 407 facts · 64 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
 
 ## Release-age cooldown
 
@@ -199,7 +199,7 @@ Further facts used by generators and `doctor`.
 - `configTables` (✅ verified): `{"pyproject.toml":"tool.uv","uv.toml":""}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `pyprojectTable` (✅ verified): tool.uv [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `configPrecedence` (✅ verified): uv.toml wins over [tool.uv] in the same directory; only the nearest directory with either is read, and in a workspace only the root [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
-- `buildSwitch` (✅ verified): `{"setting":"no-build","value":true,"since":"0.2.12"}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.2.x.md#0212)
+- `buildSwitch` (✅ verified): `{"setting":"no-build","value":true,"since":"0.2.12","covers":["registry","git","remoteTarball","file","directory"]}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.2.x.md#0212)
 - `durationStrings` (✅ verified): `{"since":"0.9.17","syntax":"words-or-iso8601"}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `durationUnits` (✅ verified): hours, days, weeks [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `excludeWildcards` (✅ verified): `{"since":null,"trailingOnly":false}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs)
@@ -214,12 +214,13 @@ Further facts used by generators and `doctor`.
 ### pip
 
 - `requirementsOptions` (✅ verified): -i, --index-url, --extra-index-url, --no-index, -c, --constraint, -r, --requirement, -e, --editable, -f, --find-links, --no-binary, --only-binary, --prefer-binary, --require-hashes, --no-require-hashes, --pre, --all-releases, --only-final, --trusted-host, --use-feature [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
-- `buildSwitch` (❓ uncertain): `{"setting":"--only-binary","value":":all:","since":"7.0.0"}` ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
+- `buildSwitch` (❓ uncertain): `{"setting":"--only-binary","value":":all:","since":"7.0.0","covers":["registry"]}` ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `environmentVariable` (✅ verified): PIP_UPLOADED_PRIOR_TO [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variables)
 - `durationStrings` (✅ verified): `{"since":"26.1.0","syntax":"iso8601"}` [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `missingUploadTime` (✅ verified): Installation fails when an index gives no upload time while --uploaded-prior-to is set [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)
 - `lockfileFormat` (✅ verified): `{"packages":"packages","vcs":"vcs","directory":"directory","archive":"archive","sdist":"sdist","wheels":"wheels","index":"index","sources":{"git":"vcs","remoteTarball":"archive","directory":"directory"}}` [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst)
 - `requirementsForms` (✅ verified): name==version with --hash options, name @ URL for an archive, a local archive or project path, and VCS URLs (name @ git+https://… or -e git+…) [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md)
+- `requirementsFormat` (✅ verified): `{"vcs":{"git":["git+"],"other":["hg+","svn+","bzr+"]},"direct":" @ ","editable":["-e","--editable"],"comment":"#","continuation":"\\"}` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/vcs-support.md)
 - `latestVersion` (✅ verified): 26.2.2 [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 
 ### Poetry
@@ -227,7 +228,7 @@ Further facts used by generators and `doctor`.
 - `configTable` (✅ verified): `{"solver":"solver","installer":"installer"}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/config/file_config_source.py)
 - `pyprojectTable` (✅ verified): tool.poetry [↗](https://github.com/python-poetry/poetry-core/blob/2.5.0/src/poetry/core/pyproject/toml.py)
 - `configLocation` (✅ verified): poetry.toml is read only from the directory of the pyproject.toml Poetry found (the current directory or the nearest parent with one) [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/factory.py)
-- `buildSwitch` (✅ verified): `{"setting":"installer.only-binary","value":[":all:"],"since":"2.0.0"}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
+- `buildSwitch` (✅ verified): `{"setting":"installer.only-binary","value":[":all:"],"since":"2.0.0","covers":["registry"]}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
 - `excludeFormat` (⚠️ disputed): ⚠️ comma-separated string [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age-exclude) / TOML array [↗](https://github.com/python-poetry/poetry/pull/11087)
 - `excludeWildcards` (✅ verified): `{"since":null,"trailingOnly":false}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age-exclude)
 - `missingUploadTime` (✅ verified): A release whose source gives no upload times is not filtered by solver.min-release-age [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age)
@@ -302,6 +303,7 @@ How repositories pin tool versions (Corepack, devEngines, Volta, asdf) and how G
 - `claudeCode.hooks` (✅ verified): `{"settingsFile":".claude/settings.json","event":"PreToolUse","shellTool":"Bash","input":{"event":"hook_event_name","tool":"tool_name","command":"tool_input.command","cwd":"cwd"},"output":{"container":"hookSpecificOutput","event":"hookEventName","decision":"permissionDecision","reason":"permissionDecisionReason"},"decisions":{"deny":"deny","ask":"ask"},"blockingExitCode":2,"onFailure":{"field":"onFailure","value":"block","since":"2.1.295"},"projectDir":"${CLAUDE_PROJECT_DIR}","settings":{"hooks":"hooks","matcher":"matcher","handlers":"hooks","type":"type","commandType":"command","command":"command","args":"args"}}` [↗](https://code.claude.com/docs/en/hooks)
 - `python.nameNormalization` (✅ verified): `{"separators":"[-_.]+","replacement":"-"}` [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
 - `python.namePattern` (✅ verified): ^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9])$ [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
+- `python.wheelExtension` (✅ verified): .whl [↗](https://packaging.python.org/en/latest/specifications/binary-distribution-format/)
 
 ## Notes
 
@@ -449,14 +451,14 @@ Context recorded with verified facts.
 - `installScripts.allowList.setting`: With no-build = true, the packages in no-binary-package are the only ones built from source ("Allow `all` to be overridden by specific binary exclusions"). Their wheels are not used, so they are always built. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-configuration/src/build_options.rs)
 - `installScripts.allowList.file`: Or uv.toml; the same table as exclude-newer. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `installScripts.allowList.availableSince`: Project settings no-build, no-build-package, no-binary and no-binary-package; uv sync and related commands respect them since 0.4.6. [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.2.x.md#0212)
-- `installScripts.disableAll`: Operations that need to build a source distribution fail. Workspace members, editable requirements and wheels built earlier and kept in the cache are still used. An explicit no-build = false in a higher-priority file makes uv ignore no-build-package. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs)
+- `installScripts.disableAll`: Operations that need to build a source distribution fail. Workspace members, editable requirements and wheels built earlier and kept in the cache are still used. With uv 0.13.6 on 2026-10-30, uv sync refused a git dependency and a non-editable local directory dependency as well ("marked as --no-build but has no binary distribution"), so those need an exception too. An explicit no-build = false in a higher-priority file makes uv ignore no-build-package. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs)
 - `project.lockfiles`: Created next to pyproject.toml. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/layout.md)
 - `project.workspaces`: The [tool.uv.workspace] table of the root pyproject.toml lists members and exclude (globs or paths); exclude wins over members, and the root is a member too. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md)
 - `project.workspacesObjectKey`: The workspace guide calls members required, while the settings reference (crates/uv-workspace/src/pyproject.rs) gives it a default of []. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md)
 - `extra.configTables`: Settings sit in [tool.uv] in pyproject.toml and at the top level of uv.toml. uv.toml cannot hold workspace, sources and a few other project fields. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `extra.pyprojectTable`: A pyproject.toml without a [tool.uv] table is ignored when uv searches for configuration. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `extra.configPrecedence`: A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
-- `extra.buildSwitch`: The project setting that forbids building source distributions; see installScripts.disableAll for what it does not cover. [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.2.x.md#0212)
+- `extra.buildSwitch`: The project setting that forbids building source distributions. It also stops git and local directory dependencies (uv sync with uv 0.13.6 on 2026-10-30) and source archives, which also need a build; workspace members and editable requirements are still built. [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.2.x.md#0212)
 - `extra.durationStrings`: Either a "friendly" duration (24 hours, 1 week, 30 days) or an ISO 8601 duration (PT24H, P7D, P30D). [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `extra.durationUnits`: Units in the documented examples: 24 hours, 1 week, 30 days. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `extra.excludeWildcards`: exclude-newer-package keys are exact package names. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs)
@@ -485,6 +487,7 @@ Context recorded with verified facts.
 - `extra.durationStrings`: Only whole days, written PnD, are accepted. [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `extra.missingUploadTime`: Upload times exist only in the JSON form of the simple repository API (PEP 700); indexes that serve only HTML have none. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)
 - `extra.lockfileFormat`: Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed. [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst)
+- `extra.requirementsFormat`: VCS requirements start with git+, hg+, svn+ or bzr+, alone or after "name @"; a direct reference is "name @ URL" (PEP 508); -e installs a project path or VCS URL in editable mode. Lines ending with a backslash continue on the next line, and # starts a comment (requirements-file-format.md). [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/vcs-support.md)
 - `extra.latestVersion`: Released on 2026-10-20. [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 
 ### Poetry
@@ -503,7 +506,7 @@ Context recorded with verified facts.
 - `project.lockfiles`: Next to pyproject.toml. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/factory.py)
 - `extra.configTable`: poetry config writes dotted settings as nested tables, e.g. [solver] min-release-age = 7. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/config/file_config_source.py)
 - `extra.pyprojectTable`: A [tool.poetry] table marks a Poetry project; Poetry also accepts a [project] table with a static name and version, which other tools use as well. [↗](https://github.com/python-poetry/poetry-core/blob/2.5.0/src/poetry/core/pyproject/toml.py)
-- `extra.buildSwitch`: installer.only-binary was added in 2.0.0; [":all:"] forbids source distributions for every package when installing. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
+- `extra.buildSwitch`: installer.only-binary was added in 2.0.0; [":all:"] forbids source distributions of index packages when installing. Git and directory dependencies, and source archives from a URL or path, are built regardless (src/poetry/installation/executor.py at 2.5.1). [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
 - `extra.excludeWildcards`: Package names only. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age-exclude)
 - `extra.requiredVersion`: A version constraint in pyproject.toml; a Poetry version outside it raises an error. Poetry 1.x does not know the key. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/pyproject.md#requires-poetry)
 - `extra.latestVersion`: Released on 2026-09-20. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
@@ -580,6 +583,7 @@ Context recorded with verified facts.
 - `claudeCode.hooks`: A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules. [↗](https://code.claude.com/docs/en/hooks)
 - `python.nameNormalization`: Names are lowercased and every run of ., - or _ becomes a single -, before lookups and comparisons (PEP 503): Friendly.Bard and friendly_bard are the same package. Read from the page source in pypa/packaging.python.org. [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
 - `python.namePattern`: The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\Z run with re.IGNORECASE (PEP 508). [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
+- `python.wheelExtension`: A wheel is a ZIP archive with the .whl extension; installing it unpacks files and runs no build code. Read from the page source in pypa/packaging.python.org. [↗](https://packaging.python.org/en/latest/specifications/binary-distribution-format/)
 
 ## To review
 
@@ -921,9 +925,9 @@ No workspaces.
 
 ### pip · `extra.buildSwitch` ❓ uncertain
 
-The option exists since 7.0.0; when requirements files started to accept it is not recorded.
+The option exists since 7.0.0; when requirements files started to accept it is not recorded. pip applies it only to packages found on indexes and find-links (format_control is used only by the package finder), so VCS, local directory and direct URL source requirements are still built.
 
-- `{"setting":"--only-binary","value":":all:","since":"7.0.0"}` · [source](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst), verified 2026-10-30.
+- `{"setting":"--only-binary","value":":all:","since":"7.0.0","covers":["registry"]}` · [source](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst), verified 2026-10-30.
 
 ### Poetry · `cooldown.cliFlag` ❓ uncertain
 

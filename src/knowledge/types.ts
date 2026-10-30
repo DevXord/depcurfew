@@ -404,5 +404,7 @@ export interface EnvironmentKnowledge {
     nameNormalization: Fact<{ separators: string; replacement: string }>;
     /** Python package names: ASCII letters and digits, `.`, `_` and `-`, starting and ending with a letter or digit. */
     namePattern: Fact<string>;
+    /** The file extension of a wheel, a built distribution that installs without running package code. */
+    wheelExtension: Fact<string>;
   };
 }

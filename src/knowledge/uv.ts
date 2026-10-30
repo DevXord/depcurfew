@@ -88,7 +88,7 @@ export const uv: ToolKnowledge = {
     disableAll: verified(
       'no-build',
       SETTINGS,
-      'Operations that need to build a source distribution fail. Workspace members, editable requirements and wheels built earlier and kept in the cache are still used. An explicit no-build = false in a higher-priority file makes uv ignore no-build-package.',
+      'Operations that need to build a source distribution fail. Workspace members, editable requirements and wheels built earlier and kept in the cache are still used. With uv 0.13.6 on 2026-10-30, uv sync refused a git dependency and a non-editable local directory dependency as well ("marked as --no-build but has no binary distribution"), so those need an exception too. An explicit no-build = false in a higher-priority file makes uv ignore no-build-package.',
     ),
   },
   sources: {
@@ -128,9 +128,9 @@ export const uv: ToolKnowledge = {
       'A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories.',
     ),
     buildSwitch: verified(
-      { setting: 'no-build', value: true, since: '0.2.12' },
+      { setting: 'no-build', value: true, since: '0.2.12', covers: ['registry', 'git', 'remoteTarball', 'file', 'directory'] },
       changelog('0.2', '0.2.12'),
-      'The project setting that forbids building source distributions; see installScripts.disableAll for what it does not cover.',
+      'The project setting that forbids building source distributions. It also stops git and local directory dependencies (uv sync with uv 0.13.6 on 2026-10-30) and source archives, which also need a build; workspace members and editable requirements are still built.',
     ),
     durationStrings: verified(
       { since: '0.9.17', syntax: 'words-or-iso8601' },

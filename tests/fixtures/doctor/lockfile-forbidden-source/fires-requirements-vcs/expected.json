@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 3
+    },
+    "message": "requirements.txt installs sampleproject from a git repository (git+https://github.com/pypa/sampleproject@621e4974ca25ce531773def586ba3ed8e736b3fc), which depcurfew.json denies",
+    "fix": "Use a registry version of sampleproject, or set sources.git to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 4
+    },
+    "message": "requirements.txt installs helper from a local directory (./tools/helper), which depcurfew.json denies",
+    "fix": "Use a registry version of helper, or set sources.directory to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 5
+    },
+    "message": "requirements.txt installs thing from a URL (https://example.test/packages/thing-1.0.tar.gz), which depcurfew.json denies",
+    "fix": "Use a registry version of thing, or set sources.remoteTarball to \"allow\" in depcurfew.json"
+  }
+]

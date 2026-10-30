@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 7
+    },
+    "message": "Dependabot proposes uv updates after 1 day (default-days: 1 in .github/dependabot.yml), but uv waits 3 days (exclude-newer: \"3 days\" in uv.toml); its pull requests bring in versions younger than uv accepts, or fail where the lockfile is re-checked",
+    "fix": "Make the Dependabot delay at least 3 days, or run depcurfew apply"
+  }
+]
