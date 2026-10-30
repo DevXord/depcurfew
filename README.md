@@ -379,7 +379,7 @@ For each package it looks up the public npm registry and reports:
 - a name that differs by a letter or two, or only in separators, from one of the 5,000 most downloaded packages;
 - a deprecated version (a warning).
 
-Git repositories, tarball URLs and local paths are checked against the `sources` section only. Without a `depcurfew.json` in the directory or one of its parents, the default policy applies. When the registry cannot be reached, the package counts as failed: `check` exits with 1 whenever a package breaks the policy or cannot be checked.
+Git repositories, tarball URLs and local paths are checked against the `sources` section only. Without a `depcurfew.json` in the directory or one of its parents, the default policy applies. When the registry cannot be reached, the package counts as failed: `check` exits with 1 whenever a package breaks the policy or cannot be checked. With `--json` it prints one document and nothing on stderr: `packages` with their findings (each with `code`, `level`, `message` and `fix`), `notices`, and `errors` for a `depcurfew.json` that cannot be used, in which case no package is checked.
 
 ### Claude Code
 

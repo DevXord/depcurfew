@@ -2,6 +2,13 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · `check --json` przy błędnej polityce (D-070)
+
+- `check --json` przy błędnym albo nieczytelnym `depcurfew.json` daje dokument z `errors` (kształt jak w `apply --json`) i puste `packages` zamiast tekstu na stderr; kod wyjścia 1.
+- Uwaga o braku polityki trafia w trybie JSON do `notices`; `apply`, `doctor` i `check` mają w trybie JSON pusty stderr.
+- `policyErrorFix`: jedna poprawka dla `doctor` i JSON z `apply` i `check`.
+- Weryfikacja: `npm test` (1409 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-30 · Błędna polityka w `doctor` (D-069)
 
 - Nowa reguła `invalid-policy`: błędny albo nieczytelny `depcurfew.json` to znalezisko `error` w tekście, `--json` (z `policy: "invalid"`) i `--sarif`, zamiast tekstu na stderr. Reguły bez polityki dalej działają.

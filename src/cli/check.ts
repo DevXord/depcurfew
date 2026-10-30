@@ -5,7 +5,7 @@
 import { lstatSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
+import { loadPolicyIfPresent, PolicyError, policyErrorFix } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
 import { blockingExitCode, decide, formatDecision, readHookEvent, requestedSpecs } from '../check/hook.ts';
 import { defaultRegistry, type FetchLike } from '../check/registry.ts';
@@ -167,15 +167,33 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     io.stderr("depcurfew: 'check' needs at least one package, e.g. depcurfew check lodash@4\nRun 'depcurfew check --help' for usage.\n");
     return EXIT_USAGE;
   }
+  const start = flags.dir ?? process.cwd();
   let loaded: ReturnType<typeof load>;
   try {
-    loaded = load(flags.dir ?? process.cwd(), dependencies.home?.() ?? homedir());
+    loaded = load(start, dependencies.home?.() ?? homedir());
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
+    if (flags.json) {
+      // The same error shape as apply --json; nothing is checked against a policy that cannot be used.
+      const directory = policyDirectory(start);
+      const file = directory === undefined ? POLICY_FILE : join(directory, POLICY_FILE);
+      const failure = {
+        code: error.code,
+        level: 'error',
+        location: { file },
+        message: error.message,
+        fix: policyErrorFix(error),
+        ...(error.issues.length === 0 ? {} : { issues: error.issues }),
+      };
+      io.stdout(`${JSON.stringify({ schemaVersion: 1, policy: file, packages: [], notices: [], errors: [failure] }, null, 2)}\n`);
+      return EXIT_FAILURE;
+    }
     io.stderr(`depcurfew: ${error.text}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
     return EXIT_FAILURE;
   }
-  if (loaded.file === undefined) io.stderr(`note: no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)\n`);
+  const notices = loaded.file === undefined ? [{ message: `no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)` }] : [];
+  // With --json the notes go into the document, so that stderr stays empty for programs.
+  if (!flags.json) for (const notice of notices) io.stderr(`note: ${notice.message}\n`);
   const reports = await checkSpecs(specs, {
     policy: loaded.policy,
     fetch: dependencies.fetch,
@@ -184,6 +202,6 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     popular: new PopularNames(values(popularPackages)[0] ?? []),
     scopeRegistries: loaded.registries.scopes,
   });
-  io.stdout(flags.json ? `${JSON.stringify({ schemaVersion: 1, policy: loaded.file ?? null, packages: reports }, null, 2)}\n` : render(reports, paint(io.colors?.stdout)));
+  io.stdout(flags.json ? `${JSON.stringify({ schemaVersion: 1, policy: loaded.file ?? null, packages: reports, notices, errors: [] }, null, 2)}\n` : render(reports, paint(io.colors?.stdout)));
   return reports.some((report) => report.findings.some((finding) => finding.level === 'error')) ? EXIT_FAILURE : EXIT_OK;
 }
