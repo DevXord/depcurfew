@@ -649,7 +649,7 @@ Właściciel zatwierdził je razem z planem faz 0–1. Żadna nie trafia do opub
 - **Testy:** 794, w tym nowe testy w `tests/security/` (symlinki, DoS), `tests/apply/review-*.test.ts` i nowe fikstury `doctor`.
 
 ## D-053 · Zatwierdzony plan fazy 7 (2026-10-29)
-- **Kolejność (F1):** faza 7 po wydaniu 1.0.0, jako 1.1.0. Dodaje kod sieciowy, który dostanie osobny przegląd.
+- **Kolejność (F1):** faza 7 po wydaniu 1.0.0, jako 1.1.0. Dodaje kod sieciowy, który dostanie osobny przegląd. (D-068: 1.1.0 obejmuje też fazę 10.)
 - **Polecenie (F1, F2):**
   - `depcurfew check <paczka>[@wersja|@tag|@zakres]... [--json] [--registry <url>]`;
   - sprawdza istnienie (404 to „możliwa wymyślona nazwa”), wiek wybranej wersji względem `cooldown` z `exclude`, skrypty `preinstall`/`install`/`postinstall` względem `installScripts`, podobieństwo nazwy do popularnej paczki i wycofanie (ostrzeżenie);
@@ -857,7 +857,7 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - Programiści nie muszą go instalować, bo ochronę daje zapisana konfiguracja.
   - Inne CI uruchamia kopię z projektu (`npm ci`, potem `npx depcurfew doctor`) zamiast `npx --yes depcurfew@1`, które pobierało najnowszą wersję bez opóźnienia.
   - Instalacja globalna działa, ale nie jest polecana zespołom: wersje się rozjeżdżają, a npm nie czyta `.npmrc` projektu w trybie globalnym (fakt `npmrcScope.globalMode`).
-- **Plan.** `dcf apply --user` (ochrona całego komputera programisty) i ostrzeżenie o starszej wersji wchodzą do planu jako faza 11, wersja 1.3.0 (po fazie 10 z Pythonem w 1.2.0).
+- **Plan.** `dcf apply --user` (ochrona całego komputera programisty) i ostrzeżenie o starszej wersji wchodzą do planu jako faza 11, wersja 1.3.0 (po fazie 10 z Pythonem w 1.2.0). Zmienione w D-068: Python wchodzi do 1.1.0, a faza 11 to 1.2.0.
 - **Po przeglądzie kodu (PR #11).**
   - **Dopasowanie po ścieżce, nie po tekście adresu.** Zależność z URL jest przypisywana wpisowi tak, jak Node szuka paczki: najpierw `node_modules` deklarującego pakietu, potem rodziców. Nie porównujemy tekstu adresu z `resolved`, bo npm przy domyślnym `replace-registry-host=npmjs` może zapisać tam host skonfigurowanego rejestru. Kopia tej samej paczki osiągnięta przez zakres wersji nie jest oznaczana.
   - **`overrides` z URL.** Nie trafiają do lockfile, więc są czytane z `package.json` obok lockfile (nowy fakt `overrides`; zagnieżdżenia i klucz `.`). Wpis tej paczki, którego ścieżka w `resolved` kończy się ścieżką adresu, ma źródło `remoteTarball`.
@@ -942,3 +942,14 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 - **Zgodność wsteczna.** `ApplyReport.warnings` zostaje listą napisów (`message` i `fix` w jednej linii). Szczegóły są w nowym polu `warningDetails`, tak jak `errors` i `failures`. `PolicyError` dostaje `code`, `fix` i `text`. Publiczne API eksportuje też `APPLY_WARNINGS`, `APPLY_ERRORS`, `warningText` i typy `ApplyWarning`, `ApplyWarningCode`, `ApplyErrorCode`.
 - **TOML, który się nie parsuje, nie jest edytowany.** Blok TOML jest pisany liniami, więc wcześniej `apply` dopisywało go do zepsutego pliku i zgłaszało sukces (także `bunfig.toml` w 1.0.0). Teraz plik musi się parsować przed edycją i po niej; inaczej to błąd `cannot-edit` i nic nie zostaje zapisane, jak przy JSON i YAML. Wyszło przy pokazie `apply --json` na projekcie testowym.
 - **Poza zakresem.** `doctor --json` przy błędnej polityce nadal pisze tekst na stderr; ujednolicenie to osobne zadanie.
+
+## D-068 · Jedno wydanie 1.1.0 zamiast 1.1.0 i 1.2.0 (2026-10-30)
+
+- **Decyzja właściciela.** Faza 7 (`check` i hook Claude Code), faza 10 (Python: uv, pip, Poetry) oraz `apply --json` z kodami ostrzeżeń wychodzą razem jako 1.1.0, po wydaniu 1.0.0.
+- **Powód.** Faza 10 powstała na gałęzi `faza-7` i została do niej scalona (#14, razem z #15). PR #6 (`faza-7` → `main`) zawiera więc obie fazy, a osobne 1.1.0 bez Pythona wymagałoby rozdzielania gałęzi.
+- **Nowa kolejność wydań:**
+  - 1.0.0: `init`, `explain`, `apply`, `doctor`, GitHub Action; npm, pnpm, Yarn, Bun, Deno, Renovate, Dependabot;
+  - 1.1.0: `check` i hook, Python (uv, pip, Poetry), `apply --json`;
+  - 1.2.0: `dcf apply --user` i `dcf doctor --user` (faza 11, wcześniej 1.3.0);
+  - 2.x: kolejne języki (faza 12).
+- **Zastępuje** kolejność z F1 (D-060) i z planu przy D-063. Wcześniejsze wpisy zostają bez zmian jako historia, z odsyłaczem do tej decyzji.

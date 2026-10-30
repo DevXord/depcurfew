@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · Jedno wydanie 1.1.0 (D-068)
+
+- Faza 7, faza 10 i `apply --json` wychodzą razem jako 1.1.0 po wydaniu 1.0.0 (decyzja właściciela). `--user` (faza 11) przesuwa się z 1.3.0 na 1.2.0.
+- Faza 10 scalona do `faza-7` (#14, z #15); PR #6 obejmuje całe wydanie 1.1.0.
+
 ## 2026-10-30 · `apply --json` i kody ostrzeżeń (D-067)
 
 - Każde ostrzeżenie i błąd `apply` ma stały kod, komunikat i, gdy jest co zrobić, `fix`; katalog kodów w `src/apply/warnings.ts` i w README.
