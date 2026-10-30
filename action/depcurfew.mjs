@@ -9738,6 +9738,14 @@ function errorMessage(error) {
 	const message = error instanceof Error ? error.message : String(error);
 	return message.split("\n", 1)[0] ?? message;
 }
+/** A file system error without the absolute path, e.g. "EACCES: permission denied". */
+function fileError(error) {
+	const code = error?.code;
+	const message = errorMessage(error);
+	return code !== void 0 && message.startsWith(`${code}: `) ? message.split(", ", 1)[0] ?? code : code ?? "unknown error";
+}
+/** Errors that mean the path does not exist, as opposed to a file that exists but cannot be read. */
+const MISSING = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 var Repository = class {
 	root;
 	warnings = [];
@@ -9756,6 +9764,10 @@ var Repository = class {
 			files: [...files]
 		});
 	}
+	/** A file that exists but cannot be read, e.g. without read permission; unreadable-config reports it. */
+	#unreadable(path, error) {
+		this.warn("unreadable-file", `cannot read ${path} (${fileError(error)})`, [path]);
+	}
 	#inside(real) {
 		return real === this.root || real.startsWith(this.root + sep);
 	}
@@ -9764,7 +9776,8 @@ var Repository = class {
 		const full = join(this.root, path);
 		try {
 			lstatSync(full);
-		} catch {
+		} catch (error) {
+			if (report && !MISSING.has(String(error.code))) this.#unreadable(path, error);
 			return;
 		}
 		let real;
@@ -9793,7 +9806,13 @@ var Repository = class {
 			this.warn("file-too-large", `${path} is larger than ${limit / 1048576} MiB and was not read`, [path]);
 			return;
 		}
-		const text = readFileSync(real, "utf8");
+		let text;
+		try {
+			text = readFileSync(real, "utf8");
+		} catch (error) {
+			this.#unreadable(path, error);
+			return;
+		}
 		return text.startsWith("﻿") ? text.slice(1) : text;
 	}
 	/** The first bytes of a file, e.g. to recognize a lockfile format without reading a large file. */
@@ -9801,7 +9820,13 @@ var Repository = class {
 		const real = this.#resolve(path, true);
 		if (real === void 0 || !statSync(real).isFile()) return void 0;
 		const buffer = Buffer.alloc(bytes);
-		const descriptor = openSync(real, "r");
+		let descriptor;
+		try {
+			descriptor = openSync(real, "r");
+		} catch (error) {
+			this.#unreadable(path, error);
+			return;
+		}
 		try {
 			return buffer.subarray(0, readSync(descriptor, buffer, 0, bytes, 0)).toString("utf8");
 		} finally {
@@ -15949,6 +15974,7 @@ const pythonConfigIgnored = {
 /** Repository warnings that mean a file was not checked. */
 const UNREADABLE_WARNINGS = {
 	"invalid-file": "Fix the syntax error, so that depcurfew can check the file",
+	"unreadable-file": "Make the file readable for the user that runs depcurfew, so that depcurfew can check it",
 	"file-too-large": "Make the file smaller than the limit, or check its settings by hand",
 	"outside-repository": "Replace the symlink with a regular file inside the repository",
 	"workspace-outside-repository": "Keep workspace packages inside the repository",
@@ -15958,7 +15984,7 @@ const unreadableConfig = {
 	id: "unreadable-config",
 	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.",
 	description: "A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.",
-	help: "Fix what the message describes: invalid syntax, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
+	help: "Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
 	level: "error",
 	requiresPolicy: false,
 	check(context) {

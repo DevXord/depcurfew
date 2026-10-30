@@ -302,7 +302,7 @@ Fix: Remove or replace the package, or add it to installScripts.allow in depcurf
 
 A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.
 
-Fix: Fix what the message describes: invalid syntax, a symlink, a file over the size limit or a style depcurfew apply cannot edit.
+Fix: Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.
 <!-- END GENERATED: rules -->
 
 ## GitHub Action
