@@ -30,7 +30,7 @@ export const COMMANDS: readonly CommandInfo[] = [
     arguments: '[directory]',
     options: [{ name: 'force', summary: 'Overwrite an existing depcurfew.json' }],
     details:
-      'Writes depcurfew.json with the default policy: a 3-day release-age delay, install scripts denied, and git and tarball URL dependencies denied. Other files are not changed; run depcurfew apply next to configure the tools.',
+      'Writes depcurfew.json with the default policy: a 3-day release-age delay, install scripts denied, and git and tarball URL dependencies denied. When the repository already sets a longer release-age delay for a tool it detects, cooldown.minimum keeps the longest one, so that apply does not shorten it; init says where it found it. Other files are not changed; run depcurfew apply next to configure the tools.',
     examples: ['depcurfew init', 'depcurfew init --force'],
     exitCodes: [
       [0, 'depcurfew.json was written'],

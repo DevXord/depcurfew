@@ -1,8 +1,8 @@
 // npm: .npmrc keys in a managed block; the allowScripts allow-list in the root package.json.
 import { BLOCK_START } from '../block.ts';
-import { extraOf, firstFile, isSwitch, settingOf, sinceOf, values } from '../facts.ts';
+import { extraOf, firstFile, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { formatVersion } from '../version.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions } from './common.ts';
+import { allowedNames, cooldownValue, eachSource, exclusions, scriptsDefault } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -42,8 +42,7 @@ export const npm: ManagerGenerator = (context) => {
       if (context.atLeast(allowAll.since)) managed.push(allowAll.setting);
       // Before npm 12, dependency scripts that allowScripts does not cover still run (with a notice from 11.16.0):
       // strict-allow-scripts turns them into an error; older versions have no allow-list at all.
-      let defaults: unknown;
-      for (const entry of values(tool.installScripts.defaultPolicy)[0] ?? []) if (context.atLeast(entry.since)) defaults = entry.value;
+      const defaults = scriptsDefault(context).value;
       const strict = extraOf(tool, 'strictAllowScripts', isSwitch);
       if (defaults === 'run-with-warning' && context.supports(strict.since, strict.setting)) {
         entries.push(`${strict.setting}=${String(strict.value)}`);

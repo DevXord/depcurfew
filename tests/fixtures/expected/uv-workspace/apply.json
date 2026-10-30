@@ -29,6 +29,16 @@
       },
       "message": "uv: uv.lock records exclude-newer, so it is out of date after this change",
       "fix": "Run uv lock and commit uv.lock; until then uv sync --locked and uv lock --check fail"
+    },
+    {
+      "code": "cooldown-shortened",
+      "tool": "uv",
+      "location": {
+        "file": "uv.toml",
+        "line": 2
+      },
+      "message": "uv: exclude-newer: \"1 week\" in uv.toml (line 2) waits 1 week, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply comments it out and writes exclude-newer: \"3 days\" in its managed block, so uv waits only 3 days",
+      "fix": "To keep the longer delay, set cooldown.minimum to \"7d\" in depcurfew.json and run depcurfew apply again"
     }
   ],
   "snippets": []

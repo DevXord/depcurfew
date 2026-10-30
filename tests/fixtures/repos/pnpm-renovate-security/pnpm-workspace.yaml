@@ -1,0 +1,10 @@
+onlyBuiltDependencies:
+  - esbuild
+
+# Only allow packages to be installed after 7 days
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  # Renovate security update: undici@7.24.0
+  - undici@7.24.0
+  # Renovate security update: @octokit/request@10.0.6
+  - '@octokit/request@10.0.6'

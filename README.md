@@ -10,7 +10,7 @@ depcurfew keeps one policy file, `depcurfew.json`, writes it into the configurat
 
 ## Five-minute start
 
-1. `npx depcurfew init` writes `depcurfew.json` with the default policy below and lists the tools it detected.
+1. `npx depcurfew init` writes `depcurfew.json` with the default policy below and lists the tools it detected. When the repository already sets a longer release-age delay for one of them, `cooldown.minimum` keeps the longest one, and `init` says where it found it.
 2. `npx depcurfew explain` shows what it detected and what the policy means for each tool.
 3. `npx depcurfew apply --dry-run` prints the changes as a diff, without writing anything.
 4. `npx depcurfew apply` writes them. Run it again whenever `depcurfew.json` changes; a second run with the same policy changes nothing.
@@ -102,7 +102,7 @@ The package installs two names for the same command: `depcurfew` and the short `
 
 | Command | What it does |
 | --- | --- |
-| `depcurfew init [directory] [--force]` | Writes `depcurfew.json` with the default policy; `--force` overwrites an existing one. |
+| `depcurfew init [directory] [--force]` | Writes `depcurfew.json` with the default policy (keeping a longer release-age delay the repository already sets); `--force` overwrites an existing one. |
 | `depcurfew explain [directory] [--json]` | Describes the detected package managers, versions, bots and workspaces, and the policy values for each tool. |
 | `depcurfew apply [directory] [--dry-run] [--json]` | Writes the policy into the configuration of every target tool; `--dry-run` prints a unified diff instead, `--json` the result as JSON. |
 | `depcurfew doctor [directory] [--json \| --sarif]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning. |
@@ -116,9 +116,11 @@ Every finding and warning says what to do about it. Text for people is colored o
 How `apply` edits files:
 
 - It keeps comments, formatting, line endings and key order. In line-based files (INI, TOML) it writes a block between `# >>> depcurfew managed block` and `# <<< depcurfew managed block` markers and comments out older copies of the settings it manages; in YAML it marks the keys it writes with `# managed by depcurfew`; JSON files keep their comments and indentation.
-- It never removes settings it does not manage. Allow-lists are only added to; exception lists follow the policy.
+- It never removes settings it does not manage. Allow-lists are only added to; exception lists follow the policy, except the entries Renovate adds to pnpm's exception list for security updates, which stay with their comment.
+- When it replaces a longer release-age delay someone set by hand with the policy's shorter one, it warns (`cooldown-shortened`) and names the `cooldown.minimum` that keeps it.
 - If any file cannot be edited, nothing is written.
-- It does not create bot configuration files; it creates a package manager's configuration file when it is missing.
+- It does not create bot configuration files or project manifests (`package.json`, `deno.json`, `pyproject.toml`, `Pipfile`); it creates a package manager's configuration file when it is missing. A package manager seen only in a CI setup step, with nothing of it in the repository, is not configured under `targets: "auto"`.
+- It warns when a file it writes is ignored by git (`.gitignore` or `.git/info/exclude`), because the change would then stay on one machine.
 
 ### apply warnings and errors
 
@@ -130,9 +132,11 @@ Warnings:
 - `nothing-to-configure`: depcurfew found no supported package manager or bot, so nothing is configured.
 - `file-unreadable`: A file that shows which tools a project uses cannot be parsed, so depcurfew may configure fewer tools than the project uses.
 - `tool-not-supported`: A detected tool is not supported (Yarn Classic), so nothing is written for it.
+- `tool-only-in-ci`: A tool appears only in a CI setup step, with no manifest, lockfile or configuration in the repository, so targets "auto" does not configure it.
 - `version-not-pinned`: No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.
 - `version-too-old`: The pinned version of a tool lacks a setting the policy needs, so that setting is not written.
 - `cooldown-not-written`: The release-age delay cannot be written for a tool.
+- `cooldown-shortened`: A release-age delay set by hand is longer than the policy, and apply replaces it with the shorter one.
 - `cooldown-environment-only`: pip reads no project configuration, so the release-age delay has to be set in the environment where pip runs.
 - `exclude-pattern-unsupported`: A cooldown exception uses a wildcard the tool does not support, so it is not written.
 - `exclude-unsupported`: The tool has no setting for cooldown exceptions, so the release-age delay applies to every package.
@@ -141,7 +145,7 @@ Warnings:
 - `allow-all-replaced`: A setting that allowed every install script was replaced, because the policy denies install scripts.
 - `allow-list-entry-outside-policy`: An install-script allow-list in the repository lets a package run scripts the policy does not allow; apply does not remove it.
 - `built-in-list-replaced`: Bun's built-in list of trusted packages is replaced by the policy's allow-list.
-- `scripts-not-enforceable`: The pinned npm runs every install script and has no allow-list, so "deny" cannot be enforced.
+- `scripts-not-enforceable`: The pinned npm or pnpm runs every install script and has no allow-list, so "deny" cannot be enforced.
 - `exact-version-gap`: The pinned pnpm skips the release-age delay for packages requested by exact version.
 - `source-not-enforceable`: The tool has no setting for a dependency source the policy denies; doctor checks the lockfile instead.
 - `source-switch-indirect-only`: The pnpm setting for git and tarball sources stops them only for indirect dependencies.
@@ -151,7 +155,9 @@ Warnings:
 - `build-switch-install-only`: Poetry applies its build switch when installing; poetry lock may still build source distributions.
 - `build-switch-environment-only`: The tool has no project setting that forbids building from source, so it has to be set in the environment where the tool runs.
 - `requirements-file-missing`: There is no requirements file to write pip options into.
+- `manifest-missing`: A setting belongs in a project manifest (package.json, deno.json, pyproject.toml, Pipfile) that does not exist, and apply does not create manifests.
 - `lockfile-out-of-date`: The lockfile records a setting apply changed, so it has to be locked again.
+- `file-ignored-by-git`: A file apply writes matches a .gitignore rule, so the change may never reach the repository.
 - `bot-config-missing`: A bot has no configuration file, and depcurfew does not create one.
 - `bot-config-not-edited`: A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.
 - `bot-entries-missing`: The Dependabot configuration has no entries for the package managers in use.
@@ -173,7 +179,7 @@ What depcurfew configures and checks for each tool, from its [knowledge base](do
 | Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source) | Dependency sources | Verified |
 | --- | --- | --- | --- | --- | --- |
 | npm | `min-release-age` in `.npmrc` (days), since 11.10.0 | `min-release-age-exclude`, since 11.17.0 | `allowScripts` in `package.json` | git: `allow-git`<br>remote tarball: `allow-remote`<br>local tarball: `allow-file`<br>local directory: `allow-directory` | 2026-10-28 – 2026-10-29 |
-| pnpm | `minimumReleaseAge` in `pnpm-workspace.yaml` (minutes), since 10.16.0 | `minimumReleaseAgeExclude`, since 10.16.0 | `allowBuilds` in `pnpm-workspace.yaml` | git: `blockExoticSubdeps`<br>remote tarball: `blockExoticSubdeps` | 2026-10-28 – 2026-10-29 |
+| pnpm | `minimumReleaseAge` in `pnpm-workspace.yaml` (minutes), since 10.16.0 | `minimumReleaseAgeExclude`, since 10.16.0 | `allowBuilds` in `pnpm-workspace.yaml` | git: `blockExoticSubdeps`<br>remote tarball: `blockExoticSubdeps` | 2026-10-28 – 2026-10-30 |
 | Yarn (Berry) | `npmMinimalAgeGate` in `.yarnrc.yml` (minutes), since 4.10.2 | `npmPreapprovedPackages`, since 4.10.0 | `dependenciesMeta.<package>.built` in `package.json` | git: `approvedGitRepositories` | 2026-10-28 – 2026-10-29 |
 | Bun | `install.minimumReleaseAge` in `bunfig.toml` (seconds), since 1.3.0 | `install.minimumReleaseAgeExcludes`, since 1.3.0 | `trustedDependencies` in `package.json` | none | 2026-10-28 – 2026-10-29 |
 | Deno | `minimumDependencyAge` in `deno.json`, `.npmrc` (minutes), since 2.5.5 / 2.6.0 ⚠️ | `minimumDependencyAge.exclude`, since 2.5.5 | `allowScripts` in `deno.json` | none | 2026-10-28 – 2026-10-29 |

@@ -1,0 +1,57 @@
+{
+  "changed": [
+    ".github/dependabot.yml",
+    "poetry.toml"
+  ],
+  "warnings": [
+    {
+      "code": "version-not-pinned",
+      "tool": "poetry",
+      "message": "Poetry: no exact version is pinned, so depcurfew configures for Poetry 2.5.1, the latest version it knows",
+      "fix": "Pin the version you use (requires-poetry in [tool.poetry], .tool-versions or a CI setup step) to configure for it"
+    },
+    {
+      "code": "build-switch-install-only",
+      "tool": "poetry",
+      "message": "Poetry: installer.only-binary applies when packages are installed; poetry lock may still build source distributions to read their dependencies"
+    },
+    {
+      "code": "build-switch-scope",
+      "tool": "poetry",
+      "message": "Poetry: installer.only-binary forbids building only packages from an index; Poetry still builds git, local directory and source archive dependencies",
+      "fix": "Run depcurfew doctor to find them in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "poetry",
+      "message": "Poetry has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "poetry",
+      "message": "Poetry has no setting for URL dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "cooldown-shortened",
+      "tool": "dependabot",
+      "location": {
+        "file": ".github/dependabot.yml",
+        "line": 8
+      },
+      "message": "Dependabot: default-days: 7 in .github/dependabot.yml (line 8) waits 1 week for pip updates, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply replaces it with 3, so Dependabot waits only 3 days",
+      "fix": "To keep the longer delay, set cooldown.minimum to \"7d\" in depcurfew.json and run depcurfew apply again"
+    },
+    {
+      "code": "file-ignored-by-git",
+      "location": {
+        "file": ".gitignore",
+        "line": 4
+      },
+      "message": "poetry.toml matches the rule /poetry.toml in .gitignore (line 4), so git ignores it: what depcurfew apply writes there stays on this machine, and a fresh clone (CI included) does not get it",
+      "fix": "Remove /poetry.toml from .gitignore, or add the file with git add -f poetry.toml, then commit it"
+    }
+  ],
+  "snippets": []
+}

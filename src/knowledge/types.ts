@@ -446,6 +446,17 @@ export interface StepSummaryKnowledge {
   maxBytes: number;
 }
 
+export interface GitIgnoreKnowledge {
+  /** The per-directory pattern file, e.g. .gitignore. */
+  file: string;
+  /** The repository's own pattern file, relative to the working tree. */
+  excludeFile: string;
+  /** The index, whose entries are the tracked files. */
+  indexFile: string;
+  /** Whether a pattern also hides a file git already tracks (it does not). */
+  trackedFilesIgnored: boolean;
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
@@ -495,6 +506,10 @@ export interface EnvironmentKnowledge {
   };
   claudeCode: {
     hooks: Fact<ClaudeCodeHooksKnowledge>;
+  };
+  git: {
+    /** Where git reads the patterns of files it does not pick up, and the index that lists the tracked files. */
+    ignore: Fact<GitIgnoreKnowledge>;
   };
   python: {
     /** How Python package names are compared: lowercased, with every run of these characters replaced by `replacement`. */

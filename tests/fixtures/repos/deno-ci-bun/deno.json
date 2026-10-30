@@ -1,0 +1,7 @@
+{
+  "name": "@std/root",
+  "workspace": [],
+  "tasks": {
+    "test": "deno test"
+  }
+}

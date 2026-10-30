@@ -1,0 +1,5 @@
+{
+  "name": "pnpm-renovate-security",
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.34.9"
+}

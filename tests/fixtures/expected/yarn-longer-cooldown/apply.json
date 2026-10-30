@@ -1,0 +1,31 @@
+{
+  "changed": [
+    ".yarnrc.yml",
+    "package.json"
+  ],
+  "warnings": [
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "yarn",
+      "message": "Yarn (Berry): dependenciesMeta takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "yarn",
+      "message": "Yarn (Berry) has no setting for remote tarball dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "cooldown-shortened",
+      "tool": "yarn",
+      "location": {
+        "file": ".yarnrc.yml",
+        "line": 4
+      },
+      "message": "Yarn (Berry): npmMinimalAgeGate: \"7d\" in .yarnrc.yml (line 4) waits 1 week, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply replaces it with 4320, so Yarn (Berry) waits only 3 days",
+      "fix": "To keep the longer delay, set cooldown.minimum to \"7d\" in depcurfew.json and run depcurfew apply again"
+    }
+  ],
+  "snippets": []
+}

@@ -6,6 +6,7 @@ import type { EnvironmentKnowledge } from './types.ts';
 const { verified } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const python = verifiedOn('2026-10-30');
+const gitFacts = verifiedOn('2026-10-30');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -270,6 +271,13 @@ export const environment: EnvironmentKnowledge = {
       },
       'https://code.claude.com/docs/en/hooks',
       'A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.',
+    ),
+  },
+  git: {
+    ignore: gitFacts.verified(
+      { file: '.gitignore', excludeFile: '.git/info/exclude', indexFile: '.git/index', trackedFilesIgnored: false },
+      'https://github.com/git/git/blob/v2.56.0/Documentation/gitignore.adoc',
+      'git status and git add skip untracked files that match a pattern from a .gitignore in the same directory or a parent (deeper files override higher ones, and within one file the last matching pattern decides), then from $GIT_COMMON_DIR/info/exclude (.git/info/exclude outside linked worktrees), then from core.excludesFile. Files already tracked are not affected. Patterns: # comments, ! negation, a leading or middle / anchors the pattern to the directory of its .gitignore, a trailing / matches directories only, * and ? do not match /, **/, /** and /**/ match any number of directories; a file below an ignored directory cannot be re-included. The tracked files are the entries of $GIT_DIR/index (Documentation/gitformat-index.adoc at v2.56.0: versions 2, 3 and 4).',
     ),
   },
   python: {

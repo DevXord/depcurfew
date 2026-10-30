@@ -3,6 +3,7 @@ import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const python = verifiedOn('2026-10-30');
+const reviewed = verifiedOn('2026-10-30');
 
 const OPTIONS = 'https://docs.renovatebot.com/configuration-options/';
 const MINIMUM_RELEASE_AGE = 'https://docs.renovatebot.com/key-concepts/minimum-release-age/';
@@ -154,6 +155,11 @@ export const renovate: ToolKnowledge = {
       { presets: ['security:minimumReleaseAgePypi'], value: '3 days', since: '44.8.0', datasource: 'pypi' },
       'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi',
       'Added in 44.8.0; config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm).',
+    ),
+    pnpmSecurityExclusions: reviewed.uncertain(
+      { managers: ['pnpm'], file: 'pnpm-workspace.yaml', setting: 'minimumReleaseAgeExclude', comment: '# Renovate security update: ', versionSeparator: ' || ' },
+      'https://github.com/renovatebot/renovate/blob/44.198.2/lib/modules/manager/npm/artifacts.ts',
+      'updatePnpmWorkspace: when a security update (vulnerability alert) changes a project with a pnpm lockfile whose pnpm-workspace.yaml sets minimumReleaseAge, Renovate adds the entry <name>@<version> to minimumReleaseAgeExclude with the comment "# Renovate security update: <name>@<version>" on the line above it; a later fix of the same package appends " || <version>" to the entry (and to the comment), and an entry for the package that has no comment gets one. The tests next to it (artifacts.spec.ts) show the written file. No other package manager (npm, Yarn, Bun, Deno) has such code at this tag; read from the code.',
     ),
     pythonManagers: python.verified(
       { uv: 'pep621', poetry: 'poetry', pip: 'pip_requirements', pdm: 'pep621', pipenv: 'pipenv' },

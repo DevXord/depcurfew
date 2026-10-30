@@ -7,9 +7,11 @@ export const APPLY_WARNINGS = {
   'nothing-to-configure': 'depcurfew found no supported package manager or bot, so nothing is configured.',
   'file-unreadable': 'A file that shows which tools a project uses cannot be parsed, so depcurfew may configure fewer tools than the project uses.',
   'tool-not-supported': 'A detected tool is not supported (Yarn Classic), so nothing is written for it.',
+  'tool-only-in-ci': 'A tool appears only in a CI setup step, with no manifest, lockfile or configuration in the repository, so targets "auto" does not configure it.',
   'version-not-pinned': 'No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.',
   'version-too-old': 'The pinned version of a tool lacks a setting the policy needs, so that setting is not written.',
   'cooldown-not-written': 'The release-age delay cannot be written for a tool.',
+  'cooldown-shortened': 'A release-age delay set by hand is longer than the policy, and apply replaces it with the shorter one.',
   'cooldown-environment-only': 'pip reads no project configuration, so the release-age delay has to be set in the environment where pip runs.',
   'exclude-pattern-unsupported': 'A cooldown exception uses a wildcard the tool does not support, so it is not written.',
   'exclude-unsupported': 'The tool has no setting for cooldown exceptions, so the release-age delay applies to every package.',
@@ -18,7 +20,7 @@ export const APPLY_WARNINGS = {
   'allow-all-replaced': 'A setting that allowed every install script was replaced, because the policy denies install scripts.',
   'allow-list-entry-outside-policy': 'An install-script allow-list in the repository lets a package run scripts the policy does not allow; apply does not remove it.',
   'built-in-list-replaced': "Bun's built-in list of trusted packages is replaced by the policy's allow-list.",
-  'scripts-not-enforceable': 'The pinned npm runs every install script and has no allow-list, so "deny" cannot be enforced.',
+  'scripts-not-enforceable': 'The pinned npm or pnpm runs every install script and has no allow-list, so "deny" cannot be enforced.',
   'exact-version-gap': 'The pinned pnpm skips the release-age delay for packages requested by exact version.',
   'source-not-enforceable': 'The tool has no setting for a dependency source the policy denies; doctor checks the lockfile instead.',
   'source-switch-indirect-only': 'The pnpm setting for git and tarball sources stops them only for indirect dependencies.',
@@ -28,7 +30,9 @@ export const APPLY_WARNINGS = {
   'build-switch-install-only': 'Poetry applies its build switch when installing; poetry lock may still build source distributions.',
   'build-switch-environment-only': 'The tool has no project setting that forbids building from source, so it has to be set in the environment where the tool runs.',
   'requirements-file-missing': 'There is no requirements file to write pip options into.',
+  'manifest-missing': 'A setting belongs in a project manifest (package.json, deno.json, pyproject.toml, Pipfile) that does not exist, and apply does not create manifests.',
   'lockfile-out-of-date': 'The lockfile records a setting apply changed, so it has to be locked again.',
+  'file-ignored-by-git': 'A file apply writes matches a .gitignore rule, so the change may never reach the repository.',
   'bot-config-missing': 'A bot has no configuration file, and depcurfew does not create one.',
   'bot-config-not-edited': 'A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.',
   'bot-entries-missing': 'The Dependabot configuration has no entries for the package managers in use.',
@@ -49,8 +53,8 @@ export interface ApplyWarning {
   code: ApplyWarningCode;
   /** The tool it concerns, when there is one. */
   tool?: ToolId;
-  /** The file it concerns, when there is one. */
-  location?: { file: string };
+  /** The file it concerns, when there is one, and the line when it is known. */
+  location?: { file: string; line?: number };
   /** What happened, for people; it starts with the tool's name when it concerns one. */
   message: string;
   /** What to do about it, when there is something to do. */

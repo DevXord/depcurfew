@@ -1,0 +1,17 @@
+{
+  "name": "@std/root",
+  "workspace": [],
+  "tasks": {
+    "test": "deno test"
+  },
+  "minimumDependencyAge": {
+    "age": 4320,
+    "exclude": [
+      "npm:@acme/*",
+      "npm:left-pad"
+    ]
+  },
+  "allowScripts": [
+    "npm:esbuild"
+  ]
+}

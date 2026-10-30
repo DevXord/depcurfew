@@ -1,0 +1,9 @@
+[solver]
+# >>> depcurfew managed block [solver]: edit depcurfew.json and run depcurfew apply instead
+min-release-age = 3
+# <<< depcurfew managed block
+
+[installer]
+# >>> depcurfew managed block [installer]: edit depcurfew.json and run depcurfew apply instead
+only-binary = [":all:"]
+# <<< depcurfew managed block

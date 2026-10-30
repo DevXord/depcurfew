@@ -34,7 +34,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
 };
 
-/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code and Python packaging. */
+/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging and git. */
 export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'nodejs.org' },
   { host: 'github.com', pathPrefix: '/nodejs/' },
@@ -59,6 +59,8 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   // Third-party actions that install Poetry: their own repositories describe their inputs.
   { host: 'github.com', pathPrefix: '/snok/' },
   { host: 'github.com', pathPrefix: '/abatilo/' },
+  // git: git-scm.com/docs is built from Documentation/ in git/git.
+  { host: 'github.com', pathPrefix: '/git/' },
 ];
 
 export function isOfficialSource(url: URL, rules: readonly SourceRule[]): boolean {

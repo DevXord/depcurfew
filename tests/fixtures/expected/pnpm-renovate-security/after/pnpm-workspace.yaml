@@ -1,0 +1,19 @@
+onlyBuiltDependencies:
+  - esbuild
+
+# Only allow packages to be installed after 7 days
+# managed by depcurfew
+minimumReleaseAge: 4320
+# managed by depcurfew
+minimumReleaseAgeExclude:
+  - "@acme/*"
+  - left-pad
+  # Renovate security update: undici@7.24.0
+  - undici@7.24.0
+  # Renovate security update: @octokit/request@10.0.6
+  - '@octokit/request@10.0.6'
+# managed by depcurfew
+allowBuilds:
+  esbuild: true
+# managed by depcurfew
+blockExoticSubdeps: true
