@@ -47,7 +47,7 @@ export const uv: ToolKnowledge = {
     availableSince: verified(
       '0.9.17',
       changelog('0.9', '0.9.17'),
-      'Durations ("dependency cooldowns") since 0.9.17; before that exclude-newer took only dates, which do not move with time.',
+      'Durations ("dependency cooldowns") since 0.9.17; before that exclude-newer took only dates, which do not move with time. Tested on 2026-10-30: uv 0.9.16 printed a warning that "100000 days" is not a date and resolved with no delay at all; 0.9.17 and later held back every version.',
     ),
     default: verified([{ since: '0.9.17', value: null }], SETTINGS, 'No default: without a value every upload time is accepted.'),
     exclude: {
@@ -56,7 +56,11 @@ export const uv: ToolKnowledge = {
         `${RESOLUTION}`,
         'A table mapping package names to false (exempt), a date or a duration; package values take precedence over the global and index values.',
       ),
-      availableSince: verified('0.9.25', changelog('0.9', '0.9.25'), 'The table exists since 0.8.4 (dates); false, which exempts a package, since 0.9.25.'),
+      availableSince: verified(
+        '0.9.25',
+        changelog('0.9', '0.9.25'),
+        'The table exists since 0.8.4 (dates); false, which exempts a package, since 0.9.25. Tested on 2026-10-30: with a false entry, uv 0.9.17 warned "data did not match any variant of untagged enum" and ignored the whole [tool.uv] table, the delay included; 0.9.25 and 0.13.6 exempted the package.',
+      ),
       patternSyntax: verified(
         'Exact package names as table keys; no wildcards',
         SETTINGS,

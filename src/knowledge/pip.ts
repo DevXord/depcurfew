@@ -132,7 +132,7 @@ export const pip: ToolKnowledge = {
     environmentVariable: verified(
       'PIP_UPLOADED_PRIOR_TO',
       `${CONFIGURATION}#environment-variables`,
-      'Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores.',
+      'Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores. Tested on 2026-10-30: pip 25.3 ignored PIP_UPLOADED_PRIOR_TO=P100000D without a word, 26.0 rejected the duration (dates only), 26.1 and 26.2.2 found no version.',
     ),
     durationStrings: verified({ since: '26.1.0', syntax: 'iso8601' }, NEWS, 'Only whole days, written PnD, are accepted.'),
     missingUploadTime: verified(

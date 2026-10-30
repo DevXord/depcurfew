@@ -36,7 +36,11 @@ export const poetry: ToolKnowledge = {
     ),
     cliFlag: uncertain(null, `${POETRY}/docs/cli.md`, 'No command-line option; the environment variable POETRY_SOLVER_MIN_RELEASE_AGE sets it for one command.'),
     unit: verified('days', `${CONFIGURATION}#solvermin-release-age`, 'An integer; 0 (the default) turns it off.'),
-    availableSince: verified('2.4.0', `${CONFIGURATION}#solvermin-release-age`, '"Introduced in 2.4.0"; announced as dependency cooldowns.'),
+    availableSince: verified(
+      '2.4.0',
+      `${CONFIGURATION}#solvermin-release-age`,
+      '"Introduced in 2.4.0"; announced as dependency cooldowns. Tested on 2026-10-30: Poetry 2.3.4 locked with min-release-age = 100000 in poetry.toml without a word, while 2.4.0 and 2.5.1 found no version.',
+    ),
     default: verified([{ since: '2.4.0', value: null }], `${CONFIGURATION}#solvermin-release-age`, 'Default 0: all versions are considered.'),
     exclude: {
       setting: verified('solver.min-release-age-exclude', `${CONFIGURATION}#solvermin-release-age-exclude`),
@@ -116,7 +120,7 @@ export const poetry: ToolKnowledge = {
       'installer.only-binary was added in 2.0.0; [":all:"] forbids source distributions of index packages when installing. Git and directory dependencies, and source archives from a URL or path, are built regardless (src/poetry/installation/executor.py at 2.5.1).',
     ),
     excludeFormat: disputed(
-      'The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter.',
+      'The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter. Tested on 2026-10-30: a TOML array exempted the package in Poetry 2.4.0 and 2.5.1.',
       evidence('comma-separated string', `${CONFIGURATION}#solvermin-release-age-exclude`),
       evidence('TOML array', 'https://github.com/python-poetry/poetry/pull/11087'),
     ),
