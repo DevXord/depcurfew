@@ -2,6 +2,13 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · Błędna polityka w `doctor` (D-069)
+
+- Nowa reguła `invalid-policy`: błędny albo nieczytelny `depcurfew.json` to znalezisko `error` w tekście, `--json` (z `policy: "invalid"`) i `--sarif`, zamiast tekstu na stderr. Reguły bez polityki dalej działają.
+- `runDoctor` domyślnie nadal rzuca `PolicyError`; opcja `invalidPolicy: "report"`. Akcja GitHub bez zmian.
+- CLAUDE.md: nowa wersja `schemaVersion` tylko przy zmianie niezgodnej wstecz.
+- Weryfikacja: `npm test` (1407 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-30 · Jedno wydanie 1.1.0 (D-068)
 
 - Faza 7, faza 10 i `apply --json` wychodzą razem jako 1.1.0 po wydaniu 1.0.0 (decyzja właściciela). `--user` (faza 11) przesuwa się z 1.3.0 na 1.2.0.

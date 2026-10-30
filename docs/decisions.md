@@ -953,3 +953,14 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - 1.2.0: `dcf apply --user` i `dcf doctor --user` (faza 11, wcześniej 1.3.0);
   - 2.x: kolejne języki (faza 12).
 - **Zastępuje** kolejność z F1 (D-060) i z planu przy D-063. Wcześniejsze wpisy zostają bez zmian jako historia, z odsyłaczem do tej decyzji.
+
+## D-069 · Błędna polityka w `doctor` jako znalezisko `invalid-policy` (2026-10-30)
+
+- **Problem.** `doctor --json` i `--sarif` przy błędnym albo nieczytelnym `depcurfew.json` pisały tekst na stderr i nic na stdout, więc program albo agent AI nie dostawał dokumentu do odczytania (D-067, „Poza zakresem”).
+- **Decyzja.** Nowa reguła `invalid-policy` (poziom `error`, nie wymaga polityki) zgłasza problemy jak każde inne znalezisko: położenie `depcurfew.json`, w komunikacie wszystkie problemy ze schematu, a w `fix` co zrobić. Tekst, `--json` i `--sarif` pokazują to samo, z jednego źródła.
+  - Jak bez pliku polityki, działają reguły, które jej nie potrzebują; uwaga mówi, że polityka jest błędna.
+  - JSON ma `policy: "invalid"`, a `summary.error` liczy to znalezisko, więc odbiorca, który czyta tylko znaleziska, też widzi błąd. Kod wyjścia 1, jak wcześniej.
+- **Biblioteka bez zmian.** `runDoctor` domyślnie nadal rzuca `PolicyError`, zgodnie z publicznym API. Opcja `invalidPolicy: "report"` (używa jej CLI) daje raport zamiast wyjątku.
+- **GitHub Action bez zmian.** Błędna polityka to tam nadal wynik `failure` bez pliku SARIF, jak w udokumentowanym zachowaniu.
+- **`schemaVersion` zostaje 1.** Nowa wartość `policy` i nowa reguła nie psują dotychczasowych odbiorców, a wcześniej w tym przypadku nie było żadnego dokumentu. CLAUDE.md doprecyzowuje zasadę: nowa wersja schematu tylko przy zmianie niezgodnej wstecz.
+- **Poza zakresem.** `check --json` przy błędnej polityce nadal pisze tekst na stderr.

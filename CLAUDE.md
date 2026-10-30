@@ -19,7 +19,7 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 ## Komunikaty (dla człowieka i dla AI)
 - Każdy błąd i ostrzeżenie mówi, co jest nie tak, gdzie (plik i linia, gdy są znane) i co zrobić (`fix` w `doctor`, wskazówka w `apply` i `check`). Prosty angielski, nazwy plików i ustawień dosłownie.
 - Kolor tylko w terminalu (TTY), z obsługą `NO_COLOR` i `FORCE_COLOR`. Kolor nigdy nie jest jedynym nośnikiem informacji: poziom (`error`, `warning`, `note`) zawsze stoi słowem.
-- Każde polecenie, które coś zgłasza, ma wyjście maszynowe (`--json`, w `doctor` także `--sarif`) ze stałym schematem: `schemaVersion`, identyfikator reguły lub kodu, poziom, położenie, `message` i `fix`. Na stdout tylko JSON, bez kolorów; zmiana schematu to nowa wersja `schemaVersion`. Kody ostrzeżeń i błędów `apply` są w `src/apply/warnings.ts` i w README.
+- Każde polecenie, które coś zgłasza, ma wyjście maszynowe (`--json`, w `doctor` także `--sarif`) ze stałym schematem: `schemaVersion`, identyfikator reguły lub kodu, poziom, położenie, `message` i `fix`. Na stdout tylko JSON, bez kolorów, także przy błędnej polityce. Zmiana niezgodna wstecz (usunięte pole albo inne znaczenie) to nowa wersja `schemaVersion`; nowe pola, wartości i reguły dopisujemy bez zmiany wersji. Kody ostrzeżeń i błędów `apply` są w `src/apply/warnings.ts` i w README.
 - Tekst i JSON mają jedno źródło komunikatu, różnią się tylko formatem. Kody wyjścia są opisane w `--help` i nie zmieniają znaczenia.
 - Nowy komunikat przechodzi ten sam test, zanim trafi do kodu.
 

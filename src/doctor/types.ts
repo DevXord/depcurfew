@@ -57,7 +57,8 @@ export interface Rule {
 
 export interface DoctorReport {
   schemaVersion: 1;
-  policy: 'valid' | 'missing';
+  /** invalid: depcurfew.json does not follow the schema or cannot be read (only with invalidPolicy: 'report'). */
+  policy: 'valid' | 'missing' | 'invalid';
   findings: Finding[];
   notices: Notice[];
 }

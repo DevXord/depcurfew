@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { RULES, runDoctor } from '../../src/doctor/index.ts';
+import { PolicyError } from '../../src/apply/index.ts';
 
 const ROOT = fileURLToPath(new URL('../fixtures/doctor/', import.meta.url));
 
@@ -24,7 +25,7 @@ describe('doctor rules', () => {
   const cases = RULES.flatMap((rule) => directories(join(ROOT, rule.id)).map((name) => [rule.id, name] as const));
   it.each(cases)('%s / %s', (ruleId, name) => {
     const directory = join(ROOT, ruleId, name);
-    const report = runDoctor(join(directory, 'repo'));
+    const report = runDoctor(join(directory, 'repo'), { invalidPolicy: 'report' });
     const findings = report.findings
       .filter((finding) => finding.rule === ruleId)
       .map(({ rule: _rule, ...finding }) => finding);
@@ -33,5 +34,15 @@ describe('doctor rules', () => {
       return;
     }
     expect(findings).toEqual(JSON.parse(readFileSync(join(directory, 'expected.json'), 'utf8')));
+  });
+});
+
+describe('runDoctor with an invalid depcurfew.json', () => {
+  it('throws PolicyError unless asked to report it, as the library API promises', () => {
+    const repo = join(ROOT, 'invalid-policy', 'fires-schema', 'repo');
+    expect(() => runDoctor(repo)).toThrow(PolicyError);
+    const report = runDoctor(repo, { invalidPolicy: 'report' });
+    expect(report.policy).toBe('invalid');
+    expect(report.notices).toContainEqual({ message: 'depcurfew.json is invalid: only the rules that do not need a policy ran' });
   });
 });

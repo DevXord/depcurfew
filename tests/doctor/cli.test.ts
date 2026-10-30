@@ -91,15 +91,37 @@ describe('depcurfew doctor', () => {
     expect(result.stderr).toContain("'--json' and '--sarif' cannot be used together");
   });
 
-  it('fails with an invalid policy file', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'depcurfew-doctor-cli-'));
-    temporary.push(directory);
-    cpSync(CLEAN, directory, { recursive: true });
-    writeFileSync(join(directory, 'depcurfew.json'), '{ "version": 2 }');
-    const result = await exec('doctor', directory);
-    expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stdout).toBe('');
-    expect(result.stderr).toMatch(/^depcurfew: depcurfew\.json is invalid\n {2}\S/u);
+  describe('with an invalid policy file', () => {
+    const invalid = () => {
+      const directory = mkdtempSync(join(tmpdir(), 'depcurfew-doctor-cli-'));
+      temporary.push(directory);
+      cpSync(CLEAN, directory, { recursive: true });
+      writeFileSync(join(directory, 'depcurfew.json'), '{ "version": 2 }');
+      return directory;
+    };
+    const message = 'depcurfew.json is invalid: version: must be 1, got 2';
+
+    it('reports it as an error finding in the text report and runs the rules that need no policy', async () => {
+      const result = await exec('doctor', invalid());
+      expect([result.code, result.stderr]).toEqual([EXIT_FAILURE, '']);
+      expect(result.stdout).toContain(`depcurfew.json\n  error ${message} (invalid-policy)\n    fix: Fix these problems in depcurfew.json`);
+      expect(result.stdout).toContain('depcurfew.json is invalid: only the rules that do not need a policy ran');
+    });
+
+    it('prints the same finding as JSON, with policy "invalid", and nothing on stderr', async () => {
+      const result = await exec('doctor', '--json', invalid());
+      expect([result.code, result.stderr]).toEqual([EXIT_FAILURE, '']);
+      const report = JSON.parse(result.stdout) as { policy: string; summary: { error: number }; findings: { rule: string; message: string; location: unknown }[] };
+      expect(report).toMatchObject({ schemaVersion: 1, policy: 'invalid', summary: { error: 1 } });
+      expect(report.findings).toEqual([expect.objectContaining({ rule: 'invalid-policy', level: 'error', location: { file: 'depcurfew.json' }, message })]);
+    });
+
+    it('prints it as a SARIF result', async () => {
+      const result = await exec('doctor', '--sarif', invalid());
+      expect([result.code, result.stderr]).toEqual([EXIT_FAILURE, '']);
+      const sarif = JSON.parse(result.stdout) as { runs: { results: { ruleId: string; message: { text: string } }[] }[] };
+      expect(sarif.runs[0]?.results).toEqual([expect.objectContaining({ ruleId: 'invalid-policy', message: expect.objectContaining({ text: expect.stringContaining(message) }) })]);
+    });
   });
 
   it('fails for a directory that does not exist', async () => {

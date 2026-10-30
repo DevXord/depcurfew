@@ -1,11 +1,12 @@
 // `depcurfew doctor`: finds configuration that does not do what it seems to, and drift from depcurfew.json. Every rule
 // reads the repository through the same read-only Repository as detection; nothing is written or executed.
-import { loadPolicyIfPresent } from '../apply/index.ts';
+import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
+import type { ResolvedPolicy } from '../policy/schema.ts';
 import { RULES } from './rules/index.ts';
 import { UNREADABLE_WARNINGS, unreadableConfig } from './rules/unreadable-config.ts';
 import type { DoctorReport, Finding, Notice, Rule } from './types.ts';
@@ -23,10 +24,23 @@ function byLocation(a: Finding, b: Finding): number {
   return (a.location.line ?? 0) - (b.location.line ?? 0) || LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0);
 }
 
-/** Runs the rules on a repository. Throws PolicyError when depcurfew.json exists but is invalid. */
-export function runDoctor(root: string, options: { rules?: readonly Rule[]; tools?: readonly ToolKnowledge[] } = {}): DoctorReport {
+/**
+ * Runs the rules on a repository. When depcurfew.json exists but is invalid, it throws PolicyError, or with
+ * invalidPolicy: 'report' runs the rules that need no policy and reports the problems as an invalid-policy finding.
+ */
+export function runDoctor(
+  root: string,
+  options: { rules?: readonly Rule[]; tools?: readonly ToolKnowledge[]; invalidPolicy?: 'throw' | 'report' } = {},
+): DoctorReport {
   const tools = options.tools ?? knowledgeBase;
-  const policy = loadPolicyIfPresent(root);
+  let policy: ResolvedPolicy | undefined;
+  let invalid = false;
+  try {
+    policy = loadPolicyIfPresent(root);
+  } catch (error) {
+    if (!(error instanceof PolicyError) || options.invalidPolicy !== 'report') throw error;
+    invalid = true;
+  }
   const detection = detectProject(root);
   const repository = new Repository(root);
   const findings: Finding[] = [];
@@ -34,7 +48,8 @@ export function runDoctor(root: string, options: { rules?: readonly Rule[]; tool
   const notice = (message: string, file?: string) => {
     if (!notices.some((item) => item.message === message)) notices.push(file === undefined ? { message } : { message, file });
   };
-  if (policy === undefined) notice(`no ${POLICY_FILE}: only the rules that do not need a policy ran`);
+  if (invalid) notice(`${POLICY_FILE} is invalid: only the rules that do not need a policy ran`);
+  else if (policy === undefined) notice(`no ${POLICY_FILE}: only the rules that do not need a policy ran`);
 
   const rules = options.rules ?? RULES;
   for (const rule of rules) {
@@ -53,5 +68,5 @@ export function runDoctor(root: string, options: { rules?: readonly Rule[]; tool
   for (const warning of repository.warnings) {
     if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
   }
-  return { schemaVersion: 1, policy: policy === undefined ? 'missing' : 'valid', findings: findings.sort(byLocation), notices };
+  return { schemaVersion: 1, policy: invalid ? 'invalid' : policy === undefined ? 'missing' : 'valid', findings: findings.sort(byLocation), notices };
 }

@@ -1,5 +1,5 @@
-// `depcurfew doctor [directory] [--json | --sarif]`. Exit code 1 when any finding is an error or depcurfew.json is invalid.
-import { PolicyError } from '../apply/index.ts';
+// `depcurfew doctor [directory] [--json | --sarif]`. Exit code 1 when any finding is an error; an invalid depcurfew.json
+// is one (invalid-policy), in every output format.
 import { Repository } from '../detect/repository.ts';
 import { countLevels, renderText, RULES, runDoctor, toSarif, type DoctorReport } from '../doctor/index.ts';
 import { getVersion } from '../version.ts';
@@ -14,14 +14,7 @@ export function doctor(directory: string | undefined, format: { json: boolean; s
   }
   const absolute = resolveDirectory(directory, io);
   if (absolute === undefined) return EXIT_FAILURE;
-  let report: DoctorReport;
-  try {
-    report = runDoctor(absolute);
-  } catch (error) {
-    if (!(error instanceof PolicyError)) throw error;
-    io.stderr(`depcurfew: ${error.text}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
-    return EXIT_FAILURE;
-  }
+  const report: DoctorReport = runDoctor(absolute, { invalidPolicy: 'report' });
   if (format.sarif) {
     const repository = new Repository(absolute);
     const readLine = (file: string, line: number) => repository.readText(file)?.split(/\r?\n/u)[line - 1];
