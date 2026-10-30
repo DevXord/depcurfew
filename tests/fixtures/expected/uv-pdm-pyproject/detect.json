@@ -1,0 +1,57 @@
+{
+  "packageManagers": [
+    {
+      "id": "uv",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "uv.lock"
+        },
+        {
+          "kind": "config",
+          "file": "pyproject.toml"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "pyproject.toml"
+      ]
+    },
+    {
+      "id": "pdm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "pdm.lock"
+        },
+        {
+          "kind": "config",
+          "file": "pyproject.toml"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "pyproject.toml"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": [
+    {
+      "code": "multiple-lockfiles",
+      "message": "lockfiles of several package managers: pdm.lock, uv.lock",
+      "files": [
+        "pdm.lock",
+        "uv.lock"
+      ]
+    }
+  ]
+}

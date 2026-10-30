@@ -1,6 +1,6 @@
 // PDM: exclude-newer, its per-package overrides and the build settings in one managed block in [tool.pdm.resolution]
 // of pyproject.toml, the only project file PDM reads them from. Durations are written as PDM's N{h|d|w}.
-import { BLOCK_START } from '../block.ts';
+import { hasManagedLines } from '../block.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { cooldownValue, eachSource, exclusions } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
@@ -52,6 +52,7 @@ export const pdm: ManagerGenerator = (context) => {
 
   eachSource(context, () => undefined);
 
-  if (entries.length > 0 || (context.exists(file) && context.read(file).includes(BLOCK_START))) context.toml(file, table, entries, managed);
+  // The marker names the table, because uv may keep a block of its own in the same pyproject.toml.
+  if (entries.length > 0 || (context.exists(file) && hasManagedLines(context.read(file)))) context.toml(file, table, entries, managed, table);
   return minutes;
 };

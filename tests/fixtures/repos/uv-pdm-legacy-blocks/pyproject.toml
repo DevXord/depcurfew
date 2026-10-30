@@ -1,0 +1,18 @@
+[project]
+name = "demo"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.uv]
+dev-dependencies = []
+
+# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+exclude-newer = "1 day"
+# <<< depcurfew managed block
+
+[tool.pdm.resolution]
+prefer-binary = "idna"
+
+# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+exclude-newer = "1d"
+# <<< depcurfew managed block

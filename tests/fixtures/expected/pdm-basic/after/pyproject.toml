@@ -15,7 +15,7 @@ distribution = false
 # Wheels first for the slow builds.
 prefer-binary = "idna"
 
-# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+# >>> depcurfew managed block [tool.pdm.resolution]: edit depcurfew.json and run depcurfew apply instead
 exclude-newer = "36h"
 exclude-newer-override = { "internal-lib" = false }
 only-binary = ":all:"

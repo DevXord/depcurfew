@@ -1,13 +1,13 @@
 // Poetry: solver.min-release-age and the installer build settings in poetry.toml, the only project file Poetry reads
 // them from: one managed block in [solver] and one in [installer], each marked with its table.
-import { blockStart } from '../block.ts';
+import { hasManagedLines } from '../block.ts';
 import { extraOf, firstFile, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { cooldownValue, eachSource, exclusions, splitDotted } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 import { buildAllowList, buildSwitchScopeWarning, forcedBuildWarning, pythonNames, tomlValue } from './python.ts';
 
 function writeTable(context: Context, file: string, table: string, entries: readonly string[], managed: readonly string[]): void {
-  if (entries.length > 0 || (context.exists(file) && context.read(file).includes(blockStart(table)))) context.toml(file, table, entries, managed, table);
+  if (entries.length > 0 || (context.exists(file) && hasManagedLines(context.read(file)))) context.toml(file, table, entries, managed, table);
 }
 
 export const poetry: ManagerGenerator = (context) => {

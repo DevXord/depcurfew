@@ -2,7 +2,7 @@
 // [tool.uv] in pyproject.toml), otherwise in [tool.uv] of pyproject.toml. Only the root is configured, because in a
 // workspace uv reads the configuration of the root alone. A change to what uv.lock records means locking again.
 import { parseToml, TomlDateTime, tomlValueAt, type TomlDocument } from '../../detect/toml.ts';
-import { BLOCK_START } from '../block.ts';
+import { hasManagedLines } from '../block.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf, values } from '../facts.ts';
 import { listing } from '../requirements.ts';
 import { writeTomlBlock } from '../toml.ts';
@@ -55,10 +55,12 @@ export const uv: ManagerGenerator = (context) => {
 
   eachSource(context, () => undefined);
 
-  if (entries.length > 0 || (context.exists(file) && context.read(file).includes(BLOCK_START))) {
+  // In pyproject.toml the marker names the table, because PDM may keep a block of its own in the same file.
+  const label = table === '' ? undefined : table;
+  if (entries.length > 0 || (context.exists(file) && hasManagedLines(context.read(file)))) {
     // Before the edit: the context reads a file as edited once its change is planned.
-    relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed));
-    context.toml(file, table, entries, managed);
+    relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, label));
+    context.toml(file, table, entries, managed, label);
   }
   return minutes;
 };

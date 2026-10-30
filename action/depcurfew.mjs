@@ -11804,14 +11804,17 @@ function isBlockStart(line) {
 	const trimmed = line.trim();
 	return trimmed === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead" || LABELED_START.test(trimmed);
 }
-/** The lines without the managed block, where it was, and whether a blank line separated it from what came before. */
-function removeBlock(lines, marker = BLOCK_START) {
-	const start = lines.findIndex((line) => line.trim() === marker);
-	if (start === -1) return {
-		lines: [...lines],
-		at: void 0,
-		separated: false
-	};
+/** The original line, when `line` is one that apply commented out (superseded or turned off). */
+function commentedOut(line) {
+	const trimmed = line.trimStart();
+	for (const note of [SUPERSEDED, TURNED_OFF]) if (trimmed.startsWith(note)) return trimmed.slice(note.length);
+}
+/** Whether apply wrote anything into the text: a managed block, or a line it commented out. */
+function hasManagedLines(body) {
+	return splitLines(body).some((line) => isBlockStart(line) || commentedOut(line) !== void 0);
+}
+/** The lines without the block that starts at line `start`. */
+function removeBlockAt(lines, start) {
 	const end = lines.findIndex((line, index) => index > start && line.trim() === "# <<< depcurfew managed block");
 	const stop = end === -1 ? start : end;
 	const rest = [...lines.slice(0, start), ...lines.slice(stop + 1)];
@@ -11826,6 +11829,23 @@ function removeBlock(lines, marker = BLOCK_START) {
 		lines: rest,
 		at,
 		separated
+	};
+}
+/** The lines without the managed block, and without every copy of it when it is there more than once. */
+function removeBlock(lines, marker = BLOCK_START) {
+	const start = lines.findIndex((line) => line.trim() === marker);
+	if (start === -1) return {
+		lines: [...lines],
+		at: void 0,
+		separated: false
+	};
+	const first = removeBlockAt(lines, start);
+	let rest = first.lines;
+	for (let next = rest.findIndex((line) => line.trim() === marker); next !== -1; next = rest.findIndex((line) => line.trim() === marker)) rest = removeBlockAt(rest, next).lines;
+	return {
+		lines: rest,
+		at: Math.min(first.at ?? 0, rest.length),
+		separated: first.separated
 	};
 }
 function blockLines(entries, marker = BLOCK_START) {
@@ -13009,7 +13029,7 @@ const bun = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || hasManagedLines(context.read(file))) context.toml(file, table, entries, managed);
 	return minutes;
 };
 
@@ -13025,6 +13045,8 @@ function writeIniBlock(body, entries, managedKeys) {
 	const managed = new Set(managedKeys);
 	const removed = removeBlock(splitLines(body));
 	const lines = removed.lines.map((line) => {
+		const original = commentedOut(line);
+		if (original !== void 0) return managed.has(keyOf$1(original) ?? "") ? line : original;
 		const key = keyOf$1(line);
 		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}` : line;
 	});
@@ -13043,6 +13065,8 @@ function writeRequirementsBlock(body, entries, managedOptions) {
 	let at = 0;
 	while (at < removed.lines.length && (removed.lines[at]?.trim().startsWith("#") ?? false)) at += 1;
 	const lines = removed.lines.map((line) => {
+		const original = commentedOut(line);
+		if (original !== void 0) return managed.has(optionOf(original) ?? "") ? line : original;
 		const option = optionOf(line);
 		return option !== void 0 && managed.has(option) ? `${SUPERSEDED}${line.trim()}` : line;
 	});
@@ -13108,10 +13132,83 @@ function valueEnd(lines, index) {
 	}
 	return end;
 }
+/** The table each line is in (undefined before the first table), following values over several lines. */
+function tablesOf(lines) {
+	const tables = [];
+	let current;
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const header = HEADER.exec(line);
+		if (header !== null) current = header[1];
+		tables[index] = current;
+		if (header === null && keyOf(line) !== void 0) {
+			const end = valueEnd(lines, index);
+			for (let next = index + 1; next <= end; next++) tables[next] = current;
+			index = end;
+		}
+	}
+	return tables;
+}
+/**
+* Removes the block with this marker. A labeled block that is not there yet may have been written by an earlier
+* version without the label: an unlabeled block inside the same table is then taken for it.
+*/
+function removeOwnBlock(lines, table, label) {
+	const removed = removeBlock(lines, blockStart(label));
+	if (removed.at !== void 0 || label === void 0) return removed;
+	const tables = tablesOf(lines);
+	const legacy = lines.findIndex((line, index) => line.trim() === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead" && (tables[index] ?? "") === table);
+	return legacy === -1 ? removed : removeBlockAt(lines, legacy);
+}
+/**
+* Lines apply commented out in this table (and the dotted keys and subtables of it) come back as they were, every
+* line of the value, when the policy no longer manages their key. Lines commented out in other tables stay.
+*/
+function restoreLines(lines, table, isManaged) {
+	const topLevel = table === "";
+	const prefix = topLevel ? "" : `${table}.`;
+	let current;
+	let section = "table";
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		const header = HEADER.exec(line);
+		if (header !== null) {
+			current = header[1];
+			section = "table";
+			continue;
+		}
+		const original = commentedOut(line);
+		if (original === void 0) {
+			if (keyOf(line) !== void 0) index = valueEnd(lines, index);
+			continue;
+		}
+		const noted = HEADER.exec(original);
+		if (noted !== null) {
+			const name = noted[1] ?? "";
+			section = name.startsWith(prefix) && !isManaged(name.slice(prefix.length)) ? "restored" : "kept";
+			if (section === "restored") lines[index] = original;
+			continue;
+		}
+		const key = keyOf(original);
+		if (key === void 0 || section === "kept") continue;
+		const dotted = !topLevel && current === void 0 && key.startsWith(prefix);
+		if (section === "table" && !((topLevel ? current === void 0 : current === table) && !isManaged(key) || dotted && !isManaged(key.slice(prefix.length)))) continue;
+		lines[index] = original;
+		let state = scanLine(original.slice(original.indexOf("=") + 1), {
+			depth: 0,
+			string: ""
+		});
+		while ((state.depth > 0 || state.string !== "") && lines[index + 1]?.startsWith("# ") === true) {
+			index += 1;
+			lines[index] = (lines[index] ?? "").slice(2);
+			state = scanLine(lines[index] ?? "", state);
+		}
+	}
+}
 function writeTomlBlock(body, table, entries, managedKeys, label) {
 	const managed = new Set(managedKeys);
 	const marker = blockStart(label);
-	const removed = removeBlock(splitLines(body), marker);
+	const removed = removeOwnBlock(splitLines(body), table, label);
 	const lines = [...removed.lines];
 	const topLevel = table === "";
 	if (topLevel && removed.at === 0 && lines[0]?.trim() === "") lines.shift();
@@ -13120,6 +13217,7 @@ function writeTomlBlock(body, table, entries, managedKeys, label) {
 	let current;
 	let definedAtTop = false;
 	const isManaged = (key) => managed.has(key) || [...managed].some((name) => key.startsWith(`${name}.`));
+	restoreLines(lines, table, isManaged);
 	const prefix = topLevel ? "" : `${table}.`;
 	const note = entries.length === 0 ? TURNED_OFF : SUPERSEDED;
 	let inManagedTable = false;
@@ -13720,7 +13818,7 @@ const npm = (context) => {
 		entries.push(`${setting}=${access === "deny" ? "none" : "all"}`);
 		managed.push(setting);
 	});
-	if (entries.length > 0 || context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead") || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
+	if (entries.length > 0 || hasManagedLines(context.read(file)) || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
 	return minutes;
 };
 
@@ -13809,7 +13907,7 @@ const pip = (context) => {
 		});
 		return;
 	}
-	if (entries.length > 0 || context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.requirements(file, entries, managed);
+	if (entries.length > 0 || hasManagedLines(context.read(file))) context.requirements(file, entries, managed);
 };
 
 // src/apply/generators/pnpm.ts
@@ -13944,7 +14042,7 @@ const pdm = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.exists(file) && context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) context.toml(file, table, entries, managed, table);
 	return minutes;
 };
 
@@ -13976,13 +14074,13 @@ const pipenv = (context) => {
 		fix: "Set PIP_ONLY_BINARY=:all: where Pipenv installs packages (CI, Dockerfile); Pipenv passes it on to pip"
 	});
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.exists(file) && context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) context.toml(file, table, entries, managed);
 	return minutes;
 };
 
 // src/apply/generators/poetry.ts
 function writeTable(context, file, table, entries, managed) {
-	if (entries.length > 0 || context.exists(file) && context.read(file).includes(blockStart(table))) context.toml(file, table, entries, managed, table);
+	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) context.toml(file, table, entries, managed, table);
 }
 const poetry = (context) => {
 	const { tool, policy } = context;
@@ -14180,9 +14278,10 @@ const uv = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.exists(file) && context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) {
-		relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed));
-		context.toml(file, table, entries, managed);
+	const label = table === "" ? void 0 : table;
+	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) {
+		relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, label));
+		context.toml(file, table, entries, managed, label);
 	}
 	return minutes;
 };

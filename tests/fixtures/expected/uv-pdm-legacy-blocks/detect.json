@@ -1,0 +1,40 @@
+{
+  "packageManagers": [
+    {
+      "id": "uv",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "config",
+          "file": "pyproject.toml"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "pyproject.toml"
+      ]
+    },
+    {
+      "id": "pdm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "config",
+          "file": "pyproject.toml"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "pyproject.toml"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}

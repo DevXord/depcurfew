@@ -7,7 +7,7 @@ dependencies = ["idna"]
 installer = "uv"
 
 [tool.uv]
-# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+# >>> depcurfew managed block [tool.uv]: edit depcurfew.json and run depcurfew apply instead
 exclude-newer = "3 days"
 no-build = true
 # <<< depcurfew managed block

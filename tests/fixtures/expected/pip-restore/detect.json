@@ -1,0 +1,26 @@
+{
+  "packageManagers": [
+    {
+      "id": "pip",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "config",
+          "file": "requirements.txt"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "requirements.txt"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}
