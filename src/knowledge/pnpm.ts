@@ -3,6 +3,7 @@ import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
+const reviewed = verifiedOn('2026-10-30');
 
 const RESOLUTION = 'https://pnpm.io/settings/dependency-resolution';
 const SETTINGS_V10 = 'https://pnpm.io/10.x/settings';
@@ -192,6 +193,11 @@ export const pnpm: ToolKnowledge = {
       { winner: 'pnpm-workspace.yaml', over: ['.npmrc', 'npm_config_*'] },
       'https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts',
       'pnpm 10 applies pnpm-workspace.yaml settings over .npmrc and npm_config_* variables; command-line options win over both (same order on v10.16.0). The 10.18.3 changelog says pnpm config set --location=project writes to pnpm-workspace.yaml "matching read priority". The 10.x docs do not state the order.',
+    ),
+    npmrcCooldownKey: reviewed.verified(
+      { key: 'minimum-release-age', until: '11.0.0' },
+      'https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/types.ts',
+      'pnpm 10 reads minimum-release-age from .npmrc as a number and maps it to minimumReleaseAge (minutes), so the value means the same in both files; pnpm-workspace.yaml wins when both set it (npmrcPrecedence). pnpm 11.0.0 stopped reading it from .npmrc (ignoredSince).',
     ),
     sharedWorkspaceLockfile: checked.verified(
       { setting: 'sharedWorkspaceLockfile', npmrcKey: 'shared-workspace-lockfile', default: true },

@@ -7,7 +7,8 @@ import { POLICY_FILE } from '../policy/defaults.ts';
 import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
-import { detectedTargets, managerName, toolName } from './describe.ts';
+import { autoTargets } from '../apply/targets.ts';
+import { managerName, toolName } from './describe.ts';
 import { paint, PLAIN, type Paint } from '../color.ts';
 import { printable } from '../printable.ts';
 import { projectDirectory, reportInputError } from './directory.ts';
@@ -56,7 +57,7 @@ function policyReport(directory: string, detection: Detection): PolicyReport | n
   if (!result.ok) return { file: POLICY_FILE, valid: false, issues: result.issues.map(formatIssue) };
   const targets =
     result.policy.targets === 'auto'
-      ? { mode: 'auto' as const, tools: detectedTargets(detection) }
+      ? { mode: 'auto' as const, tools: autoTargets(directory, detection).targets }
       : { mode: 'listed' as const, tools: [...result.policy.targets] };
   return { file: POLICY_FILE, valid: true, targets, cooldown: cooldownReport(result.policy, targets.tools) };
 }
