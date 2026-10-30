@@ -91,6 +91,7 @@ export const pdm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, `${PDM}/docs/usage/workspace.md`, 'Not read; see workspaces.'),
   },
   extra: {
+    pylockCreatedBy: verified('pdm', `${PDM}/src/pdm/formats/pylock.py`, 'PDM\'s pylock.toml export writes created-by = "pdm".'),
     configTables: verified({ 'pyproject.toml': 'tool.pdm.resolution' }, `${LOCKFILE}#exclude-packages-newer-than-specific-date`, 'exclude-newer, its overrides, only-binary and no-binary share the table.'),
     pyprojectTable: verified('tool.pdm', `${PDM}/docs/reference/pep621.md`, 'PDM keeps its settings in [tool.pdm] of pyproject.toml.'),
     buildSwitch: verified(

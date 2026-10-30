@@ -66,6 +66,11 @@ export const pipenv: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, PIPFILE, 'No workspaces.'),
   },
   extra: {
+    pylockCreatedBy: verified(
+      'pipenv',
+      `${PIPENV}/pipenv/utils/pylock.py`,
+      'Pipenv writes created-by = "pipenv" in the pylock.toml it generates (docs/pylock.md). pipenv install -e . writes the project itself as { path = ".", editable = true } (docs/pipfile.md), and Pipfile.lock keeps it as "path": ".".',
+    ),
     configTables: verified({ Pipfile: 'pipenv' }, `${PIPFILE}#pipenv-directives`, 'Directives such as cool-down-period and allow_prereleases live in [pipenv].'),
     durationStrings: verified({ since: '2026.6.2', syntax: 'compact' }, `${PIPFILE}#cool-down-period`, 'Only whole days (<int>d) are accepted.'),
     durationUnits: verified(['days'], `${PIPFILE}#cool-down-period`, 'Whole days only.'),

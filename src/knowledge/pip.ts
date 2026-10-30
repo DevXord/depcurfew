@@ -112,6 +112,7 @@ export const pip: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, REQUIREMENTS_FORMAT, 'No workspaces.'),
   },
   extra: {
+    pylockCreatedBy: verified('pip', `${PIP}/src/pip/_internal/utils/pylock.py`, 'pip lock writes created-by = "pip".'),
     requirementsOptions: verified(
       [
         '-i', '--index-url', '--extra-index-url', '--no-index', '-c', '--constraint', '-r', '--requirement', '-e', '--editable',
@@ -148,9 +149,9 @@ export const pip: ToolKnowledge = {
       'Upload times exist only in the JSON form of the simple repository API (PEP 700); indexes that serve only HTML have none.',
     ),
     lockfileFormat: verified(
-      { packages: 'packages', vcs: 'vcs', directory: 'directory', archive: 'archive', sdist: 'sdist', wheels: 'wheels', index: 'index', sources: { git: 'vcs', remoteTarball: 'archive', directory: 'directory' } },
+      { packages: 'packages', vcs: 'vcs', directory: 'directory', archive: 'archive', sdist: 'sdist', wheels: 'wheels', index: 'index', createdBy: 'created-by', sources: { git: 'vcs', remoteTarball: 'archive', directory: 'directory' } },
       PYLOCK,
-      'Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed.',
+      'Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed. A relative directory path is relative to the lock file. The required top-level created-by records the name of the tool that wrote the file, preferably its normalized Python package name.',
     ),
     requirementsForms: verified(
       'name==version with --hash options, name @ URL for an archive, a local archive or project path, and VCS URLs (name @ git+https://… or -e git+…)',

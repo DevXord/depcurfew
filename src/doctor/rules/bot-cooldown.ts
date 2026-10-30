@@ -3,6 +3,7 @@
 // manager's delay through the lockfile. A bot that skips the delay for security updates breaks CI where the
 // manager re-checks the lockfile. Renovate's delay comes from the top level, the presets it extends and the
 // packageRules that cover every package of a registry; a preset depcurfew cannot read gives a note.
+import { listing } from '../../apply/requirements.ts';
 import { extraOf, isRecord, values } from '../../apply/facts.ts';
 import { pinnedVersion } from '../../apply/version.ts';
 import type { PackageManagerId, PackageManagerInfo } from '../../detect/types.ts';
@@ -144,10 +145,6 @@ function renovateDelays(context: RuleContext, bot: ToolKnowledge, file: string):
       },
     ];
   });
-}
-
-function listing(items: readonly string[]): string {
-  return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1) ?? ''}`;
 }
 
 function rechecksLockfile(tool: ToolKnowledge, manager: PackageManagerInfo): boolean {

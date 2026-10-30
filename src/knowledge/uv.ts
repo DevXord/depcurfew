@@ -117,6 +117,11 @@ export const uv: ToolKnowledge = {
     ),
   },
   extra: {
+    pylockCreatedBy: verified(
+      'uv',
+      `${UV}/crates/uv-lock/src/lock/export/pylock_toml.rs`,
+      'uv export --format pylock.toml (and uv pip compile to pylock.toml) writes created-by = "uv". The project itself and workspace members are written as directory = { path = …, editable = true }, with the path relative to the lock file, "." for the project.',
+    ),
     configTables: verified(
       { 'pyproject.toml': 'tool.uv', 'uv.toml': '' },
       CONFIGURATION,

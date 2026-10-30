@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-12 tools · 502 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
+12 tools · 507 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
 
 ## Release-age cooldown
 
@@ -211,6 +211,7 @@ Further facts used by generators and `doctor`.
 
 ### uv
 
+- `pylockCreatedBy` (✅ verified): uv [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-lock/src/lock/export/pylock_toml.rs)
 - `configTables` (✅ verified): `{"pyproject.toml":"tool.uv","uv.toml":""}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `pyprojectTable` (✅ verified): tool.uv [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `configPrecedence` (✅ verified): uv.toml wins over [tool.uv] in the same directory; only the nearest directory with either is read, and in a workspace only the root [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
@@ -233,6 +234,7 @@ Further facts used by generators and `doctor`.
 
 ### pip
 
+- `pylockCreatedBy` (✅ verified): pip [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/pylock.py)
 - `requirementsOptions` (✅ verified): -i, --index-url, --extra-index-url, --no-index, -c, --constraint, -r, --requirement, -e, --editable, -f, --find-links, --no-binary, --only-binary, --prefer-binary, --require-hashes, --no-require-hashes, --pre, --all-releases, --only-final, --trusted-host, --use-feature [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
 - `buildSwitch` (❓ uncertain): `{"setting":"--only-binary","value":":all:","since":"7.0.0","covers":["registry"]}` ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `configFileNames` (✅ verified): pip.conf, pip.ini [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/configuration.py)
@@ -240,7 +242,7 @@ Further facts used by generators and `doctor`.
 - `environmentVariable` (✅ verified): PIP_UPLOADED_PRIOR_TO [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variables)
 - `durationStrings` (✅ verified): `{"since":"26.1.0","syntax":"iso8601"}` [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `missingUploadTime` (✅ verified): Installation fails when an index gives no upload time while --uploaded-prior-to is set [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)
-- `lockfileFormat` (✅ verified): `{"packages":"packages","vcs":"vcs","directory":"directory","archive":"archive","sdist":"sdist","wheels":"wheels","index":"index","sources":{"git":"vcs","remoteTarball":"archive","directory":"directory"}}` [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst)
+- `lockfileFormat` (✅ verified): `{"packages":"packages","vcs":"vcs","directory":"directory","archive":"archive","sdist":"sdist","wheels":"wheels","index":"index","createdBy":"created-by","sources":{"git":"vcs","remoteTarball":"archive","directory":"directory"}}` [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst)
 - `requirementsForms` (✅ verified): name==version with --hash options, name @ URL for an archive, a local archive or project path, and VCS URLs (name @ git+https://… or -e git+…) [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md)
 - `requirementsFormat` (✅ verified): `{"vcs":{"git":["git+"],"other":["hg+","svn+","bzr+"]},"direct":" @ ","editable":["-e","--editable"],"egg":"#egg=","comment":"#","continuation":"\\"}` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/vcs-support.md)
 - `requirementsIncludes` (✅ verified): `{"requirements":["-r","--requirement"],"constraints":["-c","--constraint"]}` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md#referring-to-other-requirements-files)
@@ -254,6 +256,7 @@ Further facts used by generators and `doctor`.
 
 ### Poetry
 
+- `pylockCreatedBy` (✅ verified): poetry-plugin-export [↗](https://github.com/python-poetry/poetry-plugin-export/blob/1.10.1/src/poetry_plugin_export/exporter.py)
 - `configTable` (✅ verified): `{"solver":"solver","installer":"installer"}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/config/file_config_source.py)
 - `pyprojectTable` (✅ verified): tool.poetry [↗](https://github.com/python-poetry/poetry-core/blob/2.5.0/src/poetry/core/pyproject/toml.py)
 - `configLocation` (✅ verified): poetry.toml is read only from the directory of the pyproject.toml Poetry found (the current directory or the nearest parent with one) [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/factory.py)
@@ -271,6 +274,7 @@ Further facts used by generators and `doctor`.
 
 ### PDM
 
+- `pylockCreatedBy` (✅ verified): pdm [↗](https://github.com/pdm-project/pdm/blob/2.29.5/src/pdm/formats/pylock.py)
 - `configTables` (✅ verified): `{"pyproject.toml":"tool.pdm.resolution"}` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
 - `pyprojectTable` (✅ verified): tool.pdm [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md)
 - `buildSwitch` (✅ verified): `{"setting":"only-binary","value":":all:","since":"2.15.0","covers":["registry"]}` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
@@ -287,6 +291,7 @@ Further facts used by generators and `doctor`.
 
 ### Pipenv
 
+- `pylockCreatedBy` (✅ verified): pipenv [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/pipenv/utils/pylock.py)
 - `configTables` (✅ verified): `{"Pipfile":"pipenv"}` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipenv-directives)
 - `durationStrings` (✅ verified): `{"since":"2026.6.2","syntax":"compact"}` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
 - `durationUnits` (✅ verified): days [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
@@ -529,6 +534,7 @@ Context recorded with verified facts.
 - `project.lockfiles`: Created next to pyproject.toml. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/layout.md)
 - `project.workspaces`: The [tool.uv.workspace] table of the root pyproject.toml lists members and exclude (globs or paths); exclude wins over members, and the root is a member too. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md)
 - `project.workspacesObjectKey`: The workspace guide calls members required, while the settings reference (crates/uv-workspace/src/pyproject.rs) gives it a default of []. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md)
+- `extra.pylockCreatedBy`: uv export --format pylock.toml (and uv pip compile to pylock.toml) writes created-by = "uv". The project itself and workspace members are written as directory = { path = …, editable = true }, with the path relative to the lock file, "." for the project. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-lock/src/lock/export/pylock_toml.rs)
 - `extra.configTables`: Settings sit in [tool.uv] in pyproject.toml and at the top level of uv.toml. uv.toml cannot hold workspace, sources and a few other project fields. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `extra.pyprojectTable`: A pyproject.toml without a [tool.uv] table is ignored when uv searches for configuration. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `extra.configPrecedence`: A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
@@ -561,13 +567,14 @@ Context recorded with verified facts.
 - `installScripts.disableAll`: Allowed in requirements files and pip.conf (only-binary). Enforced only for packages from indexes and find-links: VCS, local directory and direct URL source requirements are still built. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/secure-installs.md)
 - `project.lockfiles`: pip lock (experimental since 25.1) writes pylock.toml; pip install -r pylock.toml is experimental since 26.1. The specification also allows pylock.<name>.toml (extra.lockfilePattern). [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name)
 - `project.manifests`: "requirements.txt is usually what these files are named (although, that is not a requirement)"; the format is meant only for pip. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md)
+- `extra.pylockCreatedBy`: pip lock writes created-by = "pip". [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/pylock.py)
 - `extra.requirementsOptions`: SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
 - `extra.configFileNames`: CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/configuration.py)
 - `extra.configFileVariable`: Names a configuration file pip loads last; set to os.devnull it turns all configuration files off. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variable)
 - `extra.environmentVariable`: Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores. Tested on 2026-10-30: pip 25.3 ignored PIP_UPLOADED_PRIOR_TO=P100000D without a word, 26.0 rejected the duration (dates only), 26.1 and 26.2.2 found no version. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variables)
 - `extra.durationStrings`: Only whole days, written PnD, are accepted. [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `extra.missingUploadTime`: Upload times exist only in the JSON form of the simple repository API (PEP 700); indexes that serve only HTML have none. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)
-- `extra.lockfileFormat`: Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed. [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst)
+- `extra.lockfileFormat`: Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed. A relative directory path is relative to the lock file. The required top-level created-by records the name of the tool that wrote the file, preferably its normalized Python package name. [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst)
 - `extra.requirementsFormat`: VCS requirements start with git+, hg+, svn+ or bzr+, alone or after "name @"; a direct reference is "name @ URL" (PEP 508); -e installs a project path or VCS URL in editable mode. The legacy #egg= fragment names the project of a VCS URL. Lines ending with a backslash continue on the next line, and # starts a comment (requirements-file-format.md). [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/vcs-support.md)
 - `extra.requirementsIncludes`: Option names from cli/cmdoptions.py. A relative path is relative to the directory of the file that includes it, and a file given as an http, https or file URL is downloaded (req_file.py, _parse_and_recurse); a file that includes itself is an error. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md#referring-to-other-requirements-files)
 - `extra.requirementsPaths`: A requirement that contains a path separator (/, and \ on Windows) or starts with . looks like a path (_looks_like_path): a directory there is a project built from source. A name with an archive extension (utils/filetypes.py) is a local archive, even when the file does not exist. http, https, ftp and file URLs are links (utils/urls.py, is_url). [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/constructors.py)
@@ -592,6 +599,7 @@ Context recorded with verified facts.
 - `installScripts.allowList.format`: poetry config stores the value as a list; written by hand, a boolean is not normalized. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#installerno-binary)
 - `installScripts.disableAll`: Since 2.0.0; the value [":all:"] forbids source distributions for every package. Applied only when installing: resolving dependencies may still build source distributions without static metadata, and git, path and url dependencies are built regardless. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#installeronly-binary)
 - `project.lockfiles`: Next to pyproject.toml. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/factory.py)
+- `extra.pylockCreatedBy`: Poetry exports pylock.toml with its export plugin (poetry export --format pylock.toml), which writes created-by = "poetry-plugin-export". [↗](https://github.com/python-poetry/poetry-plugin-export/blob/1.10.1/src/poetry_plugin_export/exporter.py)
 - `extra.configTable`: poetry config writes dotted settings as nested tables, e.g. [solver] min-release-age = 7. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/config/file_config_source.py)
 - `extra.pyprojectTable`: A [tool.poetry] table marks a Poetry project; Poetry also accepts a [project] table with a static name and version, which other tools use as well. [↗](https://github.com/python-poetry/poetry-core/blob/2.5.0/src/poetry/core/pyproject/toml.py)
 - `extra.buildSwitch`: installer.only-binary was added in 2.0.0; [":all:"] forbids source distributions of index packages when installing. Git and directory dependencies, and source archives from a URL or path, are built regardless (src/poetry/installation/executor.py at 2.5.1). [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
@@ -618,6 +626,7 @@ Context recorded with verified facts.
 - `installScripts.allowList.availableSince`: no-binary, only-binary and prefer-binary keys in [tool.pdm.resolution] (#2656). [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
 - `installScripts.disableAll`: only-binary = ":all:" locks and installs only wheels. The variables PDM_ONLY_BINARY and PDM_NO_BINARY win over pyproject.toml. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#set-acceptable-format-for-locking-or-installing)
 - `project.lockfiles`: pdm.lock next to pyproject.toml; pdm lock --lockfile writes another name. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md)
+- `extra.pylockCreatedBy`: PDM's pylock.toml export writes created-by = "pdm". [↗](https://github.com/pdm-project/pdm/blob/2.29.5/src/pdm/formats/pylock.py)
 - `extra.configTables`: exclude-newer, its overrides, only-binary and no-binary share the table. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
 - `extra.pyprojectTable`: PDM keeps its settings in [tool.pdm] of pyproject.toml. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md)
 - `extra.buildSwitch`: only-binary in [tool.pdm.resolution] since 2.15.0 (#2656). It covers packages from an index: git, URL and path requirements already name their source and are built regardless (candidates.py). [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
@@ -640,6 +649,7 @@ Context recorded with verified facts.
 - `installScripts.defaultPolicy`: Pipenv installs with pip, which builds source distributions when no wheel fits. Pipenv honors pip configuration and PIP_* variables, which may forbid building (PIP_ONLY_BINARY=:all:), but the Pipfile has no setting for it. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/configuration.md)
 - `project.lockfiles`: JSON, generated next to the Pipfile. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipfilelock)
 - `project.manifests`: TOML. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipfile)
+- `extra.pylockCreatedBy`: Pipenv writes created-by = "pipenv" in the pylock.toml it generates (docs/pylock.md). pipenv install -e . writes the project itself as { path = ".", editable = true } (docs/pipfile.md), and Pipfile.lock keeps it as "path": ".". [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/pipenv/utils/pylock.py)
 - `extra.configTables`: Directives such as cool-down-period and allow_prereleases live in [pipenv]. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipenv-directives)
 - `extra.durationStrings`: Only whole days (<int>d) are accepted. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
 - `extra.durationUnits`: Whole days only. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)

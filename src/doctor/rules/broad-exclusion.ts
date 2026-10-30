@@ -1,5 +1,6 @@
 // broad-exclusion: an exception list that matches every package turns the protection off while the setting still
 // looks configured. Checked in depcurfew.json, in the tools' own files and in Renovate packageRules.
+import { listing } from '../../apply/requirements.ts';
 import { extraOf, isRecord, settingOf, values } from '../../apply/facts.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
@@ -80,10 +81,6 @@ const isPackageJsonConfig = (value: unknown): value is { file: string; key: stri
   isRecord(value) && typeof value['file'] === 'string' && typeof value['key'] === 'string';
 const isMatching = (value: unknown): value is { negation: string; datasourceMatcher: string; updateTypeMatcher: string } =>
   isRecord(value) && typeof value['negation'] === 'string' && typeof value['datasourceMatcher'] === 'string' && typeof value['updateTypeMatcher'] === 'string';
-
-function listing(items: readonly string[]): string {
-  return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1) ?? ''}`;
-}
 
 /** What a packageRules entry covers, for the message: its update types, names and datasources. */
 function covers(scope: RuleScope, datasources: readonly string[], matching: { negation: string; datasourceMatcher: string; updateTypeMatcher: string }): string {

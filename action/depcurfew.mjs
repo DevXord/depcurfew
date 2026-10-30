@@ -920,6 +920,7 @@ const pip$1 = {
 		workspacesObjectKey: uncertain$7(null, REQUIREMENTS_FORMAT, "No workspaces.")
 	},
 	extra: {
+		pylockCreatedBy: verified$8("pip", `${PIP}/src/pip/_internal/utils/pylock.py`, "pip lock writes created-by = \"pip\"."),
 		requirementsOptions: verified$8([
 			"-i",
 			"--index-url",
@@ -966,12 +967,13 @@ const pip$1 = {
 			sdist: "sdist",
 			wheels: "wheels",
 			index: "index",
+			createdBy: "created-by",
 			sources: {
 				git: "vcs",
 				remoteTarball: "archive",
 				directory: "directory"
 			}
-		}, PYLOCK, "Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed."),
+		}, PYLOCK, "Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed. A relative directory path is relative to the lock file. The required top-level created-by records the name of the tool that wrote the file, preferably its normalized Python package name."),
 		requirementsForms: verified$8("name==version with --hash options, name @ URL for an archive, a local archive or project path, and VCS URLs (name @ git+https://… or -e git+…)", REQUIREMENTS_FORMAT),
 		requirementsFormat: verified$8({
 			vcs: {
@@ -1273,6 +1275,7 @@ const pdm$1 = {
 		workspacesObjectKey: uncertain$6(null, `${PDM}/docs/usage/workspace.md`, "Not read; see workspaces.")
 	},
 	extra: {
+		pylockCreatedBy: verified$7("pdm", `${PDM}/src/pdm/formats/pylock.py`, "PDM's pylock.toml export writes created-by = \"pdm\"."),
 		configTables: verified$7({ "pyproject.toml": "tool.pdm.resolution" }, `${LOCKFILE}#exclude-packages-newer-than-specific-date`, "exclude-newer, its overrides, only-binary and no-binary share the table."),
 		pyprojectTable: verified$7("tool.pdm", `${PDM}/docs/reference/pep621.md`, "PDM keeps its settings in [tool.pdm] of pyproject.toml."),
 		buildSwitch: verified$7({
@@ -1442,6 +1445,7 @@ const pipenv$1 = {
 		workspacesObjectKey: uncertain$5(null, PIPFILE, "No workspaces.")
 	},
 	extra: {
+		pylockCreatedBy: verified$6("pipenv", `${PIPENV}/pipenv/utils/pylock.py`, "Pipenv writes created-by = \"pipenv\" in the pylock.toml it generates (docs/pylock.md). pipenv install -e . writes the project itself as { path = \".\", editable = true } (docs/pipfile.md), and Pipfile.lock keeps it as \"path\": \".\"."),
 		configTables: verified$6({ Pipfile: "pipenv" }, `${PIPFILE}#pipenv-directives`, "Directives such as cool-down-period and allow_prereleases live in [pipenv]."),
 		durationStrings: verified$6({
 			since: "2026.6.2",
@@ -1853,6 +1857,7 @@ const poetry$1 = {
 		workspacesObjectKey: uncertain$3(null, "https://github.com/python-poetry/poetry/issues/2270", "No workspaces.")
 	},
 	extra: {
+		pylockCreatedBy: verified$4("poetry-plugin-export", "https://github.com/python-poetry/poetry-plugin-export/blob/1.10.1/src/poetry_plugin_export/exporter.py", "Poetry exports pylock.toml with its export plugin (poetry export --format pylock.toml), which writes created-by = \"poetry-plugin-export\"."),
 		configTable: verified$4({
 			solver: "solver",
 			installer: "installer"
@@ -2155,6 +2160,7 @@ const uv$1 = {
 		workspacesObjectKey: verified$2("members", WORKSPACES, "The workspace guide calls members required, while the settings reference (crates/uv-workspace/src/pyproject.rs) gives it a default of [].")
 	},
 	extra: {
+		pylockCreatedBy: verified$2("uv", `${UV}/crates/uv-lock/src/lock/export/pylock_toml.rs`, "uv export --format pylock.toml (and uv pip compile to pylock.toml) writes created-by = \"uv\". The project itself and workspace members are written as directory = { path = …, editable = true }, with the path relative to the lock file, \".\" for the project."),
 		configTables: verified$2({
 			"pyproject.toml": "tool.uv",
 			"uv.toml": ""
@@ -9734,6 +9740,9 @@ function detectionFacts(tools, environment) {
 		const pyprojectTable = extraValue(entry, "pyprojectTable");
 		const order = extraValue(entry, "configFileOrder");
 		const pattern = extraValue(entry, "lockfilePattern");
+		const lockfileFormat = extraValue(entry, "lockfileFormat");
+		const createdBy = isRecord(lockfileFormat) ? lockfileFormat["createdBy"] : void 0;
+		const pylockCreatedBy = extraValue(entry, "pylockCreatedBy");
 		return {
 			id,
 			ecosystem: entry.ecosystem ?? "npm",
@@ -9744,7 +9753,9 @@ function detectionFacts(tools, environment) {
 			pyprojectTable: typeof pyprojectTable === "string" ? pyprojectTable : null,
 			requiredVersions: requiredVersions(entry, pythonProject),
 			configFileOrder: Array.isArray(order) && order.every((file) => typeof file === "string") ? order : null,
-			lockfilePattern: typeof pattern === "string" ? new RegExp(pattern, "u") : null
+			lockfilePattern: typeof pattern === "string" ? new RegExp(pattern, "u") : null,
+			createdByKey: typeof createdBy === "string" ? createdBy : null,
+			pylockCreatedBy: typeof pylockCreatedBy === "string" ? pylockCreatedBy : null
 		};
 	});
 	const bots = BOTS$1.map((id) => {
@@ -10504,6 +10515,15 @@ function expandWorkspaces(repository, patterns, manifests, declaredIn) {
 	return [...included].filter((directory) => directory !== "." && !excluded.has(directory)).filter((directory) => manifests.some((manifest) => repository.isFile(joinPath(directory, manifest)))).sort();
 }
 
+// src/policy/python-names.ts
+const [rule] = evidenceOf(environment.python.nameNormalization);
+const SEPARATORS = new RegExp(rule?.value.separators ?? "[-_.]+", "gu");
+const REPLACEMENT = rule?.value.replacement ?? "-";
+/** The normalized form of a Python package name or name pattern; `*` stays as it is. */
+function normalizePythonName(name) {
+	return name.replace(SEPARATORS, REPLACEMENT).toLowerCase();
+}
+
 // src/detect/index.ts
 const EVIDENCE_ORDER = [
 	"lockfile",
@@ -10553,6 +10573,26 @@ function requiredVersionText(value) {
 /** A TOML file, parsed once per repository; undefined when it is missing or cannot be parsed (a warning says so). */
 function readToml(repository, file) {
 	return repository.parseOnce(file, parseToml);
+}
+/**
+* A top-level string key of a TOML lockfile, such as created-by in pylock.toml, read from the start of the file: top-level
+* keys come before the first table, so a large lockfile is not read whole.
+*/
+function createdBy(repository, file, key) {
+	const head = repository.readHead(file, 16384) ?? "";
+	const escaped = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+	const pattern = new RegExp(`^\\s*(?:${escaped}|"${escaped}")\\s*=\\s*("(?:[^"\\\\]|\\\\.)*"|'[^']*')`, "u");
+	for (const line of head.split(/\r?\n/u)) {
+		if (/^\s*\[/u.test(line)) return void 0;
+		const value = pattern.exec(line)?.[1];
+		if (value === void 0) continue;
+		if (value.startsWith("'")) return value.slice(1, -1);
+		try {
+			return JSON.parse(value);
+		} catch {
+			return;
+		}
+	}
 }
 function orList(items) {
 	return items.length < 2 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} or ${items.at(-1) ?? ""}`;
@@ -10751,10 +10791,18 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	}
 	readToolVersions(repository, facts, collector);
 	readPythonConfig(repository, facts, collector);
-	const lockfiles = /* @__PURE__ */ new Map();
+	const owners = /* @__PURE__ */ new Map();
 	for (const manager of facts.managers) {
 		const named = manager.lockfilePattern === null ? [] : repository.listFiles(".").filter((name) => manager.lockfilePattern?.test(name) === true);
-		const present = [.../* @__PURE__ */ new Set([...manager.lockfiles.filter((file) => repository.isFile(file)), ...named])].sort(byPath);
+		for (const file of /* @__PURE__ */ new Set([...manager.lockfiles.filter((name) => repository.isFile(name)), ...named])) {
+			const creator = manager.createdByKey === null ? void 0 : createdBy(repository, file, manager.createdByKey);
+			const owner = creator === void 0 ? void 0 : facts.managers.find((other) => other.pylockCreatedBy !== null && normalizePythonName(other.pylockCreatedBy) === normalizePythonName(creator));
+			if (!owners.has(file)) owners.set(file, owner?.id ?? manager.id);
+		}
+	}
+	const lockfiles = /* @__PURE__ */ new Map();
+	for (const manager of facts.managers) {
+		const present = [...owners].filter(([, owner]) => owner === manager.id).map(([file]) => file).sort(byPath);
 		if (present.length > 0) lockfiles.set(manager.id, present);
 		for (const file of present) collector.addEvidence(manager.id, "lockfile", file);
 		for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, "config", file);
@@ -10826,7 +10874,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 
 // src/apply/requirements.ts
 /** "a", "a and b", "a, b and c". */
-function listing$2(items) {
+function listing(items) {
 	if (items.length <= 1) return items[0] ?? "";
 	return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
 }
@@ -10850,17 +10898,8 @@ function describeRequirements(requirements) {
 		0,
 		0
 	]);
-	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$2(group.settings)} (since ${since})`).join(", ");
+	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since})`).join(", ");
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
-}
-
-// src/policy/python-names.ts
-const [rule] = evidenceOf(environment.python.nameNormalization);
-const SEPARATORS = new RegExp(rule?.value.separators ?? "[-_.]+", "gu");
-const REPLACEMENT = rule?.value.replacement ?? "-";
-/** The normalized form of a Python package name or name pattern; `*` stays as it is. */
-function normalizePythonName(name) {
-	return name.replace(SEPARATORS, REPLACEMENT).toLowerCase();
 }
 
 // src/doctor/python-lockfiles.ts
@@ -10979,14 +11018,23 @@ function pipfileLockEntries(input, format) {
 			});
 			if (git !== void 0) entries.push(anchored(entry(name, git, "git", true, void 0)));
 			else if (file !== void 0) entries.push(anchored(entry(name, file, "remoteTarball", !isWheel(file), void 0)));
+			else if (path !== void 0 && isProject(path)) entries.push(anchored(entry(name, path, "workspace", false, void 0)));
 			else if (path !== void 0) entries.push(anchored(entry(name, path, "directory", true, void 0)));
 			else entries.push(anchored(entry(name, "an index", "registry", void 0, void 0)));
 		}
 	}
 	return entries;
 }
-/** pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. */
-function pylockEntries(input, format) {
+/** "." or "./": the project itself, relative to the lockfile at its root. */
+function isProject(path) {
+	return /^\.\/?$/u.test(path);
+}
+/**
+* pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. A
+* directory path is relative to the lock file, so "." is the project itself, which, like a workspace member, is part
+* of the work on the project rather than a dependency built from source.
+*/
+function pylockEntries(input, format, workspaces = []) {
 	const document = parseToml(input);
 	const key = (name) => String(format[name]);
 	return list$1(document.root[key("packages")]).flatMap((item, index) => {
@@ -10996,7 +11044,12 @@ function pylockEntries(input, format) {
 		const vcs = item[key("vcs")];
 		if (isRecord(vcs)) return [entry(item["name"], location(vcs), text$1(vcs["type"]) === "git" ? "git" : "unknown", true, line)];
 		const directory = item[key("directory")];
-		if (isRecord(directory)) return [entry(item["name"], location(directory), "directory", true, line)];
+		if (isRecord(directory)) {
+			const path = location(directory);
+			const relative = path.replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/+$/u, "");
+			const member = isProject(path) || relative === "" || workspaces.includes(relative);
+			return [entry(item["name"], path, member ? "workspace" : "directory", !member, line)];
+		}
 		const archive = item[key("archive")];
 		if (isRecord(archive)) {
 			const where = location(archive);
@@ -11462,16 +11515,30 @@ function requirementsTrees(repository, roots, format) {
 				if (reason === void 0) queue.push(target);
 				else unreadable.push(`${path} (line ${line}, ${reason})`);
 			}
-			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing$2(unreadable)}`, [file]);
+			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing(unreadable)}`, [file]);
 		}
 		for (const file of tree) trees.set(file, [.../* @__PURE__ */ new Set([...trees.get(file) ?? [], ...tree])]);
 	}
 	return trees;
 }
-function readLockfiles(repository, manager, tool, workspaces) {
-	const fact = tool.extra?.["lockfileFormat"];
+/** A tool's extra.lockfileFormat. */
+function lockfileFormatOf(tool) {
+	const fact = tool?.extra?.["lockfileFormat"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	if (!isRecord(format)) return [];
+	return isRecord(format) ? format : void 0;
+}
+/** pylock.toml and pylock.<name>.toml, which pip's knowledge names; detection gives one to the tool that wrote it. */
+function isPylock(pip, file) {
+	const lockfiles = pip?.project?.lockfiles;
+	const names = lockfiles === void 0 ? [] : values$1(lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
+	const pattern = pip?.extra?.["lockfilePattern"] === void 0 ? void 0 : values$1(pip.extra["lockfilePattern"])[0];
+	return names.includes(file) || typeof pattern === "string" && new RegExp(pattern, "u").test(file);
+}
+function readLockfiles(repository, manager, tool, workspaces, tools = []) {
+	const format = lockfileFormatOf(tool);
+	if (format === void 0) return [];
+	const pip = tool.id === "pip" ? tool : tools.find((entry) => entry.id === "pip");
+	const pylockFormat = lockfileFormatOf(pip);
 	const lockfiles = manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file);
 	const requirements = tool.id === "pip" ? requirementsTrees(repository, manager.configFiles, requirementsFormatOf(tool)) : /* @__PURE__ */ new Map();
 	return [.../* @__PURE__ */ new Set([...lockfiles, ...requirements.keys()])].map((file) => {
@@ -11499,11 +11566,14 @@ function readLockfiles(repository, manager, tool, workspaces) {
 			else if (tool.id === "pnpm") ({entries, start} = pnpmEntries(text, format, documentsOf(tool)));
 			else if (tool.id === "yarn") entries = yarnEntries(text, format);
 			else if (tool.id === "bun") entries = bunEntries(text, format);
-			else if (tool.id === "uv") entries = uvEntries(text, format, workspaces);
+			else if (pylockFormat !== void 0 && lockfiles.includes(file) && isPylock(pip, file)) {
+				entries = pylockEntries(text, pylockFormat, workspaces);
+				recordsScripts = pylockFormat["installScripts"] !== null;
+			} else if (tool.id === "uv") entries = uvEntries(text, format, workspaces);
 			else if (tool.id === "poetry") entries = poetryEntries(text, format);
 			else if (tool.id === "pdm") entries = pdmEntries(text, format);
 			else if (tool.id === "pipenv") entries = pipfileLockEntries(text, format);
-			else if (tool.id === "pip") entries = lockfiles.includes(file) ? pylockEntries(text, format) : requirementsEntries(text, requirementsFormatOf(tool));
+			else if (tool.id === "pip") entries = requirementsEntries(text, requirementsFormatOf(tool));
 			else ({entries, recordsScripts} = denoEntries(text, format));
 			const find = lineFinder(text, start);
 			const optionFiles = requirements.get(file);
@@ -14182,7 +14252,7 @@ function relockWarning(context, file, table, edit) {
 	context.warn({
 		code: "lockfile-out-of-date",
 		location: { file: lockfile },
-		message: `${context.name}: ${lockfile} records ${listing$2(changed)}, so it is out of date after this change`,
+		message: `${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change`,
 		fix: `Run ${context.name} lock and commit ${lockfile}; until then ${context.name} sync --locked and ${context.name} lock --check fail`
 	});
 }
@@ -14994,7 +15064,7 @@ function dependabotDelays(context, bot, file) {
 				bot,
 				managers,
 				minutes: 0,
-				origin: `cooldown.${include.key} in ${file} names only ${listing$1(patterns)}`,
+				origin: `cooldown.${include.key} in ${file} names only ${listing(patterns)}`,
 				location: {
 					file,
 					line: at
@@ -15066,14 +15136,11 @@ function renovateDelays(context, bot, file) {
 				line: source?.line ?? 1
 			},
 			securityBypass,
-			scope: types.length === updateTypes.length ? "updates" : `${listing$1(types)} updates`,
+			scope: types.length === updateTypes.length ? "updates" : `${listing(types)} updates`,
 			applies,
 			...source?.rule === void 0 ? {} : { rule: source.rule }
 		}];
 	});
-}
-function listing$1(items) {
-	return items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
 }
 function rechecksLockfile(tool, manager) {
 	const fact = tool.extra?.["lockfileRecheck"];
@@ -15199,9 +15266,6 @@ function checkDependabot(context, file) {
 }
 const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
 const isMatching = (value) => isRecord(value) && typeof value["negation"] === "string" && typeof value["datasourceMatcher"] === "string" && typeof value["updateTypeMatcher"] === "string";
-function listing(items) {
-	return items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
-}
 /** What a packageRules entry covers, for the message: its update types, names and datasources. */
 function covers(scope, datasources, matching) {
 	return `${scope.matchers.includes(matching.updateTypeMatcher) ? `${listing(scope.updateTypes)} updates of ` : ""}${scope.names.kind === "except" ? `every package except ${listing(scope.names.patterns.map((pattern) => pattern.slice(matching.negation.length)))}` : "every package"}${scope.matchers.includes(matching.datasourceMatcher) ? ` from the ${listing(datasources)} datasource${datasources.length === 1 ? "" : "s"}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
@@ -15631,7 +15695,7 @@ function eachLockfile(context, rule, visit) {
 	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
 		const tool = context.tools.find((entry) => entry.id === manager.id);
 		if (tool === void 0) continue;
-		for (const result of readLockfiles(context.repository, manager, tool, workspaces)) if (result.ok) visit(result.lockfile, tool);
+		for (const result of readLockfiles(context.repository, manager, tool, workspaces, context.tools)) if (result.ok) visit(result.lockfile, tool);
 		else if (!result.unreadable) context.notice(`${rule} could not check ${result.file}: ${result.reason}`, result.file);
 	}
 }

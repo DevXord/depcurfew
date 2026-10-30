@@ -360,10 +360,32 @@ function requirementsTrees(repository: Repository, roots: readonly string[], for
   return trees;
 }
 
-export function readLockfiles(repository: Repository, manager: PackageManagerInfo, tool: ToolKnowledge, workspaces: readonly string[]): LockfileResult[] {
-  const fact = tool.extra?.['lockfileFormat'];
+/** A tool's extra.lockfileFormat. */
+function lockfileFormatOf(tool: ToolKnowledge | undefined): Format | undefined {
+  const fact = tool?.extra?.['lockfileFormat'];
   const format = fact === undefined ? undefined : values(fact)[0];
-  if (!isRecord(format)) return [];
+  return isRecord(format) ? format : undefined;
+}
+
+/** pylock.toml and pylock.<name>.toml, which pip's knowledge names; detection gives one to the tool that wrote it. */
+function isPylock(pip: ToolKnowledge | undefined, file: string): boolean {
+  const lockfiles = pip?.project?.lockfiles;
+  const names = lockfiles === undefined ? [] : values(lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
+  const pattern = pip?.extra?.['lockfilePattern'] === undefined ? undefined : values(pip.extra['lockfilePattern'])[0];
+  return names.includes(file) || (typeof pattern === 'string' && new RegExp(pattern, 'u').test(file));
+}
+
+export function readLockfiles(
+  repository: Repository,
+  manager: PackageManagerInfo,
+  tool: ToolKnowledge,
+  workspaces: readonly string[],
+  tools: readonly ToolKnowledge[] = [],
+): LockfileResult[] {
+  const format = lockfileFormatOf(tool);
+  if (format === undefined) return [];
+  const pip = tool.id === 'pip' ? tool : tools.find((entry) => entry.id === 'pip');
+  const pylockFormat = lockfileFormatOf(pip);
   const lockfiles = manager.evidence.filter((item) => item.kind === 'lockfile').map((item) => item.file);
   // pip has no lockfile of its own beyond pylock.toml; its requirements files, and the files they include, say where
   // packages come from too.
@@ -384,11 +406,14 @@ export function readLockfiles(repository: Repository, manager: PackageManagerInf
       else if (tool.id === 'pnpm') ({ entries, start } = pnpmEntries(text, format, documentsOf(tool)));
       else if (tool.id === 'yarn') entries = yarnEntries(text, format);
       else if (tool.id === 'bun') entries = bunEntries(text, format);
-      else if (tool.id === 'uv') entries = uvEntries(text, format, workspaces);
+      else if (pylockFormat !== undefined && lockfiles.includes(file) && isPylock(pip, file)) {
+        entries = pylockEntries(text, pylockFormat, workspaces);
+        recordsScripts = pylockFormat['installScripts'] !== null;
+      } else if (tool.id === 'uv') entries = uvEntries(text, format, workspaces);
       else if (tool.id === 'poetry') entries = poetryEntries(text, format);
       else if (tool.id === 'pdm') entries = pdmEntries(text, format);
       else if (tool.id === 'pipenv') entries = pipfileLockEntries(text, format);
-      else if (tool.id === 'pip') entries = lockfiles.includes(file) ? pylockEntries(text, format) : requirementsEntries(text, requirementsFormatOf(tool));
+      else if (tool.id === 'pip') entries = requirementsEntries(text, requirementsFormatOf(tool));
       else ({ entries, recordsScripts } = denoEntries(text, format));
       const find = lineFinder(text, start);
       const optionFiles = requirements.get(file);

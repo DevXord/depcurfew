@@ -37,6 +37,10 @@ export interface ManagerFacts {
   configFileOrder: string[] | null;
   /** Lockfiles with a name of the project's choosing, such as pylock.dev.toml; `null` when the names are fixed. */
   lockfilePattern: RegExp | null;
+  /** The key of a lockfile that names the tool which wrote it (created-by in pylock.toml); `null` when there is none. */
+  createdByKey: string | null;
+  /** What the tool writes in that key of a pylock.toml it exports; `null` when it writes none. */
+  pylockCreatedBy: string | null;
 }
 
 export interface BotFacts {
@@ -130,6 +134,9 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     const pyprojectTable = extraValue(entry, 'pyprojectTable');
     const order = extraValue(entry, 'configFileOrder');
     const pattern = extraValue(entry, 'lockfilePattern');
+    const lockfileFormat = extraValue(entry, 'lockfileFormat');
+    const createdBy = isRecord(lockfileFormat) ? lockfileFormat['createdBy'] : undefined;
+    const pylockCreatedBy = extraValue(entry, 'pylockCreatedBy');
     return {
       id: id as PackageManagerId,
       ecosystem: entry.ecosystem ?? 'npm',
@@ -141,6 +148,8 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       requiredVersions: requiredVersions(entry, pythonProject),
       configFileOrder: Array.isArray(order) && order.every((file) => typeof file === 'string') ? order : null,
       lockfilePattern: typeof pattern === 'string' ? new RegExp(pattern, 'u') : null,
+      createdByKey: typeof createdBy === 'string' ? createdBy : null,
+      pylockCreatedBy: typeof pylockCreatedBy === 'string' ? pylockCreatedBy : null,
     };
   });
 
