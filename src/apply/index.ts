@@ -23,6 +23,8 @@ import { dependabot } from './generators/dependabot.ts';
 import { npm } from './generators/npm.ts';
 import { pip } from './generators/pip.ts';
 import { pnpm } from './generators/pnpm.ts';
+import { pdm } from './generators/pdm.ts';
+import { pipenv } from './generators/pipenv.ts';
 import { poetry } from './generators/poetry.ts';
 import { renovate } from './generators/renovate.ts';
 import { uv } from './generators/uv.ts';
@@ -47,7 +49,7 @@ export interface ApplyReport {
   failures: EditFailure[];
 }
 
-const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry };
+const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv };
 const BOTS: Partial<Record<ToolId, BotGenerator>> = { renovate, dependabot };
 
 function latestVersion(tool: ToolKnowledge): string | undefined {
@@ -57,7 +59,8 @@ function latestVersion(tool: ToolKnowledge): string | undefined {
 }
 
 /** Where a repository can pin the version of a tool, for the warning when none is pinned. */
-function pinPlaces(tool: ToolKnowledge): string {
+/** Where the version of a tool can be pinned, or undefined when the project cannot pin it (PDM, Pipenv). */
+function pinPlaces(tool: ToolKnowledge): string | undefined {
   if (ecosystemOfTool(tool) === 'npm') return 'packageManager, devEngines, .tool-versions or a CI setup step';
   const required = tool.extra?.['requiredVersion'];
   const value = required === undefined ? undefined : values(required)[0];
@@ -68,7 +71,14 @@ function pinPlaces(tool: ToolKnowledge): string {
   if (actions.some((action) => isRecord(action) && Array.isArray(action['inputs']) && action['inputs'].some((input: unknown) => isRecord(input) && input['tool'] === tool.id))) {
     places.push('a CI setup step');
   }
-  return places.length < 2 ? (places[0] ?? 'a CI setup step') : `${places.slice(0, -1).join(', ')} or ${places.at(-1) ?? ''}`;
+  if (places.length === 0) return undefined;
+  return places.length === 1 ? places[0] : `${places.slice(0, -1).join(', ')} or ${places.at(-1) ?? ''}`;
+}
+
+function pinFix(tool: ToolKnowledge): string {
+  const places = pinPlaces(tool);
+  if (places !== undefined) return `Pin the version you use (${places}) to configure for it`;
+  return `Use ${tool.name} ${latestVersion(tool) ?? 'latest'} or a recent version wherever the project is installed; ${tool.name} has no setting that pins its version in the project`;
 }
 
 /** The bots' delay: the policy's, or longer if a package manager rounded its delay up further. */
@@ -124,6 +134,16 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       targets.delete(manager.id);
     }
   }
+  // A file detection could not parse may hide a tool; nothing is written into it, but the user should know.
+  for (const warning of detection.warnings.filter((entry) => entry.code === 'invalid-file')) {
+    const file = warning.files[0];
+    warnings.push({
+      code: 'file-unreadable',
+      ...(file === undefined ? {} : { location: { file } }),
+      message: `${warning.message}; depcurfew cannot tell which tools it configures`,
+      fix: `Fix the syntax error${file === undefined ? '' : ` in ${file}`}, then run depcurfew apply again`,
+    });
+  }
   if (targets.size === 0) {
     warnings.push({
       code: 'nothing-to-configure',
@@ -156,7 +176,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
         code: 'version-not-pinned',
         tool: tool.id,
         message: `${tool.name}: no exact version is pinned, so depcurfew configures for ${tool.name} ${latest ?? 'latest'}, the latest version it knows`,
-        fix: `Pin the version you use (${pinPlaces(tool)}) to configure for it`,
+        fix: pinFix(tool),
       });
     }
     run(tool, version, (context) => {

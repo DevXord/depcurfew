@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "pdm.toml",
+      "line": 1
+    },
+    "message": "use_uv in pdm.toml makes PDM install with uv sync, which it runs without only-binary, so packages may still be built from source when installing",
+    "fix": "Remove use_uv from pdm.toml, or forbid building in uv too ([tool.uv] no-build = true in pyproject.toml)"
+  }
+]

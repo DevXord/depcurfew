@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "Pipfile",
+      "line": 10
+    },
+    "message": "resolver_backend = \"pure-python\" makes Pipenv lock without cool-down-period, so the release-age delay in Pipfile has no effect",
+    "fix": "Remove resolver_backend from [pipenv] in Pipfile, so that Pipenv locks with pip and applies cool-down-period"
+  }
+]

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "pyproject.toml",
+      "line": 7
+    },
+    "message": "exclude-newer is the fixed date 2026-01-01, so PDM never uses versions uploaded after it; that is a freeze, not a delay that moves with time",
+    "fix": "Write a duration such as \"3d\" (PDM 2.26.9 or later), or let depcurfew apply write it from cooldown.minimum"
+  }
+]

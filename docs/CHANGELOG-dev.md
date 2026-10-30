@@ -2,6 +2,26 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · Pełny test paczki i poprawki (D-073)
+
+- Test z tarballa na projektach npm, pnpm, Yarn, Bun, Deno, uv, Poetry, pip, PDM, Pipenv i Hatch, z botami, akcją i biblioteką; projekty usunięte po teście, zapis konsoli w scratchpadzie.
+- Poprawki: brak podwójnego znacznika YAML po naprawie rozjazdu, wskazówki hooka zależne od powodu, `file-unreadable` w `apply` i brak mylącego `python-tool-unknown` przy zepsutym pyproject.toml, podpowiedź dla Hatch.
+- Weryfikacja: `npm test` (1750 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-30 · PDM i Pipenv; Hatch przez uv (D-072)
+
+- PDM: wykrywanie, `apply` w `[tool.pdm.resolution]` (opóźnienie, wyjątki, zakaz budowania z listą wyjątków), `doctor` dla `pdm.lock`, stałej daty i trybu uv, hook dla `pdm add`.
+- Pipenv: wykrywanie, `apply` z `cool-down-period` w pełnych dniach i ostrzeżeniami o brakach, `doctor` dla `Pipfile.lock` i `resolver_backend = "pure-python"`, hook dla `pipenv install`.
+- Hatch: bez własnych ustawień; README opisuje konfigurację przez uv albo zmienne pip.
+- Fikstury `pdm-basic` i `pipenv-basic` (przed i po), nowe przypadki reguł `doctor`; nowe kody `exclude-unsupported` i `build-switch-environment-only`.
+
+## 2026-10-30 · Python w `check` i w hooku (D-071)
+
+- `check pypi:<wymaganie>` sprawdza paczki PyPI przez Index API: istnienie, podobne nazwy (5000 popularnych projektów), wiek najnowszego pliku wobec cooldownu, brak wheel (budowanie ze źródeł), wersje wycofane i status projektu. Nowe kody `yanked`, `archived`, `quarantined`; opcja `--index`.
+- Własne PEP 440 (`src/check/pep440.ts`), parser wymagań z przeliczaniem ograniczeń Poetry (`src/check/python-spec.ts`) i klient indeksu (`src/check/pypi.ts`); klasyfikacja źródeł pip wspólna z `doctor`.
+- Hook czyta polecenia pip, uv, Poetry i pipx, w tym `python -m pip`, skróty opcji, grupy krótkich opcji i zmienne wskazujące inny indeks.
+- Nagrane odpowiedzi PyPI w `tests/fixtures/pypi` (`npm run record:registry -- pypi`), lista popularnych projektów w `src/knowledge/popular-python.ts` (`npm run data:popular -- pypi`).
+
 ## 2026-10-30 · `check --json` przy błędnej polityce (D-070)
 
 - `check --json` przy błędnym albo nieczytelnym `depcurfew.json` daje dokument z `errors` (kształt jak w `apply --json`) i puste `packages` zamiast tekstu na stderr; kod wyjścia 1.

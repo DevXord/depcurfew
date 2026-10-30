@@ -1,0 +1,18 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+idna = "*"
+docopt = "==0.6.2"
+sampleproject = {git = "https://github.com/pypa/sampleproject", ref = "main"}
+local-lib = {path = "./libs/local-lib", editable = true}
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"
+
+[pipenv]
+allow_prereleases = false

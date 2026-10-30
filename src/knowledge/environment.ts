@@ -10,6 +10,9 @@ const python = verifiedOn('2026-10-30');
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
 const NPM_PACKAGE_JSON = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md';
+// docs.pypi.org is built from docs/user in the warehouse repository; the specifications from pypa/packaging.python.org.
+const PYPI_INDEX_API = 'https://github.com/pypi/warehouse/blob/c137701f3afcd80c346c574c31c9b46eeb738664/docs/user/api/index-api.md';
+const SPECIFICATIONS = 'https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications';
 
 export const environment: EnvironmentKnowledge = {
   corepack: {
@@ -227,6 +230,30 @@ export const environment: EnvironmentKnowledge = {
       'The description documents text, size (at most 250) and from. Results carried downloads.weekly on 2026-10-29, which the description does not list, and from was ignored, so one query returns at most 250 packages.',
     ),
   },
+  pypiIndex: {
+    api: python.verified(
+      {
+        url: 'https://pypi.org/simple/',
+        accept: 'application/vnd.pypi.simple.v1+json',
+        notFoundStatus: 404,
+        filesField: 'files',
+        filenameField: 'filename',
+        uploadTimeField: 'upload-time',
+        yankedField: 'yanked',
+        versionsField: 'versions',
+        statusField: 'project-status',
+        statusValueField: 'status',
+        statusReasonField: 'reason',
+      },
+      `${SPECIFICATIONS}/simple-repository-api.rst`,
+      'GET /simple/<project>/ with Accept: application/vnd.pypi.simple.v1+json returns name, files, meta, versions and project-status; the project is matched case-insensitively with _, - and . considered equal (index-api.md in pypi/warehouse, the source of docs.pypi.org/api/index-api/, which recommends the JSON form for new integrations; the JSON API of /pypi/<project>/json marks its releases key deprecated). A file has filename, url, hashes, size, an optional upload-time (yyyy-mm-ddThh:mm:ss.ffffffZ, UTC) and an optional yanked (true or a reason string). Every file belongs to a version listed in versions, but the response does not say which: the version is part of the file name. On 2026-10-30 pypi.org answered api-version 1.4 for requests and 404 for a name it does not know.',
+    ),
+    projectStatus: python.verified(
+      { blocked: ['quarantined'], warned: ['archived', 'deprecated'] },
+      `${SPECIFICATIONS}/project-status-markers.rst`,
+      'A project has exactly one status, active when none is given. quarantined: considered generally unsafe (for example malware), and the index must not offer any of its files. archived: no new uploads, existing files stay; installers may warn. deprecated: obsolete, perhaps superseded by another project; installers may warn.',
+    ),
+  },
   claudeCode: {
     hooks: checked.verified(
       {
@@ -265,6 +292,21 @@ export const environment: EnvironmentKnowledge = {
       '.whl',
       'https://packaging.python.org/en/latest/specifications/binary-distribution-format/',
       'A wheel is a ZIP archive with the .whl extension; installing it unpacks files and runs no build code. Read from the page source in pypa/packaging.python.org.',
+    ),
+    sourceDistributionExtensions: python.verified(
+      ['.tar.gz', '.zip', '.tar.bz2', '.tbz', '.tgz', '.tar', '.tar.xz', '.txz', '.tlz', '.tar.lz', '.tar.lzma'],
+      'https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py',
+      'ARCHIVE_EXTENSIONS of pip without .whl: the archives pip accepts from an index besides wheels (index/package_finder.py rejects any other extension), all of them built when installed. A standard sdist is named {name}-{version}.tar.gz with the name normalized (PEP 625, source-distribution-format.rst); older uploads use the other extensions and names that are not normalized.',
+    ),
+    hatch: python.verified(
+      { pyprojectTable: 'tool.hatch', configFile: 'hatch.toml' },
+      'https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md',
+      'Hatch reads its project configuration from [tool.hatch] of pyproject.toml or from hatch.toml. It has no setting of its own for a release-age delay, building from source or dependency sources; its environments install with uv (installer = "uv", the default of its internal environments) or pip (docs/how-to/environment/select-installer.md), and uv reads [tool.uv] of the project under Hatch too (tested on 2026-10-30 with Hatch 1.18.2 and uv 0.13.6).',
+    ),
+    interpreter: python.verified(
+      { executables: ['python', 'python3', 'py'], moduleOption: '-m', commandOption: '-c', valueOptions: ['-W', '-X', '--check-hash-based-pycs'] },
+      'https://github.com/python/cpython/blob/v3.14.0/Doc/using/cmdline.rst',
+      'python [-bBdEhiIOPqRsSuvVWx?] [-c command | -m module-name | script | - ] [args]: -m and -c end the interpreter options, and what follows goes to the module or the command; -W arg, -X option and --check-hash-based-pycs mode take a value, the other options are flags. pip documents running itself as python -m pip, and as py -m pip with the Windows launcher (github.com/pypa/pip/blob/26.2.2/docs/html/cli/pip_install.rst).',
     ),
   },
 };

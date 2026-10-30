@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://unpkg.com/depcurfew/schema.json",
   "title": "depcurfew policy",
-  "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, Renovate and Dependabot.",
+  "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -145,6 +145,8 @@
               "uv",
               "pip",
               "poetry",
+              "pdm",
+              "pipenv",
               "renovate",
               "dependabot"
             ]

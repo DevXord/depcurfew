@@ -975,3 +975,51 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 - **Jedno źródło `fix`.** `policyErrorFix` w `src/apply/index.ts` daje tę samą poprawkę dla reguły `invalid-policy` w `doctor` i dla JSON z `apply` i `check`; `apply --json` ma teraz `fix` także dla `policy-invalid`.
 - **Bez zmian.** Tryb tekstowy `check` (błąd na stderr, kod 1) i hook Claude Code, który przy błędnej polityce już wcześniej odpowiadał decyzją `ask` w JSON.
 - **`schemaVersion` zostaje 1.** Nowe pola nie psują dotychczasowych odbiorców (zasada z CLAUDE.md).
+
+## D-071 · Python w `check` i w hooku Claude Code (2026-10-30)
+
+- **Problem.** `check` i hook sprawdzały tylko paczki npm. Polecenia `pip install`, `uv add`, `uvx`, `poetry add` i `pipx` przechodziły bez sprawdzenia, choć faza 10 obsługuje Pythona w `apply` i `doctor`.
+- **Decyzja: paczki Pythona mają prefiks `pypi:`,** tak jak nazwy w polityce (D-065). `check pypi:<wymaganie>` przyjmuje wymaganie jak pip (PEP 508: nazwa, extras, specyfikatory, znaczniki środowiska są pomijane) albo `nazwa@wersja`, `nazwa@^1.2` i `nazwa@latest` jak `uvx` i `poetry add`. Ograniczenia Poetry (`^`, `~`, `1.*`) są przeliczane na PEP 440 według tabel z dokumentacji Poetry 2.5.1.
+- **Źródło danych: Index API PyPI (JSON, PEP 691/700/792),** a nie `/pypi/<nazwa>/json`, którego klucz `releases` dokumentacja PyPI oznacza jako przestarzały. Strona projektu nie mówi, do której wersji należy plik, więc wersja pochodzi z nazwy pliku (wheel: `{nazwa}-{wersja}-…`, sdist: `{nazwa}-{wersja}.<archiwum>`, ze starymi nazwami z myślnikami). Jaja i instalatory Windows są pomijane, bo pip i uv ich z indeksu nie instalują.
+- **Co jest sprawdzane:**
+  - brak projektu (`not-found`) i podobne nazwy (`similar-name`): 5000 najpopularniejszych projektów PyPI z miesięcznego rankingu opartego na publicznych statystykach PyPI w BigQuery, porównanie po normalizacji PEP 503, więc `python_dateutil` to ta sama paczka co `python-dateutil`;
+  - wybór wersji jak w pip (PEP 440): najnowsza pasująca, wydania przedpremierowe tylko na żądanie albo gdy nic innego nie pasuje, wersje wycofane (yanked) tylko przy przypięciu `==`/`===` (wtedy ostrzeżenie `yanked`, PEP 592);
+  - wiek: według najnowszego pliku wersji, bo do wydania można później dodać pliki, a instalator może wybrać każdy z nich (zaokrąglenie w stronę dłuższego opóźnienia). Brak czasu przesłania to `unverified`;
+  - brak wheel (same sdisty): `install-scripts`, bo instalacja buduje paczkę ze źródeł i uruchamia jej kod budowania (D-065);
+  - status projektu (PEP 792): `quarantined` to błąd i odmowa w hooku, `archived` i `deprecated` to ostrzeżenia;
+  - git, URL i ścieżki według reguł pip, wspólnych z `doctor` (`requirementSource` w `src/doctor/python-lockfiles.ts`): tylko sekcja `sources`; `.` (sam projekt) to ostrzeżenie, inne systemy kontroli wersji to `unverified`.
+- **Nowe kody:** `yanked`, `archived`, `quarantined`. `schemaVersion` zostaje 1, bo nowe wartości nie psują odbiorców; nazwa paczki w raporcie ma prefiks `pypi:`.
+- **Hook:** czyta `pip install` (też `pip3`, `pip3.12`, `python -m pip`, `py -m pip`), `uv add`, `uv pip install`, `uv tool install`, `uvx`, `uv tool run`, `uv run --with`, `poetry add`, `pipx install` i `pipx run`.
+  - Polecenia Pythona są dopasowywane słowo po słowie. Wspólna lista podpoleceń zostaje tylko dla npm, bo `poetry install` czy `uv sync` niczego nie dodają.
+  - Opcje są czytane tak jak przez dane narzędzie: skróty długich opcji w pip i pipx (optparse, argparse), grupy krótkich opcji i wartość w tym samym słowie (`-Uihttps://…`) oraz opcje różne w poszczególnych poleceniach (`-e` w `uv pip install` ma wartość, w `uv tool install` to flaga). Bez tego hook dałoby się obejść.
+  - Opcja albo zmienna, która wskazuje inny indeks (`--index-url`, `--extra-index-url`, `--find-links`, `--index`, `--source`, `--pip-args`, `PIP_INDEX_URL`, `UV_INDEX`, `PIP_CONFIG_FILE` i inne), daje „ask”. Sam PyPI jest dozwolony.
+  - `uvx python…`, `uvx pypy@3.10` uruchamiają interpreter, nie paczkę. Skrypt pobierany z URL (`uv run https://…`, `pipx run https://….py`) daje „ask”.
+- **Poza zakresem:** paczki z plików wymagań (`pip install -r`) i z plików projektu (`uv sync`, `poetry install`) nie są sprawdzane, tak jak `npm install` bez nazw; lockfile'e sprawdza `doctor`. Indeks ustawiony w konfiguracji projektu nie jest czytany; inny indeks podaje się przez `--index`.
+- **Fakty** są w bazie wiedzy ze źródłami przypiętymi do wersji: polecenia i opcje w `pip.ts` (z pipx), `uv.ts` i `poetry.ts`, Index API, statusy projektów, rozszerzenia sdistów i interpreter w `environment.ts`. Nowe oficjalne źródła: `github.com/pypi/` (dokumentacja PyPI) i `github.com/python/` (dokumentacja CPython).
+
+## D-072 · PDM i Pipenv; Hatch przez uv (2026-10-30)
+
+- **Problem.** Projekty Pythona z PDM, Pipenv albo Hatch nie były wykrywane ani konfigurowane, a ich lockfile'e nie były sprawdzane.
+- **PDM (2.29.5): pełna obsługa.**
+  - `apply` pisze jeden zarządzany blok w `[tool.pdm.resolution]` pliku pyproject.toml: opóźnienie w formacie PDM (`36h`, `2d`, `1w`, od 2.26.9), wyjątki jako tabelę inline z `false` (od 2.29.1), zakaz budowania `":all:"` i listę paczek zawsze budowanych ze źródeł (od 2.15.0, D-065).
+  - `doctor` czyta `pdm.lock` (źródła i paczki z indeksu bez wheel), zgłasza stałą datę zamiast opóźnienia i tryb uv (`use_uv` w pdm.toml), w którym PDM instaluje przez `uv sync` bez zakazu budowania.
+  - Hook czyta `pdm add` (w tym `-e`, skróty opcji argparse, `--venv`, które zabiera następne słowo), a `PDM_PYPI_URL`, `-c`/`--config` i `PDM_CONFIG_FILE` dają „ask”.
+- **Pipenv (2026.10.4): tylko opóźnienie,** bo Pipfile nie ma innych ustawień.
+  - `apply` pisze opóźnienie w pełnych dniach, zaokrąglonych w górę (`<int>d`, od 2026.6.2), w bloku w `[pipenv]` Pipfile. Ostrzega, że wyjątków nie ma (`exclude-unsupported`) i że zakaz budowania wymaga `PIP_ONLY_BINARY=:all:` w środowisku (`build-switch-environment-only`).
+  - `doctor` czyta `Pipfile.lock`: źródła git, URL i ścieżki. Dla paczek z indeksu hashe nie odróżniają wheel od sdista, więc budowanie jest nieznane. Zgłasza `resolver_backend = "pure-python"` (także stary klucz `resolver`), przy którym Pipenv blokuje wersje bez opóźnienia; to zachowanie nieudokumentowane, sprawdzone na 2026.10.4.
+  - Hook czyta `pipenv install <paczka>` (bez paczek to instalacja z Pipfile); `-i`, `--pypi-mirror`, `PIPENV_PYPI_MIRROR`, `--extra-pip-args` i `PIPENV_DOTENV_LOCATION` dają „ask”.
+- **Wersji nie da się przypiąć.** Ani PDM, ani Pipenv nie mają ustawienia wersji w projekcie, więc `apply` konfiguruje dla najnowszej znanej wersji, a `version-not-pinned` mówi to wprost zamiast odsyłać do nieistniejącego miejsca.
+- **Hatch (1.18.2): bez generatora.** Hatch nie ma własnych ustawień opóźnienia, budowania ani źródeł; jego środowiska instalują przez uv albo pip. Projekt Hatch z instalatorem uv obsługuje istniejący generator uv (`"uv"` w `targets`, bo uv czyta `[tool.uv]` także pod Hatchem), a środowiska z pip — zmienne środowiskowe pip. README to opisuje; osobne wykrywanie Hatch nie dawałoby nic do skonfigurowania.
+- **Boty.** Dependabot `pip` obejmuje Pipenv; PDM nie jest obsługiwany (dependabot-core pomija pyproject.toml przy pdm.lock). Renovate: `pep621` dla PDM, `pipenv` dla Pipenv.
+- **Nowe kody `apply`:** `exclude-unsupported`, `build-switch-environment-only`. Nowe narzędzia w `targets` (schema.json): `pdm`, `pipenv`.
+
+## D-073 · Poprawki z pełnego testu paczki (2026-10-30)
+
+Pełny test paczki z tarballa (`npm pack`) na projektach testowych npm, pnpm, Yarn, Bun, Deno, uv, Poetry, pip, PDM, Pipenv i Hatch, z botami, GitHub Action i biblioteką, znalazł cztery rzeczy do poprawy:
+
+- **Podwójny znacznik w YAML.** Po ręcznej zmianie `default-days` w dependabot.yml `apply` dopisywał drugi komentarz `# managed by depcurfew` wewnątrz bloku `cooldown`, który już go miał. Klucz w mapie oznaczonej znacznikiem nie dostaje teraz własnego, ani przy podmianie wartości, ani przy dopisaniu nowego klucza.
+- **Wskazówki hooka.** Polecenie wskazujące inny indeks, pobierany skrypt (`uv run https://…`) i powłoka czytająca z potoku dostawały ogólną wskazówkę „wypisz nazwy paczek”. Każdy przypadek ma teraz własną (`unreadableFix` w `src/check/command.ts`, z tych samych stałych, z których powstaje powód).
+- **Zepsuty pyproject.toml.** `explain` zgłaszał obok `invalid-file` mylące `python-tool-unknown` („brak tabeli”), a `apply` mówił tylko, że nie ma czego konfigurować. Teraz zostaje samo `invalid-file`, a `apply` ostrzega nowym kodem `file-unreadable` z położeniem i poprawką.
+- **Hatch.** Ostrzeżenie `python-tool-unknown` w projekcie z `[tool.hatch]` albo `hatch.toml` podpowiada dodanie `"uv"` do `targets`, zgodnie z D-072.
+
+Bez zmian, bo to zamierzone: puste `FORCE_COLOR=` włącza kolory, a `FORCE_COLOR` wygrywa z `NO_COLOR`, tak jak w Node i supports-color (test w `tests/color.test.ts`). Krok Node akcji kończy się kodem 0 przy błędach, a zadanie przerywa następny krok `action.yml` (`fail-on-error`).

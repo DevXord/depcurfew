@@ -1,0 +1,13 @@
+{
+  "recordedAt": "2026-10-30T12:56:37.273Z",
+  "index": "https://pypi.org/simple/",
+  "status": {
+    "requests": 200,
+    "pycrypto": 200,
+    "ruff": 200,
+    "python-dateutil": 200,
+    "this-package-does-not-exist-xyz-123": 404,
+    "reqeusts": 404,
+    "pythondateutil": 404
+  }
+}

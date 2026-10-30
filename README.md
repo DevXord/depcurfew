@@ -1,6 +1,6 @@
 # depcurfew
 
-One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, Renovate and Dependabot, and a doctor that finds configuration that silently does nothing.
+One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot, and a doctor that finds configuration that silently does nothing.
 
 ## Why
 
@@ -128,12 +128,14 @@ Each warning and error of `apply` has a code. The text output shows it in parent
 Warnings:
 
 - `nothing-to-configure`: depcurfew found no supported package manager or bot, so nothing is configured.
+- `file-unreadable`: A file that shows which tools a project uses cannot be parsed, so depcurfew may configure fewer tools than the project uses.
 - `tool-not-supported`: A detected tool is not supported (Yarn Classic), so nothing is written for it.
 - `version-not-pinned`: No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.
 - `version-too-old`: The pinned version of a tool lacks a setting the policy needs, so that setting is not written.
 - `cooldown-not-written`: The release-age delay cannot be written for a tool.
 - `cooldown-environment-only`: pip reads no project configuration, so the release-age delay has to be set in the environment where pip runs.
 - `exclude-pattern-unsupported`: A cooldown exception uses a wildcard the tool does not support, so it is not written.
+- `exclude-unsupported`: The tool has no setting for cooldown exceptions, so the release-age delay applies to every package.
 - `allow-pattern-unsupported`: An installScripts.allow entry is a pattern, but the tool takes package names only, so it is not written.
 - `allow-all-unsupported`: The tool has no setting that allows every install script, so installScripts "allow" is not written.
 - `allow-all-replaced`: A setting that allowed every install script was replaced, because the policy denies install scripts.
@@ -147,6 +149,7 @@ Warnings:
 - `forced-source-build`: Python packages on the allow-list are always built from source, because no tool can only allow a build.
 - `build-switch-scope`: The tool's switch forbids building only packages from an index; git, local and archive dependencies are still built.
 - `build-switch-install-only`: Poetry applies its build switch when installing; poetry lock may still build source distributions.
+- `build-switch-environment-only`: The tool has no project setting that forbids building from source, so it has to be set in the environment where the tool runs.
 - `requirements-file-missing`: There is no requirements file to write pip options into.
 - `lockfile-out-of-date`: The lockfile records a setting apply changed, so it has to be locked again.
 - `bot-config-missing`: A bot has no configuration file, and depcurfew does not create one.
@@ -177,6 +180,8 @@ What depcurfew configures and checks for each tool, from its [knowledge base](do
 | uv | `exclude-newer` in `uv.toml`, `pyproject.toml` (duration string), since 0.9.17 | `exclude-newer-package`, since 0.9.25 | `no-binary-package` in `pyproject.toml` | none | 2026-10-30 |
 | pip | `uploaded-prior-to` on the command line or in the environment (no project file) (days), since 26.1.0 | none | `--no-binary` in `requirements.txt` | none | 2026-10-30 |
 | Poetry | `solver.min-release-age` in `poetry.toml` (days), since 2.4.0 | `solver.min-release-age-exclude`, since 2.4.0 | `installer.no-binary` in `poetry.toml` | none | 2026-10-30 |
+| PDM | `exclude-newer` in `pyproject.toml` (duration string), since 2.26.9 | `exclude-newer-override`, since 2.29.1 | `no-binary` in `pyproject.toml` | none | 2026-10-30 |
+| Pipenv | `cool-down-period` in `Pipfile` (duration string), since 2026.6.2 | none | none | none | 2026-10-30 |
 | Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 – 2026-10-30 |
 | Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 – 2026-10-30 |
 
@@ -187,13 +192,15 @@ Yarn Classic (1.x) is detected but not supported.
 
 ### Python projects
 
-depcurfew configures uv, Poetry and pip from the same `depcurfew.json`, and the bots for Python packages: Dependabot `pip` and `uv` entries and Renovate.
+depcurfew configures uv, Poetry, PDM, Pipenv and pip from the same `depcurfew.json`, and the bots for Python packages: Dependabot `pip` and `uv` entries and Renovate.
 
 - **Detection.** A Python tool counts as used when its lockfile is there, when `pyproject.toml` has its table, or when its own configuration file or a CI setup step shows it; `requirements.txt` means pip. `depcurfew explain` lists what it found.
 - **Package names.** Python packages on the policy's package lists (the cooldown exceptions and `installScripts.allow`) take the prefix `pypi:`, for example `"pypi:docopt"`. Names without a prefix stay npm names, so an exception for an npm package never applies to a Python package of the same name.
 - **Install scripts are builds.** A wheel installs without running package code; a source distribution, a git repository or a local directory is built, which runs its build code. `installScripts.default: "deny"` forbids building, and the packages in `installScripts.allow` are the exceptions. None of the three tools can only allow a build, so these packages are always built from source, even where a wheel exists; `apply` says so, and `doctor` lists the packages in the lockfile that would be built.
 - **pip reads no project configuration.** `apply` writes the build options into `requirements.txt`. The release-age delay cannot live in the project, so `apply` prints the environment variable to set where pip runs. `doctor` also checks the files a requirements file includes with `-r` and `-c`, and reports an include it cannot read.
 - **uv.lock records the delay.** After `apply` changes the release-age delay of a uv project, `uv sync --locked` and `uv lock --check` fail until you run `uv lock`; `apply` says so.
+- **PDM and Pipenv cannot pin their own version.** `apply` configures for the latest version depcurfew knows and says which version the settings need. Pipenv takes the delay in whole days only (rounded up), has no exceptions and no project setting that forbids building; `apply` says what to set where Pipenv runs instead. `doctor` reads `pdm.lock` and `Pipfile.lock`, and reports settings that turn the delay or the build ban off without a word: Pipenv's pure-Python resolver and PDM's uv mode.
+- **Hatch has no settings of its own.** Its environments install with uv or pip, so a Hatch project is covered by the uv configuration (add `"uv"` to `targets` when its environments use the uv installer) or by the environment variables of pip.
 - **Running depcurfew.** depcurfew is a Node.js program. In a project without `package.json`, run a pinned version with `npx --yes depcurfew@<version>`; in CI the [GitHub Action](#github-action) needs nothing else.
 
 ## doctor rules
@@ -245,7 +252,7 @@ Fix: Remove security settings from package .npmrc files, or keep the default sha
 
 **error** · A Python tool ignores a setting where it is written.
 
-uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.
+uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = "pure-python" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.
 
 Fix: Move the setting to the file the tool reads.
 
@@ -369,15 +376,18 @@ The configuration `apply` writes is what really protects a project: the package 
 
 ```bash
 npx depcurfew check zod@4 left-pad
+npx depcurfew check pypi:requests "pypi:django>=5.2,<6"
 ```
 
-For each package it looks up the public npm registry and reports:
+For each package it looks up the public npm registry, or PyPI for names with the `pypi:` prefix, and reports:
 
 - a name the registry does not know, which is how made-up package names show up;
 - a version younger than the cooldown in `depcurfew.json`, with the newest version that is old enough;
-- install scripts the policy does not allow;
-- a name that differs by a letter or two, or only in separators, from one of the 5,000 most downloaded packages;
+- install scripts the policy does not allow; for a Python package, a version without wheels, which is built from source and so runs its build code;
+- a name that differs by a letter or two, or only in separators, from one of the 5,000 most downloaded packages of its registry;
 - a deprecated version (a warning).
+
+Python packages are written as pip takes them after the prefix (`pypi:name`, `pypi:name==1.2`, `pypi:name[extra]>=1.2,<2`), or as `pypi:name@1.2`, `pypi:name@^1.2` and `pypi:name@latest`, as `uvx` and `poetry add` take them. The version is picked as pip picks it: the newest match, pre-releases only when asked for or when nothing else matches, and yanked versions only when pinned with `==` (a warning). A version is as old as its newest file, because files can be added to a release later. A project PyPI quarantines (as malware, for example) is an error; an archived or deprecated one, a warning. `--index` looks Python packages up in another index that serves the JSON form of the simple repository API.
 
 Git repositories, tarball URLs and local paths are checked against the `sources` section only. Without a `depcurfew.json` in the directory or one of its parents, the default policy applies. When the registry cannot be reached, the package counts as failed: `check` exits with 1 whenever a package breaks the policy or cannot be checked. With `--json` it prints one document and nothing on stderr: `packages` with their findings (each with `code`, `level`, `message` and `fix`), `notices`, and `errors` for a `depcurfew.json` that cannot be used, in which case no package is checked.
 
@@ -389,7 +399,7 @@ Git repositories, tarball URLs and local paths are checked against the `sources`
 - **ask** when depcurfew cannot vouch for the command: a look-alike name, a registry it cannot reach, an error of its own, or a command it cannot read, such as one with `$(...)` or variables in its arguments, or a shell that runs commands from a pipe (`curl … | sh`);
 - nothing when everything checks out, so the command goes through Claude Code's usual permission prompts.
 
-It follows the command lines inside a command: `$(...)` and backticks, `sh -c`, `eval`, `npx -c`, `yarn workspace <name>`, and wrappers such as `sudo`, `env`, `timeout` and `xargs`. When it cannot read the hook event at all, it exits with code 2, which blocks the command in every Claude Code version.
+It follows the command lines inside a command: `$(...)` and backticks, `sh -c`, `eval`, `npx -c`, `yarn workspace <name>`, `python -m pip`, the command `uv run` runs, and wrappers such as `sudo`, `env`, `timeout` and `xargs`. It reads options the way each tool does, including abbreviated long options of pip and pipx (`--extra` for `--extra-index-url`) and short options with their value in the same word (`-ihttps://…`), so an option, or a variable such as `PIP_INDEX_URL` or `UV_INDEX`, that points the tool at another index makes it ask. Packages from requirements files (`pip install -r`) and the project's own files (`uv sync`, `poetry install`) are not checked, as with `npm install` without names; `depcurfew doctor` checks the lockfiles. When it cannot read the hook event at all, it exits with code 2, which blocks the command in every Claude Code version.
 
 Install depcurfew as a development dependency of the project, then add the hook:
 
@@ -423,7 +433,7 @@ In `.claude/settings.json` of the project:
 
 `onFailure: "block"` needs Claude Code 2.1.295 or later; without it, a hook that fails to start, crashes or times out lets the command through.
 
-Commands the guard reads (an add subcommand of any package manager, such as `install` or `i`, is checked for all of them):
+Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; Python commands are matched word for word, and `python -m pip` counts as `pip`):
 
 | Package manager | Add packages | Download and run | Starter kits |
 | --- | --- | --- | --- |
@@ -432,6 +442,12 @@ Commands the guard reads (an add subcommand of any package manager, such as `ins
 | Yarn (Berry) | `yarn add` | `yarn dlx` | `yarn create` |
 | Bun | `bun add` | `bunx`, `bun x` | `bun create` |
 | Deno | `deno add`, `deno install` | none | none |
+| uv | `uv add`, `uv pip install`, `uv tool install` | `uvx`, `uv tool run`, `uv run` | none |
+| pip | `pip install`, `pip3 install` | none | none |
+| pipx | `pipx install` | `pipx run` | none |
+| Poetry | `poetry add` | none | none |
+| PDM | `pdm add` | none | none |
+| Pipenv | `pipenv install` | none | none |
 <!-- END GENERATED: claude-code-hook -->
 
 The hook reads commands the way a shell splits them, but it is a safety net, not a sandbox: a command can install packages in ways it does not recognize (a script, another tool). Keep the package manager configuration from `depcurfew apply` in place; it is what enforces the policy for every install.

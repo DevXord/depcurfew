@@ -1,0 +1,7 @@
+[project]
+name = "demo"
+version = "0.1.0"
+dependencies = ["idna"]
+
+[tool.pdm.resolution]
+exclude-newer = "2026-01-01"

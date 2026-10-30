@@ -10,7 +10,9 @@
 import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
-import type { CommandLineKnowledge, DownloadCommand, RegistryOverridesKnowledge, ToolId } from '../knowledge/types.ts';
+import type { CommandLineKnowledge, DownloadCommand, Ecosystem, PythonInterpreterKnowledge, RegistryOverridesKnowledge, ToolId } from '../knowledge/types.ts';
+import { ecosystemOfTool } from '../policy/ecosystem.ts';
+import { PYPI_PREFIX } from '../policy/package-pattern.ts';
 
 interface Word {
   text: string;
@@ -423,28 +425,31 @@ function simpleCommands(items: readonly Item[]): SimpleCommand[] {
 
 interface ToolCommands {
   tool: ToolId;
+  ecosystem: Ecosystem;
   facts: CommandLineKnowledge;
   valueOptions: ReadonlySet<string>;
+  /** Every long option the tool is known to have, to resolve abbreviations. */
+  longOptions: readonly string[];
   /** Options whose value is a registry URL, and options whose value is another configuration file. */
   registryOptions: readonly RegExp[];
   configOptions: readonly RegExp[];
+  /** The public registry of the tool's ecosystem, which a command may name without changing where packages come from. */
+  publicRegistry: string;
 }
 
 interface Commands {
   tools: ToolCommands[];
-  /** Subcommands that add packages with any package manager; their arguments are checked for every one of them. */
+  /** Subcommands that add packages with any npm package manager; their arguments are checked for every one of them. */
   add: ReadonlySet<string>;
   /** Executables of every package manager command. */
   executables: ReadonlySet<string>;
   /** Last words of every install, run and create command, to spot them behind an executable the shell expands. */
   installWords: ReadonlySet<string>;
-  /** Commands whose arguments may run a package manager: package manager executables, shells and wrappers. */
+  /** Commands whose arguments may run a package manager: package manager executables, shells, wrappers and Python. */
   runners: ReadonlySet<string>;
-  /** Environment variables of any package manager, lowercased, whose value is a registry URL or a configuration file. */
-  registryVariables: ReadonlySet<string>;
+  /** Environment variables of any package manager, lowercased, whose value is a registry URL, with that ecosystem's public registry. */
+  registryVariables: ReadonlyMap<string, string>;
   configVariables: ReadonlySet<string>;
-  /** The public registry, which a command may name without changing where packages come from. */
-  publicRegistry: string;
 }
 
 /** A matcher for an option name in which <scope> stands for any scope. */
@@ -455,42 +460,79 @@ function optionPattern(option: string): RegExp {
 
 let cached: Commands | undefined;
 
-function overridesOf(id: ToolId): RegistryOverridesKnowledge | undefined {
-  const fact = knowledgeBase.find((tool) => tool.id === id)?.extra?.['registryOverrides'];
-  return fact === undefined ? undefined : (values(fact)[0] as RegistryOverridesKnowledge | undefined);
+function factOf<T>(tool: (typeof knowledgeBase)[number], key: string): T | undefined {
+  const fact = tool.extra?.[key];
+  return fact === undefined ? undefined : (values(fact)[0] as T | undefined);
+}
+
+function publicRegistryOf(ecosystem: Ecosystem): string {
+  return ecosystem === 'pypi' ? (values(environment.pypiIndex.api)[0]?.url ?? '') : (values(environment.npmRegistry.api)[0]?.url ?? '');
+}
+
+/** Python interpreters, whose -m runs a package manager as a module (python -m pip). */
+function interpreter(): PythonInterpreterKnowledge | undefined {
+  return values(environment.python.interpreter)[0];
 }
 
 function commands(): Commands {
   if (cached !== undefined) return cached;
-  const tools = knowledgeBase.flatMap((tool): ToolCommands[] => {
-    const fact = tool.extra?.['commandLine'];
-    const facts = fact === undefined ? undefined : (values(fact)[0] as CommandLineKnowledge | undefined);
-    if (facts === undefined) return [];
-    const extra = tool.extra?.['valueOptions'];
-    const more = extra === undefined ? [] : ((values(extra)[0] as string[] | undefined) ?? []);
-    const overrides = overridesOf(tool.id);
-    return [
-      {
-        tool: tool.id,
-        facts,
-        valueOptions: new Set([...facts.valueOptions, ...more]),
-        registryOptions: (overrides?.registryOptions ?? []).map(optionPattern),
-        configOptions: (overrides?.configOptions ?? []).map(optionPattern),
-      },
-    ];
-  });
+  // A tool may have several command-line facts (pip has pipx's too); each has its registry overrides next to it.
+  const tools = knowledgeBase.flatMap((tool): ToolCommands[] =>
+    Object.keys(tool.extra ?? {})
+      .filter((key) => /(?:^c|C)ommandLine$/u.test(key))
+      .flatMap((key): ToolCommands[] => {
+        const facts = factOf<CommandLineKnowledge>(tool, key);
+        if (facts === undefined) return [];
+        const more = factOf<string[]>(tool, key.replace(/(?:^c|C)ommandLine$/u, (found) => (found.startsWith('c') ? 'valueOptions' : 'ValueOptions'))) ?? [];
+        const overrides = factOf<RegistryOverridesKnowledge>(tool, key.replace(/(?:^c|C)ommandLine$/u, (found) => (found.startsWith('c') ? 'registryOverrides' : 'RegistryOverrides')));
+        const ecosystem = ecosystemOfTool(tool);
+        const download = [...facts.run, ...facts.create];
+        const valueOptions = new Set([...facts.valueOptions, ...more]);
+        const all = [
+          ...valueOptions,
+          ...(facts.flagOptions ?? []),
+          ...download.flatMap((entry) => [...entry.packageOptions, ...(entry.extraPackageOptions ?? []), ...(entry.lineOptions ?? []), ...(entry.shellOptions ?? [])]),
+          ...(facts.commandOptions ?? []).flatMap((entry) => entry.valueOptions),
+          ...(overrides?.registryOptions ?? []),
+          ...(overrides?.configOptions ?? []),
+        ];
+        return [
+          {
+            tool: tool.id,
+            ecosystem,
+            facts,
+            valueOptions,
+            longOptions: [...new Set(all.filter((option) => option.startsWith('--') && !option.includes('<')))],
+            registryOptions: (overrides?.registryOptions ?? []).map(optionPattern),
+            configOptions: (overrides?.configOptions ?? []).map(optionPattern),
+            publicRegistry: publicRegistryOf(ecosystem),
+          },
+        ];
+      }),
+  );
   const all = tools.flatMap(({ facts }) => [...facts.add, ...[...facts.create, ...facts.run].map((entry) => entry.command)]);
   const executables = new Set(all.map((entry) => entry[0] ?? ''));
-  const overrides = knowledgeBase.flatMap((tool) => overridesOf(tool.id) ?? []);
+  const overrides = tools.flatMap((tool) => {
+    const source = knowledgeBase.find((entry) => entry.id === tool.tool);
+    return source === undefined
+      ? []
+      : Object.keys(source.extra ?? {})
+          .filter((key) => /(?:^r|R)egistryOverrides$/u.test(key))
+          .flatMap((key) => {
+            const fact = factOf<RegistryOverridesKnowledge>(source, key);
+            return fact === undefined ? [] : [{ fact, publicRegistry: tool.publicRegistry }];
+          });
+  });
+  // Only npm package managers share their add subcommands: pip, uv and Poetry commands are matched word for word.
+  const npmTools = tools.filter((tool) => tool.ecosystem === 'npm');
   cached = {
     tools,
-    add: new Set(tools.flatMap(({ facts }) => facts.add.map((entry) => entry.at(-1) ?? ''))),
+    add: new Set(npmTools.flatMap(({ facts }) => facts.add.map((entry) => entry.at(-1) ?? ''))),
     executables,
     installWords: new Set(all.map((entry) => entry.at(-1) ?? '')),
-    runners: new Set([...executables, ...SHELLS, ...WRAPPERS.keys()]),
-    registryVariables: new Set(overrides.flatMap((entry) => entry.registryVariables.map((name) => name.toLowerCase()))),
-    configVariables: new Set(overrides.flatMap((entry) => entry.configVariables.map((name) => name.toLowerCase()))),
-    publicRegistry: values(environment.npmRegistry.api)[0]?.url ?? '',
+    runners: new Set([...executables, ...SHELLS, ...WRAPPERS.keys(), ...(interpreter()?.executables ?? [])]),
+    registryVariables: new Map(overrides.flatMap(({ fact, publicRegistry }) => fact.registryVariables.map((name) => [name.toLowerCase(), publicRegistry] as const))),
+    configVariables: new Set(overrides.flatMap(({ fact }) => fact.configVariables.map((name) => name.toLowerCase()))),
   };
   return cached;
 }
@@ -558,7 +600,7 @@ function basename(text: string): string {
   return (text.split(/[/\\]/u).at(-1) ?? text).replace(/\.(?:cmd|exe|ps1)$/iu, '');
 }
 
-function createPackage(argument: string, rule: CommandLineKnowledge['createNames']): string {
+function createPackage(argument: string, rule: CommandLineKnowledge['createNames'] = 'prefix'): string {
   const at = argument.indexOf('@', argument.startsWith('@') ? 1 : 0);
   const name = at <= 0 ? argument : argument.slice(0, at);
   const selector = at <= 0 ? '' : argument.slice(at);
@@ -598,22 +640,37 @@ function sameRegistry(value: string, registry: string): boolean {
   return registry !== '' && normalized(value) === normalized(registry);
 }
 
+const ANOTHER_REGISTRY = 'may point the package manager at another registry, which depcurfew does not look up';
+const SCRIPT_DOWNLOAD = 'downloads and runs a script from';
+const FROM_INPUT = 'it runs commands from its input';
+
 function anotherRegistry(name: string): string {
-  return `${name} may point the package manager at another registry, which depcurfew does not look up`;
+  return `${name} ${ANOTHER_REGISTRY}`;
+}
+
+/** What to do about a command that cannot be read, by why it cannot be read. */
+export function unreadableFix(reason: string): string {
+  if (reason.includes(ANOTHER_REGISTRY)) {
+    return 'Leave out the option or variable so that packages come from the registry depcurfew checks; if the other registry is intended, the user decides';
+  }
+  if (reason.includes(SCRIPT_DOWNLOAD)) return 'Download the script and read it first, or install its dependencies by name so that depcurfew can check them';
+  if (reason.includes(FROM_INPUT)) return 'Download the script and read it first, or run its commands one by one so that depcurfew can check them';
+  return 'Write the package names out in the command, so depcurfew can check them';
 }
 
 /** Why an option may change where the tool fetches packages from; undefined when it does not. */
 function registryOption(tool: ToolCommands, name: string, value: string | undefined): string | undefined {
   if (tool.configOptions.some((pattern) => pattern.test(name))) return anotherRegistry(name);
   if (!tool.registryOptions.some((pattern) => pattern.test(name))) return undefined;
-  return value !== undefined && sameRegistry(value, commands().publicRegistry) ? undefined : anotherRegistry(name);
+  return value !== undefined && sameRegistry(value, tool.publicRegistry) ? undefined : anotherRegistry(name);
 }
 
 /** Why a variable may change where a package manager fetches packages from; undefined when it does not. */
 function registryVariable(name: string, value: string | undefined): string | undefined {
-  const { configVariables, registryVariables, publicRegistry } = commands();
+  const { configVariables, registryVariables } = commands();
   if (configVariables.has(name.toLowerCase())) return anotherRegistry(name);
-  if (!registryVariables.has(name.toLowerCase())) return undefined;
+  const publicRegistry = registryVariables.get(name.toLowerCase());
+  if (publicRegistry === undefined) return undefined;
   return value !== undefined && sameRegistry(value, publicRegistry) ? undefined : anotherRegistry(name);
 }
 
@@ -630,15 +687,101 @@ function merge(into: CommandScan, scan: CommandScan): void {
 
 type Outcome = { specs: string[]; lines: string[]; rest: Word[] } | { unreadable: string };
 
+/** The options of one command of a tool: those of the tool and those of the command. */
+interface CommandContext {
+  values: ReadonlySet<string>;
+  editable: ReadonlySet<string>;
+}
+
+function contextOf(tool: ToolCommands, command: readonly string[] | undefined): CommandContext {
+  const own = command === undefined ? undefined : tool.facts.commandOptions?.find((entry) => entry.command.length === command.length && entry.command.every((part, index) => part === command[index]));
+  return {
+    values: new Set([...tool.valueOptions, ...(own?.valueOptions ?? [])]),
+    editable: new Set([...(tool.facts.editableOptions ?? []), ...(own?.editableOptions ?? [])]),
+  };
+}
+
+interface ReadOption {
+  /** The option, its abbreviation resolved. */
+  name: string;
+  /** Its value: attached (--opt=value, -ovalue) or the next word. */
+  value: string | undefined;
+  /** The next word, when it is the value. */
+  next: Word | undefined;
+}
+
+/**
+ * Reads the option at `index`. `takes` tells whether a resolved option takes a value. Tools that accept abbreviated long
+ * options (optparse, argparse) have them resolved to the one option they name; tools that group short options read
+ * -Uq as two flags and -ivalue as -i with a value.
+ */
+function readOption(words: readonly Word[], index: number, tool: ToolCommands, takes: (name: string) => boolean): ReadOption {
+  const text = (words[index] as Word).text;
+  const parsing = tool.facts.parsing;
+  let [name, attached] = splitOption(text);
+  if (parsing?.groupedShortOptions === true && /^-[^-]./u.test(text) && attached === undefined) {
+    // -Uihttps://… is -U, then -i with the rest of the word as its value.
+    for (let position = 1; position < text.length; position++) {
+      const option = `-${text[position] as string}`;
+      if (takes(option)) {
+        const rest = text.slice(position + 1);
+        return rest === '' ? { name: option, value: words[index + 1]?.text, next: words[index + 1] } : { name: option, value: rest, next: undefined };
+      }
+    }
+    return { name: text, value: undefined, next: undefined };
+  }
+  if (parsing?.abbreviations === true && name.startsWith('--') && !tool.longOptions.includes(name)) {
+    const matches = tool.longOptions.filter((option) => option.startsWith(name));
+    if (matches.length === 1) name = matches[0] as string;
+  }
+  if (attached !== undefined || !takes(name)) return { name, value: attached, next: undefined };
+  return { name, value: words[index + 1]?.text, next: words[index + 1] };
+}
+
+/** A path for an editable install: pip and uv take the value of -e for a path even without a separator. */
+function editablePath(value: string): string {
+  return /[/\\]|^\.|:\/\/|^[A-Za-z]+\+/u.test(value) ? value : `./${value}`;
+}
+
+/** uv's lists of requirements: split at commas outside [...] that are not followed by !, =, <, > or ~. */
+function commaSeparated(value: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index];
+    if (char === '[') depth += 1;
+    else if (char === ']') depth = Math.max(0, depth - 1);
+    else if (char === ',' && depth === 0 && !/^\s*[!=<>~]/u.test(value.slice(index + 1))) {
+      parts.push(value.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  parts.push(value.slice(start).trim());
+  return parts.filter((part) => part !== '');
+}
+
+/** A first argument that names an interpreter (uvx python3.12), not a package. */
+function isInterpreter(text: string, names: readonly string[] | undefined): boolean {
+  return names !== undefined && names.some((name) => new RegExp(`^${name}(?:@?[0-9][0-9.]*)?$`, 'iu').test(text));
+}
+
+function scriptDownload(text: string): string {
+  return `it ${SCRIPT_DOWNLOAD} ${shown(text)}, whose dependencies depcurfew cannot see`;
+}
+
 /**
  * The package arguments after the subcommand, the command lines given to options and, for run and create commands,
  * the words left for the package; or why they cannot be read.
  */
-function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', tool: ToolCommands, entry: DownloadCommand | undefined): Outcome {
+function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', tool: ToolCommands, entry: DownloadCommand | undefined, context: CommandContext): Outcome {
   const packageOptions = entry?.packageOptions ?? [];
+  const extraOptions = mode === 'add' ? (tool.facts.addPackageOptions ?? []) : (entry?.extraPackageOptions ?? []);
   const lineOptions = entry?.lineOptions ?? [];
+  const takes = (name: string) => context.values.has(name) || packageOptions.includes(name) || extraOptions.includes(name) || lineOptions.includes(name);
   const specs: string[] = [];
   const lines: string[] = [];
+  let named = false;
   let positional = false;
   let shell = false;
   for (let index = 0; index < words.length; index++) {
@@ -650,16 +793,15 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
     if (!positional && isOption(word.text)) {
       // Options are read too: one the shell expands may name a package or change how the rest is read.
       if (word.dynamic) return { unreadable: expanded(word) };
-      const [name, attached] = splitOption(word.text);
+      const option = readOption(words, index, tool, takes);
+      const { name, value, next } = option;
       // The arguments are local files (deno install --entrypoint), so no package is named.
       if (mode === 'add' && tool.facts.fileOptions?.includes(name) === true) return { specs: [], lines, rest: [] };
       if (entry?.shellOptions?.includes(name) === true) {
         shell = true;
         continue;
       }
-      const takesValue = attached === undefined && (tool.valueOptions.has(name) || packageOptions.includes(name) || lineOptions.includes(name));
-      const next = takesValue ? words[++index] : undefined;
-      const value = attached ?? next?.text;
+      if (next !== undefined) index += 1;
       if (lineOptions.includes(name)) {
         // A command line that runs with the packages: read like the rest, expansions included.
         if (next?.input === true) return { unreadable: expanded(next) };
@@ -669,7 +811,13 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
       if (next?.dynamic === true) return { unreadable: `"${shown(`${word.text} ${next.text}`)}" is expanded by the shell` };
       const setting = registryOption(tool, name, value);
       if (setting !== undefined) return { unreadable: setting };
-      if (mode !== 'add' && packageOptions.includes(name) && value !== undefined) specs.push(value);
+      if (value === undefined) continue;
+      const listed = tool.facts.commaSeparatedOptions?.includes(name) === true ? commaSeparated(value) : [value];
+      const editable = context.editable.has(name);
+      if ((mode !== 'add' && packageOptions.includes(name)) || extraOptions.includes(name) || editable) {
+        specs.push(...listed.map((spec) => (editable ? editablePath(spec) : spec)));
+        if (packageOptions.includes(name)) named = true;
+      }
       continue;
     }
     if (shell) {
@@ -683,8 +831,19 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
       specs.push(word.text);
       continue;
     }
-    // run and create: the first positional argument names the package (unless --package did); it runs with the rest.
-    if (mode === 'run' && specs.length === 0) specs.push(word.text);
+    // run and create: the first positional argument names the package (unless an option did); it runs with the rest.
+    if (mode === 'run') {
+      const url = /^https?:\/\//iu.test(word.text);
+      if (entry?.packageArgument === false) {
+        if (entry.scriptUrls === true && url) return { unreadable: scriptDownload(word.text) };
+        return { specs, lines, rest: words.slice(index) };
+      }
+      if (entry?.scriptSuffixes?.some((suffix) => word.text.toLowerCase().endsWith(suffix)) === true) {
+        return url ? { unreadable: scriptDownload(word.text) } : { specs, lines, rest: [] };
+      }
+      if (!named && isInterpreter(word.text, tool.facts.interpreterNames)) return { specs, lines, rest: words.slice(index) };
+      if (!named) specs.push(word.text);
+    }
     if (mode === 'create') specs.push(/^[.~/\\]|^[^@][^/]*\//u.test(word.text) ? word.text : createPackage(word.text, tool.facts.createNames));
     return { specs, lines, rest: words.slice(index) };
   }
@@ -693,7 +852,9 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
 
 function finish(tool: ToolCommands, line: string, outcome: Outcome, depth: number): CommandScan {
   if ('unreadable' in outcome) return unreadable(`${shown(line)}: ${outcome.unreadable}`);
-  const scan: CommandScan = { requests: outcome.specs.map((spec) => ({ tool: tool.tool, command: line, spec })), unreadable: undefined };
+  // Python specs carry the prefix of the policy, so that check looks them up on the index.
+  const prefix = tool.ecosystem === 'pypi' ? PYPI_PREFIX : '';
+  const scan: CommandScan = { requests: outcome.specs.map((spec) => ({ tool: tool.tool, command: line, spec: `${prefix}${spec}` })), unreadable: undefined };
   for (const nested of outcome.lines) merge(scan, scanLine(nested, depth + 1));
   // The package may run a package manager in turn (npx cross-env NODE_ENV=x npm install …).
   merge(scan, laterCommand(outcome.rest, depth));
@@ -740,7 +901,7 @@ function scanShell(words: readonly Word[], command: SimpleCommand, depth: number
   const reads = fromInput || operand === undefined || operand.text === '-';
   if (!reads || command.later === true) return NOTHING;
   // A here-document or here-string is known; a pipe or a file is not.
-  if (command.input.length === 0 || command.redirected) return unreadable(`${shown(joined(words))}: it runs commands from its input`);
+  if (command.input.length === 0 || command.redirected) return unreadable(`${shown(joined(words))}: ${FROM_INPUT}`);
   const scan: CommandScan = { requests: [], unreadable: undefined };
   for (const input of command.input) merge(scan, scanLine(input, depth + 1));
   return scan;
@@ -792,6 +953,91 @@ function unwrap(words: readonly Word[], wrapper: Wrapper): { words: Word[] } | {
   return { words: rest.map((word) => (word.text.includes(marker) ? { text: word.text, dynamic: true, input: true } : word)) };
 }
 
+/** The executable a word runs: its base name, without @version (npx@10) or a version suffix such as pip3.12 or python3.12. */
+function executableOf(text: string): string {
+  const name = basename(text).replace(/@[^/]*$/u, '');
+  const { executables } = commands();
+  if (executables.has(name)) return name;
+  const unversioned = name.replace(/[0-9][0-9.]*$/u, '');
+  return unversioned !== name && (executables.has(unversioned) || interpreter()?.executables.includes(unversioned) === true) ? unversioned : name;
+}
+
+/** python -m <module>: the module when it is a package manager (python -m pip install …), run with the rest of the words. */
+function scanInterpreter(words: readonly Word[], command: SimpleCommand, depth: number): CommandScan {
+  const facts = interpreter();
+  if (facts === undefined) return NOTHING;
+  for (let index = 1; index < words.length; index++) {
+    const word = words[index] as Word;
+    if (!isOption(word.text)) return NOTHING;
+    if (word.dynamic) return unreadable(`${shown(joined(words))}: ${expanded(word)}`);
+    // A command string (-c) is Python code, which depcurfew does not read.
+    if (word.text.startsWith(facts.commandOption)) return NOTHING;
+    if (word.text.startsWith(facts.moduleOption)) {
+      const attached = word.text.slice(facts.moduleOption.length);
+      const module = attached === '' ? words[index + 1] : { text: attached, dynamic: false };
+      if (module === undefined) return NOTHING;
+      if (module.dynamic) return unreadable(`${shown(joined(words))}: ${expanded(module, 'the module ')}`);
+      if (!commands().executables.has(module.text)) return NOTHING;
+      return scanCommand({ ...command, words: [{ text: module.text, dynamic: false }, ...words.slice(index + (attached === '' ? 2 : 1))] }, depth);
+    }
+    if (facts.valueOptions.includes(word.text)) index += 1;
+  }
+  return NOTHING;
+}
+
+/** The subcommand words after the executable, skipping options and their values, with where each one stands. */
+function commandWords(rest: readonly Word[], tool: ToolCommands, line: string): { words: { word: Word; index: number }[] } | { unreadable: string } {
+  const found: { word: Word; index: number }[] = [];
+  const context = contextOf(tool, undefined);
+  for (let index = 0; index < rest.length && found.length < 3; index++) {
+    const word = rest[index] as Word;
+    if (word.text === '--') break;
+    if (isOption(word.text)) {
+      if (word.dynamic) return { unreadable: `${shown(line)}: ${expanded(word)}` };
+      const option = readOption(rest, index, tool, (name) => context.values.has(name));
+      if (option.next?.dynamic === true) return { unreadable: `${shown(line)}: "${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell` };
+      const setting = registryOption(tool, option.name, option.value);
+      if (setting !== undefined) return { unreadable: `${shown(line)}: ${setting}` };
+      if (option.next !== undefined) index += 1;
+      continue;
+    }
+    found.push({ word, index });
+  }
+  return { words: found };
+}
+
+/** pip, uv, Poetry, PDM, Pipenv and pipx: their install, run and add commands matched word for word (uv pip install, uv tool run). */
+function scanPythonTool(tool: ToolCommands, executable: string, rest: readonly Word[], line: string, depth: number): CommandScan | undefined {
+  const { facts } = tool;
+  const read = commandWords(rest, tool, line);
+  if ('unreadable' in read) return unreadable(read.unreadable);
+  const found = read.words;
+  const dynamic = found.find(({ word }) => word.dynamic);
+  /** Where the arguments of the command start, when the words match it. */
+  const match = (command: readonly string[]): number | undefined => {
+    if (command[0] !== executable) return undefined;
+    const parts = command.slice(1);
+    for (let index = 0; index < parts.length; index++) if (found[index]?.word.text !== parts[index] || found[index]?.word.dynamic === true) return undefined;
+    return parts.length === 0 ? 0 : (found[parts.length - 1]?.index ?? 0) + 1;
+  };
+  // Longer commands first, so that uv tool run is not taken for uv run.
+  const byLength = <T>(list: readonly T[], command: (entry: T) => readonly string[]) => [...list].sort((a, b) => command(b).length - command(a).length);
+  for (const entry of byLength(facts.run, (item) => item.command)) {
+    const start = match(entry.command);
+    if (start !== undefined) return finish(tool, line, readArguments(rest.slice(start), 'run', tool, entry, contextOf(tool, entry.command)), depth);
+  }
+  for (const entry of byLength(facts.create, (item) => item.command)) {
+    const start = match(entry.command);
+    if (start !== undefined) return finish(tool, line, readArguments(rest.slice(start), 'create', tool, entry, contextOf(tool, entry.command)), depth);
+  }
+  for (const command of byLength(facts.add, (item) => item)) {
+    const start = match(command);
+    if (start !== undefined) return finish(tool, line, readArguments(rest.slice(start), 'add', tool, undefined, contextOf(tool, command)), depth);
+  }
+  if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic.word, 'the subcommand ')}`);
+  return undefined;
+}
+
 function scanCommand(command: SimpleCommand, depth: number): CommandScan {
   const { tools, add, installWords } = commands();
   let words = command.words;
@@ -818,41 +1064,47 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
   const line = joined(words);
   // A command line built at run time (eval "$CMD", sh -c "$X") cannot be known in advance.
   if (depth > 0 && WHOLE_EXPANSION.test(first.text)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
-  const executable = basename(first.text).replace(/@[^/]*$/u, '');
+  const executable = first.dynamic ? basename(first.text) : executableOf(first.text);
   if (SHELLS.has(executable)) return scanShell(words, command, depth);
+  if (!first.dynamic && interpreter()?.executables.includes(executable) === true) return scanInterpreter(words, command, depth);
   const rest = words.slice(1);
   for (const tool of tools) {
     const { facts } = tool;
     const run = facts.run.find((entry) => entry.command.length === 1 && entry.command[0] === executable);
-    if (run !== undefined) return finish(tool, line, readArguments(rest, 'run', tool, run), depth);
+    if (run !== undefined) return finish(tool, line, readArguments(rest, 'run', tool, run, contextOf(tool, run.command)), depth);
     const owns = [...facts.add, ...facts.run.map((entry) => entry.command), ...facts.create.map((entry) => entry.command)].some((entry) => entry[0] === executable);
     if (!owns) continue;
+    if (tool.ecosystem !== 'npm') {
+      const scan = scanPythonTool(tool, executable, rest, line, depth);
+      if (scan !== undefined) return scan;
+      continue;
+    }
     // The subcommand is the first word that is not an option or an option's value.
     let index = 0;
     while (index < rest.length && isOption(rest[index]?.text ?? '')) {
       const word = rest[index] as Word;
       if (word.dynamic) return unreadable(`${shown(line)}: ${expanded(word)}`);
-      const [name, attached] = splitOption(word.text);
-      const takesValue = attached === undefined && tool.valueOptions.has(name);
-      const setting = registryOption(tool, name, attached ?? (takesValue ? rest[index + 1]?.text : undefined));
+      const option = readOption(rest, index, tool, (name) => tool.valueOptions.has(name));
+      const setting = registryOption(tool, option.name, option.value);
       if (setting !== undefined) return unreadable(`${shown(line)}: ${setting}`);
-      index += takesValue ? 2 : 1;
+      index += option.next === undefined ? 1 : 2;
     }
     const subcommand = rest[index];
     if (subcommand === undefined) return NOTHING;
     if (subcommand.dynamic) return unreadable(`${shown(line)}: ${expanded(subcommand, 'the subcommand ')}`);
     const after = rest.slice(index + 1);
+    const context = contextOf(tool, undefined);
     const find = (list: readonly DownloadCommand[]) => list.find((entry) => entry.command[0] === executable && entry.command[1] === subcommand.text);
     const workspace = facts.workspaceCommands?.find((entry) => entry.command[0] === executable && entry.command[1] === subcommand.text);
     if (workspace !== undefined) return scanCommand({ ...command, words: [first, ...after.slice(workspace.operands)] }, depth);
     const runEntry = find(facts.run);
-    if (runEntry !== undefined) return finish(tool, line, readArguments(after, 'run', tool, runEntry), depth);
+    if (runEntry !== undefined) return finish(tool, line, readArguments(after, 'run', tool, runEntry, context), depth);
     const createEntry = find(facts.create);
-    if (createEntry !== undefined) return finish(tool, line, readArguments(after, 'create', tool, createEntry), depth);
-    if (add.has(subcommand.text)) return finish(tool, line, readArguments(after, 'add', tool, undefined), depth);
+    if (createEntry !== undefined) return finish(tool, line, readArguments(after, 'create', tool, createEntry, context), depth);
+    if (add.has(subcommand.text)) return finish(tool, line, readArguments(after, 'add', tool, undefined, context), depth);
     // Another subcommand that ends in an add subcommand (yarn global add, yarn workspaces foreach -A add) adds too.
     const later = after.findIndex((word) => !word.dynamic && add.has(word.text));
-    if (later !== -1) return finish(tool, line, readArguments(after.slice(later + 1), 'add', tool, undefined), depth);
+    if (later !== -1) return finish(tool, line, readArguments(after.slice(later + 1), 'add', tool, undefined, context), depth);
     return NOTHING;
   }
   const subcommand = rest.find((word) => !isOption(word.text));
@@ -890,7 +1142,7 @@ function scanLine(line: string, depth: number): CommandScan {
   return scan;
 }
 
-/** The packages a command line installs or downloads to run with npm, pnpm, Yarn or Bun. */
+/** The packages a command line installs or downloads to run with npm, pnpm, Yarn, Bun, Deno, pip, uv, Poetry, PDM, Pipenv or pipx. */
 export function scanCommandLine(line: string): CommandScan {
   return scanLine(line, 0);
 }

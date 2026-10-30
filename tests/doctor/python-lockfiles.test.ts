@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { values } from '../../src/apply/facts.ts';
 import { writeRequirementsBlock } from '../../src/apply/pip-requirements.ts';
-import { pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from '../../src/doctor/python-lockfiles.ts';
+import { pdmEntries, pipfileLockEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from '../../src/doctor/python-lockfiles.ts';
+import { pdm } from '../../src/knowledge/pdm.ts';
+import { pipenv } from '../../src/knowledge/pipenv.ts';
 import { pip } from '../../src/knowledge/pip.ts';
 import { uv } from '../../src/knowledge/uv.ts';
 import { normalizePythonName } from '../../src/policy/python-names.ts';
@@ -53,6 +55,83 @@ describe('uv.lock', () => {
   it('is not fooled by a __proto__ key in a source', () => {
     const lock = ['version = 1', '[[package]]', 'name = "evil"', 'source = { __proto__ = { registry = "https://pypi.org/simple" }, git = "https://example.test/evil.git#abc" }'].join('\n');
     expect(brief(uvEntries(lock, format(uv), []))).toEqual([['evil', 'git', true, 2]]);
+  });
+});
+
+describe('pdm.lock', () => {
+  it('tells index packages with and without wheels from VCS, URL and local packages', () => {
+    const lock = [
+      '[metadata]',
+      'lock_version = "4.5.1"',
+      '[[package]]',
+      'name = "idna"',
+      'version = "3.10"',
+      'files = [',
+      '    {file = "idna-3.10-py3-none-any.whl", hash = "sha256:aa"},',
+      '    {file = "idna-3.10.tar.gz", hash = "sha256:bb"},',
+      ']',
+      '[[package]]',
+      'name = "Docopt"',
+      'version = "0.6.2"',
+      'files = [{file = "docopt-0.6.2.tar.gz", hash = "sha256:cc"}]',
+      '[[package]]',
+      'name = "sampleproject"',
+      'version = "4.0.0"',
+      'git = "https://github.com/pypa/sampleproject"',
+      'revision = "621e4974"',
+      '[[package]]',
+      'name = "mercurial-thing"',
+      'version = "1.0"',
+      'hg = "https://hg.example.test/thing"',
+      '[[package]]',
+      'name = "remote"',
+      'version = "1.0"',
+      'url = "https://example.test/remote-1.0-py3-none-any.whl"',
+      '[[package]]',
+      'name = "local"',
+      'version = "0.1.0"',
+      'path = "./libs/local"',
+      'editable = true',
+      '[[package]]',
+      'name = "archive"',
+      'version = "1.0"',
+      'path = "dist/archive-1.0.tar.gz"',
+    ].join('\n');
+    expect(brief(pdmEntries(lock, format(pdm)))).toEqual([
+      ['idna', 'registry', false, 3],
+      ['docopt', 'registry', true, 10],
+      ['sampleproject', 'git', true, 14],
+      ['mercurial-thing', 'unknown', true, 19],
+      ['remote', 'remoteTarball', false, 23],
+      ['local', 'directory', true, 27],
+      ['archive', 'file', true, 32],
+    ]);
+  });
+});
+
+describe('Pipfile.lock', () => {
+  it('reads every category and tells git, URL and local packages from index packages', () => {
+    const lock = JSON.stringify(
+      {
+        _meta: { 'pipfile-spec': 6, sources: [{ name: 'pypi', url: 'https://pypi.org/simple' }] },
+        default: {
+          idna: { hashes: ['sha256:aa', 'sha256:bb'], index: 'pypi', version: '==3.10' },
+          sampleproject: { git: 'https://github.com/pypa/sampleproject', ref: '621e4974' },
+          remote: { file: 'https://example.test/remote-1.0.tar.gz' },
+        },
+        develop: { 'Local_Lib': { editable: true, path: './libs/local-lib' } },
+        docs: { sphinx: { version: '==8.0.0', index: 'pypi' } },
+      },
+      null,
+      4,
+    );
+    expect(brief(pipfileLockEntries(lock, format(pipenv))).map(([name, source, builds]) => [name, source, builds])).toEqual([
+      ['idna', 'registry', undefined],
+      ['sampleproject', 'git', true],
+      ['remote', 'remoteTarball', true],
+      ['local-lib', 'directory', true],
+      ['sphinx', 'registry', undefined],
+    ]);
   });
 });
 

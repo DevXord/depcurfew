@@ -156,9 +156,9 @@ export const renovate: ToolKnowledge = {
       'Added in 44.8.0; config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm).',
     ),
     pythonManagers: python.verified(
-      { uv: 'pep621', poetry: 'poetry', pip: 'pip_requirements' },
+      { uv: 'pep621', poetry: 'poetry', pip: 'pip_requirements', pdm: 'pep621', pipenv: 'pipenv' },
       'https://docs.renovatebot.com/modules/manager/pep621/',
-      'pep621 updates pyproject.toml with uv.lock (there is no uv manager); poetry updates pyproject.toml with poetry.lock; pip_requirements updates requirements files. pip-compile is off by default.',
+      'pep621 updates pyproject.toml with uv.lock (there is no uv manager) or pdm.lock; poetry updates pyproject.toml with poetry.lock; pipenv updates the Pipfile with Pipfile.lock; pip_requirements updates requirements files. pip-compile is off by default (lib/modules/manager/pep621/readme.md and pipenv/index.ts at 44.198.1).',
     ),
     passesDelayToManager: python.verified(
       [

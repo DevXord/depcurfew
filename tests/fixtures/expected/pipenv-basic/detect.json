@@ -1,0 +1,30 @@
+{
+  "packageManagers": [
+    {
+      "id": "pipenv",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "Pipfile.lock"
+        },
+        {
+          "kind": "config",
+          "file": "Pipfile"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "Pipfile"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}

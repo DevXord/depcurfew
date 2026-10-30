@@ -5,12 +5,14 @@ import type { ToolId } from '../knowledge/types.ts';
 
 export const APPLY_WARNINGS = {
   'nothing-to-configure': 'depcurfew found no supported package manager or bot, so nothing is configured.',
+  'file-unreadable': 'A file that shows which tools a project uses cannot be parsed, so depcurfew may configure fewer tools than the project uses.',
   'tool-not-supported': 'A detected tool is not supported (Yarn Classic), so nothing is written for it.',
   'version-not-pinned': 'No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.',
   'version-too-old': 'The pinned version of a tool lacks a setting the policy needs, so that setting is not written.',
   'cooldown-not-written': 'The release-age delay cannot be written for a tool.',
   'cooldown-environment-only': 'pip reads no project configuration, so the release-age delay has to be set in the environment where pip runs.',
   'exclude-pattern-unsupported': 'A cooldown exception uses a wildcard the tool does not support, so it is not written.',
+  'exclude-unsupported': 'The tool has no setting for cooldown exceptions, so the release-age delay applies to every package.',
   'allow-pattern-unsupported': 'An installScripts.allow entry is a pattern, but the tool takes package names only, so it is not written.',
   'allow-all-unsupported': 'The tool has no setting that allows every install script, so installScripts "allow" is not written.',
   'allow-all-replaced': 'A setting that allowed every install script was replaced, because the policy denies install scripts.',
@@ -24,6 +26,7 @@ export const APPLY_WARNINGS = {
   'forced-source-build': 'Python packages on the allow-list are always built from source, because no tool can only allow a build.',
   'build-switch-scope': "The tool's switch forbids building only packages from an index; git, local and archive dependencies are still built.",
   'build-switch-install-only': 'Poetry applies its build switch when installing; poetry lock may still build source distributions.',
+  'build-switch-environment-only': 'The tool has no project setting that forbids building from source, so it has to be set in the environment where the tool runs.',
   'requirements-file-missing': 'There is no requirements file to write pip options into.',
   'lockfile-out-of-date': 'The lockfile records a setting apply changed, so it has to be locked again.',
   'bot-config-missing': 'A bot has no configuration file, and depcurfew does not create one.',

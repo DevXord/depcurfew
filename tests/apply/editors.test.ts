@@ -183,6 +183,14 @@ describe('writeTomlBlock (uv.toml, pyproject.toml, poetry.toml)', () => {
 });
 
 describe('yamlSet', () => {
+  it('does not mark a key again inside a map depcurfew already marked', () => {
+    const dependabot = ['version: 2', 'updates:', '  - package-ecosystem: "npm"', '    # managed by depcurfew', '    cooldown:', '      default-days: 1', ''].join('\n');
+    const fixed = yamlSet(dependabot, ['updates', 0, 'cooldown', 'default-days'], 3);
+    expect(fixed).toBe(dependabot.replace('default-days: 1', 'default-days: 3'));
+    expect(yamlSet(fixed, ['updates', 0, 'cooldown', 'default-days'], 3)).toBe(fixed);
+    expect(yamlSet(fixed, ['updates', 0, 'cooldown', 'exclude'], ['left-pad'])).toBe(`${fixed}      exclude:\n        - left-pad\n`);
+  });
+
   const pnpm = [
     '# pnpm settings',
     'packages:',

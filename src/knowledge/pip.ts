@@ -12,6 +12,8 @@ const SECURE_INSTALLS = `${PIP}/docs/html/topics/secure-installs.md`;
 const REQUIREMENTS_FORMAT = `${PIP}/docs/html/reference/requirements-file-format.md`;
 const REQ_FILE = `${PIP}/src/pip/_internal/req/req_file.py`;
 const FORMAT_CONTROL = `${PIP}/src/pip/_internal/models/format_control.py`;
+const CMDOPTIONS = `${PIP}/src/pip/_internal/cli/cmdoptions.py`;
+const PIPX = 'https://github.com/pypa/pipx/blob/1.18.10';
 const PYLOCK = 'https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst';
 
 const noSetting = (kind: string): SourceKnowledge => ({
@@ -179,6 +181,71 @@ export const pip: ToolKnowledge = {
       '^pylock\\.([^.]+)\\.toml$',
       `${PYLOCK}#file-name`,
       'A named lock file, next to or instead of pylock.toml; pip lock -o writes any name.',
+    ),
+    commandLine: verified(
+      {
+        add: [['pip', 'install'], ['pip3', 'install']],
+        run: [],
+        create: [],
+        valueOptions: [
+          '-r', '--requirement', '-c', '--constraint', '--build-constraint', '--requirements-from-script', '-e', '--editable',
+          '--group', '-t', '--target', '--platform', '--python-version', '--implementation', '--abi', '--root', '--prefix',
+          '--src', '--source', '--source-dir', '--source-directory', '--upgrade-strategy', '-C', '--config-settings',
+          '--progress-bar', '--root-user-action', '--report', '-i', '--index-url', '--pypi-url', '--extra-index-url', '-f',
+          '--find-links', '--refresh-package', '--uploaded-prior-to', '--no-binary', '--only-binary', '--all-releases',
+          '--only-final', '--python', '--log', '--log-file', '--local-log', '--keyring-provider', '--proxy', '--retries',
+          '--resume-retries', '--timeout', '--default-timeout', '--exists-action', '--trusted-host', '--cert', '--client-cert',
+          '--cache-dir', '--use-feature', '--use-deprecated',
+        ],
+        flagOptions: [
+          '--no-deps', '--no-dependencies', '--only-deps', '--only-dependencies', '--dry-run', '--user', '--no-user', '-U',
+          '--upgrade', '--force-reinstall', '-I', '--ignore-installed', '--ignore-requires-python', '--no-build-isolation',
+          '--use-pep517', '--check-build-dependencies', '--break-system-packages', '--compile', '--no-compile',
+          '--no-warn-script-location', '--no-warn-conflicts', '--require-hashes', '--no-require-hashes', '--no-clean',
+          '--no-index', '--pre', '--prefer-binary', '-h', '--help', '--debug', '--isolated', '--require-virtualenv',
+          '--require-venv', '-v', '--verbose', '-V', '--version', '-q', '--quiet', '--no-input', '--no-proxy-env',
+          '--no-cache-dir', '--disable-pip-version-check', '--no-color', '--no-python-version-warning',
+        ],
+        parsing: { abbreviations: true, groupedShortOptions: true },
+        editableOptions: ['-e', '--editable'],
+      },
+      `${PIP}/src/pip/_internal/commands/install.py`,
+      'pip and pip3 are the console scripts of the package (pyproject.toml). The options of pip install (install.py) and the general options of every command (cmdoptions.py, general_group), which may also come before install. pip reads them with optparse: --opt value and --opt=value, -rFILE and -r FILE, grouped short flags, and a long option shortened to any prefix that names one option (cli/parser.py keeps optparse\'s matching), so --extra means --extra-index-url. -e takes a local project path or a VCS URL to install in editable mode. -r, -c, --requirements-from-script and --group read requirements from files of the project.',
+    ),
+    registryOverrides: verified(
+      {
+        registryOptions: ['-i', '--index-url', '--pypi-url', '--extra-index-url', '-f', '--find-links'],
+        registryVariables: ['PIP_INDEX_URL', 'PIP_PYPI_URL', 'PIP_EXTRA_INDEX_URL', 'PIP_FIND_LINKS'],
+        configOptions: [],
+        configVariables: ['PIP_CONFIG_FILE'],
+      },
+      CMDOPTIONS,
+      'index_group: --index-url (alias -i, --pypi-url) is the base URL of the package index, --extra-index-url adds indexes, --find-links (-f) adds an HTML page or a directory of archives. Every long option can be set as PIP_<UPPER_LONG_NAME>, dashes replaced by underscores (docs/html/topics/configuration.md); PIP_CONFIG_FILE names a configuration file loaded last, which may set any index. Requirements files may set --index-url, --extra-index-url and --find-links too (req/req_file.py).',
+    ),
+    pipxCommandLine: verified(
+      {
+        add: [['pipx', 'install']],
+        run: [{ command: ['pipx', 'run'], packageOptions: ['--spec'], extraPackageOptions: ['--with'], scriptSuffixes: ['.py'] }],
+        create: [],
+        valueOptions: [
+          '-i', '--index-url', '--pip-args', '--preinstall', '--lock', '--include-resources-from', '--upgrade-strategy',
+          '--suffix', '--python', '--fetch-python', '--app', '--cooldown', '--backend', '--output', '--python-args',
+        ],
+        flagOptions: [
+          '-q', '--quiet', '-v', '--verbose', '--skip-maintenance', '--global', '-f', '--force', '-U', '--upgrade',
+          '--include-deps', '--system-site-packages', '--fetch-missing-python', '-e', '--editable', '--no-cache',
+          '--refresh', '--no-path-check', '--path', '--pypackages', '--version',
+        ],
+        parsing: { abbreviations: true, groupedShortOptions: true },
+        addPackageOptions: ['--preinstall'],
+      },
+      `${PIPX}/src/pipx/main.py`,
+      'pipx installs applications from PyPI with pip (or uv) in environments of their own. pipx install takes one or more package specs, a VCS URL, a local path or archive, or a script (--preinstall adds packages to the environment; -f is --force, not find-links). pipx run takes the app first (argparse REMAINDER, so its options come before it), --spec names the package to install and run, --with adds packages; a first argument ending in .py is a local script, or a script to download when it is a URL (docs/how-to/run-scripts.rst). argparse accepts abbreviated long options.',
+    ),
+    pipxRegistryOverrides: verified(
+      { registryOptions: ['-i', '--index-url'], registryVariables: [], configOptions: ['--pip-args'], configVariables: [] },
+      `${PIPX}/src/pipx/main.py`,
+      '--index-url is the base URL of the index; --pip-args is split and handed to pip, so it may carry --extra-index-url, --find-links or --no-index. With the pip backend pipx passes the PIP_* variables on to pip; with the uv backend it ignores them and uv reads its own (docs/how-to/use-uv-backend.rst); both kinds are registry variables of pip and uv.',
     ),
     latestVersion: verified('26.2.2', NEWS, 'Released on 2026-10-20.'),
   },

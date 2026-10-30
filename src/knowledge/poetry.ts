@@ -149,6 +149,27 @@ export const poetry: ToolKnowledge = {
       LOCKER,
       'poetry.lock has no documented format. Each [[package]] from PyPI has no [package.source]; others have type git, url, file, directory or legacy (a named index). files lists {file, hash} for every distribution, empty for git and directory packages; a package from an index without a .whl file is built when installed.',
     ),
+    commandLine: verified(
+      {
+        add: [['poetry', 'add']],
+        run: [],
+        create: [],
+        valueOptions: ['-C', '--directory', '-P', '--project', '-G', '--group', '-E', '--extras', '--optional', '--python', '--platform', '--markers', '--source'],
+        parsing: { groupedShortOptions: true },
+      },
+      `${POETRY}/docs/cli.md#add`,
+      'poetry add takes package specs: a name, name@constraint, a PEP 508 requirement, a git URL, a path or an archive URL. Options with a value: --group (-G), --extras (-E), --optional, --python, --platform, --markers and --source of add, and the global --directory (-C) and --project (-P); -e/--editable, -D/--dev, --allow-prereleases, --dry-run and --lock are flags (src/poetry/console/commands/add.py). cleo reads -Gdocs and -G docs; long options cannot be shortened. poetry install takes no package specs.',
+    ),
+    registryOverrides: verified(
+      { registryOptions: ['--source'], registryVariables: [], configOptions: [], configVariables: [] },
+      `${POETRY}/docs/repositories.md`,
+      '--source names a package source of [[tool.poetry.source]] in pyproject.toml (or pypi) to take the package from. The POETRY_REPOSITORIES_<NAME>_URL variables are for publishing only; no variable sets a package source.',
+    ),
+    versionConstraints: verified(
+      { separator: '@', latest: 'latest', caret: '^', tilde: '~', any: '*' },
+      `${POETRY}/docs/dependency-specification.md#using-the--operator`,
+      'poetry add name@constraint takes any constraint valid in pyproject.toml, and name@latest the newest release; extras go before the @ (name[extra]@^4.0.0). ^ keeps the left-most non-zero part of major.minor.patch: ^1.2.3 is >=1.2.3 <2.0.0, ^1.2 is >=1.2.0 <2.0.0, ^1 is >=1.0.0 <2.0.0, ^0.2.3 is >=0.2.3 <0.3.0, ^0.0.3 is >=0.0.3 <0.0.4, ^0.0 is >=0.0.0 <0.1.0, ^0 is >=0.0.0 <1.0.0. ~ allows patch changes, or minor changes when only a major version is given: ~1.2.3 is >=1.2.3 <1.3.0, ~1.2 is >=1.2.0 <1.3.0, ~1 is >=1.0.0 <2.0.0. * is any version, 1.* is >=1.0.0 <2.0.0, 1.2.* is >=1.2.0 <1.3.0. ~=, inequalities and == as in PEP 440, several separated by commas; a bare version (1.2.3) is that version only. Poetry prefers stable releases and takes a pre-release only when no stable release satisfies the constraint.',
+    ),
     latestVersion: verified('2.5.1', CHANGELOG, 'Released on 2026-09-20.'),
   },
 };

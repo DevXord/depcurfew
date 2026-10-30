@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-10 tools · 417 facts · 64 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
+12 tools · 496 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
 
 ## Release-age cooldown
 
@@ -22,6 +22,8 @@ How each tool delays freshly published versions.
 | uv | `exclude-newer` [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs) | `uv.toml`, `pyproject.toml` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md) | `--exclude-newer` [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-cli/src/lib.rs) | duration-string [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md) | 0.9.17 [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.9.x.md#0917) | 0.9.17+: off [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs) | `exclude-newer-package` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md) | 0.9.25 [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.9.x.md#0925) | Exact package names as table keys; no wildcards [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs) | applies ❓ [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md) |
 | pip | `uploaded-prior-to` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time) | `[]` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md) | `--uploaded-prior-to` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time) | days [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/cli/cmdoptions.py) | 26.1.0 [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst) | 26.1.0+: off [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time) | none ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time) | — | — | applies ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time) |
 | Poetry | `solver.min-release-age` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age) | `poetry.toml` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#local-configuration) | none ❓ [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/cli.md) | days [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age) | 2.4.0 [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age) | 2.4.0+: off [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age) | `solver.min-release-age-exclude` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age-exclude) | 2.4.0 [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age-exclude) | Exact package names; no wildcards [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age-exclude) | applies ❓ [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age) |
+| PDM | `exclude-newer` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date) | `pyproject.toml` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date) | `--exclude-newer` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date) | duration-string [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date) | 2.26.9 [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md) | 2.26.9+: off [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date) | `exclude-newer-override` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date) | 2.29.1 [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md) | Package names, normalized before matching; no wildcards [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date) | applies ❓ [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date) |
+| Pipenv | `cool-down-period` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period) | `Pipfile` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipenv-directives) | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/commands.md) | duration-string [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period) | 2026.6.2 [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/CHANGELOG.md) | 2026.6.2+: off [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period) | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period) | — | — | applies ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period) |
 | Renovate | `minimumReleaseAge` [↗](https://docs.renovatebot.com/configuration-options/#minimumreleaseage) | `renovate.json`, `renovate.jsonc`, `renovate.json5`, `.github/renovate.json`, `.github/renovate.jsonc`, `.github/renovate.json5`, `.gitlab/renovate.json`, `.gitlab/renovate.jsonc`, `.gitlab/renovate.json5`, `.renovaterc`, `.renovaterc.json`, `.renovaterc.jsonc`, `.renovaterc.json5` [↗](https://docs.renovatebot.com/configuration-options/) | `--minimum-release-age` [↗](https://docs.renovatebot.com/configuration-options/#minimumreleaseage) | duration-string [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/) | 35.46.0 [↗](https://github.com/renovatebot/renovate/releases/tag/35.46.0) | all versions: off [↗](https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts) | `packageRules: matchPackageNames + minimumReleaseAge: null` [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/#how-do-i-opt-out-dependencies-from-minimum-release-age-checks) | 35.46.0 ❓ [↗](https://github.com/renovatebot/renovate/releases/tag/35.46.0) | matchPackageNames: exact names, globs such as @org/** (with ! negation) or /regex/; case-insensitive [↗](https://docs.renovatebot.com/configuration-options/#matchpackagenames) | bypass [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/#what-happens-to-security-updates) |
 | Dependabot | `cooldown` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) | `.github/dependabot.yml`, `.github/dependabot.yaml` [↗](https://docs.github.com/en/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file) | none ❓ [↗](https://github.com/dependabot/cli) | days [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) | 2025-07-01 [↗](https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/) | 2025-07-01+: off<br>2026-07-14+: `3` [↗](https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/) | `cooldown.exclude` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) | 2025-07-01 ❓ [↗](https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/) | Dependency names with * wildcards, up to 150 entries; exclude always wins over include [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) | bypass [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown) |
 
@@ -39,6 +41,8 @@ Whether dependency lifecycle scripts run, and how to allow specific packages.
 | uv | all versions: run [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs) | `no-binary-package` [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-configuration/src/build_options.rs) | `pyproject.toml` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md) | 0.2.12 [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.2.x.md#0212) | A list of package names [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs) | `no-build` [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs) |
 | pip | all versions: run [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/secure-installs.md) | `--no-binary` [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/models/format_control.py) | `requirements.txt` [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py) | 7.0.0 ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst) | One option line per package or a comma-separated list, e.g. --no-binary=docopt [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/cli/cmdoptions.py) | `--only-binary=:all:` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/secure-installs.md) |
 | Poetry | all versions: run [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#installeronly-binary) | `installer.no-binary` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/installation/chooser.py) | `poetry.toml` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#installerno-binary) | 2.2.0 [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md) | A list of package names, or :all: or :none: [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#installerno-binary) | `installer.only-binary` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#installeronly-binary) |
+| PDM | all versions: run [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#set-acceptable-format-for-locking-or-installing) | `no-binary` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#set-acceptable-format-for-locking-or-installing) | `pyproject.toml` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#set-acceptable-format-for-locking-or-installing) | 2.15.0 [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md) | A comma-separated string or a list of package names, or :all: [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#set-acceptable-format-for-locking-or-installing) | `only-binary` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#set-acceptable-format-for-locking-or-installing) |
+| Pipenv | all versions: run [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/configuration.md) | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md) | — | — | — | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/configuration.md) |
 | Renovate | all versions: deny [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts) | none ❓ [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts) | — | — | — | `ignoreScripts: true` [↗](https://docs.renovatebot.com/configuration-options/#ignorescripts) |
 | Dependabot | all versions: deny ❓ [↗](https://github.com/dependabot/dependabot-core/blob/main/npm_and_yarn/lib/dependabot/npm_and_yarn/helpers.rb) | none [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution) | — | — | — | none ❓ [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution) |
 
@@ -56,6 +60,8 @@ How depcurfew recognizes each package manager in a repository.
 | uv | all versions: `uv.lock` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/layout.md) | `pyproject.toml` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/layout.md) | `{"files":["pyproject.toml"],"key":"tool.uv.workspace","excludeKey":"exclude"}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md) | `members` [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/projects/workspaces.md) |
 | pip | 25.1.0+: `pylock.toml` [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name) | `requirements.txt` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md) | none ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md) | none ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md) |
 | Poetry | all versions: `poetry.lock` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/factory.py) | `pyproject.toml` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/pyproject.md) | none ❓ [↗](https://github.com/python-poetry/poetry/issues/2270) | none ❓ [↗](https://github.com/python-poetry/poetry/issues/2270) |
+| PDM | all versions: `pdm.lock` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md) | `pyproject.toml` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md) | none ❓ [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/workspace.md) | none ❓ [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/workspace.md) |
+| Pipenv | all versions: `Pipfile.lock` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipfilelock) | `Pipfile` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipfile) | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md) | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md) |
 
 ## Dependency sources
 
@@ -95,6 +101,14 @@ Settings that allow or forbid dependencies from git, remote tarballs and local p
 | Poetry · remote tarball | none ❓ [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#available-settings) | — | — | — |
 | Poetry · local tarball | none ❓ [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#available-settings) | — | — | — |
 | Poetry · local directory | none ❓ [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#available-settings) | — | — | — |
+| PDM · git | none ❓ [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md) | — | — | — |
+| PDM · remote tarball | none ❓ [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md) | — | — | — |
+| PDM · local tarball | none ❓ [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md) | — | — | — |
+| PDM · local directory | none ❓ [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md) | — | — | — |
+| Pipenv · git | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md) | — | — | — |
+| Pipenv · remote tarball | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md) | — | — | — |
+| Pipenv · local tarball | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md) | — | — | — |
+| Pipenv · local directory | none ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md) | — | — | — |
 
 ## Additional facts
 
@@ -212,6 +226,8 @@ Further facts used by generators and `doctor`.
 - `lockfileFormat` (❓ uncertain): `{"sources":{"registry":"registry","git":"git","remoteTarball":"url","file":"path","directory":"directory","editable":"editable","virtual":"virtual"},"sdist":"sdist","wheels":"wheels","packages":"package"}` ❓ [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-lock/src/lock/serialize.rs)
 - `ignoredByToolCommands` (✅ verified): uv tool install, uv tool run and uvx ignore pyproject.toml and uv.toml in the project and read only user and system configuration [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
 - `lockedSettings` (✅ verified): exclude-newer, exclude-newer-package [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-lock/src/lock/serialize.rs)
+- `commandLine` (✅ verified): `{"add":[["uv","add"],["uv","pip","install"],["uv","tool","install"]],"run":[{"command":["uvx"],"packageOptions":["--from"],"extraPackageOptions":["-w","--with","--with-editable"]},{"command":["uv","tool","run"],"packageOptions":["--from"],"extraPackageOptions":["-w","--with","--with-editable"]},{"command":["uv","run"],"packageOptions":[],"extraPackageOptions":["-w","--with","--with-editable"],"packageArgument":false,"scriptUrls":true}],"create":[],"valueOptions":["--cache-dir","--config-file","--color","--allow-insecure-host","--trusted-host","--directory","--project","--python-preference","--python-fetch","--preview-features","--preview-feature","--index","--default-index","-i","--index-url","--extra-index-url","-f","--find-links","-P","--upgrade-package","--upgrade-group","--reinstall-package","--index-strategy","--keyring-provider","--resolution","--prerelease","--prerelease-package","--fork-strategy","-C","--config-setting","--config-settings","--config-settings-package","--no-build-isolation-package","--exclude-newer","--exclude-newer-package","--link-mode","--no-sources-package","--refresh-package","--no-build-package","--no-binary-package","-c","--constraints","--constraint","--overrides","--override","--excludes","--exclude","-b","--build-constraints","--build-constraint","-r","--requirements","--requirement","--group","--extra","--no-editable-package","-p","--python","-t","--target","--prefix","--python-version","--python-platform","--output-format","--torch-backend","--optional","--bounds","--rev","--tag","--branch","--package","--script","--no-install-package","--only-install-package","-w","--with","--with-editable","--with-requirements","--no-extra","--no-group","--only-group","--env-file","--max-recursion-depth","--from","--with-executables-from"],"parsing":{"groupedShortOptions":true},"addPackageOptions":["-w","--with","--with-editable","--with-executables-from"],"editableOptions":["--with-editable"],"commaSeparatedOptions":["-w","--with","--with-editable","--with-executables-from"],"interpreterNames":["python","pythonw","cpython","pypy","graalpy","pyodide"],"commandOptions":[{"command":["uv","pip","install"],"valueOptions":["-e","--editable","--no-binary","--only-binary"],"editableOptions":["-e","--editable"]},{"command":["uv","add"],"valueOptions":["-m","--marker"]}]}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-cli/src/lib.rs)
+- `registryOverrides` (✅ verified): `{"registryOptions":["--index","--default-index","-i","--index-url","--extra-index-url","-f","--find-links"],"registryVariables":["UV_INDEX","UV_DEFAULT_INDEX","UV_INDEX_URL","UV_EXTRA_INDEX_URL","UV_FIND_LINKS"],"configOptions":["--config-file"],"configVariables":["UV_CONFIG_FILE"]}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-static/src/env_vars.rs)
 - `latestVersion` (✅ verified): 0.13.6 [↗](https://github.com/astral-sh/uv/blob/0.13.6/CHANGELOG.md)
 
 ### pip
@@ -229,6 +245,10 @@ Further facts used by generators and `doctor`.
 - `requirementsIncludes` (✅ verified): `{"requirements":["-r","--requirement"],"constraints":["-c","--constraint"]}` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md#referring-to-other-requirements-files)
 - `requirementsPaths` (✅ verified): `{"separators":["/","\\"],"currentDirectory":".","archiveExtensions":[".zip",".whl",".tar.bz2",".tbz",".tar.gz",".tgz",".tar",".tar.xz",".txz",".tlz",".tar.lz",".tar.lzma"],"urlSchemes":["http","https","ftp"],"fileScheme":"file:"}` [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/constructors.py)
 - `lockfilePattern` (✅ verified): ^pylock\.([^.]+)\.toml$ [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name)
+- `commandLine` (✅ verified): `{"add":[["pip","install"],["pip3","install"]],"run":[],"create":[],"valueOptions":["-r","--requirement","-c","--constraint","--build-constraint","--requirements-from-script","-e","--editable","--group","-t","--target","--platform","--python-version","--implementation","--abi","--root","--prefix","--src","--source","--source-dir","--source-directory","--upgrade-strategy","-C","--config-settings","--progress-bar","--root-user-action","--report","-i","--index-url","--pypi-url","--extra-index-url","-f","--find-links","--refresh-package","--uploaded-prior-to","--no-binary","--only-binary","--all-releases","--only-final","--python","--log","--log-file","--local-log","--keyring-provider","--proxy","--retries","--resume-retries","--timeout","--default-timeout","--exists-action","--trusted-host","--cert","--client-cert","--cache-dir","--use-feature","--use-deprecated"],"flagOptions":["--no-deps","--no-dependencies","--only-deps","--only-dependencies","--dry-run","--user","--no-user","-U","--upgrade","--force-reinstall","-I","--ignore-installed","--ignore-requires-python","--no-build-isolation","--use-pep517","--check-build-dependencies","--break-system-packages","--compile","--no-compile","--no-warn-script-location","--no-warn-conflicts","--require-hashes","--no-require-hashes","--no-clean","--no-index","--pre","--prefer-binary","-h","--help","--debug","--isolated","--require-virtualenv","--require-venv","-v","--verbose","-V","--version","-q","--quiet","--no-input","--no-proxy-env","--no-cache-dir","--disable-pip-version-check","--no-color","--no-python-version-warning"],"parsing":{"abbreviations":true,"groupedShortOptions":true},"editableOptions":["-e","--editable"]}` [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/commands/install.py)
+- `registryOverrides` (✅ verified): `{"registryOptions":["-i","--index-url","--pypi-url","--extra-index-url","-f","--find-links"],"registryVariables":["PIP_INDEX_URL","PIP_PYPI_URL","PIP_EXTRA_INDEX_URL","PIP_FIND_LINKS"],"configOptions":[],"configVariables":["PIP_CONFIG_FILE"]}` [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/cli/cmdoptions.py)
+- `pipxCommandLine` (✅ verified): `{"add":[["pipx","install"]],"run":[{"command":["pipx","run"],"packageOptions":["--spec"],"extraPackageOptions":["--with"],"scriptSuffixes":[".py"]}],"create":[],"valueOptions":["-i","--index-url","--pip-args","--preinstall","--lock","--include-resources-from","--upgrade-strategy","--suffix","--python","--fetch-python","--app","--cooldown","--backend","--output","--python-args"],"flagOptions":["-q","--quiet","-v","--verbose","--skip-maintenance","--global","-f","--force","-U","--upgrade","--include-deps","--system-site-packages","--fetch-missing-python","-e","--editable","--no-cache","--refresh","--no-path-check","--path","--pypackages","--version"],"parsing":{"abbreviations":true,"groupedShortOptions":true},"addPackageOptions":["--preinstall"]}` [↗](https://github.com/pypa/pipx/blob/1.18.10/src/pipx/main.py)
+- `pipxRegistryOverrides` (✅ verified): `{"registryOptions":["-i","--index-url"],"registryVariables":[],"configOptions":["--pip-args"],"configVariables":[]}` [↗](https://github.com/pypa/pipx/blob/1.18.10/src/pipx/main.py)
 - `latestVersion` (✅ verified): 26.2.2 [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 
 ### Poetry
@@ -243,7 +263,38 @@ Further facts used by generators and `doctor`.
 - `lockedVersionsKept` (❓ uncertain): poetry lock and poetry add keep versions already in poetry.lock even when they are newer than the delay allows; poetry update and poetry lock --regenerate resolve them again ❓ [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/mixology/version_solver.py)
 - `requiredVersion` (✅ verified): `{"table":"tool.poetry","key":"requires-poetry","since":"2.0.0"}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/pyproject.md#requires-poetry)
 - `lockfileFormat` (❓ uncertain): `{"sources":{"git":"git","remoteTarball":"url","file":"file","directory":"directory","registry":"legacy"},"packages":"package","source":"source","files":"files"}` ❓ [↗](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/packages/locker.py)
+- `commandLine` (✅ verified): `{"add":[["poetry","add"]],"run":[],"create":[],"valueOptions":["-C","--directory","-P","--project","-G","--group","-E","--extras","--optional","--python","--platform","--markers","--source"],"parsing":{"groupedShortOptions":true}}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/cli.md#add)
+- `registryOverrides` (✅ verified): `{"registryOptions":["--source"],"registryVariables":[],"configOptions":[],"configVariables":[]}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/repositories.md)
+- `versionConstraints` (✅ verified): `{"separator":"@","latest":"latest","caret":"^","tilde":"~","any":"*"}` [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/dependency-specification.md#using-the--operator)
 - `latestVersion` (✅ verified): 2.5.1 [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
+
+### PDM
+
+- `configTables` (✅ verified): `{"pyproject.toml":"tool.pdm.resolution"}` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `pyprojectTable` (✅ verified): tool.pdm [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md)
+- `buildSwitch` (✅ verified): `{"setting":"only-binary","value":":all:","since":"2.15.0","covers":["registry"]}` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
+- `durationStrings` (✅ verified): `{"since":"2.26.8","syntax":"compact"}` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
+- `durationUnits` (✅ verified): hours, days, weeks [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `excludeWildcards` (✅ verified): `{"since":null,"trailingOnly":false}` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `excludeValue` (✅ verified): false [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `missingUploadTime` (✅ verified): A distribution without an upload time is treated as unavailable while a cutoff applies to its package [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `lockfileFormat` (❓ uncertain): `{"packages":"package","files":"files","file":"file","vcs":["git","hg","svn","bzr"],"url":"url","path":"path","editable":"editable"}` ❓ [↗](https://github.com/pdm-project/pdm/blob/2.29.5/src/pdm/models/candidates.py)
+- `uvMode` (❓ uncertain): `{"file":"pdm.toml","key":"use_uv"}` ❓ [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/uv.md)
+- `commandLine` (✅ verified): `{"add":[["pdm","add"]],"run":[],"create":[],"valueOptions":["-c","--config","--pep582","-L","--lockfile","-G","--group","-k","--skip","-e","--editable","-p","--project","--venv","--override"],"flagOptions":["-V","--version","-h","--help","-v","--verbose","-q","--quiet","--no-cache","-I","--ignore-python","-n","--non-interactive","-g","--global","-d","--dev","--no-sync","--frozen-lockfile","--no-lock","--save-compatible","--save-safe-compatible","--save-wildcard","--save-exact","--save-minimum","--update-reuse","--update-eager","--update-all","--update-reuse-installed","--pre","--prerelease","--stable","-u","--unconstrained","--no-editable","--no-self","-x","--fail-fast","--no-isolation","--dry-run"],"parsing":{"abbreviations":true,"groupedShortOptions":true},"editableOptions":["-e","--editable"]}` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/src/pdm/cli/commands/add.py)
+- `registryOverrides` (✅ verified): `{"registryOptions":[],"registryVariables":["PDM_PYPI_URL"],"configOptions":["-c","--config"],"configVariables":["PDM_CONFIG_FILE"]}` [↗](https://github.com/pdm-project/pdm/blob/2.29.5/src/pdm/project/config.py)
+- `latestVersion` (✅ verified): 2.29.5 [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
+
+### Pipenv
+
+- `configTables` (✅ verified): `{"Pipfile":"pipenv"}` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipenv-directives)
+- `durationStrings` (✅ verified): `{"since":"2026.6.2","syntax":"compact"}` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
+- `durationUnits` (✅ verified): days [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
+- `missingUploadTime` (✅ verified): An index without upload times makes the setting accepted but without effect [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
+- `resolverBypass` (❓ uncertain): `{"table":"pipenv","keys":["resolver_backend","resolver"],"value":"pure-python"}` ❓ [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/pipenv/routines/lock.py)
+- `lockfileFormat` (✅ verified): `{"meta":"_meta","git":"git","file":"file","path":"path","editable":"editable","hashes":"hashes"}` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipfilelock-structure)
+- `commandLine` (✅ verified): `{"add":[["pipenv","install"]],"run":[],"create":[],"valueOptions":["--pypi-mirror","--python","--extra-pip-args","--resolver","--categories","--extras","--config-settings","-i","--index","-r","--requirements","-e","--editable"],"flagOptions":["-h","--help","--version","--where","--venv","--py","--envs","--rm","--bare","--man","--support","-v","--verbose","-q","--quiet","--clear","--site-packages","--no-site-packages","--pre","-d","--dev","--all","--ignore-pipfile","--skip-lock","--system","--deploy"],"parsing":{"abbreviations":true,"groupedShortOptions":true},"editableOptions":["-e","--editable"]}` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/pipenv/cli/options.py)
+- `registryOverrides` (✅ verified): `{"registryOptions":["-i","--index","--pypi-mirror"],"registryVariables":["PIPENV_PYPI_MIRROR"],"configOptions":["--extra-pip-args"],"configVariables":["PIPENV_DOTENV_LOCATION"]}` [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/configuration.md)
+- `latestVersion` (✅ verified): 2026.10.4 [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/CHANGELOG.md)
 
 ### Renovate
 
@@ -259,7 +310,7 @@ Further facts used by generators and `doctor`.
 - `datasources` (✅ verified): `{"npm":"npm","pypi":"pypi"}` [↗](https://docs.renovatebot.com/modules/datasource/pypi/)
 - `negativeMatch` (✅ verified): ! [↗](https://docs.renovatebot.com/string-pattern-matching/)
 - `pypiPresets` (✅ verified): `{"presets":["security:minimumReleaseAgePypi"],"value":"3 days","since":"44.8.0","datasource":"pypi"}` [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi)
-- `pythonManagers` (✅ verified): `{"uv":"pep621","poetry":"poetry","pip":"pip_requirements"}` [↗](https://docs.renovatebot.com/modules/manager/pep621/)
+- `pythonManagers` (✅ verified): `{"uv":"pep621","poetry":"poetry","pip":"pip_requirements","pdm":"pep621","pipenv":"pipenv"}` [↗](https://docs.renovatebot.com/modules/manager/pep621/)
 - `passesDelayToManager` (✅ verified): earlier: []<br>44.34.0+: poetry [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/)
 - `missingTimestamp` (✅ verified): earlier: updates without a release timestamp pass the check<br>42.0.0+: minimumReleaseAgeBehaviour timestamp-required: such updates are held [↗](https://github.com/renovatebot/renovate/releases/tag/42.0.0)
 - `internalChecksFilter` (✅ verified): Defaults to "strict" since 33.0.0; with "none" or "flexible" branches and PRs are created before the delay ends and only automerge waits [↗](https://github.com/renovatebot/renovate/releases/tag/33.0.0)
@@ -270,7 +321,7 @@ Further facts used by generators and `doctor`.
 
 - `cooldownKeys` (✅ verified): `{"days":"default-days","exclude":"exclude","semverDays":["semver-major-days","semver-minor-days","semver-patch-days"]}` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
 - `excludeWildcards` (✅ verified): `{"since":"0.0.0","trailingOnly":false}` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
-- `ecosystems` (✅ verified): `{"npm":["npm","pnpm","yarn"],"bun":["bun"],"deno":["deno"],"pip":["pip","poetry"],"uv":["uv"]}` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#package-ecosystem)
+- `ecosystems` (✅ verified): `{"npm":["npm","pnpm","yarn"],"bun":["bun"],"deno":["deno"],"pip":["pip","poetry","pipenv"],"uv":["uv"]}` [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#package-ecosystem)
 - `dayRange` (⚠️ disputed): ⚠️ 1 to 90 days [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates) / 0 removes the cooldown [↗](https://github.com/dependabot/dependabot-core/discussions/15582)
 - `maximumDays` (✅ verified): 90 [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates)
 - `missingPublishDate` (✅ verified): Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used [↗](https://github.com/dependabot/dependabot-core/blob/main/docker/README.md)
@@ -309,11 +360,16 @@ How repositories pin tool versions (Corepack, devEngines, Volta, asdf) and how G
 - `npmRegistry.api` (✅ verified): `{"url":"https://registry.npmjs.org/","packagePath":"/{escaped name}","timeField":"time","distTagsField":"dist-tags","defaultTag":"latest","versionsField":"versions","scriptsField":"scripts","deprecatedField":"deprecated","installScripts":["preinstall","install","postinstall"]}` [↗](https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md)
 - `npmRegistry.notFoundStatus` (❓ uncertain): 404 ❓ [↗](https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md)
 - `npmRegistry.search` (❓ uncertain): `{"path":"/-/v1/search","maxSize":250,"weeklyDownloadsField":"downloads.weekly"}` ❓ [↗](https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md)
+- `pypiIndex.api` (✅ verified): `{"url":"https://pypi.org/simple/","accept":"application/vnd.pypi.simple.v1+json","notFoundStatus":404,"filesField":"files","filenameField":"filename","uploadTimeField":"upload-time","yankedField":"yanked","versionsField":"versions","statusField":"project-status","statusValueField":"status","statusReasonField":"reason"}` [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/simple-repository-api.rst)
+- `pypiIndex.projectStatus` (✅ verified): `{"blocked":["quarantined"],"warned":["archived","deprecated"]}` [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/project-status-markers.rst)
 - `claudeCode.hooks` (✅ verified): `{"settingsFile":".claude/settings.json","event":"PreToolUse","shellTool":"Bash","input":{"event":"hook_event_name","tool":"tool_name","command":"tool_input.command","cwd":"cwd"},"output":{"container":"hookSpecificOutput","event":"hookEventName","decision":"permissionDecision","reason":"permissionDecisionReason"},"decisions":{"deny":"deny","ask":"ask"},"blockingExitCode":2,"onFailure":{"field":"onFailure","value":"block","since":"2.1.295"},"projectDir":"${CLAUDE_PROJECT_DIR}","settings":{"hooks":"hooks","matcher":"matcher","handlers":"hooks","type":"type","commandType":"command","command":"command","args":"args"}}` [↗](https://code.claude.com/docs/en/hooks)
 - `python.nameNormalization` (✅ verified): `{"separators":"[-_.]+","replacement":"-"}` [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
 - `python.namePattern` (✅ verified): ^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9])$ [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
 - `python.projectFile` (✅ verified): pyproject.toml [↗](https://packaging.python.org/en/latest/specifications/pyproject-toml/)
 - `python.wheelExtension` (✅ verified): .whl [↗](https://packaging.python.org/en/latest/specifications/binary-distribution-format/)
+- `python.sourceDistributionExtensions` (✅ verified): .tar.gz, .zip, .tar.bz2, .tbz, .tgz, .tar, .tar.xz, .txz, .tlz, .tar.lz, .tar.lzma [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py)
+- `python.hatch` (✅ verified): `{"pyprojectTable":"tool.hatch","configFile":"hatch.toml"}` [↗](https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md)
+- `python.interpreter` (✅ verified): `{"executables":["python","python3","py"],"moduleOption":"-m","commandOption":"-c","valueOptions":["-W","-X","--check-hash-based-pycs"]}` [↗](https://github.com/python/cpython/blob/v3.14.0/Doc/using/cmdline.rst)
 
 ## Notes
 
@@ -478,6 +534,8 @@ Context recorded with verified facts.
 - `extra.missingUploadTime`: Unless the package is exempt, or the index has its own exclude-newer value or is exempt with [[tool.uv.index]] exclude-newer = false. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `extra.requiredVersion`: A PEP 440 specifier; uv exits with an error when its version does not match. Also at the top level of uv.toml. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs)
 - `extra.lockedSettings`: uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again ("Resolving despite existing lockfile due to addition of global exclude newer", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-lock/src/lock/serialize.rs)
+- `extra.commandLine`: clap arguments of uv add, uv pip install, uv tool install, uv run and uv tool run (uvx), with the global options, IndexArgs, ResolverInstallerArgs, BuildOptionsArgs and DependencyConstraintsArgs they share. --opt value, --opt=value, -o value and -ovalue all work; long options cannot be shortened. Options of uv run, uv tool run and uvx come before the command. --with, --with-editable and --with-executables-from add packages, as a list split at commas outside [...] that are not followed by !, =, <, > or ~ (comma.rs). uvx and uv tool run take the package from the first argument (name@version is ==version, name@latest the newest) unless --from names it; a first argument such as python, python3.12, pypy@3.8 or graalpy runs an interpreter (PythonRequest::try_from_tool_name in uv-python-types, implementation names cpython, pypy, graalpy and pyodide). uv run runs a command and downloads only what --with names, or a script given as an http or https URL. -e takes a path in uv pip install but is a flag in uv tool install, and --editable a flag in uv add; --no-binary and --only-binary take values in uv pip install only, -m is --marker in uv add and --module in uv run. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-cli/src/lib.rs)
+- `extra.registryOverrides`: IndexArgs (lib.rs): --index adds an index (name=url allowed), --default-index replaces PyPI, --index-url and --extra-index-url are their deprecated forms, --find-links adds a page or directory of archives; each has the variable named here. --config-file and UV_CONFIG_FILE name a uv.toml that may set any index. uv does not read pip.conf or PIP_INDEX_URL (docs/pip/compatibility.md). [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-static/src/env_vars.rs)
 - `extra.latestVersion`: Released on 2026-10-26. [↗](https://github.com/astral-sh/uv/blob/0.13.6/CHANGELOG.md)
 
 ### pip
@@ -506,6 +564,10 @@ Context recorded with verified facts.
 - `extra.requirementsIncludes`: Option names from cli/cmdoptions.py. A relative path is relative to the directory of the file that includes it, and a file given as an http, https or file URL is downloaded (req_file.py, _parse_and_recurse); a file that includes itself is an error. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md#referring-to-other-requirements-files)
 - `extra.requirementsPaths`: A requirement that contains a path separator (/, and \ on Windows) or starts with . looks like a path (_looks_like_path): a directory there is a project built from source. A name with an archive extension (utils/filetypes.py) is a local archive, even when the file does not exist. http, https, ftp and file URLs are links (utils/urls.py, is_url). [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/constructors.py)
 - `extra.lockfilePattern`: A named lock file, next to or instead of pylock.toml; pip lock -o writes any name. [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name)
+- `extra.commandLine`: pip and pip3 are the console scripts of the package (pyproject.toml). The options of pip install (install.py) and the general options of every command (cmdoptions.py, general_group), which may also come before install. pip reads them with optparse: --opt value and --opt=value, -rFILE and -r FILE, grouped short flags, and a long option shortened to any prefix that names one option (cli/parser.py keeps optparse's matching), so --extra means --extra-index-url. -e takes a local project path or a VCS URL to install in editable mode. -r, -c, --requirements-from-script and --group read requirements from files of the project. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/commands/install.py)
+- `extra.registryOverrides`: index_group: --index-url (alias -i, --pypi-url) is the base URL of the package index, --extra-index-url adds indexes, --find-links (-f) adds an HTML page or a directory of archives. Every long option can be set as PIP_<UPPER_LONG_NAME>, dashes replaced by underscores (docs/html/topics/configuration.md); PIP_CONFIG_FILE names a configuration file loaded last, which may set any index. Requirements files may set --index-url, --extra-index-url and --find-links too (req/req_file.py). [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/cli/cmdoptions.py)
+- `extra.pipxCommandLine`: pipx installs applications from PyPI with pip (or uv) in environments of their own. pipx install takes one or more package specs, a VCS URL, a local path or archive, or a script (--preinstall adds packages to the environment; -f is --force, not find-links). pipx run takes the app first (argparse REMAINDER, so its options come before it), --spec names the package to install and run, --with adds packages; a first argument ending in .py is a local script, or a script to download when it is a URL (docs/how-to/run-scripts.rst). argparse accepts abbreviated long options. [↗](https://github.com/pypa/pipx/blob/1.18.10/src/pipx/main.py)
+- `extra.pipxRegistryOverrides`: --index-url is the base URL of the index; --pip-args is split and handed to pip, so it may carry --extra-index-url, --find-links or --no-index. With the pip backend pipx passes the PIP_* variables on to pip; with the uv backend it ignores them and uv reads its own (docs/how-to/use-uv-backend.rst); both kinds are registry variables of pip and uv. [↗](https://github.com/pypa/pipx/blob/1.18.10/src/pipx/main.py)
 - `extra.latestVersion`: Released on 2026-10-20. [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 
 ### Poetry
@@ -527,7 +589,57 @@ Context recorded with verified facts.
 - `extra.buildSwitch`: installer.only-binary was added in 2.0.0; [":all:"] forbids source distributions of index packages when installing. Git and directory dependencies, and source archives from a URL or path, are built regardless (src/poetry/installation/executor.py at 2.5.1). [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
 - `extra.excludeWildcards`: Package names only. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/configuration.md#solvermin-release-age-exclude)
 - `extra.requiredVersion`: A version constraint in pyproject.toml; a Poetry version outside it raises an error. Poetry 1.x does not know the key. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/pyproject.md#requires-poetry)
+- `extra.commandLine`: poetry add takes package specs: a name, name@constraint, a PEP 508 requirement, a git URL, a path or an archive URL. Options with a value: --group (-G), --extras (-E), --optional, --python, --platform, --markers and --source of add, and the global --directory (-C) and --project (-P); -e/--editable, -D/--dev, --allow-prereleases, --dry-run and --lock are flags (src/poetry/console/commands/add.py). cleo reads -Gdocs and -G docs; long options cannot be shortened. poetry install takes no package specs. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/cli.md#add)
+- `extra.registryOverrides`: --source names a package source of [[tool.poetry.source]] in pyproject.toml (or pypi) to take the package from. The POETRY_REPOSITORIES_<NAME>_URL variables are for publishing only; no variable sets a package source. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/repositories.md)
+- `extra.versionConstraints`: poetry add name@constraint takes any constraint valid in pyproject.toml, and name@latest the newest release; extras go before the @ (name[extra]@^4.0.0). ^ keeps the left-most non-zero part of major.minor.patch: ^1.2.3 is >=1.2.3 <2.0.0, ^1.2 is >=1.2.0 <2.0.0, ^1 is >=1.0.0 <2.0.0, ^0.2.3 is >=0.2.3 <0.3.0, ^0.0.3 is >=0.0.3 <0.0.4, ^0.0 is >=0.0.0 <0.1.0, ^0 is >=0.0.0 <1.0.0. ~ allows patch changes, or minor changes when only a major version is given: ~1.2.3 is >=1.2.3 <1.3.0, ~1.2 is >=1.2.0 <1.3.0, ~1 is >=1.0.0 <2.0.0. * is any version, 1.* is >=1.0.0 <2.0.0, 1.2.* is >=1.2.0 <1.3.0. ~=, inequalities and == as in PEP 440, several separated by commas; a bare version (1.2.3) is that version only. Poetry prefers stable releases and takes a pre-release only when no stable release satisfies the constraint. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/docs/dependency-specification.md#using-the--operator)
 - `extra.latestVersion`: Released on 2026-09-20. [↗](https://github.com/python-poetry/poetry/blob/2.5.1/CHANGELOG.md)
+
+### PDM
+
+- `cooldown.setting`: In the [tool.pdm.resolution] table of pyproject.toml: distributions uploaded after the cutoff are left out when dependencies are resolved (pdm lock, add, update). The --exclude-newer option of pdm lock wins over it, and it wins over strategy.exclude-newer in the PDM configuration. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `cooldown.configFiles`: The [tool.pdm.resolution] table. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `cooldown.cliFlag`: pdm lock --exclude-newer, since 2.13.0. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `cooldown.unit`: An RFC 3339 timestamp, a UTC date or a relative duration N{d|h|w} such as 7d, 12h or 3w, counted from the current UTC time. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `cooldown.availableSince`: "Support exclude-newer in pyproject.toml in the [tool.pdm.resolution] table" (#3776); the pdm lock option exists since 2.13.0. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
+- `cooldown.default`: No default: without a value every upload time is accepted. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `cooldown.exclude.setting`: A table [tool.pdm.resolution.exclude-newer-override] of package = false (no cutoff) or package = another date or duration; package-specific values win over the global cutoff. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `cooldown.exclude.availableSince`: "Allow package-specific overrides for exclude-newer resolution limits" (#3809). [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
+- `installScripts.defaultPolicy`: Without only-binary, PDM locks and installs source distributions when they fit, which builds them and runs their build backend. Installing a wheel runs no package code. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#set-acceptable-format-for-locking-or-installing)
+- `installScripts.allowList.setting`: The packages in no-binary are locked and installed from source distributions only. A name in no-binary wins over only-binary = ":all:" (FormatControl of unearth, which PDM uses), so with both the named packages are the only ones built, and always from source. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#set-acceptable-format-for-locking-or-installing)
+- `installScripts.allowList.file`: The [tool.pdm.resolution] table. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#set-acceptable-format-for-locking-or-installing)
+- `installScripts.allowList.availableSince`: no-binary, only-binary and prefer-binary keys in [tool.pdm.resolution] (#2656). [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
+- `installScripts.disableAll`: only-binary = ":all:" locks and installs only wheels. The variables PDM_ONLY_BINARY and PDM_NO_BINARY win over pyproject.toml. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#set-acceptable-format-for-locking-or-installing)
+- `project.lockfiles`: pdm.lock next to pyproject.toml; pdm lock --lockfile writes another name. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md)
+- `extra.configTables`: exclude-newer, its overrides, only-binary and no-binary share the table. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `extra.pyprojectTable`: PDM keeps its settings in [tool.pdm] of pyproject.toml. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md)
+- `extra.buildSwitch`: only-binary in [tool.pdm.resolution] since 2.15.0 (#2656). It covers packages from an index: git, URL and path requirements already name their source and are built regardless (candidates.py). [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
+- `extra.durationStrings`: "pdm lock --exclude-newer now accepts relative durations in the format N{d|h|w}" (#3760). [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
+- `extra.durationUnits`: Written as Nh, Nd and Nw. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `extra.excludeWildcards`: Override keys are package names. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `extra.excludeValue`: package = false disables the cutoff for that package. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `extra.missingUploadTime`: The index must give upload-time (PEP 700); an override of false lifts it for the package. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date)
+- `extra.commandLine`: pdm add takes requirements as arguments and editable ones with -e; its options come from cli/options.py and the global ones (-c/--config, --pep582, -I, -n, --no-cache) from core.py. --venv and --pep582 take an optional value, so argparse takes the next word for it. PDM parses with argparse, which accepts abbreviated long options. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/src/pdm/cli/commands/add.py)
+- `extra.registryOverrides`: pypi.url, the index PDM uses when pyproject.toml names no source called pypi, can be set with PDM_PYPI_URL (docs/usage/config.md); -c/--config and PDM_CONFIG_FILE name another configuration file, which may set any index. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/src/pdm/project/config.py)
+- `extra.latestVersion`: Released on 2026-10-30. [↗](https://github.com/pdm-project/pdm/blob/2.29.5/CHANGELOG.md)
+
+### Pipenv
+
+- `cooldown.setting`: In the [pipenv] section of the Pipfile: the resolver considers only versions uploaded at least that many days ago. Pipenv computes a cutoff (now minus N days, UTC) and hands it to pip as uploaded-prior-to. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
+- `cooldown.configFiles`: The [pipenv] section. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipenv-directives)
+- `cooldown.unit`: A string in <int>d format, e.g. "30d"; any other form is rejected (pipenv/vendor/plette/models/sections.py). [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
+- `cooldown.availableSince`: "Added support for cool-down-period in the [pipenv] section of the Pipfile" under 2026.6.2 (repeated under 2026.7.0 and 2026.7.1). Checked against the wheels on 2026-10-30: missing in 2026.6.1, present in 2026.6.2. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/CHANGELOG.md)
+- `cooldown.default`: Off unless set. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
+- `installScripts.defaultPolicy`: Pipenv installs with pip, which builds source distributions when no wheel fits. Pipenv honors pip configuration and PIP_* variables, which may forbid building (PIP_ONLY_BINARY=:all:), but the Pipfile has no setting for it. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/configuration.md)
+- `project.lockfiles`: JSON, generated next to the Pipfile. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipfilelock)
+- `project.manifests`: TOML. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipfile)
+- `extra.configTables`: Directives such as cool-down-period and allow_prereleases live in [pipenv]. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipenv-directives)
+- `extra.durationStrings`: Only whole days (<int>d) are accepted. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
+- `extra.durationUnits`: Whole days only. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
+- `extra.missingUploadTime`: "When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect." [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period)
+- `extra.lockfileFormat`: Every key but _meta is a category (default, develop and custom ones) mapping names to entries: index packages have version, hashes and index; git entries git and ref; remote archives file; local projects path, and editable = true for editable installs (Pipfile "Packages Section"). The hashes of wheels and source distributions are listed together, so the lockfile does not show which packages are built. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#pipfilelock-structure)
+- `extra.commandLine`: pipenv install takes packages as arguments (without any it installs the Pipfile) and editable ones with -e; -r imports a requirements file. The options of install and the global flags of pipenv, read with argparse, which accepts abbreviated long options. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/pipenv/cli/options.py)
+- `extra.registryOverrides`: --index names a package index by URL or by a source name of the Pipfile; --pypi-mirror and PIPENV_PYPI_MIRROR replace PyPI. --extra-pip-args hands arguments to pip, which may name another index, and Pipenv loads PIP_* variables from the .env file that PIPENV_DOTENV_LOCATION names (options.py). [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/configuration.md)
+- `extra.latestVersion`: Released on 2026-10-28. [↗](https://github.com/pypa/pipenv/blob/v2026.10.4/CHANGELOG.md)
 
 ### Renovate
 
@@ -553,7 +665,7 @@ Context recorded with verified facts.
 - `extra.datasources`: Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files. [↗](https://docs.renovatebot.com/modules/datasource/pypi/)
 - `extra.negativeMatch`: Patterns starting with ! are negative matches, and none of them may match; matchDatasources is matched this way (matchRegexOrGlobList in lib/util/package-rules/datasources.ts at 44.198.0), so ["!pypi"] covers every datasource but PyPI. [↗](https://docs.renovatebot.com/string-pattern-matching/)
 - `extra.pypiPresets`: Added in 44.8.0; config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm). [↗](https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi)
-- `extra.pythonManagers`: pep621 updates pyproject.toml with uv.lock (there is no uv manager); poetry updates pyproject.toml with poetry.lock; pip_requirements updates requirements files. pip-compile is off by default. [↗](https://docs.renovatebot.com/modules/manager/pep621/)
+- `extra.pythonManagers`: pep621 updates pyproject.toml with uv.lock (there is no uv manager) or pdm.lock; poetry updates pyproject.toml with poetry.lock; pipenv updates the Pipfile with Pipfile.lock; pip_requirements updates requirements files. pip-compile is off by default (lib/modules/manager/pep621/readme.md and pipenv/index.ts at 44.198.1). [↗](https://docs.renovatebot.com/modules/manager/pep621/)
 - `extra.passesDelayToManager`: Since 44.34.0 Renovate passes POETRY_SOLVER_MIN_RELEASE_AGE (rounded up to whole days) to Poetry 2.4.0 and later. It does not pass the delay to uv or read exclude-newer. [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/)
 - `extra.missingTimestamp`: minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open. [↗](https://github.com/renovatebot/renovate/releases/tag/42.0.0)
 - `extra.independentOfPackageManager`: Source code passes --before to npm only; pnpm, Yarn and Bun gates are not read. [↗](https://docs.renovatebot.com/key-concepts/minimum-release-age/)
@@ -569,7 +681,7 @@ Context recorded with verified facts.
 - `installScripts.allowList.setting`: insecure-external-code-execution: allow exists only for bundler, mix and pip; nothing allows npm, pnpm, Yarn or Bun scripts. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#insecure-external-code-execution)
 - `extra.cooldownKeys`: Keys inside the cooldown block of an updates entry; the semver-* keys override default-days for that kind of update. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
 - `extra.excludeWildcards`: cooldown.exclude accepts * wildcards. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#cooldown)
-- `extra.ecosystems`: The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). Cooldown, including the semver-* keys, is supported for all of them. [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#package-ecosystem)
+- `extra.ecosystems`: The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). Cooldown, including the semver-* keys, is supported for all of them. PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0). [↗](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#package-ecosystem)
 - `extra.maximumDays`: The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange). [↗](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates)
 
 ### Environment
@@ -599,11 +711,16 @@ Context recorded with verified facts.
 - `githubActions.annotationLimits`: 10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown. [↗](https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations)
 - `githubActions.stepSummary`: GitHub flavored Markdown appended to the file named by the variable; at most 1 MiB per step (over that the upload fails with an error annotation), and at most 20 step summaries are shown per job. [↗](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary)
 - `npmRegistry.api`: GET /{package} returns the full document by default: dist-tags maps tags to versions (every package has latest), versions maps versions to version objects, time maps every version to its publish time, and a version object carries scripts (from its package.json) and deprecated. The abbreviated document (Accept: application/vnd.npm.install-v1+json) has no time field and adds hasInstallScript. Scoped names are escaped with %2f (escapedName in github.com/npm/npm-package-arg); the registry answered the same document for @types/node and @types%2fnode on 2026-10-29. Install scripts: preinstall, install and postinstall run for a dependency, and npm runs node-gyp rebuild as install when the package has binding.gyp and no install or preinstall script (github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/scripts.md); binding.gyp is not visible in the document. [↗](https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md)
+- `pypiIndex.api`: GET /simple/<project>/ with Accept: application/vnd.pypi.simple.v1+json returns name, files, meta, versions and project-status; the project is matched case-insensitively with _, - and . considered equal (index-api.md in pypi/warehouse, the source of docs.pypi.org/api/index-api/, which recommends the JSON form for new integrations; the JSON API of /pypi/<project>/json marks its releases key deprecated). A file has filename, url, hashes, size, an optional upload-time (yyyy-mm-ddThh:mm:ss.ffffffZ, UTC) and an optional yanked (true or a reason string). Every file belongs to a version listed in versions, but the response does not say which: the version is part of the file name. On 2026-10-30 pypi.org answered api-version 1.4 for requests and 404 for a name it does not know. [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/simple-repository-api.rst)
+- `pypiIndex.projectStatus`: A project has exactly one status, active when none is given. quarantined: considered generally unsafe (for example malware), and the index must not offer any of its files. archived: no new uploads, existing files stay; installers may warn. deprecated: obsolete, perhaps superseded by another project; installers may warn. [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/project-status-markers.rst)
 - `claudeCode.hooks`: A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules. [↗](https://code.claude.com/docs/en/hooks)
 - `python.nameNormalization`: Names are lowercased and every run of ., - or _ becomes a single -, before lookups and comparisons (PEP 503): Friendly.Bard and friendly_bard are the same package. Read from the page source in pypa/packaging.python.org. [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
 - `python.namePattern`: The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\Z run with re.IGNORECASE (PEP 508). [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
 - `python.projectFile`: The configuration file of a Python project, in the project root; tools keep their own settings in its [tool.<name>] tables. [↗](https://packaging.python.org/en/latest/specifications/pyproject-toml/)
 - `python.wheelExtension`: A wheel is a ZIP archive with the .whl extension; installing it unpacks files and runs no build code. Read from the page source in pypa/packaging.python.org. [↗](https://packaging.python.org/en/latest/specifications/binary-distribution-format/)
+- `python.sourceDistributionExtensions`: ARCHIVE_EXTENSIONS of pip without .whl: the archives pip accepts from an index besides wheels (index/package_finder.py rejects any other extension), all of them built when installed. A standard sdist is named {name}-{version}.tar.gz with the name normalized (PEP 625, source-distribution-format.rst); older uploads use the other extensions and names that are not normalized. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py)
+- `python.hatch`: Hatch reads its project configuration from [tool.hatch] of pyproject.toml or from hatch.toml. It has no setting of its own for a release-age delay, building from source or dependency sources; its environments install with uv (installer = "uv", the default of its internal environments) or pip (docs/how-to/environment/select-installer.md), and uv reads [tool.uv] of the project under Hatch too (tested on 2026-10-30 with Hatch 1.18.2 and uv 0.13.6). [↗](https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md)
+- `python.interpreter`: python [-bBdEhiIOPqRsSuvVWx?] [-c command | -m module-name | script | - ] [args]: -m and -c end the interpreter options, and what follows goes to the module or the command; -W arg, -X option and --check-hash-based-pycs mode take a value, the other options are flags. pip documents running itself as python -m pip, and as py -m pip with the Windows launcher (github.com/pypa/pip/blob/26.2.2/docs/html/cli/pip_install.rst). [↗](https://github.com/python/cpython/blob/v3.14.0/Doc/using/cmdline.rst)
 
 ## To review
 
@@ -1015,6 +1132,132 @@ Read from the solver code, which takes the locked package without asking the rep
 poetry.lock has no documented format. Each [[package]] from PyPI has no [package.source]; others have type git, url, file, directory or legacy (a named index). files lists {file, hash} for every distribution, empty for git and directory packages; a package from an index without a .whl file is built when installed.
 
 - `{"sources":{"git":"git","remoteTarball":"url","file":"file","directory":"directory","registry":"legacy"},"packages":"package","source":"source","files":"files"}` · [source](https://github.com/python-poetry/poetry/blob/2.5.1/src/poetry/packages/locker.py), verified 2026-10-30.
+
+### PDM · `cooldown.securityUpdates` ❓ uncertain
+
+PDM does not know which versions fix vulnerabilities; the cutoff holds back every newer distribution of a package without an override.
+
+- `applies` · [source](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/lockfile.md#exclude-packages-newer-than-specific-date), verified 2026-10-30.
+
+### PDM · `sources.git.setting` ❓ uncertain
+
+No setting allows or forbids git dependencies (concluded from the documented [tool.pdm] settings); only-binary does not stop them from being built.
+
+- `null` · [source](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md), verified 2026-10-30.
+
+### PDM · `sources.remoteTarball.setting` ❓ uncertain
+
+No setting allows or forbids URL dependencies (concluded from the documented [tool.pdm] settings); only-binary does not stop them from being built.
+
+- `null` · [source](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md), verified 2026-10-30.
+
+### PDM · `sources.file.setting` ❓ uncertain
+
+No setting allows or forbids local archive dependencies (concluded from the documented [tool.pdm] settings); only-binary does not stop them from being built.
+
+- `null` · [source](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md), verified 2026-10-30.
+
+### PDM · `sources.directory.setting` ❓ uncertain
+
+No setting allows or forbids local directory dependencies (concluded from the documented [tool.pdm] settings); only-binary does not stop them from being built.
+
+- `null` · [source](https://github.com/pdm-project/pdm/blob/2.29.5/docs/reference/pep621.md), verified 2026-10-30.
+
+### PDM · `project.workspaces` ❓ uncertain
+
+Workspaces ([tool.pdm.workspace] members) are experimental since 2.28.0 and are locked and installed from the root only, so depcurfew configures the root and reads no members.
+
+- `null` · [source](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/workspace.md), verified 2026-10-30.
+
+### PDM · `project.workspacesObjectKey` ❓ uncertain
+
+Not read; see workspaces.
+
+- `null` · [source](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/workspace.md), verified 2026-10-30.
+
+### PDM · `extra.lockfileFormat` ❓ uncertain
+
+pdm.lock (lock_version 4.5) has no documented format beyond the docs examples. Each [[package]] has name, version and files ({file, hash} for every distribution); a VCS package has its repository under the key of its VCS (git = "…") with ref and revision; a local archive or directory has path, a remote archive url, and editable packages editable = true (as_lockfile_entry). A package from an index without a .whl file is built when installed.
+
+- `{"packages":"package","files":"files","file":"file","vcs":["git","hg","svn","bzr"],"url":"url","path":"path","editable":"editable"}` · [source](https://github.com/pdm-project/pdm/blob/2.29.5/src/pdm/models/candidates.py), verified 2026-10-30.
+
+### PDM · `extra.uvMode` ❓ uncertain
+
+Experimental since 2.19.0: PDM resolves and installs with uv. It passes the cutoff and the build settings to uv lock, but runs uv sync --frozen without the build settings (src/pdm/installers/uv.py), and pdm.lock then lists source distributions even with only-binary.
+
+- `{"file":"pdm.toml","key":"use_uv"}` · [source](https://github.com/pdm-project/pdm/blob/2.29.5/docs/usage/uv.md), verified 2026-10-30.
+
+### Pipenv · `cooldown.cliFlag` ❓ uncertain
+
+No command-line option.
+
+- `null` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/commands.md), verified 2026-10-30.
+
+### Pipenv · `cooldown.exclude.setting` ❓ uncertain
+
+No per-package exception: the cutoff applies to every package.
+
+- `null` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period), verified 2026-10-30.
+
+### Pipenv · `cooldown.securityUpdates` ❓ uncertain
+
+The cutoff holds back every newer version, security fixes included.
+
+- `applies` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md#cool-down-period), verified 2026-10-30.
+
+### Pipenv · `installScripts.allowList.setting` ❓ uncertain
+
+No documented setting; a per-package no_binary = true exists in the code (pipenv/routines/install.py) but forces building rather than allowing it.
+
+- `null` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md), verified 2026-10-30.
+
+### Pipenv · `installScripts.disableAll` ❓ uncertain
+
+No Pipfile setting. Only pip configuration or PIP_ONLY_BINARY=:all: in the environment (Pipenv loads the project .env for every command) forbids building.
+
+- `null` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/configuration.md), verified 2026-10-30.
+
+### Pipenv · `sources.git.setting` ❓ uncertain
+
+No Pipfile setting allows or forbids git dependencies (concluded from the documented [pipenv] directives).
+
+- `null` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md), verified 2026-10-30.
+
+### Pipenv · `sources.remoteTarball.setting` ❓ uncertain
+
+No Pipfile setting allows or forbids URL dependencies (concluded from the documented [pipenv] directives).
+
+- `null` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md), verified 2026-10-30.
+
+### Pipenv · `sources.file.setting` ❓ uncertain
+
+No Pipfile setting allows or forbids local archive dependencies (concluded from the documented [pipenv] directives).
+
+- `null` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md), verified 2026-10-30.
+
+### Pipenv · `sources.directory.setting` ❓ uncertain
+
+No Pipfile setting allows or forbids local directory dependencies (concluded from the documented [pipenv] directives).
+
+- `null` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md), verified 2026-10-30.
+
+### Pipenv · `project.workspaces` ❓ uncertain
+
+Pipenv has no workspaces.
+
+- `null` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md), verified 2026-10-30.
+
+### Pipenv · `project.workspacesObjectKey` ❓ uncertain
+
+No workspaces.
+
+- `null` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/docs/pipfile.md), verified 2026-10-30.
+
+### Pipenv · `extra.resolverBypass` ❓ uncertain
+
+Not documented. Tested on 2026-10-30 with 2026.10.4: with resolver_backend = "pure-python" in [pipenv], pipenv lock locked the newest versions despite cool-down-period = "100000d"; resolver is the older name of the key.
+
+- `{"table":"pipenv","keys":["resolver_backend","resolver"],"value":"pure-python"}` · [source](https://github.com/pypa/pipenv/blob/v2026.10.4/pipenv/routines/lock.py), verified 2026-10-30.
 
 ### Renovate · `cooldown.exclude.availableSince` ❓ uncertain
 

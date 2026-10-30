@@ -1,7 +1,7 @@
 // Every fact about a package manager or bot carries the official URL it was verified against
 // and the date of verification. Disputed facts keep every variant with its own source.
 
-export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'renovate' | 'dependabot';
+export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'renovate' | 'dependabot';
 export type ToolKind = 'package-manager' | 'update-bot';
 /** The registry a package manager installs from; package names in the policy are compared per ecosystem. */
 export type Ecosystem = 'npm' | 'pypi';
@@ -150,12 +150,29 @@ export interface ToolKnowledge {
 /** A command that downloads packages, with the options that name packages and the options whose value is a command line. */
 export interface DownloadCommand {
   command: readonly string[];
-  /** Options whose value names a package to download as well. */
+  /** Options whose value names the package to download in place of the first argument. */
   packageOptions: readonly string[];
+  /** Options whose value names a package to download besides the one the first argument names. */
+  extraPackageOptions?: readonly string[];
   /** Options whose value is a shell command line that runs with the downloaded packages. */
   lineOptions?: readonly string[];
   /** Flags that make the first argument a shell command line instead of a package. */
   shellOptions?: readonly string[];
+  /** false when the first argument is the command to run, not a package (uv run): only package options name packages. */
+  packageArgument?: boolean;
+  /** A first argument with one of these endings is a script: a local one names no package; a URL is downloaded. */
+  scriptSuffixes?: readonly string[];
+  /** A first argument that is an http or https URL is a script to download and run. */
+  scriptUrls?: boolean;
+}
+
+/** Options that only some commands of a tool have, or that mean something else in its other commands. */
+export interface CommandOptions {
+  command: readonly string[];
+  /** Options of this command followed by a separate value. */
+  valueOptions: readonly string[];
+  /** Options of this command whose value is a local path or VCS URL installed in editable mode. */
+  editableOptions?: readonly string[];
 }
 
 export interface CommandLineKnowledge {
@@ -170,7 +187,7 @@ export interface CommandLineKnowledge {
    * @s/create-foo; `prefix-unless-prefixed` does the same but keeps a name (or the part after the scope) that already
    * starts with create-.
    */
-  createNames: 'prefix' | 'prefix-unless-prefixed';
+  createNames?: 'prefix' | 'prefix-unless-prefixed';
   /** Commands that run another command of the same tool in a workspace, after the given number of operands. */
   workspaceCommands?: readonly { command: readonly string[]; operands: number }[];
   /** Options of the add commands after which the arguments are local files, so no package is named. */
@@ -180,6 +197,25 @@ export interface CommandLineKnowledge {
    * when listed in a fact of its own. Package options of run and create commands are listed with those commands only.
    */
   valueOptions: readonly string[];
+  /** Options that stand alone, for tools that accept abbreviated long options: an exact name is never a prefix. */
+  flagOptions?: readonly string[];
+  /** How options are read; left out, as for npm, only whole option names with = or a separate value are read. */
+  parsing?: {
+    /** A long option may be shortened to any prefix that names one option (optparse and argparse). */
+    abbreviations?: boolean;
+    /** Short options may be grouped (-Uq) and the last may carry its value in the same word (-ivalue). */
+    groupedShortOptions?: boolean;
+  };
+  /** Options of the add commands whose value names a package to install as well. */
+  addPackageOptions?: readonly string[];
+  /** Options whose value is a local path or VCS URL installed in editable mode. */
+  editableOptions?: readonly string[];
+  /** Package options whose value is a list of requirements separated by commas. */
+  commaSeparatedOptions?: readonly string[];
+  /** Run commands take a first argument with one of these names (and a version) for an interpreter, not a package. */
+  interpreterNames?: readonly string[];
+  /** Options that differ between the commands of the tool. */
+  commandOptions?: readonly CommandOptions[];
 }
 
 /** Forms of a package spec on the command line that do not name a registry package, by prefix. */
@@ -308,6 +344,63 @@ export interface NpmRegistryKnowledge {
   installScripts: readonly string[];
 }
 
+/** How the Python interpreter runs a module (python -m pip) or a command string. */
+export interface PythonInterpreterKnowledge {
+  /** Executable names; versioned names such as python3.12 are the same. */
+  executables: readonly string[];
+  /** Runs the named module as a script; the options end there. */
+  moduleOption: string;
+  /** Runs a command string; the options end there. */
+  commandOption: string;
+  /** Other options followed by a separate value. */
+  valueOptions: readonly string[];
+}
+
+/** How poetry add reads name@constraint (and uv tool commands name@version). */
+export interface PoetryConstraintsKnowledge {
+  /** Between the name (with extras) and the constraint. */
+  separator: string;
+  /** In place of a constraint: the newest release. */
+  latest: string;
+  /** Prefix of a constraint that keeps the left-most non-zero part of major.minor.patch. */
+  caret: string;
+  /** Prefix of a constraint that allows patch changes, or minor changes when only a major version is given. */
+  tilde: string;
+  /** Any version alone, or after a version prefix (1.*). */
+  any: string;
+}
+
+/** The JSON form of the simple repository API of a Python package index (PEP 691, PEP 700, PEP 792). */
+export interface PypiIndexKnowledge {
+  /** Base URL; a project's page is the normalized name followed by a slash. */
+  url: string;
+  /** Accept header that asks for the JSON form. */
+  accept: string;
+  /** Status of a project the index does not know. */
+  notFoundStatus: number;
+  /** Key of the list of distribution files, and the keys of a file. */
+  filesField: string;
+  filenameField: string;
+  /** ISO 8601 upload time in UTC; optional, since API version 1.1. */
+  uploadTimeField: string;
+  /** true or a reason string when the file is yanked. */
+  yankedField: string;
+  /** Key of the list of all versions of the project, since API version 1.1. */
+  versionsField: string;
+  /** Key of the project status object, its status and its reason, since API version 1.4. */
+  statusField: string;
+  statusValueField: string;
+  statusReasonField: string;
+}
+
+/** Project status markers (PEP 792): which mean that no file may be downloaded, and which installers may warn about. */
+export interface ProjectStatusKnowledge {
+  /** The index offers no file of the project. */
+  blocked: readonly string[];
+  /** Installers may warn about the project. */
+  warned: readonly string[];
+}
+
 /** Claude Code hooks that run before a tool call and can block it (used by depcurfew check --hook claude-code). */
 export interface ClaudeCodeHooksKnowledge {
   /** Project settings file that can be committed. */
@@ -396,6 +489,10 @@ export interface EnvironmentKnowledge {
     /** Search endpoint, its result limit and the field with weekly downloads. */
     search: Fact<{ path: string; maxSize: number; weeklyDownloadsField: string }>;
   };
+  pypiIndex: {
+    api: Fact<PypiIndexKnowledge>;
+    projectStatus: Fact<ProjectStatusKnowledge>;
+  };
   claudeCode: {
     hooks: Fact<ClaudeCodeHooksKnowledge>;
   };
@@ -408,5 +505,10 @@ export interface EnvironmentKnowledge {
     projectFile: Fact<string>;
     /** The file extension of a wheel, a built distribution that installs without running package code. */
     wheelExtension: Fact<string>;
+    /** File extensions of source distributions on an index, which are built when installed. */
+    sourceDistributionExtensions: Fact<readonly string[]>;
+    interpreter: Fact<PythonInterpreterKnowledge>;
+    /** Hatch, which has no supply-chain settings of its own: how a project shows it uses Hatch. */
+    hatch: Fact<{ pyprojectTable: string; configFile: string }>;
   };
 }

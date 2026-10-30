@@ -1,7 +1,7 @@
-// Python lockfiles for doctor: uv.lock, poetry.lock, pylock.toml and pip requirements files. Each package gets its
-// source (registry, git, URL, local archive or directory, workspace) and whether installing it builds it from
-// source, which runs its build code (decision D-065: the Python counterpart of install scripts). Key names come from
-// the knowledge base (extra.lockfileFormat, extra.requirementsFormat).
+// Python lockfiles for doctor: uv.lock, poetry.lock, pdm.lock, Pipfile.lock, pylock.toml and pip requirements files.
+// Each package gets its source (registry, git, URL, local archive or directory, workspace) and whether installing it
+// builds it from source, which runs its build code (decision D-065: the Python counterpart of install scripts). Key
+// names come from the knowledge base (extra.lockfileFormat, extra.requirementsFormat).
 import { isRecord, values } from '../apply/facts.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { environment } from '../knowledge/environment.ts';
@@ -13,6 +13,7 @@ import type { LockEntry, Source } from './lockfiles.ts';
 type Format = Record<string, unknown>;
 
 const WHEEL = evidenceOf(environment.python.wheelExtension)[0]?.value ?? '.whl';
+const SDISTS = evidenceOf(environment.python.sourceDistributionExtensions)[0]?.value ?? [];
 
 function text(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
@@ -97,6 +98,55 @@ export function poetryEntries(input: string, format: Format): LockEntry[] {
   });
 }
 
+/** pdm.lock: [[package]] with files from an index, or a VCS repository (git = …), a url or a local path instead. */
+export function pdmEntries(input: string, format: Format): LockEntry[] {
+  const document = parseToml(input);
+  const key = (name: string) => String(format[name]);
+  const vcs = strings(format['vcs']);
+  return list(document.root[key('packages')]).flatMap((item, index): LockEntry[] => {
+    if (!isRecord(item) || typeof item['name'] !== 'string') return [];
+    const line = document.lineOf([key('packages'), index]);
+    const repository = vcs.find((name) => typeof item[name] === 'string');
+    if (repository !== undefined) return [entry(item['name'], String(item[repository]), repository === 'git' ? 'git' : 'unknown', true, line)];
+    const url = text(item[key('url')]);
+    if (url !== undefined) return [entry(item['name'], url, 'remoteTarball', !isWheel(url), line)];
+    const path = text(item[key('path')]);
+    if (path !== undefined) {
+      const archive = [WHEEL, ...SDISTS].some((extension) => path.toLowerCase().endsWith(extension));
+      return [entry(item['name'], path, archive ? 'file' : 'directory', archive ? !isWheel(path) : true, line)];
+    }
+    const files = list(item[key('files')]).map((file) => (isRecord(file) ? text(file[key('file')]) : undefined)).filter((file): file is string => file !== undefined);
+    return [entry(item['name'], 'an index', 'registry', files.length > 0 && !files.some(isWheel), line)];
+  });
+}
+
+/**
+ * Pipfile.lock: every key but _meta is a category of packages. Git, remote file and local path entries are built;
+ * for index packages the hashes do not tell wheels from source distributions, so whether they are built is unknown.
+ */
+export function pipfileLockEntries(input: string, format: Format): LockEntry[] {
+  const document = JSON.parse(input) as unknown;
+  if (!isRecord(document)) throw new Error('Pipfile.lock is not a JSON object');
+  const key = (name: string) => String(format[name]);
+  const entries: LockEntry[] = [];
+  for (const [category, packages] of Object.entries(document)) {
+    if (category === key('meta') || !isRecord(packages)) continue;
+    for (const [name, item] of Object.entries(packages)) {
+      if (!isRecord(item)) continue;
+      const git = text(item[key('git')]);
+      const file = text(item[key('file')]);
+      const path = text(item[key('path')]);
+      // The line is looked up by the quoted name, the way it is written in the lockfile.
+      const anchored = (found: LockEntry): LockEntry => ({ ...found, anchor: JSON.stringify(name) });
+      if (git !== undefined) entries.push(anchored(entry(name, git, 'git', true, undefined)));
+      else if (file !== undefined) entries.push(anchored(entry(name, file, 'remoteTarball', !isWheel(file), undefined)));
+      else if (path !== undefined) entries.push(anchored(entry(name, path, 'directory', true, undefined)));
+      else entries.push(anchored(entry(name, 'an index', 'registry', undefined, undefined)));
+    }
+  }
+  return entries;
+}
+
 /** pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. */
 export function pylockEntries(input: string, format: Format): LockEntry[] {
   const document = parseToml(input);
@@ -172,12 +222,26 @@ export function requirementsIncludes(input: string, format: Format): { path: str
   });
 }
 
-/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
-export function requirementsEntries(input: string, format: Format): LockEntry[] {
+/** Where one requirement comes from, as pip reads it. */
+export interface RequirementSource {
+  source: Source;
+  /** The URL or path, or the whole requirement for a registry package. */
+  target: string;
+  /** From "name @", #egg= or, for a registry package, the requirement itself; undefined when the requirement has no name. */
+  name?: string;
+  /** Whether installing it builds it from source; undefined when the index decides (a registry package). */
+  builds: boolean | undefined;
+}
+
+/**
+ * Classifies one requirement (without options or environment markers): a VCS URL, a URL, a local archive or
+ * directory, the project itself, or a registry package. `editable` is set for the value of -e, which is always a path
+ * or a VCS URL.
+ */
+export function requirementSource(requirement: string, format: Format, editable: boolean): RequirementSource {
   const vcs = isRecord(format['vcs']) ? format['vcs'] : {};
   const gitPrefixes = strings(vcs['git']);
   const otherPrefixes = strings(vcs['other']);
-  const editable = strings(format['editable']);
   const egg = new RegExp(`${escapeRegExp(String(format['egg']))}([^&\\s]+)`, 'u');
   const paths = isRecord(format['paths']) ? format['paths'] : {};
   const separators = strings(paths['separators']);
@@ -190,6 +254,34 @@ export function requirementsEntries(input: string, format: Format): LockEntry[] 
   // pip takes anything with a path separator, or starting with ., for a path, and an archive name for a file.
   const looksLikePath = (text: string) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
   const isArchive = (text: string) => archives.some((extension) => text.toLowerCase().endsWith(extension));
+  const named = reference.exec(requirement);
+  const target = named?.[2] ?? requirement;
+  // The name comes from "name @" or #egg=; a guess from a file or directory name could match the allow-list for
+  // the wrong code, so a requirement without either stays unnamed.
+  const name = named?.[1] ?? egg.exec(target)?.[1];
+  const located = (source: Source, location: string, builds: boolean): RequirementSource => ({
+    source,
+    target: location,
+    ...(name !== undefined && PYTHON_NAME.test(name) ? { name } : {}),
+    builds,
+  });
+  if (gitPrefixes.some((prefix) => target.startsWith(prefix))) return located('git', target, true);
+  if (otherPrefixes.some((prefix) => target.startsWith(prefix))) return located('unknown', target, true);
+  if (urlSchemes.test(target)) return located('remoteTarball', target, !isWheel(target));
+  if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || editable) {
+    const path = target.replace(fileScheme, '');
+    // The project itself (-e . or .) is built as part of the work on it, not as a dependency.
+    if (/^\.\/?$/u.test(path)) return { source: 'workspace', target, name: '.', builds: false };
+    const archive = isArchive(path);
+    return located(archive ? 'file' : 'directory', path, archive ? !isWheel(path) : true);
+  }
+  const registryName = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
+  return { source: 'registry', target: requirement, ...(registryName === undefined ? {} : { name: registryName }), builds: undefined };
+}
+
+/** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
+export function requirementsEntries(input: string, format: Format): LockEntry[] {
+  const editable = strings(format['editable']);
   const entries: LockEntry[] = [];
   for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
     let requirement = body;
@@ -197,31 +289,16 @@ export function requirementsEntries(input: string, format: Format): LockEntry[] 
     if (flag !== undefined) requirement = requirement.slice(flag.length + 1).trim();
     else if (requirement.startsWith('-')) continue;
     requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(';', 1)[0]?.trim() ?? requirement;
-    const named = reference.exec(requirement);
-    const target = named?.[2] ?? requirement;
-    // The name comes from "name @" or #egg=; a guess from a file or directory name could match the allow-list for
-    // the wrong code, so a requirement without either stays unnamed and is shown by its location.
-    const add = (location: string, source: Source, builds: boolean | undefined) => {
-      const name = named?.[1] ?? egg.exec(target)?.[1];
-      entries.push(name !== undefined && PYTHON_NAME.test(name) ? entry(name, target, source, builds, lineNumber) : { ...entry('', target, source, builds, lineNumber), name: location, unnamed: true });
-    };
-    if (gitPrefixes.some((prefix) => target.startsWith(prefix))) add(target, 'git', true);
-    else if (otherPrefixes.some((prefix) => target.startsWith(prefix))) add(target, 'unknown', true);
-    else if (urlSchemes.test(target)) add(target, 'remoteTarball', !isWheel(target));
-    else if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || flag !== undefined) {
-      const path = target.replace(fileScheme, '');
-      // The project itself (-e . or .) is built as part of the work on it, not as a dependency.
-      if (/^\.\/?$/u.test(path)) {
-        entries.push({ ...entry('', target, 'workspace', false, lineNumber), name: '.' });
-        continue;
-      }
-      const archive = isArchive(path);
-      add(path, archive ? 'file' : 'directory', archive ? !isWheel(path) : true);
+    const found = requirementSource(requirement, format, flag !== undefined);
+    if (found.source === 'workspace') {
+      entries.push({ ...entry('', found.target, 'workspace', false, lineNumber), name: '.' });
+    } else if (found.source === 'registry') {
+      if (found.name !== undefined) entries.push(entry(found.name, requirement, 'registry', undefined, lineNumber));
+    } else if (found.name !== undefined) {
+      entries.push(entry(found.name, found.target, found.source, found.builds, lineNumber));
     } else {
-      const name = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
-      if (name !== undefined) entries.push(entry(name, requirement, 'registry', undefined, lineNumber));
+      entries.push({ ...entry('', found.target, found.source, found.builds, lineNumber), name: found.target, unnamed: true });
     }
   }
   return entries;
 }
-
