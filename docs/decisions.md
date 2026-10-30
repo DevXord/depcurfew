@@ -1023,3 +1023,34 @@ Pełny test paczki z tarballa (`npm pack`) na projektach testowych npm, pnpm, Ya
 - **Hatch.** Ostrzeżenie `python-tool-unknown` w projekcie z `[tool.hatch]` albo `hatch.toml` podpowiada dodanie `"uv"` do `targets`, zgodnie z D-072.
 
 Bez zmian, bo to zamierzone: puste `FORCE_COLOR=` włącza kolory, a `FORCE_COLOR` wygrywa z `NO_COLOR`, tak jak w Node i supports-color (test w `tests/color.test.ts`). Krok Node akcji kończy się kodem 0 przy błędach, a zadanie przerywa następny krok `action.yml` (`fail-on-error`).
+
+## D-078 · Bezpieczne wyjście tekstowe, błędy wejścia, polityka z katalogu nadrzędnego i porządki prawne (2026-10-30)
+
+Przegląd przed wydaniem 1.0.0 (pentest i przegląd CLI) znalazł:
+
+- **Sekwencje sterujące terminala (bezpieczeństwo).** Nazwy paczek z lockfile'i, nazwy plików, klucze i wartości konfiguracji, pole `deprecated` i skrypty z rejestru trafiały dosłownie do tekstu, więc spreparowane repozytorium albo paczka mogły podrobić link (OSC 8), zmienić tytuł okna albo wyczyścić linię.
+  - Jedna funkcja `printable` (`src/printable.ts`) zamienia znaki C0 poza tabulatorem, DEL i C1 na `\xHH`. Nowe linie z niezaufanych treści też, żeby wartość nie zaczęła własnej linii (np. fałszywego `fix:`); fragmenty do ręcznego dodania w `apply` zachowują swoje nowe linie.
+  - Działa przed dodaniem kolorów w tekście `doctor`, `check`, `apply` (ostrzeżenia, błędy, nazwy plików), `explain`, w błędach wejścia i w Action: log, adnotacje (także `file`, więc ścieżka ze znakiem sterującym traci link do pliku), podsumowanie zadania i wyjście `failure`.
+  - JSON i SARIF bez zmian, bo JSON sam koduje znaki sterujące. Diff `apply --dry-run` jest zmieniany tylko na terminalu albo z kolorami (nowe pole `terminal` w `CliIo`); w pliku i potoku zostaje dokładny dla `git apply`.
+- **Błędy wejścia bez śladu stosu.**
+  - Nieczytelny `depcurfew.json` (np. EACCES): `readPolicyFile` łapie błąd odczytu, więc to `policy-unreadable` w `apply`, `check` i `explain` oraz `invalid-policy` w `doctor`. Wskazówka mówi też o uprawnieniach.
+  - Katalog, którego nie ma albo który jest plikiem (argument albo `check --dir`): nowe kody `directory-not-found` i `not-a-directory` w `APPLY_ERRORS` (README).
+  - Tekst ma postać `error: <komunikat> (<kod>)`, problemy i `fix:`, jak `cannot-edit`; zastępuje `depcurfew: …` także przy `policy-missing` i `policy-invalid`.
+  - `--json` daje dokument z `errors` w kształcie z `apply --json` i pusty stderr. `doctor --json` ma zawsze `errors`; przy błędzie `policy: null`, puste `findings`, a `summary.error` liczy też błędy, żeby odbiorca czytający samo podsumowanie widział porażkę. `apply --json` ma `policy: null`, a `explain --json` `project: null`. `doctor --sarif` daje przebieg z `executionSuccessful: false` i powiadomieniem `error` z kodem w `descriptor.id`.
+  - Nowe pola: `notices` w `apply --json`, `notices` i `errors` w `explain --json`, `errors` w `doctor --json`. `schemaVersion` zostaje 1 (nowe pola i wartości).
+  - Kody wyjścia: zły katalog to błąd użycia, `2` (wcześniej nieopisane `1`), co `--help` każdego polecenia mówi przy kodzie 2; nieczytelna polityka to `1`, dopisane do opisu kodu 1. „unexpected error” w `src/cli.ts` zostaje dla błędów programu.
+  - SARIF w CLI i Action czyta linie plików przez `lineReader`, który przy błędzie odczytu podaje brak linii zamiast przerywać raport.
+- **Polityka z katalogu nadrzędnego.** `doctor` uruchomiony w podkatalogu mówił „No problems found” z kodem 0, co w CI ze złym `working-directory` daje fałszywie zielony wynik.
+  - `explain`, `apply` i `doctor` bez katalogu szukają `depcurfew.json` od bieżącego katalogu w górę do korzenia repozytorium (pierwszy katalog z `.git`, także plikiem jak w worktree) albo systemu plików i działają na katalogu z polityką. Mówią o tym: `doctor` uwagą w raporcie (tekst, JSON, SARIF), `apply` i `explain` przez `note:` na stderr albo `notices` w JSON. Bez polityki działają jak dotąd na bieżącym katalogu.
+  - **Jawny katalog jest brany dosłownie, bez szukania w górę.** Użytkownik wskazał cel wprost, a `apply` zapisuje pliki w całym katalogu, więc szukanie zmieniałoby cel bez pytania. Fikstury w tym repozytorium (`node dist/cli.js doctor tests/fixtures/…`) trafiałyby też na `depcurfew.json` samego depcurfew.
+  - `check` i hook korzystają z tej samej funkcji (`findPolicyDirectory` w `src/policy/file.ts`), więc też zatrzymują się na korzeniu repozytorium, bo polityka nad nim należy do innego projektu. `check --dir` nadal szuka w górę, bo wybiera tylko politykę. Wejście `directory` w Action bez zmian.
+- **Action i SARIF.**
+  - Gdy pliku SARIF nie da się zapisać (np. dowiązanie), Action zerował liczniki i dokładał drugi nagłówek „could not check the repository”. Teraz liczniki zostają, `failure` jest ustawione, a pod tabelą jest jedna linia `**Error:** …`.
+  - Nowa linia w ścieżce nie łamie już tabeli podsumowania, bo ścieżki przechodzą przez `printable`.
+  - `artifactLocation.uri` koduje procentowo każdy segment ścieżki (UTF-8, RFC 3986), a `/` zostaje.
+- **Porządki prawne.**
+  - README: sekcja „Trademarks” z notką wymaganą przez politykę npm („npm is a registered trademark of npm, Inc.”, `content/policies/logos-and-usage.mdx` w npm/documentation, commit 514e6c9), znakami PSF i brakiem powiązania. Doszedł akapit „Network and privacy”, a zdanie o 5000 popularnych paczkach mówi, że lista npm pochodzi z wyszukiwań w rejestrze i może być niepełna.
+  - Lista PyPI: hugovk/top-pypi-packages liczy ranking z publicznego zbioru ClickPy (`"source": "ClickHouse"`), który importuje statystyki pobrań PyPI z BigQuery (README ClickPy). Opis poprawiony, razem z „30 dni” na miesiąc kalendarzowy, bo tak działa zapytanie; lista bez zmian. `source` zostaje dokumentem BigQuery w pypi/warehouse: to oficjalny opis danych, z których powstaje ranking, a ClickPy i hugovk nie są dopuszczalnymi źródłami.
+  - Bundel akcji zaczyna się notą licencji ISC `yaml` (generowaną z `node_modules/yaml/LICENSE` przez `banner` w `tsdown.action.config.ts`) i odsyłaczem do THIRD_PARTY_LICENSES.md. W tym pliku doszły helpery runtime rolldown 1.2.15 (MIT, VoidZero Inc. & Contributors, z notami Rollup i esbuild z jego THIRD-PARTY-LICENSE).
+  - SECURITY.md opisuje prywatne zgłoszenia przez GitHub (Security → Report a vulnerability), wspieraną najnowszą 1.x i czego się spodziewać. Prywatne zgłaszanie podatności musi włączyć właściciel w ustawieniach repozytorium.
+  - Kopia schematu SARIF ma notę OASIS. `src/check/pep440.ts` wskazuje PEP 440, Appendix B (domena publiczna), jako źródło wyrażenia regularnego.
