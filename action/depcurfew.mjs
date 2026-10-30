@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { appendFileSync, chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -14366,6 +14366,68 @@ function warningText(warning) {
 	return warning.fix === void 0 ? warning.message : `${warning.message}. ${warning.fix}`;
 }
 
+// src/apply/diff.ts
+/** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
+const NO_EOL = "\0";
+function lines(text) {
+	if (text === "") return [];
+	const result = text.split("\n");
+	if (result.at(-1) === "") result.pop();
+	else result[result.length - 1] += NO_EOL;
+	return result;
+}
+/** The shortest edit script from `a` to `b`. */
+function myers(a, b) {
+	const max = a.length + b.length;
+	const offset = max + 1;
+	const frontier = new Array(2 * max + 3).fill(0);
+	const trace = [];
+	outer: for (let d = 0; d <= max; d++) {
+		trace.push([...frontier]);
+		for (let k = -d; k <= d; k += 2) {
+			let x = k === -d || k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0) ? frontier[offset + k + 1] ?? 0 : (frontier[offset + k - 1] ?? 0) + 1;
+			let y = x - k;
+			while (x < a.length && y < b.length && a[x] === b[y]) {
+				x += 1;
+				y += 1;
+			}
+			frontier[offset + k] = x;
+			if (x >= a.length && y >= b.length) break outer;
+		}
+	}
+	const operations = [];
+	let x = a.length;
+	let y = b.length;
+	for (let d = trace.length - 1; d >= 0; d--) {
+		const v = trace[d];
+		const k = x - y;
+		const previousK = k === -d || k !== d && (v[offset + k - 1] ?? 0) < (v[offset + k + 1] ?? 0) ? k + 1 : k - 1;
+		const previousX = v[offset + previousK] ?? 0;
+		const previousY = previousX - previousK;
+		while (x > previousX && y > previousY) {
+			operations.push({
+				kind: "same",
+				line: a[x - 1]
+			});
+			x -= 1;
+			y -= 1;
+		}
+		if (d > 0) {
+			if (x === previousX) operations.push({
+				kind: "insert",
+				line: b[y - 1]
+			});
+			else operations.push({
+				kind: "delete",
+				line: a[x - 1]
+			});
+		}
+		x = previousX;
+		y = previousY;
+	}
+	return operations.reverse();
+}
+
 // src/apply/text.ts
 function detectStyle(text) {
 	const body = text.startsWith("﻿") ? text.slice(1) : text;
@@ -14378,13 +14440,83 @@ function detectStyle(text) {
 function toLf(text) {
 	return (text.startsWith("﻿") ? text.slice(1) : text).replaceAll("\r\n", "\n");
 }
-function restoreStyle(body, style) {
+/**
+* The edited text in the style of the original. A file with both CRLF and LF line endings keeps the ending of every
+* line apply did not change (`original` is needed for that); a changed line takes the ending of the line it
+* replaces, a new line the ending of the line before it.
+*/
+function restoreStyle(body, style, original) {
+	if (original !== void 0 && isMixed(original)) return withMixedEndings(body, style, original);
 	let text = style.finalNewline || !body.endsWith("\n") ? body : body.slice(0, -1);
 	if (style.eol === "\r\n") text = text.replaceAll("\n", "\r\n");
 	return style.bom ? `﻿${text}` : text;
 }
+/** Whether a text has CRLF and LF line endings both. */
+function isMixed(text) {
+	return text.includes("\r\n") && /(?:^|[^\r])\n/u.test(text);
+}
+function withMixedEndings(body, style, original) {
+	const old = (style.bom ? original.slice(1) : original).split(/(?<=\n)/u);
+	const ending = (line) => line?.endsWith("\r\n") === true ? "\r\n" : line?.endsWith("\n") === true ? "\n" : "";
+	const lines = body.split("\n");
+	if (lines.at(-1) === "") lines.pop();
+	const output = [];
+	let added = [];
+	let removed = [];
+	const add = (line, own) => {
+		const previous = output.at(-1);
+		output.push(`${line}${own === void 0 || own === "" ? previous === void 0 ? style.eol : ending(previous) : own}`);
+	};
+	const flush = () => {
+		added.forEach((line, index) => add(line, removed[index]));
+		added = [];
+		removed = [];
+	};
+	let next = 0;
+	for (const operation of myers(old.map((line) => line.slice(0, line.length - ending(line).length)), lines)) {
+		if (operation.kind === "insert") {
+			added.push(operation.line);
+			continue;
+		}
+		const own = ending(old[next]);
+		next += 1;
+		if (operation.kind === "delete") {
+			removed.push(own);
+			continue;
+		}
+		flush();
+		add(operation.line, own);
+	}
+	flush();
+	let text = output.join("");
+	if (!style.finalNewline) text = text.replace(/\r?\n$/u, "");
+	return style.bom ? `﻿${text}` : text;
+}
 
 // src/apply/workspace.ts
+/** Why a file system call failed, in plain words; the error code when there are none. */
+function fileSystemReason(error) {
+	const code = error.code;
+	const reasons = {
+		EACCES: "permission denied",
+		EPERM: "operation not permitted",
+		EROFS: "the file system is read-only",
+		ENOSPC: "no space left on the device",
+		EDQUOT: "the disk quota is exceeded",
+		EISDIR: "it is a directory",
+		ENOTDIR: "a part of its path is not a directory",
+		EEXIST: "a file of the same name is in the way",
+		EBUSY: "the file is busy",
+		ENAMETOOLONG: "its name is too long"
+	};
+	if (code !== void 0 && reasons[code] !== void 0) return reasons[code];
+	return code ?? (error instanceof Error ? error.message : String(error));
+}
+/** Decodes UTF-8 strictly: a byte sequence that is not UTF-8 would otherwise become U+FFFD and be written back so. */
+const UTF8 = new TextDecoder("utf-8", {
+	fatal: true,
+	ignoreBOM: true
+});
 var Workspace = class {
 	root;
 	#files = /* @__PURE__ */ new Map();
@@ -14402,12 +14534,19 @@ var Workspace = class {
 			parent = this.root;
 		}
 		if (parent !== this.root && !parent.startsWith(this.root + sep)) throw new Error(`${file} is outside the repository`);
-		let original = null;
+		let bytes;
 		try {
 			if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
-			original = readFileSync(path, "utf8");
+			bytes = readFileSync(path);
 		} catch (error) {
-			if (error.code !== "ENOENT") throw error;
+			if (error.code === void 0) throw error;
+			if (error.code !== "ENOENT") throw new Error(`${file} cannot be read: ${fileSystemReason(error)}`);
+		}
+		let original = null;
+		if (bytes !== void 0) try {
+			original = UTF8.decode(bytes);
+		} catch {
+			throw new Error(`${file} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`);
 		}
 		const entry = {
 			original,
@@ -14433,7 +14572,7 @@ var Workspace = class {
 		const changes = [];
 		for (const [file, entry] of this.#files) {
 			if (entry.original === null && entry.body === "") continue;
-			const after = restoreStyle(entry.body, entry.style);
+			const after = restoreStyle(entry.body, entry.style, entry.original ?? void 0);
 			if (after !== entry.original) changes.push({
 				file,
 				before: entry.original,
@@ -14443,15 +14582,95 @@ var Workspace = class {
 		return changes.sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : 0);
 	}
 };
-/** Writes each changed file through a temporary file and a rename, keeping the permissions of existing files. */
+/**
+* A file could not be written. writeChanges has removed its temporary files and put back the files it had already
+* replaced, so nothing changed, except for the files in `unrestored`. The message says why, without the file name.
+*/
+var WriteFailed = class extends Error {
+	file;
+	/** Why, in plain words. */
+	reason;
+	/** Files already replaced that could not be put back (normally none). */
+	unrestored;
+	constructor(file, error, unrestored) {
+		const reason = fileSystemReason(error);
+		super(unrestored.length === 0 ? reason : `${reason}; ${unrestored.join(", ")} had already been replaced and could not be put back`, { cause: error });
+		this.file = file;
+		this.reason = reason;
+		this.unrestored = unrestored;
+	}
+};
+let counter = 0;
+/** Writes `text` to a new temporary file next to `path`, created with `mode`; the file is removed if writing fails. */
+function stage(path, text, mode) {
+	counter += 1;
+	const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}-${counter}`;
+	try {
+		writeFileSync(temporary, text, {
+			flag: "wx",
+			mode
+		});
+		chmodSync(temporary, mode);
+	} catch (error) {
+		if (error.code !== "EEXIST") rmSync(temporary, { force: true });
+		throw error;
+	}
+	return temporary;
+}
+/** Removes the directories mkdirSync created (`created`, the topmost of each) for `paths`, deepest first, if empty. */
+function removeDirectories(created, paths) {
+	const directories = /* @__PURE__ */ new Set();
+	for (const top of created) for (const path of paths) for (let directory = dirname(path); directory === top || directory.startsWith(top + sep); directory = dirname(directory)) directories.add(directory);
+	for (const directory of [...directories].sort((a, b) => b.length - a.length)) try {
+		rmdirSync(directory);
+	} catch {}
+}
+/**
+* Writes each changed file through a temporary file and a rename, keeping the permissions of existing files. All
+* files or none: every temporary file is written first and only then are they renamed; if anything fails, the
+* temporary files are removed and the files already replaced get their old text back, and WriteFailed is thrown.
+*/
 function writeChanges(root, changes) {
-	for (const change of changes) {
-		const path = join(root, change.file);
-		mkdirSync(dirname(path), { recursive: true });
-		const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}`;
-		writeFileSync(temporary, change.after, { flag: "wx" });
-		if (change.before !== null) chmodSync(temporary, statSync(path).mode);
-		renameSync(temporary, path);
+	const staged = [];
+	const created = [];
+	let current = changes[0]?.file ?? "";
+	try {
+		for (const change of changes) {
+			current = change.file;
+			const path = join(root, change.file);
+			const directory = mkdirSync(dirname(path), { recursive: true });
+			if (directory !== void 0) created.push(directory);
+			const mode = change.before === null ? 438 : statSync(path).mode & 4095;
+			staged.push({
+				change,
+				path,
+				temporary: stage(path, change.after, mode),
+				mode
+			});
+		}
+	} catch (error) {
+		for (const entry of staged) rmSync(entry.temporary, { force: true });
+		removeDirectories(created, changes.map((change) => join(root, change.file)));
+		throw new WriteFailed(current, error, []);
+	}
+	const renamed = [];
+	try {
+		for (const entry of staged) {
+			current = entry.change.file;
+			renameSync(entry.temporary, entry.path);
+			renamed.push(entry);
+		}
+	} catch (error) {
+		for (const entry of staged.slice(renamed.length)) rmSync(entry.temporary, { force: true });
+		const unrestored = [];
+		for (const entry of renamed.reverse()) try {
+			if (entry.change.before === null) rmSync(entry.path, { force: true });
+			else renameSync(stage(entry.path, entry.change.before, entry.mode), entry.path);
+		} catch {
+			unrestored.push(entry.change.file);
+		}
+		removeDirectories(created, changes.map((change) => join(root, change.file)));
+		throw new WriteFailed(current, error, unrestored.reverse());
 	}
 }
 
@@ -15137,68 +15356,6 @@ const broadExclusion = {
 		}
 	}
 };
-
-// src/apply/diff.ts
-/** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
-const NO_EOL = "\0";
-function lines(text) {
-	if (text === "") return [];
-	const result = text.split("\n");
-	if (result.at(-1) === "") result.pop();
-	else result[result.length - 1] += NO_EOL;
-	return result;
-}
-/** The shortest edit script from `a` to `b`. */
-function myers(a, b) {
-	const max = a.length + b.length;
-	const offset = max + 1;
-	const frontier = new Array(2 * max + 3).fill(0);
-	const trace = [];
-	outer: for (let d = 0; d <= max; d++) {
-		trace.push([...frontier]);
-		for (let k = -d; k <= d; k += 2) {
-			let x = k === -d || k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0) ? frontier[offset + k + 1] ?? 0 : (frontier[offset + k - 1] ?? 0) + 1;
-			let y = x - k;
-			while (x < a.length && y < b.length && a[x] === b[y]) {
-				x += 1;
-				y += 1;
-			}
-			frontier[offset + k] = x;
-			if (x >= a.length && y >= b.length) break outer;
-		}
-	}
-	const operations = [];
-	let x = a.length;
-	let y = b.length;
-	for (let d = trace.length - 1; d >= 0; d--) {
-		const v = trace[d];
-		const k = x - y;
-		const previousK = k === -d || k !== d && (v[offset + k - 1] ?? 0) < (v[offset + k + 1] ?? 0) ? k + 1 : k - 1;
-		const previousX = v[offset + previousK] ?? 0;
-		const previousY = previousX - previousK;
-		while (x > previousX && y > previousY) {
-			operations.push({
-				kind: "same",
-				line: a[x - 1]
-			});
-			x -= 1;
-			y -= 1;
-		}
-		if (d > 0) {
-			if (x === previousX) operations.push({
-				kind: "insert",
-				line: b[y - 1]
-			});
-			else operations.push({
-				kind: "delete",
-				line: a[x - 1]
-			});
-		}
-		x = previousX;
-		y = previousY;
-	}
-	return operations.reverse();
-}
 
 // src/doctor/plan.ts
 const plans = /* @__PURE__ */ new WeakMap();

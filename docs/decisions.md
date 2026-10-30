@@ -1023,3 +1023,27 @@ Pełny test paczki z tarballa (`npm pack`) na projektach testowych npm, pnpm, Ya
 - **Hatch.** Ostrzeżenie `python-tool-unknown` w projekcie z `[tool.hatch]` albo `hatch.toml` podpowiada dodanie `"uv"` do `targets`, zgodnie z D-072.
 
 Bez zmian, bo to zamierzone: puste `FORCE_COLOR=` włącza kolory, a `FORCE_COLOR` wygrywa z `NO_COLOR`, tak jak w Node i supports-color (test w `tests/color.test.ts`). Krok Node akcji kończy się kodem 0 przy błędach, a zadanie przerywa następny krok `action.yml` (`fail-on-error`).
+
+## D-074 · Edytory plików i zapis `apply` po przeglądzie przed 1.0.0 (2026-10-30)
+
+Przegląd przed 1.0.0 znalazł w edytorach i w zapisie `apply` błędy, przez które plik użytkownika mógł się zepsuć albo zmienić tylko w części. Wszystkie są odtworzone w testach i fiksturach (`dependabot-comments`, `pnpm-workspace-comments`, `yarn-berry-comments`, `uv-pdm-pyproject`, `uv-pdm-legacy-blocks`, `npmrc-restore`, `pip-restore`, `bun-restore`).
+
+- **YAML: komentarz na końcu mapy albo listy.** Biblioteka `yaml` wlicza komentarze po kolekcji i wcięcie następnej linii do zakresu węzła, więc wstawienie klucza i podmiana listy kończyły się w środku wcięcia: następny wpis `updates` lądował w kolumnie 0, a `apply` kończył się kodem 0. Teraz edycja kończy się na ostatniej linii treści (z komentarzem w tej samej linii).
+  - Komentarze po niej zostają na miejscu. Nowy klucz trafia przed nimi, z wyjątkiem komentarzy wciętych głębiej niż klucze mapy, bo należą do ostatniej wartości (np. zakomentowany element listy `ignore`).
+  - Przy podmianie listy zostają komentarz w linii klucza, komentarze przed pierwszym elementem i komentarze po ostatnim.
+- **Edycja YAML i JSON jest sprawdzana.** Plik musi się parsować przed edycją i po niej, a wynik musi zawierać dokładnie stare dane z jedną zmienioną wartością (`src/apply/expected.ts`). Inaczej to `cannot-edit` z położeniem i nic nie jest zapisane. Tak samo jak w TOML (D-067).
+  - JSON jest parsowany ściśle jako JSONC (JSON z komentarzami i przecinkami na końcu, które edytor zachowuje), z linią i kolumną błędu. Wcześniej `deno.json` bez przecinka był edytowany i zapisywany z kodem 0, wbrew D-028.
+  - Pliki JSON5 (`renovate.json5`, `.renovaterc`, `package.json5`) nadal nie są edytowane: Renovate dostaje fragment do wklejenia, a pnpm ich nie dotyka.
+- **uv i PDM w jednym pyproject.toml.** Oba bloki miały ten sam znacznik, a usuwanie bloku brało pierwszy w pliku, więc blok uv znikał. W pyproject.toml znacznik nazywa teraz tabelę, jak w Poetry (`[tool.uv]`, `[tool.pdm.resolution]`); w `uv.toml` zostaje bez nazwy. Blok bez nazwy zapisany przez wcześniejszą wersję w tej samej tabeli jest rozpoznawany i zamieniany, bez duplikatu.
+- **Zapis wszystkich plików albo żadnego.** `writeChanges` najpierw zapisuje wszystkie pliki tymczasowe, potem robi wszystkie `rename`.
+  - Przy błędzie usuwa pliki tymczasowe i utworzone katalogi, a podmienionym plikom przywraca starą treść z pamięci.
+  - Błąd zapisu ma nowy kod `cannot-write` (plik, powód prostymi słowami, poprawka), w tekście i w `--json`, z kodem wyjścia 1. Biblioteka rzuca `ApplyWriteError` z raportem planu.
+  - Błąd odczytu (np. `EACCES`) to `cannot-edit` z powodem zamiast śladu stosu.
+- **Plik tymczasowy od razu z trybem pliku.** Powstaje z trybem pliku, który zastępuje (`wx` i `mode`, umask może go tylko zawęzić), więc `.npmrc` z tokenem nie jest ani przez chwilę czytelny dla innych.
+- **Zakomentowane ustawienia wracają (zmiana D-029).** Linia z prefiksem `superseded by the managed block` albo `turned off`, której klucza polityka już nie zarządza, wraca dosłownie (w TOML z każdą linią wartości). Dotyczy `.npmrc`, plików TOML i requirements.txt. Wcześniej po usunięciu sekcji z polityki zostawał sam komentarz i narzędzie traciło ustawienie użytkownika.
+  - Generatory edytują plik także wtedy, gdy są w nim tylko takie linie.
+  - W TOML wracają tylko linie z tabeli danego generatora, więc uv nie przywraca linii, które zakomentował PDM.
+- **Drobne.**
+  - `removeBlock` zdejmuje wszystkie kopie zdublowanego bloku.
+  - Plik z końcami CRLF i LF zachowuje koniec każdej niezmienionej linii; zmieniona linia dostaje koniec linii, którą zastępuje, a nowa koniec poprzedniej.
+  - Plik spoza UTF-8 to `cannot-edit` zamiast zamiany bajtów na U+FFFD; BOM zostaje.

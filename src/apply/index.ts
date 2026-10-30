@@ -31,7 +31,7 @@ import { uv } from './generators/uv.ts';
 import { yarn } from './generators/yarn.ts';
 import { pinnedVersion, type Version } from './version.ts';
 import { warningText, type ApplyErrorCode, type ApplyWarning } from './warnings.ts';
-import { Workspace, writeChanges, type FileChange } from './workspace.ts';
+import { Workspace, WriteFailed, writeChanges, type FileChange } from './workspace.ts';
 
 export type { FileChange } from './workspace.ts';
 export type { EditFailure, Snippet } from './generators/context.ts';
@@ -241,12 +241,51 @@ export function loadPolicy(root: string): ResolvedPolicy {
 }
 
 /**
+ * A file could not be written (code cannot-write). The files apply had already replaced were put back, so the
+ * repository is as it was, unless `unrestored` lists files. `report` is the plan that was being written.
+ */
+export class ApplyWriteError extends Error {
+  readonly code = 'cannot-write' as const satisfies ApplyErrorCode;
+  /** The file that could not be written, relative to the repository. */
+  readonly file: string;
+  /** What to do. */
+  readonly fix: string;
+  /** Files already replaced that could not be put back (normally none). */
+  readonly unrestored: string[];
+  readonly report: ApplyReport;
+
+  constructor(failure: WriteFailed, report: ApplyReport) {
+    super(`cannot write ${failure.file}: ${failure.message}`);
+    this.file = failure.file;
+    this.unrestored = failure.unrestored;
+    this.report = report;
+    const code = (failure.cause as NodeJS.ErrnoException | undefined)?.code;
+    const fixes: Record<string, string> = {
+      EROFS: 'Run depcurfew apply where the files can be written',
+      ENOSPC: 'Free some disk space, then run depcurfew apply again',
+      EDQUOT: 'Free some disk space, then run depcurfew apply again',
+      EISDIR: `Move the directory ${failure.file} out of the way, then run depcurfew apply again`,
+    };
+    const fix = (code === undefined ? undefined : fixes[code]) ?? `Make ${failure.file} and its directory writable for the user that runs depcurfew, then run depcurfew apply again`;
+    this.fix = this.unrestored.length === 0 ? fix : `Restore ${this.unrestored.join(', ')} from version control or a backup. ${fix}`;
+  }
+}
+
+/**
  * Reads the policy, detects the project, plans the changes and (unless told otherwise) writes them. If any file
  * could not be edited, nothing is written, so a run either applies the whole policy or leaves the repository as it was.
+ * A file that cannot be written throws ApplyWriteError after the files already written are put back.
  */
 export function applyProject(root: string, options: { write?: boolean } = {}): ApplyReport {
   const report = planApply(root, loadPolicy(root), detectProject(root));
-  if (options.write !== false && report.errors.length === 0) writeChanges(root, report.changes);
+  if (options.write !== false && report.errors.length === 0) {
+    try {
+      writeChanges(root, report.changes);
+    } catch (error) {
+      if (error instanceof WriteFailed) throw new ApplyWriteError(error, report);
+      throw error;
+    }
+  }
   return report;
 }
 

@@ -52,7 +52,7 @@ export const COMMANDS: readonly CommandInfo[] = [
     examples: ['depcurfew apply --dry-run', 'depcurfew apply', 'depcurfew apply --dry-run --json', 'depcurfew apply path/to/project'],
     exitCodes: [
       [0, 'the files match the policy (warnings included)'],
-      [1, 'depcurfew.json is missing or invalid, or a file cannot be edited'],
+      [1, 'depcurfew.json is missing or invalid, or a file cannot be edited or written'],
       [2, 'a usage error'],
     ],
   },
