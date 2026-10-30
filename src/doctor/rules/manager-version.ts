@@ -7,6 +7,7 @@ import { describeRequirements } from '../../apply/requirements.ts';
 import type { PackageManagerInfo, VersionDeclaration } from '../../detect/types.ts';
 import { SOURCE_KINDS } from '../../knowledge/schema.ts';
 import type { Fact, ToolKnowledge } from '../../knowledge/types.ts';
+import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { lineOf, readSetting } from '../settings.ts';
@@ -93,7 +94,7 @@ function declarationLine(context: RuleContext, declaration: VersionDeclaration):
 
 function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: ToolKnowledge): void {
   const features = new Map<string, Feature>();
-  for (const item of [...(context.policy === undefined ? [] : policyFeatures(tool, context.policy)), ...configuredFeatures(context, tool)]) features.set(item.setting, item);
+  for (const item of [...(context.policy === undefined ? [] : policyFeatures(tool, policyFor(context.policy, ecosystemOfTool(tool)))), ...configuredFeatures(context, tool)]) features.set(item.setting, item);
   if (features.size === 0) return;
   for (const declaration of manager.versions) {
     if (!('version' in declaration)) continue;

@@ -881,3 +881,23 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 - **Pliki zapisywane w projektach użytkowników:** `depcurfew.json` (`$schema` na unpkg.com/depcurfew) i znaczniki zapisywane przez `apply` od początku zawierały tylko markę.
 - **Poza kodem:** rejestr npm pokazuje publicznie nazwę i mail opiekuna paczki (pole `maintainers`), a historia commitów na GitHubie — dotychczasowych autorów.
 - **README na stronie npm.** npm pokazuje README z opublikowanej paczki, więc nota „pre-release” i instrukcja „until the package is published” znikają przed tagiem `v1.0.0`, nie po nim.
+
+## D-065 · Python: nazwy z prefiksem `pypi:`, budowanie ze źródeł jako `installScripts` (2026-10-30)
+
+- **Decyzja właściciela.** Obie części wybrał właściciel spośród przedstawionych wariantów.
+- **Nazwy paczek.** Paczki Pythona w `cooldown.exclude` i `installScripts.allow` mają prefiks `pypi:` (`"pypi:docopt"`, `"pypi:acme-*"`). Nazwy bez prefiksu dotyczą tylko npm, tak jak w 1.0, więc znaczenie istniejących plików się nie zmienia.
+  - Powód: ta sama nazwa w npm i PyPI to dwie różne paczki. Zgoda na npm-owe `esbuild` nie może obejmować paczki `esbuild` z PyPI.
+  - Inne prefiksy (`npm:`, `PyPI:`) są błędem z podpowiedzią. Nazwy Pythona porównujemy po normalizacji z PEP 503.
+  - Przy okazji nazwy npm mogą zawierać `_` (np. `string_decoder`), co wcześniej było błędem gramatyki.
+- **Kto widzi które nazwy.**
+  - Generatory menedżerów, reguły `doctor` i `check` dostają widok polityki swojego rejestru (`policyFor`).
+  - Dependabot: każdy wpis `updates` dostaje wyjątki swojego rejestru (`npm`, `bun`, `deno`: nazwy npm; `pip`, `uv`: nazwy `pypi:`).
+  - Renovate: reguła z nazwami npm zostaje bez zmian, czyli bez `matchDatasources`, jak w 1.0. Nazwy `pypi:` trafiają do osobnej reguły z `matchDatasources: ["pypi"]`. Ograniczenie: nazwy npm w regule Renovate nadal obejmują wszystkie źródła; zawężenie do `npm` wymagałoby faktów o źródłach JSR w menedżerze Deno.
+- **`installScripts` w Pythonie oznacza budowanie ze źródeł.** Budowanie sdist, repozytorium git albo katalogu uruchamia backend budowania, czyli kod paczki. Instalacja koła (wheel) nie uruchamia kodu. `default: "deny"` to zakaz budowania:
+  - uv: `no-build = true`;
+  - Poetry: `installer.only-binary = [":all:"]` (od 2.0.0);
+  - pip: `--only-binary=:all:` w `requirements.txt`, bo pip nie ma konfiguracji projektu.
+- **Lista `allow`.** Żadne z trzech narzędzi nie ma ustawienia „tej paczce wolno budować”. Ma tylko wyjątek od zakazu, który wymusza budowanie danej paczki ze źródeł przy każdej instalacji, nawet gdy jest koło: uv `no-binary-package`, Poetry `installer.no-binary` (wyjątek działa od 2.2.0), pip `--no-binary`.
+  - Decyzja: zapisujemy zakaz i wymuszone wyjątki, z ostrzeżeniem, co to znaczy. Zgody potrzebują zwykle paczki bez kół, a dla nich nic się nie zmienia; `doctor` wskaże je w lockfile'u.
+  - Poetry przed 2.2.0: paczka z obu list nie ma pliku do instalacji, więc wyjątków nie zapisujemy i ostrzegamy.
+- **Czego zakaz nie obejmuje.** Zależności z gita, katalogów i URL wszystkie trzy narzędzia budują mimo zakazu, a Poetry może budować sdist już przy rozwiązywaniu zależności. Pilnuje ich sekcja `sources` (żadne narzędzie nie ma ustawienia, które ich zabrania) oraz `doctor` na lockfile'u.

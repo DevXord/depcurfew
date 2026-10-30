@@ -10,6 +10,7 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId, ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { formatDuration, type Duration } from '../policy/duration.ts';
+import { ecosystemOfTool, policyFor } from '../policy/ecosystem.ts';
 import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
@@ -57,14 +58,16 @@ export function botDuration(policy: Duration, managerMinutes: readonly number[])
  * apply only adds to install-script allow-lists, so a package someone listed by hand keeps running its scripts after
  * the policy denies them; say so, and what to do about it.
  */
-function allowListWarnings(root: string, policy: ResolvedPolicy, detection: Detection, targets: ReadonlySet<ToolId>): string[] {
-  const scripts = policy.installScripts;
-  if (scripts?.default !== 'deny') return [];
+function allowListWarnings(root: string, policy: ResolvedPolicy, detection: Detection, targets: ReadonlySet<ToolId>, tools: readonly ToolKnowledge[]): string[] {
+  if (policy.installScripts?.default !== 'deny') return [];
   const repository = new Repository(root);
   return detection.packageManagers
     .filter((manager) => manager.supported && targets.has(manager.id))
-    .flatMap((manager) => allowEntries(repository, manager.id, manager.configFiles))
-    .filter((entry) => !scripts.allow.some((pattern) => matchesPattern(entry.package, pattern)))
+    .flatMap((manager) => {
+      const tool = tools.find((entry) => entry.id === manager.id);
+      const allow = policyFor(policy, tool === undefined ? 'npm' : ecosystemOfTool(tool)).installScripts?.allow ?? [];
+      return allowEntries(repository, manager.id, manager.configFiles).filter((entry) => !allow.some((pattern) => matchesPattern(entry.package, pattern)));
+    })
     .map(
       (entry) =>
         `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write, so remove ${entry.name} from ${entry.setting} by hand or add ${entry.name === entry.package ? 'it' : entry.package} to installScripts.allow in ${POLICY_FILE}`,
@@ -89,8 +92,10 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   }
   if (targets.size === 0) warnings.push('no tools to configure: depcurfew found no supported package manager or bot here (depcurfew explain shows what it detects)');
 
+  // Package managers see the policy of their registry; bots serve both and get all of it.
   const run = (tool: ToolKnowledge, version: Version | undefined, action: (context: ReturnType<typeof createContext>) => void) => {
-    const context = createContext({ tool, policy, version, workspace, warnings, snippets, failures });
+    const view = tool.kind === 'package-manager' ? policyFor(policy, ecosystemOfTool(tool)) : policy;
+    const context = createContext({ tool, tools, policy: view, version, workspace, warnings, snippets, failures });
     try {
       action(context);
     } catch (error) {
@@ -124,7 +129,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     run(tool, undefined, (context) => generator(context, duration));
   }
 
-  warnings.push(...allowListWarnings(root, policy, detection, targets));
+  warnings.push(...allowListWarnings(root, policy, detection, targets, tools));
   const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
   return { changes: workspace.changes(), warnings, snippets, errors, failures };
 }

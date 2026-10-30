@@ -85,9 +85,9 @@ Every section is optional: a section that is absent means depcurfew does not man
 | `cooldown.minimum` |  |  | Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool's unit, always rounding up. |
 | `cooldown.exclude` |  | `[]` | Packages that skip the release-age delay, e.g. your own scope. |
 | `cooldown.securityUpdates` | `"bypass"`, `"delay"` | `"bypass"` | Whether security updates skip the delay ("bypass") or wait like other updates ("delay"), where the tool can tell them apart. |
-| `installScripts` |  |  | Dependency lifecycle scripts. |
-| `installScripts.default` | `"allow"`, `"deny"` |  | Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default. |
-| `installScripts.allow` |  | `[]` | Packages whose lifecycle scripts may run when the default is "deny". |
+| `installScripts` |  |  | Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python. |
+| `installScripts.default` | `"allow"`, `"deny"` |  | Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source. |
+| `installScripts.allow` |  | `[]` | Packages whose lifecycle scripts may run when the default is "deny"; Python packages listed here are always built from source. |
 | `sources` |  |  | Where dependencies may come from besides the registry. An absent field is not managed. |
 | `sources.git` | `"allow"`, `"deny"` |  | Dependencies installed from git repositories. |
 | `sources.remoteTarball` | `"allow"`, `"deny"` |  | Dependencies installed from tarball URLs outside the registry. |

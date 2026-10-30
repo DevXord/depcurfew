@@ -7,6 +7,7 @@ import { values } from '../apply/facts.ts';
 import { matchesPattern } from '../doctor/allow-lists.ts';
 import { formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
+import { policyFor } from '../policy/ecosystem.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { fetchPackument, type FetchLike, type Packument } from './registry.ts';
 import { compareSemver, maxSatisfying, parseRange, parseSemver, satisfies } from './semver.ts';
@@ -128,7 +129,8 @@ function sourceFindings(spec: PackageSpec, kind: SourceKind, policy: ResolvedPol
 }
 
 async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions): Promise<void> {
-  const { policy } = options;
+  // check looks up npm packages, so only the policy's npm names apply.
+  const policy = policyFor(options.policy, 'npm');
   const add = (finding: CheckFinding) => report.findings.push(finding);
   const scope = name.startsWith('@') ? name.slice(0, name.indexOf('/')) : undefined;
   const scopeRegistry = scope === undefined ? undefined : options.scopeRegistries?.get(scope);

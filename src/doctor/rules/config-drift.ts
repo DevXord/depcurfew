@@ -4,6 +4,7 @@ import { lines, myers } from '../../apply/diff.ts';
 import { BLOCK_END, BLOCK_START, SUPERSEDED, TURNED_OFF } from '../../apply/block.ts';
 import { YAML_MARKER } from '../../apply/yaml-edit.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
+import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import { allowEntries, matchesPattern } from '../allow-lists.ts';
 import { plannedApply } from '../plan.ts';
 import type { Rule, RuleContext } from '../types.ts';
@@ -85,13 +86,15 @@ function describe(difference: Difference): string {
 
 /** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
 function checkAllowLists(context: RuleContext): void {
-  const scripts = context.policy?.installScripts;
-  if (scripts?.default !== 'deny') return;
-  const targets = context.policy?.targets;
+  const policy = context.policy;
+  if (policy?.installScripts?.default !== 'deny') return;
+  const targets = policy.targets;
   for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
-    if (targets !== undefined && targets !== 'auto' && !targets.includes(manager.id)) continue;
+    if (targets !== 'auto' && !targets.includes(manager.id)) continue;
+    const knowledge = context.tools.find((entry) => entry.id === manager.id);
+    const allow = policyFor(policy, knowledge === undefined ? 'npm' : ecosystemOfTool(knowledge)).installScripts?.allow ?? [];
     for (const entry of allowEntries(context.repository, manager.id, manager.configFiles)) {
-      if (scripts.allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
+      if (allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
       context.report({
         level: 'warning',
         location: entry.line === undefined ? { file: entry.file } : { file: entry.file, line: entry.line },

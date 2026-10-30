@@ -10380,6 +10380,67 @@ function parseDuration(input) {
 	return failure(`${/\s/u.test(input) ? "spaces are not allowed" : tokens.some((token) => token.unit !== token.unit.toLowerCase()) ? "units are lowercase" : tokens.some((token) => token.unit.length > 1) ? "use the short unit" : tokens.length > 1 ? "use a single unit" : "leading zeros are not allowed"}; write "${suggestion}"`);
 }
 
+// src/policy/package-pattern.ts
+const NAME = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
+const PYTHON_NAME = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
+const PYPI_PREFIX = "pypi:";
+/** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
+const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME}|(?!\\*+$)(@${NAME}/)?${NAME})$`;
+const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
+function validatePythonPattern(pattern) {
+	const name = pattern.slice(5);
+	if (name === "") return `write a Python package name after ${PYPI_PREFIX}, e.g. "${PYPI_PREFIX}requests"`;
+	const versionAt = name.search(/[@=<>!~;[ ]/u);
+	if (versionAt > 0 && !name.startsWith("@")) return `versions are not supported; write "${PYPI_PREFIX}${name.slice(0, versionAt)}"`;
+	if (/^\*+$/u.test(name)) return "it matches every package; list packages explicitly";
+	const example = `e.g. "${PYPI_PREFIX}requests" or "${PYPI_PREFIX}acme-*"`;
+	if (name.startsWith("@")) return `Python package names have no scope; expected a name or a name pattern with *, ${example}`;
+	if (!GRAMMAR.test(pattern)) return `expected a Python package name or a name pattern with *, ${example}`;
+}
+/** Returns why the pattern is invalid, or undefined when it is valid. */
+function validatePackagePattern(pattern) {
+	if (pattern === "") return "must not be empty";
+	if (/\s/u.test(pattern)) return "must not contain spaces";
+	if (pattern.startsWith("pypi:")) return validatePythonPattern(pattern);
+	const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(pattern);
+	if (prefix !== null) {
+		const rest = pattern.slice(prefix[0].length);
+		return prefix[1]?.toLowerCase() === "pypi" ? `the only ecosystem prefix is ${PYPI_PREFIX}; write Python packages as "${PYPI_PREFIX}${rest}"` : `the only ecosystem prefix is ${PYPI_PREFIX}; write npm packages without a prefix, e.g. "${rest}"`;
+	}
+	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
+	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
+	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
+	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
+	if (!GRAMMAR.test(pattern)) return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
+}
+/** The ecosystem a policy pattern belongs to. */
+function ecosystemOf(pattern) {
+	return pattern.startsWith("pypi:") ? "pypi" : "npm";
+}
+/** The patterns of one ecosystem, without the pypi: prefix. */
+function patternsFor(patterns, ecosystem) {
+	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => ecosystem === "pypi" ? pattern.slice(5) : pattern);
+}
+
+// src/policy/ecosystem.ts
+function ecosystemOfTool(tool) {
+	return tool.ecosystem ?? "npm";
+}
+/** The policy with cooldown.exclude and installScripts.allow reduced to the patterns of one ecosystem. */
+function policyFor(policy, ecosystem) {
+	return {
+		...policy,
+		...policy.cooldown === void 0 ? {} : { cooldown: {
+			...policy.cooldown,
+			exclude: patternsFor(policy.cooldown.exclude, ecosystem)
+		} },
+		...policy.installScripts === void 0 ? {} : { installScripts: {
+			...policy.installScripts,
+			allow: patternsFor(policy.installScripts.allow, ecosystem)
+		} }
+	};
+}
+
 // src/policy/file.ts
 function readPolicyFile(root) {
 	try {
@@ -10534,22 +10595,6 @@ const SOURCE_GROUPS = SOURCE_KINDS.map((kind) => ({
 		"default"
 	].map((field) => `sources.${kind}.${field}`)
 }));
-
-// src/policy/package-pattern.ts
-const NAME = "[A-Za-z0-9~*-][A-Za-z0-9._~*-]*";
-/** Also used as the JSON Schema pattern. The lookahead rejects patterns made only of `*`, which match every package. */
-const PACKAGE_PATTERN = `^(?!\\*+$)(@${NAME}/)?${NAME}$`;
-const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
-/** Returns why the pattern is invalid, or undefined when it is valid. */
-function validatePackagePattern(pattern) {
-	if (pattern === "") return "must not be empty";
-	if (/\s/u.test(pattern)) return "must not contain spaces";
-	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
-	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
-	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
-	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
-	if (!GRAMMAR.test(pattern)) return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
-}
 
 // src/policy/shape.ts
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/u;
@@ -10856,7 +10901,7 @@ const packagePatterns = (description) => list(text({
 	label: "a package name or pattern",
 	kind: "invalid package pattern",
 	pattern: PACKAGE_PATTERN,
-	description: "A package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". No versions.",
+	description: "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\". No versions.",
 	parse: (input) => {
 		const message = validatePackagePattern(input);
 		return message === void 0 ? {
@@ -10878,9 +10923,9 @@ const cooldownShape = object({
 	securityUpdates: withDefault(oneOfStrings(["bypass", "delay"], { description: "Whether security updates skip the delay (\"bypass\") or wait like other updates (\"delay\"), where the tool can tell them apart." }), "bypass")
 }, { description: "Release-age delay (cooldown): freshly published versions wait before they are used." });
 const installScriptsShape = object({
-	default: required(access("Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default.")),
-	allow: withDefault(packagePatterns("Packages whose lifecycle scripts may run when the default is \"deny\"."), [])
-}, { description: "Dependency lifecycle scripts." });
+	default: required(access("Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source.")),
+	allow: withDefault(packagePatterns("Packages whose lifecycle scripts may run when the default is \"deny\"; Python packages listed here are always built from source."), [])
+}, { description: "Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python." });
 const sourcesShape = object({
 	git: optional(access("Dependencies installed from git repositories.")),
 	remoteTarball: optional(access("Dependencies installed from tarball URLs outside the registry.")),
@@ -10900,7 +10945,7 @@ const policyShape = object({
 	installScripts: optional(installScriptsShape),
 	sources: optional(sourcesShape),
 	targets: withDefault(targetsShape, "auto")
-}, { description: "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot." });
+}, { description: "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, Renovate and Dependabot." });
 
 // src/policy/validate.ts
 /** Parses one section on its own, so rules spanning several fields still run when another part of the file is invalid. */
@@ -11020,9 +11065,8 @@ function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
 		minutes: result.value * (MINUTES$1[result.unit] ?? 0)
 	};
 }
-/** The policy's exclusions that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
-function exclusions(context) {
-	const patterns = context.policy.cooldown?.exclude ?? [];
+/** The exclusions (the policy's by default) that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
+function exclusions(context, patterns = context.policy.cooldown?.exclude ?? []) {
 	const setting = settingOf(context.tool.cooldown.exclude.setting);
 	if (setting === null) return void 0;
 	if (patterns.length > 0 && !context.supports(sinceOf(context.tool.cooldown.exclude.availableSince), setting)) return void 0;
@@ -11446,6 +11490,7 @@ function createContext(options) {
 	};
 	return {
 		tool,
+		tools: options.tools,
 		name: tool.name,
 		policy: options.policy,
 		version: options.version,
@@ -11568,15 +11613,21 @@ const dependabot = (context, duration) => {
 		return;
 	}
 	const keys = extraOf(tool, "cooldownKeys", isKeys);
-	const ecosystems = Object.keys(extraOf(tool, "ecosystems", isRecord));
+	const managers = extraOf(tool, "ecosystems", isRecord);
+	const ecosystems = Object.keys(managers);
 	const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
 	const yaml = context.yaml(file);
 	const updates = yaml.get(["updates"]);
-	const patterns = exclusions(context) ?? [];
+	const patternsOf = (ecosystem) => {
+		const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
+		const python = context.tools.some((entry) => covered.includes(entry.id) && ecosystemOfTool(entry) === "pypi");
+		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], python ? "pypi" : "npm")) ?? [];
+	};
 	let configured = 0;
 	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
 		if (!isRecord(entry) || !ecosystems.includes(String(entry["package-ecosystem"]))) return;
 		configured += 1;
+		const patterns = patternsOf(String(entry["package-ecosystem"]));
 		const current = entry[setting];
 		if (!isRecord(current)) {
 			yaml.set([
@@ -11757,6 +11808,7 @@ const pnpm = (context) => {
 
 // src/apply/generators/renovate.ts
 const RULE_DESCRIPTION = "depcurfew: packages excluded from minimumReleaseAge";
+const PYTHON_RULE_DESCRIPTION = "depcurfew: Python packages excluded from minimumReleaseAge";
 const isString = (value) => typeof value === "string";
 const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
 const isPath = (value) => Array.isArray(value) && value.every(isString);
@@ -11772,17 +11824,35 @@ const renovate = (context, duration) => {
 	const rule = extraOf(tool, "excludeRule", isRule);
 	const descriptionKey = extraOf(tool, "ruleDescription", isString);
 	const securityPath = extraOf(tool, "securityUpdatesSetting", isPath);
-	const patterns = exclusions(context) ?? [];
+	const datasources = extraOf(tool, "datasources", isRecord);
+	const excluded = policy.cooldown.exclude;
+	const patterns = exclusions(context, patternsFor(excluded, "npm")) ?? [];
+	const pythonPatterns = exclusions(context, patternsFor(excluded, "pypi")) ?? [];
 	const exclusionRule = {
 		[descriptionKey]: RULE_DESCRIPTION,
 		[rule.match]: patterns,
 		[setting]: rule.value
 	};
+	const pythonRule = {
+		[descriptionKey]: PYTHON_RULE_DESCRIPTION,
+		matchDatasources: [datasources["pypi"]],
+		[rule.match]: pythonPatterns,
+		[setting]: rule.value
+	};
+	const managedRules = [{
+		description: RULE_DESCRIPTION,
+		rule: exclusionRule,
+		wanted: patterns.length > 0
+	}, {
+		description: PYTHON_RULE_DESCRIPTION,
+		rule: pythonRule,
+		wanted: pythonPatterns.length > 0
+	}];
 	const security = policy.cooldown.securityUpdates === "delay" ? result.value : null;
 	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
 	const snippet = () => JSON.stringify({
 		[setting]: result.value,
-		...patterns.length > 0 ? { [rule.list]: [exclusionRule] } : {},
+		...managedRules.some((entry) => entry.wanted) ? { [rule.list]: managedRules.filter((entry) => entry.wanted).map((entry) => entry.rule) } : {},
 		...securityPath.reduceRight((inner, key) => ({ [key]: inner }), security)
 	}, null, 2);
 	if (file === void 0 || !/\.jsonc?$/u.test(file)) {
@@ -11798,14 +11868,16 @@ const renovate = (context, duration) => {
 	}
 	const json = context.json(file);
 	json.set([setting], result.value);
-	const rules = json.get([rule.list]);
-	const index = Array.isArray(rules) ? rules.findIndex((entry) => isRecord(entry) && entry[descriptionKey] === "depcurfew: packages excluded from minimumReleaseAge") : -1;
-	if (patterns.length > 0) {
-		if (index >= 0) {
-			if (JSON.stringify(rules[index]) !== JSON.stringify(exclusionRule)) json.replace([rule.list], index, exclusionRule);
-		} else if (Array.isArray(rules)) json.append([rule.list], exclusionRule);
-		else json.set([rule.list], [exclusionRule]);
-	} else if (index >= 0) json.remove([rule.list], index);
+	for (const managed of managedRules) {
+		const rules = json.get([rule.list]);
+		const index = Array.isArray(rules) ? rules.findIndex((entry) => isRecord(entry) && entry[descriptionKey] === managed.description) : -1;
+		if (managed.wanted) {
+			if (index >= 0) {
+				if (JSON.stringify(rules[index]) !== JSON.stringify(managed.rule)) json.replace([rule.list], index, managed.rule);
+			} else if (Array.isArray(rules)) json.append([rule.list], managed.rule);
+			else json.set([rule.list], [managed.rule]);
+		} else if (index >= 0) json.remove([rule.list], index);
+	}
 	json.set(securityPath, security);
 };
 
@@ -11968,11 +12040,14 @@ function botDuration(policy, managerMinutes) {
 * apply only adds to install-script allow-lists, so a package someone listed by hand keeps running its scripts after
 * the policy denies them; say so, and what to do about it.
 */
-function allowListWarnings(root, policy, detection, targets) {
-	const scripts = policy.installScripts;
-	if (scripts?.default !== "deny") return [];
+function allowListWarnings(root, policy, detection, targets, tools) {
+	if (policy.installScripts?.default !== "deny") return [];
 	const repository = new Repository(root);
-	return detection.packageManagers.filter((manager) => manager.supported && targets.has(manager.id)).flatMap((manager) => allowEntries(repository, manager.id, manager.configFiles)).filter((entry) => !scripts.allow.some((pattern) => matchesPattern(entry.package, pattern))).map((entry) => `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write, so remove ${entry.name} from ${entry.setting} by hand or add ${entry.name === entry.package ? "it" : entry.package} to installScripts.allow in ${POLICY_FILE}`);
+	return detection.packageManagers.filter((manager) => manager.supported && targets.has(manager.id)).flatMap((manager) => {
+		const tool = tools.find((entry) => entry.id === manager.id);
+		const allow = policyFor(policy, tool === void 0 ? "npm" : ecosystemOfTool(tool)).installScripts?.allow ?? [];
+		return allowEntries(repository, manager.id, manager.configFiles).filter((entry) => !allow.some((pattern) => matchesPattern(entry.package, pattern)));
+	}).map((entry) => `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write, so remove ${entry.name} from ${entry.setting} by hand or add ${entry.name === entry.package ? "it" : entry.package} to installScripts.allow in ${POLICY_FILE}`);
 }
 /** Computes every change without writing anything. */
 function planApply(root, policy, detection, tools = knowledgeBase) {
@@ -11990,9 +12065,11 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	}
 	if (targets.size === 0) warnings.push("no tools to configure: depcurfew found no supported package manager or bot here (depcurfew explain shows what it detects)");
 	const run = (tool, version, action) => {
+		const view = tool.kind === "package-manager" ? policyFor(policy, ecosystemOfTool(tool)) : policy;
 		const context = createContext({
 			tool,
-			policy,
+			tools,
+			policy: view,
 			version,
 			workspace,
 			warnings,
@@ -12027,7 +12104,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		if (generator === void 0 || !targets.has(tool.id)) continue;
 		run(tool, void 0, (context) => generator(context, duration));
 	}
-	warnings.push(...allowListWarnings(root, policy, detection, targets));
+	warnings.push(...allowListWarnings(root, policy, detection, targets, tools));
 	const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
 	return {
 		changes: workspace.changes(),
@@ -12629,13 +12706,15 @@ function describe(difference) {
 }
 /** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
 function checkAllowLists(context) {
-	const scripts = context.policy?.installScripts;
-	if (scripts?.default !== "deny") return;
-	const targets = context.policy?.targets;
+	const policy = context.policy;
+	if (policy?.installScripts?.default !== "deny") return;
+	const targets = policy.targets;
 	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
-		if (targets !== void 0 && targets !== "auto" && !targets.includes(manager.id)) continue;
+		if (targets !== "auto" && !targets.includes(manager.id)) continue;
+		const knowledge = context.tools.find((entry) => entry.id === manager.id);
+		const allow = policyFor(policy, knowledge === void 0 ? "npm" : ecosystemOfTool(knowledge)).installScripts?.allow ?? [];
 		for (const entry of allowEntries(context.repository, manager.id, manager.configFiles)) {
-			if (scripts.allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
+			if (allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
 			context.report({
 				level: "warning",
 				location: entry.line === void 0 ? { file: entry.file } : {
@@ -12897,9 +12976,10 @@ const lockfileInstallScripts = {
 	level: "error",
 	requiresPolicy: true,
 	check(context) {
-		const scripts = context.policy?.installScripts;
-		if (scripts?.default !== "deny") return;
+		const policy = context.policy;
+		if (policy?.installScripts?.default !== "deny") return;
 		eachLockfile(context, "lockfile-install-scripts", (lockfile, tool) => {
+			const allow = policyFor(policy, ecosystemOfTool(tool)).installScripts?.allow ?? [];
 			if (!lockfile.recordsScripts) {
 				context.notice(`lockfile-install-scripts could not check ${lockfile.file}: ${tool.name} does not record install scripts in it`, lockfile.file);
 				return;
@@ -12909,7 +12989,7 @@ const lockfileInstallScripts = {
 			const disabledBy = scriptsDisabledBy(context, tool);
 			const running = disabledBy === void 0 && runsScripts(context, tool);
 			for (const entry of flagged) {
-				if (scripts.allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+				if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
 				context.report({
 					level: running ? "error" : "warning",
 					location: location(lockfile, entry),
@@ -13106,7 +13186,7 @@ function declarationLine(context, declaration) {
 }
 function checkManager(context, manager, tool) {
 	const features = /* @__PURE__ */ new Map();
-	for (const item of [...context.policy === void 0 ? [] : policyFeatures(tool, context.policy), ...configuredFeatures(context, tool)]) features.set(item.setting, item);
+	for (const item of [...context.policy === void 0 ? [] : policyFeatures(tool, policyFor(context.policy, ecosystemOfTool(tool))), ...configuredFeatures(context, tool)]) features.set(item.setting, item);
 	if (features.size === 0) return;
 	for (const declaration of manager.versions) {
 		if (!("version" in declaration)) continue;
@@ -13232,7 +13312,7 @@ function checkNpmWorkspaces(context) {
 /** pnpm 10 reads .npmrc too, but pnpm-workspace.yaml wins; a root .npmrc value counts only when the YAML lacks it. */
 function checkPnpmRoot(context) {
 	const pnpm = managerOf(context, "pnpm");
-	const policy = context.policy;
+	const policy = context.policy === void 0 ? void 0 : policyFor(context.policy, "npm");
 	if (pnpm === void 0 || policy?.cooldown === void 0) return;
 	const ignored = extraOf(pnpm.tool, "ignoredSince", isRecord);
 	if (!before(pnpm.version, ignored["since"])) return;

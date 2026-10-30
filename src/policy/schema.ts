@@ -37,7 +37,8 @@ const packagePatterns = (description: string) =>
       label: 'a package name or pattern',
       kind: 'invalid package pattern',
       pattern: PACKAGE_PATTERN,
-      description: 'A package name such as "esbuild" or "@scope/name", or a pattern with *, such as "@scope/*". No versions.',
+      description:
+        'An npm package name such as "esbuild" or "@scope/name", or a pattern with *, such as "@scope/*". Python packages take the prefix pypi:, e.g. "pypi:requests" or "pypi:acme-*". No versions.',
       parse: (input) => {
         const message = validatePackagePattern(input);
         return message === undefined ? { ok: true, value: input } : { ok: false, message };
@@ -64,10 +65,15 @@ export const cooldownShape = object(
 
 export const installScriptsShape = object(
   {
-    default: required(access('Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default.')),
-    allow: withDefault(packagePatterns('Packages whose lifecycle scripts may run when the default is "deny".'), []),
+    default: required(
+      access('Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source.'),
+    ),
+    allow: withDefault(
+      packagePatterns('Packages whose lifecycle scripts may run when the default is "deny"; Python packages listed here are always built from source.'),
+      [],
+    ),
   },
-  { description: 'Dependency lifecycle scripts.' },
+  { description: 'Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python.' },
 );
 
 export const sourcesShape = object(
@@ -102,7 +108,7 @@ export const policyShape = object(
     sources: optional(sourcesShape),
     targets: withDefault(targetsShape, 'auto'),
   },
-  { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot.' },
+  { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, Renovate and Dependabot.' },
 );
 
 /** The policy as written in depcurfew.json. */

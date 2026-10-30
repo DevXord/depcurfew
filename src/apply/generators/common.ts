@@ -41,9 +41,8 @@ export function cooldownValue(context: Context, duration: Duration | undefined =
   return { value: result.value, minutes: result.value * (MINUTES[result.unit] ?? 0) };
 }
 
-/** The policy's exclusions that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
-export function exclusions(context: Context): string[] | undefined {
-  const patterns = context.policy.cooldown?.exclude ?? [];
+/** The exclusions (the policy's by default) that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
+export function exclusions(context: Context, patterns: readonly string[] = context.policy.cooldown?.exclude ?? []): string[] | undefined {
   const setting = settingOf(context.tool.cooldown.exclude.setting);
   if (setting === null) return undefined;
   if (patterns.length > 0 && !context.supports(sinceOf(context.tool.cooldown.exclude.availableSince), setting)) return undefined;

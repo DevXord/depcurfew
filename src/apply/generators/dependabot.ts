@@ -1,6 +1,9 @@
-// Dependabot: cooldown in every updates entry of a JavaScript ecosystem in dependabot.yml. semver-*-days keys that
-// are already there are raised to the policy's delay (never lowered, never added); other keys (include) stay.
+// Dependabot: cooldown in every updates entry of a JavaScript or Python ecosystem in dependabot.yml. semver-*-days
+// keys that are already there are raised to the policy's delay (never lowered, never added); other keys (include)
+// stay. Each entry gets the exclusions of its registry: npm names for npm, bun and deno, pypi: names for pip and uv.
 import { convertCooldown } from '../../policy/convert.ts';
+import { ecosystemOfTool } from '../../policy/ecosystem.ts';
+import { patternsFor } from '../../policy/package-pattern.ts';
 import { extraOf, isRecord, settingOf, values } from '../facts.ts';
 import { exclusions, sameList } from './common.ts';
 import type { BotGenerator } from './context.ts';
@@ -35,15 +38,21 @@ export const dependabot: BotGenerator = (context, duration) => {
     return;
   }
   const keys = extraOf(tool, 'cooldownKeys', isKeys);
-  const ecosystems = Object.keys(extraOf(tool, 'ecosystems', isRecord));
+  const managers = extraOf(tool, 'ecosystems', isRecord);
+  const ecosystems = Object.keys(managers);
   const setting = settingOf(tool.cooldown.setting) ?? 'cooldown';
   const yaml = context.yaml(file);
   const updates = yaml.get(['updates']);
-  const patterns = exclusions(context) ?? [];
+  const patternsOf = (ecosystem: string): string[] => {
+    const covered = Array.isArray(managers[ecosystem]) ? (managers[ecosystem] as unknown[]) : [];
+    const python = context.tools.some((entry) => covered.includes(entry.id) && ecosystemOfTool(entry) === 'pypi');
+    return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], python ? 'pypi' : 'npm')) ?? [];
+  };
   let configured = 0;
   (Array.isArray(updates) ? updates : []).forEach((entry: unknown, index) => {
     if (!isRecord(entry) || !ecosystems.includes(String(entry['package-ecosystem']))) return;
     configured += 1;
+    const patterns = patternsOf(String(entry['package-ecosystem']));
     const current = entry[setting];
     if (!isRecord(current)) {
       yaml.set(['updates', index, setting], { [keys.days]: result.value, ...(patterns.length > 0 ? { [keys.exclude]: patterns } : {}) });

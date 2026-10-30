@@ -5,6 +5,7 @@ import { pinnedVersion } from '../../apply/version.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
+import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import { matchesPattern } from '../allow-lists.ts';
 import { latestVersion, versionedValue } from '../effective.ts';
 import { readLockfiles, type Lockfile, type LockEntry } from '../lockfiles.ts';
@@ -115,9 +116,10 @@ export const lockfileInstallScripts: Rule = {
   level: 'error',
   requiresPolicy: true,
   check(context) {
-    const scripts = context.policy?.installScripts;
-    if (scripts?.default !== 'deny') return;
+    const policy = context.policy;
+    if (policy?.installScripts?.default !== 'deny') return;
     eachLockfile(context, 'lockfile-install-scripts', (lockfile, tool) => {
+      const allow = policyFor(policy, ecosystemOfTool(tool)).installScripts?.allow ?? [];
       if (!lockfile.recordsScripts) {
         context.notice(`lockfile-install-scripts could not check ${lockfile.file}: ${tool.name} does not record install scripts in it`, lockfile.file);
         return;
@@ -129,7 +131,7 @@ export const lockfileInstallScripts: Rule = {
       const disabledBy = scriptsDisabledBy(context, tool);
       const running = disabledBy === undefined && runsScripts(context, tool);
       for (const entry of flagged) {
-        if (scripts.allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+        if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
         context.report({
           level: running ? 'error' : 'warning',
           location: location(lockfile, entry),

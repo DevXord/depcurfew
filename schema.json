@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://unpkg.com/depcurfew/schema.json",
   "title": "depcurfew policy",
-  "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot.",
+  "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, Renovate and Dependabot.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -32,9 +32,9 @@
           "description": "Packages that skip the release-age delay, e.g. your own scope.",
           "type": "array",
           "items": {
-            "description": "A package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". No versions.",
+            "description": "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\". No versions.",
             "type": "string",
-            "pattern": "^(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*-]*$"
+            "pattern": "^(?:pypi:(?!\\*+$)[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?|(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*)$"
           },
           "uniqueItems": true,
           "default": []
@@ -55,11 +55,11 @@
       "additionalProperties": false
     },
     "installScripts": {
-      "description": "Dependency lifecycle scripts.",
+      "description": "Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python.",
       "type": "object",
       "properties": {
         "default": {
-          "description": "Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default.",
+          "description": "Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source.",
           "type": "string",
           "enum": [
             "allow",
@@ -67,12 +67,12 @@
           ]
         },
         "allow": {
-          "description": "Packages whose lifecycle scripts may run when the default is \"deny\".",
+          "description": "Packages whose lifecycle scripts may run when the default is \"deny\"; Python packages listed here are always built from source.",
           "type": "array",
           "items": {
-            "description": "A package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". No versions.",
+            "description": "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\". No versions.",
             "type": "string",
-            "pattern": "^(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*-]*$"
+            "pattern": "^(?:pypi:(?!\\*+$)[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?|(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*)$"
           },
           "uniqueItems": true,
           "default": []
