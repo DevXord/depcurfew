@@ -276,7 +276,7 @@ Fix: Give the bot a delay at least as long as the package manager's (depcurfew a
 
 **error** · An exception list matches every package, which turns the protection off.
 
-A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies.
+A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name.
 
 Fix: Replace the pattern with the packages or scopes that really need the exception.
 

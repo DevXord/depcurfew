@@ -1926,6 +1926,8 @@ const poetry$1 = {
 // src/knowledge/renovate.ts
 const { verified: verified$3, uncertain: uncertain$2, disputed: disputed$1, evidence: evidence$1 } = verifiedOn("2026-10-28");
 const python$1 = verifiedOn("2026-10-30");
+const rules = verifiedOn("2026-10-30");
+const AT = "https://github.com/renovatebot/renovate/blob/44.198.2";
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
 const MINIMUM_RELEASE_AGE = "https://docs.renovatebot.com/key-concepts/minimum-release-age/";
 const release$1 = (version) => `https://github.com/renovatebot/renovate/releases/tag/${version}`;
@@ -2005,6 +2007,50 @@ const renovate$1 = {
 			pypi: "pypi"
 		}, "https://docs.renovatebot.com/modules/datasource/pypi/", "Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files."),
 		negativeMatch: python$1.verified("!", "https://docs.renovatebot.com/string-pattern-matching/", "Patterns starting with ! are negative matches, and none of them may match; matchDatasources is matched this way (matchRegexOrGlobList in lib/util/package-rules/datasources.ts at 44.198.0), so [\"!pypi\"] covers every datasource but PyPI."),
+		packageRuleMatching: rules.verified({
+			negation: "!",
+			allPatterns: "*",
+			packageMatchers: ["matchPackageNames", "matchDepNames"],
+			datasourceMatcher: "matchDatasources",
+			updateTypeMatcher: "matchUpdateTypes"
+		}, `${AT}/docs/usage/configuration-options.md#packagerules`, "A packageRules entry applies to a dependency when all of its matchers match. Within one matcher, at least one positive pattern must match when there are any, and no negative pattern (starting with !) may match, so a list of only negative patterns matches every name it does not exclude (docs/usage/string-pattern-matching.md and matchRegexOrGlobList in lib/util/string-match.ts). matchPackageNames, matchDepNames, matchDatasources and matchUpdateTypes all match this way; \"*\" alone matches everything."),
+		packageRulesOrder: rules.verified({
+			presetsFirst: true,
+			overridesTopLevel: true,
+			laterWins: true
+		}, `${AT}/docs/usage/configuration-options.md#packagerules`, "All packageRules are evaluated and later rules override options set by earlier ones; a matching rule overrides the top-level configuration (\"Package rule config overrides any existing config\", lib/util/package-rules/index.ts). Presets in extends are merged before the repository configuration, and packageRules is mergeable, so the rules of presets come first and the repository's rules after them, while a top-level option of the repository replaces the same option of a preset (resolveConfigPresets in lib/config/presets/index.ts and mergeChildConfig in lib/config/utils.ts)."),
+		delayedUpdateTypes: rules.verified([
+			"major",
+			"minor",
+			"patch"
+		], `${AT}/docs/usage/key-concepts/minimum-release-age.md#which-update-types-take-minimumreleaseage-into-account`, "The update types that take minimumReleaseAge into account; digest and pinDigest only for some datasources, and pin, lockFileMaintenance, lockfileUpdate, rollback, bump and replacement not at all."),
+		internalPresets: rules.verified({
+			prefixes: [
+				":",
+				"default:",
+				"abandonments:",
+				"config:",
+				"customManagers:",
+				"docker:",
+				"global:",
+				"group:",
+				"helpers:",
+				"mergeConfidence:",
+				"monorepo:",
+				"packages:",
+				"preview:",
+				"replacements:",
+				"schedule:",
+				"security:",
+				"workarounds:"
+			],
+			settingDelay: [
+				"config:best-practices",
+				"security:minimumReleaseAgeCrate",
+				"security:minimumReleaseAgeNpm",
+				"security:minimumReleaseAgePypi"
+			]
+		}, `${AT}/lib/config/presets/internal/index.ts`, "The built-in preset groups; a default preset is written :name or default:name. Other presets (github>, gitlab>, local>, npm packages and so on) are fetched from elsewhere. Among the built-in presets only the security:minimumReleaseAge* presets set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource, and config:best-practices extends security:minimumReleaseAgeNpm (security.preset.ts and config.preset.ts in the same directory)."),
 		pypiPresets: python$1.verified({
 			presets: ["security:minimumReleaseAgePypi"],
 			value: "3 days",
@@ -10776,7 +10822,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 
 // src/apply/requirements.ts
 /** "a", "a and b", "a, b and c". */
-function listing(items) {
+function listing$2(items) {
 	if (items.length <= 1) return items[0] ?? "";
 	return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
 }
@@ -10800,7 +10846,7 @@ function describeRequirements(requirements) {
 		0,
 		0
 	]);
-	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since})`).join(", ");
+	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$2(group.settings)} (since ${since})`).join(", ");
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
 }
 
@@ -11412,7 +11458,7 @@ function requirementsTrees(repository, roots, format) {
 				if (reason === void 0) queue.push(target);
 				else unreadable.push(`${path} (line ${line}, ${reason})`);
 			}
-			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing(unreadable)}`, [file]);
+			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing$2(unreadable)}`, [file]);
 		}
 		for (const file of tree) trees.set(file, [.../* @__PURE__ */ new Set([...trees.get(file) ?? [], ...tree])]);
 	}
@@ -12066,7 +12112,7 @@ function allowEntries(repository, manager, configFiles) {
 	return entries;
 }
 /** Whether a package name matches a policy pattern; `*` stands for any characters except `/`. */
-function matchesPattern(name, pattern) {
+function matchesPattern$1(name, pattern) {
 	return wildcardMatch(name, pattern);
 }
 
@@ -14132,7 +14178,7 @@ function relockWarning(context, file, table, edit) {
 	context.warn({
 		code: "lockfile-out-of-date",
 		location: { file: lockfile },
-		message: `${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change`,
+		message: `${context.name}: ${lockfile} records ${listing$2(changed)}, so it is out of date after this change`,
 		fix: `Run ${context.name} lock and commit ${lockfile}; until then ${context.name} sync --locked and ${context.name} lock --check fail`
 	});
 }
@@ -14331,7 +14377,7 @@ function allowListWarnings(root, policy, detection, targets, tools) {
 	return detection.packageManagers.filter((manager) => manager.supported && targets.has(manager.id)).flatMap((manager) => {
 		const tool = tools.find((entry) => entry.id === manager.id);
 		const allow = policyFor(policy, tool === void 0 ? "npm" : ecosystemOfTool(tool)).installScripts?.allow ?? [];
-		return allowEntries(repository, manager.id, manager.configFiles).filter((entry) => !allow.some((pattern) => matchesPattern(entry.package, pattern))).map((entry) => ({
+		return allowEntries(repository, manager.id, manager.configFiles).filter((entry) => !allow.some((pattern) => matchesPattern$1(entry.package, pattern))).map((entry) => ({
 			code: "allow-list-entry-outside-policy",
 			tool: manager.id,
 			location: { file: entry.file },
@@ -14705,11 +14751,183 @@ function managerDelay(context, manager, tool) {
 	};
 }
 
+// src/doctor/renovate.ts
+const isStrings$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$1(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
+const isPresetFact = (value) => isRecord(value) && isStrings$1(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
+const isInternal = (value) => isRecord(value) && isStrings$1(value["prefixes"]) && isStrings$1(value["settingDelay"]);
+function readRenovateConfig(text, file, base) {
+	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
+	const extendsList = jsonSetting(text, [...base, "extends"]);
+	const list = jsonSetting(text, [...base, "packageRules"]);
+	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
+		index,
+		rule,
+		line: jsonSetting(text, [
+			...base,
+			"packageRules",
+			index
+		])?.line ?? list.line
+	}] : []) : [];
+	return {
+		file,
+		base,
+		top,
+		extends: {
+			presets: isStrings$1(extendsList?.value) ? extendsList.value : [],
+			line: extendsList?.line ?? 1
+		},
+		rules
+	};
+}
+/**
+* Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
+* case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
+*/
+function matchesPattern(input, pattern, negation) {
+	const negative = pattern.startsWith(negation);
+	const body = negative ? pattern.slice(negation.length) : pattern;
+	if (!negative && body === "*") return true;
+	const regex = /^\/(.+)\/(i?)$/u.exec(body);
+	if (regex !== null) {
+		let result;
+		try {
+			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
+		} catch {
+			return;
+		}
+		return negative ? !result : result;
+	}
+	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
+	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
+	return negative ? !result : result;
+}
+/** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
+function matchesList(input, patterns, negation) {
+	if (patterns.length === 0) return false;
+	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
+	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
+	const results = positive.map((pattern) => matchesPattern(input, pattern, negation));
+	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
+	const excluded = negative.map((pattern) => matchesPattern(input, pattern, negation));
+	if (excluded.includes(false)) return false;
+	return excluded.includes(void 0) ? void 0 : true;
+}
+/** Patterns that match every package name: *, **, @*\/*, npm:*, and regexes like /.*\/. */
+function matchesEveryName(pattern) {
+	const name = pattern.replace(/^(npm|jsr):/u, "");
+	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
+}
+/**
+* The update types for which a rule applies to every package of `ecosystem`, or undefined when it narrows the
+* packages (or depcurfew cannot tell).
+*/
+function ruleScope(bot, rule, ecosystem) {
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$1);
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
+	const known = /* @__PURE__ */ new Set([
+		...matching.packageMatchers,
+		matching.datasourceMatcher,
+		matching.updateTypeMatcher
+	]);
+	if (matchers.some((key) => !known.has(key))) return void 0;
+	let names = { kind: "all" };
+	for (const key of matching.packageMatchers) {
+		if (!(key in rule)) continue;
+		const patterns = rule[key];
+		if (!isStrings$1(patterns) || patterns.length === 0) return void 0;
+		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
+		const broad = positive.find(matchesEveryName);
+		if (positive.length > 0 && broad === void 0) return void 0;
+		if (broad !== void 0 && names.kind === "all") names = {
+			kind: "pattern",
+			pattern: broad
+		};
+		else if (positive.length === 0) names = {
+			kind: "except",
+			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
+		};
+	}
+	if (matching.datasourceMatcher in rule) {
+		const patterns = rule[matching.datasourceMatcher];
+		const datasource = datasources[ecosystem];
+		if (!isStrings$1(patterns) || typeof datasource !== "string" || matchesList(datasource, patterns, matching.negation) !== true) return void 0;
+	}
+	let types = updateTypes;
+	if (matching.updateTypeMatcher in rule) {
+		const patterns = rule[matching.updateTypeMatcher];
+		if (!isStrings$1(patterns)) return void 0;
+		types = updateTypes.filter((type) => matchesList(type, patterns, matching.negation) === true);
+	}
+	return types.length === 0 ? void 0 : {
+		updateTypes: types,
+		names,
+		matchers
+	};
+}
+function presetName(preset) {
+	return preset.replace(/\(.*\)$/u, "");
+}
+/**
+* The delay Renovate applies to every package of `ecosystem`, for each delayed update type. Without a top-level value
+* or a rule, an update type has no entry: Renovate does not wait.
+*/
+function renovateDelay(bot, config, ecosystem) {
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$1);
+	const internal = extraOf(bot, "internalPresets", isInternal);
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const byType = /* @__PURE__ */ new Map();
+	const set = (types, source) => {
+		for (const type of types) byType.set(type, source);
+	};
+	const path = [...config.base, "minimumReleaseAge"].join(".");
+	if (config.top !== void 0) set(updateTypes, {
+		value: config.top.value,
+		origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`,
+		line: config.top.line
+	});
+	for (const key of ["minimumReleaseAgePresets", "pypiPresets"]) {
+		const fact = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresetFact);
+		const preset = fact === void 0 ? void 0 : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
+		if (fact === void 0 || preset === void 0 || datasources[ecosystem] !== fact.datasource) continue;
+		set(updateTypes, {
+			value: fact.value,
+			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
+			line: config.extends.line
+		});
+	}
+	let repositorySets = config.top !== void 0;
+	for (const { index, line, rule } of config.rules) {
+		if (!("minimumReleaseAge" in rule)) continue;
+		const scope = ruleScope(bot, rule, ecosystem);
+		if (scope === void 0) continue;
+		repositorySets = true;
+		set(scope.updateTypes, {
+			value: rule["minimumReleaseAge"],
+			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
+			line,
+			rule: index
+		});
+	}
+	const unreadable = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
+	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
+	if (unreadable !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
+		known: false,
+		preset: unreadable,
+		line: config.extends.line
+	};
+	return {
+		known: true,
+		byType
+	};
+}
+
 // src/doctor/rules/bot-cooldown.ts
 const isEcosystems = (value) => isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
-const isPresets = (value) => isRecord(value) && Array.isArray(value["presets"]) && typeof value["value"] === "string";
 const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && Array.isArray(value["semverDays"]);
-const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
+const isPackageJsonConfig$1 = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
 function describe$1(minutes) {
 	return minutes === 0 ? "no delay" : formatMinutes(minutes);
 }
@@ -14759,10 +14977,9 @@ function renovateDelays(context, bot, file) {
 	}
 	const text = context.repository.readText(file);
 	if (text === void 0) return [];
-	const managersOf = (ecosystem) => context.tools.filter((tool) => tool.kind === "package-manager" && (ecosystem === void 0 || ecosystemOfTool(tool) === ecosystem)).map((tool) => tool.id);
-	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig);
+	const managersOf = (ecosystem) => context.tools.filter((tool) => tool.kind === "package-manager" && ecosystemOfTool(tool) === ecosystem).map((tool) => tool.id);
+	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig$1);
 	const base = file === packageJson.file ? [packageJson.key] : [];
-	const configured = jsonSetting(text, [...base, "minimumReleaseAge"]);
 	const security = jsonSetting(text, [
 		...base,
 		"vulnerabilityAlerts",
@@ -14770,52 +14987,56 @@ function renovateDelays(context, bot, file) {
 	]);
 	const securityBypass = security === void 0 ? values$1(bot.cooldown.securityUpdates).includes("bypass") : security.value === null;
 	const applies = base.length === 0 && /\.jsonc?$/u.test(file);
-	const groups = [];
-	if (configured !== void 0) groups.push({
-		managers: managersOf(),
-		value: configured.value,
-		origin: `${[...base, "minimumReleaseAge"].join(".")}: ${JSON.stringify(configured.value)} in ${file}`,
-		line: configured.line
-	});
-	else {
-		const extendsList = jsonSetting(text, [...base, "extends"]);
-		const extended = Array.isArray(extendsList?.value) ? extendsList.value.filter((item) => typeof item === "string") : [];
-		for (const [key, ecosystem] of [["minimumReleaseAgePresets", "npm"], ["pypiPresets", "pypi"]]) {
-			const presets = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresets);
-			const preset = presets === void 0 ? void 0 : extended.find((item) => presets.presets.includes(item));
-			groups.push(presets !== void 0 && preset !== void 0 ? {
-				managers: managersOf(ecosystem),
-				value: presets.value,
-				origin: `the preset ${preset} in ${file} (${presets.value})`,
-				line: extendsList?.line ?? 1
-			} : {
-				managers: managersOf(ecosystem),
-				value: null,
-				origin: "Renovate has no delay by default",
-				line: 1
-			});
-		}
-	}
-	return groups.flatMap((group) => {
-		const delay = delayMinutes(bot, group.value, latestVersion(bot));
-		if (!delay.ok) {
-			context.notice(`Renovate: cannot read minimumReleaseAge in ${file}: ${delay.reason}`, file);
-			return [];
-		}
-		return [{
+	const config = readRenovateConfig(text, file, base);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every((item) => typeof item === "string"));
+	return ["npm", "pypi"].flatMap((ecosystem) => {
+		const managers = managersOf(ecosystem);
+		const delay = renovateDelay(bot, config, ecosystem);
+		if (!delay.known) return [{
 			bot,
-			managers: group.managers,
-			minutes: delay.minutes,
-			origin: group.origin,
+			managers,
+			minutes: 0,
+			origin: `the preset ${delay.preset}`,
 			location: {
 				file,
-				line: group.line
+				line: delay.line
 			},
 			securityBypass,
 			scope: "updates",
-			applies
+			applies,
+			unreadablePreset: delay.preset
+		}];
+		const minutes = /* @__PURE__ */ new Map();
+		for (const type of updateTypes) {
+			const source = delay.byType.get(type);
+			const value = delayMinutes(bot, source?.value ?? null, latestVersion(bot));
+			if (!value.ok) {
+				context.notice(`Renovate: cannot read minimumReleaseAge in ${file}: ${value.reason}`, file);
+				return [];
+			}
+			minutes.set(type, value.minutes);
+		}
+		const shortest = Math.min(...minutes.values());
+		const types = updateTypes.filter((type) => minutes.get(type) === shortest);
+		const source = delay.byType.get(types[0] ?? "");
+		return [{
+			bot,
+			managers,
+			minutes: shortest,
+			origin: source?.origin ?? "Renovate has no delay by default",
+			location: {
+				file,
+				line: source?.line ?? 1
+			},
+			securityBypass,
+			scope: types.length === updateTypes.length ? "updates" : `${listing$1(types)} updates`,
+			applies,
+			...source?.rule === void 0 ? {} : { rule: source.rule }
 		}];
 	});
+}
+function listing$1(items) {
+	return items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
 }
 function rechecksLockfile(tool, manager) {
 	const fact = tool.extra?.["lockfileRecheck"];
@@ -14845,10 +15066,20 @@ const botCooldownMismatch = {
 			if (tool === void 0) continue;
 			const own = managerDelay(context, manager, tool);
 			if (own === void 0 || delay.location === void 0) continue;
+			if (delay.unreadablePreset !== void 0) {
+				if (own.minutes > 0) context.report({
+					level: "note",
+					location: delay.location,
+					message: `${delay.bot.name} extends ${delay.unreadablePreset}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
+					fix: `Make sure the preset sets minimumReleaseAge to at least ${describe$1(own.minutes)} for these packages, or set it in ${delay.location.file}${delay.applies === false ? "" : " (depcurfew apply does this)"}`
+				});
+				continue;
+			}
+			if (delay.rule !== void 0 && delay.minutes === 0) continue;
 			if (delay.minutes < own.minutes) context.report({
 				location: delay.location,
 				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
-				fix: delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`
+				fix: delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(own.minutes)}, or limit the rule to the packages that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`
 			});
 			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager)) context.report({
 				level: "warning",
@@ -14862,10 +15093,7 @@ const botCooldownMismatch = {
 
 // src/doctor/rules/broad-exclusion.ts
 /** Patterns that match every package (or every scoped package): *, **, @*\/*, npm:*, and regexes like /.*\/. */
-function isBroad(pattern) {
-	const name = pattern.replace(/^(npm|jsr):/u, "");
-	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
-}
+const isBroad = matchesEveryName;
 function tool(context, id) {
 	return context.tools.find((entry) => entry.id === id);
 }
@@ -14932,33 +15160,58 @@ function checkDependabot(context, file) {
 		});
 	});
 }
-const MATCHERS = /^(match|exclude)[A-Z]/u;
+const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
+const isMatching = (value) => isRecord(value) && typeof value["negation"] === "string" && typeof value["datasourceMatcher"] === "string" && typeof value["updateTypeMatcher"] === "string";
+function listing(items) {
+	return items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
+}
+/** What a packageRules entry covers, for the message: its update types, names and datasources. */
+function covers(scope, datasources, matching) {
+	return `${scope.matchers.includes(matching.updateTypeMatcher) ? `${listing(scope.updateTypes)} updates of ` : ""}${scope.names.kind === "except" ? `every package except ${listing(scope.names.patterns.map((pattern) => pattern.slice(matching.negation.length)))}` : "every package"}${scope.matchers.includes(matching.datasourceMatcher) ? ` from the ${listing(datasources)} datasource${datasources.length === 1 ? "" : "s"}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
+}
+/** packageRules entries that turn minimumReleaseAge off for every package of a registry (extra.packageRuleMatching). */
 function checkRenovate(context, file) {
-	if (!/\.jsonc?$/u.test(file)) return;
+	const bot = tool(context, "renovate");
+	if (bot === void 0 || !/\.jsonc?$/u.test(file)) return;
 	const text = context.repository.readText(file);
 	if (text === void 0) return;
-	const rules = jsonSetting(text, ["packageRules"]);
-	if (rules === void 0 || !Array.isArray(rules.value)) return;
-	rules.value.forEach((rule, index) => {
-		if (!isRecord(rule) || !("minimumReleaseAge" in rule) || rule["minimumReleaseAge"] !== null && rule["minimumReleaseAge"] !== "0 days") return;
-		const broad = (Array.isArray(rule["matchPackageNames"]) ? rule["matchPackageNames"] : []).find((name) => typeof name === "string" && isBroad(name));
-		const unscoped = !Object.keys(rule).some((key) => MATCHERS.test(key));
-		if (broad === void 0 && !unscoped) return;
-		const line = jsonSetting(text, ["packageRules", index])?.line ?? rules.line;
+	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig);
+	const config = readRenovateConfig(text, file, file === packageJson.file ? [packageJson.key] : []);
+	const matching = extraOf(bot, "packageRuleMatching", isMatching);
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const detected = [...new Set(context.detection.packageManagers.filter((entry) => entry.supported).flatMap((entry) => {
+		const knowledge = tool(context, entry.id);
+		return knowledge === void 0 ? [] : [ecosystemOfTool(knowledge)];
+	}))];
+	const ecosystems = detected.length > 0 ? detected : ["npm", "pypi"];
+	for (const { index, line, rule } of config.rules) {
+		if (!("minimumReleaseAge" in rule)) continue;
+		const delay = delayMinutes(bot, rule["minimumReleaseAge"], latestVersion(bot));
+		if (!delay.ok || delay.minutes !== 0) continue;
+		const covered = ecosystems.flatMap((ecosystem) => {
+			const scope = ruleScope(bot, rule, ecosystem);
+			return scope === void 0 ? [] : [{
+				scope,
+				datasource: String(datasources[ecosystem])
+			}];
+		});
+		const first = covered[0];
+		if (first === void 0) continue;
+		const { scope } = first;
 		context.report({
 			location: {
 				file,
 				line
 			},
-			message: broad === void 0 ? `packageRules[${index}] turns off minimumReleaseAge without matching any packages, so it applies to all of them` : `packageRules[${index}] turns off minimumReleaseAge for "${broad}", which matches every package`,
+			message: scope.matchers.length === 0 ? `packageRules[${index}] turns off minimumReleaseAge without matching any packages, so it applies to all of them` : scope.names.kind === "pattern" && scope.matchers.every((key) => key !== matching.datasourceMatcher && key !== matching.updateTypeMatcher) ? `packageRules[${index}] turns off minimumReleaseAge for "${scope.names.pattern}", which matches every package` : `packageRules[${index}] turns off minimumReleaseAge for ${covers(scope, covered.map((item) => item.datasource), matching)}`,
 			fix: "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
 		});
-	});
+	}
 }
 const broadExclusion = {
 	id: "broad-exclusion",
 	summary: "An exception list matches every package, which turns the protection off.",
-	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies.",
+	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name.",
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
 	level: "error",
 	requiresPolicy: false,
@@ -15127,7 +15380,7 @@ function checkAllowLists(context) {
 		const knowledge = context.tools.find((entry) => entry.id === manager.id);
 		const allow = policyFor(policy, knowledge === void 0 ? "npm" : ecosystemOfTool(knowledge)).installScripts?.allow ?? [];
 		for (const entry of allowEntries(context.repository, manager.id, manager.configFiles)) {
-			if (allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
+			if (allow.some((pattern) => matchesPattern$1(entry.package, pattern))) continue;
 			context.report({
 				level: "warning",
 				location: entry.line === void 0 ? { file: entry.file } : {
@@ -15448,7 +15701,7 @@ function reportPythonBuilds(context, lockfile, tool, allow) {
 	const patterns = allow.map(normalizePythonName);
 	for (const entry of lockfile.entries) {
 		if (entry.installScript !== true || entry.source === "workspace") continue;
-		if (entry.unnamed !== true && patterns.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+		if (entry.unnamed !== true && patterns.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
 		const stopped = forbiddenBy !== void 0 && covers.includes(entry.source);
 		const fix = entry.unnamed === true ? `Give the requirement a package name (name @ ${entry.spec}) so that it can be allowed with "${PYPI_PREFIX}name" in installScripts.allow in ${POLICY_FILE}, or remove it` : `Review ${entry.name} and add "${PYPI_PREFIX}${entry.name}" to installScripts.allow in ${POLICY_FILE} (it is then always built from source), or replace the package`;
 		context.report({
@@ -15484,7 +15737,7 @@ const lockfileInstallScripts = {
 			const disabledBy = scriptsDisabledBy(context, tool);
 			const running = disabledBy === void 0 && runsScripts(context, tool);
 			for (const entry of flagged) {
-				if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+				if (allow.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
 				context.report({
 					level: running ? "error" : "warning",
 					location: location(lockfile, entry),
@@ -15935,7 +16188,7 @@ function checkPnpmRoot(context) {
 				message: `${entry.key}=${entry.value} in .npmrc sets ${label} to wait ${actual.minutes === 0 ? "not at all" : formatMinutes(actual.minutes)}, shorter than ${policy.cooldown.minimum.text} in ${POLICY_FILE}, because pnpm-workspace.yaml does not set ${entry.setting}`,
 				fix: "Remove the line and run depcurfew apply, which writes the delay to pnpm-workspace.yaml"
 			});
-		} else if (entry.setting === excludeSetting && !policy.cooldown.exclude.some((pattern) => matchesPattern(entry.value, pattern) || pattern === entry.value)) context.report({
+		} else if (entry.setting === excludeSetting && !policy.cooldown.exclude.some((pattern) => matchesPattern$1(entry.value, pattern) || pattern === entry.value)) context.report({
 			location: {
 				file: ".npmrc",
 				line: entry.line

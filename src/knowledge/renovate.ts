@@ -3,6 +3,9 @@ import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const python = verifiedOn('2026-10-30');
+const rules = verifiedOn('2026-10-30');
+
+const AT = 'https://github.com/renovatebot/renovate/blob/44.198.2';
 
 const OPTIONS = 'https://docs.renovatebot.com/configuration-options/';
 const MINIMUM_RELEASE_AGE = 'https://docs.renovatebot.com/key-concepts/minimum-release-age/';
@@ -149,6 +152,29 @@ export const renovate: ToolKnowledge = {
       '!',
       'https://docs.renovatebot.com/string-pattern-matching/',
       'Patterns starting with ! are negative matches, and none of them may match; matchDatasources is matched this way (matchRegexOrGlobList in lib/util/package-rules/datasources.ts at 44.198.0), so ["!pypi"] covers every datasource but PyPI.',
+    ),
+    packageRuleMatching: rules.verified(
+      { negation: '!', allPatterns: '*', packageMatchers: ['matchPackageNames', 'matchDepNames'], datasourceMatcher: 'matchDatasources', updateTypeMatcher: 'matchUpdateTypes' },
+      `${AT}/docs/usage/configuration-options.md#packagerules`,
+      'A packageRules entry applies to a dependency when all of its matchers match. Within one matcher, at least one positive pattern must match when there are any, and no negative pattern (starting with !) may match, so a list of only negative patterns matches every name it does not exclude (docs/usage/string-pattern-matching.md and matchRegexOrGlobList in lib/util/string-match.ts). matchPackageNames, matchDepNames, matchDatasources and matchUpdateTypes all match this way; "*" alone matches everything.',
+    ),
+    packageRulesOrder: rules.verified(
+      { presetsFirst: true, overridesTopLevel: true, laterWins: true },
+      `${AT}/docs/usage/configuration-options.md#packagerules`,
+      'All packageRules are evaluated and later rules override options set by earlier ones; a matching rule overrides the top-level configuration ("Package rule config overrides any existing config", lib/util/package-rules/index.ts). Presets in extends are merged before the repository configuration, and packageRules is mergeable, so the rules of presets come first and the repository\'s rules after them, while a top-level option of the repository replaces the same option of a preset (resolveConfigPresets in lib/config/presets/index.ts and mergeChildConfig in lib/config/utils.ts).',
+    ),
+    delayedUpdateTypes: rules.verified(
+      ['major', 'minor', 'patch'],
+      `${AT}/docs/usage/key-concepts/minimum-release-age.md#which-update-types-take-minimumreleaseage-into-account`,
+      'The update types that take minimumReleaseAge into account; digest and pinDigest only for some datasources, and pin, lockFileMaintenance, lockfileUpdate, rollback, bump and replacement not at all.',
+    ),
+    internalPresets: rules.verified(
+      {
+        prefixes: [':', 'default:', 'abandonments:', 'config:', 'customManagers:', 'docker:', 'global:', 'group:', 'helpers:', 'mergeConfidence:', 'monorepo:', 'packages:', 'preview:', 'replacements:', 'schedule:', 'security:', 'workarounds:'],
+        settingDelay: ['config:best-practices', 'security:minimumReleaseAgeCrate', 'security:minimumReleaseAgeNpm', 'security:minimumReleaseAgePypi'],
+      },
+      `${AT}/lib/config/presets/internal/index.ts`,
+      'The built-in preset groups; a default preset is written :name or default:name. Other presets (github>, gitlab>, local>, npm packages and so on) are fetched from elsewhere. Among the built-in presets only the security:minimumReleaseAge* presets set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource, and config:best-practices extends security:minimumReleaseAgeNpm (security.preset.ts and config.preset.ts in the same directory).',
     ),
     pypiPresets: python.verified(
       { presets: ['security:minimumReleaseAgePypi'], value: '3 days', since: '44.8.0', datasource: 'pypi' },

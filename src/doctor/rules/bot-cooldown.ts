@@ -1,7 +1,8 @@
 // bot-cooldown-mismatch: a bot that waits less than the package manager proposes versions the manager would not
 // pick yet. Depending on the manager, the pull request fails to install or slips a too-young version past the
 // manager's delay through the lockfile. A bot that skips the delay for security updates breaks CI where the
-// manager re-checks the lockfile.
+// manager re-checks the lockfile. Renovate's delay comes from the top level, the presets it extends and the
+// packageRules that cover every package of a registry; a preset depcurfew cannot read gives a note.
 import { extraOf, isRecord, values } from '../../apply/facts.ts';
 import { pinnedVersion } from '../../apply/version.ts';
 import type { PackageManagerId, PackageManagerInfo } from '../../detect/types.ts';
@@ -9,6 +10,7 @@ import type { Ecosystem, ToolKnowledge } from '../../knowledge/types.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion, managerDelay, versionedValue, type Delay } from '../effective.ts';
+import { readRenovateConfig, renovateDelay } from '../renovate.ts';
 import { jsonSetting, yamlSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
@@ -21,12 +23,14 @@ interface BotDelay extends Delay {
   scope: string;
   /** Whether depcurfew apply edits the file (it prints a snippet for .renovaterc and the deprecated package.json key). */
   applies?: boolean;
+  /** The packageRules entry of the repository that sets this delay (Renovate). */
+  rule?: number;
+  /** A preset depcurfew cannot read may set the delay; the repository itself sets none (Renovate). */
+  unreadablePreset?: string;
 }
 
 const isEcosystems = (value: unknown): value is Record<string, string[]> =>
   isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === 'string'));
-const isPresets = (value: unknown): value is { presets: string[]; value: string } =>
-  isRecord(value) && Array.isArray(value['presets']) && typeof value['value'] === 'string';
 const isCooldownKeys = (value: unknown): value is { days: string; semverDays: string[] } =>
   isRecord(value) && typeof value['days'] === 'string' && Array.isArray(value['semverDays']);
 const isPackageJsonConfig = (value: unknown): value is { file: string; key: string } =>
@@ -75,40 +79,55 @@ function renovateDelays(context: RuleContext, bot: ToolKnowledge, file: string):
   }
   const text = context.repository.readText(file);
   if (text === undefined) return [];
-  const managersOf = (ecosystem?: Ecosystem): PackageManagerId[] =>
-    context.tools.filter((tool) => tool.kind === 'package-manager' && (ecosystem === undefined || ecosystemOfTool(tool) === ecosystem)).map((tool) => tool.id as PackageManagerId);
+  const managersOf = (ecosystem: Ecosystem): PackageManagerId[] =>
+    context.tools.filter((tool) => tool.kind === 'package-manager' && ecosystemOfTool(tool) === ecosystem).map((tool) => tool.id as PackageManagerId);
   // The deprecated configuration in package.json sits under its own key.
   const packageJson = extraOf(bot, 'packageJsonConfig', isPackageJsonConfig);
   const base = file === packageJson.file ? [packageJson.key] : [];
-  const configured = jsonSetting(text, [...base, 'minimumReleaseAge']);
   const security = jsonSetting(text, [...base, 'vulnerabilityAlerts', 'minimumReleaseAge']);
   const securityBypass = security === undefined ? values(bot.cooldown.securityUpdates).includes('bypass') : security.value === null;
   const applies = base.length === 0 && /\.jsonc?$/u.test(file);
-  // A configured value applies to every datasource; without one, each preset covers the packages of its registry.
-  const groups: { managers: PackageManagerId[]; value: unknown; origin: string; line: number }[] = [];
-  if (configured !== undefined) {
-    groups.push({ managers: managersOf(), value: configured.value, origin: `${[...base, 'minimumReleaseAge'].join('.')}: ${JSON.stringify(configured.value)} in ${file}`, line: configured.line });
-  } else {
-    const extendsList = jsonSetting(text, [...base, 'extends']);
-    const extended = Array.isArray(extendsList?.value) ? (extendsList.value as unknown[]).filter((item): item is string => typeof item === 'string') : [];
-    for (const [key, ecosystem] of [['minimumReleaseAgePresets', 'npm'], ['pypiPresets', 'pypi']] as const) {
-      const presets = bot.extra?.[key] === undefined ? undefined : extraOf(bot, key, isPresets);
-      const preset = presets === undefined ? undefined : extended.find((item) => presets.presets.includes(item));
-      groups.push(
-        presets !== undefined && preset !== undefined
-          ? { managers: managersOf(ecosystem), value: presets.value, origin: `the preset ${preset} in ${file} (${presets.value})`, line: extendsList?.line ?? 1 }
-          : { managers: managersOf(ecosystem), value: null, origin: 'Renovate has no delay by default', line: 1 },
-      );
+  const config = readRenovateConfig(text, file, base);
+  const updateTypes = extraOf(bot, 'delayedUpdateTypes', (value): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string'));
+  // The top-level value, the presets and the packageRules that cover every package of a registry give each update
+  // type its delay; the shortest one counts.
+  return (['npm', 'pypi'] as const).flatMap((ecosystem): BotDelay[] => {
+    const managers = managersOf(ecosystem);
+    const delay = renovateDelay(bot, config, ecosystem);
+    if (!delay.known) {
+      return [{ bot, managers, minutes: 0, origin: `the preset ${delay.preset}`, location: { file, line: delay.line }, securityBypass, scope: 'updates', applies, unreadablePreset: delay.preset }];
     }
-  }
-  return groups.flatMap((group): BotDelay[] => {
-    const delay = delayMinutes(bot, group.value, latestVersion(bot));
-    if (!delay.ok) {
-      context.notice(`Renovate: cannot read minimumReleaseAge in ${file}: ${delay.reason}`, file);
-      return [];
+    const minutes = new Map<string, number>();
+    for (const type of updateTypes) {
+      const source = delay.byType.get(type);
+      const value = delayMinutes(bot, source?.value ?? null, latestVersion(bot));
+      if (!value.ok) {
+        context.notice(`Renovate: cannot read minimumReleaseAge in ${file}: ${value.reason}`, file);
+        return [];
+      }
+      minutes.set(type, value.minutes);
     }
-    return [{ bot, managers: group.managers, minutes: delay.minutes, origin: group.origin, location: { file, line: group.line }, securityBypass, scope: 'updates', applies }];
+    const shortest = Math.min(...minutes.values());
+    const types = updateTypes.filter((type) => minutes.get(type) === shortest);
+    const source = delay.byType.get(types[0] ?? '');
+    return [
+      {
+        bot,
+        managers,
+        minutes: shortest,
+        origin: source?.origin ?? 'Renovate has no delay by default',
+        location: { file, line: source?.line ?? 1 },
+        securityBypass,
+        scope: types.length === updateTypes.length ? 'updates' : `${listing(types)} updates`,
+        applies,
+        ...(source?.rule === undefined ? {} : { rule: source.rule }),
+      },
+    ];
   });
+}
+
+function listing(items: readonly string[]): string {
+  return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1) ?? ''}`;
 }
 
 function rechecksLockfile(tool: ToolKnowledge, manager: PackageManagerInfo): boolean {
@@ -142,14 +161,29 @@ export const botCooldownMismatch: Rule = {
         if (tool === undefined) continue;
         const own = managerDelay(context, manager, tool);
         if (own === undefined || delay.location === undefined) continue;
+        if (delay.unreadablePreset !== undefined) {
+          if (own.minutes > 0) {
+            context.report({
+              level: 'note',
+              location: delay.location,
+              message: `${delay.bot.name} extends ${delay.unreadablePreset}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe(own.minutes)}, ${own.origin})`,
+              fix: `Make sure the preset sets minimumReleaseAge to at least ${describe(own.minutes)} for these packages, or set it in ${delay.location.file}${delay.applies === false ? '' : ' (depcurfew apply does this)'}`,
+            });
+          }
+          continue;
+        }
+        // A packageRules entry that turns the delay off for every package is reported by broad-exclusion.
+        if (delay.rule !== undefined && delay.minutes === 0) continue;
         if (delay.minutes < own.minutes) {
           context.report({
             location: delay.location,
             message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? 'without waiting' : `after ${describe(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
             fix:
-              delay.applies === false
-                ? `Make the ${delay.bot.name} delay at least ${describe(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)`
-                : `Make the ${delay.bot.name} delay at least ${describe(own.minutes)}, or run depcurfew apply`,
+              delay.rule !== undefined
+                ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe(own.minutes)}, or limit the rule to the packages that need a shorter delay`
+                : delay.applies === false
+                  ? `Make the ${delay.bot.name} delay at least ${describe(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)`
+                  : `Make the ${delay.bot.name} delay at least ${describe(own.minutes)}, or run depcurfew apply`,
           });
         } else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager)) {
           context.report({
