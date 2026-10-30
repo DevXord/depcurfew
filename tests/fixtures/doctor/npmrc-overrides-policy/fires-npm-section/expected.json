@@ -1,0 +1,29 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".npmrc",
+      "line": 5
+    },
+    "message": "ignore-scripts in .npmrc is below the [custom] header, so npm reads it as custom.ignore-scripts and does not apply it; the value above the header applies",
+    "fix": "Remove the line, or move it above the first [section] header of .npmrc if this value is the one you want"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".npmrc",
+      "line": 6
+    },
+    "message": "min-release-age in .npmrc is below the [custom] header, so npm reads it as custom.min-release-age and does not apply it",
+    "fix": "Move the line above the first [section] header of .npmrc"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".npmrc",
+      "line": 9
+    },
+    "message": "the depcurfew managed block in .npmrc is below the [custom] header, so npm reads its settings as custom.min-release-age and so on and applies none of them",
+    "fix": "Run depcurfew apply, which moves the managed block above the first [section] header"
+  }
+]

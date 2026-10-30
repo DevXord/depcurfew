@@ -444,8 +444,9 @@ const dependabot$1 = {
 // src/knowledge/npm.ts
 const { verified: verified$9, uncertain: uncertain$8, disputed: disputed$3, evidence: evidence$3 } = verifiedOn("2026-10-28");
 const checked$3 = verifiedOn("2026-10-29");
+const reviewed = verifiedOn("2026-10-30");
 const CONFIG = "https://docs.npmjs.com/cli/v12/using-npm/config";
-const NPMRC = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
+const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$3 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
 const INSTALL_TIME_CONTROLS = "https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/";
 const SOURCE_FLAGS_SINCE_NOTE = "The 11.14.0 release notes add the flag; the GitHub changelog dates it to 11.15.0, which also moved enforcement into the resolver. Treat 11.15.0 as the safe minimum.";
@@ -478,7 +479,7 @@ const npm$1 = {
 	kind: "package-manager",
 	cooldown: {
 		setting: verified$9("min-release-age", `${CONFIG}#min-release-age`),
-		configFiles: verified$9([".npmrc"], NPMRC, "Any npm config layer works: project .npmrc (read only at the project root and not for global installs), ~/.npmrc, the global npmrc, npm_config_min_release_age or the CLI. package.json cannot set it."),
+		configFiles: verified$9([".npmrc"], NPMRC$1, "Any npm config layer works: project .npmrc (read only at the project root and not for global installs), ~/.npmrc, the global npmrc, npm_config_min_release_age or the CLI. package.json cannot set it."),
 		cliFlag: verified$9("--min-release-age=<days>", "https://docs.npmjs.com/cli/v12/commands/npm-install#min-release-age"),
 		unit: verified$9("days", `${CONFIG}#min-release-age`, "Type is null or Number; 0 turns the delay off. Fractional days are not documented."),
 		availableSince: verified$9("11.10.0", release$3("11.10.0")),
@@ -636,6 +637,14 @@ const npm$1 = {
 			workspacePackages: "ignored",
 			globalMode: "ignored"
 		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns \"ignoring workspace config\" for the package .npmrc (workspaces/config/lib/index.js). The project .npmrc \"is not read in global mode, such as when running npm install -g\" (same page, v11.21.1 and v12.2.1)."),
+		npmrcFormat: reviewed.verified({
+			commentLines: ["#", ";"],
+			inlineComments: ["#", ";"],
+			escape: "\\",
+			sectionHeader: "^\\[([^\\]]*)\\]\\s*$",
+			keyWithoutValue: "true",
+			settingsFrom: "top level"
+		}, "https://github.com/npm/ini/blob/v7.0.0/lib/ini.js", "npm reads .npmrc with the ini package: 7.0.0 in npm 12.2.1, and 6.0.0, whose lib/ini.js is the same, in npm 11.10.0 to 11.21.1 (package-lock.json of npm/cli). A line whose first non-blank character is # or ; is a comment. An unquoted key or value ends at the first # or ; that is not escaped with a backslash, so ignore-scripts=true # note sets true; a value in double quotes is parsed as a JSON string and one in single quotes loses its quotes, both keeping # and ;. A line without = sets the key to true. A [name] header at the start of a line, with nothing but spaces after it, starts a section: the keys below it belong to that section until the next header. npm applies only the top-level keys as settings (#loadObject in workspaces/config/lib/index.js at v12.2.1), so a key below a header has no effect."),
 		npmrcListSyntax: verified$9("[]", "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*."),
 		allowAllScripts: verified$9({
 			setting: "dangerously-allow-all-scripts",
@@ -647,19 +656,20 @@ const npm$1 = {
 			trailingOnly: false
 		}, NPM_DEFINITIONS, "min-release-age-exclude takes package names or minimatch globs from its first version."),
 		latestVersion: verified$9("12.2.1", release$3("12.2.1"), "Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1)."),
-		beforeInteraction: verified$9([{
-			since: "11.10.0",
-			value: "min-release-age and before are mutually exclusive"
-		}, {
-			since: "11.15.0",
-			value: "both may be set; before wins within the same config source"
-		}], release$3("11.15.0")),
+		beforeInteraction: reviewed.verified({
+			setting: "before",
+			exclusive: {
+				since: "11.10.0",
+				until: "11.15.0"
+			},
+			beforeWinsSince: "11.15.0"
+		}, "https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js", "before is a date: npm installs only versions available on or before it. In 11.10.0 to 11.14.x the definitions of min-release-age and before name each other as exclusive, and npm stops with \"--min-release-age cannot be provided when using --before\" (or the reverse) once both are set in its config sources (#loadObject in workspaces/config/lib/index.js and definitions.js at v11.14.1). Since 11.15.0 both may be set: \"If before and min-release-age are both set in the same source, before wins\"; across sources the usual precedence applies (cli > env > project > user > global), so a before in the project .npmrc replaces its own min-release-age (definitions.js at v11.15.0 and v12.2.1; release notes of 11.15.0)."),
 		strictAllowScripts: checked$3.verified({
 			setting: "strict-allow-scripts",
 			value: true,
 			since: "11.16.0"
 		}, NPM_DEFINITIONS_V11_16, "strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it."),
-		unknownNpmrcKeys: disputed$3("Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.", evidence$3("npm 12 throws on unknown config keys", release$3("12.0.0")), evidence$3("unknown keys only warn; throwing is planned for a future major version", NPMRC)),
+		unknownNpmrcKeys: disputed$3("Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.", evidence$3("npm 12 throws on unknown config keys", release$3("12.0.0")), evidence$3("unknown keys only warn; throwing is planned for a future major version", NPMRC$1)),
 		commandLine: checked$3.verified({
 			add: INSTALL_ALIASES.map((alias) => ["npm", alias]),
 			run: [
@@ -11804,26 +11814,70 @@ function insertBlock(lines, at, entries, separate, marker = BLOCK_START) {
 }
 
 // src/doctor/settings.ts
-/** Every key=value line of an .npmrc file; `key[]` keeps its brackets. */
-function iniEntries(text) {
+const NPMRC = extraOf(npm$1, "npmrcFormat", isRecord);
+const isChars = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const COMMENT_LINES = isChars(NPMRC["commentLines"]) ? NPMRC["commentLines"] : [];
+const INLINE_COMMENTS = isChars(NPMRC["inlineComments"]) ? NPMRC["inlineComments"] : [];
+const ESCAPE = typeof NPMRC["escape"] === "string" ? NPMRC["escape"] : "\\";
+const SECTION$1 = new RegExp(String(NPMRC["sectionHeader"]), "u");
+const KEY_WITHOUT_VALUE = String(NPMRC["keyWithoutValue"]);
+/** A key or value as the ini package reads it (its unsafe()): quotes removed, or cut at an unescaped comment. */
+function iniText(raw) {
+	const text = raw.trim();
+	const quote = text[0];
+	if ((quote === "\"" || quote === "'") && text.endsWith(quote)) {
+		const inner = quote === "'" ? text.slice(1, -1) : text;
+		try {
+			return String(JSON.parse(inner));
+		} catch {
+			return inner;
+		}
+	}
+	let result = "";
+	let escaped = false;
+	for (const character of text) if (escaped) {
+		result += character === ESCAPE || INLINE_COMMENTS.includes(character) ? character : `${ESCAPE}${character}`;
+		escaped = false;
+	} else if (INLINE_COMMENTS.includes(character)) break;
+	else if (character === ESCAPE) escaped = true;
+	else result += character;
+	return (escaped ? `${result}${ESCAPE}` : result).trim();
+}
+/**
+* Every setting line of an .npmrc file as npm reads it (extra.npmrcFormat), including keys below a [section] header,
+* which npm does not apply; `key[]` keeps its brackets.
+*/
+function iniLines(text) {
 	const entries = [];
 	let managed = false;
-	text.split(/\r?\n/u).forEach((raw, index) => {
-		const line = raw.trim();
-		if (line === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead") managed = true;
-		else if (line === "# <<< depcurfew managed block") managed = false;
-		if (line === "" || line.startsWith("#") || line.startsWith(";")) return;
-		const equals = line.indexOf("=");
-		if (equals === -1) return;
-		const value = line.slice(equals + 1).trim().replace(/^"(.*)"$/u, "$1");
+	let section;
+	text.split(/\r\n|\r|\n/u).forEach((raw, index) => {
+		const trimmed = raw.trim();
+		if (trimmed === "# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead") managed = true;
+		else if (trimmed === "# <<< depcurfew managed block") managed = false;
+		if (trimmed === "" || COMMENT_LINES.some((mark) => trimmed.startsWith(mark))) return;
+		const header = SECTION$1.exec(raw);
+		if (header !== null) {
+			section = iniText(header[1] ?? "");
+			return;
+		}
+		const equals = raw.indexOf("=");
+		if (equals === 0) return;
+		const key = iniText(equals === -1 ? raw : raw.slice(0, equals));
+		const value = equals === -1 ? KEY_WITHOUT_VALUE : iniText(raw.slice(equals + 1));
 		entries.push({
-			key: line.slice(0, equals).trim(),
+			key,
 			value,
 			line: index + 1,
-			managed
+			managed,
+			...section === void 0 ? {} : { section }
 		});
 	});
 	return entries;
+}
+/** The top-level settings of an .npmrc file: the keys npm applies. */
+function iniEntries(text) {
+	return iniLines(text).filter((entry) => entry.section === void 0);
 }
 /** A parsed INI value: true/false, numbers and strings as npm reads them. */
 function iniValue(value) {
@@ -12968,15 +13022,23 @@ function keyOf$1(line) {
 	if (equals === -1) return void 0;
 	return trimmed.slice(0, equals).trim().replace(/\[\]$/u, "");
 }
+/** A [section] header as npm's ini parser reads it (extra.npmrcFormat): the keys below it are not npm settings. */
+const SECTION = /^\[[^\]]*\]\s*$/u;
 function writeIniBlock(body, entries, managedKeys) {
 	const managed = new Set(managedKeys);
 	const removed = removeBlock(splitLines(body));
-	const lines = removed.lines.map((line) => {
-		const key = keyOf$1(line);
+	const header = removed.lines.findIndex((line) => SECTION.test(line));
+	const topLevel = header === -1 ? removed.lines.length : header;
+	const lines = removed.lines.map((line, index) => {
+		const key = index < topLevel ? keyOf$1(line) : void 0;
 		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}` : line;
 	});
 	if (entries.length === 0) return joinLines(lines);
-	return joinLines(removed.at === void 0 ? insertBlock(lines, lines.length, entries) : insertBlock(lines, removed.at, entries, removed.separated));
+	if (removed.at !== void 0 && removed.at <= topLevel) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
+	const introduces = (line) => /^\s*[#;]/u.test(line) && !line.startsWith("# depcurfew: superseded by the managed block: ") && !line.startsWith("# depcurfew: turned off; depcurfew.json manages this setting: ");
+	let at = topLevel;
+	while (header !== -1 && at > 0 && introduces(lines[at - 1] ?? "")) at -= 1;
+	return joinLines(insertBlock(lines, at, entries));
 }
 
 // src/apply/pip-requirements.ts
@@ -15737,6 +15799,102 @@ function checkNpmWorkspaces(context) {
 		fix: `Set it in the root .npmrc, or in ${POLICY_FILE} and run depcurfew apply`
 	});
 }
+/**
+* npm takes settings only from the top of .npmrc: a key below a [section] header belongs to that section (extra.npmrcFormat),
+* so a security setting there, or a managed block an older depcurfew apply appended there, has no effect.
+*/
+function checkNpmSections(context) {
+	const npm = managerOf(context, "npm");
+	const text = npm === void 0 ? void 0 : context.repository.readText(".npmrc");
+	if (npm === void 0 || text === void 0) return;
+	const strict = extraOf(npm.tool, "strictAllowScripts", isSwitch).setting;
+	const keys = /* @__PURE__ */ new Set([
+		...npmrcKeys(npm.tool, (setting) => setting).keys(),
+		settingOf(npm.tool.installScripts.disableAll),
+		strict
+	]);
+	const lines = iniLines(text);
+	const bare = (entry) => entry.key.replace(/\[\]$/u, "");
+	const topLevel = new Set(lines.filter((entry) => entry.section === void 0).map(bare));
+	let blockReported = false;
+	for (const entry of lines) {
+		const key = bare(entry);
+		if (entry.section === void 0 || !keys.has(key)) continue;
+		const location = {
+			file: ".npmrc",
+			line: entry.line
+		};
+		if (entry.managed) {
+			if (blockReported) continue;
+			blockReported = true;
+			context.report({
+				location,
+				message: `the depcurfew managed block in .npmrc is below the [${entry.section}] header, so npm reads its settings as ${entry.section}.${key} and so on and applies none of them`,
+				fix: "Run depcurfew apply, which moves the managed block above the first [section] header"
+			});
+		} else if (topLevel.has(key)) context.report({
+			level: "warning",
+			location,
+			message: `${key} in .npmrc is below the [${entry.section}] header, so npm reads it as ${entry.section}.${key} and does not apply it; the value above the header applies`,
+			fix: "Remove the line, or move it above the first [section] header of .npmrc if this value is the one you want"
+		});
+		else context.report({
+			location,
+			message: `${key} in .npmrc is below the [${entry.section}] header, so npm reads it as ${entry.section}.${key} and does not apply it`,
+			fix: "Move the line above the first [section] header of .npmrc"
+		});
+	}
+}
+const isBefore = (value) => isRecord(value) && typeof value["setting"] === "string" && isRecord(value["exclusive"]) && typeof value["beforeWinsSince"] === "string";
+/**
+* before= in the project .npmrc (extra.beforeInteraction): from npm 11.15.0 it takes the place of min-release-age set in
+* the same file, so a future date turns the delay off and a past one freezes every dependency; npm 11.10 to 11.14
+* refuse to run with both.
+*/
+function checkNpmBefore(context) {
+	const npm = managerOf(context, "npm");
+	const text = npm === void 0 ? void 0 : context.repository.readText(".npmrc");
+	if (npm === void 0 || text === void 0) return;
+	const fact = extraOf(npm.tool, "beforeInteraction", isBefore);
+	const ageSetting = settingOf(npm.tool.cooldown.setting);
+	const entries = iniEntries(text);
+	const date = entries.filter((entry) => entry.key === fact.setting).at(-1);
+	const age = entries.filter((entry) => entry.key === ageSetting).at(-1);
+	if (date === void 0 || ageSetting === null || before(npm.version, fact.exclusive.since)) return;
+	const policy = context.policy === void 0 ? void 0 : policyFor(context.policy, "npm");
+	const configured = age === void 0 ? void 0 : delayMinutes(npm.tool, iniValue(age.value), npm.version);
+	const wanted = policy?.cooldown?.minimum.minutes ?? (configured?.ok === true ? configured.minutes : 0);
+	if (wanted <= 0) return;
+	const label = `npm ${formatVersion(npm.version)}`;
+	const location = {
+		file: ".npmrc",
+		line: date.line
+	};
+	if (before(npm.version, fact.exclusive.until)) {
+		if (age === void 0) return;
+		context.report({
+			location,
+			message: `${label} does not accept ${fact.setting} and ${ageSetting} together and stops with an error, so every npm command fails while both are set in .npmrc`,
+			fix: `Remove the ${fact.setting} line from .npmrc (npm ${fact.beforeWinsSince} and later accept both, but ${fact.setting} then takes the place of ${ageSetting})`
+		});
+		return;
+	}
+	const cutoff = Date.parse(date.value);
+	if (Number.isNaN(cutoff)) return;
+	const now = Date.now();
+	const replaces = `${fact.setting}=${date.value} in .npmrc takes the place of ${ageSetting} (${label} uses ${fact.setting} when both are set in the same file)`;
+	if (cutoff > now - wanted * 6e4) context.report({
+		location,
+		message: cutoff > now ? `${replaces}, and the date is in the future, so npm installs new versions without any release-age delay` : `${replaces}, so npm installs versions published up to ${date.value}, less than ${formatMinutes(wanted)} ago`,
+		fix: `Remove the ${fact.setting} line from .npmrc, so that ${ageSetting} applies`
+	});
+	else context.report({
+		level: "warning",
+		location,
+		message: `${replaces}, so npm never installs a version published after ${date.value}: that freezes dependencies, security fixes included, instead of a delay that moves with time`,
+		fix: `Remove the ${fact.setting} line from .npmrc, so that ${ageSetting} applies; for a one-off install from a fixed date, pass --${fact.setting} on the command line`
+	});
+}
 /** pnpm 10 reads .npmrc too, but pnpm-workspace.yaml wins; a root .npmrc value counts only when the YAML lacks it. */
 function checkPnpmRoot(context) {
 	const pnpm = managerOf(context, "pnpm");
@@ -15776,12 +15934,14 @@ function checkPnpmRoot(context) {
 const npmrcOverridesPolicy = {
 	id: "npmrc-overrides-policy",
 	summary: "An .npmrc file changes a security setting in a way the policy does not see, or is ignored.",
-	description: "Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages, and pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy.",
+	description: "Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages and the keys below a [section] header, and a before date in .npmrc takes the place of min-release-age; pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy.",
 	help: "Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.",
 	level: "error",
 	requiresPolicy: false,
 	check(context) {
 		checkNpmWorkspaces(context);
+		checkNpmSections(context);
+		checkNpmBefore(context);
 		checkPnpmRoot(context);
 	}
 };

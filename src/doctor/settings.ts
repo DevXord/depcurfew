@@ -1,9 +1,11 @@
 // Reading settings from configuration files with their line numbers, for doctor: INI (.npmrc), YAML, TOML
 // (bunfig.toml) and JSON/JSONC. Unreadable files give no value; detection already reports them.
 import { LineCounter, parseDocument, isMap, isScalar, isSeq, type Node, type Pair } from 'yaml';
+import { extraOf, isRecord } from '../apply/facts.ts';
 import { jsonGet, jsonOffset } from '../apply/json-edit.ts';
 import { BLOCK_END, BLOCK_START } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
+import { npm } from '../knowledge/npm.ts';
 
 export interface Setting {
   file: string;
@@ -14,27 +16,82 @@ export interface Setting {
 
 export interface IniEntry {
   key: string;
+  /** As npm reads it: without quotes, escapes and a trailing comment; "true" for a key without =. */
   value: string;
   line: number;
   /** Inside depcurfew's managed block. */
   managed: boolean;
+  /** The [section] the key belongs to; undefined at the top level, the only level npm takes settings from. */
+  section?: string;
 }
 
-/** Every key=value line of an .npmrc file; `key[]` keeps its brackets. */
-export function iniEntries(text: string): IniEntry[] {
+const NPMRC = extraOf(npm, 'npmrcFormat', isRecord);
+const isChars = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
+const COMMENT_LINES = isChars(NPMRC['commentLines']) ? NPMRC['commentLines'] : [];
+const INLINE_COMMENTS = isChars(NPMRC['inlineComments']) ? NPMRC['inlineComments'] : [];
+const ESCAPE = typeof NPMRC['escape'] === 'string' ? NPMRC['escape'] : '\\';
+const SECTION = new RegExp(String(NPMRC['sectionHeader']), 'u');
+const KEY_WITHOUT_VALUE = String(NPMRC['keyWithoutValue']);
+
+/** A key or value as the ini package reads it (its unsafe()): quotes removed, or cut at an unescaped comment. */
+function iniText(raw: string): string {
+  const text = raw.trim();
+  const quote = text[0];
+  if ((quote === '"' || quote === "'") && text.endsWith(quote)) {
+    const inner = quote === "'" ? text.slice(1, -1) : text;
+    try {
+      return String(JSON.parse(inner));
+    } catch {
+      return inner;
+    }
+  }
+  let result = '';
+  let escaped = false;
+  for (const character of text) {
+    if (escaped) {
+      result += character === ESCAPE || INLINE_COMMENTS.includes(character) ? character : `${ESCAPE}${character}`;
+      escaped = false;
+    } else if (INLINE_COMMENTS.includes(character)) {
+      break;
+    } else if (character === ESCAPE) {
+      escaped = true;
+    } else {
+      result += character;
+    }
+  }
+  return (escaped ? `${result}${ESCAPE}` : result).trim();
+}
+
+/**
+ * Every setting line of an .npmrc file as npm reads it (extra.npmrcFormat), including keys below a [section] header,
+ * which npm does not apply; `key[]` keeps its brackets.
+ */
+export function iniLines(text: string): IniEntry[] {
   const entries: IniEntry[] = [];
   let managed = false;
-  text.split(/\r?\n/u).forEach((raw, index) => {
-    const line = raw.trim();
-    if (line === BLOCK_START) managed = true;
-    else if (line === BLOCK_END) managed = false;
-    if (line === '' || line.startsWith('#') || line.startsWith(';')) return;
-    const equals = line.indexOf('=');
-    if (equals === -1) return;
-    const value = line.slice(equals + 1).trim().replace(/^"(.*)"$/u, '$1');
-    entries.push({ key: line.slice(0, equals).trim(), value, line: index + 1, managed });
+  let section: string | undefined;
+  text.split(/\r\n|\r|\n/u).forEach((raw, index) => {
+    const trimmed = raw.trim();
+    if (trimmed === BLOCK_START) managed = true;
+    else if (trimmed === BLOCK_END) managed = false;
+    if (trimmed === '' || COMMENT_LINES.some((mark) => trimmed.startsWith(mark))) return;
+    const header = SECTION.exec(raw);
+    if (header !== null) {
+      section = iniText(header[1] ?? '');
+      return;
+    }
+    const equals = raw.indexOf('=');
+    if (equals === 0) return;
+    const key = iniText(equals === -1 ? raw : raw.slice(0, equals));
+    const value = equals === -1 ? KEY_WITHOUT_VALUE : iniText(raw.slice(equals + 1));
+    entries.push({ key, value, line: index + 1, managed, ...(section === undefined ? {} : { section }) });
   });
   return entries;
+}
+
+/** The top-level settings of an .npmrc file: the keys npm applies. */
+export function iniEntries(text: string): IniEntry[] {
+  return iniLines(text).filter((entry) => entry.section === undefined);
 }
 
 /** A parsed INI value: true/false, numbers and strings as npm reads them. */
