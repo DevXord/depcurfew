@@ -118,7 +118,7 @@ function verifiedOn(verifiedAt) {
 }
 
 // src/knowledge/bun.ts
-const { verified: verified$7, uncertain: uncertain$6, disputed: disputed$5, evidence: evidence$5 } = verifiedOn("2026-10-28");
+const { verified: verified$10, uncertain: uncertain$9, disputed: disputed$6, evidence: evidence$6 } = verifiedOn("2026-10-28");
 const checked$5 = verifiedOn("2026-10-29");
 const BUNFIG = "https://bun.com/docs/runtime/bunfig";
 const INSTALL$1 = "https://bun.com/docs/pm/cli/install";
@@ -126,65 +126,65 @@ const LIFECYCLE = "https://bun.com/docs/pm/lifecycle";
 const ADD = "https://bun.com/docs/pm/cli/add";
 const BUN_1_4_4 = "https://bun.com/blog/bun-v1.4.4#minimumreleaseage-supports-units-and-per-version-exclusions";
 const DOCS_1_3_0 = "https://github.com/oven-sh/bun/blob/bun-v1.3.0/docs/cli/install.md";
-const noSetting$1 = (anchor, kind) => ({ setting: uncertain$6(null, `${ADD}#${anchor}`, `${kind} dependencies are supported with no setting to allow or forbid them (concluded from the full bunfig [install] list); install.blockExoticSubdeps is proposed in oven-sh/bun#30340 but not shipped.`) });
-const WORKSPACES$1 = "https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx";
+const noSetting$4 = (anchor, kind) => ({ setting: uncertain$9(null, `${ADD}#${anchor}`, `${kind} dependencies are supported with no setting to allow or forbid them (concluded from the full bunfig [install] list); install.blockExoticSubdeps is proposed in oven-sh/bun#30340 but not shipped.`) });
+const WORKSPACES$2 = "https://github.com/oven-sh/bun/blob/main/docs/pm/workspaces.mdx";
 const bun$1 = {
 	id: "bun",
 	name: "Bun",
 	kind: "package-manager",
 	cooldown: {
-		setting: verified$7("install.minimumReleaseAge", `${BUNFIG}#install-minimumreleaseage`),
-		configFiles: verified$7(["bunfig.toml"], BUNFIG, "Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun's .npmrc support has no min-release-age key."),
-		cliFlag: verified$7("--minimum-release-age", DOCS_1_3_0, "bun install, add and update; bunx honors it only since 1.4.4."),
-		unit: verified$7("seconds", `${BUNFIG}#install-minimumreleaseage`, "Plain numbers are seconds; 0 turns it off. Since 1.4.4 duration strings such as 90m, 12 hours, 3d or 2 weeks also work (the bunfig reference still documents seconds only)."),
-		availableSince: verified$7("1.3.0", "https://bun.com/blog/bun-v1.3#minimum-release-age"),
-		default: disputed$5("The bunfig reference says the default is null (off) and an open docs pull request (oven-sh/bun#41545) says the feature is off by default; the install page lists 259200 (3 days) under \"These are the default values\".", evidence$5([{
+		setting: verified$10("install.minimumReleaseAge", `${BUNFIG}#install-minimumreleaseage`),
+		configFiles: verified$10(["bunfig.toml"], BUNFIG, "Also the global $HOME/.bunfig.toml or $XDG_CONFIG_HOME/.bunfig.toml; local keys override global ones. Bun's .npmrc support has no min-release-age key."),
+		cliFlag: verified$10("--minimum-release-age", DOCS_1_3_0, "bun install, add and update; bunx honors it only since 1.4.4."),
+		unit: verified$10("seconds", `${BUNFIG}#install-minimumreleaseage`, "Plain numbers are seconds; 0 turns it off. Since 1.4.4 duration strings such as 90m, 12 hours, 3d or 2 weeks also work (the bunfig reference still documents seconds only)."),
+		availableSince: verified$10("1.3.0", "https://bun.com/blog/bun-v1.3#minimum-release-age"),
+		default: disputed$6("The bunfig reference says the default is null (off) and an open docs pull request (oven-sh/bun#41545) says the feature is off by default; the install page lists 259200 (3 days) under \"These are the default values\".", evidence$6([{
 			since: "1.3.0",
 			value: null
-		}], `${BUNFIG}#install-minimumreleaseage`), evidence$5([{
+		}], `${BUNFIG}#install-minimumreleaseage`), evidence$6([{
 			since: "1.3.0",
 			value: 259200
 		}], INSTALL$1)),
 		exclude: {
-			setting: verified$7("install.minimumReleaseAgeExcludes", `${BUNFIG}#install-minimumreleaseageexcludes`),
-			availableSince: verified$7("1.3.0", DOCS_1_3_0),
-			patternSyntax: verified$7("Exact package names (all versions); since 1.4.4 also name@exactVersion. No wildcards; ranges and tags are ignored with a warning", BUN_1_4_4, "Since 1.4.4 --minimum-release-age-excludes replaces the bunfig list for one command.")
+			setting: verified$10("install.minimumReleaseAgeExcludes", `${BUNFIG}#install-minimumreleaseageexcludes`),
+			availableSince: verified$10("1.3.0", DOCS_1_3_0),
+			patternSyntax: verified$10("Exact package names (all versions); since 1.4.4 also name@exactVersion. No wildcards; ranges and tags are ignored with a warning", BUN_1_4_4, "Since 1.4.4 --minimum-release-age-excludes replaces the bunfig list for one command.")
 		},
-		securityUpdates: uncertain$6("applies", BUN_1_4_4, "No automatic bypass is documented; exempt the fixed release with name@version in minimumReleaseAgeExcludes (1.4.4+). Exact version requests still go through the gate.")
+		securityUpdates: uncertain$9("applies", BUN_1_4_4, "No automatic bypass is documented; exempt the fixed release with name@version in minimumReleaseAgeExcludes (1.4.4+). Exact version requests still go through the gate.")
 	},
 	installScripts: {
-		defaultPolicy: verified$7([{
+		defaultPolicy: verified$10([{
 			since: "0.0.0",
 			value: "deny-except-allowlist"
 		}], `${LIFECYCLE}#trusteddependencies`, "Dependency scripts run only for Bun's built-in trusted list (npm-registry packages only since 1.4) or trustedDependencies; the root project's scripts run. First version of this policy not tracked."),
 		allowList: {
-			setting: verified$7("trustedDependencies", `${LIFECYCLE}#trusteddependencies`, "Replaces the built-in default list rather than extending it. bun pm trust and bun add --trust write it."),
-			file: verified$7("package.json", `${LIFECYCLE}#trusteddependencies`),
-			availableSince: uncertain$6("1.0.5", "https://bun.com/blog/release-notes/bun-v1.0.5", "Upper bound: 1.0.5 already persists trustedDependencies in bun.lockb; the first version was not pinned down. bun pm trust and bun add --trust arrived in 1.0.31."),
-			format: verified$7("Array of package names, e.g. [\"node-sass\"]", `${LIFECYCLE}#trusteddependencies`)
+			setting: verified$10("trustedDependencies", `${LIFECYCLE}#trusteddependencies`, "Replaces the built-in default list rather than extending it. bun pm trust and bun add --trust write it."),
+			file: verified$10("package.json", `${LIFECYCLE}#trusteddependencies`),
+			availableSince: uncertain$9("1.0.5", "https://bun.com/blog/release-notes/bun-v1.0.5", "Upper bound: 1.0.5 already persists trustedDependencies in bun.lockb; the first version was not pinned down. bun pm trust and bun add --trust arrived in 1.0.31."),
+			format: verified$10("Array of package names, e.g. [\"node-sass\"]", `${LIFECYCLE}#trusteddependencies`)
 		},
-		disableAll: verified$7("install.ignoreScripts", `${BUNFIG}#install-ignorescripts`, "Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project's own scripts and trustedDependencies too.")
+		disableAll: verified$10("install.ignoreScripts", `${BUNFIG}#install-ignorescripts`, "Default false. Also --ignore-scripts or ignore-scripts=true in .npmrc. Skips the project's own scripts and trustedDependencies too.")
 	},
 	sources: {
-		git: noSetting$1("git-dependencies", "Git"),
-		remoteTarball: noSetting$1("tarball-dependencies", "Tarball URL"),
-		file: noSetting$1("local-paths", "Local tarball"),
-		directory: noSetting$1("local-paths", "Local directory")
+		git: noSetting$4("git-dependencies", "Git"),
+		remoteTarball: noSetting$4("tarball-dependencies", "Tarball URL"),
+		file: noSetting$4("local-paths", "Local tarball"),
+		directory: noSetting$4("local-paths", "Local directory")
 	},
 	project: {
-		lockfiles: uncertain$6([{
+		lockfiles: uncertain$9([{
 			since: "0.0.0",
 			value: ["bun.lockb"]
 		}, {
 			since: "1.2.0",
 			value: ["bun.lock", "bun.lockb"]
 		}], "https://github.com/oven-sh/bun/blob/main/docs/pm/lockfile.mdx", "Bun 1.2 made the text bun.lock the default (verified). That bun.lockb is still read afterwards is inferred from the documented migration command and from saveTextLockfile = false, which writes bun.lockb."),
-		manifests: verified$7(["package.json"], WORKSPACES$1),
-		workspaces: verified$7({
+		manifests: verified$10(["package.json"], WORKSPACES$2),
+		workspaces: verified$10({
 			files: ["package.json"],
 			key: "workspaces"
-		}, WORKSPACES$1, "Full glob syntax, including ! patterns."),
-		workspacesObjectKey: verified$7("packages", "https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx", "The object form also holds catalog and catalogs.")
+		}, WORKSPACES$2, "Full glob syntax, including ! patterns."),
+		workspacesObjectKey: verified$10("packages", "https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx", "The object form also holds catalog and catalogs.")
 	},
 	extra: {
 		commandLine: checked$5.verified({
@@ -241,23 +241,23 @@ const bun$1 = {
 			workspace: "workspace:",
 			tarball: "\\.(?:tar\\.gz|tgz)$"
 		}, "https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/lockfile/bun.lock.rs", "bun.lock (text, the default since 1.2) maps each package to a tuple starting with name@<spec>: name@<version> followed by the registry for npm, name@git+<repo>#<sha> and name@github:<owner>/<repo>#<sha> for git, name@https://… for tarball URLs, name@./x.tgz (without file:) for local tarballs, name@file:<dir> and name@link:<dir> for directories, name@workspace:<dir> for workspace packages. The info object carries hasInstallScript: true only since 1.4.4, with no lockfileVersion change, so a missing flag proves nothing for older files. bun.lockb is an undocumented binary format."),
-		durationStrings: verified$7({
+		durationStrings: verified$10({
 			since: "1.4.4",
 			syntax: "compact-or-words"
 		}, BUN_1_4_4, "Since 1.4.4 minimumReleaseAge also takes duration strings such as 90m, 12 hours, 3d or 2 weeks; plain numbers stay seconds."),
-		excludeWildcards: verified$7({
+		excludeWildcards: verified$10({
 			since: null,
 			trailingOnly: false
 		}, BUN_1_4_4, "minimumReleaseAgeExcludes takes exact package names (and name@version since 1.4.4), no wildcards."),
-		latestVersion: verified$7("1.4.4", "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4"),
+		latestVersion: verified$10("1.4.4", "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4"),
 		trustedDependenciesReplacesDefaults: checked$5.verified("Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts", `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`, "So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild's postinstall (esbuild is on the built-in list); with \"trustedDependencies\": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29."),
-		lockedVersionsNotRechecked: verified$7("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$1}#minimum-release-age`),
-		bunxCooldown: verified$7("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4")
+		lockedVersionsNotRechecked: verified$10("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$1}#minimum-release-age`),
+		bunxCooldown: verified$10("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4")
 	}
 };
 
 // src/knowledge/deno.ts
-const { verified: verified$6, uncertain: uncertain$5, disputed: disputed$4, evidence: evidence$4 } = verifiedOn("2026-10-28");
+const { verified: verified$9, uncertain: uncertain$8, disputed: disputed$5, evidence: evidence$5 } = verifiedOn("2026-10-28");
 const checked$4 = verifiedOn("2026-10-29");
 const DENO_JSON = "https://docs.deno.com/runtime/reference/deno_json/#minimum-dependency-age";
 const SUPPLY_CHAIN = "https://docs.deno.com/runtime/packages/supply_chain/#minimum-dependency-age";
@@ -265,19 +265,19 @@ const SCHEMA$1 = "https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/confi
 const INSTALL = "https://docs.deno.com/runtime/reference/cli/install/";
 const NOT_SUPPORTED = "https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported";
 const release$4 = (version) => `https://github.com/denoland/deno/releases/tag/v${version}`;
-const unsupported = (note) => ({ setting: verified$6(null, NOT_SUPPORTED, note) });
-const WORKSPACES = "https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md";
+const unsupported = (note) => ({ setting: verified$9(null, NOT_SUPPORTED, note) });
+const WORKSPACES$1 = "https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md";
 const deno$1 = {
 	id: "deno",
 	name: "Deno",
 	kind: "package-manager",
 	cooldown: {
-		setting: verified$6("minimumDependencyAge", DENO_JSON, "A number or string, or the object form { \"age\": ..., \"exclude\": [...] }. Covers npm and JSR packages."),
-		configFiles: verified$6(["deno.json", ".npmrc"], SUPPLY_CHAIN, "min-release-age in .npmrc since 2.8; also NPM_CONFIG_MIN_RELEASE_AGE. This page does not state precedence; denoland/deno#35458 gives CLI flag, deno.json, .npmrc, environment, built-in default."),
-		cliFlag: verified$6("--minimum-dependency-age", DENO_JSON, "Alias --min-dep-age since 2.9.3. deno install honors it since 2.5.5; deno add, deno remove and deno x since 2.9.4."),
-		unit: verified$6("minutes", SCHEMA$1, "Numbers are minutes; strings may be an ISO-8601 duration (P3D, PT72H), an absolute date or an RFC3339 timestamp; 0 turns it off. The .npmrc format differs (see npmrcFormat)."),
-		availableSince: disputed$4("The 2.5.5 release notes ship the flag, the deno.json key and exclude as unstable; the release blog says the feature was introduced in 2.6.", evidence$4("2.5.5", release$4("2.5.5")), evidence$4("2.6.0", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
-		default: verified$6([{
+		setting: verified$9("minimumDependencyAge", DENO_JSON, "A number or string, or the object form { \"age\": ..., \"exclude\": [...] }. Covers npm and JSR packages."),
+		configFiles: verified$9(["deno.json", ".npmrc"], SUPPLY_CHAIN, "min-release-age in .npmrc since 2.8; also NPM_CONFIG_MIN_RELEASE_AGE. This page does not state precedence; denoland/deno#35458 gives CLI flag, deno.json, .npmrc, environment, built-in default."),
+		cliFlag: verified$9("--minimum-dependency-age", DENO_JSON, "Alias --min-dep-age since 2.9.3. deno install honors it since 2.5.5; deno add, deno remove and deno x since 2.9.4."),
+		unit: verified$9("minutes", SCHEMA$1, "Numbers are minutes; strings may be an ISO-8601 duration (P3D, PT72H), an absolute date or an RFC3339 timestamp; 0 turns it off. The .npmrc format differs (see npmrcFormat)."),
+		availableSince: disputed$5("The 2.5.5 release notes ship the flag, the deno.json key and exclude as unstable; the release blog says the feature was introduced in 2.6.", evidence$5("2.5.5", release$4("2.5.5")), evidence$5("2.6.0", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
+		default: verified$9([{
 			since: "0.0.0",
 			value: null
 		}, {
@@ -285,24 +285,24 @@ const deno$1 = {
 			value: 1440
 		}], DENO_JSON, "Since 2.9 a 24-hour minimum applies when nothing is configured; set 0 to turn it off. Whether the default covers JSR is not stated."),
 		exclude: {
-			setting: verified$6("minimumDependencyAge.exclude", SCHEMA$1),
-			availableSince: verified$6("2.5.5", release$4("2.5.5")),
-			patternSyntax: verified$6("Specifiers prefixed npm: or jsr:; a trailing * matches by prefix (npm:@scope/*) since 2.9.2", SCHEMA$1, "Before 2.9.2 wildcard entries were stored literally and never matched. No CLI flag or .npmrc key for exclusions.")
+			setting: verified$9("minimumDependencyAge.exclude", SCHEMA$1),
+			availableSince: verified$9("2.5.5", release$4("2.5.5")),
+			patternSyntax: verified$9("Specifiers prefixed npm: or jsr:; a trailing * matches by prefix (npm:@scope/*) since 2.9.2", SCHEMA$1, "Before 2.9.2 wildcard entries were stored literally and never matched. No CLI flag or .npmrc key for exclusions.")
 		},
-		securityUpdates: uncertain$5("applies", SUPPLY_CHAIN, "No security bypass is documented; only per-package exclude or an age of 0.")
+		securityUpdates: uncertain$8("applies", SUPPLY_CHAIN, "No security bypass is documented; only per-package exclude or an age of 0.")
 	},
 	installScripts: {
-		defaultPolicy: verified$6([{
+		defaultPolicy: verified$9([{
 			since: "0.0.0",
 			value: "deny-except-allowlist"
 		}], INSTALL, "npm lifecycle scripts run only when approved, and only with a node_modules directory. deno x / dx runs them after its download prompt is accepted."),
 		allowList: {
-			setting: verified$6("allowScripts", "https://deno.com/blog/v2.6#granular-control-over-postinstall-scripts-with-deno-approve-scripts", "deno approve-scripts writes it. --allow-scripts=npm:pkg on the CLI exists since 1.45."),
-			file: verified$6("deno.json", "https://docs.deno.com/examples/npm_lifecycle_scripts_tutorial/", "Must be set at the workspace root."),
-			availableSince: verified$6("2.6.0", "https://deno.com/blog/v2.6#granular-control-over-postinstall-scripts-with-deno-approve-scripts"),
-			format: verified$6("true, an array of npm: constraints (semver ranges allowed, tags rejected) or { \"allow\": ..., \"deny\": [...] }", SCHEMA$1)
+			setting: verified$9("allowScripts", "https://deno.com/blog/v2.6#granular-control-over-postinstall-scripts-with-deno-approve-scripts", "deno approve-scripts writes it. --allow-scripts=npm:pkg on the CLI exists since 1.45."),
+			file: verified$9("deno.json", "https://docs.deno.com/examples/npm_lifecycle_scripts_tutorial/", "Must be set at the workspace root."),
+			availableSince: verified$9("2.6.0", "https://deno.com/blog/v2.6#granular-control-over-postinstall-scripts-with-deno-approve-scripts"),
+			format: verified$9("true, an array of npm: constraints (semver ranges allowed, tags rejected) or { \"allow\": ..., \"deny\": [...] }", SCHEMA$1)
 		},
-		disableAll: uncertain$5("allowScripts: false", SCHEMA$1, "Scripts do not run by default. The schema accepts a boolean allowScripts, but no page states that false turns all scripts off. deno x has --ignore-scripts.")
+		disableAll: uncertain$8("allowScripts: false", SCHEMA$1, "Scripts do not run by default. The schema accepts a boolean allowScripts, but no page states that false turns all scripts off. deno x has --ignore-scripts.")
 	},
 	sources: {
 		git: unsupported("git+https: and git+ssh: dependencies are not supported in package.json."),
@@ -311,16 +311,16 @@ const deno$1 = {
 		directory: unsupported("No setting; local directories behave like file: and link: entries (see fileLinkSkipped).")
 	},
 	project: {
-		lockfiles: verified$6([{
+		lockfiles: verified$9([{
 			since: "0.0.0",
 			value: ["deno.lock"]
 		}], "https://github.com/denoland/docs/blob/main/runtime/reference/deno_json.md", "The default location; lock.path in deno.json can move it and \"lock\": false turns it off."),
-		manifests: verified$6(["deno.json", "deno.jsonc"], "https://github.com/denoland/docs/blob/main/runtime/fundamentals/configuration.md"),
-		workspaces: verified$6({
+		manifests: verified$9(["deno.json", "deno.jsonc"], "https://github.com/denoland/docs/blob/main/runtime/fundamentals/configuration.md"),
+		workspaces: verified$9({
 			files: ["deno.json", "deno.jsonc"],
 			key: "workspace"
-		}, WORKSPACES, "Paths of members; globs and ! exclusions since Deno 2.1."),
-		workspacesObjectKey: verified$6("members", WORKSPACES)
+		}, WORKSPACES$1, "Paths of members; globs and ! exclusions since Deno 2.1."),
+		workspacesObjectKey: verified$9("members", WORKSPACES$1)
 	},
 	extra: {
 		commandLine: checked$4.verified({
@@ -342,31 +342,32 @@ const deno$1 = {
 			installScriptsSinceLockfile: "5",
 			sources: null
 		}, "https://github.com/denoland/deno/blob/v2.9.8/libs/lockfile/printer.rs", "deno.lock version 5 (the default since Deno 2.3) marks npm packages with lifecycle scripts as scripts: true (hasInstallScript from the registry or a preinstall, install or postinstall script, libs/npm/resolution/graph.rs); version 4 has no such field. tarball is written only for registries other than the default one. Deno rejects git and http(s) dependencies in package.json and keeps file: dependencies out of the lockfile."),
-		durationStrings: verified$6({
+		durationStrings: verified$9({
 			since: null,
 			syntax: "iso8601"
 		}, SCHEMA$1, "Strings are ISO-8601 durations (P3D, PT72H), an absolute date or an RFC3339 timestamp; the last two set a fixed cut-off instead of a delay."),
-		ageObjectKey: verified$6("age", SCHEMA$1, "In the object form of minimumDependencyAge, age holds the delay and exclude the exemptions."),
-		excludeWildcards: verified$6({
+		ageObjectKey: verified$9("age", SCHEMA$1, "In the object form of minimumDependencyAge, age holds the delay and exclude the exemptions."),
+		excludeWildcards: verified$9({
 			since: "2.9.2",
 			trailingOnly: true
 		}, SCHEMA$1, "A trailing * matches by prefix (npm:@scope/*) since 2.9.2; earlier wildcard entries never matched."),
-		npmSpecifierPrefix: verified$6("npm:", SCHEMA$1, "Exclusions and allowScripts entries name npm packages as npm:<name>."),
-		allowAllScripts: verified$6({
+		npmSpecifierPrefix: verified$9("npm:", SCHEMA$1, "Exclusions and allowScripts entries name npm packages as npm:<name>."),
+		allowAllScripts: verified$9({
 			setting: "allowScripts",
 			since: "2.6.0",
 			value: true
 		}, SCHEMA$1, "allowScripts: true allows every npm lifecycle script."),
-		latestVersion: verified$6("2.9.8", release$4("2.9.8")),
-		npmrcFormat: disputed$4("The safe choice is an integer number of days, which also matches npm.", evidence$4("whole days only, e.g. min-release-age=3", SUPPLY_CHAIN), evidence$4("a duration with a unit, e.g. min-release-age=72h", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
-		fileLinkSkipped: disputed$4("Official pages disagree on whether the project's own file: and link: dependencies are skipped, or only those in published packages' metadata.", evidence$4("file: and link: dependencies in the project package.json are silently skipped", NOT_SUPPORTED), evidence$4("file: and link: specifiers in registry metadata of npm packages are skipped", "https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages")),
-		denoXCooldown: verified$6("deno x honors minimumDependencyAge only since 2.9.4", release$4("2.9.4")),
-		dxRunsScripts: verified$6("dx defaults to --allow-all and runs lifecycle scripts once the download prompt is accepted", "https://deno.com/blog/v2.6")
+		latestVersion: verified$9("2.9.8", release$4("2.9.8")),
+		npmrcFormat: disputed$5("The safe choice is an integer number of days, which also matches npm.", evidence$5("whole days only, e.g. min-release-age=3", SUPPLY_CHAIN), evidence$5("a duration with a unit, e.g. min-release-age=72h", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
+		fileLinkSkipped: disputed$5("Official pages disagree on whether the project's own file: and link: dependencies are skipped, or only those in published packages' metadata.", evidence$5("file: and link: dependencies in the project package.json are silently skipped", NOT_SUPPORTED), evidence$5("file: and link: specifiers in registry metadata of npm packages are skipped", "https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages")),
+		denoXCooldown: verified$9("deno x honors minimumDependencyAge only since 2.9.4", release$4("2.9.4")),
+		dxRunsScripts: verified$9("dx defaults to --allow-all and runs lifecycle scripts once the download prompt is accepted", "https://deno.com/blog/v2.6")
 	}
 };
 
 // src/knowledge/dependabot.ts
-const { verified: verified$5, uncertain: uncertain$4, disputed: disputed$3, evidence: evidence$3 } = verifiedOn("2026-10-28");
+const { verified: verified$8, uncertain: uncertain$7, disputed: disputed$4, evidence: evidence$4 } = verifiedOn("2026-10-28");
+const python$2 = verifiedOn("2026-10-30");
 const OPTIONS$1 = "https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference";
 const COOLDOWN_GA = "https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/";
 const DEFAULT_COOLDOWN = "https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/";
@@ -376,12 +377,12 @@ const dependabot$1 = {
 	name: "Dependabot",
 	kind: "update-bot",
 	cooldown: {
-		setting: verified$5("cooldown", `${OPTIONS$1}#cooldown`, "Per updates entry: default-days, semver-major-days, semver-minor-days, semver-patch-days, include, exclude. The semver-* keys apply only to SemVer ecosystems."),
-		configFiles: verified$5([".github/dependabot.yml", ".github/dependabot.yaml"], "https://docs.github.com/en/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file", "On the default branch."),
-		cliFlag: uncertain$4(null, "https://github.com/dependabot/cli", "Cooldown is configured only in dependabot.yml; the Dependabot CLI README mentions no such flag."),
-		unit: verified$5("days", `${OPTIONS$1}#cooldown`, "Integer days; the allowed range is disputed (see dayRange)."),
-		availableSince: verified$5("2025-07-01", COOLDOWN_GA, "GA date on github.com; NuGet and Helm since 2025-07-29."),
-		default: verified$5([{
+		setting: verified$8("cooldown", `${OPTIONS$1}#cooldown`, "Per updates entry: default-days, semver-major-days, semver-minor-days, semver-patch-days, include, exclude. The semver-* keys apply only to SemVer ecosystems."),
+		configFiles: verified$8([".github/dependabot.yml", ".github/dependabot.yaml"], "https://docs.github.com/en/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file", "On the default branch."),
+		cliFlag: uncertain$7(null, "https://github.com/dependabot/cli", "Cooldown is configured only in dependabot.yml; the Dependabot CLI README mentions no such flag."),
+		unit: verified$8("days", `${OPTIONS$1}#cooldown`, "Integer days; the allowed range is disputed (see dayRange)."),
+		availableSince: verified$8("2025-07-01", COOLDOWN_GA, "GA date on github.com; NuGet and Helm since 2025-07-29."),
+		default: verified$8([{
 			since: "2025-07-01",
 			value: null
 		}, {
@@ -389,22 +390,22 @@ const dependabot$1 = {
 			value: 3
 		}], DEFAULT_COOLDOWN, "Version updates wait 3 days even without a cooldown block (GHES from 3.23); default-days is also 3 when cooldown is set without it."),
 		exclude: {
-			setting: verified$5("cooldown.exclude", `${OPTIONS$1}#cooldown`),
-			availableSince: uncertain$4("2025-07-01", COOLDOWN_GA, "Presumably shipped with cooldown GA; not confirmed separately."),
-			patternSyntax: verified$5("Dependency names with * wildcards, up to 150 entries; exclude always wins over include", `${OPTIONS$1}#cooldown`)
+			setting: verified$8("cooldown.exclude", `${OPTIONS$1}#cooldown`),
+			availableSince: uncertain$7("2025-07-01", COOLDOWN_GA, "Presumably shipped with cooldown GA; not confirmed separately."),
+			patternSyntax: verified$8("Dependency names with * wildcards, up to 150 entries; exclude always wins over include", `${OPTIONS$1}#cooldown`)
 		},
-		securityUpdates: verified$5("bypass", `${OPTIONS$1}#cooldown`, "Cooldown exists only for version updates. dependabot-core also passes a zero age to npm, pnpm and Yarn for security updates, overriding repository gates.")
+		securityUpdates: verified$8("bypass", `${OPTIONS$1}#cooldown`, "Cooldown exists only for version updates. dependabot-core also passes a zero age to npm, pnpm and Yarn for security updates, overriding repository gates.")
 	},
 	installScripts: {
-		defaultPolicy: uncertain$4([{
+		defaultPolicy: uncertain$7([{
 			since: "0.0.0",
 			value: "deny"
 		}], `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/helpers.rb`, "From dependabot-core source, not the docs: npm, Yarn and Bun lockfile updates run with scripts disabled; for pnpm only --lockfile-only was found. bundler, mix and pip may execute external code."),
-		allowList: { setting: verified$5(null, `${OPTIONS$1}#insecure-external-code-execution`, "insecure-external-code-execution: allow exists only for bundler, mix and pip; nothing allows npm, pnpm, Yarn or Bun scripts.") },
-		disableAll: uncertain$4(null, `${OPTIONS$1}#insecure-external-code-execution`, "Nothing to configure for JavaScript ecosystems: scripts are always disabled (source code). For bundler, mix and pip, external code execution is disabled automatically when registries are configured.")
+		allowList: { setting: verified$8(null, `${OPTIONS$1}#insecure-external-code-execution`, "insecure-external-code-execution: allow exists only for bundler, mix and pip; nothing allows npm, pnpm, Yarn or Bun scripts.") },
+		disableAll: uncertain$7(null, `${OPTIONS$1}#insecure-external-code-execution`, "Nothing to configure for JavaScript ecosystems: scripts are always disabled (source code). For bundler, mix and pip, external code execution is disabled automatically when registries are configured.")
 	},
 	extra: {
-		cooldownKeys: verified$5({
+		cooldownKeys: verified$8({
 			days: "default-days",
 			exclude: "exclude",
 			semverDays: [
@@ -413,29 +414,31 @@ const dependabot$1 = {
 				"semver-patch-days"
 			]
 		}, `${OPTIONS$1}#cooldown`, "Keys inside the cooldown block of an updates entry; the semver-* keys override default-days for that kind of update."),
-		excludeWildcards: verified$5({
+		excludeWildcards: verified$8({
 			since: "0.0.0",
 			trailingOnly: false
 		}, `${OPTIONS$1}#cooldown`, "cooldown.exclude accepts * wildcards."),
-		ecosystems: verified$5({
+		ecosystems: python$2.verified({
 			npm: [
 				"npm",
 				"pnpm",
 				"yarn"
 			],
 			bun: ["bun"],
-			deno: ["deno"]
-		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. Cooldown is supported for all three."),
-		dayRange: disputed$3("Matters for opting out of the default cooldown; cooldown.exclude: [\"*\"] works under the documented precedence rule either way. The announcement does not state its author's role.", evidence$3("1 to 90 days", "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates"), evidence$3("0 removes the cooldown", "https://github.com/dependabot/dependabot-core/discussions/15582")),
-		maximumDays: verified$5(90, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates", "The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange)."),
-		missingPublishDate: verified$5("Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used", `${CORE}/docker/README.md`),
-		transitiveGating: uncertain$4("Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none", `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb`, "Read from dependabot-core source."),
-		semverKeysScope: verified$5("semver-major/minor/patch-days apply only to SemVer ecosystems such as npm, Bun and Deno; others use default-days", `${OPTIONS$1}#cooldown`)
+			deno: ["deno"],
+			pip: ["pip", "poetry"],
+			uv: ["uv"]
+		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). Cooldown, including the semver-* keys, is supported for all of them."),
+		dayRange: disputed$4("Matters for opting out of the default cooldown; cooldown.exclude: [\"*\"] works under the documented precedence rule either way. The announcement does not state its author's role.", evidence$4("1 to 90 days", "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates"), evidence$4("0 removes the cooldown", "https://github.com/dependabot/dependabot-core/discussions/15582")),
+		maximumDays: verified$8(90, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates", "The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange)."),
+		missingPublishDate: verified$8("Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used", `${CORE}/docker/README.md`),
+		transitiveGating: uncertain$7("Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none", `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb`, "Read from dependabot-core source."),
+		semverKeysScope: verified$8("semver-major/minor/patch-days apply only to SemVer ecosystems such as npm, Bun and Deno; others use default-days", `${OPTIONS$1}#cooldown`)
 	}
 };
 
 // src/knowledge/npm.ts
-const { verified: verified$4, uncertain: uncertain$3, disputed: disputed$2, evidence: evidence$2 } = verifiedOn("2026-10-28");
+const { verified: verified$7, uncertain: uncertain$6, disputed: disputed$3, evidence: evidence$3 } = verifiedOn("2026-10-28");
 const checked$3 = verifiedOn("2026-10-29");
 const CONFIG = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
@@ -443,7 +446,7 @@ const release$3 = (version) => `https://github.com/npm/cli/releases/tag/v${versi
 const INSTALL_TIME_CONTROLS = "https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/";
 const SOURCE_FLAGS_SINCE_NOTE = "The 11.14.0 release notes add the flag; the GitHub changelog dates it to 11.15.0, which also moved enforcement into the resolver. Treat 11.15.0 as the safe minimum.";
 const VALUES_NOTE = "The 2026-05-22 GitHub changelog mentions only all and none; the config reference also lists root.";
-const sourceFlagSince = () => disputed$2(SOURCE_FLAGS_SINCE_NOTE, evidence$2("11.14.0", release$3("11.14.0")), evidence$2("11.15.0", INSTALL_TIME_CONTROLS));
+const sourceFlagSince = () => disputed$3(SOURCE_FLAGS_SINCE_NOTE, evidence$3("11.14.0", release$3("11.14.0")), evidence$3("11.15.0", INSTALL_TIME_CONTROLS));
 const LOCKFILE_V12 = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md";
 const PACKAGE_JSON$1 = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
 const NPM_DEFINITIONS = "https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js";
@@ -470,21 +473,21 @@ const npm$1 = {
 	name: "npm",
 	kind: "package-manager",
 	cooldown: {
-		setting: verified$4("min-release-age", `${CONFIG}#min-release-age`),
-		configFiles: verified$4([".npmrc"], NPMRC, "Any npm config layer works: project .npmrc (read only at the project root and not for global installs), ~/.npmrc, the global npmrc, npm_config_min_release_age or the CLI. package.json cannot set it."),
-		cliFlag: verified$4("--min-release-age=<days>", "https://docs.npmjs.com/cli/v12/commands/npm-install#min-release-age"),
-		unit: verified$4("days", `${CONFIG}#min-release-age`, "Type is null or Number; 0 turns the delay off. Fractional days are not documented."),
-		availableSince: verified$4("11.10.0", release$3("11.10.0")),
-		default: verified$4([{
+		setting: verified$7("min-release-age", `${CONFIG}#min-release-age`),
+		configFiles: verified$7([".npmrc"], NPMRC, "Any npm config layer works: project .npmrc (read only at the project root and not for global installs), ~/.npmrc, the global npmrc, npm_config_min_release_age or the CLI. package.json cannot set it."),
+		cliFlag: verified$7("--min-release-age=<days>", "https://docs.npmjs.com/cli/v12/commands/npm-install#min-release-age"),
+		unit: verified$7("days", `${CONFIG}#min-release-age`, "Type is null or Number; 0 turns the delay off. Fractional days are not documented."),
+		availableSince: verified$7("11.10.0", release$3("11.10.0")),
+		default: verified$7([{
 			since: "11.10.0",
 			value: null
 		}], `${CONFIG}#min-release-age`, "Unchanged in npm 12."),
 		exclude: {
-			setting: verified$4("min-release-age-exclude", `${CONFIG}#min-release-age-exclude`),
-			availableSince: verified$4("11.17.0", release$3("11.17.0")),
-			patternSyntax: verified$4("Package names or minimatch globs matched against the name, e.g. @myorg/*; only the named package is exempt, not its dependencies; also exempts from before", `${CONFIG}#min-release-age-exclude`)
+			setting: verified$7("min-release-age-exclude", `${CONFIG}#min-release-age-exclude`),
+			availableSince: verified$7("11.17.0", release$3("11.17.0")),
+			patternSyntax: verified$7("Package names or minimatch globs matched against the name, e.g. @myorg/*; only the named package is exempt, not its dependencies; also exempts from before", `${CONFIG}#min-release-age-exclude`)
 		},
-		securityUpdates: verified$4("applies", `${CONFIG}#min-release-age`, "npm audit fix keeps the vulnerable version, warns that the fix was blocked (since 11.18.0) and exits non-zero. Add the package to min-release-age-exclude or relax the delay.")
+		securityUpdates: verified$7("applies", `${CONFIG}#min-release-age`, "npm audit fix keeps the vulnerable version, warns that the fix was blocked (since 11.18.0) and exits non-zero. Add the package to min-release-age-exclude or relax the delay.")
 	},
 	installScripts: {
 		defaultPolicy: checked$3.verified([
@@ -502,23 +505,23 @@ const npm$1 = {
 			}
 		], NPM_DEFINITIONS_V11_16, "strict-allow-scripts (default false) turns a dependency script that allowScripts does not cover \"from a warning into a hard error ... instead of running with a notice\", so from 11.16.0 such scripts still run. npm 11.21.1 ran esbuild's postinstall on 2026-10-29 (\"has install scripts not yet covered by allowScripts\"); npm 12.2.1 blocked it (\"had install scripts blocked\"). The v11 install-scripts command page says scripts are blocked by default, which the config definition, the 11.16.0 pull request, the GitHub changelog and the test contradict. npm 12 also blocks implicit node-gyp builds and prepare scripts of git, file and link dependencies."),
 		allowList: {
-			setting: verified$4("allowScripts", "https://docs.npmjs.com/cli/v12/commands/npm-install-scripts"),
-			file: verified$4("package.json", "https://docs.npmjs.com/cli/v12/commands/npm-install-scripts", "Only the root package.json counts; allowScripts in dependencies is ignored. npx, npm exec and global installs use the allow-scripts config instead."),
-			availableSince: verified$4("11.16.0", release$3("11.16.0")),
-			format: uncertain$3("Object keyed by name, name@version or name@v1 || v2 with true (allow) or false (deny); npm install-scripts approve writes pinned name@version entries", "https://github.com/npm/rfcs/blob/main/accepted/0054-make-scripts-install-opt-in.md", "The exact entry grammar (no semver ranges) is stated in accepted RFC 0054; the shipped docs describe entries only in prose.")
+			setting: verified$7("allowScripts", "https://docs.npmjs.com/cli/v12/commands/npm-install-scripts"),
+			file: verified$7("package.json", "https://docs.npmjs.com/cli/v12/commands/npm-install-scripts", "Only the root package.json counts; allowScripts in dependencies is ignored. npx, npm exec and global installs use the allow-scripts config instead."),
+			availableSince: verified$7("11.16.0", release$3("11.16.0")),
+			format: uncertain$6("Object keyed by name, name@version or name@v1 || v2 with true (allow) or false (deny); npm install-scripts approve writes pinned name@version entries", "https://github.com/npm/rfcs/blob/main/accepted/0054-make-scripts-install-opt-in.md", "The exact entry grammar (no semver ranges) is stated in accepted RFC 0054; the shipped docs describe entries only in prose.")
 		},
-		disableAll: verified$4("ignore-scripts", `${CONFIG}#ignore-scripts`, "Default false. Overrides allowScripts and dangerously-allow-all-scripts. npm run/test/start still run the named script, but not its pre/post scripts.")
+		disableAll: verified$7("ignore-scripts", `${CONFIG}#ignore-scripts`, "Default false. Overrides allowScripts and dangerously-allow-all-scripts. npm run/test/start still run the named script, but not its pre/post scripts.")
 	},
 	sources: {
 		git: {
-			setting: verified$4("allow-git", `${CONFIG}#allow-git`),
-			values: verified$4([
+			setting: verified$7("allow-git", `${CONFIG}#allow-git`),
+			values: verified$7([
 				"all",
 				"none",
 				"root"
 			], `${CONFIG}#allow-git`, "root allows only git dependencies listed in the project package.json."),
-			availableSince: disputed$2("The release notes add --allow-git in 11.9.0; the GitHub changelog says it was introduced in 11.10.0.", evidence$2("11.9.0", release$3("11.9.0")), evidence$2("11.10.0", INSTALL_TIME_CONTROLS)),
-			default: verified$4([{
+			availableSince: disputed$3("The release notes add --allow-git in 11.9.0; the GitHub changelog says it was introduced in 11.10.0.", evidence$3("11.9.0", release$3("11.9.0")), evidence$3("11.10.0", INSTALL_TIME_CONTROLS)),
+			default: verified$7([{
 				since: "11.9.0",
 				value: "all"
 			}, {
@@ -527,14 +530,14 @@ const npm$1 = {
 			}], `${CONFIG}#allow-git`)
 		},
 		remoteTarball: {
-			setting: verified$4("allow-remote", `${CONFIG}#allow-remote`),
-			values: verified$4([
+			setting: verified$7("allow-remote", `${CONFIG}#allow-remote`),
+			values: verified$7([
 				"all",
 				"none",
 				"root"
 			], `${CONFIG}#allow-remote`, `Tarballs on the configured registry hostname are always allowed. ${VALUES_NOTE}`),
 			availableSince: sourceFlagSince(),
-			default: verified$4([{
+			default: verified$7([{
 				since: "11.14.0",
 				value: "all"
 			}, {
@@ -543,46 +546,46 @@ const npm$1 = {
 			}], release$3("12.0.0"))
 		},
 		file: {
-			setting: verified$4("allow-file", `${CONFIG}#allow-file`),
-			values: verified$4([
+			setting: verified$7("allow-file", `${CONFIG}#allow-file`),
+			values: verified$7([
 				"all",
 				"none",
 				"root"
 			], `${CONFIG}#allow-file`, VALUES_NOTE),
 			availableSince: sourceFlagSince(),
-			default: verified$4([{
+			default: verified$7([{
 				since: "11.14.0",
 				value: "all"
 			}], "https://github.blog/changelog/2026-06-09-upcoming-breaking-changes-for-npm-v12/", "npm 12 did not change the default.")
 		},
 		directory: {
-			setting: verified$4("allow-directory", `${CONFIG}#allow-directory`),
-			values: verified$4([
+			setting: verified$7("allow-directory", `${CONFIG}#allow-directory`),
+			values: verified$7([
 				"all",
 				"none",
 				"root"
 			], `${CONFIG}#allow-directory`, VALUES_NOTE),
 			availableSince: sourceFlagSince(),
-			default: verified$4([{
+			default: verified$7([{
 				since: "11.14.0",
 				value: "all"
 			}], `${CONFIG}#allow-directory`, "npm 12 did not change the default.")
 		}
 	},
 	project: {
-		lockfiles: verified$4([{
+		lockfiles: verified$7([{
 			since: "0.0.0",
 			value: ["npm-shrinkwrap.json", "package-lock.json"]
 		}, {
 			since: "12.0.0",
 			value: ["package-lock.json"]
 		}], LOCKFILE_V12, "npm 11 and earlier prefer npm-shrinkwrap.json over package-lock.json when both exist; npm 12 no longer reads or writes npm-shrinkwrap.json (same format, rename it)."),
-		manifests: verified$4(["package.json"], PACKAGE_JSON$1),
-		workspaces: verified$4({
+		manifests: verified$7(["package.json"], PACKAGE_JSON$1),
+		workspaces: verified$7({
 			files: ["package.json"],
 			key: "workspaces"
 		}, `${PACKAGE_JSON$1}#workspaces`, "An array of folder paths or globs."),
-		workspacesObjectKey: uncertain$3("packages", "https://github.com/npm/map-workspaces/blob/main/lib/index.js", "Not documented; npm's map-workspaces also accepts { \"packages\": [...] } and negated patterns.")
+		workspacesObjectKey: uncertain$6("packages", "https://github.com/npm/map-workspaces/blob/main/lib/index.js", "Not documented; npm's map-workspaces also accepts { \"packages\": [...] } and negated patterns.")
 	},
 	extra: {
 		trustedPublishing: checked$3.verified({
@@ -629,18 +632,18 @@ const npm$1 = {
 			workspacePackages: "ignored",
 			globalMode: "ignored"
 		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns \"ignoring workspace config\" for the package .npmrc (workspaces/config/lib/index.js). The project .npmrc \"is not read in global mode, such as when running npm install -g\" (same page, v11.21.1 and v12.2.1)."),
-		npmrcListSyntax: verified$4("[]", "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*."),
-		allowAllScripts: verified$4({
+		npmrcListSyntax: verified$7("[]", "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md", "Array values are written by adding [] after the key, one line per value, e.g. min-release-age-exclude[]=@myorg/*."),
+		allowAllScripts: verified$7({
 			setting: "dangerously-allow-all-scripts",
 			since: "11.16.0",
 			value: true
 		}, NPM_DEFINITIONS, "Boolean, default false: runs every dependency install script whether or not allowScripts approves it; --ignore-scripts still wins. First present in the 11.16.0 definitions."),
-		excludeWildcards: verified$4({
+		excludeWildcards: verified$7({
 			since: "11.17.0",
 			trailingOnly: false
 		}, NPM_DEFINITIONS, "min-release-age-exclude takes package names or minimatch globs from its first version."),
-		latestVersion: verified$4("12.2.1", release$3("12.2.1"), "Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1)."),
-		beforeInteraction: verified$4([{
+		latestVersion: verified$7("12.2.1", release$3("12.2.1"), "Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1)."),
+		beforeInteraction: verified$7([{
 			since: "11.10.0",
 			value: "min-release-age and before are mutually exclusive"
 		}, {
@@ -652,7 +655,7 @@ const npm$1 = {
 			value: true,
 			since: "11.16.0"
 		}, NPM_DEFINITIONS_V11_16, "strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it."),
-		unknownNpmrcKeys: disputed$2("Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.", evidence$2("npm 12 throws on unknown config keys", release$3("12.0.0")), evidence$2("unknown keys only warn; throwing is planned for a future major version", NPMRC)),
+		unknownNpmrcKeys: disputed$3("Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.", evidence$3("npm 12 throws on unknown config keys", release$3("12.0.0")), evidence$3("unknown keys only warn; throwing is planned for a future major version", NPMRC)),
 		commandLine: checked$3.verified({
 			add: INSTALL_ALIASES.map((alias) => ["npm", alias]),
 			run: [
@@ -834,24 +837,132 @@ const npm$1 = {
 			configOptions: ["--userconfig", "--globalconfig"],
 			configVariables: ["npm_config_userconfig", "npm_config_globalconfig"]
 		}, NPM_DEFINITIONS, "registry is a URL; userconfig and globalconfig are the user and global configuration files. Putting --foo bar on the command line sets the foo configuration parameter, and environment variables that start with npm_config_ are configuration parameters too, without regard to case (docs/lib/content/using-npm/config.md); @scope:registry is the key of a scope's registry (https://docs.npmjs.com/cli/v12/using-npm/scope)."),
-		lockfileInstalls: uncertain$3("npm ci installs versions pinned in package-lock.json without applying min-release-age", "https://docs.npmjs.com/cli/v12/commands/npm-ci", "Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window.")
+		lockfileInstalls: uncertain$6("npm ci installs versions pinned in package-lock.json without applying min-release-age", "https://docs.npmjs.com/cli/v12/commands/npm-ci", "Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window.")
+	}
+};
+
+// src/knowledge/pip.ts
+const { verified: verified$6, uncertain: uncertain$5 } = verifiedOn("2026-10-30");
+const PIP = "https://github.com/pypa/pip/blob/26.2.2";
+const NEWS = `${PIP}/NEWS.rst`;
+const USER_GUIDE = `${PIP}/docs/html/user_guide.rst`;
+const CONFIGURATION$2 = `${PIP}/docs/html/topics/configuration.md`;
+const SECURE_INSTALLS = `${PIP}/docs/html/topics/secure-installs.md`;
+const REQUIREMENTS_FORMAT = `${PIP}/docs/html/reference/requirements-file-format.md`;
+const REQ_FILE = `${PIP}/src/pip/_internal/req/req_file.py`;
+const FORMAT_CONTROL = `${PIP}/src/pip/_internal/models/format_control.py`;
+const PYLOCK = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst";
+const noSetting$3 = (kind) => ({ setting: uncertain$5(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
+const pip = {
+	id: "pip",
+	name: "pip",
+	kind: "package-manager",
+	ecosystem: "pypi",
+	cooldown: {
+		setting: verified$6("uploaded-prior-to", `${USER_GUIDE}#filtering-by-upload-time`, "Only files uploaded before the given time are considered; applies to packages from remote indexes, not to local files, find-links directories or VCS requirements. Isolated build environments get the same cutoff."),
+		configFiles: verified$6([], CONFIGURATION$2, "pip reads no configuration from the project: only the global, user and site (virtual environment) pip.conf, the file named by PIP_CONFIG_FILE and PIP_* environment variables. --uploaded-prior-to is not allowed in requirements files, so a project sets it through PIP_UPLOADED_PRIOR_TO or the command line, e.g. in CI."),
+		cliFlag: verified$6("--uploaded-prior-to", `${USER_GUIDE}#filtering-by-upload-time`, "pip install, download, wheel, lock, index and list; environment variable PIP_UPLOADED_PRIOR_TO."),
+		unit: verified$6("days", `${PIP}/src/pip/_internal/cli/cmdoptions.py`, "A duration is written PnD, a whole number of days (P3D, matched by ^P(\\d+)D$); P1W, PT24H and \"7 days\" are rejected. An ISO 8601 date or time is a fixed cutoff instead. A day is always 24 hours."),
+		availableSince: verified$6("26.1.0", NEWS, "pip 26.1 accepts a duration in days (\"P3D for 3 days ago\"); the option itself exists since 26.0 with dates only."),
+		default: verified$6([{
+			since: "26.1.0",
+			value: null
+		}], `${USER_GUIDE}#filtering-by-upload-time`, "Off unless given."),
+		exclude: { setting: uncertain$5(null, `${USER_GUIDE}#filtering-by-upload-time`, "No per-package exception (concluded from the list of options).") },
+		securityUpdates: uncertain$5("applies", `${USER_GUIDE}#filtering-by-upload-time`, "pip does not know which versions fix vulnerabilities; the cutoff holds back every new upload.")
+	},
+	installScripts: {
+		defaultPolicy: verified$6([{
+			since: "0.0.0",
+			value: "run"
+		}], SECURE_INSTALLS, "pip builds a source distribution when no wheel fits, which runs its build backend; the secure-installs guide recommends --only-binary :all:. Installing a wheel runs no package code."),
+		allowList: {
+			setting: verified$6("--no-binary", FORMAT_CONTROL, "After --only-binary=:all:, a package named in --no-binary may only be installed from source: a name wins over :all:, so its wheels are not used. --only-binary=:all: given after it clears the exception."),
+			file: verified$6("requirements.txt", REQ_FILE, "--only-binary and --no-binary are among the options a requirements file may contain."),
+			availableSince: uncertain$5("7.0.0", NEWS, "--no-binary and --only-binary exist since 7.0.0 and are read from pip.conf since 7.1.0; when requirements files started to accept them is not recorded."),
+			format: verified$6("One option line per package or a comma-separated list, e.g. --no-binary=docopt", `${PIP}/src/pip/_internal/cli/cmdoptions.py`, "Each use adds to the set; :all: and :none: are special values.")
+		},
+		disableAll: verified$6("--only-binary=:all:", SECURE_INSTALLS, "Allowed in requirements files and pip.conf (only-binary). Enforced only for packages from indexes and find-links: VCS, local directory and direct URL source requirements are still built.")
+	},
+	sources: {
+		git: noSetting$3("VCS"),
+		remoteTarball: noSetting$3("direct URL"),
+		file: noSetting$3("local archive"),
+		directory: noSetting$3("local directory")
+	},
+	project: {
+		lockfiles: verified$6([{
+			since: "25.1.0",
+			value: ["pylock.toml"]
+		}], `${PYLOCK}#file-name`, "pip lock (experimental since 25.1) writes pylock.toml; pip install -r pylock.toml is experimental since 26.1. The specification also allows pylock.<name>.toml."),
+		manifests: verified$6(["requirements.txt"], REQUIREMENTS_FORMAT, "\"requirements.txt is usually what these files are named (although, that is not a requirement)\"; the format is meant only for pip."),
+		workspaces: uncertain$5(null, REQUIREMENTS_FORMAT, "pip has no workspaces."),
+		workspacesObjectKey: uncertain$5(null, REQUIREMENTS_FORMAT, "No workspaces.")
+	},
+	extra: {
+		requirementsOptions: verified$6([
+			"-i",
+			"--index-url",
+			"--extra-index-url",
+			"--no-index",
+			"-c",
+			"--constraint",
+			"-r",
+			"--requirement",
+			"-e",
+			"--editable",
+			"-f",
+			"--find-links",
+			"--no-binary",
+			"--only-binary",
+			"--prefer-binary",
+			"--require-hashes",
+			"--no-require-hashes",
+			"--pre",
+			"--all-releases",
+			"--only-final",
+			"--trusted-host",
+			"--use-feature"
+		], REQ_FILE, "SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse."),
+		environmentVariable: verified$6("PIP_UPLOADED_PRIOR_TO", `${CONFIGURATION$2}#environment-variables`, "Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores."),
+		durationStrings: verified$6({
+			since: "26.1.0",
+			syntax: "iso8601"
+		}, NEWS, "Only whole days, written PnD, are accepted."),
+		missingUploadTime: verified$6("Installation fails when an index gives no upload time while --uploaded-prior-to is set", `${USER_GUIDE}#filtering-by-upload-time`, "Upload times exist only in the JSON form of the simple repository API (PEP 700); indexes that serve only HTML have none."),
+		lockfileFormat: verified$6({
+			packages: "packages",
+			vcs: "vcs",
+			directory: "directory",
+			archive: "archive",
+			sdist: "sdist",
+			wheels: "wheels",
+			index: "index",
+			sources: {
+				git: "vcs",
+				remoteTarball: "archive",
+				directory: "directory"
+			}
+		}, PYLOCK, "Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed."),
+		requirementsForms: verified$6("name==version with --hash options, name @ URL for an archive, a local archive or project path, and VCS URLs (name @ git+https://… or -e git+…)", REQUIREMENTS_FORMAT),
+		latestVersion: verified$6("26.2.2", NEWS, "Released on 2026-10-20.")
 	}
 };
 
 // src/knowledge/pnpm.ts
-const { verified: verified$3, uncertain: uncertain$2 } = verifiedOn("2026-10-28");
+const { verified: verified$5, uncertain: uncertain$4 } = verifiedOn("2026-10-28");
 const checked$2 = verifiedOn("2026-10-29");
-const RESOLUTION = "https://pnpm.io/settings/dependency-resolution";
+const RESOLUTION$1 = "https://pnpm.io/settings/dependency-resolution";
 const SETTINGS_V10 = "https://pnpm.io/10.x/settings";
 const BUILD = "https://pnpm.io/settings/build";
 const RESOLUTION_V11 = "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/dependency-resolution.md";
 const BUILD_V11 = "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md";
 const release$2 = (version) => `https://github.com/pnpm/pnpm/releases/tag/v${version}`;
 const exoticSubdeps = {
-	setting: verified$3("blockExoticSubdeps", SETTINGS_V10, "Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies."),
-	values: verified$3(["true", "false"], RESOLUTION),
-	availableSince: verified$3("10.26.0", SETTINGS_V10),
-	default: verified$3([{
+	setting: verified$5("blockExoticSubdeps", SETTINGS_V10, "Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies."),
+	values: verified$5(["true", "false"], RESOLUTION$1),
+	availableSince: verified$5("10.26.0", SETTINGS_V10),
+	default: verified$5([{
 		since: "10.26.0",
 		value: "false"
 	}, {
@@ -859,19 +970,19 @@ const exoticSubdeps = {
 		value: "true"
 	}], release$2("11.0.0"))
 };
-const localPaths = { setting: uncertain$2(null, "https://pnpm.io/settings", "No setting restricts file: or link: dependencies (concluded from the full settings list); blockExoticSubdeps treats local paths and workspace links as trusted.") };
+const localPaths = { setting: uncertain$4(null, "https://pnpm.io/settings", "No setting restricts file: or link: dependencies (concluded from the full settings list); blockExoticSubdeps treats local paths and workspace links as trusted.") };
 const WORKSPACE_YAML_V10 = "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md";
 const pnpm$1 = {
 	id: "pnpm",
 	name: "pnpm",
 	kind: "package-manager",
 	cooldown: {
-		setting: verified$3("minimumReleaseAge", "https://pnpm.io/blog/releases/10.16"),
-		configFiles: verified$3(["pnpm-workspace.yaml"], release$2("11.0.0"), "pnpm-workspace.yaml (or the global config.yaml) works in every version that has the setting. pnpm 10 also reads minimum-release-age from .npmrc; pnpm 11+ reads only auth and registry settings from .npmrc and ignores the package.json \"pnpm\" field."),
-		cliFlag: uncertain$2(null, "https://pnpm.io/cli/install", "No dedicated flag is documented for install or add; release notes mention \"a CLI flag\" without syntax. Environment variable: PNPM_CONFIG_MINIMUM_RELEASE_AGE (pnpm 11+), npm_config_minimum_release_age (pnpm 10)."),
-		unit: verified$3("minutes", RESOLUTION, "Integer number of minutes, e.g. 1440 = 1 day; no duration strings."),
-		availableSince: verified$3("10.16.0", release$2("10.16.0")),
-		default: verified$3([{
+		setting: verified$5("minimumReleaseAge", "https://pnpm.io/blog/releases/10.16"),
+		configFiles: verified$5(["pnpm-workspace.yaml"], release$2("11.0.0"), "pnpm-workspace.yaml (or the global config.yaml) works in every version that has the setting. pnpm 10 also reads minimum-release-age from .npmrc; pnpm 11+ reads only auth and registry settings from .npmrc and ignores the package.json \"pnpm\" field."),
+		cliFlag: uncertain$4(null, "https://pnpm.io/cli/install", "No dedicated flag is documented for install or add; release notes mention \"a CLI flag\" without syntax. Environment variable: PNPM_CONFIG_MINIMUM_RELEASE_AGE (pnpm 11+), npm_config_minimum_release_age (pnpm 10)."),
+		unit: verified$5("minutes", RESOLUTION$1, "Integer number of minutes, e.g. 1440 = 1 day; no duration strings."),
+		availableSince: verified$5("10.16.0", release$2("10.16.0")),
+		default: verified$5([{
 			since: "10.16.0",
 			value: 0
 		}, {
@@ -879,14 +990,14 @@ const pnpm$1 = {
 			value: 1440
 		}], RESOLUTION_V11, "The built-in 1440 is non-strict: pnpm adds immature versions to minimumReleaseAgeExclude instead of failing (see strictMode)."),
 		exclude: {
-			setting: verified$3("minimumReleaseAgeExclude", SETTINGS_V10),
-			availableSince: verified$3("10.16.0", release$2("10.16.0")),
-			patternSyntax: verified$3("Package names (all versions); globs such as @myorg/* since 10.17.0; exact versions name@1.2.3 or name@1.2.3 || 1.2.4 since 10.19.0; ranges are not documented", SETTINGS_V10)
+			setting: verified$5("minimumReleaseAgeExclude", SETTINGS_V10),
+			availableSince: verified$5("10.16.0", release$2("10.16.0")),
+			patternSyntax: verified$5("Package names (all versions); globs such as @myorg/* since 10.17.0; exact versions name@1.2.3 or name@1.2.3 || 1.2.4 since 10.19.0; ranges are not documented", SETTINGS_V10)
 		},
-		securityUpdates: verified$3("applies", "https://pnpm.io/cli/audit", "No setting bypasses the delay. Since 11.0.0, pnpm audit --fix adds the minimum patched version of each advisory to minimumReleaseAgeExclude (since 11.22.0 only while it is still inside the window).")
+		securityUpdates: verified$5("applies", "https://pnpm.io/cli/audit", "No setting bypasses the delay. Since 11.0.0, pnpm audit --fix adds the minimum patched version of each advisory to minimumReleaseAgeExclude (since 11.22.0 only while it is still inside the window).")
 	},
 	installScripts: {
-		defaultPolicy: verified$3([{
+		defaultPolicy: verified$5([{
 			since: "0.0.0",
 			value: "run"
 		}, {
@@ -894,12 +1005,12 @@ const pnpm$1 = {
 			value: "deny-except-allowlist"
 		}], release$2("10.0.0"), "Unreviewed builds only warn in pnpm 10; strictDepBuilds is true by default since 11.0.0, so they fail the install. Prepare scripts of git-hosted dependencies are blocked since 10.26.0."),
 		allowList: {
-			setting: verified$3("allowBuilds", BUILD, "Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds."),
-			file: verified$3("pnpm-workspace.yaml", BUILD),
-			availableSince: verified$3("10.26.0", SETTINGS_V10),
-			format: verified$3("Map of package matcher to true (allow) or false (deny), e.g. esbuild: true or \"nx@21.6.4 || 21.6.5\": true; a bare name never approves git or tarball dependencies (pnpm 11+)", BUILD_V11)
+			setting: verified$5("allowBuilds", BUILD, "Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds."),
+			file: verified$5("pnpm-workspace.yaml", BUILD),
+			availableSince: verified$5("10.26.0", SETTINGS_V10),
+			format: verified$5("Map of package matcher to true (allow) or false (deny), e.g. esbuild: true or \"nx@21.6.4 || 21.6.5\": true; a bare name never approves git or tarball dependencies (pnpm 11+)", BUILD_V11)
 		},
-		disableAll: verified$3("ignoreScripts", "https://pnpm.io/cli/install", "Default false; --ignore-scripts on the CLI. Also skips the project's own scripts.")
+		disableAll: verified$5("ignoreScripts", "https://pnpm.io/cli/install", "Default false; --ignore-scripts on the CLI. Also skips the project's own scripts.")
 	},
 	sources: {
 		git: exoticSubdeps,
@@ -908,20 +1019,20 @@ const pnpm$1 = {
 		directory: localPaths
 	},
 	project: {
-		lockfiles: verified$3([{
+		lockfiles: verified$5([{
 			since: "0.0.0",
 			value: ["pnpm-lock.yaml"]
 		}], "https://github.com/pnpm/pnpm.io/blob/main/docs/git.md"),
-		manifests: verified$3([
+		manifests: verified$5([
 			"package.json",
 			"package.json5",
 			"package.yaml"
 		], "https://github.com/pnpm/pnpm.io/blob/main/docs/package_json.md"),
-		workspaces: verified$3({
+		workspaces: verified$5({
 			files: ["pnpm-workspace.yaml"],
 			key: "packages"
 		}, WORKSPACE_YAML_V10, "Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json."),
-		workspacesObjectKey: uncertain$2(null, WORKSPACE_YAML_V10, "The docs show packages only as a list; concluded from the absence of an object form.")
+		workspacesObjectKey: uncertain$4(null, WORKSPACE_YAML_V10, "The docs show packages only as a list; concluded from the absence of an object form.")
 	},
 	extra: {
 		commandLine: checked$2.verified({
@@ -993,7 +1104,7 @@ const pnpm$1 = {
 			setting: "minimumReleaseAgeStrict",
 			value: true,
 			since: "11.0.0"
-		}, RESOLUTION, "When false, pnpm falls back to a version that does not meet minimumReleaseAge; when true, resolution fails. It defaults to true when minimumReleaseAge is set explicitly, except in 11.0.0-11.0.3 and 12.0.0-12.2.x (see strictMode): pnpm 11.0.0 and 12.0.0 installed a version 4 hours old with minimumReleaseAge: 4320 on 2026-10-29, and 12.0.0 added it to minimumReleaseAgeExclude."),
+		}, RESOLUTION$1, "When false, pnpm falls back to a version that does not meet minimumReleaseAge; when true, resolution fails. It defaults to true when minimumReleaseAge is set explicitly, except in 11.0.0-11.0.3 and 12.0.0-12.2.x (see strictMode): pnpm 11.0.0 and 12.0.0 installed a version 4 hours old with minimumReleaseAge: 4320 on 2026-10-29, and 12.0.0 added it to minimumReleaseAgeExclude."),
 		cooldownExactVersions: checked$2.verified("10.17.0", release$2("10.17.0"), "pnpm 10.17.0: \"Don't ignore the minimumReleaseAge check, when the package is requested by exact version\". pnpm 10.16.0 installed typescript@7.1.0-dev.20261029.1, 4 hours old, with minimumReleaseAge: 4320 on 2026-10-29."),
 		lockfileDocuments: checked$2.verified({
 			bootMarker: "---",
@@ -1024,35 +1135,35 @@ const pnpm$1 = {
 			sharedWorkspaceLockfile: false,
 			until: "11.0.0"
 		}, "https://github.com/pnpm/pnpm/blob/v10.34.9/pkg-manager/plugin-commands-installation/src/recursive.ts", "Without a shared lockfile, pnpm 10 installs every workspace project with its own .npmrc layered over the workspace settings, without filtering keys, so a package .npmrc can change minimum-release-age for that project. Read from code; no documentation or test covers it. No official source says this combination turns minimumReleaseAge off."),
-		ignoredSince: verified$3({
+		ignoredSince: verified$5({
 			since: "11.0.0",
 			npmrc: "auth and registry settings",
 			packageJsonField: "pnpm"
 		}, release$2("11.0.0"), "Structured form of npmrcIgnored: from 11.0.0 on, other .npmrc settings and the package.json \"pnpm\" field have no effect."),
-		lockfileRecheck: uncertain$2([{
+		lockfileRecheck: uncertain$4([{
 			since: "10.16.0",
 			value: false
 		}, {
 			since: "11.1.3",
 			value: true
 		}], release$2("11.1.3"), "Structured form of lockfileVerification: whether a frozen-lockfile install re-checks the age of versions already in the lockfile. trustLockfile: true (11.3.0) turns the check off."),
-		allowAllBuilds: verified$3({
+		allowAllBuilds: verified$5({
 			setting: "dangerouslyAllowAllBuilds",
 			since: "10.9.0",
 			value: true
 		}, "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md", "Boolean, default false; packages denied in allowBuilds stay blocked."),
-		excludeWildcards: verified$3({
+		excludeWildcards: verified$5({
 			since: "10.17.0",
 			trailingOnly: false
 		}, SETTINGS_V10, "Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0."),
-		onlyBuiltDependencies: verified$3({
+		onlyBuiltDependencies: verified$5({
 			since: "10.0.0",
 			workspaceFileSince: "10.5.0",
 			removedIn: "11.0.0"
 		}, BUILD_V11, "The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, also pnpm-workspace.yaml since 10.5.0; removed in 11.0.0 (see legacyAllowList)."),
-		latestVersion: verified$3("12.16.1", release$2("12.16.1"), "pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches."),
-		npmrcIgnored: verified$3("pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json \"pnpm\" field and no longer reads npm_config_* variables", release$2("11.0.0")),
-		legacyAllowList: verified$3([
+		latestVersion: verified$5("12.16.1", release$2("12.16.1"), "pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches."),
+		npmrcIgnored: verified$5("pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json \"pnpm\" field and no longer reads npm_config_* variables", release$2("11.0.0")),
+		legacyAllowList: verified$5([
 			{
 				since: "10.0.0",
 				value: "onlyBuiltDependencies (package.json pnpm field; pnpm-workspace.yaml since 10.5.0)"
@@ -1066,14 +1177,14 @@ const pnpm$1 = {
 				value: "allowBuilds only; onlyBuiltDependencies, neverBuiltDependencies and ignoredBuiltDependencies removed"
 			}
 		], BUILD_V11),
-		strictDepBuilds: verified$3([{
+		strictDepBuilds: verified$5([{
 			since: "10.3.0",
 			value: "false"
 		}, {
 			since: "11.0.0",
 			value: "true"
 		}], release$2("11.0.0"), "When true, an unreviewed dependency build script fails the install."),
-		strictMode: verified$3([
+		strictMode: verified$5([
 			{
 				since: "11.0.0",
 				value: "minimumReleaseAgeStrict defaults to false"
@@ -1091,20 +1202,113 @@ const pnpm$1 = {
 				value: "strict whenever minimumReleaseAge is set explicitly"
 			}
 		], release$2("12.3.0"), "In non-strict mode pnpm silently writes immature picks into minimumReleaseAgeExclude. Strict mode fails CI installs with ERR_PNPM_NO_MATURE_MATCHING_VERSION."),
-		ignoreMissingTime: verified$3("minimumReleaseAgeIgnoreMissingTime defaults to true: packages whose registry metadata has no publish time skip the age check", RESOLUTION),
-		lockfileVerification: uncertain$2([{
+		ignoreMissingTime: verified$5("minimumReleaseAgeIgnoreMissingTime defaults to true: packages whose registry metadata has no publish time skip the age check", RESOLUTION$1),
+		lockfileVerification: uncertain$4([{
 			since: "10.16.0",
 			value: "frozen-lockfile installs do not re-check versions already in the lockfile"
 		}, {
 			since: "11.1.3",
 			value: "lockfile entries are re-checked; trustLockfile: true (11.3.0) turns this off"
 		}], release$2("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
-		unknownWorkspaceKeys: verified$3("pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns", "https://pnpm.io/blog/releases/12.0")
+		unknownWorkspaceKeys: verified$5("pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns", "https://pnpm.io/blog/releases/12.0")
+	}
+};
+
+// src/knowledge/poetry.ts
+const { verified: verified$4, uncertain: uncertain$3, disputed: disputed$2, evidence: evidence$2 } = verifiedOn("2026-10-30");
+const POETRY = "https://github.com/python-poetry/poetry/blob/2.5.1";
+const CONFIGURATION$1 = `${POETRY}/docs/configuration.md`;
+const CHANGELOG = `${POETRY}/CHANGELOG.md`;
+const LOCKER = `${POETRY}/src/poetry/packages/locker.py`;
+const CHOOSER = `${POETRY}/src/poetry/installation/chooser.py`;
+const noSetting$2 = (kind) => ({ setting: uncertain$3(null, `${CONFIGURATION$1}#available-settings`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings and Config.default_config); dependencies of dependencies may come from such sources too.`) });
+const poetry = {
+	id: "poetry",
+	name: "Poetry",
+	kind: "package-manager",
+	ecosystem: "pypi",
+	cooldown: {
+		setting: verified$4("solver.min-release-age", `${CONFIGURATION$1}#solvermin-release-age`, "A version is ignored while any of its files was uploaded less than the given number of days ago. Applies when dependencies are resolved (poetry lock, add, update); poetry install installs the locked versions without checking."),
+		configFiles: verified$4(["poetry.toml"], `${CONFIGURATION$1}#local-configuration`, "The local configuration next to pyproject.toml (poetry config --local), not pyproject.toml itself. Environment variables (POETRY_SOLVER_MIN_RELEASE_AGE) win over poetry.toml, which wins over the user config.toml."),
+		cliFlag: uncertain$3(null, `${POETRY}/docs/cli.md`, "No command-line option; the environment variable POETRY_SOLVER_MIN_RELEASE_AGE sets it for one command."),
+		unit: verified$4("days", `${CONFIGURATION$1}#solvermin-release-age`, "An integer; 0 (the default) turns it off."),
+		availableSince: verified$4("2.4.0", `${CONFIGURATION$1}#solvermin-release-age`, "\"Introduced in 2.4.0\"; announced as dependency cooldowns."),
+		default: verified$4([{
+			since: "2.4.0",
+			value: null
+		}], `${CONFIGURATION$1}#solvermin-release-age`, "Default 0: all versions are considered."),
+		exclude: {
+			setting: verified$4("solver.min-release-age-exclude", `${CONFIGURATION$1}#solvermin-release-age-exclude`),
+			availableSince: verified$4("2.4.0", `${CONFIGURATION$1}#solvermin-release-age-exclude`),
+			patternSyntax: verified$4("Exact package names; no wildcards", `${CONFIGURATION$1}#solvermin-release-age-exclude`)
+		},
+		securityUpdates: uncertain$3("applies", `${CONFIGURATION$1}#solvermin-release-age`, "Poetry does not know which versions fix vulnerabilities; the delay holds back every new version of a package not listed in solver.min-release-age-exclude.")
+	},
+	installScripts: {
+		defaultPolicy: verified$4([{
+			since: "0.0.0",
+			value: "run"
+		}], `${CONFIGURATION$1}#installeronly-binary`, "Without installer.only-binary, packages are built from source distributions when no wheel fits, which runs their build backend. Git and directory dependencies are always built. Installing a wheel runs no package code."),
+		allowList: {
+			setting: verified$4("installer.no-binary", CHOOSER, "With installer.only-binary = [\":all:\"], the packages named in installer.no-binary are the only ones built from source; explicit names take precedence over :all: since 2.2.0. Their wheels are rejected, so they are always built."),
+			file: verified$4("poetry.toml", `${CONFIGURATION$1}#installerno-binary`, "The docs recommend configuring it with --local for a project."),
+			availableSince: verified$4("2.2.0", CHANGELOG, "\"explicit package names will take precedence over :all:\" (#10278). Before 2.2.0 a package listed in both settings has no file left to install."),
+			format: verified$4("A list of package names, or :all: or :none:", `${CONFIGURATION$1}#installerno-binary`, "poetry config stores the value as a list; written by hand, a boolean is not normalized.")
+		},
+		disableAll: verified$4("installer.only-binary", `${CONFIGURATION$1}#installeronly-binary`, "Since 2.0.0; the value [\":all:\"] forbids source distributions for every package. Applied only when installing: resolving dependencies may still build source distributions without static metadata, and git, path and url dependencies are built regardless.")
+	},
+	sources: {
+		git: noSetting$2("git"),
+		remoteTarball: noSetting$2("url"),
+		file: noSetting$2("local file"),
+		directory: noSetting$2("local directory")
+	},
+	project: {
+		lockfiles: verified$4([{
+			since: "0.0.0",
+			value: ["poetry.lock"]
+		}], `${POETRY}/src/poetry/factory.py`, "Next to pyproject.toml."),
+		manifests: verified$4(["pyproject.toml"], `${POETRY}/docs/pyproject.md`),
+		workspaces: uncertain$3(null, "https://github.com/python-poetry/poetry/issues/2270", "Poetry has no workspaces: the 2.5.1 docs do not mention them and the request for subprojects is open."),
+		workspacesObjectKey: uncertain$3(null, "https://github.com/python-poetry/poetry/issues/2270", "No workspaces.")
+	},
+	extra: {
+		configTable: verified$4({
+			solver: "solver",
+			installer: "installer"
+		}, `${POETRY}/src/poetry/config/file_config_source.py`, "poetry config writes dotted settings as nested tables, e.g. [solver] min-release-age = 7."),
+		configLocation: verified$4("poetry.toml is read only from the directory of the pyproject.toml Poetry found (the current directory or the nearest parent with one)", `${POETRY}/src/poetry/factory.py`),
+		excludeFormat: disputed$2("The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter.", evidence$2("comma-separated string", `${CONFIGURATION$1}#solvermin-release-age-exclude`), evidence$2("TOML array", "https://github.com/python-poetry/poetry/pull/11087")),
+		excludeWildcards: verified$4({
+			since: null,
+			trailingOnly: false
+		}, `${CONFIGURATION$1}#solvermin-release-age-exclude`, "Package names only."),
+		missingUploadTime: verified$4("A release whose source gives no upload times is not filtered by solver.min-release-age", `${CONFIGURATION$1}#solvermin-release-age`),
+		lockedVersionsKept: uncertain$3("poetry lock and poetry add keep versions already in poetry.lock even when they are newer than the delay allows; poetry update and poetry lock --regenerate resolve them again", `${POETRY}/src/poetry/mixology/version_solver.py`, "Read from the solver code, which takes the locked package without asking the repository; the docs do not say it."),
+		requiredVersion: verified$4({
+			table: "tool.poetry",
+			key: "requires-poetry",
+			since: "2.0.0"
+		}, `${POETRY}/docs/pyproject.md#requires-poetry`, "A version constraint in pyproject.toml; a Poetry version outside it raises an error. Poetry 1.x does not know the key."),
+		lockfileFormat: uncertain$3({
+			sources: {
+				git: "git",
+				remoteTarball: "url",
+				file: "file",
+				directory: "directory",
+				registry: "legacy"
+			},
+			packages: "package",
+			source: "source",
+			files: "files"
+		}, LOCKER, "poetry.lock has no documented format. Each [[package]] from PyPI has no [package.source]; others have type git, url, file, directory or legacy (a named index). files lists {file, hash} for every distribution, empty for git and directory packages; a package from an index without a .whl file is built when installed."),
+		latestVersion: verified$4("2.5.1", CHANGELOG, "Released on 2026-09-20.")
 	}
 };
 
 // src/knowledge/renovate.ts
-const { verified: verified$2, uncertain: uncertain$1, disputed: disputed$1, evidence: evidence$1 } = verifiedOn("2026-10-28");
+const { verified: verified$3, uncertain: uncertain$2, disputed: disputed$1, evidence: evidence$1 } = verifiedOn("2026-10-28");
+const python$1 = verifiedOn("2026-10-30");
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
 const MINIMUM_RELEASE_AGE = "https://docs.renovatebot.com/key-concepts/minimum-release-age/";
 const release$1 = (version) => `https://github.com/renovatebot/renovate/releases/tag/${version}`;
@@ -1113,8 +1317,8 @@ const renovate$1 = {
 	name: "Renovate",
 	kind: "update-bot",
 	cooldown: {
-		setting: verified$2("minimumReleaseAge", `${OPTIONS}#minimumreleaseage`, "Formerly stabilityDays; old configs are migrated to \"N days\". Can be scoped with packageRules, vulnerabilityAlerts and update types."),
-		configFiles: verified$2([
+		setting: verified$3("minimumReleaseAge", `${OPTIONS}#minimumreleaseage`, "Formerly stabilityDays; old configs are migrated to \"N days\". Can be scoped with packageRules, vulnerabilityAlerts and update types."),
+		configFiles: verified$3([
 			"renovate.json",
 			"renovate.jsonc",
 			"renovate.json5",
@@ -1129,66 +1333,198 @@ const renovate$1 = {
 			".renovaterc.jsonc",
 			".renovaterc.json5"
 		], OPTIONS, "Searched in this order. The \"renovate\" key in package.json still works but is deprecated. Shared presets (extends) can also set it."),
-		cliFlag: verified$2("--minimum-release-age", `${OPTIONS}#minimumreleaseage`, "Self-hosted CLI only; environment variable RENOVATE_MINIMUM_RELEASE_AGE."),
-		unit: verified$2("duration-string", MINIMUM_RELEASE_AGE, "For example \"3 days\" or \"14 days\". Since 42.19.5 \"0 days\" is treated like null."),
-		availableSince: verified$2("35.46.0", release$1("35.46.0"), "Earlier versions had the same feature as stabilityDays (first version not tracked)."),
-		default: verified$2([{
+		cliFlag: verified$3("--minimum-release-age", `${OPTIONS}#minimumreleaseage`, "Self-hosted CLI only; environment variable RENOVATE_MINIMUM_RELEASE_AGE."),
+		unit: verified$3("duration-string", MINIMUM_RELEASE_AGE, "For example \"3 days\" or \"14 days\". Since 42.19.5 \"0 days\" is treated like null."),
+		availableSince: verified$3("35.46.0", release$1("35.46.0"), "Earlier versions had the same feature as stabilityDays (first version not tracked)."),
+		default: verified$3([{
 			since: "0.0.0",
 			value: null
 		}], "https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts", "Off unless configured; the docs table shows no default. config:best-practices adds \"3 days\" for npm (see presets). Since 44.96.0 minimumReleaseAgeBuffer adds 30 minutes once a delay is set."),
 		exclude: {
-			setting: verified$2("packageRules: matchPackageNames + minimumReleaseAge: null", `${MINIMUM_RELEASE_AGE}#how-do-i-opt-out-dependencies-from-minimum-release-age-checks`, "No dedicated exclusion list."),
-			availableSince: uncertain$1("35.46.0", release$1("35.46.0"), "Assumed to work since the option exists with packageRule scope; not stated by a release note."),
-			patternSyntax: verified$2("matchPackageNames: exact names, globs such as @org/** (with ! negation) or /regex/; case-insensitive", `${OPTIONS}#matchpackagenames`, "Glob and regex patterns since 38.0.0.")
+			setting: verified$3("packageRules: matchPackageNames + minimumReleaseAge: null", `${MINIMUM_RELEASE_AGE}#how-do-i-opt-out-dependencies-from-minimum-release-age-checks`, "No dedicated exclusion list."),
+			availableSince: uncertain$2("35.46.0", release$1("35.46.0"), "Assumed to work since the option exists with packageRule scope; not stated by a release note."),
+			patternSyntax: verified$3("matchPackageNames: exact names, globs such as @org/** (with ! negation) or /regex/; case-insensitive", `${OPTIONS}#matchpackagenames`, "Glob and regex patterns since 38.0.0.")
 		},
-		securityUpdates: verified$2("bypass", `${MINIMUM_RELEASE_AGE}#what-happens-to-security-updates`, "The vulnerabilityAlerts defaults set minimumReleaseAge to null; a delay can still be set inside vulnerabilityAlerts.")
+		securityUpdates: verified$3("bypass", `${MINIMUM_RELEASE_AGE}#what-happens-to-security-updates`, "The vulnerabilityAlerts defaults set minimumReleaseAge to null; a delay can still be set inside vulnerabilityAlerts.")
 	},
 	installScripts: {
-		defaultPolicy: verified$2([{
+		defaultPolicy: verified$3([{
 			since: "0.0.0",
 			value: "deny"
 		}], `${OPTIONS}#ignorescripts`, "Renovate disables package manager scripts when it updates lockfiles; the Mend-hosted app never runs them."),
-		allowList: { setting: uncertain$1(null, `${OPTIONS}#ignorescripts`, "No per-package allow-list was found: scripts are all or nothing, via allowScripts: true (self-hosted global config) plus ignoreScripts: false.") },
-		disableAll: verified$2("ignoreScripts: true", `${OPTIONS}#ignorescripts`, "The default; the self-hosted global allowScripts also defaults to false.")
+		allowList: { setting: uncertain$2(null, `${OPTIONS}#ignorescripts`, "No per-package allow-list was found: scripts are all or nothing, via allowScripts: true (self-hosted global config) plus ignoreScripts: false.") },
+		disableAll: verified$3("ignoreScripts: true", `${OPTIONS}#ignorescripts`, "The default; the self-hosted global allowScripts also defaults to false.")
 	},
 	extra: {
-		durationStrings: verified$2({
+		durationStrings: verified$3({
 			since: null,
 			syntax: "words"
 		}, "https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md", "Values such as \"3 days\" or \"1 hour\", parsed by toMs (lib/util/pretty-time.ts)."),
-		minimumReleaseAgePresets: verified$2({
+		minimumReleaseAgePresets: verified$3({
 			presets: ["config:best-practices", "security:minimumReleaseAgeNpm"],
 			value: "3 days",
 			since: "42.0.0",
 			datasource: "npm"
 		}, "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm", "config:best-practices extends security:minimumReleaseAgeNpm, which sets minimumReleaseAge \"3 days\" for the npm datasource (see presets)."),
-		excludeRule: verified$2({
+		excludeRule: verified$3({
 			list: "packageRules",
 			match: "matchPackageNames",
 			value: null
 		}, "https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md", "The documented opt-out: a packageRules entry with matchPackageNames and minimumReleaseAge: null."),
-		securityUpdatesSetting: verified$2(["vulnerabilityAlerts", "minimumReleaseAge"], "https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts", "The vulnerabilityAlerts default sets minimumReleaseAge to null, so security updates skip the delay unless a value is set there."),
-		excludeWildcards: verified$2({
+		securityUpdatesSetting: verified$3(["vulnerabilityAlerts", "minimumReleaseAge"], "https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts", "The vulnerabilityAlerts default sets minimumReleaseAge to null, so security updates skip the delay unless a value is set there."),
+		excludeWildcards: verified$3({
 			since: "38.0.0",
 			trailingOnly: false
 		}, `${OPTIONS}#matchpackagenames`, "matchPackageNames accepts globs (and regex) since 38.0.0."),
-		ruleDescription: verified$2("description", "https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description", "A human-readable description allowed inside any configuration object; depcurfew uses it to recognize the packageRules entry it manages."),
-		packageJsonConfig: verified$2({
+		ruleDescription: verified$3("description", "https://github.com/renovatebot/renovate/blob/main/docs/usage/configuration-options.md#description", "A human-readable description allowed inside any configuration object; depcurfew uses it to recognize the packageRules entry it manages."),
+		packageJsonConfig: verified$3({
 			file: "package.json",
 			key: "renovate"
 		}, "https://github.com/renovatebot/renovate/blob/main/lib/workers/repository/init/merge.ts", "Deprecated: the configuration options page warns that support may be removed, and Renovate logs that using package.json is deprecated."),
-		durationUnits: verified$2(["hours", "days"], "https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md", "Units shown in the docs: minimumReleaseAge=1 hour on this page and \"3 days\" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values."),
-		presets: verified$2("config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): \"3 days\" and internalChecksFilter \"strict\" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback", "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm"),
-		missingTimestamp: verified$2([{
+		durationUnits: verified$3(["hours", "days"], "https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md", "Units shown in the docs: minimumReleaseAge=1 hour on this page and \"3 days\" in the configuration options. The value is parsed by toMs (lib/util/pretty-time.ts), whose tests also accept 1 day, 1 week and combined values."),
+		presets: verified$3("config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): \"3 days\" and internalChecksFilter \"strict\" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback", "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm"),
+		datasources: python$1.verified({
+			npm: "npm",
+			pypi: "pypi"
+		}, "https://docs.renovatebot.com/modules/datasource/pypi/", "Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version's files."),
+		pypiPresets: python$1.verified({
+			presets: ["security:minimumReleaseAgePypi"],
+			value: "3 days",
+			since: "44.8.0",
+			datasource: "pypi"
+		}, "https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi", "Added in 44.8.0; config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm)."),
+		pythonManagers: python$1.verified({
+			uv: "pep621",
+			poetry: "poetry",
+			pip: "pip_requirements"
+		}, "https://docs.renovatebot.com/modules/manager/pep621/", "pep621 updates pyproject.toml with uv.lock (there is no uv manager); poetry updates pyproject.toml with poetry.lock; pip_requirements updates requirements files. pip-compile is off by default."),
+		passesDelayToManager: python$1.verified([{
+			since: "0.0.0",
+			value: []
+		}, {
+			since: "44.34.0",
+			value: ["poetry"]
+		}], MINIMUM_RELEASE_AGE, "Since 44.34.0 Renovate passes POETRY_SOLVER_MIN_RELEASE_AGE (rounded up to whole days) to Poetry 2.4.0 and later. It does not pass the delay to uv or read exclude-newer."),
+		missingTimestamp: verified$3([{
 			since: "0.0.0",
 			value: "updates without a release timestamp pass the check"
 		}, {
 			since: "42.0.0",
 			value: "minimumReleaseAgeBehaviour timestamp-required: such updates are held"
 		}], release$1("42.0.0"), "minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open."),
-		internalChecksFilter: verified$2("Defaults to \"strict\" since 33.0.0; with \"none\" or \"flexible\" branches and PRs are created before the delay ends and only automerge waits", release$1("33.0.0")),
-		independentOfPackageManager: verified$2("minimumReleaseAge is set independently of the package manager's own release-age configuration", MINIMUM_RELEASE_AGE, "Source code passes --before to npm only; pnpm, Yarn and Bun gates are not read."),
+		internalChecksFilter: verified$3("Defaults to \"strict\" since 33.0.0; with \"none\" or \"flexible\" branches and PRs are created before the delay ends and only automerge waits", release$1("33.0.0")),
+		independentOfPackageManager: verified$3("minimumReleaseAge is set independently of the package manager's own release-age configuration", MINIMUM_RELEASE_AGE, "Source code passes --before to npm only; pnpm, Yarn and Bun gates are not read."),
 		digestBypassFixed: disputed$1("Digest updates could bypass minimumReleaseAge; the advisory and a maintainer comment give different fixed versions. Rebase requests could bypass strict checks before 44.61.3 (GHSA-2frq-pm48-6j4h).", evidence$1("44.3.1", "https://github.com/renovatebot/renovate/security/advisories/GHSA-g4qr-hw2h-687r"), evidence$1("44.10.0", "https://github.com/renovatebot/renovate/discussions/42260"))
+	}
+};
+
+// src/knowledge/uv.ts
+const { verified: verified$2, uncertain: uncertain$1 } = verifiedOn("2026-10-30");
+const UV = "https://github.com/astral-sh/uv/blob/0.13.6";
+const RESOLUTION = `${UV}/docs/concepts/resolution.md`;
+const CONFIGURATION = `${UV}/docs/concepts/configuration-files.md`;
+const SETTINGS = `${UV}/crates/uv-settings/src/settings.rs`;
+const BUILD_OPTIONS = `${UV}/crates/uv-configuration/src/build_options.rs`;
+const WORKSPACES = `${UV}/docs/concepts/projects/workspaces.md`;
+const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
+const changelog = (minor, version) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll(".", "")}`;
+const noSetting$1 = (kind) => ({ setting: uncertain$1(null, `${UV}/uv.schema.json`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings). no-sources only ignores the tool.uv.sources table; a URL dependency introduced by a registry package is rejected during resolution (docs/pip/compatibility.md).`) });
+const uv = {
+	id: "uv",
+	name: "uv",
+	kind: "package-manager",
+	ecosystem: "pypi",
+	cooldown: {
+		setting: verified$2("exclude-newer", SETTINGS, "Limits candidate packages to those uploaded before a date or, since 0.9.17, a duration ago. Compared with the upload time of each file, not the release date. false turns off a value from a lower-priority source (since 0.11.24)."),
+		configFiles: verified$2(["uv.toml", "pyproject.toml"], CONFIGURATION, "Top level of uv.toml or the [tool.uv] table of pyproject.toml. uv searches the current directory and its parents and uses the first directory with uv.toml or a pyproject.toml that has [tool.uv]; uv.toml wins over [tool.uv] in the same directory, with a warning. In a workspace only the root is read. User (~/.config/uv/uv.toml) and system (/etc/uv/uv.toml) files are merged below the project file; uv tool and uvx read only those. UV_EXCLUDE_NEWER overrides the files."),
+		cliFlag: verified$2("--exclude-newer", `${UV}/crates/uv-cli/src/lib.rs`, "Also the UV_EXCLUDE_NEWER environment variable."),
+		unit: verified$2("duration-string", RESOLUTION, "A \"friendly\" duration such as 24 hours, 1 week or 30 days, or an ISO 8601 duration such as P7D; months and years are rejected, a day is always 24 hours. An RFC 3339 timestamp is a fixed cutoff instead of a rolling delay."),
+		availableSince: verified$2("0.9.17", changelog("0.9", "0.9.17"), "Durations (\"dependency cooldowns\") since 0.9.17; before that exclude-newer took only dates, which do not move with time."),
+		default: verified$2([{
+			since: "0.9.17",
+			value: null
+		}], SETTINGS, "No default: without a value every upload time is accepted."),
+		exclude: {
+			setting: verified$2("exclude-newer-package", `${RESOLUTION}`, "A table mapping package names to false (exempt), a date or a duration; package values take precedence over the global and index values."),
+			availableSince: verified$2("0.9.25", changelog("0.9", "0.9.25"), "The table exists since 0.8.4 (dates); false, which exempts a package, since 0.9.25."),
+			patternSyntax: verified$2("Exact package names as table keys; no wildcards", SETTINGS, "Keys are package names, compared after name normalization.")
+		},
+		securityUpdates: uncertain$1("applies", RESOLUTION, "uv does not know which versions fix vulnerabilities; the delay holds back every new upload unless the package is listed in exclude-newer-package.")
+	},
+	installScripts: {
+		defaultPolicy: verified$2([{
+			since: "0.0.0",
+			value: "run"
+		}], SETTINGS, "no-build defaults to false: source distributions, git and directory dependencies are built, which runs their build backend. Installing a wheel runs no package code."),
+		allowList: {
+			setting: verified$2("no-binary-package", BUILD_OPTIONS, "With no-build = true, the packages in no-binary-package are the only ones built from source (\"Allow `all` to be overridden by specific binary exclusions\"). Their wheels are not used, so they are always built."),
+			file: verified$2("pyproject.toml", CONFIGURATION, "Or uv.toml; the same table as exclude-newer."),
+			availableSince: verified$2("0.2.12", changelog("0.2", "0.2.12"), "Project settings no-build, no-build-package, no-binary and no-binary-package; uv sync and related commands respect them since 0.4.6."),
+			format: verified$2("A list of package names", SETTINGS)
+		},
+		disableAll: verified$2("no-build", SETTINGS, "Operations that need to build a source distribution fail. Workspace members, editable requirements and wheels built earlier and kept in the cache are still used. An explicit no-build = false in a higher-priority file makes uv ignore no-build-package.")
+	},
+	sources: {
+		git: noSetting$1("git"),
+		remoteTarball: noSetting$1("URL"),
+		file: noSetting$1("local archive"),
+		directory: noSetting$1("local directory")
+	},
+	project: {
+		lockfiles: verified$2([{
+			since: "0.0.0",
+			value: ["uv.lock"]
+		}], `${UV}/docs/concepts/projects/layout.md`, "Created next to pyproject.toml."),
+		manifests: verified$2(["pyproject.toml"], `${UV}/docs/concepts/projects/layout.md`),
+		workspaces: verified$2({
+			files: ["pyproject.toml"],
+			key: "tool.uv.workspace"
+		}, WORKSPACES, "The [tool.uv.workspace] table of the root pyproject.toml lists members and exclude (globs or paths); exclude wins over members, and the root is a member too."),
+		workspacesObjectKey: verified$2("members", WORKSPACES, "The workspace guide calls members required, while the settings reference (crates/uv-workspace/src/pyproject.rs) gives it a default of [].")
+	},
+	extra: {
+		configTables: verified$2({
+			"pyproject.toml": "tool.uv",
+			"uv.toml": ""
+		}, CONFIGURATION, "Settings sit in [tool.uv] in pyproject.toml and at the top level of uv.toml. uv.toml cannot hold workspace, sources and a few other project fields."),
+		configPrecedence: verified$2("uv.toml wins over [tool.uv] in the same directory; only the nearest directory with either is read, and in a workspace only the root", CONFIGURATION, "A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories."),
+		durationStrings: verified$2({
+			since: "0.9.17",
+			syntax: "words-or-iso8601"
+		}, RESOLUTION, "Either a \"friendly\" duration (24 hours, 1 week, 30 days) or an ISO 8601 duration (PT24H, P7D, P30D)."),
+		durationUnits: verified$2([
+			"hours",
+			"days",
+			"weeks"
+		], RESOLUTION, "Units in the documented examples: 24 hours, 1 week, 30 days."),
+		excludeWildcards: verified$2({
+			since: null,
+			trailingOnly: false
+		}, SETTINGS, "exclude-newer-package keys are exact package names."),
+		excludeValue: verified$2(false, changelog("0.9", "0.9.25"), "exclude-newer-package = { name = false } exempts the package from the delay."),
+		missingUploadTime: verified$2("A file from an index that gives no upload time is treated as unavailable while a delay is set", RESOLUTION, "Unless the package is exempt, or the index has its own exclude-newer value or is exempt with [[tool.uv.index]] exclude-newer = false."),
+		registryOnly: verified$2("The delay applies only to packages read from a registry, not to git, URL or path dependencies", RESOLUTION),
+		requiredVersion: verified$2({
+			table: "tool.uv",
+			key: "required-version",
+			since: "0.5.14"
+		}, SETTINGS, "A PEP 440 specifier; uv exits with an error when its version does not match. Also at the top level of uv.toml."),
+		lockfileFormat: uncertain$1({
+			sources: {
+				registry: "registry",
+				git: "git",
+				remoteTarball: "url",
+				file: "path",
+				directory: "directory",
+				editable: "editable",
+				virtual: "virtual"
+			},
+			sdist: "sdist",
+			wheels: "wheels",
+			packages: "package"
+		}, SERIALIZE, "uv.lock has no documented format (the docs say only that it is managed by uv). Each [[package]] has source = { registry = URL } for an index, { git = URL?rev#commit }, { url = URL }, { path = archive }, { directory = dir }, { editable = dir } or { virtual = dir } (a directory that is not built). Index packages list sdist and wheels; a package without wheels, or from git, a directory or a source archive, is built when installed."),
+		ignoredByToolCommands: verified$2("uv tool install, uv tool run and uvx ignore pyproject.toml and uv.toml in the project and read only user and system configuration", CONFIGURATION),
+		latestVersion: verified$2("0.13.6", `${UV}/CHANGELOG.md`, "Released on 2026-10-26.")
 	}
 };
 
@@ -1350,6 +1686,7 @@ const yarn$1 = {
 // src/knowledge/environment.ts
 const { verified } = verifiedOn("2026-10-28");
 const checked = verifiedOn("2026-10-29");
+const python = verifiedOn("2026-10-30");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
 const NPM_PACKAGE_JSON = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
@@ -1405,8 +1742,11 @@ const environment = {
 			pnpm: "pnpm",
 			yarn: "yarn",
 			bun: "bun",
-			deno: "deno"
-		}, "https://github.com/asdf-vm/asdf-plugins/tree/master/plugins", "Short names in the asdf plugin index; there is no plugin named node.")
+			deno: "deno",
+			python: "python",
+			uv: "uv",
+			poetry: "poetry"
+		}, "https://github.com/asdf-vm/asdf-plugins/tree/master/plugins", "Short names in the asdf plugin index; there is no plugin named node. python, uv and poetry checked on 2026-10-30 (danhper/asdf-python, asdf-community/asdf-uv, asdf-community/asdf-poetry).")
 	},
 	githubActions: {
 		workflows: verified({
@@ -1481,6 +1821,58 @@ const environment = {
 				tool: "deno"
 			}]
 		}, "https://github.com/denoland/setup-deno/blob/main/action.yml", "Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions."),
+		setupPython: python.verified({
+			action: "actions/setup-python",
+			installs: ["python", "pip"],
+			inputs: [
+				{
+					name: "python-version",
+					kind: "version",
+					tool: "python"
+				},
+				{
+					name: "python-version-file",
+					kind: "version-file",
+					tool: "python"
+				},
+				{
+					name: "pip-version",
+					kind: "version",
+					tool: "pip"
+				}
+			]
+		}, "https://github.com/actions/setup-python/blob/v7.1.0/action.yml", "Current version v7.1.0. Without python-version it reads .python-version; python-version wins over python-version-file. pip-version (major[.minor][.patch], CPython only) since v6.0.0."),
+		setupUv: python.verified({
+			action: "astral-sh/setup-uv",
+			installs: ["uv"],
+			inputs: [{
+				name: "version",
+				kind: "version",
+				tool: "uv"
+			}, {
+				name: "version-file",
+				kind: "version-file",
+				tool: "uv"
+			}]
+		}, "https://github.com/astral-sh/setup-uv/blob/v10.3.3/action.yml", "Current version v10.3.3, with no moving v10 tag. Without version or version-file it reads required-version from uv.toml, then pyproject.toml, in the working directory, and installs the latest uv when neither has one."),
+		installPoetry: python.verified({
+			action: "snok/install-poetry",
+			installs: ["poetry"],
+			inputs: [{
+				name: "version",
+				kind: "version",
+				tool: "poetry"
+			}]
+		}, "https://github.com/snok/install-poetry/blob/v1.4.2/action.yml", "A third-party action (current v1.4.2); version defaults to latest, so without it the Poetry version is not pinned."),
+		actionsPoetry: python.verified({
+			action: "abatilo/actions-poetry",
+			installs: ["poetry"],
+			inputs: [{
+				name: "poetry-version",
+				kind: "version",
+				tool: "poetry"
+			}]
+		}, "https://github.com/abatilo/actions-poetry/blob/v4.0.0/action.yml", "A third-party action (current v4.0.0); poetry-version defaults to latest."),
 		codeScanningUpload: checked.verified({
 			action: "github/codeql-action/upload-sarif",
 			inputs: {
@@ -1585,7 +1977,14 @@ const environment = {
 			command: "command",
 			args: "args"
 		}
-	}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.") }
+	}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.") },
+	python: {
+		nameNormalization: python.verified({
+			separators: "[-_.]+",
+			replacement: "-"
+		}, "https://packaging.python.org/en/latest/specifications/name-normalization/", "Names are lowercased and every run of ., - or _ becomes a single -, before lookups and comparisons (PEP 503): Friendly.Bard and friendly_bard are the same package. Read from the page source in pypa/packaging.python.org."),
+		namePattern: python.verified("^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9])$", "https://packaging.python.org/en/latest/specifications/name-normalization/", "The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\\Z run with re.IGNORECASE (PEP 508).")
+	}
 };
 
 // src/knowledge/index.ts
@@ -1595,6 +1994,9 @@ const knowledgeBase = [
 	yarn$1,
 	bun$1,
 	deno$1,
+	uv,
+	pip,
+	poetry,
 	renovate$1,
 	dependabot$1
 ];
@@ -8348,6 +8750,12 @@ function extraString(tool, key) {
 	if (typeof value !== "string") throw new Error(`knowledge base: ${tool.id} extra.${key} must be a string`);
 	return value;
 }
+function workspaceFacts(declaration, objectKey) {
+	return declaration === null ? null : {
+		...declaration,
+		objectKey
+	};
+}
 function tool$1(tools, id) {
 	const found = tools.find((entry) => entry.id === id);
 	if (found === void 0) throw new Error(`knowledge base: no entry for ${id}`);
@@ -8365,10 +8773,7 @@ function detectionFacts(tools, environment) {
 			lockfiles: unique(values(project.lockfiles).flatMap(allVersions)),
 			manifests,
 			configFiles: unique([...ownConfig, ...manifests]).filter((file) => !SHARED_FILES.has(file)),
-			workspaces: {
-				...first(project.workspaces),
-				objectKey: first(project.workspacesObjectKey)
-			}
+			workspaces: workspaceFacts(first(project.workspaces), first(project.workspacesObjectKey))
 		};
 	});
 	const bots = BOTS$1.map((id) => {
@@ -8858,6 +9263,7 @@ function readWorkspaces(repository, facts, manifest) {
 	const declarations = [];
 	const seen = /* @__PURE__ */ new Set();
 	for (const manager of facts.managers) {
+		if (manager.workspaces === null) continue;
 		const { files, key, objectKey } = manager.workspaces;
 		for (const file of files) {
 			const id = `${file}#${key}`;
@@ -10108,6 +10514,9 @@ const TOOL_IDS = [
 	"yarn",
 	"bun",
 	"deno",
+	"uv",
+	"pip",
+	"poetry",
 	"renovate",
 	"dependabot"
 ];

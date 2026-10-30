@@ -1,6 +1,6 @@
 import type { ToolId } from '../knowledge/types.ts';
 
-export type PackageManagerId = Extract<ToolId, 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno'>;
+export type PackageManagerId = Extract<ToolId, 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry'>;
 export type BotId = Extract<ToolId, 'renovate' | 'dependabot'>;
 
 /** Why a package manager is considered in use. Ordered from the strongest signal. */

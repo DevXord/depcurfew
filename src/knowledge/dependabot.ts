@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+const python = verifiedOn('2026-10-30');
 
 const OPTIONS = 'https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference';
 const COOLDOWN_GA = 'https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/';
@@ -78,10 +79,10 @@ export const dependabot: ToolKnowledge = {
       'Keys inside the cooldown block of an updates entry; the semver-* keys override default-days for that kind of update.',
     ),
     excludeWildcards: verified({ since: '0.0.0', trailingOnly: false }, `${OPTIONS}#cooldown`, 'cooldown.exclude accepts * wildcards.'),
-    ecosystems: verified(
-      { npm: ['npm', 'pnpm', 'yarn'], bun: ['bun'], deno: ['deno'] },
+    ecosystems: python.verified(
+      { npm: ['npm', 'pnpm', 'yarn'], bun: ['bun'], deno: ['deno'], pip: ['pip', 'poetry'], uv: ['uv'] },
       `${OPTIONS}#package-ecosystem`,
-      'The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. Cooldown is supported for all three.',
+      'The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). Cooldown, including the semver-* keys, is supported for all of them.',
     ),
     dayRange: disputed(
       'Matters for opting out of the default cooldown; cooldown.exclude: ["*"] works under the documented precedence rule either way. The announcement does not state its author\'s role.',

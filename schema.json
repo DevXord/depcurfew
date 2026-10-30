@@ -142,6 +142,9 @@
               "yarn",
               "bun",
               "deno",
+              "uv",
+              "pip",
+              "poetry",
               "renovate",
               "dependabot"
             ]

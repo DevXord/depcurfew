@@ -5,6 +5,7 @@ import type { EnvironmentKnowledge } from './types.ts';
 
 const { verified } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
+const python = verifiedOn('2026-10-30');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -58,9 +59,9 @@ export const environment: EnvironmentKnowledge = {
       'One tool per line followed by one or more versions separated by spaces (fallbacks); # starts a comment.',
     ),
     plugins: verified(
-      { nodejs: 'node', pnpm: 'pnpm', yarn: 'yarn', bun: 'bun', deno: 'deno' },
+      { nodejs: 'node', pnpm: 'pnpm', yarn: 'yarn', bun: 'bun', deno: 'deno', python: 'python', uv: 'uv', poetry: 'poetry' },
       'https://github.com/asdf-vm/asdf-plugins/tree/master/plugins',
-      'Short names in the asdf plugin index; there is no plugin named node.',
+      'Short names in the asdf plugin index; there is no plugin named node. python, uv and poetry checked on 2026-10-30 (danhper/asdf-python, asdf-community/asdf-uv, asdf-community/asdf-poetry).',
     ),
   },
   githubActions: {
@@ -121,6 +122,41 @@ export const environment: EnvironmentKnowledge = {
       },
       'https://github.com/denoland/setup-deno/blob/main/action.yml',
       'Current major v2. deno-version defaults to 2.x; deno-version-file reads .dvmrc or .tool-versions.',
+    ),
+    setupPython: python.verified(
+      {
+        action: 'actions/setup-python',
+        installs: ['python', 'pip'],
+        inputs: [
+          { name: 'python-version', kind: 'version', tool: 'python' },
+          { name: 'python-version-file', kind: 'version-file', tool: 'python' },
+          { name: 'pip-version', kind: 'version', tool: 'pip' },
+        ],
+      },
+      'https://github.com/actions/setup-python/blob/v7.1.0/action.yml',
+      'Current version v7.1.0. Without python-version it reads .python-version; python-version wins over python-version-file. pip-version (major[.minor][.patch], CPython only) since v6.0.0.',
+    ),
+    setupUv: python.verified(
+      {
+        action: 'astral-sh/setup-uv',
+        installs: ['uv'],
+        inputs: [
+          { name: 'version', kind: 'version', tool: 'uv' },
+          { name: 'version-file', kind: 'version-file', tool: 'uv' },
+        ],
+      },
+      'https://github.com/astral-sh/setup-uv/blob/v10.3.3/action.yml',
+      'Current version v10.3.3, with no moving v10 tag. Without version or version-file it reads required-version from uv.toml, then pyproject.toml, in the working directory, and installs the latest uv when neither has one.',
+    ),
+    installPoetry: python.verified(
+      { action: 'snok/install-poetry', installs: ['poetry'], inputs: [{ name: 'version', kind: 'version', tool: 'poetry' }] },
+      'https://github.com/snok/install-poetry/blob/v1.4.2/action.yml',
+      'A third-party action (current v1.4.2); version defaults to latest, so without it the Poetry version is not pinned.',
+    ),
+    actionsPoetry: python.verified(
+      { action: 'abatilo/actions-poetry', installs: ['poetry'], inputs: [{ name: 'poetry-version', kind: 'version', tool: 'poetry' }] },
+      'https://github.com/abatilo/actions-poetry/blob/v4.0.0/action.yml',
+      'A third-party action (current v4.0.0); poetry-version defaults to latest.',
     ),
     codeScanningUpload: checked.verified(
       {
@@ -207,6 +243,18 @@ export const environment: EnvironmentKnowledge = {
       },
       'https://code.claude.com/docs/en/hooks',
       'A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.',
+    ),
+  },
+  python: {
+    nameNormalization: python.verified(
+      { separators: '[-_.]+', replacement: '-' },
+      'https://packaging.python.org/en/latest/specifications/name-normalization/',
+      'Names are lowercased and every run of ., - or _ becomes a single -, before lookups and comparisons (PEP 503): Friendly.Bard and friendly_bard are the same package. Read from the page source in pypa/packaging.python.org.',
+    ),
+    namePattern: python.verified(
+      '^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9])$',
+      'https://packaging.python.org/en/latest/specifications/name-normalization/',
+      'The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\\Z run with re.IGNORECASE (PEP 508).',
     ),
   },
 };

@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+const python = verifiedOn('2026-10-30');
 
 const OPTIONS = 'https://docs.renovatebot.com/configuration-options/';
 const MINIMUM_RELEASE_AGE = 'https://docs.renovatebot.com/key-concepts/minimum-release-age/';
@@ -138,6 +139,29 @@ export const renovate: ToolKnowledge = {
     presets: verified(
       'config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): "3 days" and internalChecksFilter "strict" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback',
       'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm',
+    ),
+    datasources: python.verified(
+      { npm: 'npm', pypi: 'pypi' },
+      'https://docs.renovatebot.com/modules/datasource/pypi/',
+      'Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version\'s files.',
+    ),
+    pypiPresets: python.verified(
+      { presets: ['security:minimumReleaseAgePypi'], value: '3 days', since: '44.8.0', datasource: 'pypi' },
+      'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi',
+      'Added in 44.8.0; config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm).',
+    ),
+    pythonManagers: python.verified(
+      { uv: 'pep621', poetry: 'poetry', pip: 'pip_requirements' },
+      'https://docs.renovatebot.com/modules/manager/pep621/',
+      'pep621 updates pyproject.toml with uv.lock (there is no uv manager); poetry updates pyproject.toml with poetry.lock; pip_requirements updates requirements files. pip-compile is off by default.',
+    ),
+    passesDelayToManager: python.verified(
+      [
+        { since: '0.0.0', value: [] },
+        { since: '44.34.0', value: ['poetry'] },
+      ],
+      MINIMUM_RELEASE_AGE,
+      'Since 44.34.0 Renovate passes POETRY_SOLVER_MIN_RELEASE_AGE (rounded up to whole days) to Poetry 2.4.0 and later. It does not pass the delay to uv or read exclude-newer.',
     ),
     missingTimestamp: verified(
       [

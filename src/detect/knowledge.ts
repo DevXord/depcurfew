@@ -19,7 +19,8 @@ export interface ManagerFacts {
   manifests: string[];
   /** The tool's own configuration files, without package.json and .npmrc. */
   configFiles: string[];
-  workspaces: WorkspaceDeclaration & { objectKey: string | null };
+  /** `null` when the tool has no workspaces. */
+  workspaces: (WorkspaceDeclaration & { objectKey: string | null }) | null;
 }
 
 export interface BotFacts {
@@ -69,6 +70,10 @@ function extraString(tool: ToolKnowledge, key: string): string {
   return value;
 }
 
+function workspaceFacts(declaration: WorkspaceDeclaration | null, objectKey: string | null): ManagerFacts['workspaces'] {
+  return declaration === null ? null : { ...declaration, objectKey };
+}
+
 function tool(tools: readonly ToolKnowledge[], id: ToolId): ToolKnowledge {
   const found = tools.find((entry) => entry.id === id);
   if (found === undefined) throw new Error(`knowledge base: no entry for ${id}`);
@@ -87,7 +92,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       lockfiles: unique(values(project.lockfiles).flatMap(allVersions)),
       manifests,
       configFiles: unique([...ownConfig, ...manifests]).filter((file) => !SHARED_FILES.has(file)),
-      workspaces: { ...first(project.workspaces), objectKey: first(project.workspacesObjectKey) },
+      workspaces: workspaceFacts(first(project.workspaces), first(project.workspacesObjectKey)),
     };
   });
 

@@ -1,8 +1,10 @@
 // Every fact about a package manager or bot carries the official URL it was verified against
 // and the date of verification. Disputed facts keep every variant with its own source.
 
-export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'renovate' | 'dependabot';
+export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'renovate' | 'dependabot';
 export type ToolKind = 'package-manager' | 'update-bot';
+/** The registry a package manager installs from; package names in the policy are compared per ecosystem. */
+export type Ecosystem = 'npm' | 'pypi';
 
 export interface Evidence<T> {
   value: T;
@@ -117,7 +119,8 @@ export interface ProjectKnowledge {
   lockfiles: Fact<Versioned<readonly string[]>>;
   /** Files that make a directory a project or a workspace package for this tool. */
   manifests: Fact<readonly string[]>;
-  workspaces: Fact<WorkspaceDeclaration>;
+  /** `null` when the tool has no workspaces. In TOML files the key is a dotted path to a table. */
+  workspaces: Fact<WorkspaceDeclaration | null>;
   /** Key of the package list when the workspace declaration is an object instead of a list; `null` if only lists are accepted. */
   workspacesObjectKey: Fact<string | null>;
 }
@@ -126,6 +129,8 @@ export interface ToolKnowledge {
   id: ToolId;
   name: string;
   kind: ToolKind;
+  /** Package managers only; `npm` when absent. */
+  ecosystem?: Ecosystem;
   cooldown: CooldownKnowledge;
   installScripts: InstallScriptsKnowledge;
   /** Package managers only: bots do not resolve dependency sources themselves. */
@@ -222,8 +227,8 @@ export interface RegistryConfigKnowledge {
 
 // Facts about the environment around the package managers: version pinning (Corepack, Volta, asdf) and CI.
 
-/** A tool that environment facts refer to: Node.js or a package manager. */
-export type RuntimeOrTool = 'node' | ToolId;
+/** A tool that environment facts refer to: Node.js, Python or a package manager. */
+export type RuntimeOrTool = 'node' | 'python' | ToolId;
 
 export interface PackageManagerFieldKnowledge {
   /** Key in package.json, e.g. `packageManager`. */
@@ -372,6 +377,11 @@ export interface EnvironmentKnowledge {
     pnpmSetup: Fact<SetupActionKnowledge>;
     setupBun: Fact<SetupActionKnowledge>;
     setupDeno: Fact<SetupActionKnowledge>;
+    setupPython: Fact<SetupActionKnowledge>;
+    setupUv: Fact<SetupActionKnowledge>;
+    /** Third-party actions that install Poetry; Poetry has no official action. */
+    installPoetry: Fact<SetupActionKnowledge>;
+    actionsPoetry: Fact<SetupActionKnowledge>;
     codeScanningUpload: Fact<CodeScanningUploadKnowledge>;
     stopCommands: Fact<StopCommandsKnowledge>;
     annotations: Fact<AnnotationsKnowledge>;
@@ -386,5 +396,11 @@ export interface EnvironmentKnowledge {
   };
   claudeCode: {
     hooks: Fact<ClaudeCodeHooksKnowledge>;
+  };
+  python: {
+    /** How Python package names are compared: lowercased, with every run of these characters replaced by `replacement`. */
+    nameNormalization: Fact<{ separators: string; replacement: string }>;
+    /** Python package names: ASCII letters and digits, `.`, `_` and `-`, starting and ending with a letter or digit. */
+    namePattern: Fact<string>;
   };
 }

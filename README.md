@@ -132,8 +132,11 @@ What depcurfew configures and checks for each tool, from its [knowledge base](do
 | Yarn (Berry) | `npmMinimalAgeGate` in `.yarnrc.yml` (minutes), since 4.10.2 | `npmPreapprovedPackages`, since 4.10.0 | `dependenciesMeta.<package>.built` in `package.json` | git: `approvedGitRepositories` | 2026-10-28 – 2026-10-29 |
 | Bun | `install.minimumReleaseAge` in `bunfig.toml` (seconds), since 1.3.0 | `install.minimumReleaseAgeExcludes`, since 1.3.0 | `trustedDependencies` in `package.json` | none | 2026-10-28 – 2026-10-29 |
 | Deno | `minimumDependencyAge` in `deno.json`, `.npmrc` (minutes), since 2.5.5 / 2.6.0 ⚠️ | `minimumDependencyAge.exclude`, since 2.5.5 | `allowScripts` in `deno.json` | none | 2026-10-28 – 2026-10-29 |
-| Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 |
-| Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 |
+| uv | `exclude-newer` in `uv.toml`, `pyproject.toml` (duration string), since 0.9.17 | `exclude-newer-package`, since 0.9.25 | `no-binary-package` in `pyproject.toml` | none | 2026-10-30 |
+| pip | `uploaded-prior-to` in  (days), since 26.1.0 | none | `--no-binary` in `requirements.txt` | none | 2026-10-30 |
+| Poetry | `solver.min-release-age` in `poetry.toml` (days), since 2.4.0 | `solver.min-release-age-exclude`, since 2.4.0 | `installer.no-binary` in `poetry.toml` | none | 2026-10-30 |
+| Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 – 2026-10-30 |
+| Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 – 2026-10-30 |
 
 ⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](docs/knowledge.md).
 <!-- END GENERATED: tools -->

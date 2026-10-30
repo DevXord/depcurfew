@@ -155,6 +155,7 @@ function readWorkspaces(repository: Repository, facts: DetectionFacts, manifest:
   const declarations: { file: string; patterns: string[] }[] = [];
   const seen = new Set<string>();
   for (const manager of facts.managers) {
+    if (manager.workspaces === null) continue;
     const { files, key, objectKey } = manager.workspaces;
     for (const file of files) {
       const id = `${file}#${key}`;
