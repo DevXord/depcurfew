@@ -32,7 +32,7 @@ function sarifFor(directory: string): Record<string, unknown> {
       return undefined;
     }
   };
-  return toSarif(runDoctor(directory), RULES, '0.0.0', readLine) as Record<string, unknown>;
+  return toSarif(runDoctor(directory, { invalidPolicy: 'report' }), RULES, '0.0.0', readLine) as Record<string, unknown>;
 }
 
 describe('SARIF output', () => {

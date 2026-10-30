@@ -66,7 +66,7 @@ export const COMMANDS: readonly CommandInfo[] = [
       { name: 'sarif', summary: 'Print the findings as SARIF 2.1.0 for code scanning' },
     ],
     details:
-      'Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depcurfew.json. Every finding says where it is and how to fix it. Without depcurfew.json, only the rules that do not need a policy run.',
+      'Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depcurfew.json. Every finding says where it is and how to fix it. Without depcurfew.json, only the rules that do not need a policy run; an invalid depcurfew.json is reported as an error finding (invalid-policy), and the same rules run.',
     examples: ['depcurfew doctor', 'depcurfew doctor --json', 'depcurfew doctor --sarif > depcurfew.sarif'],
     exitCodes: [
       [0, 'no finding with level error (warnings and notes included)'],

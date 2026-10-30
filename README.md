@@ -201,6 +201,14 @@ depcurfew configures uv, Poetry and pip from the same `depcurfew.json`, and the 
 Findings have a level: an **error** makes `depcurfew doctor` exit with 1, a **warning** or a **note** does not. Things doctor could not check (a binary lockfile, a lockfile format without install-script data, a missing policy) are listed as notes after the findings, not as findings.
 
 <!-- BEGIN GENERATED: rules -->
+### `invalid-policy`
+
+**error** · depcurfew.json does not follow the schema or cannot be read.
+
+Without a valid policy, the rules that compare the repository with depcurfew.json cannot run, so doctor runs only the rules that need no policy, as when there is no policy file.
+
+Fix: Fix what the message lists; an editor that reads the $schema of depcurfew.json shows the problems as you type.
+
 ### `manager-version-too-old`
 
 **error** · A declared package manager version is older than a setting the repository relies on.

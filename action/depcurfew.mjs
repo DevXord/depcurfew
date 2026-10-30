@@ -14186,6 +14186,32 @@ const settingIgnoredByVersion = {
 	}
 };
 
+// src/doctor/rules/invalid-policy.ts
+const FIXES = {
+	"policy-invalid": `Fix these problems in ${POLICY_FILE}; an editor that reads its $schema shows them as you type`,
+	"policy-unreadable": `Make ${POLICY_FILE} a regular file inside the repository, so that depcurfew can read it`
+};
+const invalidPolicy = {
+	id: "invalid-policy",
+	summary: `${POLICY_FILE} does not follow the schema or cannot be read.`,
+	description: `Without a valid policy, the rules that compare the repository with ${POLICY_FILE} cannot run, so doctor runs only the rules that need no policy, as when there is no policy file.`,
+	help: `Fix what the message lists; an editor that reads the $schema of ${POLICY_FILE} shows the problems as you type.`,
+	level: "error",
+	requiresPolicy: false,
+	check(context) {
+		try {
+			loadPolicyIfPresent(context.root);
+		} catch (error) {
+			if (!(error instanceof PolicyError)) throw error;
+			context.report({
+				location: { file: POLICY_FILE },
+				message: error.issues.length === 0 ? error.text : `${error.text}: ${error.issues.join("; ")}`,
+				fix: FIXES[error.code] ?? error.fix ?? invalidPolicy.help
+			});
+		}
+	}
+};
+
 // src/doctor/rules/lockfile.ts
 const LABELS = {
 	npm: {
@@ -14922,6 +14948,7 @@ const unreadableConfig = {
 // src/doctor/rules/index.ts
 /** Every doctor rule, in the order they are documented. unreadable-config runs last, after every other rule has read its files. */
 const RULES = [
+	invalidPolicy,
 	managerVersionTooOld,
 	settingIgnoredByVersion,
 	npmrcOverridesPolicy,
@@ -15170,10 +15197,20 @@ function byLocation(a, b) {
 	if (a.location.file !== b.location.file) return a.location.file < b.location.file ? -1 : 1;
 	return (a.location.line ?? 0) - (b.location.line ?? 0) || LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0);
 }
-/** Runs the rules on a repository. Throws PolicyError when depcurfew.json exists but is invalid. */
+/**
+* Runs the rules on a repository. When depcurfew.json exists but is invalid, it throws PolicyError, or with
+* invalidPolicy: 'report' runs the rules that need no policy and reports the problems as an invalid-policy finding.
+*/
 function runDoctor(root, options = {}) {
 	const tools = options.tools ?? knowledgeBase;
-	const policy = loadPolicyIfPresent(root);
+	let policy;
+	let invalid = false;
+	try {
+		policy = loadPolicyIfPresent(root);
+	} catch (error) {
+		if (!(error instanceof PolicyError) || options.invalidPolicy !== "report") throw error;
+		invalid = true;
+	}
 	const detection = detectProject(root);
 	const repository = new Repository(root);
 	const findings = [];
@@ -15184,7 +15221,8 @@ function runDoctor(root, options = {}) {
 			file
 		});
 	};
-	if (policy === void 0) notice(`no ${POLICY_FILE}: only the rules that do not need a policy ran`);
+	if (invalid) notice(`${POLICY_FILE} is invalid: only the rules that do not need a policy ran`);
+	else if (policy === void 0) notice(`no ${POLICY_FILE}: only the rules that do not need a policy ran`);
 	const rules = options.rules ?? RULES;
 	for (const rule of rules) {
 		if (rule.requiresPolicy && policy === void 0) continue;
@@ -15206,7 +15244,7 @@ function runDoctor(root, options = {}) {
 	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
 	return {
 		schemaVersion: 1,
-		policy: policy === void 0 ? "missing" : "valid",
+		policy: invalid ? "invalid" : policy === void 0 ? "missing" : "valid",
 		findings: findings.sort(byLocation),
 		notices
 	};
