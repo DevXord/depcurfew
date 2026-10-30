@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3d", "exclude": ["@acme/*", "pypi:acme-lib"] },
+  "installScripts": { "default": "deny", "allow": ["esbuild", "pypi:docopt"] },
+  "targets": "auto"
+}

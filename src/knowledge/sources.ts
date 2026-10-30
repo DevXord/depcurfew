@@ -16,6 +16,14 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   yarn: [{ host: 'yarnpkg.com' }, { host: 'github.com', pathPrefix: '/yarnpkg/' }],
   bun: [{ host: 'bun.com' }, { host: 'bun.sh' }, { host: 'github.com', pathPrefix: '/oven-sh/' }],
   deno: [{ host: 'docs.deno.com' }, { host: 'deno.com' }, { host: 'github.com', pathPrefix: '/denoland/' }],
+  uv: [{ host: 'docs.astral.sh' }, { host: 'github.com', pathPrefix: '/astral-sh/' }],
+  pip: [
+    { host: 'pip.pypa.io' },
+    { host: 'github.com', pathPrefix: '/pypa/' },
+    { host: 'packaging.python.org' },
+    { host: 'peps.python.org' },
+  ],
+  poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   dependabot: [
     { host: 'docs.github.com' },
@@ -24,7 +32,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
 };
 
-/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions and Claude Code. */
+/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code and Python packaging. */
 export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'nodejs.org' },
   { host: 'github.com', pathPrefix: '/nodejs/' },
@@ -37,6 +45,13 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/oven-sh/' },
   { host: 'github.com', pathPrefix: '/denoland/' },
   { host: 'code.claude.com', pathPrefix: '/docs/' },
+  { host: 'packaging.python.org' },
+  { host: 'github.com', pathPrefix: '/pypa/' },
+  { host: 'github.com', pathPrefix: '/astral-sh/' },
+  { host: 'github.com', pathPrefix: '/python-poetry/' },
+  // Third-party actions that install Poetry: their own repositories describe their inputs.
+  { host: 'github.com', pathPrefix: '/snok/' },
+  { host: 'github.com', pathPrefix: '/abatilo/' },
 ];
 
 export function isOfficialSource(url: URL, rules: readonly SourceRule[]): boolean {

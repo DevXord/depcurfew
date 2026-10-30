@@ -153,3 +153,45 @@ describe('detectProject on GitHub Actions', () => {
     ]);
   });
 });
+
+describe('detectProject on workspaces of several registries', () => {
+  it('counts a package.json member of a Deno workspace, but not a Python project under a JavaScript workspace pattern', () => {
+    write('deno.json', '{ "workspace": ["./web", "./api"] }\n');
+    write('web/package.json', '{ "name": "web" }\n');
+    write('api/deno.json', '{ "name": "@app/api" }\n');
+    write('package.json', '{ "name": "root", "workspaces": ["tools/*"] }\n');
+    write('package-lock.json', '{ "lockfileVersion": 3, "packages": {} }\n');
+    write('tools/js/package.json', '{ "name": "js" }\n');
+    write('tools/py/pyproject.toml', '[project]\nname = "py"\nversion = "0.1.0"\n');
+    expect(detectProject(root).workspaces?.packages).toEqual(['api', 'tools/js', 'web']);
+  });
+
+  it('falls back to the next declaration file when one cannot be parsed', () => {
+    write('deno.json', '{ "workspace": ["./pkg", }\n');
+    write('deno.jsonc', '{ "workspace": ["./pkg"] }\n');
+    write('pkg/deno.json', '{ "name": "@app/pkg" }\n');
+    const result = detectProject(root);
+    expect(result.workspaces?.packages).toEqual(['pkg']);
+    expect(result.warnings.map((warning) => warning.code)).toContain('invalid-file');
+  });
+});
+
+describe('detectProject on Python projects', () => {
+  it('takes required-version only from the file uv reads: uv.toml hides [tool.uv] in pyproject.toml', () => {
+    write('pyproject.toml', '[project]\nname = "app"\nversion = "0.1.0"\n\n[tool.uv]\nrequired-version = "==0.9.16"\n');
+    write('uv.toml', 'no-build = true\n');
+    write('uv.lock', 'version = 1\nrevision = 3\nrequires-python = ">=3.12"\n');
+    expect(detectProject(root).packageManagers.find((manager) => manager.id === 'uv')?.versions).toEqual([]);
+    write('uv.toml', 'required-version = "==0.13.6"\n');
+    expect(detectProject(root).packageManagers.find((manager) => manager.id === 'uv')?.versions).toEqual([
+      { version: '0.13.6', source: 'tool-config', file: 'uv.toml', line: 1 },
+    ]);
+  });
+
+  it('finds named pylock files, as the specification allows', () => {
+    write('pylock.dev.toml', 'lock-version = "1.0"\ncreated-by = "pip"\n');
+    write('pylock.a.b.toml', 'lock-version = "1.0"\n');
+    const pip = detectProject(root).packageManagers.find((manager) => manager.id === 'pip');
+    expect(pip?.evidence).toEqual([{ kind: 'lockfile', file: 'pylock.dev.toml' }]);
+  });
+});

@@ -1,0 +1,9 @@
+[project]
+name = "demo"
+version = "0.1.0"
+
+[tool.uv]
+exclude-newer = "7 days"
+no-build = true
+
+[tool.uv.sources]

@@ -881,3 +881,64 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 - **Pliki zapisywane w projektach użytkowników:** `depcurfew.json` (`$schema` na unpkg.com/depcurfew) i znaczniki zapisywane przez `apply` od początku zawierały tylko markę.
 - **Poza kodem:** rejestr npm pokazuje publicznie nazwę i mail opiekuna paczki (pole `maintainers`), a historia commitów na GitHubie — dotychczasowych autorów.
 - **README na stronie npm.** npm pokazuje README z opublikowanej paczki, więc nota „pre-release” i instrukcja „until the package is published” znikają przed tagiem `v1.0.0`, nie po nim.
+
+## D-065 · Python: nazwy z prefiksem `pypi:`, budowanie ze źródeł jako `installScripts` (2026-10-30)
+
+- **Decyzja właściciela.** Obie części wybrał właściciel spośród przedstawionych wariantów.
+- **Nazwy paczek.** Paczki Pythona w `cooldown.exclude` i `installScripts.allow` mają prefiks `pypi:` (`"pypi:docopt"`, `"pypi:acme-*"`). Nazwy bez prefiksu dotyczą tylko npm, tak jak w 1.0, więc znaczenie istniejących plików się nie zmienia.
+  - Powód: ta sama nazwa w npm i PyPI to dwie różne paczki. Zgoda na npm-owe `esbuild` nie może obejmować paczki `esbuild` z PyPI.
+  - Inne prefiksy (`npm:`, `PyPI:`) są błędem z podpowiedzią. Nazwy Pythona porównujemy po normalizacji z PEP 503.
+  - Przy okazji nazwy npm mogą zawierać `_` (np. `string_decoder`), co wcześniej było błędem gramatyki.
+- **Kto widzi które nazwy.**
+  - Generatory menedżerów, reguły `doctor` i `check` dostają widok polityki swojego rejestru (`policyFor`).
+  - Dependabot: każdy wpis `updates` dostaje wyjątki swojego rejestru (`npm`, `bun`, `deno`: nazwy npm; `pip`, `uv`: nazwy `pypi:`).
+  - Renovate: reguła z nazwami npm zostaje bez zmian, czyli bez `matchDatasources`, jak w 1.0. Nazwy `pypi:` trafiają do osobnej reguły z `matchDatasources: ["pypi"]`. Ograniczenie: nazwy npm w regule Renovate nadal obejmują wszystkie źródła; zawężenie do `npm` wymagałoby faktów o źródłach JSR w menedżerze Deno.
+- **`installScripts` w Pythonie oznacza budowanie ze źródeł.** Budowanie sdist, repozytorium git albo katalogu uruchamia backend budowania, czyli kod paczki. Instalacja koła (wheel) nie uruchamia kodu. `default: "deny"` to zakaz budowania:
+  - uv: `no-build = true`;
+  - Poetry: `installer.only-binary = [":all:"]` (od 2.0.0);
+  - pip: `--only-binary=:all:` w `requirements.txt`, bo pip nie ma konfiguracji projektu.
+- **Lista `allow`.** Żadne z trzech narzędzi nie ma ustawienia „tej paczce wolno budować”. Ma tylko wyjątek od zakazu, który wymusza budowanie danej paczki ze źródeł przy każdej instalacji, nawet gdy jest koło: uv `no-binary-package`, Poetry `installer.no-binary` (wyjątek działa od 2.2.0), pip `--no-binary`.
+  - Decyzja: zapisujemy zakaz i wymuszone wyjątki, z ostrzeżeniem, co to znaczy. Zgody potrzebują zwykle paczki bez kół, a dla nich nic się nie zmienia; `doctor` wskaże je w lockfile'u.
+  - Poetry przed 2.2.0: paczka z obu list nie ma pliku do instalacji, więc wyjątków nie zapisujemy i ostrzegamy.
+- **Czego zakaz nie obejmuje.** Poetry i pip budują zależności z gita, katalogów i URL mimo zakazu, a Poetry może budować sdist już przy rozwiązywaniu zależności. uv z `no-build = true` odmawia też gita i lokalnych katalogów (poza członkami workspace'u), co sprawdziłem na uv 0.13.6. Zakres przełącznika zapisuje fakt `buildSwitch.covers`. Zależności spoza zakresu pilnuje sekcja `sources` (żadne narzędzie nie ma ustawienia, które ich zabrania) oraz `doctor` na lockfile'u.
+- **Macierz prawdziwych wersji (2026-10-30).** Za stara wersja nie kończy się błędem, tylko po cichu wyłącza ochronę:
+  - uv 0.9.16 nie rozumie okresu w `exclude-newer`, ostrzega i rozwiązuje bez opóźnienia;
+  - uv 0.9.17 z wyjątkiem `= false` (dopiero od 0.9.25) ignoruje całe `[tool.uv]`;
+  - Poetry 2.3.4 bez słowa ignoruje `solver.min-release-age`;
+  - pip 25.3 bez słowa ignoruje `PIP_UPLOADED_PRIOR_TO`, a pip 26.0 przyjmuje tylko daty.
+
+  Dlatego `apply` pisze ustawienie tylko dla wersji, która je zna, a `doctor` (`manager-version-too-old`) zgłasza za stare wersje przypięte w projekcie. Projekty testowe miały wyłącznie paczki z kołami, więc nic nie było budowane ani uruchamiane.
+- **Nowa reguła `python-config-ignored`.** Wykrywa ustawienia Pythona zapisane tam, gdzie narzędzie ich nie czyta: `[tool.uv]` obok `uv.toml`, ustawienia uv w członkach workspace'u, `pip.conf` w projekcie, opcje odrzucane przez pip w `requirements.txt` oraz datę w `exclude-newer`, która zamraża zależności.
+
+## D-066 · Poprawki po przeglądzie fazy 10 (2026-10-30)
+
+- **Klucze `__proto__` w TOML.** Czytnik zapisuje klucze jako własne właściwości (`Object.defineProperty`) i odczytuje tylko własne (`Object.hasOwn`). `__proto__` i `constructor` w pliku są zwykłymi danymi, jak w `tomllib` i uv.
+  - Wcześniej `source = { __proto__ = { registry = … }, git = … }` w `uv.lock` ukrywało zależność z gita przed `doctor`.
+  - Zapis `__proto__.x = …` zmieniał `Object.prototype` w całym procesie.
+- **Pliki dołączane w requirements.** `doctor` czyta pliki z `-r` i `-c`, tak jak pip, czyli względem pliku, który je dołącza. Opcje globalne (np. `--only-binary`) z całego drzewa dotyczą wszystkich paczek.
+  - Dołączenie, którego nie da się przeczytać (URL, brak pliku, ścieżka poza repozytorium), to błąd `unreadable-config`: fail closed.
+  - Sprawdzanie biegnie razem z regułami lockfile'ów, czyli gdy polityka ma `sources` albo `installScripts.default: "deny"`.
+- **Ścieżki w requirements jak w pip.** Wymaganie z separatorem ścieżki albo zaczynające się od `.` to ścieżka, a nazwa z rozszerzeniem archiwum to plik, także bez `./`. Rozszerzenia, schematy URL i fragment `#egg=` pochodzą z bazy wiedzy (`requirementsPaths`, `requirementsFormat`).
+- **`required-version` tylko z pliku, który uv czyta.** Gdy jest `uv.toml`, wersja z `[tool.uv]` nie jest przypięta: uv ją pomija i sam o tym ostrzega.
+- **`uv lock` po `apply`.** `uv.lock` zapisuje w `[options]` ustawienia `exclude-newer` i `exclude-newer-package` (fakt `lockedSettings`). Gdy `apply` je zmienia, a `uv.lock` istnieje, ostrzega, że trzeba uruchomić `uv lock`, bo inaczej `uv sync --locked` i `uv lock --check` kończą się błędem. `no-build` nie trafia do lockfile'u, więc jego zmiana nie wymaga ponownego blokowania.
+- **Fail closed dla TOML w `doctor`.** Reguły czytają TOML przez `Repository.parseOnce`, więc błąd składni (np. dwa razy `[solver]` w `poetry.toml`) trafia do `unreadable-config`. Wykrywanie i `doctor` mają jedną pamięć podręczną zamiast dwóch.
+- **Workspace przy nieczytelnym pliku deklaracji.** Jak w 1.0: gdy `deno.json` się nie parsuje, workspace może pochodzić z `deno.jsonc`.
+- **Nazwane pliki pylock.** `pylock.<nazwa>.toml`, który dopuszcza specyfikacja, jest wykrywany. Nazwa pliku projektu Pythona (`pyproject.toml`) pochodzi z bazy wiedzy.
+- **Usunięcie bloku w środku pliku.** `removeBlock` zdejmuje pustą linię wstawioną przed blokiem także wtedy, gdy po bloku stoi pusta linia, więc plik wraca do oryginału. Dotyczyło to też `bunfig.toml` w 1.0.0.
+- **Komunikaty dla człowieka i dla AI.** Stałe zasady są w CLAUDE.md (sekcja „Komunikaty”). Brakujące `apply --json` z kodami ostrzeżeń to osobne zadanie.
+
+## D-067 · `apply --json` i kody ostrzeżeń (2026-10-30)
+
+- **Kody.** Każde ostrzeżenie i błąd `apply` ma stały kod w kebab-case. Katalog `APPLY_WARNINGS` i `APPLY_ERRORS` w `src/apply/warnings.ts` daje do każdego kodu jedno zdanie opisu, z którego powstaje sekcja README (`apply-codes`). Test pilnuje, że każdy kod z katalogu jest użyty w kodzie, a TypeScript, że kod spoza katalogu się nie skompiluje.
+- **Ostrzeżenie** to `{ code, tool, location?, message, fix? }`, jak znalezisko `doctor`. `message` mówi, co się stało, a `fix` (gdy jest co zrobić) co zrobić. Ostrzeżenia czysto informacyjne, np. o ustawieniu, które `apply` samo przełączyło, nie mają `fix`.
+- **Tekst dla człowieka** wygląda jak w `doctor`: `warning: <message> (<kod>)`, a w następnej linii `fix: <co zrobić>`. Kod jest przygaszony, `fix:` zielone. Błąd ma tę samą postać, np. `error: … (cannot-edit)` i `fix:`. Liczba i kolejność ostrzeżeń w fiksturach się nie zmieniła; zmienił się tylko podział na komunikat i poprawkę.
+- **`apply --json`** (także z `--dry-run`) wypisuje na stdout jeden dokument, a stderr zostaje pusty:
+  - `schemaVersion: 1`, `policy` (`valid`, `missing`, `invalid`), `dryRun`, `written`;
+  - `changes`: plik, `action` (`create` albo `update`) i diff unified;
+  - `warnings` i `errors`: `code`, `level`, narzędzie, plik, `message`, `fix`, a przy błędnej polityce także `issues`;
+  - `snippets` i `summary`.
+
+  Gdy jest błąd, `changes` jest puste, bo `apply` nic nie zapisze; kod wyjścia jest taki sam jak w trybie tekstowym. Brak albo błąd `depcurfew.json` też daje dokument JSON (kody `policy-missing`, `policy-invalid`, `policy-unreadable`), a nie tekst na stderr.
+- **Zgodność wsteczna.** `ApplyReport.warnings` zostaje listą napisów (`message` i `fix` w jednej linii). Szczegóły są w nowym polu `warningDetails`, tak jak `errors` i `failures`. `PolicyError` dostaje `code`, `fix` i `text`. Publiczne API eksportuje też `APPLY_WARNINGS`, `APPLY_ERRORS`, `warningText` i typy `ApplyWarning`, `ApplyWarningCode`, `ApplyErrorCode`.
+- **TOML, który się nie parsuje, nie jest edytowany.** Blok TOML jest pisany liniami, więc wcześniej `apply` dopisywało go do zepsutego pliku i zgłaszało sukces (także `bunfig.toml` w 1.0.0). Teraz plik musi się parsować przed edycją i po niej; inaczej to błąd `cannot-edit` i nic nie zostaje zapisane, jak przy JSON i YAML. Wyszło przy pokazie `apply --json` na projekcie testowym.
+- **Poza zakresem.** `doctor --json` przy błędnej polityce nadal pisze tekst na stderr; ujednolicenie to osobne zadanie.

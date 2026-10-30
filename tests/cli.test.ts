@@ -66,9 +66,9 @@ describe('depcurfew CLI', () => {
   });
 
   it('rejects an option of another command', async () => {
-    const result = await exec('apply', '--json');
+    const result = await exec('apply', '--sarif');
     expect(result.code).toBe(EXIT_USAGE);
-    expect(result.stderr).toContain("option '--json' is not supported by 'apply'");
+    expect(result.stderr).toContain("option '--sarif' is not supported by 'apply'");
   });
 
   it('shows help instead of running a command when --help is given', async () => {

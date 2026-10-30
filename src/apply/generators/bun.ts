@@ -32,7 +32,11 @@ export const bun: ManagerGenerator = (context) => {
 
   if (policy.installScripts !== undefined) {
     if (policy.installScripts.default === 'allow') {
-      context.warn(`${context.name} has no setting that allows every install script; "allow" not written. List the packages under installScripts.allow instead`);
+      context.warn({
+        code: 'allow-all-unsupported',
+        message: `${context.name} has no setting that allows every install script; "allow" not written`,
+        fix: 'List the packages under installScripts.allow instead',
+      });
     } else {
       const setting = settingOf(tool.installScripts.allowList.setting);
       const since = sinceOf(tool.installScripts.allowList.availableSince);
@@ -41,9 +45,11 @@ export const bun: ManagerGenerator = (context) => {
         const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
         const current = context.json(listFile).get([setting]);
         if (current === undefined) {
-          context.warn(
-            `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed; add the ones that need their scripts to installScripts.allow`,
-          );
+          context.warn({
+            code: 'built-in-list-replaced',
+            message: `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed`,
+            fix: 'Add the ones that need their scripts to installScripts.allow',
+          });
         }
         // Even an empty list is written: without one, the packages on Bun's built-in list still run their scripts.
         const list = Array.isArray(current) ? [...(current as unknown[])] : [];

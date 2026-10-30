@@ -1,0 +1,12 @@
+name: CI
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.13"
+          pip-version: "26.2.2"
+      - run: pip install -r requirements.txt

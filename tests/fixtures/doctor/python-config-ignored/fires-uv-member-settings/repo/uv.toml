@@ -1,0 +1,2 @@
+# Settings for the whole workspace.
+exclude-newer = "1 week"

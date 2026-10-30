@@ -1,7 +1,7 @@
 # Zasady projektu
 
 ## Cel
-CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa łańcucha dostaw dla npm, pnpm, Yarn, Bun, Deno, Renovate i Dependabota oraz wykrywa konfigurację, która po cichu nie działa.
+CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa łańcucha dostaw dla npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, Renovate i Dependabota oraz wykrywa konfigurację, która po cichu nie działa.
 
 ## Twarde reguły
 - To narzędzie bezpieczeństwa. Minimum zależności w czasie działania: wolno użyć wyłącznie `yaml` (zero zależności przechodnich), wszystko inne piszemy sami. Każda nowa zależność wymaga uzasadnienia w docs/decisions.md.
@@ -15,6 +15,13 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 - Tylko ESM, bez top-level await.
 - Nie publikuj niczego na npm, nie twórz kont i nie wypychaj zmian do zdalnego repozytorium bez zgody właściciela. Nie zmieniaj ustawień poza tym repozytorium.
 - docs/PLAN.md jest dokumentem lokalnym (jest w .gitignore) i nigdy nie trafia do commitów.
+
+## Komunikaty (dla człowieka i dla AI)
+- Każdy błąd i ostrzeżenie mówi, co jest nie tak, gdzie (plik i linia, gdy są znane) i co zrobić (`fix` w `doctor`, wskazówka w `apply` i `check`). Prosty angielski, nazwy plików i ustawień dosłownie.
+- Kolor tylko w terminalu (TTY), z obsługą `NO_COLOR` i `FORCE_COLOR`. Kolor nigdy nie jest jedynym nośnikiem informacji: poziom (`error`, `warning`, `note`) zawsze stoi słowem.
+- Każde polecenie, które coś zgłasza, ma wyjście maszynowe (`--json`, w `doctor` także `--sarif`) ze stałym schematem: `schemaVersion`, identyfikator reguły lub kodu, poziom, położenie, `message` i `fix`. Na stdout tylko JSON, bez kolorów; zmiana schematu to nowa wersja `schemaVersion`. Kody ostrzeżeń i błędów `apply` są w `src/apply/warnings.ts` i w README.
+- Tekst i JSON mają jedno źródło komunikatu, różnią się tylko formatem. Kody wyjścia są opisane w `--help` i nie zmieniają znaczenia.
+- Nowy komunikat przechodzi ten sam test, zanim trafi do kodu.
 
 ## Polecenia
 - `npm test` – build (tsdown) i testy (Vitest), w tym testy fikstur „przed i po”

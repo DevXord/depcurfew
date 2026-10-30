@@ -1,0 +1,13 @@
+[project]
+name = "monorepo"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["api", "core"]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+exclude = ["packages/scratch"]
+
+[tool.uv.sources]
+api = { workspace = true }
+core = { workspace = true }

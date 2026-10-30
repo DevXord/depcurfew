@@ -1,0 +1,29 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "poetry.lock",
+      "line": 3
+    },
+    "message": "docopt has to be built from source (its index has only a source distribution), but installer.only-binary in poetry.toml forbids building, so installing it fails until it is allowed",
+    "fix": "Review docopt and add \"pypi:docopt\" to installScripts.allow in depcurfew.json (it is then always built from source), or replace the package"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "poetry.lock",
+      "line": 29
+    },
+    "message": "local-lib is built from source when installed (it is a local directory), which runs its build code: installer.only-binary in poetry.toml forbids building only for packages from an index, and depcurfew.json does not allow it",
+    "fix": "Review local-lib and add \"pypi:local-lib\" to installScripts.allow in depcurfew.json (it is then always built from source), or replace the package"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "poetry.lock",
+      "line": 58
+    },
+    "message": "sampleproject is built from source when installed (it comes from a git repository), which runs its build code: installer.only-binary in poetry.toml forbids building only for packages from an index, and depcurfew.json does not allow it",
+    "fix": "Review sampleproject and add \"pypi:sampleproject\" to installScripts.allow in depcurfew.json (it is then always built from source), or replace the package"
+  }
+]

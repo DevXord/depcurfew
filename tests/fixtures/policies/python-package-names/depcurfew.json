@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3d", "exclude": ["@acme/*", "pypi:acme-*", "pypi:Zope.Interface", "string_decoder"] },
+  "installScripts": { "default": "deny", "allow": ["esbuild", "pypi:docopt", "pypi:typing_extensions"] },
+  "targets": ["npm", "uv", "pip", "poetry"]
+}

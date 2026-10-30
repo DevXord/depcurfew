@@ -1,0 +1,37 @@
+{
+  "changed": [
+    "requirements.txt"
+  ],
+  "warnings": [
+    {
+      "code": "cooldown-environment-only",
+      "tool": "pip",
+      "message": "pip: cooldown not written: pip reads no configuration from the project and rejects --uploaded-prior-to in requirements files",
+      "fix": "Set PIP_UPLOADED_PRIOR_TO=P2D where pip installs packages (CI, Dockerfile), with pip 26.1.0 or later"
+    },
+    {
+      "code": "build-switch-scope",
+      "tool": "pip",
+      "message": "pip: --only-binary forbids building only packages from an index; pip still builds git, local directory and source archive dependencies",
+      "fix": "Run depcurfew doctor to find them in the lockfile"
+    },
+    {
+      "code": "forced-source-build",
+      "tool": "pip",
+      "message": "pip: --no-binary lets docopt be built from source while building is forbidden for everything else; pip then always builds it from source, even where a wheel exists, because it has no setting that only allows building"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "pip",
+      "message": "pip has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "pip",
+      "message": "pip has no setting for URL dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    }
+  ],
+  "snippets": []
+}

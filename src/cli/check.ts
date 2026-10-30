@@ -118,7 +118,7 @@ function render(reports: readonly PackageReport[], colors: Paint): string {
 }
 
 function messageOf(error: unknown): string {
-  if (error instanceof PolicyError) return [error.message, ...error.issues].join('; ');
+  if (error instanceof PolicyError) return [error.text, ...error.issues].join('; ');
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -172,7 +172,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     loaded = load(flags.dir ?? process.cwd(), dependencies.home?.() ?? homedir());
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
-    io.stderr(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
+    io.stderr(`depcurfew: ${error.text}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
     return EXIT_FAILURE;
   }
   if (loaded.file === undefined) io.stderr(`note: no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)\n`);

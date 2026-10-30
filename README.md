@@ -1,6 +1,6 @@
 # depcurfew
 
-One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot, and a doctor that finds configuration that silently does nothing.
+One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, Renovate and Dependabot, and a doctor that finds configuration that silently does nothing.
 
 ## Why
 
@@ -85,9 +85,9 @@ Every section is optional: a section that is absent means depcurfew does not man
 | `cooldown.minimum` |  |  | Minimum age of a release before it is installed or proposed: a whole number followed by m (minutes), h (hours), d (days) or w (weeks). Converted to each tool's unit, always rounding up. |
 | `cooldown.exclude` |  | `[]` | Packages that skip the release-age delay, e.g. your own scope. |
 | `cooldown.securityUpdates` | `"bypass"`, `"delay"` | `"bypass"` | Whether security updates skip the delay ("bypass") or wait like other updates ("delay"), where the tool can tell them apart. |
-| `installScripts` |  |  | Dependency lifecycle scripts. |
-| `installScripts.default` | `"allow"`, `"deny"` |  | Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default. |
-| `installScripts.allow` |  | `[]` | Packages whose lifecycle scripts may run when the default is "deny". |
+| `installScripts` |  |  | Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python. |
+| `installScripts.default` | `"allow"`, `"deny"` |  | Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source. |
+| `installScripts.allow` |  | `[]` | Packages whose lifecycle scripts may run when the default is "deny"; Python packages listed here are always built from source. |
 | `sources` |  |  | Where dependencies may come from besides the registry. An absent field is not managed. |
 | `sources.git` | `"allow"`, `"deny"` |  | Dependencies installed from git repositories. |
 | `sources.remoteTarball` | `"allow"`, `"deny"` |  | Dependencies installed from tarball URLs outside the registry. |
@@ -104,7 +104,7 @@ The package installs two names for the same command: `depcurfew` and the short `
 | --- | --- |
 | `depcurfew init [directory] [--force]` | Writes `depcurfew.json` with the default policy; `--force` overwrites an existing one. |
 | `depcurfew explain [directory] [--json]` | Describes the detected package managers, versions, bots and workspaces, and the policy values for each tool. |
-| `depcurfew apply [directory] [--dry-run]` | Writes the policy into the configuration of every target tool; `--dry-run` prints a unified diff instead. |
+| `depcurfew apply [directory] [--dry-run] [--json]` | Writes the policy into the configuration of every target tool; `--dry-run` prints a unified diff instead, `--json` the result as JSON. |
 | `depcurfew doctor [directory] [--json \| --sarif]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning. |
 | `depcurfew check <package...> [--json] [--dir <directory>] [--registry <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
 | `depcurfew check --hook claude-code` | The same check as a Claude Code hook that blocks install commands breaking the policy. |
@@ -120,25 +120,81 @@ How `apply` edits files:
 - If any file cannot be edited, nothing is written.
 - It does not create bot configuration files; it creates a package manager's configuration file when it is missing.
 
+### apply warnings and errors
+
+Each warning and error of `apply` has a code. The text output shows it in parentheses after the message, with what to do on the next line, like a doctor finding. `depcurfew apply --json` (also with `--dry-run`) prints one JSON document and nothing on stderr: `changes` (each file with its action and unified diff), `warnings` and `errors` (each with `code`, `level`, the tool, the file when there is one, `message` and `fix`), `snippets` to add by hand, and `written`. A run that writes nothing because of an error lists no changes and exits with 1.
+
+<!-- BEGIN GENERATED: apply-codes -->
+Warnings:
+
+- `nothing-to-configure`: depcurfew found no supported package manager or bot, so nothing is configured.
+- `tool-not-supported`: A detected tool is not supported (Yarn Classic), so nothing is written for it.
+- `version-not-pinned`: No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.
+- `version-too-old`: The pinned version of a tool lacks a setting the policy needs, so that setting is not written.
+- `cooldown-not-written`: The release-age delay cannot be written for a tool.
+- `cooldown-environment-only`: pip reads no project configuration, so the release-age delay has to be set in the environment where pip runs.
+- `exclude-pattern-unsupported`: A cooldown exception uses a wildcard the tool does not support, so it is not written.
+- `allow-pattern-unsupported`: An installScripts.allow entry is a pattern, but the tool takes package names only, so it is not written.
+- `allow-all-unsupported`: The tool has no setting that allows every install script, so installScripts "allow" is not written.
+- `allow-all-replaced`: A setting that allowed every install script was replaced, because the policy denies install scripts.
+- `allow-list-entry-outside-policy`: An install-script allow-list in the repository lets a package run scripts the policy does not allow; apply does not remove it.
+- `built-in-list-replaced`: Bun's built-in list of trusted packages is replaced by the policy's allow-list.
+- `scripts-not-enforceable`: The pinned npm runs every install script and has no allow-list, so "deny" cannot be enforced.
+- `exact-version-gap`: The pinned pnpm skips the release-age delay for packages requested by exact version.
+- `source-not-enforceable`: The tool has no setting for a dependency source the policy denies; doctor checks the lockfile instead.
+- `source-switch-indirect-only`: The pnpm setting for git and tarball sources stops them only for indirect dependencies.
+- `source-switch-combined`: One pnpm setting covers git and tarball sources, so denying one denies both.
+- `forced-source-build`: Python packages on the allow-list are always built from source, because no tool can only allow a build.
+- `build-switch-scope`: The tool's switch forbids building only packages from an index; git, local and archive dependencies are still built.
+- `build-switch-install-only`: Poetry applies its build switch when installing; poetry lock may still build source distributions.
+- `requirements-file-missing`: There is no requirements file to write pip options into.
+- `lockfile-out-of-date`: The lockfile records a setting apply changed, so it has to be locked again.
+- `bot-config-missing`: A bot has no configuration file, and depcurfew does not create one.
+- `bot-config-not-edited`: A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.
+- `bot-entries-missing`: The Dependabot configuration has no entries for the package managers in use.
+- `security-delay-unsupported`: Dependabot cannot delay security updates, so securityUpdates "delay" is not applied.
+
+Errors (nothing is written):
+
+- `cannot-edit`: A file cannot be read or edited safely (invalid syntax, a symlink, a style depcurfew does not edit), so nothing is written.
+- `policy-missing`: The directory has no depcurfew.json.
+- `policy-invalid`: depcurfew.json does not follow the schema; issues lists the problems.
+- `policy-unreadable`: depcurfew.json cannot be read.
+<!-- END GENERATED: apply-codes -->
+
 ## Supported tools
 
 What depcurfew configures and checks for each tool, from its [knowledge base](docs/knowledge.md), where every value links to the official documentation or changelog it was verified against.
 
 <!-- BEGIN GENERATED: tools -->
-| Tool | Release-age delay | Exceptions | Install-script allow-list | Dependency sources | Verified |
+| Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source) | Dependency sources | Verified |
 | --- | --- | --- | --- | --- | --- |
 | npm | `min-release-age` in `.npmrc` (days), since 11.10.0 | `min-release-age-exclude`, since 11.17.0 | `allowScripts` in `package.json` | git: `allow-git`<br>remote tarball: `allow-remote`<br>local tarball: `allow-file`<br>local directory: `allow-directory` | 2026-10-28 – 2026-10-29 |
 | pnpm | `minimumReleaseAge` in `pnpm-workspace.yaml` (minutes), since 10.16.0 | `minimumReleaseAgeExclude`, since 10.16.0 | `allowBuilds` in `pnpm-workspace.yaml` | git: `blockExoticSubdeps`<br>remote tarball: `blockExoticSubdeps` | 2026-10-28 – 2026-10-29 |
 | Yarn (Berry) | `npmMinimalAgeGate` in `.yarnrc.yml` (minutes), since 4.10.2 | `npmPreapprovedPackages`, since 4.10.0 | `dependenciesMeta.<package>.built` in `package.json` | git: `approvedGitRepositories` | 2026-10-28 – 2026-10-29 |
 | Bun | `install.minimumReleaseAge` in `bunfig.toml` (seconds), since 1.3.0 | `install.minimumReleaseAgeExcludes`, since 1.3.0 | `trustedDependencies` in `package.json` | none | 2026-10-28 – 2026-10-29 |
 | Deno | `minimumDependencyAge` in `deno.json`, `.npmrc` (minutes), since 2.5.5 / 2.6.0 ⚠️ | `minimumDependencyAge.exclude`, since 2.5.5 | `allowScripts` in `deno.json` | none | 2026-10-28 – 2026-10-29 |
-| Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 |
-| Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 |
+| uv | `exclude-newer` in `uv.toml`, `pyproject.toml` (duration string), since 0.9.17 | `exclude-newer-package`, since 0.9.25 | `no-binary-package` in `pyproject.toml` | none | 2026-10-30 |
+| pip | `uploaded-prior-to` on the command line or in the environment (no project file) (days), since 26.1.0 | none | `--no-binary` in `requirements.txt` | none | 2026-10-30 |
+| Poetry | `solver.min-release-age` in `poetry.toml` (days), since 2.4.0 | `solver.min-release-age-exclude`, since 2.4.0 | `installer.no-binary` in `poetry.toml` | none | 2026-10-30 |
+| Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 – 2026-10-30 |
+| Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 – 2026-10-30 |
 
 ⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](docs/knowledge.md).
 <!-- END GENERATED: tools -->
 
 Yarn Classic (1.x) is detected but not supported.
+
+### Python projects
+
+depcurfew configures uv, Poetry and pip from the same `depcurfew.json`, and the bots for Python packages: Dependabot `pip` and `uv` entries and Renovate.
+
+- **Detection.** A Python tool counts as used when its lockfile is there, when `pyproject.toml` has its table, or when its own configuration file or a CI setup step shows it; `requirements.txt` means pip. `depcurfew explain` lists what it found.
+- **Package names.** Python packages on the policy's package lists (the cooldown exceptions and `installScripts.allow`) take the prefix `pypi:`, for example `"pypi:docopt"`. Names without a prefix stay npm names, so an exception for an npm package never applies to a Python package of the same name.
+- **Install scripts are builds.** A wheel installs without running package code; a source distribution, a git repository or a local directory is built, which runs its build code. `installScripts.default: "deny"` forbids building, and the packages in `installScripts.allow` are the exceptions. None of the three tools can only allow a build, so these packages are always built from source, even where a wheel exists; `apply` says so, and `doctor` lists the packages in the lockfile that would be built.
+- **pip reads no project configuration.** `apply` writes the build options into `requirements.txt`. The release-age delay cannot live in the project, so `apply` prints the environment variable to set where pip runs. `doctor` also checks the files a requirements file includes with `-r` and `-c`, and reports an include it cannot read.
+- **uv.lock records the delay.** After `apply` changes the release-age delay of a uv project, `uv sync --locked` and `uv lock --check` fail until you run `uv lock`; `apply` says so.
+- **Running depcurfew.** depcurfew is a Node.js program. In a project without `package.json`, run a pinned version with `npx --yes depcurfew@<version>`; in CI the [GitHub Action](#github-action) needs nothing else.
 
 ## doctor rules
 
@@ -177,6 +233,14 @@ With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project se
 
 Fix: Remove security settings from package .npmrc files, or keep the default shared lockfile.
 
+### `python-config-ignored`
+
+**error** · A Python tool ignores a setting where it is written.
+
+uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.
+
+Fix: Move the setting to the file the tool reads.
+
 ### `config-drift`
 
 **error** · needs depcurfew.json · A configuration file does not match what depcurfew apply writes for depcurfew.json.
@@ -211,11 +275,11 @@ Fix: Replace the dependency with a registry version, or allow that source in dep
 
 ### `lockfile-install-scripts`
 
-**error** · needs depcurfew.json · The lockfile has packages with install scripts that depcurfew.json does not allow.
+**error** · needs depcurfew.json · The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.
 
-Install scripts run arbitrary code during installation. Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile.
+Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.
 
-Fix: Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing its scripts.
+Fix: Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing it (Python packages with the prefix pypi:).
 
 ### `unreadable-config`
 

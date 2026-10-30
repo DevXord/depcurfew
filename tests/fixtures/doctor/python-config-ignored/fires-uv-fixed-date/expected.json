@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "pyproject.toml",
+      "line": 6
+    },
+    "message": "exclude-newer is the fixed date 2026-01-01T00:00:00Z, so uv never uses versions uploaded after it; that is a freeze, not a delay that moves with time",
+    "fix": "Write a duration such as \"3 days\" (uv 0.9.17 or later), or let depcurfew apply write it from cooldown.minimum"
+  }
+]

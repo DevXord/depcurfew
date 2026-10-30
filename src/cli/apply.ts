@@ -1,9 +1,12 @@
-// `depcurfew apply [directory] [--dry-run]`. The result goes to stdout (the files written, or with --dry-run a
+// `depcurfew apply [directory] [--dry-run] [--json]`. The result goes to stdout (the files written, or with --dry-run a
 // unified diff that `git apply` accepts); warnings, snippets to add by hand and errors go to stderr. When any file
-// cannot be edited, nothing is written and stdout stays empty, also with --dry-run.
+// cannot be edited, nothing is written and stdout stays empty, also with --dry-run. With --json, stdout holds one JSON
+// document with all of it (each change with its diff, warnings and errors with a code) and stderr stays empty.
 import { applyProject, PolicyError, type ApplyReport } from '../apply/index.ts';
 import { unifiedDiff } from '../apply/diff.ts';
+import type { ApplyErrorCode, ApplyWarning } from '../apply/warnings.ts';
 import { paint, type Paint } from '../color.ts';
+import { POLICY_FILE } from '../policy/defaults.ts';
 import { toolName } from './describe.ts';
 import { resolveDirectory } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, type CliIo } from './io.ts';
@@ -25,12 +28,22 @@ function paintDiff(diff: string, colors: Paint): string {
   });
 }
 
+const CANNOT_EDIT_FIX = 'Fix what the message describes, then run depcurfew apply again; or add the settings by hand';
+
+/** A warning as doctor shows a finding: the message with its code, and what to do on the next line. */
+function warningLines(warning: ApplyWarning, colors: Paint): string[] {
+  const lines = [`warning: ${warning.message} ${colors.dim(`(${warning.code})`)}`];
+  if (warning.fix !== undefined) lines.push(`  ${colors.green('fix:')} ${warning.fix}`);
+  return lines;
+}
+
 function diagnostics(report: ApplyReport, colors: Paint): string {
-  const lines = report.warnings.map((warning) => `warning: ${warning}`);
+  const lines = report.warningDetails.flatMap((warning) => warningLines(warning, colors));
   for (const snippet of report.snippets) {
     lines.push(colors.bold(`${toolName(snippet.tool)}: add this to ${snippet.file} by hand:`), indent(snippet.text));
   }
-  lines.push(...report.errors.map((error) => `error: ${error}`));
+  // Every error of a plan is a file that cannot be edited.
+  for (const error of report.errors) lines.push(`error: ${error} ${colors.dim('(cannot-edit)')}`, `  ${colors.green('fix:')} ${CANNOT_EDIT_FIX}`);
   return lines.length === 0 ? '' : `${lines.join('\n')}\n`;
 }
 
@@ -38,7 +51,39 @@ function count(changes: number): string {
   return `${changes} ${changes === 1 ? 'file' : 'files'}`;
 }
 
-export function apply(directory: string | undefined, dryRun: boolean, io: CliIo): number {
+interface JsonError {
+  code: ApplyErrorCode;
+  level: 'error';
+  tool?: string;
+  location: { file: string };
+  message: string;
+  fix?: string;
+  issues?: string[];
+}
+
+/** The JSON document of apply --json; the same for a run that fails before it can plan anything. */
+function jsonReport(dryRun: boolean, policy: 'valid' | 'missing' | 'invalid', report: ApplyReport | undefined, errors: JsonError[]): string {
+  const changes =
+    report === undefined || errors.length > 0
+      ? []
+      : report.changes.map((change) => ({ file: change.file, action: change.before === null ? 'create' : 'update', diff: unifiedDiff(change.file, change.before, change.after) }));
+  const warnings = (report?.warningDetails ?? []).map(({ code, ...rest }) => ({ code, level: 'warning', ...rest }));
+  const document = {
+    schemaVersion: 1,
+    policy,
+    dryRun,
+    written: !dryRun && errors.length === 0 && changes.length > 0,
+    changes,
+    warnings,
+    snippets: report?.snippets ?? [],
+    errors,
+    summary: { changes: changes.length, warnings: warnings.length, errors: errors.length },
+  };
+  return `${JSON.stringify(document, null, 2)}\n`;
+}
+
+export function apply(directory: string | undefined, options: { dryRun: boolean; json: boolean }, io: CliIo): number {
+  const { dryRun } = options;
   const absolute = resolveDirectory(directory, io);
   if (absolute === undefined) return EXIT_FAILURE;
   let report: ApplyReport;
@@ -46,8 +91,28 @@ export function apply(directory: string | undefined, dryRun: boolean, io: CliIo)
     report = applyProject(absolute, { write: !dryRun });
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
-    io.stderr(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
+    if (options.json) {
+      const failure: JsonError = {
+        code: error.code,
+        level: 'error',
+        location: { file: POLICY_FILE },
+        message: error.message,
+        ...(error.fix === undefined ? {} : { fix: error.fix }),
+        ...(error.issues.length === 0 ? {} : { issues: error.issues }),
+      };
+      io.stdout(jsonReport(dryRun, error.code === 'policy-missing' ? 'missing' : 'invalid', undefined, [failure]));
+      return EXIT_FAILURE;
+    }
+    io.stderr(`depcurfew: ${error.text}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
     return EXIT_FAILURE;
+  }
+
+  if (options.json) {
+    const errors = report.failures.map(
+      (failure, index): JsonError => ({ code: 'cannot-edit', level: 'error', tool: failure.tool, location: { file: failure.file }, message: report.errors[index] ?? failure.message, fix: CANNOT_EDIT_FIX }),
+    );
+    io.stdout(jsonReport(dryRun, 'valid', report, errors));
+    return errors.length > 0 ? EXIT_FAILURE : EXIT_OK;
   }
 
   const colors = paint(io.colors?.stdout);

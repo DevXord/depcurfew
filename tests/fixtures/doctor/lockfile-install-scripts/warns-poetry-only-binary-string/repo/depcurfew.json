@@ -1,0 +1,1 @@
+{ "version": 1, "installScripts": { "default": "deny", "allow": ["pypi:local-lib", "pypi:sampleproject"] } }

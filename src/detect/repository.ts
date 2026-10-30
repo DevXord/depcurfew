@@ -18,6 +18,7 @@ export class Repository {
   readonly root: string;
   readonly warnings: DetectionWarning[] = [];
   readonly #warned = new Set<string>();
+  readonly #parsed = new Map<(text: string) => unknown, Map<string, unknown>>();
 
   constructor(root: string) {
     this.root = realpathSync(root);
@@ -128,6 +129,17 @@ export class Repository {
       this.warn('invalid-file', `cannot parse ${path}: ${errorMessage(error)}`, [path]);
       return undefined;
     }
+  }
+
+  /** Like parse, but each file is read and parsed once per parser: several rules read the same file. */
+  parseOnce<T>(path: string, parser: (text: string) => T): T | undefined {
+    let cache = this.#parsed.get(parser);
+    if (cache === undefined) {
+      cache = new Map();
+      this.#parsed.set(parser, cache);
+    }
+    if (!cache.has(path)) cache.set(path, this.parse(path, parser));
+    return cache.get(path) as T | undefined;
   }
 
   relative(absolute: string): string {

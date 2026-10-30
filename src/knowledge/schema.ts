@@ -1,7 +1,7 @@
 import { evidenceOf, factAt } from './facts.ts';
 import type { ToolId, ToolKind } from './types.ts';
 
-export const TOOL_IDS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'renovate', 'dependabot'];
+export const TOOL_IDS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'pip', 'poetry', 'renovate', 'dependabot'];
 
 export const SOURCE_KINDS = ['git', 'remoteTarball', 'file', 'directory'] as const;
 

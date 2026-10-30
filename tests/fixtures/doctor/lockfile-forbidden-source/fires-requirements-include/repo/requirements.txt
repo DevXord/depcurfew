@@ -1,0 +1,4 @@
+# application
+-r requirements/base.txt
+libs/local-lib
+vendor/thing-1.0.tar.xz

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 2
+    },
+    "message": "git+https://example.test/tools/unnamed.git is built from source when installed (it comes from a git repository), which runs its build code, but depcurfew.json does not allow it",
+    "fix": "Give the requirement a package name (name @ git+https://example.test/tools/unnamed.git) so that it can be allowed with \"pypi:name\" in installScripts.allow in depcurfew.json, or remove it"
+  }
+]

@@ -167,7 +167,7 @@ describe('convertCooldown with the real knowledge base', () => {
     ['2161h', 'Dependabot accepts at most 90 days, but 2161h needs 91 days'],
     ['1000d', 'Dependabot accepts at most 90 days, but 1000d needs 1000 days'],
   ])('refuses %s for Dependabot instead of shortening the delay', (text, reason) => {
-    expect(convertCooldown(tool('dependabot'), duration(text))).toEqual({ ok: false, tool: 'dependabot', reason });
+    expect(convertCooldown(tool('dependabot'), duration(text))).toEqual({ ok: false, tool: 'dependabot', reason, fix: 'Set cooldown.minimum in depcurfew.json to 90d or less' });
   });
 
   it.each(TOOL_IDS)('%s never gets 0 (which turns the delay off) and never a shorter delay', (id) => {
@@ -246,6 +246,7 @@ describe('convertCooldown with synthetic knowledge', () => {
       ok: false,
       tool: 'npm',
       reason: 'Sample npm accepts at most 30 days, but 721h needs 31 days',
+      fix: 'Set cooldown.minimum in depcurfew.json to 30d or less',
     });
   });
 
@@ -256,6 +257,7 @@ describe('convertCooldown with synthetic knowledge', () => {
       ok: false,
       tool: 'npm',
       reason: 'Sample npm accepts at most 1 day, but 1441m needs 1441 minutes',
+      fix: 'Set cooldown.minimum in depcurfew.json to 1d or less',
     });
   });
 });

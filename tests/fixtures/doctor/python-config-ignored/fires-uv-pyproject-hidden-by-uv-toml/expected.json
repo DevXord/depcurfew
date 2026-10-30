@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "pyproject.toml",
+      "line": 6
+    },
+    "message": "uv reads uv.toml and ignores [tool.uv] in pyproject.toml, so exclude-newer here has no effect",
+    "fix": "Move exclude-newer to uv.toml, or remove it from pyproject.toml"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "pyproject.toml",
+      "line": 7
+    },
+    "message": "uv reads uv.toml and ignores [tool.uv] in pyproject.toml, so no-build here has no effect",
+    "fix": "Move no-build to uv.toml, or remove it from pyproject.toml"
+  }
+]

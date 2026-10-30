@@ -7,6 +7,7 @@ import type { PackageManagerInfo } from '../../detect/types.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { convertCooldown } from '../../policy/convert.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
+import { policyFor } from '../../policy/ecosystem.ts';
 import { matchesPattern } from '../allow-lists.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion } from '../effective.ts';
@@ -74,7 +75,7 @@ function checkNpmWorkspaces(context: RuleContext): void {
 /** pnpm 10 reads .npmrc too, but pnpm-workspace.yaml wins; a root .npmrc value counts only when the YAML lacks it. */
 function checkPnpmRoot(context: RuleContext): void {
   const pnpm = managerOf(context, 'pnpm');
-  const policy = context.policy;
+  const policy = context.policy === undefined ? undefined : policyFor(context.policy, 'npm');
   if (pnpm === undefined || policy?.cooldown === undefined) return;
   const ignored = extraOf(pnpm.tool, 'ignoredSince', isRecord);
   if (!before(pnpm.version, ignored['since'])) return;

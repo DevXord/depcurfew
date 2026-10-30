@@ -1,0 +1,5 @@
+# Pinned by hand.
+idna==3.20
+sampleproject @ git+https://github.com/pypa/sampleproject@621e4974ca25ce531773def586ba3ed8e736b3fc
+-e ./tools/helper
+https://example.test/packages/thing-1.0.tar.gz

@@ -39,7 +39,7 @@ export function helpText(colors: Paint = PLAIN): string {
   const text = [
     'Usage: depcurfew <command> [options]',
     '',
-    'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, Renovate and Dependabot.',
+    'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, Renovate and Dependabot.',
     '',
     'Commands:',
     ...commands,

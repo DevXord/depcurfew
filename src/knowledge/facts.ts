@@ -1,7 +1,7 @@
 import type { Evidence, Fact } from './types.ts';
 
 /** Keys of a tool entry that are plain metadata rather than sourced facts. */
-export const METADATA_KEYS: ReadonlySet<string> = new Set(['id', 'name', 'kind']);
+export const METADATA_KEYS: ReadonlySet<string> = new Set(['id', 'name', 'kind', 'ecosystem']);
 
 export interface FactEntry {
   /** Dot path inside the tool entry, e.g. `cooldown.exclude.setting`. */

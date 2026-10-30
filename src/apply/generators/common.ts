@@ -3,7 +3,9 @@
 // dropping it always errs on the safe side (a longer delay, fewer install scripts).
 import { convertCooldown } from '../../policy/convert.ts';
 import type { Duration } from '../../policy/duration.ts';
+import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { SOURCE_KINDS } from '../../knowledge/schema.ts';
+import type { Ecosystem } from '../../knowledge/types.ts';
 import { extraOf, isRecord, isWildcards, settingOf, sinceOf, values } from '../facts.ts';
 import type { Context } from './context.ts';
 
@@ -11,11 +13,9 @@ const MINUTES: Record<string, number> = { seconds: 1 / 60, minutes: 1, hours: 60
 
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
-const SOURCE_LABELS: Record<SourceKind, string> = {
-  git: 'git',
-  remoteTarball: 'remote tarball',
-  file: 'local tarball',
-  directory: 'local directory',
+const SOURCE_LABELS: Record<Ecosystem, Record<SourceKind, string>> = {
+  npm: { git: 'git', remoteTarball: 'remote tarball', file: 'local tarball', directory: 'local directory' },
+  pypi: { git: 'git', remoteTarball: 'URL', file: 'local archive', directory: 'local directory' },
 };
 
 export interface CooldownValue {
@@ -30,7 +30,7 @@ export function cooldownValue(context: Context, duration: Duration | undefined =
   if (setting === null) return undefined;
   const result = convertCooldown(context.tool, duration);
   if (!result.ok) {
-    context.warn(`${context.name}: cooldown not written: ${result.reason}`);
+    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, ...(result.fix === undefined ? {} : { fix: result.fix }) });
     return undefined;
   }
   if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return undefined;
@@ -41,9 +41,8 @@ export function cooldownValue(context: Context, duration: Duration | undefined =
   return { value: result.value, minutes: result.value * (MINUTES[result.unit] ?? 0) };
 }
 
-/** The policy's exclusions that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
-export function exclusions(context: Context): string[] | undefined {
-  const patterns = context.policy.cooldown?.exclude ?? [];
+/** The exclusions (the policy's by default) that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
+export function exclusions(context: Context, patterns: readonly string[] = context.policy.cooldown?.exclude ?? []): string[] | undefined {
   const setting = settingOf(context.tool.cooldown.exclude.setting);
   if (setting === null) return undefined;
   if (patterns.length > 0 && !context.supports(sinceOf(context.tool.cooldown.exclude.availableSince), setting)) return undefined;
@@ -52,7 +51,13 @@ export function exclusions(context: Context): string[] | undefined {
   return patterns.filter((pattern) => {
     if (!pattern.includes('*')) return true;
     const accepted = wildcardsWork && (!wildcards.trailingOnly || pattern.indexOf('*') === pattern.length - 1);
-    if (!accepted) context.warn(`${context.name}: ${setting} does not support the pattern "${pattern}"; not written. List the exact package names in cooldown.exclude`);
+    if (!accepted) {
+      context.warn({
+        code: 'exclude-pattern-unsupported',
+        message: `${context.name}: ${setting} does not support the pattern "${pattern}"; not written`,
+        fix: 'List the exact package names in cooldown.exclude',
+      });
+    }
     return accepted;
   });
 }
@@ -61,7 +66,7 @@ export function exclusions(context: Context): string[] | undefined {
 export function allowedNames(context: Context, setting: string): string[] {
   return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
     if (!pattern.includes('*')) return true;
-    context.warn(`${context.name}: ${setting} takes package names only; "${pattern}" not written. List the package names in installScripts.allow`);
+    context.warn({ code: 'allow-pattern-unsupported', message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`, fix: 'List the package names in installScripts.allow' });
     return false;
   });
 }
@@ -84,10 +89,13 @@ export function eachSource(context: Context, apply: (kind: SourceKind, setting: 
     const setting = settingOf(knowledge?.setting);
     if (setting === null) {
       if (access === 'deny') {
-        const checked = lockfileShowsSources(context.tool)
-          ? '; depcurfew doctor still reports such dependencies in the lockfile'
-          : '; depcurfew doctor cannot see them in the lockfile either, so review new dependencies by hand';
-        context.warn(`${context.name} has no setting for ${SOURCE_LABELS[kind]} dependencies, so "deny" cannot be enforced${checked}`);
+        context.warn({
+          code: 'source-not-enforceable',
+          message: `${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
+          fix: lockfileShowsSources(context.tool)
+            ? 'Run depcurfew doctor, which reports such dependencies in the lockfile'
+            : 'Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either',
+        });
       }
       continue;
     }

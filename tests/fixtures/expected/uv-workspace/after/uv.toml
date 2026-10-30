@@ -1,0 +1,7 @@
+# Settings for the whole workspace.
+# depcurfew: superseded by the managed block: exclude-newer = "1 week"
+
+# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+exclude-newer = "3 days"
+no-build = true
+# <<< depcurfew managed block

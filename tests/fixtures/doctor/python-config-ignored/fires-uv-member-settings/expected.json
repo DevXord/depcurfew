@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "packages/api/pyproject.toml",
+      "line": 7
+    },
+    "message": "uv reads settings only from the workspace root, so exclude-newer in packages/api/pyproject.toml has no effect",
+    "fix": "Set exclude-newer in the root uv.toml or [tool.uv] of the root pyproject.toml, and remove it from packages/api/pyproject.toml"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "packages/core/uv.toml",
+      "line": 1
+    },
+    "message": "uv reads settings only from the workspace root, so no-build in packages/core/uv.toml has no effect",
+    "fix": "Set no-build in the root uv.toml or [tool.uv] of the root pyproject.toml, and remove it from packages/core/uv.toml"
+  }
+]

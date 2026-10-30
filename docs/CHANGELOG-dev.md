@@ -2,6 +2,62 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · `apply --json` i kody ostrzeżeń (D-067)
+
+- Każde ostrzeżenie i błąd `apply` ma stały kod, komunikat i, gdy jest co zrobić, `fix`; katalog kodów w `src/apply/warnings.ts` i w README.
+- Tekst wygląda jak w `doctor`: kod w nawiasie, a co zrobić w linii `fix:`.
+- `apply --json` (także z `--dry-run`): jeden dokument na stdout ze zmianami i ich diffem, ostrzeżeniami, błędami, fragmentami do dodania ręcznie i podsumowaniem; stderr pusty. Błędna albo brakująca polityka też daje JSON.
+- `ApplyReport.warnings` bez zmian typu; nowe pole `warningDetails`.
+- `apply` nie edytuje pliku TOML, który się nie parsuje (wcześniej dopisywało blok i zgłaszało sukces); to teraz błąd `cannot-edit`.
+- CLAUDE.md: zasada o wyjściu maszynowym jest spełniona przez wszystkie polecenia.
+- Weryfikacja: `npm test` (1400 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-30 · Faza 10: poprawki po drugim przeglądzie (D-066)
+
+- Przegląd z projektami testowymi i prawdziwymi uv 0.13.6, Poetry 2.5.1 i pip 26.2.2 znalazł 9 problemów; wszystkie poprawione, każdy z testem:
+  - klucz `__proto__` w TOML nie ukrywa już zależności z gita i nie zmienia `Object.prototype`;
+  - `doctor` czyta pliki dołączane przez `-r` i `-c`, a nieczytelne dołączenie zgłasza jako `unreadable-config`;
+  - wymaganie `libs/local-lib` albo `pkg-1.0.tar.xz` bez `./` to ścieżka, jak w pip;
+  - `required-version` z `[tool.uv]` obok `uv.toml` nie jest brane za przypiętą wersję;
+  - `apply` ostrzega, że po zmianie `exclude-newer` trzeba uruchomić `uv lock`;
+  - błąd składni w `poetry.toml` trafia do `unreadable-config`;
+  - workspace z `deno.jsonc` przy zepsutym `deno.json` znów jest wykrywany;
+  - fakty o ścieżkach, archiwach, URL, `#egg=`, `pylock.<nazwa>.toml` i `pyproject.toml` są w bazie wiedzy;
+  - usunięcie bloku ze środka pliku przywraca plik bez dodatkowej pustej linii.
+- CLAUDE.md: stałe zasady komunikatów dla człowieka i dla AI.
+- Weryfikacja: `npm test` (1364 testy), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-30 · Faza 10: Python (uv, pip, Poetry)
+
+- **Baza wiedzy:** uv 0.13.6, pip 26.2.2 i Poetry 2.5.1, każdy fakt ze źródłem pod tagiem: opóźnienie wydań, budowanie ze źródeł, źródła zależności, pliki projektu, lockfile'e, przypinanie wersji. Do tego Dependabot (ekosystemy `pip` i `uv`), Renovate (datasource `pypi`, preset `security:minimumReleaseAgePypi`) oraz akcje CI: setup-python, setup-uv, snok/install-poetry i abatilo/actions-poetry.
+- **Polityka (D-065, decyzja właściciela):**
+  - paczki Pythona mają prefiks `pypi:`, a nazwy bez prefiksu zostają nazwami npm;
+  - `installScripts` w Pythonie oznacza budowanie ze źródeł: zakaz budowania, a paczki z listy dozwolonych są zawsze budowane ze źródeł.
+- **Wykrywanie:** `uv.lock`, `poetry.lock`, `pylock.toml`, `requirements.txt`, `[tool.uv]` i `[tool.poetry]` w `pyproject.toml`, `uv.toml`, `poetry.toml`, `required-version` i `requires-poetry`, kroki CI oraz workspace uv.
+- **apply:**
+  - uv: blok w `uv.toml` albo w `[tool.uv]`;
+  - Poetry: bloki `[solver]` i `[installer]` w `poetry.toml`;
+  - pip: blok opcji w `requirements.txt` i instrukcja dla zmiennej środowiskowej;
+  - Dependabot i Renovate dostają wyjątki swojego rejestru.
+- **doctor:**
+  - `lockfile-forbidden-source` i `lockfile-install-scripts` dla `uv.lock`, `poetry.lock`, `pylock.toml` i `requirements.txt`;
+  - `bot-cooldown-mismatch` porównuje boty z uv i Poetry;
+  - `manager-version-too-old` sprawdza wersje z konfiguracji narzędzi;
+  - nowa reguła `python-config-ignored`.
+- **Własny czytnik TOML** bez zależności, zgodny z `tomllib` na 1089 z 1090 plików z dysku.
+- **Macierz prawdziwych wersji:** uv 0.9.16, 0.9.17, 0.9.25 i 0.13.6; Poetry 2.3.4, 2.4.0 i 2.5.1; pip 25.3, 26.0, 26.1 i 26.2.2. Za stare wersje po cichu wyłączają ochronę (szczegóły w D-065).
+- **Przegląd kodu:** 10 ustaleń, wszystkie poprawione:
+  - `--hash` w plikach z hashami nie jest już brany za nieznaną opcję;
+  - wymaganie bez nazwy nie dostaje zmyślonej nazwy;
+  - `apply` komentuje też tabelę `[tool.uv.exclude-newer-package]` i zapis z kropką, więc nie psuje TOML;
+  - reguła Renovate dla nazw npm pomija PyPI (`!pypi`), gdy w repozytorium jest Python;
+  - członkowie workspace'u Deno z samym `package.json` znów są wykrywani;
+  - `only-binary = ":all:"` jako tekst jest rozpoznawane;
+  - fakty w komunikatach pochodzą z bazy wiedzy;
+  - usunięcie bloku z `requirements.txt` przywraca plik;
+  - parsowane pliki TOML są zapamiętywane, a powtórzony kod scalony.
+- **Weryfikacja:** `npm test` (1345 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-29 · Przygotowanie wydania 1.0.0: marka zamiast danych autora, README na stronę npm
 
 - Marka `depcurfew` zamiast danych autora: autor i `informationUri` w SARIF (strona paczki na npm); licencja wskazuje właściciela praw (DevXord). `DevXord` zostaje tylko tam, gdzie wymaga go GitHub lub npm: w `uses:` w workflow i w adresie repozytorium (D-064).

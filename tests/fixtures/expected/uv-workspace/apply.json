@@ -1,0 +1,35 @@
+{
+  "changed": [
+    "uv.toml"
+  ],
+  "warnings": [
+    {
+      "code": "version-not-pinned",
+      "tool": "uv",
+      "message": "uv: no exact version is pinned, so depcurfew configures for uv 0.13.6, the latest version it knows",
+      "fix": "Pin the version you use (required-version in [tool.uv], .tool-versions or a CI setup step) to configure for it"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "uv",
+      "message": "uv has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "uv",
+      "message": "uv has no setting for URL dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "lockfile-out-of-date",
+      "tool": "uv",
+      "location": {
+        "file": "uv.lock"
+      },
+      "message": "uv: uv.lock records exclude-newer, so it is out of date after this change",
+      "fix": "Run uv lock and commit uv.lock; until then uv sync --locked and uv lock --check fail"
+    }
+  ],
+  "snippets": []
+}

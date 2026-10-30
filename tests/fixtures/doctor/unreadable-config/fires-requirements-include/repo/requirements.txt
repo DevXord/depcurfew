@@ -1,0 +1,4 @@
+-r https://example.test/requirements.txt
+-r missing.txt
+-c ../outside.txt
+requests==2.32.3

@@ -1,0 +1,15 @@
+{
+  "packageManagers": [],
+  "node": { "versions": [] },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": [
+    {
+      "code": "python-tool-unknown",
+      "message": "pyproject.toml has no [tool.uv] or [tool.poetry] table, and there is no uv.lock, pylock.toml, poetry.lock or requirements.txt; depcurfew cannot tell which tool installs this project, so it configures none",
+      "files": ["pyproject.toml"]
+    }
+  ]
+}

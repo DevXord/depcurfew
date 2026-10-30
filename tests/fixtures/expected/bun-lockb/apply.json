@@ -4,12 +4,42 @@
     "package.json"
   ],
   "warnings": [
-    "Bun: no exact version is pinned, so depcurfew configures for Bun 1.4.4, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
-    "Bun: install.minimumReleaseAgeExcludes does not support the pattern \"@acme/*\"; not written. List the exact package names in cooldown.exclude",
-    "Bun: trustedDependencies takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
-    "Bun: trustedDependencies replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed; add the ones that need their scripts to installScripts.allow",
-    "Bun has no setting for git dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile",
-    "Bun has no setting for remote tarball dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile"
+    {
+      "code": "version-not-pinned",
+      "tool": "bun",
+      "message": "Bun: no exact version is pinned, so depcurfew configures for Bun 1.4.4, the latest version it knows",
+      "fix": "Pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it"
+    },
+    {
+      "code": "exclude-pattern-unsupported",
+      "tool": "bun",
+      "message": "Bun: install.minimumReleaseAgeExcludes does not support the pattern \"@acme/*\"; not written",
+      "fix": "List the exact package names in cooldown.exclude"
+    },
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "bun",
+      "message": "Bun: trustedDependencies takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "built-in-list-replaced",
+      "tool": "bun",
+      "message": "Bun: trustedDependencies replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed",
+      "fix": "Add the ones that need their scripts to installScripts.allow"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "bun",
+      "message": "Bun has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "bun",
+      "message": "Bun has no setting for remote tarball dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    }
   ],
   "snippets": []
 }

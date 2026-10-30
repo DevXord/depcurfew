@@ -10,6 +10,9 @@ const SAMPLE_SOURCE: Record<ToolId, string> = {
   yarn: 'https://yarnpkg.com/configuration/yarnrc',
   bun: 'https://bun.com/docs/runtime/bunfig',
   deno: 'https://docs.deno.com/runtime/reference/cli/install/',
+  uv: 'https://docs.astral.sh/uv/reference/settings/',
+  pip: 'https://pip.pypa.io/en/stable/user_guide/',
+  poetry: 'https://python-poetry.org/docs/configuration/',
   renovate: 'https://docs.renovatebot.com/configuration-options/',
   dependabot: 'https://docs.github.com/en/code-security/dependabot',
 };

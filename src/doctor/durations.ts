@@ -41,6 +41,7 @@ const SYNTAX: Record<string, (text: string) => number | undefined> = {
     }
     return total;
   },
+  'words-or-iso8601': (text) => SYNTAX['iso8601']?.(text) ?? SYNTAX['words']?.(text),
   iso8601: (text) => {
     const match = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/u.exec(text);
     if (match === null || text === 'P' || text.endsWith('T')) return undefined;
