@@ -1,0 +1,10 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt"
+    },
+    "message": "cannot read the files that requirements.txt includes: https://example.test/requirements.txt (line 1, a URL), missing.txt (line 2, missing) and ../outside.txt (line 3, outside the repository); depcurfew cannot check it",
+    "fix": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them"
+  }
+]

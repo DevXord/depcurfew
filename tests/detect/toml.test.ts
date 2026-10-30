@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseToml, TomlDateTime } from '../../src/detect/toml.ts';
+import { parseToml, TomlDateTime, tomlValueAt } from '../../src/detect/toml.ts';
 
 const root = (text: string) => parseToml(text).root;
 
@@ -92,6 +92,26 @@ describe('parseToml', () => {
 
   it('accepts CRLF line endings and a byte order mark', () => {
     expect(root('\uFEFFa = 1\r\n[t]\r\nb = "x"\r\n')).toEqual({ a: 1, t: { b: 'x' } });
+  });
+
+  it('reads __proto__ and constructor as ordinary keys and never changes a prototype', () => {
+    const texts = [
+      '__proto__.polluted = "dotted"\nconstructor = 1\n',
+      '[__proto__]\npolluted = "header"\n',
+      '[[__proto__.list]]\nx = 1\n',
+      'source = { __proto__ = { registry = "https://pypi.org/simple" }, git = "https://example.test/evil.git" }\n',
+    ];
+    // Twice: a key that leaked into Object.prototype would make the second parse fail as defined twice.
+    for (const text of [...texts, ...texts]) parseToml(text);
+    const empty: Record<string, unknown> = {};
+    expect([empty['polluted'], empty['list'], empty['registry']]).toEqual([undefined, undefined, undefined]);
+    expect(Object.keys(root(texts[0] ?? ''))).toEqual(['__proto__', 'constructor']);
+    const document = parseToml(texts[3] ?? '');
+    const source = document.root['source'] as Record<string, unknown>;
+    expect(Object.keys(source)).toEqual(['__proto__', 'git']);
+    expect(Object.getPrototypeOf(source)).toBe(Object.prototype);
+    expect([source['registry'], tomlValueAt(document, ['source', 'registry']), tomlValueAt(document, ['source', 'toString'])]).toEqual([undefined, undefined, undefined]);
+    expect(tomlValueAt(document, ['source', '__proto__', 'registry'])).toBe('https://pypi.org/simple');
   });
 
   it('records the line of every key, table and array element', () => {

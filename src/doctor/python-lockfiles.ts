@@ -2,9 +2,10 @@
 // source (registry, git, URL, local archive or directory, workspace) and whether installing it builds it from
 // source, which runs its build code (decision D-065: the Python counterpart of install scripts). Key names come from
 // the knowledge base (extra.lockfileFormat, extra.requirementsFormat).
-import { isRecord } from '../apply/facts.ts';
+import { isRecord, values } from '../apply/facts.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { environment } from '../knowledge/environment.ts';
+import type { ToolKnowledge } from '../knowledge/types.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { parseToml } from '../detect/toml.ts';
 import type { LockEntry, Source } from './lockfiles.ts';
@@ -143,13 +144,52 @@ export function requirementsLines(input: string, format: Format): { text: string
 
 const PYTHON_NAME = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? '^[A-Za-z0-9][A-Za-z0-9._-]*$', 'iu');
 
+/** The facts about pip requirements files in one record: syntax, includes (-r, -c) and how pip tells paths and URLs. */
+export function requirementsFormatOf(tool: ToolKnowledge): Format {
+  const record = (key: string): Format => {
+    const fact = tool.extra?.[key];
+    const value = fact === undefined ? undefined : values(fact)[0];
+    return isRecord(value) ? value : {};
+  };
+  return { ...record('requirementsFormat'), includes: record('requirementsIncludes'), paths: record('requirementsPaths') };
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+/** The requirements and constraints files a requirements file includes (-r, -c), as written, with their lines. */
+export function requirementsIncludes(input: string, format: Format): { path: string; line: number }[] {
+  const includes = isRecord(format['includes']) ? format['includes'] : {};
+  const options = [...strings(includes['requirements']), ...strings(includes['constraints'])];
+  // -r file, -rfile, --requirement file and --requirement=file, as optparse reads them.
+  const short = options.filter((option) => !option.startsWith('--')).map(escapeRegExp);
+  const long = options.filter((option) => option.startsWith('--')).map(escapeRegExp);
+  const pattern = new RegExp(`^(?:(?:${short.join('|') || '(?!)'})\\s*|(?:${long.join('|') || '(?!)'})(?:\\s+|=))(\\S+)`, 'u');
+  return requirementsLines(input, format).flatMap(({ text: body, line }) => {
+    const path = pattern.exec(body)?.[1];
+    return path === undefined ? [] : [{ path, line }];
+  });
+}
+
 /** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
 export function requirementsEntries(input: string, format: Format): LockEntry[] {
   const vcs = isRecord(format['vcs']) ? format['vcs'] : {};
   const gitPrefixes = strings(vcs['git']);
   const otherPrefixes = strings(vcs['other']);
-  const direct = String(format['direct']);
   const editable = strings(format['editable']);
+  const egg = new RegExp(`${escapeRegExp(String(format['egg']))}([^&\\s]+)`, 'u');
+  const paths = isRecord(format['paths']) ? format['paths'] : {};
+  const separators = strings(paths['separators']);
+  const currentDirectory = String(paths['currentDirectory']);
+  const archives = strings(paths['archiveExtensions']);
+  const urlSchemes = new RegExp(`^(?:${strings(paths['urlSchemes']).map(escapeRegExp).join('|') || '(?!)'})://`, 'iu');
+  const fileScheme = new RegExp(`^${escapeRegExp(String(paths['fileScheme']))}(//)?`, 'iu');
+  // name @ URL (PEP 508); the name has no : or +, so a URL with user@host is not taken for one.
+  const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp(String(format['direct']).trim())}\\s*(.+)$`, 'u');
+  // pip takes anything with a path separator, or starting with ., for a path, and an archive name for a file.
+  const looksLikePath = (text: string) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
+  const isArchive = (text: string) => archives.some((extension) => text.toLowerCase().endsWith(extension));
   const entries: LockEntry[] = [];
   for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
     let requirement = body;
@@ -157,26 +197,25 @@ export function requirementsEntries(input: string, format: Format): LockEntry[] 
     if (flag !== undefined) requirement = requirement.slice(flag.length + 1).trim();
     else if (requirement.startsWith('-')) continue;
     requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(';', 1)[0]?.trim() ?? requirement;
-    // name @ URL (PEP 508); the name has no : or +, so a URL with user@host is not taken for one.
-    const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${direct.trim()}\\s*(.+)$`, 'u').exec(requirement);
-    const target = reference?.[2] ?? requirement;
+    const named = reference.exec(requirement);
+    const target = named?.[2] ?? requirement;
     // The name comes from "name @" or #egg=; a guess from a file or directory name could match the allow-list for
     // the wrong code, so a requirement without either stays unnamed and is shown by its location.
     const add = (location: string, source: Source, builds: boolean | undefined) => {
-      const name = reference?.[1] ?? /#egg=([^&\s]+)/u.exec(target)?.[1];
+      const name = named?.[1] ?? egg.exec(target)?.[1];
       entries.push(name !== undefined && PYTHON_NAME.test(name) ? entry(name, target, source, builds, lineNumber) : { ...entry('', target, source, builds, lineNumber), name: location, unnamed: true });
     };
     if (gitPrefixes.some((prefix) => target.startsWith(prefix))) add(target, 'git', true);
     else if (otherPrefixes.some((prefix) => target.startsWith(prefix))) add(target, 'unknown', true);
-    else if (/^https?:\/\//u.test(target)) add(target, 'remoteTarball', !isWheel(target));
-    else if (/^(\.{1,2}(\/|$)|\/|file:)/u.test(target) || flag !== undefined) {
-      const path = target.replace(/^file:(\/\/)?/u, '');
+    else if (urlSchemes.test(target)) add(target, 'remoteTarball', !isWheel(target));
+    else if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || flag !== undefined) {
+      const path = target.replace(fileScheme, '');
       // The project itself (-e . or .) is built as part of the work on it, not as a dependency.
       if (/^\.\/?$/u.test(path)) {
         entries.push({ ...entry('', target, 'workspace', false, lineNumber), name: '.' });
         continue;
       }
-      const archive = /\.(?:whl|zip|tar\.gz|tgz|tar\.bz2|tar)$/iu.test(path);
+      const archive = isArchive(path);
       add(path, archive ? 'file' : 'directory', archive ? !isWheel(path) : true);
     } else {
       const name = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];

@@ -101,6 +101,12 @@ describe('writeTomlBlock (bunfig.toml)', () => {
     );
   });
 
+  it('restores the file when its block in the middle of the file is removed again', () => {
+    const before = '[install]\nexact = true\n\n[run]\nbun = true\n';
+    const once = writeTomlBlock(before, 'install', ['minimumReleaseAge = 259200'], ['minimumReleaseAge']);
+    expect(writeTomlBlock(once, 'install', [], ['minimumReleaseAge'])).toBe(before);
+  });
+
   it('replaces its block and is idempotent', () => {
     const once = writeTomlBlock('[install]\nexact = true\n', 'install', ['a = 1'], ['a']);
     expect(writeTomlBlock(once, 'install', ['a = 1'], ['a'])).toBe(once);
@@ -165,6 +171,14 @@ describe('writeTomlBlock (uv.toml, pyproject.toml, poetry.toml)', () => {
     );
     expect(installer(solver(once, 3))).toBe(once);
     expect(installer(solver(once, 5))).toBe(once.replace('min-release-age = 3', 'min-release-age = 5'));
+  });
+
+  it('restores the file when a block between two tables is removed again', () => {
+    const before = '[installer]\nparallel = false\n\n[solver]\nlazy-wheel = false\n';
+    const installer = (body: string, entries: string[]) => writeTomlBlock(body, 'installer', entries, ['only-binary'], 'installer');
+    const once = installer(before, ['only-binary = [":all:"]']);
+    expect(once).toContain(`parallel = false\n\n${START.replace(': ', ' [installer]: ')}`);
+    expect(installer(once, [])).toBe(before);
   });
 });
 

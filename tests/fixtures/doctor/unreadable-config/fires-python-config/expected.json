@@ -1,0 +1,10 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "poetry.toml"
+    },
+    "message": "cannot parse poetry.toml: invalid TOML at line 4: table solver is defined twice; depcurfew cannot check it",
+    "fix": "Fix the syntax error, so that depcurfew can check the file"
+  }
+]

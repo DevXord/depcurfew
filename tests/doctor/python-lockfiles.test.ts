@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { values } from '../../src/apply/facts.ts';
 import { writeRequirementsBlock } from '../../src/apply/pip-requirements.ts';
-import { pylockEntries, requirementsEntries, uvEntries } from '../../src/doctor/python-lockfiles.ts';
+import { pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from '../../src/doctor/python-lockfiles.ts';
 import { pip } from '../../src/knowledge/pip.ts';
 import { uv } from '../../src/knowledge/uv.ts';
 import { normalizePythonName } from '../../src/policy/python-names.ts';
@@ -49,6 +49,11 @@ describe('uv.lock', () => {
       ['odd', 'unknown', undefined, 17],
     ]);
   });
+
+  it('is not fooled by a __proto__ key in a source', () => {
+    const lock = ['version = 1', '[[package]]', 'name = "evil"', 'source = { __proto__ = { registry = "https://pypi.org/simple" }, git = "https://example.test/evil.git#abc" }'].join('\n');
+    expect(brief(uvEntries(lock, format(uv), []))).toEqual([['evil', 'git', true, 2]]);
+  });
 });
 
 describe('pylock.toml', () => {
@@ -80,7 +85,7 @@ describe('pylock.toml', () => {
 });
 
 describe('requirements files', () => {
-  const read = (text: string) => brief(requirementsEntries(text, format(pip, 'requirementsFormat')));
+  const read = (text: string) => brief(requirementsEntries(text, requirementsFormatOf(pip)));
 
   it('reads registry, VCS, URL and path requirements with continuation lines, markers and comments', () => {
     const text = [
@@ -109,7 +114,31 @@ describe('requirements files', () => {
       ['.', 'workspace', false, 11],
       ['git+https://example.test/unnamed.git', 'git', true, 12],
     ]);
-    expect(requirementsEntries(text, format(pip, 'requirementsFormat')).at(-1)?.unnamed).toBe(true);
+    expect(requirementsEntries(text, requirementsFormatOf(pip)).at(-1)?.unnamed).toBe(true);
+  });
+
+  it('takes a requirement that looks like a path for a local path, and an archive name for a local archive, as pip does', () => {
+    const text = ['libs/local-lib', 'vendor/thing-1.0.tar.xz', 'thing-2.0.tbz', 'tools\\helper', 'ftp://files.example.test/pkg-1.0.tar.gz', 'local_wheel-1.0-py3-none-any.whl', 'requests[socks]==2.32.0', ''].join('\n');
+    expect(read(text)).toEqual([
+      ['libs/local-lib', 'directory', true, 1],
+      ['vendor/thing-1.0.tar.xz', 'file', true, 2],
+      ['thing-2.0.tbz', 'file', true, 3],
+      ['tools\\helper', 'directory', true, 4],
+      ['ftp://files.example.test/pkg-1.0.tar.gz', 'remoteTarball', true, 5],
+      ['local_wheel-1.0-py3-none-any.whl', 'file', false, 6],
+      ['requests', 'registry', undefined, 7],
+    ]);
+  });
+
+  it('lists the requirements and constraints files it includes, with their lines', () => {
+    const text = ['-r base.txt', '--requirement=dev/extra.txt', '-c constraints.txt  # pinned', '--constraint more.txt', '-rshort.txt', 'requests==2.32.0', '--index-url https://pypi.org/simple', ''].join('\n');
+    expect(requirementsIncludes(text, requirementsFormatOf(pip))).toEqual([
+      { path: 'base.txt', line: 1 },
+      { path: 'dev/extra.txt', line: 2 },
+      { path: 'constraints.txt', line: 3 },
+      { path: 'more.txt', line: 4 },
+      { path: 'short.txt', line: 5 },
+    ]);
   });
 });
 

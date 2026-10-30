@@ -894,7 +894,7 @@ const pip$1 = {
 		lockfiles: verified$6([{
 			since: "25.1.0",
 			value: ["pylock.toml"]
-		}], `${PYLOCK}#file-name`, "pip lock (experimental since 25.1) writes pylock.toml; pip install -r pylock.toml is experimental since 26.1. The specification also allows pylock.<name>.toml."),
+		}], `${PYLOCK}#file-name`, "pip lock (experimental since 25.1) writes pylock.toml; pip install -r pylock.toml is experimental since 26.1. The specification also allows pylock.<name>.toml (extra.lockfilePattern)."),
 		manifests: verified$6(["requirements.txt"], REQUIREMENTS_FORMAT, "\"requirements.txt is usually what these files are named (although, that is not a requirement)\"; the format is meant only for pip."),
 		workspaces: uncertain$5(null, REQUIREMENTS_FORMAT, "pip has no workspaces."),
 		workspacesObjectKey: uncertain$5(null, REQUIREMENTS_FORMAT, "No workspaces.")
@@ -964,9 +964,39 @@ const pip$1 = {
 			},
 			direct: " @ ",
 			editable: ["-e", "--editable"],
+			egg: "#egg=",
 			comment: "#",
 			continuation: "\\"
-		}, `${PIP}/docs/html/topics/vcs-support.md`, "VCS requirements start with git+, hg+, svn+ or bzr+, alone or after \"name @\"; a direct reference is \"name @ URL\" (PEP 508); -e installs a project path or VCS URL in editable mode. Lines ending with a backslash continue on the next line, and # starts a comment (requirements-file-format.md)."),
+		}, `${PIP}/docs/html/topics/vcs-support.md`, "VCS requirements start with git+, hg+, svn+ or bzr+, alone or after \"name @\"; a direct reference is \"name @ URL\" (PEP 508); -e installs a project path or VCS URL in editable mode. The legacy #egg= fragment names the project of a VCS URL. Lines ending with a backslash continue on the next line, and # starts a comment (requirements-file-format.md)."),
+		requirementsIncludes: verified$6({
+			requirements: ["-r", "--requirement"],
+			constraints: ["-c", "--constraint"]
+		}, `${REQUIREMENTS_FORMAT}#referring-to-other-requirements-files`, "Option names from cli/cmdoptions.py. A relative path is relative to the directory of the file that includes it, and a file given as an http, https or file URL is downloaded (req_file.py, _parse_and_recurse); a file that includes itself is an error."),
+		requirementsPaths: verified$6({
+			separators: ["/", "\\"],
+			currentDirectory: ".",
+			archiveExtensions: [
+				".zip",
+				".whl",
+				".tar.bz2",
+				".tbz",
+				".tar.gz",
+				".tgz",
+				".tar",
+				".tar.xz",
+				".txz",
+				".tlz",
+				".tar.lz",
+				".tar.lzma"
+			],
+			urlSchemes: [
+				"http",
+				"https",
+				"ftp"
+			],
+			fileScheme: "file:"
+		}, `${PIP}/src/pip/_internal/req/constructors.py`, "A requirement that contains a path separator (/, and \\ on Windows) or starts with . looks like a path (_looks_like_path): a directory there is a project built from source. A name with an archive extension (utils/filetypes.py) is a local archive, even when the file does not exist. http, https, ftp and file URLs are links (utils/urls.py, is_url)."),
+		lockfilePattern: verified$6("^pylock\\.([^.]+)\\.toml$", `${PYLOCK}#file-name`, "A named lock file, next to or instead of pylock.toml; pip lock -o writes any name."),
 		latestVersion: verified$6("26.2.2", NEWS, "Released on 2026-10-20.")
 	}
 };
@@ -1570,6 +1600,7 @@ const uv$1 = {
 			packages: "package"
 		}, SERIALIZE, "uv.lock has no documented format (the docs say only that it is managed by uv). Each [[package]] has source = { registry = URL } for an index, { git = URL?rev#commit }, { url = URL }, { path = archive }, { directory = dir }, { editable = dir } or { virtual = dir } (a directory that is not built). Index packages list sdist and wheels; a package without wheels, or from git, a directory or a source archive, is built when installed."),
 		ignoredByToolCommands: verified$2("uv tool install, uv tool run and uvx ignore pyproject.toml and uv.toml in the project and read only user and system configuration", CONFIGURATION),
+		lockedSettings: verified$2(["exclude-newer", "exclude-newer-package"], SERIALIZE, "uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again (\"Resolving despite existing lockfile due to addition of global exclude newer\", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded."),
 		latestVersion: verified$2("0.13.6", `${UV}/CHANGELOG.md`, "Released on 2026-10-26.")
 	}
 };
@@ -2030,6 +2061,7 @@ const environment = {
 			replacement: "-"
 		}, "https://packaging.python.org/en/latest/specifications/name-normalization/", "Names are lowercased and every run of ., - or _ becomes a single -, before lookups and comparisons (PEP 503): Friendly.Bard and friendly_bard are the same package. Read from the page source in pypa/packaging.python.org."),
 		namePattern: python.verified("^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9])$", "https://packaging.python.org/en/latest/specifications/name-normalization/", "The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\\Z run with re.IGNORECASE (PEP 508)."),
+		projectFile: python.verified("pyproject.toml", "https://packaging.python.org/en/latest/specifications/pyproject-toml/", "The configuration file of a Python project, in the project root; tools keep their own settings in its [tool.<name>] tables."),
 		wheelExtension: python.verified(".whl", "https://packaging.python.org/en/latest/specifications/binary-distribution-format/", "A wheel is a ZIP archive with the .whl extension; installing it unpacks files and runs no build code. Read from the page source in pypa/packaging.python.org.")
 	}
 };
@@ -8779,12 +8811,8 @@ const PACKAGE_MANAGERS = [
 	"poetry"
 ];
 const BOTS$1 = ["renovate", "dependabot"];
-/** Files several tools read; a Python tool counts pyproject.toml only when it has the tool's table. */
-const SHARED_FILES = /* @__PURE__ */ new Set([
-	"package.json",
-	".npmrc",
-	"pyproject.toml"
-]);
+/** Files several tools read; a Python tool counts the project file only when it has the tool's table. */
+const SHARED_FILES = ["package.json", ".npmrc"];
 function values(fact) {
 	return evidenceOf(fact).map((evidence) => evidence.value);
 }
@@ -8810,12 +8838,12 @@ function extraValue(tool, key) {
 	return fact === void 0 ? void 0 : first(fact);
 }
 /** required-version in [tool.uv] of pyproject.toml and at the top of uv.toml; requires-poetry in [tool.poetry]. */
-function requiredVersions(tool) {
+function requiredVersions(tool, pythonProject) {
 	const required = extraValue(tool, "requiredVersion");
 	if (!isRecord(required) || typeof required["table"] !== "string" || typeof required["key"] !== "string") return [];
 	const key = required["key"];
 	const tables = extraValue(tool, "configTables");
-	return (isRecord(tables) ? Object.entries(tables).filter((entry) => typeof entry[1] === "string") : [["pyproject.toml", required["table"]]]).map(([file, table]) => ({
+	return (isRecord(tables) ? Object.entries(tables).filter((entry) => typeof entry[1] === "string") : [[pythonProject, required["table"]]]).map(([file, table]) => ({
 		file,
 		path: [...table === "" ? [] : table.split("."), key]
 	}));
@@ -8832,6 +8860,8 @@ function tool$1(tools, id) {
 	return found;
 }
 function detectionFacts(tools, environment) {
+	const pythonProject = first(environment.python.projectFile);
+	const shared = /* @__PURE__ */ new Set([...SHARED_FILES, pythonProject]);
 	const managers = PACKAGE_MANAGERS.map((id) => {
 		const entry = tool$1(tools, id);
 		const project = entry.project;
@@ -8839,15 +8869,19 @@ function detectionFacts(tools, environment) {
 		const manifests = unique(values(project.manifests).flat());
 		const ownConfig = values(entry.cooldown.configFiles).flat();
 		const pyprojectTable = extraValue(entry, "pyprojectTable");
+		const order = extraValue(entry, "configFileOrder");
+		const pattern = extraValue(entry, "lockfilePattern");
 		return {
 			id,
 			ecosystem: entry.ecosystem ?? "npm",
 			lockfiles: unique(values(project.lockfiles).flatMap(allVersions)),
 			manifests,
-			configFiles: unique([...ownConfig, ...manifests]).filter((file) => !SHARED_FILES.has(file)),
+			configFiles: unique([...ownConfig, ...manifests]).filter((file) => !shared.has(file)),
 			workspaces: workspaceFacts(first(project.workspaces), first(project.workspacesObjectKey)),
 			pyprojectTable: typeof pyprojectTable === "string" ? pyprojectTable : null,
-			requiredVersions: requiredVersions(entry)
+			requiredVersions: requiredVersions(entry, pythonProject),
+			configFileOrder: Array.isArray(order) && order.every((file) => typeof file === "string") ? order : null,
+			lockfilePattern: typeof pattern === "string" ? new RegExp(pattern, "u") : null
 		};
 	});
 	const bots = BOTS$1.map((id) => {
@@ -8864,6 +8898,7 @@ function detectionFacts(tools, environment) {
 	const actions = environment.githubActions;
 	return {
 		managers,
+		pythonProject,
 		bots,
 		yarn: {
 			berryMarker: extraString(yarn, "berryLockfileMarker"),
@@ -8903,6 +8938,7 @@ var Repository = class {
 	root;
 	warnings = [];
 	#warned = /* @__PURE__ */ new Set();
+	#parsed = /* @__PURE__ */ new Map();
 	constructor(root) {
 		this.root = realpathSync(root);
 	}
@@ -9009,6 +9045,16 @@ var Repository = class {
 			return;
 		}
 	}
+	/** Like parse, but each file is read and parsed once per parser: several rules read the same file. */
+	parseOnce(path, parser) {
+		let cache = this.#parsed.get(parser);
+		if (cache === void 0) {
+			cache = /* @__PURE__ */ new Map();
+			this.#parsed.set(parser, cache);
+		}
+		if (!cache.has(path)) cache.set(path, this.parse(path, parser));
+		return cache.get(path);
+	}
 	relative(absolute) {
 		return relative(this.root, absolute).split(sep).join("/");
 	}
@@ -9090,6 +9136,15 @@ function parseToml(input) {
 		return table;
 	};
 	const isTable = (value) => typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof TomlDateTime);
+	const own = (table, key) => Object.hasOwn(table, key) ? table[key] : void 0;
+	const put = (table, key, value) => {
+		Object.defineProperty(table, key, {
+			value,
+			writable: true,
+			enumerable: true,
+			configurable: true
+		});
+	};
 	const unicode = (digits) => {
 		const hex = text.slice(index, index + digits);
 		if (!/^[0-9A-Fa-f]+$/u.test(hex) || hex.length !== digits) fail(`invalid unicode escape \\${digits === 4 ? "u" : "U"}${hex}`);
@@ -9246,10 +9301,10 @@ function parseToml(input) {
 		const walked = [...path];
 		for (const part of parts.slice(0, -1)) {
 			walked.push(part);
-			const next = current[part];
+			const next = own(current, part);
 			if (next === void 0) {
 				const created = newTable(origin);
-				current[part] = created;
+				put(current, part, created);
 				current = created;
 			} else if (isTable(next)) {
 				if (origins.get(next) === "inline" && origin !== "inline") fail(`${walked.join(".")} is an inline table, which cannot be extended`);
@@ -9259,7 +9314,7 @@ function parseToml(input) {
 		}
 		const last = parts.at(-1);
 		if (Object.hasOwn(current, last)) fail(`${[...walked, last].join(".")} is defined twice`);
-		current[last] = item;
+		put(current, last, item);
 		record([...walked, last]);
 	};
 	const inlineTable = (path) => {
@@ -9296,10 +9351,10 @@ function parseToml(input) {
 		const path = [];
 		for (const part of parts.slice(0, -1)) {
 			path.push(part);
-			const next = table[part];
+			const next = own(table, part);
 			if (next === void 0) {
 				const created = newTable("implicit");
-				table[part] = created;
+				put(table, part, created);
 				table = created;
 			} else if (Array.isArray(next) && arraysOfTables.has(next)) {
 				const element = next.at(-1);
@@ -9327,13 +9382,13 @@ function parseToml(input) {
 		const name = parts.join(".");
 		const { table: parent, path } = parentOf(parts);
 		const last = parts.at(-1);
-		const existing = parent[last];
+		const existing = own(parent, last);
 		if (isArray) {
 			let list;
 			if (existing === void 0) {
 				list = [];
 				arraysOfTables.add(list);
-				parent[last] = list;
+				put(parent, last, list);
 			} else if (Array.isArray(existing) && arraysOfTables.has(existing)) list = existing;
 			else return fail(`${name} is not an array of tables`);
 			current = newTable("header");
@@ -9346,7 +9401,7 @@ function parseToml(input) {
 		} else {
 			if (existing === void 0) {
 				current = newTable("header");
-				parent[last] = current;
+				put(parent, last, current);
 			} else if (isTable(existing)) {
 				const origin = origins.get(existing);
 				if (origin === "inline") fail(`${name} is an inline table, which cannot be extended`);
@@ -9387,7 +9442,7 @@ function parseToml(input) {
 /** The value at a key path of a parsed document, or undefined when a key on the way is missing or not a table. */
 function tomlValueAt(document, path) {
 	let node = document.root;
-	for (const key of path) node = typeof node === "object" && node !== null && !Array.isArray(node) && !(node instanceof TomlDateTime) ? node[key] : void 0;
+	for (const key of path) node = typeof node === "object" && node !== null && !Array.isArray(node) && !(node instanceof TomlDateTime) && Object.hasOwn(node, key) ? node[key] : void 0;
 	return node;
 }
 
@@ -9577,7 +9632,6 @@ const SOURCE_ORDER = [
 	"tool-versions",
 	"github-actions"
 ];
-const PYPROJECT = "pyproject.toml";
 function isObject(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -9607,17 +9661,10 @@ function tomlAt(document, path) {
 function requiredVersionText(value) {
 	return /^\s*===?\s*(\d+(?:\.\d+)*)\s*$/u.exec(value)?.[1] ?? value.trim();
 }
-var TomlFiles = class {
-	#repository;
-	#cache = /* @__PURE__ */ new Map();
-	constructor(repository) {
-		this.#repository = repository;
-	}
-	read(file) {
-		if (!this.#cache.has(file)) this.#cache.set(file, this.#repository.isFile(file) ? this.#repository.parse(file, parseToml) : void 0);
-		return this.#cache.get(file);
-	}
-};
+/** A TOML file, parsed once per repository; undefined when it is missing or cannot be parsed (a warning says so). */
+function readToml(repository, file) {
+	return repository.parseOnce(file, parseToml);
+}
 function orList(items) {
 	return items.length < 2 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} or ${items.at(-1) ?? ""}`;
 }
@@ -9733,7 +9780,7 @@ function yarnVariant(repository, facts, collector) {
 		file: "package.json"
 	};
 }
-function readWorkspaces(repository, facts, manifest, toml) {
+function readWorkspaces(repository, facts, manifest) {
 	const declarations = [];
 	const seen = /* @__PURE__ */ new Set();
 	for (const manager of facts.managers) {
@@ -9743,7 +9790,9 @@ function readWorkspaces(repository, facts, manifest, toml) {
 			const id = `${file}#${key}`;
 			if (seen.has(id) || !repository.isFile(file)) continue;
 			seen.add(id);
-			const value = file.endsWith(".toml") ? tomlAt(toml.read(file), key.split(".")) : readConfig(repository, file, manifest, key);
+			const document = file.endsWith(".toml") ? readToml(repository, file)?.root : readDocument(repository, file, manifest);
+			if (!isObject(document)) continue;
+			const value = key.split(".").reduce((node, part) => isObject(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
 			const patterns = stringList(value) ?? (objectKey !== null && isObject(value) ? stringList(value[objectKey]) : void 0);
 			const excluded = excludeKey !== void 0 && isObject(value) ? stringList(value[excludeKey]) ?? [] : [];
 			const manifests = [...new Set(facts.managers.filter((other) => other.ecosystem === manager.ecosystem).flatMap((other) => other.manifests))];
@@ -9766,17 +9815,19 @@ function readWorkspaces(repository, facts, manifest, toml) {
 		packages: [...packages].sort(byPath)
 	};
 }
-/** Reads the workspace key of a declaration file: package.json is already parsed, others are YAML or JSONC. */
-function readConfig(repository, file, manifest, key) {
-	const document = file === "package.json" ? manifest : repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => (0, import_dist.parse)(text) : parseJsonc);
-	return isObject(document) ? document[key] : void 0;
+/** A workspace declaration file: package.json is already parsed, others are YAML or JSONC. */
+function readDocument(repository, file, manifest) {
+	return file === "package.json" ? manifest : repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => (0, import_dist.parse)(text) : parseJsonc);
 }
 /** Python tools: a pyproject.toml with the tool's table is configuration, and required versions are pinned versions. */
-function readPythonConfig(facts, toml, collector) {
+function readPythonConfig(repository, facts, collector) {
+	const project = facts.pythonProject;
 	for (const manager of facts.managers) {
-		if (manager.pyprojectTable !== null && tomlAt(toml.read(PYPROJECT), manager.pyprojectTable.split(".")) !== void 0) collector.addEvidence(manager.id, "config", PYPROJECT);
+		if (manager.pyprojectTable !== null && tomlAt(readToml(repository, project), manager.pyprojectTable.split(".")) !== void 0) collector.addEvidence(manager.id, "config", project);
+		const read = manager.configFileOrder?.find((file) => repository.isFile(file));
 		for (const { file, path } of manager.requiredVersions) {
-			const document = toml.read(file);
+			if (read !== void 0 && file !== read) continue;
+			const document = readToml(repository, file);
 			const value = tomlAt(document, path);
 			if (typeof value !== "string") continue;
 			const line = document?.lineOf(path);
@@ -9789,9 +9840,9 @@ function readPythonConfig(facts, toml, collector) {
 		}
 	}
 }
-function configFiles(repository, manager, directories, toml) {
+function configFiles(repository, manager, directories, project) {
 	const table = manager.pyprojectTable?.split(".");
-	return directories.flatMap((directory) => [...manager.configFiles.map((file) => joinPath(directory, file)).filter((file) => repository.isFile(file)), ...table !== void 0 && tomlAt(toml.read(joinPath(directory, PYPROJECT)), table) !== void 0 ? [joinPath(directory, PYPROJECT)] : []]).sort(byPath);
+	return directories.flatMap((directory) => [...manager.configFiles.map((file) => joinPath(directory, file)).filter((file) => repository.isFile(file)), ...table !== void 0 && tomlAt(readToml(repository, joinPath(directory, project)), table) !== void 0 ? [joinPath(directory, project)] : []]).sort(byPath);
 }
 /**
 * Describes the repository at `root`. Never executes anything from the repository and never leaves it;
@@ -9801,7 +9852,6 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	const repository = new Repository(root);
 	const facts = detectionFacts(tools, environment$1);
 	const collector = new Collector();
-	const toml = new TomlFiles(repository);
 	const managerIds = new Set(facts.managers.map((manager) => manager.id));
 	const ecosystemOf = (id) => facts.managers.find((manager) => manager.id === id)?.ecosystem ?? "npm";
 	const manifest = readPackageJson(repository);
@@ -9811,10 +9861,11 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		readVolta(facts, manifest, collector);
 	}
 	readToolVersions(repository, facts, collector);
-	readPythonConfig(facts, toml, collector);
+	readPythonConfig(repository, facts, collector);
 	const lockfiles = /* @__PURE__ */ new Map();
 	for (const manager of facts.managers) {
-		const present = manager.lockfiles.filter((file) => repository.isFile(file)).sort(byPath);
+		const named = manager.lockfilePattern === null ? [] : repository.listFiles(".").filter((name) => manager.lockfilePattern?.test(name) === true);
+		const present = [.../* @__PURE__ */ new Set([...manager.lockfiles.filter((file) => repository.isFile(file)), ...named])].sort(byPath);
 		if (present.length > 0) lockfiles.set(manager.id, present);
 		for (const file of present) collector.addEvidence(manager.id, "lockfile", file);
 		for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, "config", file);
@@ -9822,7 +9873,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	const workflows = readWorkflows(repository, facts);
 	for (const { tool, file } of workflows.installs) if (managerIds.has(tool)) collector.addEvidence(tool, "ci", file);
 	for (const { tool, declaration } of workflows.versions) collector.addVersion(tool, declaration);
-	const workspaces = readWorkspaces(repository, facts, manifest, toml);
+	const workspaces = readWorkspaces(repository, facts, manifest);
 	const directories = [".", ...workspaces?.packages ?? []];
 	const hasEvidence = (ecosystem) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
 	if (manifest !== void 0 && !hasEvidence("npm")) {
@@ -9841,7 +9892,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 			supported: yarn?.variant !== "classic",
 			evidence: [...evidence].sort(compareEvidence),
 			versions: [...collector.versions.get(manager.id) ?? []].sort(compareVersions),
-			configFiles: configFiles(repository, manager, directories, toml)
+			configFiles: configFiles(repository, manager, directories, facts.pythonProject)
 		});
 	}
 	const bots = [];
@@ -9866,12 +9917,12 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	const npmLockfiles = withLockfiles.filter(([id]) => ecosystemOf(id) === "npm");
 	if (declaredManager !== void 0 && !lockfiles.has(declaredManager) && npmLockfiles.length > 0) repository.warn("package-manager-mismatch", `${facts.packageManagerKey} names ${declaredManager}, but no ${declaredManager} lockfile exists`, ["package.json"]);
 	const python = facts.managers.filter((manager) => manager.ecosystem === "pypi");
-	if (repository.isFile(PYPROJECT) && !hasEvidence("pypi")) {
+	if (repository.isFile(facts.pythonProject) && !hasEvidence("pypi")) {
 		const tables = python.flatMap((manager) => manager.pyprojectTable === null ? [] : [`[${manager.pyprojectTable}]`]);
-		const files = [...python.flatMap((manager) => manager.lockfiles), ...python.flatMap((manager) => manager.manifests.filter((file) => file !== PYPROJECT))];
-		repository.warn("python-tool-unknown", `${PYPROJECT} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none`, [PYPROJECT]);
+		const files = [...python.flatMap((manager) => manager.lockfiles), ...python.flatMap((manager) => manager.manifests.filter((file) => file !== facts.pythonProject))];
+		repository.warn("python-tool-unknown", `${facts.pythonProject} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none`, [facts.pythonProject]);
 	}
-	if (manifest === void 0 && packageManagers.length === 0 && !repository.isFile("package.json") && !repository.isFile(PYPROJECT)) repository.warn("nothing-detected", "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found", []);
+	if (manifest === void 0 && packageManagers.length === 0 && !repository.isFile("package.json") && !repository.isFile(facts.pythonProject)) repository.warn("nothing-detected", "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found", []);
 	return {
 		packageManagers,
 		node: { versions: [...collector.versions.get("node") ?? []].sort(compareVersions) },
@@ -9881,6 +9932,36 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		workflows: workflows.files,
 		warnings: [...repository.warnings].sort((a, b) => a.code.localeCompare(b.code) || a.files.join().localeCompare(b.files.join()))
 	};
+}
+
+// src/apply/requirements.ts
+/** "a", "a and b", "a, b and c". */
+function listing(items) {
+	if (items.length <= 1) return items[0] ?? "";
+	return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
+}
+function describeRequirements(requirements) {
+	const groups = /* @__PURE__ */ new Map();
+	for (const { setting, since, disputed } of requirements) {
+		const group = groups.get(since) ?? {
+			settings: [],
+			disputed: false
+		};
+		if (!group.settings.includes(setting)) group.settings.push(setting);
+		group.disputed ||= disputed === true;
+		groups.set(since, group);
+	}
+	const order = (a, b) => compareVersions$1(parseVersion(a) ?? [
+		0,
+		0,
+		0
+	], parseVersion(b) ?? [
+		0,
+		0,
+		0
+	]);
+	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since})`).join(", ");
+	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
 }
 
 // src/policy/python-names.ts
@@ -10010,13 +10091,53 @@ function requirementsLines(input, format) {
 	return result;
 }
 const PYTHON_NAME$1 = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? "^[A-Za-z0-9][A-Za-z0-9._-]*$", "iu");
+/** The facts about pip requirements files in one record: syntax, includes (-r, -c) and how pip tells paths and URLs. */
+function requirementsFormatOf(tool) {
+	const record = (key) => {
+		const fact = tool.extra?.[key];
+		const value = fact === void 0 ? void 0 : values$1(fact)[0];
+		return isRecord(value) ? value : {};
+	};
+	return {
+		...record("requirementsFormat"),
+		includes: record("requirementsIncludes"),
+		paths: record("requirementsPaths")
+	};
+}
+function escapeRegExp(text) {
+	return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+/** The requirements and constraints files a requirements file includes (-r, -c), as written, with their lines. */
+function requirementsIncludes(input, format) {
+	const includes = isRecord(format["includes"]) ? format["includes"] : {};
+	const options = [...strings$1(includes["requirements"]), ...strings$1(includes["constraints"])];
+	const short = options.filter((option) => !option.startsWith("--")).map(escapeRegExp);
+	const long = options.filter((option) => option.startsWith("--")).map(escapeRegExp);
+	const pattern = new RegExp(`^(?:(?:${short.join("|") || "(?!)"})\\s*|(?:${long.join("|") || "(?!)"})(?:\\s+|=))(\\S+)`, "u");
+	return requirementsLines(input, format).flatMap(({ text: body, line }) => {
+		const path = pattern.exec(body)?.[1];
+		return path === void 0 ? [] : [{
+			path,
+			line
+		}];
+	});
+}
 /** A pip requirements file: VCS and URL requirements, local paths and registry requirements (which may or may not have wheels). */
 function requirementsEntries(input, format) {
 	const vcs = isRecord(format["vcs"]) ? format["vcs"] : {};
 	const gitPrefixes = strings$1(vcs["git"]);
 	const otherPrefixes = strings$1(vcs["other"]);
-	const direct = String(format["direct"]);
 	const editable = strings$1(format["editable"]);
+	const egg = new RegExp(`${escapeRegExp(String(format["egg"]))}([^&\\s]+)`, "u");
+	const paths = isRecord(format["paths"]) ? format["paths"] : {};
+	const separators = strings$1(paths["separators"]);
+	const currentDirectory = String(paths["currentDirectory"]);
+	const archives = strings$1(paths["archiveExtensions"]);
+	const urlSchemes = new RegExp(`^(?:${strings$1(paths["urlSchemes"]).map(escapeRegExp).join("|") || "(?!)"})://`, "iu");
+	const fileScheme = new RegExp(`^${escapeRegExp(String(paths["fileScheme"]))}(//)?`, "iu");
+	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp(String(format["direct"]).trim())}\\s*(.+)$`, "u");
+	const looksLikePath = (text) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
+	const isArchive = (text) => archives.some((extension) => text.toLowerCase().endsWith(extension));
 	const entries = [];
 	for (const { text: body, line: lineNumber } of requirementsLines(input, format)) {
 		let requirement = body;
@@ -10024,10 +10145,10 @@ function requirementsEntries(input, format) {
 		if (flag !== void 0) requirement = requirement.slice(flag.length + 1).trim();
 		else if (requirement.startsWith("-")) continue;
 		requirement = (requirement.split(/\s+--?[a-z]/u, 1)[0] ?? requirement).split(";", 1)[0]?.trim() ?? requirement;
-		const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${direct.trim()}\\s*(.+)$`, "u").exec(requirement);
-		const target = reference?.[2] ?? requirement;
+		const named = reference.exec(requirement);
+		const target = named?.[2] ?? requirement;
 		const add = (location, source, builds) => {
-			const name = reference?.[1] ?? /#egg=([^&\s]+)/u.exec(target)?.[1];
+			const name = named?.[1] ?? egg.exec(target)?.[1];
 			entries.push(name !== void 0 && PYTHON_NAME$1.test(name) ? entry(name, target, source, builds, lineNumber) : {
 				...entry("", target, source, builds, lineNumber),
 				name: location,
@@ -10036,9 +10157,9 @@ function requirementsEntries(input, format) {
 		};
 		if (gitPrefixes.some((prefix) => target.startsWith(prefix))) add(target, "git", true);
 		else if (otherPrefixes.some((prefix) => target.startsWith(prefix))) add(target, "unknown", true);
-		else if (/^https?:\/\//u.test(target)) add(target, "remoteTarball", !isWheel(target));
-		else if (/^(\.{1,2}(\/|$)|\/|file:)/u.test(target) || flag !== void 0) {
-			const path = target.replace(/^file:(\/\/)?/u, "");
+		else if (urlSchemes.test(target)) add(target, "remoteTarball", !isWheel(target));
+		else if (fileScheme.test(target) || looksLikePath(target) || isArchive(target) || flag !== void 0) {
+			const path = target.replace(fileScheme, "");
 			if (/^\.\/?$/u.test(path)) {
 				entries.push({
 					...entry("", target, "workspace", false, lineNumber),
@@ -10046,7 +10167,7 @@ function requirementsEntries(input, format) {
 				});
 				continue;
 			}
-			const archive = /\.(?:whl|zip|tar\.gz|tgz|tar\.bz2|tar)$/iu.test(path);
+			const archive = isArchive(path);
 			add(path, archive ? "file" : "directory", archive ? !isWheel(path) : true);
 		} else {
 			const name = /^[A-Za-z0-9][A-Za-z0-9._-]*/u.exec(requirement)?.[0];
@@ -10355,20 +10476,43 @@ function overridesFormatOf(tool) {
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	return isRecord(value) ? value : void 0;
 }
-function requirementsFormatOf(tool) {
-	const fact = tool.extra?.["requirementsFormat"];
-	const value = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(value) ? value : {};
-}
-function isPylock(file) {
-	return /(^|\/)pylock(\.[^./]+)?\.toml$/u.test(file);
+const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
+/**
+* pip reads the files a requirements file includes with -r and -c too, relative to the including file, and their
+* global options apply to the whole install. For each requirements file of the trees under `roots`: every file of its
+* tree. An include that cannot be read (a URL, a missing file, a path outside the repository) is reported.
+*/
+function requirementsTrees(repository, roots, format) {
+	const trees = /* @__PURE__ */ new Map();
+	for (const root of roots) {
+		const tree = [];
+		const queue = [root];
+		while (queue.length > 0) {
+			const file = queue.shift();
+			if (tree.includes(file)) continue;
+			tree.push(file);
+			const text = repository.readText(file, MAX_LOCKFILE_SIZE);
+			if (text === void 0) continue;
+			const unreadable = [];
+			for (const { path, line } of requirementsIncludes(text, format)) {
+				const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll("\\", "/")));
+				const reason = URL_LIKE.test(path) ? "a URL" : posix.isAbsolute(path) || target === ".." || target.startsWith("../") ? "outside the repository" : repository.isFile(target) ? void 0 : "missing";
+				if (reason === void 0) queue.push(target);
+				else unreadable.push(`${path} (line ${line}, ${reason})`);
+			}
+			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing(unreadable)}`, [file]);
+		}
+		for (const file of tree) trees.set(file, [.../* @__PURE__ */ new Set([...trees.get(file) ?? [], ...tree])]);
+	}
+	return trees;
 }
 function readLockfiles(repository, manager, tool, workspaces) {
 	const fact = tool.extra?.["lockfileFormat"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
 	if (!isRecord(format)) return [];
-	const requirements = tool.id === "pip" ? manager.configFiles : [];
-	return [.../* @__PURE__ */ new Set([...manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file), ...requirements])].map((file) => {
+	const lockfiles = manager.evidence.filter((item) => item.kind === "lockfile").map((item) => item.file);
+	const requirements = tool.id === "pip" ? requirementsTrees(repository, manager.configFiles, requirementsFormatOf(tool)) : /* @__PURE__ */ new Map();
+	return [.../* @__PURE__ */ new Set([...lockfiles, ...requirements.keys()])].map((file) => {
 		if (file.endsWith(".lockb")) return {
 			ok: false,
 			file,
@@ -10395,16 +10539,18 @@ function readLockfiles(repository, manager, tool, workspaces) {
 			else if (tool.id === "bun") entries = bunEntries(text, format);
 			else if (tool.id === "uv") entries = uvEntries(text, format, workspaces);
 			else if (tool.id === "poetry") entries = poetryEntries(text, format);
-			else if (tool.id === "pip") entries = isPylock(file) ? pylockEntries(text, format) : requirementsEntries(text, requirementsFormatOf(tool));
+			else if (tool.id === "pip") entries = lockfiles.includes(file) ? pylockEntries(text, format) : requirementsEntries(text, requirementsFormatOf(tool));
 			else ({entries, recordsScripts} = denoEntries(text, format));
 			const find = lineFinder(text, start);
+			const optionFiles = requirements.get(file);
 			return {
 				ok: true,
 				lockfile: {
 					file,
 					entries,
 					recordsScripts,
-					lineOf: (entry) => entry.line ?? find(entry.anchor)
+					lineOf: (entry) => entry.line ?? find(entry.anchor),
+					...optionFiles === void 0 ? {} : { optionFiles }
 				}
 			};
 		} catch (error) {
@@ -10714,7 +10860,7 @@ function removeBlock(lines, marker = BLOCK_START) {
 	const rest = [...lines.slice(0, start), ...lines.slice(stop + 1)];
 	let at = start;
 	let separated = false;
-	if (at > 0 && rest[at - 1]?.trim() === "" && (at === rest.length || rest[at]?.trim() !== "")) {
+	if (at > 0 && rest[at - 1]?.trim() === "") {
 		rest.splice(at - 1, 1);
 		at -= 1;
 		separated = true;
@@ -11923,36 +12069,6 @@ function writeRequirementsBlock(body, entries, managedOptions) {
 	return joinLines(insertBlock(lines, removed.at ?? at, entries, removed.at === void 0 ? void 0 : removed.separated));
 }
 
-// src/apply/requirements.ts
-/** "a", "a and b", "a, b and c". */
-function listing(items) {
-	if (items.length <= 1) return items[0] ?? "";
-	return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
-}
-function describeRequirements(requirements) {
-	const groups = /* @__PURE__ */ new Map();
-	for (const { setting, since, disputed } of requirements) {
-		const group = groups.get(since) ?? {
-			settings: [],
-			disputed: false
-		};
-		if (!group.settings.includes(setting)) group.settings.push(setting);
-		group.disputed ||= disputed === true;
-		groups.set(since, group);
-	}
-	const order = (a, b) => compareVersions$1(parseVersion(a) ?? [
-		0,
-		0,
-		0
-	], parseVersion(b) ?? [
-		0,
-		0,
-		0
-	]);
-	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since})`).join(", ");
-	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
-}
-
 // src/apply/toml.ts
 const HEADER = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/u;
 function keyOf(line) {
@@ -12805,9 +12921,40 @@ const uv = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.exists(file) && context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.toml(file, table, entries, managed);
+	if (entries.length > 0 || context.exists(file) && context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) {
+		relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed));
+		context.toml(file, table, entries, managed);
+	}
 	return minutes;
 };
+const isStringList$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+/** A TOML value for comparison: a date-time as written. */
+function comparable(value) {
+	return JSON.stringify(value instanceof TomlDateTime ? value.text : value ?? null);
+}
+/**
+* uv records some settings in uv.lock (extra.lockedSettings); when the edit changes one, uv lock --check and
+* uv sync --locked fail until the lockfile is locked again, so apply says so.
+*/
+function relockWarning(context, file, table, edit) {
+	const { tool } = context;
+	const locked = tool.extra?.["lockedSettings"] === void 0 ? [] : extraOf(tool, "lockedSettings", isStringList$1);
+	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.exists(name));
+	if (lockfile === void 0 || locked.length === 0) return;
+	const body = context.exists(file) ? context.read(file) : "";
+	let before;
+	let after;
+	try {
+		before = parseToml(body);
+		after = parseToml(edit(body));
+	} catch {
+		return;
+	}
+	const path = table === "" ? [] : table.split(".");
+	const changed = locked.filter((setting) => comparable(tomlValueAt(before, [...path, setting])) !== comparable(tomlValueAt(after, [...path, setting])));
+	if (changed.length === 0) return;
+	context.warn(`${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change; run ${context.name} lock and commit ${lockfile}, or ${context.name} sync --locked and ${context.name} lock --check fail until then`);
+}
 
 // src/apply/generators/yarn.ts
 const isScriptsSwitch = (value) => isRecord(value) && typeof value["setting"] === "string" && "allow" in value && "deny" in value;
@@ -13177,25 +13324,9 @@ function formatMinutes(minutes) {
 
 // src/doctor/python.ts
 const isStringList = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const documents = /* @__PURE__ */ new WeakMap();
-/** The parsed TOML file, or undefined when it is missing or does not parse (unreadable-config reports that). */
+/** The parsed TOML file, or undefined when it is missing or does not parse (unreadable-config then reports it). */
 function readTomlDocument(repository, file) {
-	let cache = documents.get(repository);
-	if (cache === void 0) {
-		cache = /* @__PURE__ */ new Map();
-		documents.set(repository, cache);
-	}
-	if (!cache.has(file)) {
-		const text = repository.isFile(file) ? repository.readText(file) : void 0;
-		let document;
-		try {
-			document = text === void 0 ? void 0 : parseToml(text);
-		} catch {
-			document = void 0;
-		}
-		cache.set(file, document);
-	}
-	return cache.get(file);
+	return repository.parseOnce(file, parseToml);
 }
 /** The value at a key path of a TOML file, with the line of its key. */
 function tomlSettingAt(repository, file, path) {
@@ -14020,8 +14151,8 @@ function buildsForbiddenBy(context, tool, lockfile) {
 	const build = tool.extra?.["buildSwitch"] === void 0 ? void 0 : extraOf(tool, "buildSwitch", isSwitch);
 	if (build === void 0) return void 0;
 	if (tool.id === "pip") {
-		const format = tool.extra?.["requirementsFormat"] === void 0 ? {} : extraOf(tool, "requirementsFormat", isRecord);
-		const found = (lockfile.file.endsWith(".toml") ? [] : [lockfile.file]).find((file) => requirementsOptions(context.repository, file, format).some((line) => line.option === build.setting && line.value === build.value));
+		const format = requirementsFormatOf(tool);
+		const found = (lockfile.optionFiles ?? []).find((file) => requirementsOptions(context.repository, file, format).some((line) => line.option === build.setting && line.value === build.value));
 		return found === void 0 ? void 0 : `${build.setting}=${String(build.value)} in ${found} forbids building`;
 	}
 	const found = readPythonSetting(context.repository, tool, build.setting);
@@ -14602,7 +14733,8 @@ const UNREADABLE_WARNINGS = {
 	"invalid-file": "Fix the syntax error, so that depcurfew can check the file",
 	"file-too-large": "Make the file smaller than the limit, or check its settings by hand",
 	"outside-repository": "Replace the symlink with a regular file inside the repository",
-	"workspace-outside-repository": "Keep workspace packages inside the repository"
+	"workspace-outside-repository": "Keep workspace packages inside the repository",
+	"unreadable-include": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them"
 };
 const unreadableConfig = {
 	id: "unreadable-config",

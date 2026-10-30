@@ -8,7 +8,8 @@ import { parseJsonc } from '../detect/jsonc.ts';
 import type { Repository } from '../detect/repository.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
-import { poetryEntries, pylockEntries, requirementsEntries, uvEntries } from './python-lockfiles.ts';
+import { listing } from '../apply/requirements.ts';
+import { poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
 
 /** Lockfiles are often larger than configuration files. */
 export const MAX_LOCKFILE_SIZE = 64 * 1024 * 1024;
@@ -37,6 +38,8 @@ export interface Lockfile {
   recordsScripts: boolean;
   /** 1-based line of an entry's anchor (searched on demand, since lockfiles are large). */
   lineOf(entry: LockEntry): number | undefined;
+  /** pip requirements files: every file whose global options (such as --only-binary) apply to this one's packages. */
+  optionFiles?: readonly string[];
 }
 
 type Format = Record<string, unknown>;
@@ -319,23 +322,53 @@ function overridesFormatOf(tool: ToolKnowledge): Format | undefined {
   return isRecord(value) ? value : undefined;
 }
 
-function requirementsFormatOf(tool: ToolKnowledge): Format {
-  const fact = tool.extra?.['requirementsFormat'];
-  const value = fact === undefined ? undefined : values(fact)[0];
-  return isRecord(value) ? value : {};
-}
+const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
 
-function isPylock(file: string): boolean {
-  return /(^|\/)pylock(\.[^./]+)?\.toml$/u.test(file);
+/**
+ * pip reads the files a requirements file includes with -r and -c too, relative to the including file, and their
+ * global options apply to the whole install. For each requirements file of the trees under `roots`: every file of its
+ * tree. An include that cannot be read (a URL, a missing file, a path outside the repository) is reported.
+ */
+function requirementsTrees(repository: Repository, roots: readonly string[], format: Format): Map<string, string[]> {
+  const trees = new Map<string, string[]>();
+  for (const root of roots) {
+    const tree: string[] = [];
+    const queue = [root];
+    while (queue.length > 0) {
+      const file = queue.shift() as string;
+      if (tree.includes(file)) continue;
+      tree.push(file);
+      const text = repository.readText(file, MAX_LOCKFILE_SIZE);
+      if (text === undefined) continue;
+      const unreadable: string[] = [];
+      for (const { path, line } of requirementsIncludes(text, format)) {
+        const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll('\\', '/')));
+        const reason = URL_LIKE.test(path)
+          ? 'a URL'
+          : posix.isAbsolute(path) || target === '..' || target.startsWith('../')
+            ? 'outside the repository'
+            : repository.isFile(target)
+              ? undefined
+              : 'missing';
+        if (reason === undefined) queue.push(target);
+        else unreadable.push(`${path} (line ${line}, ${reason})`);
+      }
+      if (unreadable.length > 0) repository.warn('unreadable-include', `cannot read the files that ${file} includes: ${listing(unreadable)}`, [file]);
+    }
+    for (const file of tree) trees.set(file, [...new Set([...(trees.get(file) ?? []), ...tree])]);
+  }
+  return trees;
 }
 
 export function readLockfiles(repository: Repository, manager: PackageManagerInfo, tool: ToolKnowledge, workspaces: readonly string[]): LockfileResult[] {
   const fact = tool.extra?.['lockfileFormat'];
   const format = fact === undefined ? undefined : values(fact)[0];
   if (!isRecord(format)) return [];
-  // pip has no lockfile of its own beyond pylock.toml; its requirements files say where packages come from too.
-  const requirements = tool.id === 'pip' ? manager.configFiles : [];
-  const files = [...new Set([...manager.evidence.filter((item) => item.kind === 'lockfile').map((item) => item.file), ...requirements])];
+  const lockfiles = manager.evidence.filter((item) => item.kind === 'lockfile').map((item) => item.file);
+  // pip has no lockfile of its own beyond pylock.toml; its requirements files, and the files they include, say where
+  // packages come from too.
+  const requirements = tool.id === 'pip' ? requirementsTrees(repository, manager.configFiles, requirementsFormatOf(tool)) : new Map<string, string[]>();
+  const files = [...new Set([...lockfiles, ...requirements.keys()])];
   return files.map((file): LockfileResult => {
     if (file.endsWith('.lockb')) return { ok: false, file, reason: 'it is a binary file in an undocumented format', unreadable: false };
     const text = repository.readText(file, MAX_LOCKFILE_SIZE);
@@ -353,10 +386,11 @@ export function readLockfiles(repository: Repository, manager: PackageManagerInf
       else if (tool.id === 'bun') entries = bunEntries(text, format);
       else if (tool.id === 'uv') entries = uvEntries(text, format, workspaces);
       else if (tool.id === 'poetry') entries = poetryEntries(text, format);
-      else if (tool.id === 'pip') entries = isPylock(file) ? pylockEntries(text, format) : requirementsEntries(text, requirementsFormatOf(tool));
+      else if (tool.id === 'pip') entries = lockfiles.includes(file) ? pylockEntries(text, format) : requirementsEntries(text, requirementsFormatOf(tool));
       else ({ entries, recordsScripts } = denoEntries(text, format));
       const find = lineFinder(text, start);
-      return { ok: true, lockfile: { file, entries, recordsScripts, lineOf: (entry) => entry.line ?? find(entry.anchor) } };
+      const optionFiles = requirements.get(file);
+      return { ok: true, lockfile: { file, entries, recordsScripts, lineOf: (entry) => entry.line ?? find(entry.anchor), ...(optionFiles === undefined ? {} : { optionFiles }) } };
     } catch (error) {
       if (error instanceof UnsupportedLockfile) return { ok: false, file, reason: error.message, unreadable: false };
       const message = error instanceof Error ? (error.message.split('\n')[0] ?? '') : String(error);

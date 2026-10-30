@@ -1,6 +1,6 @@
 // Where Python tools read their settings in a project, for doctor: uv reads uv.toml, or [tool.uv] of pyproject.toml
 // when there is no uv.toml; Poetry reads poetry.toml; pip reads only the requirements file it is given. Files and
-// tables come from the knowledge base. Parsed TOML files are kept per repository, because several rules read them.
+// tables come from the knowledge base. The repository parses each TOML file once, because several rules read them.
 import { extraOf, isRecord, values } from '../apply/facts.ts';
 import type { Repository } from '../detect/repository.ts';
 import { parseToml, tomlValueAt, type TomlDocument } from '../detect/toml.ts';
@@ -10,26 +10,9 @@ import type { Setting } from './settings.ts';
 
 const isStringList = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
 
-const documents = new WeakMap<Repository, Map<string, TomlDocument | undefined>>();
-
-/** The parsed TOML file, or undefined when it is missing or does not parse (unreadable-config reports that). */
+/** The parsed TOML file, or undefined when it is missing or does not parse (unreadable-config then reports it). */
 export function readTomlDocument(repository: Repository, file: string): TomlDocument | undefined {
-  let cache = documents.get(repository);
-  if (cache === undefined) {
-    cache = new Map();
-    documents.set(repository, cache);
-  }
-  if (!cache.has(file)) {
-    const text = repository.isFile(file) ? repository.readText(file) : undefined;
-    let document: TomlDocument | undefined;
-    try {
-      document = text === undefined ? undefined : parseToml(text);
-    } catch {
-      document = undefined;
-    }
-    cache.set(file, document);
-  }
-  return cache.get(file);
+  return repository.parseOnce(file, parseToml);
 }
 
 /** The value at a key path of a TOML file, with the line of its key. */

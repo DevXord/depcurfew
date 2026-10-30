@@ -12,6 +12,7 @@ export const UNREADABLE_WARNINGS: Readonly<Record<string, string>> = {
   'file-too-large': 'Make the file smaller than the limit, or check its settings by hand',
   'outside-repository': 'Replace the symlink with a regular file inside the repository',
   'workspace-outside-repository': 'Keep workspace packages inside the repository',
+  'unreadable-include': 'Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them',
 };
 
 export const unreadableConfig: Rule = {

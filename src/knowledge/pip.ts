@@ -99,7 +99,7 @@ export const pip: ToolKnowledge = {
     lockfiles: verified(
       [{ since: '25.1.0', value: ['pylock.toml'] }],
       `${PYLOCK}#file-name`,
-      'pip lock (experimental since 25.1) writes pylock.toml; pip install -r pylock.toml is experimental since 26.1. The specification also allows pylock.<name>.toml.',
+      'pip lock (experimental since 25.1) writes pylock.toml; pip install -r pylock.toml is experimental since 26.1. The specification also allows pylock.<name>.toml (extra.lockfilePattern).',
     ),
     manifests: verified(
       ['requirements.txt'],
@@ -155,9 +155,30 @@ export const pip: ToolKnowledge = {
       REQUIREMENTS_FORMAT,
     ),
     requirementsFormat: verified(
-      { vcs: { git: ['git+'], other: ['hg+', 'svn+', 'bzr+'] }, direct: ' @ ', editable: ['-e', '--editable'], comment: '#', continuation: '\\' },
+      { vcs: { git: ['git+'], other: ['hg+', 'svn+', 'bzr+'] }, direct: ' @ ', editable: ['-e', '--editable'], egg: '#egg=', comment: '#', continuation: '\\' },
       `${PIP}/docs/html/topics/vcs-support.md`,
-      'VCS requirements start with git+, hg+, svn+ or bzr+, alone or after "name @"; a direct reference is "name @ URL" (PEP 508); -e installs a project path or VCS URL in editable mode. Lines ending with a backslash continue on the next line, and # starts a comment (requirements-file-format.md).',
+      'VCS requirements start with git+, hg+, svn+ or bzr+, alone or after "name @"; a direct reference is "name @ URL" (PEP 508); -e installs a project path or VCS URL in editable mode. The legacy #egg= fragment names the project of a VCS URL. Lines ending with a backslash continue on the next line, and # starts a comment (requirements-file-format.md).',
+    ),
+    requirementsIncludes: verified(
+      { requirements: ['-r', '--requirement'], constraints: ['-c', '--constraint'] },
+      `${REQUIREMENTS_FORMAT}#referring-to-other-requirements-files`,
+      'Option names from cli/cmdoptions.py. A relative path is relative to the directory of the file that includes it, and a file given as an http, https or file URL is downloaded (req_file.py, _parse_and_recurse); a file that includes itself is an error.',
+    ),
+    requirementsPaths: verified(
+      {
+        separators: ['/', '\\'],
+        currentDirectory: '.',
+        archiveExtensions: ['.zip', '.whl', '.tar.bz2', '.tbz', '.tar.gz', '.tgz', '.tar', '.tar.xz', '.txz', '.tlz', '.tar.lz', '.tar.lzma'],
+        urlSchemes: ['http', 'https', 'ftp'],
+        fileScheme: 'file:',
+      },
+      `${PIP}/src/pip/_internal/req/constructors.py`,
+      'A requirement that contains a path separator (/, and \\ on Windows) or starts with . looks like a path (_looks_like_path): a directory there is a project built from source. A name with an archive extension (utils/filetypes.py) is a local archive, even when the file does not exist. http, https, ftp and file URLs are links (utils/urls.py, is_url).',
+    ),
+    lockfilePattern: verified(
+      '^pylock\\.([^.]+)\\.toml$',
+      `${PYLOCK}#file-name`,
+      'A named lock file, next to or instead of pylock.toml; pip lock -o writes any name.',
     ),
     latestVersion: verified('26.2.2', NEWS, 'Released on 2026-10-20.'),
   },

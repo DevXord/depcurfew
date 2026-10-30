@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-10 tools · 412 facts · 64 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
+10 tools · 417 facts · 64 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
 
 ## Release-age cooldown
 
@@ -211,6 +211,7 @@ Further facts used by generators and `doctor`.
 - `requiredVersion` (✅ verified): `{"table":"tool.uv","key":"required-version","since":"0.5.14"}` [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs)
 - `lockfileFormat` (❓ uncertain): `{"sources":{"registry":"registry","git":"git","remoteTarball":"url","file":"path","directory":"directory","editable":"editable","virtual":"virtual"},"sdist":"sdist","wheels":"wheels","packages":"package"}` ❓ [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-lock/src/lock/serialize.rs)
 - `ignoredByToolCommands` (✅ verified): uv tool install, uv tool run and uvx ignore pyproject.toml and uv.toml in the project and read only user and system configuration [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/configuration-files.md)
+- `lockedSettings` (✅ verified): exclude-newer, exclude-newer-package [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-lock/src/lock/serialize.rs)
 - `latestVersion` (✅ verified): 0.13.6 [↗](https://github.com/astral-sh/uv/blob/0.13.6/CHANGELOG.md)
 
 ### pip
@@ -224,7 +225,10 @@ Further facts used by generators and `doctor`.
 - `missingUploadTime` (✅ verified): Installation fails when an index gives no upload time while --uploaded-prior-to is set [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)
 - `lockfileFormat` (✅ verified): `{"packages":"packages","vcs":"vcs","directory":"directory","archive":"archive","sdist":"sdist","wheels":"wheels","index":"index","sources":{"git":"vcs","remoteTarball":"archive","directory":"directory"}}` [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst)
 - `requirementsForms` (✅ verified): name==version with --hash options, name @ URL for an archive, a local archive or project path, and VCS URLs (name @ git+https://… or -e git+…) [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md)
-- `requirementsFormat` (✅ verified): `{"vcs":{"git":["git+"],"other":["hg+","svn+","bzr+"]},"direct":" @ ","editable":["-e","--editable"],"comment":"#","continuation":"\\"}` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/vcs-support.md)
+- `requirementsFormat` (✅ verified): `{"vcs":{"git":["git+"],"other":["hg+","svn+","bzr+"]},"direct":" @ ","editable":["-e","--editable"],"egg":"#egg=","comment":"#","continuation":"\\"}` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/vcs-support.md)
+- `requirementsIncludes` (✅ verified): `{"requirements":["-r","--requirement"],"constraints":["-c","--constraint"]}` [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md#referring-to-other-requirements-files)
+- `requirementsPaths` (✅ verified): `{"separators":["/","\\"],"currentDirectory":".","archiveExtensions":[".zip",".whl",".tar.bz2",".tbz",".tar.gz",".tgz",".tar",".tar.xz",".txz",".tlz",".tar.lz",".tar.lzma"],"urlSchemes":["http","https","ftp"],"fileScheme":"file:"}` [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/constructors.py)
+- `lockfilePattern` (✅ verified): ^pylock\.([^.]+)\.toml$ [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name)
 - `latestVersion` (✅ verified): 26.2.2 [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 
 ### Poetry
@@ -308,6 +312,7 @@ How repositories pin tool versions (Corepack, devEngines, Volta, asdf) and how G
 - `claudeCode.hooks` (✅ verified): `{"settingsFile":".claude/settings.json","event":"PreToolUse","shellTool":"Bash","input":{"event":"hook_event_name","tool":"tool_name","command":"tool_input.command","cwd":"cwd"},"output":{"container":"hookSpecificOutput","event":"hookEventName","decision":"permissionDecision","reason":"permissionDecisionReason"},"decisions":{"deny":"deny","ask":"ask"},"blockingExitCode":2,"onFailure":{"field":"onFailure","value":"block","since":"2.1.295"},"projectDir":"${CLAUDE_PROJECT_DIR}","settings":{"hooks":"hooks","matcher":"matcher","handlers":"hooks","type":"type","commandType":"command","command":"command","args":"args"}}` [↗](https://code.claude.com/docs/en/hooks)
 - `python.nameNormalization` (✅ verified): `{"separators":"[-_.]+","replacement":"-"}` [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
 - `python.namePattern` (✅ verified): ^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9])$ [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
+- `python.projectFile` (✅ verified): pyproject.toml [↗](https://packaging.python.org/en/latest/specifications/pyproject-toml/)
 - `python.wheelExtension` (✅ verified): .whl [↗](https://packaging.python.org/en/latest/specifications/binary-distribution-format/)
 
 ## Notes
@@ -472,6 +477,7 @@ Context recorded with verified facts.
 - `extra.excludeValue`: exclude-newer-package = { name = false } exempts the package from the delay. [↗](https://github.com/astral-sh/uv/blob/0.13.6/changelogs/0.9.x.md#0925)
 - `extra.missingUploadTime`: Unless the package is exempt, or the index has its own exclude-newer value or is exempt with [[tool.uv.index]] exclude-newer = false. [↗](https://github.com/astral-sh/uv/blob/0.13.6/docs/concepts/resolution.md)
 - `extra.requiredVersion`: A PEP 440 specifier; uv exits with an error when its version does not match. Also at the top level of uv.toml. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-settings/src/settings.rs)
+- `extra.lockedSettings`: uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again ("Resolving despite existing lockfile due to addition of global exclude newer", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded. [↗](https://github.com/astral-sh/uv/blob/0.13.6/crates/uv-lock/src/lock/serialize.rs)
 - `extra.latestVersion`: Released on 2026-10-26. [↗](https://github.com/astral-sh/uv/blob/0.13.6/CHANGELOG.md)
 
 ### pip
@@ -487,7 +493,7 @@ Context recorded with verified facts.
 - `installScripts.allowList.file`: --only-binary and --no-binary are among the options a requirements file may contain. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
 - `installScripts.allowList.format`: Each use adds to the set; :all: and :none: are special values. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/cli/cmdoptions.py)
 - `installScripts.disableAll`: Allowed in requirements files and pip.conf (only-binary). Enforced only for packages from indexes and find-links: VCS, local directory and direct URL source requirements are still built. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/secure-installs.md)
-- `project.lockfiles`: pip lock (experimental since 25.1) writes pylock.toml; pip install -r pylock.toml is experimental since 26.1. The specification also allows pylock.<name>.toml. [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name)
+- `project.lockfiles`: pip lock (experimental since 25.1) writes pylock.toml; pip install -r pylock.toml is experimental since 26.1. The specification also allows pylock.<name>.toml (extra.lockfilePattern). [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name)
 - `project.manifests`: "requirements.txt is usually what these files are named (although, that is not a requirement)"; the format is meant only for pip. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md)
 - `extra.requirementsOptions`: SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
 - `extra.configFileNames`: CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/configuration.py)
@@ -496,7 +502,10 @@ Context recorded with verified facts.
 - `extra.durationStrings`: Only whole days, written PnD, are accepted. [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `extra.missingUploadTime`: Upload times exist only in the JSON form of the simple repository API (PEP 700); indexes that serve only HTML have none. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/user_guide.rst#filtering-by-upload-time)
 - `extra.lockfileFormat`: Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed. [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst)
-- `extra.requirementsFormat`: VCS requirements start with git+, hg+, svn+ or bzr+, alone or after "name @"; a direct reference is "name @ URL" (PEP 508); -e installs a project path or VCS URL in editable mode. Lines ending with a backslash continue on the next line, and # starts a comment (requirements-file-format.md). [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/vcs-support.md)
+- `extra.requirementsFormat`: VCS requirements start with git+, hg+, svn+ or bzr+, alone or after "name @"; a direct reference is "name @ URL" (PEP 508); -e installs a project path or VCS URL in editable mode. The legacy #egg= fragment names the project of a VCS URL. Lines ending with a backslash continue on the next line, and # starts a comment (requirements-file-format.md). [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/vcs-support.md)
+- `extra.requirementsIncludes`: Option names from cli/cmdoptions.py. A relative path is relative to the directory of the file that includes it, and a file given as an http, https or file URL is downloaded (req_file.py, _parse_and_recurse); a file that includes itself is an error. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md#referring-to-other-requirements-files)
+- `extra.requirementsPaths`: A requirement that contains a path separator (/, and \ on Windows) or starts with . looks like a path (_looks_like_path): a directory there is a project built from source. A name with an archive extension (utils/filetypes.py) is a local archive, even when the file does not exist. http, https, ftp and file URLs are links (utils/urls.py, is_url). [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/constructors.py)
+- `extra.lockfilePattern`: A named lock file, next to or instead of pylock.toml; pip lock -o writes any name. [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name)
 - `extra.latestVersion`: Released on 2026-10-20. [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 
 ### Poetry
@@ -593,6 +602,7 @@ Context recorded with verified facts.
 - `claudeCode.hooks`: A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules. [↗](https://code.claude.com/docs/en/hooks)
 - `python.nameNormalization`: Names are lowercased and every run of ., - or _ becomes a single -, before lookups and comparisons (PEP 503): Friendly.Bard and friendly_bard are the same package. Read from the page source in pypa/packaging.python.org. [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
 - `python.namePattern`: The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\Z run with re.IGNORECASE (PEP 508). [↗](https://packaging.python.org/en/latest/specifications/name-normalization/)
+- `python.projectFile`: The configuration file of a Python project, in the project root; tools keep their own settings in its [tool.<name>] tables. [↗](https://packaging.python.org/en/latest/specifications/pyproject-toml/)
 - `python.wheelExtension`: A wheel is a ZIP archive with the .whl extension; installing it unpacks files and runs no build code. Read from the page source in pypa/packaging.python.org. [↗](https://packaging.python.org/en/latest/specifications/binary-distribution-format/)
 
 ## To review

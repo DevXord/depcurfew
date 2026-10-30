@@ -88,6 +88,12 @@ export function parseToml(input: string): TomlDocument {
   };
   const isTable = (value: TomlValue | undefined): value is TomlTable =>
     typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof TomlDateTime);
+  // Keys are own properties only: __proto__ or constructor in a file is data, as in other TOML parsers. A plain
+  // assignment of __proto__ would replace the table's prototype instead, and a read would find Object.prototype.
+  const own = (table: TomlTable, key: string): TomlValue | undefined => (Object.hasOwn(table, key) ? table[key] : undefined);
+  const put = (table: TomlTable, key: string, value: TomlValue) => {
+    Object.defineProperty(table, key, { value, writable: true, enumerable: true, configurable: true });
+  };
 
   // Strings
 
@@ -265,10 +271,10 @@ export function parseToml(input: string): TomlDocument {
     const walked: (string | number)[] = [...path];
     for (const part of parts.slice(0, -1)) {
       walked.push(part);
-      const next = current[part];
+      const next = own(current, part);
       if (next === undefined) {
         const created = newTable(origin);
-        current[part] = created;
+        put(current, part, created);
         current = created;
       } else if (isTable(next)) {
         if (origins.get(next) === 'inline' && origin !== 'inline') fail(`${walked.join('.')} is an inline table, which cannot be extended`);
@@ -280,7 +286,7 @@ export function parseToml(input: string): TomlDocument {
     }
     const last = parts.at(-1) as string;
     if (Object.hasOwn(current, last)) fail(`${[...walked, last].join('.')} is defined twice`);
-    current[last] = item;
+    put(current, last, item);
     record([...walked, last]);
   };
 
@@ -322,10 +328,10 @@ export function parseToml(input: string): TomlDocument {
     const path: (string | number)[] = [];
     for (const part of parts.slice(0, -1)) {
       path.push(part);
-      const next = table[part];
+      const next = own(table, part);
       if (next === undefined) {
         const created = newTable('implicit');
-        table[part] = created;
+        put(table, part, created);
         table = created;
       } else if (Array.isArray(next) && arraysOfTables.has(next)) {
         const element = next.at(-1);
@@ -353,13 +359,13 @@ export function parseToml(input: string): TomlDocument {
     const name = parts.join('.');
     const { table: parent, path } = parentOf(parts);
     const last = parts.at(-1) as string;
-    const existing = parent[last];
+    const existing = own(parent, last);
     if (isArray) {
       let list: TomlValue[];
       if (existing === undefined) {
         list = [];
         arraysOfTables.add(list);
-        parent[last] = list;
+        put(parent, last, list);
       } else if (Array.isArray(existing) && arraysOfTables.has(existing)) {
         list = existing;
       } else {
@@ -371,7 +377,7 @@ export function parseToml(input: string): TomlDocument {
     } else {
       if (existing === undefined) {
         current = newTable('header');
-        parent[last] = current;
+        put(parent, last, current);
       } else if (isTable(existing)) {
         const origin = origins.get(existing);
         if (origin === 'inline') fail(`${name} is an inline table, which cannot be extended`);
@@ -416,7 +422,7 @@ export function parseToml(input: string): TomlDocument {
 export function tomlValueAt(document: TomlDocument, path: readonly string[]): TomlValue | undefined {
   let node: TomlValue | undefined = document.root;
   for (const key of path) {
-    node = typeof node === 'object' && node !== null && !Array.isArray(node) && !(node instanceof TomlDateTime) ? (node as TomlTable)[key] : undefined;
+    node = typeof node === 'object' && node !== null && !Array.isArray(node) && !(node instanceof TomlDateTime) && Object.hasOwn(node, key) ? (node as TomlTable)[key] : undefined;
   }
   return node;
 }

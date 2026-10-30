@@ -33,6 +33,10 @@ export interface ManagerFacts {
   /** The pyproject.toml table that marks a project of this tool (Python tools only). */
   pyprojectTable: string | null;
   requiredVersions: RequiredVersionFacts[];
+  /** The configuration files in the order the tool picks one, using only the first that exists (uv); `null` otherwise. */
+  configFileOrder: string[] | null;
+  /** Lockfiles with a name of the project's choosing, such as pylock.dev.toml; `null` when the names are fixed. */
+  lockfilePattern: RegExp | null;
 }
 
 export interface BotFacts {
@@ -43,6 +47,8 @@ export interface BotFacts {
 
 export interface DetectionFacts {
   managers: ManagerFacts[];
+  /** The project file of Python projects (pyproject.toml). */
+  pythonProject: string;
   bots: BotFacts[];
   yarn: { berryMarker: string; classicHeader: string };
   packageManagerKey: string;
@@ -55,8 +61,8 @@ export interface DetectionFacts {
 
 const PACKAGE_MANAGERS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'pip', 'poetry'];
 const BOTS: readonly ToolId[] = ['renovate', 'dependabot'];
-/** Files several tools read; a Python tool counts pyproject.toml only when it has the tool's table. */
-const SHARED_FILES = new Set(['package.json', '.npmrc', 'pyproject.toml']);
+/** Files several tools read; a Python tool counts the project file only when it has the tool's table. */
+const SHARED_FILES = ['package.json', '.npmrc'];
 
 function values<T>(fact: Fact<T>): T[] {
   return evidenceOf(fact).map((evidence) => evidence.value);
@@ -89,14 +95,14 @@ function extraValue(tool: ToolKnowledge, key: string): unknown {
 }
 
 /** required-version in [tool.uv] of pyproject.toml and at the top of uv.toml; requires-poetry in [tool.poetry]. */
-function requiredVersions(tool: ToolKnowledge): RequiredVersionFacts[] {
+function requiredVersions(tool: ToolKnowledge, pythonProject: string): RequiredVersionFacts[] {
   const required = extraValue(tool, 'requiredVersion');
   if (!isRecord(required) || typeof required['table'] !== 'string' || typeof required['key'] !== 'string') return [];
   const key = required['key'];
   const tables = extraValue(tool, 'configTables');
   const files: [string, string][] = isRecord(tables)
     ? Object.entries(tables).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-    : [['pyproject.toml', required['table']]];
+    : [[pythonProject, required['table']]];
   return files.map(([file, table]) => ({ file, path: [...(table === '' ? [] : table.split('.')), key] }));
 }
 
@@ -111,6 +117,8 @@ function tool(tools: readonly ToolKnowledge[], id: ToolId): ToolKnowledge {
 }
 
 export function detectionFacts(tools: readonly ToolKnowledge[], environment: EnvironmentKnowledge): DetectionFacts {
+  const pythonProject = first(environment.python.projectFile);
+  const shared = new Set([...SHARED_FILES, pythonProject]);
   const managers = PACKAGE_MANAGERS.map((id): ManagerFacts => {
     const entry = tool(tools, id);
     const project = entry.project;
@@ -118,15 +126,19 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     const manifests = unique(values(project.manifests).flat());
     const ownConfig = values(entry.cooldown.configFiles).flat();
     const pyprojectTable = extraValue(entry, 'pyprojectTable');
+    const order = extraValue(entry, 'configFileOrder');
+    const pattern = extraValue(entry, 'lockfilePattern');
     return {
       id: id as PackageManagerId,
       ecosystem: entry.ecosystem ?? 'npm',
       lockfiles: unique(values(project.lockfiles).flatMap(allVersions)),
       manifests,
-      configFiles: unique([...ownConfig, ...manifests]).filter((file) => !SHARED_FILES.has(file)),
+      configFiles: unique([...ownConfig, ...manifests]).filter((file) => !shared.has(file)),
       workspaces: workspaceFacts(first(project.workspaces), first(project.workspacesObjectKey)),
       pyprojectTable: typeof pyprojectTable === 'string' ? pyprojectTable : null,
-      requiredVersions: requiredVersions(entry),
+      requiredVersions: requiredVersions(entry, pythonProject),
+      configFileOrder: Array.isArray(order) && order.every((file) => typeof file === 'string') ? order : null,
+      lockfilePattern: typeof pattern === 'string' ? new RegExp(pattern, 'u') : null,
     };
   });
 
@@ -145,6 +157,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
   const actions = environment.githubActions;
   return {
     managers,
+    pythonProject,
     bots,
     yarn: { berryMarker: extraString(yarn, 'berryLockfileMarker'), classicHeader: extraString(yarn, 'classicLockfileHeader') },
     packageManagerKey: first(environment.corepack.packageManagerField).key,

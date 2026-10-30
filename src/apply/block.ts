@@ -25,10 +25,11 @@ export function removeBlock(lines: readonly string[], marker = BLOCK_START): { l
   const end = lines.findIndex((line, index) => index > start && line.trim() === BLOCK_END);
   const stop = end === -1 ? start : end;
   const rest = [...lines.slice(0, start), ...lines.slice(stop + 1)];
-  // Drop the blank line that separated the block from the content before it.
+  // Drop the blank line that separated the block from the content before it; insertBlock adds one after any
+  // non-blank line, also when a blank line follows the block (a block at the end of a table in the middle of a file).
   let at = start;
   let separated = false;
-  if (at > 0 && rest[at - 1]?.trim() === '' && (at === rest.length || rest[at]?.trim() !== '')) {
+  if (at > 0 && rest[at - 1]?.trim() === '') {
     rest.splice(at - 1, 1);
     at -= 1;
     separated = true;

@@ -909,3 +909,20 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 
   Dlatego `apply` pisze ustawienie tylko dla wersji, która je zna, a `doctor` (`manager-version-too-old`) zgłasza za stare wersje przypięte w projekcie. Projekty testowe miały wyłącznie paczki z kołami, więc nic nie było budowane ani uruchamiane.
 - **Nowa reguła `python-config-ignored`.** Wykrywa ustawienia Pythona zapisane tam, gdzie narzędzie ich nie czyta: `[tool.uv]` obok `uv.toml`, ustawienia uv w członkach workspace'u, `pip.conf` w projekcie, opcje odrzucane przez pip w `requirements.txt` oraz datę w `exclude-newer`, która zamraża zależności.
+
+## D-066 · Poprawki po przeglądzie fazy 10 (2026-10-30)
+
+- **Klucze `__proto__` w TOML.** Czytnik zapisuje klucze jako własne właściwości (`Object.defineProperty`) i odczytuje tylko własne (`Object.hasOwn`). `__proto__` i `constructor` w pliku są zwykłymi danymi, jak w `tomllib` i uv.
+  - Wcześniej `source = { __proto__ = { registry = … }, git = … }` w `uv.lock` ukrywało zależność z gita przed `doctor`.
+  - Zapis `__proto__.x = …` zmieniał `Object.prototype` w całym procesie.
+- **Pliki dołączane w requirements.** `doctor` czyta pliki z `-r` i `-c`, tak jak pip, czyli względem pliku, który je dołącza. Opcje globalne (np. `--only-binary`) z całego drzewa dotyczą wszystkich paczek.
+  - Dołączenie, którego nie da się przeczytać (URL, brak pliku, ścieżka poza repozytorium), to błąd `unreadable-config`: fail closed.
+  - Sprawdzanie biegnie razem z regułami lockfile'ów, czyli gdy polityka ma `sources` albo `installScripts.default: "deny"`.
+- **Ścieżki w requirements jak w pip.** Wymaganie z separatorem ścieżki albo zaczynające się od `.` to ścieżka, a nazwa z rozszerzeniem archiwum to plik, także bez `./`. Rozszerzenia, schematy URL i fragment `#egg=` pochodzą z bazy wiedzy (`requirementsPaths`, `requirementsFormat`).
+- **`required-version` tylko z pliku, który uv czyta.** Gdy jest `uv.toml`, wersja z `[tool.uv]` nie jest przypięta: uv ją pomija i sam o tym ostrzega.
+- **`uv lock` po `apply`.** `uv.lock` zapisuje w `[options]` ustawienia `exclude-newer` i `exclude-newer-package` (fakt `lockedSettings`). Gdy `apply` je zmienia, a `uv.lock` istnieje, ostrzega, że trzeba uruchomić `uv lock`, bo inaczej `uv sync --locked` i `uv lock --check` kończą się błędem. `no-build` nie trafia do lockfile'u, więc jego zmiana nie wymaga ponownego blokowania.
+- **Fail closed dla TOML w `doctor`.** Reguły czytają TOML przez `Repository.parseOnce`, więc błąd składni (np. dwa razy `[solver]` w `poetry.toml`) trafia do `unreadable-config`. Wykrywanie i `doctor` mają jedną pamięć podręczną zamiast dwóch.
+- **Workspace przy nieczytelnym pliku deklaracji.** Jak w 1.0: gdy `deno.json` się nie parsuje, workspace może pochodzić z `deno.jsonc`.
+- **Nazwane pliki pylock.** `pylock.<nazwa>.toml`, który dopuszcza specyfikacja, jest wykrywany. Nazwa pliku projektu Pythona (`pyproject.toml`) pochodzi z bazy wiedzy.
+- **Usunięcie bloku w środku pliku.** `removeBlock` zdejmuje pustą linię wstawioną przed blokiem także wtedy, gdy po bloku stoi pusta linia, więc plik wraca do oryginału. Dotyczyło to też `bunfig.toml` w 1.0.0.
+- **Komunikaty dla człowieka i dla AI.** Stałe zasady są w CLAUDE.md (sekcja „Komunikaty”). Brakujące `apply --json` z kodami ostrzeżeń to osobne zadanie.

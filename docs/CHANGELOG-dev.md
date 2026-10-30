@@ -2,6 +2,21 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · Faza 10: poprawki po drugim przeglądzie (D-066)
+
+- Przegląd z projektami testowymi i prawdziwymi uv 0.13.6, Poetry 2.5.1 i pip 26.2.2 znalazł 9 problemów; wszystkie poprawione, każdy z testem:
+  - klucz `__proto__` w TOML nie ukrywa już zależności z gita i nie zmienia `Object.prototype`;
+  - `doctor` czyta pliki dołączane przez `-r` i `-c`, a nieczytelne dołączenie zgłasza jako `unreadable-config`;
+  - wymaganie `libs/local-lib` albo `pkg-1.0.tar.xz` bez `./` to ścieżka, jak w pip;
+  - `required-version` z `[tool.uv]` obok `uv.toml` nie jest brane za przypiętą wersję;
+  - `apply` ostrzega, że po zmianie `exclude-newer` trzeba uruchomić `uv lock`;
+  - błąd składni w `poetry.toml` trafia do `unreadable-config`;
+  - workspace z `deno.jsonc` przy zepsutym `deno.json` znów jest wykrywany;
+  - fakty o ścieżkach, archiwach, URL, `#egg=`, `pylock.<nazwa>.toml` i `pyproject.toml` są w bazie wiedzy;
+  - usunięcie bloku ze środka pliku przywraca plik bez dodatkowej pustej linii.
+- CLAUDE.md: stałe zasady komunikatów dla człowieka i dla AI.
+- Weryfikacja: `npm test` (1364 testy), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-30 · Faza 10: Python (uv, pip, Poetry)
 
 - **Baza wiedzy:** uv 0.13.6, pip 26.2.2 i Poetry 2.5.1, każdy fakt ze źródłem pod tagiem: opóźnienie wydań, budowanie ze źródeł, źródła zależności, pliki projektu, lockfile'e, przypinanie wersji. Do tego Dependabot (ekosystemy `pip` i `uv`), Renovate (datasource `pypi`, preset `security:minimumReleaseAgePypi`) oraz akcje CI: setup-python, setup-uv, snok/install-poetry i abatilo/actions-poetry.

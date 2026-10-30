@@ -182,6 +182,11 @@ export const uv: ToolKnowledge = {
       'uv tool install, uv tool run and uvx ignore pyproject.toml and uv.toml in the project and read only user and system configuration',
       CONFIGURATION,
     ),
+    lockedSettings: verified(
+      ['exclude-newer', 'exclude-newer-package'],
+      SERIALIZE,
+      'uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again ("Resolving despite existing lockfile due to addition of global exclude newer", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded.',
+    ),
     latestVersion: verified('0.13.6', `${UV}/CHANGELOG.md`, 'Released on 2026-10-26.'),
   },
 };

@@ -256,6 +256,11 @@ export const environment: EnvironmentKnowledge = {
       'https://packaging.python.org/en/latest/specifications/name-normalization/',
       'The specification gives ^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])\\Z run with re.IGNORECASE (PEP 508).',
     ),
+    projectFile: python.verified(
+      'pyproject.toml',
+      'https://packaging.python.org/en/latest/specifications/pyproject-toml/',
+      'The configuration file of a Python project, in the project root; tools keep their own settings in its [tool.<name>] tables.',
+    ),
     wheelExtension: python.verified(
       '.whl',
       'https://packaging.python.org/en/latest/specifications/binary-distribution-format/',

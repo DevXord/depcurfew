@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 3
+    },
+    "message": "requirements.txt installs a package from a local directory (libs/local-lib), which depcurfew.json denies",
+    "fix": "Use a registry version instead, or set sources.directory to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt",
+      "line": 4
+    },
+    "message": "requirements.txt installs a package from a local archive (vendor/thing-1.0.tar.xz), which depcurfew.json denies",
+    "fix": "Use a registry version instead, or set sources.file to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements/base.txt",
+      "line": 2
+    },
+    "message": "requirements/base.txt installs sampleproject from a git repository (git+https://github.com/pypa/sampleproject@v4.0.0), which depcurfew.json denies",
+    "fix": "Use a registry version of sampleproject, or set sources.git to \"allow\" in depcurfew.json"
+  }
+]

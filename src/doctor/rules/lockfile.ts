@@ -11,6 +11,7 @@ import { normalizePythonName } from '../../policy/python-names.ts';
 import { matchesPattern } from '../allow-lists.ts';
 import { latestVersion, versionedValue } from '../effective.ts';
 import { readLockfiles, type Lockfile, type LockEntry, type Source } from '../lockfiles.ts';
+import { requirementsFormatOf } from '../python-lockfiles.ts';
 import { readPythonSetting, requirementsOptions } from '../python.ts';
 import { iniValue, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
@@ -132,8 +133,9 @@ function buildsForbiddenBy(context: RuleContext, tool: ToolKnowledge, lockfile: 
   const build = tool.extra?.['buildSwitch'] === undefined ? undefined : extraOf(tool, 'buildSwitch', isSwitch);
   if (build === undefined) return undefined;
   if (tool.id === 'pip') {
-    const format = tool.extra?.['requirementsFormat'] === undefined ? {} : extraOf(tool, 'requirementsFormat', isRecord);
-    const files = lockfile.file.endsWith('.toml') ? [] : [lockfile.file];
+    const format = requirementsFormatOf(tool);
+    // The options of the requirements file pip is given, and of the files it includes, apply to the whole install.
+    const files = lockfile.optionFiles ?? [];
     const found = files.find((file) => requirementsOptions(context.repository, file, format).some((line) => line.option === build.setting && line.value === build.value));
     return found === undefined ? undefined : `${build.setting}=${String(build.value)} in ${found} forbids building`;
   }

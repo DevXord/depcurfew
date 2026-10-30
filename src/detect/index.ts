@@ -26,7 +26,6 @@ export type * from './types.ts';
 
 const EVIDENCE_ORDER: readonly EvidenceKind[] = ['lockfile', 'packageManager', 'devEngines', 'config', 'ci', 'default'];
 const SOURCE_ORDER: readonly VersionSource[] = ['packageManager', 'tool-config', 'devEngines', 'volta', 'tool-versions', 'github-actions'];
-const PYPROJECT = 'pyproject.toml';
 
 type Json = Record<string, unknown>;
 
@@ -74,18 +73,9 @@ function requiredVersionText(value: string): string {
   return exact?.[1] ?? value.trim();
 }
 
-class TomlFiles {
-  readonly #repository: Repository;
-  readonly #cache = new Map<string, TomlDocument | undefined>();
-
-  constructor(repository: Repository) {
-    this.#repository = repository;
-  }
-
-  read(file: string): TomlDocument | undefined {
-    if (!this.#cache.has(file)) this.#cache.set(file, this.#repository.isFile(file) ? this.#repository.parse(file, parseToml) : undefined);
-    return this.#cache.get(file);
-  }
+/** A TOML file, parsed once per repository; undefined when it is missing or cannot be parsed (a warning says so). */
+function readToml(repository: Repository, file: string): TomlDocument | undefined {
+  return repository.parseOnce(file, parseToml);
 }
 
 function orList(items: readonly string[]): string {
@@ -181,7 +171,7 @@ function yarnVariant(repository: Repository, facts: DetectionFacts, collector: C
   return { variant: 'berry', file: 'package.json' };
 }
 
-function readWorkspaces(repository: Repository, facts: DetectionFacts, manifest: Json | undefined, toml: TomlFiles): WorkspaceInfo | null {
+function readWorkspaces(repository: Repository, facts: DetectionFacts, manifest: Json | undefined): WorkspaceInfo | null {
   const declarations: { file: string; patterns: string[]; manifests: readonly string[] }[] = [];
   const seen = new Set<string>();
   for (const manager of facts.managers) {
@@ -191,7 +181,10 @@ function readWorkspaces(repository: Repository, facts: DetectionFacts, manifest:
       const id = `${file}#${key}`;
       if (seen.has(id) || !repository.isFile(file)) continue;
       seen.add(id);
-      const value = file.endsWith('.toml') ? tomlAt(toml.read(file), key.split('.')) : readConfig(repository, file, manifest, key);
+      const document = file.endsWith('.toml') ? readToml(repository, file)?.root : readDocument(repository, file, manifest);
+      // A file that cannot be parsed is reported (invalid-file); the next declaration file may still declare the workspace.
+      if (!isObject(document)) continue;
+      const value = key.split('.').reduce<unknown>((node, part) => (isObject(node) && Object.hasOwn(node, part) ? node[part] : undefined), document);
       const patterns = stringList(value) ?? (objectKey !== null && isObject(value) ? stringList(value[objectKey]) : undefined);
       const excluded = excludeKey !== undefined && isObject(value) ? (stringList(value[excludeKey]) ?? []) : [];
       // A member is a directory with a manifest of any tool of the same registry (a Deno workspace may list npm packages).
@@ -208,20 +201,24 @@ function readWorkspaces(repository: Repository, facts: DetectionFacts, manifest:
   return { declarations: declarations.map(({ file, patterns }) => ({ file, patterns })), packages: [...packages].sort(byPath) };
 }
 
-/** Reads the workspace key of a declaration file: package.json is already parsed, others are YAML or JSONC. */
-function readConfig(repository: Repository, file: string, manifest: Json | undefined, key: string): unknown {
-  const document = file === 'package.json' ? manifest : repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => parseYaml(text) as unknown : parseJsonc);
-  return isObject(document) ? document[key] : undefined;
+/** A workspace declaration file: package.json is already parsed, others are YAML or JSONC. */
+function readDocument(repository: Repository, file: string, manifest: Json | undefined): unknown {
+  return file === 'package.json' ? manifest : repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => parseYaml(text) as unknown : parseJsonc);
 }
 
 /** Python tools: a pyproject.toml with the tool's table is configuration, and required versions are pinned versions. */
-function readPythonConfig(facts: DetectionFacts, toml: TomlFiles, collector: Collector): void {
+function readPythonConfig(repository: Repository, facts: DetectionFacts, collector: Collector): void {
+  const project = facts.pythonProject;
   for (const manager of facts.managers) {
-    if (manager.pyprojectTable !== null && tomlAt(toml.read(PYPROJECT), manager.pyprojectTable.split('.')) !== undefined) {
-      collector.addEvidence(manager.id, 'config', PYPROJECT);
+    if (manager.pyprojectTable !== null && tomlAt(readToml(repository, project), manager.pyprojectTable.split('.')) !== undefined) {
+      collector.addEvidence(manager.id, 'config', project);
     }
+    // uv reads only the first configuration file of its order that exists (uv.toml hides [tool.uv]), so a version
+    // required in another one is not enforced.
+    const read = manager.configFileOrder?.find((file) => repository.isFile(file));
     for (const { file, path } of manager.requiredVersions) {
-      const document = toml.read(file);
+      if (read !== undefined && file !== read) continue;
+      const document = readToml(repository, file);
       const value = tomlAt(document, path);
       if (typeof value !== 'string') continue;
       const line = document?.lineOf(path);
@@ -230,12 +227,12 @@ function readPythonConfig(facts: DetectionFacts, toml: TomlFiles, collector: Col
   }
 }
 
-function configFiles(repository: Repository, manager: ManagerFacts, directories: readonly string[], toml: TomlFiles): string[] {
+function configFiles(repository: Repository, manager: ManagerFacts, directories: readonly string[], project: string): string[] {
   const table = manager.pyprojectTable?.split('.');
   return directories
     .flatMap((directory) => [
       ...manager.configFiles.map((file) => joinPath(directory, file)).filter((file) => repository.isFile(file)),
-      ...(table !== undefined && tomlAt(toml.read(joinPath(directory, PYPROJECT)), table) !== undefined ? [joinPath(directory, PYPROJECT)] : []),
+      ...(table !== undefined && tomlAt(readToml(repository, joinPath(directory, project)), table) !== undefined ? [joinPath(directory, project)] : []),
     ])
     .sort(byPath);
 }
@@ -252,7 +249,6 @@ export function detectProject(
   const repository = new Repository(root);
   const facts = detectionFacts(tools, environment);
   const collector = new Collector();
-  const toml = new TomlFiles(repository);
   const managerIds = new Set<string>(facts.managers.map((manager) => manager.id));
   const ecosystemOf = (id: PackageManagerId) => facts.managers.find((manager) => manager.id === id)?.ecosystem ?? 'npm';
 
@@ -263,11 +259,12 @@ export function detectProject(
     readVolta(facts, manifest, collector);
   }
   readToolVersions(repository, facts, collector);
-  readPythonConfig(facts, toml, collector);
+  readPythonConfig(repository, facts, collector);
 
   const lockfiles = new Map<PackageManagerId, string[]>();
   for (const manager of facts.managers) {
-    const present = manager.lockfiles.filter((file) => repository.isFile(file)).sort(byPath);
+    const named = manager.lockfilePattern === null ? [] : repository.listFiles('.').filter((name) => manager.lockfilePattern?.test(name) === true);
+    const present = [...new Set([...manager.lockfiles.filter((file) => repository.isFile(file)), ...named])].sort(byPath);
     if (present.length > 0) lockfiles.set(manager.id, present);
     for (const file of present) collector.addEvidence(manager.id, 'lockfile', file);
     for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, 'config', file);
@@ -279,7 +276,7 @@ export function detectProject(
   }
   for (const { tool, declaration } of workflows.versions) collector.addVersion(tool, declaration);
 
-  const workspaces = readWorkspaces(repository, facts, manifest, toml);
+  const workspaces = readWorkspaces(repository, facts, manifest);
   const directories = ['.', ...(workspaces?.packages ?? [])];
 
   const hasEvidence = (ecosystem: string) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
@@ -302,7 +299,7 @@ export function detectProject(
       supported: yarn?.variant !== 'classic',
       evidence: [...evidence].sort(compareEvidence),
       versions: [...(collector.versions.get(manager.id) ?? [])].sort(compareVersions),
-      configFiles: configFiles(repository, manager, directories, toml),
+      configFiles: configFiles(repository, manager, directories, facts.pythonProject),
     });
   }
 
@@ -338,16 +335,16 @@ export function detectProject(
     );
   }
   const python = facts.managers.filter((manager) => manager.ecosystem === 'pypi');
-  if (repository.isFile(PYPROJECT) && !hasEvidence('pypi')) {
+  if (repository.isFile(facts.pythonProject) && !hasEvidence('pypi')) {
     const tables = python.flatMap((manager) => (manager.pyprojectTable === null ? [] : [`[${manager.pyprojectTable}]`]));
-    const files = [...python.flatMap((manager) => manager.lockfiles), ...python.flatMap((manager) => manager.manifests.filter((file) => file !== PYPROJECT))];
+    const files = [...python.flatMap((manager) => manager.lockfiles), ...python.flatMap((manager) => manager.manifests.filter((file) => file !== facts.pythonProject))];
     repository.warn(
       'python-tool-unknown',
-      `${PYPROJECT} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none`,
-      [PYPROJECT],
+      `${facts.pythonProject} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none`,
+      [facts.pythonProject],
     );
   }
-  if (manifest === undefined && packageManagers.length === 0 && !repository.isFile('package.json') && !repository.isFile(PYPROJECT)) {
+  if (manifest === undefined && packageManagers.length === 0 && !repository.isFile('package.json') && !repository.isFile(facts.pythonProject)) {
     repository.warn('nothing-detected', 'no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found', []);
   }
 
