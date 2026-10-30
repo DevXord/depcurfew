@@ -4,6 +4,8 @@ export { getVersion } from './version.ts';
 export { applyProject, botDuration, loadPolicy, planApply, PolicyError } from './apply/index.ts';
 export type { ApplyReport, FileChange, Snippet } from './apply/index.ts';
 export { unifiedDiff } from './apply/diff.ts';
+export { APPLY_ERRORS, APPLY_WARNINGS, warningText } from './apply/warnings.ts';
+export type { ApplyErrorCode, ApplyWarning, ApplyWarningCode } from './apply/warnings.ts';
 export { checkSpec, checkSpecs } from './check/index.ts';
 export type { CheckFinding, CheckOptions, FindingCode, PackageReport } from './check/index.ts';
 export { scanCommandLine } from './check/command.ts';

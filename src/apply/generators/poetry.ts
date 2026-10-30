@@ -45,7 +45,7 @@ export const poetry: ManagerGenerator = (context) => {
     if (context.supports(build.since, build.setting)) {
       installer.entries.push(`${key} = ${tomlValue(build.value)}`);
       installer.managed.push(key);
-      context.warn(`${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies`);
+      context.warn({ code: 'build-switch-install-only', message: `${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies` });
       buildSwitchScopeWarning(context, build.setting, build.covers);
       const setting = settingOf(tool.installScripts.allowList.setting);
       if (setting !== null) {

@@ -2,6 +2,16 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · `apply --json` i kody ostrzeżeń (D-067)
+
+- Każde ostrzeżenie i błąd `apply` ma stały kod, komunikat i, gdy jest co zrobić, `fix`; katalog kodów w `src/apply/warnings.ts` i w README.
+- Tekst wygląda jak w `doctor`: kod w nawiasie, a co zrobić w linii `fix:`.
+- `apply --json` (także z `--dry-run`): jeden dokument na stdout ze zmianami i ich diffem, ostrzeżeniami, błędami, fragmentami do dodania ręcznie i podsumowaniem; stderr pusty. Błędna albo brakująca polityka też daje JSON.
+- `ApplyReport.warnings` bez zmian typu; nowe pole `warningDetails`.
+- `apply` nie edytuje pliku TOML, który się nie parsuje (wcześniej dopisywało blok i zgłaszało sukces); to teraz błąd `cannot-edit`.
+- CLAUDE.md: zasada o wyjściu maszynowym jest spełniona przez wszystkie polecenia.
+- Weryfikacja: `npm test` (1400 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-30 · Faza 10: poprawki po drugim przeglądzie (D-066)
 
 - Przegląd z projektami testowymi i prawdziwymi uv 0.13.6, Poetry 2.5.1 i pip 26.2.2 znalazł 9 problemów; wszystkie poprawione, każdy z testem:

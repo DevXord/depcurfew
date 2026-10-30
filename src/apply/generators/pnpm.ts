@@ -30,7 +30,13 @@ export const pnpm: ManagerGenerator = (context) => {
       const strict = extraOf(tool, 'minimumReleaseAgeStrict', isSwitch);
       if (context.atLeast(strict.since) && yaml.get([strict.setting]) !== strict.value) yaml.set([strict.setting], strict.value);
       const exact = extraOf(tool, 'cooldownExactVersions', (value): value is string => typeof value === 'string');
-      if (!context.atLeast(exact)) context.warn(`${context.name} ${formatVersion(context.version ?? [0, 0, 0])} skips ${setting} for packages requested by exact version; require pnpm ${exact} or later`);
+      if (!context.atLeast(exact)) {
+        context.warn({
+          code: 'exact-version-gap',
+          message: `${context.name} ${formatVersion(context.version ?? [0, 0, 0])} skips ${setting} for packages requested by exact version`,
+          fix: `Require pnpm ${exact} or later`,
+        });
+      }
     }
     const excludeSetting = settingOf(tool.cooldown.exclude.setting);
     const patterns = cooldown === undefined ? undefined : exclusions(context);
@@ -45,7 +51,7 @@ export const pnpm: ManagerGenerator = (context) => {
       if (context.supports(allowAll.since, allowAll.setting)) yaml.set([allowAll.setting], allowAll.value);
     } else {
       if (context.atLeast(allowAll.since) && yaml.get([allowAll.setting]) === allowAll.value) {
-        context.warn(`${context.name}: ${allowAll.setting} allowed every build script; set to false because the policy denies install scripts`);
+        context.warn({ code: 'allow-all-replaced', message: `${context.name}: ${allowAll.setting} allowed every build script; set to false because the policy denies install scripts` });
         yaml.set([allowAll.setting], false);
       }
       const setting = settingOf(tool.installScripts.allowList.setting) ?? 'allowBuilds';
@@ -79,8 +85,14 @@ export const pnpm: ManagerGenerator = (context) => {
   if (exoticSetting !== undefined) {
     const denied = [...exotic].filter(([, access]) => access === 'deny').map(([kind]) => (kind === 'git' ? 'git' : 'remote tarball'));
     if (denied.length > 0) {
-      context.warn(`pnpm: ${exoticSetting} stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depcurfew doctor reports them in pnpm-lock.yaml`);
-      if (denied.length < exotic.size) context.warn(`pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(' and ')}`);
+      context.warn({
+        code: 'source-switch-indirect-only',
+        message: `pnpm: ${exoticSetting} stops git and tarball sources only for indirect dependencies; direct ones stay allowed`,
+        fix: 'Run depcurfew doctor, which reports direct ones in pnpm-lock.yaml',
+      });
+      if (denied.length < exotic.size) {
+        context.warn({ code: 'source-switch-combined', message: `pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(' and ')}` });
+      }
     }
     yaml.set([exoticSetting], denied.length > 0);
   }

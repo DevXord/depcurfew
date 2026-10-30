@@ -19,9 +19,11 @@ export const pip: ManagerGenerator = (context) => {
     const result = convertCooldown(tool, policy.cooldown.minimum);
     const value = result.ok ? `P${String(result.value)}D` : undefined;
     const version = context.version === undefined || context.atLeast(since) ? '' : ` (pip ${formatVersion(context.version)} is too old for it)`;
-    context.warn(
-      `${context.name}: cooldown not written: pip reads no configuration from the project and rejects --${flag} in requirements files; set ${variable}${value === undefined ? '' : `=${value}`} where pip installs packages (CI, Dockerfile), with pip ${since ?? 'a recent version'} or later${version}`,
-    );
+    context.warn({
+      code: 'cooldown-environment-only',
+      message: `${context.name}: cooldown not written: pip reads no configuration from the project and rejects --${flag} in requirements files${version}`,
+      fix: `Set ${variable}${value === undefined ? '' : `=${value}`} where pip installs packages (CI, Dockerfile), with pip ${since ?? 'a recent version'} or later`,
+    });
   }
 
   const entries: string[] = [];
@@ -45,7 +47,13 @@ export const pip: ManagerGenerator = (context) => {
   eachSource(context, () => undefined);
 
   if (!context.exists(file)) {
-    if (entries.length > 0) context.warn(`${context.name}: no ${file}, so ${entries.join(' and ')} not written; add ${entries.length === 1 ? 'it' : 'them'} to the pip command or the requirements file pip installs from`);
+    if (entries.length > 0) {
+      context.warn({
+        code: 'requirements-file-missing',
+        message: `${context.name}: no ${file}, so ${entries.join(' and ')} not written`,
+        fix: `Add ${entries.length === 1 ? 'it' : 'them'} to the pip command or the requirements file pip installs from`,
+      });
+    }
     return undefined;
   }
   if (entries.length > 0 || context.read(file).includes(BLOCK_START)) context.requirements(file, entries, managed);

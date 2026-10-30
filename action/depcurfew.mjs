@@ -11386,10 +11386,11 @@ function maximumDays(tool) {
 * unit, the smallest unit wins: its larger number is long enough under every reading.
 */
 function convertCooldown(tool, duration) {
-	const fail = (reason) => ({
+	const fail = (reason, fix) => ({
 		ok: false,
 		tool: tool.id,
-		reason
+		reason,
+		...fix === void 0 ? {} : { fix }
 	});
 	const units = valuesOf(tool.cooldown.unit);
 	if (units.includes(null)) return fail(`${tool.name} has no release-age setting`);
@@ -11408,7 +11409,7 @@ function convertCooldown(tool, duration) {
 	const { value: count, exact } = countIn(duration.minutes, unit);
 	const value = delayUnit === "duration-string" ? amount(count, unit) : count;
 	const maximum = maximumDays(tool);
-	if (maximum !== void 0 && count * SECONDS_PER[unit] > maximum * SECONDS_PER.days) return fail(`${tool.name} accepts at most ${amount(maximum, "days")}, but ${duration.text} needs ${amount(count, unit)}`);
+	if (maximum !== void 0 && count * SECONDS_PER[unit] > maximum * SECONDS_PER.days) return fail(`${tool.name} accepts at most ${amount(maximum, "days")}, but ${duration.text} needs ${amount(count, unit)}`, `Set cooldown.minimum in ${POLICY_FILE} to ${maximum}d or less`);
 	return {
 		ok: true,
 		tool: tool.id,
@@ -11907,7 +11908,11 @@ function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
 	if (setting === null) return void 0;
 	const result = convertCooldown(context.tool, duration);
 	if (!result.ok) {
-		context.warn(`${context.name}: cooldown not written: ${result.reason}`);
+		context.warn({
+			code: "cooldown-not-written",
+			message: `${context.name}: cooldown not written: ${result.reason}`,
+			...result.fix === void 0 ? {} : { fix: result.fix }
+		});
 		return;
 	}
 	if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return void 0;
@@ -11933,7 +11938,11 @@ function exclusions(context, patterns = context.policy.cooldown?.exclude ?? []) 
 	return patterns.filter((pattern) => {
 		if (!pattern.includes("*")) return true;
 		const accepted = wildcardsWork && (!wildcards.trailingOnly || pattern.indexOf("*") === pattern.length - 1);
-		if (!accepted) context.warn(`${context.name}: ${setting} does not support the pattern "${pattern}"; not written. List the exact package names in cooldown.exclude`);
+		if (!accepted) context.warn({
+			code: "exclude-pattern-unsupported",
+			message: `${context.name}: ${setting} does not support the pattern "${pattern}"; not written`,
+			fix: "List the exact package names in cooldown.exclude"
+		});
 		return accepted;
 	});
 }
@@ -11941,7 +11950,11 @@ function exclusions(context, patterns = context.policy.cooldown?.exclude ?? []) 
 function allowedNames(context, setting) {
 	return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
 		if (!pattern.includes("*")) return true;
-		context.warn(`${context.name}: ${setting} takes package names only; "${pattern}" not written. List the package names in installScripts.allow`);
+		context.warn({
+			code: "allow-pattern-unsupported",
+			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
+			fix: "List the package names in installScripts.allow"
+		});
 		return false;
 	});
 }
@@ -11961,10 +11974,11 @@ function eachSource(context, apply) {
 		const knowledge = context.tool.sources?.[kind];
 		const setting = settingOf(knowledge?.setting);
 		if (setting === null) {
-			if (access === "deny") {
-				const checked = lockfileShowsSources(context.tool) ? "; depcurfew doctor still reports such dependencies in the lockfile" : "; depcurfew doctor cannot see them in the lockfile either, so review new dependencies by hand";
-				context.warn(`${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced${checked}`);
-			}
+			if (access === "deny") context.warn({
+				code: "source-not-enforceable",
+				message: `${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
+				fix: lockfileShowsSources(context.tool) ? "Run depcurfew doctor, which reports such dependencies in the lockfile" : "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
+			});
 			continue;
 		}
 		if (!context.supports(sinceOf(knowledge?.availableSince), setting)) continue;
@@ -12012,7 +12026,11 @@ const bun = (context) => {
 		}
 	}
 	if (policy.installScripts !== void 0) {
-		if (policy.installScripts.default === "allow") context.warn(`${context.name} has no setting that allows every install script; "allow" not written. List the packages under installScripts.allow instead`);
+		if (policy.installScripts.default === "allow") context.warn({
+			code: "allow-all-unsupported",
+			message: `${context.name} has no setting that allows every install script; "allow" not written`,
+			fix: "List the packages under installScripts.allow instead"
+		});
 		else {
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			const since = sinceOf(tool.installScripts.allowList.availableSince);
@@ -12020,7 +12038,11 @@ const bun = (context) => {
 				const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
 				const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
 				const current = context.json(listFile).get([setting]);
-				if (current === void 0) context.warn(`${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed; add the ones that need their scripts to installScripts.allow`);
+				if (current === void 0) context.warn({
+					code: "built-in-list-replaced",
+					message: `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed`,
+					fix: "Add the ones that need their scripts to installScripts.allow"
+				});
 				const list = Array.isArray(current) ? [...current] : [];
 				const merged = [...list, ...names.filter((name) => !list.includes(name))];
 				if (current === void 0 || !sameList(current, merged)) context.json(listFile).set([setting], merged);
@@ -12344,8 +12366,13 @@ function createContext(options) {
 		return options.version === void 0 || required === void 0 || compareVersions$1(options.version, required) >= 0;
 	};
 	const unsupported = [];
-	const warn = (message) => {
-		if (!warnings.includes(message)) warnings.push(message);
+	const warn = (warning) => {
+		const { code, ...rest } = warning;
+		if (!warnings.some((known) => known.code === code && known.message === warning.message)) warnings.push({
+			code,
+			tool: tool.id,
+			...rest
+		});
 	};
 	const guard = (file, action) => {
 		try {
@@ -12396,11 +12423,15 @@ function createContext(options) {
 				0,
 				0
 			]) >= 0 ? a : b);
-			warn(`${tool.name} ${formatVersion(options.version ?? [
-				0,
-				0,
-				0
-			])} does not support ${describeRequirements(unsupported)}; not written. To apply ${unsupported.length === 1 ? "it" : "them"}, require ${tool.name} ${needed} or later where the version is pinned`);
+			warn({
+				code: "version-too-old",
+				message: `${tool.name} ${formatVersion(options.version ?? [
+					0,
+					0,
+					0
+				])} does not support ${describeRequirements(unsupported)}; not written`,
+				fix: `Require ${tool.name} ${needed} or later where the version is pinned`
+			});
 		},
 		atLeast,
 		json: (file) => ({
@@ -12415,7 +12446,12 @@ function createContext(options) {
 			set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value)))
 		}),
 		ini: (file, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeIniBlock(body, entries, managedKeys))),
-		toml: (file, table, entries, managedKeys, label) => guard(file, () => workspace.edit(file, (body) => writeTomlBlock(body, table, entries, managedKeys, label))),
+		toml: (file, table, entries, managedKeys, label) => guard(file, () => workspace.edit(file, (body) => {
+			parseToml(body);
+			const edited = writeTomlBlock(body, table, entries, managedKeys, label);
+			parseToml(edited);
+			return edited;
+		})),
 		requirements: (file, entries, managedOptions) => guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions)))
 	};
 }
@@ -12458,7 +12494,10 @@ const deno = (context) => {
 			const path = isRecord(current) ? [setting, "allow"] : [setting];
 			const allowed = isRecord(current) ? current["allow"] : current;
 			if (allowed === allowAll.value && context.atLeast(since)) {
-				context.warn(`${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`);
+				context.warn({
+					code: "allow-all-replaced",
+					message: `${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`
+				});
 				json.set(path, specifiers);
 			} else if (specifiers.length > 0) {
 				if (Array.isArray(allowed)) {
@@ -12478,13 +12517,24 @@ const dependabot = (context, duration) => {
 	if (policy.cooldown === void 0 || duration === void 0) return;
 	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
 	if (file === void 0) {
-		context.warn(`${context.name}: no configuration file found; depcurfew does not create one. Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again`);
+		context.warn({
+			code: "bot-config-missing",
+			message: `${context.name}: no configuration file found; depcurfew does not create one`,
+			fix: "Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again"
+		});
 		return;
 	}
-	if (policy.cooldown.securityUpdates === "delay") context.warn(`${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`);
+	if (policy.cooldown.securityUpdates === "delay") context.warn({
+		code: "security-delay-unsupported",
+		message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`
+	});
 	const result = convertCooldown(tool, duration);
 	if (!result.ok) {
-		context.warn(`${context.name}: cooldown not written: ${result.reason}`);
+		context.warn({
+			code: "cooldown-not-written",
+			message: `${context.name}: cooldown not written: ${result.reason}`,
+			...result.fix === void 0 ? {} : { fix: result.fix }
+		});
 		return;
 	}
 	const keys = extraOf(tool, "cooldownKeys", isKeys);
@@ -12537,7 +12587,12 @@ const dependabot = (context, duration) => {
 			keys.exclude
 		], patterns);
 	});
-	if (configured === 0) context.warn(`${context.name}: no ${ecosystems.join(", ")} entries in ${file}; nothing to configure`);
+	if (configured === 0) context.warn({
+		code: "bot-entries-missing",
+		location: { file },
+		message: `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; nothing to configure`,
+		fix: `Add an updates entry for each package manager Dependabot should update to ${file}, then run depcurfew apply again`
+	});
 };
 
 // src/apply/generators/npm.ts
@@ -12581,11 +12636,15 @@ const npm = (context) => {
 				managed.push(strict.setting);
 			} else if (defaults === "run") {
 				const since = sinceOf(tool.installScripts.allowList.availableSince) ?? "";
-				context.warn(`${context.name} ${formatVersion(context.version ?? [
-					0,
-					0,
-					0
-				])} runs every dependency install script and has no allow-list, so "deny" cannot be enforced; require npm ${since} or later (npm 12 blocks dependency scripts by default)`);
+				context.warn({
+					code: "scripts-not-enforceable",
+					message: `${context.name} ${formatVersion(context.version ?? [
+						0,
+						0,
+						0
+					])} runs every dependency install script and has no allow-list, so "deny" cannot be enforced`,
+					fix: `Require npm ${since} or later (npm 12 blocks dependency scripts by default)`
+				});
 			}
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
@@ -12616,12 +12675,19 @@ function pythonNames(names) {
 }
 function forcedBuildWarning(context, setting, names) {
 	if (names.length === 0) return;
-	context.warn(`${context.name}: ${setting} lets ${names.join(", ")} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? "it" : "them"} from source, even where a wheel exists, because it has no setting that only allows building`);
+	context.warn({
+		code: "forced-source-build",
+		message: `${context.name}: ${setting} lets ${names.join(", ")} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? "it" : "them"} from source, even where a wheel exists, because it has no setting that only allows building`
+	});
 }
 /** Says when the tool's switch does not stop git, local and URL dependencies from being built. */
 function buildSwitchScopeWarning(context, setting, covers) {
 	if (Array.isArray(covers) && covers.includes("git") && covers.includes("directory")) return;
-	context.warn(`${context.name}: ${setting} forbids building only packages from an index; ${context.name} still builds git, local directory and source archive dependencies, and depcurfew doctor reports them`);
+	context.warn({
+		code: "build-switch-scope",
+		message: `${context.name}: ${setting} forbids building only packages from an index; ${context.name} still builds git, local directory and source archive dependencies`,
+		fix: "Run depcurfew doctor to find them in the lockfile"
+	});
 }
 /** A TOML string or array value. */
 function tomlValue(value) {
@@ -12639,7 +12705,11 @@ const pip = (context) => {
 		const result = convertCooldown(tool, policy.cooldown.minimum);
 		const value = result.ok ? `P${String(result.value)}D` : void 0;
 		const version = context.version === void 0 || context.atLeast(since) ? "" : ` (pip ${formatVersion(context.version)} is too old for it)`;
-		context.warn(`${context.name}: cooldown not written: pip reads no configuration from the project and rejects --${flag} in requirements files; set ${variable}${value === void 0 ? "" : `=${value}`} where pip installs packages (CI, Dockerfile), with pip ${since ?? "a recent version"} or later${version}`);
+		context.warn({
+			code: "cooldown-environment-only",
+			message: `${context.name}: cooldown not written: pip reads no configuration from the project and rejects --${flag} in requirements files${version}`,
+			fix: `Set ${variable}${value === void 0 ? "" : `=${value}`} where pip installs packages (CI, Dockerfile), with pip ${since ?? "a recent version"} or later`
+		});
 	}
 	const entries = [];
 	const managed = [];
@@ -12660,7 +12730,11 @@ const pip = (context) => {
 	}
 	eachSource(context, () => void 0);
 	if (!context.exists(file)) {
-		if (entries.length > 0) context.warn(`${context.name}: no ${file}, so ${entries.join(" and ")} not written; add ${entries.length === 1 ? "it" : "them"} to the pip command or the requirements file pip installs from`);
+		if (entries.length > 0) context.warn({
+			code: "requirements-file-missing",
+			message: `${context.name}: no ${file}, so ${entries.join(" and ")} not written`,
+			fix: `Add ${entries.length === 1 ? "it" : "them"} to the pip command or the requirements file pip installs from`
+		});
 		return;
 	}
 	if (entries.length > 0 || context.read(file).includes("# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead")) context.requirements(file, entries, managed);
@@ -12682,11 +12756,15 @@ const pnpm = (context) => {
 			const strict = extraOf(tool, "minimumReleaseAgeStrict", isSwitch);
 			if (context.atLeast(strict.since) && yaml.get([strict.setting]) !== strict.value) yaml.set([strict.setting], strict.value);
 			const exact = extraOf(tool, "cooldownExactVersions", (value) => typeof value === "string");
-			if (!context.atLeast(exact)) context.warn(`${context.name} ${formatVersion(context.version ?? [
-				0,
-				0,
-				0
-			])} skips ${setting} for packages requested by exact version; require pnpm ${exact} or later`);
+			if (!context.atLeast(exact)) context.warn({
+				code: "exact-version-gap",
+				message: `${context.name} ${formatVersion(context.version ?? [
+					0,
+					0,
+					0
+				])} skips ${setting} for packages requested by exact version`,
+				fix: `Require pnpm ${exact} or later`
+			});
 		}
 		const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 		const patterns = cooldown === void 0 ? void 0 : exclusions(context);
@@ -12700,7 +12778,10 @@ const pnpm = (context) => {
 			if (context.supports(allowAll.since, allowAll.setting)) yaml.set([allowAll.setting], allowAll.value);
 		} else {
 			if (context.atLeast(allowAll.since) && yaml.get([allowAll.setting]) === allowAll.value) {
-				context.warn(`${context.name}: ${allowAll.setting} allowed every build script; set to false because the policy denies install scripts`);
+				context.warn({
+					code: "allow-all-replaced",
+					message: `${context.name}: ${allowAll.setting} allowed every build script; set to false because the policy denies install scripts`
+				});
 				yaml.set([allowAll.setting], false);
 			}
 			const setting = settingOf(tool.installScripts.allowList.setting) ?? "allowBuilds";
@@ -12734,8 +12815,15 @@ const pnpm = (context) => {
 	if (exoticSetting !== void 0) {
 		const denied = [...exotic].filter(([, access]) => access === "deny").map(([kind]) => kind === "git" ? "git" : "remote tarball");
 		if (denied.length > 0) {
-			context.warn(`pnpm: ${exoticSetting} stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depcurfew doctor reports them in pnpm-lock.yaml`);
-			if (denied.length < exotic.size) context.warn(`pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(" and ")}`);
+			context.warn({
+				code: "source-switch-indirect-only",
+				message: `pnpm: ${exoticSetting} stops git and tarball sources only for indirect dependencies; direct ones stay allowed`,
+				fix: "Run depcurfew doctor, which reports direct ones in pnpm-lock.yaml"
+			});
+			if (denied.length < exotic.size) context.warn({
+				code: "source-switch-combined",
+				message: `pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(" and ")}`
+			});
 		}
 		yaml.set([exoticSetting], denied.length > 0);
 	}
@@ -12786,7 +12874,10 @@ const poetry = (context) => {
 		if (context.supports(build.since, build.setting)) {
 			installer.entries.push(`${key} = ${tomlValue(build.value)}`);
 			installer.managed.push(key);
-			context.warn(`${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies`);
+			context.warn({
+				code: "build-switch-install-only",
+				message: `${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies`
+			});
 			buildSwitchScopeWarning(context, build.setting, build.covers);
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			if (setting !== null) {
@@ -12813,7 +12904,11 @@ const renovate = (context, duration) => {
 	if (policy.cooldown === void 0 || duration === void 0) return;
 	const result = convertCooldown(tool, duration);
 	if (!result.ok) {
-		context.warn(`${context.name}: cooldown not written: ${result.reason}`);
+		context.warn({
+			code: "cooldown-not-written",
+			message: `${context.name}: cooldown not written: ${result.reason}`,
+			...result.fix === void 0 ? {} : { fix: result.fix }
+		});
 		return;
 	}
 	const setting = settingOf(tool.cooldown.setting) ?? "minimumReleaseAge";
@@ -12858,10 +12953,24 @@ const renovate = (context, duration) => {
 		const packageJson = extraOf(tool, "packageJsonConfig", isRecord);
 		const where = file ?? (context.exists("package.json") && context.json("package.json").get([String(packageJson["key"])]) !== void 0 ? "package.json" : void 0);
 		if (where === void 0) {
-			context.warn(`${context.name}: no configuration file found; depcurfew does not create one. Add renovate.json if you use Renovate, then run depcurfew apply again`);
+			context.warn({
+				code: "bot-config-missing",
+				message: `${context.name}: no configuration file found; depcurfew does not create one`,
+				fix: "Add renovate.json if you use Renovate, then run depcurfew apply again"
+			});
 			return;
 		}
-		context.warn(where === "package.json" ? `${context.name}: configuration in package.json is deprecated and depcurfew does not edit it; move it to renovate.json or add the snippet by hand` : `${context.name}: ${where} is not plain JSON or JSONC, so depcurfew does not edit it; add the snippet by hand`);
+		context.warn(where === "package.json" ? {
+			code: "bot-config-not-edited",
+			location: { file: where },
+			message: `${context.name}: configuration in package.json is deprecated and depcurfew does not edit it`,
+			fix: "Move it to renovate.json, or add the snippet by hand"
+		} : {
+			code: "bot-config-not-edited",
+			location: { file: where },
+			message: `${context.name}: ${where} is not plain JSON or JSONC, so depcurfew does not edit it`,
+			fix: "Add the snippet by hand"
+		});
 		context.snippet(where, snippet());
 		return;
 	}
@@ -12953,7 +13062,12 @@ function relockWarning(context, file, table, edit) {
 	const path = table === "" ? [] : table.split(".");
 	const changed = locked.filter((setting) => comparable(tomlValueAt(before, [...path, setting])) !== comparable(tomlValueAt(after, [...path, setting])));
 	if (changed.length === 0) return;
-	context.warn(`${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change; run ${context.name} lock and commit ${lockfile}, or ${context.name} sync --locked and ${context.name} lock --check fail until then`);
+	context.warn({
+		code: "lockfile-out-of-date",
+		location: { file: lockfile },
+		message: `${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change`,
+		fix: `Run ${context.name} lock and commit ${lockfile}; until then ${context.name} sync --locked and ${context.name} lock --check fail`
+	});
 }
 
 // src/apply/generators/yarn.ts
@@ -12996,6 +13110,12 @@ const yarn = (context) => {
 	});
 	return minutes;
 };
+
+// src/apply/warnings.ts
+/** A warning as one line of text, as ApplyReport.warnings has it. */
+function warningText(warning) {
+	return warning.fix === void 0 ? warning.message : `${warning.message}. ${warning.fix}`;
+}
 
 // src/apply/text.ts
 function detectStyle(text) {
@@ -13135,8 +13255,14 @@ function allowListWarnings(root, policy, detection, targets, tools) {
 	return detection.packageManagers.filter((manager) => manager.supported && targets.has(manager.id)).flatMap((manager) => {
 		const tool = tools.find((entry) => entry.id === manager.id);
 		const allow = policyFor(policy, tool === void 0 ? "npm" : ecosystemOfTool(tool)).installScripts?.allow ?? [];
-		return allowEntries(repository, manager.id, manager.configFiles).filter((entry) => !allow.some((pattern) => matchesPattern(entry.package, pattern)));
-	}).map((entry) => `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write, so remove ${entry.name} from ${entry.setting} by hand or add ${entry.name === entry.package ? "it" : entry.package} to installScripts.allow in ${POLICY_FILE}`);
+		return allowEntries(repository, manager.id, manager.configFiles).filter((entry) => !allow.some((pattern) => matchesPattern(entry.package, pattern))).map((entry) => ({
+			code: "allow-list-entry-outside-policy",
+			tool: manager.id,
+			location: { file: entry.file },
+			message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write`,
+			fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${entry.package} to installScripts.allow in ${POLICY_FILE}`
+		}));
+	});
 }
 /** Computes every change without writing anything. */
 function planApply(root, policy, detection, tools = knowledgeBase) {
@@ -13148,11 +13274,20 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	for (const manager of detection.packageManagers) if (!manager.supported && (policy.targets === "auto" || targets.has(manager.id))) {
 		const berry = tools.find((tool) => tool.id === manager.id);
 		const since = berry === void 0 ? void 0 : sinceOf(berry.cooldown.availableSince);
-		const advice = manager.variant === "classic" && berry !== void 0 ? `. Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures` : "";
-		warnings.push(`${manager.variant === "classic" ? "Yarn Classic (1.x)" : manager.id} is not supported; nothing written for it${advice}`);
+		const advice = manager.variant === "classic" && berry !== void 0 ? `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures` : void 0;
+		warnings.push({
+			code: "tool-not-supported",
+			tool: manager.id,
+			message: `${manager.variant === "classic" ? "Yarn Classic (1.x)" : manager.id} is not supported; nothing written for it`,
+			...advice === void 0 ? {} : { fix: advice }
+		});
 		targets.delete(manager.id);
 	}
-	if (targets.size === 0) warnings.push("no tools to configure: depcurfew found no supported package manager or bot here (depcurfew explain shows what it detects)");
+	if (targets.size === 0) warnings.push({
+		code: "nothing-to-configure",
+		message: "no tools to configure: depcurfew found no supported package manager or bot here",
+		fix: "Run depcurfew explain to see what depcurfew detects"
+	});
 	const run = (tool, version, action) => {
 		const view = tool.kind === "package-manager" ? policyFor(policy, ecosystemOfTool(tool)) : policy;
 		const context = createContext({
@@ -13181,7 +13316,12 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		const version = manager === void 0 ? void 0 : pinnedVersion(manager);
 		if (version === void 0) {
 			const latest = latestVersion$1(tool);
-			warnings.push(`${tool.name}: no exact version is pinned, so depcurfew configures for ${tool.name} ${latest ?? "latest"}, the latest version it knows; pin the version you use (${pinPlaces(tool)}) to configure for it`);
+			warnings.push({
+				code: "version-not-pinned",
+				tool: tool.id,
+				message: `${tool.name}: no exact version is pinned, so depcurfew configures for ${tool.name} ${latest ?? "latest"}, the latest version it knows`,
+				fix: `Pin the version you use (${pinPlaces(tool)}) to configure for it`
+			});
 		}
 		run(tool, version, (context) => {
 			const minutes = generator(context);
@@ -13198,7 +13338,8 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
 	return {
 		changes: workspace.changes(),
-		warnings,
+		warnings: warnings.map(warningText),
+		warningDetails: warnings,
 		snippets,
 		errors,
 		failures
@@ -13206,16 +13347,25 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 }
 var PolicyError = class extends Error {
 	issues;
-	constructor(message, issues = []) {
+	code;
+	/** What to do, when the message does not say it. */
+	fix;
+	constructor(message, issues = [], code = "policy-invalid", fix) {
 		super(message);
 		this.issues = issues;
+		this.code = code;
+		this.fix = fix;
+	}
+	/** The message and what to do, as one line of text. */
+	get text() {
+		return this.fix === void 0 ? this.message : `${this.message}; ${this.fix.charAt(0).toLowerCase()}${this.fix.slice(1)}`;
 	}
 };
 /** The policy of the repository; undefined when it has no depcurfew.json. Throws PolicyError when it cannot be used. */
 function loadPolicyIfPresent(root) {
 	const file = readPolicyFile(root);
 	if (file.status === "missing") return void 0;
-	if (file.status === "unreadable") throw new PolicyError(file.reason);
+	if (file.status === "unreadable") throw new PolicyError(file.reason, [], "policy-unreadable");
 	const result = parsePolicy(file.text);
 	if (!result.ok) throw new PolicyError(`${POLICY_FILE} is invalid`, result.issues.map(formatIssue));
 	return result.policy;
@@ -15164,7 +15314,7 @@ function runAction(env, io) {
 	} catch (error) {
 		if (!(error instanceof PolicyError)) throw error;
 		outputs.failure = [error.message, ...error.issues].join("; ");
-		io.log(untrusted(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join("")}`));
+		io.log(untrusted(`depcurfew: ${error.text}\n${error.issues.map((issue) => `  ${issue}\n`).join("")}`));
 		if (summary) io.summary(failureSummary(outputs.failure));
 		return outputs;
 	}

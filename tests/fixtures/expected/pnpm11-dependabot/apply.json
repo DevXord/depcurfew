@@ -4,8 +4,18 @@
     "pnpm-workspace.yaml"
   ],
   "warnings": [
-    "pnpm: allowBuilds takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
-    "pnpm: blockExoticSubdeps stops git and tarball sources only for indirect dependencies; direct ones stay allowed, and depcurfew doctor reports them in pnpm-lock.yaml"
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "pnpm",
+      "message": "pnpm: allowBuilds takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "source-switch-indirect-only",
+      "tool": "pnpm",
+      "message": "pnpm: blockExoticSubdeps stops git and tarball sources only for indirect dependencies; direct ones stay allowed",
+      "fix": "Run depcurfew doctor, which reports direct ones in pnpm-lock.yaml"
+    }
   ],
   "snippets": []
 }

@@ -19,7 +19,7 @@ export function doctor(directory: string | undefined, format: { json: boolean; s
     report = runDoctor(absolute);
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
-    io.stderr(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
+    io.stderr(`depcurfew: ${error.text}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
     return EXIT_FAILURE;
   }
   if (format.sarif) {

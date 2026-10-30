@@ -1,6 +1,7 @@
 // What every generator gets: the tool's knowledge, the policy, the pinned version and helpers for warnings,
 // version checks and the file edits. A failed edit is recorded as an error and stops only the tool that made it,
 // so every broken file is reported in one run.
+import { parseToml } from '../../detect/toml.ts';
 import type { Duration } from '../../policy/duration.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
@@ -10,6 +11,7 @@ import { writeRequirementsBlock } from '../pip-requirements.ts';
 import { describeRequirements, type Requirement } from '../requirements.ts';
 import { writeTomlBlock } from '../toml.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
+import type { ApplyWarning } from '../warnings.ts';
 import type { Workspace } from '../workspace.ts';
 import { yamlGet, yamlSet } from '../yaml-edit.ts';
 
@@ -41,7 +43,8 @@ export interface Context {
   exists(file: string): boolean;
   /** The file's text (empty when missing); a file that cannot be read stops the generator with an error. */
   read(file: string): string;
-  warn(message: string): void;
+  /** Reports a warning about this tool (the tool is filled in); the same warning twice is reported once. */
+  warn(warning: Omit<ApplyWarning, 'tool'>): void;
   snippet(file: string, text: string): void;
   /** Whether the pinned version has a setting available since `since`; when it is too old, finish() reports it. */
   supports(since: string | undefined, setting: string): boolean;
@@ -84,7 +87,7 @@ export function createContext(options: {
   policy: ResolvedPolicy;
   version: Version | undefined;
   workspace: Workspace;
-  warnings: string[];
+  warnings: ApplyWarning[];
   snippets: Snippet[];
   failures: EditFailure[];
 }): Context {
@@ -94,8 +97,9 @@ export function createContext(options: {
     return options.version === undefined || required === undefined || compareVersions(options.version, required) >= 0;
   };
   const unsupported: Requirement[] = [];
-  const warn = (message: string) => {
-    if (!warnings.includes(message)) warnings.push(message);
+  const warn = (warning: Omit<ApplyWarning, 'tool'>) => {
+    const { code, ...rest } = warning;
+    if (!warnings.some((known) => known.code === code && known.message === warning.message)) warnings.push({ code, tool: tool.id, ...rest });
   };
   const guard = <T>(file: string, action: () => T): T => {
     try {
@@ -129,9 +133,11 @@ export function createContext(options: {
       // One warning for every setting the version is too old for, grouped by the version that added them.
       if (unsupported.length === 0) return;
       const needed = unsupported.map((item) => item.since).reduce((a, b) => (compareVersions(parseVersion(a) ?? [0, 0, 0], parseVersion(b) ?? [0, 0, 0]) >= 0 ? a : b));
-      warn(
-        `${tool.name} ${formatVersion(options.version ?? [0, 0, 0])} does not support ${describeRequirements(unsupported)}; not written. To apply ${unsupported.length === 1 ? 'it' : 'them'}, require ${tool.name} ${needed} or later where the version is pinned`,
-      );
+      warn({
+        code: 'version-too-old',
+        message: `${tool.name} ${formatVersion(options.version ?? [0, 0, 0])} does not support ${describeRequirements(unsupported)}; not written`,
+        fix: `Require ${tool.name} ${needed} or later where the version is pinned`,
+      });
     },
     atLeast,
     json: (file) => ({
@@ -146,8 +152,16 @@ export function createContext(options: {
       set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value))),
     }),
     ini: (file, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeIniBlock(body, entries, managedKeys))),
+    // The block is written line by line; a file that does not parse is not edited, and the result has to parse.
     toml: (file, table, entries, managedKeys, label) =>
-      guard(file, () => workspace.edit(file, (body) => writeTomlBlock(body, table, entries, managedKeys, label))),
+      guard(file, () =>
+        workspace.edit(file, (body) => {
+          parseToml(body);
+          const edited = writeTomlBlock(body, table, entries, managedKeys, label);
+          parseToml(edited);
+          return edited;
+        }),
+      ),
     requirements: (file, entries, managedOptions) =>
       guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions))),
   };
