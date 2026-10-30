@@ -92,7 +92,7 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
   }
   if (command.name === 'init') return init(rest[0], values['force'] === true, io);
   if (command.name === 'explain') return explain(rest[0], values['json'] === true, io);
-  if (command.name === 'apply') return apply(rest[0], values['dry-run'] === true, io);
+  if (command.name === 'apply') return apply(rest[0], { dryRun: values['dry-run'] === true, json: values['json'] === true }, io);
   if (command.name === 'doctor') return doctor(rest[0], { json: values['json'] === true, sarif: values['sarif'] === true }, io);
   if (command.name === 'check') {
     return check(rest, { json: values['json'] === true, dir: text('dir'), registry: text('registry'), hook: text('hook') }, io, dependencies);

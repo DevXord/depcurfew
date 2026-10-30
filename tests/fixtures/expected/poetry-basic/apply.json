@@ -4,12 +4,40 @@
     "renovate.json"
   ],
   "warnings": [
-    "Poetry: solver.min-release-age-exclude does not support the pattern \"acme-*\"; not written. List the exact package names in cooldown.exclude",
-    "Poetry: installer.only-binary applies when packages are installed; poetry lock may still build source distributions to read their dependencies",
-    "Poetry: installer.only-binary forbids building only packages from an index; Poetry still builds git, local directory and source archive dependencies, and depcurfew doctor reports them",
-    "Poetry: installer.no-binary lets docopt be built from source while building is forbidden for everything else; Poetry then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
-    "Poetry has no setting for git dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile",
-    "Poetry has no setting for URL dependencies, so \"deny\" cannot be enforced; depcurfew doctor still reports such dependencies in the lockfile"
+    {
+      "code": "exclude-pattern-unsupported",
+      "tool": "poetry",
+      "message": "Poetry: solver.min-release-age-exclude does not support the pattern \"acme-*\"; not written",
+      "fix": "List the exact package names in cooldown.exclude"
+    },
+    {
+      "code": "build-switch-install-only",
+      "tool": "poetry",
+      "message": "Poetry: installer.only-binary applies when packages are installed; poetry lock may still build source distributions to read their dependencies"
+    },
+    {
+      "code": "build-switch-scope",
+      "tool": "poetry",
+      "message": "Poetry: installer.only-binary forbids building only packages from an index; Poetry still builds git, local directory and source archive dependencies",
+      "fix": "Run depcurfew doctor to find them in the lockfile"
+    },
+    {
+      "code": "forced-source-build",
+      "tool": "poetry",
+      "message": "Poetry: installer.no-binary lets docopt be built from source while building is forbidden for everything else; Poetry then always builds it from source, even where a wheel exists, because it has no setting that only allows building"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "poetry",
+      "message": "Poetry has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "poetry",
+      "message": "Poetry has no setting for URL dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    }
   ],
   "snippets": []
 }

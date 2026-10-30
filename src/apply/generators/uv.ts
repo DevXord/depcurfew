@@ -93,7 +93,10 @@ function relockWarning(context: Context, file: string, table: string, edit: (bod
   const path = table === '' ? [] : table.split('.');
   const changed = locked.filter((setting) => comparable(tomlValueAt(before, [...path, setting])) !== comparable(tomlValueAt(after, [...path, setting])));
   if (changed.length === 0) return;
-  context.warn(
-    `${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change; run ${context.name} lock and commit ${lockfile}, or ${context.name} sync --locked and ${context.name} lock --check fail until then`,
-  );
+  context.warn({
+    code: 'lockfile-out-of-date',
+    location: { file: lockfile },
+    message: `${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change`,
+    fix: `Run ${context.name} lock and commit ${lockfile}; until then ${context.name} sync --locked and ${context.name} lock --check fail`,
+  });
 }

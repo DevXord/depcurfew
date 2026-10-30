@@ -26,15 +26,19 @@ export const dependabot: BotGenerator = (context, duration) => {
   if (policy.cooldown === undefined || duration === undefined) return;
   const file = (values(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
   if (file === undefined) {
-    context.warn(`${context.name}: no configuration file found; depcurfew does not create one. Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again`);
+    context.warn({
+      code: 'bot-config-missing',
+      message: `${context.name}: no configuration file found; depcurfew does not create one`,
+      fix: 'Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again',
+    });
     return;
   }
   if (policy.cooldown.securityUpdates === 'delay') {
-    context.warn(`${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`);
+    context.warn({ code: 'security-delay-unsupported', message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied` });
   }
   const result = convertCooldown(tool, duration);
   if (!result.ok) {
-    context.warn(`${context.name}: cooldown not written: ${result.reason}`);
+    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, ...(result.fix === undefined ? {} : { fix: result.fix }) });
     return;
   }
   const keys = extraOf(tool, 'cooldownKeys', isKeys);
@@ -67,5 +71,12 @@ export const dependabot: BotGenerator = (context, duration) => {
       yaml.set(['updates', index, setting, keys.exclude], patterns);
     }
   });
-  if (configured === 0) context.warn(`${context.name}: no ${ecosystems.join(', ')} entries in ${file}; nothing to configure`);
+  if (configured === 0) {
+    context.warn({
+      code: 'bot-entries-missing',
+      location: { file },
+      message: `${context.name}: no ${ecosystems.join(', ')} entries in ${file}; nothing to configure`,
+      fix: `Add an updates entry for each package manager Dependabot should update to ${file}, then run depcurfew apply again`,
+    });
+  }
 };

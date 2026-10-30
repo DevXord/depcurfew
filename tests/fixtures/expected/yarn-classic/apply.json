@@ -1,8 +1,17 @@
 {
   "changed": [],
   "warnings": [
-    "Yarn Classic (1.x) is not supported; nothing written for it. Move to Yarn (Berry) 4.10.2 or later, or to another package manager depcurfew configures",
-    "no tools to configure: depcurfew found no supported package manager or bot here (depcurfew explain shows what it detects)"
+    {
+      "code": "tool-not-supported",
+      "tool": "yarn",
+      "message": "Yarn Classic (1.x) is not supported; nothing written for it",
+      "fix": "Move to Yarn (Berry) 4.10.2 or later, or to another package manager depcurfew configures"
+    },
+    {
+      "code": "nothing-to-configure",
+      "message": "no tools to configure: depcurfew found no supported package manager or bot here",
+      "fix": "Run depcurfew explain to see what depcurfew detects"
+    }
   ],
   "snippets": []
 }

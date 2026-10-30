@@ -4,8 +4,18 @@
     "package.json"
   ],
   "warnings": [
-    "npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
-    "npm: allowScripts takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow"
+    {
+      "code": "version-not-pinned",
+      "tool": "npm",
+      "message": "npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows",
+      "fix": "Pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it"
+    },
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "npm",
+      "message": "npm: allowScripts takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    }
   ],
   "snippets": []
 }

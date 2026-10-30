@@ -43,10 +43,13 @@ export const COMMANDS: readonly CommandInfo[] = [
     summary: 'Write the policy into the configuration of every target tool',
     implemented: true,
     arguments: '[directory]',
-    options: [{ name: 'dry-run', summary: 'Print a diff of the changes instead of writing them' }],
+    options: [
+      { name: 'dry-run', summary: 'Print a diff of the changes instead of writing them' },
+      { name: 'json', summary: 'Print the changes with their diff, the warnings and the errors as JSON, each with a code' },
+    ],
     details:
-      'Reads depcurfew.json and writes the matching settings into the configuration files of every package manager and bot it detects (or of the tools listed under targets). Comments and formatting are kept, settings depcurfew does not manage are never removed, and nothing is written when any file cannot be edited. Running it again without changing depcurfew.json changes nothing.',
-    examples: ['depcurfew apply --dry-run', 'depcurfew apply', 'depcurfew apply path/to/project'],
+      'Reads depcurfew.json and writes the matching settings into the configuration files of every package manager and bot it detects (or of the tools listed under targets). Comments and formatting are kept, settings depcurfew does not manage are never removed, and nothing is written when any file cannot be edited. Running it again without changing depcurfew.json changes nothing. Every warning has a code and says what to do; with --json, stdout holds one JSON document and stderr stays empty.',
+    examples: ['depcurfew apply --dry-run', 'depcurfew apply', 'depcurfew apply --dry-run --json', 'depcurfew apply path/to/project'],
     exitCodes: [
       [0, 'the files match the policy (warnings included)'],
       [1, 'depcurfew.json is missing or invalid, or a file cannot be edited'],

@@ -104,7 +104,7 @@ The package installs two names for the same command: `depcurfew` and the short `
 | --- | --- |
 | `depcurfew init [directory] [--force]` | Writes `depcurfew.json` with the default policy; `--force` overwrites an existing one. |
 | `depcurfew explain [directory] [--json]` | Describes the detected package managers, versions, bots and workspaces, and the policy values for each tool. |
-| `depcurfew apply [directory] [--dry-run]` | Writes the policy into the configuration of every target tool; `--dry-run` prints a unified diff instead. |
+| `depcurfew apply [directory] [--dry-run] [--json]` | Writes the policy into the configuration of every target tool; `--dry-run` prints a unified diff instead, `--json` the result as JSON. |
 | `depcurfew doctor [directory] [--json \| --sarif]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning. |
 | `depcurfew check <package...> [--json] [--dir <directory>] [--registry <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
 | `depcurfew check --hook claude-code` | The same check as a Claude Code hook that blocks install commands breaking the policy. |
@@ -119,6 +119,48 @@ How `apply` edits files:
 - It never removes settings it does not manage. Allow-lists are only added to; exception lists follow the policy.
 - If any file cannot be edited, nothing is written.
 - It does not create bot configuration files; it creates a package manager's configuration file when it is missing.
+
+### apply warnings and errors
+
+Each warning and error of `apply` has a code. The text output shows it in parentheses after the message, with what to do on the next line, like a doctor finding. `depcurfew apply --json` (also with `--dry-run`) prints one JSON document and nothing on stderr: `changes` (each file with its action and unified diff), `warnings` and `errors` (each with `code`, `level`, the tool, the file when there is one, `message` and `fix`), `snippets` to add by hand, and `written`. A run that writes nothing because of an error lists no changes and exits with 1.
+
+<!-- BEGIN GENERATED: apply-codes -->
+Warnings:
+
+- `nothing-to-configure`: depcurfew found no supported package manager or bot, so nothing is configured.
+- `tool-not-supported`: A detected tool is not supported (Yarn Classic), so nothing is written for it.
+- `version-not-pinned`: No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.
+- `version-too-old`: The pinned version of a tool lacks a setting the policy needs, so that setting is not written.
+- `cooldown-not-written`: The release-age delay cannot be written for a tool.
+- `cooldown-environment-only`: pip reads no project configuration, so the release-age delay has to be set in the environment where pip runs.
+- `exclude-pattern-unsupported`: A cooldown exception uses a wildcard the tool does not support, so it is not written.
+- `allow-pattern-unsupported`: An installScripts.allow entry is a pattern, but the tool takes package names only, so it is not written.
+- `allow-all-unsupported`: The tool has no setting that allows every install script, so installScripts "allow" is not written.
+- `allow-all-replaced`: A setting that allowed every install script was replaced, because the policy denies install scripts.
+- `allow-list-entry-outside-policy`: An install-script allow-list in the repository lets a package run scripts the policy does not allow; apply does not remove it.
+- `built-in-list-replaced`: Bun's built-in list of trusted packages is replaced by the policy's allow-list.
+- `scripts-not-enforceable`: The pinned npm runs every install script and has no allow-list, so "deny" cannot be enforced.
+- `exact-version-gap`: The pinned pnpm skips the release-age delay for packages requested by exact version.
+- `source-not-enforceable`: The tool has no setting for a dependency source the policy denies; doctor checks the lockfile instead.
+- `source-switch-indirect-only`: The pnpm setting for git and tarball sources stops them only for indirect dependencies.
+- `source-switch-combined`: One pnpm setting covers git and tarball sources, so denying one denies both.
+- `forced-source-build`: Python packages on the allow-list are always built from source, because no tool can only allow a build.
+- `build-switch-scope`: The tool's switch forbids building only packages from an index; git, local and archive dependencies are still built.
+- `build-switch-install-only`: Poetry applies its build switch when installing; poetry lock may still build source distributions.
+- `requirements-file-missing`: There is no requirements file to write pip options into.
+- `lockfile-out-of-date`: The lockfile records a setting apply changed, so it has to be locked again.
+- `bot-config-missing`: A bot has no configuration file, and depcurfew does not create one.
+- `bot-config-not-edited`: A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.
+- `bot-entries-missing`: The Dependabot configuration has no entries for the package managers in use.
+- `security-delay-unsupported`: Dependabot cannot delay security updates, so securityUpdates "delay" is not applied.
+
+Errors (nothing is written):
+
+- `cannot-edit`: A file cannot be read or edited safely (invalid syntax, a symlink, a style depcurfew does not edit), so nothing is written.
+- `policy-missing`: The directory has no depcurfew.json.
+- `policy-invalid`: depcurfew.json does not follow the schema; issues lists the problems.
+- `policy-unreadable`: depcurfew.json cannot be read.
+<!-- END GENERATED: apply-codes -->
 
 ## Supported tools
 

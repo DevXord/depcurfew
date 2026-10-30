@@ -115,7 +115,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     outputs.failure = [error.message, ...error.issues].join('; ');
-    io.log(untrusted(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`));
+    io.log(untrusted(`depcurfew: ${error.text}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`));
     if (summary) io.summary(failureSummary(outputs.failure));
     return outputs;
   }

@@ -47,7 +47,7 @@ export const deno: ManagerGenerator = (context) => {
       const path = isRecord(current) ? [setting, 'allow'] : [setting];
       const allowed = isRecord(current) ? current['allow'] : current;
       if (allowed === allowAll.value && context.atLeast(since)) {
-        context.warn(`${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`);
+        context.warn({ code: 'allow-all-replaced', message: `${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list` });
         json.set(path, specifiers);
       } else if (specifiers.length > 0) {
         if (Array.isArray(allowed)) {

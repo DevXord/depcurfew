@@ -105,7 +105,7 @@ describe('apply on fixture repositories', () => {
     expect(report.errors).toEqual([]);
     expect({
       changed: report.changes.map((change) => change.file).sort(),
-      warnings: report.warnings,
+      warnings: report.warningDetails,
       snippets: report.snippets,
     }).toEqual(JSON.parse(readFileSync(expectedReport, 'utf8')));
 

@@ -926,3 +926,19 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
 - **Nazwane pliki pylock.** `pylock.<nazwa>.toml`, który dopuszcza specyfikacja, jest wykrywany. Nazwa pliku projektu Pythona (`pyproject.toml`) pochodzi z bazy wiedzy.
 - **Usunięcie bloku w środku pliku.** `removeBlock` zdejmuje pustą linię wstawioną przed blokiem także wtedy, gdy po bloku stoi pusta linia, więc plik wraca do oryginału. Dotyczyło to też `bunfig.toml` w 1.0.0.
 - **Komunikaty dla człowieka i dla AI.** Stałe zasady są w CLAUDE.md (sekcja „Komunikaty”). Brakujące `apply --json` z kodami ostrzeżeń to osobne zadanie.
+
+## D-067 · `apply --json` i kody ostrzeżeń (2026-10-30)
+
+- **Kody.** Każde ostrzeżenie i błąd `apply` ma stały kod w kebab-case. Katalog `APPLY_WARNINGS` i `APPLY_ERRORS` w `src/apply/warnings.ts` daje do każdego kodu jedno zdanie opisu, z którego powstaje sekcja README (`apply-codes`). Test pilnuje, że każdy kod z katalogu jest użyty w kodzie, a TypeScript, że kod spoza katalogu się nie skompiluje.
+- **Ostrzeżenie** to `{ code, tool, location?, message, fix? }`, jak znalezisko `doctor`. `message` mówi, co się stało, a `fix` (gdy jest co zrobić) co zrobić. Ostrzeżenia czysto informacyjne, np. o ustawieniu, które `apply` samo przełączyło, nie mają `fix`.
+- **Tekst dla człowieka** wygląda jak w `doctor`: `warning: <message> (<kod>)`, a w następnej linii `fix: <co zrobić>`. Kod jest przygaszony, `fix:` zielone. Błąd ma tę samą postać, np. `error: … (cannot-edit)` i `fix:`. Liczba i kolejność ostrzeżeń w fiksturach się nie zmieniła; zmienił się tylko podział na komunikat i poprawkę.
+- **`apply --json`** (także z `--dry-run`) wypisuje na stdout jeden dokument, a stderr zostaje pusty:
+  - `schemaVersion: 1`, `policy` (`valid`, `missing`, `invalid`), `dryRun`, `written`;
+  - `changes`: plik, `action` (`create` albo `update`) i diff unified;
+  - `warnings` i `errors`: `code`, `level`, narzędzie, plik, `message`, `fix`, a przy błędnej polityce także `issues`;
+  - `snippets` i `summary`.
+
+  Gdy jest błąd, `changes` jest puste, bo `apply` nic nie zapisze; kod wyjścia jest taki sam jak w trybie tekstowym. Brak albo błąd `depcurfew.json` też daje dokument JSON (kody `policy-missing`, `policy-invalid`, `policy-unreadable`), a nie tekst na stderr.
+- **Zgodność wsteczna.** `ApplyReport.warnings` zostaje listą napisów (`message` i `fix` w jednej linii). Szczegóły są w nowym polu `warningDetails`, tak jak `errors` i `failures`. `PolicyError` dostaje `code`, `fix` i `text`. Publiczne API eksportuje też `APPLY_WARNINGS`, `APPLY_ERRORS`, `warningText` i typy `ApplyWarning`, `ApplyWarningCode`, `ApplyErrorCode`.
+- **TOML, który się nie parsuje, nie jest edytowany.** Blok TOML jest pisany liniami, więc wcześniej `apply` dopisywało go do zepsutego pliku i zgłaszało sukces (także `bunfig.toml` w 1.0.0). Teraz plik musi się parsować przed edycją i po niej; inaczej to błąd `cannot-edit` i nic nie zostaje zapisane, jak przy JSON i YAML. Wyszło przy pokazie `apply --json` na projekcie testowym.
+- **Poza zakresem.** `doctor --json` przy błędnej polityce nadal pisze tekst na stderr; ujednolicenie to osobne zadanie.

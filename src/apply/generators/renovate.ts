@@ -27,7 +27,7 @@ export const renovate: BotGenerator = (context, duration) => {
   if (policy.cooldown === undefined || duration === undefined) return;
   const result = convertCooldown(tool, duration);
   if (!result.ok) {
-    context.warn(`${context.name}: cooldown not written: ${result.reason}`);
+    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, ...(result.fix === undefined ? {} : { fix: result.fix }) });
     return;
   }
   const setting = settingOf(tool.cooldown.setting) ?? 'minimumReleaseAge';
@@ -70,13 +70,22 @@ export const renovate: BotGenerator = (context, duration) => {
     const packageJson = extraOf(tool, 'packageJsonConfig', isRecord);
     const where = file ?? (context.exists('package.json') && context.json('package.json').get([String(packageJson['key'])]) !== undefined ? 'package.json' : undefined);
     if (where === undefined) {
-      context.warn(`${context.name}: no configuration file found; depcurfew does not create one. Add renovate.json if you use Renovate, then run depcurfew apply again`);
+      context.warn({
+        code: 'bot-config-missing',
+        message: `${context.name}: no configuration file found; depcurfew does not create one`,
+        fix: 'Add renovate.json if you use Renovate, then run depcurfew apply again',
+      });
       return;
     }
     context.warn(
       where === 'package.json'
-        ? `${context.name}: configuration in package.json is deprecated and depcurfew does not edit it; move it to renovate.json or add the snippet by hand`
-        : `${context.name}: ${where} is not plain JSON or JSONC, so depcurfew does not edit it; add the snippet by hand`,
+        ? {
+            code: 'bot-config-not-edited',
+            location: { file: where },
+            message: `${context.name}: configuration in package.json is deprecated and depcurfew does not edit it`,
+            fix: 'Move it to renovate.json, or add the snippet by hand',
+          }
+        : { code: 'bot-config-not-edited', location: { file: where }, message: `${context.name}: ${where} is not plain JSON or JSONC, so depcurfew does not edit it`, fix: 'Add the snippet by hand' },
     );
     context.snippet(where, snippet());
     return;

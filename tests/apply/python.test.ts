@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { applyProject } from '../../src/apply/index.ts';
+import { warningText, type ApplyWarning } from '../../src/apply/warnings.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -19,26 +20,26 @@ function uvProject(policy: object, lock = true): string {
   return root;
 }
 
-const relock = (warnings: readonly string[]) => warnings.filter((warning) => warning.includes('uv lock'));
+const relock = (warnings: readonly ApplyWarning[]) => warnings.filter((warning) => warning.code === 'lockfile-out-of-date').map(warningText);
 
 describe('apply on uv projects', () => {
   it('says to lock again when a setting uv records in uv.lock changes, and only then', () => {
     const root = uvProject({ cooldown: { minimum: '3d', exclude: ['pypi:certifi'] } });
-    expect(relock(applyProject(root).warnings)).toEqual([
-      'uv: uv.lock records exclude-newer and exclude-newer-package, so it is out of date after this change; run uv lock and commit uv.lock, or uv sync --locked and uv lock --check fail until then',
+    expect(relock(applyProject(root).warningDetails)).toEqual([
+      'uv: uv.lock records exclude-newer and exclude-newer-package, so it is out of date after this change. Run uv lock and commit uv.lock; until then uv sync --locked and uv lock --check fail',
     ]);
-    expect(relock(applyProject(root).warnings)).toEqual([]);
+    expect(relock(applyProject(root).warningDetails)).toEqual([]);
     writeFileSync(join(root, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '5d', exclude: ['pypi:certifi'] } }));
-    expect(relock(applyProject(root).warnings)).toEqual([
-      'uv: uv.lock records exclude-newer, so it is out of date after this change; run uv lock and commit uv.lock, or uv sync --locked and uv lock --check fail until then',
+    expect(relock(applyProject(root).warningDetails)).toEqual([
+      'uv: uv.lock records exclude-newer, so it is out of date after this change. Run uv lock and commit uv.lock; until then uv sync --locked and uv lock --check fail',
     ]);
   });
 
   it('says nothing about uv lock for settings uv.lock does not record or apply leaves alone, or without a uv.lock', () => {
-    expect(relock(applyProject(uvProject({ installScripts: { default: 'deny' } })).warnings)).toEqual([]);
+    expect(relock(applyProject(uvProject({ installScripts: { default: 'deny' } })).warningDetails)).toEqual([]);
     const own = uvProject({ installScripts: { default: 'deny' } });
     writeFileSync(join(own, 'uv.toml'), 'exclude-newer = "1 week"\n');
-    expect(relock(applyProject(own).warnings)).toEqual([]);
-    expect(relock(applyProject(uvProject({ cooldown: { minimum: '3d' } }, false)).warnings)).toEqual([]);
+    expect(relock(applyProject(own).warningDetails)).toEqual([]);
+    expect(relock(applyProject(uvProject({ cooldown: { minimum: '3d' } }, false)).warningDetails)).toEqual([]);
   });
 });

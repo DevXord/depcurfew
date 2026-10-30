@@ -50,9 +50,11 @@ export const npm: ManagerGenerator = (context) => {
         managed.push(strict.setting);
       } else if (defaults === 'run') {
         const since = sinceOf(tool.installScripts.allowList.availableSince) ?? '';
-        context.warn(
-          `${context.name} ${formatVersion(context.version ?? [0, 0, 0])} runs every dependency install script and has no allow-list, so "deny" cannot be enforced; require npm ${since} or later (npm 12 blocks dependency scripts by default)`,
-        );
+        context.warn({
+          code: 'scripts-not-enforceable',
+          message: `${context.name} ${formatVersion(context.version ?? [0, 0, 0])} runs every dependency install script and has no allow-list, so "deny" cannot be enforced`,
+          fix: `Require npm ${since} or later (npm 12 blocks dependency scripts by default)`,
+        });
       }
       const setting = settingOf(tool.installScripts.allowList.setting);
       const listFile = settingOf(tool.installScripts.allowList.file) ?? 'package.json';

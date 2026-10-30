@@ -4,11 +4,36 @@
     "package.json"
   ],
   "warnings": [
-    "Yarn Classic (1.x) is not supported; nothing written for it. Move to Yarn (Berry) 4.10.2 or later, or to another package manager depcurfew configures",
-    "npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
-    "npm: allowScripts takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
-    "pnpm: onlyBuiltDependencies takes package names only; \"@scope/*\" not written. List the package names in installScripts.allow",
-    "pnpm 10.0.0 does not support minimumReleaseAge (since 10.16.0), blockExoticSubdeps (since 10.26.0); not written. To apply them, require pnpm 10.26.0 or later where the version is pinned"
+    {
+      "code": "tool-not-supported",
+      "tool": "yarn",
+      "message": "Yarn Classic (1.x) is not supported; nothing written for it",
+      "fix": "Move to Yarn (Berry) 4.10.2 or later, or to another package manager depcurfew configures"
+    },
+    {
+      "code": "version-not-pinned",
+      "tool": "npm",
+      "message": "npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows",
+      "fix": "Pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it"
+    },
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "npm",
+      "message": "npm: allowScripts takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "pnpm",
+      "message": "pnpm: onlyBuiltDependencies takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "version-too-old",
+      "tool": "pnpm",
+      "message": "pnpm 10.0.0 does not support minimumReleaseAge (since 10.16.0), blockExoticSubdeps (since 10.26.0); not written",
+      "fix": "Require pnpm 10.26.0 or later where the version is pinned"
+    }
   ],
   "snippets": []
 }

@@ -1,8 +1,10 @@
 // Generated sections of README.md: everything there that states a fact about a package manager, a bot or GitHub
-// comes from the knowledge base, the policy definition, the doctor rules or action.yml. `npm run docs:readme`
-// rewrites the text between the markers; tests/docs/readme.test.ts checks that README.md is up to date.
+// comes from the knowledge base, the policy definition, the doctor rules, apply's codes or action.yml.
+// `npm run docs:readme` rewrites the text between the markers; tests/docs/readme.test.ts checks that README.md is
+// up to date.
 import { parse as parseYaml } from 'yaml';
 import { isRecord, values } from '../apply/facts.ts';
+import { APPLY_ERRORS, APPLY_WARNINGS } from '../apply/warnings.ts';
 import { RULES } from '../doctor/index.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
@@ -127,6 +129,11 @@ function rulesList(): string {
   ).join('\n\n');
 }
 
+function applyCodes(): string {
+  const list = (codes: Readonly<Record<string, string>>) => Object.entries(codes).map(([code, summary]) => `- \`${code}\`: ${summary}`);
+  return ['Warnings:', '', ...list(APPLY_WARNINGS), '', 'Errors (nothing is written):', '', ...list(APPLY_ERRORS)].join('\n');
+}
+
 function actionTables(action: string): string {
   const document = parseYaml(action) as unknown;
   const section = (key: 'inputs' | 'outputs', heading: string, withDefault: boolean) => {
@@ -229,6 +236,7 @@ export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
     'policy-fields': policyTable(),
     tools: toolsTable(inputs.tools),
     rules: rulesList(),
+    'apply-codes': applyCodes(),
     'action-reference': actionTables(inputs.action),
     'action-workflow': exampleWorkflow(inputs.environment, inputs.workflow),
     'claude-code-hook': claudeCodeHook(inputs.environment, inputs.tools),
