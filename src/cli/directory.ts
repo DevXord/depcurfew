@@ -1,21 +1,91 @@
+// The directory a command works on, and what a command says when it cannot start: a directory that does not exist,
+// or a depcurfew.json that cannot be used. Each such error has a code, a message and what to do, from one source for
+// the text on stderr and the `errors` of --json.
 import { statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
+import { PolicyError, policyErrorFix } from '../apply/index.ts';
+import type { ApplyErrorCode } from '../apply/warnings.ts';
+import { paint } from '../color.ts';
+import { POLICY_FILE } from '../policy/defaults.ts';
+import { findPolicyDirectory } from '../policy/file.ts';
+import { printable } from '../printable.ts';
 import type { CliIo } from './io.ts';
 
-/** The absolute path of an existing directory given on the command line (default: the current directory). */
-export function resolveDirectory(directory: string | undefined, io: CliIo): string | undefined {
+/** An error that keeps a command from starting, in the shape of the errors of apply --json and check --json. */
+export interface InputError {
+  code: ApplyErrorCode;
+  level: 'error';
+  location: { file: string };
+  message: string;
+  fix: string;
+  issues?: string[];
+}
+
+export type DirectoryResult = { ok: true; directory: string; notice?: string } | { ok: false; error: InputError };
+
+function firstLine(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.split('\n', 1)[0] ?? message;
+}
+
+/** The absolute path of an existing directory given on the command line (default: `cwd`). */
+export function checkDirectory(directory: string | undefined, cwd = process.cwd()): DirectoryResult {
   const shown = directory ?? '.';
-  const absolute = resolve(shown);
+  const absolute = resolve(cwd, shown);
+  const failure = (code: ApplyErrorCode, message: string, fix: string): DirectoryResult => ({ ok: false, error: { code, level: 'error', location: { file: shown }, message, fix } });
   let isDirectory: boolean;
   try {
     isDirectory = statSync(absolute).isDirectory();
-  } catch {
-    io.stderr(`depcurfew: directory not found: ${shown}\n`);
-    return undefined;
+  } catch (error) {
+    const reason = (error as NodeJS.ErrnoException).code;
+    const message = reason === 'ENOENT' || reason === 'ENOTDIR' ? `directory not found: ${shown}` : `cannot open the directory ${shown}: ${firstLine(error)}`;
+    return failure('directory-not-found', message, 'Pass the path of an existing directory');
   }
-  if (!isDirectory) {
-    io.stderr(`depcurfew: not a directory: ${shown}\n`);
-    return undefined;
-  }
-  return absolute;
+  if (!isDirectory) return failure('not-a-directory', `not a directory: ${shown}`, 'Pass the directory of the project, not a file in it');
+  return { ok: true, directory: absolute };
+}
+
+/**
+ * The directory apply, doctor and explain work on. A directory given on the command line is taken as it is. Without
+ * one, it is the nearest directory with depcurfew.json from `cwd` up to the root of the repository, so a command run
+ * in a subdirectory does not pass for a project without a policy; `notice` then says which directory it is.
+ */
+export function projectDirectory(directory: string | undefined, command: string, cwd = process.cwd()): DirectoryResult {
+  if (directory !== undefined) return checkDirectory(directory, cwd);
+  const start = resolve(cwd);
+  const found = findPolicyDirectory(start);
+  if (found === undefined || found === start) return checkDirectory(undefined, start);
+  const shown = relative(start, found).split(sep).join('/');
+  return { ok: true, directory: found, notice: `using ${shown}/${POLICY_FILE} from a parent directory, so depcurfew ${command} works on ${shown}; paths are relative to it` };
+}
+
+/** A depcurfew.json that cannot be used, as an input error; `file` is where it is, as the command shows it. */
+export function policyInputError(error: PolicyError, file: string): InputError {
+  return {
+    code: error.code,
+    level: 'error',
+    location: { file },
+    message: error.message,
+    fix: policyErrorFix(error),
+    ...(error.issues.length === 0 ? {} : { issues: error.issues }),
+  };
+}
+
+/** An input error on stderr, like an error of apply: the message with its code, the issues, then what to do. */
+export function reportInputError(error: InputError, io: CliIo): void {
+  const colors = paint(io.colors?.stderr);
+  const lines = [
+    `error: ${printable(error.message)} ${colors.dim(`(${error.code})`)}`,
+    ...(error.issues ?? []).map((issue) => `  ${printable(issue)}`),
+    `  ${colors.green('fix:')} ${printable(error.fix)}`,
+  ];
+  io.stderr(`${lines.join('\n')}\n`);
+}
+
+/** The absolute path of an existing directory given on the command line, or undefined after reporting the error. */
+export function resolveDirectory(directory: string | undefined, io: CliIo): string | undefined {
+  const result = checkDirectory(directory);
+  if (result.ok) return result.directory;
+  reportInputError(result.error, io);
+  return undefined;
 }

@@ -79,14 +79,14 @@ describe('depcurfew init', () => {
   it('fails when the directory does not exist', async () => {
     const missing = join(directory, 'missing');
     const result = await exec('init', missing);
-    expect(result).toEqual({ code: EXIT_FAILURE, stdout: '', stderr: `depcurfew: directory not found: ${missing}\n` });
+    expect(result).toEqual({ code: EXIT_USAGE, stdout: '', stderr: `error: directory not found: ${missing} (directory-not-found)\n  fix: Pass the path of an existing directory\n` });
   });
 
   it('fails when the target is a file, not a directory', async () => {
     const file = join(directory, 'file.txt');
     writeFileSync(file, '');
     const result = await exec('init', file);
-    expect(result).toEqual({ code: EXIT_FAILURE, stdout: '', stderr: `depcurfew: not a directory: ${file}\n` });
+    expect(result).toEqual({ code: EXIT_USAGE, stdout: '', stderr: `error: not a directory: ${file} (not-a-directory)\n  fix: Pass the directory of the project, not a file in it\n` });
   });
 
   it('reports a write error', async () => {

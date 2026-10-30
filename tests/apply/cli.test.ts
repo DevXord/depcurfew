@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { botDuration } from '../../src/apply/index.ts';
-import { EXIT_FAILURE, EXIT_OK, run } from '../../src/cli/run.ts';
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../../src/cli/run.ts';
 import { parseDuration } from '../../src/policy/duration.ts';
 
 const REPOS = fileURLToPath(new URL('../fixtures/repos/', import.meta.url));
@@ -170,20 +170,20 @@ describe('depcurfew apply', () => {
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toBe(`depcurfew: no depcurfew.json in ${directory}; run 'depcurfew init' first\n`);
+    expect(result.stderr).toBe(`error: no depcurfew.json in ${directory} (policy-missing)\n  fix: Run 'depcurfew init' first\n`);
   });
 
   it('fails with an invalid policy file and lists the problems', async () => {
     const directory = scratch('npm-basic', '{ "version": 1, "cooldown": { "minimum": "soon" } }');
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toMatch(/^depcurfew: depcurfew\.json is invalid\n {2}\S/u);
+    expect(result.stderr).toMatch(/^error: depcurfew\.json is invalid \(policy-invalid\)\n {2}\S.*\n {2}fix: Fix these problems in depcurfew\.json/u);
     expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
   });
 
   it('fails for a directory that does not exist', async () => {
     const result = await exec('apply', join(tmpdir(), 'depcurfew-does-not-exist'));
-    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.code).toBe(EXIT_USAGE);
     expect(result.stderr).toContain('directory not found');
   });
 

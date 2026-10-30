@@ -109,9 +109,11 @@ The package installs two names for the same command: `depcurfew` and the short `
 | `depcurfew check <package...> [--json] [--dir <directory>] [--registry <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
 | `depcurfew check --hook claude-code` | The same check as a Claude Code hook that blocks install commands breaking the policy. |
 
-Exit codes: `0` success (warnings included), `1` an error (an invalid policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error. `depcurfew <command> --help` describes a command with examples and its exit codes.
+Without a directory, `explain`, `apply` and `doctor` work on the nearest directory with `depcurfew.json`, from the current directory up to the root of the repository (the directory with `.git`), and say so when that is a parent directory, so `doctor` run in a subdirectory does not pass for a project without a policy. A directory given on the command line is used as it is. `check` looks for `depcurfew.json` the same way, starting in `--dir`.
 
-Every finding and warning says what to do about it. Text for people is colored on a terminal; `NO_COLOR=1` turns colors off and `FORCE_COLOR=1` turns them on, for example in a CI log that shows them. `--json`, `--sarif` and a diff written to a file stay plain, for programs and AI agents.
+Exit codes: `0` success (warnings included), `1` an error (an invalid or unreadable policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error (such as an unknown option or a directory that does not exist). `depcurfew <command> --help` describes a command with examples and its exit codes.
+
+Every finding and warning says what to do about it. When a command cannot start, it says why with a code (`directory-not-found`, `not-a-directory`, `policy-missing`, `policy-invalid`, `policy-unreadable`) and what to do; with `--json` that is a document with `errors` on stdout, and `doctor --sarif` prints a run marked as not successful. Text for people is colored on a terminal; `NO_COLOR=1` turns colors off and `FORCE_COLOR=1` turns them on, for example in a CI log that shows them. Control characters in names and values from the repository or a registry are shown as text (ESC as `\x1b`), so a crafted package or file name cannot change the terminal. `--json`, `--sarif` and a diff written to a file stay plain, for programs and AI agents.
 
 How `apply` edits files:
 
@@ -122,7 +124,7 @@ How `apply` edits files:
 
 ### apply warnings and errors
 
-Each warning and error of `apply` has a code. The text output shows it in parentheses after the message, with what to do on the next line, like a doctor finding. `depcurfew apply --json` (also with `--dry-run`) prints one JSON document and nothing on stderr: `changes` (each file with its action and unified diff), `warnings` and `errors` (each with `code`, `level`, the tool, the file when there is one, `message` and `fix`), `snippets` to add by hand, and `written`. A run that writes nothing because of an error lists no changes and exits with 1.
+Each warning and error of `apply` has a code. The text output shows it in parentheses after the message, with what to do on the next line, like a doctor finding. `depcurfew apply --json` (also with `--dry-run`) prints one JSON document and nothing on stderr: `changes` (each file with its action and unified diff), `warnings` and `errors` (each with `code`, `level`, the tool, the file when there is one, `message` and `fix`), `snippets` to add by hand, `notices` (such as the parent directory whose `depcurfew.json` was used) and `written`. A run that writes nothing because of an error lists no changes and exits with 1.
 
 <!-- BEGIN GENERATED: apply-codes -->
 Warnings:
@@ -163,6 +165,8 @@ Errors (nothing is written):
 - `policy-missing`: The directory has no depcurfew.json.
 - `policy-invalid`: depcurfew.json does not follow the schema; issues lists the problems.
 - `policy-unreadable`: depcurfew.json cannot be read.
+- `directory-not-found`: The directory given on the command line does not exist or cannot be opened.
+- `not-a-directory`: The path given on the command line is a file, not a directory.
 <!-- END GENERATED: apply-codes -->
 
 ## Supported tools
@@ -389,7 +393,7 @@ For each package it looks up the public npm registry, or PyPI for names with the
 
 Python packages are written as pip takes them after the prefix (`pypi:name`, `pypi:name==1.2`, `pypi:name[extra]>=1.2,<2`), or as `pypi:name@1.2`, `pypi:name@^1.2` and `pypi:name@latest`, as `uvx` and `poetry add` take them. The version is picked as pip picks it: the newest match, pre-releases only when asked for or when nothing else matches, and yanked versions only when pinned with `==` (a warning). A version is as old as its newest file, because files can be added to a release later. A project PyPI quarantines (as malware, for example) is an error; an archived or deprecated one, a warning. `--index` looks Python packages up in another index that serves the JSON form of the simple repository API.
 
-Git repositories, tarball URLs and local paths are checked against the `sources` section only. Without a `depcurfew.json` in the directory or one of its parents, the default policy applies. When the registry cannot be reached, the package counts as failed: `check` exits with 1 whenever a package breaks the policy or cannot be checked. With `--json` it prints one document and nothing on stderr: `packages` with their findings (each with `code`, `level`, `message` and `fix`), `notices`, and `errors` for a `depcurfew.json` that cannot be used, in which case no package is checked.
+Git repositories, tarball URLs and local paths are checked against the `sources` section only. Without a `depcurfew.json` in the directory or one of its parents up to the root of the repository, the default policy applies. When the registry cannot be reached, the package counts as failed: `check` exits with 1 whenever a package breaks the policy or cannot be checked. With `--json` it prints one document and nothing on stderr: `packages` with their findings (each with `code`, `level`, `message` and `fix`), `notices`, and `errors` for a `depcurfew.json` that cannot be used, in which case no package is checked.
 
 ### Claude Code
 

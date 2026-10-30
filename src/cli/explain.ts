@@ -9,8 +9,9 @@ import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
 import { detectedTargets, managerName, toolName } from './describe.ts';
 import { paint, PLAIN, type Paint } from '../color.ts';
-import { resolveDirectory } from './directory.ts';
-import { EXIT_FAILURE, EXIT_OK, type CliIo } from './io.ts';
+import { printable } from '../printable.ts';
+import { projectDirectory, reportInputError } from './directory.ts';
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
 type CooldownEntry =
   | { tool: ToolId; ok: true; unit: string; value: number | string; exact: boolean }
@@ -133,13 +134,25 @@ function paintReport(lines: readonly string[], colors: Paint): string[] {
 }
 
 export function renderReport(report: ExplainReport, colors: Paint = PLAIN): string {
-  return `${paintReport([...projectLines(report.project), '', ...policyLines(report.policy)], colors).join('\n')}\n`;
+  // Every line holds names and values from the repository: control characters in them are shown as text.
+  const lines = [...projectLines(report.project), '', ...policyLines(report.policy)].map((line) => printable(line));
+  return `${paintReport(lines, colors).join('\n')}\n`;
 }
 
 export function explain(directory: string | undefined, json: boolean, io: CliIo): number {
-  const absolute = resolveDirectory(directory, io);
-  if (absolute === undefined) return EXIT_FAILURE;
-  const report = buildReport(absolute);
-  io.stdout(json ? `${JSON.stringify(report, null, 2)}\n` : renderReport(report, paint(io.colors?.stdout)));
+  const target = projectDirectory(directory, 'explain');
+  if (!target.ok) {
+    if (json) io.stdout(`${JSON.stringify({ schemaVersion: 1, project: null, policy: null, notices: [], errors: [target.error] }, null, 2)}\n`);
+    else reportInputError(target.error, io);
+    return EXIT_USAGE;
+  }
+  const report = buildReport(target.directory);
+  const notices = target.notice === undefined ? [] : [{ message: target.notice }];
+  if (json) {
+    io.stdout(`${JSON.stringify({ ...report, notices, errors: [] }, null, 2)}\n`);
+  } else {
+    for (const notice of notices) io.stderr(`note: ${notice.message}\n`);
+    io.stdout(renderReport(report, paint(io.colors?.stdout)));
+  }
   return report.policy !== null && !report.policy.valid ? EXIT_FAILURE : EXIT_OK;
 }

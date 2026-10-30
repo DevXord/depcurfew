@@ -1,8 +1,11 @@
 // doctor findings for people reading a GitHub Actions run: annotations on the files and a Markdown job summary.
 // Both carry text from the repository (file and package names), so annotation values are escaped the way
 // @actions/core escapes them and Markdown is escaped so a crafted name cannot add links, HTML or table cells.
+// Control characters in messages and paths are shown as text (printable), as in the log: the log viewer reads ANSI
+// sequences. That holds for the file of an annotation too, so a path with control characters loses its link to the file.
 import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
+import { printable } from '../printable.ts';
 import type { AnnotationLimitsKnowledge, AnnotationsKnowledge } from '../knowledge/types.ts';
 import { countLevels } from './render.ts';
 import type { DoctorReport, Finding, Level, Rule } from './types.ts';
@@ -43,12 +46,12 @@ export function annotationCommands(
     const findings = report.findings.filter((finding) => finding.level === level);
     for (const finding of findings.slice(0, Math.min(limits.perLevelPerStep, limits.perJob - lines.length))) {
       const properties = [
-        [format.properties.file, finding.location.file],
+        [format.properties.file, printable(finding.location.file)],
         [format.properties.line, finding.location.line === undefined ? undefined : String(finding.location.line)],
         [format.properties.title, `depcurfew: ${finding.rule}`],
       ].flatMap(([name, value]) => (value === undefined ? [] : [`${name}=${property(value)}`]));
       const fix = fixOf(finding, rules);
-      const message = fix === undefined ? finding.message : `${finding.message}\nFix: ${fix}`;
+      const message = fix === undefined ? printable(finding.message) : `${printable(finding.message)}\nFix: ${printable(fix)}`;
       lines.push(`::${format.commands[level]} ${properties.join(',')}::${data(message)}`);
     }
   }
@@ -57,7 +60,7 @@ export function annotationCommands(
 
 /** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
 export function markdown(text: string): string {
-  const flat = text.replaceAll(/\s*[\r\n]+\s*/gu, ' ');
+  const flat = printable(text.replaceAll(/\s*[\r\n]+\s*/gu, ' '));
   return flat
     .split(/(`[^`]*`)/u)
     .map((part, index) =>
@@ -73,8 +76,10 @@ export function markdown(text: string): string {
     .join('');
 }
 
+/** A path or rule id as a code span; a line break in a path is shown as text, so it cannot end the table row. */
 function code(text: string): string {
-  return text.includes('`') ? markdown(text) : `\`${text.replaceAll('|', '\\|')}\``;
+  const shown = printable(text);
+  return shown.includes('`') ? markdown(shown) : `\`${shown.replaceAll('|', '\\|')}\``;
 }
 
 /**
@@ -107,6 +112,11 @@ export function jobSummary(report: DoctorReport, rules: readonly Rule[], directo
   const omitted = report.findings.length - rows.length;
   const more = omitted === 0 ? [] : ['', `${plural(omitted, 'more finding')} did not fit in the summary; the step log lists every finding.`];
   return [...head, ...rows, ...more, ...tail].join('\n');
+}
+
+/** A problem after doctor ran, such as a SARIF file that cannot be written: a line below the findings of the job summary. */
+export function problemSummary(message: string): string {
+  return ['', `**Error:** depcurfew ${markdown(message)}`, ''].join('\n');
 }
 
 /** The job summary when doctor could not run. */

@@ -7,4 +7,6 @@ export interface CliIo {
   stderr(text: string): void;
   /** Whether each stream may be colored (see color.ts); absent means plain text. */
   colors?: { stdout: boolean; stderr: boolean };
+  /** Whether each stream is a terminal; absent means it is not. */
+  terminal?: { stdout: boolean; stderr: boolean };
 }

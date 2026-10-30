@@ -5,7 +5,7 @@ import { detectProject } from '../detect/index.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
 import { detectedNames } from './describe.ts';
 import { resolveDirectory } from './directory.ts';
-import { EXIT_FAILURE, EXIT_OK, type CliIo } from './io.ts';
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -14,7 +14,7 @@ function errorMessage(error: unknown): string {
 /** Writes the default policy to depcurfew.json in `directory` (default: the current directory). */
 export function init(directory: string | undefined, force: boolean, io: CliIo): number {
   const absolute = resolveDirectory(directory, io);
-  if (absolute === undefined) return EXIT_FAILURE;
+  if (absolute === undefined) return EXIT_USAGE;
 
   const target = join(absolute, POLICY_FILE);
   const shownTarget = directory === undefined ? POLICY_FILE : join(directory, POLICY_FILE);

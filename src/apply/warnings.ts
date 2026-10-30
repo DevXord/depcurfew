@@ -40,6 +40,8 @@ export const APPLY_ERRORS = {
   'policy-missing': 'The directory has no depcurfew.json.',
   'policy-invalid': 'depcurfew.json does not follow the schema; issues lists the problems.',
   'policy-unreadable': 'depcurfew.json cannot be read.',
+  'directory-not-found': 'The directory given on the command line does not exist or cannot be opened.',
+  'not-a-directory': 'The path given on the command line is a file, not a directory.',
 } as const satisfies Record<string, string>;
 
 export type ApplyWarningCode = keyof typeof APPLY_WARNINGS;
