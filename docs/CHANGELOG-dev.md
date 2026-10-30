@@ -2,6 +2,17 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-30 · Przegląd przed wydaniem 1.0.0 i poprawki (D-074 – D-078)
+
+- Przegląd całości przed pierwszym wydaniem: ocena prawna, dwa przeglądy kodu, testy na 12 prawdziwych repozytoriach (CRLF, BOM, aktualizacja, ścieżki) i testy penetracyjne. Projekty testowe usunięte, zapis konsoli w scratchpadzie. Pierwsze wydanie obejmie całość jako 1.0.0.
+- Edytory i zapis (D-074): YAML nie psuje już `dependabot.yml` przy komentarzu na końcu wpisu, a wynik edycji YAML i JSON jest sprawdzany; osobne bloki uv i PDM w jednym `pyproject.toml`; zapis wszystkich plików albo żadnego (`cannot-write`); plik tymczasowy od razu z trybem oryginału; zakomentowane ustawienia wracają, gdy polityka przestaje nimi zarządzać; pliki spoza UTF-8 nie są edytowane.
+- `init` i `apply` (D-075): `init` zachowuje najdłuższe istniejące opóźnienie, a `apply` ostrzega `cooldown-shortened`; `scripts-not-enforceable` dla pnpm < 10; wpisy bezpieczeństwa Renovate w `minimumReleaseAgeExclude` zostają; `file-ignored-by-git`; bez nowych manifestów (`manifest-missing`) i bez narzędzi widzianych tylko w CI (`tool-only-in-ci`).
+- `doctor` (D-076): `before=` w `.npmrc`; `.npmrc` czytany jak przez `ini` (komentarze w linii, sekcje; blok przed pierwszą sekcją); szerokie reguły i presety Renovate; opóźnienie pnpm 10 z `.npmrc`; Dependabot `cooldown.include`; sam projekt w `Pipfile.lock` i `pylock.toml`, pylock przypisany po `created-by`; nieczytelne pliki jako `unreadable-config`; duże liczby TOML bez wyjątku.
+- `check` i hook (D-077): skróty i prefiksy opcji npm i pnpm (`--reg`), przekierowania tylko w obrębie originu, uwaga o rejestrze z `.npmrc`, `insecure-registry`, adres link-local daje ask; wersja wybierana jak przez menedżer (`--tag`, `tag=`, `--pre`, `--no-binary`); menedżer z wersją za runnerem, więcej wrapperów i powłok, `bash <(curl …)` i `irm … | iex`; normalizacja nazw `pypi:` w polityce; limit 50 paczek na polecenie; `deno x`.
+- Wyjście, CLI i prawo (D-078): znaki sterujące w tekście dla ludzi są widoczne jako `\xHH`; czytelne błędy wejścia z kodem i JSON (kod 2 dla złego katalogu); polityka z katalogu nadrzędnego; poprawki Action i SARIF; README z sekcjami „Trademarks” i „Network and privacy”, `SECURITY.md`, nota ISC w bundlu akcji, poprawiony opis listy PyPI.
+- `docs/RELEASING.md`: krok przypisania paczki do organizacji npm `depcurfew`.
+- Weryfikacja: `npm test` (2191 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-30 · Pełny test paczki i poprawki (D-073)
 
 - Test z tarballa na projektach npm, pnpm, Yarn, Bun, Deno, uv, Poetry, pip, PDM, Pipenv i Hatch, z botami, akcją i biblioteką; projekty usunięte po teście, zapis konsoli w scratchpadzie.
