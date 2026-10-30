@@ -1,7 +1,8 @@
 // Python versions and version specifiers as the version specifiers specification (PEP 440) defines them, for picking
 // the version a requirement installs: normalization, ordering, the clauses ~=, ==, !=, <=, >=, <, > and ===, prefix
-// matching with .* and the default handling of pre-releases. The rules and examples are those of
-// https://packaging.python.org/en/latest/specifications/version-specifiers/ (tests/check/pep440.test.ts).
+// matching with .* and the default handling of pre-releases. The rules are those of
+// https://packaging.python.org/en/latest/specifications/version-specifiers/ (tests/check/pep440.test.ts), which began
+// as PEP 440 (https://peps.python.org/pep-0440/, in the public domain).
 
 export interface Pep440 {
   epoch: number;
@@ -12,7 +13,8 @@ export interface Pep440 {
   local?: readonly (string | number)[];
 }
 
-// The regular expression of the specification's appendix.
+// Adapted to JavaScript from the regular expression of PEP 440, Appendix B, "Parsing version strings with regular
+// expressions" (public domain).
 const VERSION =
   /^\s*v?(?:(?:(?<epoch>[0-9]+)!)?(?<release>[0-9]+(?:\.[0-9]+)*)(?<pre>[-_.]?(?<preL>alpha|beta|preview|pre|rc|a|b|c)[-_.]?(?<preN>[0-9]+)?)?(?<post>(?:-(?<postN1>[0-9]+))|(?:[-_.]?(?<postL>post|rev|r)[-_.]?(?<postN2>[0-9]+)?))?(?<dev>[-_.]?(?<devL>dev)[-_.]?(?<devN>[0-9]+)?)?)(?:\+(?<local>[a-z0-9]+(?:[-_.][a-z0-9]+)*))?\s*$/iu;
 

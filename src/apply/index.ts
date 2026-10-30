@@ -220,7 +220,7 @@ export class PolicyError extends Error {
 export function policyErrorFix(error: PolicyError): string {
   if (error.fix !== undefined) return error.fix;
   return error.code === 'policy-unreadable'
-    ? `Make ${POLICY_FILE} a regular file inside the repository, so that depcurfew can read it`
+    ? `Make ${POLICY_FILE} a regular file inside the repository that the user running depcurfew can read`
     : `Fix these problems in ${POLICY_FILE}; an editor that reads its $schema shows them as you type`;
 }
 

@@ -1,12 +1,13 @@
 // `depcurfew check [options] <package...>` and `depcurfew check --hook claude-code`. The policy is the depcurfew.json of the
-// directory (or the nearest parent that has one), else the default policy of `depcurfew init`. Packages are looked up in
-// the registry given with --registry, else the one the project's or the user's .npmrc sets, else the public npm registry;
-// pypi: packages in the index given with --index, else PyPI. Exit code 1 when any package breaks the policy or cannot be
-// checked; in hook mode the decision goes to stdout as JSON and the exit code is 0.
-import { lstatSync, readFileSync } from 'node:fs';
+// directory (or the nearest parent that has one, up to the root of the repository), else the default policy of
+// `depcurfew init`. Packages are looked up in the registry given with --registry, else the one the project's or the
+// user's .npmrc sets, else the public npm registry; pypi: packages in the index given with --index, else PyPI. Exit code
+// 1 when any package breaks the policy or cannot be checked, 2 for a usage error such as a --dir that does not exist;
+// in hook mode the decision goes to stdout as JSON and the exit code is 0.
+import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { loadPolicyIfPresent, PolicyError, policyErrorFix } from '../apply/index.ts';
+import { join, resolve } from 'node:path';
+import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
 import { isPythonSpec } from '../check/python.ts';
 import { blockingExitCode, decide, formatDecision, readHookEvent, requestedSpecs } from '../check/hook.ts';
@@ -21,9 +22,12 @@ import { popularPackages } from '../knowledge/popular.ts';
 import { popularPythonPackages } from '../knowledge/popular-python.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
+import { findPolicyDirectory } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { parsePolicy } from '../policy/validate.ts';
 import { paint, type Paint } from '../color.ts';
+import { printable } from '../printable.ts';
+import { checkDirectory, policyInputError, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
 export const HOOKS = ['claude-code'] as const;
@@ -44,14 +48,6 @@ export interface CheckFlags {
   index?: string | undefined;
   dir: string | undefined;
   hook: string | undefined;
-}
-
-/** The directory with the depcurfew.json that applies to `start`: itself or the nearest parent. */
-function policyDirectory(start: string): string | undefined {
-  for (let directory = resolve(start); ; directory = dirname(directory)) {
-    if (lstatSync(join(directory, POLICY_FILE), { throwIfNoEntry: false }) !== undefined) return directory;
-    if (dirname(directory) === directory) return undefined;
-  }
 }
 
 function defaultPolicy(): ResolvedPolicy {
@@ -94,7 +90,7 @@ function npmrcRegistries(directory: string, home: string): Registries {
 }
 
 function load(start: string, home: string): { policy: ResolvedPolicy; file: string | undefined; registries: Registries } {
-  const directory = policyDirectory(start);
+  const directory = findPolicyDirectory(start);
   const policy = directory === undefined ? undefined : loadPolicyIfPresent(directory);
   return {
     policy: policy ?? defaultPolicy(),
@@ -107,15 +103,16 @@ function render(reports: readonly PackageReport[], colors: Paint): string {
   const lines: string[] = [];
   for (const report of reports) {
     // Python versions are written name==version, as pip takes them.
-    const label = report.version === undefined || report.name === undefined ? report.spec : `${report.name}${isPythonSpec(report.spec) ? '==' : '@'}${report.version}`;
+    // Names, versions, deprecation messages and scripts come from the registry: control characters are shown as text.
+    const label = printable(report.version === undefined || report.name === undefined ? report.spec : `${report.name}${isPythonSpec(report.spec) ? '==' : '@'}${report.version}`);
     if (report.findings.length === 0) {
-      lines.push(`${colors.bold(label)}: ${colors.green('ok')}${report.publishedAt === undefined ? '' : ` (published ${report.publishedAt.slice(0, 10)})`}`);
+      lines.push(`${colors.bold(label)}: ${colors.green('ok')}${report.publishedAt === undefined ? '' : ` (published ${printable(report.publishedAt.slice(0, 10))})`}`);
       continue;
     }
     lines.push(`${colors.bold(label)}:`);
     for (const finding of report.findings) {
       const level = finding.level === 'error' ? colors.bold(colors.red('error:')) : colors.yellow('warning:');
-      lines.push(`  ${level} ${finding.message}`, `    ${colors.green('fix:')} ${finding.fix}`);
+      lines.push(`  ${level} ${printable(finding.message)}`, `    ${colors.green('fix:')} ${printable(finding.fix)}`);
     }
   }
   const errors = reports.filter((report) => report.findings.some((finding) => finding.level === 'error')).length;
@@ -181,29 +178,23 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     io.stderr("depcurfew: 'check' needs at least one package, e.g. depcurfew check lodash@4\nRun 'depcurfew check --help' for usage.\n");
     return EXIT_USAGE;
   }
-  const start = flags.dir ?? process.cwd();
+  // The same error shape as apply --json; nothing is checked without a directory or with a policy that cannot be used.
+  const failed = (policy: string | null, error: InputError, code: number): number => {
+    if (flags.json) io.stdout(`${JSON.stringify({ schemaVersion: 1, policy, packages: [], notices: [], errors: [error] }, null, 2)}\n`);
+    else reportInputError(error, io);
+    return code;
+  };
+  const target = checkDirectory(flags.dir);
+  if (!target.ok) return failed(null, target.error, EXIT_USAGE);
+  const start = target.directory;
   let loaded: ReturnType<typeof load>;
   try {
     loaded = load(start, dependencies.home?.() ?? homedir());
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
-    if (flags.json) {
-      // The same error shape as apply --json; nothing is checked against a policy that cannot be used.
-      const directory = policyDirectory(start);
-      const file = directory === undefined ? POLICY_FILE : join(directory, POLICY_FILE);
-      const failure = {
-        code: error.code,
-        level: 'error',
-        location: { file },
-        message: error.message,
-        fix: policyErrorFix(error),
-        ...(error.issues.length === 0 ? {} : { issues: error.issues }),
-      };
-      io.stdout(`${JSON.stringify({ schemaVersion: 1, policy: file, packages: [], notices: [], errors: [failure] }, null, 2)}\n`);
-      return EXIT_FAILURE;
-    }
-    io.stderr(`depcurfew: ${error.text}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`);
-    return EXIT_FAILURE;
+    const directory = findPolicyDirectory(start);
+    const file = directory === undefined ? POLICY_FILE : join(directory, POLICY_FILE);
+    return failed(file, policyInputError(error, file), EXIT_FAILURE);
   }
   const notices = loaded.file === undefined ? [{ message: `no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)` }] : [];
   // With --json the notes go into the document, so that stderr stays empty for programs.

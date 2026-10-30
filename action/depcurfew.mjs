@@ -1,3 +1,21 @@
+// depcurfew GitHub Action (MIT), built from https://github.com/DevXord/depcurfew with npm run build:action.
+// It bundles the runtime helpers of rolldown (MIT) and yaml; their licenses are in THIRD_PARTY_LICENSES.md.
+//
+// yaml 2.9.1 (ISC):
+//
+// Copyright Eemeli Aro <eemeli@gmail.com>
+//
+// Permission to use, copy, modify, and/or distribute this software for any purpose
+// with or without fee is hereby granted, provided that the above copyright notice
+// and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+// REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+// FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+// INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+// OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+// TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+// THIS SOFTWARE.
 import { createRequire } from "node:module";
 import { appendFileSync, chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
@@ -12269,14 +12287,33 @@ function policyFor(policy, ecosystem) {
 }
 
 // src/policy/file.ts
-function readPolicyFile(root) {
+function firstLine(error) {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.split("\n", 1)[0] ?? message;
+}
+/** Whether a path exists; an error other than "no such file" counts as existing, so that it is reported, not skipped. */
+function exists(path) {
 	try {
-		lstatSync(join(root, POLICY_FILE));
-	} catch {
-		return { status: "missing" };
+		lstatSync(path);
+		return true;
+	} catch (error) {
+		const code = error.code;
+		return code !== "ENOENT" && code !== "ENOTDIR";
 	}
-	const repository = new Repository(root);
-	const text = repository.readText(POLICY_FILE);
+}
+function readPolicyFile(root) {
+	if (!exists(join(root, "depcurfew.json"))) return { status: "missing" };
+	let repository;
+	let text;
+	try {
+		repository = new Repository(root);
+		text = repository.readText(POLICY_FILE);
+	} catch (error) {
+		return {
+			status: "unreadable",
+			reason: `cannot read ${POLICY_FILE}: ${firstLine(error)}`
+		};
+	}
 	if (text !== void 0) return {
 		status: "ok",
 		text
@@ -14850,7 +14887,7 @@ var PolicyError = class extends Error {
 /** What to do about a policy that cannot be used, the same in doctor and in the JSON of apply and check. */
 function policyErrorFix(error) {
 	if (error.fix !== void 0) return error.fix;
-	return error.code === "policy-unreadable" ? `Make ${POLICY_FILE} a regular file inside the repository, so that depcurfew can read it` : `Fix these problems in ${POLICY_FILE}; an editor that reads its $schema shows them as you type`;
+	return error.code === "policy-unreadable" ? `Make ${POLICY_FILE} a regular file inside the repository that the user running depcurfew can read` : `Fix these problems in ${POLICY_FILE}; an editor that reads its $schema shows them as you type`;
 }
 /** The policy of the repository; undefined when it has no depcurfew.json. Throws PolicyError when it cannot be used. */
 function loadPolicyIfPresent(root) {
@@ -16462,6 +16499,19 @@ const COLORED = {
 	dim: style(CODES.dim)
 };
 
+// src/printable.ts
+/** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
+const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
+const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
+/**
+* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`. Line breaks are control
+* characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
+* depcurfew lays out in lines itself, such as a snippet to add by hand. Apply it before adding colors.
+*/
+function printable(text, options = {}) {
+	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`);
+}
+
 // src/doctor/render.ts
 function countLevels(findings) {
 	const counts = {
@@ -16490,15 +16540,15 @@ function renderText(report, rules, colors = PLAIN) {
 		for (const finding of report.findings) {
 			if (finding.location.file !== file) {
 				file = finding.location.file;
-				lines.push("", colors.bold(file));
+				lines.push("", colors.bold(printable(file)));
 			}
 			const where = finding.location.line === void 0 ? "" : `${finding.location.line}: `;
 			const help = finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
-			lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${finding.message} ${colors.dim(`(${finding.rule})`)}`);
-			if (help !== void 0) lines.push(`    ${colors.green("fix:")} ${help}`);
+			lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${printable(finding.message)} ${colors.dim(`(${printable(finding.rule)})`)}`);
+			if (help !== void 0) lines.push(`    ${colors.green("fix:")} ${printable(help)}`);
 		}
 	}
-	if (report.notices.length > 0) lines.push("", colors.bold("Notes:"), ...report.notices.map((notice) => `  ${notice.message}`));
+	if (report.notices.length > 0) lines.push("", colors.bold("Notes:"), ...report.notices.map((notice) => `  ${printable(notice.message)}`));
 	return `${lines.join("\n")}\n`;
 }
 
@@ -16508,13 +16558,31 @@ const INFORMATION_URI = "https://www.npmjs.com/package/depcurfew";
 function ruleName(id) {
 	return id.replace(/(^|-)([a-z])/gu, (_match, _dash, letter) => letter.toUpperCase());
 }
-function toSarif(report, rules, version, readLine = () => void 0) {
+/**
+* A repository-relative path as the relative URI reference SARIF asks for (RFC 3986): each segment percent-encoded
+* as UTF-8, so a space, `%`, `#`, `?`, a colon or a non-ASCII letter in a file name keeps its meaning; `/` stays.
+*/
+function pathUri(file) {
+	return file.split("/").map((segment) => encodeURIComponent(segment.replaceAll(/[\uD800-\uDFFF]/gu, "�"))).join("/");
+}
+/** Reads lines of the repository's files; a file it cannot read (e.g. for lack of permission) gives no line. */
+function lineReader(root) {
+	const repository = new Repository(root);
+	return (file, line) => {
+		try {
+			return repository.readText(file)?.split(/\r?\n/u)[line - 1];
+		} catch {
+			return;
+		}
+	};
+}
+function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 	const location = (file, line) => {
 		const startLine = line ?? 1;
 		const text = readLine(file, startLine) ?? "";
 		return { physicalLocation: {
 			artifactLocation: {
-				uri: file,
+				uri: pathUri(file),
 				uriBaseId: "%SRCROOT%"
 			},
 			region: {
@@ -16545,12 +16613,16 @@ function toSarif(report, rules, version, readLine = () => void 0) {
 				}))
 			} },
 			invocations: [{
-				executionSuccessful: true,
-				toolExecutionNotifications: report.notices.map((notice) => ({
+				executionSuccessful: errors.length === 0,
+				toolExecutionNotifications: [...errors.map((error) => ({
+					level: "error",
+					message: { text: error.fix === void 0 ? error.message : `${error.message}. Fix: ${error.fix}` },
+					descriptor: { id: error.code }
+				})), ...report.notices.map((notice) => ({
 					level: "note",
 					message: { text: notice.message },
 					...notice.file === void 0 ? {} : { locations: [location(notice.file, void 0)] }
-				}))
+				}))]
 			}],
 			results: report.findings.map((finding) => ({
 				ruleId: finding.rule,
@@ -16591,12 +16663,12 @@ function annotationCommands(report, rules, format = values$1(environment.githubA
 		const findings = report.findings.filter((finding) => finding.level === level);
 		for (const finding of findings.slice(0, Math.min(limits.perLevelPerStep, limits.perJob - lines.length))) {
 			const properties = [
-				[format.properties.file, finding.location.file],
+				[format.properties.file, printable(finding.location.file)],
 				[format.properties.line, finding.location.line === void 0 ? void 0 : String(finding.location.line)],
 				[format.properties.title, `depcurfew: ${finding.rule}`]
 			].flatMap(([name, value]) => value === void 0 ? [] : [`${name}=${property(value)}`]);
 			const fix = fixOf(finding, rules);
-			const message = fix === void 0 ? finding.message : `${finding.message}\nFix: ${fix}`;
+			const message = fix === void 0 ? printable(finding.message) : `${printable(finding.message)}\nFix: ${printable(fix)}`;
 			lines.push(`::${format.commands[level]} ${properties.join(",")}::${data(message)}`);
 		}
 	}
@@ -16607,10 +16679,12 @@ function annotationCommands(report, rules, format = values$1(environment.githubA
 }
 /** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
 function markdown(text) {
-	return text.replaceAll(/\s*[\r\n]+\s*/gu, " ").split(/(`[^`]*`)/u).map((part, index) => index % 2 === 1 ? part.replaceAll("|", "\\|") : part.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll(/([\\`*_[\]|~#!])/gu, "\\$1").replaceAll(/(https?|www)(?=[:.])/gu, "$1&#8203;")).join("");
+	return printable(text.replaceAll(/\s*[\r\n]+\s*/gu, " ")).split(/(`[^`]*`)/u).map((part, index) => index % 2 === 1 ? part.replaceAll("|", "\\|") : part.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll(/([\\`*_[\]|~#!])/gu, "\\$1").replaceAll(/(https?|www)(?=[:.])/gu, "$1&#8203;")).join("");
 }
+/** A path or rule id as a code span; a line break in a path is shown as text, so it cannot end the table row. */
 function code(text) {
-	return text.includes("`") ? markdown(text) : `\`${text.replaceAll("|", "\\|")}\``;
+	const shown = printable(text);
+	return shown.includes("`") ? markdown(shown) : `\`${shown.replaceAll("|", "\\|")}\``;
 }
 /**
 * The job summary: the counts, a table of findings with how to fix each one and the notices. Rows that would make it
@@ -16647,6 +16721,14 @@ function jobSummary(report, rules, directory, maxBytes) {
 		...rows,
 		...more,
 		...tail
+	].join("\n");
+}
+/** A problem after doctor ran, such as a SARIF file that cannot be written: a line below the findings of the job summary. */
+function problemSummary(message) {
+	return [
+		"",
+		`**Error:** depcurfew ${markdown(message)}`,
+		""
 	].join("\n");
 }
 /** The job summary when doctor could not run. */
@@ -16811,7 +16893,7 @@ function runAction(env, io) {
 	const summary = enabled(env, "job-summary");
 	const fail = (message) => {
 		outputs.failure = message;
-		io.log(untrusted(`depcurfew: ${message}\n`));
+		io.log(untrusted(`depcurfew: ${printable(message)}\n`));
 		if (summary) io.summary(failureSummary(message));
 		return outputs;
 	};
@@ -16824,11 +16906,17 @@ function runAction(env, io) {
 	} catch (error) {
 		if (!(error instanceof PolicyError)) throw error;
 		outputs.failure = [error.message, ...error.issues].join("; ");
-		io.log(untrusted(`depcurfew: ${error.text}\n${error.issues.map((issue) => `  ${issue}\n`).join("")}`));
+		io.log(untrusted(`depcurfew: ${printable(error.text)}\n${error.issues.map((issue) => `  ${printable(issue)}\n`).join("")}`));
 		if (summary) io.summary(failureSummary(outputs.failure));
 		return outputs;
 	}
 	io.log(untrusted(renderText(report, RULES)));
+	const counts = countLevels(report.findings);
+	Object.assign(outputs, {
+		errors: counts.error,
+		warnings: counts.warning,
+		notes: counts.note
+	});
 	const moved = relativeToWorkspace(report, prefix);
 	if (enabled(env, "annotations")) {
 		const annotations = annotationCommands(moved, RULES);
@@ -16836,13 +16924,17 @@ function runAction(env, io) {
 		if (annotations.omitted > 0) io.log(`GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? "finding is" : "findings are"} in the report above.\n`);
 	}
 	if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
-	const repository = new Repository(workspace);
-	const readLine = (file, line) => repository.readText(file)?.split(/\r?\n/u)[line - 1];
-	const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), readLine), null, 2)}\n`;
+	const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
 	const shownSarif = inside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join("/") : sarifFile;
+	const sarifFailure = (reason) => {
+		outputs.failure = `cannot write the SARIF file ${sarifInput}: ${reason}`;
+		io.log(untrusted(`depcurfew: ${printable(outputs.failure)}\n`));
+		if (summary) io.summary(problemSummary(outputs.failure));
+		return outputs;
+	};
 	try {
 		const unsafe = unsafeOutput(workspace, sarifFile);
-		if (unsafe !== void 0) return fail(`cannot write the SARIF file ${sarifInput}: ${unsafe}`);
+		if (unsafe !== void 0) return sarifFailure(unsafe);
 		const before = lstatSync(sarifFile, { throwIfNoEntry: false }) === void 0 ? null : "";
 		mkdirSync(dirname(sarifFile), { recursive: true });
 		writeChanges(dirname(sarifFile), [{
@@ -16851,20 +16943,19 @@ function runAction(env, io) {
 			after: sarif
 		}]);
 	} catch (error) {
-		return fail(`cannot write the SARIF file ${sarifInput}: ${error instanceof Error ? error.message : String(error)}`);
+		return sarifFailure(error instanceof Error ? error.message : String(error));
 	}
-	const counts = countLevels(report.findings);
 	return {
 		...outputs,
-		"sarif-file": shownSarif,
-		errors: counts.error,
-		warnings: counts.warning,
-		notes: counts.note
+		"sarif-file": shownSarif
 	};
 }
-/** Writes step outputs in the format of the GITHUB_OUTPUT file. */
+/**
+* Writes step outputs in the format of the GITHUB_OUTPUT file, each on one line. action.yml prints the failure output
+* in the log, so its other control characters are shown as text too.
+*/
 function formatOutputs(outputs) {
-	return Object.entries(outputs).map(([name, value]) => `${name}=${String(value).replaceAll(/[\r\n]+/gu, " ")}\n`).join("");
+	return Object.entries(outputs).map(([name, value]) => `${name}=${printable(String(value).replaceAll(/[\r\n]+/gu, " "))}\n`).join("");
 }
 function main(env = process.env) {
 	const summaryVariable = values$1(environment.githubActions.stepSummary)[0]?.variable;

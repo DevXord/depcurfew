@@ -28,7 +28,7 @@ describe('depcurfew explain --json', () => {
     const result = await exec('explain', '--json', repo('pnpm10-monorepo'));
     expect(result.code).toBe(EXIT_OK);
     expect(result.stderr).toBe('');
-    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, project: expected('pnpm10-monorepo'), policy: null });
+    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, project: expected('pnpm10-monorepo'), policy: null, notices: [], errors: [] });
   });
 
   describe('with a policy', () => {
@@ -173,8 +173,8 @@ describe('depcurfew explain --json', () => {
 
   it('fails when the directory does not exist', async () => {
     const result = await exec('explain', join(tmpdir(), 'depcurfew-missing-directory'));
-    expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toMatch(/^depcurfew: directory not found: /);
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stderr).toMatch(/^error: directory not found: .+ \(directory-not-found\)\n {2}fix: /u);
   });
 
   it('accepts at most one directory', async () => {

@@ -1,5 +1,5 @@
 // The action entry point: SARIF paths relative to the workspace, step outputs and failures, without GitHub.
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -103,9 +103,36 @@ describe('GitHub Action entry point', () => {
     expect(log).toMatch(/^::stop-commands::[0-9a-f-]{36}\ndepcurfew: depcurfew\.json is invalid\n/u);
   });
 
+  it('keeps the counts and adds one line to the job summary when the SARIF file cannot be written', () => {
+    const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter');
+    writeFileSync(join(root, 'elsewhere.txt'), 'keep\n');
+    symlinkSync(join(root, 'elsewhere.txt'), join(root, 'report.sarif'));
+    const { outputs, log, summary } = run({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: 'report.sarif' });
+    const failure = 'cannot write the SARIF file report.sarif: report.sarif is a symlink; depcurfew does not write through symlinks';
+    expect(outputs).toEqual({ 'sarif-file': '', errors: 1, warnings: 0, notes: 0, failure });
+    expect(log).toContain(`\ndepcurfew: ${failure}\n`);
+    expect(summary.match(/^## depcurfew doctor$/gmu)).toHaveLength(1);
+    expect(summary).not.toContain('could not check the repository');
+    expect(summary).toMatch(/^\| \*\*error\*\* \| `\.github\/dependabot\.yml:\d+` \|/mu);
+    expect(summary.endsWith(`\n\n**Error:** depcurfew ${failure}\n`)).toBe(true);
+    expect(readFileSync(join(root, 'elsewhere.txt'), 'utf8')).toBe('keep\n');
+  });
+
+  it('keeps every row of the job summary on one line when a path has a line break, and encodes it in SARIF', () => {
+    const directory = 'odd dir\n| x |';
+    const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter', directory);
+    const { summary } = run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: directory });
+    expect(summary).toContain('**1 error**, 0 warnings, 0 notes in `odd dir\\x0a\\| x \\|`.\n');
+    const rows = summary.split('\n').filter((line) => line.startsWith('| '));
+    expect(rows).toHaveLength(3);
+    expect(rows[2]).toMatch(/^\| \*\*error\*\* \| `odd dir\\x0a\\\| x \\\|\/\.github\/dependabot\.yml:\d+` \| .+ \| .+ \|$/u);
+    const sarif = JSON.parse(readFileSync(join(root, 'depcurfew.sarif'), 'utf8')) as { runs: { results: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[] }[] };
+    expect(sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('odd%20dir%0A%7C%20x%20%7C/.github/dependabot.yml');
+  });
+
   it('formats outputs for GITHUB_OUTPUT on single lines', () => {
-    expect(formatOutputs({ 'sarif-file': 'a.sarif', errors: 2, warnings: 0, notes: 1, failure: 'one\ntwo' })).toBe(
-      'sarif-file=a.sarif\nerrors=2\nwarnings=0\nnotes=1\nfailure=one two\n',
+    expect(formatOutputs({ 'sarif-file': 'a.sarif', errors: 2, warnings: 0, notes: 1, failure: 'one\ntwo\u001b[2K' })).toBe(
+      'sarif-file=a.sarif\nerrors=2\nwarnings=0\nnotes=1\nfailure=one two\\x1b[2K\n',
     );
   });
 });

@@ -5,7 +5,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { RULES, runDoctor, toSarif } from '../../src/doctor/index.ts';
+import { RULES, runDoctor, toSarif, type DoctorReport } from '../../src/doctor/index.ts';
 import { JsonSchemaValidator } from '../support/json-schema.ts';
 
 const SCHEMA_FILE = new URL('../fixtures/sarif/sarif-schema-2.1.0.json', import.meta.url);
@@ -75,5 +75,25 @@ describe('SARIF output', () => {
       expect(Object.keys(region).sort()).toEqual(['endColumn', 'endLine', 'startColumn', 'startLine']);
       expect(region['endColumn']).toBeGreaterThan(region['startColumn'] ?? 0);
     }
+  });
+
+  it('percent-encodes each segment of a path as a URI reference and keeps the slashes', () => {
+    const file = 'sub dir/zażółć 100%\n#?:x.json';
+    const report: DoctorReport = { schemaVersion: 1, policy: 'valid', findings: [{ rule: 'config-drift', level: 'error', location: { file, line: 1 }, message: 'm' }], notices: [{ message: 'n', file }] };
+    const sarif = toSarif(report, RULES, '0.0.0') as { runs: { results: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[]; invocations: { toolExecutionNotifications: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[] }[] }[] };
+    const uri = 'sub%20dir/za%C5%BC%C3%B3%C5%82%C4%87%20100%25%0A%23%3F%3Ax.json';
+    expect(sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe(uri);
+    expect(sarif.runs[0]?.invocations[0]?.toolExecutionNotifications[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe(uri);
+    expect(decodeURIComponent(uri)).toBe(file);
+    expect(validator.validate(sarif)).toEqual([]);
+  });
+
+  it('marks a run that could not check anything as not successful, with the error as a notification', () => {
+    const report: DoctorReport = { schemaVersion: 1, policy: 'missing', findings: [], notices: [] };
+    const sarif = toSarif(report, RULES, '0.0.0', undefined, [{ code: 'directory-not-found', message: 'directory not found: x', fix: 'Pass the path of an existing directory' }]) as { runs: { invocations: unknown[] }[] };
+    expect(sarif.runs[0]?.invocations).toEqual([
+      { executionSuccessful: false, toolExecutionNotifications: [{ level: 'error', message: { text: 'directory not found: x. Fix: Pass the path of an existing directory' }, descriptor: { id: 'directory-not-found' } }] },
+    ]);
+    expect(validator.validate(sarif)).toEqual([]);
   });
 });

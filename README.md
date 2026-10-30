@@ -109,9 +109,11 @@ The package installs two names for the same command: `depcurfew` and the short `
 | `depcurfew check <package...> [--json] [--dir <directory>] [--registry <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
 | `depcurfew check --hook claude-code` | The same check as a Claude Code hook that blocks install commands breaking the policy. |
 
-Exit codes: `0` success (warnings included), `1` an error (an invalid policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error. `depcurfew <command> --help` describes a command with examples and its exit codes.
+Without a directory, `explain`, `apply` and `doctor` work on the nearest directory with `depcurfew.json`, from the current directory up to the root of the repository (the directory with `.git`), and say so when that is a parent directory, so `doctor` run in a subdirectory does not pass for a project without a policy. A directory given on the command line is used as it is. `check` looks for `depcurfew.json` the same way, starting in `--dir`.
 
-Every finding and warning says what to do about it. Text for people is colored on a terminal; `NO_COLOR=1` turns colors off and `FORCE_COLOR=1` turns them on, for example in a CI log that shows them. `--json`, `--sarif` and a diff written to a file stay plain, for programs and AI agents.
+Exit codes: `0` success (warnings included), `1` an error (an invalid or unreadable policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error (such as an unknown option or a directory that does not exist). `depcurfew <command> --help` describes a command with examples and its exit codes.
+
+Every finding and warning says what to do about it. When a command cannot start, it says why with a code (`directory-not-found`, `not-a-directory`, `policy-missing`, `policy-invalid`, `policy-unreadable`) and what to do; with `--json` that is a document with `errors` on stdout, and `doctor --sarif` prints a run marked as not successful. Text for people is colored on a terminal; `NO_COLOR=1` turns colors off and `FORCE_COLOR=1` turns them on, for example in a CI log that shows them. Control characters in names and values from the repository or a registry are shown as text (ESC as `\x1b`), so a crafted package or file name cannot change the terminal. `--json`, `--sarif` and a diff written to a file stay plain, for programs and AI agents.
 
 How `apply` edits files:
 
@@ -122,7 +124,7 @@ How `apply` edits files:
 
 ### apply warnings and errors
 
-Each warning and error of `apply` has a code. The text output shows it in parentheses after the message, with what to do on the next line, like a doctor finding. `depcurfew apply --json` (also with `--dry-run`) prints one JSON document and nothing on stderr: `changes` (each file with its action and unified diff), `warnings` and `errors` (each with `code`, `level`, the tool, the file when there is one, `message` and `fix`), `snippets` to add by hand, and `written`. A run that writes nothing because of an error lists no changes and exits with 1.
+Each warning and error of `apply` has a code. The text output shows it in parentheses after the message, with what to do on the next line, like a doctor finding. `depcurfew apply --json` (also with `--dry-run`) prints one JSON document and nothing on stderr: `changes` (each file with its action and unified diff), `warnings` and `errors` (each with `code`, `level`, the tool, the file when there is one, `message` and `fix`), `snippets` to add by hand, `notices` (such as the parent directory whose `depcurfew.json` was used) and `written`. A run that writes nothing because of an error lists no changes and exits with 1.
 
 <!-- BEGIN GENERATED: apply-codes -->
 Warnings:
@@ -164,6 +166,8 @@ Errors (nothing is written):
 - `policy-missing`: The directory has no depcurfew.json.
 - `policy-invalid`: depcurfew.json does not follow the schema; issues lists the problems.
 - `policy-unreadable`: depcurfew.json cannot be read.
+- `directory-not-found`: The directory given on the command line does not exist or cannot be opened.
+- `not-a-directory`: The path given on the command line is a file, not a directory.
 <!-- END GENERATED: apply-codes -->
 
 ## Supported tools
@@ -385,12 +389,12 @@ For each package it looks up the public npm registry, or PyPI for names with the
 - a name the registry does not know, which is how made-up package names show up;
 - a version younger than the cooldown in `depcurfew.json`, with the newest version that is old enough;
 - install scripts the policy does not allow; for a Python package, a version without wheels, which is built from source and so runs its build code;
-- a name that differs by a letter or two, or only in separators, from one of the 5,000 most downloaded packages of its registry;
+- a name that differs by a letter or two, or only in separators, from a popular package of its registry: 5,000 npm packages with the most weekly downloads among the results of several hundred registry searches (the npm registry has no download ranking, so a popular package can be missing), and the 5,000 most downloaded PyPI projects of a recent month;
 - a deprecated version (a warning).
 
 Python packages are written as pip takes them after the prefix (`pypi:name`, `pypi:name==1.2`, `pypi:name[extra]>=1.2,<2`), or as `pypi:name@1.2`, `pypi:name@^1.2` and `pypi:name@latest`, as `uvx` and `poetry add` take them. The version is picked as pip picks it: the newest match, pre-releases only when asked for or when nothing else matches, and yanked versions only when pinned with `==` (a warning). A version is as old as its newest file, because files can be added to a release later. A project PyPI quarantines (as malware, for example) is an error; an archived or deprecated one, a warning. `--index` looks Python packages up in another index that serves the JSON form of the simple repository API.
 
-Git repositories, tarball URLs and local paths are checked against the `sources` section only. Without a `depcurfew.json` in the directory or one of its parents, the default policy applies. When the registry cannot be reached, the package counts as failed: `check` exits with 1 whenever a package breaks the policy or cannot be checked. With `--json` it prints one document and nothing on stderr: `packages` with their findings (each with `code`, `level`, `message` and `fix`), `notices`, and `errors` for a `depcurfew.json` that cannot be used, in which case no package is checked.
+Git repositories, tarball URLs and local paths are checked against the `sources` section only. Without a `depcurfew.json` in the directory or one of its parents up to the root of the repository, the default policy applies. When the registry cannot be reached, the package counts as failed: `check` exits with 1 whenever a package breaks the policy or cannot be checked. With `--json` it prints one document and nothing on stderr: `packages` with their findings (each with `code`, `level`, `message` and `fix`), `notices`, and `errors` for a `depcurfew.json` that cannot be used, in which case no package is checked.
 
 ### Claude Code
 
@@ -453,6 +457,10 @@ Commands the guard reads (an add subcommand of any npm package manager, such as 
 
 The hook reads commands the way a shell splits them, but it is a safety net, not a sandbox: a command can install packages in ways it does not recognize (a script, another tool). Keep the package manager configuration from `depcurfew apply` in place; it is what enforces the policy for every install.
 
+## Network and privacy
+
+Only `check` and the Claude Code hook use the network. For each package they request one URL with the package name in it: from the public npm registry (`registry.npmjs.org`) or PyPI (`pypi.org`), or from the registry that the project's or your `.npmrc` sets, `--registry` or `--index`. They send no credentials (tokens in `.npmrc` are not read) and nothing else about the project, and depcurfew has no telemetry. A private package whose scope has no registry in `.npmrc` is looked up in the public registry, so its name reaches that registry; set `@scope:registry` in `.npmrc` or pass `--registry` first. `init`, `explain`, `apply` and `doctor` work without network access, and so does the doctor step of the GitHub Action (the SARIF upload to code scanning is a separate step that runs GitHub's own action). An editor that reads the `$schema` of `depcurfew.json` may download the schema from unpkg.com.
+
 ## Library
 
 The same functions are available from the package: `detectProject`, `planApply` and `applyProject`, `runDoctor` with `toSarif`, `checkSpecs` with `scanCommandLine`, and the policy parser and converters. See `src/index.ts`.
@@ -464,3 +472,7 @@ Facts about package managers live only in `src/knowledge/`, each with the offici
 ## License
 
 [MIT](LICENSE)
+
+## Trademarks
+
+npm is a registered trademark of npm, Inc. "Python" and "PyPI" are trademarks of the Python Software Foundation. pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate, Dependabot, GitHub, Claude Code and the other names in this document belong to their owners. depcurfew is an independent project and is not affiliated with or endorsed by any of them.

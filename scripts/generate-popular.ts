@@ -2,7 +2,7 @@
 // package names with to find look-alikes. The registry has no "most downloaded" listing, and its search returns at most
 // 250 results per query, so the script searches many common keywords and terms, keeps the weekly download count each
 // result carries and writes the top packages. With the argument pypi it regenerates src/knowledge/popular-python.ts
-// instead: the most downloaded projects of PyPI, from a monthly ranking of PyPI's public download statistics.
+// instead: the most downloaded projects of PyPI, from a third-party monthly ranking of PyPI's public download statistics.
 // Run it by hand with network access: npm run data:popular (or npm run data:popular -- pypi)
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -94,7 +94,10 @@ async function search(text: string, facts: ReturnType<typeof searchFacts>): Prom
   throw new Error(`${url.href}: the registry kept failing`);
 }
 
-/** A monthly ranking of PyPI projects by downloads in the last 30 days, from PyPI's public BigQuery dataset. */
+/**
+ * A monthly ranking of PyPI projects by downloads in the past calendar month (hugovk/top-pypi-packages), computed from
+ * the public PyPI dataset of ClickPy, which imports the download statistics PyPI publishes in BigQuery.
+ */
 const PYPI_RANKING = 'https://raw.githubusercontent.com/hugovk/top-pypi-packages/main/top-pypi-packages.min.json';
 
 async function python(): Promise<void> {
@@ -115,13 +118,13 @@ async function python(): Promise<void> {
 import { verifiedOn } from './define.ts';
 
 /**
- * The ${names.length} most downloaded PyPI projects in the 30 days before ${updated}, sorted by name. The least downloaded
+ * The ${names.length} most downloaded PyPI projects in the calendar month before ${updated}, sorted by name. The least downloaded
  * of them had ${minimum} downloads. depcurfew check flags Python names that are close to one of them.
  */
 export const popularPythonPackages = verifiedOn('${today}').uncertain(
   ${JSON.stringify(names)},
   'https://github.com/pypi/warehouse/blob/c137701f3afcd80c346c574c31c9b46eeb738664/docs/user/api/bigquery.md',
-  'Taken from the monthly ranking at https://hugovk.github.io/top-pypi-packages/, which a PyPA member computes from the download statistics table that PyPI publishes in BigQuery (bigquery-public-data.pypi.file_downloads); PyPI publishes no ranking itself, and downloads include mirrors and CI.',
+  'Taken from the monthly ranking of hugovk/top-pypi-packages (https://github.com/hugovk/top-pypi-packages), a third-party project that sums the downloads of the past calendar month in the public PyPI dataset of ClickPy (https://clickpy.clickhouse.com, source: "ClickHouse" in the file). ClickPy imports the download statistics that PyPI publishes in BigQuery (bigquery-public-data.pypi.file_downloads, CC BY 4.0), which the source describes; PyPI publishes no ranking itself, and downloads include mirrors and CI.',
 );
 `,
   );
