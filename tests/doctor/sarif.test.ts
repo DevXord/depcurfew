@@ -2,7 +2,7 @@
 // requirements of GitHub code scanning (rule descriptions, help, a full region for every result).
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { RULES, runDoctor, toSarif, type DoctorReport } from '../../src/doctor/index.ts';
@@ -45,7 +45,7 @@ describe('SARIF output', () => {
     expect(validator.validate({ version: '2.1.0', runs: [{ tool: { driver: { name: 'x' } }, results: [{ message: { text: 'm' }, level: 'fatal' }] }] }).length).toBeGreaterThan(0);
   });
 
-  it.each(repositories.map((directory) => [directory.slice(directory.indexOf('fixtures/')), directory]))('%s is valid SARIF', (_name, directory) => {
+  it.each(repositories.map((directory) => [directory.split(sep).join('/').replace(/^.*?(?=fixtures\/)/u, ''), directory]))('%s is valid SARIF', (_name, directory) => {
     expect(validator.validate(sarifFor(directory))).toEqual([]);
   });
 

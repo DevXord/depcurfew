@@ -10,12 +10,18 @@ permissions:
 
 jobs:
   test:
-    name: Test on Node.js ${{ matrix.node }}
-    runs-on: ubuntu-latest
+    name: Test on ${{ matrix.os }}, Node.js ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 24]
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24, 26]
+    defaults:
+      run:
+        # Git Bash on Windows, so every step runs the same commands.
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -27,9 +33,13 @@ jobs:
       # The project .npmrc sets ignore-scripts, so no dependency script runs.
       - run: npm ci
       - run: npm test
-      - run: npm run typecheck
-      - run: npm run check:pkg
+      # The checks below do not depend on the system; they run once per Node.js version, on Linux.
+      - if: runner.os == 'Linux'
+        run: npm run typecheck
+      - if: runner.os == 'Linux'
+        run: npm run check:pkg
       - name: The committed action bundle matches the sources
+        if: runner.os == 'Linux'
         run: |
           npm run build:action
           git diff --exit-code -- action/

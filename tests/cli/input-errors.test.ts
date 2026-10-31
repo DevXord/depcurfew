@@ -4,7 +4,7 @@
 // read error is simulated in node:fs.
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_FAILURE, EXIT_USAGE, run } from '../../src/cli/run.ts';
 
@@ -51,7 +51,8 @@ async function exec(...argv: string[]): Promise<{ code: number; stdout: string; 
 describe('a depcurfew.json that cannot be read', () => {
   const unreadable = () => {
     const directory = project();
-    failing.suffix = `${directory}/depcurfew.json`;
+    // The directory's own name and the file, whatever form of the temporary directory's path is read (8.3 names on Windows).
+    failing.suffix = join(basename(directory), 'depcurfew.json');
     return directory;
   };
   // The reading layer names the error code and leaves out the absolute path (decision D-076).

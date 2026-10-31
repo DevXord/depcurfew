@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { botDuration } from '../../src/apply/index.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../../src/cli/run.ts';
 import { parseDuration } from '../../src/policy/duration.ts';
+import { canSymlink } from '../support/platform.ts';
 
 const REPOS = fileURLToPath(new URL('../fixtures/repos/', import.meta.url));
 const EXPECTED = fileURLToPath(new URL('../fixtures/expected/', import.meta.url));
@@ -208,7 +209,7 @@ describe('depcurfew apply', () => {
     expect(result.stderr).toContain('depcurfew: apply would write nothing because of the errors above.\n');
   });
 
-  it('does not write through a symlink', async () => {
+  it.skipIf(!canSymlink())('does not write through a symlink', async () => {
     const directory = scratch('package-json-only');
     const outside = scratch(undefined, null);
     write(outside, { '.npmrc': 'registry=https://registry.npmjs.org/\n' });

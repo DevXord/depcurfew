@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { detectProject } from '../../src/detect/index.ts';
+import { canSymlink } from '../support/platform.ts';
 
 let root: string;
 let outside: string;
@@ -69,7 +70,7 @@ describe('detectProject on broken input', () => {
 });
 
 describe('detectProject stays inside the repository', () => {
-  it('does not follow a symlinked config file that points outside', () => {
+  it.skipIf(!canSymlink())('does not follow a symlinked config file that points outside', () => {
     writeFileSync(join(outside, '.npmrc'), 'min-release-age=0\n');
     write('package.json', '{}');
     write('package-lock.json', '{}');
@@ -81,7 +82,7 @@ describe('detectProject stays inside the repository', () => {
     ]);
   });
 
-  it('follows a symlink that stays inside the repository', () => {
+  it.skipIf(!canSymlink())('follows a symlink that stays inside the repository', () => {
     write('package.json', '{}');
     write('package-lock.json', '{}');
     write('config/npmrc', 'save-exact=true\n');
@@ -122,7 +123,7 @@ describe('detectProject stays inside the repository', () => {
     write('.git/x/package.json', '{}');
     mkdirSync(join(outside, 'linked'));
     writeFileSync(join(outside, 'linked', 'package.json'), '{}');
-    symlinkSync(join(outside, 'linked'), join(root, 'linked'));
+    symlinkSync(join(outside, 'linked'), join(root, 'linked'), 'junction');
     expect(detectProject(root).workspaces?.packages).toEqual(['libs/deep/a']);
   });
 
