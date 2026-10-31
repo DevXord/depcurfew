@@ -201,7 +201,7 @@ export interface UserVariable {
 
 /** The tool's user-level configuration, for `depcurfew apply --user` and `doctor --user`. */
 export interface UserConfigKnowledge {
-  /** The user file per version, oldest first; an empty list when the tool has no user file. */
+  /** The user file per version, oldest first; null for versions without a user file. */
   files: Fact<Versioned<UserFile | null>>;
   /** Settings depcurfew can write there. */
   settings: Fact<readonly UserSetting[]>;
