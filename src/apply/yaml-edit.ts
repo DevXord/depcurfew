@@ -2,7 +2,8 @@
 // key is written, so comments, quoting and spacing elsewhere stay byte for byte. Keys depcurfew sets get a
 // "# managed by depcurfew" comment on the line above. The result is parsed again and has to hold exactly the old
 // data with the one value set; otherwise the edit is refused.
-import { isMap, isScalar, isSeq, LineCounter, parseDocument, stringify, type Node, type Pair } from 'yaml';
+import { isMap, isScalar, isSeq, LineCounter, stringify, type Node, type Pair } from 'yaml';
+import { parseYamlDocument } from '../yaml-parse.ts';
 import { sameData, withValue } from './expected.ts';
 
 type Path = readonly (string | number)[];
@@ -11,7 +12,7 @@ export const YAML_MARKER = '# managed by depcurfew';
 
 function parse(text: string) {
   const lineCounter = new LineCounter();
-  const document = parseDocument(text, { lineCounter });
+  const document = parseYamlDocument(text, lineCounter);
   if (document.errors.length > 0) throw new Error(document.errors[0]?.message.split('\n', 1)[0] ?? 'invalid YAML');
   return { document, lineCounter };
 }

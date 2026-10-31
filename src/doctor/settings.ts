@@ -1,11 +1,12 @@
 // Reading settings from configuration files with their line numbers, for doctor: INI (.npmrc), YAML, TOML
 // (bunfig.toml) and JSON/JSONC. Unreadable files give no value; detection already reports them.
-import { LineCounter, parseDocument, isMap, isScalar, isSeq, type Node, type Pair } from 'yaml';
+import { LineCounter, isMap, isScalar, isSeq, type Document, type Node, type Pair } from 'yaml';
 import { extraOf, isRecord } from '../apply/facts.ts';
 import { jsonGet, jsonOffset } from '../apply/json-edit.ts';
 import { BLOCK_END, BLOCK_START } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
+import { parseYamlDocument } from '../yaml-parse.ts';
 
 export interface Setting {
   file: string;
@@ -133,10 +134,16 @@ function lineAt(text: string, offset: number): number {
   return line;
 }
 
+/** The text yamlSetting parsed last: rules ask for several settings of the same file in a row. Only read, never changed. */
+let lastYaml: { text: string; document: Document.Parsed; lineCounter: LineCounter } | undefined;
+
 /** The YAML value at `path` and the line of its key. */
 export function yamlSetting(text: string, path: readonly string[]): { value: unknown; line: number } | undefined {
-  const lineCounter = new LineCounter();
-  const document = parseDocument(text, { lineCounter });
+  if (lastYaml?.text !== text) {
+    const lineCounter = new LineCounter();
+    lastYaml = { text, document: parseYamlDocument(text, lineCounter), lineCounter };
+  }
+  const { document, lineCounter } = lastYaml;
   if (document.errors.length > 0) return undefined;
   let node: Node | null = document.contents as Node | null;
   let keyOffset = 0;

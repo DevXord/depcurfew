@@ -1,6 +1,5 @@
 // Describes a repository: package managers and the versions it pins, bots, workspaces, .npmrc files and CI
 // workflows. Only reads files; facts about file names, keys and CI actions come from the knowledge base.
-import { parse as parseYaml } from 'yaml';
 import { environment as environmentKnowledge } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { EnvironmentKnowledge, RuntimeOrTool, ToolKnowledge } from '../knowledge/types.ts';
@@ -22,6 +21,7 @@ import { parseToml, tomlValueAt, type TomlDocument, type TomlValue } from './tom
 import { readWorkflows } from './workflows.ts';
 import { expandWorkspaces } from './workspaces.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
+import { parseYaml } from '../yaml-parse.ts';
 
 export type * from './types.ts';
 
