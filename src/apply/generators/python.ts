@@ -18,7 +18,7 @@ export function pythonNames(names: readonly string[]): string[] {
   return [...new Set(names.map(normalizePythonName))];
 }
 
-export function forcedBuildWarning(context: Context, setting: string, names: readonly string[]): void {
+export function forcedBuildWarning(context: Context, setting: string, names: readonly string[], policyFile: string = POLICY_FILE): void {
   if (names.length === 0) return;
   const policyNames = names.map((name) => `pypi:${name}`);
   context.warn({
@@ -26,8 +26,8 @@ export function forcedBuildWarning(context: Context, setting: string, names: rea
     message: `${context.name}: ${setting} lets ${names.join(', ')} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? 'it' : 'them'} from source, even where a wheel exists, because it has no setting that only allows building`,
     fix:
       names.length === 1
-        ? `If ${policyNames.join('')} has a wheel and needs no build, remove it from installScripts.allow in ${POLICY_FILE}`
-        : `Remove those of ${listing(policyNames)} that have a wheel and need no build from installScripts.allow in ${POLICY_FILE}`,
+        ? `If ${policyNames.join('')} has a wheel and needs no build, remove it from installScripts.allow in ${policyFile}`
+        : `Remove those of ${listing(policyNames)} that have a wheel and need no build from installScripts.allow in ${policyFile}`,
   });
 }
 

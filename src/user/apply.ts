@@ -15,6 +15,7 @@ import { ecosystemOfTool, policyFor } from '../policy/ecosystem.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { reportProjectOnly, USER_GENERATORS, type UserTarget } from './generators.ts';
 import { shownPath, userFileFor, userFilePath, type UserEnvironment } from './locate.ts';
+import { userPolicyPath } from './policy-path.ts';
 import { findExecutable, installedVersion } from './versions.ts';
 
 export interface UserChange extends FileChange {
@@ -136,8 +137,8 @@ export function planUserApply(policy: ResolvedPolicy, options: UserApplyOptions)
     }
     const { workspace, file: relativeFile } = workspaceFor(path);
     const view = policyFor(policy, ecosystemOfTool(tool));
-    const context = createContext({ tool, tools, targets: targetIds, policy: view, version, workspace, warnings, snippets, failures });
-    const target: UserTarget = { context, file: relativeFile, shown: shownPath(path, environment) };
+    const context = createContext({ tool, tools, targets: targetIds, policy: view, version, workspace, warnings, snippets, failures, user: installed === undefined ? {} : { versionText: installed.text } });
+    const target: UserTarget = { context, file: relativeFile, shown: shownPath(path, environment), policyFile: shownPath(userPolicyPath(environment), environment) };
     const group = byFile.get(path) ?? [];
     group.push(target);
     byFile.set(path, group);

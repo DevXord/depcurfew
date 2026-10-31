@@ -70,7 +70,7 @@ describe('apply --user for Python tools', () => {
     const planned = planUserApply(POLICY, { environment });
     expect(after(planned, 'uv', environment)).toBe(
       [
-        '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead',
+        '# >>> depcurfew managed block: edit the user depcurfew.json and run depcurfew apply --user instead',
         'exclude-newer = "3 days"',
         'exclude-newer-package = { "internal-tools" = false }',
         'no-build = true',
@@ -98,7 +98,7 @@ describe('apply --user for Python tools', () => {
     expect(given.report.changes.map((change) => change.file).sort()).toEqual([shownUserFile('pip', environment), shownUserFile('uv', environment)].sort());
     // A new pip.conf: the [global] section with the block, and nothing after it.
     expect(after(given, 'pip', environment)).toBe(
-      ['[global]', '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead', 'uploaded-prior-to = P3D', 'only-binary = :all:', 'no-binary = psycopg2', '# <<< depcurfew managed block', ''].join('\n'),
+      ['[global]', '# >>> depcurfew managed block: edit the user depcurfew.json and run depcurfew apply --user instead', 'uploaded-prior-to = P3D', 'only-binary = :all:', 'no-binary = psycopg2', '# <<< depcurfew managed block', ''].join('\n'),
     );
   });
 
@@ -111,7 +111,7 @@ describe('apply --user for Python tools', () => {
     expect(after(planned, 'pip', environment)).toBe(
       [
         '[global]',
-        '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead',
+        '# >>> depcurfew managed block: edit the user depcurfew.json and run depcurfew apply --user instead',
         'uploaded-prior-to = P3D',
         'only-binary = :all:',
         'no-binary = psycopg2',
@@ -137,8 +137,8 @@ describe('apply --user for Python tools', () => {
   it('writes Poetry and PDM config.toml, and nothing for Pipenv, which has no user file', () => {
     const environment = machine({ poetry: '2.5.1', pdm: '2.29.5', pipenv: '2026.10.4' });
     const planned = planUserApply(POLICY, { environment });
-    expect(after(planned, 'poetry', environment)).toContain('[solver]\n# >>> depcurfew managed block [solver]: edit depcurfew.json and run depcurfew apply instead\nmin-release-age = 3\n');
-    expect(after(planned, 'poetry', environment)).toContain('[installer]\n# >>> depcurfew managed block [installer]: edit depcurfew.json and run depcurfew apply instead\nonly-binary = [":all:"]\nno-binary = ["psycopg2"]\n');
+    expect(after(planned, 'poetry', environment)).toContain('[solver]\n# >>> depcurfew managed block [solver]: edit the user depcurfew.json and run depcurfew apply --user instead\nmin-release-age = 3\n');
+    expect(after(planned, 'poetry', environment)).toContain('[installer]\n# >>> depcurfew managed block [installer]: edit the user depcurfew.json and run depcurfew apply --user instead\nonly-binary = [":all:"]\nno-binary = ["psycopg2"]\n');
     expect(after(planned, 'pdm', environment)).toContain('exclude-newer = "3d"');
     expect(codes(planned)).toEqual(expect.arrayContaining(['pipenv:no-user-config', 'pdm:user-setting-project-only']));
   });

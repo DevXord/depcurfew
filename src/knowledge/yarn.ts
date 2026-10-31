@@ -220,6 +220,11 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    classicUserFile: user.verified(
+      { until: '2.0.0', file: '.yarnrc' },
+      'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/registries/yarn-registry.js',
+      'Yarn Classic (1.x, last release 1.22.22) reads .yarnrc and .npmrc from the project, its parent folders, the home folder (homeConfigLoc = ~/.yarnrc) and the global prefix (getPossibleConfigLocations in src/registries/npm-registry.js), never .yarnrc.yml, which only Yarn 2 and later read. depcurfew does not configure Yarn Classic.',
+    ),
     denyList: user.verified(
       { file: 'package.json', setting: 'dependenciesMeta.<package>.built', value: false, since: '2.0.0' },
       'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-pnp/sources/jsInstallUtils.ts',

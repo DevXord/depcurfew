@@ -185,6 +185,11 @@ export const pip: ToolKnowledge = {
     ),
   },
   extra: {
+    configSections: user.verified(
+      { global: 'global', commandsOverride: true },
+      CONFIGURATION,
+      '"Each subcommand can be configured optionally in its own section. This overrides the global setting with the same name", and "A command specific section in the config file `[<command>] host = bar` overrides the option with same name in the `[global]` config file section" (Precedence / Override order). pip reads only [global], the section of the running command and :env: (override_order = ["global", self.name, ":env:"] in cli/parser.py), so a managed key in [install] wins over [global] for pip install; depcurfew comments such keys out in every section other than [global].',
+    ),
     pylockCreatedBy: verified('pip', `${PIP}/src/pip/_internal/utils/pylock.py`, 'pip lock writes created-by = "pip".'),
     requirementsOptions: rechecked.verified(
       [
