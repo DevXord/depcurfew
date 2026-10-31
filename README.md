@@ -125,6 +125,7 @@ The `--json` documents of all commands share these fields: `schemaVersion` (1), 
 How `apply` edits files:
 
 - It keeps comments, formatting, line endings and key order. In line-based files (INI, TOML) it writes a block between `# >>> depcurfew managed block` and `# <<< depcurfew managed block` markers and comments out older copies of the settings it manages (they come back when the policy stops managing them); in YAML it marks the keys it writes with `# managed by depcurfew`; JSON files keep their comments and indentation.
+- It reads files the way the tool does. In YAML files of a tool whose loader applies merge keys (`<<: *defaults` in `pnpm-workspace.yaml` and pnpm's `config.yaml`), a setting a merge key brings in counts, and `apply` writes its value into the map itself, which wins over merged keys; `.yarnrc.yml` and `dependabot.yml` are read without merging. A switch that allows every install script counts as on for every value the tool does not read as off: pnpm runs every build script for `dangerouslyAllowAllBuilds: "false"` (a string) or `yes`, and npm and pnpm 10 for `=1` or `=yes` in `.npmrc`.
 - It never removes settings it does not manage. Allow-lists are only added to; exception lists follow the policy, except the entries Renovate adds to pnpm's exception list for security updates, which stay with their comment. An entry in a tool's own install-script list that contradicts `installScripts` (it lets a package of `installScripts.deny` run its scripts, or blocks one of `installScripts.allow`) stays as it is, with the warning `deny-conflicts-with-file`, and `apply` records no denial for that package.
 - When it replaces a longer release-age delay someone set by hand with the policy's shorter one, it warns (`cooldown-shortened`) and names the `cooldown.minimum` that keeps it.
 - If any file cannot be edited, nothing is written. If a file cannot be written, the files already written are put back.
@@ -160,7 +161,7 @@ Warnings:
 - `allow-pattern-unsupported`: An installScripts.allow entry is a pattern, but the tool takes package names only, so it is not written.
 - `deny-pattern-unsupported`: An installScripts.deny entry is a pattern, but the tool records denials by package name only, so it is not written.
 - `allow-all-unsupported`: The tool has no setting that allows every install script, so installScripts "allow" is not written.
-- `allow-all-replaced`: A setting that allowed every install script was replaced, because the policy denies install scripts.
+- `allow-all-replaced`: A setting that allowed every install script (with any value the tool reads as true, also one that a YAML merge key brings in, or pnpm 10's dangerously-allow-all-builds in .npmrc) was set to false, because the policy denies install scripts.
 - `allow-list-entry-outside-policy`: An install-script allow-list in the repository (with apply --user, in a user file) lets a package run scripts the policy does not allow; apply does not remove it.
 - `deny-conflicts-with-file`: An entry in a tool's own list lets a package of installScripts.deny run its install scripts, or blocks a package of installScripts.allow; apply does not change entries it did not write.
 - `unexpected-value`: A setting apply adds to has a value of a type the tool does not accept there, so apply leaves it as it is and writes nothing into it.
@@ -214,7 +215,7 @@ depcurfew doctor --user
 - A key `apply --user` writes into a user file can be overridden by a file the tool reads ahead of it: pnpm 10 reads `~/.npmrc` before its `rc` file. `apply --user` warns about a different value there (`user-setting-overridden`) with the line, and `doctor --user` reports it.
 - A tool's own project settings win over its user file for the same key. Parts of the policy that a tool reads only from project files, such as per-package allow-lists, are not written into the user file; `apply --user` names them, and `depcurfew apply` in the project writes them.
 - A user file is edited as `apply` edits a project file: a setting the policy manages that is set by hand elsewhere in the file is commented out and comes back when the policy stops managing it (YAML files get the policy's value instead). That includes an exception list the policy leaves empty, the command sections of `pip.conf` such as `[install]`, and the `[pip]` table of `uv.toml`. Install-script allow-list entries that the policy does not allow are kept and reported; a longer delay that the policy shortens is reported.
-- `doctor --user` reports a user file that does not match the user policy, values in user files that weaken every project, and environment variables that make a tool read another file, no file or other values, such as a relative `XDG_CONFIG_HOME`. A missing home directory, or a user file it cannot read, is an error rather than a clean report.
+- `doctor --user` reports a user file that does not match the user policy, values in user files that weaken every project, and environment variables that make a tool read another file, no file or other values, such as a relative `XDG_CONFIG_HOME`. It reads values as each tool does: a switch that allows every install script is on for every value the tool does not read as off (`dangerously-allow-all-builds=1` in `~/.npmrc` for pnpm 10), and a merge key (`<<: *defaults`) counts in pnpm's `config.yaml`. A missing home directory, or a user file it cannot read, is an error rather than a clean report.
 - Tools that record the release-age delay in their lockfile may lock differently on a machine whose user file sets one than on a machine without it; set the same delay in the project with `depcurfew apply` so that every machine and CI agree.
 
 <!-- BEGIN GENERATED: user-config -->
@@ -294,7 +295,7 @@ What depcurfew configures and checks for each tool, from its [knowledge base](ht
 | PDM | `exclude-newer` in `pyproject.toml` (duration string), since 2.26.9 | `exclude-newer-override`, since 2.29.1 | `no-binary` in `pyproject.toml` | none | 2026-10-30 – 2026-10-31 |
 | Pipenv | `cool-down-period` in `Pipfile` (duration string), since 2026.6.2 | none | none | none | 2026-10-30 – 2026-10-31 |
 | Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 – 2026-10-30 |
-| Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 – 2026-10-30 |
+| Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 – 2026-10-31 |
 
 ⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](https://github.com/DevXord/depcurfew/blob/main/docs/knowledge.md).
 <!-- END GENERATED: tools -->
@@ -355,7 +356,7 @@ Fix: Move the setting to the place and form this version reads.
 
 **error** · An .npmrc file changes a security setting in a way the policy does not see, or is ignored.
 
-Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages and the keys below a [section] header, and a before date in .npmrc takes the place of min-release-age; pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy.
+Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages and the keys below a [section] header, and a before date in .npmrc takes the place of min-release-age; pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy, and dangerously-allow-all-builds there runs every build script while pnpm-workspace.yaml has no build settings of its own.
 
 Fix: Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.
 
@@ -379,7 +380,7 @@ Fix: Move the setting to the file the tool reads.
 
 **error** · needs depcurfew.json · A configuration file does not match what depcurfew apply writes for depcurfew.json.
 
-A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package run scripts the policy does not allow or denies, and one that blocks a package the policy allows.
+A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning.
 
 Fix: Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.
 

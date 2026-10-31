@@ -1,0 +1,18 @@
+{
+  "changed": [
+    "pnpm-workspace.yaml"
+  ],
+  "warnings": [
+    {
+      "code": "allow-all-replaced",
+      "tool": "pnpm",
+      "location": {
+        "file": "pnpm-workspace.yaml",
+        "line": 4
+      },
+      "message": "pnpm: dangerouslyAllowAllBuilds: true in pnpm-workspace.yaml (line 4, through the merge key << at line 5) allowed every build script; set to false because the policy denies install scripts",
+      "fix": "Add the packages whose install scripts must run to installScripts.allow in depcurfew.json, then run depcurfew apply again"
+    }
+  ],
+  "snippets": []
+}

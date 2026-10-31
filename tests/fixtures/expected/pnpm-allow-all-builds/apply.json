@@ -6,7 +6,11 @@
     {
       "code": "allow-all-replaced",
       "tool": "pnpm",
-      "message": "pnpm: dangerouslyAllowAllBuilds allowed every build script; set to false because the policy denies install scripts",
+      "location": {
+        "file": "pnpm-workspace.yaml",
+        "line": 2
+      },
+      "message": "pnpm: dangerouslyAllowAllBuilds: true in pnpm-workspace.yaml (line 2) allowed every build script; set to false because the policy denies install scripts",
       "fix": "Add the packages whose install scripts must run to installScripts.allow in depcurfew.json, then run depcurfew apply again"
     },
     {

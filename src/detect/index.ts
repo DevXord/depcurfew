@@ -22,6 +22,7 @@ import { readWorkflows } from './workflows.ts';
 import { expandWorkspaces } from './workspaces.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { parseYaml } from '../yaml-parse.ts';
+import { yamlOptionsFor } from '../apply/facts.ts';
 
 export type * from './types.ts';
 
@@ -221,9 +222,21 @@ function readWorkspaces(repository: Repository, facts: DetectionFacts, manifest:
   return { declarations: declarations.map(({ file, patterns }) => ({ file, patterns })), packages: [...packages].sort(byPath) };
 }
 
+/**
+ * The .npmrc files of the root and the workspace packages. One that exists but is not a regular file (a named pipe)
+ * cannot be read, by depcurfew or safely by npm, so it gets a warning instead of passing for a missing file.
+ */
+function npmrcFiles(repository: Repository, directories: readonly string[]): string[] {
+  const files = directories.map((directory) => joinPath(directory, '.npmrc'));
+  for (const file of files.filter((path) => repository.isSpecialFile(path))) {
+    repository.warn('not-a-regular-file', `${file} exists but is not a regular file (a named pipe, socket or device), so depcurfew did not read it`, [file]);
+  }
+  return files.filter((file) => repository.isFile(file)).sort(byPath);
+}
+
 /** A workspace declaration file: package.json is already parsed, others are YAML or JSONC. */
 function readDocument(repository: Repository, file: string, manifest: Json | undefined): unknown {
-  return file === 'package.json' ? manifest : repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => parseYaml(text) as unknown : parseJsonc);
+  return file === 'package.json' ? manifest : repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => parseYaml(text, yamlOptionsFor(file)) as unknown : parseJsonc);
 }
 
 /** Python tools: a pyproject.toml with the tool's table is configuration, and required versions are pinned versions. */
@@ -387,7 +400,7 @@ export function detectProject(
     node: { versions: [...(collector.versions.get('node') ?? [])].sort(compareVersions) },
     bots,
     workspaces,
-    npmrcFiles: directories.map((directory) => joinPath(directory, '.npmrc')).filter((file) => repository.isFile(file)).sort(byPath),
+    npmrcFiles: npmrcFiles(repository, directories),
     workflows: workflows.files,
     warnings: [...repository.warnings].sort((a, b) => byPath(a.code, b.code) || byPath(a.files.join(), b.files.join())),
   };

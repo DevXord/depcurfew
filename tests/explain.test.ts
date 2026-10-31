@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -159,6 +160,27 @@ describe('depcurfew explain --json', () => {
     );
     expect(result.stdout).toContain('  Yarn Classic (not supported)\n');
     expect(result.stdout).toContain('Policy: no depcurfew.json\n');
+  });
+
+  it.skipIf(process.platform === 'win32')('says that an .npmrc which is a named pipe exists but was not read, and doctor fails closed on it', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'depcurfew-explain-'));
+    try {
+      writeFileSync(join(directory, 'package.json'), '{"name": "app", "packageManager": "npm@11.21.1"}\n');
+      execFileSync('mkfifo', [join(directory, '.npmrc')]);
+      const text = await exec('explain', directory);
+      expect(text.stdout).toContain('.npmrc files: .npmrc (not a regular file, not read)\n');
+      expect(text.stdout).toContain('  not-a-regular-file: .npmrc exists but is not a regular file (a named pipe, socket or device), so depcurfew did not read it\n');
+      const json = JSON.parse((await exec('explain', '--json', directory)).stdout) as { project: { npmrcFiles: string[]; warnings: { code: string; files: string[] }[] } };
+      expect(json.project.npmrcFiles).toEqual([]);
+      expect(json.project.warnings).toContainEqual(expect.objectContaining({ code: 'not-a-regular-file', files: ['.npmrc'] }));
+      const doctor = await exec('doctor', '--json', directory);
+      expect(doctor.code).toBe(EXIT_FAILURE);
+      expect(JSON.parse(doctor.stdout).findings).toContainEqual(
+        expect.objectContaining({ rule: 'unreadable-config', level: 'error', location: { file: '.npmrc' }, fix: 'Replace it with a regular file, or remove it; npm and pnpm read .npmrc as a file' }),
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('uses listed targets even when they are not detected', async () => {

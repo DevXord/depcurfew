@@ -66,7 +66,7 @@ function latestVersion(tool: ToolKnowledge): string | undefined {
 }
 
 /** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
-const FILE_UNREADABLE = new Set(['invalid-file', 'file-too-large', 'unreadable-file', 'outside-repository']);
+const FILE_UNREADABLE = new Set(['invalid-file', 'file-too-large', 'unreadable-file', 'outside-repository', 'not-a-regular-file']);
 
 /** Where a repository can pin the version of a tool, for the warning when none is pinned. */
 /** Where the version of a tool can be pinned, or undefined when the project cannot pin it (PDM, Pipenv). */

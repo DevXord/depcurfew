@@ -19,7 +19,7 @@ import type { ResolvedPolicy } from '../policy/schema.ts';
 import { listing } from '../apply/requirements.ts';
 import { redactCredentials } from '../printable.ts';
 import { readLimited } from '../read-limited.ts';
-import { parseYamlDocument } from '../yaml-parse.ts';
+import { isMergePair, mergedPair, parseYamlDocument } from '../yaml-parse.ts';
 import { planUserApply } from './apply.ts';
 import { homeProblem, type HomeProblem } from './home.ts';
 import { locateUserFile, shownPath, userFileFor, userFilePath, type RelativeDirectory, type UserEnvironment } from './locate.ts';
@@ -145,9 +145,10 @@ function tomlRead(text: string): Entry[] {
   return entries;
 }
 
-function yamlRead(text: string): Read {
+/** A YAML user file; with `merge` (UserFile.mergeKeys) the keys a map gets through merge keys (<<) count as its own. */
+function yamlRead(text: string, merge = false): Read {
   const lineCounter = new LineCounter();
-  const document = parseYamlDocument(text, lineCounter);
+  const document = parseYamlDocument(text, lineCounter, { merge });
   const [error] = document.errors;
   if (error !== undefined) {
     const line = error.linePos?.[0].line;
@@ -164,16 +165,25 @@ function yamlRead(text: string): Read {
   const entries: Entry[] = [];
   const walk = (node: Node | null | undefined, value: unknown, path: readonly string[], marked: boolean) => {
     if (!isMap(node) || typeof value !== 'object' || value === null || Array.isArray(value)) return;
-    for (const pair of node.items) {
-      if (!isScalar(pair.key)) continue;
-      const key = String(pair.key.value);
-      const start = pair.key.range?.[0];
+    const own = new Set<string>();
+    const visit = (pair: (typeof node.items)[number], key: string) => {
+      const start = isScalar(pair.key) ? pair.key.range?.[0] : undefined;
       const line = start === undefined ? undefined : lineCounter.linePos(start).line;
       // apply --user puts the marker on the line above a key it sets; the keys inside it are managed with it.
       const managed = marked || (line !== undefined && lines[line - 2]?.trim() === YAML_MARKER);
       const child = Object.hasOwn(value, key) ? (value as Record<string, unknown>)[key] : undefined;
       entries.push({ path: [...path, key], value: child, ...(line === undefined ? {} : { line }), managed });
       walk(pair.value as Node | null, child, [...path, key], managed);
+    };
+    for (const pair of node.items) {
+      if (!isScalar(pair.key) || isMergePair(pair)) continue;
+      own.add(String(pair.key.value));
+      visit(pair, String(pair.key.value));
+    }
+    // A key the map gets through a merge key, at the line of the merged map that sets it; the map's own keys win.
+    for (const key of merge ? Object.keys(value).filter((name) => !own.has(name)) : []) {
+      const found = mergedPair(document, node, key);
+      if (found !== undefined) visit(found.pair, key);
     }
   };
   walk(document.contents as Node | null, data, [], false);
@@ -181,7 +191,7 @@ function yamlRead(text: string): Read {
 }
 
 function parse(file: UserFile, text: string): Read {
-  if (file.format === 'yaml') return yamlRead(text);
+  if (file.format === 'yaml') return yamlRead(text, file.mergeKeys === true);
   if (file.format === 'ini') return { ok: true, entries: iniRead(text, file) };
   try {
     return { ok: true, entries: tomlRead(text) };
@@ -199,12 +209,19 @@ function keyMatches(file: UserFile, entry: Entry, key: string): boolean {
   return parts.length === entry.path.length && parts.every((part, index) => part === '*' || part === entry.path[index]);
 }
 
-function matches(value: unknown, weakening: UserWeakening): boolean {
+function matches(value: unknown, weakening: UserWeakening, file: UserFile): boolean {
+  const { values } = weakening;
+  if (values !== 'any' && 'except' in values) {
+    // A switch that turns a protection off: every value the tool does not read as off weakens (fail closed). INI
+    // values are text, which the tools trim.
+    const read = file.format === 'ini' && typeof value === 'string' ? value.trim() : value;
+    return !values.except.some((off) => off === read);
+  }
   if (value === undefined || value === null || value === '') return false;
   if (Array.isArray(value) && value.length === 0) return false;
   if (typeof value === 'object' && !Array.isArray(value) && !(value instanceof TomlDateTime) && Object.keys(value).length === 0) return false;
-  if (weakening.values === 'any') return true;
-  return weakening.values.some((wanted) => String(wanted) === String(value));
+  if (values === 'any') return true;
+  return values.some((wanted) => String(wanted) === String(value));
 }
 
 /** Keys whose values are credentials: their values are never printed. */
@@ -515,7 +532,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       for (const entry of entries ?? []) {
         if (!readsSection(file, entry) || sameAsPlanned(entry, plannedHere)) continue;
         for (const rule of weakening) {
-          if (!keyMatches(file, entry, rule.key) || !matches(entry.value, rule)) continue;
+          if (!keyMatches(file, entry, rule.key) || !matches(entry.value, rule, file)) continue;
           const where = entry.section === undefined ? shown : `[${entry.section}] of ${shown}`;
           const { effect, tag } = toolTag(tool, rule.effect);
           weakens(tool, shown, entry, `${keyAndValue(entry)} in ${where}${tag === undefined ? '' : ` (${tag})`} ${effect}${scopeOf(rule.effect)}`, `Remove ${entry.path.join('.')} from ${where}${orPolicy}`);
@@ -530,7 +547,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
         const read = (otherEntries ?? []).filter((entry) => readsSection(other, entry));
         for (const entry of read) {
           if (sameAsPlanned(entry, otherPlanned)) continue;
-          const rule = weakening.find((candidate) => keyMatches(other, entry, candidate.key) && matches(entry.value, candidate));
+          const rule = weakening.find((candidate) => keyMatches(other, entry, candidate.key) && matches(entry.value, candidate, other));
           if (rule === undefined) continue;
           const { effect, range } = toolTag(tool, rule.effect);
           weakens(

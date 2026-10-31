@@ -36,6 +36,17 @@ function readsVariable(variable: UserVariable, version: Version | undefined): bo
   return (since === undefined || compareVersions(version, since) >= 0) && (until === undefined || compareVersions(version, until) < 0);
 }
 
+/**
+ * Whether the value matters: any value, one of the listed values (without regard to case), or for a switch that turns a
+ * protection off every value but those the tool reads as off (fail closed; compared trimmed, as npm and pnpm read them).
+ */
+function weakens(variable: UserVariable, value: string): boolean {
+  const { values } = variable;
+  if (values === 'any') return true;
+  if ('except' in values) return !values.except.includes(value.trim());
+  return values.some((wanted) => wanted.toLowerCase() === value.trim().toLowerCase());
+}
+
 /** The spellings of the variable that are set and not empty, in the order of the environment. */
 function spellings(environment: UserEnvironment, variable: UserVariable): [string, string][] {
   // Windows does not tell names apart by case, so every variable is matched without regard to case there.
@@ -97,7 +108,7 @@ export function environmentOverrides(
     for (const variable of evidenceOf(tool.user.variables)[0]?.value ?? []) {
       if (!readsVariable(variable, versions[tool.id])) continue;
       for (const [name, value] of spellings(environment, variable)) {
-        if (variable.values !== 'any' && !variable.values.some((wanted) => wanted.toLowerCase() === value.trim().toLowerCase())) continue;
+        if (!weakens(variable, value)) continue;
         if (namesDefault(value, variable, environment) || passedOnByNpm(name, value)) continue;
         if (overrides.some((known) => known.tool === tool.id && known.name === name)) continue;
         overrides.push({ name, value, tool: tool.id, effect: variable.effect, anyValue: variable.values === 'any' });

@@ -9,6 +9,7 @@ export const UNREADABLE_WARNINGS: Readonly<Record<string, string>> = {
   'file-too-large': 'Make the file smaller than the limit, or check its settings by hand',
   'lockfile-too-large': `Check where the packages in the lockfile come from and which have install scripts by hand; depcurfew reads YAML lockfiles up to ${MAX_YAML_LOCKFILE_SIZE / (1024 * 1024)} MiB and JSON lockfiles up to ${MAX_LOCKFILE_SIZE / (1024 * 1024)} MiB`,
   'outside-repository': 'Replace the symlink with a regular file inside the repository',
+  'not-a-regular-file': 'Replace it with a regular file, or remove it; npm and pnpm read .npmrc as a file',
   'workspace-outside-repository': 'Keep workspace packages inside the repository',
   'unreadable-include': 'Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them',
 };

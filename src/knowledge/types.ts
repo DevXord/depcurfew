@@ -164,6 +164,8 @@ export interface UserFile {
   overriddenBy?: readonly UserFile[];
   /** INI only: the tool reads a key with underscores as the same key with dashes (pip: only_binary is only-binary). */
   underscoresAsDashes?: boolean;
+  /** YAML only: the tool's loader applies merge keys (<<: *defaults), so merged keys count as keys of the map. */
+  mergeKeys?: boolean;
 }
 
 /** What depcurfew writes with a user-level setting. */
@@ -190,11 +192,20 @@ export interface UserSetting {
   until?: string;
 }
 
+/**
+ * The values of a switch that turns a protection off, given by the values the tool reads as off: every other value
+ * turns it on (fail closed), so a string "false" or "yes" that the tool takes for true is not missed. In INI files and
+ * environment variables values are compared as text after trimming, elsewhere with their type (false, 0, null, "").
+ */
+export interface UnlessOff<T> {
+  except: readonly T[];
+}
+
 /** A value in the user file that weakens every project that does not set the key itself (doctor --user). */
 export interface UserWeakening {
   key: string;
-  /** 'any' for every value, else the values that weaken. */
-  values: 'any' | readonly (string | number | boolean)[];
+  /** 'any' for every value, the values that weaken, or every value except those the tool reads as off. */
+  values: 'any' | readonly (string | number | boolean)[] | UnlessOff<string | number | boolean | null>;
   /** What it does, for the message. */
   effect: string;
 }
@@ -204,8 +215,8 @@ export interface UserVariable {
   /** The variable name; matched without regard to case when `anyCase`. */
   name: string;
   anyCase?: boolean;
-  /** 'any' when every value matters, else the values that weaken. */
-  values: 'any' | readonly string[];
+  /** 'any' when every value matters, the values that weaken, or every value except those the tool reads as off. */
+  values: 'any' | readonly string[] | UnlessOff<string>;
   effect: string;
   /** First version that reads the variable; every version when absent. */
   since?: string;

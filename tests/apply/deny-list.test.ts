@@ -69,7 +69,7 @@ describe('installScripts.deny against entries already in the files', () => {
         tool: 'npm',
         location: { file: 'package.json', line: 5 },
         message:
-          'allowScripts in package.json (line 5) lets fsevents run install scripts, but installScripts.deny in depcurfew.json blocks them; depcurfew apply does not change entries it did not write',
+          'allowScripts in package.json (line 5) lets fsevents run its install scripts, although installScripts.deny in depcurfew.json says they must not run; depcurfew apply does not change entries it did not write',
         fix: 'Remove fsevents from allowScripts in package.json, or move fsevents from installScripts.deny to installScripts.allow in depcurfew.json after reviewing its scripts',
       },
     ]);
@@ -96,7 +96,7 @@ describe('installScripts.deny against entries already in the files', () => {
     const report = applyProject(directory, { write: true });
     expect(json(directory, 'package.json')['dependenciesMeta']).toEqual({ 'core-js@3.38.1': { built: true }, fsevents: { built: false } });
     expect(report.warningDetails.filter((warning) => warning.code === 'deny-conflicts-with-file').map((warning) => warning.message)).toEqual([
-      'dependenciesMeta in package.json (line 5) lets core-js@3.38.1 run install scripts, but installScripts.deny in depcurfew.json blocks them; depcurfew apply does not change entries it did not write',
+      'dependenciesMeta in package.json (line 5) lets core-js@3.38.1 run its install scripts, although installScripts.deny in depcurfew.json says they must not run; depcurfew apply does not change entries it did not write',
     ]);
   });
 

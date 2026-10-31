@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package.json",
+      "line": 6
+    },
+    "message": "package.json does not match depcurfew.json: allowScripts is missing; depcurfew apply adds `\"allowScripts\": {\"esbuild\":true}`",
+    "fix": "Run depcurfew apply to bring package.json back in line with depcurfew.json (depcurfew apply --dry-run shows the change first), or change depcurfew.json if the edit was intended"
+  }
+]

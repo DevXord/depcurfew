@@ -6,6 +6,7 @@ import type { Duration } from '../../policy/duration.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
 import { blockStart } from '../block.ts';
+import { mergesYamlKeys } from '../facts.ts';
 import { writeIniBlock } from '../ini.ts';
 import { jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonSet } from '../json-edit.ts';
 import { writeRequirementsBlock } from '../pip-requirements.ts';
@@ -106,6 +107,7 @@ export function createContext(options: {
   const user = options.user !== undefined;
   const versionLabel = options.user?.versionText ?? formatVersion(options.version ?? [0, 0, 0]);
   const scope = user ? 'user' : 'project';
+  const yamlOptions = { merge: mergesYamlKeys(tool) };
   const atLeast = (since: string | undefined): boolean => {
     const required = since === undefined ? undefined : parseVersion(since);
     return options.version === undefined || required === undefined || compareVersions(options.version, required) >= 0;
@@ -166,10 +168,11 @@ export function createContext(options: {
       replace: (path, index, value) => guard(file, () => workspace.edit(file, (body) => jsonArrayReplace(body, path, index, value))),
       remove: (path, index) => guard(file, () => workspace.edit(file, (body) => jsonArrayRemove(body, path, index))),
     }),
+    // A tool's generator edits the tool's own files, so they are read with merge keys where its loader applies them.
     yaml: (file) => ({
-      get: (path) => guard(file, () => (workspace.exists(file) ? yamlGet(workspace.read(file), path) : undefined)),
-      set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value))),
-      setMany: (edits) => guard(file, () => workspace.edit(file, (body) => yamlSetMany(body, edits))),
+      get: (path) => guard(file, () => (workspace.exists(file) ? yamlGet(workspace.read(file), path, yamlOptions) : undefined)),
+      set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value, yamlOptions))),
+      setMany: (edits) => guard(file, () => workspace.edit(file, (body) => yamlSetMany(body, edits, yamlOptions))),
     }),
     ini: (file, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeIniBlock(body, entries, managedKeys, blockStart(undefined, scope)))),
     // The block is written line by line; a file that does not parse is not edited, and the result has to parse.

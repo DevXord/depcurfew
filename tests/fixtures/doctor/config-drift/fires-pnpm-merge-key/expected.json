@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 3
+    },
+    "message": "pnpm-workspace.yaml does not match depcurfew.json: `dangerouslyAllowAllBuilds: true` comes in through the merge key << at line 4 and should be `dangerouslyAllowAllBuilds: false`; depcurfew apply writes it into the map itself, where it wins over merged keys",
+    "fix": "Run depcurfew apply to bring pnpm-workspace.yaml back in line with depcurfew.json (depcurfew apply --dry-run shows the change first), or change depcurfew.json if the edit was intended"
+  }
+]

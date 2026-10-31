@@ -202,7 +202,7 @@ export const npm: ToolKnowledge = {
     invalidValueFails: user.verified(false, `${NPM_CONFIG_LIB}/index.js`, 'A value of the wrong type is reported as invalid config and the default is used.'),
     weakening: user.verified(
       [
-        { key: 'dangerously-allow-all-scripts', values: [true], effect: 'runs every dependency install script, also those a package.json denies' },
+        { key: 'dangerously-allow-all-scripts', values: { except: ['false', 'null', 'undefined'] }, effect: 'runs every dependency install script, also those a package.json denies' },
         { key: 'allow-scripts', values: 'any', effect: 'approves the install scripts of these packages in every project without its own allowScripts, and in npx and global installs' },
         { key: 'min-release-age', values: [0], effect: 'turns the release-age delay off' },
         { key: 'min-release-age-exclude', values: 'any', effect: 'exempts these packages from the release-age delay in every project without its own list' },
@@ -211,13 +211,13 @@ export const npm: ToolKnowledge = {
         { key: 'allow-remote', values: ['all', 'root'], effect: 'allows remote tarball dependencies' },
       ],
       `${NPM_CONFIG_LIB}/definitions/definitions.js`,
-      'A key in the project .npmrc replaces the user value, lists included (prototype chain, no merging); the CLI and npm_config_* variables beat both.',
+      'A key in the project .npmrc replaces the user value, lists included (prototype chain, no merging); the CLI and npm_config_* variables beat both. dangerously-allow-all-scripts is on for every value but false, null and undefined: npm reads .npmrc values and npm_config_* variables with parseField (https://github.com/npm/cli/blob/v11.21.1/workspaces/config/lib/parse-field.js), which trims them, turns an empty value of a Boolean setting into true and only "true", "false", "null" and "undefined" into their values, and leaves 0, 1, yes or no as strings; load() does not run the nopt type check (validate() runs only in npm config), and arborist tests the flat option for truth (!this.options.dangerouslyAllowAllScripts in workspaces/arborist/lib/arborist/rebuild.js at 11.21.1).',
     ),
     variables: user.verified(
       [
         { name: 'npm_config_userconfig', anyCase: true, values: 'any', effect: 'makes npm read another user file', defaultPath: '.npmrc' },
         { name: 'npm_config_min_release_age', anyCase: true, values: 'any', effect: 'overrides min-release-age in every .npmrc' },
-        { name: 'npm_config_dangerously_allow_all_scripts', anyCase: true, values: ['true'], effect: 'runs every dependency install script' },
+        { name: 'npm_config_dangerously_allow_all_scripts', anyCase: true, values: { except: ['false', 'null', 'undefined'] }, effect: 'runs every dependency install script' },
         { name: 'npm_config_before', anyCase: true, values: 'any', effect: 'takes the place of min-release-age' },
       ],
       `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`,

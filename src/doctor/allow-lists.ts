@@ -1,6 +1,6 @@
 // The install-script allow-lists written in each package manager's own format, read back as package names with
 // the line that names them, and the entries that block a package's scripts on purpose (installScripts.deny).
-import { extraOf, isRecord } from '../apply/facts.ts';
+import { extraOf, isRecord, yamlOptionsFor } from '../apply/facts.ts';
 import { compareVersions, parseVersion, type Version } from '../apply/version.ts';
 import type { PackageManagerId } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
@@ -63,13 +63,14 @@ function buildPermissions(text: string, tool: ToolKnowledge | undefined, version
   const fact = extraOf(tool, 'buildPermissions', isPermissions);
   const since = parseVersion(fact.since);
   if (version !== undefined && since !== undefined && compareVersions(version, since) < 0) return undefined;
-  const permissions = yamlSetting(text, [fact.setting]);
+  const yaml = yamlOptionsFor('pnpm-workspace.yaml');
+  const permissions = yamlSetting(text, [fact.setting], yaml);
   const decisions = new Map<string, { allowed: boolean; line: number }>();
   if (permissions === undefined || !isRecord(permissions.value)) return decisions;
   for (const [name, entry] of Object.entries(permissions.value)) {
     const decision = isRecord(entry) ? entry[fact.capability] : undefined;
     if (decision !== fact.allow && decision !== fact.deny) continue;
-    decisions.set(name, { allowed: decision === fact.allow, line: yamlSetting(text, [fact.setting, name, fact.capability])?.line ?? permissions.line });
+    decisions.set(name, { allowed: decision === fact.allow, line: yamlSetting(text, [fact.setting, name, fact.capability], yaml)?.line ?? permissions.line });
   }
   return decisions;
 }
@@ -95,18 +96,19 @@ function listEntries(repository: TextSource, manager: PackageManagerId, configFi
       break;
     case 'pnpm': {
       const workspace = read(repository, 'pnpm-workspace.yaml');
+      const yaml = yamlOptionsFor('pnpm-workspace.yaml');
       if (workspace !== undefined) {
         const permissions = buildPermissions(workspace, options.tool, options.version);
         // A permissions entry outranks the allowBuilds entry of the same package.
-        const allowBuilds = fromKeys(workspace, 'pnpm-workspace.yaml', 'allowBuilds', yamlSetting(workspace, ['allowBuilds'])?.value, (entry) => entry === allowed, (name) =>
-          yamlSetting(workspace, ['allowBuilds', name])?.line,
+        const allowBuilds = fromKeys(workspace, 'pnpm-workspace.yaml', 'allowBuilds', yamlSetting(workspace, ['allowBuilds'], yaml)?.value, (entry) => entry === allowed, (name) =>
+          yamlSetting(workspace, ['allowBuilds', name], yaml)?.line,
         );
         entries.push(...allowBuilds.filter((entry) => permissions?.has(entry.name) !== true));
         for (const [name, decision] of permissions ?? []) {
           if (decision.allowed === allowed) entries.push({ name, package: splitSpec(name).name, file: 'pnpm-workspace.yaml', line: decision.line, setting: 'permissions' });
         }
         // ignoredBuiltDependencies only silences pnpm's report about a skipped build, so it neither allows nor blocks.
-        if (allowed) entries.push(...fromList(workspace, 'pnpm-workspace.yaml', 'onlyBuiltDependencies', yamlSetting(workspace, ['onlyBuiltDependencies'])?.value));
+        if (allowed) entries.push(...fromList(workspace, 'pnpm-workspace.yaml', 'onlyBuiltDependencies', yamlSetting(workspace, ['onlyBuiltDependencies'], yaml)?.value));
       }
       if (allowed && manifest !== undefined) {
         entries.push(...fromList(manifest, 'package.json', 'pnpm.onlyBuiltDependencies', json(['pnpm', 'onlyBuiltDependencies']), '', jsonLine(manifest, 'package.json', ['pnpm', 'onlyBuiltDependencies'])));
@@ -206,7 +208,7 @@ export function denyConflictText(conflict: ListConflict & { kind: 'denied' | 'al
   const where = `${entry.setting} in ${entry.file}${line && entry.line !== undefined ? ` (line ${entry.line})` : ''}`;
   if (conflict.kind === 'denied') {
     return {
-      message: `${where} lets ${entry.name} run install scripts, but installScripts.deny in ${POLICY_FILE} blocks them`,
+      message: `${where} lets ${entry.name} run its install scripts, although installScripts.deny in ${POLICY_FILE} says they must not run`,
       fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${entry.package} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts`,
     };
   }

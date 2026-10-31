@@ -3,6 +3,7 @@ import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const python = verifiedOn('2026-10-30');
+const review = verifiedOn('2026-10-31');
 
 const OPTIONS = 'https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference';
 const COOLDOWN_GA = 'https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/';
@@ -73,6 +74,11 @@ export const dependabot: ToolKnowledge = {
     ),
   },
   extra: {
+    yamlMergeKeys: review.uncertain(
+      false,
+      'https://github.com/dependabot/dependabot-core/pull/9653',
+      'Not known. The options reference does not mention YAML anchors or merge keys, GitHub parses dependabot.yml in its own service, and the dependabot-core pull request that would allow aliases ("we can\'t use the YAML anchor (aliases) feature in dependabot.yml file") is still open and marked stale (read 2026-10-31). depcurfew reads dependabot.yml without merge keys: a cooldown that an entry would get only through <<: *defaults counts as missing, which bot-cooldown reports, and depcurfew apply writes the cooldown into the entry itself, which wins over merged keys where they apply.',
+    ),
     cooldownKeys: verified(
       { days: 'default-days', exclude: 'exclude', semverDays: ['semver-major-days', 'semver-minor-days', 'semver-patch-days'] },
       `${OPTIONS}#cooldown`,
