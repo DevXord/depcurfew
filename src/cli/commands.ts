@@ -3,6 +3,8 @@ export interface OptionInfo {
   summary: string;
   /** For an option that takes a value: its name in the help, e.g. `url`. Options without one are flags. */
   value?: string;
+  /** Whether the option may be given more than once. */
+  multiple?: boolean;
 }
 
 export interface CommandInfo {
@@ -32,10 +34,13 @@ export const COMMANDS: readonly CommandInfo[] = [
     summary: 'Create a default policy file (depcurfew.json)',
     implemented: true,
     arguments: '[directory]',
-    options: [{ name: 'force', summary: 'Overwrite an existing depcurfew.json' }],
+    options: [
+      { name: 'force', summary: 'Overwrite an existing depcurfew.json' },
+      { name: 'user', summary: 'Create the user policy (~/.config/depcurfew/depcurfew.json) that apply --user and doctor --user use' },
+    ],
     details:
-      'Writes depcurfew.json with the default policy: a 3-day release-age delay, install scripts denied, and git and tarball URL dependencies denied. When the repository already sets a longer release-age delay for a tool it detects, cooldown.minimum keeps the longest one, so that apply does not shorten it; init says where it found it. Other files are not changed; run depcurfew apply next to configure the tools.',
-    examples: ['depcurfew init', 'depcurfew init --force'],
+      'Writes depcurfew.json with the default policy: a 3-day release-age delay, install scripts denied, and git and tarball URL dependencies denied. When the repository already sets a longer release-age delay for a tool it detects, cooldown.minimum keeps the longest one, so that apply does not shorten it; init says where it found it. Other files are not changed; run depcurfew apply next to configure the tools. With --user it writes the user policy instead (~/.config/depcurfew/depcurfew.json, in $XDG_CONFIG_HOME when that is set to an absolute path, in %APPDATA% on Windows), which apply --user and doctor --user use.',
+    examples: ['depcurfew init', 'depcurfew init --force', 'depcurfew init --user'],
     exitCodes: [
       [0, 'depcurfew.json was written'],
       [1, 'depcurfew.json already exists (pass --force) or cannot be written'],
@@ -50,10 +55,12 @@ export const COMMANDS: readonly CommandInfo[] = [
     options: [
       { name: 'dry-run', summary: 'Print a diff of the changes instead of writing them' },
       { name: 'json', summary: 'Print the changes with their diff, the warnings and the errors as JSON, each with a code' },
+      { name: 'user', summary: 'Write the user policy into the user-level configuration of the installed tools (~/.npmrc and others)' },
+      { name: 'for', value: 'tool@version', multiple: true, summary: 'With --user: the version of a tool, when depcurfew cannot read it from its files' },
     ],
     details:
-      `Reads depcurfew.json and writes the matching settings into the configuration files of every package manager and bot it detects (or of the tools listed under targets). Comments and formatting are kept, settings depcurfew does not manage are never removed, and nothing is written when any file cannot be edited. Running it again without changing depcurfew.json changes nothing. Every warning has a code and says what to do; with --json, stdout holds one JSON document and stderr stays empty. ${NEAREST_POLICY}`,
-    examples: ['depcurfew apply --dry-run', 'depcurfew apply', 'depcurfew apply --dry-run --json', 'depcurfew apply path/to/project'],
+      `Reads depcurfew.json and writes the matching settings into the configuration files of every package manager and bot it detects (or of the tools listed under targets). Comments and formatting are kept, settings depcurfew does not manage are never removed, and nothing is written when any file cannot be edited. Running it again without changing depcurfew.json changes nothing. Every warning has a code and says what to do; with --json, stdout holds one JSON document and stderr stays empty. ${NEAREST_POLICY} With --user it writes the user policy into the user-level configuration of the installed package managers, which protects every project that does not set those settings itself, and npx, uvx and global installs; the version of each tool is read from its files or given with --for, and a tool that stops every command on a value its version does not understand gets nothing until its version is known.`,
+    examples: ['depcurfew apply --dry-run', 'depcurfew apply', 'depcurfew apply --dry-run --json', 'depcurfew apply path/to/project', 'depcurfew apply --user --dry-run', 'depcurfew apply --user --for uv@0.13.6'],
     exitCodes: [
       [0, 'the files match the policy (warnings included)'],
       [1, 'depcurfew.json is missing, invalid or unreadable, or a file cannot be edited or written'],
@@ -68,13 +75,15 @@ export const COMMANDS: readonly CommandInfo[] = [
     options: [
       { name: 'json', summary: 'Print the findings as JSON' },
       { name: 'sarif', summary: 'Print the findings as SARIF 2.1.0 for code scanning' },
+      { name: 'user', summary: 'Check the user-level configuration of the installed tools against the user policy, and the environment' },
+      { name: 'for', value: 'tool@version', multiple: true, summary: 'With --user: the version of a tool, when depcurfew cannot read it from its files' },
     ],
     details:
-      `Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depcurfew.json. Every finding says where it is and how to fix it. Without depcurfew.json, only the rules that do not need a policy run; an invalid depcurfew.json is reported as an error finding (invalid-policy), and the same rules run. ${NEAREST_POLICY}`,
-    examples: ['depcurfew doctor', 'depcurfew doctor --json', 'depcurfew doctor --sarif > depcurfew.sarif'],
+      `Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depcurfew.json. Every finding says where it is and how to fix it. Without depcurfew.json, only the rules that do not need a policy run; an invalid depcurfew.json is reported as an error finding (invalid-policy), and the same rules run. ${NEAREST_POLICY} With --user it checks the user-level configuration of the installed package managers against the user policy, values there and in files read ahead of it that weaken every project, and environment variables that override it; an invalid or unreadable user policy (user-policy-invalid) and a user file it cannot read, parse or edit (user-config-unreadable) are error findings.`,
+    examples: ['depcurfew doctor', 'depcurfew doctor --json', 'depcurfew doctor --sarif > depcurfew.sarif', 'depcurfew doctor --user'],
     exitCodes: [
       [0, 'no finding with level error (warnings and notes included)'],
-      [1, 'at least one finding with level error, or depcurfew.json is invalid or unreadable'],
+      [1, 'at least one finding with level error, or depcurfew.json (with --user the user policy) is invalid or unreadable'],
       [2, 'a usage error, such as an unknown option or a missing directory'],
     ],
   },

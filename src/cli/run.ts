@@ -7,9 +7,14 @@ import { COMMANDS, findCommand } from './commands.ts';
 import { doctor } from './doctor.ts';
 import { commandHelpText, helpText } from './help.ts';
 import { explain } from './explain.ts';
-import { init } from './init.ts';
+import { init, initUser } from './init.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 import { readStdin } from './stdin.ts';
+import { parseVersion, type Version } from '../apply/version.ts';
+import { knowledgeBase } from '../knowledge/index.ts';
+import type { ToolId } from '../knowledge/types.ts';
+import { currentEnvironment } from '../user/environment.ts';
+import type { UserEnvironment } from '../user/locate.ts';
 
 export { EXIT_FAILURE, EXIT_OK, EXIT_USAGE } from './io.ts';
 export type { CliIo } from './io.ts';
@@ -28,11 +33,49 @@ const DEFAULT_DEPENDENCIES: CheckDependencies = {
   stdin: () => readStdin(),
 };
 
+/** --user and --for: the user environment and the versions given, or 'usage' after reporting a usage error. */
+function userOptions(
+  values: Record<string, boolean | string | string[] | undefined>,
+  rest: readonly string[],
+  command: string,
+  io: CliIo,
+  dependencies: CheckDependencies,
+): { environment: UserEnvironment; versions: Partial<Record<ToolId, Version>> } | 'usage' | undefined {
+  const given = Array.isArray(values['for']) ? values['for'] : [];
+  if (values['user'] !== true) {
+    if (given.length === 0) return undefined;
+    io.stderr(`depcurfew: --for works only with --user\nRun 'depcurfew ${command} --help' for usage.\n`);
+    return 'usage';
+  }
+  if (rest.length > 0) {
+    io.stderr(`depcurfew: --user takes no directory; it works on the user policy\nRun 'depcurfew ${command} --help' for usage.\n`);
+    return 'usage';
+  }
+  const versions: Partial<Record<ToolId, Version>> = {};
+  for (const entry of given) {
+    const at = entry.lastIndexOf('@');
+    const id = entry.slice(0, at) as ToolId;
+    // pip --version prints two parts (pip 26.1), and Python releases may have two: the missing patch is 0.
+    const text = entry.slice(at + 1).trim();
+    const version = at <= 0 ? undefined : parseVersion(/^v?\d+\.\d+$/u.test(text) ? `${text}.0` : text);
+    const tool = knowledgeBase.find((candidate) => candidate.id === id && candidate.kind === 'package-manager');
+    if (tool === undefined || version === undefined) {
+      io.stderr(`depcurfew: --for expects a package manager and an exact version, e.g. --for pnpm@11.28.10, not '${entry}'\nRun 'depcurfew ${command} --help' for usage.\n`);
+      return 'usage';
+    }
+    versions[id] = version;
+  }
+  return { environment: dependencies.userEnvironment?.() ?? currentEnvironment(), versions };
+}
+
 export async function run(argv: readonly string[], output: CliIo, dependencies: CheckDependencies = DEFAULT_DEPENDENCIES): Promise<number> {
   const errors = paint(output.colors?.stderr);
   const io: CliIo = { ...output, stderr: (text) => output.stderr(paintDiagnostics(text, errors)) };
   const commandOptions = Object.fromEntries(
-    COMMANDS.flatMap((command) => command.options ?? []).map((option) => [option.name, { type: option.value === undefined ? ('boolean' as const) : ('string' as const) }]),
+    COMMANDS.flatMap((command) => command.options ?? []).map((option) => [
+      option.name,
+      { type: option.value === undefined ? ('boolean' as const) : ('string' as const), ...(option.multiple === true ? { multiple: true } : {}) },
+    ]),
   );
   let parsed;
   try {
@@ -56,7 +99,7 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
   }
 
   const [commandName, ...rest] = parsed.positionals;
-  const values = parsed.values as Record<string, boolean | string | undefined>;
+  const values = parsed.values as Record<string, boolean | string | string[] | undefined>;
   const text = (name: string) => (typeof values[name] === 'string' ? (values[name] as string) : undefined);
 
   if (values['version'] === true) {
@@ -90,10 +133,27 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
     io.stderr(`depcurfew: too many arguments for '${command.name}'\nRun 'depcurfew ${command.name} --help' for usage.\n`);
     return EXIT_USAGE;
   }
-  if (command.name === 'init') return init(rest[0], values['force'] === true, io);
+  if (command.name === 'init') {
+    if (values['user'] === true) {
+      if (rest.length > 0) {
+        io.stderr(`depcurfew: --user takes no directory; it writes the user policy\nRun 'depcurfew init --help' for usage.\n`);
+        return EXIT_USAGE;
+      }
+      return initUser(values['force'] === true, dependencies.userEnvironment?.() ?? currentEnvironment(), io);
+    }
+    return init(rest[0], values['force'] === true, io);
+  }
   if (command.name === 'explain') return explain(rest[0], values['json'] === true, io);
-  if (command.name === 'apply') return apply(rest[0], { dryRun: values['dry-run'] === true, json: values['json'] === true }, io);
-  if (command.name === 'doctor') return doctor(rest[0], { json: values['json'] === true, sarif: values['sarif'] === true }, io);
+  if (command.name === 'apply') {
+    const user = userOptions(values, rest, command.name, io, dependencies);
+    if (user === 'usage') return EXIT_USAGE;
+    return apply(rest[0], { dryRun: values['dry-run'] === true, json: values['json'] === true, ...(user === undefined ? {} : { user }) }, io);
+  }
+  if (command.name === 'doctor') {
+    const user = userOptions(values, rest, command.name, io, dependencies);
+    if (user === 'usage') return EXIT_USAGE;
+    return doctor(rest[0], { json: values['json'] === true, sarif: values['sarif'] === true, ...(user === undefined ? {} : { user }) }, io);
+  }
   if (command.name === 'check') {
     return check(rest, { json: values['json'] === true, dir: text('dir'), registry: text('registry'), index: text('index'), hook: text('hook') }, io, dependencies);
   }

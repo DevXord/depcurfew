@@ -6,6 +6,7 @@
 // in hook mode the decision goes to stdout as JSON and the exit code is 0.
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import type { UserEnvironment } from '../user/locate.ts';
 import { join, relative, resolve, sep } from 'node:path';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
@@ -27,6 +28,7 @@ import type { ResolvedPolicy } from '../policy/schema.ts';
 import { parsePolicy } from '../policy/validate.ts';
 import { paint, type Paint } from '../color.ts';
 import { printable, withoutCredentials } from '../printable.ts';
+import { safeJson } from '../json-safe.ts';
 import { checkDirectory, policyInputError, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
@@ -39,6 +41,8 @@ export interface CheckDependencies {
   stdin: () => Promise<string>;
   /** The user's home directory, with the user's .npmrc. */
   home?: () => string;
+  /** --user: platform, home directory and environment variables (tests replace them). */
+  userEnvironment?: () => UserEnvironment;
 }
 
 export interface CheckFlags {
@@ -231,7 +235,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
   }
   // The same error shape as apply --json; nothing is checked without a directory or with a policy that cannot be used.
   const failed = (policy: string | null, error: InputError, code: number): number => {
-    if (flags.json) io.stdout(`${JSON.stringify({ schemaVersion: 1, policy, packages: [], notices: [], errors: [error] }, null, 2)}\n`);
+    if (flags.json) io.stdout(`${safeJson({ schemaVersion: 1, policy, packages: [], notices: [], errors: [error] }, 2)}\n`);
     else reportInputError(error, io);
     return code;
   };
@@ -268,6 +272,6 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     ...(tag === undefined ? {} : { defaultTag: tag.value }),
   });
   const policy = loaded.file === undefined ? null : shownPath(start, loaded.file);
-  io.stdout(flags.json ? `${JSON.stringify({ schemaVersion: 1, policy, packages: reports, notices, errors: [] }, null, 2)}\n` : render(reports, paint(io.colors?.stdout)));
+  io.stdout(flags.json ? `${safeJson({ schemaVersion: 1, policy, packages: reports, notices, errors: [] }, 2)}\n` : render(reports, paint(io.colors?.stdout)));
   return reports.some((report) => report.findings.some((finding) => finding.level === 'error')) ? EXIT_FAILURE : EXIT_OK;
 }

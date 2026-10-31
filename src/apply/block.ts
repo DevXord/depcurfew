@@ -1,21 +1,37 @@
 // Managed blocks for line-based formats (INI and TOML), marked so that depcurfew can find and replace them.
 
 export const BLOCK_START = '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead';
+/** The start marker in user-level files, which apply --user writes from the user policy. */
+export const USER_BLOCK_START = '# >>> depcurfew managed block: edit the user depcurfew.json and run depcurfew apply --user instead';
 export const BLOCK_END = '# <<< depcurfew managed block';
 export const SUPERSEDED = '# depcurfew: superseded by the managed block: ';
 /** For a managed key commented out when no block is written, such as a switch the policy turns off. */
 export const TURNED_OFF = '# depcurfew: turned off; depcurfew.json manages this setting: ';
 
+/** Which policy writes a block: a project's depcurfew.json, or the user policy (apply --user). */
+export type BlockScope = 'project' | 'user';
+
 /** The start marker of a managed block; a file with one block per TOML table names the table in each marker. */
-export function blockStart(table?: string): string {
-  return table === undefined ? BLOCK_START : BLOCK_START.replace(': ', ` [${table}]: `);
+export function blockStart(table?: string, scope: BlockScope = 'project'): string {
+  const marker = scope === 'user' ? USER_BLOCK_START : BLOCK_START;
+  return table === undefined ? marker : marker.replace(': ', ` [${table}]: `);
 }
 
-const LABELED_START = new RegExp(`^${BLOCK_START.replace(': ', ' \\[[^\\]]*\\]: ').replace(/[.]/gu, '\\.')}$`, 'u');
+const PREFIX = '# >>> depcurfew managed block';
+const TEXTS: readonly string[] = [BLOCK_START, USER_BLOCK_START].map((marker) => marker.slice(PREFIX.length));
+
+/** The table a start marker names ('' for none), whichever policy wrote it; undefined when the line starts no block. */
+export function blockLabel(line: string): string | undefined {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith(PREFIX)) return undefined;
+  let rest = trimmed.slice(PREFIX.length);
+  const labeled = /^ \[([^\]]*)\]/u.exec(rest);
+  if (labeled !== null) rest = rest.slice(labeled[0].length);
+  return TEXTS.includes(rest) ? (labeled?.[1] ?? '') : undefined;
+}
 
 export function isBlockStart(line: string): boolean {
-  const trimmed = line.trim();
-  return trimmed === BLOCK_START || LABELED_START.test(trimmed);
+  return blockLabel(line) !== undefined;
 }
 
 /** The original line, when `line` is one that apply commented out (superseded or turned off). */
@@ -55,13 +71,18 @@ export function removeBlockAt(lines: readonly string[], start: number): RemovedB
   return { lines: rest, at, separated };
 }
 
-/** The lines without the managed block, and without every copy of it when it is there more than once. */
+/**
+ * The lines without the managed block, and without every copy of it when it is there more than once. A block is the
+ * same when its marker names the same table, whichever policy wrote it.
+ */
 export function removeBlock(lines: readonly string[], marker = BLOCK_START): RemovedBlock {
-  const start = lines.findIndex((line) => line.trim() === marker);
+  const label = blockLabel(marker);
+  const isStart = (line: string) => blockLabel(line) === label;
+  const start = lines.findIndex(isStart);
   if (start === -1) return { lines: [...lines], at: undefined, separated: false };
   const first = removeBlockAt(lines, start);
   let rest = first.lines;
-  for (let next = rest.findIndex((line) => line.trim() === marker); next !== -1; next = rest.findIndex((line) => line.trim() === marker)) {
+  for (let next = rest.findIndex(isStart); next !== -1; next = rest.findIndex(isStart)) {
     rest = removeBlockAt(rest, next).lines;
   }
   return { lines: rest, at: Math.min(first.at ?? 0, rest.length), separated: first.separated };

@@ -4,6 +4,7 @@ import type { ToolKnowledge } from './types.ts';
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
+const rechecked = verifiedOn('2026-10-31');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -29,6 +30,9 @@ const NPM_DEFINITIONS = 'https://github.com/npm/cli/blob/v12.2.1/workspaces/conf
 const CMD_LIST = 'https://github.com/npm/cli/blob/v12.2.1/lib/utils/cmd-list.js';
 const INSTALL_ALIASES = ['install', 'add', 'i', 'in', 'ins', 'inst', 'insta', 'instal', 'isnt', 'isnta', 'isntal', 'isntall', 'install-test', 'it'];
 const NPM_DEFINITIONS_V11_16 = 'https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js';
+const NPM_GITHUB_V12 = 'https://github.com/npm/cli/blob/v12.2.1';
+const NPM_CONFIG_LIB = `${NPM_GITHUB_V12}/workspaces/config/lib`;
+const user = verifiedOn('2026-10-31');
 const NPM_SHORTHANDS = 'https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/index.js';
 
 export const npm: ToolKnowledge = {
@@ -161,7 +165,76 @@ export const npm: ToolKnowledge = {
       'Not documented; npm\'s map-workspaces also accepts { "packages": [...] } and negated patterns.',
     ),
   },
+  user: {
+    files: user.verified(
+      [
+        {
+          since: '0.0.0',
+          value: {
+            format: 'ini',
+            locations: [
+              // npm resolves ~ against HOME, else os.homedir() (USERPROFILE on Windows), so HOME wins on Windows too.
+              { platforms: ['linux', 'darwin'], directories: [{ from: 'home', path: '' }], file: '.npmrc' },
+              { platforms: ['win32'], directories: [{ from: { env: 'HOME', absolute: true }, path: '' }, { from: 'home', path: '' }], file: '.npmrc' },
+            ],
+            sections: [''],
+          },
+        },
+      ],
+      `${NPM_CONFIG_LIB}/index.js`,
+      'userconfig defaults to ~/.npmrc ("The location of user-level configuration settings. This may be overridden by the npm_config_userconfig environment variable or the --userconfig command line option"); ~ is resolved against `this.env.HOME || homedir()`. Same in 11.21.1. The project .npmrc is loaded first and may set userconfig= itself. Only the keys above the first [section] header are settings (extra.npmrcFormat).',
+    ),
+    settings: user.verified(
+      [
+        { purpose: 'cooldown', key: 'min-release-age', since: '11.10.0' },
+        { purpose: 'cooldownExclude', key: 'min-release-age-exclude', since: '11.17.0' },
+        { purpose: 'scriptsStrict', key: 'strict-allow-scripts', since: '11.16.0' },
+        { purpose: 'scriptsAllow', key: 'allow-scripts', since: '11.16.0' },
+        { purpose: 'sourceGit', key: 'allow-git', since: '11.10.0' },
+        { purpose: 'sourceRemote', key: 'allow-remote', since: '11.15.0' },
+        { purpose: 'sourceFile', key: 'allow-file', since: '11.15.0' },
+        { purpose: 'sourceDirectory', key: 'allow-directory', since: '11.15.0' },
+      ],
+      `${NPM_CONFIG_LIB}/definitions/definition.js`,
+      'Every config definition is read from any config file; only prefix is refused in a project .npmrc. allowScripts in package.json is project-only: at user level the allow-list is the allow-scripts key (allow only, every name becomes true; resolve-allow-scripts.js), used where the root package.json has no allowScripts and for npx, npm exec and npm install -g. The source keys use the later of the disputed first versions.',
+    ),
+    unknownKeys: user.verified('warn', `${NPM_GITHUB_V12}/lib/base-cmd.js`, 'Unknown .npmrc (file) configs warn by default, matching pre-npm-12 behavior, but error when strict-npmrc is set.'),
+    invalidValueFails: user.verified(false, `${NPM_CONFIG_LIB}/index.js`, 'A value of the wrong type is reported as invalid config and the default is used.'),
+    weakening: user.verified(
+      [
+        { key: 'dangerously-allow-all-scripts', values: { except: ['false', 'null', 'undefined'] }, effect: 'runs every dependency install script, also those a package.json denies' },
+        { key: 'allow-scripts', values: 'any', effect: 'approves the install scripts of these packages in every project without its own allowScripts, and in npx and global installs' },
+        { key: 'min-release-age', values: [0], effect: 'turns the release-age delay off' },
+        { key: 'min-release-age-exclude', values: 'any', effect: 'exempts these packages from the release-age delay in every project without its own list' },
+        { key: 'before', values: 'any', effect: 'takes the place of min-release-age in the same file' },
+        { key: 'allow-git', values: ['all', 'root'], effect: 'allows git dependencies' },
+        { key: 'allow-remote', values: ['all', 'root'], effect: 'allows remote tarball dependencies' },
+      ],
+      `${NPM_CONFIG_LIB}/definitions/definitions.js`,
+      'A key in the project .npmrc replaces the user value, lists included (prototype chain, no merging); the CLI and npm_config_* variables beat both. dangerously-allow-all-scripts is on for every value but false, null and undefined: npm reads .npmrc values and npm_config_* variables with parseField (https://github.com/npm/cli/blob/v11.21.1/workspaces/config/lib/parse-field.js), which trims them, turns an empty value of a Boolean setting into true and only "true", "false", "null" and "undefined" into their values, and leaves 0, 1, yes or no as strings; load() does not run the nopt type check (validate() runs only in npm config), and arborist tests the flat option for truth (!this.options.dangerouslyAllowAllScripts in workspaces/arborist/lib/arborist/rebuild.js at 11.21.1).',
+    ),
+    variables: user.verified(
+      [
+        { name: 'npm_config_userconfig', anyCase: true, values: 'any', effect: 'makes npm read another user file', defaultPath: '.npmrc' },
+        { name: 'npm_config_min_release_age', anyCase: true, values: 'any', effect: 'overrides min-release-age in every .npmrc' },
+        { name: 'npm_config_dangerously_allow_all_scripts', anyCase: true, values: { except: ['false', 'null', 'undefined'] }, effect: 'runs every dependency install script' },
+        { name: 'npm_config_before', anyCase: true, values: 'any', effect: 'takes the place of min-release-age' },
+      ],
+      `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`,
+      'Environment variables starting with npm_config_ are interpreted as configuration parameters; config values are case-insensitive, so NPM_CONFIG_FOO=bar works the same. loadEnv in workspaces/config/lib/index.js (11.21.1 and 12.2.1) skips variables whose value is empty and reads them in the order of the environment, so of two spellings the later one wins. userconfig defaults to ~/.npmrc (definitions.js), and npm exports the resolved path as npm_config_userconfig to every command it runs (see extra.childEnvironment), so that value names the default file.',
+    ),
+  },
   extra: {
+    childEnvironment: user.verified(
+      { marker: 'npm_execpath', prefix: 'npm_config_' },
+      'https://github.com/npm/cli/blob/v11.21.1/workspaces/config/lib/set-envs.js',
+      'setEnvs gives the scripts and commands npm runs (npm run, npx, npm exec) every setting that is not its default as npm_config_<key> in lower case with - as _, whichever file or flag set it, unless the definition has envExport: false (allow-scripts, min-release-age and min-release-age-exclude in 11.21.1 and 12.2.1); keys npm does not know, such as pnpm keys in .npmrc, are exported too. userconfig is always exported, because its default is the literal ~/.npmrc and the value the resolved path. It also sets npm_execpath to the npm it runs. The same in 10.9.4 and 12.2.1 (12.x and 11.x also export npm_config_node_gyp and npm_config_npm_version).',
+    ),
+    denyList: user.verified(
+      { file: 'package.json', setting: 'allowScripts', value: false, since: '11.16.0' },
+      'https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/unreviewed-scripts.js',
+      'A false entry in the root package.json allowScripts is an explicit denial: deny wins over allow, and denied packages are skipped silently, also under strict-allow-scripts ("const verdict = isScriptAllowed(node, policy); if (verdict === true || verdict === false) { continue }", the same in 11.16.0 check-allow-scripts.js). npm install-scripts deny writes a name-only false entry.',
+    ),
     trustedPublishing: checked.verified(
       { minimumNpm: '11.5.1', minimumNode: '22.14.0', githubPermission: 'id-token: write', automaticProvenance: true, firstPublishWithinDays: 2 },
       'https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/packages-and-modules/securing-your-code/trusted-publishers.mdx',
@@ -235,10 +308,10 @@ export const npm: ToolKnowledge = {
       NPM_DEFINITIONS_V11_16,
       'strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it.',
     ),
-    unknownNpmrcKeys: disputed(
-      'Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.',
-      evidence('npm 12 throws on unknown config keys', release('12.0.0')),
-      evidence('unknown keys only warn; throwing is planned for a future major version', NPMRC),
+    unknownNpmrcKeys: rechecked.verified(
+      'unknown keys in .npmrc files only warn unless strict-npmrc is set; unknown command-line flags throw since npm 12',
+      `${NPM_GITHUB_V12}/CHANGELOG.md`,
+      'Matters for generated .npmrc files: keys npm does not know (e.g. pnpm-only keys) print a warning on every npm command. The 12.0.0 entry: unknown CLI flags "now throw instead of warning. (Unknown .npmrc configs still warn by default; opt into erroring with the new strict-npmrc config.)"; lib/base-cmd.js at 12.2.1 does the same.',
     ),
     commandLine: checked.verified(
       {

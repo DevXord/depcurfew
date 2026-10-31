@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "package-lock.json",
+      "line": 12
+    },
+    "message": "depcurfew 99.0.0 is pinned in package-lock.json, but the depcurfew running this check is older, so it may not know settings that version writes or checks",
+    "fix": "Install the project's dependencies (npm ci), then run its copy (npx depcurfew doctor), or update the depcurfew you run to 99.0.0 or later"
+  }
+]

@@ -1,9 +1,18 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const rechecked = verifiedOn('2026-10-31');
+const user = verifiedOn('2026-10-31');
+const BERRY = 'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1';
+const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
+
+/** Variables for settings with a single value, which both the docs and the code accept. */
+const SCALAR_VARIABLES: readonly UserVariable[] = [
+  { name: 'YARN_ENABLE_SCRIPTS', anyCase: true, values: { except: ['false', '0'] }, effect: 'runs dependency build scripts, whatever any .yarnrc.yml says' },
+  { name: 'YARN_NPM_MINIMAL_AGE_GATE', anyCase: true, values: 'any', effect: 'replaces npmMinimalAgeGate from every .yarnrc.yml' },
+];
 
 const YARNRC = 'https://yarnpkg.com/configuration/yarnrc';
 const MANIFEST = 'https://yarnpkg.com/configuration/manifest';
@@ -140,7 +149,92 @@ export const yarn: ToolKnowledge = {
       'Not documented; the manifest parser also accepts { "packages": [...] }.',
     ),
   },
+  user: {
+    files: user.verified(
+      [
+        {
+          since: '0.0.0',
+          value: { format: 'yaml', locations: [{ platforms: ['linux', 'darwin', 'win32'], directories: [{ from: 'home', path: '' }], file: '.yarnrc.yml' }] },
+        },
+      ],
+      CONFIGURATION,
+      'Configuration.find adds .yarnrc.yml from the home folder (folderUtils.getHomeFolder: os.homedir(), else /usr/local/share) with the lowest priority, also for projects outside the home folder; the name stays .yarnrc.yml even when YARN_RC_FILENAME is set. The yarnrc page does not describe it; yarn config set -H writes the home file (https://yarnpkg.com/cli/config/set). The lookup is the same in 4.0.0, and the 2.2.0 changelog already speaks of the home configuration file; the first version was not tracked.',
+    ),
+    settings: user.verified(
+      [
+        { purpose: 'cooldown', key: 'npmMinimalAgeGate', since: '4.10.2' },
+        { purpose: 'cooldownExclude', key: 'npmPreapprovedPackages', since: '4.10.0' },
+        { purpose: 'buildsDeny', key: 'enableScripts', since: '4.0.0' },
+        { purpose: 'sourceGit', key: 'approvedGitRepositories', since: '4.14.0' },
+      ],
+      CONFIGURATION,
+      'Configuration.use knows no project-only settings, so the home file sets these wherever the version has them; the first versions are those of cooldown, cooldown.exclude and sources.git, and enableScripts is checked in 4.0.0. enableScripts: false denies every dependency build script (scriptsSwitch); buildsDeny is the closest purpose, since Yarn has no strict mode. The allow-list dependenciesMeta.<package>.built is read from the root package.json only (Project.getDependencyMeta), so Yarn has no user-level allow-list. depcurfew does not write npmScopes.<scope>.npmMinimalAgeGate.',
+    ),
+    unknownKeys: user.verified(
+      'ignore',
+      CONFIGURATION,
+      'Configuration.use sets a key it does not know aside without an error when it comes from the home file, even with enableStrictSettings; other files throw. The 2.2.0 changelog: "Unsupported options will simply be silently ignored."',
+    ),
+    invalidValueFails: user.uncertain(
+      true,
+      CONFIGURATION,
+      'Read from code at 4.18.1: parseValue errors are rethrown with the file name while the configuration loads, so a value Yarn cannot parse, such as enableScripts: maybe or a malformed duration, stops every command, also from the home file. On 4.10.x a duration string such as 7d silently had no effect instead (durationStrings). Not tested.',
+    ),
+    weakening: user.uncertain(
+      [
+        { key: 'approvedGitRepositories', values: 'any', effect: 'approves these git repositories in every project, on top of the project\'s own list' },
+        { key: 'npmPreapprovedPackages', values: 'any', effect: 'exempts these packages from the age gate in every project, on top of the project\'s own list' },
+        { key: 'enableScripts', values: { except: [false, 0, 'false', '0'] }, effect: 'runs dependency build scripts in every project whose .yarnrc.yml does not set enableScripts' },
+        { key: 'npmMinimalAgeGate', values: [0], effect: 'turns the age gate off in every project whose .yarnrc.yml does not set it' },
+        { key: 'npmScopes.*.npmMinimalAgeGate', values: [0], effect: 'turns the age gate off for that scope in every project' },
+      ],
+      `${BERRY}/packages/yarnpkg-core/sources/configUtils.ts`,
+      'Read from code (resolveRcFiles, the same since 4.0.0; not on yarnpkg.com, and no test was read): lists from every .yarnrc.yml are joined, so home entries add to a project\'s list unless the project uses the undocumented { onConflict: reset } form; objects such as npmScopes merge key by key; for single values the file closest to the project wins. Since 4.17.0 a scope listed in the home npmScopes only for its registry gets the default gate of 1d instead of the project\'s gate (perScopeGate). A .yarnrc.yml in any folder between the root and the project merges the same way. enableScripts is a switch that turns a protection off: Yarn reads every value as text (FAILSAFE_SCHEMA, see extra.yamlMergeKeys) and parseBoolean of miscUtils.ts takes true and 1 as true and false and 0 as false and stops on any other value, after replacing ${VARIABLE} references; depcurfew counts every value but false and 0 as on.',
+    ),
+    variables: user.disputed(
+      'The yarnrc docs say environment variables cannot set lists, but parseValue splits a string on commas for list settings, so by the code YARN_APPROVED_GIT_REPOSITORIES and YARN_NPM_PREAPPROVED_PACKAGES work. The safe choice is to treat both as effective.',
+      user.evidence(
+        [
+          ...SCALAR_VARIABLES,
+          {
+            name: 'YARN_APPROVED_GIT_REPOSITORIES',
+            anyCase: true,
+            values: 'any',
+            effect: 'replaces approvedGitRepositories from every .yarnrc.yml (a comma-separated list)',
+          },
+          {
+            name: 'YARN_NPM_PREAPPROVED_PACKAGES',
+            anyCase: true,
+            values: 'any',
+            effect: 'replaces npmPreapprovedPackages from every .yarnrc.yml (a comma-separated list)',
+          },
+        ],
+        CONFIGURATION,
+        'A variable starting with yarn_ in any case sets the camel-cased setting before the rc files are read, and they cannot change it (Configuration.find and use; YARN_IGNORE_SCRIPTS is ignored); a list setting takes a comma-separated string (parseValue); enableScripts accepts true or 1 (parseBoolean), false or 0 turn it off, and any other value stops Yarn, so every value but false and 0 counts as on.',
+      ),
+      user.evidence(
+        SCALAR_VARIABLES,
+        `${BERRY}/packages/docusaurus/static/configuration/yarnrc.json`,
+        'Most settings "can also be defined through environment variables (at least for the simpler ones; arrays and objects aren\'t supported yet)", and such values "will overwrite any that might have been defined in the RC files".',
+      ),
+    ),
+  },
   extra: {
+    yamlMergeKeys: user.verified(
+      false,
+      `${BERRY}/packages/yarnpkg-parsers/sources/syml.ts`,
+      'parseSyml reads .yarnrc.yml with load of js-yaml and FAILSAFE_SCHEMA, which has no merge type (only strings, sequences and maps), so <<: *defaults is an ordinary key named <<: Configuration.use rejects it as an unrecognized setting in a project .yarnrc.yml (enableStrictSettings, default true) and sets it aside in the home file, so merged values never apply. Every scalar is a string to Yarn, which parses it per setting (parseValue in packages/yarnpkg-core/sources/Configuration.ts).',
+    ),
+    classicUserFile: user.verified(
+      { until: '2.0.0', file: '.yarnrc' },
+      'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/registries/yarn-registry.js',
+      'Yarn Classic (1.x, last release 1.22.22) reads .yarnrc and .npmrc from the project, its parent folders, the home folder (homeConfigLoc = ~/.yarnrc) and the global prefix (getPossibleConfigLocations in src/registries/npm-registry.js), never .yarnrc.yml, which only Yarn 2 and later read. depcurfew does not configure Yarn Classic.',
+    ),
+    denyList: user.verified(
+      { file: 'package.json', setting: 'dependenciesMeta.<package>.built', value: false, since: '2.0.0' },
+      'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-pnp/sources/jsInstallUtils.ts',
+      'With built: false in the root package.json, Yarn reports that the build "has been explicitly disabled through configuration" as an info message instead of the warning that all build scripts are disabled; built: false also wins over enableScripts: true. Only the top-level manifest counts (CHANGELOG 2.0.0).',
+    ),
     commandLine: checked.verified(
       {
         add: [['yarn', 'add']],

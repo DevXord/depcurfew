@@ -1,7 +1,7 @@
 // Deno: minimumDependencyAge (a number, or { age, exclude } with npm: specifiers) and allowScripts in deno.json.
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions } from './common.ts';
+import { allowedInFiles, allowedNames, cooldownValue, deniedNames, denyList, eachSource, exclusions } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -59,6 +59,33 @@ export const deno: ManagerGenerator = (context) => {
           for (const specifier of specifiers) if (!allowed.includes(specifier)) json.append(path, specifier);
         } else {
           json.set(path, specifiers);
+        }
+      }
+      // installScripts.deny needs the object form { allow, deny }; an allow list already there moves into it. A package
+      // the allow list names is not denied: Deno checks deny after allow, so that would change the entry (D-088).
+      const deny = denyList(context);
+      if (deny !== undefined && policy.installScripts.deny.length > 0 && context.supports(deny.since, deny.setting)) {
+        const file = configFile(context);
+        const allowedByFile = allowedInFiles(context, [file]);
+        const denied = deniedNames(context, deny.setting)
+          .filter((name) => !allowedByFile.has(name))
+          .map((name) => String(deny.value).replace('<package>', name));
+        const now = json.get([setting]);
+        const list = isRecord(now) ? now['deny'] : undefined;
+        if (denied.length > 0 && !isRecord(now)) {
+          json.set([setting], { allow: Array.isArray(now) ? now : [], deny: denied });
+        } else if (denied.length > 0 && list === undefined) {
+          json.set([setting, 'deny'], denied);
+        } else if (denied.length > 0 && !Array.isArray(list)) {
+          // Replacing it would drop what it names; Deno does not accept it as it is either.
+          context.warn({
+            code: 'unexpected-value',
+            location: { file },
+            message: `${context.name}: ${deny.setting} in ${file} is not a list, so depcurfew apply does not add ${denied.join(', ')} to it`,
+            fix: `Write ${deny.setting} in ${file} as a list of ${prefix} specifiers, such as ${JSON.stringify(typeof list === 'string' ? [list] : denied)}, then run depcurfew apply again`,
+          });
+        } else if (Array.isArray(list)) {
+          for (const specifier of denied) if (!list.includes(specifier)) json.append([setting, 'deny'], specifier);
         }
       }
     }

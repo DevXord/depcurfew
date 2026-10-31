@@ -5,7 +5,7 @@
 // line of the value, and come back as they were once the policy no longer manages them. Values are followed across
 // lines, so a line inside an array or a multi-line string is never taken for a key or a header. A file with blocks
 // in several tables names the table in each block's marker.
-import { BLOCK_START, blockStart, commentedOut, insertBlock, joinLines, removeBlock, removeBlockAt, splitLines, SUPERSEDED, TURNED_OFF, type RemovedBlock } from './block.ts';
+import { blockLabel, blockStart, commentedOut, insertBlock, joinLines, removeBlock, removeBlockAt, splitLines, SUPERSEDED, TURNED_OFF, type BlockScope, type RemovedBlock } from './block.ts';
 
 const HEADER = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/u;
 
@@ -96,7 +96,7 @@ function removeOwnBlock(lines: readonly string[], table: string, label: string |
   const removed = removeBlock(lines, blockStart(label));
   if (removed.at !== undefined || label === undefined) return removed;
   const tables = tablesOf(lines);
-  const legacy = lines.findIndex((line, index) => line.trim() === BLOCK_START && (tables[index] ?? '') === table);
+  const legacy = lines.findIndex((line, index) => blockLabel(line) === '' && (tables[index] ?? '') === table);
   return legacy === -1 ? removed : removeBlockAt(lines, legacy);
 }
 
@@ -146,14 +146,15 @@ function restoreLines(lines: string[], table: string, isManaged: (key: string) =
   }
 }
 
-export function writeTomlBlock(body: string, table: string, entries: readonly string[], managedKeys: readonly string[], label?: string): string {
+export function writeTomlBlock(body: string, table: string, entries: readonly string[], managedKeys: readonly string[], label?: string, scope: BlockScope = 'project'): string {
   const managed = new Set(managedKeys);
-  const marker = blockStart(label);
+  const marker = blockStart(label, scope);
   const removed = removeOwnBlock(splitLines(body), table, label);
   const lines = [...removed.lines];
   const topLevel = table === '';
-  // A top-level block at the start of the file is followed by a blank line; drop it with the block.
-  if (topLevel && removed.at === 0 && lines[0]?.trim() === '') lines.shift();
+  // A top-level block at the start of the file may be followed by the blank line topBlock adds before a table: when
+  // the block goes away, that blank line goes with it.
+  if (topLevel && entries.length === 0 && removed.at === 0 && lines[0]?.trim() === '') lines.shift();
   // Tables by the line of their header; array-of-tables headers ([[...]]) only end the table before them.
   const headers = new Map<number, string>();
   const boundaries: number[] = [];
@@ -223,10 +224,13 @@ export function writeTomlBlock(body: string, table: string, entries: readonly st
   return joinLines(insertBlock(lines, end, entries, undefined, marker));
 }
 
-/** A top-level block, with a blank line before the first table that follows it. */
+/**
+ * A top-level block, with a blank line before a table header that follows it right away. A key that follows it stays
+ * where it is, so that a second run changes nothing.
+ */
 function topBlock(lines: string[], at: number, entries: readonly string[], separate: boolean | undefined, marker: string): string[] {
   const result = insertBlock(lines, at, entries, separate, marker);
   const after = at + (result.length - lines.length);
-  if (result[after] !== undefined && result[after]?.trim() !== '') result.splice(after, 0, '');
+  if (HEADER.test(result[after] ?? '')) result.splice(after, 0, '');
   return result;
 }

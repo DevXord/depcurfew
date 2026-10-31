@@ -199,6 +199,18 @@ export const environment: EnvironmentKnowledge = {
       'https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations',
       '10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown.',
     ),
+    checkRuns: audited.verified(
+      {
+        endpoint: '/repos/{repository}/check-runs',
+        apiVersion: '2022-11-28',
+        permission: { checks: 'write' },
+        summaryMaxLength: 65535,
+        variables: { apiUrl: 'GITHUB_API_URL', repository: 'GITHUB_REPOSITORY', sha: 'GITHUB_SHA', eventPath: 'GITHUB_EVENT_PATH' },
+        pullRequestHeadSha: ['pull_request', 'head', 'sha'],
+      },
+      'https://docs.github.com/en/rest/checks/runs#create-a-check-run',
+      'Read from the sources of this page, the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json) and github/docs. POST /repos/{owner}/{repo}/check-runs ("Create a check run") needs name and head_sha; status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write "permits an action to create a check run" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the "Last merge commit on the GITHUB_REF branch" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH).',
+    ),
     stepSummary: checked.verified(
       { variable: 'GITHUB_STEP_SUMMARY', maxBytes: 1024 * 1024 },
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary',

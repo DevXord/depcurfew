@@ -2,6 +2,44 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · 1.2.0, część 4: przegląd przed wydaniem i poprawki (D-088–D-095)
+
+- Przegląd przed wydaniem: dwa przeglądy kodu (`--user`; `deny`, `depcurfew-outdated`, fakty, dokumentacja), test penetracyjny i testy na spakowanym tarballu z prawdziwymi narzędziami. Około 40 ustaleń, m.in. `doctor --user` mówiący „No problems found” przy osłabionej ochronie, tokeny z `~/.npmrc` w diffie, corepack odczytany jako pnpm/Yarn 0.34.0, `apply` przestawiające ręczne wpisy dla paczek z `deny`.
+- Wspólny `readLimited` (`src/read-limited.ts`): tylko zwykły plik, `O_NONBLOCK`/`O_NOFOLLOW`, odczyt do limitu niezależnie od rozmiaru ze `stat` (FIFO, `/proc`).
+- D-088: konflikty list narzędzia z `installScripts.allow`/`deny` (`deny-conflicts-with-file`), `check` i hook bez błędu dla `deny`, zapisane odmowy w `lockfile-install-scripts`, pnpm 10.1–10.25 `ignoredBuiltDependencies`, walidacja nakładania między ekosystemami i wzorcami.
+- D-089: `doctor --user` porównuje treść z planowanym blokiem zamiast celów polityki, sprawdza miejsca nadrzędne (`[install]` pip, `[pip]` uv, `~/.npmrc` pnpm 10), fail closed (`user-policy-invalid`, `user-config-unreadable`), zmienne w każdej pisowni (`src/user/variables.ts`), bez sekretów, SARIF względem `HOME`, wersje tylko z paczki samego narzędzia.
+- D-090: `apply --user` w zgodzie z trybem projektu (listy wyjątków, `cooldown-shortened`, `before=`, brakujące ostrzeżenia, znacznik bloku użytkownika, przywracanie linii pip).
+- D-091: zapis wszystko albo nic przez wiele katalogów, ścieżki `~/` w komunikatach, względne `XDG_CONFIG_HOME`, brak katalogu domowego, `--for` z dwuczęściową wersją, ukrywanie sekretów w diffie, `safeJson`, właściciel pliku pod `sudo`, EPIPE.
+- Po scaleniu: ostrzeżenie `environment-overrides` w `apply --user` (zmienne bez wartości), pip czyta klucze z podkreśleniami jak z myślnikami (`only_binary` = `only-binary`; `UserFile.underscoresAsDashes`, sprawdzone w `configuration.py` pip 26.2.2).
+- Ponowna kontrola na scalonym kodzie: wszystkie 41 scenariuszy z raportów przechodzi; 10 nowych ustaleń, poprawionych w dwóch gałęziach:
+  - D-092: przełączniki wyłączające ochronę są włączone dla każdej wartości, której narzędzie nie czyta jako wyłączonej (pnpm `"false"`, `yes`, `=1`; potwierdzone na prawdziwym pnpm 10.28.0), klucze scalania YAML tam, gdzie narzędzie je stosuje (pnpm), `[pip] no-build` w uv nie jest osłabieniem, drobne poprawki `config-drift` i `explain`;
+  - D-093: `init --user` bez zakładania katalogu domowego i bez śladu stosu, `doctor --user` przy braku katalogu domowego i względnym `XDG_CONFIG_HOME`, `user-setting-overridden` dla pnpm 10, znaki sterujące w treści diffu, właściciel nowych plików pod `sudo`, konkretne poprawki w komunikatach.
+- Na koniec: `apply --user` wyłącza przełączniki „uruchom każdy skrypt” w plikach użytkownika; CI: duży YAML parsowany raz (`readYamlDocument`), test `init --user` na Windows; długi myślnik (U+2014) zamieniony na „-” w całym repozytorium.
+- D-094: `doctor` i Action mówią, co sprawdziły (`checked`: narzędzia, przeczytane pliki, każda kontrola z wynikiem), a czysty przebieg Action dodaje adnotację `notice`.
+- D-095: Action dodaje check run „depcurfew doctor” z wynikiem i tabelą kontroli w zakładce Checks PR (Checks API, `checks: write`, `pull_request.head.sha`).
+- Weryfikacja: `npm test` (2949 testów), `npm run typecheck`, `npm run check:pkg`; `depcurfew doctor .` bez uwag, `apply --dry-run .` bez zmian.
+
+## 2026-10-31 · 1.2.0, część 3: `init`, `apply` i `doctor --user` (D-087), jawna blokada `deny`
+
+- Badanie konfiguracji użytkownika 10 menedżerów (trzech agentów, źródła przypięte do tagów) i sekcja `user` w bazie wiedzy: pliki per wersja i system, ustawienia z wersjami, nieznane klucze, złe wartości, osłabiające wartości i zmienne.
+- `src/user/`: położenie plików, wersje z plików (bez uruchamiania), polityka użytkownika, plan i zapis `apply --user`, `doctor --user` (`user-config-drift`, `user-config-weakens`, `user-environment-overrides`).
+- CLI: `init --user`, `apply --user`, `doctor --user`, `--for narzędzie@wersja`; README z generowaną tabelą plików użytkownika i regułami `doctor --user`.
+- `apply` zapisuje `installScripts.deny` jako jawną blokadę w npm, pnpm, Yarn i Deno; repozytorium ma `allowScripts: { fsevents: false }`.
+- Poprawione notatki w bazie wiedzy: pnpm `allowAllBuilds` (odmowy blokują dopiero od 12.12.0), pnpm 10 bez globalnego `config.yaml`, spór o nieznane klucze `.npmrc` rozstrzygnięty (ostrzeżenie).
+- Weryfikacja: `npm test`, `npm run typecheck`, `npm run check:pkg`; `depcurfew doctor .` bez uwag, `apply --dry-run .` bez zmian.
+
+## 2026-10-31 · 1.2.0, część 2: ostrzeżenie o starszym depcurfew (D-086)
+
+- Reguła `doctor` `depcurfew-outdated` i ostrzeżenie `apply` o tym samym kodzie, gdy projekt instaluje nowszy depcurfew niż uruchomiony (`node_modules/depcurfew/package.json`, potem `package-lock.json`).
+- Weryfikacja: `npm test` (2626 testów), `npm run typecheck`, bundel akcji zgodny ze źródłem.
+
+## 2026-10-31 · 1.2.0, część 1: `installScripts.deny` (D-085)
+
+- Nowe pole polityki `installScripts.deny`: paczki sprawdzone i celowo bez skryptów (np. `fsevents` z gotowym plikiem binarnym). `doctor` ich nie zgłasza, dopóki narzędzie nie uruchamia ich skryptów; dla Pythona blokada budowania ze źródeł. Walidacja nakładania się z `allow`.
+- `schema.json`, README (sekcje generowane), `init` z `"deny": []`, bundel akcji.
+- Repozytorium: `"deny": ["fsevents"]`; `depcurfew doctor .` nic nie zgłasza.
+- Weryfikacja: `npm test` (2616 testów) i `npm run typecheck` przechodzą.
+
 ## 2026-10-31 · Po wydaniu 1.1.0: przykład Action z SHA wydania
 
 - `depcurfew@1.1.0` opublikowana 12:46 UTC z tagu `v1.1.0` (commit 77ecd93) przez trusted publishing, z proweniencją; plik w rejestrze jest bajt w bajt taki sam jak tarball przetestowany na 14 projektach.

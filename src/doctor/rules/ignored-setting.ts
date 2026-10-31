@@ -1,7 +1,7 @@
 // setting-ignored-by-version: settings and files that a newer version no longer reads, or an older one does not
 // understand yet, but that still look like they work: npm-shrinkwrap.json in npm 12, the package.json "pnpm" field
 // and non-auth .npmrc settings in pnpm 11, onlyBuiltDependencies after its removal, duration strings in Yarn 4.10.
-import { extraOf, isRecord, isSwitch, settingOf, values } from '../../apply/facts.ts';
+import { extraOf, isRecord, isSwitch, settingOf, values, yamlOptionsFor } from '../../apply/facts.ts';
 import { compareVersions, formatVersion, parseVersion, pinnedVersion, type Version } from '../../apply/version.ts';
 import type { PackageManagerInfo } from '../../detect/types.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
@@ -58,7 +58,7 @@ function checkPnpm(context: RuleContext, tool: ToolKnowledge, version: Version, 
     for (const entry of npmrc === undefined ? [] : iniEntries(npmrc)) {
       const setting = settings.find((name) => npmrcKey(name) === entry.key.replace(/\[\]$/u, ''));
       if (setting === undefined) continue;
-      const inWorkspace = workspace !== undefined && yamlSetting(workspace, [setting]) !== undefined;
+      const inWorkspace = workspace !== undefined && yamlSetting(workspace, [setting], yamlOptionsFor('pnpm-workspace.yaml', context.tools)) !== undefined;
       context.report({
         level: inWorkspace ? 'warning' : 'error',
         location: { file: '.npmrc', line: entry.line },
@@ -69,7 +69,7 @@ function checkPnpm(context: RuleContext, tool: ToolKnowledge, version: Version, 
   }
   const legacy = tool.extra?.['onlyBuiltDependencies'] === undefined ? undefined : extraOf(tool, 'onlyBuiltDependencies', isRecord);
   if (legacy !== undefined && atLeast(version, legacy['removedIn']) && workspace !== undefined) {
-    const found = yamlSetting(workspace, ['onlyBuiltDependencies']);
+    const found = yamlSetting(workspace, ['onlyBuiltDependencies'], yamlOptionsFor('pnpm-workspace.yaml', context.tools));
     if (found !== undefined) {
       context.report({
         level: 'warning',
@@ -100,6 +100,7 @@ function checkDurationStrings(context: RuleContext, tool: ToolKnowledge, manager
 
 export const settingIgnoredByVersion: Rule = {
   id: 'setting-ignored-by-version',
+  checks: 'No setting or file is ignored by the package manager version in use',
   summary: 'A setting or file is ignored by the package manager version in use.',
   description:
     'Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it.',

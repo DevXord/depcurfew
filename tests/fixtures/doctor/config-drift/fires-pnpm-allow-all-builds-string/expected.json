@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 1
+    },
+    "message": "pnpm-workspace.yaml does not match depcurfew.json: `dangerouslyAllowAllBuilds: \"false\"` should be `dangerouslyAllowAllBuilds: false` (in quotes it is a string, not false)",
+    "fix": "Run depcurfew apply to bring pnpm-workspace.yaml back in line with depcurfew.json (depcurfew apply --dry-run shows the change first), or change depcurfew.json if the edit was intended"
+  }
+]

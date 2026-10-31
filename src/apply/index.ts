@@ -3,7 +3,7 @@
 // propose versions the package manager then refuses to install).
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
-import { allowEntries, matchesPattern } from '../doctor/allow-lists.ts';
+import { denyConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
 import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
 import type { Detection } from '../detect/types.ts';
 import { environment as environmentKnowledge } from '../knowledge/environment.ts';
@@ -12,6 +12,7 @@ import type { Fact, ToolId, ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { formatDuration, type Duration } from '../policy/duration.ts';
 import { ecosystemOfTool, policyFor } from '../policy/ecosystem.ts';
+import { isNewerThanRunning, outdatedText, projectCopy } from '../self-version.ts';
 import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
@@ -19,6 +20,7 @@ import { shortenedDelays } from './delays.ts';
 import { isRecord, sinceOf, values } from './facts.ts';
 import { foldCase, ignoredByGit, ignoresCase, trackedFiles } from './gitignore.ts';
 import { bun } from './generators/bun.ts';
+import { workspaceText } from './generators/common.ts';
 import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet } from './generators/context.ts';
 import { deno } from './generators/deno.ts';
 import { dependabot } from './generators/dependabot.ts';
@@ -64,7 +66,7 @@ function latestVersion(tool: ToolKnowledge): string | undefined {
 }
 
 /** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
-const FILE_UNREADABLE = new Set(['invalid-file', 'file-too-large', 'unreadable-file', 'outside-repository']);
+const FILE_UNREADABLE = new Set(['invalid-file', 'file-too-large', 'unreadable-file', 'outside-repository', 'not-a-regular-file']);
 
 /** Where a repository can pin the version of a tool, for the warning when none is pinned. */
 /** Where the version of a tool can be pinned, or undefined when the project cannot pin it (PDM, Pipenv). */
@@ -96,29 +98,36 @@ export function botDuration(policy: Duration, managerMinutes: readonly number[])
 }
 
 /**
- * apply only adds to install-script allow-lists, so a package someone listed by hand keeps running its scripts after
- * the policy denies them; say so, and what to do about it.
+ * apply only adds to install-script allow-lists and never changes an entry it did not write (decision D-088), so a
+ * package someone listed by hand keeps running its scripts after the policy denies them, and a hand-written denial
+ * keeps blocking a package the policy allows; say so, and what to do about it.
  */
-function allowListWarnings(root: string, policy: ResolvedPolicy, detection: Detection, targets: ReadonlySet<ToolId>, tools: readonly ToolKnowledge[]): ApplyWarning[] {
+function allowListWarnings(root: string, workspace: ManifestGuard, policy: ResolvedPolicy, detection: Detection, targets: ReadonlySet<ToolId>, tools: readonly ToolKnowledge[]): ApplyWarning[] {
   if (policy.installScripts?.default !== 'deny') return [];
   const repository = new Repository(root);
+  const planned = workspaceText(workspace);
   return detection.packageManagers
     .filter((manager) => manager.supported && targets.has(manager.id))
     .flatMap((manager) => {
       const tool = tools.find((entry) => entry.id === manager.id);
-      const allow = policyFor(policy, tool === undefined ? 'npm' : ecosystemOfTool(tool)).installScripts?.allow ?? [];
+      const scripts = policyFor(policy, tool === undefined ? 'npm' : ecosystemOfTool(tool)).installScripts ?? { allow: [], deny: [] };
       const version = pinnedVersion(manager) ?? (tool === undefined ? undefined : parseVersion(latestVersion(tool) ?? ''));
-      return allowEntries(repository, manager.id, manager.configFiles, { ...(tool === undefined ? {} : { tool }), ...(version === undefined ? {} : { version }) })
-        .filter((entry) => !allow.some((pattern) => matchesPattern(entry.package, pattern)))
-        .map(
-          (entry): ApplyWarning => ({
+      const options = { ...(tool === undefined ? {} : { tool }), ...(version === undefined ? {} : { version }) };
+      return remainingConflicts(repository, planned, manager.id, manager.configFiles, options, scripts).map((conflict): ApplyWarning => {
+        const { entry } = conflict;
+        const location = { file: entry.file, ...(entry.line === undefined ? {} : { line: entry.line }) };
+        if (conflict.kind === 'outside') {
+          return {
             code: 'allow-list-entry-outside-policy',
             tool: manager.id,
-            location: { file: entry.file },
-            message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write`,
+            location,
+            message: `${entry.setting} in ${entry.file}${entry.line === undefined ? '' : ` (line ${entry.line})`} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write`,
             fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${entry.package} to installScripts.allow in ${POLICY_FILE}`,
-          }),
-        );
+          };
+        }
+        const text = denyConflictText({ kind: conflict.kind, entry }, true);
+        return { code: 'deny-conflicts-with-file', tool: manager.id, location, message: `${text.message}; depcurfew apply does not change entries it did not write`, fix: text.fix };
+      });
     });
 }
 
@@ -170,6 +179,11 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   const warnings: ApplyWarning[] = [];
   const snippets: Snippet[] = [];
   const failures: EditFailure[] = [];
+  const copy = projectCopy(new Repository(root));
+  if (copy !== undefined && isNewerThanRunning(copy)) {
+    const text = outdatedText(copy, 'apply', true);
+    warnings.push({ code: 'depcurfew-outdated', location: { file: copy.file, ...(copy.line === undefined ? {} : { line: copy.line }) }, message: text.message, fix: text.fix });
+  }
   const auto = policy.targets === 'auto' ? autoTargets(root, detection, tools) : undefined;
   const targets = new Set<ToolId>(policy.targets === 'auto' ? (auto?.targets ?? []) : policy.targets);
   for (const entry of auto?.ciOnly ?? []) {
@@ -276,7 +290,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     run(tool, undefined, (context) => generator(context, duration));
   }
 
-  warnings.push(...allowListWarnings(root, policy, detection, targets, tools));
+  warnings.push(...allowListWarnings(root, workspace, policy, detection, targets, tools));
   const changes = workspace.changes();
   if (policy.cooldown !== undefined) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
   warnings.push(...ignoredFileWarnings(root, changes));
@@ -341,30 +355,36 @@ export class ApplyWriteError extends Error {
   readonly unrestored: string[];
   readonly report: ApplyReport;
 
-  constructor(failure: WriteFailed, report: ApplyReport) {
+  /**
+   * `command` is what the fix tells the user to run again (depcurfew apply --user for user files), and
+   * `versionControl` whether the files may be in version control, to restore them from.
+   */
+  constructor(failure: WriteFailed, report: ApplyReport, options: { command?: string; versionControl?: boolean } = {}) {
     super(`cannot write ${failure.file}: ${failure.message}`);
     this.file = failure.file;
     this.unrestored = failure.unrestored;
     this.report = report;
+    const command = options.command ?? 'depcurfew apply';
+    const versionControl = options.versionControl ?? true;
     const code = (failure.cause as NodeJS.ErrnoException | undefined)?.code;
     const fixes: Record<string, string> = {
-      EROFS: 'Run depcurfew apply where the files can be written',
-      ENOSPC: 'Free some disk space, then run depcurfew apply again',
-      EDQUOT: 'Free some disk space, then run depcurfew apply again',
-      EISDIR: `Move the directory ${failure.file} out of the way, then run depcurfew apply again`,
+      EROFS: `Run ${command} where the files can be written`,
+      ENOSPC: `Free some disk space, then run ${command} again`,
+      EDQUOT: `Free some disk space, then run ${command} again`,
+      EISDIR: `Move the directory ${failure.file} out of the way, then run ${command} again`,
     };
     const quoted = /\s/u.test(failure.file) ? `"${failure.file}"` : failure.file;
     const busy = !failure.busy
       ? undefined
       : failure.platform === 'win32'
-        ? `Close the program that has ${failure.file} open (an editor or a sync client; a virus scan ends by itself), clear the read-only attribute if it is set (attrib -r ${quoted}), then run depcurfew apply again`
-        : `Close the program that has ${failure.file} open, then run depcurfew apply again`;
-    const fix = busy ?? (code === undefined ? undefined : fixes[code]) ?? `Make ${failure.file} and its directory writable for the user that runs depcurfew, then run depcurfew apply again`;
+        ? `Close the program that has ${failure.file} open (an editor or a sync client; a virus scan ends by itself), clear the read-only attribute if it is set (attrib -r ${quoted}), then run ${command} again`
+        : `Close the program that has ${failure.file} open, then run ${command} again`;
+    const fix = busy ?? (code === undefined ? undefined : fixes[code]) ?? `Make ${failure.file} and its directory writable for the user that runs depcurfew, then run ${command} again`;
     const withBackup = this.unrestored.filter((file) => failure.backups[file] !== undefined);
     const withoutBackup = this.unrestored.filter((file) => failure.backups[file] === undefined);
     this.fix = [
-      ...withBackup.map((file) => `Restore ${file} from ${failure.backups[file] as string}, which holds its earlier text, or from version control.`),
-      ...(withoutBackup.length === 0 ? [] : [`Restore ${withoutBackup.join(', ')} from version control or a backup.`]),
+      ...withBackup.map((file) => `Restore ${file} from ${failure.backups[file] as string}, which holds its earlier text${versionControl ? ', or from version control' : ''}.`),
+      ...(withoutBackup.length === 0 ? [] : [`Restore ${withoutBackup.join(', ')} from ${versionControl ? 'version control or ' : ''}a backup.`]),
       ...(failure.leftovers.length === 0 ? [] : [`Delete ${failure.leftovers.join(', ')}.`]),
       fix,
     ].join(' ');

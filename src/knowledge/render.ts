@@ -132,7 +132,7 @@ function link(evidence: Evidence<unknown>): string {
 }
 
 function renderCell(fact: Fact<unknown> | undefined, style: Style, empty: string): string {
-  if (fact === undefined) return '—';
+  if (fact === undefined) return '-';
   if (fact.status === 'disputed') {
     return `⚠️ ${fact.variants.map((variant) => `${formatValue(variant.value, style, empty)} ${link(variant)}`).join(' / ')}`;
   }

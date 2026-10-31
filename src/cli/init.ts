@@ -1,7 +1,10 @@
-import { lstatSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { lstatSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { homeProblem, ownerOfNewUnderHome } from '../user/home.ts';
+import { shownPath, type UserEnvironment } from '../user/locate.ts';
+import { userPolicyPath } from '../user/policy-path.ts';
 import { describeDelay, longestDelay, policyDuration } from '../apply/delays.ts';
-import { writeChanges } from '../apply/workspace.ts';
+import { fileSystemReason, writeChanges } from '../apply/workspace.ts';
 import { detectProject } from '../detect/index.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
 import { parseDuration } from '../policy/duration.ts';
@@ -17,6 +20,72 @@ function errorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
   return typeof code === 'string' && message.startsWith(`${code}: `) ? (message.split(',', 1)[0] ?? message) : message;
+}
+
+/** The nearest existing directory above `path` when it is not a directory (a regular file in the way); else undefined. */
+function blockingFile(path: string): string | undefined {
+  for (let current = dirname(path); ; current = dirname(current)) {
+    let stats;
+    try {
+      stats = statSync(current, { throwIfNoEntry: false });
+    } catch (error) {
+      // ENOTDIR: a part above is the file in the way; anything else (EACCES) is reported by the caller.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOTDIR') return undefined;
+    }
+    if (stats !== undefined) return stats.isDirectory() ? undefined : current;
+    if (dirname(current) === current) return undefined;
+  }
+}
+
+/**
+ * init --user: the default policy as the user policy, in a directory that is created when missing; not without a home
+ * directory (home-missing, as apply --user). Run by root in the home directory of another user, what it creates there
+ * belongs to that user (decision D-093).
+ */
+export function initUser(force: boolean, environment: UserEnvironment, io: CliIo): number {
+  const home = homeProblem(environment, 'init');
+  if (home !== undefined) {
+    reportInputError({ ...home, level: 'error' }, io);
+    return EXIT_FAILURE;
+  }
+  const target = userPolicyPath(environment);
+  const shown = shownPath(target, environment);
+  const fail = (code: ApplyErrorCode, message: string, fix: string): number => {
+    reportInputError({ code, level: 'error', location: { file: shown }, message, fix }, io);
+    return EXIT_FAILURE;
+  };
+  const blocked = (): number | undefined => {
+    const file = blockingFile(target);
+    if (file === undefined) return undefined;
+    const name = shownPath(file, environment);
+    return fail('cannot-write', `${name} is not a directory, so depcurfew init --user cannot create ${shown}`, `Move the file ${name} out of the way, then run depcurfew init --user again`);
+  };
+  let existing;
+  try {
+    existing = lstatSync(target, { throwIfNoEntry: false });
+  } catch (error) {
+    return (
+      blocked() ??
+      fail('cannot-write', `cannot look at ${shown}: ${fileSystemReason(error)}`, `Make sure the user running depcurfew may open the directories on the way to ${shown}, then run depcurfew init --user again`)
+    );
+  }
+  // Windows reports a path through a file as missing.
+  const blocker = existing === undefined ? blocked() : undefined;
+  if (blocker !== undefined) return blocker;
+  if (existing?.isDirectory() === true) return fail('cannot-write', `${shown} is a directory, not a file`, `Remove or rename the directory ${shown}, then run depcurfew init --user again`);
+  if (existing !== undefined && !force) return fail('policy-exists', `${shown} already exists`, 'Pass --force to overwrite it with the default policy, or edit it by hand');
+  if (existing?.isSymbolicLink() === true) return fail('cannot-write', `${shown} is a symlink; depcurfew does not write through symlinks`, 'Replace the symlink with a regular file');
+  if (existing !== undefined && !existing.isFile()) return fail('cannot-write', `${shown} is not a regular file`, `Remove ${shown}, then run depcurfew init --user again`);
+  const ownerOfNew = ownerOfNewUnderHome(environment);
+  try {
+    // writeChanges creates the missing directories, one level at a time when they are given to the owner of HOME.
+    writeChanges(dirname(target), [{ file: POLICY_FILE, before: existing === undefined ? null : readFileSync(target, 'utf8'), after: renderPolicy(DEFAULT_POLICY) }], ownerOfNew === undefined ? {} : { ownerOfNew });
+  } catch (error) {
+    return fail('cannot-write', `cannot write ${shown}: ${errorMessage(error)}`, 'Make sure you can write to the directory, then run depcurfew init --user again');
+  }
+  io.stdout(`${existing === undefined ? 'Created' : 'Overwrote'} ${shown} with the default policy.\n`);
+  io.stdout('Run depcurfew apply --user --dry-run to see what it writes into the user-level configuration of your tools.\n');
+  return EXIT_OK;
 }
 
 /**
@@ -52,6 +121,9 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
         `${shownTarget} is a symlink; depcurfew does not write through symlinks`,
         'Replace the symlink with a regular file, or run depcurfew init in the directory it points to',
       );
+    } else if (!existing.isFile()) {
+      // A FIFO or a device: reading it for the earlier text would wait for ever or never end.
+      return fail('cannot-write', `${shownTarget} is not a regular file`, `Remove ${shownTarget}, then run depcurfew init again`);
     } else {
       // Through a temporary file and a rename, like apply: the directory entry is replaced, never followed.
       writeChanges(absolute, [{ file: POLICY_FILE, before: readFileSync(target, 'utf8'), after: text }]);

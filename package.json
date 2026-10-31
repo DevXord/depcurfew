@@ -1,6 +1,6 @@
 {
   "name": "depcurfew",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot, plus a doctor that finds config that silently does nothing.",
   "license": "MIT",
   "author": "depcurfew",
@@ -73,5 +73,8 @@
   },
   "dependencies": {
     "yaml": "2.9.1"
+  },
+  "allowScripts": {
+    "fsevents": false
   }
 }

@@ -6,9 +6,11 @@ import { parse as parseYaml } from 'yaml';
 import { isRecord, values } from '../apply/facts.ts';
 import { APPLY_ERRORS, APPLY_WARNINGS } from '../apply/warnings.ts';
 import { RULES } from '../doctor/index.ts';
+import type { Rule } from '../doctor/types.ts';
+import { USER_RULES } from '../user/doctor.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
-import type { CommandLineKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge } from '../knowledge/types.ts';
+import type { CommandLineKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
 import { DEFAULT_POLICY, renderPolicy } from '../policy/defaults.ts';
 import { policyJsonSchema } from '../policy/json-schema.ts';
 
@@ -124,8 +126,8 @@ function policyTable(): string {
   return ['| Field | Values | Default | Meaning |', '| --- | --- | --- | --- |', ...rows].join('\n');
 }
 
-function rulesList(): string {
-  return RULES.map((rule) =>
+function rulesList(rules: readonly Rule[] = RULES): string {
+  return rules.map((rule) =>
     [
       `### \`${rule.id}\``,
       '',
@@ -177,6 +179,8 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
     '    timeout-minutes: 15',
     '    permissions:',
     ...permissions(upload.permissions.always, '      '),
+    '      # The depcurfew doctor check with the result in the Checks tab:',
+    '      checks: write',
     '      # Only needed in private repositories:',
     ...permissions(upload.permissions.privateRepositories, '      '),
     '    steps:',
@@ -250,8 +254,53 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
   ].join('\n');
 }
 
+const PLATFORM_NAMES: Readonly<Record<UserPlatform, string>> = { linux: 'Linux', darwin: 'macOS', win32: 'Windows' };
+
+function directoryText(directory: UserDirectory, platform: UserPlatform): string {
+  const separator = platform === 'win32' ? '\\' : '/';
+  const base = directory.from === 'home' ? '~' : platform === 'win32' ? `%${directory.from.env}%` : `$${directory.from.env}`;
+  const path = directory.path === '' ? '' : `${separator}${directory.path.split('/').join(separator)}`;
+  return `${base}${path}`;
+}
+
+/** Where each tool's user file is, per platform, as apply --user and doctor --user find it. */
+function userFileText(file: UserFile): string {
+  return file.locations
+    .map((location) => {
+      const platform = location.platforms[0] ?? 'linux';
+      const separator = platform === 'win32' ? '\\' : '/';
+      const where = location.directories
+        .map((directory) => {
+          const conditions = [
+            ...(directory.ifExists === true ? ['the folder exists'] : []),
+            ...(directory.unlessEnv === undefined ? [] : [`${platform === 'win32' ? `%${directory.unlessEnv}%` : `$${directory.unlessEnv}`} is not set`]),
+          ];
+          return `\`${directoryText(directory, platform)}${separator}${location.file}\`${conditions.length === 0 ? '' : ` (when ${conditions.join(' and ')})`}`;
+        })
+        .join(', else ');
+      return `${location.platforms.map((name) => PLATFORM_NAMES[name]).join(', ')}: ${where}`;
+    })
+    .join('<br>');
+}
+
+/** The user-level configuration of each package manager, from the knowledge base (user.*). */
+function userTable(tools: readonly ToolKnowledge[]): string {
+  const rows = tools
+    .filter((tool) => tool.kind === 'package-manager' && tool.user !== undefined)
+    .map((tool) => {
+      const user = tool.user as UserConfigKnowledge;
+      const files = (values(user.files)[0] ?? []).map((entry) => (entry.value === null ? `${entry.since === '0.0.0' ? '' : `${entry.since}+: `}none` : `${entry.since === '0.0.0' ? '' : `${entry.since}+: `}${userFileText(entry.value)}`));
+      const settings = (values(user.settings)[0] ?? []).map((setting) => `\`${setting.key}\` (${setting.since}${setting.until === undefined ? '+' : `–${setting.until}`})`);
+      const exact = values(user.invalidValueFails).some((value) => value) ? 'yes' : 'no';
+      return `| ${tool.name} | ${files.join('<br>') || 'none'} | ${settings.join(', ') || 'none'} | ${exact} |`;
+    });
+  return ['| Tool | User file | Settings `apply --user` writes (versions that read them there) | Needs the exact version |', '| --- | --- | --- | --- |', ...rows].join('\n');
+}
+
 export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
   return {
+    'user-config': userTable(inputs.tools),
+    'user-rules': rulesList(USER_RULES),
     'default-policy': ['```json', renderPolicy(DEFAULT_POLICY).trimEnd(), '```'].join('\n'),
     'policy-fields': policyTable(),
     tools: toolsTable(inputs.tools),

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".npmrc",
+      "line": 2
+    },
+    "message": "dangerously-allow-all-builds=1 in .npmrc makes pnpm 10.28.0 run every dependency build script (it reads every value but false, null and undefined as true), because pnpm-workspace.yaml has no build settings that override it, but depcurfew.json denies install scripts",
+    "fix": "Remove the line from .npmrc, or run depcurfew apply, which sets dangerouslyAllowAllBuilds: false in pnpm-workspace.yaml"
+  }
+]

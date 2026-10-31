@@ -2,7 +2,7 @@
 // (with a note) rather than deleted, because npm would otherwise use whichever value it reads last. A line commented
 // out so comes back as it was once the policy no longer manages its key.
 import { iniLine } from '../doctor/settings.ts';
-import { commentedOut, insertBlock, joinLines, removeBlock, splitLines, SUPERSEDED, TURNED_OFF } from './block.ts';
+import { BLOCK_START, commentedOut, insertBlock, joinLines, removeBlock, splitLines, SUPERSEDED, TURNED_OFF } from './block.ts';
 
 /**
  * The setting a line sets, read as npm reads it, with the reader doctor uses (extra.npmrcFormat): quotes removed,
@@ -27,7 +27,7 @@ function parts(line: string): string[] {
   return line.split('\r');
 }
 
-export function writeIniBlock(body: string, entries: readonly string[], managedKeys: readonly string[]): string {
+export function writeIniBlock(body: string, entries: readonly string[], managedKeys: readonly string[], marker = BLOCK_START): string {
   const managed = new Set(managedKeys);
   const removed = removeBlock(splitLines(body));
   // npm applies only the keys above the first section header, so the block goes there (also when an older apply
@@ -48,7 +48,7 @@ export function writeIniBlock(body: string, entries: readonly string[], managedK
       .join('\r'),
   );
   if (entries.length === 0) return joinLines(lines);
-  if (removed.at !== undefined && removed.at <= topLevel) return joinLines(insertBlock(lines, removed.at, entries, removed.separated));
+  if (removed.at !== undefined && removed.at <= topLevel) return joinLines(insertBlock(lines, removed.at, entries, removed.separated, marker));
   // A new block goes above the comment lines that introduce the first section (not above keys it commented out).
   const introduces = (line: string) => /^\s*[#;]/u.test(line) && !line.startsWith(SUPERSEDED) && !line.startsWith(TURNED_OFF);
   let at = topLevel;
@@ -56,5 +56,5 @@ export function writeIniBlock(body: string, entries: readonly string[], managedK
   // Above the blank lines before them too, so that they stay the user's: removing the block later takes only the
   // blank line insertBlock adds before it.
   while (header !== -1 && at > 0 && (lines[at - 1] ?? '').trim() === '') at -= 1;
-  return joinLines(insertBlock(lines, at, entries));
+  return joinLines(insertBlock(lines, at, entries, undefined, marker));
 }

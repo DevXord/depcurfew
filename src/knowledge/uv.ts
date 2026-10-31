@@ -14,6 +14,9 @@ const WORKSPACES = `${UV}/docs/concepts/projects/workspaces.md`;
 const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
 const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor: string, version: string) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll('.', '')}`;
+const user = verifiedOn('2026-10-31');
+/** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
+const TRUE_VALUES = ['1', 'true', 't', 'yes', 'y', 'on'];
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -114,6 +117,80 @@ export const uv: ToolKnowledge = {
       'members',
       WORKSPACES,
       'The workspace guide calls members required, while the settings reference (crates/uv-workspace/src/pyproject.rs) gives it a default of [].',
+    ),
+  },
+  user: {
+    files: user.verified(
+      [
+        {
+          since: '0.0.0',
+          value: {
+            format: 'toml',
+            locations: [
+              {
+                platforms: ['linux', 'darwin'],
+                directories: [{ from: { env: 'XDG_CONFIG_HOME', absolute: true }, path: 'uv' }, { from: 'home', path: '.config/uv' }],
+                file: 'uv.toml',
+              },
+              {
+                platforms: ['win32'],
+                directories: [{ from: { env: 'APPDATA' }, path: 'uv' }, { from: 'home', path: 'AppData/Roaming/uv' }],
+                file: 'uv.toml',
+              },
+            ],
+          },
+        },
+      ],
+      `${UV}/docs/reference/storage.md#configuration-directories`,
+      'User-level configuration is <config dir>/uv/uv.toml: $XDG_CONFIG_HOME/uv, else ~/.config/uv on Linux and macOS (not ~/Library), %APPDATA%\\uv, else uv in the Roaming AppData known folder, on Windows (FilesystemOptions::user in crates/uv-settings/src/lib.rs). The directory comes from the etcetera crate (crates/uv-dirs/src/lib.rs), which uses XDG_CONFIG_HOME only when it is an absolute path. Keys sit at the top level, as in [tool.uv] without the prefix; "User- and system-level configuration files cannot use the pyproject.toml format" (docs/concepts/configuration-files.md). The system file (/etc/uv/uv.toml, %PROGRAMDATA%\\uv\\uv.toml) is merged below it. Same path code at 0.9.0, 0.9.16 and 0.13.6; earlier versions are not tracked.',
+    ),
+    settings: user.verified(
+      [
+        { purpose: 'cooldown', key: 'exclude-newer', since: '0.9.17' },
+        { purpose: 'cooldownExclude', key: 'exclude-newer-package', since: '0.9.25' },
+        { purpose: 'buildsDeny', key: 'no-build', since: '0.2.12' },
+        { purpose: 'buildsDeny', key: 'no-build-package', since: '0.2.12' },
+        { purpose: 'buildsAllow', key: 'no-binary-package', since: '0.2.12' },
+      ],
+      CONFIGURATION,
+      'Settings of uv.toml are merged with project-level configuration taking precedence over the user-level configuration: a project exclude-newer or no-build wins, exclude-newer-package tables are merged with the project keys winning, and lists such as no-build-package and no-binary-package are concatenated (crates/uv-settings/src/combine.rs). uv tool and uvx read only the user and system files, so the user file is the only file that gives them these settings; uv pip applies the top-level keys unless its [pip] table overrides them. The versions are those of the values depcurfew writes: a duration in exclude-newer since 0.9.17, package = false in exclude-newer-package since 0.9.25. no-build-package takes effect only while no-build is unset.',
+    ),
+    unknownKeys: user.verified(
+      'fail',
+      SETTINGS,
+      'uv.toml is parsed with deny_unknown_fields (OptionsWire), and fields allowed only in pyproject.toml (workspace, sources, dev-dependencies, conflicts, managed, package and others) are rejected by validate_uv_toml (crates/uv-settings/src/lib.rs, Error::PyprojectOnlyField); both are errors of the user file (see invalidValueFails).',
+    ),
+    invalidValueFails: user.verified(
+      true,
+      `${UV}/crates/uv-settings/src/lib.rs`,
+      'FilesystemOptions::user() returns nothing only for a missing, not-a-directory or unreadable file; a TOML or schema error (Error::UvToml) is passed on, and crates/uv/src/lib.rs stops every command that reads configuration with it, unlike an invalid pyproject.toml, which is only warned about. So a value the installed uv does not know (a duration before 0.9.17, package = false before 0.9.25, exclude-newer = false before 0.11.24) breaks every uv command instead of being dropped. A required-version mismatch is reported before a schema error.',
+    ),
+    weakening: user.verified(
+      [
+        { key: 'exclude-newer-package', values: 'any', effect: 'sets the delay of these packages (false exempts them) in every project without its own entry for them' },
+        { key: 'no-binary-package', values: 'any', effect: 'adds these packages to the build allow-list of every project (lists are concatenated)' },
+        { key: 'no-build', values: [false], effect: 'makes uv ignore the no-build-package list of every project that does not set no-build itself' },
+        { key: 'exclude-newer', values: [false], effect: 'turns the release-age delay off for uvx, uv tool and every project without its own exclude-newer' },
+        { key: 'no-binary', values: [true], effect: 'installs every package from source in every project that does not set no-binary itself' },
+        { key: 'pip.exclude-newer', values: [false], effect: 'turns the release-age delay off for uv pip commands, over the top-level exclude-newer' },
+        { key: 'pip.exclude-newer-package', values: 'any', effect: 'sets the delay of these packages (false exempts them) for uv pip commands' },
+        { key: 'pip.no-binary', values: 'any', effect: 'builds these packages from source in uv pip commands (:all: every package)' },
+      ],
+      `${UV}/crates/uv-settings/src/combine.rs`,
+      'Tables are merged with the project keys winning, lists are extended and scalars come from the project when it sets them (combine.rs); with no-build = false, NoBuild::from_args ignores the package list (crates/uv-configuration/src/build_options.rs). exclude-newer = false (since 0.11.24) turns off a value from a lower-priority source, the system file included. Read from the code, not run: a [pip] exclude-newer in the user file is combined above the top-level keys for uv pip, so it can override a project exclude-newer there, and a user [[index]] with exclude-newer = false (preview, 0.11.5) exempts the packages of that index. The [pip] table configures "just the uv pip command line interface", and its settings win over the top-level ones there ("many of the settings in this section have corollaries in the top-level namespace which do apply to the uv pip interface unless they are overridden by a value in the uv.pip section", docs/concepts/configuration-files.md); PipOptions has exclude-newer (false disables it), exclude-newer-package, no-build and no-binary (a list, :all: for every package), and the top level no-binary = true builds every package from source (settings.rs). [pip] no-build = false weakens nothing: PipSettings::combine passes it to NoBuild::from_pip_args, which gives NoBuild::None (or the [pip] only-binary list) for false, and combines that with the top-level no-build and no-build-package (NoBuild::combine: All wins, None gives the other side), so it cannot turn the top-level no-build or no-build-package off; a project [tool.uv.pip] no-build wins over the user value anyway (crates/uv-cli/src/settings.rs and crates/uv-configuration/src/build_options.rs at 0.13.6, the same in crates/uv/src/settings.rs at 0.9.17).',
+    ),
+    variables: user.verified(
+      [
+        { name: 'UV_EXCLUDE_NEWER', values: 'any', effect: 'overrides exclude-newer from every file; false turns the delay off' },
+        { name: 'UV_NO_BUILD', values: TRUE_VALUES, effect: 'forbids every source build, like --no-build, also of the packages the build allow-list needs built' },
+        { name: 'UV_NO_BUILD_PACKAGE', values: 'any', effect: 'sets no-build-package for every command, like --no-build-package' },
+        { name: 'UV_NO_BINARY', values: TRUE_VALUES, effect: 'installs every package from source, like --no-binary' },
+        { name: 'UV_NO_BINARY_PACKAGE', values: 'any', effect: 'builds these packages from source, like --no-binary-package' },
+        { name: 'UV_NO_CONFIG', values: TRUE_VALUES, effect: 'makes uv read no configuration file from the project, its parents or the user directory' },
+        { name: 'UV_CONFIG_FILE', values: 'any', effect: 'makes uv read this file in place of every discovered one, so the user uv.toml is ignored' },
+      ],
+      `${UV}/crates/uv-static/src/env_vars.rs`,
+      '"Settings provided via environment variables take precedence over persistent configuration, and settings provided via the command line take precedence over both" (docs/concepts/configuration-files.md). UV_NO_BUILD_PACKAGE since 0.6.5, UV_NO_BINARY and UV_NO_BINARY_PACKAGE since 0.5.30 (lists separated by spaces), UV_NO_CONFIG since 0.2.30, UV_CONFIG_FILE since 0.1.34. UV_NO_BUILD, UV_NO_BINARY and UV_NO_CONFIG are flags parsed with the BoolishValueParser of clap (crates/uv-cli/src/lib.rs), whose true values are y, yes, t, true, on and 1 and false values n, no, f, false, off and 0, in any case (https://github.com/clap-rs/clap/blob/v4.6.7/clap_builder/src/util/str_to_bool.rs, the clap_builder version in the Cargo.lock of uv); a false value leaves the flag unset (flag() in crates/uv-cli/src/options.rs gives None), so the files decide (with UV_NO_BUILD=0 uv 0.11.32 still refused to build in a review test on 2026-10-31). XDG_CONFIG_HOME and APPDATA move the user directory (see files).',
     ),
   },
   extra: {
@@ -263,5 +340,10 @@ export const uv: ToolKnowledge = {
       'VersionSelectionArgs: --prerelease takes disallow, allow, if-necessary, explicit or if-necessary-or-explicit (UV_PRERELEASE); allow considers pre-releases of every package and disallow none (docs/concepts/resolution.md); --prerelease-package takes PACKAGE=MODE; the hidden --pre means allow. BuildOptionsArgs of uv add, uv run, uv tool install and uv tool run (uvx): --no-binary (UV_NO_BINARY, a boolean) installs every package from source, --binary turns it off, --no-binary-package names one package (UV_NO_BINARY_PACKAGE, separated by spaces). uv pip install takes --no-binary and --only-binary as lists separated by commas with :all: and :none:, as pip does (PipInstallArgs).',
     ),
     latestVersion: verified('0.13.6', `${UV}/CHANGELOG.md`, 'Released on 2026-10-26.'),
+    pipTable: user.verified(
+      { table: 'pip', keys: { 'exclude-newer': 'exclude-newer', 'exclude-newer-package': 'exclude-newer-package', 'no-binary-package': 'no-binary' } },
+      `${UV}/crates/uv-cli/src/settings.rs`,
+      'For uv pip commands, PipSettings::combine merges the [pip] table of a configuration file above its top-level keys ("Merge the top-level options (`tool.uv`) with the pip-specific options (`tool.uv.pip`), preferring the latter"): [pip] exclude-newer replaces the top-level value (false turns the delay off), [pip] exclude-newer-package entries win over top-level entries for the same package, and [pip] no-binary (package names, or :all:) is added to the top-level no-binary-package (NoBinary::combine in crates/uv-configuration/src/build_options.rs). [pip] no-build and only-binary are joined with the top-level no-build, so they cannot turn it off. Commands outside uv pip ignore [pip] ("These values will be ignored when running commands outside the `uv pip` namespace", PipOptions in crates/uv-settings/src/settings.rs). keys maps each top-level key depcurfew writes to the [pip] key that overrides or extends it. The same code in 0.11.32 (crates/uv/src/settings.rs).',
+    ),
   },
 };

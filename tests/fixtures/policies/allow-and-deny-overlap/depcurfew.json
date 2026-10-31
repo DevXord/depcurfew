@@ -1,0 +1,1 @@
+{ "version": 1, "installScripts": { "default": "deny", "allow": ["@acme/*", "esbuild"], "deny": ["esbuild", "@acme/native"] } }

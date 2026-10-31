@@ -2,6 +2,7 @@
 // scripts, deprecation, look-alike names, sources and registry errors.
 import { describe, expect, it } from 'vitest';
 import { checkSpec, checkSpecs, describeAge, pickVersion, type CheckOptions } from '../../src/check/index.ts';
+import { decide } from '../../src/check/hook.ts';
 import { PopularNames } from '../../src/check/similar.ts';
 import { policy, recordedFetch } from './support.ts';
 
@@ -43,6 +44,18 @@ describe('depcurfew check on registry packages', () => {
     const report = await checkSpec('esbuild@0.28.1', options());
     expect(codes(report.findings)).toEqual(['error:install-scripts']);
     expect(report.findings[0]?.message).toBe('esbuild@0.28.1 runs install scripts (postinstall: node install.js) that depcurfew.json does not allow');
+  });
+
+  it('does not report install scripts the policy denies on purpose (installScripts.deny), and fixes never suggest allowing them', async () => {
+    const denied = policy({ cooldown: { minimum: '3d' }, installScripts: { default: 'deny', allow: [], deny: ['esbuild'] } });
+    const report = await checkSpec('esbuild@0.28.1', options({ policy: denied }));
+    expect(report.findings).toEqual([]);
+    const patterned = policy({ cooldown: { minimum: '3d' }, installScripts: { default: 'deny', deny: ['esbu*'] } });
+    expect((await checkSpec('esbuild@0.28.1', options({ policy: patterned }))).findings).toEqual([]);
+    const pythonName = policy({ cooldown: { minimum: '3d' }, installScripts: { default: 'deny', deny: ['pypi:esbuild'] } });
+    expect(codes((await checkSpec('esbuild@0.28.1', options({ policy: pythonName }))).findings)).toEqual(['error:install-scripts']);
+    // The Claude Code hook lets the install through: blocking its scripts is the package manager's job (doctor checks it).
+    expect(decide([report], undefined)).toEqual({ decision: 'none' });
   });
 
   it('passes install scripts of an allowed package', async () => {

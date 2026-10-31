@@ -10,7 +10,7 @@ export const DEFAULT_POLICY = {
   $schema: SCHEMA_URL,
   version: 1,
   cooldown: { minimum: '3d', exclude: [], securityUpdates: 'bypass' },
-  installScripts: { default: 'deny', allow: [] },
+  installScripts: { default: 'deny', allow: [], deny: [] },
   sources: { git: 'deny', remoteTarball: 'deny', file: 'allow', directory: 'allow' },
   targets: 'auto',
 } as const satisfies Policy;

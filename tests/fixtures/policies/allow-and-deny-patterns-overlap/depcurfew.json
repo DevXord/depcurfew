@@ -1,0 +1,1 @@
+{ "version": 1, "installScripts": { "default": "deny", "allow": ["foo-*", "@acme/*", "pypi:Foo_*"], "deny": ["*-bar", "*-native", "pypi:*.bar"] } }

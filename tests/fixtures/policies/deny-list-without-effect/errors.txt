@@ -1,0 +1,1 @@
+installScripts.deny: has no effect when default is "allow"; remove the list or set default to "deny"

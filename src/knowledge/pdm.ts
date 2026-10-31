@@ -1,14 +1,36 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
+const user = verifiedOn('2026-10-31');
 
 // pdm-project.org is built from docs/ in the repository.
 const PDM = 'https://github.com/pdm-project/pdm/blob/2.29.5';
 const LOCKFILE = `${PDM}/docs/usage/lockfile.md`;
 const CHANGELOG = `${PDM}/CHANGELOG.md`;
 const CANDIDATES = `${PDM}/src/pdm/models/candidates.py`;
+const CONFIG = `${PDM}/src/pdm/project/config.py`;
+
+/** The home config.toml; only the macOS directories are disputed. */
+const userFiles = (darwin: readonly UserDirectory[]): Versioned<UserFile> => [
+  {
+    since: '0.0.0',
+    value: {
+      format: 'toml',
+      locations: [
+        {
+          platforms: ['linux'],
+          directories: [{ from: { env: 'XDG_CONFIG_HOME' }, path: 'pdm' }, { from: 'home', path: '.config/pdm' }],
+          file: 'config.toml',
+        },
+        { platforms: ['darwin'], directories: darwin, file: 'config.toml' },
+        { platforms: ['win32'], directories: [{ from: 'home', path: 'AppData/Local/pdm/pdm' }], file: 'config.toml' },
+      ],
+    },
+  },
+];
+const MACOS_DIRECTORY: UserDirectory = { from: 'home', path: 'Library/Application Support/pdm' };
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -90,6 +112,57 @@ export const pdm: ToolKnowledge = {
       'Workspaces ([tool.pdm.workspace] members) are experimental since 2.28.0 and are locked and installed from the root only, so depcurfew configures the root and reads no members.',
     ),
     workspacesObjectKey: uncertain(null, `${PDM}/docs/usage/workspace.md`, 'Not read; see workspaces.'),
+  },
+  user: {
+    files: user.disputed(
+      'The docs give ~/Library/Application Support/pdm on macOS. The code asks the installed platformdirs (not pinned in pyproject.toml), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) PDM reads $XDG_CONFIG_HOME/pdm/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in PDM\'s environment. Linux and Windows agree. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked.',
+      user.evidence(
+        userFiles([MACOS_DIRECTORY]),
+        `${PDM}/docs/usage/config.md`,
+        '<CONFIG_ROOT> is "$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux", "~/Library/Application Support/pdm on macOS" and "%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows".',
+      ),
+      user.evidence(
+        userFiles([{ from: { env: 'XDG_CONFIG_HOME' }, path: 'pdm' }, MACOS_DIRECTORY]),
+        `${PDM}/src/pdm/project/core.py`,
+        'global_config = platformdirs.user_config_path("pdm") / "config.toml", which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows the default appauthor repeats the name (pdm\\pdm) and roaming is off, so platformdirs asks for the Local AppData known folder.',
+      ),
+    ),
+    settings: user.verified(
+      [{ purpose: 'cooldown', key: 'strategy.exclude-newer', since: '2.27.0' }],
+      CHANGELOG,
+      '"Allow configuring the default lock --exclude-newer value with strategy.exclude-newer" (2.27.0, #3795): a TOML string such as "7d", a date or an RFC 3339 time. It applies where neither [tool.pdm.resolution] exclude-newer in pyproject.toml nor a project pdm.toml sets it (docs/usage/lockfile.md), and with it in effect pdm lock resolves every package again (src/pdm/cli/commands/lock.py). only-binary, no-binary and exclude-newer-override cannot be set in any PDM configuration file: PDM reads them from [tool.pdm.resolution] in pyproject.toml, only-binary and no-binary also from PDM_ONLY_BINARY and PDM_NO_BINARY (environments/base.py, Project.env_or_setting), so at user level they can be set only through those variables.',
+    ),
+    unknownKeys: user.uncertain(
+      'ignore',
+      CONFIG,
+      'load_config keeps every key of config.toml without checking it, and only registered config items are ever read, so PDM before 2.27.0 ignores strategy.exclude-newer. Read from the code.',
+    ),
+    invalidValueFails: user.uncertain(
+      true,
+      CONFIG,
+      'A config.toml that is not valid TOML stops every command (load_config catches only FileNotFoundError). Values are coerced when read, and src/pdm/core.py reads strategy.exclude-newer before every command, so a value convert_to_datetime cannot parse (anything but Nd, Nh, Nw, a date or an RFC 3339 time) fails every command. Read from the code.',
+    ),
+    weakening: user.verified(
+      [
+        {
+          key: 'use_uv',
+          values: { except: [false, 0, '', 'false', 'no', '0'] },
+          effect: 'makes PDM resolve and install with uv, whose uv sync --frozen gets no build settings, so only-binary is not enforced when installing',
+        },
+      ],
+      `${PDM}/docs/usage/uv.md`,
+      'use_uv (experimental since 2.19.0, PDM_USE_UV) can be set in config.toml and in a project pdm.toml, which wins. PDM passes the cutoff and the build settings to uv lock but not to uv sync --frozen (src/pdm/installers/uv.py), and passes no --no-config, so uv also reads the user uv.toml. A home strategy.exclude-newer cannot weaken a project that sets [tool.pdm.resolution] exclude-newer. use_uv is a switch that turns a protection off and is read with ensure_boolean (src/pdm/project/config.py at 2.29.5): a TOML boolean or number is kept, and a string is false only when empty or false, no or 0 in any case; depcurfew counts every other value as on (other spellings of false too, which errs towards a warning).',
+    ),
+    variables: user.verified(
+      [
+        { name: 'PDM_CONFIG_FILE', values: 'any', effect: 'makes PDM read this file in place of the user config.toml' },
+        { name: 'PDM_ONLY_BINARY', values: 'any', effect: 'replaces only-binary of every pyproject.toml when not empty' },
+        { name: 'PDM_NO_BINARY', values: 'any', effect: 'replaces no-binary of every pyproject.toml when not empty' },
+        { name: 'PDM_USE_UV', values: 'any', effect: 'overrides use_uv from every configuration file' },
+      ],
+      `${PDM}/src/pdm/project/core.py`,
+      'env_or_setting returns os.getenv(var) or the pyproject.toml setting, so a non-empty PDM_ONLY_BINARY or PDM_NO_BINARY wins (environments/base.py). -c/--config and PDM_CONFIG_FILE name the home config file (src/pdm/core.py). PDM_USE_UV is the variable of use_uv, and variables beat pdm.toml and config.toml (src/pdm/project/config.py).',
+    ),
   },
   extra: {
     pylockCreatedBy: verified('pdm', `${PDM}/src/pdm/formats/pylock.py`, 'PDM\'s pylock.toml export writes created-by = "pdm".'),

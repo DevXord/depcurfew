@@ -144,6 +144,7 @@ function checkPip(context: RuleContext, tool: ToolKnowledge, configFiles: readon
 
 export const pythonConfigIgnored: Rule = {
   id: 'python-config-ignored',
+  checks: 'Python tools read their settings where they are written',
   summary: 'A Python tool ignores a setting where it is written.',
   description:
     'uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = "pure-python" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.',

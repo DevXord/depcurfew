@@ -1,0 +1,3 @@
+installScripts.deny: "*-bar" and "foo-*" in installScripts.allow both match names such as "foo-bar"; a package is either allowed or denied, so narrow one of the patterns
+installScripts.deny: "*-native" and "foo-*" in installScripts.allow both match names such as "foo-native"; a package is either allowed or denied, so narrow one of the patterns
+installScripts.deny: "pypi:*.bar" and "pypi:Foo_*" in installScripts.allow both match names such as "pypi:foo-bar"; a package is either allowed or denied, so narrow one of the patterns

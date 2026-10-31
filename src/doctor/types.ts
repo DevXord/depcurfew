@@ -11,6 +11,8 @@ export interface Location {
   file: string;
   /** 1-based; absent when the finding concerns the whole file. */
   line?: number;
+  /** doctor --user: the environment variable, as it is set, of a finding whose file is "environment". */
+  variable?: string;
 }
 
 export interface Finding {
@@ -44,6 +46,8 @@ export interface Rule {
   id: string;
   /** One sentence: what the rule finds. */
   summary: string;
+  /** What the rule checks, said as what holds when it passes, for the list of what doctor checked. */
+  checks?: string;
   /** Why it matters. */
   description: string;
   /** How to fix it in general. */
@@ -55,10 +59,44 @@ export interface Rule {
   check(context: RuleContext): void;
 }
 
+/** A package manager or bot doctor checked, with the version it checked against when one is known. */
+export interface CheckedTool {
+  id: string;
+  name: string;
+  version?: string;
+  /** Where the version comes from: a repository file, or PATH for doctor --user. */
+  versionFrom?: string;
+}
+
+/** One check of the list of what doctor checked: a rule and what came of it. */
+export interface RuleResult {
+  rule: string;
+  /** What the rule checks, in plain words (Rule.check). */
+  check: string;
+  /** passed: it ran and found nothing; problems: it reported findings; skipped: it needs a policy that is missing or invalid. */
+  result: 'passed' | 'problems' | 'skipped';
+  errors: number;
+  warnings: number;
+  notes: number;
+}
+
+/** What doctor looked at, shown below the result, so that a clean report says what it covers. */
+export interface Checked {
+  tools: CheckedTool[];
+  /** Files that were read, repository-relative (doctor) or as shown (~/.npmrc, doctor --user). */
+  files: string[];
+  /** Every rule, in the order it ran, with its result. */
+  rules: RuleResult[];
+  /** The policy that skipped rules need, as messages show it. */
+  policyFile: string;
+}
+
 export interface DoctorReport {
   schemaVersion: 1;
   /** invalid: depcurfew.json does not follow the schema or cannot be read (only with invalidPolicy: 'report'). */
   policy: 'valid' | 'missing' | 'invalid';
   findings: Finding[];
   notices: Notice[];
+  /** What was checked. */
+  checked?: Checked;
 }

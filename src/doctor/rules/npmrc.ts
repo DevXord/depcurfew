@@ -2,7 +2,7 @@
 // [section] header, a before date that replaces min-release-age, and in pnpm 10 a root .npmrc setting that takes
 // effect because pnpm-workspace.yaml does not set it. pnpm-shared-workspace-lockfile: without a
 // shared lockfile pnpm 10 installs each project with its own .npmrc, so a package .npmrc can change the delay.
-import { extraOf, isRecord, isSwitch, settingOf } from '../../apply/facts.ts';
+import { extraOf, isRecord, isSwitch, settingOf, yamlOptionsFor } from '../../apply/facts.ts';
 import { compareVersions, formatVersion, parseVersion, pinnedVersion, type Version } from '../../apply/version.ts';
 import type { PackageManagerInfo } from '../../detect/types.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
@@ -11,7 +11,7 @@ import { POLICY_FILE } from '../../policy/defaults.ts';
 import { policyFor } from '../../policy/ecosystem.ts';
 import { matchesPattern } from '../allow-lists.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
-import { latestVersion } from '../effective.ts';
+import { latestVersion, pnpmNpmrcAllowsAllBuilds } from '../effective.ts';
 import { iniEntries, iniLines, iniValue, npmrcKey, yamlSetting, type IniEntry } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
@@ -182,7 +182,7 @@ function checkPnpmRoot(context: RuleContext): void {
   const excludeSetting = settingOf(pnpm.tool.cooldown.exclude.setting);
   const label = `pnpm ${formatVersion(pnpm.version)}`;
   for (const entry of entriesFor(context, '.npmrc', npmrcKeys(pnpm.tool, npmrcKey))) {
-    if (precedence['winner'] === 'pnpm-workspace.yaml' && workspace !== undefined && yamlSetting(workspace, [entry.setting]) !== undefined) continue;
+    if (precedence['winner'] === 'pnpm-workspace.yaml' && workspace !== undefined && yamlSetting(workspace, [entry.setting], yamlOptionsFor('pnpm-workspace.yaml', context.tools)) !== undefined) continue;
     if (entry.setting === cooldownSetting) {
       const wanted = convertCooldown(pnpm.tool, policy.cooldown.minimum);
       const actual = delayMinutes(pnpm.tool, iniValue(entry.value), pnpm.version);
@@ -202,11 +202,29 @@ function checkPnpmRoot(context: RuleContext): void {
   }
 }
 
+/**
+ * pnpm 10 takes dangerously-allow-all-builds from the root .npmrc while pnpm-workspace.yaml has no build settings of its
+ * own (extra.npmrcBuildSettings), and reads every value but false, null and undefined as on.
+ */
+function checkPnpmAllowAll(context: RuleContext): void {
+  const pnpm = managerOf(context, 'pnpm');
+  if (pnpm === undefined || context.policy === undefined || policyFor(context.policy, 'npm').installScripts?.default !== 'deny') return;
+  const found = pnpmNpmrcAllowsAllBuilds(pnpm.tool, pnpm.version, (file) => context.repository.readText(file));
+  if (found === undefined) return;
+  const setting = extraOf(pnpm.tool, 'allowAllBuilds', isSwitch).setting;
+  context.report({
+    location: { file: '.npmrc', line: found.line },
+    message: `${found.key}=${found.value} in .npmrc makes pnpm ${formatVersion(pnpm.version)} run every dependency build script (it reads every value but ${[found.off.slice(0, -1).join(', '), found.off.at(-1)].filter(Boolean).join(' and ')} as true), because pnpm-workspace.yaml has no build settings that override it, but ${POLICY_FILE} denies install scripts`,
+    fix: `Remove the line from .npmrc, or run depcurfew apply, which sets ${setting}: false in pnpm-workspace.yaml`,
+  });
+}
+
 export const npmrcOverridesPolicy: Rule = {
   id: 'npmrc-overrides-policy',
+  checks: 'No .npmrc file weakens the policy or is ignored',
   summary: 'An .npmrc file changes a security setting in a way the policy does not see, or is ignored.',
   description:
-    'Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages and the keys below a [section] header, and a before date in .npmrc takes the place of min-release-age; pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy.',
+    'Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages and the keys below a [section] header, and a before date in .npmrc takes the place of min-release-age; pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy, and dangerously-allow-all-builds there runs every build script while pnpm-workspace.yaml has no build settings of its own.',
   help: 'Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.',
   level: 'error',
   requiresPolicy: false,
@@ -215,11 +233,13 @@ export const npmrcOverridesPolicy: Rule = {
     checkNpmSections(context);
     checkNpmBefore(context);
     checkPnpmRoot(context);
+    checkPnpmAllowAll(context);
   },
 };
 
 export const pnpmSharedWorkspaceLockfile: Rule = {
   id: 'pnpm-shared-workspace-lockfile',
+  checks: 'pnpm 10 workspace packages cannot change the release-age delay with their own .npmrc',
   summary: 'pnpm 10 without a shared lockfile lets a package .npmrc change the release-age delay.',
   description:
     'With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project separately with that project\'s own .npmrc layered over the workspace settings (read from the pnpm 10 source code), so a setting such as minimum-release-age=0 in a package .npmrc applies to that package.',
@@ -233,7 +253,7 @@ export const pnpmSharedWorkspaceLockfile: Rule = {
     const shared = extraOf(pnpm.tool, 'sharedWorkspaceLockfile', isRecord);
     if (!before(pnpm.version, perProject['until'])) return;
     const workspace = context.repository.readText('pnpm-workspace.yaml');
-    const fromYaml = workspace === undefined ? undefined : yamlSetting(workspace, [String(shared['setting'])]);
+    const fromYaml = workspace === undefined ? undefined : yamlSetting(workspace, [String(shared['setting'])], yamlOptionsFor('pnpm-workspace.yaml', context.tools));
     const fromNpmrc = iniEntries(context.repository.readText('.npmrc') ?? '').filter((entry) => entry.key === shared['npmrcKey']).at(-1);
     const value = fromYaml !== undefined ? fromYaml.value : fromNpmrc !== undefined ? iniValue(fromNpmrc.value) : shared['default'];
     if (value !== perProject['sharedWorkspaceLockfile']) return;

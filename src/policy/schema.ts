@@ -72,6 +72,12 @@ export const installScriptsShape = object(
       packagePatterns('Packages whose lifecycle scripts may run when the default is "deny"; Python packages listed here are always built from source.'),
       [],
     ),
+    deny: withDefault(
+      packagePatterns(
+        'Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example "fsevents", which ships a prebuilt binary. A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one.',
+      ),
+      [],
+    ),
   },
   { description: 'Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python.' },
 );

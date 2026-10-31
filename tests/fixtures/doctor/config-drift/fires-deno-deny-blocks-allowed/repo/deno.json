@@ -1,0 +1,6 @@
+{
+  "allowScripts": {
+    "allow": ["npm:fsevents"],
+    "deny": ["npm:fsevents"]
+  }
+}

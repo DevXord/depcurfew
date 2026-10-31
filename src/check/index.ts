@@ -177,8 +177,11 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   const document = packument.versions[version];
   const scriptNames = values(environment.npmRegistry.api)[0]?.installScripts ?? [];
   const scripts = scriptNames.filter((script) => typeof document?.scripts?.[script] === 'string');
+  // A package of installScripts.deny was reviewed and works without its scripts: installing it follows the policy, and
+  // blocking the scripts is the package manager's job, which doctor checks (decision D-085).
   const allowed = policy.installScripts?.allow.some((pattern) => matchesPattern(name, pattern)) ?? false;
-  if (scripts.length > 0 && policy.installScripts?.default === 'deny' && !allowed) {
+  const denied = policy.installScripts?.deny.some((pattern) => matchesPattern(name, pattern)) ?? false;
+  if (scripts.length > 0 && policy.installScripts?.default === 'deny' && !allowed && !denied) {
     const listed = scripts.map((script) => (options.scriptBodies === false ? script : `${script}: ${String(document?.scripts?.[script])}`)).join('; ');
     add({
       level: 'error',

@@ -127,6 +127,121 @@ export interface ProjectKnowledge {
   workspacesObjectKey: Fact<string | null>;
 }
 
+/** A platform family for user-level paths. */
+export type UserPlatform = 'linux' | 'darwin' | 'win32';
+
+/** A base directory for a user-level file. */
+export interface UserDirectory {
+  /**
+   * Where it starts: an environment variable (used only when it is set and not empty, and with `absolute` only when
+   * it is an absolute path), or the home directory (HOME on Linux and macOS, USERPROFILE on Windows). With
+   * `relativeToCwd` the tool takes a relative value as it is, so it reads the file relative to the directory each
+   * command runs in; without it and without `absolute`, what the tool does with a relative value is not known.
+   */
+  from: { env: string; absolute?: boolean; relativeToCwd?: boolean } | 'home';
+  /** Path below it, with / separators; empty for the directory itself. */
+  path: string;
+  /** Use this directory only when it already exists (pip on macOS). */
+  ifExists?: boolean;
+  /** Skip this directory while this environment variable is set and not empty (pip 26.2+ on macOS and XDG_DATA_HOME). */
+  unlessEnv?: string;
+}
+
+/** Where the user file is on some platforms: the first directory that applies is used. */
+export interface UserLocation {
+  platforms: readonly UserPlatform[];
+  directories: readonly UserDirectory[];
+  file: string;
+}
+
+/** The user-level configuration file of a range of versions. */
+export interface UserFile {
+  format: 'ini' | 'yaml' | 'toml';
+  locations: readonly UserLocation[];
+  /** INI only: the [sections] whose keys the tool reads, '' for the keys above the first header; absent: every key. */
+  sections?: readonly string[];
+  /** Other user-level files this version reads the same settings from, whose keys win over this file's. */
+  overriddenBy?: readonly UserFile[];
+  /** INI only: the tool reads a key with underscores as the same key with dashes (pip: only_binary is only-binary). */
+  underscoresAsDashes?: boolean;
+  /** YAML only: the tool's loader applies merge keys (<<: *defaults), so merged keys count as keys of the map. */
+  mergeKeys?: boolean;
+}
+
+/** What depcurfew writes with a user-level setting. */
+export type UserSettingPurpose =
+  | 'cooldown'
+  | 'cooldownExclude'
+  | 'cooldownStrict'
+  | 'scriptsAllow'
+  | 'scriptsStrict'
+  | 'buildsDeny'
+  | 'buildsAllow'
+  | 'sourceGit'
+  | 'sourceRemote'
+  | 'sourceFile'
+  | 'sourceDirectory'
+  | 'sourcesExotic';
+
+/** A setting the tool reads from its user file: the key there and the versions that read it from that file. */
+export interface UserSetting {
+  purpose: UserSettingPurpose;
+  key: string;
+  since: string;
+  /** First version that no longer reads it from the user file. */
+  until?: string;
+}
+
+/**
+ * The values of a switch that turns a protection off, given by the values the tool reads as off: every other value
+ * turns it on (fail closed), so a string "false" or "yes" that the tool takes for true is not missed. In INI files and
+ * environment variables values are compared as text after trimming, elsewhere with their type (false, 0, null, "").
+ */
+export interface UnlessOff<T> {
+  except: readonly T[];
+}
+
+/** A value in the user file that weakens every project that does not set the key itself (doctor --user). */
+export interface UserWeakening {
+  key: string;
+  /** 'any' for every value, the values that weaken, or every value except those the tool reads as off. */
+  values: 'any' | readonly (string | number | boolean)[] | UnlessOff<string | number | boolean | null>;
+  /** What it does, for the message. */
+  effect: string;
+}
+
+/** An environment variable that bypasses or overrides the user file or the policy (doctor --user). */
+export interface UserVariable {
+  /** The variable name; matched without regard to case when `anyCase`. */
+  name: string;
+  anyCase?: boolean;
+  /** 'any' when every value matters, the values that weaken, or every value except those the tool reads as off. */
+  values: 'any' | readonly string[] | UnlessOff<string>;
+  effect: string;
+  /** First version that reads the variable; every version when absent. */
+  since?: string;
+  /** First version that no longer reads it. */
+  until?: string;
+  /** The file the tool reads when the variable is unset, from the home directory (~/.npmrc): naming it changes nothing. */
+  defaultPath?: string;
+}
+
+/** The tool's user-level configuration, for `depcurfew apply --user` and `doctor --user`. */
+export interface UserConfigKnowledge {
+  /** The user file per version, oldest first; null for versions without a user file. */
+  files: Fact<Versioned<UserFile | null>>;
+  /** Settings depcurfew can write there. */
+  settings: Fact<readonly UserSetting[]>;
+  /** What a version does with a key it does not know in the user file: ignore it, warn, or fail. */
+  unknownKeys: Fact<'ignore' | 'warn' | 'fail'>;
+  /** Whether a value the installed version cannot parse makes every command fail; depcurfew then needs the exact version. */
+  invalidValueFails: Fact<boolean>;
+  /** Values in the user file that weaken projects. */
+  weakening: Fact<readonly UserWeakening[]>;
+  /** Environment variables that move or skip the user file or override settings. */
+  variables: Fact<readonly UserVariable[]>;
+}
+
 export interface ToolKnowledge {
   id: ToolId;
   name: string;
@@ -139,6 +254,8 @@ export interface ToolKnowledge {
   sources?: SourcesKnowledge;
   /** Package managers only: how to recognize the tool in a repository. */
   project?: ProjectKnowledge;
+  /** Package managers only: the user-level configuration (`--user`). */
+  user?: UserConfigKnowledge;
   /** Further sourced facts that matter for generators and `doctor`, keyed by a short name. */
   extra?: Readonly<Record<string, Fact<unknown>>>;
 }
@@ -521,6 +638,21 @@ export interface AnnotationLimitsKnowledge {
 }
 
 /** The Markdown job summary of a step: the environment variable naming its file and its size limit. */
+/** Creating a check run with the workflow token, so that the result shows in the pull request's Checks tab. */
+export interface CheckRunsKnowledge {
+  /** POST endpoint, with {repository} as owner/name. */
+  endpoint: string;
+  apiVersion: string;
+  /** The workflow permission the token needs. */
+  permission: Record<string, string>;
+  /** Limit of output.summary, in characters. */
+  summaryMaxLength: number;
+  /** Variables the runner sets: API URL, owner/name, commit and the event payload file. */
+  variables: { apiUrl: string; repository: string; sha: string; eventPath: string };
+  /** Path in the event payload of the commit a pull request check belongs to (GITHUB_SHA is the merge commit there). */
+  pullRequestHeadSha: readonly string[];
+}
+
 export interface StepSummaryKnowledge {
   variable: string;
   maxBytes: number;
@@ -592,6 +724,7 @@ export interface EnvironmentKnowledge {
     annotations: Fact<AnnotationsKnowledge>;
     annotationLimits: Fact<AnnotationLimitsKnowledge>;
     stepSummary: Fact<StepSummaryKnowledge>;
+    checkRuns: Fact<CheckRunsKnowledge>;
   };
   npmRegistry: {
     api: Fact<NpmRegistryKnowledge>;

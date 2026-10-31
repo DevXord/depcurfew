@@ -1,7 +1,9 @@
 // Reading the knowledge base for generators. Where official sources disagree about the first version with a
 // setting, the latest variant wins, so depcurfew never writes a key that the pinned version might not know.
 import { evidenceOf } from '../knowledge/facts.ts';
+import { knowledgeBase } from '../knowledge/index.ts';
 import type { Fact, ToolKnowledge } from '../knowledge/types.ts';
+import type { YamlOptions } from '../yaml-parse.ts';
 import { compareVersions, parseVersion } from './version.ts';
 
 export function values<T>(fact: Fact<T>): T[] {
@@ -46,10 +48,39 @@ export interface SwitchFact {
   value: unknown;
   /** The dependency sources the switch applies to, where it does not apply to all (Python build switches). */
   covers?: readonly string[];
+  /**
+   * For a switch that turns a protection off: the values the tool reads as off. Every other value turns it on, also a
+   * string "false" where the tool tests the value for truth (pnpm's dangerouslyAllowAllBuilds).
+   */
+  off?: readonly unknown[];
 }
 
 export function isSwitch(value: unknown): value is SwitchFact {
   return isRecord(value) && typeof value['setting'] === 'string' && 'value' in value;
+}
+
+/**
+ * Whether a configured value leaves a switch that turns a protection off really off: only the values the knowledge
+ * base names (`off`), else only false. Anything else counts as on (fail closed); undefined is a value not set.
+ */
+export function switchIsOff(fact: SwitchFact, value: unknown): boolean {
+  if (value === undefined) return true;
+  return (fact.off ?? [false]).some((off) => off === value);
+}
+
+/** Whether the tool's YAML loader applies merge keys (<<), by a verified extra.yamlMergeKeys; false when not known. */
+export function mergesYamlKeys(tool: ToolKnowledge | undefined): boolean {
+  const fact = tool?.extra?.['yamlMergeKeys'];
+  return fact?.status === 'verified' && fact.value === true;
+}
+
+/**
+ * How the tool that reads a YAML configuration file of a repository parses it: with merge keys (<<) where its loader
+ * applies them, for the tools whose configuration files include the file's name (pnpm-workspace.yaml).
+ */
+export function yamlOptionsFor(file: string, tools: readonly ToolKnowledge[] = knowledgeBase): YamlOptions {
+  const name = file.split('/').at(-1) ?? file;
+  return { merge: tools.some((tool) => mergesYamlKeys(tool) && values(tool.cooldown.configFiles).some((files) => files.includes(name))) };
 }
 
 export interface WildcardFact {

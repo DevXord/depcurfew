@@ -8,11 +8,19 @@ export function ecosystemOfTool(tool: Pick<ToolKnowledge, 'ecosystem'>): Ecosyst
   return tool.ecosystem ?? 'npm';
 }
 
-/** The policy with cooldown.exclude and installScripts.allow reduced to the patterns of one ecosystem. */
+/** The policy with cooldown.exclude, installScripts.allow and installScripts.deny reduced to the patterns of one ecosystem. */
 export function policyFor(policy: ResolvedPolicy, ecosystem: Ecosystem): ResolvedPolicy {
   return {
     ...policy,
     ...(policy.cooldown === undefined ? {} : { cooldown: { ...policy.cooldown, exclude: patternsFor(policy.cooldown.exclude, ecosystem) } }),
-    ...(policy.installScripts === undefined ? {} : { installScripts: { ...policy.installScripts, allow: patternsFor(policy.installScripts.allow, ecosystem) } }),
+    ...(policy.installScripts === undefined
+      ? {}
+      : {
+          installScripts: {
+            ...policy.installScripts,
+            allow: patternsFor(policy.installScripts.allow, ecosystem),
+            deny: patternsFor(policy.installScripts.deny, ecosystem),
+          },
+        }),
   };
 }

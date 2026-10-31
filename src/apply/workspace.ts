@@ -1,9 +1,10 @@
 // A buffer of edited files: generators read and edit text with LF line endings, and the original line endings,
 // byte order mark and final newline are restored when the changes are collected. Nothing is written here, except by
 // writeChanges, which writes all changes or none.
-import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, sep } from 'node:path';
+import { closeSync, fchmodSync, fchownSync, lchownSync, lstatSync, mkdirSync, openSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative, sep } from 'node:path';
 import { MAX_FILE_SIZE } from '../detect/repository.ts';
+import { readLimited } from '../read-limited.ts';
 import { isInside } from '../paths.ts';
 import { detectStyle, restoreStyle, toLf, type TextStyle } from './text.ts';
 
@@ -43,17 +44,74 @@ export function fileSystemReason(error: unknown): string {
 /** Decodes UTF-8 strictly: a byte sequence that is not UTF-8 would otherwise become U+FFFD and be written back so. */
 const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
+export interface WorkspaceOptions {
+  /** How messages name a file of the workspace (its root-relative path by default), e.g. ~/.npmrc for apply --user. */
+  name?: (file: string) => string;
+}
+
+/**
+ * Why the workspace could not read a file, for a fix that fits (apply --user): `part` is the part of its path that is
+ * not a directory, named as messages name files; `code` the error code of a file that cannot be read.
+ */
+export type FileProblem =
+  | { kind: 'symlink' | 'too-large' | 'not-utf8' | 'directory' | 'not-a-file' | 'outside' }
+  | { kind: 'unreadable'; code: string | undefined }
+  | { kind: 'not-a-directory'; part: string };
+
 export class Workspace {
   readonly root: string;
   readonly #files = new Map<string, Entry>();
+  readonly #problems = new Map<string, FileProblem>();
+  readonly #name: (file: string) => string;
 
-  constructor(root: string) {
+  constructor(root: string, options: WorkspaceOptions = {}) {
     this.root = realpathSync(root);
+    this.#name = options.name ?? ((file) => file);
+  }
+
+  /** Why a file could not be read, after reading it failed with an error; undefined when it did not. */
+  problem(file: string): FileProblem | undefined {
+    return this.#problems.get(file);
+  }
+
+  /** Records why the file cannot be read and returns the error to throw. */
+  #fail(file: string, problem: FileProblem, message: string): Error {
+    this.#problems.set(file, problem);
+    return new Error(message);
+  }
+
+  /** Why the file cannot be looked at: a part of its path that is a file rather than a directory, or the reason. */
+  #statFailure(file: string, error: unknown): Error {
+    return (
+      ((error as NodeJS.ErrnoException).code === 'ENOTDIR' ? this.#notADirectory(file) : undefined) ??
+      this.#fail(file, { kind: 'unreadable', code: codeOf(error) }, `${this.#name(file)} cannot be read: ${fileSystemReason(error)}`)
+    );
+  }
+
+  /**
+   * A part of the file's path that exists but is not a directory, so the file can be neither read nor created. POSIX
+   * says so with ENOTDIR; Windows reports the file as missing, so a missing file is checked this way too.
+   */
+  #notADirectory(file: string): Error | undefined {
+    const parts = file.split('/');
+    for (let count = 1; count < parts.length; count++) {
+      const part = parts.slice(0, count).join('/');
+      let stats;
+      try {
+        stats = lstatSync(join(this.root, part), { throwIfNoEntry: false });
+      } catch {
+        return undefined;
+      }
+      if (stats === undefined) return undefined;
+      if (!stats.isDirectory() && !stats.isSymbolicLink()) return this.#fail(file, { kind: 'not-a-directory', part: this.#name(part) }, `${this.#name(part)} is not a directory`);
+    }
+    return undefined;
   }
 
   #load(file: string): Entry {
     const cached = this.#files.get(file);
     if (cached !== undefined) return cached;
+    const name = this.#name(file);
     const path = join(this.root, file);
     let parent: string;
     try {
@@ -61,24 +119,37 @@ export class Workspace {
     } catch {
       parent = this.root;
     }
-    if (!isInside(this.root, parent)) throw new Error(`${file} is outside the repository`);
+    if (!isInside(this.root, parent)) throw this.#fail(file, { kind: 'outside' }, `${name} is outside the repository`);
     let bytes: Buffer | undefined;
+    let stats;
     try {
-      const stats = lstatSync(path);
-      if (stats.isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
-      // The same limit as for reading configuration (Repository): a huge file would take as much memory several times over.
-      if (stats.isFile() && stats.size > MAX_FILE_SIZE) throw new Error(`${file} is larger than 1 MiB, so depcurfew does not edit it`);
-      bytes = readFileSync(path);
+      stats = lstatSync(path, { throwIfNoEntry: false });
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === undefined) throw error;
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error(`${file} cannot be read: ${fileSystemReason(error)}`);
+      throw this.#statFailure(file, error);
+    }
+    const symlink = () => this.#fail(file, { kind: 'symlink' }, `${name} is a symlink; depcurfew does not write through symlinks`);
+    if (stats?.isSymbolicLink() === true) throw symlink();
+    if (stats === undefined) {
+      const blocked = this.#notADirectory(file);
+      if (blocked !== undefined) throw blocked;
+    } else {
+      // The same limit as for reading configuration (Repository): a huge file would take as much memory several times
+      // over. readLimited also refuses a FIFO or a device instead of waiting on it, and a symlink put in place meanwhile.
+      const read = readLimited(path, MAX_FILE_SIZE, { noFollow: true });
+      if (read.ok) bytes = read.bytes;
+      else if (read.problem === 'symlink') throw symlink();
+      else if (read.problem === 'too-large') throw this.#fail(file, { kind: 'too-large' }, `${name} is larger than 1 MiB, so depcurfew does not edit it`);
+      else if (read.problem === 'not-a-file') {
+        const directory = stats.isDirectory();
+        throw this.#fail(file, { kind: directory ? 'directory' : 'not-a-file' }, `${name} cannot be read: ${directory ? 'it is a directory' : 'it is not a regular file'}`);
+      } else if (read.problem === 'unreadable') throw this.#fail(file, { kind: 'unreadable', code: read.error.code }, `${name} cannot be read: ${fileSystemReason(read.error)}`);
     }
     let original: string | null = null;
     if (bytes !== undefined) {
       try {
         original = UTF8.decode(bytes);
       } catch {
-        throw new Error(`${file} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`);
+        throw this.#fail(file, { kind: 'not-utf8' }, `${name} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`);
       }
     }
     const entry: Entry = { original, style: detectStyle(original ?? ''), body: toLf(original ?? '') };
@@ -117,6 +188,22 @@ export interface WriteOptions {
   platform?: NodeJS.Platform;
   /** Waits this many milliseconds, synchronously. */
   sleep?: (milliseconds: number) => void;
+  /**
+   * How errors name a file (`file` is relative to `root`, with `/`): the root-relative path by default, ~/.npmrc for
+   * apply --user, whose files are in several roots.
+   */
+  name?: (root: string, file: string) => string;
+  /**
+   * The owner to give a new file or directory at this absolute path, or undefined to leave it to the running user:
+   * apply and init --user, run by root in the home directory of another user, give what they create there to that user.
+   */
+  ownerOfNew?: (path: string) => Owner | undefined;
+}
+
+/** The changes of one workspace root, for writeChangeSets. */
+export interface ChangeSet {
+  root: string;
+  changes: readonly FileChange[];
 }
 
 /**
@@ -171,7 +258,7 @@ export class WriteFailed extends Error {
   readonly unrestored: string[];
   /** For files in `unrestored`: the temporary file, next to it, that holds its earlier text. */
   readonly backups: Readonly<Record<string, string>>;
-  /** Temporary files that could not be removed, relative to the root. */
+  /** Temporary files that could not be removed, named like `file` (relative to the root, or as WriteOptions.name says). */
   readonly leftovers: string[];
   /** Another program holds the file, or (on Windows) it is read-only. */
   readonly busy: boolean;
@@ -204,33 +291,77 @@ export class WriteFailed extends Error {
   }
 }
 
-interface Staged {
+/** The owner a replaced file keeps when depcurfew runs as root, or a new file gets (WriteOptions.ownerOfNew). */
+export interface Owner {
+  uid: number;
+  gid: number;
+}
+
+interface Item {
+  root: string;
   change: FileChange;
   path: string;
+  /** The file as errors name it. */
+  name: string;
+}
+
+interface Staged extends Item {
   temporary: string;
   /** The mode of the file it replaces; undefined for a new file. */
   mode: number | undefined;
+  /**
+   * The owner to set: of the file it replaces when that has to be set (running as root), or for a new file the one
+   * WriteOptions.ownerOfNew names; undefined otherwise.
+   */
+  owner: Owner | undefined;
 }
 
 let counter = 0;
 
 /**
- * Writes `text` to a new temporary file next to `path`; the file is removed if writing fails. It replaces a file of
- * mode `mode`, or with undefined it becomes a new file, whose mode the umask decides (0666 narrowed by it), as for
- * any file a program creates.
+ * The owner to give the file that replaces one with these stats. Only root can give a file away, and only then does
+ * a replaced file change hands: sudo depcurfew apply --user with HOME kept would otherwise leave ~/.npmrc to root, and
+ * the user could no longer read their own configuration. POSIX only; Windows has no such owners.
  */
-function stage(path: string, text: string, mode: number | undefined): string {
+function ownerToKeep(path: string): Owner | undefined {
+  if (process.platform === 'win32' || process.getuid?.() !== 0) return undefined;
+  // The file itself, not what a symlink put in its place since it was read points to.
+  const stats = lstatSync(path, { throwIfNoEntry: false });
+  if (stats === undefined || !stats.isFile()) return undefined;
+  return stats.uid === process.getuid() && stats.gid === process.getgid?.() ? undefined : { uid: stats.uid, gid: stats.gid };
+}
+
+/** The owner WriteOptions.ownerOfNew names for a new file, by the real path of its directory. */
+function newOwner(path: string, ownerOfNew: WriteOptions['ownerOfNew']): Owner | undefined {
+  return ownerOfNew === undefined ? undefined : ownerOfNew(join(realpathSync(dirname(path)), basename(path)));
+}
+
+/**
+ * Writes `text` to a new temporary file next to `path`; the file is removed if writing fails. It replaces a file of
+ * mode `mode` (and owner `owner`, see ownerToKeep), or with undefined it becomes a new file, whose mode the umask
+ * decides (0666 narrowed by it), as for any file a program creates, and whose owner is `owner` when given.
+ */
+function stage(path: string, text: string, mode: number | undefined, owner?: Owner): string {
   counter += 1;
   const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}-${counter}`;
+  let descriptor: number | undefined;
   try {
     // Created with the final mode (the umask can only narrow it), so a file such as .npmrc with a token in it is
-    // never readable by others, not even for a moment; for a file it replaces, chmod then sets that mode exactly.
-    writeFileSync(temporary, text, { flag: 'wx', mode: mode ?? 0o666 });
-    if (mode !== undefined) chmodSync(temporary, mode);
+    // never readable by others, not even for a moment; for a file it replaces, chmod then sets that mode exactly,
+    // after chown, which may clear the set-user-ID and set-group-ID bits. Both work on the open file: by its name,
+    // root would follow a symlink that the owner of the directory put there meanwhile, and give away another file.
+    descriptor = openSync(temporary, 'wx', mode ?? 0o666);
+    writeFileSync(descriptor, text);
+    if (owner !== undefined) fchownSync(descriptor, owner.uid, owner.gid);
+    if (mode !== undefined) fchmodSync(descriptor, mode);
   } catch (error) {
+    if (descriptor !== undefined) closeSync(descriptor);
+    descriptor = undefined;
     // 'wx' fails when the name exists: that file is not ours.
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') rmSync(temporary, { force: true });
     throw error;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
   }
   return temporary;
 }
@@ -247,6 +378,43 @@ function missingTop(directory: string): string | undefined {
     if (dirname(current) === current) break;
   }
   return top;
+}
+
+/**
+ * Creates `directory` and the directories above it that are missing, one level at a time, and gives each one it
+ * creates to the owner `ownerOfNew` names for its real path, so that a directory a symlink led elsewhere (out of the
+ * home directory) is not given away. Each is checked with lstat after mkdir: a directory that root just made, not a
+ * symlink that the owner of the parent put there meanwhile; lchown does not follow a symlink either, so a swap between
+ * the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p.
+ */
+function makeDirectories(directory: string, ownerOfNew: WriteOptions['ownerOfNew']): void {
+  if (ownerOfNew === undefined) {
+    mkdirSync(directory, { recursive: true });
+    return;
+  }
+  const missing: string[] = [];
+  for (let current = directory; lstatSync(current, { throwIfNoEntry: false }) === undefined; current = dirname(current)) {
+    missing.unshift(current);
+    if (dirname(current) === current) break;
+  }
+  const changed = (level: string) => Object.assign(new Error(`${level} changed while it was created`), { code: 'EEXIST' });
+  for (const level of missing) {
+    try {
+      mkdirSync(level);
+    } catch (error) {
+      // Made by another program meanwhile: used as mkdir -p would, but not given away, as it is not ours.
+      if (codeOf(error) === 'EEXIST' && lstatSync(level).isDirectory()) continue;
+      throw error;
+    }
+    const made = lstatSync(level);
+    const uid = process.getuid?.();
+    if (!made.isDirectory() || (uid !== undefined && made.uid !== uid)) throw changed(level);
+    const owner = ownerOfNew(realpathSync(level));
+    if (owner === undefined) continue;
+    lchownSync(level, owner.uid, owner.gid);
+    const given = lstatSync(level);
+    if (!given.isDirectory() || given.ino !== made.ino || given.dev !== made.dev) throw changed(level);
+  }
 }
 
 /** Removes the directories apply created (`created`, the topmost of each) for `paths`, deepest first, if empty. */
@@ -270,52 +438,62 @@ function removeDirectories(created: readonly string[], paths: readonly string[])
 }
 
 /**
- * Writes each changed file through a temporary file and a rename, keeping the permissions of existing files. All
- * files or none: every temporary file is written first and only then are they renamed; if anything fails, the
- * temporary files are removed and the files already replaced get their old text back, and WriteFailed is thrown. On
- * Windows, renames and removals are tried again for a few seconds while another program holds the file.
+ * Writes each changed file through a temporary file and a rename, keeping the permissions of existing files (and,
+ * when running as root, their owner). All files or none: every temporary file is written first and only then are they
+ * renamed; if anything fails, the temporary files are removed and the files already replaced get their old text back,
+ * and WriteFailed is thrown. On Windows, renames and removals are tried again for a few seconds while another program
+ * holds the file.
  */
 export function writeChanges(root: string, changes: readonly FileChange[], options: WriteOptions = {}): void {
+  writeChangeSets([{ root, changes }], options);
+}
+
+/** writeChanges for the changes of several workspace roots at once (apply --user): all files of all roots, or none. */
+export function writeChangeSets(sets: readonly ChangeSet[], options: WriteOptions = {}): void {
+  const nameOf = options.name ?? ((_root: string, file: string) => file);
+  const items: Item[] = sets.flatMap((set) => set.changes.map((change) => ({ root: set.root, change, path: join(set.root, change.file), name: nameOf(set.root, change.file) })));
+  const paths = items.map((item) => item.path);
   const staged: Staged[] = [];
   const created: string[] = [];
   const leftovers: string[] = [];
-  const shown = (path: string) => relative(root, path).split(sep).join('/');
+  const shown = (item: Item, path: string) => nameOf(item.root, relative(item.root, path).split(sep).join('/'));
   /** Removes a temporary file; one that stays is named in the error. */
-  const remove = (temporary: string) => {
+  const remove = (entry: Staged) => {
     try {
-      retried(() => rmSync(temporary, { force: true }), options);
+      retried(() => rmSync(entry.temporary, { force: true }), options);
     } catch {
-      leftovers.push(shown(temporary));
+      leftovers.push(shown(entry, entry.temporary));
     }
   };
   const details = () => ({ ...(options.platform === undefined ? {} : { platform: options.platform }), leftovers });
-  let current = changes[0]?.file ?? '';
+  let current = items[0]?.name ?? '';
   try {
-    for (const change of changes) {
-      current = change.file;
-      const path = join(root, change.file);
-      const top = missingTop(dirname(path));
+    for (const item of items) {
+      current = item.name;
+      const top = missingTop(dirname(item.path));
       // Recorded first, so that the directories are removed even when mkdirSync creates some of them and then fails.
       if (top !== undefined) created.push(top);
-      mkdirSync(dirname(path), { recursive: true });
-      const mode = change.before === null ? undefined : statSync(path).mode & 0o7777;
-      staged.push({ change, path, temporary: stage(path, change.after, mode), mode });
+      makeDirectories(dirname(item.path), options.ownerOfNew);
+      const stats = item.change.before === null ? undefined : statSync(item.path);
+      const mode = stats === undefined ? undefined : stats.mode & 0o7777;
+      const owner = stats === undefined ? newOwner(item.path, options.ownerOfNew) : ownerToKeep(item.path);
+      staged.push({ ...item, temporary: stage(item.path, item.change.after, mode, owner), mode, owner });
     }
   } catch (error) {
-    for (const entry of staged) remove(entry.temporary);
-    removeDirectories(created, changes.map((change) => join(root, change.file)));
+    for (const entry of staged) remove(entry);
+    removeDirectories(created, paths);
     throw new WriteFailed(current, error, [], details());
   }
 
   const renamed: Staged[] = [];
   try {
     for (const entry of staged) {
-      current = entry.change.file;
+      current = entry.name;
       retried(() => renameSync(entry.temporary, entry.path), options);
       renamed.push(entry);
     }
   } catch (error) {
-    for (const entry of staged.slice(renamed.length)) remove(entry.temporary);
+    for (const entry of staged.slice(renamed.length)) remove(entry);
     const unrestored: string[] = [];
     const backups: Record<string, string> = {};
     for (const entry of renamed.reverse()) {
@@ -323,22 +501,22 @@ export function writeChanges(root: string, changes: readonly FileChange[], optio
         try {
           retried(() => rmSync(entry.path, { force: true }), options);
         } catch {
-          unrestored.push(entry.change.file);
+          unrestored.push(entry.name);
         }
         continue;
       }
       let backup: string | undefined;
       try {
-        backup = stage(entry.path, entry.change.before, entry.mode);
+        backup = stage(entry.path, entry.change.before, entry.mode, entry.owner);
         const from = backup;
         retried(() => renameSync(from, entry.path), options);
       } catch {
-        unrestored.push(entry.change.file);
+        unrestored.push(entry.name);
         // The temporary file with the earlier text stays, so the user can put it back.
-        if (backup !== undefined) backups[entry.change.file] = shown(backup);
+        if (backup !== undefined) backups[entry.name] = shown(entry, backup);
       }
     }
-    removeDirectories(created, changes.map((change) => join(root, change.file)));
+    removeDirectories(created, paths);
     throw new WriteFailed(current, error, unrestored.reverse(), { ...details(), backups });
   }
 }

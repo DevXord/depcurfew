@@ -10,6 +10,7 @@ import { autoTargets } from '../apply/targets.ts';
 import { managerName, toolName } from './describe.ts';
 import { paint, PLAIN, type Paint } from '../color.ts';
 import { printable } from '../printable.ts';
+import { safeJson } from '../json-safe.ts';
 import { policyInputError, projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
@@ -104,7 +105,10 @@ function projectLines(project: Detection): string[] {
     const packages = project.workspaces.packages.length === 0 ? 'no packages' : project.workspaces.packages.join(', ');
     lines.push(`Workspaces: ${packages} (declared in ${project.workspaces.declarations.map((item) => item.file).join(', ')})`);
   }
-  lines.push(`.npmrc files: ${project.npmrcFiles.length === 0 ? 'none' : project.npmrcFiles.join(', ')}`);
+  // An .npmrc that exists but is not a regular file is not one depcurfew read, but it is not missing either.
+  const special = project.warnings.filter((warning) => warning.code === 'not-a-regular-file').flatMap((warning) => warning.files);
+  const npmrc = [...project.npmrcFiles, ...special.map((file) => `${file} (not a regular file, not read)`)];
+  lines.push(`.npmrc files: ${npmrc.length === 0 ? 'none' : npmrc.join(', ')}`);
   lines.push(`GitHub Actions workflows: ${project.workflows.length === 0 ? 'none' : project.workflows.join(', ')}`);
   if (project.warnings.length === 0) lines.push('Warnings: none');
   else lines.push('Warnings:', ...project.warnings.map((warning) => `  ${warning.code}: ${warning.message}`));
@@ -149,7 +153,7 @@ export function renderReport(report: ExplainReport, colors: Paint = PLAIN): stri
 export function explain(directory: string | undefined, json: boolean, io: CliIo): number {
   const target = projectDirectory(directory, 'explain');
   if (!target.ok) {
-    if (json) io.stdout(`${JSON.stringify({ schemaVersion: 1, project: null, policy: null, notices: [], errors: [target.error] }, null, 2)}\n`);
+    if (json) io.stdout(`${safeJson({ schemaVersion: 1, project: null, policy: null, notices: [], errors: [target.error] }, 2)}\n`);
     else reportInputError(target.error, io);
     return EXIT_USAGE;
   }
@@ -157,7 +161,7 @@ export function explain(directory: string | undefined, json: boolean, io: CliIo)
   const notices = target.notice === undefined ? [] : [{ message: target.notice }];
   if (json) {
     const { errors, ...rest } = report;
-    io.stdout(`${JSON.stringify({ ...rest, notices, errors }, null, 2)}\n`);
+    io.stdout(`${safeJson({ ...rest, notices, errors }, 2)}\n`);
   } else {
     for (const notice of notices) io.stderr(`note: ${notice.message}\n`);
     io.stdout(renderReport(report, paint(io.colors?.stdout)));

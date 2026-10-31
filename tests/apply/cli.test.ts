@@ -146,7 +146,7 @@ describe('depcurfew apply', () => {
     const result = await exec('apply', scratch('npm-existing-config'));
     expect(result.code).toBe(EXIT_OK);
     expect(result.stderr).toContain(
-      'warning: allowScripts in package.json lets sharp run install scripts, but depcurfew.json does not allow it; depcurfew apply does not remove entries it did not write (allow-list-entry-outside-policy)\n  fix: Remove sharp from allowScripts by hand, or add sharp to installScripts.allow in depcurfew.json\n',
+      'warning: allowScripts in package.json (line 6) lets sharp run install scripts, but depcurfew.json does not allow it; depcurfew apply does not remove entries it did not write (allow-list-entry-outside-policy)\n  fix: Remove sharp from allowScripts by hand, or add sharp to installScripts.allow in depcurfew.json\n',
     );
   });
 
@@ -257,7 +257,7 @@ describe('depcurfew apply --json', () => {
     expect(snapshot(directory)).toEqual(before);
     const report = parse(result.stdout);
     expect(report).toMatchObject({ dryRun: true, written: false });
-    expect(report.warnings).toContainEqual(expect.objectContaining({ code: 'allow-list-entry-outside-policy', tool: 'npm', location: { file: 'package.json' } }));
+    expect(report.warnings).toContainEqual(expect.objectContaining({ code: 'allow-list-entry-outside-policy', tool: 'npm', location: { file: 'package.json', line: 6 } }));
     const patched = applyPatch(directory, report.changes.map((change) => change.diff).join(''));
     for (const [file, text] of Object.entries(patched)) {
       expect(text, file).toBe(readFileSync(join(EXPECTED, 'npm-existing-config/after', file), 'utf8'));
@@ -272,7 +272,7 @@ describe('depcurfew apply --json', () => {
     const report = parse(result.stdout);
     expect(report).toMatchObject({ written: false, changes: [], summary: { changes: 0, errors: 1 } });
     expect(report.errors).toEqual([
-      expect.objectContaining({ code: 'cannot-edit', level: 'error', tool: 'npm', location: { file: 'package.json' }, fix: 'Fix what the message describes, then run depcurfew apply again; or add the settings by hand' }),
+      expect.objectContaining({ code: 'cannot-edit', level: 'error', tool: 'npm', location: { file: 'package.json', line: 1 }, fix: 'Fix what the message describes, then run depcurfew apply again; or add the settings by hand' }),
     ]);
     expect(String(report.errors[0]?.['message'])).toMatch(/^npm: cannot edit package\.json: /u);
     expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
@@ -285,7 +285,7 @@ describe('depcurfew apply --json', () => {
     expect(result.code).toBe(EXIT_FAILURE);
     const report = parse(result.stdout);
     expect(report).toMatchObject({ written: false, changes: [] });
-    expect(report.errors).toEqual([expect.objectContaining({ code: 'cannot-edit', tool: 'uv', location: { file: 'pyproject.toml' } })]);
+    expect(report.errors).toEqual([expect.objectContaining({ code: 'cannot-edit', tool: 'uv', location: { file: 'pyproject.toml', line: 1 } })]);
     expect(String(report.errors[0]?.['message'])).toContain('uv: cannot edit pyproject.toml: invalid TOML at line 1');
     expect(readFileSync(join(directory, 'pyproject.toml'), 'utf8')).toBe('[project\nname = "app"\n');
   });

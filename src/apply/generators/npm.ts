@@ -3,7 +3,7 @@ import { iniEntries } from '../../doctor/settings.ts';
 import { hasManagedLines } from '../block.ts';
 import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { formatVersion } from '../version.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions, scriptsDefault } from './common.ts';
+import { allowedNames, cooldownValue, eachSource, exclusions, scriptsDefault, writeDenyList } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -82,6 +82,7 @@ export const npm: ManagerGenerator = (context) => {
           for (const name of allowedNames(context, setting)) if (json.get([setting, name]) !== true) json.set([setting, name], true);
         }
       }
+      writeDenyList(context);
     }
   }
 

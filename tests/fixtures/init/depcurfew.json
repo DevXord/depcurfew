@@ -8,7 +8,8 @@
   },
   "installScripts": {
     "default": "deny",
-    "allow": []
+    "allow": [],
+    "deny": []
   },
   "sources": {
     "git": "deny",

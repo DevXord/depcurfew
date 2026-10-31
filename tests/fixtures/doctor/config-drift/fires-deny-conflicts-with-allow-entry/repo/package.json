@@ -1,0 +1,7 @@
+{
+  "name": "app",
+  "packageManager": "npm@11.21.1",
+  "allowScripts": {
+    "fsevents": true
+  }
+}

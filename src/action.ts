@@ -8,7 +8,9 @@ import { randomUUID } from 'node:crypto';
 import { values } from './apply/facts.ts';
 import { PolicyError } from './apply/index.ts';
 import { writeChanges } from './apply/workspace.ts';
-import { annotationCommands, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
+import { checkRunName, createCheckRun, type CheckRunContent, type CheckRunFetch } from './action-check-run.ts';
+import { annotationCommands, cleanNotice, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
+import { resultCounts } from './doctor/render.ts';
 import { problemSummary } from './doctor/github.ts';
 import { lineReader } from './doctor/sarif.ts';
 import { environment } from './knowledge/environment.ts';
@@ -29,6 +31,8 @@ export interface ActionIo {
   log(text: string): void;
   /** Appends Markdown to the job summary. */
   summary(markdown: string): void;
+  /** Receives the result for the depcurfew doctor check run, which main creates after the step (input check-run). */
+  checkRun?(content: CheckRunContent): void;
 }
 
 function input(env: NodeJS.ProcessEnv, name: string, fallback: string): string {
@@ -51,6 +55,15 @@ function relativeToWorkspace(report: DoctorReport, prefix: string): DoctorReport
     ...report,
     findings: report.findings.map((finding) => ({ ...finding, location: { ...finding.location, file: move(finding.location.file) } })),
     notices: report.notices.map((notice) => (notice.file === undefined ? notice : { ...notice, file: move(notice.file) })),
+    ...(report.checked === undefined
+      ? {}
+      : {
+          checked: {
+            ...report.checked,
+            files: report.checked.files.map(move),
+            tools: report.checked.tools.map((tool) => (tool.versionFrom === undefined ? tool : { ...tool, versionFrom: move(tool.versionFrom) })),
+          },
+        }),
   };
 }
 
@@ -98,10 +111,14 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   const outputs: ActionOutputs = { 'sarif-file': '', errors: 0, warnings: 0, notes: 0, failure: '' };
   const summary = enabled(env, 'job-summary');
   // Messages carry paths and text from the repository: control characters are shown as text in the log.
+  const checkRun = enabled(env, 'check-run') ? io.checkRun : undefined;
+  const failedCheck = (message: string, directory: string) =>
+    checkRun?.({ name: checkRunName(directory), title: 'depcurfew could not check the repository', summary: failureSummary(message), conclusion: 'failure' });
   const fail = (message: string): ActionOutputs => {
     outputs.failure = message;
     io.log(untrusted(`depcurfew: ${printable(message)}\n`));
     if (summary) io.summary(failureSummary(message));
+    failedCheck(message, '');
     return outputs;
   };
   const directory = scannedDirectory(workspace, input(env, 'directory', '.'));
@@ -116,6 +133,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
     outputs.failure = [error.message, ...error.issues].join('; ');
     io.log(untrusted(`depcurfew: ${printable(error.text)}\n${error.issues.map((issue) => `  ${printable(issue)}\n`).join('')}`));
     if (summary) io.summary(failureSummary(outputs.failure));
+    failedCheck(outputs.failure, prefix);
     return outputs;
   }
   io.log(untrusted(renderText(report, RULES)));
@@ -127,11 +145,23 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   if (enabled(env, 'annotations')) {
     const annotations = annotationCommands(moved, RULES);
     if (annotations.lines.length > 0) io.log(`${annotations.lines.join('\n')}\n`);
+    const clean = cleanNotice(moved);
+    if (clean !== undefined) io.log(`${clean}\n`);
     if (annotations.omitted > 0) {
       io.log(`GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? 'finding is' : 'findings are'} in the report above.\n`);
     }
   }
   if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
+  if (checkRun !== undefined) {
+    const failOnError = enabled(env, 'fail-on-error');
+    checkRun({
+      name: checkRunName(prefix),
+      title: checkRunTitle(moved),
+      // fitSummary cuts it to the limit of the API; the job summary has its own, smaller one.
+      summary: jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER),
+      conclusion: counts.error > 0 ? (failOnError ? 'failure' : 'neutral') : counts.warning > 0 ? 'neutral' : 'success',
+    });
+  }
   const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
   const shownSarif = isInside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join('/') : sarifFile;
   // doctor did run, so a SARIF file that cannot be written is a failure below the findings, not instead of them.
@@ -153,6 +183,19 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   return { ...outputs, 'sarif-file': shownSarif };
 }
 
+/** The title of the check run: the result and the count of checks, e.g. "No problems found (13 checks: 13 passed)". */
+function checkRunTitle(report: DoctorReport): string {
+  const counts = countLevels(report.findings);
+  const result =
+    report.findings.length === 0
+      ? 'No problems found'
+      : (['error', 'warning', 'note'] as const)
+          .filter((level) => counts[level] > 0)
+          .map((level) => `${counts[level]} ${counts[level] === 1 ? level : `${level}s`}`)
+          .join(', ');
+  return report.checked === undefined ? result : `${result} (${resultCounts(report.checked.rules)})`;
+}
+
 /**
  * Writes step outputs in the format of the GITHUB_OUTPUT file, each on one line. action.yml prints the failure output
  * in the log, so its other control characters are shown as text too.
@@ -163,15 +206,24 @@ export function formatOutputs(outputs: ActionOutputs): string {
     .join('');
 }
 
-export function main(env: NodeJS.ProcessEnv = process.env): void {
+export async function main(env: NodeJS.ProcessEnv = process.env, fetchImpl: CheckRunFetch = (url, init) => fetch(url, init)): Promise<void> {
   const summaryVariable = values(environment.githubActions.stepSummary)[0]?.variable;
   const summaryFile = summaryVariable === undefined ? undefined : env[summaryVariable];
+  let checkRun: CheckRunContent | undefined;
   const outputs = runAction(env, {
     log: (text) => process.stdout.write(text),
     summary: (markdown) => {
       if (summaryFile !== undefined && summaryFile !== '') appendFileSync(summaryFile, markdown);
     },
+    checkRun: (content) => {
+      checkRun = content;
+    },
   });
   const file = env['GITHUB_OUTPUT'];
   if (file !== undefined && file !== '') appendFileSync(file, formatOutputs(outputs));
+  // After the outputs, so that a slow API cannot keep them from the next steps.
+  if (checkRun !== undefined) {
+    const token = input(env, 'github-token', '');
+    process.stdout.write(token === '' ? 'depcurfew: the depcurfew doctor check was not added: the input github-token is empty\n' : await createCheckRun(env, token, checkRun, fetchImpl));
+  }
 }

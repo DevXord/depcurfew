@@ -1,9 +1,11 @@
 // pnpm: settings in pnpm-workspace.yaml (read in every version that has them, also in single-package projects);
 // the allow-list is allowBuilds since 10.26.0 and onlyBuiltDependencies before.
 import { POLICY_FILE } from '../../policy/defaults.ts';
-import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
+import { pnpmNpmrcAllowsAllBuilds } from '../../doctor/effective.ts';
+import { yamlSetting } from '../../doctor/settings.ts';
+import { extraOf, firstFile, isRecord, isSwitch, mergesYamlKeys, settingOf, sinceOf, switchIsOff } from '../facts.ts';
 import { isSecurityExclusionFormat, restoreEntries, securityEntries, withoutComments, type KeptEntry } from '../renovate-exclusions.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions, sameList, scriptsDefault, type SourceKind } from './common.ts';
+import { allowedInFiles, allowedNames, cooldownValue, deniedNames, eachSource, exclusions, sameList, scriptsDefault, writeDenyList, type SourceKind } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 import { formatVersion } from '../version.ts';
 
@@ -15,6 +17,23 @@ interface LegacyAllowList {
 
 const isLegacy = (value: unknown): value is LegacyAllowList =>
   isRecord(value) && typeof value['since'] === 'string' && typeof value['workspaceFileSince'] === 'string' && typeof value['removedIn'] === 'string';
+
+const isIgnoredList = (value: unknown): value is { since: string; workspaceFileSince: string } =>
+  isRecord(value) && typeof value['since'] === 'string' && typeof value['workspaceFileSince'] === 'string';
+
+/**
+ * Adds names to a list setting of pnpm 10 (onlyBuiltDependencies, ignoredBuiltDependencies): in pnpm-workspace.yaml from
+ * the version that reads it there, else in the "pnpm" field of package.json. Entries already there stay.
+ */
+function mergeList(context: Context, workspaceFileSince: string, setting: string, names: readonly string[]): void {
+  const inWorkspaceFile = context.atLeast(workspaceFileSince);
+  const target = inWorkspaceFile ? context.yaml(firstFile(context.tool.cooldown.configFiles) ?? 'pnpm-workspace.yaml') : context.json('package.json');
+  const path = inWorkspaceFile ? [setting] : ['pnpm', setting];
+  const current = target.get(path);
+  const list = Array.isArray(current) ? [...(current as unknown[])] : [];
+  const merged = [...list, ...names.filter((name) => !list.includes(name))];
+  if (!sameList(current, merged)) target.set(path, merged);
+}
 
 /** The same strings, in any order. */
 function sameMembers(current: unknown, wanted: readonly string[]): boolean {
@@ -94,10 +113,19 @@ export const pnpm: ManagerGenerator = (context) => {
           fix: `Require pnpm ${legacy.since} or later, which reads pnpm.onlyBuiltDependencies in package.json, or ${defaults.changesIn ?? 'a newer version'}, which blocks dependency install scripts by default`,
         });
       }
-      if (context.atLeast(allowAll.since) && yaml.get([allowAll.setting]) === allowAll.value) {
+      // pnpm tests the switch for truth, so every value but the ones it reads as off allows every build: "false"
+      // and yes too, also when the key comes in through a merge key (<<), which the value written here overrides.
+      const current = yaml.get([allowAll.setting]);
+      if (context.atLeast(allowAll.since) && !switchIsOff(allowAll, current)) {
+        const found = context.exists(file) ? yamlSetting(context.read(file), [allowAll.setting], { merge: mergesYamlKeys(tool) }) : undefined;
+        const written = `${allowAll.setting}: ${JSON.stringify(current)}`;
+        const where = found === undefined ? '' : ` (line ${found.line}${found.mergedAt === undefined ? '' : `, through the merge key << at line ${found.mergedAt}`})`;
+        const off = (allowAll.off ?? [false]).map((value) => JSON.stringify(value));
+        const reading = current === allowAll.value ? '' : ` (${context.name} reads every value but ${[off.slice(0, -1).join(', '), off.at(-1)].filter(Boolean).join(' and ')} as true)`;
         context.warn({
           code: 'allow-all-replaced',
-          message: `${context.name}: ${allowAll.setting} allowed every build script; set to false because the policy denies install scripts`,
+          ...(found === undefined ? {} : { location: { file, line: found.line } }),
+          message: `${context.name}: ${written} in ${file}${where} allowed every build script${reading}; set to false because the policy denies install scripts`,
           fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`,
         });
         yaml.set([allowAll.setting], false);
@@ -107,17 +135,32 @@ export const pnpm: ManagerGenerator = (context) => {
       const wanted = policy.installScripts.allow.length > 0;
       if (context.atLeast(since)) {
         if (wanted) for (const name of allowedNames(context, setting)) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
+        writeDenyList(context);
       } else {
         if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, 'onlyBuiltDependencies'))) {
-          const names = allowedNames(context, 'onlyBuiltDependencies');
-          const inWorkspaceFile = context.atLeast(legacy.workspaceFileSince);
-          const target = inWorkspaceFile ? yaml : context.json('package.json');
-          const path = inWorkspaceFile ? ['onlyBuiltDependencies'] : ['pnpm', 'onlyBuiltDependencies'];
-          const current = target.get(path);
-          const list = Array.isArray(current) ? [...(current as unknown[])] : [];
-          const merged = [...list, ...names.filter((name) => !list.includes(name))];
-          if (!sameList(current, merged)) target.set(path, merged);
+          mergeList(context, legacy.workspaceFileSince, 'onlyBuiltDependencies', allowedNames(context, 'onlyBuiltDependencies'));
         }
+        // Before allowBuilds, ignoredBuiltDependencies records the denials (the 10.26.0 changelog calls allowBuilds
+        // false the same thing); a package an allow-list entry lets build is left alone (decision D-088).
+        const ignored = extraOf(tool, 'ignoredBuiltDependencies', isIgnoredList);
+        if (policy.installScripts.deny.length > 0 && context.supports(ignored.since, 'ignoredBuiltDependencies')) {
+          const allowedByFile = allowedInFiles(context);
+          const names = deniedNames(context, 'ignoredBuiltDependencies').filter((name) => !allowedByFile.has(name));
+          if (names.length > 0) mergeList(context, ignored.workspaceFileSince, 'ignoredBuiltDependencies', names);
+        }
+      }
+      // pnpm 10 also takes dangerously-allow-all-builds from the root .npmrc while pnpm-workspace.yaml has no build
+      // settings (extra.npmrcBuildSettings), checked after the lists above are written. The line stays, as every setting
+      // apply does not manage; the switch is turned off in pnpm-workspace.yaml, which pnpm reads over .npmrc.
+      const fromNpmrc = pnpmNpmrcAllowsAllBuilds(tool, context.version, (name) => (context.exists(name) ? context.read(name) : undefined));
+      if (fromNpmrc !== undefined) {
+        context.warn({
+          code: 'allow-all-replaced',
+          location: { file: '.npmrc', line: fromNpmrc.line },
+          message: `${context.name}: ${fromNpmrc.key}=${fromNpmrc.value} in .npmrc (line ${fromNpmrc.line}) allowed every build script, because ${file} has no build settings that override it; set ${allowAll.setting}: false in ${file}, which wins, because the policy denies install scripts`,
+          fix: `Remove the ${fromNpmrc.key} line from .npmrc; add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`,
+        });
+        yaml.set([allowAll.setting], false);
       }
     }
   }

@@ -72,6 +72,31 @@ describe('depcurfew check on pypi: packages', () => {
     });
   });
 
+  it('warns, without an error, that a package denied on purpose and without wheels cannot be installed while building is blocked', async () => {
+    const denied = policy({ cooldown: { minimum: '14d' }, installScripts: { default: 'deny', deny: ['pypi:PyCrypto'] } });
+    const report = await checkSpec('pypi:pycrypto', options({ policy: denied }));
+    expect(report.findings).toEqual([
+      {
+        level: 'warning',
+        code: 'install-scripts',
+        message:
+          'pypi:pycrypto 2.6.1 has no wheel, only a source distribution, and depcurfew.json denies building it (installScripts.deny), so installing it fails where building from source is blocked',
+        fix: 'Pick a version or package with wheels, or move pypi:pycrypto from installScripts.deny to installScripts.allow in depcurfew.json after reviewing its build',
+      },
+    ]);
+    expect((await checkSpec('pypi:demo', options({ policy: denied, fetch: page(WITH_PRERELEASE) }))).findings).toEqual([]);
+    const forced = await checkSpec({ spec: 'pypi:demo', buildFromSource: true }, options({ policy: policy({ installScripts: { default: 'deny', deny: ['pypi:demo'] } }), fetch: page(WITH_PRERELEASE) }));
+    expect(forced.findings).toEqual([
+      {
+        level: 'error',
+        code: 'install-scripts',
+        message:
+          'pypi:demo 1.0 is built from its source distribution, because the command refuses wheels (no-binary), and runs its build code, which depcurfew.json denies (installScripts.deny)',
+        fix: 'Install it from a wheel (leave out --no-binary), or move pypi:demo from installScripts.deny to installScripts.allow in depcurfew.json after reviewing its build',
+      },
+    ]);
+  });
+
   it('passes a build the policy allows', async () => {
     const allowed = policy({ cooldown: { minimum: '14d' }, installScripts: { default: 'deny', allow: ['pypi:pycrypto'] } });
     expect((await checkSpec('pypi:pycrypto', options({ policy: allowed }))).findings).toEqual([]);

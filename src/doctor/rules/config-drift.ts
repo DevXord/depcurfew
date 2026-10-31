@@ -5,10 +5,15 @@ import { BLOCK_END, isBlockStart, SUPERSEDED, TURNED_OFF } from '../../apply/blo
 import { YAML_MARKER } from '../../apply/yaml-edit.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
+import type { ApplyReport } from '../../apply/index.ts';
 import { pinnedVersion } from '../../apply/version.ts';
-import { allowEntries, matchesPattern } from '../allow-lists.ts';
+import { yamlOptionsFor } from '../../apply/facts.ts';
+import { parseJsonc } from '../../detect/jsonc.ts';
+import { parseYaml } from '../../yaml-parse.ts';
+import { denyConflictText, remainingConflicts, type TextSource } from '../allow-lists.ts';
 import { latestVersion } from '../effective.ts';
 import { plannedApply } from '../plan.ts';
+import { yamlSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
 function clean(line: string): string {
@@ -30,6 +35,8 @@ interface Difference {
   line: number;
   removed: string[];
   added: string[];
+  /** Lines apply comments out further down, outside the first difference (an .npmrc line set by hand). */
+  commentedLater: string[];
 }
 
 /**
@@ -54,7 +61,39 @@ function firstDifference(before: string, after: string): Difference {
   const commaOnly = new Set(removed.filter((text) => added.some((other) => withoutComma(other) === withoutComma(text))).map(withoutComma));
   removed = removed.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
   added = added.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
-  return { line: Math.min(line, Math.max(lines(before).length, 1)), removed, added };
+  const commentedLater = operations
+    .slice(index)
+    .filter((operation) => operation.kind === 'insert' && isCommentedOut(clean(operation.line)))
+    .map((operation) => clean(operation.line));
+  return { line: Math.min(line, Math.max(lines(before).length, 1)), removed, added, commentedLater };
+}
+
+function isCommentedOut(line: string): boolean {
+  return line.startsWith(SUPERSEDED) || line.startsWith(TURNED_OFF);
+}
+
+/** The structured data of a JSON or YAML file as the tool reads it, or undefined for other files and broken ones. */
+function dataOf(file: string, text: string): unknown {
+  try {
+    if (/\.jsonc?$/u.test(file)) return parseJsonc(text);
+    if (/\.ya?ml$/u.test(file)) return parseYaml(text, yamlOptionsFor(file));
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** The first key path, depth first, that the data after apply has and the data before lacks. */
+function firstMissing(before: unknown, after: unknown, path: readonly string[] = []): string[] | undefined {
+  if (!isObject(after) || !isObject(before)) return undefined;
+  for (const [key, value] of Object.entries(after)) {
+    if (!Object.hasOwn(before, key)) return [...path, key];
+    const deeper = firstMissing(before[key], value, [...path, key]);
+    if (deeper !== undefined) return deeper;
+  }
+  return undefined;
 }
 
 function code(text: string): string {
@@ -70,37 +109,120 @@ function addedText(added: readonly string[]): string {
   return `${code(first)} (and ${added.length - 1} more ${added.length === 2 ? 'line' : 'lines'})`;
 }
 
+/** Lines as a list for a message: `a`, `b` and `c`. */
+function codeList(texts: readonly string[]): string {
+  const quoted = texts.map(code);
+  return quoted.length <= 1 ? (quoted[0] ?? '') : `${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1) ?? ''}`;
+}
+
+/** A YAML `key: value` line at the top level of the map: its key and value as the tool reads them. */
+function topLevelYaml(file: string, line: string): { key: string; value: unknown } | undefined {
+  if (!/\.ya?ml$/u.test(file) || /^\s/u.test(line)) return undefined;
+  const data = dataOf(file, line);
+  if (!isObject(data)) return undefined;
+  const [entry, ...rest] = Object.entries(data);
+  return entry === undefined || rest.length > 0 ? undefined : { key: entry[0], value: entry[1] };
+}
+
+/** Why a value that reads like the right one is not: quotes make "false" a string. */
+function quotedNote(file: string, removed: string, added: string): string {
+  const old = topLevelYaml(file, removed) ?? (/\.jsonc?$/u.test(file) ? jsonPair(removed) : undefined);
+  const wanted = topLevelYaml(file, added) ?? (/\.jsonc?$/u.test(file) ? jsonPair(added) : undefined);
+  if (old === undefined || wanted === undefined || old.key !== wanted.key || typeof old.value !== 'string' || typeof wanted.value === 'string') return '';
+  return old.value === String(wanted.value) ? ` (in quotes it is a string, not ${JSON.stringify(wanted.value)})` : '';
+}
+
+/** A JSON line `"key": value` as a key and value. */
+function jsonPair(line: string): { key: string; value: unknown } | undefined {
+  try {
+    const data = JSON.parse(`{${withoutComma(line)}}`) as unknown;
+    const [entry, ...rest] = isObject(data) ? Object.entries(data) : [];
+    return entry === undefined || rest.length > 0 ? undefined : { key: entry[0], value: entry[1] };
+  } catch {
+    return undefined;
+  }
+}
+
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
-function describe(difference: Difference): string {
-  const commented = difference.added.find((text) => text.startsWith(SUPERSEDED) || text.startsWith(TURNED_OFF));
-  if (commented !== undefined) {
-    if (commented.startsWith(SUPERSEDED)) {
-      return `${code(commented.slice(SUPERSEDED.length))} is set outside the block that depcurfew manages; depcurfew apply comments it out, and the block sets what ${POLICY_FILE} requires`;
+function describe(file: string, difference: Difference, before: string, after: string): string {
+  const commented = difference.added.filter(isCommentedOut);
+  if (commented.length > 0) {
+    // Every line apply comments out, also those further down: each one is a setting that does not hold.
+    const all = [...commented, ...difference.commentedLater.filter((text) => !commented.includes(text))];
+    const superseded = all.filter((text) => text.startsWith(SUPERSEDED)).map((text) => text.slice(SUPERSEDED.length));
+    const turnedOff = all.filter((text) => text.startsWith(TURNED_OFF)).map((text) => text.slice(TURNED_OFF.length));
+    const parts: string[] = [];
+    if (superseded.length > 0) {
+      const one = superseded.length === 1;
+      parts.push(
+        `${codeList(superseded)} ${one ? 'is' : 'are'} set outside the block that depcurfew manages; depcurfew apply comments ${one ? 'it' : 'them'} out, and the block sets what ${POLICY_FILE} requires`,
+      );
     }
-    return `${code(commented.slice(TURNED_OFF.length))} is set by hand, but ${POLICY_FILE} manages this setting; depcurfew apply comments it out`;
+    if (turnedOff.length > 0) {
+      const one = turnedOff.length === 1;
+      parts.push(`${codeList(turnedOff)} ${one ? 'is' : 'are'} set by hand, but ${POLICY_FILE} manages ${one ? 'this setting' : 'these settings'}; depcurfew apply comments ${one ? 'it' : 'them'} out`);
+    }
+    return parts.join('; ');
   }
   const [removed] = difference.removed;
-  if (removed !== undefined && difference.added.length > 0) return `${code(removed)} should be ${addedText(difference.added)}`;
-  if (difference.added.length > 0) return `${addedText(difference.added)} is missing`;
+  if (removed !== undefined && difference.added.length > 0) return `${code(removed)} should be ${addedText(difference.added)}${quotedNote(file, removed, difference.added[0] ?? '')}`;
+  if (difference.added.length > 0) {
+    // A YAML key the map gets through a merge key (<<): the value apply writes into the map itself wins over it.
+    const top = difference.added.length === 1 ? topLevelYaml(file, difference.added[0] ?? '') : undefined;
+    const merged = top === undefined ? undefined : yamlSetting(before, [top.key], yamlOptionsFor(file));
+    if (top !== undefined && merged?.mergedAt !== undefined) {
+      return `${code(`${top.key}: ${JSON.stringify(merged.value)}`)} comes in through the merge key << at line ${merged.mergedAt} and should be ${addedText(difference.added)}; depcurfew apply writes it into the map itself, where it wins over merged keys`;
+    }
+    // A JSON object or list that is missing as a whole: name the setting, since the diff may begin inside it.
+    const missing = firstMissing(dataOf(file, before), dataOf(file, after));
+    if (missing !== undefined && /\.jsonc?$/u.test(file)) {
+      const value = missing.reduce<unknown>((node, key) => (isObject(node) ? node[key] : undefined), dataOf(file, after));
+      const text = JSON.stringify(value);
+      return `${missing.join('.')} is missing${text !== undefined && text.length <= 100 ? `; depcurfew apply adds ${code(`"${missing.at(-1) ?? ''}": ${text}`)}` : ''}`;
+    }
+    return `${addedText(difference.added)} is missing`;
+  }
   if (removed !== undefined) return `${code(removed)} should not be there`;
   return 'its layout differs from what depcurfew apply writes';
 }
 
-/** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
-function checkAllowLists(context: RuleContext): void {
+/** Where the finding points: the line of a value that comes in through a merge key, else the first difference. */
+function findingLine(file: string, difference: Difference, before: string): number {
+  if (difference.removed.length > 0 || difference.added.length !== 1) return difference.line;
+  const top = topLevelYaml(file, difference.added[0] ?? '');
+  const merged = top === undefined ? undefined : yamlSetting(before, [top.key], yamlOptionsFor(file));
+  return merged?.mergedAt === undefined ? difference.line : merged.line;
+}
+
+/**
+ * apply only adds to allow-lists and never changes an entry it did not write (decision D-088), so packages the policy
+ * does not allow can stay there, and so can entries that contradict installScripts.deny or installScripts.allow;
+ * report the ones that are still there once apply has run.
+ */
+function checkAllowLists(context: RuleContext, plan: ApplyReport): void {
   const policy = context.policy;
   if (policy?.installScripts?.default !== 'deny') return;
   const targets = policy.targets;
+  const planned: TextSource = { readText: (file) => plan.changes.find((change) => change.file === file)?.after ?? context.repository.readText(file) };
   for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
     if (targets !== 'auto' && !targets.includes(manager.id)) continue;
     const knowledge = context.tools.find((entry) => entry.id === manager.id);
-    const allow = policyFor(policy, knowledge === undefined ? 'npm' : ecosystemOfTool(knowledge)).installScripts?.allow ?? [];
+    const scripts = policyFor(policy, knowledge === undefined ? 'npm' : ecosystemOfTool(knowledge)).installScripts ?? { allow: [], deny: [] };
     const version = pinnedVersion(manager) ?? (knowledge === undefined ? undefined : latestVersion(knowledge));
-    for (const entry of allowEntries(context.repository, manager.id, manager.configFiles, { ...(knowledge === undefined ? {} : { tool: knowledge }), ...(version === undefined ? {} : { version }) })) {
-      if (allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
+    const options = { ...(knowledge === undefined ? {} : { tool: knowledge }), ...(version === undefined ? {} : { version }) };
+    for (const conflict of remainingConflicts(context.repository, planned, manager.id, manager.configFiles, options, scripts)) {
+      const { entry } = conflict;
+      const location = entry.line === undefined ? { file: entry.file } : { file: entry.file, line: entry.line };
+      // An entry that lets a package of installScripts.deny run its scripts contradicts the policy, so it is an error,
+      // like the differences apply would fix; entries for packages the policy does not name, and entries that only
+      // block a package the policy allows, are warnings (decision D-092).
+      if (conflict.kind !== 'outside') {
+        context.report({ level: conflict.kind === 'denied' ? 'error' : 'warning', location, ...denyConflictText({ kind: conflict.kind, entry }) });
+        continue;
+      }
       context.report({
         level: 'warning',
-        location: entry.line === undefined ? { file: entry.file } : { file: entry.file, line: entry.line },
+        location,
         message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
         fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.name === entry.package ? 'it' : entry.package} to installScripts.allow in ${POLICY_FILE}`,
       });
@@ -110,9 +232,10 @@ function checkAllowLists(context: RuleContext): void {
 
 export const configDrift: Rule = {
   id: 'config-drift',
+  checks: 'Configuration files match what depcurfew apply writes for depcurfew.json',
   summary: 'A configuration file does not match what depcurfew apply writes for depcurfew.json.',
   description:
-    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy.',
+    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning.',
   help: 'Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.',
   level: 'error',
   requiresPolicy: true,
@@ -131,11 +254,11 @@ export const configDrift: Rule = {
       }
       const difference = firstDifference(change.before, change.after);
       context.report({
-        location: { file: change.file, line: difference.line },
-        message: `${change.file} does not match ${POLICY_FILE}: ${describe(difference)}`,
+        location: { file: change.file, line: findingLine(change.file, difference, change.before) },
+        message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, change.before, change.after)}`,
         fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`,
       });
     }
-    checkAllowLists(context);
+    checkAllowLists(context, plan);
   },
 };

@@ -1,0 +1,48 @@
+{
+  "packageManagers": [
+    {
+      "id": "pnpm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "pnpm-lock.yaml"
+        },
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        },
+        {
+          "kind": "config",
+          "file": "pnpm-workspace.yaml"
+        }
+      ],
+      "versions": [
+        {
+          "version": "10.28.0",
+          "source": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": [
+        "pnpm-workspace.yaml"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": {
+    "declarations": [
+      {
+        "file": "pnpm-workspace.yaml",
+        "patterns": []
+      }
+    ],
+    "packages": []
+  },
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}

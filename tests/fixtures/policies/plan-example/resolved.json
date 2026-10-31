@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/depcurfew/schema.json",
   "version": 1,
   "cooldown": { "minimum": { "text": "3d", "minutes": 4320 }, "exclude": ["@moja-firma/*"], "securityUpdates": "bypass" },
-  "installScripts": { "default": "deny", "allow": ["esbuild", "sharp", "@playwright/test"] },
+  "installScripts": { "default": "deny", "allow": ["esbuild", "sharp", "@playwright/test"], "deny": [] },
   "sources": { "git": "deny", "remoteTarball": "deny", "file": "allow" },
   "targets": "auto"
 }

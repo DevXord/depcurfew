@@ -4,6 +4,9 @@ import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
+const user = verifiedOn('2026-10-31');
+const DENO_V2_9_8 = 'https://github.com/denoland/deno/blob/v2.9.8';
+const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
   '--package', '-p', '--config', '-c', '--import-map', '--cert', '--min-dep-age', '--location', '--seed', '--preload', '--require',
   '--conditions', '--inspect-publish-uid',
@@ -121,7 +124,66 @@ export const deno: ToolKnowledge = {
     ),
     workspacesObjectKey: verified('members', WORKSPACES),
   },
+  user: {
+    files: user.verified(
+      [
+        {
+          since: '1.45.0',
+          value: { format: 'ini', locations: [{ platforms: ['linux', 'darwin', 'win32'], directories: [{ from: 'home', path: '' }], file: '.npmrc' }] },
+        },
+      ],
+      `${DENO_V2_9_8}/libs/resolver/npmrc.rs`,
+      'Deno has no user configuration file of its own (deno.json is looked up from the working directory upwards). It reads .npmrc next to package.json or deno.json and in the home directory (HOME, USERPROFILE on Windows), not the file named by NPM_CONFIG_USERCONFIG and not under XDG_CONFIG_HOME. Home discovery arrived in 1.45.0 (#24021); since 2.1.8 (#27119) the project and home files are merged key by key, before that a project .npmrc hid the home one (Releases.md). This is the ~/.npmrc that npm reads. A home .npmrc Deno may not read is skipped; one that does not parse stops the command.',
+    ),
+    settings: user.verified(
+      [{ purpose: 'cooldown', key: 'min-release-age', since: '2.8.0' }],
+      `${DENO_V2_9_8}/Releases.md`,
+      '2.8.0: "feat(npmrc): support min-release-age (#33983)". A whole number of days (npmrcFormat); the same line sets npm\'s min-release-age, also in days. minimumDependencyAge.exclude and allowScripts exist only in deno.json (allowScripts at the workspace root), so Deno has no user-level exclusions or script settings.',
+    ),
+    unknownKeys: user.verified(
+      'ignore',
+      NPMRC_PARSER,
+      'NpmRc::parse reads registry, auth, replace-registry-host, min-release-age and trust-policy keys and skips every other key without a message.',
+    ),
+    invalidValueFails: user.verified(
+      false,
+      NPMRC_PARSER,
+      'A min-release-age that is not a whole number of days, such as 72h, is ignored without a message (test "invalid value is ignored"), so the age silently comes from the next source. A home .npmrc that does not parse at all stops the command (libs/resolver/npmrc.rs).',
+    ),
+    weakening: user.verified(
+      [
+        {
+          key: 'min-release-age',
+          values: [0],
+          effect: 'turns the default minimum dependency age of 24 hours (2.9.0+) off in every project without minimumDependencyAge in deno.json or min-release-age in its own .npmrc',
+        },
+      ],
+      `${DENO_V2_9_8}/libs/resolver/factory.rs`,
+      'The age comes from the command line, then minimumDependencyAge in deno.json, then .npmrc (the project file over the home file), then NPM_CONFIG_MIN_RELEASE_AGE, then the built-in 1440 minutes; 0 from .npmrc turns it off (apply_minimum_dependency_age_fallbacks). The same line turns npm\'s delay off too.',
+    ),
+    variables: user.uncertain(
+      [
+        {
+          name: 'NPM_CONFIG_MIN_RELEASE_AGE',
+          values: 'any',
+          effect: 'sets min-release-age where no .npmrc has the key, and hides the home value in projects whose .npmrc lacks it (2.9.0+)',
+        },
+        {
+          name: 'npm_config_min_release_age',
+          values: 'any',
+          effect: 'sets min-release-age where no .npmrc has the key, and hides the home value in projects whose .npmrc lacks it (2.9.0+)',
+        },
+      ],
+      NPMRC_PARSER,
+      'Only these two spellings are read (min_release_age_days_from_env); 0 turns the default 24 hours off. Read from code: every parsed .npmrc starts from the variable and its own key overrides it (test ".npmrc value takes precedence over the environment fallback"), and the project file wins over the home file, so a project .npmrc without the key puts the variable above the home value. The first version is from denoland/deno#35458, which shipped in 2.9.0.',
+    ),
+  },
   extra: {
+    denyList: user.verified(
+      { file: 'deno.json', setting: 'allowScripts.deny', value: 'npm:<package>', since: '2.6.0' },
+      'https://github.com/denoland/deno/blob/v2.9.8/libs/npm_installer/lifecycle_scripts.rs',
+      'The object form "allowScripts": { "allow": [...], "deny": ["npm:pkg"] } (schema since 2.6.0: "List of npm package constraints to deny running lifecycle scripts for"); deny beats allow, and a denied package is not added to the packages whose scripts were not run, so Deno does not warn about it.',
+    ),
     commandLine: reviewed.verified(
       {
         add: [
@@ -165,7 +227,11 @@ export const deno: ToolKnowledge = {
       'A trailing * matches by prefix (npm:@scope/*) since 2.9.2; earlier wildcard entries never matched.',
     ),
     npmSpecifierPrefix: verified('npm:', SCHEMA, 'Exclusions and allowScripts entries name npm packages as npm:<name>.'),
-    allowAllScripts: verified({ setting: 'allowScripts', since: '2.6.0', value: true }, SCHEMA, 'allowScripts: true allows every npm lifecycle script.'),
+    allowAllScripts: user.verified(
+      { setting: 'allowScripts', since: '2.6.0', value: true },
+      SCHEMA,
+      'allowScripts: true allows every npm lifecycle script. Only the JSON value true does: to_allow_scripts_config (libs/config/deno_json/mod.rs at v2.9.8) gives every package for true, none for false and null, and stops with "expected string array, boolean, or object" for a string or a number, so "true" or 1 cannot turn it on silently.',
+    ),
     latestVersion: verified('2.9.8', release('2.9.8')),
     npmrcFormat: disputed(
       'The safe choice is an integer number of days, which also matches npm.',

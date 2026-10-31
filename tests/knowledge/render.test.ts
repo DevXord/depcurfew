@@ -82,7 +82,7 @@ describe('renderKnowledgeMarkdown', () => {
       setting: { status: 'verified', value: null, source: 'https://bun.com/docs/pm/cli/add', verifiedAt: TODAY },
     });
     const [gitRow] = sectionRows(renderKnowledgeMarkdown([bun]), 'Dependency sources');
-    expect(gitRow).toEqual(['Sample bun · git', 'none [↗](https://bun.com/docs/pm/cli/add)', '—', '—', '—']);
+    expect(gitRow).toEqual(['Sample bun · git', 'none [↗](https://bun.com/docs/pm/cli/add)', '-', '-', '-']);
   });
 
   it('flags uncertain facts', () => {

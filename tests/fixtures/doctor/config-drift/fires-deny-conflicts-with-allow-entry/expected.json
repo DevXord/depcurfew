@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package.json",
+      "line": 5
+    },
+    "message": "allowScripts in package.json lets fsevents run its install scripts, although installScripts.deny in depcurfew.json says they must not run",
+    "fix": "Remove fsevents from allowScripts in package.json, or move fsevents from installScripts.deny to installScripts.allow in depcurfew.json after reviewing its scripts"
+  }
+]

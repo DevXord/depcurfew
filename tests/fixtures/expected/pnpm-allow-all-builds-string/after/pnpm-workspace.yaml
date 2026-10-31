@@ -1,0 +1,2 @@
+# managed by depcurfew
+dangerouslyAllowAllBuilds: false # quoted by mistake: pnpm reads the string as true

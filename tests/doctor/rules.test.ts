@@ -46,3 +46,10 @@ describe('runDoctor with an invalid depcurfew.json', () => {
     expect(report.notices).toContainEqual({ message: 'depcurfew.json is invalid: only the rules that do not need a policy ran' });
   });
 });
+
+describe('the list of what doctor checked', () => {
+  it('has a plain sentence for what every rule checks', async () => {
+    const { USER_RULES } = await import('../../src/user/doctor.ts');
+    for (const rule of [...RULES, ...USER_RULES]) expect(rule.checks, rule.id).toMatch(/^\S.{10,}[^.]$/u);
+  });
+});

@@ -1,4 +1,6 @@
 // Unified diff of two texts (Myers' algorithm on lines), for `apply --dry-run`.
+import { isAbsoluteAnywhere } from '../paths.ts';
+import { printable } from '../printable.ts';
 
 export type Operation = { kind: 'same' | 'delete' | 'insert'; line: string };
 
@@ -122,11 +124,24 @@ function range(start: number, count: number): string {
   return count === 1 ? `${start}` : `${start},${count}`;
 }
 
-/** A unified diff with three lines of context; empty when the texts are equal. `before` is null for a new file. */
-export function unifiedDiff(file: string, before: string | null, after: string, context = 3): string {
+export interface DiffOptions {
+  /** Shows the values of secrets as <redacted> in every line (redactSecrets), for a diff that people or logs see. */
+  redact?: boolean;
+}
+
+/**
+ * A unified diff with three lines of context; empty when the texts are equal. `before` is null for a new file.
+ * Control characters in the file name are shown as text (printable), so that a name cannot start a line of its own
+ * and forge a header or a hunk. A file with an absolute path (a user file outside the home directory) is named as it
+ * is, without the a/ and b/ of repository paths.
+ */
+export function unifiedDiff(file: string, before: string | null, after: string, context = 3, options: DiffOptions = {}): string {
   if (before === after) return '';
   const operations = myers(lines(before ?? ''), lines(after));
-  const output = [before === null ? '--- /dev/null' : `--- a/${file}`, `+++ b/${file}`];
+  const name = printable(file);
+  const [oldName, newName] = isAbsoluteAnywhere(file) ? [name, name] : [`a/${name}`, `b/${name}`];
+  const output = [before === null ? '--- /dev/null' : `--- ${oldName}`, `+++ ${newName}`];
+  const shown = options.redact === true ? redactSecrets : (line: string) => line;
 
   let index = 0;
   let counted = 0;
@@ -161,11 +176,46 @@ export function unifiedDiff(file: string, before: string | null, after: string, 
     output.push(`@@ -${range(oldStart, oldCount)} +${range(newStart, newCount)} @@`);
     for (const operation of hunk) {
       const prefix = operation.kind === 'same' ? ' ' : operation.kind === 'delete' ? '-' : '+';
-      if (operation.line.endsWith(NO_EOL)) output.push(`${prefix}${operation.line.slice(0, -1)}`, '\\ No newline at end of file');
-      else output.push(`${prefix}${operation.line}`);
+      if (operation.line.endsWith(NO_EOL)) output.push(`${prefix}${shown(operation.line.slice(0, -1))}`, '\\ No newline at end of file');
+      else output.push(`${prefix}${shown(operation.line)}`);
     }
     index = stop;
     start = stop;
   }
   return `${output.join('\n')}\n`;
+}
+
+/**
+ * Keys whose value is a secret, in INI (.npmrc, pip.conf), TOML and YAML lines: npm's _auth, _authToken and
+ * _password (also under a //host/: prefix), and in any file a key that ends in token, password or secret, or
+ * npmAuthIdent. depcurfew writes none of these keys; the names only decide which values a diff hides, so they err on
+ * the side of hiding (decision D-091).
+ */
+const SECRET_KEY = /^(?:_auth|npmauthident|[a-z0-9_-]*(?:token|password|passwd|secret))$/iu;
+/** key = value: the key is everything before the first `=`, as in .npmrc, where it may hold colons (//host:443/:_auth). */
+const EQUALS = /^(\s*(?:-\s+)?["']?)([^="'\s][^="']*?)(["']?\s*=\s*)(.*)$/u;
+/** key: value, as in YAML. */
+const COLON = /^(\s*(?:-\s+)?["']?)([A-Za-z0-9_.-]+)(["']?\s*:(?:\s+|$))(.*)$/u;
+/** A key and its value inside an inline table or a flow mapping: { token = "…", url = "…" }, {npmAuthToken: …}. */
+const INLINE = /([{,]\s*["']?)([A-Za-z0-9_.-]+)(["']?\s*[=:]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|[^,{}[\]\s][^,}\s]*)/gu;
+/** A reference to an environment variable (${NPM_TOKEN}, $NPM_TOKEN) is no secret, and shows where the value comes from. */
+const REFERENCE = /^(["']?)\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)\1$/u;
+/** The user name and password of a URL (scheme://user:password@host); a password may hold an unencoded @. */
+const URL_CREDENTIALS = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@:]*:[^\s/?#]*@/giu;
+const REDACTED = '<redacted>';
+
+function isSecret(key: string, value: string): boolean {
+  const name = key.split(/[:.]/u).at(-1)?.trim() ?? '';
+  return SECRET_KEY.test(name) && value.trim() !== '' && !REFERENCE.test(value.trim());
+}
+
+/** A line of a configuration file with the value of a secret key and the user and password of URLs as <redacted>. */
+export function redactSecrets(line: string): string {
+  for (const pattern of [EQUALS, COLON]) {
+    const match = pattern.exec(line);
+    if (match !== null && isSecret(match[2] ?? '', match[4] ?? '')) return `${match[1] ?? ''}${match[2] ?? ''}${match[3] ?? ''}${REDACTED}`;
+  }
+  return line
+    .replace(INLINE, (whole, before: string, key: string, separator: string, value: string) => (isSecret(key, value) ? `${before}${key}${separator}${REDACTED}` : whole))
+    .replace(URL_CREDENTIALS, `$1${REDACTED}@`);
 }

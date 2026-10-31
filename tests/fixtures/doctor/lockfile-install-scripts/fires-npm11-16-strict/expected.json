@@ -6,6 +6,6 @@
       "line": 41
     },
     "message": "core-js has install scripts that npm will not run because strict-allow-scripts in .npmrc stops the install until they are allowed; the package may need them",
-    "fix": "Review its scripts and add core-js to installScripts.allow in depcurfew.json, or replace the package"
+    "fix": "Review its scripts: add core-js to installScripts.allow in depcurfew.json if it needs them, or to installScripts.deny if it works without them; otherwise replace the package"
   }
 ]

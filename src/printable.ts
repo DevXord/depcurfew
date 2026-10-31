@@ -22,6 +22,18 @@ export function withoutCredentials(text: string): string {
   return text.replace(CREDENTIALS, '$1');
 }
 
+/** user:password@ whose password may hold an unencoded @, as in the diff of apply (src/apply/diff.ts). */
+const USER_AND_PASSWORD = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@:]*:[^\s/?#]*@/giu;
+
+/**
+ * The text with the user name and password of every URL in it shown as <redacted> (https://user:token@host/ becomes
+ * https://<redacted>@host/), as the diff of apply shows them: for messages, where people should see that a URL
+ * carries credentials without seeing them. Use withoutCredentials for a URL that depcurfew sends anywhere.
+ */
+export function redactCredentials(text: string): string {
+  return text.replace(USER_AND_PASSWORD, '$1<redacted>@').replace(CREDENTIALS, (whole, scheme: string) => (whole === `${scheme}<redacted>@` ? whole : `${scheme}<redacted>@`));
+}
+
 /**
  * The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`. Line breaks are control
  * characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text

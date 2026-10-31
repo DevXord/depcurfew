@@ -165,6 +165,7 @@ function exemptsSecurityFixes(bot: ToolKnowledge, manager: string, file: string 
 
 export const botCooldownMismatch: Rule = {
   id: 'bot-cooldown-mismatch',
+  checks: 'Update bots wait at least as long as the package manager before proposing a new version',
   summary: 'An update bot waits less than the package manager before proposing a new version.',
   description:
     'The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type.',
