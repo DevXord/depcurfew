@@ -65,6 +65,13 @@ describe('README.md', () => {
     expect(readme.includes("npm does not read the project's `.npmrc` in global mode")).toBe(scope?.['globalMode'] === 'ignored');
   });
 
+  it('links only to URLs and anchors, because the README on npmjs.com cannot open files of the repository', () => {
+    const targets = [...readme.matchAll(/\]\(([^)\s]+)\)/gu)].map((match) => match[1] ?? '');
+    expect(targets.length).toBeGreaterThan(0);
+    expect(targets.filter((target) => !target.startsWith('https://') && !target.startsWith('#'))).toEqual([]);
+    expect(readme).not.toMatch(/See `src\//u);
+  });
+
   it('keeps the generated sections between markers', () => {
     for (const name of ['default-policy', 'policy-fields', 'tools', 'rules', 'action-workflow', 'action-reference', 'claude-code-hook']) {
       expect(readme).toContain(`<!-- BEGIN GENERATED: ${name} -->`);

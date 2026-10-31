@@ -12,7 +12,8 @@
     {
       "code": "allow-all-replaced",
       "tool": "deno",
-      "message": "Deno: allowScripts allowed every install script; replaced with the policy's allow-list"
+      "message": "Deno: allowScripts allowed every install script; replaced with the policy's allow-list",
+      "fix": "Add the packages whose install scripts must run to installScripts.allow in depcurfew.json, then run depcurfew apply again"
     }
   ],
   "snippets": []

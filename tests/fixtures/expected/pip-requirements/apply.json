@@ -13,24 +13,25 @@
       "code": "build-switch-scope",
       "tool": "pip",
       "message": "pip: --only-binary forbids building only packages from an index; pip still builds git, local directory and source archive dependencies",
-      "fix": "Run depcurfew doctor to find them in the lockfile"
+      "fix": "Run depcurfew doctor to find them in the requirements files"
     },
     {
       "code": "forced-source-build",
       "tool": "pip",
-      "message": "pip: --no-binary lets docopt be built from source while building is forbidden for everything else; pip then always builds it from source, even where a wheel exists, because it has no setting that only allows building"
+      "message": "pip: --no-binary lets docopt be built from source while building is forbidden for everything else; pip then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
+      "fix": "If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json"
     },
     {
       "code": "source-not-enforceable",
       "tool": "pip",
       "message": "pip has no setting for git dependencies, so \"deny\" cannot be enforced",
-      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+      "fix": "Run depcurfew doctor, which reports such dependencies in the requirements files"
     },
     {
       "code": "source-not-enforceable",
       "tool": "pip",
       "message": "pip has no setting for URL dependencies, so \"deny\" cannot be enforced",
-      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+      "fix": "Run depcurfew doctor, which reports such dependencies in the requirements files"
     }
   ],
   "snippets": []

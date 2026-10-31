@@ -13,7 +13,8 @@
     {
       "code": "build-switch-install-only",
       "tool": "poetry",
-      "message": "Poetry: installer.only-binary applies when packages are installed; poetry lock may still build source distributions to read their dependencies"
+      "message": "Poetry: installer.only-binary applies when packages are installed; poetry lock may still build source distributions to read their dependencies",
+      "fix": "Run poetry lock where a build cannot reach secrets (CI or a container), and depcurfew doctor, which lists the packages in poetry.lock without a wheel"
     },
     {
       "code": "build-switch-scope",
@@ -24,7 +25,8 @@
     {
       "code": "forced-source-build",
       "tool": "poetry",
-      "message": "Poetry: installer.no-binary lets docopt be built from source while building is forbidden for everything else; Poetry then always builds it from source, even where a wheel exists, because it has no setting that only allows building"
+      "message": "Poetry: installer.no-binary lets docopt be built from source while building is forbidden for everything else; Poetry then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
+      "fix": "If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json"
     },
     {
       "code": "source-not-enforceable",

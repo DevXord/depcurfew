@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
+const rechecked = verifiedOn('2026-10-31');
 
 // pdm-project.org is built from docs/ in the repository.
 const PDM = 'https://github.com/pdm-project/pdm/blob/2.29.5';
@@ -112,6 +113,11 @@ export const pdm: ToolKnowledge = {
       { packages: 'package', files: 'files', file: 'file', vcs: ['git', 'hg', 'svn', 'bzr'], url: 'url', path: 'path', editable: 'editable' },
       CANDIDATES,
       'pdm.lock (lock_version 4.5) has no documented format beyond the docs examples. Each [[package]] has name, version and files ({file, hash} for every distribution); a VCS package has its repository under the key of its VCS (git = "…") with ref and revision; a local archive or directory has path, a remote archive url, and editable packages editable = true (as_lockfile_entry). A package from an index without a .whl file is built when installed.',
+    ),
+    lockedSettings: rechecked.verified(
+      { settings: 'table', lock: 'pdm lock', failing: ['pdm lock --check', 'pdm install --check'] },
+      `${PDM}/src/pdm/project/project_file.py`,
+      'pdm.lock keeps a content_hash of the whole [tool.pdm.resolution] table (PyProject.content_hash), or with canonical lock inputs (lock_inputs = true, since 2.28.1) the table itself (src/pdm/project/lockfile/freshness.py), so a change to any key in it, exclude-newer and only-binary included, makes the lockfile out of date. pdm lock --check and pdm install --check then exit with 1 ("Lockfile doesn\'t satisfy the project requirements"), pdm install without --check locks again first and pdm sync only warns (check_lockfile in src/pdm/cli/actions.py) until pdm lock runs again; with exclude-newer set, pdm lock resolves every package again (src/pdm/cli/commands/lock.py).',
     ),
     uvMode: uncertain(
       { file: 'pdm.toml', key: 'use_uv' },

@@ -175,12 +175,15 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     if (!manager.supported && (policy.targets === 'auto' || targets.has(manager.id))) {
       const berry = tools.find((tool) => tool.id === manager.id);
       const since = berry === undefined ? undefined : sinceOf(berry.cooldown.availableSince);
-      const advice = manager.variant === 'classic' && berry !== undefined ? `Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depcurfew configures` : undefined;
+      const advice =
+        manager.variant === 'classic' && berry !== undefined
+          ? `Move to ${berry.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depcurfew configures`
+          : `Configure ${manager.id} by hand, or move to a package manager depcurfew configures`;
       warnings.push({
         code: 'tool-not-supported',
         tool: manager.id,
         message: `${manager.variant === 'classic' ? 'Yarn Classic (1.x)' : manager.id} is not supported; nothing written for it`,
-        ...(advice === undefined ? {} : { fix: advice }),
+        fix: advice,
       });
       targets.delete(manager.id);
     }
@@ -191,7 +194,8 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     warnings.push({
       code: 'file-unreadable',
       ...(file === undefined ? {} : { location: { file } }),
-      message: `${warning.message}; depcurfew cannot tell which tools it configures`,
+      // A YAML error's first line ends with the colon of a code excerpt that is not shown.
+      message: `${warning.message.replace(/:$/u, '')}; depcurfew cannot tell which tools it configures`,
       fix: `Fix the syntax error${file === undefined ? '' : ` in ${file}`}, then run depcurfew apply again`,
     });
   }

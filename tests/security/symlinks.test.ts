@@ -80,7 +80,7 @@ describe('init --force', () => {
     symlinkSync(join(outside, 'secret.json'), join(repo, 'depcurfew.json'));
     const result = await exec('init', '--force', repo);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toContain('depcurfew.json is a symlink; depcurfew does not write through symlinks');
+    expect(result.stderr).toContain(`error: ${join(repo, 'depcurfew.json')} is a symlink; depcurfew does not write through symlinks (cannot-write)\n  fix: Replace the symlink with a regular file, or run depcurfew init in the directory it points to\n`);
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
   });
 

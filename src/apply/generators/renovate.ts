@@ -27,7 +27,7 @@ export const renovate: BotGenerator = (context, duration) => {
   if (policy.cooldown === undefined || duration === undefined) return;
   const result = convertCooldown(tool, duration);
   if (!result.ok) {
-    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, ...(result.fix === undefined ? {} : { fix: result.fix }) });
+    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, fix: result.fix });
     return;
   }
   const setting = settingOf(tool.cooldown.setting) ?? 'minimumReleaseAge';
