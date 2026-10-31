@@ -133,7 +133,7 @@ How `apply` edits files:
 
 ### apply warnings and errors
 
-Each warning and error of `apply` has a code. The text output shows it in parentheses after the message, with what to do on the next line, like a doctor finding. `depcurfew apply --json` (also with `--dry-run`) prints one JSON document and nothing on stderr: `changes` (each file with its action and unified diff), `warnings` and `errors` (each with `code`, `level`, `message` and `fix`; `tool` when it concerns one tool; `location` when it concerns one file, with `file` and, when known, `line`; for an invalid policy also `issues`), `snippets` to add by hand, `notices` (such as the parent directory whose `depcurfew.json` was used) and `written`. A run that writes nothing because of an error lists no changes and exits with 1.
+Each warning and error of `apply` has a code. The text output shows it in parentheses after the message, with what to do on the next line, like a doctor finding. `depcurfew apply --json` (also with `--dry-run`) prints one JSON document and nothing on stderr: `changes` (each file with its action and unified diff), `warnings` and `errors` (each with `code`, `level`, `message` and `fix`; `tool` when it concerns one tool; `location` when it concerns one file, with `file` and, when known, `line`; for an invalid policy also `issues`), `snippets` to add by hand, `notices` (such as the parent directory whose `depcurfew.json` was used) and `written`. A run that writes nothing because of an error lists no changes and exits with 1. Diffs, on the terminal, in a pipe and in `changes`, show the values of secrets as `<redacted>` (`_authToken`, `_auth` and `_password` in `.npmrc`, keys ending in `token` or `password`, the user and password of a URL), so that a diff can be shared or logged; the files keep them.
 
 <!-- BEGIN GENERATED: apply-codes -->
 Warnings:
@@ -148,6 +148,8 @@ Warnings:
 - `version-unknown`: apply --user: the installed version of a tool cannot be read from its files, and a value it does not understand would stop every command, so nothing is written for it.
 - `no-user-config`: apply --user: the tool has no user-level configuration file, so nothing is written for it.
 - `user-setting-project-only`: apply --user: the tool reads a part of the policy only from project files, so it is not written into the user file.
+- `user-directory-relative`: apply --user: the environment variable that names the directory of the user file (XDG_CONFIG_HOME, APPDATA) is a relative path, and where the tool looks then is not known, so nothing is written for it.
+- `version-not-used`: apply --user: --for gives the version of a tool that apply --user does not configure (not in PATH with targets "auto", or not listed under targets).
 - `cooldown-not-written`: The release-age delay cannot be written for a tool.
 - `cooldown-shortened`: A release-age delay set outside depcurfew's markers (in JSON files also one an earlier apply wrote) is longer than the policy, and apply replaces it with the shorter one.
 - `cooldown-environment-only`: pip reads no project configuration, so the release-age delay has to be set in the environment where pip runs.
@@ -188,6 +190,7 @@ Errors (nothing is written):
 - `policy-exists`: depcurfew init found a depcurfew.json and writes it only with --force.
 - `directory-not-found`: The directory given on the command line does not exist or cannot be opened.
 - `not-a-directory`: The path given on the command line is a file, not a directory.
+- `home-missing`: apply --user: the home directory (HOME, USERPROFILE on Windows) does not exist or is not an absolute path, so nothing is written.
 <!-- END GENERATED: apply-codes -->
 
 ## Protecting the whole machine
@@ -203,6 +206,7 @@ depcurfew doctor --user
 
 - The user policy is `~/.config/depcurfew/depcurfew.json` (in `$XDG_CONFIG_HOME/depcurfew/` when that variable is set to an absolute path, in `%APPDATA%\depcurfew\` on Windows). It has the same format as a project policy; under `targets: "auto"` it configures the package managers found in `PATH`.
 - depcurfew does not run other programs to learn their versions. It reads the version from the files next to the executable in `PATH`: the `package.json` of a tool installed from npm, the `.dist-info` folder of one installed from PyPI. When it cannot, it configures for the latest version it knows and says so, except for tools that stop every command on a value their version does not understand (the last column below): for those it writes nothing until you pass the version, for example `--for uv@0.13.6`.
+- `apply --user` writes the files of all tools or none, as `apply` does in a project: a user file it cannot read or edit (not UTF-8, a symlink, larger than 1 MiB, a file where its directory belongs) is an error that names it, such as `~/.config/pip/pip.conf`, and a file that cannot be written puts back the ones already replaced. It does not create a missing home directory, and when `XDG_CONFIG_HOME` or `%APPDATA%` is a relative path, it writes nothing for the tools that may use it, with a warning. Run as root (`sudo` with `HOME` kept), it leaves each file it replaces to its owner.
 - A tool's own project settings win over its user file for the same key. Parts of the policy that a tool reads only from project files, such as per-package allow-lists, are not written into the user file; `apply --user` names them, and `depcurfew apply` in the project writes them.
 - `doctor --user` reports a user file that does not match the user policy, values in user files that weaken every project, and environment variables that make a tool read another file, no file or other values.
 - Tools that record the release-age delay in their lockfile may lock differently on a machine whose user file sets one than on a machine without it; set the same delay in the project with `depcurfew apply` so that every machine and CI agree.

@@ -55,7 +55,9 @@ function userOptions(
   for (const entry of given) {
     const at = entry.lastIndexOf('@');
     const id = entry.slice(0, at) as ToolId;
-    const version = at <= 0 ? undefined : parseVersion(entry.slice(at + 1));
+    // pip --version prints two parts (pip 26.1), and Python releases may have two: the missing patch is 0.
+    const text = entry.slice(at + 1).trim();
+    const version = at <= 0 ? undefined : parseVersion(/^v?\d+\.\d+$/u.test(text) ? `${text}.0` : text);
     const tool = knowledgeBase.find((candidate) => candidate.id === id && candidate.kind === 'package-manager');
     if (tool === undefined || version === undefined) {
       io.stderr(`depcurfew: --for expects a package manager and an exact version, e.g. --for pnpm@11.28.10, not '${entry}'\nRun 'depcurfew ${command} --help' for usage.\n`);

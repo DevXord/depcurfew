@@ -2,18 +2,21 @@
 // unified diff that `git apply` accepts); warnings, snippets to add by hand and errors go to stderr. When any file
 // cannot be edited, nothing is written and stdout stays empty, also with --dry-run. With --json, stdout holds one JSON
 // document with all of it (each change with its diff, warnings and errors with a code) and stderr stays empty. Without
-// a directory it works on the nearest directory with depcurfew.json (projectDirectory in directory.ts).
+// a directory it works on the nearest directory with depcurfew.json (projectDirectory in directory.ts). Diffs never
+// show the values of secrets (tokens and passwords in .npmrc and the like), and file names in their headers show
+// control characters as text.
 import { applyProject, ApplyWriteError, PolicyError, type ApplyReport } from '../apply/index.ts';
 import { unifiedDiff } from '../apply/diff.ts';
 import type { Version } from '../apply/version.ts';
 import { WriteFailed } from '../apply/workspace.ts';
 import type { ToolId } from '../knowledge/types.ts';
-import { planUserApply, writeUserChanges } from '../user/apply.ts';
+import { planUserApply, writeUserChanges, type UserProblem } from '../user/apply.ts';
 import { shownPath, type UserEnvironment } from '../user/locate.ts';
 import { userPolicyPath } from '../user/policy-path.ts';
 import { loadUserPolicy } from '../user/policy.ts';
 import type { ApplyErrorCode, ApplyWarning } from '../apply/warnings.ts';
 import { paint, type Paint } from '../color.ts';
+import { safeJson } from '../json-safe.ts';
 import { printable } from '../printable.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { toolName } from './describe.ts';
@@ -37,7 +40,15 @@ function paintDiff(diff: string, colors: Paint): string {
   });
 }
 
-const CANNOT_EDIT_FIX = 'Fix what the message describes, then run depcurfew apply again; or add the settings by hand';
+/** The diff apply shows of a change: secrets redacted, in the text and in the JSON document alike. */
+function diffOf(change: { file: string; before: string | null; after: string }): string {
+  return unifiedDiff(change.file, change.before, change.after, 3, { redact: true });
+}
+
+/** What to do about a file that cannot be edited; `command` is what to run again. */
+function cannotEditFix(command: string): string {
+  return `Fix what the message describes, then run ${command} again; or add the settings by hand`;
+}
 
 /**
  * A warning as doctor shows a finding: the message with its code, and what to do on the next line. Messages, file
@@ -49,13 +60,16 @@ function warningLines(warning: ApplyWarning, colors: Paint): string[] {
   return lines;
 }
 
-function diagnostics(report: ApplyReport, colors: Paint): string {
+/** Warnings, snippets and errors on stderr, from the same errors as the JSON document. */
+function diagnostics(report: ApplyReport, errors: readonly JsonError[], colors: Paint): string {
   const lines = report.warningDetails.flatMap((warning) => warningLines(warning, colors));
   for (const snippet of report.snippets) {
     lines.push(colors.bold(`${toolName(snippet.tool)}: add this to ${printable(snippet.file)} by hand:`), indent(printable(snippet.text, { lines: true })));
   }
-  // Every error of a plan is a file that cannot be edited.
-  for (const error of report.errors) lines.push(`error: ${printable(error)} ${colors.dim('(cannot-edit)')}`, `  ${colors.green('fix:')} ${CANNOT_EDIT_FIX}`);
+  for (const error of errors) {
+    lines.push(`error: ${printable(error.message)} ${colors.dim(`(${error.code})`)}`);
+    if (error.fix !== undefined) lines.push(`  ${colors.green('fix:')} ${printable(error.fix)}`);
+  }
   return lines.length === 0 ? '' : `${lines.join('\n')}\n`;
 }
 
@@ -67,10 +81,37 @@ interface JsonError {
   code: ApplyErrorCode;
   level: 'error';
   tool?: string;
-  location: { file: string };
+  location: { file: string; line?: number };
   message: string;
   fix?: string;
   issues?: string[];
+}
+
+/** The line a parser names in its message (invalid TOML at line 3, … at line 2, column 1), when it names one. */
+function lineOf(message: string): number | undefined {
+  const match = /\bat line (\d+)\b/u.exec(message);
+  return match === null ? undefined : Number(match[1]);
+}
+
+/**
+ * The errors of a plan, one source for the text and the JSON document: the problems that concern no single file
+ * (apply --user), then every file that cannot be edited. `report.errors` holds the problems' messages first.
+ */
+function planErrors(report: ApplyReport, problems: readonly UserProblem[], command: string): JsonError[] {
+  return [
+    ...problems.map((problem): JsonError => ({ code: problem.code, level: 'error', location: problem.location, message: problem.message, fix: problem.fix })),
+    ...report.failures.map((failure, index): JsonError => {
+      const line = lineOf(failure.message);
+      return {
+        code: 'cannot-edit',
+        level: 'error',
+        tool: failure.tool,
+        location: { file: failure.file, ...(line === undefined ? {} : { line }) },
+        message: report.errors[problems.length + index] ?? failure.message,
+        fix: cannotEditFix(command),
+      };
+    }),
+  ];
 }
 
 /**
@@ -78,10 +119,7 @@ interface JsonError {
  * depcurfew.json was not looked for, because the directory does not exist.
  */
 function jsonReport(dryRun: boolean, policy: 'valid' | 'missing' | 'invalid' | null, report: ApplyReport | undefined, errors: JsonError[], notices: readonly { message: string }[]): string {
-  const changes =
-    report === undefined || errors.length > 0
-      ? []
-      : report.changes.map((change) => ({ file: change.file, action: change.before === null ? 'create' : 'update', diff: unifiedDiff(change.file, change.before, change.after) }));
+  const changes = report === undefined || errors.length > 0 ? [] : report.changes.map((change) => ({ file: change.file, action: change.before === null ? 'create' : 'update', diff: diffOf(change) }));
   const warnings = (report?.warningDetails ?? []).map(({ code, ...rest }) => ({ code, level: 'warning', ...rest }));
   const document = {
     schemaVersion: 1,
@@ -95,7 +133,7 @@ function jsonReport(dryRun: boolean, policy: 'valid' | 'missing' | 'invalid' | n
     notices,
     summary: { changes: changes.length, warnings: warnings.length, errors: errors.length },
   };
-  return `${JSON.stringify(document, null, 2)}\n`;
+  return `${safeJson(document, 2)}\n`;
 }
 
 /** A file could not be written: the warnings of the plan and the error, in text or as the JSON document. */
@@ -106,7 +144,7 @@ function writeError(error: ApplyWriteError, json: boolean, notices: readonly { m
   }
   const colors = paint(io.colors?.stderr);
   const lines = [
-    diagnostics({ ...error.report, errors: [], failures: [] }, colors),
+    diagnostics(error.report, [], colors),
     `error: ${printable(error.message)} ${colors.dim(`(${error.code})`)}\n`,
     `  ${colors.green('fix:')} ${printable(error.fix)}\n`,
   ];
@@ -121,6 +159,8 @@ export interface ApplyOptions {
   /** --user: the user policy into the user-level configuration (decision D-087). */
   user?: { environment: UserEnvironment; versions: Partial<Record<ToolId, Version>> };
 }
+
+const USER_COMMAND = 'depcurfew apply --user';
 
 /** apply --user: the user policy, planned and written like a project's, with the files shown under ~/. */
 function applyUser(options: ApplyOptions & { user: NonNullable<ApplyOptions['user']> }, io: CliIo): number {
@@ -142,10 +182,11 @@ function applyUser(options: ApplyOptions & { user: NonNullable<ApplyOptions['use
       writeUserChanges(planned);
     } catch (error) {
       if (!(error instanceof WriteFailed)) throw error;
-      return writeError(new ApplyWriteError(error, planned.report), options.json, [], io);
+      // User files are seldom under version control: the fix names a backup only.
+      return writeError(new ApplyWriteError(error, planned.report, { command: USER_COMMAND, versionControl: false }), options.json, [], io);
     }
   }
-  return printReport(planned.report, options, [], io);
+  return printReport(planned.report, planErrors(planned.report, planned.report.problems, USER_COMMAND), options, [], io);
 }
 
 export function apply(directory: string | undefined, options: ApplyOptions, io: CliIo): number {
@@ -172,29 +213,26 @@ export function apply(directory: string | undefined, options: ApplyOptions, io: 
     return EXIT_FAILURE;
   }
 
-  return printReport(report, options, notices, io);
+  return printReport(report, planErrors(report, [], 'depcurfew apply'), options, notices, io);
 }
 
 /** The result of a plan (project or user): the JSON document, or the changes or diff on stdout and the diagnostics on stderr. */
-function printReport(report: ApplyReport, options: { dryRun: boolean; json: boolean }, notices: readonly { message: string }[], io: CliIo): number {
+function printReport(report: ApplyReport, errors: JsonError[], options: { dryRun: boolean; json: boolean }, notices: readonly { message: string }[], io: CliIo): number {
   const { dryRun } = options;
   if (options.json) {
-    const errors = report.failures.map(
-      (failure, index): JsonError => ({ code: 'cannot-edit', level: 'error', tool: failure.tool, location: { file: failure.file }, message: report.errors[index] ?? failure.message, fix: CANNOT_EDIT_FIX }),
-    );
     io.stdout(jsonReport(dryRun, 'valid', report, errors, notices));
     return errors.length > 0 ? EXIT_FAILURE : EXIT_OK;
   }
 
   const colors = paint(io.colors?.stdout);
   // With errors nothing would be written, so a dry run prints no diff either: applying it would apply half the policy.
-  if (report.errors.length === 0 && dryRun) {
-    const diff = report.changes.map((change) => unifiedDiff(change.file, change.before, change.after)).join('');
+  if (errors.length === 0 && dryRun) {
+    const diff = report.changes.map(diffOf).join('');
     // On a terminal the diff is for reading, so control characters in the files are shown as text; written to a file
-    // or a pipe it stays exactly what git apply needs.
+    // or a pipe it stays exactly what git apply needs, but for the redacted secrets and the escaped file names.
     const shown = io.terminal?.stdout === true || io.colors?.stdout === true ? diff.split('\n').map((line) => printable(line)).join('\n') : diff;
     io.stdout(paintDiff(shown, colors));
-  } else if (report.errors.length === 0) {
+  } else if (errors.length === 0) {
     io.stdout(
       report.changes.length === 0
         ? report.warnings.length + report.snippets.length === 0
@@ -203,12 +241,11 @@ function printReport(report: ApplyReport, options: { dryRun: boolean; json: bool
         : report.changes.map((change) => `${colors.green(change.before === null ? 'Created' : 'Updated')} ${printable(change.file)}\n`).join(''),
     );
   }
-  io.stderr(diagnostics(report, paint(io.colors?.stderr)));
-  if (report.errors.length > 0) {
+  io.stderr(diagnostics(report, errors, paint(io.colors?.stderr)));
+  if (errors.length > 0) {
     io.stderr(dryRun ? 'depcurfew: apply would write nothing because of the errors above.\n' : 'depcurfew: nothing written because of the errors above.\n');
     return EXIT_FAILURE;
   }
   if (dryRun) io.stderr(report.changes.length === 0 ? 'Dry run: nothing to change.\n' : `Dry run: ${count(report.changes.length)} would change; nothing written.\n`);
   return EXIT_OK;
 }
-

@@ -43,7 +43,15 @@ export function userFileFor(tool: ToolKnowledge, version: Version | undefined): 
   return chosen;
 }
 
-function directoryOf(directory: UserDirectory, environment: UserEnvironment): string | undefined {
+/** An environment variable that names the directory of a user file with a relative path. */
+export interface RelativeDirectory {
+  variable: string;
+  value: string;
+}
+
+type Directory = { path: string } | { relative: RelativeDirectory } | undefined;
+
+function directoryOf(directory: UserDirectory, environment: UserEnvironment): Directory {
   const path = paths(environment.platform);
   let base: string | undefined;
   if (directory.from === 'home') {
@@ -51,24 +59,38 @@ function directoryOf(directory: UserDirectory, environment: UserEnvironment): st
   } else {
     const value = environment.env[directory.from.env]?.trim();
     if (value === undefined || value === '') return undefined;
-    if (directory.from.absolute === true && !path.isAbsolute(value)) return undefined;
+    if (!path.isAbsolute(value)) {
+      // With `absolute` the knowledge base records that the tool skips a relative value. Without it, nobody knows
+      // where the tool looks then (from the directory each command runs in?), so the location cannot be worked out.
+      return directory.from.absolute === true ? undefined : { relative: { variable: directory.from.env, value } };
+    }
     base = value;
   }
   const joined = directory.path === '' ? base : path.join(base, ...directory.path.split('/'));
   if (directory.ifExists === true && !(environment.isDirectory ?? isDirectory)(joined)) return undefined;
-  return joined;
+  return { path: joined };
 }
 
-/** The absolute path of the user file on this platform, or undefined when no location applies. */
-export function userFilePath(file: UserFile, environment: UserEnvironment): string | undefined {
+/**
+ * Where the user file is on this platform: its absolute path; or `relative` when the variable that decides it is set
+ * to a relative path whose meaning to the tool is unknown; undefined when no location applies.
+ */
+export function locateUserFile(file: UserFile, environment: UserEnvironment): { path: string } | { relative: RelativeDirectory } | undefined {
   const family = platformFamily(environment.platform);
   const location = file.locations.find((candidate) => candidate.platforms.includes(family));
   if (location === undefined) return undefined;
   for (const directory of location.directories) {
     const base = directoryOf(directory, environment);
-    if (base !== undefined) return paths(environment.platform).join(base, location.file);
+    if (base === undefined) continue;
+    return 'relative' in base ? base : { path: paths(environment.platform).join(base.path, location.file) };
   }
   return undefined;
+}
+
+/** The absolute path of the user file on this platform, or undefined when no location applies or it is unknown. */
+export function userFilePath(file: UserFile, environment: UserEnvironment): string | undefined {
+  const located = locateUserFile(file, environment);
+  return located === undefined || 'relative' in located ? undefined : located.path;
 }
 
 /** A path for messages: under the home directory it starts with ~/, with / as the separator. */
