@@ -8491,6 +8491,7 @@ const pip$1 = {
 
 // src/knowledge/pdm.ts
 const { verified: verified$6, uncertain: uncertain$6 } = verifiedOn("2026-10-30");
+const rechecked$1 = verifiedOn("2026-10-31");
 const PDM = "https://github.com/pdm-project/pdm/blob/2.29.5";
 const LOCKFILE = `${PDM}/docs/usage/lockfile.md`;
 const CHANGELOG$2 = `${PDM}/CHANGELOG.md`;
@@ -8585,6 +8586,11 @@ const pdm$1 = {
 			path: "path",
 			editable: "editable"
 		}, CANDIDATES, "pdm.lock (lock_version 4.5) has no documented format beyond the docs examples. Each [[package]] has name, version and files ({file, hash} for every distribution); a VCS package has its repository under the key of its VCS (git = \"…\") with ref and revision; a local archive or directory has path, a remote archive url, and editable packages editable = true (as_lockfile_entry). A package from an index without a .whl file is built when installed."),
+		lockedSettings: rechecked$1.verified({
+			settings: "table",
+			lock: "pdm lock",
+			failing: ["pdm lock --check", "pdm install --check"]
+		}, `${PDM}/src/pdm/project/project_file.py`, "pdm.lock keeps a content_hash of the whole [tool.pdm.resolution] table (PyProject.content_hash), or with canonical lock inputs (lock_inputs = true, since 2.28.1) the table itself (src/pdm/project/lockfile/freshness.py), so a change to any key in it, exclude-newer and only-binary included, makes the lockfile out of date. pdm lock --check and pdm install --check then exit with 1 (\"Lockfile doesn't satisfy the project requirements\"), pdm install without --check locks again first and pdm sync only warns (check_lockfile in src/pdm/cli/actions.py) until pdm lock runs again; with exclude-newer set, pdm lock resolves every package again (src/pdm/cli/commands/lock.py)."),
 		uvMode: uncertain$6({
 			file: "pdm.toml",
 			key: "use_uv"
@@ -9572,7 +9578,11 @@ const uv$1 = {
 			packages: "package"
 		}, SERIALIZE, "uv.lock has no documented format (the docs say only that it is managed by uv). Each [[package]] has source = { registry = URL } for an index, { git = URL?rev#commit }, { url = URL }, { path = archive }, { directory = dir }, { editable = dir } or { virtual = dir } (a directory that is not built). Index packages list sdist and wheels; a package without wheels, or from git, a directory or a source archive, is built when installed."),
 		ignoredByToolCommands: verified$1("uv tool install, uv tool run and uvx ignore pyproject.toml and uv.toml in the project and read only user and system configuration", CONFIGURATION),
-		lockedSettings: verified$1(["exclude-newer", "exclude-newer-package"], SERIALIZE, "uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again (\"Resolving despite existing lockfile due to addition of global exclude newer\", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded."),
+		lockedSettings: verified$1({
+			settings: ["exclude-newer", "exclude-newer-package"],
+			lock: "uv lock",
+			failing: ["uv sync --locked", "uv lock --check"]
+		}, SERIALIZE, "uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again (\"Resolving despite existing lockfile due to addition of global exclude newer\", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded."),
 		commandLine: verified$1({
 			add: [
 				["uv", "add"],
@@ -15246,6 +15256,48 @@ function compactDuration(value) {
 	if (letter === void 0) throw new Error(`cannot write the duration "${value}" in compact form`);
 	return `${count}${letter}`;
 }
+const isStringList = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+function isLockedSettings(value) {
+	return isRecord(value) && (value["settings"] === "table" || isStringList(value["settings"])) && typeof value["lock"] === "string" && isStringList(value["failing"]);
+}
+/** A TOML value for comparison: a date-time as written. */
+function comparable(value) {
+	return JSON.stringify(value instanceof TomlDateTime ? value.text : value ?? null);
+}
+/**
+* uv records some settings in uv.lock, and PDM checks pdm.lock against its whole [tool.pdm.resolution] table
+* (extra.lockedSettings); when `edit` changes what the lockfile depends on, its check commands fail until it is
+* locked again, so apply says so. Call it before the edit is planned: the context reads a file as edited after that.
+*/
+function relockWarning(context, file, table, edit) {
+	const { tool } = context;
+	if (tool.extra?.["lockedSettings"] === void 0) return;
+	const locked = extraOf(tool, "lockedSettings", isLockedSettings);
+	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.exists(name));
+	if (lockfile === void 0) return;
+	const body = context.exists(file) ? context.read(file) : "";
+	let before;
+	let after;
+	try {
+		before = parseToml(body);
+		after = parseToml(edit(body));
+	} catch {
+		return;
+	}
+	const path = table === "" ? [] : table.split(".");
+	const keysOf = (document) => {
+		const value = tomlValueAt(document, path);
+		return isRecord(value) ? Object.keys(value) : [];
+	};
+	const changed = (locked.settings === "table" ? [.../* @__PURE__ */ new Set([...keysOf(after), ...keysOf(before)])] : locked.settings).filter((setting) => comparable(tomlValueAt(before, [...path, setting])) !== comparable(tomlValueAt(after, [...path, setting])));
+	if (changed.length === 0) return;
+	context.warn({
+		code: "lockfile-out-of-date",
+		location: { file: lockfile },
+		message: locked.settings === "table" ? `${context.name}: ${lockfile} is checked against the whole [${table}] table, and this change alters ${listing(changed)}, so ${lockfile} is out of date` : `${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change`,
+		fix: `Run ${locked.lock} and commit ${lockfile}; until then ${listing(locked.failing)} fail`
+	});
+}
 
 // src/apply/generators/pip.ts
 const pip = (context) => {
@@ -15545,7 +15597,10 @@ const pdm = (context) => {
 		}
 	}
 	eachSource(context, () => void 0);
-	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) context.toml(file, table, entries, managed, table);
+	if (entries.length > 0 || context.exists(file) && hasManagedLines(context.read(file))) {
+		relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, table));
+		context.toml(file, table, entries, managed, table);
+	}
 	return minutes;
 };
 
@@ -15788,39 +15843,6 @@ const uv = (context) => {
 	}
 	return minutes;
 };
-const isStringList = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-/** A TOML value for comparison: a date-time as written. */
-function comparable(value) {
-	return JSON.stringify(value instanceof TomlDateTime ? value.text : value ?? null);
-}
-/**
-* uv records some settings in uv.lock (extra.lockedSettings); when the edit changes one, uv lock --check and
-* uv sync --locked fail until the lockfile is locked again, so apply says so.
-*/
-function relockWarning(context, file, table, edit) {
-	const { tool } = context;
-	const locked = tool.extra?.["lockedSettings"] === void 0 ? [] : extraOf(tool, "lockedSettings", isStringList);
-	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.exists(name));
-	if (lockfile === void 0 || locked.length === 0) return;
-	const body = context.exists(file) ? context.read(file) : "";
-	let before;
-	let after;
-	try {
-		before = parseToml(body);
-		after = parseToml(edit(body));
-	} catch {
-		return;
-	}
-	const path = table === "" ? [] : table.split(".");
-	const changed = locked.filter((setting) => comparable(tomlValueAt(before, [...path, setting])) !== comparable(tomlValueAt(after, [...path, setting])));
-	if (changed.length === 0) return;
-	context.warn({
-		code: "lockfile-out-of-date",
-		location: { file: lockfile },
-		message: `${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change`,
-		fix: `Run ${context.name} lock and commit ${lockfile}; until then ${context.name} sync --locked and ${context.name} lock --check fail`
-	});
-}
 
 // src/apply/generators/yarn.ts
 const isScriptsSwitch = (value) => isRecord(value) && typeof value["setting"] === "string" && "allow" in value && "deny" in value;

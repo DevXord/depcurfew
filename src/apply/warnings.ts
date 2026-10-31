@@ -32,7 +32,7 @@ export const APPLY_WARNINGS = {
   'build-switch-environment-only': 'The tool has no project setting that forbids building from source, so it has to be set in the environment where the tool runs.',
   'requirements-file-missing': 'There is no requirements file to write pip options into.',
   'manifest-missing': 'A setting belongs in a project manifest (package.json, deno.json, pyproject.toml, Pipfile) that does not exist, and apply does not create manifests.',
-  'lockfile-out-of-date': 'The lockfile records a setting apply changed, so it has to be locked again.',
+  'lockfile-out-of-date': 'The lockfile records, or is checked against, a setting apply changed, so it has to be locked again.',
   'file-ignored-by-git': 'A file apply writes matches a .gitignore rule, so the change may never reach the repository.',
   'bot-config-missing': 'A bot has no configuration file, and depcurfew does not create one.',
   'bot-config-not-edited': 'A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.',

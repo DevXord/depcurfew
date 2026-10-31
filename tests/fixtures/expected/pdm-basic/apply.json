@@ -37,6 +37,15 @@
       "tool": "pdm",
       "message": "PDM has no setting for URL dependencies, so \"deny\" cannot be enforced",
       "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "lockfile-out-of-date",
+      "tool": "pdm",
+      "location": {
+        "file": "pdm.lock"
+      },
+      "message": "PDM: pdm.lock is checked against the whole [tool.pdm.resolution] table, and this change alters exclude-newer, exclude-newer-override, only-binary and no-binary, so pdm.lock is out of date",
+      "fix": "Run pdm lock and commit pdm.lock; until then pdm lock --check and pdm install --check fail"
     }
   ],
   "snippets": []
