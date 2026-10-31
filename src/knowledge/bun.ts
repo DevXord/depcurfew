@@ -3,6 +3,9 @@ import type { SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
+const user = verifiedOn('2026-10-31');
+const BUN_V1_4_4 = 'https://github.com/oven-sh/bun/blob/bun-v1.4.4';
+const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 
 const BUNFIG = 'https://bun.com/docs/runtime/bunfig';
 const INSTALL = 'https://bun.com/docs/pm/cli/install';
@@ -107,6 +110,65 @@ export const bun: ToolKnowledge = {
     manifests: verified(['package.json'], WORKSPACES),
     workspaces: verified({ files: ['package.json'], key: 'workspaces' }, WORKSPACES, 'Full glob syntax, including ! patterns.'),
     workspacesObjectKey: verified('packages', 'https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx', 'The object form also holds catalog and catalogs.'),
+  },
+  user: {
+    files: user.verified(
+      [
+        {
+          since: '0.0.0',
+          value: {
+            format: 'toml',
+            locations: [
+              {
+                platforms: ['linux', 'darwin', 'win32'],
+                directories: [
+                  { from: { env: 'XDG_CONFIG_HOME', absolute: true }, path: '' },
+                  { from: 'home', path: '' },
+                ],
+                file: '.bunfig.toml',
+              },
+            ],
+          },
+        },
+      ],
+      `${BUN_V1_4_4}/docs/runtime/bunfig.mdx`,
+      '"When XDG_CONFIG_HOME is set to an absolute path, Bun reads the file there and not the one in $HOME"; HOME is USERPROFILE on Windows (src/bun_core/env_var.rs). Only one file is read, with no fallback when the XDG one is missing (get_home_config_path in src/bunfig/arguments.rs). Only package manager commands read it (bun install, add, remove, update, pm, bunx and so on), before the project bunfig.toml, whose keys win. 1.2.0 already reads it, and the first version was not tracked; 1.2.0 and 1.3.0 used XDG_CONFIG_HOME whenever it was set, and the version that started requiring an absolute path was not pinned.',
+    ),
+    settings: user.verified(
+      [
+        { purpose: 'cooldown', key: 'install.minimumReleaseAge', since: '1.3.0' },
+        { purpose: 'cooldownExclude', key: 'install.minimumReleaseAgeExcludes', since: '1.3.0' },
+      ],
+      BUNFIG_PARSER,
+      'parse_install reads both from the user file as from bunfig.toml (only globalDir and globalBinDir are user-only), as in 1.3.0 (bunfig.zig). trustedDependencies exists only in package.json and bunfig has no such key, so Bun has no user-level allow-list; install.ignoreScripts only turns scripts off. Write whole seconds: duration strings need 1.4.4.',
+    ),
+    unknownKeys: user.verified(
+      'ignore',
+      BUNFIG_PARSER,
+      'The parser looks up only the keys it knows (install_obj.get), so another key, such as install.minimumReleaseAge before 1.3.0, is neither read nor reported.',
+    ),
+    invalidValueFails: user.verified(
+      true,
+      `${BUN_V1_4_4}/src/bunfig/arguments.rs`,
+      'load_global_bunfig ends the process through report_bunfig_load_failure when the user file has a value Bun cannot read, e.g. minimumReleaseAge = "3d" before 1.4.4 ("Expected number of seconds for minimumReleaseAge"), so every package manager command fails; 1.3.0 crashed the same way. A file Bun cannot read at all is skipped.',
+    ),
+    weakening: user.verified(
+      [
+        { key: 'install.minimumReleaseAge', values: [0], effect: 'turns the release-age delay off in every project whose bunfig.toml does not set it' },
+        {
+          key: 'install.minimumReleaseAgeExcludes',
+          values: 'any',
+          effect: 'exempts these packages from the release-age delay in every project without a non-empty list of its own',
+        },
+      ],
+      BUNFIG_PARSER,
+      'Both files fill one set of options, the user file first, so a key in the project bunfig.toml replaces the user value; an empty minimumReleaseAgeExcludes list is skipped, so a project\'s [] does not clear the user list. 0 turns the delay off (src/install/PackageManager/PackageManagerOptions.rs keeps only values above 0). The command line beats both files.',
+    ),
+    variables: user.uncertain(
+      [],
+      `${BUN_V1_4_4}/docs/pm/cli/install.mdx`,
+      'No environment variable sets minimumReleaseAge or its exclusions: concluded from the install page, which lists registry, token, lockfile and retry variables only. NPM_CONFIG_IGNORE_SCRIPTS only turns scripts off. XDG_CONFIG_HOME moves the user file (user.files).',
+    ),
   },
   extra: {
     commandLine: checked.verified(

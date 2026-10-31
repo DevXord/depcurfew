@@ -1,11 +1,28 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
+const user = verifiedOn('2026-10-31');
 const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
+const PNPM_V11_CODE = 'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src';
+
+/** A file in pnpm's config directory (getConfigDir): $XDG_CONFIG_HOME/pnpm when set, else the platform's own place. */
+const inConfigDir = (file: string): readonly UserLocation[] => [
+  { platforms: ['linux'], directories: [{ from: { env: 'XDG_CONFIG_HOME' }, path: 'pnpm' }, { from: 'home', path: '.config/pnpm' }], file },
+  { platforms: ['darwin'], directories: [{ from: { env: 'XDG_CONFIG_HOME' }, path: 'pnpm' }, { from: 'home', path: 'Library/Preferences/pnpm' }], file },
+  {
+    platforms: ['win32'],
+    directories: [
+      { from: { env: 'XDG_CONFIG_HOME' }, path: 'pnpm' },
+      { from: { env: 'LOCALAPPDATA' }, path: 'pnpm/config' },
+      { from: 'home', path: '.config/pnpm' },
+    ],
+    file,
+  },
+];
 
 const RESOLUTION = 'https://pnpm.io/settings/dependency-resolution';
 const SETTINGS_V10 = 'https://pnpm.io/10.x/settings';
@@ -48,10 +65,10 @@ export const pnpm: ToolKnowledge = {
   kind: 'package-manager',
   cooldown: {
     setting: verified('minimumReleaseAge', 'https://pnpm.io/blog/releases/10.16'),
-    configFiles: verified(
+    configFiles: rechecked.verified(
       ['pnpm-workspace.yaml'],
       release('11.0.0'),
-      'pnpm-workspace.yaml (or the global config.yaml) works in every version that has the setting. pnpm 10 also reads minimum-release-age from .npmrc; pnpm 11+ reads only auth and registry settings from .npmrc and ignores the package.json "pnpm" field.',
+      'pnpm-workspace.yaml works in every version that has the setting. The global config.yaml exists only from 11.0.0 ("the new global config.yaml"); pnpm 10 reads user-level settings from ~/.npmrc and <configDir>/rc instead (see user.files). pnpm 10 also reads minimum-release-age from .npmrc; pnpm 11+ reads only auth and registry settings from .npmrc and ignores the package.json "pnpm" field.',
     ),
     cliFlag: uncertain(
       null,
@@ -128,6 +145,89 @@ export const pnpm: ToolKnowledge = {
       'Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json.',
     ),
     workspacesObjectKey: uncertain(null, WORKSPACE_YAML_V10, 'The docs show packages only as a list; concluded from the absence of an object form.'),
+  },
+  user: {
+    files: user.verified(
+      [
+        { since: '0.0.0', value: { format: 'ini', locations: inConfigDir('rc') } },
+        { since: '11.0.0', value: { format: 'yaml', locations: inConfigDir('config.yaml') } },
+      ],
+      `${PNPM_V11_CODE}/dirs.ts`,
+      'getConfigDir: $XDG_CONFIG_HOME/pnpm when it is set, else ~/Library/Preferences/pnpm on macOS, %LOCALAPPDATA%/pnpm/config on Windows (~/.config/pnpm without LOCALAPPDATA) and ~/.config/pnpm elsewhere; the same in 10.34.9 (config/config/src/dirs.ts) and 12.17.0 (pnpm/crates/config-dir/src/lib.rs). pnpm 10 reads <configDir>/rc, INI with kebab-case keys (config/config/src/index.ts at 10.34.9; first version not tracked), and also ~/.npmrc for every setting, which beats rc. From 11.0.0 the settings file is <configDir>/config.yaml with camelCase keys (11.0.0 changelog: "the new global config.yaml"), and ~/.npmrc and <configDir>/auth.ini carry only auth, registry and network settings. The 11.x and 12.x docs page cli/config.md still names a global rc file for registry and auth settings, which that code no longer reads.',
+    ),
+    settings: user.verified(
+      [
+        { purpose: 'cooldown', key: 'minimum-release-age', since: '10.16.0', until: '11.0.0' },
+        { purpose: 'cooldownExclude', key: 'minimum-release-age-exclude', since: '10.16.0', until: '11.0.0' },
+        { purpose: 'buildsAllow', key: 'only-built-dependencies', since: '10.0.0', until: '11.0.0' },
+        { purpose: 'scriptsStrict', key: 'strict-dep-builds', since: '10.3.0', until: '11.0.0' },
+        { purpose: 'sourcesExotic', key: 'block-exotic-subdeps', since: '10.26.0', until: '11.0.0' },
+        { purpose: 'cooldown', key: 'minimumReleaseAge', since: '11.0.0' },
+        { purpose: 'cooldownExclude', key: 'minimumReleaseAgeExclude', since: '11.0.0' },
+        { purpose: 'cooldownStrict', key: 'minimumReleaseAgeStrict', since: '11.0.0' },
+        { purpose: 'scriptsStrict', key: 'strictDepBuilds', since: '11.0.7' },
+        { purpose: 'sourcesExotic', key: 'blockExoticSubdeps', since: '11.0.0', until: '12.0.0' },
+      ],
+      `${PNPM_V11_CODE}/configFileKey.ts`,
+      'pnpm 10 reads the kebab-case keys from rc as from any .npmrc (config/config/src/types.ts: only-built-dependencies at 10.0.0, strict-dep-builds at 10.3.0, minimum-release-age and minimum-release-age-exclude at 10.16.0, block-exotic-subdeps at 10.26.0); since 10.13.0 build settings from these files apply only to projects whose package.json "pnpm" field and pnpm-workspace.yaml set none of dangerouslyAllowAllBuilds, onlyBuiltDependencies(File), neverBuiltDependencies or allowBuilds, and always to global installs. pnpm 11+ applies a config.yaml key only when isConfigFileKey accepts it and it is camelCase: the minimumReleaseAge keys and blockExoticSubdeps since 11.0.0, strictDepBuilds since 11.0.7 (in excludedPnpmKeys in 11.0.0-11.0.6). allowBuilds is project-only from 11.0.0 and dropped with a warning, so pnpm 11+ has no user-level allow-list. pnpm 12 silently drops blockExoticSubdeps from config.yaml although its key gate accepts it (clear_workspace_resolution_fields in pnpm/crates/config/src/workspace_yaml/workspace_scope.rs, 12.0.0 to 12.17.0). pnpm self-update takes the minimumReleaseAge settings only from config.yaml, the environment and the command line, never from the project.',
+    ),
+    unknownKeys: user.uncertain(
+      'warn',
+      `${PNPM_V11_CODE}/getConfig/globalConfigYaml.ts`,
+      'pnpm 11 drops config.yaml keys it does not accept (unknown, project-only or not camelCase) and prints a warning that names them; pnpm 12 warns about keys its port of isConfigFileKey rejects, but drops blockExoticSubdeps without a word. What pnpm 10 does with an unknown key in rc was not checked.',
+    ),
+    invalidValueFails: user.uncertain(
+      true,
+      `${PNPM_V11_CODE}/index.ts`,
+      'Read from code: pnpm 11.28.10 stops when the global config.yaml cannot be read (readGlobalYamlConfig) or applied (applyGlobalYamlConfig), except in commands that skip unreadable settings. Which values fail, and what pnpm 10 (rc) and pnpm 12 do, was not checked; true is the safe assumption.',
+    ),
+    weakening: user.verified(
+      [
+        {
+          key: 'dangerously-allow-all-builds',
+          values: [true],
+          effect: 'runs every dependency build script in projects without build settings of their own and in global installs (pnpm 10)',
+        },
+        { key: 'only-built-dependencies', values: 'any', effect: 'lets these packages run build scripts in projects without build settings of their own and in global installs (pnpm 10)' },
+        { key: 'minimum-release-age-exclude', values: 'any', effect: 'exempts these packages from the release-age delay in every project without its own list (pnpm 10)' },
+        {
+          key: 'dangerouslyAllowAllBuilds',
+          values: [true],
+          effect: 'runs every dependency build script in projects that do not set it to false; before pnpm 12.12.0 also of packages denied in allowBuilds',
+        },
+        { key: 'minimumReleaseAge', values: [0], effect: 'turns the default release-age delay off (pnpm 11+)' },
+        { key: 'minimumReleaseAgeExclude', values: 'any', effect: 'exempts these packages from the release-age delay in every project without its own list (pnpm 11+)' },
+        { key: 'minimumReleaseAgeStrict', values: [false], effect: 'installs a version younger than minimumReleaseAge when no older one matches (pnpm 11+)' },
+        { key: 'strictDepBuilds', values: [false], effect: 'lets unreviewed build scripts warn instead of failing the install (pnpm 11.0.7+)' },
+        { key: 'trustLockfile', values: [true], effect: 'stops frozen-lockfile installs from re-checking the release age of lockfile entries (pnpm 11.3.0+)' },
+        { key: 'blockExoticSubdeps', values: [false], effect: 'allows git and tarball subdependencies again (pnpm 11; pnpm 12 ignores the key in config.yaml)' },
+      ],
+      `${PNPM_V11_CODE}/getConfig/workspaceManifestSettings.ts`,
+      'A key in pnpm-workspace.yaml replaces the user value, lists included (applyWorkspaceSetting: pnpmConfig[key] = value); PNPM_CONFIG_* variables and the command line beat both. In pnpm 10 the same keys in ~/.npmrc beat rc, and since 10.13.0 build settings from either file reach only projects without build settings of their own, and global installs (config/config/src/index.ts at 10.34.9; before 10.13.0 dangerously-allow-all-builds also joined a project\'s onlyBuiltDependencies). In config.yaml, dangerouslyAllowAllBuilds also overrides a project\'s allowBuilds: false in pnpm 11 and 12.0.0-12.11.x (see extra.allowAllBuilds). pnpm 10 has no default delay and its strict-dep-builds and block-exotic-subdeps default to false, so 0 or false there weakens nothing; trustLockfile is a global key since it appeared in 11.3.0.',
+    ),
+    variables: user.verified(
+      [
+        { name: 'pnpm_config_minimum_release_age', values: 'any', effect: 'overrides minimumReleaseAge from every file (pnpm 11+)' },
+        { name: 'PNPM_CONFIG_MINIMUM_RELEASE_AGE', values: 'any', effect: 'overrides minimumReleaseAge from every file (pnpm 11+)' },
+        { name: 'pnpm_config_dangerously_allow_all_builds', values: ['true'], effect: 'runs every dependency build script (pnpm 11+)' },
+        { name: 'PNPM_CONFIG_DANGEROUSLY_ALLOW_ALL_BUILDS', values: ['true'], effect: 'runs every dependency build script (pnpm 11+)' },
+        {
+          name: 'npm_config_minimum_release_age',
+          anyCase: true,
+          values: 'any',
+          effect: 'overrides minimum-release-age from every .npmrc and rc file; pnpm-workspace.yaml still wins (pnpm 10)',
+        },
+        {
+          name: 'npm_config_dangerously_allow_all_builds',
+          anyCase: true,
+          values: ['true'],
+          effect: 'runs every dependency build script in projects without build settings of their own (pnpm 10)',
+        },
+        { name: 'npm_config_userconfig', anyCase: true, values: 'any', effect: 'moves the user .npmrc, which pnpm 10 reads for every setting ahead of rc' },
+      ],
+      `${PNPM_V11_CODE}/env.ts`,
+      'pnpm 11 reads pnpm_config_<key> in lower case or PNPM_CONFIG_<KEY> in upper case, not mixed case (getEnvKeySuffix), over pnpm-workspace.yaml and under the command line; pnpm 12 reads the same two forms (pnpm/crates/config/src/env_overlay.rs at 12.17.0). pnpm 11+ ignores npm_config_* except npm_config_userconfig, which then moves only the auth .npmrc. pnpm 10 reads npm_config_* in any case (lib/conf.js in @pnpm/npm-conf 3.0.3) under pnpm-workspace.yaml (npmrcPrecedence). XDG_CONFIG_HOME and LOCALAPPDATA move the config directory (user.files).',
+    ),
   },
   extra: {
     commandLine: rechecked.verified(
@@ -248,10 +348,10 @@ export const pnpm: ToolKnowledge = {
       release('11.1.3'),
       'Structured form of lockfileVerification: whether a frozen-lockfile install re-checks the age of versions already in the lockfile. trustLockfile: true (11.3.0) turns the check off.',
     ),
-    allowAllBuilds: verified(
+    allowAllBuilds: rechecked.verified(
       { setting: 'dangerouslyAllowAllBuilds', since: '10.9.0', value: true },
       'https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md',
-      'Boolean, default false; packages denied in allowBuilds stay blocked.',
+      'Boolean, default false. Packages set to false in allowBuilds (or build: false in permissions) stay blocked only from pnpm 12.12.0 (release notes: "A package set to false in allowBuilds no longer runs its build scripts when dangerouslyAllowAllBuilds is true"). pnpm 10, 11 and 12.0.0-12.11.x run them too: the build policy allows every build before it reads allowBuilds (builder/policy at 10.34.9, building/policy at 11.28.10, allow_build_policy.rs at 12.0.0).',
     ),
     excludeWildcards: verified(
       { since: '10.17.0', trailingOnly: false },
