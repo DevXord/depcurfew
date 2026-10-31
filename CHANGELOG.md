@@ -2,6 +2,22 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
+## 1.2.0
+
+### Protecting the whole machine
+
+- `depcurfew init --user` writes a user policy (`~/.config/depcurfew/depcurfew.json`, `%APPDATA%\depcurfew\depcurfew.json` on Windows).
+- `depcurfew apply --user` writes it into the user-level configuration of the installed package managers (npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry and PDM), which protects every project that does not set those settings itself, and `npx`, `uvx` and global installs. Versions are read from the files next to each executable, never by running it; `--for tool@version` gives a version by hand, and a tool that stops every command on a value its version does not understand gets nothing until its version is known. pip gets its release-age delay this way, which a project cannot set.
+- `depcurfew doctor --user` reports user files that do not match the user policy, values in them that weaken every project, and environment variables that move, skip or override them.
+
+### Policy
+
+- `installScripts.deny` lists packages you reviewed that work without their install scripts, such as `fsevents`, which ships a prebuilt binary. `doctor` no longer reports them while the tool does not run their scripts, and `apply` records the denial where the tool has one (npm, pnpm, Yarn, Deno), so the tool stops warning about them on every install. For Python packages it means never building them from source. Policies without it stay valid.
+
+### Messages
+
+- `doctor` rule and `apply` warning `depcurfew-outdated`: the project installs a newer depcurfew than the one running (a global install or an old npx cache), which may not know what the project's version writes or checks.
+
 ## 1.1.0
 
 Everything below is new since 1.0.0. Upgrading needs no change to `depcurfew.json`.

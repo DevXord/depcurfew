@@ -110,6 +110,9 @@ The package installs two names for the same command: `depcurfew` and the short `
 | `depcurfew doctor [directory] [--json \| --sarif]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning. |
 | `depcurfew check <package...> [--json] [--dir <directory>] [--registry <url>] [--index <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
 | `depcurfew check --hook claude-code` | The same check as a Claude Code hook that blocks install commands breaking the policy. |
+| `depcurfew init --user [--force]` | Writes the user policy, which `--user` uses: see [Protecting the whole machine](#protecting-the-whole-machine). |
+| `depcurfew apply --user [--dry-run] [--json] [--for <tool@version>]` | Writes the user policy into the user-level configuration of the installed package managers. |
+| `depcurfew doctor --user [--json \| --sarif] [--for <tool@version>]` | Checks that configuration against the user policy, and the environment variables that override it. |
 
 Without a directory, `explain`, `apply` and `doctor` work on the nearest directory with `depcurfew.json`, from the current directory up to the root of the repository (the directory with `.git`), and say so when that is a parent directory (outside a git repository only the current directory counts, and on Linux and macOS a parent directory counts only when it belongs to you and others cannot write to it, because a shared parent such as `/tmp` may hold someone else's `depcurfew.json`; directories inside `node_modules` are skipped), so `doctor` run in a subdirectory does not pass for a project without a policy. A directory given on the command line is used as it is. `check` looks for `depcurfew.json` the same way, starting in `--dir`.
 
@@ -186,6 +189,66 @@ Errors (nothing is written):
 - `directory-not-found`: The directory given on the command line does not exist or cannot be opened.
 - `not-a-directory`: The path given on the command line is a file, not a directory.
 <!-- END GENERATED: apply-codes -->
+
+## Protecting the whole machine
+
+`depcurfew apply` protects one project. The user-level configuration of each package manager protects every project on the machine that does not set the same settings itself, and also what runs outside a project: `npx`, `uvx`, global installs, and a new project before anyone ran `apply` in it.
+
+```bash
+depcurfew init --user
+depcurfew apply --user --dry-run
+depcurfew apply --user
+depcurfew doctor --user
+```
+
+- The user policy is `~/.config/depcurfew/depcurfew.json` (in `$XDG_CONFIG_HOME/depcurfew/` when that variable is set to an absolute path, in `%APPDATA%\depcurfew\` on Windows). It has the same format as a project policy; under `targets: "auto"` it configures the package managers found in `PATH`.
+- depcurfew does not run other programs to learn their versions. It reads the version from the files next to the executable in `PATH`: the `package.json` of a tool installed from npm, the `.dist-info` folder of one installed from PyPI. When it cannot, it configures for the latest version it knows and says so, except for tools that stop every command on a value their version does not understand (the last column below): for those it writes nothing until you pass the version, for example `--for uv@0.13.6`.
+- A tool's own project settings win over its user file for the same key. Parts of the policy that a tool reads only from project files, such as per-package allow-lists, are not written into the user file; `apply --user` names them, and `depcurfew apply` in the project writes them.
+- `doctor --user` reports a user file that does not match the user policy, values in user files that weaken every project, and environment variables that make a tool read another file, no file or other values.
+- Tools that record the release-age delay in their lockfile may lock differently on a machine whose user file sets one than on a machine without it; set the same delay in the project with `depcurfew apply` so that every machine and CI agree.
+
+<!-- BEGIN GENERATED: user-config -->
+| Tool | User file | Settings `apply --user` writes (versions that read them there) | Needs the exact version |
+| --- | --- | --- | --- |
+| npm | Linux, macOS: `~/.npmrc`<br>Windows: `%HOME%\.npmrc`, else `~\.npmrc` | `min-release-age` (11.10.0+), `min-release-age-exclude` (11.17.0+), `strict-allow-scripts` (11.16.0+), `allow-scripts` (11.16.0+), `allow-git` (11.10.0+), `allow-remote` (11.15.0+), `allow-file` (11.15.0+), `allow-directory` (11.15.0+) | no |
+| pnpm | Linux: `$XDG_CONFIG_HOME/pnpm/rc`, else `~/.config/pnpm/rc`<br>macOS: `$XDG_CONFIG_HOME/pnpm/rc`, else `~/Library/Preferences/pnpm/rc`<br>Windows: `%XDG_CONFIG_HOME%\pnpm\rc`, else `%LOCALAPPDATA%\pnpm\config\rc`, else `~\.config\pnpm\rc`<br>11.0.0+: Linux: `$XDG_CONFIG_HOME/pnpm/config.yaml`, else `~/.config/pnpm/config.yaml`<br>macOS: `$XDG_CONFIG_HOME/pnpm/config.yaml`, else `~/Library/Preferences/pnpm/config.yaml`<br>Windows: `%XDG_CONFIG_HOME%\pnpm\config.yaml`, else `%LOCALAPPDATA%\pnpm\config\config.yaml`, else `~\.config\pnpm\config.yaml` | `minimum-release-age` (10.16.0–11.0.0), `minimum-release-age-exclude` (10.16.0–11.0.0), `only-built-dependencies` (10.0.0–11.0.0), `strict-dep-builds` (10.3.0–11.0.0), `block-exotic-subdeps` (10.26.0–11.0.0), `minimumReleaseAge` (11.0.0+), `minimumReleaseAgeExclude` (11.0.0+), `minimumReleaseAgeStrict` (11.0.0+), `strictDepBuilds` (11.0.7+), `blockExoticSubdeps` (11.0.0–12.0.0) | yes |
+| Yarn (Berry) | Linux, macOS, Windows: `~/.yarnrc.yml` | `npmMinimalAgeGate` (4.10.2+), `npmPreapprovedPackages` (4.10.0+), `enableScripts` (4.0.0+), `approvedGitRepositories` (4.14.0+) | yes |
+| Bun | Linux, macOS, Windows: `$XDG_CONFIG_HOME/.bunfig.toml`, else `~/.bunfig.toml` | `install.minimumReleaseAge` (1.3.0+), `install.minimumReleaseAgeExcludes` (1.3.0+) | yes |
+| Deno | 1.45.0+: Linux, macOS, Windows: `~/.npmrc` | `min-release-age` (2.8.0+) | no |
+| uv | Linux, macOS: `$XDG_CONFIG_HOME/uv/uv.toml`, else `~/.config/uv/uv.toml`<br>Windows: `%APPDATA%\uv\uv.toml`, else `~\AppData\Roaming\uv\uv.toml` | `exclude-newer` (0.9.17+), `exclude-newer-package` (0.9.25+), `no-build` (0.2.12+), `no-build-package` (0.2.12+), `no-binary-package` (0.2.12+) | yes |
+| pip | Linux: `$XDG_CONFIG_HOME/pip/pip.conf`, else `~/.config/pip/pip.conf`<br>macOS: `~/Library/Application Support/pip/pip.conf` (when the folder exists), else `~/.config/pip/pip.conf`<br>Windows: `%APPDATA%\pip\pip.ini`, else `~\AppData\Roaming\pip\pip.ini` | `uploaded-prior-to` (26.1.0+), `only-binary` (7.1.0+), `no-binary` (7.1.0+) | yes |
+| Poetry | 2.0.0+: Linux: `$XDG_CONFIG_HOME/pypoetry/config.toml`, else `~/.config/pypoetry/config.toml`<br>macOS: `~/Library/Application Support/pypoetry/config.toml`<br>Windows: `%APPDATA%\pypoetry\config.toml`, else `~\AppData\Roaming\pypoetry\config.toml` | `solver.min-release-age` (2.4.0+), `solver.min-release-age-exclude` (2.4.0+), `installer.only-binary` (2.0.0+), `installer.no-binary` (1.2.0+) | no |
+| PDM | Linux: `$XDG_CONFIG_HOME/pdm/config.toml`, else `~/.config/pdm/config.toml`<br>macOS: `~/Library/Application Support/pdm/config.toml`<br>Windows: `~\AppData\Local\pdm\pdm\config.toml` | `strategy.exclude-newer` (2.27.0+) | yes |
+| Pipenv | none | none | no |
+<!-- END GENERATED: user-config -->
+
+### doctor --user rules
+
+<!-- BEGIN GENERATED: user-rules -->
+### `user-config-drift`
+
+**warning** · needs depcurfew.json · A user-level configuration file does not match the user policy.
+
+depcurfew apply --user writes the user policy (~/.config/depcurfew/depcurfew.json) into the user-level configuration of each installed tool, which protects every project on the machine that does not set the same settings itself, and npx, uvx and global installs. A file that no longer matches leaves that protection weaker than the policy.
+
+Fix: Run depcurfew apply --user.
+
+### `user-config-weakens`
+
+**warning** · A user-level configuration file has a value that weakens every project that does not set it itself.
+
+Settings in the user-level configuration apply to every project that does not set the same key, and some apply even then (lists that tools merge across files). A value that turns the release-age delay off, exempts packages or allows install scripts or git dependencies there weakens all of them at once.
+
+Fix: Remove the value from the file, or set it in the policy and run depcurfew apply --user.
+
+### `user-environment-overrides`
+
+**warning** · An environment variable moves, skips or overrides the user-level configuration or the policy.
+
+Package managers read settings from environment variables before their configuration files, and some variables make them read another file or none. A variable set in a shell profile or a CI runner can switch the protection off without any file showing it.
+
+Fix: Unset the variable, or set it to a value the policy allows.
+<!-- END GENERATED: user-rules -->
 
 ## Supported tools
 

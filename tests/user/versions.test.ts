@@ -70,6 +70,15 @@ describe('installedVersion', () => {
     expect(installedVersion('pip', 'pypi', linux(join(root, 'bin')))?.text).toBe('26.2.2');
   });
 
+  it('reads a Python tool that Debian or Ubuntu installed into dist-packages', () => {
+    const root = scratch({
+      'bin/pip': '#!/usr/bin/python3\n',
+      'lib/python3/dist-packages/pip-24.0.dist-info/METADATA': 'Name: pip\nVersion: 24.0\n',
+      'lib/python3/dist-packages/pip-24.0.dist-info/entry_points.txt': '[console_scripts]\npip = pip._internal.cli.main:main\n',
+    });
+    expect(installedVersion('pip', 'pypi', linux(join(root, 'bin')))?.text).toBe('24.0');
+  });
+
   it('stays unknown for a binary without metadata and for a tool that is not in PATH', () => {
     const root = scratch({ 'bin/bun': 'binary' });
     expect(installedVersion('bun', 'npm', linux(join(root, 'bin')))).toBeUndefined();

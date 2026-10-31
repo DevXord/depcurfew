@@ -73,7 +73,7 @@ describe.skipIf(!canSymlink())('doctor --user', () => {
     const report = runUserDoctor({ environment });
     const found = report.findings.find((finding) => finding.rule === 'user-environment-overrides');
     expect(found).toMatchObject({ level: 'warning', location: { file: 'environment' } });
-    expect(found?.message).toBe('npm_config_userconfig=/tmp/other-npmrc is set in the environment: it makes npm read another user file (npm)');
+    expect(found?.message).toBe('npm_config_userconfig=/tmp/other-npmrc is set in the environment (npm): makes npm read another user file');
   });
 
   it('runs the checks that need no user policy when there is none', () => {

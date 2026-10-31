@@ -211,7 +211,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
         rule: 'user-environment-overrides',
         level: 'warning',
         location: { file: 'environment' },
-        message: `${variable.name}=${value} is set in the environment: it ${variable.effect} (${tool.name})`,
+        message: `${variable.name}=${value} is set in the environment (${tool.name}): ${variable.effect}`,
         fix: `Unset ${variable.name} in your shell profile or CI settings, or set it to a value the policy allows`,
       });
     }

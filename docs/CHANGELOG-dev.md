@@ -2,6 +2,15 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · 1.2.0, część 3: `init`, `apply` i `doctor --user` (D-087), jawna blokada `deny`
+
+- Badanie konfiguracji użytkownika 10 menedżerów (trzech agentów, źródła przypięte do tagów) i sekcja `user` w bazie wiedzy: pliki per wersja i system, ustawienia z wersjami, nieznane klucze, złe wartości, osłabiające wartości i zmienne.
+- `src/user/`: położenie plików, wersje z plików (bez uruchamiania), polityka użytkownika, plan i zapis `apply --user`, `doctor --user` (`user-config-drift`, `user-config-weakens`, `user-environment-overrides`).
+- CLI: `init --user`, `apply --user`, `doctor --user`, `--for narzędzie@wersja`; README z generowaną tabelą plików użytkownika i regułami `doctor --user`.
+- `apply` zapisuje `installScripts.deny` jako jawną blokadę w npm, pnpm, Yarn i Deno; repozytorium ma `allowScripts: { fsevents: false }`.
+- Poprawione notatki w bazie wiedzy: pnpm `allowAllBuilds` (odmowy blokują dopiero od 12.12.0), pnpm 10 bez globalnego `config.yaml`, spór o nieznane klucze `.npmrc` rozstrzygnięty (ostrzeżenie).
+- Weryfikacja: `npm test`, `npm run typecheck`, `npm run check:pkg`; `depcurfew doctor .` bez uwag, `apply --dry-run .` bez zmian.
+
 ## 2026-10-31 · 1.2.0, część 2: ostrzeżenie o starszym depcurfew (D-086)
 
 - Reguła `doctor` `depcurfew-outdated` i ostrzeżenie `apply` o tym samym kodzie, gdy projekt instaluje nowszy depcurfew niż uruchomiony (`node_modules/depcurfew/package.json`, potem `package-lock.json`).

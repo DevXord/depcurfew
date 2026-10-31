@@ -63,7 +63,8 @@ export function findExecutable(name: string, environment: UserEnvironment): stri
 
 function versionOf(text: string | undefined, file: string): InstalledVersion | undefined {
   if (text === undefined) return undefined;
-  const version = parseVersion(text);
+  // Python releases may have two parts (pip 24.0): the missing patch is 0.
+  const version = parseVersion(/^\d+\.\d+$/u.test(text) ? `${text}.0` : text);
   return version === undefined ? undefined : { version, text, file };
 }
 
@@ -113,10 +114,11 @@ function declaresScript(distInfo: string, name: string, module: typeof posix): b
 
 function fromPython(real: string, name: string, module: typeof posix): InstalledVersion | undefined {
   const prefix = module.dirname(module.dirname(real));
+  // site-packages of a virtual environment or a pip install --user; dist-packages where Debian and Ubuntu install them.
   const sitePackages = [
     ...list(module.join(prefix, 'lib'))
       .filter((entry) => /^python3(\.\d+)?$/u.test(entry))
-      .map((entry) => module.join(prefix, 'lib', entry, 'site-packages')),
+      .flatMap((entry) => [module.join(prefix, 'lib', entry, 'site-packages'), module.join(prefix, 'lib', entry, 'dist-packages')]),
     module.join(prefix, 'Lib', 'site-packages'),
   ];
   for (const directory of sitePackages) {

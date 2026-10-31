@@ -80,6 +80,10 @@ describe('apply --user for Python tools', () => {
     );
     const given = planUserApply(POLICY, { environment, versions: { uv: [0, 13, 6], pip: [26, 2, 2] } });
     expect(given.report.changes.map((change) => change.file).sort()).toEqual(['~/.config/pip/pip.conf', '~/.config/uv/uv.toml']);
+    // A new pip.conf: the [global] section with the block, and nothing after it.
+    expect(after(given, '~/.config/pip/pip.conf')).toBe(
+      ['[global]', '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead', 'uploaded-prior-to = P3D', 'only-binary = :all:', 'no-binary = psycopg2', '# <<< depcurfew managed block', ''].join('\n'),
+    );
   });
 
   it('writes [global] of pip.conf with uploaded-prior-to as a duration, keeping the rest of the file', () => {

@@ -260,7 +260,7 @@ export function writeSectionBlock(body: string, section: string, entries: readon
   const block = blockLines(entries, BLOCK_START);
   if (header === -1) {
     const trimmed = kept.length > 0 && kept.at(-1) === '' ? kept.slice(0, -1) : kept;
-    return joinLines([...trimmed, ...(trimmed.length > 0 ? [''] : []), `[${section}]`, ...block, '']);
+    return joinLines([...trimmed, ...(trimmed.length > 0 ? [''] : []), `[${section}]`, ...block]);
   }
   return joinLines([...kept.slice(0, header + 1), ...block, ...kept.slice(header + 1)]);
 }
