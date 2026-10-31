@@ -74,7 +74,7 @@ export const installScriptsShape = object(
     ),
     deny: withDefault(
       packagePatterns(
-        'Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example "fsevents", which ships a prebuilt binary. Python packages listed here are never built from source.',
+        'Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example "fsevents", which ships a prebuilt binary. A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one.',
       ),
       [],
     ),

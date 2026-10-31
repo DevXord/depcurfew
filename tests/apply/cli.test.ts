@@ -146,7 +146,7 @@ describe('depcurfew apply', () => {
     const result = await exec('apply', scratch('npm-existing-config'));
     expect(result.code).toBe(EXIT_OK);
     expect(result.stderr).toContain(
-      'warning: allowScripts in package.json lets sharp run install scripts, but depcurfew.json does not allow it; depcurfew apply does not remove entries it did not write (allow-list-entry-outside-policy)\n  fix: Remove sharp from allowScripts by hand, or add sharp to installScripts.allow in depcurfew.json\n',
+      'warning: allowScripts in package.json (line 6) lets sharp run install scripts, but depcurfew.json does not allow it; depcurfew apply does not remove entries it did not write (allow-list-entry-outside-policy)\n  fix: Remove sharp from allowScripts by hand, or add sharp to installScripts.allow in depcurfew.json\n',
     );
   });
 
@@ -257,7 +257,7 @@ describe('depcurfew apply --json', () => {
     expect(snapshot(directory)).toEqual(before);
     const report = parse(result.stdout);
     expect(report).toMatchObject({ dryRun: true, written: false });
-    expect(report.warnings).toContainEqual(expect.objectContaining({ code: 'allow-list-entry-outside-policy', tool: 'npm', location: { file: 'package.json' } }));
+    expect(report.warnings).toContainEqual(expect.objectContaining({ code: 'allow-list-entry-outside-policy', tool: 'npm', location: { file: 'package.json', line: 6 } }));
     const patched = applyPatch(directory, report.changes.map((change) => change.diff).join(''));
     for (const [file, text] of Object.entries(patched)) {
       expect(text, file).toBe(readFileSync(join(EXPECTED, 'npm-existing-config/after', file), 'utf8'));

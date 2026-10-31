@@ -268,7 +268,13 @@ function userFileText(file: UserFile): string {
       const platform = location.platforms[0] ?? 'linux';
       const separator = platform === 'win32' ? '\\' : '/';
       const where = location.directories
-        .map((directory) => `\`${directoryText(directory, platform)}${separator}${location.file}\`${directory.ifExists === true ? ' (when the folder exists)' : ''}`)
+        .map((directory) => {
+          const conditions = [
+            ...(directory.ifExists === true ? ['the folder exists'] : []),
+            ...(directory.unlessEnv === undefined ? [] : [`${platform === 'win32' ? `%${directory.unlessEnv}%` : `$${directory.unlessEnv}`} is not set`]),
+          ];
+          return `\`${directoryText(directory, platform)}${separator}${location.file}\`${conditions.length === 0 ? '' : ` (when ${conditions.join(' and ')})`}`;
+        })
         .join(', else ');
       return `${location.platforms.map((name) => PLATFORM_NAMES[name]).join(', ')}: ${where}`;
     })

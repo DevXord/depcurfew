@@ -45,6 +45,7 @@ export function userFileFor(tool: ToolKnowledge, version: Version | undefined): 
 
 function directoryOf(directory: UserDirectory, environment: UserEnvironment): string | undefined {
   const path = paths(environment.platform);
+  if (directory.unlessEnv !== undefined && (environment.env[directory.unlessEnv]?.trim() ?? '') !== '') return undefined;
   let base: string | undefined;
   if (directory.from === 'home') {
     base = environment.home;

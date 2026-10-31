@@ -194,24 +194,32 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
   }
 
   const allowed = matchesName(name, policy.installScripts?.allow ?? []);
+  const denied = matchesName(name, policy.installScripts?.deny ?? []);
   const sdists = files.filter((file) => file.kind === 'sdist');
+  const sdistOnly = sdists.length > 0 && sdists.length === files.length;
   // Without a wheel, or with wheels refused by the command (--no-binary), the installer builds the source distribution.
-  const builds = sdists.length > 0 && (sdists.length === files.length || chosen.buildFromSource === true);
-  if (policy.installScripts?.default === 'deny' && !allowed && builds) {
-    const why =
-      sdists.length === files.length
-        ? 'has no wheel, only a source distribution, so installing it builds it from source'
-        : 'is built from its source distribution, because the command refuses wheels (no-binary),';
+  const builds = sdists.length > 0 && (sdistOnly || chosen.buildFromSource === true);
+  if (policy.installScripts?.default !== 'deny' || allowed || !builds) return;
+  if (denied && sdistOnly && chosen.buildFromSource !== true) {
+    // Denied on purpose (decision D-085): not built from source, so where the tool blocks building, it cannot be installed.
     add({
-      level: 'error',
+      level: 'warning',
       code: 'install-scripts',
-      message: `${versionLabel} ${why} and runs its build code, which depcurfew.json does not allow (installScripts)`,
-      fix:
-        sdists.length === files.length
-          ? `Pick a version or package with wheels, or add ${label} to installScripts.allow in depcurfew.json if you trust its build`
-          : `Install it from a wheel (leave out --no-binary), or add ${label} to installScripts.allow in depcurfew.json if you trust its build`,
+      message: `${versionLabel} has no wheel, only a source distribution, and depcurfew.json denies building it (installScripts.deny), so installing it fails where building from source is blocked`,
+      fix: `Pick a version or package with wheels, or move ${label} from installScripts.deny to installScripts.allow in depcurfew.json after reviewing its build`,
     });
+    return;
   }
+  const why = sdistOnly ? 'has no wheel, only a source distribution, so installing it builds it from source' : 'is built from its source distribution, because the command refuses wheels (no-binary),';
+  const instead = sdistOnly ? 'Pick a version or package with wheels' : 'Install it from a wheel (leave out --no-binary)';
+  add({
+    level: 'error',
+    code: 'install-scripts',
+    message: `${versionLabel} ${why} and runs its build code, which depcurfew.json ${denied ? 'denies (installScripts.deny)' : 'does not allow (installScripts)'}`,
+    fix: denied
+      ? `${instead}, or move ${label} from installScripts.deny to installScripts.allow in depcurfew.json after reviewing its build`
+      : `${instead}, or add ${label} to installScripts.allow in depcurfew.json if you trust its build`,
+  });
 }
 
 export async function checkPythonSpec(raw: string, options: CheckOptions, chosen: Chosen = {}): Promise<PackageReport> {

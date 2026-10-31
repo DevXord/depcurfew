@@ -355,8 +355,8 @@ export const pnpm: ToolKnowledge = {
     ),
     allowAllBuilds: rechecked.verified(
       { setting: 'dangerouslyAllowAllBuilds', since: '10.9.0', value: true },
-      'https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md',
-      'Boolean, default false. Packages set to false in allowBuilds (or build: false in permissions) stay blocked only from pnpm 12.12.0 (release notes: "A package set to false in allowBuilds no longer runs its build scripts when dangerouslyAllowAllBuilds is true"). pnpm 10, 11 and 12.0.0-12.11.x run them too: the build policy allows every build before it reads allowBuilds (builder/policy at 10.34.9, building/policy at 11.28.10, allow_build_policy.rs at 12.0.0).',
+      'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/building/policy/src/index.ts',
+      'Boolean, default false; added in 10.9.0 ("Added a new setting, dangerouslyAllowAllBuilds, for automatically running any scripts of dependencies without the need to approve any builds", pnpm/CHANGELOG.md at v10.26.0). Packages set to false in allowBuilds (or build: false in permissions) stay blocked only from pnpm 12.12.0 (release notes at https://github.com/pnpm/pnpm/releases/tag/v12.12.0: "A package set to false in allowBuilds no longer runs its build scripts when dangerouslyAllowAllBuilds is true", "Previously, dangerouslyAllowAllBuilds ignored the denials"). pnpm 10, 11 and 12.0.0-12.11.x run them too: createAllowBuildFunction returns before it reads the lists ("if (opts.dangerouslyAllowAllBuilds) return () => true" in building/policy at 11.28.10 and builder/policy/src/index.ts at 10.34.9; allow_build_policy.rs at 12.0.0).',
     ),
     excludeWildcards: verified(
       { since: '10.17.0', trailingOnly: false },
@@ -367,6 +367,11 @@ export const pnpm: ToolKnowledge = {
       { since: '6.32.1', workspaceFileSince: '10.5.0', removedIn: '11.0.0' },
       'https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md',
       'The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, added in 6.32.0 ("If this field exists, only mentioned packages will be able to run install scripts") and working since 6.32.1 ("released with a bug in v6.32.0"); also pnpm-workspace.yaml since 10.5.0 (10.5.0 changelog); removed in 11.0.0 (settings/build.md, see legacyAllowList). Before pnpm 10 any list, even an empty one, lets only the listed packages build (createAllowBuildFunction in @pnpm/builder.policy 3.0.0, which pnpm 9.15.0 uses).',
+    ),
+    ignoredBuiltDependencies: rechecked.verified(
+      { since: '10.1.0', workspaceFileSince: '10.5.0' },
+      'https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md',
+      'The record of denied builds before allowBuilds (denyList): package.json pnpm.ignoredBuiltDependencies since 10.1.0 ("for explicitly listing packages that should not be built. When a package is in the list, pnpm will not print an info message about that package not being built"), and pnpm-workspace.yaml since 10.5.0 ("Allow to set the \\"pnpm\\" settings from package.json via the pnpm-workspace.yaml file"). The 10.26.0 entry for allowBuilds says that allowBuilds: { core-js: false } "achieves the same result as" ignoredBuiltDependencies: [core-js]. It only silences the report: createAllowBuildFunction (builder/policy/src/index.ts at v10.25.0) does not read it, so a package onlyBuiltDependencies names still builds. Deprecated in 10.26.0 and removed in 11.0.0 (see legacyAllowList).',
     ),
     latestVersion: verified(
       '12.16.1',

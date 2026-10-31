@@ -89,7 +89,7 @@ Every section is optional: a section that is absent means depcurfew does not man
 | `installScripts` |  |  | Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python. |
 | `installScripts.default` | `"allow"`, `"deny"` |  | Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source. |
 | `installScripts.allow` |  | `[]` | Packages whose lifecycle scripts may run when the default is "deny"; Python packages listed here are always built from source. |
-| `installScripts.deny` |  | `[]` | Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example "fsevents", which ships a prebuilt binary. Python packages listed here are never built from source. |
+| `installScripts.deny` |  | `[]` | Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example "fsevents", which ships a prebuilt binary. A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one. |
 | `sources` |  |  | Where dependencies may come from besides the registry. An absent field is not managed. |
 | `sources.git` | `"allow"`, `"deny"` |  | Dependencies installed from git repositories. |
 | `sources.remoteTarball` | `"allow"`, `"deny"` |  | Dependencies installed from tarball URLs outside the registry. |
@@ -125,7 +125,7 @@ The `--json` documents of all commands share these fields: `schemaVersion` (1), 
 How `apply` edits files:
 
 - It keeps comments, formatting, line endings and key order. In line-based files (INI, TOML) it writes a block between `# >>> depcurfew managed block` and `# <<< depcurfew managed block` markers and comments out older copies of the settings it manages (they come back when the policy stops managing them); in YAML it marks the keys it writes with `# managed by depcurfew`; JSON files keep their comments and indentation.
-- It never removes settings it does not manage. Allow-lists are only added to; exception lists follow the policy, except the entries Renovate adds to pnpm's exception list for security updates, which stay with their comment.
+- It never removes settings it does not manage. Allow-lists are only added to; exception lists follow the policy, except the entries Renovate adds to pnpm's exception list for security updates, which stay with their comment. An entry in a tool's own install-script list that contradicts `installScripts` (it lets a package of `installScripts.deny` run its scripts, or blocks one of `installScripts.allow`) stays as it is, with the warning `deny-conflicts-with-file`, and `apply` records no denial for that package.
 - When it replaces a longer release-age delay someone set by hand with the policy's shorter one, it warns (`cooldown-shortened`) and names the `cooldown.minimum` that keeps it.
 - If any file cannot be edited, nothing is written. If a file cannot be written, the files already written are put back.
 - It does not create bot configuration files or project manifests (`package.json`, `deno.json`, `pyproject.toml`, `Pipfile`, `requirements.txt`); it creates a package manager's configuration file when it is missing. A package manager seen only in a CI setup step, with nothing of it in the repository, is not configured under `targets: "auto"`.
@@ -158,6 +158,8 @@ Warnings:
 - `allow-all-unsupported`: The tool has no setting that allows every install script, so installScripts "allow" is not written.
 - `allow-all-replaced`: A setting that allowed every install script was replaced, because the policy denies install scripts.
 - `allow-list-entry-outside-policy`: An install-script allow-list in the repository lets a package run scripts the policy does not allow; apply does not remove it.
+- `deny-conflicts-with-file`: An entry in a tool's own list lets a package of installScripts.deny run its install scripts, or blocks a package of installScripts.allow; apply does not change entries it did not write.
+- `unexpected-value`: A setting apply adds to has a value of a type the tool does not accept there, so apply leaves it as it is and writes nothing into it.
 - `built-in-list-replaced`: Bun's built-in list of trusted packages is replaced by the policy's allow-list.
 - `scripts-not-enforceable`: The pinned npm or pnpm runs every install script and has no allow-list, so "deny" cannot be enforced.
 - `before-overrides-cooldown`: before= in .npmrc takes the place of the release-age delay apply writes, or makes npm stop with an error next to it.
@@ -216,7 +218,7 @@ depcurfew doctor --user
 | Bun | Linux, macOS, Windows: `$XDG_CONFIG_HOME/.bunfig.toml`, else `~/.bunfig.toml` | `install.minimumReleaseAge` (1.3.0+), `install.minimumReleaseAgeExcludes` (1.3.0+) | yes |
 | Deno | 1.45.0+: Linux, macOS, Windows: `~/.npmrc` | `min-release-age` (2.8.0+) | no |
 | uv | Linux, macOS: `$XDG_CONFIG_HOME/uv/uv.toml`, else `~/.config/uv/uv.toml`<br>Windows: `%APPDATA%\uv\uv.toml`, else `~\AppData\Roaming\uv\uv.toml` | `exclude-newer` (0.9.17+), `exclude-newer-package` (0.9.25+), `no-build` (0.2.12+), `no-build-package` (0.2.12+), `no-binary-package` (0.2.12+) | yes |
-| pip | Linux: `$XDG_CONFIG_HOME/pip/pip.conf`, else `~/.config/pip/pip.conf`<br>macOS: `~/Library/Application Support/pip/pip.conf` (when the folder exists), else `~/.config/pip/pip.conf`<br>Windows: `%APPDATA%\pip\pip.ini`, else `~\AppData\Roaming\pip\pip.ini` | `uploaded-prior-to` (26.1.0+), `only-binary` (7.1.0+), `no-binary` (7.1.0+) | yes |
+| pip | Linux: `$XDG_CONFIG_HOME/pip/pip.conf`, else `~/.config/pip/pip.conf`<br>macOS: `~/Library/Application Support/pip/pip.conf` (when the folder exists), else `~/.config/pip/pip.conf`<br>Windows: `%APPDATA%\pip\pip.ini`, else `~\AppData\Roaming\pip\pip.ini`<br>26.2.0+: Linux: `$XDG_CONFIG_HOME/pip/pip.conf`, else `~/.config/pip/pip.conf`<br>macOS: `$XDG_DATA_HOME/pip/pip.conf` (when the folder exists), else `~/Library/Application Support/pip/pip.conf` (when the folder exists and $XDG_DATA_HOME is not set), else `~/.config/pip/pip.conf`<br>Windows: `%APPDATA%\pip\pip.ini`, else `~\AppData\Roaming\pip\pip.ini` | `uploaded-prior-to` (26.1.0+), `only-binary` (7.1.0+), `no-binary` (7.1.0+) | yes |
 | Poetry | 2.0.0+: Linux: `$XDG_CONFIG_HOME/pypoetry/config.toml`, else `~/.config/pypoetry/config.toml`<br>macOS: `~/Library/Application Support/pypoetry/config.toml`<br>Windows: `%APPDATA%\pypoetry\config.toml`, else `~\AppData\Roaming\pypoetry\config.toml` | `solver.min-release-age` (2.4.0+), `solver.min-release-age-exclude` (2.4.0+), `installer.only-binary` (2.0.0+), `installer.no-binary` (1.2.0+) | no |
 | PDM | Linux: `$XDG_CONFIG_HOME/pdm/config.toml`, else `~/.config/pdm/config.toml`<br>macOS: `~/Library/Application Support/pdm/config.toml`<br>Windows: `~\AppData\Local\pdm\pdm\config.toml` | `strategy.exclude-newer` (2.27.0+) | yes |
 | Pipenv | none | none | no |
@@ -280,8 +282,8 @@ Yarn Classic (1.x) is detected but not supported.
 depcurfew configures uv, Poetry, PDM, Pipenv and pip from the same `depcurfew.json`, and the bots for Python packages: Dependabot `pip` and `uv` entries and Renovate.
 
 - **Detection.** A Python tool counts as used when its lockfile is there, when `pyproject.toml` has its table, or when its own configuration file or a CI setup step shows it; `requirements.txt` means pip. `depcurfew explain` lists what it found.
-- **Package names.** Python packages on the policy's package lists (the cooldown exceptions and `installScripts.allow`) take the prefix `pypi:`, for example `"pypi:docopt"`. Names without a prefix stay npm names, so an exception for an npm package never applies to a Python package of the same name.
-- **Install scripts are builds.** A wheel installs without running package code; a source distribution, a git repository or a local directory is built, which runs its build code. `installScripts.default: "deny"` forbids building, and the packages in `installScripts.allow` are the exceptions. None of the three tools can only allow a build, so these packages are always built from source, even where a wheel exists; `apply` says so, and `doctor` lists the packages in the lockfile that would be built.
+- **Package names.** Python packages on the policy's package lists (the cooldown exceptions, `installScripts.allow` and `installScripts.deny`) take the prefix `pypi:`, for example `"pypi:docopt"`. Names without a prefix stay npm names, so an exception for an npm package never applies to a Python package of the same name.
+- **Install scripts are builds.** A wheel installs without running package code; a source distribution, a git repository or a local directory is built, which runs its build code. `installScripts.default: "deny"` forbids building, and the packages in `installScripts.allow` are the exceptions. None of the three tools can only allow a build, so these packages are always built from source, even where a wheel exists; `apply` says so, and `doctor` lists the packages in the lockfile that would be built. Packages in `installScripts.deny` must not be built: `doctor` reports one that a tool would still build (Poetry, PDM, pip and Pipenv build git, local and URL dependencies whatever their settings say), and one without wheels that cannot be installed while building is blocked.
 - **pip reads no project configuration.** `apply` writes the build options into `requirements.txt`. The release-age delay cannot live in the project, so `apply` prints the environment variable to set where pip runs. `doctor` also checks the files a requirements file includes with `-r` and `-c`, and reports an include it cannot read.
 - **Lock again after `apply`.** `uv.lock` records the release-age delay, and PDM checks `pdm.lock` against all of its resolution settings, the delay and the build ban included. After `apply` changes them, `uv sync --locked` and `uv lock --check` fail until you run `uv lock`, and `pdm lock --check` and `pdm install --check` until you run `pdm lock`; `apply` says so (`lockfile-out-of-date`). `poetry.lock` and `Pipfile.lock` do not depend on the settings `apply` writes.
 - **PDM and Pipenv cannot pin their own version.** `apply` configures for the latest version depcurfew knows and names that version (`version-not-pinned`). Pipenv takes the delay in whole days only (rounded up), has no exceptions and no project setting that forbids building; `apply` says what to set where Pipenv runs instead. `doctor` reads `pdm.lock` and `Pipfile.lock`, and reports settings that turn the delay or the build ban off without a word: Pipenv's pure-Python resolver and PDM's uv mode.
@@ -307,7 +309,7 @@ Fix: Fix what the message lists; an editor that reads the $schema of depcurfew.j
 
 A global install or an old cached copy may not know settings, rules or tool versions that the version pinned in the project knows, so it can miss problems or report fixed ones. The project copy is read from node_modules or package-lock.json.
 
-Fix: Run the project's copy of depcurfew, or update the one you run.
+Fix: Run the project's copy of depcurfew (install the project's dependencies first when only package-lock.json pins it), or update the one you run.
 
 ### `manager-version-too-old`
 
@@ -353,7 +355,7 @@ Fix: Move the setting to the file the tool reads.
 
 **error** · needs depcurfew.json · A configuration file does not match what depcurfew apply writes for depcurfew.json.
 
-A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy.
+A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package run scripts the policy does not allow or denies, and one that blocks a package the policy allows.
 
 Fix: Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.
 
@@ -385,9 +387,9 @@ Fix: Replace the dependency with a registry version, or allow that source in dep
 
 **error** · needs depcurfew.json · The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.
 
-Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.
+Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.
 
-Fix: Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:).
+Fix: Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).
 
 ### `unreadable-config`
 
@@ -477,7 +479,7 @@ For each package it looks up the npm registry (the one `--registry` or `registry
 
 - a name the registry does not know, which is how made-up package names show up;
 - a version younger than the cooldown in `depcurfew.json`, with the newest version that is old enough;
-- install scripts the policy does not allow; for a Python package, a version without wheels, which is built from source and so runs its build code;
+- install scripts the policy does not allow; for a Python package, a version without wheels, which is built from source and so runs its build code. A package in `installScripts.deny` is not reported, because its scripts are meant to stay blocked (`doctor` checks that the package manager blocks them), except a Python package without wheels, which gets a warning: it cannot be installed where building is blocked;
 - a name that differs by a letter or two, or only in separators, from a popular package of its registry: 5,000 npm packages with the most weekly downloads among the results of several hundred registry searches (the npm registry has no download ranking, so a popular package can be missing), and the 5,000 most downloaded PyPI projects of a recent month;
 - a deprecated version (a warning);
 - a registry or index reached over plain HTTP (a warning), unless it is on this computer (`localhost`, `127.0.0.0/8` or `::1`), such as a local registry for testing.

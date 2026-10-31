@@ -24,6 +24,8 @@ export const APPLY_WARNINGS = {
   'allow-all-unsupported': 'The tool has no setting that allows every install script, so installScripts "allow" is not written.',
   'allow-all-replaced': 'A setting that allowed every install script was replaced, because the policy denies install scripts.',
   'allow-list-entry-outside-policy': 'An install-script allow-list in the repository lets a package run scripts the policy does not allow; apply does not remove it.',
+  'deny-conflicts-with-file': "An entry in a tool's own list lets a package of installScripts.deny run its install scripts, or blocks a package of installScripts.allow; apply does not change entries it did not write.",
+  'unexpected-value': 'A setting apply adds to has a value of a type the tool does not accept there, so apply leaves it as it is and writes nothing into it.',
   'built-in-list-replaced': "Bun's built-in list of trusted packages is replaced by the policy's allow-list.",
   'scripts-not-enforceable': 'The pinned npm or pnpm runs every install script and has no allow-list, so "deny" cannot be enforced.',
   'before-overrides-cooldown': 'before= in .npmrc takes the place of the release-age delay apply writes, or makes npm stop with an error next to it.',

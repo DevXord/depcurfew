@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "deno.json",
+      "line": 4
+    },
+    "message": "allowScripts.deny in deno.json blocks the install scripts of fsevents, but installScripts.allow in depcurfew.json allows them",
+    "fix": "Remove fsevents from allowScripts.deny in deno.json, or move fsevents from installScripts.allow to installScripts.deny in depcurfew.json if it works without its scripts"
+  }
+]

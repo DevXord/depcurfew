@@ -1,6 +1,8 @@
 // Policy rules shared by the generators: converting the cooldown, filtering exclusions and allow-lists by what a
 // tool accepts, and mapping dependency sources to settings. Anything a tool cannot express becomes a warning;
 // dropping it always errs on the safe side (a longer delay, fewer install scripts).
+import type { PackageManagerId } from '../../detect/types.ts';
+import { allowEntries, type TextSource } from '../../doctor/allow-lists.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
 import { convertCooldown } from '../../policy/convert.ts';
 import type { Duration } from '../../policy/duration.ts';
@@ -90,6 +92,39 @@ export function deniedNames(context: Context, setting: string): string[] {
 }
 
 /**
+ * The files as this run has edited them so far, for reading the tools' own lists. A file the workspace cannot read
+ * counts as missing: reading a list must not stop apply, and an edit of that file reports the problem itself.
+ */
+export function workspaceText(workspace: Context['workspace']): TextSource {
+  return {
+    readText(file) {
+      try {
+        return workspace.exists(file) ? workspace.read(file) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+  };
+}
+
+/**
+ * The packages that an entry of the tool's own allow-list lets run their scripts, in any version. apply records no
+ * denial for them, because that would change what the entry does, and apply never changes an entry it did not write
+ * (decision D-088); the warning deny-conflicts-with-file names the entry instead.
+ */
+export function allowedInFiles(context: Context, configFiles: readonly string[] = []): Set<string> {
+  const id = context.tool.id as PackageManagerId;
+  const options = { tool: context.tool, ...(context.version === undefined ? {} : { version: context.version }) };
+  return new Set(allowEntries(workspaceText(context.workspace), id, configFiles, options).map((entry) => entry.package));
+}
+
+/** The setting for messages: dependenciesMeta for the template dependenciesMeta.<package>.built. */
+function settingName(setting: string): string {
+  const at = setting.indexOf('.<package>');
+  return at === -1 ? setting : setting.slice(0, at);
+}
+
+/**
  * Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
  * dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install.
  */
@@ -98,7 +133,9 @@ export function writeDenyList(context: Context): void {
   if (deny === undefined || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
   if (!context.supports(deny.since, deny.setting)) return;
   const file = deny.file.endsWith('.yaml') ? context.yaml(deny.file) : context.json(deny.file);
-  for (const name of deniedNames(context, deny.setting)) {
+  const allowed = allowedInFiles(context);
+  for (const name of deniedNames(context, settingName(deny.setting))) {
+    if (allowed.has(name)) continue;
     const path = deny.setting.includes('<package>') ? deny.setting.split('.').map((segment) => (segment === '<package>' ? name : segment)) : [...deny.setting.split('.'), name];
     if (file.get(path) !== deny.value) file.set(path, deny.value);
   }

@@ -113,7 +113,7 @@ describe('control characters from untrusted sources in text output', () => {
   it('apply shows them as \\xHH in its warnings', async () => {
     const result = await exec(['apply', '--dry-run', repo], true);
     expectVisible(result.stderr);
-    expect(result.stderr.replace(SGR, '')).toContain('allowScripts in package.json lets \\x1b]0;PWNED\\x07sharp run install scripts');
+    expect(result.stderr.replace(SGR, '')).toContain('allowScripts in package.json (line 1) lets \\x1b]0;PWNED\\x07sharp run install scripts');
   });
 
   it('apply --dry-run shows them as \\xHH in the diff on a terminal, and keeps the diff exact in a pipe', async () => {

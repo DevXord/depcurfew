@@ -5,8 +5,9 @@ import { BLOCK_END, isBlockStart, SUPERSEDED, TURNED_OFF } from '../../apply/blo
 import { YAML_MARKER } from '../../apply/yaml-edit.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
+import type { ApplyReport } from '../../apply/index.ts';
 import { pinnedVersion } from '../../apply/version.ts';
-import { allowEntries, matchesPattern } from '../allow-lists.ts';
+import { denyConflictText, remainingConflicts, type TextSource } from '../allow-lists.ts';
 import { latestVersion } from '../effective.ts';
 import { plannedApply } from '../plan.ts';
 import type { Rule, RuleContext } from '../types.ts';
@@ -86,21 +87,32 @@ function describe(difference: Difference): string {
   return 'its layout differs from what depcurfew apply writes';
 }
 
-/** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
-function checkAllowLists(context: RuleContext): void {
+/**
+ * apply only adds to allow-lists and never changes an entry it did not write (decision D-088), so packages the policy
+ * does not allow can stay there, and so can entries that contradict installScripts.deny or installScripts.allow;
+ * report the ones that are still there once apply has run.
+ */
+function checkAllowLists(context: RuleContext, plan: ApplyReport): void {
   const policy = context.policy;
   if (policy?.installScripts?.default !== 'deny') return;
   const targets = policy.targets;
+  const planned: TextSource = { readText: (file) => plan.changes.find((change) => change.file === file)?.after ?? context.repository.readText(file) };
   for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
     if (targets !== 'auto' && !targets.includes(manager.id)) continue;
     const knowledge = context.tools.find((entry) => entry.id === manager.id);
-    const allow = policyFor(policy, knowledge === undefined ? 'npm' : ecosystemOfTool(knowledge)).installScripts?.allow ?? [];
+    const scripts = policyFor(policy, knowledge === undefined ? 'npm' : ecosystemOfTool(knowledge)).installScripts ?? { allow: [], deny: [] };
     const version = pinnedVersion(manager) ?? (knowledge === undefined ? undefined : latestVersion(knowledge));
-    for (const entry of allowEntries(context.repository, manager.id, manager.configFiles, { ...(knowledge === undefined ? {} : { tool: knowledge }), ...(version === undefined ? {} : { version }) })) {
-      if (allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
+    const options = { ...(knowledge === undefined ? {} : { tool: knowledge }), ...(version === undefined ? {} : { version }) };
+    for (const conflict of remainingConflicts(context.repository, planned, manager.id, manager.configFiles, options, scripts)) {
+      const { entry } = conflict;
+      const location = entry.line === undefined ? { file: entry.file } : { file: entry.file, line: entry.line };
+      if (conflict.kind !== 'outside') {
+        context.report({ level: 'warning', location, ...denyConflictText({ kind: conflict.kind, entry }) });
+        continue;
+      }
       context.report({
         level: 'warning',
-        location: entry.line === undefined ? { file: entry.file } : { file: entry.file, line: entry.line },
+        location,
         message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
         fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.name === entry.package ? 'it' : entry.package} to installScripts.allow in ${POLICY_FILE}`,
       });
@@ -112,7 +124,7 @@ export const configDrift: Rule = {
   id: 'config-drift',
   summary: 'A configuration file does not match what depcurfew apply writes for depcurfew.json.',
   description:
-    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy.',
+    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package run scripts the policy does not allow or denies, and one that blocks a package the policy allows.',
   help: 'Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.',
   level: 'error',
   requiresPolicy: true,
@@ -136,6 +148,6 @@ export const configDrift: Rule = {
         fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`,
       });
     }
-    checkAllowLists(context);
+    checkAllowLists(context, plan);
   },
 };

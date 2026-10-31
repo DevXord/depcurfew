@@ -7,5 +7,14 @@
     },
     "message": "permissions in pnpm-workspace.yaml lets esbuild run install scripts, but depcurfew.json does not allow it",
     "fix": "Remove esbuild from permissions, or add it to installScripts.allow in depcurfew.json"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 10
+    },
+    "message": "permissions in pnpm-workspace.yaml blocks the install scripts of sharp, but installScripts.allow in depcurfew.json allows them",
+    "fix": "Remove sharp from permissions in pnpm-workspace.yaml, or move sharp from installScripts.allow to installScripts.deny in depcurfew.json if it works without its scripts"
   }
 ]

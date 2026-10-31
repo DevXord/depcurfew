@@ -6,6 +6,6 @@
       "line": 10
     },
     "message": "esbuild has install scripts that Bun will not run because depcurfew.json does not allow it; the package may need them",
-    "fix": "Review its scripts and add esbuild to installScripts.allow in depcurfew.json, or replace the package"
+    "fix": "Review its scripts: add esbuild to installScripts.allow in depcurfew.json if it needs them, or to installScripts.deny if it works without them; otherwise replace the package"
   }
 ]
