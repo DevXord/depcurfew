@@ -1,18 +1,20 @@
 // Reading settings from configuration files with their line numbers, for doctor: INI (.npmrc), YAML, TOML
 // (bunfig.toml) and JSON/JSONC. Unreadable files give no value; detection already reports them.
 import { LineCounter, isMap, isScalar, isSeq, type Document, type Node, type Pair } from 'yaml';
-import { extraOf, isRecord } from '../apply/facts.ts';
+import { extraOf, isRecord, yamlOptionsFor } from '../apply/facts.ts';
 import { jsonElementOffsets, jsonGet, jsonOffset } from '../apply/json-edit.ts';
 import { BLOCK_END, isBlockStart } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
-import { parseYamlDocument } from '../yaml-parse.ts';
+import { mergedPair, ownPair, parseYamlDocument, type YamlOptions } from '../yaml-parse.ts';
 
 export interface Setting {
   file: string;
   /** 1-based line of the key. */
   line: number;
   value: unknown;
+  /** YAML: the line of the merge key (<<) the value comes in through, when the map does not set the key itself. */
+  mergedAt?: number;
 }
 
 export interface IniEntry {
@@ -135,18 +137,24 @@ function lineAt(text: string, offset: number): number {
 }
 
 /** The text yamlSetting parsed last: rules ask for several settings of the same file in a row. Only read, never changed. */
-let lastYaml: { text: string; document: Document.Parsed; lineCounter: LineCounter } | undefined;
+let lastYaml: { text: string; merge: boolean; document: Document.Parsed; lineCounter: LineCounter } | undefined;
 
-/** The YAML node at `path` and the line of its key; the value is not converted, which takes long for a large node. */
-function yamlNode(text: string, path: readonly string[]): { node: Node | null; line: number } | undefined {
-  if (lastYaml?.text !== text) {
+/**
+ * The YAML node at `path` and the line of its key; the value is not converted, which takes long for a large node. With
+ * `merge` (files of tools whose loader applies merge keys), a key the map gets through << counts, at the line where
+ * the merged map sets it, and `mergedAt` is the line of the << that brings it in.
+ */
+function yamlNode(text: string, path: readonly string[], options: YamlOptions = {}): { node: Node | null; line: number; mergedAt?: number; document: Document.Parsed } | undefined {
+  const merge = options.merge === true;
+  if (lastYaml?.text !== text || lastYaml.merge !== merge) {
     const lineCounter = new LineCounter();
-    lastYaml = { text, document: parseYamlDocument(text, lineCounter), lineCounter };
+    lastYaml = { text, merge, document: parseYamlDocument(text, lineCounter, { merge }), lineCounter };
   }
   const { document, lineCounter } = lastYaml;
   if (document.errors.length > 0) return undefined;
   let node: Node | null = document.contents as Node | null;
   let keyOffset = 0;
+  let mergedAt: number | undefined;
   for (const segment of path) {
     if (node !== null && isSeq(node) && /^\d+$/u.test(segment)) {
       const item = node.items[Number(segment)] as Node | undefined;
@@ -156,26 +164,33 @@ function yamlNode(text: string, path: readonly string[]): { node: Node | null; l
       continue;
     }
     if (node === null || !isMap(node)) return undefined;
-    const pair = (node.items as Pair<Node, Node | null>[]).filter((item) => isScalar(item.key) && String(item.key.value) === segment).at(-1);
+    let pair: Pair<Node, Node | null> | undefined = ownPair(node, segment);
+    if (pair === undefined && merge) {
+      const merged = mergedPair(document, node, segment);
+      pair = merged?.pair;
+      if (merged !== undefined) mergedAt ??= lineCounter.linePos((merged.merge.key as Node).range?.[0] ?? 0).line;
+    }
     if (pair === undefined) return undefined;
     keyOffset = pair.key.range?.[0] ?? 0;
     node = pair.value;
   }
-  return { node, line: lineCounter.linePos(keyOffset).line };
+  return { node, line: lineCounter.linePos(keyOffset).line, ...(mergedAt === undefined ? {} : { mergedAt }), document };
 }
 
-/** The YAML value at `path` and the line of its key. */
-export function yamlSetting(text: string, path: readonly string[]): { value: unknown; line: number } | undefined {
-  const found = yamlNode(text, path);
+/** The YAML value at `path`, the line of its key and, with `merge`, the line of the << it comes in through. */
+export function yamlSetting(text: string, path: readonly string[], options: YamlOptions = {}): { value: unknown; line: number; mergedAt?: number } | undefined {
+  const found = yamlNode(text, path, options);
   if (found === undefined) return undefined;
-  const { node, line } = found;
-  const value: unknown = node === null ? null : isMap(node) || isSeq(node) || isScalar(node) ? (node.toJSON() as unknown) : undefined;
-  return { value, line };
+  const { node, line, mergedAt, document } = found;
+  // With merge keys the value is converted in the document, which applies them; toJSON without it cannot.
+  const convert = (item: Node) => (options.merge === true ? item.toJS(document) : item.toJSON()) as unknown;
+  const value: unknown = node === null ? null : isMap(node) || isSeq(node) || isScalar(node) ? convert(node) : undefined;
+  return { value, line, ...(mergedAt === undefined ? {} : { mergedAt }) };
 }
 
 /** The line of the key at `path` in YAML, without its value. */
-export function yamlKeyLine(text: string, path: readonly string[]): number | undefined {
-  return yamlNode(text, path)?.line;
+export function yamlKeyLine(text: string, path: readonly string[], options: YamlOptions = {}): number | undefined {
+  return yamlNode(text, path, options)?.line;
 }
 
 /** The 1-based line of an offset, found by binary search in the positions of the line breaks of `text`. */
@@ -252,9 +267,10 @@ export function tomlSetting(text: string, table: string, key: string): { value: 
 
 /**
  * A setting as the knowledge base names it, read from one configuration file: `.npmrc` keys, YAML and JSON paths
- * with dots, TOML `table.key`. For `.npmrc` the last line wins, as in npm.
+ * with dots, TOML `table.key`. For `.npmrc` the last line wins, as in npm. `merge`: the tool that reads the YAML file
+ * applies merge keys (mergesYamlKeys).
  */
-export function readSetting(repository: Repository, file: string, setting: string): Setting | undefined {
+export function readSetting(repository: Repository, file: string, setting: string, options: YamlOptions = yamlOptionsFor(file)): Setting | undefined {
   if (setting.includes('<')) return undefined;
   const text = repository.readText(file);
   if (text === undefined) return undefined;
@@ -269,7 +285,7 @@ export function readSetting(repository: Repository, file: string, setting: strin
         : { value: iniValue(last.value), line: last.line };
     }
   } else if (/\.ya?ml$/u.test(name)) {
-    found = yamlSetting(text, setting.split('.'));
+    found = yamlSetting(text, setting.split('.'), options);
   } else if (name.endsWith('.toml')) {
     const dot = setting.indexOf('.');
     found = dot === -1 ? tomlSetting(text, '', setting) : tomlSetting(text, setting.slice(0, dot), setting.slice(dot + 1));

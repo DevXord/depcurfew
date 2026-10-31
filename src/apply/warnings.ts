@@ -25,7 +25,7 @@ export const APPLY_WARNINGS = {
   'allow-pattern-unsupported': 'An installScripts.allow entry is a pattern, but the tool takes package names only, so it is not written.',
   'deny-pattern-unsupported': 'An installScripts.deny entry is a pattern, but the tool records denials by package name only, so it is not written.',
   'allow-all-unsupported': 'The tool has no setting that allows every install script, so installScripts "allow" is not written.',
-  'allow-all-replaced': 'A setting that allowed every install script was replaced, because the policy denies install scripts.',
+  'allow-all-replaced': 'A setting that allowed every install script (with any value the tool reads as true, also one that a YAML merge key brings in, or pnpm 10\'s dangerously-allow-all-builds in .npmrc) was set to false, because the policy denies install scripts.',
   'allow-list-entry-outside-policy': 'An install-script allow-list in the repository (with apply --user, in a user file) lets a package run scripts the policy does not allow; apply does not remove it.',
   'deny-conflicts-with-file': "An entry in a tool's own list lets a package of installScripts.deny run its install scripts, or blocks a package of installScripts.allow; apply does not change entries it did not write.",
   'unexpected-value': 'A setting apply adds to has a value of a type the tool does not accept there, so apply leaves it as it is and writes nothing into it.',

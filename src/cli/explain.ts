@@ -105,7 +105,10 @@ function projectLines(project: Detection): string[] {
     const packages = project.workspaces.packages.length === 0 ? 'no packages' : project.workspaces.packages.join(', ');
     lines.push(`Workspaces: ${packages} (declared in ${project.workspaces.declarations.map((item) => item.file).join(', ')})`);
   }
-  lines.push(`.npmrc files: ${project.npmrcFiles.length === 0 ? 'none' : project.npmrcFiles.join(', ')}`);
+  // An .npmrc that exists but is not a regular file is not one depcurfew read, but it is not missing either.
+  const special = project.warnings.filter((warning) => warning.code === 'not-a-regular-file').flatMap((warning) => warning.files);
+  const npmrc = [...project.npmrcFiles, ...special.map((file) => `${file} (not a regular file, not read)`)];
+  lines.push(`.npmrc files: ${npmrc.length === 0 ? 'none' : npmrc.join(', ')}`);
   lines.push(`GitHub Actions workflows: ${project.workflows.length === 0 ? 'none' : project.workflows.join(', ')}`);
   if (project.warnings.length === 0) lines.push('Warnings: none');
   else lines.push('Warnings:', ...project.warnings.map((warning) => `  ${warning.code}: ${warning.message}`));

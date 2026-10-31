@@ -146,12 +146,12 @@ export const pdm: ToolKnowledge = {
       [
         {
           key: 'use_uv',
-          values: [true],
+          values: { except: [false, 0, '', 'false', 'no', '0'] },
           effect: 'makes PDM resolve and install with uv, whose uv sync --frozen gets no build settings, so only-binary is not enforced when installing',
         },
       ],
       `${PDM}/docs/usage/uv.md`,
-      'use_uv (experimental since 2.19.0, PDM_USE_UV) can be set in config.toml and in a project pdm.toml, which wins. PDM passes the cutoff and the build settings to uv lock but not to uv sync --frozen (src/pdm/installers/uv.py), and passes no --no-config, so uv also reads the user uv.toml. A home strategy.exclude-newer cannot weaken a project that sets [tool.pdm.resolution] exclude-newer.',
+      'use_uv (experimental since 2.19.0, PDM_USE_UV) can be set in config.toml and in a project pdm.toml, which wins. PDM passes the cutoff and the build settings to uv lock but not to uv sync --frozen (src/pdm/installers/uv.py), and passes no --no-config, so uv also reads the user uv.toml. A home strategy.exclude-newer cannot weaken a project that sets [tool.pdm.resolution] exclude-newer. use_uv is a switch that turns a protection off and is read with ensure_boolean (src/pdm/project/config.py at 2.29.5): a TOML boolean or number is kept, and a string is false only when empty or false, no or 0 in any case; depcurfew counts every other value as on (other spellings of false too, which errs towards a warning).',
     ),
     variables: user.verified(
       [

@@ -1,0 +1,6 @@
+packages: []
+x-defaults: &defaults
+  dangerouslyAllowAllBuilds: true
+# managed by depcurfew
+dangerouslyAllowAllBuilds: false
+<<: *defaults

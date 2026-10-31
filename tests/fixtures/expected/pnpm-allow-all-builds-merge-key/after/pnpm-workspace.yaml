@@ -1,0 +1,7 @@
+packages: []
+# Shared settings, merged into the top level below
+x-defaults: &defaults
+  dangerouslyAllowAllBuilds: true
+<<: *defaults
+# managed by depcurfew
+dangerouslyAllowAllBuilds: false

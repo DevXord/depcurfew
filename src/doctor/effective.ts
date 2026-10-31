@@ -2,14 +2,14 @@
 // default for that version from the knowledge base. Where official sources disagree on a default, the longest
 // value is used, because doctor asks whether a bot could wait less than the package manager.
 import { evidenceOf } from '../knowledge/facts.ts';
-import { extraOf, isRecord, settingOf, sinceOf, values } from '../apply/facts.ts';
+import { extraOf, isRecord, isSwitch, settingOf, sinceOf, values, yamlOptionsFor } from '../apply/facts.ts';
 import { compareVersions, formatVersion, parseVersion, pinnedVersion, type Version } from '../apply/version.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
 import type { ToolKnowledge, Versioned } from '../knowledge/types.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { delayMinutes } from './durations.ts';
 import { readPythonSetting } from './python.ts';
-import { npmrcKey, readSetting, type Setting } from './settings.ts';
+import { iniEntries, npmrcKey, readSetting, yamlSetting, type Setting } from './settings.ts';
 import type { RuleContext } from './types.ts';
 
 export interface Delay {
@@ -50,6 +50,49 @@ function pnpmNpmrcSetting(context: RuleContext, tool: ToolKnowledge, version: Ve
   const over = extraOf(tool, 'npmrcPrecedence', isRecord)['over'];
   if (until === undefined || version === undefined || compareVersions(version, until) >= 0 || !Array.isArray(over) || !over.includes('.npmrc')) return undefined;
   return readSetting(context.repository, '.npmrc', npmrcKey(setting));
+}
+
+interface NpmrcBuildSettings {
+  allowAll: { key: string; off: readonly string[]; since: string };
+  until: string;
+  projectKeys: Versioned<readonly string[]>;
+}
+
+const isNpmrcBuildSettings = (value: unknown): value is NpmrcBuildSettings =>
+  isRecord(value) && isRecord(value['allowAll']) && Array.isArray(value['allowAll']['off']) && typeof value['until'] === 'string' && Array.isArray(value['projectKeys']);
+
+/** A line of the root .npmrc that allows every build script, with what it says. */
+export interface NpmrcAllowAll {
+  key: string;
+  value: string;
+  line: number;
+  /** The values pnpm reads as off, for messages. */
+  off: readonly string[];
+}
+
+/**
+ * pnpm 10: the dangerously-allow-all-builds line of the root .npmrc when it is on and takes effect (extra.npmrcBuildSettings):
+ * every value but those pnpm reads as off, while pnpm-workspace.yaml does not set dangerouslyAllowAllBuilds and, from
+ * 10.13.0, sets no build settings at all. The "pnpm" field of package.json is not consulted, which errs towards
+ * reporting. undefined for other versions and for an unknown one (the latest is assumed, which reads no such .npmrc key).
+ */
+export function pnpmNpmrcAllowsAllBuilds(tool: ToolKnowledge, version: Version | undefined, read: (file: string) => string | undefined): NpmrcAllowAll | undefined {
+  const fact = tool.extra?.['npmrcBuildSettings'] === undefined ? undefined : extraOf(tool, 'npmrcBuildSettings', isNpmrcBuildSettings);
+  const since = fact === undefined ? undefined : parseVersion(fact.allowAll.since);
+  const until = fact === undefined ? undefined : parseVersion(fact.until);
+  if (fact === undefined || version === undefined || since === undefined || until === undefined) return undefined;
+  if (compareVersions(version, since) < 0 || compareVersions(version, until) >= 0) return undefined;
+  const entry = iniEntries(read('.npmrc') ?? '').filter((item) => item.key === fact.allowAll.key).at(-1);
+  if (entry === undefined || fact.allowAll.off.includes(entry.value.trim())) return undefined;
+  const workspace = read('pnpm-workspace.yaml');
+  const sets = (key: string) => {
+    const found = workspace === undefined ? undefined : yamlSetting(workspace, [key], yamlOptionsFor('pnpm-workspace.yaml'));
+    return found !== undefined && found.value !== null && found.value !== undefined;
+  };
+  // pnpm-workspace.yaml wins for the same key in every version; from 10.13.0 any build setting there turns the .npmrc ones off.
+  const keys = versionedValue(fact.projectKeys, version) ?? [];
+  if (sets(extraOf(tool, 'allowAllBuilds', isSwitch).setting) || keys.some(sets)) return undefined;
+  return { key: entry.key, value: entry.value, line: entry.line, off: fact.allowAll.off };
 }
 
 /** The package manager's delay, or undefined (with a notice) when a configured value cannot be read. */

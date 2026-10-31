@@ -75,6 +75,14 @@ export class Repository {
     return real !== undefined && statSync(real).isFile();
   }
 
+  /** Whether the path exists in the repository as something other than a regular file or a directory (a named pipe, a socket, a device). */
+  isSpecialFile(path: string): boolean {
+    const real = this.#resolve(path, false);
+    if (real === undefined) return false;
+    const stats = statSync(real);
+    return !stats.isFile() && !stats.isDirectory();
+  }
+
   /** The text of a file, without a byte order mark; undefined (with a warning when useful) if it cannot be read. */
   readText(path: string, limit = MAX_FILE_SIZE): string | undefined {
     const real = this.#resolve(path, true);

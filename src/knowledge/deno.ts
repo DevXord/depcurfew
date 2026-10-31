@@ -227,7 +227,11 @@ export const deno: ToolKnowledge = {
       'A trailing * matches by prefix (npm:@scope/*) since 2.9.2; earlier wildcard entries never matched.',
     ),
     npmSpecifierPrefix: verified('npm:', SCHEMA, 'Exclusions and allowScripts entries name npm packages as npm:<name>.'),
-    allowAllScripts: verified({ setting: 'allowScripts', since: '2.6.0', value: true }, SCHEMA, 'allowScripts: true allows every npm lifecycle script.'),
+    allowAllScripts: user.verified(
+      { setting: 'allowScripts', since: '2.6.0', value: true },
+      SCHEMA,
+      'allowScripts: true allows every npm lifecycle script. Only the JSON value true does: to_allow_scripts_config (libs/config/deno_json/mod.rs at v2.9.8) gives every package for true, none for false and null, and stops with "expected string array, boolean, or object" for a string or a number, so "true" or 1 cannot turn it on silently.',
+    ),
     latestVersion: verified('2.9.8', release('2.9.8')),
     npmrcFormat: disputed(
       'The safe choice is an integer number of days, which also matches npm.',

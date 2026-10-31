@@ -10,7 +10,7 @@ const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 
 /** Variables for settings with a single value, which both the docs and the code accept. */
 const SCALAR_VARIABLES: readonly UserVariable[] = [
-  { name: 'YARN_ENABLE_SCRIPTS', anyCase: true, values: ['true', '1'], effect: 'runs dependency build scripts, whatever any .yarnrc.yml says' },
+  { name: 'YARN_ENABLE_SCRIPTS', anyCase: true, values: { except: ['false', '0'] }, effect: 'runs dependency build scripts, whatever any .yarnrc.yml says' },
   { name: 'YARN_NPM_MINIMAL_AGE_GATE', anyCase: true, values: 'any', effect: 'replaces npmMinimalAgeGate from every .yarnrc.yml' },
 ];
 
@@ -184,12 +184,12 @@ export const yarn: ToolKnowledge = {
       [
         { key: 'approvedGitRepositories', values: 'any', effect: 'approves these git repositories in every project, on top of the project\'s own list' },
         { key: 'npmPreapprovedPackages', values: 'any', effect: 'exempts these packages from the age gate in every project, on top of the project\'s own list' },
-        { key: 'enableScripts', values: [true], effect: 'runs dependency build scripts in every project whose .yarnrc.yml does not set enableScripts' },
+        { key: 'enableScripts', values: { except: [false, 0, 'false', '0'] }, effect: 'runs dependency build scripts in every project whose .yarnrc.yml does not set enableScripts' },
         { key: 'npmMinimalAgeGate', values: [0], effect: 'turns the age gate off in every project whose .yarnrc.yml does not set it' },
         { key: 'npmScopes.*.npmMinimalAgeGate', values: [0], effect: 'turns the age gate off for that scope in every project' },
       ],
       `${BERRY}/packages/yarnpkg-core/sources/configUtils.ts`,
-      'Read from code (resolveRcFiles, the same since 4.0.0; not on yarnpkg.com, and no test was read): lists from every .yarnrc.yml are joined, so home entries add to a project\'s list unless the project uses the undocumented { onConflict: reset } form; objects such as npmScopes merge key by key; for single values the file closest to the project wins. Since 4.17.0 a scope listed in the home npmScopes only for its registry gets the default gate of 1d instead of the project\'s gate (perScopeGate). A .yarnrc.yml in any folder between the root and the project merges the same way.',
+      'Read from code (resolveRcFiles, the same since 4.0.0; not on yarnpkg.com, and no test was read): lists from every .yarnrc.yml are joined, so home entries add to a project\'s list unless the project uses the undocumented { onConflict: reset } form; objects such as npmScopes merge key by key; for single values the file closest to the project wins. Since 4.17.0 a scope listed in the home npmScopes only for its registry gets the default gate of 1d instead of the project\'s gate (perScopeGate). A .yarnrc.yml in any folder between the root and the project merges the same way. enableScripts is a switch that turns a protection off: Yarn reads every value as text (FAILSAFE_SCHEMA, see extra.yamlMergeKeys) and parseBoolean of miscUtils.ts takes true and 1 as true and false and 0 as false and stops on any other value, after replacing ${VARIABLE} references; depcurfew counts every value but false and 0 as on.',
     ),
     variables: user.disputed(
       'The yarnrc docs say environment variables cannot set lists, but parseValue splits a string on commas for list settings, so by the code YARN_APPROVED_GIT_REPOSITORIES and YARN_NPM_PREAPPROVED_PACKAGES work. The safe choice is to treat both as effective.',
@@ -210,7 +210,7 @@ export const yarn: ToolKnowledge = {
           },
         ],
         CONFIGURATION,
-        'A variable starting with yarn_ in any case sets the camel-cased setting before the rc files are read, and they cannot change it (Configuration.find and use; YARN_IGNORE_SCRIPTS is ignored); a list setting takes a comma-separated string (parseValue); enableScripts accepts true or 1 (parseBoolean).',
+        'A variable starting with yarn_ in any case sets the camel-cased setting before the rc files are read, and they cannot change it (Configuration.find and use; YARN_IGNORE_SCRIPTS is ignored); a list setting takes a comma-separated string (parseValue); enableScripts accepts true or 1 (parseBoolean), false or 0 turn it off, and any other value stops Yarn, so every value but false and 0 counts as on.',
       ),
       user.evidence(
         SCALAR_VARIABLES,
@@ -220,6 +220,11 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    yamlMergeKeys: user.verified(
+      false,
+      `${BERRY}/packages/yarnpkg-parsers/sources/syml.ts`,
+      'parseSyml reads .yarnrc.yml with load of js-yaml and FAILSAFE_SCHEMA, which has no merge type (only strings, sequences and maps), so <<: *defaults is an ordinary key named <<: Configuration.use rejects it as an unrecognized setting in a project .yarnrc.yml (enableStrictSettings, default true) and sets it aside in the home file, so merged values never apply. Every scalar is a string to Yarn, which parses it per setting (parseValue in packages/yarnpkg-core/sources/Configuration.ts).',
+    ),
     classicUserFile: user.verified(
       { until: '2.0.0', file: '.yarnrc' },
       'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/registries/yarn-registry.js',
