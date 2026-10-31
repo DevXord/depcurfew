@@ -21,11 +21,11 @@ The first release.
 ### Guarding installs
 
 - `depcurfew check <package...>` looks packages up in the npm registry or PyPI before you install them: names that do not exist or look like a popular package, versions younger than the delay, install scripts or builds from source the policy does not allow, yanked, deprecated or quarantined versions, and sources the policy denies.
-- `depcurfew check --hook claude-code` is a PreToolUse hook for Claude Code that blocks install commands breaking the policy and asks when it cannot tell what a command installs. It is a safety net, not a sandbox.
+- `depcurfew check --hook claude-code` is a PreToolUse hook for Claude Code (the Bash, PowerShell and Monitor tools) that blocks install commands breaking the policy and asks when it cannot tell what a command installs. It is a safety net, not a sandbox.
 
 ### Requirements and limits
 
-- Node.js 22 or later; the library is ESM only (`require()` works from Node.js 22.12).
+- Node.js 22 or later on Linux, macOS and Windows; the library is ESM only (`require()` works from Node.js 22.12).
 - Yarn Classic (1.x) is detected but not configured. Renovate configuration in JSON5 gets a snippet to add by hand.
 - After `apply` changes settings that a lockfile records (uv, PDM), lock again; `apply` says when.
 - Only `check` and the hook use the network; depcurfew has no telemetry.
