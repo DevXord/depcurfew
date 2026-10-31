@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { npm } from '../../src/knowledge/npm.ts';
 import type { ToolKnowledge, UserFile } from '../../src/knowledge/types.ts';
-import { shownPath, userFileFor, userFilePath } from '../../src/user/locate.ts';
+import { pip } from '../../src/knowledge/pip.ts';
+import { locateUserFile, shownPath, userFileFor, userFilePath } from '../../src/user/locate.ts';
 
 const xdgFile: UserFile = {
   format: 'yaml',
@@ -28,6 +29,16 @@ describe('userFilePath', () => {
     expect(userFilePath(xdgFile, { platform: 'linux', home: '/home/ada', env: { XDG_CONFIG_HOME: '  ' } })).toBe('/home/ada/.config/tool/config.yaml');
     expect(userFilePath(xdgFile, { platform: 'win32', home: 'C:\\Users\\Ada', env: { APPDATA: 'C:\\Users\\Ada\\AppData\\Roaming' } })).toBe('C:\\Users\\Ada\\AppData\\Roaming\\tool\\config.ini');
     expect(userFilePath(xdgFile, { platform: 'win32', home: 'C:\\Users\\Ada', env: {} })).toBe('C:\\Users\\Ada\\AppData\\Roaming\\tool\\config.ini');
+  });
+
+  it('does not guess a path from a relative value a tool may use: locateUserFile says so, and userFilePath has none', () => {
+    const file = userFileFor(pip, [26, 1, 0]);
+    expect(file).not.toBeNull();
+    const linux = { platform: 'linux' as const, home: '/home/ada', env: { XDG_CONFIG_HOME: 'cfg' } };
+    expect(locateUserFile(file!, linux)).toEqual({ relative: { variable: 'XDG_CONFIG_HOME', value: 'cfg' } });
+    expect(userFilePath(file!, linux)).toBeUndefined();
+    expect(locateUserFile(file!, { platform: 'win32', home: 'C:\\Users\\Ada', env: { APPDATA: 'Roaming' } })).toEqual({ relative: { variable: 'APPDATA', value: 'Roaming' } });
+    expect(locateUserFile(file!, { ...linux, env: { XDG_CONFIG_HOME: '/srv/cfg' } })).toEqual({ path: '/srv/cfg/pip/pip.conf' });
   });
 
   it('takes a directory marked ifExists only when it exists', () => {

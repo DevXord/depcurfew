@@ -11,7 +11,7 @@ import { comparableMode, windows } from '../support/platform.ts';
 const fault = vi.hoisted(() => ({
   /** Fail renameSync onto a path that ends like this. */
   rename: undefined as string | undefined,
-  /** Fail writeFileSync of a temporary file next to a path that ends like this. */
+  /** Fail creating a temporary file next to a path that ends like this. */
   write: undefined as string | undefined,
   /** Fail openSync and readFileSync of a path that ends like this. */
   read: undefined as string | undefined,
@@ -30,15 +30,14 @@ vi.mock('node:fs', async (importOriginal) => {
       if (fault.rename !== undefined && String(to).endsWith(fault.rename)) refuse('rename', String(to));
       actual.renameSync(from, to);
     },
-    writeFileSync: (path: string, data: string, options?: object) => {
+    // writeChanges creates each temporary file with openSync and writes it through the descriptor.
+    openSync: (path: string, flags: number | string, mode?: number) => {
       const temporary = String(path).includes('.depcurfew-');
       if (temporary && fault.write !== undefined && String(path).split('.depcurfew-')[0]?.endsWith(fault.write)) refuse('open', String(path));
-      actual.writeFileSync(path, data, options);
-      if (temporary) fault.modes.push(actual.statSync(path).mode & 0o777);
-    },
-    openSync: (path: string, flags: number, mode?: number) => {
       if (fault.read !== undefined && String(path).endsWith(fault.read)) refuse('open', String(path));
-      return actual.openSync(path, flags, mode);
+      const descriptor = actual.openSync(path, flags, mode);
+      if (temporary) fault.modes.push(actual.fstatSync(descriptor).mode & 0o777);
+      return descriptor;
     },
     readFileSync: (path: string, options?: unknown) => {
       if (fault.read !== undefined && String(path).endsWith(fault.read)) refuse('open', String(path));

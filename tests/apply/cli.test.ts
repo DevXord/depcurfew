@@ -272,7 +272,7 @@ describe('depcurfew apply --json', () => {
     const report = parse(result.stdout);
     expect(report).toMatchObject({ written: false, changes: [], summary: { changes: 0, errors: 1 } });
     expect(report.errors).toEqual([
-      expect.objectContaining({ code: 'cannot-edit', level: 'error', tool: 'npm', location: { file: 'package.json' }, fix: 'Fix what the message describes, then run depcurfew apply again; or add the settings by hand' }),
+      expect.objectContaining({ code: 'cannot-edit', level: 'error', tool: 'npm', location: { file: 'package.json', line: 1 }, fix: 'Fix what the message describes, then run depcurfew apply again; or add the settings by hand' }),
     ]);
     expect(String(report.errors[0]?.['message'])).toMatch(/^npm: cannot edit package\.json: /u);
     expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
@@ -285,7 +285,7 @@ describe('depcurfew apply --json', () => {
     expect(result.code).toBe(EXIT_FAILURE);
     const report = parse(result.stdout);
     expect(report).toMatchObject({ written: false, changes: [] });
-    expect(report.errors).toEqual([expect.objectContaining({ code: 'cannot-edit', tool: 'uv', location: { file: 'pyproject.toml' } })]);
+    expect(report.errors).toEqual([expect.objectContaining({ code: 'cannot-edit', tool: 'uv', location: { file: 'pyproject.toml', line: 1 } })]);
     expect(String(report.errors[0]?.['message'])).toContain('uv: cannot edit pyproject.toml: invalid TOML at line 1');
     expect(readFileSync(join(directory, 'pyproject.toml'), 'utf8')).toBe('[project\nname = "app"\n');
   });

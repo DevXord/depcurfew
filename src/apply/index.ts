@@ -351,30 +351,36 @@ export class ApplyWriteError extends Error {
   readonly unrestored: string[];
   readonly report: ApplyReport;
 
-  constructor(failure: WriteFailed, report: ApplyReport) {
+  /**
+   * `command` is what the fix tells the user to run again (depcurfew apply --user for user files), and
+   * `versionControl` whether the files may be in version control, to restore them from.
+   */
+  constructor(failure: WriteFailed, report: ApplyReport, options: { command?: string; versionControl?: boolean } = {}) {
     super(`cannot write ${failure.file}: ${failure.message}`);
     this.file = failure.file;
     this.unrestored = failure.unrestored;
     this.report = report;
+    const command = options.command ?? 'depcurfew apply';
+    const versionControl = options.versionControl ?? true;
     const code = (failure.cause as NodeJS.ErrnoException | undefined)?.code;
     const fixes: Record<string, string> = {
-      EROFS: 'Run depcurfew apply where the files can be written',
-      ENOSPC: 'Free some disk space, then run depcurfew apply again',
-      EDQUOT: 'Free some disk space, then run depcurfew apply again',
-      EISDIR: `Move the directory ${failure.file} out of the way, then run depcurfew apply again`,
+      EROFS: `Run ${command} where the files can be written`,
+      ENOSPC: `Free some disk space, then run ${command} again`,
+      EDQUOT: `Free some disk space, then run ${command} again`,
+      EISDIR: `Move the directory ${failure.file} out of the way, then run ${command} again`,
     };
     const quoted = /\s/u.test(failure.file) ? `"${failure.file}"` : failure.file;
     const busy = !failure.busy
       ? undefined
       : failure.platform === 'win32'
-        ? `Close the program that has ${failure.file} open (an editor or a sync client; a virus scan ends by itself), clear the read-only attribute if it is set (attrib -r ${quoted}), then run depcurfew apply again`
-        : `Close the program that has ${failure.file} open, then run depcurfew apply again`;
-    const fix = busy ?? (code === undefined ? undefined : fixes[code]) ?? `Make ${failure.file} and its directory writable for the user that runs depcurfew, then run depcurfew apply again`;
+        ? `Close the program that has ${failure.file} open (an editor or a sync client; a virus scan ends by itself), clear the read-only attribute if it is set (attrib -r ${quoted}), then run ${command} again`
+        : `Close the program that has ${failure.file} open, then run ${command} again`;
+    const fix = busy ?? (code === undefined ? undefined : fixes[code]) ?? `Make ${failure.file} and its directory writable for the user that runs depcurfew, then run ${command} again`;
     const withBackup = this.unrestored.filter((file) => failure.backups[file] !== undefined);
     const withoutBackup = this.unrestored.filter((file) => failure.backups[file] === undefined);
     this.fix = [
-      ...withBackup.map((file) => `Restore ${file} from ${failure.backups[file] as string}, which holds its earlier text, or from version control.`),
-      ...(withoutBackup.length === 0 ? [] : [`Restore ${withoutBackup.join(', ')} from version control or a backup.`]),
+      ...withBackup.map((file) => `Restore ${file} from ${failure.backups[file] as string}, which holds its earlier text${versionControl ? ', or from version control' : ''}.`),
+      ...(withoutBackup.length === 0 ? [] : [`Restore ${withoutBackup.join(', ')} from ${versionControl ? 'version control or ' : ''}a backup.`]),
       ...(failure.leftovers.length === 0 ? [] : [`Delete ${failure.leftovers.join(', ')}.`]),
       fix,
     ].join(' ');

@@ -17,7 +17,7 @@
 // TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 // THIS SOFTWARE.
 import { createRequire } from "node:module";
-import { appendFileSync, chmodSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, constants, fchmodSync, fchownSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import nodePath, { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -5241,7 +5241,7 @@ function tomlValueAt(document, path) {
 	return node;
 }
 
-// ../../../node_modules/yaml/dist/nodes/identity.js
+// node_modules/yaml/dist/nodes/identity.js
 var require_identity = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const ALIAS = Symbol.for("yaml.alias");
 	const DOC = Symbol.for("yaml.document");
@@ -5291,7 +5291,7 @@ var require_identity = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isSeq = isSeq;
 }));
 
-// ../../../node_modules/yaml/dist/visit.js
+// node_modules/yaml/dist/visit.js
 var require_visit = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	const BREAK = Symbol("break visit");
@@ -5482,7 +5482,7 @@ var require_visit = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.visitAsync = visitAsync;
 }));
 
-// ../../../node_modules/yaml/dist/doc/directives.js
+// node_modules/yaml/dist/doc/directives.js
 var require_directives = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var visit = require_visit();
@@ -5646,7 +5646,7 @@ var require_directives = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Directives = Directives;
 }));
 
-// ../../../node_modules/yaml/dist/doc/anchors.js
+// node_modules/yaml/dist/doc/anchors.js
 var require_anchors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var visit = require_visit();
@@ -5713,7 +5713,7 @@ var require_anchors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.findNewAnchor = findNewAnchor;
 }));
 
-// ../../../node_modules/yaml/dist/doc/applyReviver.js
+// node_modules/yaml/dist/doc/applyReviver.js
 var require_applyReviver = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Applies the JSON.parse reviver algorithm as defined in the ECMA-262 spec,
@@ -5755,7 +5755,7 @@ var require_applyReviver = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.applyReviver = applyReviver;
 }));
 
-// ../../../node_modules/yaml/dist/nodes/toJS.js
+// node_modules/yaml/dist/nodes/toJS.js
 var require_toJS = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	/**
@@ -5792,7 +5792,7 @@ var require_toJS = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.toJS = toJS;
 }));
 
-// ../../../node_modules/yaml/dist/nodes/Node.js
+// node_modules/yaml/dist/nodes/Node.js
 var require_Node = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var applyReviver = require_applyReviver();
 	var identity = require_identity();
@@ -5826,7 +5826,7 @@ var require_Node = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.NodeBase = NodeBase;
 }));
 
-// ../../../node_modules/yaml/dist/nodes/Alias.js
+// node_modules/yaml/dist/nodes/Alias.js
 var require_Alias = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var anchors = require_anchors();
 	var visit = require_visit();
@@ -5922,7 +5922,7 @@ var require_Alias = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Alias = Alias;
 }));
 
-// ../../../node_modules/yaml/dist/nodes/Scalar.js
+// node_modules/yaml/dist/nodes/Scalar.js
 var require_Scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Node = require_Node();
@@ -5949,7 +5949,7 @@ var require_Scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isScalarValue = isScalarValue;
 }));
 
-// ../../../node_modules/yaml/dist/doc/createNode.js
+// node_modules/yaml/dist/doc/createNode.js
 var require_createNode = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Alias = require_Alias();
 	var identity = require_identity();
@@ -6012,7 +6012,7 @@ var require_createNode = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.createNode = createNode;
 }));
 
-// ../../../node_modules/yaml/dist/nodes/Collection.js
+// node_modules/yaml/dist/nodes/Collection.js
 var require_Collection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var createNode = require_createNode();
 	var identity = require_identity();
@@ -6133,7 +6133,7 @@ var require_Collection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isEmptyPath = isEmptyPath;
 }));
 
-// ../../../node_modules/yaml/dist/stringify/stringifyComment.js
+// node_modules/yaml/dist/stringify/stringifyComment.js
 var require_stringifyComment = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Stringifies a comment.
@@ -6153,7 +6153,7 @@ var require_stringifyComment = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyComment = stringifyComment;
 }));
 
-// ../../../node_modules/yaml/dist/stringify/foldFlowLines.js
+// node_modules/yaml/dist/stringify/foldFlowLines.js
 var require_foldFlowLines = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const FOLD_FLOW = "flow";
 	const FOLD_BLOCK = "block";
@@ -6273,7 +6273,7 @@ var require_foldFlowLines = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.foldFlowLines = foldFlowLines;
 }));
 
-// ../../../node_modules/yaml/dist/stringify/stringifyString.js
+// node_modules/yaml/dist/stringify/stringifyString.js
 var require_stringifyString = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	var foldFlowLines = require_foldFlowLines();
@@ -6497,7 +6497,7 @@ var require_stringifyString = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyString = stringifyString;
 }));
 
-// ../../../node_modules/yaml/dist/stringify/stringify.js
+// node_modules/yaml/dist/stringify/stringify.js
 var require_stringify = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var anchors = require_anchors();
 	var identity = require_identity();
@@ -6605,7 +6605,7 @@ var require_stringify = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringify = stringify;
 }));
 
-// ../../../node_modules/yaml/dist/stringify/stringifyPair.js
+// node_modules/yaml/dist/stringify/stringifyPair.js
 var require_stringifyPair = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Scalar = require_Scalar();
@@ -6702,7 +6702,7 @@ var require_stringifyPair = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyPair = stringifyPair;
 }));
 
-// ../../../node_modules/yaml/dist/log.js
+// node_modules/yaml/dist/log.js
 var require_log = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var node_process = __require("process");
 	function debug(logLevel, ...messages) {
@@ -6718,7 +6718,7 @@ var require_log = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.warn = warn;
 }));
 
-// ../../../node_modules/yaml/dist/schema/yaml-1.1/merge.js
+// node_modules/yaml/dist/schema/yaml-1.1/merge.js
 var require_merge = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Scalar = require_Scalar();
@@ -6761,7 +6761,7 @@ var require_merge = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.merge = merge;
 }));
 
-// ../../../node_modules/yaml/dist/nodes/addPairToJSMap.js
+// node_modules/yaml/dist/nodes/addPairToJSMap.js
 var require_addPairToJSMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var log = require_log();
 	var merge = require_merge();
@@ -6812,7 +6812,7 @@ var require_addPairToJSMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.addPairToJSMap = addPairToJSMap;
 }));
 
-// ../../../node_modules/yaml/dist/nodes/Pair.js
+// node_modules/yaml/dist/nodes/Pair.js
 var require_Pair = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var createNode = require_createNode();
 	var stringifyPair = require_stringifyPair();
@@ -6847,7 +6847,7 @@ var require_Pair = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.createPair = createPair;
 }));
 
-// ../../../node_modules/yaml/dist/stringify/stringifyCollection.js
+// node_modules/yaml/dist/stringify/stringifyCollection.js
 var require_stringifyCollection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var stringify = require_stringify();
@@ -6965,7 +6965,7 @@ var require_stringifyCollection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyCollection = stringifyCollection;
 }));
 
-// ../../../node_modules/yaml/dist/nodes/YAMLMap.js
+// node_modules/yaml/dist/nodes/YAMLMap.js
 var require_YAMLMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var stringifyCollection = require_stringifyCollection();
 	var addPairToJSMap = require_addPairToJSMap();
@@ -7074,7 +7074,7 @@ var require_YAMLMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.findPair = findPair;
 }));
 
-// ../../../node_modules/yaml/dist/schema/common/map.js
+// node_modules/yaml/dist/schema/common/map.js
 var require_map = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var YAMLMap = require_YAMLMap();
@@ -7092,7 +7092,7 @@ var require_map = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.map = map;
 }));
 
-// ../../../node_modules/yaml/dist/nodes/YAMLSeq.js
+// node_modules/yaml/dist/nodes/YAMLSeq.js
 var require_YAMLSeq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var createNode = require_createNode();
 	var stringifyCollection = require_stringifyCollection();
@@ -7198,7 +7198,7 @@ var require_YAMLSeq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.YAMLSeq = YAMLSeq;
 }));
 
-// ../../../node_modules/yaml/dist/schema/common/seq.js
+// node_modules/yaml/dist/schema/common/seq.js
 var require_seq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var YAMLSeq = require_YAMLSeq();
@@ -7216,7 +7216,7 @@ var require_seq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.seq = seq;
 }));
 
-// ../../../node_modules/yaml/dist/schema/common/string.js
+// node_modules/yaml/dist/schema/common/string.js
 var require_string = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var stringifyString = require_stringifyString();
 	const string = {
@@ -7232,7 +7232,7 @@ var require_string = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.string = string;
 }));
 
-// ../../../node_modules/yaml/dist/schema/common/null.js
+// node_modules/yaml/dist/schema/common/null.js
 var require_null = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	const nullTag = {
@@ -7247,7 +7247,7 @@ var require_null = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.nullTag = nullTag;
 }));
 
-// ../../../node_modules/yaml/dist/schema/core/bool.js
+// node_modules/yaml/dist/schema/core/bool.js
 var require_bool$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	const boolTag = {
@@ -7266,7 +7266,7 @@ var require_bool$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.boolTag = boolTag;
 }));
 
-// ../../../node_modules/yaml/dist/stringify/stringifyNumber.js
+// node_modules/yaml/dist/stringify/stringifyNumber.js
 var require_stringifyNumber = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function stringifyNumber({ format, minFractionDigits, tag, value }) {
 		if (typeof value === "bigint") return String(value);
@@ -7287,7 +7287,7 @@ var require_stringifyNumber = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyNumber = stringifyNumber;
 }));
 
-// ../../../node_modules/yaml/dist/schema/core/float.js
+// node_modules/yaml/dist/schema/core/float.js
 var require_float$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	var stringifyNumber = require_stringifyNumber();
@@ -7329,7 +7329,7 @@ var require_float$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.floatNaN = floatNaN;
 }));
 
-// ../../../node_modules/yaml/dist/schema/core/int.js
+// node_modules/yaml/dist/schema/core/int.js
 var require_int$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var stringifyNumber = require_stringifyNumber();
 	const intIdentify = (value) => typeof value === "bigint" || Number.isInteger(value);
@@ -7370,7 +7370,7 @@ var require_int$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.intOct = intOct;
 }));
 
-// ../../../node_modules/yaml/dist/schema/core/schema.js
+// node_modules/yaml/dist/schema/core/schema.js
 var require_schema$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var map = require_map();
 	var _null = require_null();
@@ -7395,7 +7395,7 @@ var require_schema$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.schema = schema;
 }));
 
-// ../../../node_modules/yaml/dist/schema/json/schema.js
+// node_modules/yaml/dist/schema/json/schema.js
 var require_schema$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	var map = require_map();
@@ -7458,7 +7458,7 @@ var require_schema$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.schema = schema;
 }));
 
-// ../../../node_modules/yaml/dist/schema/yaml-1.1/binary.js
+// node_modules/yaml/dist/schema/yaml-1.1/binary.js
 var require_binary = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var node_buffer = __require("buffer");
 	var Scalar = require_Scalar();
@@ -7515,7 +7515,7 @@ var require_binary = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.binary = binary;
 }));
 
-// ../../../node_modules/yaml/dist/schema/yaml-1.1/pairs.js
+// node_modules/yaml/dist/schema/yaml-1.1/pairs.js
 var require_pairs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Pair = require_Pair();
@@ -7576,7 +7576,7 @@ var require_pairs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolvePairs = resolvePairs;
 }));
 
-// ../../../node_modules/yaml/dist/schema/yaml-1.1/omap.js
+// node_modules/yaml/dist/schema/yaml-1.1/omap.js
 var require_omap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var toJS = require_toJS();
@@ -7641,7 +7641,7 @@ var require_omap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.omap = omap;
 }));
 
-// ../../../node_modules/yaml/dist/schema/yaml-1.1/bool.js
+// node_modules/yaml/dist/schema/yaml-1.1/bool.js
 var require_bool = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	function boolStringify({ value, source }, ctx) {
@@ -7668,7 +7668,7 @@ var require_bool = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.trueTag = trueTag;
 }));
 
-// ../../../node_modules/yaml/dist/schema/yaml-1.1/float.js
+// node_modules/yaml/dist/schema/yaml-1.1/float.js
 var require_float = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	var stringifyNumber = require_stringifyNumber();
@@ -7713,7 +7713,7 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.floatNaN = floatNaN;
 }));
 
-// ../../../node_modules/yaml/dist/schema/yaml-1.1/int.js
+// node_modules/yaml/dist/schema/yaml-1.1/int.js
 var require_int = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var stringifyNumber = require_stringifyNumber();
 	const intIdentify = (value) => typeof value === "bigint" || Number.isInteger(value);
@@ -7786,7 +7786,7 @@ var require_int = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.intOct = intOct;
 }));
 
-// ../../../node_modules/yaml/dist/schema/yaml-1.1/set.js
+// node_modules/yaml/dist/schema/yaml-1.1/set.js
 var require_set = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Pair = require_Pair();
@@ -7855,7 +7855,7 @@ var require_set = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.set = set;
 }));
 
-// ../../../node_modules/yaml/dist/schema/yaml-1.1/timestamp.js
+// node_modules/yaml/dist/schema/yaml-1.1/timestamp.js
 var require_timestamp = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var stringifyNumber = require_stringifyNumber();
 	/** Internal types handle bigint as number, because TS can't figure it out. */
@@ -7938,7 +7938,7 @@ var require_timestamp = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.timestamp = timestamp;
 }));
 
-// ../../../node_modules/yaml/dist/schema/yaml-1.1/schema.js
+// node_modules/yaml/dist/schema/yaml-1.1/schema.js
 var require_schema = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var map = require_map();
 	var _null = require_null();
@@ -7979,7 +7979,7 @@ var require_schema = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.schema = schema;
 }));
 
-// ../../../node_modules/yaml/dist/schema/tags.js
+// node_modules/yaml/dist/schema/tags.js
 var require_tags = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var map = require_map();
 	var _null = require_null();
@@ -8065,7 +8065,7 @@ var require_tags = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getTags = getTags;
 }));
 
-// ../../../node_modules/yaml/dist/schema/Schema.js
+// node_modules/yaml/dist/schema/Schema.js
 var require_Schema = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var map = require_map();
@@ -8094,7 +8094,7 @@ var require_Schema = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Schema = Schema;
 }));
 
-// ../../../node_modules/yaml/dist/stringify/stringifyDocument.js
+// node_modules/yaml/dist/stringify/stringifyDocument.js
 var require_stringifyDocument = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var stringify = require_stringify();
@@ -8156,7 +8156,7 @@ var require_stringifyDocument = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyDocument = stringifyDocument;
 }));
 
-// ../../../node_modules/yaml/dist/doc/Document.js
+// node_modules/yaml/dist/doc/Document.js
 var require_Document = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Alias = require_Alias();
 	var Collection = require_Collection();
@@ -8437,7 +8437,7 @@ var require_Document = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Document = Document;
 }));
 
-// ../../../node_modules/yaml/dist/errors.js
+// node_modules/yaml/dist/errors.js
 var require_errors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var YAMLError = class extends Error {
 		constructor(name, pos, code, message) {
@@ -8490,7 +8490,7 @@ var require_errors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.prettifyError = prettifyError;
 }));
 
-// ../../../node_modules/yaml/dist/compose/resolve-props.js
+// node_modules/yaml/dist/compose/resolve-props.js
 var require_resolve_props = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function resolveProps(tokens, { flow, indicator, next, offset, onError, parentIndent, startOnNewline }) {
 		let spaceBefore = false;
@@ -8597,7 +8597,7 @@ var require_resolve_props = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveProps = resolveProps;
 }));
 
-// ../../../node_modules/yaml/dist/compose/util-contains-newline.js
+// node_modules/yaml/dist/compose/util-contains-newline.js
 var require_util_contains_newline = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function containsNewline(key) {
 		if (!key) return null;
@@ -8626,7 +8626,7 @@ var require_util_contains_newline = /* @__PURE__ */ __commonJSMin(((exports) => 
 	exports.containsNewline = containsNewline;
 }));
 
-// ../../../node_modules/yaml/dist/compose/util-flow-indent-check.js
+// node_modules/yaml/dist/compose/util-flow-indent-check.js
 var require_util_flow_indent_check = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var utilContainsNewline = require_util_contains_newline();
 	function flowIndentCheck(indent, fc, onError) {
@@ -8638,7 +8638,7 @@ var require_util_flow_indent_check = /* @__PURE__ */ __commonJSMin(((exports) =>
 	exports.flowIndentCheck = flowIndentCheck;
 }));
 
-// ../../../node_modules/yaml/dist/compose/util-map-includes.js
+// node_modules/yaml/dist/compose/util-map-includes.js
 var require_util_map_includes = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	function mapIncludes(ctx, items, search) {
@@ -8650,7 +8650,7 @@ var require_util_map_includes = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.mapIncludes = mapIncludes;
 }));
 
-// ../../../node_modules/yaml/dist/compose/resolve-block-map.js
+// node_modules/yaml/dist/compose/resolve-block-map.js
 var require_resolve_block_map = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Pair = require_Pair();
 	var YAMLMap = require_YAMLMap();
@@ -8738,7 +8738,7 @@ var require_resolve_block_map = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveBlockMap = resolveBlockMap;
 }));
 
-// ../../../node_modules/yaml/dist/compose/resolve-block-seq.js
+// node_modules/yaml/dist/compose/resolve-block-seq.js
 var require_resolve_block_seq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var YAMLSeq = require_YAMLSeq();
 	var resolveProps = require_resolve_props();
@@ -8783,7 +8783,7 @@ var require_resolve_block_seq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveBlockSeq = resolveBlockSeq;
 }));
 
-// ../../../node_modules/yaml/dist/compose/resolve-end.js
+// node_modules/yaml/dist/compose/resolve-end.js
 var require_resolve_end = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function resolveEnd(end, offset, reqSpace, onError) {
 		let comment = "";
@@ -8821,7 +8821,7 @@ var require_resolve_end = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveEnd = resolveEnd;
 }));
 
-// ../../../node_modules/yaml/dist/compose/resolve-flow-collection.js
+// node_modules/yaml/dist/compose/resolve-flow-collection.js
 var require_resolve_flow_collection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Pair = require_Pair();
@@ -8984,7 +8984,7 @@ var require_resolve_flow_collection = /* @__PURE__ */ __commonJSMin(((exports) =
 	exports.resolveFlowCollection = resolveFlowCollection;
 }));
 
-// ../../../node_modules/yaml/dist/compose/compose-collection.js
+// node_modules/yaml/dist/compose/compose-collection.js
 var require_compose_collection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Scalar = require_Scalar();
@@ -9036,7 +9036,7 @@ var require_compose_collection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.composeCollection = composeCollection;
 }));
 
-// ../../../node_modules/yaml/dist/compose/resolve-block-scalar.js
+// node_modules/yaml/dist/compose/resolve-block-scalar.js
 var require_resolve_block_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	function resolveBlockScalar(ctx, scalar, onError) {
@@ -9213,7 +9213,7 @@ var require_resolve_block_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveBlockScalar = resolveBlockScalar;
 }));
 
-// ../../../node_modules/yaml/dist/compose/resolve-flow-scalar.js
+// node_modules/yaml/dist/compose/resolve-flow-scalar.js
 var require_resolve_flow_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	var resolveEnd = require_resolve_end();
@@ -9418,7 +9418,7 @@ var require_resolve_flow_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveFlowScalar = resolveFlowScalar;
 }));
 
-// ../../../node_modules/yaml/dist/compose/compose-scalar.js
+// node_modules/yaml/dist/compose/compose-scalar.js
 var require_compose_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Scalar = require_Scalar();
@@ -9479,7 +9479,7 @@ var require_compose_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.composeScalar = composeScalar;
 }));
 
-// ../../../node_modules/yaml/dist/compose/util-empty-scalar-position.js
+// node_modules/yaml/dist/compose/util-empty-scalar-position.js
 var require_util_empty_scalar_position = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function emptyScalarPosition(offset, before, pos) {
 		if (before) {
@@ -9506,7 +9506,7 @@ var require_util_empty_scalar_position = /* @__PURE__ */ __commonJSMin(((exports
 	exports.emptyScalarPosition = emptyScalarPosition;
 }));
 
-// ../../../node_modules/yaml/dist/compose/compose-node.js
+// node_modules/yaml/dist/compose/compose-node.js
 var require_compose_node = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Alias = require_Alias();
 	var identity = require_identity();
@@ -9597,7 +9597,7 @@ var require_compose_node = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.composeNode = composeNode;
 }));
 
-// ../../../node_modules/yaml/dist/compose/compose-doc.js
+// node_modules/yaml/dist/compose/compose-doc.js
 var require_compose_doc = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Document = require_Document();
 	var composeNode = require_compose_node();
@@ -9639,7 +9639,7 @@ var require_compose_doc = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.composeDoc = composeDoc;
 }));
 
-// ../../../node_modules/yaml/dist/compose/composer.js
+// node_modules/yaml/dist/compose/composer.js
 var require_composer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var node_process = __require("process");
 	var directives = require_directives();
@@ -9837,7 +9837,7 @@ var require_composer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Composer = Composer;
 }));
 
-// ../../../node_modules/yaml/dist/parse/cst-scalar.js
+// node_modules/yaml/dist/parse/cst-scalar.js
 var require_cst_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var resolveBlockScalar = require_resolve_block_scalar();
 	var resolveFlowScalar = require_resolve_flow_scalar();
@@ -10104,7 +10104,7 @@ var require_cst_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.setScalarValue = setScalarValue;
 }));
 
-// ../../../node_modules/yaml/dist/parse/cst-stringify.js
+// node_modules/yaml/dist/parse/cst-stringify.js
 var require_cst_stringify = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Stringify a CST document, token, or collection item
@@ -10155,7 +10155,7 @@ var require_cst_stringify = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringify = stringify;
 }));
 
-// ../../../node_modules/yaml/dist/parse/cst-visit.js
+// node_modules/yaml/dist/parse/cst-visit.js
 var require_cst_visit = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const BREAK = Symbol("break visit");
 	const SKIP = Symbol("skip children");
@@ -10246,7 +10246,7 @@ var require_cst_visit = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.visit = visit;
 }));
 
-// ../../../node_modules/yaml/dist/parse/cst.js
+// node_modules/yaml/dist/parse/cst.js
 var require_cst = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var cstScalar = require_cst_scalar();
 	var cstStringify = require_cst_stringify();
@@ -10325,7 +10325,7 @@ var require_cst = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.tokenType = tokenType;
 }));
 
-// ../../../node_modules/yaml/dist/parse/lexer.js
+// node_modules/yaml/dist/parse/lexer.js
 var require_lexer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var cst = require_cst();
 	function isEmpty(ch) {
@@ -10858,7 +10858,7 @@ var require_lexer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Lexer = Lexer;
 }));
 
-// ../../../node_modules/yaml/dist/parse/line-counter.js
+// node_modules/yaml/dist/parse/line-counter.js
 var require_line_counter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Tracks newlines during parsing in order to provide an efficient API for
@@ -10905,7 +10905,7 @@ var require_line_counter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.LineCounter = LineCounter;
 }));
 
-// ../../../node_modules/yaml/dist/parse/parser.js
+// node_modules/yaml/dist/parse/parser.js
 var require_parser = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var node_process = __require("process");
 	var cst = require_cst();
@@ -11771,7 +11771,7 @@ var require_parser = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Parser = Parser;
 }));
 
-// ../../../node_modules/yaml/dist/public-api.js
+// node_modules/yaml/dist/public-api.js
 var require_public_api = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var composer = require_composer();
 	var Document = require_Document();
@@ -11860,7 +11860,7 @@ var require_public_api = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringify = stringify;
 }));
 
-// ../../../node_modules/yaml/dist/index.js
+// node_modules/yaml/dist/index.js
 var require_dist = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var composer = require_composer();
 	var Document = require_Document();
@@ -17954,6 +17954,21 @@ function readLimited(path, limit, options = {}) {
 	}
 }
 
+// src/printable.ts
+/** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
+const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
+const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
+/** The Unicode bidirectional formatting characters: ALM, LRM, RLM, LRE to RLO, LRI to PDI. */
+const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
+/**
+* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`. Line breaks are control
+* characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
+* depcurfew lays out in lines itself, such as a snippet to add by hand. Apply it before adding colors.
+*/
+function printable(text, options = {}) {
+	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(BIDI, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
+
 // src/apply/diff.ts
 /** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
 const NO_EOL = "\0";
@@ -18178,12 +18193,37 @@ const UTF8 = new TextDecoder("utf-8", {
 var Workspace = class {
 	root;
 	#files = /* @__PURE__ */ new Map();
-	constructor(root) {
+	#name;
+	constructor(root, options = {}) {
 		this.root = realpathSync(root);
+		this.#name = options.name ?? ((file) => file);
+	}
+	/** Why the file cannot be looked at: a part of its path that is a file rather than a directory, or the reason. */
+	#statFailure(file, error) {
+		return (error.code === "ENOTDIR" ? this.#notADirectory(file) : void 0) ?? /* @__PURE__ */ new Error(`${this.#name(file)} cannot be read: ${fileSystemReason(error)}`);
+	}
+	/**
+	* A part of the file's path that exists but is not a directory, so the file can be neither read nor created. POSIX
+	* says so with ENOTDIR; Windows reports the file as missing, so a missing file is checked this way too.
+	*/
+	#notADirectory(file) {
+		const parts = file.split("/");
+		for (let count = 1; count < parts.length; count++) {
+			const part = parts.slice(0, count).join("/");
+			let stats;
+			try {
+				stats = lstatSync(join(this.root, part), { throwIfNoEntry: false });
+			} catch {
+				return;
+			}
+			if (stats === void 0) return void 0;
+			if (!stats.isDirectory() && !stats.isSymbolicLink()) return /* @__PURE__ */ new Error(`${this.#name(part)} is not a directory`);
+		}
 	}
 	#load(file) {
 		const cached = this.#files.get(file);
 		if (cached !== void 0) return cached;
+		const name = this.#name(file);
 		const path = join(this.root, file);
 		let parent;
 		try {
@@ -18191,23 +18231,31 @@ var Workspace = class {
 		} catch {
 			parent = this.root;
 		}
-		if (!isInside(this.root, parent)) throw new Error(`${file} is outside the repository`);
+		if (!isInside(this.root, parent)) throw new Error(`${name} is outside the repository`);
 		let bytes;
-		const stats = lstatSync(path, { throwIfNoEntry: false });
-		if (stats?.isSymbolicLink() === true) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
-		if (stats !== void 0) {
+		let stats;
+		try {
+			stats = lstatSync(path, { throwIfNoEntry: false });
+		} catch (error) {
+			throw this.#statFailure(file, error);
+		}
+		if (stats?.isSymbolicLink() === true) throw new Error(`${name} is a symlink; depcurfew does not write through symlinks`);
+		if (stats === void 0) {
+			const blocked = this.#notADirectory(file);
+			if (blocked !== void 0) throw blocked;
+		} else {
 			const read = readLimited(path, MAX_FILE_SIZE, { noFollow: true });
 			if (read.ok) bytes = read.bytes;
-			else if (read.problem === "symlink") throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
-			else if (read.problem === "too-large") throw new Error(`${file} is larger than 1 MiB, so depcurfew does not edit it`);
-			else if (read.problem === "not-a-file") throw new Error(`${file} cannot be read: ${stats.isDirectory() ? "it is a directory" : "it is not a regular file"}`);
-			else if (read.problem === "unreadable") throw new Error(`${file} cannot be read: ${fileSystemReason(read.error)}`);
+			else if (read.problem === "symlink") throw new Error(`${name} is a symlink; depcurfew does not write through symlinks`);
+			else if (read.problem === "too-large") throw new Error(`${name} is larger than 1 MiB, so depcurfew does not edit it`);
+			else if (read.problem === "not-a-file") throw new Error(`${name} cannot be read: ${stats.isDirectory() ? "it is a directory" : "it is not a regular file"}`);
+			else if (read.problem === "unreadable") throw new Error(`${name} cannot be read: ${fileSystemReason(read.error)}`);
 		}
 		let original = null;
 		if (bytes !== void 0) try {
 			original = UTF8.decode(bytes);
 		} catch {
-			throw new Error(`${file} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`);
+			throw new Error(`${name} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`);
 		}
 		const entry = {
 			original,
@@ -18302,7 +18350,7 @@ var WriteFailed = class extends Error {
 	unrestored;
 	/** For files in `unrestored`: the temporary file, next to it, that holds its earlier text. */
 	backups;
-	/** Temporary files that could not be removed, relative to the root. */
+	/** Temporary files that could not be removed, named like `file` (relative to the root, or as WriteOptions.name says). */
 	leftovers;
 	/** Another program holds the file, or (on Windows) it is read-only. */
 	busy;
@@ -18330,22 +18378,40 @@ var WriteFailed = class extends Error {
 };
 let counter = 0;
 /**
-* Writes `text` to a new temporary file next to `path`; the file is removed if writing fails. It replaces a file of
-* mode `mode`, or with undefined it becomes a new file, whose mode the umask decides (0666 narrowed by it), as for
-* any file a program creates.
+* The owner to give the file that replaces one with these stats. Only root can give a file away, and only then does
+* a replaced file change hands: sudo depcurfew apply --user with HOME kept would otherwise leave ~/.npmrc to root, and
+* the user could no longer read their own configuration. POSIX only; Windows has no such owners.
 */
-function stage(path, text, mode) {
+function ownerToKeep(path) {
+	if (process.platform === "win32" || process.getuid?.() !== 0) return void 0;
+	const stats = lstatSync(path, { throwIfNoEntry: false });
+	if (stats === void 0 || !stats.isFile()) return void 0;
+	return stats.uid === process.getuid() && stats.gid === process.getgid?.() ? void 0 : {
+		uid: stats.uid,
+		gid: stats.gid
+	};
+}
+/**
+* Writes `text` to a new temporary file next to `path`; the file is removed if writing fails. It replaces a file of
+* mode `mode` (and owner `owner`, see ownerToKeep), or with undefined it becomes a new file, whose mode the umask
+* decides (0666 narrowed by it), as for any file a program creates.
+*/
+function stage(path, text, mode, owner) {
 	counter += 1;
 	const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}-${counter}`;
+	let descriptor;
 	try {
-		writeFileSync(temporary, text, {
-			flag: "wx",
-			mode: mode ?? 438
-		});
-		if (mode !== void 0) chmodSync(temporary, mode);
+		descriptor = openSync(temporary, "wx", mode ?? 438);
+		writeFileSync(descriptor, text);
+		if (owner !== void 0) fchownSync(descriptor, owner.uid, owner.gid);
+		if (mode !== void 0) fchmodSync(descriptor, mode);
 	} catch (error) {
+		if (descriptor !== void 0) closeSync(descriptor);
+		descriptor = void 0;
 		if (error.code !== "EEXIST") rmSync(temporary, { force: true });
 		throw error;
+	} finally {
+		if (descriptor !== void 0) closeSync(descriptor);
 	}
 	return temporary;
 }
@@ -18374,58 +18440,75 @@ function removeDirectories(created, paths) {
 	} catch {}
 }
 /**
-* Writes each changed file through a temporary file and a rename, keeping the permissions of existing files. All
-* files or none: every temporary file is written first and only then are they renamed; if anything fails, the
-* temporary files are removed and the files already replaced get their old text back, and WriteFailed is thrown. On
-* Windows, renames and removals are tried again for a few seconds while another program holds the file.
+* Writes each changed file through a temporary file and a rename, keeping the permissions of existing files (and,
+* when running as root, their owner). All files or none: every temporary file is written first and only then are they
+* renamed; if anything fails, the temporary files are removed and the files already replaced get their old text back,
+* and WriteFailed is thrown. On Windows, renames and removals are tried again for a few seconds while another program
+* holds the file.
 */
 function writeChanges(root, changes, options = {}) {
+	writeChangeSets([{
+		root,
+		changes
+	}], options);
+}
+/** writeChanges for the changes of several workspace roots at once (apply --user): all files of all roots, or none. */
+function writeChangeSets(sets, options = {}) {
+	const nameOf = options.name ?? ((_root, file) => file);
+	const items = sets.flatMap((set) => set.changes.map((change) => ({
+		root: set.root,
+		change,
+		path: join(set.root, change.file),
+		name: nameOf(set.root, change.file)
+	})));
+	const paths = items.map((item) => item.path);
 	const staged = [];
 	const created = [];
 	const leftovers = [];
-	const shown = (path) => relative(root, path).split(sep).join("/");
+	const shown = (item, path) => nameOf(item.root, relative(item.root, path).split(sep).join("/"));
 	/** Removes a temporary file; one that stays is named in the error. */
-	const remove = (temporary) => {
+	const remove = (entry) => {
 		try {
-			retried(() => rmSync(temporary, { force: true }), options);
+			retried(() => rmSync(entry.temporary, { force: true }), options);
 		} catch {
-			leftovers.push(shown(temporary));
+			leftovers.push(shown(entry, entry.temporary));
 		}
 	};
 	const details = () => ({
 		...options.platform === void 0 ? {} : { platform: options.platform },
 		leftovers
 	});
-	let current = changes[0]?.file ?? "";
+	let current = items[0]?.name ?? "";
 	try {
-		for (const change of changes) {
-			current = change.file;
-			const path = join(root, change.file);
-			const top = missingTop(dirname(path));
+		for (const item of items) {
+			current = item.name;
+			const top = missingTop(dirname(item.path));
 			if (top !== void 0) created.push(top);
-			mkdirSync(dirname(path), { recursive: true });
-			const mode = change.before === null ? void 0 : statSync(path).mode & 4095;
+			mkdirSync(dirname(item.path), { recursive: true });
+			const stats = item.change.before === null ? void 0 : statSync(item.path);
+			const mode = stats === void 0 ? void 0 : stats.mode & 4095;
+			const owner = stats === void 0 ? void 0 : ownerToKeep(item.path);
 			staged.push({
-				change,
-				path,
-				temporary: stage(path, change.after, mode),
-				mode
+				...item,
+				temporary: stage(item.path, item.change.after, mode, owner),
+				mode,
+				owner
 			});
 		}
 	} catch (error) {
-		for (const entry of staged) remove(entry.temporary);
-		removeDirectories(created, changes.map((change) => join(root, change.file)));
+		for (const entry of staged) remove(entry);
+		removeDirectories(created, paths);
 		throw new WriteFailed(current, error, [], details());
 	}
 	const renamed = [];
 	try {
 		for (const entry of staged) {
-			current = entry.change.file;
+			current = entry.name;
 			retried(() => renameSync(entry.temporary, entry.path), options);
 			renamed.push(entry);
 		}
 	} catch (error) {
-		for (const entry of staged.slice(renamed.length)) remove(entry.temporary);
+		for (const entry of staged.slice(renamed.length)) remove(entry);
 		const unrestored = [];
 		const backups = {};
 		for (const entry of renamed.reverse()) {
@@ -18433,21 +18516,21 @@ function writeChanges(root, changes, options = {}) {
 				try {
 					retried(() => rmSync(entry.path, { force: true }), options);
 				} catch {
-					unrestored.push(entry.change.file);
+					unrestored.push(entry.name);
 				}
 				continue;
 			}
 			let backup;
 			try {
-				backup = stage(entry.path, entry.change.before, entry.mode);
+				backup = stage(entry.path, entry.change.before, entry.mode, entry.owner);
 				const from = backup;
 				retried(() => renameSync(from, entry.path), options);
 			} catch {
-				unrestored.push(entry.change.file);
-				if (backup !== void 0) backups[entry.change.file] = shown(backup);
+				unrestored.push(entry.name);
+				if (backup !== void 0) backups[entry.name] = shown(entry, backup);
 			}
 		}
-		removeDirectories(created, changes.map((change) => join(root, change.file)));
+		removeDirectories(created, paths);
 		throw new WriteFailed(current, error, unrestored.reverse(), {
 			...details(),
 			backups
@@ -20610,21 +20693,6 @@ const COLORED = {
 	bold: style(CODES.bold),
 	dim: style(CODES.dim)
 };
-
-// src/printable.ts
-/** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
-const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
-const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
-/** The Unicode bidirectional formatting characters: ALM, LRM, RLM, LRE to RLO, LRI to PDI. */
-const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
-/**
-* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`. Line breaks are control
-* characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
-* depcurfew lays out in lines itself, such as a snippet to add by hand. Apply it before adding colors.
-*/
-function printable(text, options = {}) {
-	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(BIDI, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
-}
 
 // src/doctor/render.ts
 function countLevels(findings) {

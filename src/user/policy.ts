@@ -20,13 +20,15 @@ export function loadUserPolicy(environment: UserEnvironment): UserPolicy {
   const path = userPolicyPath(environment);
   const shown = shownPath(path, environment);
   const read = readLimited(path, MAX_POLICY);
+  // The fixes of a project policy speak of the repository; the user policy is in the user's configuration directory.
+  const unreadable = `Make ${shown} a regular file of at most 1 MiB that the user running depcurfew can read`;
   if (!read.ok) {
     if (read.problem === 'missing') throw new PolicyError(`no user policy at ${shown}`, [], 'policy-missing', "Run 'depcurfew init --user' first");
-    if (read.problem === 'too-large') throw new PolicyError(`${shown} is larger than 1 MiB`, [], 'policy-unreadable');
-    if (read.problem === 'unreadable') throw new PolicyError(`${shown} cannot be read: ${read.error.message}`, [], 'policy-unreadable');
-    throw new PolicyError(`${shown} is not a file`, [], 'policy-unreadable');
+    if (read.problem === 'too-large') throw new PolicyError(`${shown} is larger than 1 MiB`, [], 'policy-unreadable', unreadable);
+    if (read.problem === 'unreadable') throw new PolicyError(`${shown} cannot be read: ${read.error.message}`, [], 'policy-unreadable', unreadable);
+    throw new PolicyError(`${shown} is not a file`, [], 'policy-unreadable', unreadable);
   }
   const result = parsePolicy(read.bytes.toString('utf8'));
-  if (!result.ok) throw new PolicyError(`${shown} is invalid`, result.issues.map(formatIssue));
+  if (!result.ok) throw new PolicyError(`${shown} is invalid`, result.issues.map(formatIssue), 'policy-invalid', `Fix these problems in ${shown}; an editor that reads its $schema shows them as you type`);
   return { policy: result.policy, path, shown };
 }
