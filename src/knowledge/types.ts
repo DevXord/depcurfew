@@ -423,6 +423,11 @@ export interface PythonInterpreterKnowledge {
   commandOption: string;
   /** Other options followed by a separate value. */
   valueOptions: readonly string[];
+  /**
+   * One-letter options may be grouped after one dash (-Im pip): flags, then perhaps an option with a value, which is
+   * the rest of the word or the next word.
+   */
+  groupedShortOptions: boolean;
 }
 
 /** How poetry add reads name@constraint (and uv tool commands name@version). */

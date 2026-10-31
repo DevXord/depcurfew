@@ -821,6 +821,7 @@ const VERSION_SETTING = 'is set to a value the shell expands, which may change t
 const SET_UNREAD = 'is set in a way depcurfew does not read, which may change the version that is installed';
 const POWERSHELL_UNREAD = 'in PowerShell, and the statement names';
 const CMD_READS_AGAIN = 'has & | < > " or a line break, which cmd.exe may read as another command';
+const MAY_BE_SHELL = 'and may be a shell that runs the command line it is given';
 /** More specs than the hook checks for one command. */
 export const TOO_MANY = 'depcurfew checks at most';
 
@@ -843,6 +844,7 @@ export function unreadableFix(reason: string): string {
   if (reason.includes(POWERSHELL_UNREAD)) {
     return 'Run the package manager as a plain command with the package names written out (no variables, (...), {...}, Start-Process or aliases), so depcurfew can check them';
   }
+  if (reason.includes(MAY_BE_SHELL)) return 'Name the shell (bash -c, sh -c) or run the command itself, so depcurfew can check it';
   if (reason.includes(CMD_READS_AGAIN)) return 'Leave & | < > and " out of the arguments of the package manager, so depcurfew can check the command';
   if (reason.includes(TOO_MANY)) return 'Install the packages in smaller groups, so depcurfew can check each of them';
   return 'Write the package names out in the command, so depcurfew can check them';
@@ -1369,6 +1371,18 @@ function scanPowerShell(words: readonly Word[], command: SimpleCommand, depth: n
   return 'line' in commandLine ? scanLine(commandLine.line, depth + 1, 'powershell') : unreadable(commandLine.unreadable);
 }
 
+/**
+ * Whether a command gets a command line as a shell would: after -c (also grouped, as -lc) or cmd's /c and /k, a word
+ * that is expanded or holds spaces or operators, or a here-document, a here-string or a pipe as its input.
+ */
+function commandLineGiven(rest: readonly Word[], command: SimpleCommand): boolean {
+  if (command.later === true) return false;
+  if (command.input.length > 0 || command.redirected || command.stdin === 'pipe') return true;
+  const flag = rest.findIndex((word) => !word.dynamic && /^(?:-[A-Za-z]*c[A-Za-z]*|\/+[ck])$/iu.test(word.text));
+  const operand = flag === -1 ? undefined : rest[flag + 1];
+  return operand !== undefined && (operand.dynamic || /[\s;&|<>()`$]/u.test(operand.text));
+}
+
 /** cmd /c and cmd /k run the rest as a cmd command line (also /cdir, and //c from Git Bash); without either cmd reads commands from its input. */
 function scanCmd(words: readonly Word[], command: SimpleCommand, depth: number): CommandScan {
   for (let index = 1; index < words.length; index++) {
@@ -1527,20 +1541,34 @@ function scanInterpreter(words: readonly Word[], command: SimpleCommand, depth: 
     const word = words[index] as Word;
     if (!isOption(word.text)) return scanProgram(words, command, word);
     if (word.dynamic) return unreadable(`${shown(joined(words))}: ${expanded(word)}`);
-    // A command string (-c) is Python code, which depcurfew does not read, unless another command prints it.
-    if (word.text.startsWith(facts.commandOption)) {
-      const code = word.text.length > facts.commandOption.length ? word : words[index + 1];
-      return printedCode(code) ? unreadable(`${shown(joined(words))}: ${FROM_PRINTED_CODE}`) : NOTHING;
+    if (word.text === '--') return scanProgram(words, command, words[index + 1]);
+    if (word.text.startsWith('--')) {
+      if (facts.valueOptions.includes(word.text)) index += 1;
+      continue;
     }
-    if (word.text.startsWith(facts.moduleOption)) {
-      const attached = word.text.slice(facts.moduleOption.length);
-      const module = attached === '' ? words[index + 1] : { text: attached, dynamic: false };
-      if (module === undefined) return NOTHING;
-      if (module.dynamic) return unreadable(`${shown(joined(words))}: ${expanded(module, 'the module ')}`);
-      if (!commands().executables.has(module.text)) return NOTHING;
-      return scanCommand({ ...command, words: [{ text: module.text, dynamic: false }, ...words.slice(index + (attached === '' ? 2 : 1))] }, depth);
+    // One-letter options, grouped as getopt reads them (-Im pip): flags up to one that takes a value, which is the
+    // rest of the word or the next word.
+    const letters = facts.groupedShortOptions ? word.text.slice(1) : word.text.slice(1, 2);
+    for (let at = 0; at < letters.length; at++) {
+      const option = `-${letters[at] as string}`;
+      const attached = facts.groupedShortOptions ? letters.slice(at + 1) : word.text.slice(2);
+      // A command string (-c) is Python code, which depcurfew does not read, unless another command prints it.
+      if (option === facts.commandOption) {
+        const code = attached === '' ? words[index + 1] : word;
+        return printedCode(code) ? unreadable(`${shown(joined(words))}: ${FROM_PRINTED_CODE}`) : NOTHING;
+      }
+      if (option === facts.moduleOption) {
+        const module = attached === '' ? words[index + 1] : { text: attached, dynamic: false };
+        if (module === undefined) return NOTHING;
+        if (module.dynamic) return unreadable(`${shown(joined(words))}: ${expanded(module, 'the module ')}`);
+        if (!commands().executables.has(module.text)) return NOTHING;
+        return scanCommand({ ...command, words: [{ text: module.text, dynamic: false }, ...words.slice(index + (attached === '' ? 2 : 1))] }, depth);
+      }
+      if (facts.valueOptions.includes(option)) {
+        if (attached === '') index += 1;
+        break;
+      }
     }
-    if (facts.valueOptions.includes(word.text)) index += 1;
   }
   return scanProgram(words, command, undefined);
 }
@@ -1650,6 +1678,10 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
   // A command line built at run time (eval "$CMD", sh -c "$X") cannot be known in advance. In PowerShell a variable
   // on its own is a value, not a command: only & or . would run it, and then its arguments decide.
   if (depth > 0 && command.shell !== 'powershell' && WHOLE_EXPANSION.test(first.text)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
+  // $SHELL -c '…', $(which bash) <<< '…', echo '…' | $SHELL: a shell named by an expansion runs a command line.
+  if (first.dynamic && command.shell !== 'powershell' && commandLineGiven(words.slice(1), command)) {
+    return unreadable(`${shown(line)}: ${expanded(first, 'the command ')} ${MAY_BE_SHELL}`);
+  }
   const executable = first.dynamic ? basename(first.text) : executableOf(first.text);
   if (SHELLS.has(executable)) return scanShell(words, command, depth);
   if (!first.dynamic && POWERSHELLS.has(executable)) return scanPowerShell(words, command, depth, executable === 'powershell');
