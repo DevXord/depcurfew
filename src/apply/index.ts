@@ -334,8 +334,21 @@ export class ApplyWriteError extends Error {
       EDQUOT: 'Free some disk space, then run depcurfew apply again',
       EISDIR: `Move the directory ${failure.file} out of the way, then run depcurfew apply again`,
     };
-    const fix = (code === undefined ? undefined : fixes[code]) ?? `Make ${failure.file} and its directory writable for the user that runs depcurfew, then run depcurfew apply again`;
-    this.fix = this.unrestored.length === 0 ? fix : `Restore ${this.unrestored.join(', ')} from version control or a backup. ${fix}`;
+    const quoted = /\s/u.test(failure.file) ? `"${failure.file}"` : failure.file;
+    const busy = !failure.busy
+      ? undefined
+      : failure.platform === 'win32'
+        ? `Close the program that has ${failure.file} open (an editor or a sync client; a virus scan ends by itself), clear the read-only attribute if it is set (attrib -r ${quoted}), then run depcurfew apply again`
+        : `Close the program that has ${failure.file} open, then run depcurfew apply again`;
+    const fix = busy ?? (code === undefined ? undefined : fixes[code]) ?? `Make ${failure.file} and its directory writable for the user that runs depcurfew, then run depcurfew apply again`;
+    const withBackup = this.unrestored.filter((file) => failure.backups[file] !== undefined);
+    const withoutBackup = this.unrestored.filter((file) => failure.backups[file] === undefined);
+    this.fix = [
+      ...withBackup.map((file) => `Restore ${file} from ${failure.backups[file] as string}, which holds its earlier text, or from version control.`),
+      ...(withoutBackup.length === 0 ? [] : [`Restore ${withoutBackup.join(', ')} from version control or a backup.`]),
+      ...(failure.leftovers.length === 0 ? [] : [`Delete ${failure.leftovers.join(', ')}.`]),
+      fix,
+    ].join(' ');
   }
 }
 

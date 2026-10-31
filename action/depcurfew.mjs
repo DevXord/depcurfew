@@ -16140,8 +16140,55 @@ var Workspace = class {
 	}
 };
 /**
+* Codes with which Windows refuses to replace or remove a file that another process holds open for a moment: an
+* antivirus scanner, the search indexer, an editor or a sync client. npm's file system layer (graceful-fs) tries
+* renames again on them too. EBUSY also means busy elsewhere; EPERM and EACCES only on Windows, where a read-only file
+* gives EPERM as well.
+*/
+const BUSY = /* @__PURE__ */ new Set([
+	"EPERM",
+	"EACCES",
+	"EBUSY"
+]);
+/** Growing waits between attempts on Windows: 3.27 seconds in all. */
+const RETRY_DELAYS = [
+	10,
+	20,
+	40,
+	80,
+	160,
+	320,
+	640,
+	1e3,
+	1e3
+];
+function wait(milliseconds) {
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+function codeOf(error) {
+	return error?.code;
+}
+/** Whether an error means that another program holds the file (or, on Windows, that it is read-only). */
+function isBusy(error, platform) {
+	const code = codeOf(error);
+	return code === "EBUSY" || platform === "win32" && code !== void 0 && BUSY.has(code);
+}
+/** Runs a file system call; on Windows it is tried again, with growing waits, while another program holds the file. */
+function retried(call, options) {
+	const platform = options.platform ?? process.platform;
+	if (platform !== "win32") return call();
+	for (const delay of RETRY_DELAYS) try {
+		return call();
+	} catch (error) {
+		if (!isBusy(error, platform)) throw error;
+		(options.sleep ?? wait)(delay);
+	}
+	return call();
+}
+/**
 * A file could not be written. writeChanges has removed its temporary files and put back the files it had already
-* replaced, so nothing changed, except for the files in `unrestored`. The message says why, without the file name.
+* replaced, so nothing changed, except for the files in `unrestored` (whose earlier text is in `backups` when it could
+* be written) and the temporary files in `leftovers`. The message says why, without the file name.
 */
 var WriteFailed = class extends Error {
 	file;
@@ -16149,12 +16196,32 @@ var WriteFailed = class extends Error {
 	reason;
 	/** Files already replaced that could not be put back (normally none). */
 	unrestored;
-	constructor(file, error, unrestored) {
+	/** For files in `unrestored`: the temporary file, next to it, that holds its earlier text. */
+	backups;
+	/** Temporary files that could not be removed, relative to the root. */
+	leftovers;
+	/** Another program holds the file, or (on Windows) it is read-only. */
+	busy;
+	platform;
+	constructor(file, error, unrestored, details = {}) {
 		const reason = fileSystemReason(error);
-		super(unrestored.length === 0 ? reason : `${reason}; ${unrestored.join(", ")} had already been replaced and could not be put back`, { cause: error });
+		const backups = details.backups ?? {};
+		const leftovers = details.leftovers ?? [];
+		const kept = unrestored.filter((entry) => backups[entry] !== void 0);
+		const where = kept.length === 0 ? "" : unrestored.length === 1 ? ` (its earlier text is in ${backups[kept[0]]})` : ` (${kept.map((entry) => `the earlier text of ${entry} is in ${backups[entry]}`).join(", ")})`;
+		const parts = [
+			reason,
+			...unrestored.length === 0 ? [] : [`${unrestored.join(", ")} had already been replaced and could not be put back${where}`],
+			...leftovers.length === 0 ? [] : [`the temporary file${leftovers.length === 1 ? "" : "s"} ${leftovers.join(", ")} could not be removed`]
+		];
+		super(parts.join("; "), { cause: error });
 		this.file = file;
 		this.reason = reason;
 		this.unrestored = unrestored;
+		this.backups = backups;
+		this.leftovers = leftovers;
+		this.platform = details.platform ?? process.platform;
+		this.busy = isBusy(error, this.platform);
 	}
 };
 let counter = 0;
@@ -16188,11 +16255,26 @@ function removeDirectories(created, paths) {
 /**
 * Writes each changed file through a temporary file and a rename, keeping the permissions of existing files. All
 * files or none: every temporary file is written first and only then are they renamed; if anything fails, the
-* temporary files are removed and the files already replaced get their old text back, and WriteFailed is thrown.
+* temporary files are removed and the files already replaced get their old text back, and WriteFailed is thrown. On
+* Windows, renames and removals are tried again for a few seconds while another program holds the file.
 */
-function writeChanges(root, changes) {
+function writeChanges(root, changes, options = {}) {
 	const staged = [];
 	const created = [];
+	const leftovers = [];
+	const shown = (path) => relative(root, path).split(sep).join("/");
+	/** Removes a temporary file; one that stays is named in the error. */
+	const remove = (temporary) => {
+		try {
+			retried(() => rmSync(temporary, { force: true }), options);
+		} catch {
+			leftovers.push(shown(temporary));
+		}
+	};
+	const details = () => ({
+		...options.platform === void 0 ? {} : { platform: options.platform },
+		leftovers
+	});
 	let current = changes[0]?.file ?? "";
 	try {
 		for (const change of changes) {
@@ -16209,28 +16291,45 @@ function writeChanges(root, changes) {
 			});
 		}
 	} catch (error) {
-		for (const entry of staged) rmSync(entry.temporary, { force: true });
+		for (const entry of staged) remove(entry.temporary);
 		removeDirectories(created, changes.map((change) => join(root, change.file)));
-		throw new WriteFailed(current, error, []);
+		throw new WriteFailed(current, error, [], details());
 	}
 	const renamed = [];
 	try {
 		for (const entry of staged) {
 			current = entry.change.file;
-			renameSync(entry.temporary, entry.path);
+			retried(() => renameSync(entry.temporary, entry.path), options);
 			renamed.push(entry);
 		}
 	} catch (error) {
-		for (const entry of staged.slice(renamed.length)) rmSync(entry.temporary, { force: true });
+		for (const entry of staged.slice(renamed.length)) remove(entry.temporary);
 		const unrestored = [];
-		for (const entry of renamed.reverse()) try {
-			if (entry.change.before === null) rmSync(entry.path, { force: true });
-			else renameSync(stage(entry.path, entry.change.before, entry.mode), entry.path);
-		} catch {
-			unrestored.push(entry.change.file);
+		const backups = {};
+		for (const entry of renamed.reverse()) {
+			if (entry.change.before === null) {
+				try {
+					retried(() => rmSync(entry.path, { force: true }), options);
+				} catch {
+					unrestored.push(entry.change.file);
+				}
+				continue;
+			}
+			let backup;
+			try {
+				backup = stage(entry.path, entry.change.before, entry.mode);
+				const from = backup;
+				retried(() => renameSync(from, entry.path), options);
+			} catch {
+				unrestored.push(entry.change.file);
+				if (backup !== void 0) backups[entry.change.file] = shown(backup);
+			}
 		}
 		removeDirectories(created, changes.map((change) => join(root, change.file)));
-		throw new WriteFailed(current, error, unrestored.reverse());
+		throw new WriteFailed(current, error, unrestored.reverse(), {
+			...details(),
+			backups
+		});
 	}
 }
 
