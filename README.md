@@ -204,7 +204,7 @@ depcurfew doctor --user
 - The user policy is `~/.config/depcurfew/depcurfew.json` (in `$XDG_CONFIG_HOME/depcurfew/` when that variable is set to an absolute path, in `%APPDATA%\depcurfew\` on Windows). It has the same format as a project policy; under `targets: "auto"` it configures the package managers found in `PATH`.
 - depcurfew does not run other programs to learn their versions. It reads the version from the files next to the executable in `PATH`: the `package.json` of a tool installed from npm, the `.dist-info` folder of one installed from PyPI. When it cannot, it configures for the latest version it knows and says so, except for tools that stop every command on a value their version does not understand (the last column below): for those it writes nothing until you pass the version, for example `--for uv@0.13.6`.
 - A tool's own project settings win over its user file for the same key. Parts of the policy that a tool reads only from project files, such as per-package allow-lists, are not written into the user file; `apply --user` names them, and `depcurfew apply` in the project writes them.
-- `doctor --user` reports a user file that does not match the user policy, values in user files that weaken every project, and environment variables that make a tool read another file, no file or other values.
+- `doctor --user` reports a user file that does not match the user policy, values that weaken every project (in the user files, in the sections and files that win over them, such as `[install]` in `pip.conf`, `[pip]` in `uv.toml` and the `~/.npmrc` that pnpm 10 reads ahead of its `rc` file, and inside depcurfew's block when they are not what the user policy writes), and environment variables that make a tool read another file, no file or other values. A user file it cannot read, parse or edit, and an invalid user policy, are errors (exit code 1). In `--json` a finding about an environment variable has `location.file` `"environment"` and `location.variable`, the variable as it is set; in `--sarif` user files are relative to the base `HOME`, whose path the log leaves out, and variables are logical locations.
 - Tools that record the release-age delay in their lockfile may lock differently on a machine whose user file sets one than on a machine without it; set the same delay in the project with `depcurfew apply` so that every machine and CI agree.
 
 <!-- BEGIN GENERATED: user-config -->
@@ -225,6 +225,22 @@ depcurfew doctor --user
 ### doctor --user rules
 
 <!-- BEGIN GENERATED: user-rules -->
+### `user-policy-invalid`
+
+**error** · The user policy does not follow the schema or cannot be read.
+
+Without a valid user policy (~/.config/depcurfew/depcurfew.json), doctor --user cannot compare the user-level configuration with it, so only the checks that need no user policy run, as when there is none.
+
+Fix: Fix what the message lists, or write a new user policy with depcurfew init --user --force.
+
+### `user-config-unreadable`
+
+**error** · A user-level configuration file cannot be read, parsed or edited, so depcurfew cannot check it.
+
+The package manager may still read the file (or stop on it), and its settings may weaken every project on the machine; doctor --user fails closed and reports an error instead of passing silently.
+
+Fix: Fix what the message describes: invalid syntax, missing read permission, a symlink apply --user does not write through, or a file over 1 MiB.
+
 ### `user-config-drift`
 
 **warning** · needs depcurfew.json · A user-level configuration file does not match the user policy.
@@ -237,7 +253,7 @@ Fix: Run depcurfew apply --user.
 
 **warning** · A user-level configuration file has a value that weakens every project that does not set it itself.
 
-Settings in the user-level configuration apply to every project that does not set the same key, and some apply even then (lists that tools merge across files). A value that turns the release-age delay off, exempts packages or allows install scripts or git dependencies there weakens all of them at once.
+Settings in the user-level configuration apply to every project that does not set the same key, and some apply even then (lists that tools merge across files). A value that turns the release-age delay off, exempts packages or allows install scripts or git dependencies there weakens all of them at once, and so does a file the tool reads ahead of the user file.
 
 Fix: Remove the value from the file, or set it in the policy and run depcurfew apply --user.
 

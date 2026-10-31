@@ -79,11 +79,11 @@ export const COMMANDS: readonly CommandInfo[] = [
       { name: 'for', value: 'tool@version', multiple: true, summary: 'With --user: the version of a tool, when depcurfew cannot read it from its files' },
     ],
     details:
-      `Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depcurfew.json. Every finding says where it is and how to fix it. Without depcurfew.json, only the rules that do not need a policy run; an invalid depcurfew.json is reported as an error finding (invalid-policy), and the same rules run. ${NEAREST_POLICY} With --user it checks the user-level configuration of the installed package managers against the user policy, values there that weaken every project, and environment variables that override it.`,
+      `Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depcurfew.json. Every finding says where it is and how to fix it. Without depcurfew.json, only the rules that do not need a policy run; an invalid depcurfew.json is reported as an error finding (invalid-policy), and the same rules run. ${NEAREST_POLICY} With --user it checks the user-level configuration of the installed package managers against the user policy, values there and in files read ahead of it that weaken every project, and environment variables that override it; an invalid or unreadable user policy (user-policy-invalid) and a user file it cannot read, parse or edit (user-config-unreadable) are error findings.`,
     examples: ['depcurfew doctor', 'depcurfew doctor --json', 'depcurfew doctor --sarif > depcurfew.sarif', 'depcurfew doctor --user'],
     exitCodes: [
       [0, 'no finding with level error (warnings and notes included)'],
-      [1, 'at least one finding with level error, or depcurfew.json is invalid or unreadable'],
+      [1, 'at least one finding with level error, or depcurfew.json (with --user the user policy) is invalid or unreadable'],
       [2, 'a usage error, such as an unknown option or a missing directory'],
     ],
   },

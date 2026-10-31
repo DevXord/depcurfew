@@ -1242,9 +1242,10 @@ const npm$1 = {
 						path: ""
 					}],
 					file: ".npmrc"
-				}]
+				}],
+				sections: [""]
 			}
-		}], `${NPM_CONFIG_LIB}/index.js`, "userconfig defaults to ~/.npmrc (\"The location of user-level configuration settings. This may be overridden by the npm_config_userconfig environment variable or the --userconfig command line option\"); ~ is resolved against `this.env.HOME || homedir()`. Same in 11.21.1. The project .npmrc is loaded first and may set userconfig= itself."),
+		}], `${NPM_CONFIG_LIB}/index.js`, "userconfig defaults to ~/.npmrc (\"The location of user-level configuration settings. This may be overridden by the npm_config_userconfig environment variable or the --userconfig command line option\"); ~ is resolved against `this.env.HOME || homedir()`. Same in 11.21.1. The project .npmrc is loaded first and may set userconfig= itself. Only the keys above the first [section] header are settings (extra.npmrcFormat)."),
 		settings: user$7.verified([
 			{
 				purpose: "cooldown",
@@ -1331,7 +1332,8 @@ const npm$1 = {
 				name: "npm_config_userconfig",
 				anyCase: true,
 				values: "any",
-				effect: "makes npm read another user file"
+				effect: "makes npm read another user file",
+				defaultPath: ".npmrc"
 			},
 			{
 				name: "npm_config_min_release_age",
@@ -1351,9 +1353,13 @@ const npm$1 = {
 				values: "any",
 				effect: "takes the place of min-release-age"
 			}
-		], `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`, "Environment variables starting with npm_config_ are interpreted as configuration parameters; config values are case-insensitive, so NPM_CONFIG_FOO=bar works the same.")
+		], `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`, "Environment variables starting with npm_config_ are interpreted as configuration parameters; config values are case-insensitive, so NPM_CONFIG_FOO=bar works the same. loadEnv in workspaces/config/lib/index.js (11.21.1 and 12.2.1) skips variables whose value is empty and reads them in the order of the environment, so of two spellings the later one wins. userconfig defaults to ~/.npmrc (definitions.js), and npm exports the resolved path as npm_config_userconfig to every command it runs (see extra.childEnvironment), so that value names the default file.")
 	},
 	extra: {
+		childEnvironment: user$7.verified({
+			marker: "npm_execpath",
+			prefix: "npm_config_"
+		}, "https://github.com/npm/cli/blob/v11.21.1/workspaces/config/lib/set-envs.js", "setEnvs gives the scripts and commands npm runs (npm run, npx, npm exec) every setting that is not its default as npm_config_<key> in lower case with - as _, whichever file or flag set it, unless the definition has envExport: false (allow-scripts, min-release-age and min-release-age-exclude in 11.21.1 and 12.2.1); keys npm does not know, such as pnpm keys in .npmrc, are exported too. userconfig is always exported, because its default is the literal ~/.npmrc and the value the resolved path. It also sets npm_execpath to the npm it runs. The same in 10.9.4 and 12.2.1 (12.x and 11.x also export npm_config_node_gyp and npm_config_npm_version)."),
 		denyList: user$7.verified({
 			file: "package.json",
 			setting: "allowScripts",
@@ -1862,9 +1868,18 @@ const pip$1 = {
 						}],
 						file: "pip.ini"
 					}
+				],
+				sections: [
+					"global",
+					"install",
+					"download",
+					"wheel",
+					"lock",
+					"index",
+					"list"
 				]
 			}
-		}], `${CONFIGURATION$4}#location`, "The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir(\"pip\") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, \"which respects the XDG_CONFIG_HOME environment variable\" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py); since 26.2 $XDG_DATA_HOME/pip comes first when XDG_DATA_HOME is not empty and that directory exists, and with XDG_DATA_HOME set the Library directory is skipped. Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked."),
+		}], `${CONFIGURATION$4}#location`, "The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir(\"pip\") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, \"which respects the XDG_CONFIG_HOME environment variable\" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py); since 26.2 $XDG_DATA_HOME/pip comes first when XDG_DATA_HOME is not empty and that directory exists, and with XDG_DATA_HOME set the Library directory is skipped. Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked. A command reads [global] and the section named after itself, which wins key by key (override_order [\"global\", self.name, \":env:\"] in cli/parser.py); the options doctor --user checks (index_group and package_selection_group in cli/cmdoptions.py) belong to install, download, wheel, lock, index and list (src/pip/_internal/commands at 26.2.2)."),
 		settings: user$6.verified([
 			{
 				purpose: "cooldown",
@@ -2877,7 +2892,22 @@ const pnpm$1 = {
 			since: "0.0.0",
 			value: {
 				format: "ini",
-				locations: inConfigDir("rc")
+				locations: inConfigDir("rc"),
+				overriddenBy: [{
+					format: "ini",
+					locations: [{
+						platforms: [
+							"linux",
+							"darwin",
+							"win32"
+						],
+						directories: [{
+							from: "home",
+							path: ""
+						}],
+						file: ".npmrc"
+					}]
+				}]
 			}
 		}, {
 			since: "11.0.0",
@@ -2885,7 +2915,7 @@ const pnpm$1 = {
 				format: "yaml",
 				locations: inConfigDir("config.yaml")
 			}
-		}], `${PNPM_V11_CODE}/dirs.ts`, "getConfigDir: $XDG_CONFIG_HOME/pnpm when it is set, else ~/Library/Preferences/pnpm on macOS, %LOCALAPPDATA%/pnpm/config on Windows (~/.config/pnpm without LOCALAPPDATA) and ~/.config/pnpm elsewhere; the same in 10.34.9 (config/config/src/dirs.ts) and 12.17.0 (pnpm/crates/config-dir/src/lib.rs). pnpm 10 reads <configDir>/rc, INI with kebab-case keys (config/config/src/index.ts at 10.34.9; first version not tracked), and also ~/.npmrc for every setting, which beats rc. From 11.0.0 the settings file is <configDir>/config.yaml with camelCase keys (11.0.0 changelog: \"the new global config.yaml\"), and ~/.npmrc and <configDir>/auth.ini carry only auth, registry and network settings. The 11.x and 12.x docs page cli/config.md still names a global rc file for registry and auth settings, which that code no longer reads."),
+		}], `${PNPM_V11_CODE}/dirs.ts`, "getConfigDir: $XDG_CONFIG_HOME/pnpm when it is set, else ~/Library/Preferences/pnpm on macOS, %LOCALAPPDATA%/pnpm/config on Windows (~/.config/pnpm without LOCALAPPDATA) and ~/.config/pnpm elsewhere; the same in 10.34.9 (config/config/src/dirs.ts) and 12.17.0 (pnpm/crates/config-dir/src/lib.rs). pnpm 10 reads <configDir>/rc, INI with kebab-case keys (config/config/src/index.ts at 10.34.9; first version not tracked), and also ~/.npmrc for every setting, which beats rc: loadNpmConf reads the command line, npm_config_* variables, the project and workspace .npmrc, ~/.npmrc (userconfig, path.resolve(os.homedir(), \".npmrc\") in https://github.com/pnpm/npm-conf/blob/v3.0.3/lib/defaults.js) and the global npmrc, and only then is rc added as \"pnpm-global\", below all of them (index.ts at 10.34.9). From 11.0.0 the settings file is <configDir>/config.yaml with camelCase keys (11.0.0 changelog: \"the new global config.yaml\"), and ~/.npmrc and <configDir>/auth.ini carry only auth, registry and network settings. The 11.x and 12.x docs page cli/config.md still names a global rc file for registry and auth settings, which that code no longer reads."),
 		settings: user$3.verified([
 			{
 				purpose: "cooldown",
@@ -3002,42 +3032,50 @@ const pnpm$1 = {
 			{
 				name: "pnpm_config_minimum_release_age",
 				values: "any",
-				effect: "overrides minimumReleaseAge from every file (pnpm 11+)"
+				effect: "overrides minimumReleaseAge from every file (pnpm 11+)",
+				since: "11.0.0"
 			},
 			{
 				name: "PNPM_CONFIG_MINIMUM_RELEASE_AGE",
 				values: "any",
-				effect: "overrides minimumReleaseAge from every file (pnpm 11+)"
+				effect: "overrides minimumReleaseAge from every file (pnpm 11+)",
+				since: "11.0.0"
 			},
 			{
 				name: "pnpm_config_dangerously_allow_all_builds",
 				values: ["true"],
-				effect: "runs every dependency build script (pnpm 11+)"
+				effect: "runs every dependency build script (pnpm 11+)",
+				since: "11.0.0"
 			},
 			{
 				name: "PNPM_CONFIG_DANGEROUSLY_ALLOW_ALL_BUILDS",
 				values: ["true"],
-				effect: "runs every dependency build script (pnpm 11+)"
+				effect: "runs every dependency build script (pnpm 11+)",
+				since: "11.0.0"
 			},
 			{
 				name: "npm_config_minimum_release_age",
 				anyCase: true,
 				values: "any",
-				effect: "overrides minimum-release-age from every .npmrc and rc file; pnpm-workspace.yaml still wins (pnpm 10)"
+				effect: "overrides minimum-release-age from every .npmrc and rc file; pnpm-workspace.yaml still wins (pnpm 10)",
+				until: "11.0.0"
 			},
 			{
 				name: "npm_config_dangerously_allow_all_builds",
 				anyCase: true,
 				values: ["true"],
-				effect: "runs every dependency build script in projects without build settings of their own (pnpm 10)"
+				effect: "runs every dependency build script in projects without build settings of their own (pnpm 10)",
+				until: "11.0.0"
 			},
 			{
 				name: "npm_config_userconfig",
 				anyCase: true,
 				values: "any",
-				effect: "moves the user .npmrc, which pnpm 10 reads for every setting ahead of rc"
+				effect: "moves the user .npmrc, which pnpm 10 reads for every setting ahead of rc",
+				until: "11.0.0",
+				defaultPath: ".npmrc"
 			}
-		], `${PNPM_V11_CODE}/env.ts`, "pnpm 11 reads pnpm_config_<key> in lower case or PNPM_CONFIG_<KEY> in upper case, not mixed case (getEnvKeySuffix), over pnpm-workspace.yaml and under the command line; pnpm 12 reads the same two forms (pnpm/crates/config/src/env_overlay.rs at 12.17.0). pnpm 11+ ignores npm_config_* except npm_config_userconfig, which then moves only the auth .npmrc. pnpm 10 reads npm_config_* in any case (lib/conf.js in @pnpm/npm-conf 3.0.3) under pnpm-workspace.yaml (npmrcPrecedence). XDG_CONFIG_HOME and LOCALAPPDATA move the config directory (user.files).")
+		], `${PNPM_V11_CODE}/env.ts`, "pnpm 11 reads pnpm_config_<key> in lower case or PNPM_CONFIG_<KEY> in upper case, not mixed case (getEnvKeySuffix), over pnpm-workspace.yaml and under the command line; pnpm 12 reads the same two forms (pnpm/crates/config/src/env_overlay.rs at 12.17.0). pnpm 11+ ignores npm_config_* except npm_config_userconfig, which then moves only the auth .npmrc. The 11.0.0 release notes (https://github.com/pnpm/pnpm/releases/tag/v11.0.0): \"pnpm no longer reads npm_config_* environment variables\", \"Added support for loading environment variables whose names start with pnpm_config_ into config\"; pnpm 10.34.9 reads pnpm_config_ only for verify-deps-before-run (config/config/src/index.ts). pnpm 10 reads npm_config_* in any case, skipping empty values (addEnv in lib/conf.js of @pnpm/npm-conf 3.0.3), under pnpm-workspace.yaml (npmrcPrecedence); its npm_config_userconfig defaults to ~/.npmrc (lib/defaults.js). XDG_CONFIG_HOME and LOCALAPPDATA move the config directory (user.files).")
 	},
 	extra: {
 		denyList: user$3.verified({
@@ -3733,6 +3771,15 @@ const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
 const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor, version) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll(".", "")}`;
 const user$1 = verifiedOn("2026-10-31");
+/** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
+const TRUE_VALUES = [
+	"1",
+	"true",
+	"t",
+	"yes",
+	"y",
+	"on"
+];
 const noSetting$1 = (kind) => ({ setting: uncertain$1(null, `${UV}/uv.schema.json`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings). no-sources only ignores the tool.uv.sources table; a URL dependency introduced by a registry package is rejected during resolution (docs/pip/compatibility.md).`) });
 const uv$1 = {
 	id: "uv",
@@ -3868,8 +3915,33 @@ const uv$1 = {
 				key: "exclude-newer",
 				values: [false],
 				effect: "turns the release-age delay off for uvx, uv tool and every project without its own exclude-newer"
+			},
+			{
+				key: "no-binary",
+				values: [true],
+				effect: "installs every package from source in every project that does not set no-binary itself"
+			},
+			{
+				key: "pip.exclude-newer",
+				values: [false],
+				effect: "turns the release-age delay off for uv pip commands, over the top-level exclude-newer"
+			},
+			{
+				key: "pip.exclude-newer-package",
+				values: "any",
+				effect: "sets the delay of these packages (false exempts them) for uv pip commands"
+			},
+			{
+				key: "pip.no-build",
+				values: [false],
+				effect: "lets uv pip commands build source distributions, over the top-level no-build"
+			},
+			{
+				key: "pip.no-binary",
+				values: "any",
+				effect: "builds these packages from source in uv pip commands (:all: every package)"
 			}
-		], `${UV}/crates/uv-settings/src/combine.rs`, "Tables are merged with the project keys winning, lists are extended and scalars come from the project when it sets them (combine.rs); with no-build = false, NoBuild::from_args ignores the package list (crates/uv-configuration/src/build_options.rs). exclude-newer = false (since 0.11.24) turns off a value from a lower-priority source, the system file included. Read from the code, not run: a [pip] exclude-newer in the user file is combined above the top-level keys for uv pip, so it can override a project exclude-newer there, and a user [[index]] with exclude-newer = false (preview, 0.11.5) exempts the packages of that index."),
+		], `${UV}/crates/uv-settings/src/combine.rs`, "Tables are merged with the project keys winning, lists are extended and scalars come from the project when it sets them (combine.rs); with no-build = false, NoBuild::from_args ignores the package list (crates/uv-configuration/src/build_options.rs). exclude-newer = false (since 0.11.24) turns off a value from a lower-priority source, the system file included. Read from the code, not run: a [pip] exclude-newer in the user file is combined above the top-level keys for uv pip, so it can override a project exclude-newer there, and a user [[index]] with exclude-newer = false (preview, 0.11.5) exempts the packages of that index. The [pip] table configures \"just the uv pip command line interface\", and its settings win over the top-level ones there (\"many of the settings in this section have corollaries in the top-level namespace which do apply to the uv pip interface unless they are overridden by a value in the uv.pip section\", docs/concepts/configuration-files.md); PipOptions has exclude-newer (false disables it), exclude-newer-package, no-build and no-binary (a list, :all: for every package), and the top level no-binary = true builds every package from source (settings.rs)."),
 		variables: user$1.verified([
 			{
 				name: "UV_EXCLUDE_NEWER",
@@ -3878,8 +3950,8 @@ const uv$1 = {
 			},
 			{
 				name: "UV_NO_BUILD",
-				values: "any",
-				effect: "overrides no-build from every file"
+				values: TRUE_VALUES,
+				effect: "forbids every source build, like --no-build, also of the packages the build allow-list needs built"
 			},
 			{
 				name: "UV_NO_BUILD_PACKAGE",
@@ -3888,7 +3960,7 @@ const uv$1 = {
 			},
 			{
 				name: "UV_NO_BINARY",
-				values: "any",
+				values: TRUE_VALUES,
 				effect: "installs every package from source, like --no-binary"
 			},
 			{
@@ -3898,7 +3970,7 @@ const uv$1 = {
 			},
 			{
 				name: "UV_NO_CONFIG",
-				values: "any",
+				values: TRUE_VALUES,
 				effect: "makes uv read no configuration file from the project, its parents or the user directory"
 			},
 			{
@@ -3906,7 +3978,7 @@ const uv$1 = {
 				values: "any",
 				effect: "makes uv read this file in place of every discovered one, so the user uv.toml is ignored"
 			}
-		], `${UV}/crates/uv-static/src/env_vars.rs`, "\"Settings provided via environment variables take precedence over persistent configuration, and settings provided via the command line take precedence over both\" (docs/concepts/configuration-files.md). UV_NO_BUILD_PACKAGE since 0.6.5, UV_NO_BINARY and UV_NO_BINARY_PACKAGE since 0.5.30 (lists separated by spaces), UV_NO_CONFIG since 0.2.30, UV_CONFIG_FILE since 0.1.34. XDG_CONFIG_HOME and APPDATA move the user directory (see files).")
+		], `${UV}/crates/uv-static/src/env_vars.rs`, "\"Settings provided via environment variables take precedence over persistent configuration, and settings provided via the command line take precedence over both\" (docs/concepts/configuration-files.md). UV_NO_BUILD_PACKAGE since 0.6.5, UV_NO_BINARY and UV_NO_BINARY_PACKAGE since 0.5.30 (lists separated by spaces), UV_NO_CONFIG since 0.2.30, UV_CONFIG_FILE since 0.1.34. UV_NO_BUILD, UV_NO_BINARY and UV_NO_CONFIG are flags parsed with the BoolishValueParser of clap (crates/uv-cli/src/lib.rs), whose true values are y, yes, t, true, on and 1 and false values n, no, f, false, off and 0, in any case (https://github.com/clap-rs/clap/blob/v4.6.7/clap_builder/src/util/str_to_bool.rs, the clap_builder version in the Cargo.lock of uv); a false value leaves the flag unset (flag() in crates/uv-cli/src/options.rs gives None), so the files decide (with UV_NO_BUILD=0 uv 0.11.32 still refused to build in a review test on 2026-10-31). XDG_CONFIG_HOME and APPDATA move the user directory (see files).")
 	},
 	extra: {
 		pylockCreatedBy: verified$1("uv", `${UV}/crates/uv-lock/src/lock/export/pylock_toml.rs`, "uv export --format pylock.toml (and uv pip compile to pylock.toml) writes created-by = \"uv\". The project itself and workspace members are written as directory = { path = …, editable = true }, with the path relative to the lock file, \".\" for the project."),

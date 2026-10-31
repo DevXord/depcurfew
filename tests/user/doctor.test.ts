@@ -77,7 +77,9 @@ describe.skipIf(!canSymlink())('doctor --user', () => {
     const report = runUserDoctor({ environment });
     const found = report.findings.find((finding) => finding.rule === 'user-environment-overrides');
     expect(found).toMatchObject({ level: 'warning', location: { file: 'environment' } });
-    expect(found?.message).toBe('npm_config_userconfig=/tmp/other-npmrc is set in the environment (npm): makes npm read another user file');
+    expect(found?.message).toBe('NPM_CONFIG_USERCONFIG is set in the environment (npm): makes npm read another user file');
+    expect(found?.fix).toContain('Unset NPM_CONFIG_USERCONFIG');
+    expect(found?.location).toEqual({ file: 'environment', variable: 'NPM_CONFIG_USERCONFIG' });
   });
 
   it('runs the checks that need no user policy when there is none', () => {
@@ -98,7 +100,13 @@ describe.skipIf(!canSymlink())('doctor --user', () => {
     stdout = '';
     await run(['doctor', '--user', '--sarif'], { stdout: (text) => (stdout += text), stderr: () => undefined }, dependencies);
     const sarif = JSON.parse(stdout) as { runs: { tool: { driver: { rules: { id: string }[] } }; results: { ruleId: string }[] }[] };
-    expect(sarif.runs[0]?.tool.driver.rules.map((rule) => rule.id)).toEqual(['user-config-drift', 'user-config-weakens', 'user-environment-overrides']);
+    expect(sarif.runs[0]?.tool.driver.rules.map((rule) => rule.id)).toEqual([
+      'user-policy-invalid',
+      'user-config-unreadable',
+      'user-config-drift',
+      'user-config-weakens',
+      'user-environment-overrides',
+    ]);
     expect(sarif.runs[0]?.results.map((result) => result.ruleId)).toEqual(['user-config-drift']);
   });
 });

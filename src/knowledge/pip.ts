@@ -138,11 +138,12 @@ export const pip: ToolKnowledge = {
                 file: 'pip.ini',
               },
             ],
+            sections: ['global', 'install', 'download', 'wheel', 'lock', 'index', 'list'],
           },
         },
       ],
       `${CONFIGURATION}#location`,
-      'The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir("pip") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, "which respects the XDG_CONFIG_HOME environment variable" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py); since 26.2 $XDG_DATA_HOME/pip comes first when XDG_DATA_HOME is not empty and that directory exists, and with XDG_DATA_HOME set the Library directory is skipped. Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked.',
+      'The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir("pip") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, "which respects the XDG_CONFIG_HOME environment variable" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py); since 26.2 $XDG_DATA_HOME/pip comes first when XDG_DATA_HOME is not empty and that directory exists, and with XDG_DATA_HOME set the Library directory is skipped. Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked. A command reads [global] and the section named after itself, which wins key by key (override_order ["global", self.name, ":env:"] in cli/parser.py); the options doctor --user checks (index_group and package_selection_group in cli/cmdoptions.py) belong to install, download, wheel, lock, index and list (src/pip/_internal/commands at 26.2.2).',
     ),
     settings: user.verified(
       [

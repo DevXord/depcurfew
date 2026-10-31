@@ -149,11 +149,19 @@ export const pnpm: ToolKnowledge = {
   user: {
     files: user.verified(
       [
-        { since: '0.0.0', value: { format: 'ini', locations: inConfigDir('rc') } },
+        {
+          since: '0.0.0',
+          value: {
+            format: 'ini',
+            locations: inConfigDir('rc'),
+            // ~/.npmrc (userconfig of @pnpm/npm-conf: path.resolve(os.homedir(), '.npmrc')) is loaded before rc and wins.
+            overriddenBy: [{ format: 'ini', locations: [{ platforms: ['linux', 'darwin', 'win32'], directories: [{ from: 'home', path: '' }], file: '.npmrc' }] }],
+          },
+        },
         { since: '11.0.0', value: { format: 'yaml', locations: inConfigDir('config.yaml') } },
       ],
       `${PNPM_V11_CODE}/dirs.ts`,
-      'getConfigDir: $XDG_CONFIG_HOME/pnpm when it is set, else ~/Library/Preferences/pnpm on macOS, %LOCALAPPDATA%/pnpm/config on Windows (~/.config/pnpm without LOCALAPPDATA) and ~/.config/pnpm elsewhere; the same in 10.34.9 (config/config/src/dirs.ts) and 12.17.0 (pnpm/crates/config-dir/src/lib.rs). pnpm 10 reads <configDir>/rc, INI with kebab-case keys (config/config/src/index.ts at 10.34.9; first version not tracked), and also ~/.npmrc for every setting, which beats rc. From 11.0.0 the settings file is <configDir>/config.yaml with camelCase keys (11.0.0 changelog: "the new global config.yaml"), and ~/.npmrc and <configDir>/auth.ini carry only auth, registry and network settings. The 11.x and 12.x docs page cli/config.md still names a global rc file for registry and auth settings, which that code no longer reads.',
+      'getConfigDir: $XDG_CONFIG_HOME/pnpm when it is set, else ~/Library/Preferences/pnpm on macOS, %LOCALAPPDATA%/pnpm/config on Windows (~/.config/pnpm without LOCALAPPDATA) and ~/.config/pnpm elsewhere; the same in 10.34.9 (config/config/src/dirs.ts) and 12.17.0 (pnpm/crates/config-dir/src/lib.rs). pnpm 10 reads <configDir>/rc, INI with kebab-case keys (config/config/src/index.ts at 10.34.9; first version not tracked), and also ~/.npmrc for every setting, which beats rc: loadNpmConf reads the command line, npm_config_* variables, the project and workspace .npmrc, ~/.npmrc (userconfig, path.resolve(os.homedir(), ".npmrc") in https://github.com/pnpm/npm-conf/blob/v3.0.3/lib/defaults.js) and the global npmrc, and only then is rc added as "pnpm-global", below all of them (index.ts at 10.34.9). From 11.0.0 the settings file is <configDir>/config.yaml with camelCase keys (11.0.0 changelog: "the new global config.yaml"), and ~/.npmrc and <configDir>/auth.ini carry only auth, registry and network settings. The 11.x and 12.x docs page cli/config.md still names a global rc file for registry and auth settings, which that code no longer reads.',
     ),
     settings: user.verified(
       [
@@ -207,26 +215,35 @@ export const pnpm: ToolKnowledge = {
     ),
     variables: user.verified(
       [
-        { name: 'pnpm_config_minimum_release_age', values: 'any', effect: 'overrides minimumReleaseAge from every file (pnpm 11+)' },
-        { name: 'PNPM_CONFIG_MINIMUM_RELEASE_AGE', values: 'any', effect: 'overrides minimumReleaseAge from every file (pnpm 11+)' },
-        { name: 'pnpm_config_dangerously_allow_all_builds', values: ['true'], effect: 'runs every dependency build script (pnpm 11+)' },
-        { name: 'PNPM_CONFIG_DANGEROUSLY_ALLOW_ALL_BUILDS', values: ['true'], effect: 'runs every dependency build script (pnpm 11+)' },
+        { name: 'pnpm_config_minimum_release_age', values: 'any', effect: 'overrides minimumReleaseAge from every file (pnpm 11+)', since: '11.0.0' },
+        { name: 'PNPM_CONFIG_MINIMUM_RELEASE_AGE', values: 'any', effect: 'overrides minimumReleaseAge from every file (pnpm 11+)', since: '11.0.0' },
+        { name: 'pnpm_config_dangerously_allow_all_builds', values: ['true'], effect: 'runs every dependency build script (pnpm 11+)', since: '11.0.0' },
+        { name: 'PNPM_CONFIG_DANGEROUSLY_ALLOW_ALL_BUILDS', values: ['true'], effect: 'runs every dependency build script (pnpm 11+)', since: '11.0.0' },
         {
           name: 'npm_config_minimum_release_age',
           anyCase: true,
           values: 'any',
           effect: 'overrides minimum-release-age from every .npmrc and rc file; pnpm-workspace.yaml still wins (pnpm 10)',
+          until: '11.0.0',
         },
         {
           name: 'npm_config_dangerously_allow_all_builds',
           anyCase: true,
           values: ['true'],
           effect: 'runs every dependency build script in projects without build settings of their own (pnpm 10)',
+          until: '11.0.0',
         },
-        { name: 'npm_config_userconfig', anyCase: true, values: 'any', effect: 'moves the user .npmrc, which pnpm 10 reads for every setting ahead of rc' },
+        {
+          name: 'npm_config_userconfig',
+          anyCase: true,
+          values: 'any',
+          effect: 'moves the user .npmrc, which pnpm 10 reads for every setting ahead of rc',
+          until: '11.0.0',
+          defaultPath: '.npmrc',
+        },
       ],
       `${PNPM_V11_CODE}/env.ts`,
-      'pnpm 11 reads pnpm_config_<key> in lower case or PNPM_CONFIG_<KEY> in upper case, not mixed case (getEnvKeySuffix), over pnpm-workspace.yaml and under the command line; pnpm 12 reads the same two forms (pnpm/crates/config/src/env_overlay.rs at 12.17.0). pnpm 11+ ignores npm_config_* except npm_config_userconfig, which then moves only the auth .npmrc. pnpm 10 reads npm_config_* in any case (lib/conf.js in @pnpm/npm-conf 3.0.3) under pnpm-workspace.yaml (npmrcPrecedence). XDG_CONFIG_HOME and LOCALAPPDATA move the config directory (user.files).',
+      'pnpm 11 reads pnpm_config_<key> in lower case or PNPM_CONFIG_<KEY> in upper case, not mixed case (getEnvKeySuffix), over pnpm-workspace.yaml and under the command line; pnpm 12 reads the same two forms (pnpm/crates/config/src/env_overlay.rs at 12.17.0). pnpm 11+ ignores npm_config_* except npm_config_userconfig, which then moves only the auth .npmrc. The 11.0.0 release notes (https://github.com/pnpm/pnpm/releases/tag/v11.0.0): "pnpm no longer reads npm_config_* environment variables", "Added support for loading environment variables whose names start with pnpm_config_ into config"; pnpm 10.34.9 reads pnpm_config_ only for verify-deps-before-run (config/config/src/index.ts). pnpm 10 reads npm_config_* in any case, skipping empty values (addEnv in lib/conf.js of @pnpm/npm-conf 3.0.3), under pnpm-workspace.yaml (npmrcPrecedence); its npm_config_userconfig defaults to ~/.npmrc (lib/defaults.js). XDG_CONFIG_HOME and LOCALAPPDATA move the config directory (user.files).',
     ),
   },
   extra: {
