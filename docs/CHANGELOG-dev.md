@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · Po wydaniu 1.2.0: przykład Action z SHA wydania
+
+- `depcurfew@1.2.0` opublikowana 21:06 UTC z tagu `v1.2.0` (commit 25fb616, scalenie PR #22) przez trusted publishing, z proweniencją SLSA; pliki w rejestrze są bajt w bajt takie same jak kompilacja z tego tagu.
+- Przykład Action w README przypina `DevXord/depcurfew@25fb6165f2d19767eb4d35c92606500e104b09f9 # v1.2.0` (`ACTION_RELEASE` w `src/docs/readme.ts`), z uprawnieniem `checks: write` dla wpisu „depcurfew doctor”.
+
 ## 2026-10-31 · 1.2.0, część 4: przegląd przed wydaniem i poprawki (D-088–D-095)
 
 - Przegląd przed wydaniem: dwa przeglądy kodu (`--user`; `deny`, `depcurfew-outdated`, fakty, dokumentacja), test penetracyjny i testy na spakowanym tarballu z prawdziwymi narzędziami. Około 40 ustaleń, m.in. `doctor --user` mówiący „No problems found” przy osłabionej ochronie, tokeny z `~/.npmrc` w diffie, corepack odczytany jako pnpm/Yarn 0.34.0, `apply` przestawiające ręczne wpisy dla paczek z `deny`.

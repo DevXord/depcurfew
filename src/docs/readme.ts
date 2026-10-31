@@ -30,7 +30,7 @@ export const KNOWLEDGE_DOCUMENT = 'https://github.com/DevXord/depcurfew/blob/mai
  * The release the example workflow pins the action to: its full commit, with the tag in a comment. Updated after each
  * release (docs/RELEASING.md, „Każde wydanie”), then npm run docs:readme.
  */
-export const ACTION_RELEASE = { version: '1.1.0', commit: '77ecd935be36510cae04290423cb02681080403f' } as const;
+export const ACTION_RELEASE = { version: '1.2.0', commit: '25fb6165f2d19767eb4d35c92606500e104b09f9' } as const;
 
 const SOURCE_LABELS: Record<(typeof SOURCE_KINDS)[number], string> = {
   git: 'git',
