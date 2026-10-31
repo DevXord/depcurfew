@@ -1,0 +1,7 @@
+{
+  "name": "app",
+  "private": true,
+  "devDependencies": {
+    "depcurfew": "0.1.0"
+  }
+}

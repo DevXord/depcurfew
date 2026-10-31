@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · 1.2.0, część 2: ostrzeżenie o starszym depcurfew (D-086)
+
+- Reguła `doctor` `depcurfew-outdated` i ostrzeżenie `apply` o tym samym kodzie, gdy projekt instaluje nowszy depcurfew niż uruchomiony (`node_modules/depcurfew/package.json`, potem `package-lock.json`).
+- Weryfikacja: `npm test` (2626 testów), `npm run typecheck`, bundel akcji zgodny ze źródłem.
+
 ## 2026-10-31 · 1.2.0, część 1: `installScripts.deny` (D-085)
 
 - Nowe pole polityki `installScripts.deny`: paczki sprawdzone i celowo bez skryptów (np. `fsevents` z gotowym plikiem binarnym). `doctor` ich nie zgłasza, dopóki narzędzie nie uruchamia ich skryptów; dla Pythona blokada budowania ze źródeł. Walidacja nakładania się z `allow`.

@@ -1257,3 +1257,12 @@ Tag `v1.0.0` trafił na `main` (03bdb75), zanim PR #6 przeniósł tam `faza-7`. 
 - **Repozytorium:** `depcurfew.json` ma `"deny": ["fsevents"]`, więc `doctor` nic nie zgłasza, a alert zamknie się po scaleniu.
 - **Dalej (1.2.0):** `apply` zapisze jawną blokadę tam, gdzie narzędzie ją ma (fakty w bazie wiedzy po badaniu), żeby narzędzie samo też nie ostrzegało o pominiętych skryptach.
 
+## D-086 · Ostrzeżenie o starszym depcurfew niż w projekcie (2026-10-31)
+
+- **Problem (faza 11 planu).** Globalna instalacja albo stara kopia w pamięci podręcznej npx może nie znać ustawień, reguł i wersji narzędzi, które zna wersja przypięta w projekcie. Wtedy `apply` pisze mniej, a `doctor` pomija problemy albo zgłasza już naprawione.
+- **Decyzja.** Wersja projektu jest czytana bez uruchamiania czegokolwiek: najpierw `node_modules/depcurfew/package.json` (kopia, którą uruchamia projekt), potem wpis `node_modules/depcurfew` w `package-lock.json`. Gdy jest nowsza niż uruchomiony depcurfew (porównanie jak semver, z wersjami przedpremierowymi):
+  - `doctor`: nowa reguła `depcurfew-outdated` (ostrzeżenie, plik i linia, działa bez polityki);
+  - `apply`: ostrzeżenie `depcurfew-outdated` z tym samym położeniem.
+  - Wskazówka: uruchomić kopię projektu (`npx depcurfew …`) albo zaktualizować tę, którą się uruchamia.
+- **Poza zakresem.** Inne lockfile'e (pnpm, Yarn, Bun) bez `node_modules`; starsza kopia w projekcie niż uruchamiana nie jest problemem.
+

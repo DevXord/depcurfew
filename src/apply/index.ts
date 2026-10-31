@@ -12,6 +12,7 @@ import type { Fact, ToolId, ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { formatDuration, type Duration } from '../policy/duration.ts';
 import { ecosystemOfTool, policyFor } from '../policy/ecosystem.ts';
+import { isNewerThanRunning, projectCopy } from '../self-version.ts';
 import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
@@ -170,6 +171,15 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   const warnings: ApplyWarning[] = [];
   const snippets: Snippet[] = [];
   const failures: EditFailure[] = [];
+  const copy = projectCopy(new Repository(root));
+  if (copy !== undefined && isNewerThanRunning(copy)) {
+    warnings.push({
+      code: 'depcurfew-outdated',
+      location: { file: copy.file, ...(copy.line === undefined ? {} : { line: copy.line }) },
+      message: `depcurfew ${copy.version} is installed in the project (${copy.file}), but the depcurfew running apply is older, so it may not know settings that version writes`,
+      fix: `Run the project's copy (npx depcurfew apply), or update the depcurfew you run to ${copy.version} or later`,
+    });
+  }
   const auto = policy.targets === 'auto' ? autoTargets(root, detection, tools) : undefined;
   const targets = new Set<ToolId>(policy.targets === 'auto' ? (auto?.targets ?? []) : policy.targets);
   for (const entry of auto?.ciOnly ?? []) {

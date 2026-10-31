@@ -12876,7 +12876,7 @@ function iniValue(value) {
 	if (/^-?\d+(\.\d+)?$/u.test(value)) return Number(value);
 	return value;
 }
-function lineAt(text, offset) {
+function lineAt$1(text, offset) {
 	let line = 1;
 	for (let index = 0; index < offset && index < text.length; index++) if (text[index] === "\n") line += 1;
 	return line;
@@ -12964,7 +12964,7 @@ function jsonSetting(text, path) {
 	const offset = jsonOffset(text, path);
 	return {
 		value,
-		line: offset === void 0 ? 1 : lineAt(text, offset)
+		line: offset === void 0 ? 1 : lineAt$1(text, offset)
 	};
 }
 function tomlScalar(raw) {
@@ -13030,9 +13030,9 @@ function readSetting(repository, file, setting) {
 	};
 }
 /** The 1-based line of the first occurrence of `needle`, or undefined. */
-function lineOf(text, needle) {
+function lineOf$1(text, needle) {
 	const offset = text.indexOf(needle);
-	return offset === -1 ? void 0 : lineAt(text, offset);
+	return offset === -1 ? void 0 : lineAt$1(text, offset);
 }
 
 // src/doctor/allow-lists.ts
@@ -13045,7 +13045,7 @@ function fromKeys(text, file, setting, value, enabled) {
 		name,
 		package: splitSpec(name).name,
 		file,
-		line: lineOf(text, JSON.stringify(name)) ?? lineOf(text, `${name}:`),
+		line: lineOf$1(text, JSON.stringify(name)) ?? lineOf$1(text, `${name}:`),
 		setting
 	}));
 }
@@ -13057,7 +13057,7 @@ function fromList(text, file, setting, value, prefix = "") {
 			name,
 			package: splitSpec(name).name,
 			file,
-			line: lineOf(text, item),
+			line: lineOf$1(text, item),
 			setting
 		};
 	});
@@ -13275,11 +13275,11 @@ function parseDuration(input) {
 }
 
 // src/policy/package-pattern.ts
-const NAME = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
+const NAME$1 = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
 const PYTHON_NAME = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
 const PYPI_PREFIX = "pypi:";
 /** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
-const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME}|(?!\\*+$)(@${NAME}/)?${NAME})$`;
+const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME}|(?!\\*+$)(@${NAME$1}/)?${NAME$1})$`;
 const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
 function validatePythonPattern(pattern) {
 	const name = pattern.slice(5);
@@ -13334,6 +13334,66 @@ function policyFor(policy, ecosystem) {
 			deny: patternsFor(policy.installScripts.deny, ecosystem)
 		} }
 	};
+}
+
+// src/version.ts
+const PACKAGE_JSON = new URL("../package.json", import.meta.url);
+let cached;
+function getVersion() {
+	cached ??= JSON.parse(readFileSync(PACKAGE_JSON, "utf8")).version;
+	return cached;
+}
+
+// src/self-version.ts
+const NAME = "depcurfew";
+function lineOf(text, needle) {
+	const index = text.indexOf(needle);
+	return index < 0 ? void 0 : text.slice(0, index).split("\n").length;
+}
+function versionIn(text, read) {
+	let document;
+	try {
+		document = JSON.parse(text);
+	} catch {
+		return;
+	}
+	const version = read(document);
+	return typeof version === "string" && parseVersion(version) !== void 0 ? version : void 0;
+}
+const field = (value, key) => typeof value === "object" && value !== null && Object.hasOwn(value, key) ? value[key] : void 0;
+/** The installed copy in node_modules, else the version package-lock.json records; undefined when neither has one. */
+function projectCopy(repository) {
+	const manifest = `node_modules/${NAME}/package.json`;
+	const installedText = repository.isFile(manifest) ? repository.readText(manifest) : void 0;
+	if (installedText !== void 0) {
+		const version = versionIn(installedText, (document) => field(document, "version"));
+		if (version !== void 0) return {
+			version,
+			file: manifest,
+			...lineAt(installedText, "\"version\"")
+		};
+	}
+	const lockfile = "package-lock.json";
+	const lockText = repository.isFile(lockfile) ? repository.readText(lockfile) : void 0;
+	if (lockText !== void 0) {
+		const key = `node_modules/${NAME}`;
+		const version = versionIn(lockText, (document) => field(field(field(document, "packages"), key), "version"));
+		if (version !== void 0) return {
+			version,
+			file: lockfile,
+			...lineAt(lockText, `"${key}"`)
+		};
+	}
+}
+function lineAt(text, needle) {
+	const line = lineOf(text, needle);
+	return line === void 0 ? {} : { line };
+}
+/** Whether the project's copy is newer than the depcurfew that runs. */
+function isNewerThanRunning(copy, running = getVersion()) {
+	const pinned = parseVersion(copy.version);
+	const current = parseVersion(running);
+	return pinned !== void 0 && current !== void 0 && compareVersions$1(pinned, current) > 0;
 }
 
 // src/policy/file.ts
@@ -17386,6 +17446,16 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	const warnings = [];
 	const snippets = [];
 	const failures = [];
+	const copy = projectCopy(new Repository(root));
+	if (copy !== void 0 && isNewerThanRunning(copy)) warnings.push({
+		code: "depcurfew-outdated",
+		location: {
+			file: copy.file,
+			...copy.line === void 0 ? {} : { line: copy.line }
+		},
+		message: `depcurfew ${copy.version} is installed in the project (${copy.file}), but the depcurfew running apply is older, so it may not know settings that version writes`,
+		fix: `Run the project's copy (npx depcurfew apply), or update the depcurfew you run to ${copy.version} or later`
+	});
 	const auto = policy.targets === "auto" ? autoTargets(root, detection, tools) : void 0;
 	const targets = new Set(policy.targets === "auto" ? auto?.targets ?? [] : policy.targets);
 	for (const entry of auto?.ciOnly ?? []) {
@@ -17907,7 +17977,7 @@ function checkPolicy(context) {
 	const text = context.repository.readText("depcurfew.json") ?? "";
 	const lists = [["cooldown.exclude", policy.cooldown?.exclude ?? []], ["installScripts.allow", policy.installScripts?.allow ?? []]];
 	for (const [field, patterns] of lists) for (const pattern of patterns.filter(isBroad)) {
-		const line = lineOf(text, JSON.stringify(pattern));
+		const line = lineOf$1(text, JSON.stringify(pattern));
 		context.report({
 			location: line === void 0 ? { file: POLICY_FILE } : {
 				file: POLICY_FILE,
@@ -18224,6 +18294,28 @@ const configDrift = {
 			});
 		}
 		checkAllowLists(context);
+	}
+};
+
+// src/doctor/rules/depcurfew-outdated.ts
+const depcurfewOutdated = {
+	id: "depcurfew-outdated",
+	summary: "The project installs a newer depcurfew than the one running.",
+	description: "A global install or an old cached copy may not know settings, rules or tool versions that the version pinned in the project knows, so it can miss problems or report fixed ones. The project copy is read from node_modules or package-lock.json.",
+	help: "Run the project's copy of depcurfew, or update the one you run.",
+	level: "warning",
+	requiresPolicy: false,
+	check(context) {
+		const copy = projectCopy(context.repository);
+		if (copy === void 0 || !isNewerThanRunning(copy)) return;
+		context.report({
+			location: {
+				file: copy.file,
+				...copy.line === void 0 ? {} : { line: copy.line }
+			},
+			message: `depcurfew ${copy.version} is installed in the project (${copy.file}), but the depcurfew running this check is older, so it may not know settings that version writes or checks`,
+			fix: `Run the project's copy (npx depcurfew doctor), or update the depcurfew you run to ${copy.version} or later`
+		});
 	}
 };
 
@@ -18778,7 +18870,7 @@ function declarationLine(context, declaration) {
 	const text = context.repository.readText(declaration.file);
 	if (text === void 0) return void 0;
 	const key = declaration.source === "packageManager" ? "\"packageManager\"" : declaration.source === "devEngines" ? "\"devEngines\"" : declaration.source === "volta" ? "\"volta\"" : void 0;
-	return key === void 0 ? void 0 : lineOf(text, key);
+	return key === void 0 ? void 0 : lineOf$1(text, key);
 }
 function checkManager(context, manager, tool) {
 	const features = /* @__PURE__ */ new Map();
@@ -19272,6 +19364,7 @@ const unreadableConfig = {
 /** Every doctor rule, in the order they are documented. unreadable-config runs last, after every other rule has read its files. */
 const RULES = [
 	invalidPolicy,
+	depcurfewOutdated,
 	managerVersionTooOld,
 	settingIgnoredByVersion,
 	npmrcOverridesPolicy,
@@ -19623,14 +19716,6 @@ function runDoctor(root, options = {}) {
 		findings: findings.sort(byLocation),
 		notices
 	};
-}
-
-// src/version.ts
-const PACKAGE_JSON = new URL("../package.json", import.meta.url);
-let cached;
-function getVersion() {
-	cached ??= JSON.parse(readFileSync(PACKAGE_JSON, "utf8")).version;
-	return cached;
 }
 
 // src/action.ts

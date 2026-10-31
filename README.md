@@ -136,6 +136,7 @@ Each warning and error of `apply` has a code. The text output shows it in parent
 Warnings:
 
 - `nothing-to-configure`: depcurfew found no supported package manager or bot, so nothing is configured.
+- `depcurfew-outdated`: The project installs a newer depcurfew than the one running, which may not know settings that version writes.
 - `file-unreadable`: A file that shows which tools a project uses cannot be read or parsed (too large, a symlink out of the repository, no read permission, invalid), so depcurfew may configure fewer tools than the project uses.
 - `tool-not-supported`: A detected tool is not supported (Yarn Classic), so nothing is written for it.
 - `tool-only-in-ci`: A tool appears only in a CI setup step, with no manifest, lockfile or configuration in the repository, so targets "auto" does not configure it.
@@ -232,6 +233,14 @@ Findings have a level: an **error** makes `depcurfew doctor` exit with 1, a **wa
 Without a valid policy, the rules that compare the repository with depcurfew.json cannot run, so doctor runs only the rules that need no policy, as when there is no policy file.
 
 Fix: Fix what the message lists; an editor that reads the $schema of depcurfew.json shows the problems as you type.
+
+### `depcurfew-outdated`
+
+**warning** · The project installs a newer depcurfew than the one running.
+
+A global install or an old cached copy may not know settings, rules or tool versions that the version pinned in the project knows, so it can miss problems or report fixed ones. The project copy is read from node_modules or package-lock.json.
+
+Fix: Run the project's copy of depcurfew, or update the one you run.
 
 ### `manager-version-too-old`
 
