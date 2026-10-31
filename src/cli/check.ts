@@ -6,6 +6,7 @@
 // in hook mode the decision goes to stdout as JSON and the exit code is 0.
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import type { UserEnvironment } from '../user/locate.ts';
 import { join, relative, resolve, sep } from 'node:path';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
@@ -39,6 +40,8 @@ export interface CheckDependencies {
   stdin: () => Promise<string>;
   /** The user's home directory, with the user's .npmrc. */
   home?: () => string;
+  /** --user: platform, home directory and environment variables (tests replace them). */
+  userEnvironment?: () => UserEnvironment;
 }
 
 export interface CheckFlags {

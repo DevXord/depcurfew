@@ -3,6 +3,8 @@ export interface OptionInfo {
   summary: string;
   /** For an option that takes a value: its name in the help, e.g. `url`. Options without one are flags. */
   value?: string;
+  /** Whether the option may be given more than once. */
+  multiple?: boolean;
 }
 
 export interface CommandInfo {
@@ -32,7 +34,10 @@ export const COMMANDS: readonly CommandInfo[] = [
     summary: 'Create a default policy file (depcurfew.json)',
     implemented: true,
     arguments: '[directory]',
-    options: [{ name: 'force', summary: 'Overwrite an existing depcurfew.json' }],
+    options: [
+      { name: 'force', summary: 'Overwrite an existing depcurfew.json' },
+      { name: 'user', summary: 'Create the user policy (~/.config/depcurfew/depcurfew.json) that apply --user and doctor --user use' },
+    ],
     details:
       'Writes depcurfew.json with the default policy: a 3-day release-age delay, install scripts denied, and git and tarball URL dependencies denied. When the repository already sets a longer release-age delay for a tool it detects, cooldown.minimum keeps the longest one, so that apply does not shorten it; init says where it found it. Other files are not changed; run depcurfew apply next to configure the tools.',
     examples: ['depcurfew init', 'depcurfew init --force'],
@@ -50,6 +55,8 @@ export const COMMANDS: readonly CommandInfo[] = [
     options: [
       { name: 'dry-run', summary: 'Print a diff of the changes instead of writing them' },
       { name: 'json', summary: 'Print the changes with their diff, the warnings and the errors as JSON, each with a code' },
+      { name: 'user', summary: 'Write the user policy into the user-level configuration of the installed tools (~/.npmrc and others)' },
+      { name: 'for', value: 'tool@version', multiple: true, summary: 'With --user: the version of a tool, when depcurfew cannot read it from its files' },
     ],
     details:
       `Reads depcurfew.json and writes the matching settings into the configuration files of every package manager and bot it detects (or of the tools listed under targets). Comments and formatting are kept, settings depcurfew does not manage are never removed, and nothing is written when any file cannot be edited. Running it again without changing depcurfew.json changes nothing. Every warning has a code and says what to do; with --json, stdout holds one JSON document and stderr stays empty. ${NEAREST_POLICY}`,

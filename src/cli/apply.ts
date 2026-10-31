@@ -5,6 +5,13 @@
 // a directory it works on the nearest directory with depcurfew.json (projectDirectory in directory.ts).
 import { applyProject, ApplyWriteError, PolicyError, type ApplyReport } from '../apply/index.ts';
 import { unifiedDiff } from '../apply/diff.ts';
+import type { Version } from '../apply/version.ts';
+import { WriteFailed } from '../apply/workspace.ts';
+import type { ToolId } from '../knowledge/types.ts';
+import { planUserApply, writeUserChanges } from '../user/apply.ts';
+import { shownPath, type UserEnvironment } from '../user/locate.ts';
+import { userPolicyPath } from '../user/policy-path.ts';
+import { loadUserPolicy } from '../user/policy.ts';
 import type { ApplyErrorCode, ApplyWarning } from '../apply/warnings.ts';
 import { paint, type Paint } from '../color.ts';
 import { printable } from '../printable.ts';
@@ -108,7 +115,41 @@ function writeError(error: ApplyWriteError, json: boolean, notices: readonly { m
   return EXIT_FAILURE;
 }
 
-export function apply(directory: string | undefined, options: { dryRun: boolean; json: boolean }, io: CliIo): number {
+export interface ApplyOptions {
+  dryRun: boolean;
+  json: boolean;
+  /** --user: the user policy into the user-level configuration (decision D-087). */
+  user?: { environment: UserEnvironment; versions: Partial<Record<ToolId, Version>> };
+}
+
+/** apply --user: the user policy, planned and written like a project's, with the files shown under ~/. */
+function applyUser(options: ApplyOptions & { user: NonNullable<ApplyOptions['user']> }, io: CliIo): number {
+  const { dryRun } = options;
+  let loaded;
+  try {
+    loaded = loadUserPolicy(options.user.environment);
+  } catch (error) {
+    if (!(error instanceof PolicyError)) throw error;
+    const file = shownPath(userPolicyPath(options.user.environment), options.user.environment);
+    const failure = policyInputError(error, file);
+    if (options.json) io.stdout(jsonReport(dryRun, error.code === 'policy-missing' ? 'missing' : 'invalid', undefined, [failure], []));
+    else reportInputError(failure, io);
+    return EXIT_FAILURE;
+  }
+  const planned = planUserApply(loaded.policy, { environment: options.user.environment, versions: options.user.versions });
+  if (!dryRun) {
+    try {
+      writeUserChanges(planned);
+    } catch (error) {
+      if (!(error instanceof WriteFailed)) throw error;
+      return writeError(new ApplyWriteError(error, planned.report), options.json, [], io);
+    }
+  }
+  return printReport(planned.report, options, [], io);
+}
+
+export function apply(directory: string | undefined, options: ApplyOptions, io: CliIo): number {
+  if (options.user !== undefined) return applyUser({ ...options, user: options.user }, io);
   const { dryRun } = options;
   const target = projectDirectory(directory, 'apply');
   if (!target.ok) {
@@ -131,6 +172,12 @@ export function apply(directory: string | undefined, options: { dryRun: boolean;
     return EXIT_FAILURE;
   }
 
+  return printReport(report, options, notices, io);
+}
+
+/** The result of a plan (project or user): the JSON document, or the changes or diff on stdout and the diagnostics on stderr. */
+function printReport(report: ApplyReport, options: { dryRun: boolean; json: boolean }, notices: readonly { message: string }[], io: CliIo): number {
+  const { dryRun } = options;
   if (options.json) {
     const errors = report.failures.map(
       (failure, index): JsonError => ({ code: 'cannot-edit', level: 'error', tool: failure.tool, location: { file: failure.file }, message: report.errors[index] ?? failure.message, fix: CANNOT_EDIT_FIX }),
@@ -164,3 +211,4 @@ export function apply(directory: string | undefined, options: { dryRun: boolean;
   if (dryRun) io.stderr(report.changes.length === 0 ? 'Dry run: nothing to change.\n' : `Dry run: ${count(report.changes.length)} would change; nothing written.\n`);
   return EXIT_OK;
 }
+

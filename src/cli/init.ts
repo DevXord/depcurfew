@@ -1,5 +1,7 @@
-import { lstatSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { shownPath, type UserEnvironment } from '../user/locate.ts';
+import { userPolicyPath } from '../user/policy-path.ts';
 import { describeDelay, longestDelay, policyDuration } from '../apply/delays.ts';
 import { writeChanges } from '../apply/workspace.ts';
 import { detectProject } from '../detect/index.ts';
@@ -17,6 +19,30 @@ function errorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
   return typeof code === 'string' && message.startsWith(`${code}: `) ? (message.split(',', 1)[0] ?? message) : message;
+}
+
+/** init --user: the default policy as the user policy, in a directory that is created when missing. */
+export function initUser(force: boolean, environment: UserEnvironment, io: CliIo): number {
+  const target = userPolicyPath(environment);
+  const shown = shownPath(target, environment);
+  const fail = (code: ApplyErrorCode, message: string, fix: string): number => {
+    reportInputError({ code, level: 'error', location: { file: shown }, message, fix }, io);
+    return EXIT_FAILURE;
+  };
+  const existing = lstatSync(target, { throwIfNoEntry: false });
+  if (existing?.isDirectory() === true) return fail('cannot-write', `${shown} is a directory, not a file`, `Remove or rename the directory ${shown}, then run depcurfew init --user again`);
+  if (existing !== undefined && !force) return fail('policy-exists', `${shown} already exists`, 'Pass --force to overwrite it with the default policy, or edit it by hand');
+  if (existing?.isSymbolicLink() === true) return fail('cannot-write', `${shown} is a symlink; depcurfew does not write through symlinks`, 'Replace the symlink with a regular file');
+  const directory = dirname(target);
+  try {
+    mkdirSync(directory, { recursive: true });
+    writeChanges(directory, [{ file: POLICY_FILE, before: existing === undefined ? null : readFileSync(target, 'utf8'), after: renderPolicy(DEFAULT_POLICY) }]);
+  } catch (error) {
+    return fail('cannot-write', `cannot write ${shown}: ${errorMessage(error)}`, 'Make sure you can write to the directory, then run depcurfew init --user again');
+  }
+  io.stdout(`${existing === undefined ? 'Created' : 'Overwrote'} ${shown} with the default policy.\n`);
+  io.stdout('Run depcurfew apply --user --dry-run to see what it writes into the user-level configuration of your tools.\n');
+  return EXIT_OK;
 }
 
 /**
