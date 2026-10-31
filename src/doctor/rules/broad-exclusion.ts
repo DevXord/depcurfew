@@ -189,6 +189,7 @@ function checkRenovate(context: RuleContext, file: string): void {
 
 export const broadExclusion: Rule = {
   id: 'broad-exclusion',
+  checks: 'No exception list or per-scope setting turns the release-age delay off',
   summary: 'An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.',
   description:
     'A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.',

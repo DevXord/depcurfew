@@ -7,14 +7,15 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
+import { ruleResults } from './render.ts';
 import { RULES } from './rules/index.ts';
 import { UNREADABLE_WARNINGS, unreadableConfig } from './rules/unreadable-config.ts';
 import type { Detection } from '../detect/types.ts';
 import type { Checked, DoctorReport, Finding, Notice, Rule } from './types.ts';
 
-export type { Checked, CheckedTool, DoctorReport, Finding, Level, Location, Notice, Rule } from './types.ts';
+export type { Checked, CheckedTool, DoctorReport, Finding, Level, Location, Notice, Rule, RuleResult } from './types.ts';
 export { RULES } from './rules/index.ts';
-export { countLevels, renderText } from './render.ts';
+export { countLevels, renderText, ruleResults } from './render.ts';
 export { toSarif } from './sarif.ts';
 export { annotationCommands, cleanNotice, failureSummary, jobSummary } from './github.ts';
 
@@ -69,16 +70,16 @@ export function runDoctor(
   for (const warning of repository.warnings) {
     if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
   }
-  const ran = rules.filter((rule) => !(rule.requiresPolicy && policy === undefined));
+  const sorted = findings.sort(byLocation);
   return {
     schemaVersion: 1,
     policy: invalid ? 'invalid' : policy === undefined ? 'missing' : 'valid',
-    findings: findings.sort(byLocation),
+    findings: sorted,
     notices,
     checked: {
       ...checkedOf(detection, repository, tools, policy !== undefined || invalid),
-      rules: ran.map((rule) => rule.id),
-      skippedRules: rules.filter((rule) => !ran.includes(rule)).map((rule) => rule.id),
+      // invalid-policy has nothing to check without a depcurfew.json, like the rules that compare with one.
+      rules: ruleResults(rules, sorted, (rule) => policy === undefined && !invalid && (rule.requiresPolicy || rule.id === 'invalid-policy')),
       policyFile: POLICY_FILE,
     },
   };

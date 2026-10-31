@@ -100,6 +100,7 @@ function checkDurationStrings(context: RuleContext, tool: ToolKnowledge, manager
 
 export const settingIgnoredByVersion: Rule = {
   id: 'setting-ignored-by-version',
+  checks: 'No setting or file is ignored by the package manager version in use',
   summary: 'A setting or file is ignored by the package manager version in use.',
   description:
     'Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it.',

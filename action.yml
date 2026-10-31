@@ -22,10 +22,10 @@ inputs:
     description: Fail the step when doctor reports an error.
     default: 'true'
   annotations:
-    description: Show the findings as annotations on the files, each with how to fix it, or one notice when there are none, which says how many rules checked how many files. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them.
+    description: Show the findings as annotations on the files, each with how to fix it, or one notice when there are none, which lists every check and its result. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them.
     default: 'true'
   job-summary:
-    description: Add a table of the findings, each with how to fix it, and what was checked (tools, files read, rules) to the job summary.
+    description: Add a table of the findings, each with how to fix it, and what was checked (tools, files read, every check with its result) to the job summary.
     default: 'true'
 
 outputs:

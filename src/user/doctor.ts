@@ -8,6 +8,7 @@ import { BLOCK_END, isBlockStart } from '../apply/block.ts';
 import { formatVersion, type Version } from '../apply/version.ts';
 import type { ApplyWarning } from '../apply/warnings.ts';
 import { YAML_MARKER } from '../apply/yaml-edit.ts';
+import { ruleResults } from '../doctor/render.ts';
 import { iniLines } from '../doctor/settings.ts';
 import type { Checked, DoctorReport, Finding, Notice, Rule } from '../doctor/types.ts';
 import { parseToml, TomlDateTime, type TomlDocument, type TomlTable } from '../detect/toml.ts';
@@ -33,6 +34,7 @@ const noCheck = (): void => undefined;
 export const USER_RULES: readonly Rule[] = [
   {
     id: 'user-policy-invalid',
+    checks: 'The user policy follows the schema and can be read',
     summary: 'The user policy does not follow the schema or cannot be read.',
     description:
       'Without a valid user policy (~/.config/depcurfew/depcurfew.json), doctor --user cannot compare the user-level configuration with it, so only the checks that need no user policy run, as when there is none.',
@@ -43,6 +45,7 @@ export const USER_RULES: readonly Rule[] = [
   },
   {
     id: 'user-config-unreadable',
+    checks: 'Every user-level configuration file can be read and parsed',
     summary: 'A user-level configuration file cannot be read, parsed or edited, or the home directory does not exist, so depcurfew cannot check it.',
     description:
       'The package manager may still read the file (or stop on it), and its settings may weaken every project on the machine; doctor --user fails closed and reports an error instead of passing silently. Without a home directory the user files of most tools cannot be found at all.',
@@ -53,6 +56,7 @@ export const USER_RULES: readonly Rule[] = [
   },
   {
     id: 'user-config-drift',
+    checks: 'User-level configuration files match the user policy',
     summary: 'A user-level configuration file does not match the user policy.',
     description:
       'depcurfew apply --user writes the user policy (~/.config/depcurfew/depcurfew.json) into the user-level configuration of each installed tool, which protects every project on the machine that does not set the same settings itself, and npx, uvx and global installs. A file that no longer matches leaves that protection weaker than the policy.',
@@ -63,6 +67,7 @@ export const USER_RULES: readonly Rule[] = [
   },
   {
     id: 'user-config-weakens',
+    checks: 'No value in a user-level configuration file weakens every project',
     summary: 'A user-level configuration file has a value that weakens every project that does not set it itself.',
     description:
       'Settings in the user-level configuration apply to every project that does not set the same key, and some apply even then (lists that tools merge across files). A value that turns the release-age delay off, exempts packages or allows install scripts or git dependencies there weakens all of them at once, and so does a file the tool reads ahead of the user file.',
@@ -73,6 +78,7 @@ export const USER_RULES: readonly Rule[] = [
   },
   {
     id: 'user-environment-overrides',
+    checks: 'No environment variable moves, skips or overrides the user-level configuration',
     summary: 'An environment variable moves, skips or overrides the user-level configuration or the policy.',
     description:
       'Package managers read settings from environment variables before their configuration files, and some variables make them read another file or none. A variable set in a shell profile or a CI runner can switch the protection off without any file showing it.',
@@ -362,6 +368,10 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   }
 
   const installed = tools.filter((tool) => tool.kind === 'package-manager' && tool.user !== undefined && findExecutable(tool.id, environment) !== undefined);
+  /** Versions as the tools print them (pip 24.0), for the list of what was checked. */
+  const versionTexts = new Map<ToolId, string | undefined>(
+    installed.map((tool) => [tool.id, options.versions?.[tool.id] === undefined ? installedVersion(tool.id, ecosystemOfTool(tool), environment)?.text : undefined]),
+  );
   const versions = new Map<ToolId, Version | undefined>(
     installed.map((tool) => [tool.id, options.versions?.[tool.id] ?? installedVersion(tool.id, ecosystemOfTool(tool), environment)?.version]),
   );
@@ -624,15 +634,13 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   // <redacted>@, as in the diff of apply --user.
   const clean = findings.map((finding) => ({ ...finding, message: redactCredentials(finding.message), ...(finding.fix === undefined ? {} : { fix: redactCredentials(finding.fix) }) }));
   if (status !== 'missing') filesRead.add(policyFile);
-  const ran = USER_RULES.filter((rule) => !(rule.requiresPolicy && policy === undefined));
   const checked: Checked = {
     tools: installed.map((tool) => {
       const version = versions.get(tool.id);
-      return { id: tool.id, name: tool.name, ...(version === undefined ? {} : { version: formatVersion(version), versionFrom: options.versions?.[tool.id] === undefined ? 'PATH' : '--for' }) };
+      return { id: tool.id, name: tool.name, ...(version === undefined ? {} : { version: versionTexts.get(tool.id) ?? formatVersion(version), versionFrom: options.versions?.[tool.id] === undefined ? 'PATH' : '--for' }) };
     }),
     files: [...filesRead].sort(),
-    rules: ran.map((rule) => rule.id),
-    skippedRules: USER_RULES.filter((rule) => !ran.includes(rule)).map((rule) => rule.id),
+    rules: ruleResults(USER_RULES, clean, (rule) => policy === undefined && (rule.requiresPolicy || (rule.id === 'user-policy-invalid' && status === 'missing'))),
     policyFile,
   };
   return { schemaVersion: 1, policy: status, findings: clean, notices: notices.map((item) => ({ ...item, message: redactCredentials(item.message) })), checked, policyFile };

@@ -317,7 +317,7 @@ depcurfew configures uv, Poetry, PDM, Pipenv and pip from the same `depcurfew.js
 
 ## doctor rules
 
-Findings have a level: an **error** makes `depcurfew doctor` exit with 1, a **warning** or a **note** does not. Things doctor could not check (a binary lockfile, a lockfile format without install-script data, a missing policy) are listed as notes after the findings, not as findings. Below them, doctor says what it checked: the package managers and bots it found with the version it checked against, the files it read and how many rules ran (`checked` in `--json`).
+Findings have a level: an **error** makes `depcurfew doctor` exit with 1, a **warning** or a **note** does not. Things doctor could not check (a binary lockfile, a lockfile format without install-script data, a missing policy) are listed as notes after the findings, not as findings. Below them, doctor says what it checked: the package managers and bots it found with the version it checked against, the files it read and every check with what it checks and its result, `passed`, the problems it found or `skipped` (`checked` in `--json`).
 
 <!-- BEGIN GENERATED: rules -->
 ### `invalid-policy`
@@ -427,7 +427,7 @@ Fix: Fix what the message describes: invalid syntax, missing read permission, a 
 
 ## GitHub Action
 
-The action runs `depcurfew doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error. The log and the job summary also say what was checked (the tools found, the files read and the rules that ran), and a clean run adds a notice ("No problems found: 13 rules checked 7 files for npm 11.21.1"), so it is not mistaken for one that did nothing. Code scanning lists only alerts, so it stays empty when there is nothing to report. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
+The action runs `depcurfew doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error. The log and the job summary also say what was checked: the tools found, the files read and every check with its result (passed, the problems it found, or skipped because it needs `depcurfew.json`). A clean run adds a notice with the same list ("No problems found in 7 files for npm 11.21.1 (package.json). 13 checks: 13 passed."), so it is not mistaken for one that did nothing. Code scanning lists only alerts, so it stays empty when there is nothing to report. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
 
 Pin it to a full commit SHA, like every action in your workflows; the example pins the commit of the latest release, and the comment names its tag. If the repository cannot use code scanning, set `upload-sarif: false`; the findings stay in the job log.
 
@@ -464,8 +464,8 @@ jobs:
 | `upload-sarif` | `true` | Upload the SARIF report to GitHub code scanning. The job needs the security-events write permission. |
 | `category` | `depcurfew` | Code scanning category of the upload, to tell several depcurfew runs in one workflow apart. |
 | `fail-on-error` | `true` | Fail the step when doctor reports an error. |
-| `annotations` | `true` | Show the findings as annotations on the files, each with how to fix it, or one notice when there are none, which says how many rules checked how many files. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them. |
-| `job-summary` | `true` | Add a table of the findings, each with how to fix it, and what was checked (tools, files read, rules) to the job summary. |
+| `annotations` | `true` | Show the findings as annotations on the files, each with how to fix it, or one notice when there are none, which lists every check and its result. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them. |
+| `job-summary` | `true` | Add a table of the findings, each with how to fix it, and what was checked (tools, files read, every check with its result) to the job summary. |
 
 | Output | Description |
 | --- | --- |

@@ -61,23 +61,31 @@ describe('job summary', () => {
 });
 
 describe('what was checked', () => {
+  const result = (rule: string, check: string, kind: 'passed' | 'problems' | 'skipped', errors = 0) => ({ rule, check, result: kind, errors, warnings: 0, notes: 0 });
   const checked = {
     tools: [{ id: 'npm', name: 'npm', version: '11.21.1', versionFrom: 'package.json' }, { id: 'renovate', name: 'Renovate' }],
     files: ['package.json', 'renovate.json'],
-    rules: ['config-drift', 'broad-exclusion'],
-    skippedRules: ['bot-cooldown-mismatch'],
+    rules: [result('config-drift', 'Configuration files match', 'passed'), result('bot-cooldown-mismatch', 'Bots wait as long', 'skipped')],
     policyFile: 'depcurfew.json',
   };
 
-  it('lists the tools, the files read and the rules in the job summary', () => {
+  it('lists the tools, the files read and every check with its result in the job summary', () => {
     const summary = jobSummary({ ...report([]), checked }, RULES, '', 1024 * 1024);
     expect(summary).toContain('**No problems found**.');
-    expect(summary).toContain('### What was checked\n\n- Tools: npm 11.21.1 (package.json), Renovate\n- Files read: `package.json`, `renovate.json`\n- Rules: 2 ran; 1 more need `depcurfew.json` and did not run\n');
-    expect(summary).toContain('<details><summary>Rules that ran</summary>\n\n`config-drift`, `broad-exclusion`\n\n</details>');
+    expect(summary).toContain('### What was checked\n\n- Tools: npm 11.21.1 (package.json), Renovate\n- Files read: `package.json`, `renovate.json`\n- 2 checks: 1 passed, 1 skipped\n');
+    expect(summary).toContain('| Result | Check | Rule |\n| --- | --- | --- |\n| passed | Configuration files match | `config-drift` |\n| skipped (needs `depcurfew.json`) | Bots wait as long | `bot-cooldown-mismatch` |');
   });
 
-  it('adds a notice for a clean report, so the run shows that doctor ran', () => {
-    expect(cleanNotice({ ...report([]), checked })).toBe('::notice title=depcurfew doctor::No problems found: 2 rules checked 2 files for npm 11.21.1 (package.json), Renovate');
+  it('shows the counts of a check that found problems', () => {
+    const failing = { ...checked, rules: [result('config-drift', 'Configuration files match', 'problems', 2)] };
+    const finding = { rule: 'config-drift', level: 'error' as const, message: 'x', location: { file: 'a' } };
+    expect(jobSummary({ ...report([finding, finding]), checked: failing }, RULES, '', 1024 * 1024)).toContain('| **2 errors** | Configuration files match | `config-drift` |');
+  });
+
+  it('adds a notice for a clean report with every check, so the run shows what doctor checked', () => {
+    expect(cleanNotice({ ...report([]), checked })).toBe(
+      '::notice title=depcurfew doctor%3A no problems found::No problems found in 2 files for npm 11.21.1 (package.json), Renovate. 2 checks: 1 passed, 1 skipped.%0Apassed: Configuration files match%0Askipped: Bots wait as long (needs depcurfew.json)',
+    );
     expect(cleanNotice(report([{ rule: 'config-drift', level: 'warning', message: 'x', location: { file: 'a' } }]))).toBeUndefined();
   });
 

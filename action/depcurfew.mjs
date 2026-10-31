@@ -19585,6 +19585,127 @@ function loadPolicyIfPresent(root) {
 	return result.policy;
 }
 
+// src/color.ts
+const CODES = {
+	red: [31, 39],
+	yellow: [33, 39],
+	green: [32, 39],
+	cyan: [36, 39],
+	bold: [1, 22],
+	dim: [2, 22]
+};
+const style = ([open, close]) => (text) => text === "" ? text : `\u001b[${open}m${text}\u001b[${close}m`;
+const same = (text) => text;
+const PLAIN = {
+	red: same,
+	yellow: same,
+	green: same,
+	cyan: same,
+	bold: same,
+	dim: same
+};
+const COLORED = {
+	red: style(CODES.red),
+	yellow: style(CODES.yellow),
+	green: style(CODES.green),
+	cyan: style(CODES.cyan),
+	bold: style(CODES.bold),
+	dim: style(CODES.dim)
+};
+
+// src/doctor/render.ts
+function countLevels(findings) {
+	const counts = {
+		error: 0,
+		warning: 0,
+		note: 0
+	};
+	for (const finding of findings) counts[finding.level] += 1;
+	return counts;
+}
+function plural$1(count, word) {
+	return `${count} ${count === 1 ? word : `${word}s`}`;
+}
+function levelColor(level, colors) {
+	if (level === "error") return (text) => colors.bold(colors.red(text));
+	return level === "warning" ? colors.yellow : colors.cyan;
+}
+/** A tool as the log of what was checked names it: npm 11.21.1 (package.json). */
+function checkedTool(tool) {
+	if (tool.version === void 0) return tool.name;
+	return `${tool.name} ${tool.version}${tool.versionFrom === void 0 ? "" : ` (${tool.versionFrom})`}`;
+}
+/** Each rule with what it checks and what came of it, from the findings of the run. */
+function ruleResults(rules, findings, skipped) {
+	return rules.map((rule) => {
+		const own = findings.filter((finding) => finding.rule === rule.id);
+		const count = (level) => own.filter((finding) => finding.level === level).length;
+		const result = skipped(rule) ? "skipped" : own.length > 0 ? "problems" : "passed";
+		return {
+			rule: rule.id,
+			check: rule.checks ?? rule.summary,
+			result,
+			errors: count("error"),
+			warnings: count("warning"),
+			notes: count("note")
+		};
+	});
+}
+/** The result of one check as a word or counts: passed, skipped, or "1 error, 2 warnings". */
+function resultText(result) {
+	if (result.result !== "problems") return result.result;
+	return [
+		[result.errors, "error"],
+		[result.warnings, "warning"],
+		[result.notes, "note"]
+	].filter(([count]) => count > 0).map(([count, word]) => plural$1(count, word)).join(", ");
+}
+/** The checks that passed, failed or did not run, counted for one line. */
+function resultCounts(results) {
+	const of = (kind) => results.filter((result) => result.result === kind).length;
+	const parts = [`${of("passed")} passed`];
+	if (of("problems") > 0) parts.push(`${of("problems")} found problems`);
+	if (of("skipped") > 0) parts.push(`${of("skipped")} skipped`);
+	return `${results.length} ${results.length === 1 ? "check" : "checks"}: ${parts.join(", ")}`;
+}
+/**
+* What doctor checked, below the result: the tools found, the files read and every check with its result, so that a
+* clean report says what it covers and is not mistaken for one that did nothing.
+*/
+function checkedLines(checked) {
+	const width = Math.max(...checked.rules.map((result) => resultText(result).length), 6);
+	return [
+		"What was checked:",
+		`  Tools: ${checked.tools.length === 0 ? "no package manager or bot found" : checked.tools.map(checkedTool).join(", ")}`,
+		`  Files read: ${checked.files.length === 0 ? "none" : checked.files.join(", ")}`,
+		`  ${resultCounts(checked.rules)}`,
+		...checked.rules.map((result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === "skipped" ? ` (needs ${checked.policyFile})` : ""} [${result.rule}]`)
+	];
+}
+function renderText(report, rules, colors = PLAIN) {
+	const counts = countLevels(report.findings);
+	const lines = [];
+	if (report.findings.length === 0) lines.push(colors.green("No problems found."));
+	else {
+		const count = (level) => counts[level] === 0 ? plural$1(0, level) : levelColor(level, colors)(plural$1(counts[level], level));
+		lines.push(`${count("error")}, ${count("warning")}, ${count("note")}`);
+		let file;
+		for (const finding of report.findings) {
+			if (finding.location.file !== file) {
+				file = finding.location.file;
+				lines.push("", colors.bold(printable(file)));
+			}
+			const where = finding.location.line === void 0 ? "" : `${finding.location.line}: `;
+			const help = finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
+			lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${printable(finding.message)} ${colors.dim(`(${printable(finding.rule)})`)}`);
+			if (help !== void 0) lines.push(`    ${colors.green("fix:")} ${printable(help)}`);
+		}
+	}
+	if (report.notices.length > 0) lines.push("", colors.bold("Notes:"), ...report.notices.map((notice) => `  ${printable(notice.message)}`));
+	if (report.checked !== void 0) lines.push("", ...checkedLines(report.checked).map((line, index) => index === 0 ? colors.bold(printable(line)) : printable(line)));
+	return `${lines.join("\n")}\n`;
+}
+
 // src/doctor/renovate.ts
 const isStrings$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
 const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$1(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
@@ -19907,6 +20028,7 @@ function exemptsSecurityFixes(bot, manager, file) {
 }
 const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
+	checks: "Update bots wait at least as long as the package manager before proposing a new version",
 	summary: "An update bot waits less than the package manager before proposing a new version.",
 	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type.",
 	help: "Give the bot a delay at least as long as the package manager's (depcurfew apply does this).",
@@ -20125,6 +20247,7 @@ function checkRenovate(context, file) {
 }
 const broadExclusion = {
 	id: "broad-exclusion",
+	checks: "No exception list or per-scope setting turns the release-age delay off",
 	summary: "An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.",
 	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.",
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
@@ -20363,6 +20486,7 @@ function checkAllowLists(context, plan) {
 }
 const configDrift = {
 	id: "config-drift",
+	checks: "Configuration files match what depcurfew apply writes for depcurfew.json",
 	summary: "A configuration file does not match what depcurfew apply writes for depcurfew.json.",
 	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning.",
 	help: "Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.",
@@ -20397,6 +20521,7 @@ const configDrift = {
 // src/doctor/rules/depcurfew-outdated.ts
 const depcurfewOutdated = {
 	id: "depcurfew-outdated",
+	checks: "The depcurfew running is not older than the one the project installs",
 	summary: "The project installs a newer depcurfew than the one running.",
 	description: "A global install or an old cached copy may not know settings, rules or tool versions that the version pinned in the project knows, so it can miss problems or report fixed ones. The project copy is read from node_modules or package-lock.json.",
 	help: "Run the project's copy of depcurfew (install the project's dependencies first when only package-lock.json pins it), or update the one you run.",
@@ -20511,6 +20636,7 @@ function checkDurationStrings(context, tool, manager, version, label) {
 }
 const settingIgnoredByVersion = {
 	id: "setting-ignored-by-version",
+	checks: "No setting or file is ignored by the package manager version in use",
 	summary: "A setting or file is ignored by the package manager version in use.",
 	description: "Package managers drop old settings and files in new major versions and only accept new forms from some version on. The configuration stays in the repository and looks effective while the version in use ignores it.",
 	help: "Move the setting to the place and form this version reads.",
@@ -20534,6 +20660,7 @@ const settingIgnoredByVersion = {
 // src/doctor/rules/invalid-policy.ts
 const invalidPolicy = {
 	id: "invalid-policy",
+	checks: `${POLICY_FILE} follows the schema and can be read`,
 	summary: `${POLICY_FILE} does not follow the schema or cannot be read.`,
 	description: `Without a valid policy, the rules that compare the repository with ${POLICY_FILE} cannot run, so doctor runs only the rules that need no policy, as when there is no policy file.`,
 	help: `Fix what the message lists; an editor that reads the $schema of ${POLICY_FILE} shows the problems as you type.`,
@@ -20596,6 +20723,7 @@ function location(lockfile, entry) {
 }
 const lockfileForbiddenSource = {
 	id: "lockfile-forbidden-source",
+	checks: "The lockfile installs no package from a source depcurfew.json denies",
 	summary: "The lockfile installs a package from a source depcurfew.json denies.",
 	description: "A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say.",
 	help: "Replace the dependency with a registry version, or allow that source in depcurfew.json.",
@@ -20732,6 +20860,7 @@ function reportPythonBuilds(context, lockfile, tool, allow, deny) {
 }
 const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
+	checks: "The lockfile has no install scripts or source builds that depcurfew.json does not allow",
 	summary: "The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.",
 	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.",
 	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).",
@@ -21059,6 +21188,7 @@ function checkManager(context, manager, tool) {
 }
 const managerVersionTooOld = {
 	id: "manager-version-too-old",
+	checks: "The declared package manager versions support the settings the repository relies on",
 	summary: "A declared package manager version is older than a setting the repository relies on.",
 	description: "Package managers ignore settings they do not know yet. When packageManager, devEngines, Volta, .tool-versions or a CI step pins an older version, the setting is silently not applied there.",
 	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared.",
@@ -21302,6 +21432,7 @@ function checkPnpmAllowAll(context) {
 }
 const npmrcOverridesPolicy = {
 	id: "npmrc-overrides-policy",
+	checks: "No .npmrc file weakens the policy or is ignored",
 	summary: "An .npmrc file changes a security setting in a way the policy does not see, or is ignored.",
 	description: "Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages and the keys below a [section] header, and a before date in .npmrc takes the place of min-release-age; pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy, and dangerously-allow-all-builds there runs every build script while pnpm-workspace.yaml has no build settings of its own.",
 	help: "Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.",
@@ -21317,6 +21448,7 @@ const npmrcOverridesPolicy = {
 };
 const pnpmSharedWorkspaceLockfile = {
 	id: "pnpm-shared-workspace-lockfile",
+	checks: "pnpm 10 workspace packages cannot change the release-age delay with their own .npmrc",
 	summary: "pnpm 10 without a shared lockfile lets a package .npmrc change the release-age delay.",
 	description: "With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project separately with that project's own .npmrc layered over the workspace settings (read from the pnpm 10 source code), so a setting such as minimum-release-age=0 in a package .npmrc applies to that package.",
 	help: "Remove security settings from package .npmrc files, or keep the default shared lockfile.",
@@ -21483,6 +21615,7 @@ function checkPip(context, tool, configFiles) {
 }
 const pythonConfigIgnored = {
 	id: "python-config-ignored",
+	checks: "Python tools read their settings where they are written",
 	summary: "A Python tool ignores a setting where it is written.",
 	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
 	help: "Move the setting to the file the tool reads.",
@@ -21503,6 +21636,7 @@ const pythonConfigIgnored = {
 // src/doctor/rules/unreadable-config.ts
 const unreadableConfig = {
 	id: "unreadable-config",
+	checks: "Every configuration file and lockfile can be read and parsed",
 	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.",
 	description: "A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.",
 	help: "Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
@@ -21551,89 +21685,6 @@ const RULES = [
 	lockfileInstallScripts,
 	unreadableConfig
 ];
-
-// src/color.ts
-const CODES = {
-	red: [31, 39],
-	yellow: [33, 39],
-	green: [32, 39],
-	cyan: [36, 39],
-	bold: [1, 22],
-	dim: [2, 22]
-};
-const style = ([open, close]) => (text) => text === "" ? text : `\u001b[${open}m${text}\u001b[${close}m`;
-const same = (text) => text;
-const PLAIN = {
-	red: same,
-	yellow: same,
-	green: same,
-	cyan: same,
-	bold: same,
-	dim: same
-};
-const COLORED = {
-	red: style(CODES.red),
-	yellow: style(CODES.yellow),
-	green: style(CODES.green),
-	cyan: style(CODES.cyan),
-	bold: style(CODES.bold),
-	dim: style(CODES.dim)
-};
-
-// src/doctor/render.ts
-function countLevels(findings) {
-	const counts = {
-		error: 0,
-		warning: 0,
-		note: 0
-	};
-	for (const finding of findings) counts[finding.level] += 1;
-	return counts;
-}
-function plural$1(count, word) {
-	return `${count} ${count === 1 ? word : `${word}s`}`;
-}
-function levelColor(level, colors) {
-	if (level === "error") return (text) => colors.bold(colors.red(text));
-	return level === "warning" ? colors.yellow : colors.cyan;
-}
-/** A tool as the log of what was checked names it: npm 11.21.1 (package.json). */
-function checkedTool(tool) {
-	if (tool.version === void 0) return tool.name;
-	return `${tool.name} ${tool.version}${tool.versionFrom === void 0 ? "" : ` (${tool.versionFrom})`}`;
-}
-/** The lines below the result that say what doctor checked: tools, files read and rules, so a clean report is not mistaken for one that did nothing. */
-function checkedLines(checked) {
-	const skipped = checked.skippedRules.length === 0 ? "" : `; ${checked.skippedRules.length} more need ${checked.policyFile} and did not run`;
-	return [
-		`Checked: ${checked.tools.length === 0 ? "no package manager or bot found" : checked.tools.map(checkedTool).join(", ")}`,
-		`Files read: ${checked.files.length === 0 ? "none" : checked.files.join(", ")}`,
-		`Rules: ${checked.rules.length} ran${skipped}`
-	];
-}
-function renderText(report, rules, colors = PLAIN) {
-	const counts = countLevels(report.findings);
-	const lines = [];
-	if (report.findings.length === 0) lines.push(colors.green("No problems found."));
-	else {
-		const count = (level) => counts[level] === 0 ? plural$1(0, level) : levelColor(level, colors)(plural$1(counts[level], level));
-		lines.push(`${count("error")}, ${count("warning")}, ${count("note")}`);
-		let file;
-		for (const finding of report.findings) {
-			if (finding.location.file !== file) {
-				file = finding.location.file;
-				lines.push("", colors.bold(printable(file)));
-			}
-			const where = finding.location.line === void 0 ? "" : `${finding.location.line}: `;
-			const help = finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
-			lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${printable(finding.message)} ${colors.dim(`(${printable(finding.rule)})`)}`);
-			if (help !== void 0) lines.push(`    ${colors.green("fix:")} ${printable(help)}`);
-		}
-	}
-	if (report.notices.length > 0) lines.push("", colors.bold("Notes:"), ...report.notices.map((notice) => `  ${printable(notice.message)}`));
-	if (report.checked !== void 0) lines.push("", ...checkedLines(report.checked).map((line) => colors.dim(printable(line))));
-	return `${lines.join("\n")}\n`;
-}
 
 // src/doctor/sarif.ts
 const SARIF_SCHEMA = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
@@ -21765,14 +21816,17 @@ function annotationCommands(report, rules, format = values$1(environment.githubA
 		omitted: report.findings.length - lines.length
 	};
 }
-/** A notice annotation for a clean report, so that the run shows that doctor ran and what it covered. */
+/**
+* A notice annotation for a clean report, so that the run shows that doctor ran and what it checked: the tools, the
+* number of files read and every check with its result, one per line.
+*/
 function cleanNotice(report, format = values$1(environment.githubActions.annotations)[0]) {
 	if (format === void 0 || report.findings.length > 0) return void 0;
 	const data = (text) => escaped(text, format.escape);
 	const property = (text) => escaped(escaped(text, format.escape), format.escapeProperty);
 	const checked = report.checked;
-	const what = checked === void 0 ? "" : `: ${plural(checked.rules.length, "rule")} checked ${plural(checked.files.length, "file")}${checked.tools.length === 0 ? "" : ` for ${checked.tools.map(checkedTool).join(", ")}`}`;
-	return `::${format.commands.note} ${format.properties.title}=${property("depcurfew doctor")}::${data(printable(`No problems found${what}`))}`;
+	const lines = checked === void 0 ? ["No problems found"] : [`No problems found in ${plural(checked.files.length, "file")}${checked.tools.length === 0 ? "" : ` for ${checked.tools.map(checkedTool).join(", ")}`}. ${resultCounts(checked.rules)}.`, ...checked.rules.map((result) => `${resultText(result)}: ${result.check}${result.result === "skipped" ? ` (needs ${checked.policyFile})` : ""}`)];
+	return `::${format.commands.note} ${format.properties.title}=${property("depcurfew doctor: no problems found")}::${data(lines.map((line) => printable(line)).join("\n"))}`;
 }
 /** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
 function markdown(text) {
@@ -21824,24 +21878,23 @@ function jobSummary(report, rules, directory, maxBytes) {
 		...tail
 	].join("\n");
 }
-/** What doctor checked, below the findings: the tools, the files read and the rules, the rule ids folded away. */
+/** What doctor checked, below the findings: the tools, the files read and a table of every check with its result. */
 function checkedSummary(report) {
 	const checked = report.checked;
 	if (checked === void 0) return [];
-	const skipped = checked.skippedRules.length === 0 ? "" : `; ${checked.skippedRules.length} more need ${code(checked.policyFile)} and did not run`;
 	return [
 		"",
 		"### What was checked",
 		"",
 		`- Tools: ${checked.tools.length === 0 ? "no package manager or bot found" : checked.tools.map((tool) => markdown(checkedTool(tool))).join(", ")}`,
 		`- Files read: ${checked.files.length === 0 ? "none" : checked.files.map(code).join(", ")}`,
-		`- Rules: ${checked.rules.length} ran${skipped}`,
+		`- ${markdown(resultCounts(checked.rules))}`,
 		"",
-		"<details><summary>Rules that ran</summary>",
-		"",
-		checked.rules.map(code).join(", "),
-		"",
-		"</details>"
+		"| Result | Check | Rule |",
+		"| --- | --- | --- |",
+		...checked.rules.map((result) => {
+			return `| ${result.result === "problems" ? `**${resultText(result)}**` : result.result === "skipped" ? `skipped (needs ${code(checked.policyFile)})` : "passed"} | ${markdown(result.check)} | ${code(result.rule)} |`;
+		})
 	];
 }
 /** A problem after doctor ran, such as a SARIF file that cannot be written: a line below the findings of the job summary. */
@@ -21917,16 +21970,15 @@ function runDoctor(root, options = {}) {
 	}
 	const reported = rules.includes(unreadableConfig);
 	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
-	const ran = rules.filter((rule) => !(rule.requiresPolicy && policy === void 0));
+	const sorted = findings.sort(byLocation);
 	return {
 		schemaVersion: 1,
 		policy: invalid ? "invalid" : policy === void 0 ? "missing" : "valid",
-		findings: findings.sort(byLocation),
+		findings: sorted,
 		notices,
 		checked: {
 			...checkedOf(detection, repository, tools, policy !== void 0 || invalid),
-			rules: ran.map((rule) => rule.id),
-			skippedRules: rules.filter((rule) => !ran.includes(rule)).map((rule) => rule.id),
+			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && !invalid && (rule.requiresPolicy || rule.id === "invalid-policy")),
 			policyFile: POLICY_FILE
 		}
 	};
@@ -21993,7 +22045,15 @@ function relativeToWorkspace(report, prefix) {
 		notices: report.notices.map((notice) => notice.file === void 0 ? notice : {
 			...notice,
 			file: move(notice.file)
-		})
+		}),
+		...report.checked === void 0 ? {} : { checked: {
+			...report.checked,
+			files: report.checked.files.map(move),
+			tools: report.checked.tools.map((tool) => tool.versionFrom === void 0 ? tool : {
+				...tool,
+				versionFrom: move(tool.versionFrom)
+			})
+		} }
 	};
 }
 /**

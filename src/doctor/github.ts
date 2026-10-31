@@ -7,7 +7,7 @@ import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import { printable } from '../printable.ts';
 import type { AnnotationLimitsKnowledge, AnnotationsKnowledge } from '../knowledge/types.ts';
-import { checkedTool, countLevels } from './render.ts';
+import { checkedTool, countLevels, resultCounts, resultText } from './render.ts';
 import type { DoctorReport, Finding, Level, Rule } from './types.ts';
 
 const LEVELS: readonly Level[] = ['error', 'warning', 'note'];
@@ -58,17 +58,23 @@ export function annotationCommands(
   return { lines, omitted: report.findings.length - lines.length };
 }
 
-/** A notice annotation for a clean report, so that the run shows that doctor ran and what it covered. */
+/**
+ * A notice annotation for a clean report, so that the run shows that doctor ran and what it checked: the tools, the
+ * number of files read and every check with its result, one per line.
+ */
 export function cleanNotice(report: DoctorReport, format: AnnotationsKnowledge | undefined = values(environment.githubActions.annotations)[0]): string | undefined {
   if (format === undefined || report.findings.length > 0) return undefined;
   const data = (text: string) => escaped(text, format.escape);
   const property = (text: string) => escaped(escaped(text, format.escape), format.escapeProperty);
   const checked = report.checked;
-  const what =
+  const lines =
     checked === undefined
-      ? ''
-      : `: ${plural(checked.rules.length, 'rule')} checked ${plural(checked.files.length, 'file')}${checked.tools.length === 0 ? '' : ` for ${checked.tools.map(checkedTool).join(', ')}`}`;
-  return `::${format.commands.note} ${format.properties.title}=${property('depcurfew doctor')}::${data(printable(`No problems found${what}`))}`;
+      ? ['No problems found']
+      : [
+          `No problems found in ${plural(checked.files.length, 'file')}${checked.tools.length === 0 ? '' : ` for ${checked.tools.map(checkedTool).join(', ')}`}. ${resultCounts(checked.rules)}.`,
+          ...checked.rules.map((result) => `${resultText(result)}: ${result.check}${result.result === 'skipped' ? ` (needs ${checked.policyFile})` : ''}`),
+        ];
+  return `::${format.commands.note} ${format.properties.title}=${property('depcurfew doctor: no problems found')}::${data(lines.map((line) => printable(line)).join('\n'))}`;
 }
 
 /** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
@@ -127,24 +133,24 @@ export function jobSummary(report: DoctorReport, rules: readonly Rule[], directo
   return [...head, ...rows, ...more, ...tail].join('\n');
 }
 
-/** What doctor checked, below the findings: the tools, the files read and the rules, the rule ids folded away. */
+/** What doctor checked, below the findings: the tools, the files read and a table of every check with its result. */
 function checkedSummary(report: DoctorReport): string[] {
   const checked = report.checked;
   if (checked === undefined) return [];
-  const skipped = checked.skippedRules.length === 0 ? '' : `; ${checked.skippedRules.length} more need ${code(checked.policyFile)} and did not run`;
   return [
     '',
     '### What was checked',
     '',
     `- Tools: ${checked.tools.length === 0 ? 'no package manager or bot found' : checked.tools.map((tool) => markdown(checkedTool(tool))).join(', ')}`,
     `- Files read: ${checked.files.length === 0 ? 'none' : checked.files.map(code).join(', ')}`,
-    `- Rules: ${checked.rules.length} ran${skipped}`,
+    `- ${markdown(resultCounts(checked.rules))}`,
     '',
-    '<details><summary>Rules that ran</summary>',
-    '',
-    checked.rules.map(code).join(', '),
-    '',
-    '</details>',
+    '| Result | Check | Rule |',
+    '| --- | --- | --- |',
+    ...checked.rules.map((result) => {
+      const shown = result.result === 'problems' ? `**${resultText(result)}**` : result.result === 'skipped' ? `skipped (needs ${code(checked.policyFile)})` : 'passed';
+      return `| ${shown} | ${markdown(result.check)} | ${code(result.rule)} |`;
+    }),
   ];
 }
 

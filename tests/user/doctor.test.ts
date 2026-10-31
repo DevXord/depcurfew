@@ -95,8 +95,14 @@ describe.skipIf(!canSymlink())('doctor --user', () => {
     writeUserChanges(planUserApply(loadUserPolicy(environment).policy, { environment }));
     const report = runUserDoctor({ environment });
     expect(report.findings).toEqual([]);
-    expect(report.checked).toMatchObject({ tools: [{ id: 'npm', name: 'npm', version: '11.21.1', versionFrom: 'PATH' }], files: expect.arrayContaining(['~/.npmrc']), skippedRules: [] });
-    expect(report.checked?.rules).toContain('user-config-weakens');
+    expect(report.checked).toMatchObject({ tools: [{ id: 'npm', name: 'npm', version: '11.21.1', versionFrom: 'PATH' }], files: expect.arrayContaining(['~/.npmrc']) });
+    expect(report.checked?.rules.map((entry) => `${entry.result} ${entry.rule}`)).toEqual([
+      'passed user-policy-invalid',
+      'passed user-config-unreadable',
+      'passed user-config-drift',
+      'passed user-config-weakens',
+      'passed user-environment-overrides',
+    ]);
   });
 
   it('prints JSON and SARIF on the command line', async () => {

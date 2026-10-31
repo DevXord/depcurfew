@@ -88,8 +88,9 @@ describe('GitHub Action entry point', () => {
     const { outputs, log, summary } = run({ GITHUB_WORKSPACE: workspace('bot-cooldown-mismatch/passes-consistent') });
     expect(outputs).toMatchObject({ errors: 0, warnings: 0, failure: '' });
     expect(log).toContain('No problems found.\n');
-    expect(log).toMatch(/^Checked: .+\nFiles read: .*dependabot\.yml.*\nRules: \d+ ran/mu);
-    expect(log).toMatch(/^::notice title=depcurfew doctor::No problems found: \d+ rules checked \d+ files/mu);
+    expect(log).toMatch(/^What was checked:\n  Tools: .+\n  Files read: .*dependabot\.yml.*\n  \d+ checks: /mu);
+    expect(log).toMatch(/^::notice title=depcurfew doctor%3A no problems found::No problems found in \d+ files .*%0Apassed: Update bots wait/mu);
+    expect(summary).toContain('| Result | Check | Rule |');
     expect(summary).toContain('**No problems found**.');
     expect(summary).toContain('### What was checked');
   });
@@ -130,7 +131,8 @@ describe('GitHub Action entry point', () => {
     const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter', directory);
     const { summary } = run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: directory });
     expect(summary).toContain('**1 error**, 0 warnings, 0 notes in `odd dir\\x0a\\| x \\|`.\n');
-    const rows = summary.split('\n').filter((line) => line.startsWith('| '));
+    // The table of findings; the table of checks follows under "What was checked".
+    const rows = (summary.split('### What was checked')[0] ?? '').split('\n').filter((line) => line.startsWith('| '));
     expect(rows).toHaveLength(3);
     expect(rows[2]).toMatch(/^\| \*\*error\*\* \| `odd dir\\x0a\\\| x \\\|\/\.github\/dependabot\.yml:\d+` \| .+ \| .+ \|$/u);
     const sarif = JSON.parse(readFileSync(join(root, 'depcurfew.sarif'), 'utf8')) as { runs: { results: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[] }[] };

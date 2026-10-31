@@ -11,6 +11,7 @@ export { UNREADABLE_WARNINGS } from '../unreadable-warnings.ts';
 
 export const unreadableConfig: Rule = {
   id: 'unreadable-config',
+  checks: 'Every configuration file and lockfile can be read and parsed',
   summary: 'A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.',
   description:
     'A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.',

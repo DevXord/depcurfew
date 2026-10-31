@@ -40,8 +40,8 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 ### What doctor checked
 
-- `doctor` and `doctor --user` say below the result what they checked: the package managers and bots found, with the version they checked against, the files read and how many rules ran (and which need a policy that is missing). `--json` has the same in the new `checked` field.
-- The GitHub Action prints the same in the log, adds a "What was checked" section to the job summary and, when there is nothing to report, a notice ("No problems found: … rules checked … files"), so a clean run no longer looks like one that did nothing.
+- `doctor` and `doctor --user` say below the result what they checked: the package managers and bots found, with the version they checked against, the files read, and every check in plain words with its result (passed, the problems it found, or skipped because it needs a policy that is missing). `--json` has the same in the new `checked` field.
+- The GitHub Action prints the same in the log, adds a "What was checked" table to the job summary and, when there is nothing to report, a notice with the list of checks, so a clean run no longer looks like one that did nothing.
 
 ### Safety of output and files
 

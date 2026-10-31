@@ -46,6 +46,8 @@ export interface Rule {
   id: string;
   /** One sentence: what the rule finds. */
   summary: string;
+  /** What the rule checks, said as what holds when it passes, for the list of what doctor checked. */
+  checks?: string;
   /** Why it matters. */
   description: string;
   /** How to fix it in general. */
@@ -66,16 +68,26 @@ export interface CheckedTool {
   versionFrom?: string;
 }
 
+/** One check of the list of what doctor checked: a rule and what came of it. */
+export interface RuleResult {
+  rule: string;
+  /** What the rule checks, in plain words (Rule.check). */
+  check: string;
+  /** passed: it ran and found nothing; problems: it reported findings; skipped: it needs a policy that is missing or invalid. */
+  result: 'passed' | 'problems' | 'skipped';
+  errors: number;
+  warnings: number;
+  notes: number;
+}
+
 /** What doctor looked at, shown below the result, so that a clean report says what it covers. */
 export interface Checked {
   tools: CheckedTool[];
   /** Files that were read, repository-relative (doctor) or as shown (~/.npmrc, doctor --user). */
   files: string[];
-  /** Rules that ran. */
-  rules: string[];
-  /** Rules that did not run because they compare with a policy and there is none (or it is invalid). */
-  skippedRules: string[];
-  /** The policy those rules need, as messages show it. */
+  /** Every rule, in the order it ran, with its result. */
+  rules: RuleResult[];
+  /** The policy that skipped rules need, as messages show it. */
   policyFile: string;
 }
 

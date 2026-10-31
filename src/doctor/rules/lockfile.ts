@@ -52,6 +52,7 @@ function location(lockfile: Lockfile, entry: LockEntry): { file: string; line?: 
 
 export const lockfileForbiddenSource: Rule = {
   id: 'lockfile-forbidden-source',
+  checks: 'The lockfile installs no package from a source depcurfew.json denies',
   summary: 'The lockfile installs a package from a source depcurfew.json denies.',
   description:
     'A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say.',
@@ -214,6 +215,7 @@ function reportPythonBuilds(context: RuleContext, lockfile: Lockfile, tool: Tool
 
 export const lockfileInstallScripts: Rule = {
   id: 'lockfile-install-scripts',
+  checks: 'The lockfile has no install scripts or source builds that depcurfew.json does not allow',
   summary: 'The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.',
   description:
     'Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.',

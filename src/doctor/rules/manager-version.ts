@@ -144,6 +144,7 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
 
 export const managerVersionTooOld: Rule = {
   id: 'manager-version-too-old',
+  checks: 'The declared package manager versions support the settings the repository relies on',
   summary: 'A declared package manager version is older than a setting the repository relies on.',
   description:
     'Package managers ignore settings they do not know yet. When packageManager, devEngines, Volta, .tool-versions or a CI step pins an older version, the setting is silently not applied there.',

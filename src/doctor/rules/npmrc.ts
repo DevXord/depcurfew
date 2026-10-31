@@ -221,6 +221,7 @@ function checkPnpmAllowAll(context: RuleContext): void {
 
 export const npmrcOverridesPolicy: Rule = {
   id: 'npmrc-overrides-policy',
+  checks: 'No .npmrc file weakens the policy or is ignored',
   summary: 'An .npmrc file changes a security setting in a way the policy does not see, or is ignored.',
   description:
     'Package managers read .npmrc from different places with different priorities. npm ignores the .npmrc of workspace packages and the keys below a [section] header, and a before date in .npmrc takes the place of min-release-age; pnpm 10 applies a root .npmrc value whenever pnpm-workspace.yaml does not set the same setting, which can weaken the policy, and dangerously-allow-all-builds there runs every build script while pnpm-workspace.yaml has no build settings of its own.',
@@ -238,6 +239,7 @@ export const npmrcOverridesPolicy: Rule = {
 
 export const pnpmSharedWorkspaceLockfile: Rule = {
   id: 'pnpm-shared-workspace-lockfile',
+  checks: 'pnpm 10 workspace packages cannot change the release-age delay with their own .npmrc',
   summary: 'pnpm 10 without a shared lockfile lets a package .npmrc change the release-age delay.',
   description:
     'With sharedWorkspaceLockfile: false, pnpm 10 installs every workspace project separately with that project\'s own .npmrc layered over the workspace settings (read from the pnpm 10 source code), so a setting such as minimum-release-age=0 in a package .npmrc applies to that package.',

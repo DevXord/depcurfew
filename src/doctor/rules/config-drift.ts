@@ -232,6 +232,7 @@ function checkAllowLists(context: RuleContext, plan: ApplyReport): void {
 
 export const configDrift: Rule = {
   id: 'config-drift',
+  checks: 'Configuration files match what depcurfew apply writes for depcurfew.json',
   summary: 'A configuration file does not match what depcurfew apply writes for depcurfew.json.',
   description:
     'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning.',
