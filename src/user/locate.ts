@@ -53,6 +53,7 @@ type Directory = { path: string } | { relative: RelativeDirectory } | undefined;
 
 function directoryOf(directory: UserDirectory, environment: UserEnvironment): Directory {
   const path = paths(environment.platform);
+  if (directory.unlessEnv !== undefined && (environment.env[directory.unlessEnv]?.trim() ?? '') !== '') return undefined;
   let base: string | undefined;
   if (directory.from === 'home') {
     base = environment.home;

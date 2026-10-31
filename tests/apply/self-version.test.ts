@@ -37,10 +37,22 @@ describe('depcurfew-outdated in apply', () => {
         code: 'depcurfew-outdated',
         level: 'warning',
         location: { file: 'package-lock.json', line: 12 },
-        message: 'depcurfew 99.0.0 is installed in the project (package-lock.json), but the depcurfew running apply is older, so it may not know settings that version writes',
-        fix: "Run the project's copy (npx depcurfew apply), or update the depcurfew you run to 99.0.0 or later",
+        message: 'depcurfew 99.0.0 is pinned in package-lock.json (line 12), but the depcurfew running apply is older, so it may not know settings that version writes',
+        fix: "Install the project's dependencies (npm ci), then run its copy (npx depcurfew apply), or update the depcurfew you run to 99.0.0 or later",
       },
     ]);
+  });
+
+  it('names the installed copy, with its line, when node_modules has one', async () => {
+    const directory = project('fires-package-lock');
+    mkdirSync(join(directory, 'node_modules', 'depcurfew'), { recursive: true });
+    writeFileSync(join(directory, 'node_modules', 'depcurfew', 'package.json'), '{\n  "name": "depcurfew",\n  "version": "99.0.0"\n}\n');
+    const report = await applyJson(directory);
+    expect(report.warnings.find((warning) => warning.code === 'depcurfew-outdated')).toMatchObject({
+      location: { file: 'node_modules/depcurfew/package.json', line: 3 },
+      message: 'depcurfew 99.0.0 is installed in the project (node_modules/depcurfew/package.json, line 3), but the depcurfew running apply is older, so it may not know settings that version writes',
+      fix: "Run the project's copy (npx depcurfew apply), or update the depcurfew you run to 99.0.0 or later",
+    });
   });
 
   it('stays quiet when the project pins an older depcurfew or none', async () => {

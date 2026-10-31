@@ -3,7 +3,7 @@
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { isSecurityExclusionFormat, restoreEntries, securityEntries, withoutComments, type KeptEntry } from '../renovate-exclusions.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions, sameList, scriptsDefault, writeDenyList, type SourceKind } from './common.ts';
+import { allowedInFiles, allowedNames, cooldownValue, deniedNames, eachSource, exclusions, sameList, scriptsDefault, writeDenyList, type SourceKind } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 import { formatVersion } from '../version.ts';
 
@@ -15,6 +15,23 @@ interface LegacyAllowList {
 
 const isLegacy = (value: unknown): value is LegacyAllowList =>
   isRecord(value) && typeof value['since'] === 'string' && typeof value['workspaceFileSince'] === 'string' && typeof value['removedIn'] === 'string';
+
+const isIgnoredList = (value: unknown): value is { since: string; workspaceFileSince: string } =>
+  isRecord(value) && typeof value['since'] === 'string' && typeof value['workspaceFileSince'] === 'string';
+
+/**
+ * Adds names to a list setting of pnpm 10 (onlyBuiltDependencies, ignoredBuiltDependencies): in pnpm-workspace.yaml from
+ * the version that reads it there, else in the "pnpm" field of package.json. Entries already there stay.
+ */
+function mergeList(context: Context, workspaceFileSince: string, setting: string, names: readonly string[]): void {
+  const inWorkspaceFile = context.atLeast(workspaceFileSince);
+  const target = inWorkspaceFile ? context.yaml(firstFile(context.tool.cooldown.configFiles) ?? 'pnpm-workspace.yaml') : context.json('package.json');
+  const path = inWorkspaceFile ? [setting] : ['pnpm', setting];
+  const current = target.get(path);
+  const list = Array.isArray(current) ? [...(current as unknown[])] : [];
+  const merged = [...list, ...names.filter((name) => !list.includes(name))];
+  if (!sameList(current, merged)) target.set(path, merged);
+}
 
 /** The same strings, in any order. */
 function sameMembers(current: unknown, wanted: readonly string[]): boolean {
@@ -110,14 +127,15 @@ export const pnpm: ManagerGenerator = (context) => {
         writeDenyList(context);
       } else {
         if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, 'onlyBuiltDependencies'))) {
-          const names = allowedNames(context, 'onlyBuiltDependencies');
-          const inWorkspaceFile = context.atLeast(legacy.workspaceFileSince);
-          const target = inWorkspaceFile ? yaml : context.json('package.json');
-          const path = inWorkspaceFile ? ['onlyBuiltDependencies'] : ['pnpm', 'onlyBuiltDependencies'];
-          const current = target.get(path);
-          const list = Array.isArray(current) ? [...(current as unknown[])] : [];
-          const merged = [...list, ...names.filter((name) => !list.includes(name))];
-          if (!sameList(current, merged)) target.set(path, merged);
+          mergeList(context, legacy.workspaceFileSince, 'onlyBuiltDependencies', allowedNames(context, 'onlyBuiltDependencies'));
+        }
+        // Before allowBuilds, ignoredBuiltDependencies records the denials (the 10.26.0 changelog calls allowBuilds
+        // false the same thing); a package an allow-list entry lets build is left alone (decision D-088).
+        const ignored = extraOf(tool, 'ignoredBuiltDependencies', isIgnoredList);
+        if (policy.installScripts.deny.length > 0 && context.supports(ignored.since, 'ignoredBuiltDependencies')) {
+          const allowedByFile = allowedInFiles(context);
+          const names = deniedNames(context, 'ignoredBuiltDependencies').filter((name) => !allowedByFile.has(name));
+          if (names.length > 0) mergeList(context, ignored.workspaceFileSince, 'ignoredBuiltDependencies', names);
         }
       }
     }

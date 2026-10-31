@@ -1,0 +1,8 @@
+{
+  "name": "app",
+  "private": true,
+  "packageManager": "npm@11.21.1",
+  "allowScripts": {
+    "core-js": true
+  }
+}

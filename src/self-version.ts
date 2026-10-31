@@ -55,6 +55,25 @@ function lineAt(text: string, needle: string): { line?: number } {
   return line === undefined ? {} : { line };
 }
 
+/**
+ * The warning about a newer project copy, the same in apply and doctor. A version read from package-lock.json is not
+ * installed yet, and npx would fetch a registry or cached copy instead, so the fix installs it first. `line` puts the
+ * line into the message, for apply's text output, which shows no location.
+ */
+export function outdatedText(copy: ProjectCopy, command: 'apply' | 'doctor', line = false): { message: string; fix: string } {
+  const at = line && copy.line !== undefined ? `, line ${copy.line}` : '';
+  const pinned = copy.file === 'package-lock.json';
+  const where = pinned ? `is pinned in ${copy.file}${line && copy.line !== undefined ? ` (line ${copy.line})` : ''}` : `is installed in the project (${copy.file}${at})`;
+  const knows = command === 'apply' ? 'settings that version writes' : 'settings that version writes or checks';
+  const runner = command === 'apply' ? 'apply' : 'this check';
+  return {
+    message: `depcurfew ${copy.version} ${where}, but the depcurfew running ${runner} is older, so it may not know ${knows}`,
+    fix: pinned
+      ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or update the depcurfew you run to ${copy.version} or later`
+      : `Run the project's copy (npx depcurfew ${command}), or update the depcurfew you run to ${copy.version} or later`,
+  };
+}
+
 /** Whether the project's copy is newer than the depcurfew that runs. */
 export function isNewerThanRunning(copy: ProjectCopy, running: string = getVersion()): boolean {
   const pinned = parseVersion(copy.version);

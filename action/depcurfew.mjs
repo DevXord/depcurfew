@@ -1864,7 +1864,57 @@ const pip$1 = {
 					}
 				]
 			}
-		}], `${CONFIGURATION$4}#location`, "The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir(\"pip\") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, \"which respects the XDG_CONFIG_HOME environment variable\" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py); since 26.2 $XDG_DATA_HOME/pip comes first when XDG_DATA_HOME is not empty and that directory exists, and with XDG_DATA_HOME set the Library directory is skipped. Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked."),
+		}, {
+			since: "26.2.0",
+			value: {
+				format: "ini",
+				locations: [
+					{
+						platforms: ["linux"],
+						directories: [{
+							from: { env: "XDG_CONFIG_HOME" },
+							path: "pip"
+						}, {
+							from: "home",
+							path: ".config/pip"
+						}],
+						file: "pip.conf"
+					},
+					{
+						platforms: ["darwin"],
+						directories: [
+							{
+								from: { env: "XDG_DATA_HOME" },
+								path: "pip",
+								ifExists: true
+							},
+							{
+								from: "home",
+								path: "Library/Application Support/pip",
+								ifExists: true,
+								unlessEnv: "XDG_DATA_HOME"
+							},
+							{
+								from: "home",
+								path: ".config/pip"
+							}
+						],
+						file: "pip.conf"
+					},
+					{
+						platforms: ["win32"],
+						directories: [{
+							from: { env: "APPDATA" },
+							path: "pip"
+						}, {
+							from: "home",
+							path: "AppData/Roaming/pip"
+						}],
+						file: "pip.ini"
+					}
+				]
+			}
+		}], `${CONFIGURATION$4}#location`, "The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir(\"pip\") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, \"which respects the XDG_CONFIG_HOME environment variable\" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py: _macos_user_config_dir takes platformdirs user_data_dir when os.path.isdir); since 26.2 that user_data_dir is $XDG_DATA_HOME/pip when XDG_DATA_HOME is not empty after stripping spaces, so with XDG_DATA_HOME set the Library directory is skipped and ~/.config/pip is used unless $XDG_DATA_HOME/pip exists (XDGMixin in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2; src/pip/_vendor/vendor.txt names platformdirs 4.10.0 in 26.2 and 4.5.1 in 26.1.1, whose macos.py has no XDG handling). Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked."),
 		settings: user$6.verified([
 			{
 				purpose: "cooldown",
@@ -3213,7 +3263,7 @@ const pnpm$1 = {
 			setting: "dangerouslyAllowAllBuilds",
 			since: "10.9.0",
 			value: true
-		}, "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md", "Boolean, default false. Packages set to false in allowBuilds (or build: false in permissions) stay blocked only from pnpm 12.12.0 (release notes: \"A package set to false in allowBuilds no longer runs its build scripts when dangerouslyAllowAllBuilds is true\"). pnpm 10, 11 and 12.0.0-12.11.x run them too: the build policy allows every build before it reads allowBuilds (builder/policy at 10.34.9, building/policy at 11.28.10, allow_build_policy.rs at 12.0.0)."),
+		}, "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/building/policy/src/index.ts", "Boolean, default false; added in 10.9.0 (\"Added a new setting, dangerouslyAllowAllBuilds, for automatically running any scripts of dependencies without the need to approve any builds\", pnpm/CHANGELOG.md at v10.26.0). Packages set to false in allowBuilds (or build: false in permissions) stay blocked only from pnpm 12.12.0 (release notes at https://github.com/pnpm/pnpm/releases/tag/v12.12.0: \"A package set to false in allowBuilds no longer runs its build scripts when dangerouslyAllowAllBuilds is true\", \"Previously, dangerouslyAllowAllBuilds ignored the denials\"). pnpm 10, 11 and 12.0.0-12.11.x run them too: createAllowBuildFunction returns before it reads the lists (\"if (opts.dangerouslyAllowAllBuilds) return () => true\" in building/policy at 11.28.10 and builder/policy/src/index.ts at 10.34.9; allow_build_policy.rs at 12.0.0)."),
 		excludeWildcards: verified$4({
 			since: "10.17.0",
 			trailingOnly: false
@@ -3223,6 +3273,10 @@ const pnpm$1 = {
 			workspaceFileSince: "10.5.0",
 			removedIn: "11.0.0"
 		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, added in 6.32.0 (\"If this field exists, only mentioned packages will be able to run install scripts\") and working since 6.32.1 (\"released with a bug in v6.32.0\"); also pnpm-workspace.yaml since 10.5.0 (10.5.0 changelog); removed in 11.0.0 (settings/build.md, see legacyAllowList). Before pnpm 10 any list, even an empty one, lets only the listed packages build (createAllowBuildFunction in @pnpm/builder.policy 3.0.0, which pnpm 9.15.0 uses)."),
+		ignoredBuiltDependencies: rechecked$1.verified({
+			since: "10.1.0",
+			workspaceFileSince: "10.5.0"
+		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "The record of denied builds before allowBuilds (denyList): package.json pnpm.ignoredBuiltDependencies since 10.1.0 (\"for explicitly listing packages that should not be built. When a package is in the list, pnpm will not print an info message about that package not being built\"), and pnpm-workspace.yaml since 10.5.0 (\"Allow to set the \\\"pnpm\\\" settings from package.json via the pnpm-workspace.yaml file\"). The 10.26.0 entry for allowBuilds says that allowBuilds: { core-js: false } \"achieves the same result as\" ignoredBuiltDependencies: [core-js]. It only silences the report: createAllowBuildFunction (builder/policy/src/index.ts at v10.25.0) does not read it, so a package onlyBuiltDependencies names still builds. Deprecated in 10.26.0 and removed in 11.0.0 (see legacyAllowList)."),
 		latestVersion: verified$4("12.16.1", release$2("12.16.1"), "pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches."),
 		npmrcIgnored: verified$4("pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json \"pnpm\" field and no longer reads npm_config_* variables", release$2("11.0.0")),
 		buildPermissions: rechecked$1.verified({
@@ -12568,6 +12622,9 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	};
 }
 
+// src/policy/defaults.ts
+const POLICY_FILE = "depcurfew.json";
+
 // src/apply/requirements.ts
 /** "a", "a and b", "a, b and c". */
 function listing(items) {
@@ -14116,27 +14173,32 @@ function lineOf$1(text, needle) {
 function read(repository, file) {
 	return repository.readText(file);
 }
-function fromKeys(text, file, setting, value, enabled) {
+/** The line of a key or list item below `path` in a JSON file; undefined for other files. */
+function jsonLine(text, file, path) {
+	return (key) => /\.json[c5]?$/u.test(file) ? jsonSetting(text, [...path, key])?.line : void 0;
+}
+function fromKeys(text, file, setting, value, enabled, locate) {
 	if (!isRecord(value)) return [];
 	return Object.entries(value).filter(([, entry]) => enabled(entry)).map(([name]) => ({
 		name,
 		package: splitSpec(name).name,
 		file,
-		line: lineOf$1(text, JSON.stringify(name)) ?? lineOf$1(text, `${name}:`),
+		line: locate?.(name) ?? lineOf$1(text, JSON.stringify(name)) ?? lineOf$1(text, `${name}:`),
 		setting
 	}));
 }
-function fromList(text, file, setting, value, prefix = "") {
+function fromList(text, file, setting, value, prefix = "", locate) {
 	if (!Array.isArray(value)) return [];
-	return value.filter((item) => typeof item === "string").map((item) => {
+	return value.flatMap((item, index) => {
+		if (typeof item !== "string") return [];
 		const name = item.startsWith(prefix) ? item.slice(prefix.length) : item;
-		return {
+		return [{
 			name,
 			package: splitSpec(name).name,
 			file,
-			line: lineOf$1(text, item),
+			line: locate?.(index) ?? lineOf$1(text, item),
 			setting
-		};
+		}];
 	});
 }
 const isPermissions = (value) => isRecord(value) && typeof value["setting"] === "string" && typeof value["capability"] === "string" && typeof value["since"] === "string";
@@ -14167,50 +14229,114 @@ function buildPermissions(text, tool, version) {
 	return decisions;
 }
 /**
-* Entries that let a package run its install scripts, per manager. Unreadable files give no entries. `tool` and
-* `version` decide settings that depend on the version, such as pnpm's permissions (the latest known version when
-* none is given).
+* The entries of one kind in each manager's own lists: `allowed` true for the entries that let a package run its install
+* scripts, false for those that block them on purpose.
 */
-function allowEntries(repository, manager, configFiles, options = {}) {
+function listEntries(repository, manager, configFiles, options, allowed) {
 	const manifest = read(repository, "package.json");
 	const entries = [];
 	const json = (path) => manifest === void 0 ? void 0 : jsonSetting(manifest, path)?.value;
+	const fromManifestKeys = (setting, enabled) => manifest === void 0 ? [] : fromKeys(manifest, "package.json", setting, json([setting]), enabled, jsonLine(manifest, "package.json", [setting]));
 	switch (manager) {
 		case "npm":
-			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "allowScripts", json(["allowScripts"]), (entry) => entry === true));
+			entries.push(...fromManifestKeys("allowScripts", (entry) => entry === allowed));
 			break;
 		case "pnpm": {
 			const workspace = read(repository, "pnpm-workspace.yaml");
 			if (workspace !== void 0) {
 				const permissions = buildPermissions(workspace, options.tool, options.version);
-				const allowBuilds = fromKeys(workspace, "pnpm-workspace.yaml", "allowBuilds", yamlSetting(workspace, ["allowBuilds"])?.value, (entry) => entry === true);
+				const allowBuilds = fromKeys(workspace, "pnpm-workspace.yaml", "allowBuilds", yamlSetting(workspace, ["allowBuilds"])?.value, (entry) => entry === allowed, (name) => yamlSetting(workspace, ["allowBuilds", name])?.line);
 				entries.push(...allowBuilds.filter((entry) => permissions?.has(entry.name) !== true));
-				for (const [name, decision] of permissions ?? []) if (decision.allowed) entries.push({
+				for (const [name, decision] of permissions ?? []) if (decision.allowed === allowed) entries.push({
 					name,
 					package: splitSpec(name).name,
 					file: "pnpm-workspace.yaml",
 					line: decision.line,
 					setting: "permissions"
 				});
-				entries.push(...fromList(workspace, "pnpm-workspace.yaml", "onlyBuiltDependencies", yamlSetting(workspace, ["onlyBuiltDependencies"])?.value));
+				if (allowed) entries.push(...fromList(workspace, "pnpm-workspace.yaml", "onlyBuiltDependencies", yamlSetting(workspace, ["onlyBuiltDependencies"])?.value));
 			}
-			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "pnpm.onlyBuiltDependencies", json(["pnpm", "onlyBuiltDependencies"])));
+			if (allowed && manifest !== void 0) entries.push(...fromList(manifest, "package.json", "pnpm.onlyBuiltDependencies", json(["pnpm", "onlyBuiltDependencies"]), "", jsonLine(manifest, "package.json", ["pnpm", "onlyBuiltDependencies"])));
 			break;
 		}
 		case "yarn":
-			if (manifest !== void 0) entries.push(...fromKeys(manifest, "package.json", "dependenciesMeta", json(["dependenciesMeta"]), (entry) => isRecord(entry) && entry["built"] === true));
+			entries.push(...fromManifestKeys("dependenciesMeta", (entry) => isRecord(entry) && entry["built"] === allowed));
 			break;
 		case "bun":
-			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "trustedDependencies", json(["trustedDependencies"])));
+			if (allowed && manifest !== void 0) entries.push(...fromList(manifest, "package.json", "trustedDependencies", json(["trustedDependencies"]), "", jsonLine(manifest, "package.json", ["trustedDependencies"])));
 			break;
 		case "deno": for (const file of configFiles.filter((name) => /^deno\.jsonc?$/u.test(name))) {
 			const text = read(repository, file);
 			if (text === void 0) continue;
 			const value = jsonSetting(text, ["allowScripts"])?.value;
-			entries.push(...fromList(text, file, "allowScripts", isRecord(value) ? value["allow"] : value, "npm:"));
+			if (allowed) entries.push(...fromList(text, file, "allowScripts", isRecord(value) ? value["allow"] : value, "npm:", jsonLine(text, file, isRecord(value) ? ["allowScripts", "allow"] : ["allowScripts"])));
+			else if (isRecord(value)) entries.push(...fromList(text, file, "allowScripts.deny", value["deny"], "npm:", jsonLine(text, file, ["allowScripts", "deny"])));
 		}
 	}
 	return entries;
+}
+/**
+* Entries that let a package run its install scripts, per manager. Unreadable files give no entries. `tool` and
+* `version` decide settings that depend on the version, such as pnpm's permissions (the latest known version when
+* none is given).
+*/
+function allowEntries(repository, manager, configFiles, options = {}) {
+	return listEntries(repository, manager, configFiles, options, true);
+}
+/**
+* Entries that block a package's install scripts on purpose, per manager: false in npm's allowScripts and pnpm's
+* allowBuilds (or build: false in pnpm's permissions), built: false in Yarn's dependenciesMeta, allowScripts.deny in
+* deno.json. Bun has none.
+*/
+function denyEntries(repository, manager, configFiles, options = {}) {
+	return listEntries(repository, manager, configFiles, options, false);
+}
+/** The entries of a tool's own lists that contradict installScripts (the policy of the tool's registry). */
+function listConflicts(repository, manager, configFiles, options, scripts) {
+	const matches = (entry, patterns) => patterns.some((pattern) => matchesPattern$1(entry.package, pattern));
+	const conflicts = [];
+	for (const entry of allowEntries(repository, manager, configFiles, options)) {
+		if (matches(entry, scripts.allow)) continue;
+		conflicts.push({
+			kind: matches(entry, scripts.deny) ? "denied" : "outside",
+			entry
+		});
+	}
+	for (const entry of denyEntries(repository, manager, configFiles, options)) if (matches(entry, scripts.allow)) conflicts.push({
+		kind: "allowed",
+		entry
+	});
+	return conflicts;
+}
+/**
+* The conflicts in the files as they are (`now`) that remain once depcurfew apply has written the policy (`planned`):
+* apply writes the entries of the policy's own packages, so only the others stay.
+*/
+function remainingConflicts(now, planned, manager, configFiles, options, scripts) {
+	const key = (conflict) => [
+		conflict.kind,
+		conflict.entry.file,
+		conflict.entry.setting,
+		conflict.entry.name
+	].join("\0");
+	const after = new Set(listConflicts(planned, manager, configFiles, options, scripts).map(key));
+	return listConflicts(now, manager, configFiles, options, scripts).filter((conflict) => after.has(key(conflict)));
+}
+/**
+* What is wrong with an entry that contradicts installScripts.allow or installScripts.deny, and what to do: the same in
+* apply (deny-conflicts-with-file) and doctor (config-drift). `line` puts the line into the message, for apply's text.
+*/
+function denyConflictText(conflict, line = false) {
+	const { entry } = conflict;
+	const where = `${entry.setting} in ${entry.file}${line && entry.line !== void 0 ? ` (line ${entry.line})` : ""}`;
+	if (conflict.kind === "denied") return {
+		message: `${where} lets ${entry.name} run install scripts, but installScripts.deny in ${POLICY_FILE} blocks them`,
+		fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${entry.package} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts`
+	};
+	return {
+		message: `${where} blocks the install scripts of ${entry.name}, but installScripts.allow in ${POLICY_FILE} allows them`,
+		fix: `Remove ${entry.name} from ${entry.setting} in ${entry.file}, or move ${entry.package} from installScripts.allow to installScripts.deny in ${POLICY_FILE} if it works without its scripts`
+	};
 }
 /** Whether a package name matches a policy pattern; `*` stands for any characters except `/`. */
 function matchesPattern$1(name, pattern) {
@@ -14228,9 +14354,6 @@ const UNREADABLE_WARNINGS = {
 	"workspace-outside-repository": "Keep workspace packages inside the repository",
 	"unreadable-include": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them"
 };
-
-// src/policy/defaults.ts
-const POLICY_FILE = "depcurfew.json";
 
 // src/policy/duration.ts
 const MINUTES$2 = {
@@ -14465,6 +14588,22 @@ function projectCopy(repository) {
 function lineAt(text, needle) {
 	const line = lineOf(text, needle);
 	return line === void 0 ? {} : { line };
+}
+/**
+* The warning about a newer project copy, the same in apply and doctor. A version read from package-lock.json is not
+* installed yet, and npx would fetch a registry or cached copy instead, so the fix installs it first. `line` puts the
+* line into the message, for apply's text output, which shows no location.
+*/
+function outdatedText(copy, command, line = false) {
+	const at = line && copy.line !== void 0 ? `, line ${copy.line}` : "";
+	const pinned = copy.file === "package-lock.json";
+	const where = pinned ? `is pinned in ${copy.file}${line && copy.line !== void 0 ? ` (line ${copy.line})` : ""}` : `is installed in the project (${copy.file}${at})`;
+	const knows = command === "apply" ? "settings that version writes" : "settings that version writes or checks";
+	const runner = command === "apply" ? "apply" : "this check";
+	return {
+		message: `depcurfew ${copy.version} ${where}, but the depcurfew running ${runner} is older, so it may not know ${knows}`,
+		fix: pinned ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or update the depcurfew you run to ${copy.version} or later` : `Run the project's copy (npx depcurfew ${command}), or update the depcurfew you run to ${copy.version} or later`
+	};
 }
 /** Whether the project's copy is newer than the depcurfew that runs. */
 function isNewerThanRunning(copy, running = getVersion()) {
@@ -14980,7 +15119,7 @@ const cooldownShape = object({
 const installScriptsShape = object({
 	default: required(access("Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source.")),
 	allow: withDefault(packagePatterns("Packages whose lifecycle scripts may run when the default is \"deny\"; Python packages listed here are always built from source."), []),
-	deny: withDefault(packagePatterns("Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example \"fsevents\", which ships a prebuilt binary. Python packages listed here are never built from source."), [])
+	deny: withDefault(packagePatterns("Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example \"fsevents\", which ships a prebuilt binary. A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one."), [])
 }, { description: "Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python." });
 const sourcesShape = object({
 	git: optional(access("Dependencies installed from git repositories.")),
@@ -15014,11 +15153,54 @@ function section(shape, document, key) {
 function comparable$1(pattern) {
 	return ecosystemOf(pattern) === "pypi" ? normalizePythonName(pattern) : pattern;
 }
-/** A package can be allowed or denied, not both: the same entry, or an entry of one list covered by a pattern of the other. */
+/**
+* A name both segment patterns match (`*` stands for any characters but `/`), or undefined when there is none. Where a
+* `*` may match nothing it does, so the name is made of the literal characters only: "*-bar" and "foo-*" give "foo-bar".
+*/
+function commonSegment(a, b) {
+	const failed = /* @__PURE__ */ new Set();
+	const search = (i, j) => {
+		if (i === a.length && j === b.length) return "";
+		const key = i * (b.length + 1) + j;
+		if (failed.has(key)) return void 0;
+		const x = a[i];
+		const y = b[j];
+		let found;
+		if (x === "*" || y === "*") {
+			if (x === "*") found = search(i + 1, j);
+			if (found === void 0 && y === "*") found = search(i, j + 1);
+			if (found === void 0 && x === "*" && y !== void 0 && y !== "*") found = prefixed(y, search(i, j + 1));
+			if (found === void 0 && y === "*" && x !== void 0 && x !== "*") found = prefixed(x, search(i + 1, j));
+		} else if (x !== void 0 && x === y) found = prefixed(x, search(i + 1, j + 1));
+		if (found === void 0) failed.add(key);
+		return found;
+	};
+	return search(0, 0);
+}
+function prefixed(character, rest) {
+	return rest === void 0 ? void 0 : `${character}${rest}`;
+}
+/** A package name both patterns match, or undefined when they never match the same name. */
+function commonName(a, b) {
+	const [left, right] = [a.split("/"), b.split("/")];
+	if (left.length !== right.length) return void 0;
+	const parts = [];
+	for (const [index, segment] of left.entries()) {
+		const common = commonSegment(segment, right[index] ?? "");
+		if (common === void 0) return void 0;
+		parts.push(common);
+	}
+	return parts.join("/");
+}
+/**
+* A package can be allowed or denied, not both: the same entry, an entry of one list covered by a pattern of the
+* other, or two patterns that match a common name. npm and Python names never meet (decision D-088).
+*/
 function overlaps(allow, deny) {
 	const issues = [];
 	const advice = "a package is either allowed or denied, so remove it from one list";
 	for (const denied of deny) for (const allowed of allow) {
+		if (ecosystemOf(denied) !== ecosystemOf(allowed)) continue;
 		const [d, a] = [comparable$1(denied), comparable$1(allowed)];
 		if (d === a) issues.push({
 			path: formatPath(["installScripts", "deny"]),
@@ -15032,6 +15214,14 @@ function overlaps(allow, deny) {
 			path: formatPath(["installScripts", "allow"]),
 			message: `"${allowed}" is also covered by "${denied}" in installScripts.deny; ${advice}`
 		});
+		else {
+			const common = commonName(d, a);
+			if (common === void 0) continue;
+			issues.push({
+				path: formatPath(["installScripts", "deny"]),
+				message: `"${denied}" and "${allowed}" in installScripts.allow both match names such as "${common}"; a package is either allowed or denied, so narrow one of the patterns`
+			});
+		}
 	}
 	return issues;
 }
@@ -16404,6 +16594,37 @@ function deniedNames(context, setting) {
 	});
 }
 /**
+* The files as this run has edited them so far, for reading the tools' own lists. A file the workspace cannot read
+* counts as missing: reading a list must not stop apply, and an edit of that file reports the problem itself.
+*/
+function workspaceText(workspace) {
+	return { readText(file) {
+		try {
+			return workspace.exists(file) ? workspace.read(file) : void 0;
+		} catch {
+			return;
+		}
+	} };
+}
+/**
+* The packages that an entry of the tool's own allow-list lets run their scripts, in any version. apply records no
+* denial for them, because that would change what the entry does, and apply never changes an entry it did not write
+* (decision D-088); the warning deny-conflicts-with-file names the entry instead.
+*/
+function allowedInFiles(context, configFiles = []) {
+	const id = context.tool.id;
+	const options = {
+		tool: context.tool,
+		...context.version === void 0 ? {} : { version: context.version }
+	};
+	return new Set(allowEntries(workspaceText(context.workspace), id, configFiles, options).map((entry) => entry.package));
+}
+/** The setting for messages: dependenciesMeta for the template dependenciesMeta.<package>.built. */
+function settingName(setting) {
+	const at = setting.indexOf(".<package>");
+	return at === -1 ? setting : setting.slice(0, at);
+}
+/**
 * Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
 * dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install.
 */
@@ -16412,7 +16633,9 @@ function writeDenyList(context) {
 	if (deny === void 0 || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
 	if (!context.supports(deny.since, deny.setting)) return;
 	const file = deny.file.endsWith(".yaml") ? context.yaml(deny.file) : context.json(deny.file);
-	for (const name of deniedNames(context, deny.setting)) {
+	const allowed = allowedInFiles(context);
+	for (const name of deniedNames(context, settingName(deny.setting))) {
+		if (allowed.has(name)) continue;
 		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
 		if (file.get(path) !== deny.value) file.set(path, deny.value);
 	}
@@ -16980,16 +17203,24 @@ const deno = (context) => {
 			}
 			const deny = denyList(context);
 			if (deny !== void 0 && policy.installScripts.deny.length > 0 && context.supports(deny.since, deny.setting)) {
-				const denied = deniedNames(context, deny.setting).map((name) => String(deny.value).replace("<package>", name));
+				const file = configFile(context);
+				const allowedByFile = allowedInFiles(context, [file]);
+				const denied = deniedNames(context, deny.setting).filter((name) => !allowedByFile.has(name)).map((name) => String(deny.value).replace("<package>", name));
 				const now = json.get([setting]);
-				if (!isRecord(now)) json.set([setting], {
+				const list = isRecord(now) ? now["deny"] : void 0;
+				if (denied.length > 0 && !isRecord(now)) json.set([setting], {
 					allow: Array.isArray(now) ? now : [],
 					deny: denied
 				});
-				else {
-					const list = Array.isArray(now["deny"]) ? now["deny"] : void 0;
-					if (list === void 0) json.set([setting, "deny"], denied);
-					else for (const specifier of denied) if (!list.includes(specifier)) json.append([setting, "deny"], specifier);
+				else if (denied.length > 0 && list === void 0) json.set([setting, "deny"], denied);
+				else if (denied.length > 0 && !Array.isArray(list)) context.warn({
+					code: "unexpected-value",
+					location: { file },
+					message: `${context.name}: ${deny.setting} in ${file} is not a list, so depcurfew apply does not add ${denied.join(", ")} to it`,
+					fix: `Write ${deny.setting} in ${file} as a list of ${prefix} specifiers, such as ${JSON.stringify(typeof list === "string" ? [list] : denied)}, then run depcurfew apply again`
+				});
+				else if (Array.isArray(list)) {
+					for (const specifier of denied) if (!list.includes(specifier)) json.append([setting, "deny"], specifier);
 				}
 			}
 		}
@@ -17392,6 +17623,20 @@ function restoreEntries(text, key, entries) {
 
 // src/apply/generators/pnpm.ts
 const isLegacy = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["workspaceFileSince"] === "string" && typeof value["removedIn"] === "string";
+const isIgnoredList = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["workspaceFileSince"] === "string";
+/**
+* Adds names to a list setting of pnpm 10 (onlyBuiltDependencies, ignoredBuiltDependencies): in pnpm-workspace.yaml from
+* the version that reads it there, else in the "pnpm" field of package.json. Entries already there stay.
+*/
+function mergeList(context, workspaceFileSince, setting, names) {
+	const inWorkspaceFile = context.atLeast(workspaceFileSince);
+	const target = inWorkspaceFile ? context.yaml(firstFile(context.tool.cooldown.configFiles) ?? "pnpm-workspace.yaml") : context.json("package.json");
+	const path = inWorkspaceFile ? [setting] : ["pnpm", setting];
+	const current = target.get(path);
+	const list = Array.isArray(current) ? [...current] : [];
+	const merged = [...list, ...names.filter((name) => !list.includes(name))];
+	if (!sameList(current, merged)) target.set(path, merged);
+}
 /** The same strings, in any order. */
 function sameMembers(current, wanted) {
 	if (!Array.isArray(current) || current.length !== wanted.length) return false;
@@ -17482,15 +17727,14 @@ const pnpm = (context) => {
 					for (const name of allowedNames(context, setting)) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
 				}
 				writeDenyList(context);
-			} else if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, "onlyBuiltDependencies"))) {
-				const names = allowedNames(context, "onlyBuiltDependencies");
-				const inWorkspaceFile = context.atLeast(legacy.workspaceFileSince);
-				const target = inWorkspaceFile ? yaml : context.json("package.json");
-				const path = inWorkspaceFile ? ["onlyBuiltDependencies"] : ["pnpm", "onlyBuiltDependencies"];
-				const current = target.get(path);
-				const list = Array.isArray(current) ? [...current] : [];
-				const merged = [...list, ...names.filter((name) => !list.includes(name))];
-				if (!sameList(current, merged)) target.set(path, merged);
+			} else {
+				if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, "onlyBuiltDependencies"))) mergeList(context, legacy.workspaceFileSince, "onlyBuiltDependencies", allowedNames(context, "onlyBuiltDependencies"));
+				const ignored = extraOf(tool, "ignoredBuiltDependencies", isIgnoredList);
+				if (policy.installScripts.deny.length > 0 && context.supports(ignored.since, "ignoredBuiltDependencies")) {
+					const allowedByFile = allowedInFiles(context);
+					const names = deniedNames(context, "ignoredBuiltDependencies").filter((name) => !allowedByFile.has(name));
+					if (names.length > 0) mergeList(context, ignored.workspaceFileSince, "ignoredBuiltDependencies", names);
+				}
 			}
 		}
 	}
@@ -18668,26 +18912,50 @@ function botDuration(policy, managerMinutes) {
 	};
 }
 /**
-* apply only adds to install-script allow-lists, so a package someone listed by hand keeps running its scripts after
-* the policy denies them; say so, and what to do about it.
+* apply only adds to install-script allow-lists and never changes an entry it did not write (decision D-088), so a
+* package someone listed by hand keeps running its scripts after the policy denies them, and a hand-written denial
+* keeps blocking a package the policy allows; say so, and what to do about it.
 */
-function allowListWarnings(root, policy, detection, targets, tools) {
+function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 	if (policy.installScripts?.default !== "deny") return [];
 	const repository = new Repository(root);
+	const planned = workspaceText(workspace);
 	return detection.packageManagers.filter((manager) => manager.supported && targets.has(manager.id)).flatMap((manager) => {
 		const tool = tools.find((entry) => entry.id === manager.id);
-		const allow = policyFor(policy, tool === void 0 ? "npm" : ecosystemOfTool(tool)).installScripts?.allow ?? [];
+		const scripts = policyFor(policy, tool === void 0 ? "npm" : ecosystemOfTool(tool)).installScripts ?? {
+			allow: [],
+			deny: []
+		};
 		const version = pinnedVersion(manager) ?? (tool === void 0 ? void 0 : parseVersion(latestVersion(tool) ?? ""));
-		return allowEntries(repository, manager.id, manager.configFiles, {
+		const options = {
 			...tool === void 0 ? {} : { tool },
 			...version === void 0 ? {} : { version }
-		}).filter((entry) => !allow.some((pattern) => matchesPattern$1(entry.package, pattern))).map((entry) => ({
-			code: "allow-list-entry-outside-policy",
-			tool: manager.id,
-			location: { file: entry.file },
-			message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write`,
-			fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${entry.package} to installScripts.allow in ${POLICY_FILE}`
-		}));
+		};
+		return remainingConflicts(repository, planned, manager.id, manager.configFiles, options, scripts).map((conflict) => {
+			const { entry } = conflict;
+			const location = {
+				file: entry.file,
+				...entry.line === void 0 ? {} : { line: entry.line }
+			};
+			if (conflict.kind === "outside") return {
+				code: "allow-list-entry-outside-policy",
+				tool: manager.id,
+				location,
+				message: `${entry.setting} in ${entry.file}${entry.line === void 0 ? "" : ` (line ${entry.line})`} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write`,
+				fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${entry.package} to installScripts.allow in ${POLICY_FILE}`
+			};
+			const text = denyConflictText({
+				kind: conflict.kind,
+				entry
+			}, true);
+			return {
+				code: "deny-conflicts-with-file",
+				tool: manager.id,
+				location,
+				message: `${text.message}; depcurfew apply does not change entries it did not write`,
+				fix: text.fix
+			};
+		});
 	});
 }
 /**
@@ -18735,15 +19003,18 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	const snippets = [];
 	const failures = [];
 	const copy = projectCopy(new Repository(root));
-	if (copy !== void 0 && isNewerThanRunning(copy)) warnings.push({
-		code: "depcurfew-outdated",
-		location: {
-			file: copy.file,
-			...copy.line === void 0 ? {} : { line: copy.line }
-		},
-		message: `depcurfew ${copy.version} is installed in the project (${copy.file}), but the depcurfew running apply is older, so it may not know settings that version writes`,
-		fix: `Run the project's copy (npx depcurfew apply), or update the depcurfew you run to ${copy.version} or later`
-	});
+	if (copy !== void 0 && isNewerThanRunning(copy)) {
+		const text = outdatedText(copy, "apply", true);
+		warnings.push({
+			code: "depcurfew-outdated",
+			location: {
+				file: copy.file,
+				...copy.line === void 0 ? {} : { line: copy.line }
+			},
+			message: text.message,
+			fix: text.fix
+		});
+	}
 	const auto = policy.targets === "auto" ? autoTargets(root, detection, tools) : void 0;
 	const targets = new Set(policy.targets === "auto" ? auto?.targets ?? [] : policy.targets);
 	for (const entry of auto?.ciOnly ?? []) {
@@ -18841,7 +19112,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		if (generator === void 0 || !targets.has(tool.id)) continue;
 		run(tool, void 0, (context) => generator(context, duration));
 	}
-	warnings.push(...allowListWarnings(root, policy, detection, targets, tools));
+	warnings.push(...allowListWarnings(root, workspace, policy, detection, targets, tools));
 	const changes = workspace.changes();
 	if (policy.cooldown !== void 0) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
 	warnings.push(...ignoredFileWarnings(root, changes));
@@ -19525,27 +19796,48 @@ function describe(difference) {
 	if (removed !== void 0) return `${code$1(removed)} should not be there`;
 	return "its layout differs from what depcurfew apply writes";
 }
-/** apply only adds to allow-lists, so packages the policy does not allow can stay there; report them. */
-function checkAllowLists(context) {
+/**
+* apply only adds to allow-lists and never changes an entry it did not write (decision D-088), so packages the policy
+* does not allow can stay there, and so can entries that contradict installScripts.deny or installScripts.allow;
+* report the ones that are still there once apply has run.
+*/
+function checkAllowLists(context, plan) {
 	const policy = context.policy;
 	if (policy?.installScripts?.default !== "deny") return;
 	const targets = policy.targets;
+	const planned = { readText: (file) => plan.changes.find((change) => change.file === file)?.after ?? context.repository.readText(file) };
 	for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
 		if (targets !== "auto" && !targets.includes(manager.id)) continue;
 		const knowledge = context.tools.find((entry) => entry.id === manager.id);
-		const allow = policyFor(policy, knowledge === void 0 ? "npm" : ecosystemOfTool(knowledge)).installScripts?.allow ?? [];
+		const scripts = policyFor(policy, knowledge === void 0 ? "npm" : ecosystemOfTool(knowledge)).installScripts ?? {
+			allow: [],
+			deny: []
+		};
 		const version = pinnedVersion(manager) ?? (knowledge === void 0 ? void 0 : latestVersion$1(knowledge));
-		for (const entry of allowEntries(context.repository, manager.id, manager.configFiles, {
+		const options = {
 			...knowledge === void 0 ? {} : { tool: knowledge },
 			...version === void 0 ? {} : { version }
-		})) {
-			if (allow.some((pattern) => matchesPattern$1(entry.package, pattern))) continue;
+		};
+		for (const conflict of remainingConflicts(context.repository, planned, manager.id, manager.configFiles, options, scripts)) {
+			const { entry } = conflict;
+			const location = entry.line === void 0 ? { file: entry.file } : {
+				file: entry.file,
+				line: entry.line
+			};
+			if (conflict.kind !== "outside") {
+				context.report({
+					level: "warning",
+					location,
+					...denyConflictText({
+						kind: conflict.kind,
+						entry
+					})
+				});
+				continue;
+			}
 			context.report({
 				level: "warning",
-				location: entry.line === void 0 ? { file: entry.file } : {
-					file: entry.file,
-					line: entry.line
-				},
+				location,
 				message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
 				fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.name === entry.package ? "it" : entry.package} to installScripts.allow in ${POLICY_FILE}`
 			});
@@ -19555,7 +19847,7 @@ function checkAllowLists(context) {
 const configDrift = {
 	id: "config-drift",
 	summary: "A configuration file does not match what depcurfew apply writes for depcurfew.json.",
-	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy.",
+	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package run scripts the policy does not allow or denies, and one that blocks a package the policy allows.",
 	help: "Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.",
 	level: "error",
 	requiresPolicy: true,
@@ -19581,7 +19873,7 @@ const configDrift = {
 				fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`
 			});
 		}
-		checkAllowLists(context);
+		checkAllowLists(context, plan);
 	}
 };
 
@@ -19590,7 +19882,7 @@ const depcurfewOutdated = {
 	id: "depcurfew-outdated",
 	summary: "The project installs a newer depcurfew than the one running.",
 	description: "A global install or an old cached copy may not know settings, rules or tool versions that the version pinned in the project knows, so it can miss problems or report fixed ones. The project copy is read from node_modules or package-lock.json.",
-	help: "Run the project's copy of depcurfew, or update the one you run.",
+	help: "Run the project's copy of depcurfew (install the project's dependencies first when only package-lock.json pins it), or update the one you run.",
 	level: "warning",
 	requiresPolicy: false,
 	check(context) {
@@ -19601,8 +19893,7 @@ const depcurfewOutdated = {
 				file: copy.file,
 				...copy.line === void 0 ? {} : { line: copy.line }
 			},
-			message: `depcurfew ${copy.version} is installed in the project (${copy.file}), but the depcurfew running this check is older, so it may not know settings that version writes or checks`,
-			fix: `Run the project's copy (npx depcurfew doctor), or update the depcurfew you run to ${copy.version} or later`
+			...outdatedText(copy, "doctor")
 		});
 	}
 };
@@ -19836,7 +20127,8 @@ function runsScripts(context, tool) {
 }
 /**
 * How the repository keeps dependency scripts from running with the tool's own switch: ignore-scripts in .npmrc turns
-* them all off, strict-allow-scripts makes the install fail on scripts that are not allowed.
+* them all off (`all`), strict-allow-scripts makes the install fail on scripts that are not allowed, while the
+* packages of the allow-list still run theirs.
 */
 function scriptsDisabledBy(context, tool) {
 	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
@@ -19847,10 +20139,16 @@ function scriptsDisabledBy(context, tool) {
 	if (match !== null) {
 		const [, key = "", expected] = match;
 		const found = readSetting(context.repository, file, key);
-		if (found !== void 0 && found.value === (expected === void 0 ? true : iniValue(expected))) return `${key} in ${file} turns them off`;
+		if (found !== void 0 && found.value === (expected === void 0 ? true : iniValue(expected))) return {
+			reason: `${key} in ${file} turns them off`,
+			all: true
+		};
 	}
 	const strict = tool.extra?.["strictAllowScripts"] === void 0 ? void 0 : extraOf(tool, "strictAllowScripts", isSwitch);
-	if (strict !== void 0 && readSetting(context.repository, file, strict.setting)?.value === strict.value) return `${strict.setting} in ${file} stops the install until they are allowed`;
+	if (strict !== void 0 && readSetting(context.repository, file, strict.setting)?.value === strict.value) return {
+		reason: `${strict.setting} in ${file} stops the install until they are allowed`,
+		all: false
+	};
 }
 /**
 * Whether the repository forbids building Python packages from source with the tool's switch (no-build in uv,
@@ -19876,6 +20174,16 @@ function switchIsOn(value, wanted) {
 	const items = value === true ? wanted : typeof value === "string" ? value.split(",").map((item) => item.trim()) : Array.isArray(value) ? value : [];
 	return wanted.every((item) => items.includes(item));
 }
+/** Dependencies a tool builds whatever its settings say, when its build switch does not cover their source. */
+const ALWAYS_BUILT = {
+	registry: "source distributions from an index",
+	git: "git dependencies",
+	remoteTarball: "source archives from a URL",
+	file: "local source archives",
+	directory: "local directory dependencies",
+	workspace: "workspace members",
+	unknown: "dependencies from this source"
+};
 function reportPythonBuilds(context, lockfile, tool, allow, deny) {
 	const forbiddenBy = buildsForbiddenBy(context, tool, lockfile);
 	const covers = (tool.extra?.["buildSwitch"] === void 0 ? void 0 : extraOf(tool, "buildSwitch", isSwitch))?.covers ?? [];
@@ -19886,11 +20194,13 @@ function reportPythonBuilds(context, lockfile, tool, allow, deny) {
 		if (entry.unnamed !== true && patterns.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
 		const stopped = forbiddenBy !== void 0 && covers.includes(entry.source);
 		if (entry.unnamed !== true && denied.some((pattern) => matchesPattern$1(entry.name, pattern))) {
+			const stoppable = entry.source === "registry" || covers.includes(entry.source);
+			const label = `"${PYPI_PREFIX}${entry.name}"`;
 			context.report({
 				level: stopped ? "warning" : "error",
 				location: location(lockfile, entry),
-				message: stopped ? `${entry.name} has to be built from source (${BUILT_FROM[entry.source]}), but ${forbiddenBy} and ${POLICY_FILE} denies it, so installing it fails` : `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code, but ${POLICY_FILE} denies it`,
-				fix: stopped ? `Replace ${entry.name} with a package that has wheels, or remove "${PYPI_PREFIX}${entry.name}" from installScripts.deny and add it to installScripts.allow after reviewing it` : `Make ${tool.name} stop building it (run depcurfew apply and follow its warnings), or replace the package`
+				message: stopped ? `${entry.name} has to be built from source (${BUILT_FROM[entry.source]}), but ${forbiddenBy} and ${POLICY_FILE} denies it, so installing it fails` : `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code, but ${POLICY_FILE} denies it${stoppable ? "" : `, and ${tool.name} builds ${ALWAYS_BUILT[entry.source]} whatever its settings say`}`,
+				fix: stopped ? `Replace ${entry.name} with a package that has wheels, or remove ${label} from installScripts.deny and add it to installScripts.allow after reviewing it` : stoppable ? `Make ${tool.name} stop building it (run depcurfew apply and follow its warnings), or replace the package` : `Replace ${entry.name} with a registry release that has wheels, or move ${label} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing it`
 			});
 			continue;
 		}
@@ -19906,8 +20216,8 @@ function reportPythonBuilds(context, lockfile, tool, allow, deny) {
 const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
 	summary: "The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.",
-	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.",
-	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:).",
+	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.",
+	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).",
 	level: "error",
 	requiresPolicy: true,
 	check(context) {
@@ -19929,10 +20239,23 @@ const lockfileInstallScripts = {
 			if (flagged.length === 0 && tool.id === "bun") context.notice(`${lockfile.file} marks no package with install scripts; Bun records them only since 1.4.4, so an older lockfile may hide some`, lockfile.file);
 			const disabledBy = scriptsDisabledBy(context, tool);
 			const running = disabledBy === void 0 && runsScripts(context, tool);
+			const lists = ownLists(context, tool);
 			for (const entry of flagged) {
 				if (allow.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
-				if (deny.some((pattern) => matchesPattern$1(entry.name, pattern))) {
-					if (!running) continue;
+				const isDenied = deny.some((pattern) => matchesPattern$1(entry.name, pattern));
+				const blocked = lists.denied.some((item) => item.package === entry.name && item.name === item.package);
+				const lets = disabledBy?.all === true || blocked ? void 0 : lists.allowed.find((item) => item.package === entry.name);
+				if (lets !== void 0) {
+					context.report({
+						level: "error",
+						location: location(lockfile, entry),
+						message: `${entry.name} has install scripts, and ${lets.setting} in ${lets.file} lets ${tool.name} run them, but ${POLICY_FILE} ${isDenied ? "denies them" : "does not allow it"}`,
+						fix: isDenied ? `Remove ${lets.name} from ${lets.setting} in ${lets.file}, or move ${entry.name} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing its scripts` : `Remove ${lets.name} from ${lets.setting} in ${lets.file}, or review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}`
+					});
+					continue;
+				}
+				if (isDenied) {
+					if (!running || blocked) continue;
 					context.report({
 						level: "error",
 						location: location(lockfile, entry),
@@ -19944,13 +20267,39 @@ const lockfileInstallScripts = {
 				context.report({
 					level: running ? "error" : "warning",
 					location: location(lockfile, entry),
-					message: running ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it` : disabledBy === void 0 ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them` : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy}; the package may need them`,
-					fix: `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package`
+					message: running ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it` : disabledBy === void 0 ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them` : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy.reason}; the package may need them`,
+					fix: running ? `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package` : `Review its scripts: add ${entry.name} to installScripts.allow in ${POLICY_FILE} if it needs them, or to installScripts.deny if it works without them; otherwise replace the package`
 				});
 			}
 		});
 	}
 };
+/**
+* The tool's own lists as the version in use reads them: allow entries from the version that has an allow-list,
+* denials (extra.denyList) from the version that records them; empty for older versions.
+*/
+function ownLists(context, tool) {
+	const manager = context.detection.packageManagers.find((entry) => entry.id === tool.id);
+	if (manager === void 0) return {
+		allowed: [],
+		denied: []
+	};
+	const version = pinnedVersion(manager) ?? latestVersion$1(tool);
+	const options = {
+		tool,
+		...version === void 0 ? {} : { version }
+	};
+	const reads = (since) => {
+		const required = since === void 0 ? void 0 : parseVersion(since);
+		return required !== void 0 && (version === void 0 || compareVersions$1(version, required) >= 0);
+	};
+	const denial = tool.extra?.["denyList"] === void 0 ? void 0 : evidenceOf(tool.extra["denyList"])[0]?.value;
+	const denialSince = isRecord(denial) && typeof denial["since"] === "string" ? denial["since"] : void 0;
+	return {
+		allowed: reads(sinceOf(tool.installScripts.allowList.availableSince)) ? allowEntries(context.repository, manager.id, manager.configFiles, options) : [],
+		denied: reads(denialSince) ? denyEntries(context.repository, manager.id, manager.configFiles, options) : []
+	};
+}
 
 // src/doctor/version-range.ts
 const PARTIAL = /^v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;

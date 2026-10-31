@@ -39,7 +39,7 @@ export const COMMANDS: readonly CommandInfo[] = [
       { name: 'user', summary: 'Create the user policy (~/.config/depcurfew/depcurfew.json) that apply --user and doctor --user use' },
     ],
     details:
-      'Writes depcurfew.json with the default policy: a 3-day release-age delay, install scripts denied, and git and tarball URL dependencies denied. When the repository already sets a longer release-age delay for a tool it detects, cooldown.minimum keeps the longest one, so that apply does not shorten it; init says where it found it. Other files are not changed; run depcurfew apply next to configure the tools. With --user it writes the user policy instead (~/.config/depcurfew/depcurfew.json, in $XDG_CONFIG_HOME when that is set, in %APPDATA% on Windows), which apply --user and doctor --user use.',
+      'Writes depcurfew.json with the default policy: a 3-day release-age delay, install scripts denied, and git and tarball URL dependencies denied. When the repository already sets a longer release-age delay for a tool it detects, cooldown.minimum keeps the longest one, so that apply does not shorten it; init says where it found it. Other files are not changed; run depcurfew apply next to configure the tools. With --user it writes the user policy instead (~/.config/depcurfew/depcurfew.json, in $XDG_CONFIG_HOME when that is set to an absolute path, in %APPDATA% on Windows), which apply --user and doctor --user use.',
     examples: ['depcurfew init', 'depcurfew init --force', 'depcurfew init --user'],
     exitCodes: [
       [0, 'depcurfew.json was written'],

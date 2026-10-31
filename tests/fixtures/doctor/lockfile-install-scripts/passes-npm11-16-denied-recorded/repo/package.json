@@ -1,0 +1,9 @@
+{
+  "name": "app",
+  "private": true,
+  "packageManager": "npm@11.21.1",
+  "allowScripts": {
+    "esbuild": true,
+    "core-js": false
+  }
+}

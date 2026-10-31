@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 41
+    },
+    "message": "core-js has install scripts, and allowScripts in package.json lets npm run them, but depcurfew.json does not allow it",
+    "fix": "Remove core-js from allowScripts in package.json, or review its scripts and add core-js to installScripts.allow in depcurfew.json"
+  }
+]

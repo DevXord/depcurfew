@@ -23,12 +23,61 @@ function comparable(pattern: string): string {
   return ecosystemOf(pattern) === 'pypi' ? normalizePythonName(pattern) : pattern;
 }
 
-/** A package can be allowed or denied, not both: the same entry, or an entry of one list covered by a pattern of the other. */
+/**
+ * A name both segment patterns match (`*` stands for any characters but `/`), or undefined when there is none. Where a
+ * `*` may match nothing it does, so the name is made of the literal characters only: "*-bar" and "foo-*" give "foo-bar".
+ */
+function commonSegment(a: string, b: string): string | undefined {
+  const failed = new Set<number>();
+  const search = (i: number, j: number): string | undefined => {
+    if (i === a.length && j === b.length) return '';
+    const key = i * (b.length + 1) + j;
+    if (failed.has(key)) return undefined;
+    const x = a[i];
+    const y = b[j];
+    let found: string | undefined;
+    if (x === '*' || y === '*') {
+      // A star first matches nothing; then it takes the next literal character of the other pattern.
+      if (x === '*') found = search(i + 1, j);
+      if (found === undefined && y === '*') found = search(i, j + 1);
+      if (found === undefined && x === '*' && y !== undefined && y !== '*') found = prefixed(y, search(i, j + 1));
+      if (found === undefined && y === '*' && x !== undefined && x !== '*') found = prefixed(x, search(i + 1, j));
+    } else if (x !== undefined && x === y) {
+      found = prefixed(x, search(i + 1, j + 1));
+    }
+    if (found === undefined) failed.add(key);
+    return found;
+  };
+  return search(0, 0);
+}
+
+function prefixed(character: string, rest: string | undefined): string | undefined {
+  return rest === undefined ? undefined : `${character}${rest}`;
+}
+
+/** A package name both patterns match, or undefined when they never match the same name. */
+function commonName(a: string, b: string): string | undefined {
+  const [left, right] = [a.split('/'), b.split('/')];
+  if (left.length !== right.length) return undefined;
+  const parts: string[] = [];
+  for (const [index, segment] of left.entries()) {
+    const common = commonSegment(segment, right[index] ?? '');
+    if (common === undefined) return undefined;
+    parts.push(common);
+  }
+  return parts.join('/');
+}
+
+/**
+ * A package can be allowed or denied, not both: the same entry, an entry of one list covered by a pattern of the
+ * other, or two patterns that match a common name. npm and Python names never meet (decision D-088).
+ */
 function overlaps(allow: readonly string[], deny: readonly string[]): PolicyIssue[] {
   const issues: PolicyIssue[] = [];
   const advice = 'a package is either allowed or denied, so remove it from one list';
   for (const denied of deny) {
     for (const allowed of allow) {
+      if (ecosystemOf(denied) !== ecosystemOf(allowed)) continue;
       const [d, a] = [comparable(denied), comparable(allowed)];
       if (d === a) {
         issues.push({ path: formatPath(['installScripts', 'deny']), message: `"${denied}" is also in installScripts.allow; ${advice}` });
@@ -36,6 +85,13 @@ function overlaps(allow: readonly string[], deny: readonly string[]): PolicyIssu
         issues.push({ path: formatPath(['installScripts', 'deny']), message: `"${denied}" is also covered by "${allowed}" in installScripts.allow; ${advice}` });
       } else if (wildcardMatch(a, d)) {
         issues.push({ path: formatPath(['installScripts', 'allow']), message: `"${allowed}" is also covered by "${denied}" in installScripts.deny; ${advice}` });
+      } else {
+        const common = commonName(d, a);
+        if (common === undefined) continue;
+        issues.push({
+          path: formatPath(['installScripts', 'deny']),
+          message: `"${denied}" and "${allowed}" in installScripts.allow both match names such as "${common}"; a package is either allowed or denied, so narrow one of the patterns`,
+        });
       }
     }
   }

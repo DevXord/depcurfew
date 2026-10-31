@@ -141,6 +141,8 @@ export interface UserDirectory {
   path: string;
   /** Use this directory only when it already exists (pip on macOS). */
   ifExists?: boolean;
+  /** Skip this directory while this environment variable is set and not empty (pip 26.2+ on macOS and XDG_DATA_HOME). */
+  unlessEnv?: string;
 }
 
 /** Where the user file is on some platforms: the first directory that applies is used. */
