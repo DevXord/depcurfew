@@ -1,7 +1,8 @@
 // Reads package documents from the npm registry with a time limit and a size limit. No credentials are sent, so
 // packages of private registries cannot be looked up. Redirects are followed only within the same origin: a registry
-// that sends depcurfew to another host could answer for any name, so the package is reported as not checked. Link-local
-// addresses (where cloud metadata services answer) are never asked; no registry lives there.
+// that sends depcurfew to another origin (another host, port or scheme) could answer for any name, so the package is
+// reported as not checked. Link-local addresses (where cloud metadata services answer) are never asked; no registry
+// lives there.
 import { isRecord, values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 
@@ -60,6 +61,13 @@ export async function fetchSameOrigin(url: string, init: { headers: Record<strin
     await response.body?.cancel();
     const next = new URL(location, current);
     if (next.origin !== current.origin) {
+      if (next.hostname === current.hostname) {
+        const change = next.protocol === current.protocol ? 'another port of the same host' : `the same host over ${next.protocol.slice(0, -1)} instead of ${current.protocol.slice(0, -1)}`;
+        return {
+          reason: `the ${what} redirected to ${next.origin}, ${change}, which depcurfew does not follow, as it follows redirects only within one origin`,
+          fix: `Use ${next.origin} in the ${what} URL if you trust it, so that depcurfew asks it directly`,
+        };
+      }
       return {
         reason: `the ${what} redirected to ${next.origin}, another host, which depcurfew does not follow: that host could answer for any package`,
         fix: `Set the ${what} URL to the host that serves the packages if you trust it, or check the package there yourself before installing it`,

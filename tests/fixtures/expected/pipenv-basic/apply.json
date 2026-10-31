@@ -12,7 +12,8 @@
     {
       "code": "exclude-unsupported",
       "tool": "pipenv",
-      "message": "Pipenv: no setting exempts packages from cool-down-period, so the Python packages in cooldown.exclude wait like every other package"
+      "message": "Pipenv: no setting exempts packages from cool-down-period, so the Python packages in cooldown.exclude wait like every other package",
+      "fix": "Nothing to set for Pipenv, which delays these packages too; keep them in cooldown.exclude for the other tools, or remove them if they can wait"
     },
     {
       "code": "build-switch-environment-only",

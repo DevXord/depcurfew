@@ -14,7 +14,8 @@
     {
       "code": "forced-source-build",
       "tool": "uv",
-      "message": "uv: no-binary-package lets docopt be built from source while building is forbidden for everything else; uv then always builds it from source, even where a wheel exists, because it has no setting that only allows building"
+      "message": "uv: no-binary-package lets docopt be built from source while building is forbidden for everything else; uv then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
+      "fix": "If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json"
     },
     {
       "code": "lockfile-out-of-date",

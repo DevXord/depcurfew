@@ -79,7 +79,7 @@ describe('built depcurfew executable', () => {
 
       const second = depcurfewIn(directory, 'init');
       expect(second.status).toBe(1);
-      expect(second.stderr).toContain('depcurfew.json already exists; pass --force to overwrite it.');
+      expect(second.stderr).toContain('error: depcurfew.json already exists (policy-exists)');
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

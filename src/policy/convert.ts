@@ -25,7 +25,7 @@ export interface Converted<T> {
 
 export type CooldownConversion =
   | { ok: true; tool: ToolId; unit: DelayUnit; value: number | string; exact: boolean }
-  | { ok: false; tool: ToolId; reason: string; fix?: string };
+  | { ok: false; tool: ToolId; reason: string; fix: string };
 
 /** The smallest whole number of `unit` that lasts at least `minutes`. Integer arithmetic, exact for safe integers. */
 function countIn(minutes: number, unit: TimeUnit): Converted<number> {
@@ -97,19 +97,20 @@ function maximumDays(tool: ToolKnowledge): number | undefined {
  * unit, the smallest unit wins: its larger number is long enough under every reading.
  */
 export function convertCooldown(tool: ToolKnowledge, duration: Duration): CooldownConversion {
-  const fail = (reason: string, fix?: string): CooldownConversion => ({ ok: false, tool: tool.id, reason, ...(fix === undefined ? {} : { fix }) });
+  const fail = (reason: string, fix: string): CooldownConversion => ({ ok: false, tool: tool.id, reason, fix });
+  const byHand = `Set the release-age delay in the ${tool.name} configuration by hand`;
   const units = valuesOf(tool.cooldown.unit);
-  if (units.includes(null)) return fail(`${tool.name} has no release-age setting`);
+  if (units.includes(null)) return fail(`${tool.name} has no release-age setting`, `Remove "${tool.id}" from targets in ${POLICY_FILE}, or delay its updates another way`);
 
   let unit: TimeUnit;
   let delayUnit: DelayUnit;
   if (units.includes('duration-string')) {
     if (units.some((candidate) => candidate !== 'duration-string')) {
-      return fail(`the unit of the ${tool.name} release-age setting is disputed between a number and a duration string`);
+      return fail(`the unit of the ${tool.name} release-age setting is disputed between a number and a duration string`, `${byHand}; depcurfew does not guess between the readings`);
     }
     const words = durationUnits(tool);
     if (words === undefined || words.length === 0) {
-      return fail(`the knowledge base does not list which duration units ${tool.name} accepts (extra.durationUnits)`);
+      return fail(`the knowledge base does not list which duration units ${tool.name} accepts (extra.durationUnits)`, `${byHand}, and report the gap at https://github.com/DevXord/depcurfew/issues`);
     }
     unit = pickUnit(duration.minutes, words);
     delayUnit = 'duration-string';

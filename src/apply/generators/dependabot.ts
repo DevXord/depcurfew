@@ -3,6 +3,7 @@
 // stay. Each entry gets the exclusions of its registry: npm names for npm, bun and deno, pypi: names for pip and uv.
 import { convertCooldown } from '../../policy/convert.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
+import { POLICY_FILE } from '../../policy/defaults.ts';
 import { patternsFor } from '../../policy/package-pattern.ts';
 import { extraOf, isRecord, settingOf, values } from '../facts.ts';
 import { exclusions, sameList } from './common.ts';
@@ -34,11 +35,15 @@ export const dependabot: BotGenerator = (context, duration) => {
     return;
   }
   if (policy.cooldown.securityUpdates === 'delay') {
-    context.warn({ code: 'security-delay-unsupported', message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied` });
+    context.warn({
+      code: 'security-delay-unsupported',
+      message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`,
+      fix: `Review ${context.name} security pull requests before merging them, or set cooldown.securityUpdates to "bypass" in ${POLICY_FILE}, which is what ${context.name} does`,
+    });
   }
   const result = convertCooldown(tool, duration);
   if (!result.ok) {
-    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, ...(result.fix === undefined ? {} : { fix: result.fix }) });
+    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, fix: result.fix });
     return;
   }
   const keys = extraOf(tool, 'cooldownKeys', isKeys);

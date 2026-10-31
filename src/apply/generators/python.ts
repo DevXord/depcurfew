@@ -1,10 +1,11 @@
 // Policy rules shared by the Python generators (decision D-065): installScripts "deny" forbids building
 // from source, and the packages in installScripts.allow are exceptions that the tools always build from source.
 import { parseToml, TomlDateTime, tomlValueAt, type TomlDocument } from '../../detect/toml.ts';
+import { POLICY_FILE } from '../../policy/defaults.ts';
 import { normalizePythonName } from '../../policy/python-names.ts';
 import { extraOf, isRecord, values } from '../facts.ts';
 import { listing } from '../requirements.ts';
-import { allowedNames } from './common.ts';
+import { allowedNames, dependencyFiles } from './common.ts';
 import type { Context } from './context.ts';
 
 /** The policy's Python allow-list as normalized names; patterns with * are dropped with a warning. */
@@ -19,11 +20,17 @@ export function pythonNames(names: readonly string[]): string[] {
 
 export function forcedBuildWarning(context: Context, setting: string, names: readonly string[]): void {
   if (names.length === 0) return;
+  const policyNames = names.map((name) => `pypi:${name}`);
   context.warn({
     code: 'forced-source-build',
     message: `${context.name}: ${setting} lets ${names.join(', ')} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? 'it' : 'them'} from source, even where a wheel exists, because it has no setting that only allows building`,
+    fix:
+      names.length === 1
+        ? `If ${policyNames.join('')} has a wheel and needs no build, remove it from installScripts.allow in ${POLICY_FILE}`
+        : `Remove those of ${listing(policyNames)} that have a wheel and need no build from installScripts.allow in ${POLICY_FILE}`,
   });
 }
+
 
 /** Says when the tool's switch does not stop git, local and URL dependencies from being built. */
 export function buildSwitchScopeWarning(context: Context, setting: string, covers: unknown): void {
@@ -31,7 +38,7 @@ export function buildSwitchScopeWarning(context: Context, setting: string, cover
   context.warn({
     code: 'build-switch-scope',
     message: `${context.name}: ${setting} forbids building only packages from an index; ${context.name} still builds git, local directory and source archive dependencies`,
-    fix: 'Run depcurfew doctor to find them in the lockfile',
+    fix: `Run depcurfew doctor to find them in ${dependencyFiles(context)}`,
   });
 }
 

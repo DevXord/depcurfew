@@ -12951,16 +12951,17 @@ function convertCooldown(tool, duration) {
 		ok: false,
 		tool: tool.id,
 		reason,
-		...fix === void 0 ? {} : { fix }
+		fix
 	});
+	const byHand = `Set the release-age delay in the ${tool.name} configuration by hand`;
 	const units = valuesOf(tool.cooldown.unit);
-	if (units.includes(null)) return fail(`${tool.name} has no release-age setting`);
+	if (units.includes(null)) return fail(`${tool.name} has no release-age setting`, `Remove "${tool.id}" from targets in ${POLICY_FILE}, or delay its updates another way`);
 	let unit;
 	let delayUnit;
 	if (units.includes("duration-string")) {
-		if (units.some((candidate) => candidate !== "duration-string")) return fail(`the unit of the ${tool.name} release-age setting is disputed between a number and a duration string`);
+		if (units.some((candidate) => candidate !== "duration-string")) return fail(`the unit of the ${tool.name} release-age setting is disputed between a number and a duration string`, `${byHand}; depcurfew does not guess between the readings`);
 		const words = durationUnits(tool);
-		if (words === void 0 || words.length === 0) return fail(`the knowledge base does not list which duration units ${tool.name} accepts (extra.durationUnits)`);
+		if (words === void 0 || words.length === 0) return fail(`the knowledge base does not list which duration units ${tool.name} accepts (extra.durationUnits)`, `${byHand}, and report the gap at https://github.com/DevXord/depcurfew/issues`);
 		unit = pickUnit(duration.minutes, words);
 		delayUnit = "duration-string";
 	} else {
@@ -14472,7 +14473,7 @@ function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
 		context.warn({
 			code: "cooldown-not-written",
 			message: `${context.name}: cooldown not written: ${result.reason}`,
-			...result.fix === void 0 ? {} : { fix: result.fix }
+			fix: result.fix
 		});
 		return;
 	}
@@ -14535,6 +14536,10 @@ function scriptsDefault(context) {
 		changesIn
 	};
 }
+/** Where depcurfew doctor finds a tool's dependencies: the lockfile, or pip's requirements files. */
+function dependencyFiles(context) {
+	return context.tool.extra?.["requirementsFormat"] === void 0 ? "the lockfile" : "the requirements files";
+}
 /** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
 function lockfileShowsSources(tool) {
 	const fact = tool.extra?.["lockfileFormat"];
@@ -14554,7 +14559,7 @@ function eachSource(context, apply) {
 			if (access === "deny") context.warn({
 				code: "source-not-enforceable",
 				message: `${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
-				fix: lockfileShowsSources(context.tool) ? "Run depcurfew doctor, which reports such dependencies in the lockfile" : "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
+				fix: lockfileShowsSources(context.tool) ? `Run depcurfew doctor, which reports such dependencies in ${dependencyFiles(context)}` : "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
 			});
 			continue;
 		}
@@ -15029,7 +15034,8 @@ const deno = (context) => {
 			if (allowed === allowAll.value && context.atLeast(since)) {
 				context.warn({
 					code: "allow-all-replaced",
-					message: `${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`
+					message: `${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`,
+					fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 				});
 				json.set(path, specifiers);
 			} else if (specifiers.length > 0) {
@@ -15059,14 +15065,15 @@ const dependabot = (context, duration) => {
 	}
 	if (policy.cooldown.securityUpdates === "delay") context.warn({
 		code: "security-delay-unsupported",
-		message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`
+		message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`,
+		fix: `Review ${context.name} security pull requests before merging them, or set cooldown.securityUpdates to "bypass" in ${POLICY_FILE}, which is what ${context.name} does`
 	});
 	const result = convertCooldown(tool, duration);
 	if (!result.ok) {
 		context.warn({
 			code: "cooldown-not-written",
 			message: `${context.name}: cooldown not written: ${result.reason}`,
-			...result.fix === void 0 ? {} : { fix: result.fix }
+			fix: result.fix
 		});
 		return;
 	}
@@ -15226,9 +15233,11 @@ function pythonNames(names) {
 }
 function forcedBuildWarning(context, setting, names) {
 	if (names.length === 0) return;
+	const policyNames = names.map((name) => `pypi:${name}`);
 	context.warn({
 		code: "forced-source-build",
-		message: `${context.name}: ${setting} lets ${names.join(", ")} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? "it" : "them"} from source, even where a wheel exists, because it has no setting that only allows building`
+		message: `${context.name}: ${setting} lets ${names.join(", ")} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? "it" : "them"} from source, even where a wheel exists, because it has no setting that only allows building`,
+		fix: names.length === 1 ? `If ${policyNames.join("")} has a wheel and needs no build, remove it from installScripts.allow in ${POLICY_FILE}` : `Remove those of ${listing(policyNames)} that have a wheel and need no build from installScripts.allow in ${POLICY_FILE}`
 	});
 }
 /** Says when the tool's switch does not stop git, local and URL dependencies from being built. */
@@ -15237,7 +15246,7 @@ function buildSwitchScopeWarning(context, setting, covers) {
 	context.warn({
 		code: "build-switch-scope",
 		message: `${context.name}: ${setting} forbids building only packages from an index; ${context.name} still builds git, local directory and source archive dependencies`,
-		fix: "Run depcurfew doctor to find them in the lockfile"
+		fix: `Run depcurfew doctor to find them in ${dependencyFiles(context)}`
 	});
 }
 /** A TOML string or array value. */
@@ -15508,7 +15517,8 @@ const pnpm = (context) => {
 			if (context.atLeast(allowAll.since) && yaml.get([allowAll.setting]) === allowAll.value) {
 				context.warn({
 					code: "allow-all-replaced",
-					message: `${context.name}: ${allowAll.setting} allowed every build script; set to false because the policy denies install scripts`
+					message: `${context.name}: ${allowAll.setting} allowed every build script; set to false because the policy denies install scripts`,
+					fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 				});
 				yaml.set([allowAll.setting], false);
 			}
@@ -15547,7 +15557,8 @@ const pnpm = (context) => {
 			});
 			if (denied.length < exotic.size) context.warn({
 				code: "source-switch-combined",
-				message: `pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(" and ")}`
+				message: `pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(" and ")}`,
+				fix: `pnpm cannot deny one and allow the other: give sources.git and sources.remoteTarball the same value in ${POLICY_FILE}, so that the policy says what pnpm does`
 			});
 		}
 		yaml.set([exoticSetting], denied.length > 0);
@@ -15623,7 +15634,8 @@ const pipenv = (context) => {
 		}
 		if (policy.cooldown.exclude.length > 0 && settingOf(tool.cooldown.exclude.setting) === null) context.warn({
 			code: "exclude-unsupported",
-			message: `${context.name}: no setting exempts packages from ${setting}, so the Python packages in cooldown.exclude wait like every other package`
+			message: `${context.name}: no setting exempts packages from ${setting}, so the Python packages in cooldown.exclude wait like every other package`,
+			fix: `Nothing to set for ${context.name}, which delays these packages too; keep them in cooldown.exclude for the other tools, or remove them if they can wait`
 		});
 	}
 	if (policy.installScripts?.default === "deny" && settingOf(tool.installScripts.disableAll) === null) context.warn({
@@ -15680,9 +15692,11 @@ const poetry = (context) => {
 		if (context.supports(build.since, build.setting)) {
 			installer.entries.push(`${key} = ${tomlValue(build.value)}`);
 			installer.managed.push(key);
+			const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value))[0] ?? "the lockfile";
 			context.warn({
 				code: "build-switch-install-only",
-				message: `${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies`
+				message: `${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies`,
+				fix: `Run poetry lock where a build cannot reach secrets (CI or a container), and depcurfew doctor, which lists the packages in ${lockfile} without a wheel`
 			});
 			buildSwitchScopeWarning(context, build.setting, build.covers);
 			const setting = settingOf(tool.installScripts.allowList.setting);
@@ -15713,7 +15727,7 @@ const renovate = (context, duration) => {
 		context.warn({
 			code: "cooldown-not-written",
 			message: `${context.name}: cooldown not written: ${result.reason}`,
-			...result.fix === void 0 ? {} : { fix: result.fix }
+			fix: result.fix
 		});
 		return;
 	}
@@ -16418,12 +16432,12 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	for (const manager of detection.packageManagers) if (!manager.supported && (policy.targets === "auto" || targets.has(manager.id))) {
 		const berry = tools.find((tool) => tool.id === manager.id);
 		const since = berry === void 0 ? void 0 : sinceOf(berry.cooldown.availableSince);
-		const advice = manager.variant === "classic" && berry !== void 0 ? `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures` : void 0;
+		const advice = manager.variant === "classic" && berry !== void 0 ? `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures` : `Configure ${manager.id} by hand, or move to a package manager depcurfew configures`;
 		warnings.push({
 			code: "tool-not-supported",
 			tool: manager.id,
 			message: `${manager.variant === "classic" ? "Yarn Classic (1.x)" : manager.id} is not supported; nothing written for it`,
-			...advice === void 0 ? {} : { fix: advice }
+			fix: advice
 		});
 		targets.delete(manager.id);
 	}
@@ -16432,7 +16446,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		warnings.push({
 			code: "file-unreadable",
 			...file === void 0 ? {} : { location: { file } },
-			message: `${warning.message}; depcurfew cannot tell which tools it configures`,
+			message: `${warning.message.replace(/:$/u, "")}; depcurfew cannot tell which tools it configures`,
 			fix: `Fix the syntax error${file === void 0 ? "" : ` in ${file}`}, then run depcurfew apply again`
 		});
 	}

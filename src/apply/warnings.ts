@@ -42,10 +42,11 @@ export const APPLY_WARNINGS = {
 
 export const APPLY_ERRORS = {
   'cannot-edit': 'A file cannot be read or edited safely (invalid syntax, a symlink, a style depcurfew does not edit), so nothing is written.',
-  'cannot-write': 'A file cannot be written (no permission, a read-only file system, a full disk); the files already written are put back, so nothing changes.',
+  'cannot-write': 'A file cannot be written (no permission, a read-only file system, a full disk, a directory or symlink in its place); the files already written are put back, so nothing changes.',
   'policy-missing': 'The directory has no depcurfew.json.',
   'policy-invalid': 'depcurfew.json does not follow the schema; issues lists the problems.',
   'policy-unreadable': 'depcurfew.json cannot be read.',
+  'policy-exists': 'depcurfew init found a depcurfew.json and writes it only with --force.',
   'directory-not-found': 'The directory given on the command line does not exist or cannot be opened.',
   'not-a-directory': 'The path given on the command line is a file, not a directory.',
 } as const satisfies Record<string, string>;

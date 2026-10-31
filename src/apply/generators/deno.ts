@@ -1,4 +1,5 @@
 // Deno: minimumDependencyAge (a number, or { age, exclude } with npm: specifiers) and allowScripts in deno.json.
+import { POLICY_FILE } from '../../policy/defaults.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { allowedNames, cooldownValue, eachSource, exclusions } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
@@ -47,7 +48,11 @@ export const deno: ManagerGenerator = (context) => {
       const path = isRecord(current) ? [setting, 'allow'] : [setting];
       const allowed = isRecord(current) ? current['allow'] : current;
       if (allowed === allowAll.value && context.atLeast(since)) {
-        context.warn({ code: 'allow-all-replaced', message: `${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list` });
+        context.warn({
+          code: 'allow-all-replaced',
+          message: `${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`,
+          fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`,
+        });
         json.set(path, specifiers);
       } else if (specifiers.length > 0) {
         if (Array.isArray(allowed)) {
