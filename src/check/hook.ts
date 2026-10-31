@@ -1,10 +1,11 @@
-// `depcurfew check --hook claude-code`: a Claude Code PreToolUse hook for the Bash and PowerShell tools. It reads the event from stdin,
+// `depcurfew check --hook claude-code`: a Claude Code PreToolUse hook for the tools that run shell commands (Bash,
+// PowerShell, Monitor). It reads the event from stdin,
 // finds the packages the command would install or run, checks them and answers with a decision: deny when a package
 // breaks the policy, ask when depcurfew cannot tell (an unreadable command, a look-alike name, a registry it cannot
 // reach), and nothing when everything checks out, which leaves the call to Claude Code's normal permission flow.
 import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
-import type { ClaudeCodeHooksKnowledge } from '../knowledge/types.ts';
+import type { ClaudeCodeHooksKnowledge, ClaudeCodeShellTool } from '../knowledge/types.ts';
 import { scanCommandLine, TOO_MANY, unreadableFix, type ScanOptions } from './command.ts';
 import type { CheckFinding, CheckRequest, FindingCode, PackageReport } from './findings.ts';
 
@@ -16,7 +17,7 @@ export type HookDecision = { decision: 'deny' | 'ask'; reason: string } | { deci
 export interface HookEvent {
   command: string;
   cwd: string | undefined;
-  /** The shell of the tool: a POSIX shell for Bash (Git Bash on Windows), PowerShell for the PowerShell tool. */
+  /** The shell of the tool: a POSIX shell for Bash and Monitor (Git Bash on Windows), PowerShell for the PowerShell tool. */
   shell: NonNullable<ScanOptions['shell']>;
 }
 
@@ -24,6 +25,11 @@ function facts(): ClaudeCodeHooksKnowledge {
   const fact = values(environment.claudeCode.hooks)[0];
   if (fact === undefined) throw new Error('the knowledge base has no Claude Code hooks fact');
   return fact;
+}
+
+/** The tools whose events carry a shell command. */
+export function shellTools(): readonly ClaudeCodeShellTool[] {
+  return values(environment.claudeCode.shellTools)[0] ?? [];
 }
 
 function field(object: unknown, path: string): unknown {
@@ -37,13 +43,16 @@ export function blockingExitCode(): number {
   return facts().blockingExitCode;
 }
 
-/** The shell command of a PreToolUse event for the Bash or the PowerShell tool; undefined for any other event or tool. */
+/**
+ * The shell command of a PreToolUse event for a tool that runs one; undefined for any other event or tool, and for an
+ * event without a command (a Monitor watch of a WebSocket).
+ */
 export function readHookEvent(input: string): HookEvent | undefined {
   const hooks = facts();
   const event = JSON.parse(input) as unknown;
-  const tool = field(event, hooks.input.tool);
-  const shell = tool === hooks.shellTools.bash ? 'posix' : tool === hooks.shellTools.powerShell ? 'powershell' : undefined;
-  if (field(event, hooks.input.event) !== hooks.event || shell === undefined) return undefined;
+  const tool = shellTools().find((entry) => entry.tool === field(event, hooks.input.tool));
+  if (field(event, hooks.input.event) !== hooks.event || tool === undefined) return undefined;
+  const shell = tool.shell === 'powershell' ? 'powershell' : 'posix';
   const command = field(event, hooks.input.command);
   const cwd = field(event, hooks.input.cwd);
   return typeof command === 'string' ? { command, cwd: typeof cwd === 'string' ? cwd : undefined, shell } : undefined;

@@ -408,7 +408,7 @@ Git repositories, tarball URLs and local paths are checked against the `sources`
 
 ### Claude Code
 
-`depcurfew check --hook claude-code` runs as a Claude Code hook before every command of the Bash and PowerShell tools. It finds the packages the command would install or download to run, checks them and answers:
+`depcurfew check --hook claude-code` runs as a Claude Code hook before every command of the tools that run shell commands: Bash, PowerShell and Monitor. It finds the packages the command would install or download to run, checks them and answers:
 
 - **deny** when a package breaks the policy (Claude sees the reason and can pick another package or version);
 - **ask** when depcurfew cannot vouch for the command: a look-alike name, a registry it cannot reach, an error of its own, or a command it cannot read, such as one with `$(...)` or variables in its arguments, or a shell that runs commands from a pipe (`curl … | sh`);
@@ -428,7 +428,7 @@ In `.claude/settings.json` of the project:
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|PowerShell",
+        "matcher": "Bash|PowerShell|Monitor",
         "hooks": [
           {
             "type": "command",
@@ -448,7 +448,7 @@ In `.claude/settings.json` of the project:
 }
 ```
 
-The matcher `Bash|PowerShell` covers both shell tools: on Windows, PowerShell is the main shell wherever the PowerShell tool is on, and without Git Bash there is no Bash tool, so a hook on `Bash` alone never runs there. `command` is `node` itself, which also starts on Windows, where Claude Code runs it without a shell.
+The matcher `Bash|PowerShell|Monitor` covers every tool that runs shell commands. On Windows, PowerShell is the main shell wherever the PowerShell tool is on, and without Git Bash there is no Bash tool, so a hook on `Bash` alone never runs there; Monitor runs a command in the background. `command` is `node` itself, which also starts on Windows, where Claude Code runs it without a shell.
 
 `onFailure: "block"` needs Claude Code 2.1.295 or later; without it, a hook that fails to start, crashes or times out lets the command through.
 

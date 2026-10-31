@@ -475,11 +475,6 @@ export interface ClaudeCodeHooksKnowledge {
   /** Project settings file that can be committed. */
   settingsFile: string;
   event: string;
-  /**
-   * The tools that run shell commands, by the names a matcher and the event use: the Bash tool and the PowerShell tool,
-   * whose events carry the command in the same field. On Windows the PowerShell tool may be the only shell tool.
-   */
-  shellTools: { bash: string; powerShell: string };
   /** Separates the tool names of a matcher that lists several, each matched exactly. */
   matcherSeparator: string;
   /** Fields of the JSON a command hook reads on stdin. */
@@ -495,6 +490,12 @@ export interface ClaudeCodeHooksKnowledge {
   projectDir: string;
   /** Keys of a settings file: the hooks map, a matcher group and a command handler run without a shell. */
   settings: { hooks: string; matcher: string; handlers: string; type: string; commandType: string; command: string; args: string };
+}
+
+/** A Claude Code tool that runs shell commands, by the name a matcher and the event use, and the shell it runs them in. */
+export interface ClaudeCodeShellTool {
+  tool: string;
+  shell: 'bash' | 'powershell';
 }
 
 /**
@@ -599,6 +600,8 @@ export interface EnvironmentKnowledge {
   };
   claudeCode: {
     hooks: Fact<ClaudeCodeHooksKnowledge>;
+    /** The tools whose PreToolUse events carry a shell command in the hooks fact's input.command. */
+    shellTools: Fact<readonly ClaudeCodeShellTool[]>;
   };
   git: {
     /** Where git reads the patterns of files it does not pick up, and the index that lists the tracked files. */

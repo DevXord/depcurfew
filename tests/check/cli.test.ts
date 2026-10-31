@@ -212,6 +212,14 @@ describe('depcurfew check --hook claude-code', () => {
     expect(result).toEqual({ code: EXIT_OK, stdout: '', stderr: '' });
   });
 
+  it('reads the commands of the Monitor tool, and lets a WebSocket watch through', async () => {
+    const directory = project({ cooldown: { minimum: '3d' } });
+    const denied = await exec(['check', '--hook', 'claude-code'], event('npm i this-package-does-not-exist-xyz-123 && tail -f log', directory, 'Monitor'));
+    expect(decision(denied.stdout)).toMatchObject({ permissionDecision: 'deny' });
+    const socket = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Monitor', tool_input: { ws: { url: 'wss://example.com/feed' } }, cwd: directory });
+    expect(await exec(['check', '--hook', 'claude-code'], socket)).toEqual({ code: EXIT_OK, stdout: '', stderr: '' });
+  });
+
   it('reads the commands of the PowerShell tool, the main shell on Windows', async () => {
     const directory = project({ cooldown: { minimum: '3d' } });
     const hook = (command: string) => exec(['check', '--hook', 'claude-code'], event(command, directory, 'PowerShell'));

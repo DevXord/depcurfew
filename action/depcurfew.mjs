@@ -7083,47 +7083,59 @@ const environment = {
 			warned: ["archived", "deprecated"]
 		}, `${SPECIFICATIONS}/project-status-markers.rst`, "A project has exactly one status, active when none is given. quarantined: considered generally unsafe (for example malware), and the index must not offer any of its files. archived: no new uploads, existing files stay; installers may warn. deprecated: obsolete, perhaps superseded by another project; installers may warn.")
 	},
-	claudeCode: { hooks: windows.verified({
-		settingsFile: ".claude/settings.json",
-		event: "PreToolUse",
-		shellTools: {
-			bash: "Bash",
-			powerShell: "PowerShell"
-		},
-		matcherSeparator: "|",
-		input: {
-			event: "hook_event_name",
-			tool: "tool_name",
-			command: "tool_input.command",
-			cwd: "cwd"
-		},
-		output: {
-			container: "hookSpecificOutput",
-			event: "hookEventName",
-			decision: "permissionDecision",
-			reason: "permissionDecisionReason"
-		},
-		decisions: {
-			deny: "deny",
-			ask: "ask"
-		},
-		blockingExitCode: 2,
-		onFailure: {
-			field: "onFailure",
-			value: "block",
-			since: "2.1.295"
-		},
-		projectDir: "${CLAUDE_PROJECT_DIR}",
-		settings: {
-			hooks: "hooks",
-			matcher: "matcher",
-			handlers: "hooks",
-			type: "type",
-			commandType: "command",
-			command: "command",
-			args: "args"
-		}
-	}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. Hooks that inspect shell commands should match Bash|PowerShell (names separated by | are each matched exactly): on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash the PowerShell tool is enabled automatically and the Bash tool is not registered at all, so a hook that matches only Bash never fires there (the PowerShell tool section of https://code.claude.com/docs/en/tools-reference says the same; on Windows with Git Bash the tool is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1). With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.") },
+	claudeCode: {
+		hooks: windows.verified({
+			settingsFile: ".claude/settings.json",
+			event: "PreToolUse",
+			matcherSeparator: "|",
+			input: {
+				event: "hook_event_name",
+				tool: "tool_name",
+				command: "tool_input.command",
+				cwd: "cwd"
+			},
+			output: {
+				container: "hookSpecificOutput",
+				event: "hookEventName",
+				decision: "permissionDecision",
+				reason: "permissionDecisionReason"
+			},
+			decisions: {
+				deny: "deny",
+				ask: "ask"
+			},
+			blockingExitCode: 2,
+			onFailure: {
+				field: "onFailure",
+				value: "block",
+				since: "2.1.295"
+			},
+			projectDir: "${CLAUDE_PROJECT_DIR}",
+			settings: {
+				hooks: "hooks",
+				matcher: "matcher",
+				handlers: "hooks",
+				type: "type",
+				commandType: "command",
+				command: "command",
+				args: "args"
+			}
+		}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. A matcher of names separated by | matches each of them exactly. With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules."),
+		shellTools: windows.verified([
+			{
+				tool: "Bash",
+				shell: "bash"
+			},
+			{
+				tool: "PowerShell",
+				shell: "powershell"
+			},
+			{
+				tool: "Monitor",
+				shell: "bash"
+			}
+		], "https://code.claude.com/docs/en/tools-reference", "Tool names are the exact strings of hook matchers. Bash executes shell commands. PowerShell executes PowerShell commands natively; hooks get its command in tool_input.command with the same fields as Bash, and the docs say to match Bash|PowerShell in hooks that inspect shell commands: on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash it is enabled automatically and the Bash tool is not registered at all (also https://code.claude.com/docs/en/hooks#powershell). On Windows with Git Bash it is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1. Monitor runs a command in the background and feeds its output lines back to Claude, with the same permission rules as Bash; on Windows it is available only with Git Bash; a WebSocket watch takes a ws input in place of command.")
+	},
 	git: {
 		ignore: gitFacts.verified({
 			file: ".gitignore",
