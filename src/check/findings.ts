@@ -74,6 +74,11 @@ export interface CheckOptions {
   popularPython?: PopularNames;
   /** npm: the dist-tag npm prefers when a request names none (tag in .npmrc); the registry's default when left out. */
   defaultTag?: string;
+  /**
+   * Whether a finding about install scripts quotes them (the default) or names them only, for the hook: their body is
+   * written by the package's publisher and should not reach the model as part of depcurfew's reason.
+   */
+  scriptBodies?: boolean;
 }
 
 /** This machine (a local registry such as Verdaccio): plain HTTP to it does not leave the machine. */

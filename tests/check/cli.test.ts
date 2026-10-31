@@ -158,7 +158,7 @@ describe('depcurfew check --hook claude-code', () => {
       hookEventName: 'PreToolUse',
       permissionDecision: 'deny',
       permissionDecisionReason:
-        "depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n- esbuild: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depcurfew.json does not allow\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.",
+        "depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n- esbuild: esbuild@0.28.2 runs install scripts (postinstall) that depcurfew.json does not allow\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.",
     });
   });
 

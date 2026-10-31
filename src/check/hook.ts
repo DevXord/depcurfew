@@ -5,6 +5,7 @@
 // reach), and nothing when everything checks out, which leaves the call to Claude Code's normal permission flow.
 import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
+import { printable, withoutCredentials } from '../printable.ts';
 import type { ClaudeCodeHooksKnowledge, ClaudeCodeShellTool } from '../knowledge/types.ts';
 import { scanCommandLine, TOO_MANY, unreadableFix, type ScanOptions } from './command.ts';
 import type { CheckFinding, CheckRequest, FindingCode, PackageReport } from './findings.ts';
@@ -58,6 +59,28 @@ export function readHookEvent(input: string): HookEvent | undefined {
   return typeof command === 'string' ? { command, cwd: typeof cwd === 'string' ? cwd : undefined, shell } : undefined;
 }
 
+/** The most characters of one finding, command or note in a reason, and of the whole reason. */
+const PART_LIMIT = 400;
+const REASON_LIMIT = 4000;
+const CUT = '\n(cut short)';
+
+/**
+ * Text for a reason from a registry, a repository or the command: the model reads a deny reason and the user sees an
+ * ask reason in the permission prompt, so control and bidirectional characters are shown as visible text (a line
+ * break cannot start a line that looks like depcurfew's own), credentials in URLs are left out, and it is cut short.
+ */
+export function reasonText(text: string): string {
+  const shown = printable(withoutCredentials(text));
+  return shown.length > PART_LIMIT ? `${shown.slice(0, PART_LIMIT - 1)}…` : shown;
+}
+
+/** A whole reason of at most REASON_LIMIT characters: the lines between `head` and `tail` are cut short, never what to do. */
+function limited(head: string, lines: readonly string[], tail = ''): string {
+  const body = lines.join('\n');
+  const room = REASON_LIMIT - head.length - tail.length;
+  return `${head}${body.length > room ? `${body.slice(0, room - CUT.length)}${CUT}` : body}${tail}`;
+}
+
 /** The spec as the agent wrote it, with what the command changes about the version or the build. */
 function label(report: PackageReport): string {
   const notes = [
@@ -73,24 +96,30 @@ function label(report: PackageReport): string {
  * reason says to ask them.
  */
 function line(report: PackageReport, finding: CheckFinding): string {
-  return `- ${label(report)}: ${finding.message}${finding.fix.includes('depcurfew.json') ? '' : `. Fix: ${finding.fix}`}`;
+  return `- ${reasonText(label(report))}: ${reasonText(finding.message)}${finding.fix.includes('depcurfew.json') ? '' : `. Fix: ${reasonText(finding.fix)}`}`;
 }
 
 /** The decision for the checked packages of one command; `notes` (such as the registry that was asked) end the reason. */
 export function decide(reports: readonly PackageReport[], unreadable: string | undefined, notes: readonly string[] = []): HookDecision {
   const errors = reports.flatMap((report) => report.findings.filter((finding) => finding.level === 'error').map((finding) => ({ report, finding })));
   const denied = errors.filter(({ finding }) => DENY.has(finding.code));
+  const shownNotes = notes.map(reasonText);
   if (denied.length > 0) {
+    const advice = '\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.';
     return {
       decision: 'deny',
-      reason: `depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n${denied.map(({ report, finding }) => line(report, finding)).join('\n')}\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.${notes.map((note) => `\n${note}`).join('')}`,
+      reason: limited(
+        "depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n",
+        denied.map(({ report, finding }) => line(report, finding)),
+        `${advice}${shownNotes.map((note) => `\n${note}`).join('')}`,
+      ),
     };
   }
   const doubts = [
-    ...(unreadable === undefined ? [] : [`- ${unreadable}. Fix: ${unreadableFix(unreadable)}`]),
+    ...(unreadable === undefined ? [] : [`- ${reasonText(unreadable)}. Fix: ${unreadableFix(unreadable)}`]),
     ...errors.map(({ report, finding }) => line(report, finding)),
   ];
-  if (doubts.length > 0) return { decision: 'ask', reason: `depcurfew cannot vouch for what this command installs:\n${[...doubts, ...notes].join('\n')}` };
+  if (doubts.length > 0) return { decision: 'ask', reason: limited('depcurfew cannot vouch for what this command installs:\n', [...doubts, ...shownNotes]) };
   return { decision: 'none' };
 }
 
