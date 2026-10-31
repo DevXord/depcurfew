@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      checks: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,6 +51,7 @@ jobs:
           directory: tests/fixtures/doctor/bot-cooldown-mismatch/passes-consistent/repo
           sarif-file: reports/clean.sarif
           category: depcurfew-fixture-clean
+          check-run: 'false'
       - name: No findings
         env:
           ERRORS: ${{ steps.depcurfew.outputs.errors }}
@@ -74,6 +76,7 @@ jobs:
         with:
           directory: tests/fixtures/doctor/bot-cooldown-mismatch/fires-dependabot-shorter/repo
           upload-sarif: 'false'
+          check-run: 'false'
       - name: The step failed with one error and repository-relative paths
         env:
           OUTCOME: ${{ steps.depcurfew.outcome }}
@@ -101,6 +104,7 @@ jobs:
         with:
           directory: tests/fixtures/doctor/bot-cooldown-mismatch/passes-consistent/repo
           upload-sarif: 'false'
+          check-run: 'false'
       - name: The action ran
         env:
           ERRORS: ${{ steps.depcurfew.outputs.errors }}

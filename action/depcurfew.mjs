@@ -4418,6 +4418,23 @@ const environment = {
 			perLevelPerStep: 10,
 			perJob: 50
 		}, "https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations", "10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown."),
+		checkRuns: audited.verified({
+			endpoint: "/repos/{repository}/check-runs",
+			apiVersion: "2022-11-28",
+			permission: { checks: "write" },
+			summaryMaxLength: 65535,
+			variables: {
+				apiUrl: "GITHUB_API_URL",
+				repository: "GITHUB_REPOSITORY",
+				sha: "GITHUB_SHA",
+				eventPath: "GITHUB_EVENT_PATH"
+			},
+			pullRequestHeadSha: [
+				"pull_request",
+				"head",
+				"sha"
+			]
+		}, "https://docs.github.com/en/rest/checks/runs#create-a-check-run", "Read from the sources of this page, the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json) and github/docs. POST /repos/{owner}/{repo}/check-runs (\"Create a check run\") needs name and head_sha; status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write \"permits an action to create a check run\" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the \"Last merge commit on the GITHUB_REF branch\" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH)."),
 		stepSummary: checked$2.verified({
 			variable: "GITHUB_STEP_SUMMARY",
 			maxBytes: 1048576
@@ -19585,6 +19602,73 @@ function loadPolicyIfPresent(root) {
 	return result.policy;
 }
 
+// src/action-check-run.ts
+const CHECK_RUN_NAME = "depcurfew doctor";
+/** The name of the check: with the directory when it is not the workspace root. */
+function checkRunName(directory) {
+	return directory === "" ? CHECK_RUN_NAME : `${CHECK_RUN_NAME} (${directory})`;
+}
+/** The commit the check belongs to: the head of a pull request (GITHUB_SHA is the merge commit there), else GITHUB_SHA. */
+function checkRunSha(env, facts) {
+	const eventPath = env[facts.variables.eventPath];
+	if (eventPath !== void 0 && eventPath !== "") try {
+		let value = JSON.parse(readFileSync(eventPath, "utf8"));
+		for (const key of facts.pullRequestHeadSha) value = typeof value === "object" && value !== null ? value[key] : void 0;
+		if (typeof value === "string" && /^[0-9a-f]{40,64}$/u.test(value)) return value;
+	} catch {}
+	const sha = env[facts.variables.sha];
+	return sha !== void 0 && /^[0-9a-f]{40,64}$/u.test(sha) ? sha : void 0;
+}
+/** A summary within the API limit, cut at a line with a note when longer. */
+function fitSummary(markdown, limit) {
+	if (markdown.length <= limit) return markdown;
+	const note = "\n\nThe rest did not fit; the job log and the job summary have everything.\n";
+	const cut = markdown.slice(0, limit - 73);
+	return `${cut.slice(0, Math.max(0, cut.lastIndexOf("\n")))}${note}`;
+}
+/**
+* Creates the check run; returns a line for the log. The token goes only to the API URL the runner sets, in a header,
+* and is never printed.
+*/
+async function createCheckRun(env, token, content, fetchImpl) {
+	const facts = values$1(environment.githubActions.checkRuns)[0];
+	if (facts === void 0) return "depcurfew: the depcurfew doctor check was not added: depcurfew knows no check run API\n";
+	const apiUrl = env[facts.variables.apiUrl];
+	const repository = env[facts.variables.repository];
+	const sha = checkRunSha(env, facts);
+	if (apiUrl === void 0 || !/^https:\/\//u.test(apiUrl) || repository === void 0 || !/^[\w.-]+\/[\w.-]+$/u.test(repository) || sha === void 0) return `depcurfew: the depcurfew doctor check was not added: ${facts.variables.apiUrl}, ${facts.variables.repository} or the commit is not set, as outside GitHub Actions\n`;
+	const permission = Object.entries(facts.permission).map(([name, level]) => `${name}: ${level}`).join(", ");
+	let response;
+	try {
+		response = await fetchImpl(`${apiUrl.replace(/\/+$/u, "")}${facts.endpoint.replace("{repository}", repository)}`, {
+			method: "POST",
+			headers: {
+				accept: "application/vnd.github+json",
+				authorization: `Bearer ${token}`,
+				"content-type": "application/json",
+				"user-agent": "depcurfew",
+				"x-github-api-version": facts.apiVersion
+			},
+			body: JSON.stringify({
+				name: content.name,
+				head_sha: sha,
+				status: "completed",
+				conclusion: content.conclusion,
+				output: {
+					title: content.title,
+					summary: fitSummary(content.summary, facts.summaryMaxLength)
+				}
+			}),
+			signal: AbortSignal.timeout(15e3)
+		});
+	} catch (error) {
+		return `depcurfew: the depcurfew doctor check was not added: the GitHub API did not answer (${error instanceof Error ? error.message : String(error)})\n`;
+	}
+	if (response.status === 201) return `depcurfew: added the check "${content.name}" with the result to the commit ${sha.slice(0, 12)}\n`;
+	if (response.status === 403 || response.status === 404) return `depcurfew: the depcurfew doctor check was not added: the workflow token may not create checks (HTTP ${response.status}). Add "${permission}" to the permissions of the job, or set the input check-run to false. A pull request from a fork gets a read-only token.\n`;
+	return `depcurfew: the depcurfew doctor check was not added: the GitHub API answered HTTP ${response.status}\n`;
+}
+
 // src/color.ts
 const CODES = {
 	red: [31, 39],
@@ -22102,10 +22186,18 @@ function runAction(env, io) {
 		failure: ""
 	};
 	const summary = enabled(env, "job-summary");
+	const checkRun = enabled(env, "check-run") ? io.checkRun : void 0;
+	const failedCheck = (message, directory) => checkRun?.({
+		name: checkRunName(directory),
+		title: "depcurfew could not check the repository",
+		summary: failureSummary(message),
+		conclusion: "failure"
+	});
 	const fail = (message) => {
 		outputs.failure = message;
 		io.log(untrusted(`depcurfew: ${printable(message)}\n`));
 		if (summary) io.summary(failureSummary(message));
+		failedCheck(message, "");
 		return outputs;
 	};
 	const directory = scannedDirectory(workspace, input(env, "directory", "."));
@@ -22119,6 +22211,7 @@ function runAction(env, io) {
 		outputs.failure = [error.message, ...error.issues].join("; ");
 		io.log(untrusted(`depcurfew: ${printable(error.text)}\n${error.issues.map((issue) => `  ${printable(issue)}\n`).join("")}`));
 		if (summary) io.summary(failureSummary(outputs.failure));
+		failedCheck(outputs.failure, prefix);
 		return outputs;
 	}
 	io.log(untrusted(renderText(report, RULES)));
@@ -22137,6 +22230,15 @@ function runAction(env, io) {
 		if (annotations.omitted > 0) io.log(`GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? "finding is" : "findings are"} in the report above.\n`);
 	}
 	if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
+	if (checkRun !== void 0) {
+		const failOnError = enabled(env, "fail-on-error");
+		checkRun({
+			name: checkRunName(prefix),
+			title: checkRunTitle(moved),
+			summary: jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER),
+			conclusion: counts.error > 0 ? failOnError ? "failure" : "neutral" : counts.warning > 0 ? "neutral" : "success"
+		});
+	}
 	const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
 	const shownSarif = isInside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join("/") : sarifFile;
 	const sarifFailure = (reason) => {
@@ -22163,6 +22265,16 @@ function runAction(env, io) {
 		"sarif-file": shownSarif
 	};
 }
+/** The title of the check run: the result and the count of checks, e.g. "No problems found (13 checks: 13 passed)". */
+function checkRunTitle(report) {
+	const counts = countLevels(report.findings);
+	const result = report.findings.length === 0 ? "No problems found" : [
+		"error",
+		"warning",
+		"note"
+	].filter((level) => counts[level] > 0).map((level) => `${counts[level]} ${counts[level] === 1 ? level : `${level}s`}`).join(", ");
+	return report.checked === void 0 ? result : `${result} (${resultCounts(report.checked.rules)})`;
+}
 /**
 * Writes step outputs in the format of the GITHUB_OUTPUT file, each on one line. action.yml prints the failure output
 * in the log, so its other control characters are shown as text too.
@@ -22170,25 +22282,31 @@ function runAction(env, io) {
 function formatOutputs(outputs) {
 	return Object.entries(outputs).map(([name, value]) => `${name}=${printable(String(value).replaceAll(/[\r\n]+/gu, " "))}\n`).join("");
 }
-function main(env = process.env) {
+async function main(env = process.env, fetchImpl = (url, init) => fetch(url, init)) {
 	const summaryVariable = values$1(environment.githubActions.stepSummary)[0]?.variable;
 	const summaryFile = summaryVariable === void 0 ? void 0 : env[summaryVariable];
+	let checkRun;
 	const outputs = runAction(env, {
 		log: (text) => process.stdout.write(text),
 		summary: (markdown) => {
 			if (summaryFile !== void 0 && summaryFile !== "") appendFileSync(summaryFile, markdown);
+		},
+		checkRun: (content) => {
+			checkRun = content;
 		}
 	});
 	const file = env["GITHUB_OUTPUT"];
 	if (file !== void 0 && file !== "") appendFileSync(file, formatOutputs(outputs));
+	if (checkRun !== void 0) {
+		const token = input(env, "github-token", "");
+		process.stdout.write(token === "" ? "depcurfew: the depcurfew doctor check was not added: the input github-token is empty\n" : await createCheckRun(env, token, checkRun, fetchImpl));
+	}
 }
 
 // src/action-main.ts
-try {
-	main();
-} catch (error) {
+main().catch((error) => {
 	process.stderr.write(`depcurfew: unexpected error: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
 	process.exitCode = 1;
-}
+});
 
 export {  };

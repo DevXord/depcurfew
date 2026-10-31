@@ -638,6 +638,21 @@ export interface AnnotationLimitsKnowledge {
 }
 
 /** The Markdown job summary of a step: the environment variable naming its file and its size limit. */
+/** Creating a check run with the workflow token, so that the result shows in the pull request's Checks tab. */
+export interface CheckRunsKnowledge {
+  /** POST endpoint, with {repository} as owner/name. */
+  endpoint: string;
+  apiVersion: string;
+  /** The workflow permission the token needs. */
+  permission: Record<string, string>;
+  /** Limit of output.summary, in characters. */
+  summaryMaxLength: number;
+  /** Variables the runner sets: API URL, owner/name, commit and the event payload file. */
+  variables: { apiUrl: string; repository: string; sha: string; eventPath: string };
+  /** Path in the event payload of the commit a pull request check belongs to (GITHUB_SHA is the merge commit there). */
+  pullRequestHeadSha: readonly string[];
+}
+
 export interface StepSummaryKnowledge {
   variable: string;
   maxBytes: number;
@@ -709,6 +724,7 @@ export interface EnvironmentKnowledge {
     annotations: Fact<AnnotationsKnowledge>;
     annotationLimits: Fact<AnnotationLimitsKnowledge>;
     stepSummary: Fact<StepSummaryKnowledge>;
+    checkRuns: Fact<CheckRunsKnowledge>;
   };
   npmRegistry: {
     api: Fact<NpmRegistryKnowledge>;

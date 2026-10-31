@@ -179,6 +179,8 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
     '    timeout-minutes: 15',
     '    permissions:',
     ...permissions(upload.permissions.always, '      '),
+    '      # The depcurfew doctor check with the result in the Checks tab:',
+    '      checks: write',
     '      # Only needed in private repositories:',
     ...permissions(upload.permissions.privateRepositories, '      '),
     '    steps:',

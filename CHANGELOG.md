@@ -42,6 +42,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 - `doctor` and `doctor --user` say below the result what they checked: the package managers and bots found, with the version they checked against, the files read, and every check in plain words with its result (passed, the problems it found, or skipped because it needs a policy that is missing). `--json` has the same in the new `checked` field.
 - The GitHub Action prints the same in the log, adds a "What was checked" table to the job summary and, when there is nothing to report, a notice with the list of checks, so a clean run no longer looks like one that did nothing.
+- The GitHub Action adds the check "depcurfew doctor" to the commit, shown next to the code scanning entry in the Checks tab of a pull request, with the result as its title ("No problems found (13 checks: 13 passed)") and the table of checks and findings. It needs `checks: write` in the job's permissions; without it, or with `check-run: false`, the step only says so in the log. On a pull request it goes on the head commit.
 
 ### Safety of output and files
 

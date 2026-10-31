@@ -27,6 +27,12 @@ inputs:
   job-summary:
     description: Add a table of the findings, each with how to fix it, and what was checked (tools, files read, every check with its result) to the job summary.
     default: 'true'
+  check-run:
+    description: Add a check named "depcurfew doctor" to the commit, with the result and every check, shown next to the code scanning entry in the Checks tab of a pull request. The job needs the checks write permission; without it the step only says so in the log.
+    default: 'true'
+  github-token:
+    description: Token for the depcurfew doctor check; the workflow token by default.
+    default: ${{ github.token }}
 
 outputs:
   errors:
@@ -67,6 +73,9 @@ runs:
         INPUT_SARIF_FILE: ${{ inputs.sarif-file }}
         INPUT_ANNOTATIONS: ${{ inputs.annotations }}
         INPUT_JOB_SUMMARY: ${{ inputs.job-summary }}
+        INPUT_CHECK_RUN: ${{ inputs.check-run }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
       run: node "$GITHUB_ACTION_PATH/action/depcurfew.mjs"
 
     - name: Upload SARIF to code scanning

@@ -427,7 +427,7 @@ Fix: Fix what the message describes: invalid syntax, missing read permission, a 
 
 ## GitHub Action
 
-The action runs `depcurfew doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error. The log and the job summary also say what was checked: the tools found, the files read and every check with its result (passed, the problems it found, or skipped because it needs `depcurfew.json`). A clean run adds a notice with the same list ("No problems found in 7 files for npm 11.21.1 (package.json). 13 checks: 13 passed."), so it is not mistaken for one that did nothing. Code scanning lists only alerts, so it stays empty when there is nothing to report. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
+The action runs `depcurfew doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error. The log and the job summary also say what was checked: the tools found, the files read and every check with its result (passed, the problems it found, or skipped because it needs `depcurfew.json`). A clean run adds a notice with the same list ("No problems found in 7 files for npm 11.21.1 (package.json). 13 checks: 13 passed."), so it is not mistaken for one that did nothing. Code scanning lists only alerts, so its entry stays empty when there is nothing to report; next to it, in the Checks tab of a pull request, the action adds the check "depcurfew doctor" with the result and the table of checks (it needs `checks: write`, which the example below grants; without it the step only says so in the log). It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
 
 Pin it to a full commit SHA, like every action in your workflows; the example pins the commit of the latest release, and the comment names its tag. If the repository cannot use code scanning, set `upload-sarif: false`; the findings stay in the job log.
 
@@ -445,6 +445,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       security-events: write
+      # The depcurfew doctor check with the result in the Checks tab:
+      checks: write
       # Only needed in private repositories:
       actions: read
       contents: read
@@ -466,6 +468,8 @@ jobs:
 | `fail-on-error` | `true` | Fail the step when doctor reports an error. |
 | `annotations` | `true` | Show the findings as annotations on the files, each with how to fix it, or one notice when there are none, which lists every check and its result. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them. |
 | `job-summary` | `true` | Add a table of the findings, each with how to fix it, and what was checked (tools, files read, every check with its result) to the job summary. |
+| `check-run` | `true` | Add a check named "depcurfew doctor" to the commit, with the result and every check, shown next to the code scanning entry in the Checks tab of a pull request. The job needs the checks write permission; without it the step only says so in the log. |
+| `github-token` | `${{ github.token }}` | Token for the depcurfew doctor check; the workflow token by default. |
 
 | Output | Description |
 | --- | --- |
@@ -582,7 +586,7 @@ The hook reads commands the way a shell splits them, but it is a safety net, not
 
 ## Network and privacy
 
-Only `check` and the Claude Code hook use the network. For each package they request one URL with the package name in it: from the public npm registry (`registry.npmjs.org`) or PyPI (`pypi.org`), or from the registry that the project's or your `.npmrc` sets, `--registry` or `--index`. They send no credentials (tokens in `.npmrc` are not read, and a user name and password written into a registry URL are removed before the request and in every message) and nothing else about the project, and depcurfew has no telemetry. A private package whose scope has no registry in `.npmrc` is looked up in the public registry, so its name reaches that registry; set `@scope:registry` in `.npmrc` or pass `--registry` first. `init`, `explain`, `apply` and `doctor` work without network access, and so does the doctor step of the GitHub Action (the SARIF upload to code scanning is a separate step that runs GitHub's own action). An editor that reads the `$schema` of `depcurfew.json` may download the schema from unpkg.com.
+Only `check` and the Claude Code hook use the network. For each package they request one URL with the package name in it: from the public npm registry (`registry.npmjs.org`) or PyPI (`pypi.org`), or from the registry that the project's or your `.npmrc` sets, `--registry` or `--index`. They send no credentials (tokens in `.npmrc` are not read, and a user name and password written into a registry URL are removed before the request and in every message) and nothing else about the project, and depcurfew has no telemetry. A private package whose scope has no registry in `.npmrc` is looked up in the public registry, so its name reaches that registry; set `@scope:registry` in `.npmrc` or pass `--registry` first. `init`, `explain`, `apply` and `doctor` work without network access. The GitHub Action checks the repository without it too; afterwards it sends the result (the counts, the table of checks and findings, the files read) to the GitHub API of the run (`GITHUB_API_URL`) with the workflow token to create the depcurfew doctor check (input `check-run`), and the SARIF upload to code scanning is a separate step that runs GitHub's own action. An editor that reads the `$schema` of `depcurfew.json` may download the schema from unpkg.com.
 
 ## Library
 

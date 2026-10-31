@@ -2,7 +2,7 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
-## 2026-10-31 · 1.2.0, część 4: przegląd przed wydaniem i poprawki (D-088–D-094)
+## 2026-10-31 · 1.2.0, część 4: przegląd przed wydaniem i poprawki (D-088–D-095)
 
 - Przegląd przed wydaniem: dwa przeglądy kodu (`--user`; `deny`, `depcurfew-outdated`, fakty, dokumentacja), test penetracyjny i testy na spakowanym tarballu z prawdziwymi narzędziami. Około 40 ustaleń, m.in. `doctor --user` mówiący „No problems found” przy osłabionej ochronie, tokeny z `~/.npmrc` w diffie, corepack odczytany jako pnpm/Yarn 0.34.0, `apply` przestawiające ręczne wpisy dla paczek z `deny`.
 - Wspólny `readLimited` (`src/read-limited.ts`): tylko zwykły plik, `O_NONBLOCK`/`O_NOFOLLOW`, odczyt do limitu niezależnie od rozmiaru ze `stat` (FIFO, `/proc`).
@@ -15,7 +15,8 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
   - D-092: przełączniki wyłączające ochronę są włączone dla każdej wartości, której narzędzie nie czyta jako wyłączonej (pnpm `"false"`, `yes`, `=1`; potwierdzone na prawdziwym pnpm 10.28.0), klucze scalania YAML tam, gdzie narzędzie je stosuje (pnpm), `[pip] no-build` w uv nie jest osłabieniem, drobne poprawki `config-drift` i `explain`;
   - D-093: `init --user` bez zakładania katalogu domowego i bez śladu stosu, `doctor --user` przy braku katalogu domowego i względnym `XDG_CONFIG_HOME`, `user-setting-overridden` dla pnpm 10, znaki sterujące w treści diffu, właściciel nowych plików pod `sudo`, konkretne poprawki w komunikatach.
 - Na koniec: `apply --user` wyłącza przełączniki „uruchom każdy skrypt” w plikach użytkownika; CI: duży YAML parsowany raz (`readYamlDocument`), test `init --user` na Windows; długi myślnik (U+2014) zamieniony na „-” w całym repozytorium.
-- D-094: `doctor` i Action mówią, co sprawdziły (`checked`: narzędzia, przeczytane pliki, reguły), a czysty przebieg Action dodaje adnotację `notice`.
+- D-094: `doctor` i Action mówią, co sprawdziły (`checked`: narzędzia, przeczytane pliki, każda kontrola z wynikiem), a czysty przebieg Action dodaje adnotację `notice`.
+- D-095: Action dodaje check run „depcurfew doctor” z wynikiem i tabelą kontroli w zakładce Checks PR (Checks API, `checks: write`, `pull_request.head.sha`).
 - Weryfikacja: `npm test` (2949 testów), `npm run typecheck`, `npm run check:pkg`; `depcurfew doctor .` bez uwag, `apply --dry-run .` bez zmian.
 
 ## 2026-10-31 · 1.2.0, część 3: `init`, `apply` i `doctor --user` (D-087), jawna blokada `deny`
