@@ -1,7 +1,8 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-30');
+const user = verifiedOn('2026-10-31');
 
 // python-poetry.org/docs is built from docs/ in the repository.
 const POETRY = 'https://github.com/python-poetry/poetry/blob/2.5.1';
@@ -9,6 +10,31 @@ const CONFIGURATION = `${POETRY}/docs/configuration.md`;
 const CHANGELOG = `${POETRY}/CHANGELOG.md`;
 const LOCKER = `${POETRY}/src/poetry/packages/locker.py`;
 const CHOOSER = `${POETRY}/src/poetry/installation/chooser.py`;
+const CONFIG = `${POETRY}/src/poetry/config/config.py`;
+
+/** The user config.toml; only the macOS directories are disputed. */
+const userFiles = (darwin: readonly UserDirectory[]): Versioned<UserFile> => [
+  {
+    since: '2.0.0',
+    value: {
+      format: 'toml',
+      locations: [
+        {
+          platforms: ['linux'],
+          directories: [{ from: { env: 'XDG_CONFIG_HOME' }, path: 'pypoetry' }, { from: 'home', path: '.config/pypoetry' }],
+          file: 'config.toml',
+        },
+        { platforms: ['darwin'], directories: darwin, file: 'config.toml' },
+        {
+          platforms: ['win32'],
+          directories: [{ from: { env: 'APPDATA' }, path: 'pypoetry' }, { from: 'home', path: 'AppData/Roaming/pypoetry' }],
+          file: 'config.toml',
+        },
+      ],
+    },
+  },
+];
+const MACOS_DIRECTORY: UserDirectory = { from: 'home', path: 'Library/Application Support/pypoetry' };
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -98,6 +124,72 @@ export const poetry: ToolKnowledge = {
       'Poetry has no workspaces: the 2.5.1 docs do not mention them and the request for subprojects is open.',
     ),
     workspacesObjectKey: uncertain(null, 'https://github.com/python-poetry/poetry/issues/2270', 'No workspaces.'),
+  },
+  user: {
+    files: user.disputed(
+      'The docs give ~/Library/Application Support/pypoetry on macOS. The code asks the installed platformdirs (pyproject.toml allows >=3.0.0,<5), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) Poetry reads $XDG_CONFIG_HOME/pypoetry/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in Poetry\'s environment. Linux and Windows agree. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked.',
+      user.evidence(
+        userFiles([MACOS_DIRECTORY]),
+        `${CONFIGURATION}#config-directory`,
+        '"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry".',
+      ),
+      user.evidence(
+        userFiles([{ from: { env: 'XDG_CONFIG_HOME' }, path: 'pypoetry' }, MACOS_DIRECTORY]),
+        `${POETRY}/src/poetry/locations.py`,
+        'CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path("pypoetry", appauthor=False, roaming=True) from platformdirs, which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names.',
+      ),
+    ),
+    settings: user.verified(
+      [
+        { purpose: 'cooldown', key: 'solver.min-release-age', since: '2.4.0' },
+        { purpose: 'cooldownExclude', key: 'solver.min-release-age-exclude', since: '2.4.0' },
+        { purpose: 'buildsDeny', key: 'installer.only-binary', since: '2.0.0' },
+        { purpose: 'buildsAllow', key: 'installer.no-binary', since: '1.2.0' },
+      ],
+      CONFIG,
+      'Every setting of Config.default_config is read from the user config.toml ("As with all configurations described here, this is a user specific configuration", docs/configuration.md); dotted names are nested tables. A project poetry.toml replaces a user value, lists included (merge_dicts in src/poetry/utils/helpers.py), and POETRY_* variables beat both. Names in installer.no-binary win over installer.only-binary = :all: only since 2.2.0. solver.min-release-age-exclude is written as a TOML array (see extra.excludeFormat).',
+    ),
+    unknownKeys: user.uncertain(
+      'ignore',
+      CONFIG,
+      'Config.merge keeps every key of config.toml and only known settings are read, so a version that does not know a key ignores it without a word. Read from the code; tested only with poetry.toml, which goes through the same merge (2.3.4 ignored solver.min-release-age there on 2026-10-30).',
+    ),
+    invalidValueFails: user.uncertain(
+      false,
+      `${POETRY}/src/poetry/toml/file.py`,
+      'A config.toml that is not valid TOML stops every command (TOMLError "Invalid TOML file"). Values are not checked when the file is loaded (only POETRY_* variables go through the normalizers of config.py), and a key an older version does not know is never read, so the keys depcurfew writes need no exact version. Read from the code.',
+    ),
+    weakening: user.verified(
+      [
+        { key: 'solver.min-release-age', values: [0], effect: 'turns the release-age delay off in every project whose poetry.toml does not set it' },
+        { key: 'solver.min-release-age-exclude', values: 'any', effect: 'exempts these packages from the release-age delay in every project whose poetry.toml does not set the key' },
+        {
+          key: 'solver.min-release-age-exclude-source',
+          values: 'any',
+          effect: 'exempts every package from these sources from the release-age delay in every project whose poetry.toml does not set the key',
+        },
+        {
+          key: 'installer.no-binary',
+          values: 'any',
+          effect: 'builds these packages from source in every project whose poetry.toml does not set the key; names win over installer.only-binary = :all:',
+        },
+        { key: 'installer.only-binary', values: [false, ':none:'], effect: 'allows source builds in every project whose poetry.toml does not set the key' },
+      ],
+      `${CONFIGURATION}#configuration-sources`,
+      'Precedence: environment variables, then the local poetry.toml, then the global config.toml, then the default; a poetry.toml key replaces the user value, lists included. solver.min-release-age-exclude-source (2.4.0) takes source names from pyproject.toml or URLs. A source that gives no upload times is not filtered at all.',
+    ),
+    variables: user.verified(
+      [
+        { name: 'POETRY_CONFIG_DIR', values: 'any', effect: 'moves the user config.toml to this directory' },
+        { name: 'POETRY_SOLVER_MIN_RELEASE_AGE', values: 'any', effect: 'overrides solver.min-release-age from every file' },
+        { name: 'POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE', values: 'any', effect: 'overrides solver.min-release-age-exclude from every file' },
+        { name: 'POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE_SOURCE', values: 'any', effect: 'overrides solver.min-release-age-exclude-source from every file' },
+        { name: 'POETRY_INSTALLER_NO_BINARY', values: 'any', effect: 'overrides installer.no-binary from every file' },
+        { name: 'POETRY_INSTALLER_ONLY_BINARY', values: 'any', effect: 'overrides installer.only-binary from every file' },
+      ],
+      `${CONFIGURATION}#using-environment-variables`,
+      'Any setting can be set as POETRY_ plus its name in capitals with dots and dashes replaced by underscores, and environment variables come first in the precedence ("Configuration sources"). POETRY_CONFIG_DIR replaces the platform directory (src/poetry/locations.py).',
+    ),
   },
   extra: {
     pylockCreatedBy: verified(
