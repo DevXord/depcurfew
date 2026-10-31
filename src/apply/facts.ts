@@ -44,6 +44,8 @@ export interface SwitchFact {
   setting: string;
   since?: string;
   value: unknown;
+  /** The dependency sources the switch applies to, where it does not apply to all (Python build switches). */
+  covers?: readonly string[];
 }
 
 export function isSwitch(value: unknown): value is SwitchFact {

@@ -1,0 +1,38 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 5
+    },
+    "message": "packageRules[0] turns off minimumReleaseAge for every package from the npm datasource",
+    "fix": "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 6
+    },
+    "message": "packageRules[1] turns off minimumReleaseAge for every package except @acme/* and left-pad (a list of only negative patterns matches every other package)",
+    "fix": "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 7
+    },
+    "message": "packageRules[2] turns off minimumReleaseAge for major, minor and patch updates of every package",
+    "fix": "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 10
+    },
+    "message": "packageRules[5] turns off minimumReleaseAge for patch updates of every package from the npm datasource",
+    "fix": "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
+  }
+]

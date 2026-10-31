@@ -10,7 +10,8 @@ import { describe, expect, it } from 'vitest';
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 describe('action bundle', () => {
-  it('equals a fresh build (run npm run build:action after changing src/)', () => {
+  // CI checks it on Linux, where the release is built; on Windows the bundler may name modules with \.
+  it.skipIf(process.platform === 'win32')('equals a fresh build (run npm run build:action after changing src/)', () => {
     const out = mkdtempSync(join(tmpdir(), 'depcurfew-bundle-'));
     try {
       const build = spawnSync(process.execPath, [join(ROOT, 'node_modules/tsdown/dist/run.mjs'), '-c', 'tsdown.action.config.ts', '-d', out], {
@@ -31,10 +32,27 @@ describe('action bundle', () => {
     for (const specifier of imports) expect(specifier, specifier).toMatch(/^(node:)?(fs|path|module|process|buffer|url|os|crypto)$/u);
   });
 
-  it('ships the licenses of what it bundles', () => {
+  const version = (name: string) => (JSON.parse(readFileSync(join(ROOT, 'node_modules', name, 'package.json'), 'utf8')) as { version: string }).version;
+
+  it('ships the licenses of what it bundles: yaml and the runtime helpers of rolldown', () => {
     const licenses = readFileSync(join(ROOT, 'action/THIRD_PARTY_LICENSES.md'), 'utf8');
-    const version = (JSON.parse(readFileSync(join(ROOT, 'node_modules/yaml/package.json'), 'utf8')) as { version: string }).version;
-    expect(licenses).toContain(`## yaml ${version}`);
+    expect(licenses).toContain(`## yaml ${version('yaml')}`);
     expect(licenses).toContain(readFileSync(join(ROOT, 'node_modules/yaml/LICENSE'), 'utf8').trim());
+    expect(readFileSync(join(ROOT, 'action/depcurfew.mjs'), 'utf8')).toContain('// \\0rolldown/runtime.js\n');
+    expect(licenses).toContain(`## rolldown ${version('rolldown')}`);
+    expect(licenses).toContain(readFileSync(join(ROOT, 'node_modules/rolldown/LICENSE'), 'utf8').split('end of terms and conditions')[0]?.trim());
+    expect(licenses).toContain(readFileSync(join(ROOT, 'node_modules/rolldown/THIRD-PARTY-LICENSE'), 'utf8').trim());
+  });
+
+  it('starts with the license notice of yaml, which ISC asks for in every copy, and points to the other licenses', () => {
+    const head = readFileSync(join(ROOT, 'action/depcurfew.mjs'), 'utf8').split('\nimport ', 1)[0] ?? '';
+    const comment = head
+      .split('\n')
+      .map((line) => line.replace(/^\/\/ ?/u, ''))
+      .join('\n');
+    expect(head.split('\n').every((line) => line.startsWith('//'))).toBe(true);
+    expect(comment).toContain(`yaml ${version('yaml')} (ISC):`);
+    expect(comment).toContain(readFileSync(join(ROOT, 'node_modules/yaml/LICENSE'), 'utf8').trim());
+    expect(comment).toContain('THIRD_PARTY_LICENSES.md');
   });
 });

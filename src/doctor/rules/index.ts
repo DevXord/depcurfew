@@ -3,17 +3,21 @@ import { botCooldownMismatch } from './bot-cooldown.ts';
 import { broadExclusion } from './broad-exclusion.ts';
 import { configDrift } from './config-drift.ts';
 import { settingIgnoredByVersion } from './ignored-setting.ts';
+import { invalidPolicy } from './invalid-policy.ts';
 import { lockfileForbiddenSource, lockfileInstallScripts } from './lockfile.ts';
 import { managerVersionTooOld } from './manager-version.ts';
 import { npmrcOverridesPolicy, pnpmSharedWorkspaceLockfile } from './npmrc.ts';
+import { pythonConfigIgnored } from './python-config.ts';
 import { unreadableConfig } from './unreadable-config.ts';
 
 /** Every doctor rule, in the order they are documented. unreadable-config runs last, after every other rule has read its files. */
 export const RULES: readonly Rule[] = [
+  invalidPolicy,
   managerVersionTooOld,
   settingIgnoredByVersion,
   npmrcOverridesPolicy,
   pnpmSharedWorkspaceLockfile,
+  pythonConfigIgnored,
   configDrift,
   botCooldownMismatch,
   broadExclusion,

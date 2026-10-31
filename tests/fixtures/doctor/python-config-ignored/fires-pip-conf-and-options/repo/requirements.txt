@@ -1,0 +1,5 @@
+# Locked by hand.
+--only-binary=:all:
+--uploaded-prior-to=P3D
+--no-cache-dir
+idna==3.20

@@ -3,6 +3,9 @@ import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
+const reviewed = verifiedOn('2026-10-30');
+const rechecked = verifiedOn('2026-10-31');
+const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
 
 const RESOLUTION = 'https://pnpm.io/settings/dependency-resolution';
 const SETTINGS_V10 = 'https://pnpm.io/10.x/settings';
@@ -92,7 +95,7 @@ export const pnpm: ToolKnowledge = {
       setting: verified(
         'allowBuilds',
         BUILD,
-        'Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds.',
+        'Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds (extra.buildPermissions).',
       ),
       file: verified('pnpm-workspace.yaml', BUILD),
       availableSince: verified('10.26.0', SETTINGS_V10),
@@ -127,6 +130,64 @@ export const pnpm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, WORKSPACE_YAML_V10, 'The docs show packages only as a list; concluded from the absence of an object form.'),
   },
   extra: {
+    commandLine: rechecked.verified(
+      {
+        add: [['pnpm', 'add']],
+        run: [
+          { command: ['pnx'], packageOptions: ['--package'], shellOptions: ['--shell-mode', '-c'] },
+          { command: ['pnpx'], packageOptions: ['--package'], shellOptions: ['--shell-mode', '-c'] },
+          { command: ['pnpm', 'dlx'], packageOptions: ['--package'], shellOptions: ['--shell-mode', '-c'] },
+        ],
+        create: [{ command: ['pnpm', 'create'], packageOptions: [] }],
+        createNames: 'prefix-unless-prefixed',
+        valueOptions: [
+          '--save-prefix', '--save-catalog-name', '--lockfile-dir', '--filter', '-F', '--registry', '--allow-build', '--cpu', '--os', '--libc', '-C', '--dir', '--workspace-packages', '--env-file',
+          '--reporter', '--loglevel',
+        ],
+      },
+      'https://github.com/pnpm/pnpm.io/tree/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli',
+      'From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c \'echo hi | cowsay\'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx only and is listed there. -F is the short form of --filter (filtering.md). --reporter takes the name of a reporter (cli/install.md) and --loglevel a level (the loglevel setting in settings/cli.md, given as a flag); both take a separate value too.',
+    ),
+    packageSpecs: checked.verified(
+      {
+        git: ['github:', 'bitbucket:', 'gitlab:', 'gist:', 'git+ssh://'],
+        local: ['link:', 'file:'],
+        workspace: ['workspace:'],
+        remoteTarball: ['http://', 'https://'],
+        tarballExtensions: ['.tar', '.tar.gz', '.tgz'],
+        shorthand: 'github:',
+      },
+      'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/package-sources.md',
+      'Sources of pnpm add: the npm registry, jsr:, crate: and pypi: (other registries), workspace packages (the workspace: range protocol, docs/workspaces.md), local directories (./dir is saved as link:, file:./dir is copied), local tarballs ending in .tar, .tar.gz or .tgz, remote tarballs starting with http:// or https://, and git repositories as user/repo (github: by default), github:, bitbucket:, gitlab:, gist: or a full URL such as git+ssh://… or https://github.com/….git.',
+    ),
+    registryOverrides: reviewed.verified(
+      {
+        registryOptions: ['--registry', '--@<scope>:registry'],
+        registryVariables: ['pnpm_config_registry'],
+        configOptions: ['--userconfig', '--npmrc-auth-file'],
+        configVariables: ['pnpm_config_npmrc_auth_file', 'pnpm_config_userconfig'],
+      },
+      `${PNPM_V12}/pnpm11/config/reader/src/index.ts`,
+      'registry and @scope:registry are read from the command line over .npmrc (docs/npmrc.md in pnpm/pnpm.io). Every pnpm_config_<key> or PNPM_CONFIG_<KEY> variable whose key is a setting sets it (src/env.ts, parseEnvVars), registry included. The user-level .npmrc, which may set any registry, is the file named by --npmrc-auth-file, --userconfig, pnpm_config_npmrc_auth_file, pnpm_config_userconfig, npmrcAuthFile in the global config.yaml or npm_config_userconfig (getNpmrcAuthFile; src/loadNpmrcFiles.ts reads it in place of ~/.npmrc). pnpm 10 reads npm_config_* variables as npm does.',
+    ),
+    parsing: reviewed.verified(
+      {
+        abbreviations: true,
+        anyDashes: true,
+        negation: '--no-',
+        settingPrefix: '--config.',
+        shorthands: {
+          s: ['--reporter=silent'], d: ['--loglevel=info'], dd: ['--loglevel=verbose'], ddd: ['--loglevel=silly'], L: ['--latest'],
+          r: ['--recursive'], silent: ['--reporter=silent'], verbose: ['--loglevel=verbose'], quiet: ['--loglevel=warn'],
+          q: ['--loglevel=warn'], h: ['--help'], H: ['--help'], '?': ['--help'], usage: ['--help'], v: ['--version'], f: ['--force'],
+          local: ['--no-global'], l: ['--long'], p: ['--parseable'], porcelain: ['--parseable'], prod: ['--production'],
+          development: ['--dev'], g: ['--global'], S: ['--save'], D: ['--save-dev'], P: ['--save-prod'], E: ['--save-exact'],
+          O: ['--save-optional'], C: ['--dir'], w: ['--workspace-root'], i: ['--interactive'], F: ['--filter'], y: ['--yes'],
+        },
+      },
+      `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`,
+      'pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag. Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y.',
+    ),
     minimumReleaseAgeStrict: checked.verified(
       { setting: 'minimumReleaseAgeStrict', value: true, since: '11.0.0' },
       RESOLUTION,
@@ -158,6 +219,11 @@ export const pnpm: ToolKnowledge = {
       { winner: 'pnpm-workspace.yaml', over: ['.npmrc', 'npm_config_*'] },
       'https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/index.ts',
       'pnpm 10 applies pnpm-workspace.yaml settings over .npmrc and npm_config_* variables; command-line options win over both (same order on v10.16.0). The 10.18.3 changelog says pnpm config set --location=project writes to pnpm-workspace.yaml "matching read priority". The 10.x docs do not state the order.',
+    ),
+    npmrcCooldownKey: reviewed.verified(
+      { key: 'minimum-release-age', until: '11.0.0' },
+      'https://github.com/pnpm/pnpm/blob/v10.34.9/config/config/src/types.ts',
+      'pnpm 10 reads minimum-release-age from .npmrc as a number and maps it to minimumReleaseAge (minutes), so the value means the same in both files; pnpm-workspace.yaml wins when both set it (npmrcPrecedence). pnpm 11.0.0 stopped reading it from .npmrc (ignoredSince).',
     ),
     sharedWorkspaceLockfile: checked.verified(
       { setting: 'sharedWorkspaceLockfile', npmrcKey: 'shared-workspace-lockfile', default: true },
@@ -192,10 +258,10 @@ export const pnpm: ToolKnowledge = {
       SETTINGS_V10,
       'Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0.',
     ),
-    onlyBuiltDependencies: verified(
-      { since: '10.0.0', workspaceFileSince: '10.5.0', removedIn: '11.0.0' },
-      BUILD_V11,
-      'The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, also pnpm-workspace.yaml since 10.5.0; removed in 11.0.0 (see legacyAllowList).',
+    onlyBuiltDependencies: rechecked.verified(
+      { since: '6.32.1', workspaceFileSince: '10.5.0', removedIn: '11.0.0' },
+      'https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md',
+      'The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, added in 6.32.0 ("If this field exists, only mentioned packages will be able to run install scripts") and working since 6.32.1 ("released with a bug in v6.32.0"); also pnpm-workspace.yaml since 10.5.0 (10.5.0 changelog); removed in 11.0.0 (settings/build.md, see legacyAllowList). Before pnpm 10 any list, even an empty one, lets only the listed packages build (createAllowBuildFunction in @pnpm/builder.policy 3.0.0, which pnpm 9.15.0 uses).',
     ),
     latestVersion: verified(
       '12.16.1',
@@ -205,6 +271,11 @@ export const pnpm: ToolKnowledge = {
     npmrcIgnored: verified(
       'pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json "pnpm" field and no longer reads npm_config_* variables',
       release('11.0.0'),
+    ),
+    buildPermissions: rechecked.verified(
+      { setting: 'permissions', capability: 'build', since: '12.11.0', allow: true, deny: false },
+      'https://github.com/pnpm/pnpm/blob/v12.16.1/pnpm/docs/settings/build.md',
+      'permissions.<package>.build in pnpm-workspace.yaml: true lets the package run its build scripts, false denies them; the keys take the same forms as those of allowBuilds, and the entry outranks the package\'s allowBuilds entry (decided_build_approvals and apply_permissions in pnpm/crates/config/src/workspace_yaml/permissions.rs at v12.16.1, which warns when a package is in both). A string is an undecided placeholder (AllowBuild::Undecided in sections.rs). Added in 12.11.0 (docs/settings/build.md and docs/cli/permissions.md); pnpm approve writes a build decision there only when the file already has permissions.',
     ),
     legacyAllowList: verified(
       [

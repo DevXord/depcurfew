@@ -10,6 +10,7 @@ import { runAction } from '../../src/action.ts';
 import { applyProject, loadPolicy, PolicyError } from '../../src/apply/index.ts';
 import { EXIT_FAILURE, EXIT_OK, run } from '../../src/cli/run.ts';
 import { runDoctor } from '../../src/doctor/index.ts';
+import { canSymlink } from '../support/platform.ts';
 
 const DOCTOR = fileURLToPath(new URL('../fixtures/doctor/', import.meta.url));
 const SECRET = '{"auths": {"registry": "s3cr3t-token"}}\n';
@@ -45,7 +46,7 @@ async function exec(...argv: string[]): Promise<{ code: number; stdout: string; 
 }
 
 describe('depcurfew.json behind a symlink', () => {
-  it('is not read when the symlink leads outside the repository', async () => {
+  it.skipIf(!canSymlink())('is not read when the symlink leads outside the repository', async () => {
     const { repo, outside } = layout();
     symlinkSync(join(outside, 'secret.json'), join(repo, 'depcurfew.json'));
     expect(() => loadPolicy(repo)).toThrow(PolicyError);
@@ -59,7 +60,7 @@ describe('depcurfew.json behind a symlink', () => {
     expect((await exec('doctor', repo)).code).toBe(EXIT_FAILURE);
   });
 
-  it('is read when the symlink stays inside the repository', () => {
+  it.skipIf(!canSymlink())('is read when the symlink stays inside the repository', () => {
     const { repo } = layout();
     mkdirSync(join(repo, 'config'));
     writeFileSync(join(repo, 'config', 'policy.json'), '{"version": 1, "cooldown": {"minimum": "2d"}}\n');
@@ -75,12 +76,12 @@ describe('depcurfew.json behind a symlink', () => {
 });
 
 describe('init --force', () => {
-  it('does not overwrite the target of a symlink', async () => {
+  it.skipIf(!canSymlink())('does not overwrite the target of a symlink', async () => {
     const { repo, outside } = layout();
     symlinkSync(join(outside, 'secret.json'), join(repo, 'depcurfew.json'));
     const result = await exec('init', '--force', repo);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toContain('depcurfew.json is a symlink; depcurfew does not write through symlinks');
+    expect(result.stderr).toContain(`error: ${join(repo, 'depcurfew.json')} is a symlink; depcurfew does not write through symlinks (cannot-write)\n  fix: Replace the symlink with a regular file, or run depcurfew init in the directory it points to\n`);
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
   });
 
@@ -94,7 +95,7 @@ describe('init --force', () => {
 });
 
 describe('editing a symlink inside the repository', () => {
-  it('is an error for apply and doctor, not a crash', () => {
+  it.skipIf(!canSymlink())('is an error for apply and doctor, not a crash', () => {
     const root = scratch();
     cpSync(join(DOCTOR, 'bot-cooldown-mismatch/fires-dependabot-shorter/repo'), root, { recursive: true });
     mkdirSync(join(root, 'config'));
@@ -112,7 +113,7 @@ describe('editing a symlink inside the repository', () => {
     );
   });
 
-  it('reports a file once even when it can neither be read nor edited', () => {
+  it.skipIf(!canSymlink())('reports a file once even when it can neither be read nor edited', () => {
     const { repo, outside } = layout();
     writeFileSync(join(outside, 'npmrc'), 'min-release-age=0\n');
     symlinkSync(join(outside, 'npmrc'), join(repo, '.npmrc'));
@@ -122,7 +123,7 @@ describe('editing a symlink inside the repository', () => {
     expect(findings[0]?.location).toEqual({ file: '.npmrc' });
   });
 
-  it('fails doctor when a symlinked manager config weakens the policy', () => {
+  it.skipIf(!canSymlink())('fails doctor when a symlinked manager config weakens the policy', () => {
     const root = scratch();
     writeFileSync(join(root, 'package.json'), '{"name": "app", "packageManager": "pnpm@11.1.0"}\n');
     writeFileSync(join(root, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n");
@@ -144,7 +145,7 @@ describe('GitHub Action', () => {
     return root;
   }
 
-  it('does not write SARIF through a symlinked file', () => {
+  it.skipIf(!canSymlink())('does not write SARIF through a symlinked file', () => {
     const root = workspace();
     const { outside } = layout();
     symlinkSync(join(outside, 'secret.json'), join(root, 'depcurfew.sarif'));
@@ -156,7 +157,7 @@ describe('GitHub Action', () => {
   it('does not write SARIF into a symlinked directory', () => {
     const root = workspace();
     const { outside } = layout();
-    symlinkSync(outside, join(root, 'reports'));
+    symlinkSync(outside, join(root, 'reports'), 'junction');
     const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: 'reports/secret.json' }, { log: () => undefined, summary: () => undefined });
     expect(outputs.failure).toBe('cannot write the SARIF file reports/secret.json: reports is a symlink; depcurfew does not write through symlinks');
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
@@ -165,7 +166,7 @@ describe('GitHub Action', () => {
   it('checks names that start with two dots as names inside the workspace', () => {
     const root = workspace();
     const { outside } = layout();
-    symlinkSync(outside, join(root, '..out'));
+    symlinkSync(outside, join(root, '..out'), 'junction');
     const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: '..out/secret.json' }, { log: () => undefined, summary: () => undefined });
     expect(outputs.failure).toBe('cannot write the SARIF file ..out/secret.json: ..out is a symlink; depcurfew does not write through symlinks');
     expect(readFileSync(join(outside, 'secret.json'), 'utf8')).toBe(SECRET);
@@ -174,7 +175,7 @@ describe('GitHub Action', () => {
   it('refuses a directory input that is a symlink leading outside the workspace', () => {
     const root = workspace();
     const { repo } = layout();
-    symlinkSync(repo, join(root, 'sub'));
+    symlinkSync(repo, join(root, 'sub'), 'junction');
     const outputs = runAction({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'sub' }, { log: () => undefined, summary: () => undefined });
     expect(outputs.failure).toBe('directory "sub" is not a directory inside the workspace');
   });

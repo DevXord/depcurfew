@@ -1,0 +1,8 @@
+{
+  "changed": [
+    ".github/dependabot.yml",
+    ".npmrc"
+  ],
+  "warnings": [],
+  "snippets": []
+}

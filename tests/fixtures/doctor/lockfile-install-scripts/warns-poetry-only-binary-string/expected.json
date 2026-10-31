@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "poetry.lock",
+      "line": 3
+    },
+    "message": "docopt has to be built from source (its index has only a source distribution), but installer.only-binary in poetry.toml forbids building, so installing it fails until it is allowed",
+    "fix": "Review docopt and add \"pypi:docopt\" to installScripts.allow in depcurfew.json (it is then always built from source), or replace the package"
+  }
+]

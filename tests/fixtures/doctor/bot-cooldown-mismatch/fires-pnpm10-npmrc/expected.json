@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 2
+    },
+    "message": "Renovate proposes updates after 3 days (minimumReleaseAge: \"3 days\" in renovate.json), but pnpm waits 1 week (minimum-release-age: 10080 in .npmrc); its pull requests bring in versions younger than pnpm accepts, or fail where the lockfile is re-checked",
+    "fix": "Make the Renovate delay at least 1 week, or run depcurfew apply"
+  }
+]

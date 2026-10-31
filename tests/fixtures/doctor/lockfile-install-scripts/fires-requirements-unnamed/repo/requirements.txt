@@ -1,0 +1,4 @@
+-e .
+git+https://example.test/tools/unnamed.git
+named @ git+https://example.test/tools/named.git
+idna==3.20

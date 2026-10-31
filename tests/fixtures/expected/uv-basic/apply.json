@@ -1,0 +1,42 @@
+{
+  "changed": [
+    ".github/dependabot.yml",
+    "pyproject.toml"
+  ],
+  "warnings": [
+    {
+      "code": "exclude-pattern-unsupported",
+      "tool": "uv",
+      "message": "uv: exclude-newer-package does not support the pattern \"acme-*\"; not written",
+      "fix": "List the exact package names in cooldown.exclude"
+    },
+    {
+      "code": "forced-source-build",
+      "tool": "uv",
+      "message": "uv: no-binary-package lets docopt be built from source while building is forbidden for everything else; uv then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
+      "fix": "If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "uv",
+      "message": "uv has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "uv",
+      "message": "uv has no setting for URL dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "lockfile-out-of-date",
+      "tool": "uv",
+      "location": {
+        "file": "uv.lock"
+      },
+      "message": "uv: uv.lock records exclude-newer and exclude-newer-package, so it is out of date after this change",
+      "fix": "Run uv lock and commit uv.lock; until then uv sync --locked and uv lock --check fail"
+    }
+  ],
+  "snippets": []
+}

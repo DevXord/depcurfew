@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "Pipfile.lock",
+      "line": 35
+    },
+    "message": "local-lib is built from source when installed (it is a local directory), which runs its build code, but depcurfew.json does not allow it",
+    "fix": "Review local-lib and add \"pypi:local-lib\" to installScripts.allow in depcurfew.json (it is then always built from source), or replace the package"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "Pipfile.lock",
+      "line": 39
+    },
+    "message": "sampleproject is built from source when installed (it comes from a git repository), which runs its build code, but depcurfew.json does not allow it",
+    "fix": "Review sampleproject and add \"pypi:sampleproject\" to installScripts.allow in depcurfew.json (it is then always built from source), or replace the package"
+  }
+]

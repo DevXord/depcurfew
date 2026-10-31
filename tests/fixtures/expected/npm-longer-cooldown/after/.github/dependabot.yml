@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      # managed by depcurfew
+      default-days: 3
+      # managed by depcurfew
+      exclude:
+        - "@acme/*"
+        - left-pad

@@ -1,0 +1,113 @@
+{
+  "name": "cross-env",
+  "dist-tags": {
+    "beta": "5.0.0-beta.0",
+    "latest": "10.1.0"
+  },
+  "time": {
+    "created": "2015-10-01T23:19:27.453Z",
+    "modified": "2025-09-29T17:34:12.434Z",
+    "5.0.0-beta.0": "2017-04-18T22:23:44.244Z",
+    "7.0.0": "2020-01-25T18:40:06.324Z",
+    "7.0.1": "2020-03-03T18:38:05.937Z",
+    "7.0.2": "2020-03-05T20:32:09.373Z",
+    "7.0.3": "2020-12-01T20:25:26.541Z",
+    "10.0.0": "2025-07-25T21:55:41.305Z",
+    "10.1.0": "2025-09-29T17:34:12.232Z"
+  },
+  "versions": {
+    "5.0.0-beta.0": {
+      "name": "cross-env",
+      "version": "5.0.0-beta.0",
+      "scripts": {
+        "test": "nps test",
+        "start": "nps",
+        "commitmsg": "opt --in commit-msg --exec \"validate-commit-msg\"",
+        "precommit": "lint-staged && opt --in pre-commit --exec \"npm start validate\""
+      }
+    },
+    "10.1.0": {
+      "name": "cross-env",
+      "version": "10.1.0",
+      "scripts": {
+        "build": "zshy",
+        "dev": "zshy --watch",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest",
+        "test:ui": "vitest --ui",
+        "test:run": "vitest run",
+        "test:coverage": "vitest run --coverage",
+        "test:e2e": "node e2e/test-cross-env.js && node e2e/test-cross-env-shell.js && node e2e/test-default-values.js",
+        "validate": "npm run build && npm run typecheck && npm run lint && npm run format:check && npm run test:run"
+      }
+    },
+    "10.0.0": {
+      "name": "cross-env",
+      "version": "10.0.0",
+      "scripts": {
+        "dev": "zshy --watch",
+        "lint": "eslint .",
+        "test": "vitest",
+        "build": "zshy && npm run clean-cjs",
+        "format": "prettier --write .",
+        "test:ui": "vitest --ui",
+        "lint:fix": "eslint . --fix",
+        "test:e2e": "node e2e/test-cross-env.js && node e2e/test-cross-env-shell.js",
+        "test:run": "vitest run",
+        "validate": "npm run build && npm run typecheck && npm run lint && npm run format:check && npm run test:run",
+        "clean-cjs": "node other/clean-cjs.js",
+        "typecheck": "tsc --noEmit",
+        "format:check": "prettier --check .",
+        "test:coverage": "vitest run --coverage"
+      }
+    },
+    "7.0.3": {
+      "name": "cross-env",
+      "version": "7.0.3",
+      "scripts": {
+        "lint": "kcd-scripts lint",
+        "test": "kcd-scripts test",
+        "setup": "npm install && npm run validate -s",
+        "validate": "kcd-scripts validate",
+        "test:update": "npm test -- --updateSnapshot --coverage"
+      }
+    },
+    "7.0.2": {
+      "name": "cross-env",
+      "version": "7.0.2",
+      "scripts": {
+        "lint": "kcd-scripts lint",
+        "test": "kcd-scripts test",
+        "setup": "npm install && npm run validate -s",
+        "validate": "kcd-scripts validate",
+        "test:update": "npm test -- --updateSnapshot --coverage"
+      }
+    },
+    "7.0.1": {
+      "name": "cross-env",
+      "version": "7.0.1",
+      "scripts": {
+        "lint": "kcd-scripts lint",
+        "test": "kcd-scripts test",
+        "setup": "npm install && npm run validate -s",
+        "validate": "kcd-scripts validate",
+        "test:update": "npm test -- --updateSnapshot --coverage"
+      }
+    },
+    "7.0.0": {
+      "name": "cross-env",
+      "version": "7.0.0",
+      "scripts": {
+        "lint": "kcd-scripts lint",
+        "test": "kcd-scripts test",
+        "setup": "npm install && npm run validate -s",
+        "validate": "kcd-scripts validate",
+        "test:update": "npm test -- --updateSnapshot --coverage"
+      }
+    }
+  }
+}

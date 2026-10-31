@@ -1,0 +1,14 @@
+[virtualenvs]
+in-project = true
+
+[solver]
+# >>> depcurfew managed block [solver]: edit depcurfew.json and run depcurfew apply instead
+min-release-age = 2
+min-release-age-exclude = ["internal-lib"]
+# <<< depcurfew managed block
+
+[installer]
+# >>> depcurfew managed block [installer]: edit depcurfew.json and run depcurfew apply instead
+only-binary = [":all:"]
+no-binary = ["docopt"]
+# <<< depcurfew managed block

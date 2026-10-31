@@ -1,0 +1,45 @@
+{
+  "changed": [
+    "uv.toml"
+  ],
+  "warnings": [
+    {
+      "code": "version-not-pinned",
+      "tool": "uv",
+      "message": "uv: no exact version is pinned, so depcurfew configures for uv 0.13.6, the latest version it knows",
+      "fix": "Pin the version you use (required-version in [tool.uv], .tool-versions or a CI setup step) to configure for it"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "uv",
+      "message": "uv has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "uv",
+      "message": "uv has no setting for URL dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "lockfile-out-of-date",
+      "tool": "uv",
+      "location": {
+        "file": "uv.lock"
+      },
+      "message": "uv: uv.lock records exclude-newer, so it is out of date after this change",
+      "fix": "Run uv lock and commit uv.lock; until then uv sync --locked and uv lock --check fail"
+    },
+    {
+      "code": "cooldown-shortened",
+      "tool": "uv",
+      "location": {
+        "file": "uv.toml",
+        "line": 2
+      },
+      "message": "uv: exclude-newer: \"1 week\" in uv.toml (line 2) waits 1 week, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply comments it out and writes exclude-newer: \"3 days\" in its managed block, so uv waits only 3 days",
+      "fix": "To keep the longer delay, set cooldown.minimum to \"7d\" in depcurfew.json and run depcurfew apply again"
+    }
+  ],
+  "snippets": []
+}

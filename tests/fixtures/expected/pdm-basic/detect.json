@@ -1,0 +1,30 @@
+{
+  "packageManagers": [
+    {
+      "id": "pdm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "pdm.lock"
+        },
+        {
+          "kind": "config",
+          "file": "pyproject.toml"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "pyproject.toml"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}

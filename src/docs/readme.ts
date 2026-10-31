@@ -1,12 +1,14 @@
 // Generated sections of README.md: everything there that states a fact about a package manager, a bot or GitHub
-// comes from the knowledge base, the policy definition, the doctor rules or action.yml. `npm run docs:readme`
-// rewrites the text between the markers; tests/docs/readme.test.ts checks that README.md is up to date.
+// comes from the knowledge base, the policy definition, the doctor rules, apply's codes or action.yml.
+// `npm run docs:readme` rewrites the text between the markers; tests/docs/readme.test.ts checks that README.md is
+// up to date.
 import { parse as parseYaml } from 'yaml';
 import { isRecord, values } from '../apply/facts.ts';
+import { APPLY_ERRORS, APPLY_WARNINGS } from '../apply/warnings.ts';
 import { RULES } from '../doctor/index.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { SOURCE_KINDS } from '../knowledge/schema.ts';
-import type { EnvironmentKnowledge, Fact, ToolKnowledge } from '../knowledge/types.ts';
+import type { CommandLineKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge } from '../knowledge/types.ts';
 import { DEFAULT_POLICY, renderPolicy } from '../policy/defaults.ts';
 import { policyJsonSchema } from '../policy/json-schema.ts';
 
@@ -18,6 +20,9 @@ export interface ReadmeInputs {
   /** Text of a workflow whose actions/checkout pin the example reuses. */
   workflow: string;
 }
+
+/** The knowledge base document on GitHub: npmjs.com shows the README without the files of the repository. */
+export const KNOWLEDGE_DOCUMENT = 'https://github.com/DevXord/depcurfew/blob/main/docs/knowledge.md';
 
 const SOURCE_LABELS: Record<(typeof SOURCE_KINDS)[number], string> = {
   git: 'git',
@@ -67,10 +72,12 @@ function toolsTable(tools: readonly ToolKnowledge[]): string {
       const list = Array.isArray(value) ? (value as unknown[]).map(String) : [String(value)];
       return list.length > 2 ? `${list.slice(0, 2).map(code).join(', ')} …` : list.map(code).join(', ');
     });
+    // A tool without a project file for the setting (pip) takes it from the environment or the command line.
+    const where = files === undefined || files === '' ? 'on the command line or in the environment (no project file)' : `in ${files}`;
     const delay =
       cooldownSetting === undefined
         ? 'none'
-        : `${cooldownSetting} in ${files ?? 'n/a'} (${shown(tool.cooldown.unit, plain) ?? 'n/a'}), since ${shown(tool.cooldown.availableSince, plain) ?? 'n/a'}`;
+        : `${cooldownSetting} ${where} (${shown(tool.cooldown.unit, plain) ?? 'n/a'}), since ${shown(tool.cooldown.availableSince, plain) ?? 'n/a'}`;
     const excludeSetting = setting(tool.cooldown.exclude.setting);
     const exceptions = excludeSetting === undefined ? 'none' : `${excludeSetting}, since ${shown(tool.cooldown.exclude.availableSince, plain) ?? 'n/a'}`;
     const allowSetting = setting(tool.installScripts.allowList.setting);
@@ -86,11 +93,11 @@ function toolsTable(tools: readonly ToolKnowledge[]): string {
     return `| ${[tool.name, delay, exceptions, scripts, sources, verifiedRange(tool)].map(cell).join(' | ')} |`;
   });
   return [
-    '| Tool | Release-age delay | Exceptions | Install-script allow-list | Dependency sources | Verified |',
+    '| Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source) | Dependency sources | Verified |',
     '| --- | --- | --- | --- | --- | --- |',
     ...rows,
     '',
-    '⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](docs/knowledge.md).',
+    `⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](${KNOWLEDGE_DOCUMENT}).`,
   ].join('\n');
 }
 
@@ -125,6 +132,11 @@ function rulesList(): string {
   ).join('\n\n');
 }
 
+function applyCodes(): string {
+  const list = (codes: Readonly<Record<string, string>>) => Object.entries(codes).map(([code, summary]) => `- \`${code}\`: ${summary}`);
+  return ['Warnings:', '', ...list(APPLY_WARNINGS), '', 'Errors (nothing is written):', '', ...list(APPLY_ERRORS)].join('\n');
+}
+
 function actionTables(action: string): string {
   const document = parseYaml(action) as unknown;
   const section = (key: 'inputs' | 'outputs', heading: string, withDefault: boolean) => {
@@ -156,6 +168,7 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
     'jobs:',
     '  doctor:',
     '    runs-on: ubuntu-latest',
+    '    timeout-minutes: 15',
     '    permissions:',
     ...permissions(upload.permissions.always, '      '),
     '      # Only needed in private repositories:',
@@ -169,14 +182,78 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
   ].join('\n');
 }
 
+function commandList(entries: readonly (readonly string[])[]): string {
+  return entries.map((entry) => `\`${entry.join(' ')}\``).join(', ');
+}
+
+/** The Claude Code hook settings and the install commands the guard reads, from the knowledge base. */
+function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolKnowledge[]): string {
+  const hooks = values(environment.claudeCode.hooks)[0];
+  const shellTools = values(environment.claudeCode.shellTools)[0];
+  if (hooks === undefined || shellTools === undefined) throw new Error('README: missing the Claude Code hooks or shell tools fact');
+  const matcher = shellTools.map((entry) => entry.tool).join(hooks.matcherSeparator);
+  const keys = hooks.settings;
+  const settings = {
+    [keys.hooks]: {
+      [hooks.event]: [
+        {
+          [keys.matcher]: matcher,
+          [keys.handlers]: [
+            {
+              [keys.type]: keys.commandType,
+              [keys.command]: 'node',
+              [keys.args]: [`${hooks.projectDir}/node_modules/depcurfew/dist/cli.js`, 'check', '--hook', 'claude-code'],
+              [hooks.onFailure.field]: hooks.onFailure.value,
+            },
+          ],
+        },
+      ],
+    },
+  };
+  // A tool may have several command-line facts (pip has pipx's too); each makes a row named after its executable.
+  const rows = tools.flatMap((tool) =>
+    Object.keys(tool.extra ?? {})
+      .filter((key) => /(?:^c|C)ommandLine$/u.test(key))
+      .flatMap((key) => {
+        const fact = tool.extra?.[key];
+        const commandLine = fact === undefined ? undefined : (values(fact)[0] as CommandLineKnowledge | undefined);
+        if (commandLine === undefined) return [];
+        const add = commandList(commandLine.add);
+        const run = commandList(commandLine.run.map((entry) => entry.command));
+        const create = commandList(commandLine.create.map((entry) => entry.command));
+        const name = key === 'commandLine' ? tool.name : (commandLine.add[0]?.[0] ?? commandLine.run[0]?.command[0] ?? key);
+        return [`| ${name} | ${add === '' ? 'none' : add} | ${run === '' ? 'none' : run} | ${create === '' ? 'none' : create} |`];
+      }),
+  );
+  return [
+    `In \`${hooks.settingsFile}\` of the project:`,
+    '',
+    '```json',
+    JSON.stringify(settings, null, 2),
+    '```',
+    '',
+    `The matcher \`${matcher}\` covers every tool that runs shell commands. On Windows, PowerShell is the main shell wherever the PowerShell tool is on, and without Git Bash there is no Bash tool, so a hook on \`Bash\` alone never runs there; Monitor runs a command in the background. \`${hooks.settings.command}\` is \`node\` itself, which also starts on Windows, where Claude Code runs it without a shell.`,
+    '',
+    `\`${hooks.onFailure.field}: "${hooks.onFailure.value}"\` needs Claude Code ${hooks.onFailure.since} or later; without it, a hook that fails to start, crashes or times out lets the command through.`,
+    '',
+    'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
+    '',
+    '| Package manager | Add packages | Download and run | Starter kits |',
+    '| --- | --- | --- | --- |',
+    ...rows,
+  ].join('\n');
+}
+
 export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
   return {
     'default-policy': ['```json', renderPolicy(DEFAULT_POLICY).trimEnd(), '```'].join('\n'),
     'policy-fields': policyTable(),
     tools: toolsTable(inputs.tools),
     rules: rulesList(),
+    'apply-codes': applyCodes(),
     'action-reference': actionTables(inputs.action),
     'action-workflow': exampleWorkflow(inputs.environment, inputs.workflow),
+    'claude-code-hook': claudeCodeHook(inputs.environment, inputs.tools),
   };
 }
 

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "pyproject.toml",
+      "line": 6
+    },
+    "message": "uv 0.9.0 in required-version in [tool.uv] (pyproject.toml) does not support exclude-newer (since 0.9.17)",
+    "fix": "Require uv 0.9.17 or later in required-version in [tool.uv]"
+  }
+]

@@ -2,6 +2,11 @@ import { verifiedOn } from './define.ts';
 import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
+const python = verifiedOn('2026-10-30');
+const reviewed = verifiedOn('2026-10-30');
+const rules = verifiedOn('2026-10-30');
+
+const AT = 'https://github.com/renovatebot/renovate/blob/44.198.2';
 
 const OPTIONS = 'https://docs.renovatebot.com/configuration-options/';
 const MINIMUM_RELEASE_AGE = 'https://docs.renovatebot.com/key-concepts/minimum-release-age/';
@@ -138,6 +143,62 @@ export const renovate: ToolKnowledge = {
     presets: verified(
       'config:best-practices extends security:minimumReleaseAgeNpm (since 42.0.0): "3 days" and internalChecksFilter "strict" for the npm datasource, except pin, replacement, lockFileMaintenance, bump, lockfileUpdate and rollback',
       'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagenpm',
+    ),
+    datasources: python.verified(
+      { npm: 'npm', pypi: 'pypi' },
+      'https://docs.renovatebot.com/modules/datasource/pypi/',
+      'Datasource ids for matchDatasources: npm packages come from the npm datasource and Python packages from pypi, whose release timestamp is the earliest upload_time of the version\'s files.',
+    ),
+    negativeMatch: python.verified(
+      '!',
+      'https://docs.renovatebot.com/string-pattern-matching/',
+      'Patterns starting with ! are negative matches, and none of them may match; matchDatasources is matched this way (matchRegexOrGlobList in lib/util/package-rules/datasources.ts at 44.198.0), so ["!pypi"] covers every datasource but PyPI.',
+    ),
+    packageRuleMatching: rules.verified(
+      { negation: '!', allPatterns: '*', packageMatchers: ['matchPackageNames', 'matchDepNames'], datasourceMatcher: 'matchDatasources', updateTypeMatcher: 'matchUpdateTypes' },
+      `${AT}/docs/usage/configuration-options.md#packagerules`,
+      'A packageRules entry applies to a dependency when all of its matchers match. Within one matcher, at least one positive pattern must match when there are any, and no negative pattern (starting with !) may match, so a list of only negative patterns matches every name it does not exclude (docs/usage/string-pattern-matching.md and matchRegexOrGlobList in lib/util/string-match.ts). matchPackageNames, matchDepNames, matchDatasources and matchUpdateTypes all match this way; "*" alone matches everything.',
+    ),
+    packageRulesOrder: rules.verified(
+      { presetsFirst: true, overridesTopLevel: true, laterWins: true },
+      `${AT}/docs/usage/configuration-options.md#packagerules`,
+      'All packageRules are evaluated and later rules override options set by earlier ones; a matching rule overrides the top-level configuration ("Package rule config overrides any existing config", lib/util/package-rules/index.ts). Presets in extends are merged before the repository configuration, and packageRules is mergeable, so the rules of presets come first and the repository\'s rules after them, while a top-level option of the repository replaces the same option of a preset (resolveConfigPresets in lib/config/presets/index.ts and mergeChildConfig in lib/config/utils.ts).',
+    ),
+    delayedUpdateTypes: rules.verified(
+      ['major', 'minor', 'patch'],
+      `${AT}/docs/usage/key-concepts/minimum-release-age.md#which-update-types-take-minimumreleaseage-into-account`,
+      'The update types that take minimumReleaseAge into account; digest and pinDigest only for some datasources, and pin, lockFileMaintenance, lockfileUpdate, rollback, bump and replacement not at all.',
+    ),
+    internalPresets: rules.verified(
+      {
+        prefixes: [':', 'default:', 'abandonments:', 'config:', 'customManagers:', 'docker:', 'global:', 'group:', 'helpers:', 'mergeConfidence:', 'monorepo:', 'packages:', 'preview:', 'replacements:', 'schedule:', 'security:', 'workarounds:'],
+        settingDelay: ['config:best-practices', 'security:minimumReleaseAgeCrate', 'security:minimumReleaseAgeNpm', 'security:minimumReleaseAgePypi'],
+      },
+      `${AT}/lib/config/presets/internal/index.ts`,
+      'The built-in preset groups; a default preset is written :name or default:name. Other presets (github>, gitlab>, local>, npm packages and so on) are fetched from elsewhere. Among the built-in presets only the security:minimumReleaseAge* presets set minimumReleaseAge, each in a packageRules entry with matchDatasources for its datasource, and config:best-practices extends security:minimumReleaseAgeNpm (security.preset.ts and config.preset.ts in the same directory).',
+    ),
+    pypiPresets: python.verified(
+      { presets: ['security:minimumReleaseAgePypi'], value: '3 days', since: '44.8.0', datasource: 'pypi' },
+      'https://docs.renovatebot.com/presets-security/#securityminimumreleaseagepypi',
+      'Added in 44.8.0; config:best-practices does not include it (it includes only security:minimumReleaseAgeNpm).',
+    ),
+    pnpmSecurityExclusions: reviewed.uncertain(
+      { managers: ['pnpm'], file: 'pnpm-workspace.yaml', setting: 'minimumReleaseAgeExclude', comment: '# Renovate security update: ', versionSeparator: ' || ' },
+      'https://github.com/renovatebot/renovate/blob/44.198.2/lib/modules/manager/npm/artifacts.ts',
+      'updatePnpmWorkspace: when a security update (vulnerability alert) changes a project with a pnpm lockfile whose pnpm-workspace.yaml sets minimumReleaseAge, Renovate adds the entry <name>@<version> to minimumReleaseAgeExclude with the comment "# Renovate security update: <name>@<version>" on the line above it; a later fix of the same package appends " || <version>" to the entry (and to the comment), and an entry for the package that has no comment gets one. The tests next to it (artifacts.spec.ts) show the written file. No other package manager (npm, Yarn, Bun, Deno) has such code at this tag; read from the code.',
+    ),
+    pythonManagers: python.verified(
+      { uv: 'pep621', poetry: 'poetry', pip: 'pip_requirements', pdm: 'pep621', pipenv: 'pipenv' },
+      'https://docs.renovatebot.com/modules/manager/pep621/',
+      'pep621 updates pyproject.toml with uv.lock (there is no uv manager) or pdm.lock; poetry updates pyproject.toml with poetry.lock; pipenv updates the Pipfile with Pipfile.lock; pip_requirements updates requirements files. pip-compile is off by default (lib/modules/manager/pep621/readme.md and pipenv/index.ts at 44.198.1).',
+    ),
+    passesDelayToManager: python.verified(
+      [
+        { since: '0.0.0', value: [] },
+        { since: '44.34.0', value: ['poetry'] },
+      ],
+      MINIMUM_RELEASE_AGE,
+      'Since 44.34.0 Renovate passes POETRY_SOLVER_MIN_RELEASE_AGE (rounded up to whole days) to Poetry 2.4.0 and later. It does not pass the delay to uv or read exclude-newer.',
     ),
     missingTimestamp: verified(
       [

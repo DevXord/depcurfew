@@ -1,0 +1,8 @@
+cooldown.exclude[0]: invalid package pattern "pypi:": write a Python package name after pypi:, e.g. "pypi:requests"
+cooldown.exclude[1]: invalid package pattern "pypi:*": it matches every package; list packages explicitly
+cooldown.exclude[2]: invalid package pattern "pypi:@acme/x": Python package names have no scope; expected a name or a name pattern with *, e.g. "pypi:requests" or "pypi:acme-*"
+cooldown.exclude[3]: invalid package pattern "pypi:requests==2.0": versions are not supported; write "pypi:requests"
+cooldown.exclude[4]: invalid package pattern "pypi:-dash": expected a Python package name or a name pattern with *, e.g. "pypi:requests" or "pypi:acme-*"
+cooldown.exclude[5]: invalid package pattern "npm:esbuild": the only ecosystem prefix is pypi:; write npm packages without a prefix, e.g. "esbuild"
+installScripts.allow[0]: invalid package pattern "pypi:docopt@0.6.2": versions are not supported; write "pypi:docopt"
+installScripts.allow[1]: invalid package pattern "PyPI:docopt": the only ecosystem prefix is pypi:; write Python packages as "pypi:docopt"

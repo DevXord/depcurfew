@@ -28,7 +28,7 @@ describe('depcurfew explain --json', () => {
     const result = await exec('explain', '--json', repo('pnpm10-monorepo'));
     expect(result.code).toBe(EXIT_OK);
     expect(result.stderr).toBe('');
-    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, project: expected('pnpm10-monorepo'), policy: null });
+    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, project: expected('pnpm10-monorepo'), policy: null, notices: [], errors: [] });
   });
 
   describe('with a policy', () => {
@@ -102,6 +102,19 @@ describe('depcurfew explain --json', () => {
         valid: false,
         issues: ['cooldown.minimum: invalid duration "3 days": spaces are not allowed; write "3d"'],
       });
+      // The same error as apply --json and check --json give, next to the policy section that explain had before.
+      expect(JSON.parse(result.stdout).errors).toEqual([
+        {
+          code: 'policy-invalid',
+          level: 'error',
+          location: { file: 'depcurfew.json' },
+          message: 'depcurfew.json is invalid',
+          fix: 'Fix these problems in depcurfew.json; an editor that reads its $schema shows them as you type',
+          issues: ['cooldown.minimum: invalid duration "3 days": spaces are not allowed; write "3d"'],
+        },
+      ]);
+      const apply = await exec('apply', directory, '--json');
+      expect(JSON.parse(apply.stdout).errors).toEqual(JSON.parse(result.stdout).errors);
     });
 
     it('prints a readable summary without --json', async () => {
@@ -173,8 +186,8 @@ describe('depcurfew explain --json', () => {
 
   it('fails when the directory does not exist', async () => {
     const result = await exec('explain', join(tmpdir(), 'depcurfew-missing-directory'));
-    expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toMatch(/^depcurfew: directory not found: /);
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stderr).toMatch(/^error: directory not found: .+ \(directory-not-found\)\n {2}fix: /u);
   });
 
   it('accepts at most one directory', async () => {

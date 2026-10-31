@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 2
+    },
+    "message": "Renovate proposes updates after 1 day (minimumReleaseAge: \"1 day\" in renovate.json), but Poetry waits 3 days (solver.min-release-age: 3 in poetry.toml); its pull requests bring in versions younger than Poetry accepts, or fail where the lockfile is re-checked",
+    "fix": "Make the Renovate delay at least 3 days, or run depcurfew apply"
+  }
+]

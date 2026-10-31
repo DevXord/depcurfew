@@ -2,6 +2,137 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · Wydanie 1.0.0 ze starszego `main`, przygotowanie 1.1.0 (D-084)
+
+- `depcurfew@1.0.0` opublikowana z `main` sprzed scalenia `faza-7` (commit 03bdb75, proweniencja z `release.yml`). Pełna wersja dostaje numer 1.1.0, bo npm nie pozwala użyć 1.0.0 ponownie.
+- `package.json` 1.1.0; `CHANGELOG.md` z 1.0.0 zgodną z opublikowaną paczką i nową sekcją 1.1.0; `docs/RELEASING.md` z ostrzeżeniem o kolejności (najpierw scalenie, potem tag).
+
+## 2026-10-31 · Końcowy przegląd przed 1.0.0 i poprawki (D-081 – D-083)
+
+- Końcowy przegląd całości z treścią 1.0.0: audyt bezpieczeństwa, przegląd jakości, gotowość wydania z testem end-to-end na 10 menedżerach i zgodność z Windows.
+- Windows i hook (D-081): hook sprawdza narzędzia PowerShell i Monitor Claude Code (matcher `Bash|PowerShell|Monitor`), formy `cmd /c`, nazwy poleceń bez wielkości liter, `$env:` w PowerShell, `$SHELL -c`, `python3 -Im pip`; repozytorium w katalogu głównym dysku; zapis ponawiany przy zablokowanych plikach; `.gitignore` z `core.ignorecase`; CI na Linux i Windows z Node 22, 24 i 26. Z audytu: nowe pliki z trybem z umask, powód hooka czyszczony i przycinany (bez treści skryptów), URL rejestru bez haseł, polityka z katalogu nadrzędnego tylko z katalogu użytkownika i bez `node_modules`, limit 1 MiB przy edycji.
+- Wydanie i dokumentacja (D-082): ostrzeżenie o nieaktualnym `pdm.lock`, wskazówka w każdym ostrzeżeniu `apply`, błędy `init` z kodem, README zgodne z działaniem i z bezwzględnymi linkami.
+- Jakość i wydajność (D-083): klucz `.npmrc` w cudzysłowie albo bez `=` nie omija już bloku; duże lockfile'e YAML parsowane raz i bez kwadratowego sprawdzania duplikatów (limit 16 MiB); spowolnienia `dependabot.yml`, `renovate.json`, `requirements.txt` i SARIF usunięte; spójny JSON przy błędnej polityce; wersje przedpremierowe; Yarn `npmScopes` i pnpm `permissions` w `doctor`; skrócone opcje pip w `requirements.txt`.
+- Wydanie: `CHANGELOG.md` z notatkami 1.0.0 dla użytkowników; workflow wydania przyjmuje tylko tag na commicie z `main` i ma limit czasu.
+- CI na Windows: `apply` po nieudanym zapisie usuwa utworzone katalogi także na Windows (wcześniej brał ścieżkę zwracaną przez `mkdirSync`, a ta ma tam postać `\\?\C:\...`); testy oczekują komunikatów, które daje dany system, a test ścieżki ze znakiem nowej linii nie działa na Windows, bo taka nazwa pliku jest tam niemożliwa.
+- Weryfikacja: `npm test` (2601 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-31 · Przegląd scalonego kodu i poprawki (D-080)
+
+- `tag=` z `.npmrc` tylko dla npm w hooku; `apply` ostrzega `before-overrides-cooldown`; pnpm 6.32.1–9 dostaje `pnpm.onlyBuiltDependencies` zamiast fałszywego `scripts-not-enforceable`; wskazówka `cooldown-shortened` dla plików JSON; pusta linia przed sekcją `.npmrc` zostaje; bez `insecure-registry` dla rejestru lokalnego; bez fałszywego ostrzeżenia o poprawkach bezpieczeństwa Renovate z pnpm; poprawki w README i D-078.
+- Weryfikacja: `npm test` (2219 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-31 · Pentest nowego kodu i poprawki (D-079)
+
+- Celowany pentest i przegląd kodu z D-074–D-078. Poprawione: przepełnienie stosu przy `.gitignore` z tysiącami `**/`, zawieszenie na indeksie git w wersji 4, uwagi `check` z `.npmrc` bez czyszczenia, znaki dwukierunkowe w tekście, polityka z katalogu nadrzędnego poza repozytorium git, `python3 -c "$(curl …)"` w hooku, pnpm `--reporter` i `--loglevel`.
+- Weryfikacja: `npm test` (2209 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-30 · Przegląd przed wydaniem 1.0.0 i poprawki (D-074 – D-078)
+
+- Przegląd całości przed pierwszym wydaniem: ocena prawna, dwa przeglądy kodu, testy na 12 prawdziwych repozytoriach (CRLF, BOM, aktualizacja, ścieżki) i testy penetracyjne. Projekty testowe usunięte, zapis konsoli w scratchpadzie. Pierwsze wydanie obejmie całość jako 1.0.0.
+- Edytory i zapis (D-074): YAML nie psuje już `dependabot.yml` przy komentarzu na końcu wpisu, a wynik edycji YAML i JSON jest sprawdzany; osobne bloki uv i PDM w jednym `pyproject.toml`; zapis wszystkich plików albo żadnego (`cannot-write`); plik tymczasowy od razu z trybem oryginału; zakomentowane ustawienia wracają, gdy polityka przestaje nimi zarządzać; pliki spoza UTF-8 nie są edytowane.
+- `init` i `apply` (D-075): `init` zachowuje najdłuższe istniejące opóźnienie, a `apply` ostrzega `cooldown-shortened`; `scripts-not-enforceable` dla pnpm < 10; wpisy bezpieczeństwa Renovate w `minimumReleaseAgeExclude` zostają; `file-ignored-by-git`; bez nowych manifestów (`manifest-missing`) i bez narzędzi widzianych tylko w CI (`tool-only-in-ci`).
+- `doctor` (D-076): `before=` w `.npmrc`; `.npmrc` czytany jak przez `ini` (komentarze w linii, sekcje; blok przed pierwszą sekcją); szerokie reguły i presety Renovate; opóźnienie pnpm 10 z `.npmrc`; Dependabot `cooldown.include`; sam projekt w `Pipfile.lock` i `pylock.toml`, pylock przypisany po `created-by`; nieczytelne pliki jako `unreadable-config`; duże liczby TOML bez wyjątku.
+- `check` i hook (D-077): skróty i prefiksy opcji npm i pnpm (`--reg`), przekierowania tylko w obrębie originu, uwaga o rejestrze z `.npmrc`, `insecure-registry`, adres link-local daje ask; wersja wybierana jak przez menedżer (`--tag`, `tag=`, `--pre`, `--no-binary`); menedżer z wersją za runnerem, więcej wrapperów i powłok, `bash <(curl …)` i `irm … | iex`; normalizacja nazw `pypi:` w polityce; limit 50 paczek na polecenie; `deno x`.
+- Wyjście, CLI i prawo (D-078): znaki sterujące w tekście dla ludzi są widoczne jako `\xHH`; czytelne błędy wejścia z kodem i JSON (kod 2 dla złego katalogu); polityka z katalogu nadrzędnego; poprawki Action i SARIF; README z sekcjami „Trademarks” i „Network and privacy”, `SECURITY.md`, nota ISC w bundlu akcji, poprawiony opis listy PyPI.
+- `docs/RELEASING.md`: krok przypisania paczki do organizacji npm `depcurfew`.
+- Weryfikacja: `npm test` (2191 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-30 · Pełny test paczki i poprawki (D-073)
+
+- Test z tarballa na projektach npm, pnpm, Yarn, Bun, Deno, uv, Poetry, pip, PDM, Pipenv i Hatch, z botami, akcją i biblioteką; projekty usunięte po teście, zapis konsoli w scratchpadzie.
+- Poprawki: brak podwójnego znacznika YAML po naprawie rozjazdu, wskazówki hooka zależne od powodu, `file-unreadable` w `apply` i brak mylącego `python-tool-unknown` przy zepsutym pyproject.toml, podpowiedź dla Hatch.
+- Weryfikacja: `npm test` (1750 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-30 · PDM i Pipenv; Hatch przez uv (D-072)
+
+- PDM: wykrywanie, `apply` w `[tool.pdm.resolution]` (opóźnienie, wyjątki, zakaz budowania z listą wyjątków), `doctor` dla `pdm.lock`, stałej daty i trybu uv, hook dla `pdm add`.
+- Pipenv: wykrywanie, `apply` z `cool-down-period` w pełnych dniach i ostrzeżeniami o brakach, `doctor` dla `Pipfile.lock` i `resolver_backend = "pure-python"`, hook dla `pipenv install`.
+- Hatch: bez własnych ustawień; README opisuje konfigurację przez uv albo zmienne pip.
+- Fikstury `pdm-basic` i `pipenv-basic` (przed i po), nowe przypadki reguł `doctor`; nowe kody `exclude-unsupported` i `build-switch-environment-only`.
+
+## 2026-10-30 · Python w `check` i w hooku (D-071)
+
+- `check pypi:<wymaganie>` sprawdza paczki PyPI przez Index API: istnienie, podobne nazwy (5000 popularnych projektów), wiek najnowszego pliku wobec cooldownu, brak wheel (budowanie ze źródeł), wersje wycofane i status projektu. Nowe kody `yanked`, `archived`, `quarantined`; opcja `--index`.
+- Własne PEP 440 (`src/check/pep440.ts`), parser wymagań z przeliczaniem ograniczeń Poetry (`src/check/python-spec.ts`) i klient indeksu (`src/check/pypi.ts`); klasyfikacja źródeł pip wspólna z `doctor`.
+- Hook czyta polecenia pip, uv, Poetry i pipx, w tym `python -m pip`, skróty opcji, grupy krótkich opcji i zmienne wskazujące inny indeks.
+- Nagrane odpowiedzi PyPI w `tests/fixtures/pypi` (`npm run record:registry -- pypi`), lista popularnych projektów w `src/knowledge/popular-python.ts` (`npm run data:popular -- pypi`).
+
+## 2026-10-30 · `check --json` przy błędnej polityce (D-070)
+
+- `check --json` przy błędnym albo nieczytelnym `depcurfew.json` daje dokument z `errors` (kształt jak w `apply --json`) i puste `packages` zamiast tekstu na stderr; kod wyjścia 1.
+- Uwaga o braku polityki trafia w trybie JSON do `notices`; `apply`, `doctor` i `check` mają w trybie JSON pusty stderr.
+- `policyErrorFix`: jedna poprawka dla `doctor` i JSON z `apply` i `check`.
+- Weryfikacja: `npm test` (1409 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-30 · Błędna polityka w `doctor` (D-069)
+
+- Nowa reguła `invalid-policy`: błędny albo nieczytelny `depcurfew.json` to znalezisko `error` w tekście, `--json` (z `policy: "invalid"`) i `--sarif`, zamiast tekstu na stderr. Reguły bez polityki dalej działają.
+- `runDoctor` domyślnie nadal rzuca `PolicyError`; opcja `invalidPolicy: "report"`. Akcja GitHub bez zmian.
+- CLAUDE.md: nowa wersja `schemaVersion` tylko przy zmianie niezgodnej wstecz.
+- Weryfikacja: `npm test` (1407 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-30 · Jedno wydanie 1.1.0 (D-068)
+
+- Faza 7, faza 10 i `apply --json` wychodzą razem jako 1.1.0 po wydaniu 1.0.0 (decyzja właściciela). `--user` (faza 11) przesuwa się z 1.3.0 na 1.2.0.
+- Faza 10 scalona do `faza-7` (#14, z #15); PR #6 obejmuje całe wydanie 1.1.0.
+
+## 2026-10-30 · `apply --json` i kody ostrzeżeń (D-067)
+
+- Każde ostrzeżenie i błąd `apply` ma stały kod, komunikat i, gdy jest co zrobić, `fix`; katalog kodów w `src/apply/warnings.ts` i w README.
+- Tekst wygląda jak w `doctor`: kod w nawiasie, a co zrobić w linii `fix:`.
+- `apply --json` (także z `--dry-run`): jeden dokument na stdout ze zmianami i ich diffem, ostrzeżeniami, błędami, fragmentami do dodania ręcznie i podsumowaniem; stderr pusty. Błędna albo brakująca polityka też daje JSON.
+- `ApplyReport.warnings` bez zmian typu; nowe pole `warningDetails`.
+- `apply` nie edytuje pliku TOML, który się nie parsuje (wcześniej dopisywało blok i zgłaszało sukces); to teraz błąd `cannot-edit`.
+- CLAUDE.md: zasada o wyjściu maszynowym jest spełniona przez wszystkie polecenia.
+- Weryfikacja: `npm test` (1400 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-30 · Faza 10: poprawki po drugim przeglądzie (D-066)
+
+- Przegląd z projektami testowymi i prawdziwymi uv 0.13.6, Poetry 2.5.1 i pip 26.2.2 znalazł 9 problemów; wszystkie poprawione, każdy z testem:
+  - klucz `__proto__` w TOML nie ukrywa już zależności z gita i nie zmienia `Object.prototype`;
+  - `doctor` czyta pliki dołączane przez `-r` i `-c`, a nieczytelne dołączenie zgłasza jako `unreadable-config`;
+  - wymaganie `libs/local-lib` albo `pkg-1.0.tar.xz` bez `./` to ścieżka, jak w pip;
+  - `required-version` z `[tool.uv]` obok `uv.toml` nie jest brane za przypiętą wersję;
+  - `apply` ostrzega, że po zmianie `exclude-newer` trzeba uruchomić `uv lock`;
+  - błąd składni w `poetry.toml` trafia do `unreadable-config`;
+  - workspace z `deno.jsonc` przy zepsutym `deno.json` znów jest wykrywany;
+  - fakty o ścieżkach, archiwach, URL, `#egg=`, `pylock.<nazwa>.toml` i `pyproject.toml` są w bazie wiedzy;
+  - usunięcie bloku ze środka pliku przywraca plik bez dodatkowej pustej linii.
+- CLAUDE.md: stałe zasady komunikatów dla człowieka i dla AI.
+- Weryfikacja: `npm test` (1364 testy), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
+## 2026-10-30 · Faza 10: Python (uv, pip, Poetry)
+
+- **Baza wiedzy:** uv 0.13.6, pip 26.2.2 i Poetry 2.5.1, każdy fakt ze źródłem pod tagiem: opóźnienie wydań, budowanie ze źródeł, źródła zależności, pliki projektu, lockfile'e, przypinanie wersji. Do tego Dependabot (ekosystemy `pip` i `uv`), Renovate (datasource `pypi`, preset `security:minimumReleaseAgePypi`) oraz akcje CI: setup-python, setup-uv, snok/install-poetry i abatilo/actions-poetry.
+- **Polityka (D-065, decyzja właściciela):**
+  - paczki Pythona mają prefiks `pypi:`, a nazwy bez prefiksu zostają nazwami npm;
+  - `installScripts` w Pythonie oznacza budowanie ze źródeł: zakaz budowania, a paczki z listy dozwolonych są zawsze budowane ze źródeł.
+- **Wykrywanie:** `uv.lock`, `poetry.lock`, `pylock.toml`, `requirements.txt`, `[tool.uv]` i `[tool.poetry]` w `pyproject.toml`, `uv.toml`, `poetry.toml`, `required-version` i `requires-poetry`, kroki CI oraz workspace uv.
+- **apply:**
+  - uv: blok w `uv.toml` albo w `[tool.uv]`;
+  - Poetry: bloki `[solver]` i `[installer]` w `poetry.toml`;
+  - pip: blok opcji w `requirements.txt` i instrukcja dla zmiennej środowiskowej;
+  - Dependabot i Renovate dostają wyjątki swojego rejestru.
+- **doctor:**
+  - `lockfile-forbidden-source` i `lockfile-install-scripts` dla `uv.lock`, `poetry.lock`, `pylock.toml` i `requirements.txt`;
+  - `bot-cooldown-mismatch` porównuje boty z uv i Poetry;
+  - `manager-version-too-old` sprawdza wersje z konfiguracji narzędzi;
+  - nowa reguła `python-config-ignored`.
+- **Własny czytnik TOML** bez zależności, zgodny z `tomllib` na 1089 z 1090 plików z dysku.
+- **Macierz prawdziwych wersji:** uv 0.9.16, 0.9.17, 0.9.25 i 0.13.6; Poetry 2.3.4, 2.4.0 i 2.5.1; pip 25.3, 26.0, 26.1 i 26.2.2. Za stare wersje po cichu wyłączają ochronę (szczegóły w D-065).
+- **Przegląd kodu:** 10 ustaleń, wszystkie poprawione:
+  - `--hash` w plikach z hashami nie jest już brany za nieznaną opcję;
+  - wymaganie bez nazwy nie dostaje zmyślonej nazwy;
+  - `apply` komentuje też tabelę `[tool.uv.exclude-newer-package]` i zapis z kropką, więc nie psuje TOML;
+  - reguła Renovate dla nazw npm pomija PyPI (`!pypi`), gdy w repozytorium jest Python;
+  - członkowie workspace'u Deno z samym `package.json` znów są wykrywani;
+  - `only-binary = ":all:"` jako tekst jest rozpoznawane;
+  - fakty w komunikatach pochodzą z bazy wiedzy;
+  - usunięcie bloku z `requirements.txt` przywraca plik;
+  - parsowane pliki TOML są zapamiętywane, a powtórzony kod scalony.
+- **Weryfikacja:** `npm test` (1345 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-29 · Przygotowanie wydania 1.0.0: marka zamiast danych autora, README na stronę npm
 
 - Marka `depcurfew` zamiast danych autora: autor i `informationUri` w SARIF (strona paczki na npm); licencja wskazuje właściciela praw (DevXord). `DevXord` zostaje tylko tam, gdzie wymaga go GitHub lub npm: w `uses:` w workflow i w adresie repozytorium (D-064).
@@ -33,6 +164,7 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
 - **Komunikaty:** wszystkie po angielsku i każdy błąd lub ostrzeżenie mówi, co zrobić. `apply` łączy brakujące ustawienia jednej wersji w jedno ostrzeżenie i podaje wersję, której trzeba wymagać (D-061).
 - **Pomoc:** `depcurfew <polecenie> --help` z opisem, opcjami, przykładami i kodami wyjścia.
 - **Kolory** w terminalu, bez zależności: obsługa `NO_COLOR` i `FORCE_COLOR`, a JSON i SARIF zostają bez zmian.
+- **`check` i hook:** każde znalezisko mówi, co zrobić. Hook nie podsuwa agentowi zmian w `depcurfew.json`.
 - **GitHub Action:** adnotacje na plikach i tabela w podsumowaniu zadania, każda z poprawką; nowe wejścia `annotations` i `job-summary`. README opisuje uruchomienie na GitLab CI.
 - **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
 
@@ -50,6 +182,25 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
   - Yarn dostaje `npmMinimalAgeGate` od 4.10.2, bo 4.10.0–4.10.1 odrzucały też dojrzałe wersje (D-060).
 - **Yarn Classic:** przy obecnej polityce `doctor` zgłasza błąd, bo żadne ustawienie nie działa w Yarn 1.x.
 - **Weryfikacja:** `npm test`, `npm run typecheck` i `npm run check:pkg` przechodzą.
+## 2026-10-29 · Faza 7: strażnik instalacji (`depcurfew check`, hook Claude Code)
+
+- **`depcurfew check <spec...> [--json] [--dir] [--registry]`:**
+  - sprawdza paczki przed instalacją: istnienie (możliwa wymyślona nazwa), wiek wybranej wersji względem `cooldown` z propozycją starszej, skrypty instalacji, podobieństwo do 5000 popularnych nazw i wycofanie;
+  - git, URL-e i ścieżki porównuje z `sources`;
+  - kod 1 przy naruszeniu albo braku możliwości sprawdzenia (D-056, D-058).
+- **`depcurfew check --hook claude-code`:**
+  - hook PreToolUse dla Bash: `deny` przy naruszeniu polityki, `ask`, gdy depcurfew nie może poręczyć za polecenie;
+  - fail closed: nieczytelne zdarzenie daje kod 2.
+  - Skaner czyta polecenie jak powłoka i śledzi zagnieżdżone polecenia (D-055). Sekcja README z przykładem `.claude/settings.json` jest generowana z bazy wiedzy.
+- **Baza wiedzy** (D-054): rejestr npm, hooki Claude Code, wiersz poleceń npm/pnpm/Yarn/Bun/Deno, formy specyfikacji, rejestry z `.npmrc` i ich nadpisania; lista popularnych paczek (D-057).
+- **Testy:**
+  - nagrane odpowiedzi rejestru w `tests/fixtures/registry/` (`npm run record:registry`), bez sieci;
+  - testy semver, specyfikacji, podobnych nazw, skanera i CLI.
+- **Przeglądy:** trzy rundy po 10 ustaleń, wszystkie poprawione (D-059).
+- **Odejście od planu:** bez porównania nazw z pominięciem scope'u (13% fałszywych alarmów, D-057).
+- **Wydanie:** faza czeka na wydanie 1.0.0 i trafi do 1.1.0 (F1).
+- **Testy:** 1132, wszystkie przechodzą.
+- **Weryfikacja:** `npm test`, `npm run typecheck`, `npm run check:pkg` i `npm run build:action` przechodzą.
 
 ## 2026-10-29 · Przegląd przed wydaniem 1.0.0
 

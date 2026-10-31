@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".yarnrc.yml",
+      "line": 5
+    },
+    "message": "npmScopes.types.npmMinimalAgeGate in .yarnrc.yml is 0, so Yarn 4.18.1 applies no release-age delay to @types packages, which depcurfew.json does not exempt",
+    "fix": "Set npmScopes.types.npmMinimalAgeGate: 4320 in .yarnrc.yml, or add \"@types/*\" to cooldown.exclude in depcurfew.json if the scope needs no delay"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".yarnrc.yml",
+      "line": 6
+    },
+    "message": "npmScopes.corp in .yarnrc.yml sets no npmMinimalAgeGate, so Yarn 4.18.1 gives @corp packages its default of 1 day instead of the global npmMinimalAgeGate, shorter than 3d in depcurfew.json",
+    "fix": "Set npmScopes.corp.npmMinimalAgeGate: 4320 in .yarnrc.yml, or add \"@corp/*\" to cooldown.exclude in depcurfew.json if the scope needs no delay"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".yarnrc.yml",
+      "line": 9
+    },
+    "message": "npmScopes.slow.npmMinimalAgeGate in .yarnrc.yml makes Yarn 4.18.1 wait 1 hour for @slow packages instead of the global npmMinimalAgeGate, shorter than 3d in depcurfew.json",
+    "fix": "Set npmScopes.slow.npmMinimalAgeGate: 4320 in .yarnrc.yml, or add \"@slow/*\" to cooldown.exclude in depcurfew.json if the scope needs no delay"
+  }
+]

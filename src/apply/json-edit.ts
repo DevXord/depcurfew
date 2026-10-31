@@ -1,6 +1,9 @@
 // Edits JSON and JSONC text in place: values are replaced or inserted, and everything else (indentation, comments,
-// trailing commas, key order) stays as it is. New values are written with the file's indentation.
+// trailing commas, key order) stays as it is. New values are written with the file's indentation. The text must
+// parse strictly (JSON with comments and trailing commas) before an edit, and the result must parse and hold the
+// old data with only the edited value changed; otherwise the edit is refused.
 import { nextSignificant, parseJsonc } from '../detect/jsonc.ts';
+import { sameData, withArray, withValue } from './expected.ts';
 
 type Path = readonly (string | number)[];
 
@@ -97,6 +100,42 @@ class Parser {
 
 function parse(text: string): JsonNode {
   return new Parser(text).value();
+}
+
+/** A syntax error with the line and column of the position JSON.parse reports. */
+function invalidJson(text: string, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  const reason = message.replace(/ in JSON at position \d+.*$/u, '');
+  const position = /at position (\d+)/u.exec(message);
+  if (position === null) return new Error(`invalid JSON: ${reason}`);
+  const offset = Math.min(Number(position[1]), text.length);
+  const line = text.slice(0, offset).split('\n').length;
+  const column = offset - text.lastIndexOf('\n', offset - 1);
+  return new Error(`invalid JSON at line ${line}, column ${column}: ${reason}`);
+}
+
+/** The data of JSON or JSONC text, strictly: the editor's own parser skips commas, so it does not check syntax. */
+function parseStrict(text: string): unknown {
+  try {
+    return parseJsonc(text);
+  } catch (error) {
+    throw invalidJson(text, error);
+  }
+}
+
+/** Makes an edit only on text that parses, and returns its result only when it holds exactly the expected data. */
+function checked(text: string, what: string, edit: (text: string) => string, expected: (data: unknown) => unknown): string {
+  const before = parseStrict(text);
+  const edited = edit(text);
+  if (edited === text) return text;
+  let after: unknown;
+  try {
+    after = parseStrict(edited);
+  } catch (error) {
+    throw new Error(`${what} would leave ${error instanceof Error ? error.message : String(error)}, so depcurfew did not edit the file; make the change by hand`);
+  }
+  if (!sameData(after, expected(before))) throw new Error(`${what} would change other settings in the file, so depcurfew did not edit it; make the change by hand`);
+  return edited;
 }
 
 function lineIndent(text: string, position: number): string {
@@ -203,8 +242,18 @@ export function jsonOffset(text: string, path: Path): number | undefined {
   }
 }
 
+/** Where every element of the array at `path` starts, from one parse; undefined when there is no array there. */
+export function jsonElementOffsets(text: string, path: Path): number[] | undefined {
+  try {
+    const node = find(text, path);
+    return node?.kind === 'array' ? node.elements.map((element) => element.start) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function jsonGet(text: string, path: Path): unknown {
-  let value: unknown = parseJsonc(text);
+  let value: unknown = parseStrict(text);
   for (const segment of path) {
     if (typeof value !== 'object' || value === null) return undefined;
     value = (value as Record<string, unknown>)[String(segment)];
@@ -214,6 +263,10 @@ export function jsonGet(text: string, path: Path): unknown {
 
 /** Sets the value at `path`, creating missing objects on the way. */
 export function jsonSet(text: string, path: Path, value: unknown): string {
+  return checked(text, `setting ${path.join('.')}`, (body) => setText(body, path, value), (data) => withValue(data, path, value));
+}
+
+function setText(text: string, path: Path, value: unknown): string {
   const unit = indentUnit(text);
   let node: JsonNode = rootObject(text);
   for (const [index, segment] of path.entries()) {
@@ -244,15 +297,29 @@ function arrayAt(text: string, path: Path): JsonNode & { kind: 'array' } {
 }
 
 export function jsonArrayAppend(text: string, path: Path, value: unknown): string {
-  const unit = indentUnit(text);
-  const array = arrayAt(text, path);
-  return insertItem(text, array, array.elements.at(-1)?.end, array.elements[0]?.start, (indent) => serialize(value, unit, indent));
+  return checked(
+    text,
+    `adding ${JSON.stringify(value)} to ${path.join('.')}`,
+    (body) => {
+      const unit = indentUnit(body);
+      const array = arrayAt(body, path);
+      return insertItem(body, array, array.elements.at(-1)?.end, array.elements[0]?.start, (indent) => serialize(value, unit, indent));
+    },
+    (data) => withArray(data, path, (array) => [...array, value]),
+  );
 }
 
 export function jsonArrayReplace(text: string, path: Path, index: number, value: unknown): string {
-  const element = arrayAt(text, path).elements[index];
-  if (element === undefined) throw new Error(`no element ${index} at ${path.join('.')}`);
-  return `${text.slice(0, element.start)}${serialize(value, indentUnit(text), lineIndent(text, element.start))}${text.slice(element.end)}`;
+  return checked(
+    text,
+    `replacing element ${index} of ${path.join('.')}`,
+    (body) => {
+      const element = arrayAt(body, path).elements[index];
+      if (element === undefined) throw new Error(`no element ${index} at ${path.join('.')}`);
+      return `${body.slice(0, element.start)}${serialize(value, indentUnit(body), lineIndent(body, element.start))}${body.slice(element.end)}`;
+    },
+    (data) => withArray(data, path, (array) => array.map((item, position) => (position === index ? value : item))),
+  );
 }
 
 /** Removes the line around `at` when only whitespace is left on it. */
@@ -268,6 +335,15 @@ function dropBlankLine(text: string, at: number): string {
  * line when nothing else is left on it. Comments stay, also those next to the element.
  */
 export function jsonArrayRemove(text: string, path: Path, index: number): string {
+  return checked(
+    text,
+    `removing element ${index} of ${path.join('.')}`,
+    (body) => removeElement(body, path, index),
+    (data) => withArray(data, path, (array) => array.filter((_item, position) => position !== index)),
+  );
+}
+
+function removeElement(text: string, path: Path, index: number): string {
   const { elements, start, end } = arrayAt(text, path);
   const element = elements[index];
   if (element === undefined) throw new Error(`no element ${index} at ${path.join('.')}`);

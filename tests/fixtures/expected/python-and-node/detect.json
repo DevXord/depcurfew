@@ -1,0 +1,30 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        { "kind": "lockfile", "file": "package-lock.json" },
+        { "kind": "packageManager", "file": "package.json" }
+      ],
+      "versions": [{ "version": "11.19.1", "source": "packageManager", "file": "package.json" }],
+      "configFiles": []
+    },
+    {
+      "id": "uv",
+      "supported": true,
+      "evidence": [
+        { "kind": "lockfile", "file": "uv.lock" },
+        { "kind": "config", "file": "pyproject.toml" }
+      ],
+      "versions": [],
+      "configFiles": ["pyproject.toml"]
+    }
+  ],
+  "node": { "versions": [] },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}

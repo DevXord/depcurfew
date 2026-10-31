@@ -3,23 +3,18 @@
 // last, so it also sees what the other rules could not read.
 import type { DetectionWarning } from '../../detect/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
+import { UNREADABLE_WARNINGS } from '../unreadable-warnings.ts';
 import { plannedApply } from '../plan.ts';
 import type { Rule } from '../types.ts';
 
-/** Repository warnings that mean a file was not checked. */
-export const UNREADABLE_WARNINGS: Readonly<Record<string, string>> = {
-  'invalid-file': 'Fix the syntax error, so that depcurfew can check the file',
-  'file-too-large': 'Make the file smaller than the limit, or check its settings by hand',
-  'outside-repository': 'Replace the symlink with a regular file inside the repository',
-  'workspace-outside-repository': 'Keep workspace packages inside the repository',
-};
+export { UNREADABLE_WARNINGS } from '../unreadable-warnings.ts';
 
 export const unreadableConfig: Rule = {
   id: 'unreadable-config',
   summary: 'A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.',
   description:
     'A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.',
-  help: 'Fix what the message describes: invalid syntax, a symlink, a file over the size limit or a style depcurfew apply cannot edit.',
+  help: 'Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.',
   level: 'error',
   requiresPolicy: false,
   check(context) {

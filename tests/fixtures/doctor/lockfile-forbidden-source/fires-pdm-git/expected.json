@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "pdm.lock",
+      "line": 33
+    },
+    "message": "pdm.lock installs sampleproject from a git repository (https://github.com/pypa/sampleproject), which depcurfew.json denies",
+    "fix": "Use a registry version of sampleproject, or set sources.git to \"allow\" in depcurfew.json"
+  }
+]

@@ -6,8 +6,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { botDuration } from '../../src/apply/index.ts';
-import { EXIT_FAILURE, EXIT_OK, run } from '../../src/cli/run.ts';
+import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../../src/cli/run.ts';
 import { parseDuration } from '../../src/policy/duration.ts';
+import { canSymlink } from '../support/platform.ts';
 
 const REPOS = fileURLToPath(new URL('../fixtures/repos/', import.meta.url));
 const EXPECTED = fileURLToPath(new URL('../fixtures/expected/', import.meta.url));
@@ -94,8 +95,10 @@ describe('depcurfew apply', () => {
     expect(first.stdout).toBe('Created .npmrc\nUpdated package.json\n');
     expect(first.stderr).toBe(
       [
-        'warning: npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it',
-        'warning: npm: allowScripts takes package names only; "@scope/*" not written. List the package names in installScripts.allow',
+        'warning: npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows (version-not-pinned)',
+        '  fix: Pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it',
+        'warning: npm: allowScripts takes package names only; "@scope/*" not written (allow-pattern-unsupported)',
+        '  fix: List the package names in installScripts.allow',
         '',
       ].join('\n'),
     );
@@ -143,7 +146,7 @@ describe('depcurfew apply', () => {
     const result = await exec('apply', scratch('npm-existing-config'));
     expect(result.code).toBe(EXIT_OK);
     expect(result.stderr).toContain(
-      'warning: allowScripts in package.json lets sharp run install scripts, but depcurfew.json does not allow it; depcurfew apply does not remove entries it did not write, so remove sharp from allowScripts by hand or add it to installScripts.allow in depcurfew.json\n',
+      'warning: allowScripts in package.json lets sharp run install scripts, but depcurfew.json does not allow it; depcurfew apply does not remove entries it did not write (allow-list-entry-outside-policy)\n  fix: Remove sharp from allowScripts by hand, or add sharp to installScripts.allow in depcurfew.json\n',
     );
   });
 
@@ -168,20 +171,20 @@ describe('depcurfew apply', () => {
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toBe(`depcurfew: no depcurfew.json in ${directory}; run 'depcurfew init' first\n`);
+    expect(result.stderr).toBe(`error: no depcurfew.json in ${directory} (policy-missing)\n  fix: Run 'depcurfew init' first\n`);
   });
 
   it('fails with an invalid policy file and lists the problems', async () => {
     const directory = scratch('npm-basic', '{ "version": 1, "cooldown": { "minimum": "soon" } }');
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toMatch(/^depcurfew: depcurfew\.json is invalid\n {2}\S/u);
+    expect(result.stderr).toMatch(/^error: depcurfew\.json is invalid \(policy-invalid\)\n {2}\S.*\n {2}fix: Fix these problems in depcurfew\.json/u);
     expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
   });
 
   it('fails for a directory that does not exist', async () => {
     const result = await exec('apply', join(tmpdir(), 'depcurfew-does-not-exist'));
-    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.code).toBe(EXIT_USAGE);
     expect(result.stderr).toContain('directory not found');
   });
 
@@ -191,7 +194,7 @@ describe('depcurfew apply', () => {
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toMatch(/^error: npm: cannot edit package\.json: /mu);
+    expect(result.stderr).toMatch(/^error: npm: cannot edit package\.json: .* \(cannot-edit\)\n {2}fix: Fix what the message describes, then run depcurfew apply again; or add the settings by hand$/mu);
     expect(result.stderr.endsWith('depcurfew: nothing written because of the errors above.\n')).toBe(true);
     expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
   });
@@ -206,16 +209,109 @@ describe('depcurfew apply', () => {
     expect(result.stderr).toContain('depcurfew: apply would write nothing because of the errors above.\n');
   });
 
-  it('does not write through a symlink', async () => {
+  it.skipIf(!canSymlink())('does not write through a symlink', async () => {
     const directory = scratch('package-json-only');
     const outside = scratch(undefined, null);
     write(outside, { '.npmrc': 'registry=https://registry.npmjs.org/\n' });
     symlinkSync(join(outside, '.npmrc'), join(directory, '.npmrc'));
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toContain('error: npm: cannot edit .npmrc: .npmrc is a symlink; depcurfew does not write through symlinks\n');
+    expect(result.stderr).toContain('error: npm: cannot edit .npmrc: .npmrc is a symlink; depcurfew does not write through symlinks (cannot-edit)\n');
     expect(readFileSync(join(outside, '.npmrc'), 'utf8')).toBe('registry=https://registry.npmjs.org/\n');
     expect(readFileSync(join(directory, 'package.json'), 'utf8')).toBe(readFileSync(join(REPOS, 'package-json-only/package.json'), 'utf8'));
+  });
+});
+
+describe('depcurfew apply --json', () => {
+  const parse = (stdout: string) => JSON.parse(stdout) as Record<string, unknown> & { changes: { file: string; action: string; diff: string }[]; warnings: unknown[]; errors: Record<string, unknown>[] };
+
+  it('prints the result as JSON, with a code for every warning, and nothing on stderr', async () => {
+    const directory = scratch('package-json-only');
+    const result = await exec('apply', '--json', directory);
+    expect([result.code, result.stderr]).toEqual([EXIT_OK, '']);
+    const report = parse(result.stdout);
+    expect(report).toMatchObject({ schemaVersion: 1, policy: 'valid', dryRun: false, written: true, snippets: [], errors: [], summary: { changes: 2, warnings: 2, errors: 0 } });
+    expect(report.changes.map((change) => [change.file, change.action])).toEqual([
+      ['.npmrc', 'create'],
+      ['package.json', 'update'],
+    ]);
+    expect(report.changes[0]?.diff).toMatch(/^--- \/dev\/null\n\+\+\+ b\/\.npmrc\n@@ /u);
+    expect(report.warnings).toEqual([
+      {
+        code: 'version-not-pinned',
+        level: 'warning',
+        tool: 'npm',
+        message: 'npm: no exact version is pinned, so depcurfew configures for npm 12.2.1, the latest version it knows',
+        fix: 'Pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it',
+      },
+      { code: 'allow-pattern-unsupported', level: 'warning', tool: 'npm', message: 'npm: allowScripts takes package names only; "@scope/*" not written', fix: 'List the package names in installScripts.allow' },
+    ]);
+    expect(readFileSync(join(directory, '.npmrc'), 'utf8')).toBe(readFileSync(join(EXPECTED, 'package-json-only/after/.npmrc'), 'utf8'));
+  });
+
+  it('with --dry-run writes nothing, and the diffs produce the expected files', async () => {
+    const directory = scratch('npm-existing-config');
+    const before = snapshot(directory);
+    const result = await exec('apply', '--dry-run', '--json', directory);
+    expect([result.code, result.stderr]).toEqual([EXIT_OK, '']);
+    expect(snapshot(directory)).toEqual(before);
+    const report = parse(result.stdout);
+    expect(report).toMatchObject({ dryRun: true, written: false });
+    expect(report.warnings).toContainEqual(expect.objectContaining({ code: 'allow-list-entry-outside-policy', tool: 'npm', location: { file: 'package.json' } }));
+    const patched = applyPatch(directory, report.changes.map((change) => change.diff).join(''));
+    for (const [file, text] of Object.entries(patched)) {
+      expect(text, file).toBe(readFileSync(join(EXPECTED, 'npm-existing-config/after', file), 'utf8'));
+    }
+  });
+
+  it('reports a file it cannot edit as an error, lists no changes and writes nothing', async () => {
+    const directory = scratch('npm-basic');
+    write(directory, { 'package.json': '{ "name": "broken", ' });
+    const result = await exec('apply', '--json', directory);
+    expect([result.code, result.stderr]).toEqual([EXIT_FAILURE, '']);
+    const report = parse(result.stdout);
+    expect(report).toMatchObject({ written: false, changes: [], summary: { changes: 0, errors: 1 } });
+    expect(report.errors).toEqual([
+      expect.objectContaining({ code: 'cannot-edit', level: 'error', tool: 'npm', location: { file: 'package.json' }, fix: 'Fix what the message describes, then run depcurfew apply again; or add the settings by hand' }),
+    ]);
+    expect(String(report.errors[0]?.['message'])).toMatch(/^npm: cannot edit package\.json: /u);
+    expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
+  });
+
+  it('does not edit a TOML file that does not parse', async () => {
+    const directory = scratch(undefined, JSON.stringify({ version: 1, cooldown: { minimum: '3d' } }));
+    write(directory, { 'pyproject.toml': '[project\nname = "app"\n', 'uv.lock': 'version = 1\nrevision = 3\nrequires-python = ">=3.12"\n' });
+    const result = await exec('apply', '--json', directory);
+    expect(result.code).toBe(EXIT_FAILURE);
+    const report = parse(result.stdout);
+    expect(report).toMatchObject({ written: false, changes: [] });
+    expect(report.errors).toEqual([expect.objectContaining({ code: 'cannot-edit', tool: 'uv', location: { file: 'pyproject.toml' } })]);
+    expect(String(report.errors[0]?.['message'])).toContain('uv: cannot edit pyproject.toml: invalid TOML at line 1');
+    expect(readFileSync(join(directory, 'pyproject.toml'), 'utf8')).toBe('[project\nname = "app"\n');
+  });
+
+  it('reports a missing or invalid policy as JSON', async () => {
+    const missing = scratch('npm-basic', null);
+    const none = await exec('apply', '--json', missing);
+    expect([none.code, none.stderr]).toEqual([EXIT_FAILURE, '']);
+    expect(parse(none.stdout)).toMatchObject({
+      schemaVersion: 1,
+      policy: 'missing',
+      written: false,
+      changes: [],
+      errors: [{ code: 'policy-missing', level: 'error', location: { file: 'depcurfew.json' }, message: `no depcurfew.json in ${missing}`, fix: "Run 'depcurfew init' first" }],
+    });
+    const invalid = await exec('apply', '--json', scratch('npm-basic', '{ "version": 1, "cooldown": { "minimum": "soon" } }'));
+    expect(invalid.code).toBe(EXIT_FAILURE);
+    const error = parse(invalid.stdout).errors[0];
+    expect(error).toMatchObject({
+      code: 'policy-invalid',
+      level: 'error',
+      location: { file: 'depcurfew.json' },
+      message: 'depcurfew.json is invalid',
+      fix: 'Fix these problems in depcurfew.json; an editor that reads its $schema shows them as you type',
+    });
+    expect((error?.['issues'] as string[]).length).toBeGreaterThan(0);
   });
 });
 

@@ -1,0 +1,8 @@
+[project]
+name = "demo"
+version = "0.1.0"
+dependencies = ["idna"]
+
+[tool.pdm.resolution]
+exclude-newer = "7d"
+only-binary = ":all:"

@@ -2,12 +2,14 @@ import { parseArgs } from 'node:util';
 import { getVersion } from '../version.ts';
 import { apply } from './apply.ts';
 import { paint, paintDiagnostics } from '../color.ts';
+import { check, type CheckDependencies } from './check.ts';
 import { COMMANDS, findCommand } from './commands.ts';
 import { doctor } from './doctor.ts';
 import { commandHelpText, helpText } from './help.ts';
 import { explain } from './explain.ts';
 import { init } from './init.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
+import { readStdin } from './stdin.ts';
 
 export { EXIT_FAILURE, EXIT_OK, EXIT_USAGE } from './io.ts';
 export type { CliIo } from './io.ts';
@@ -20,11 +22,17 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export async function run(argv: readonly string[], output: CliIo): Promise<number> {
+const DEFAULT_DEPENDENCIES: CheckDependencies = {
+  fetch: (url, init) => fetch(url, init),
+  now: () => new Date(),
+  stdin: () => readStdin(),
+};
+
+export async function run(argv: readonly string[], output: CliIo, dependencies: CheckDependencies = DEFAULT_DEPENDENCIES): Promise<number> {
   const errors = paint(output.colors?.stderr);
   const io: CliIo = { ...output, stderr: (text) => output.stderr(paintDiagnostics(text, errors)) };
   const commandOptions = Object.fromEntries(
-    COMMANDS.flatMap((command) => command.options ?? []).map((option) => [option.name, { type: 'boolean' as const }]),
+    COMMANDS.flatMap((command) => command.options ?? []).map((option) => [option.name, { type: option.value === undefined ? ('boolean' as const) : ('string' as const) }]),
   );
   let parsed;
   try {
@@ -48,7 +56,8 @@ export async function run(argv: readonly string[], output: CliIo): Promise<numbe
   }
 
   const [commandName, ...rest] = parsed.positionals;
-  const values = parsed.values as Record<string, boolean | undefined>;
+  const values = parsed.values as Record<string, boolean | string | undefined>;
+  const text = (name: string) => (typeof values[name] === 'string' ? (values[name] as string) : undefined);
 
   if (values['version'] === true) {
     io.stdout(`${getVersion()}\n`);
@@ -77,14 +86,17 @@ export async function run(argv: readonly string[], output: CliIo): Promise<numbe
     return EXIT_USAGE;
   }
 
-  if (command.implemented && rest.length > 1) {
+  if (command.implemented && command.variadic !== true && rest.length > 1) {
     io.stderr(`depcurfew: too many arguments for '${command.name}'\nRun 'depcurfew ${command.name} --help' for usage.\n`);
     return EXIT_USAGE;
   }
   if (command.name === 'init') return init(rest[0], values['force'] === true, io);
   if (command.name === 'explain') return explain(rest[0], values['json'] === true, io);
-  if (command.name === 'apply') return apply(rest[0], values['dry-run'] === true, io);
+  if (command.name === 'apply') return apply(rest[0], { dryRun: values['dry-run'] === true, json: values['json'] === true }, io);
   if (command.name === 'doctor') return doctor(rest[0], { json: values['json'] === true, sarif: values['sarif'] === true }, io);
+  if (command.name === 'check') {
+    return check(rest, { json: values['json'] === true, dir: text('dir'), registry: text('registry'), index: text('index'), hook: text('hook') }, io, dependencies);
+  }
 
   io.stderr(`depcurfew: '${command.name}' is not implemented yet.\n`);
   return EXIT_FAILURE;

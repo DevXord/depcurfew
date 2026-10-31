@@ -1,0 +1,53 @@
+{
+  "changed": [
+    "pyproject.toml"
+  ],
+  "warnings": [
+    {
+      "code": "version-not-pinned",
+      "tool": "pdm",
+      "message": "PDM: no exact version is pinned, so depcurfew configures for PDM 2.29.5, the latest version it knows",
+      "fix": "Use PDM 2.29.5 or a recent version wherever the project is installed; PDM has no setting that pins its version in the project"
+    },
+    {
+      "code": "exclude-pattern-unsupported",
+      "tool": "pdm",
+      "message": "PDM: exclude-newer-override does not support the pattern \"acme-*\"; not written",
+      "fix": "List the exact package names in cooldown.exclude"
+    },
+    {
+      "code": "build-switch-scope",
+      "tool": "pdm",
+      "message": "PDM: only-binary forbids building only packages from an index; PDM still builds git, local directory and source archive dependencies",
+      "fix": "Run depcurfew doctor to find them in the lockfile"
+    },
+    {
+      "code": "forced-source-build",
+      "tool": "pdm",
+      "message": "PDM: no-binary lets docopt be built from source while building is forbidden for everything else; PDM then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
+      "fix": "If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "pdm",
+      "message": "PDM has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "pdm",
+      "message": "PDM has no setting for URL dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "lockfile-out-of-date",
+      "tool": "pdm",
+      "location": {
+        "file": "pdm.lock"
+      },
+      "message": "PDM: pdm.lock is checked against the whole [tool.pdm.resolution] table, and this change alters exclude-newer, exclude-newer-override, only-binary and no-binary, so pdm.lock is out of date",
+      "fix": "Run pdm lock and commit pdm.lock; until then pdm lock --check and pdm install --check fail"
+    }
+  ],
+  "snippets": []
+}

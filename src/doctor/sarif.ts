@@ -1,5 +1,7 @@
 // SARIF 2.1.0 output for GitHub code scanning. Every rule is listed in the driver, every finding has a location
-// relative to the repository root, and notices become tool execution notifications.
+// relative to the repository root, and notices become tool execution notifications. When doctor could not run at
+// all (a directory that does not exist), the run is marked as not successful and the error is a notification too.
+import { Repository } from '../detect/repository.ts';
 import type { DoctorReport, Rule } from './types.ts';
 
 export const SARIF_SCHEMA = 'https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json';
@@ -10,17 +12,55 @@ function ruleName(id: string): string {
   return id.replace(/(^|-)([a-z])/gu, (_match, _dash: string, letter: string) => letter.toUpperCase());
 }
 
+/**
+ * A repository-relative path as the relative URI reference SARIF asks for (RFC 3986): each segment percent-encoded
+ * as UTF-8, so a space, `%`, `#`, `?`, a colon or a non-ASCII letter in a file name keeps its meaning; `/` stays.
+ */
+export function pathUri(file: string): string {
+  return file
+    .split('/')
+    // A lone surrogate (no file system gives one, but a lockfile might) becomes U+FFFD instead of a URIError.
+    .map((segment) => encodeURIComponent(segment.replaceAll(/[\uD800-\uDFFF]/gu, '\uFFFD')))
+    .join('/');
+}
+
 /** The text of a line in a repository file, to give regions the end column GitHub asks for. */
 export type LineReader = (file: string, line: number) => string | undefined;
 
-export function toSarif(report: DoctorReport, rules: readonly Rule[], version: string, readLine: LineReader = () => undefined): object {
+/**
+ * Reads lines of the repository's files; a file it cannot read (e.g. for lack of permission) gives no line. Each file
+ * is read and split once: a lockfile with thousands of findings is not read again for each of them.
+ */
+export function lineReader(root: string): LineReader {
+  const repository = new Repository(root);
+  const files = new Map<string, string[] | undefined>();
+  return (file, line) => {
+    if (!files.has(file)) {
+      try {
+        files.set(file, repository.readText(file)?.split(/\r?\n/u));
+      } catch {
+        files.set(file, undefined);
+      }
+    }
+    return files.get(file)?.[line - 1];
+  };
+}
+
+/** Why doctor could not run, with a stable code. */
+export interface SarifError {
+  code: string;
+  message: string;
+  fix?: string;
+}
+
+export function toSarif(report: DoctorReport, rules: readonly Rule[], version: string, readLine: LineReader = () => undefined, errors: readonly SarifError[] = []): object {
   // GitHub code scanning marks startColumn, endLine and endColumn as required; the region spans the whole line.
   const location = (file: string, line: number | undefined) => {
     const startLine = line ?? 1;
     const text = readLine(file, startLine) ?? '';
     return {
       physicalLocation: {
-        artifactLocation: { uri: file, uriBaseId: '%SRCROOT%' },
+        artifactLocation: { uri: pathUri(file), uriBaseId: '%SRCROOT%' },
         region: { startLine, startColumn: 1, endLine: startLine, endColumn: Math.max(text.length, 1) + 1 },
       },
     };
@@ -49,12 +89,19 @@ export function toSarif(report: DoctorReport, rules: readonly Rule[], version: s
         },
         invocations: [
           {
-            executionSuccessful: true,
-            toolExecutionNotifications: report.notices.map((notice) => ({
-              level: 'note',
-              message: { text: notice.message },
-              ...(notice.file === undefined ? {} : { locations: [location(notice.file, undefined)] }),
-            })),
+            executionSuccessful: errors.length === 0,
+            toolExecutionNotifications: [
+              ...errors.map((error) => ({
+                level: 'error',
+                message: { text: error.fix === undefined ? error.message : `${error.message}. Fix: ${error.fix}` },
+                descriptor: { id: error.code },
+              })),
+              ...report.notices.map((notice) => ({
+                level: 'note',
+                message: { text: notice.message },
+                ...(notice.file === undefined ? {} : { locations: [location(notice.file, undefined)] }),
+              })),
+            ],
           },
         ],
         results: report.findings.map((finding) => ({

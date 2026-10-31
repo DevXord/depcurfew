@@ -197,8 +197,16 @@ describe('validateKnowledge', () => {
     });
 
     it('rejects an unknown tool id', () => {
-      const tool = { ...buildTool(), id: 'pip' } as unknown as ToolKnowledge;
-      expect(issuesFor(tool, 'id')).toEqual([expect.stringMatching(/unknown tool id 'pip'/)]);
+      const tool = { ...buildTool(), id: 'cargo' } as unknown as ToolKnowledge;
+      expect(issuesFor(tool, 'id')).toEqual([expect.stringMatching(/unknown tool id 'cargo'/)]);
+    });
+
+    it('accepts the ecosystem of a package manager and rejects others', () => {
+      expect(validateKnowledge([{ ...buildTool('uv'), ecosystem: 'pypi' }], TODAY)).toEqual([]);
+      const unknown = { ...buildTool('uv'), ecosystem: 'cargo' } as unknown as ToolKnowledge;
+      expect(issuesFor(unknown, 'ecosystem')).toEqual([expect.stringMatching(/ecosystem 'cargo'/)]);
+      const bot = { ...buildTool('renovate', 'update-bot'), ecosystem: 'pypi' } as ToolKnowledge;
+      expect(issuesFor(bot, 'ecosystem')).toEqual([expect.stringMatching(/not an ecosystem of a package manager/)]);
     });
 
     it('rejects duplicate tool ids', () => {

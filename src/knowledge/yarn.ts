@@ -3,6 +3,7 @@ import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
+const rechecked = verifiedOn('2026-10-31');
 
 const YARNRC = 'https://yarnpkg.com/configuration/yarnrc';
 const MANIFEST = 'https://yarnpkg.com/configuration/manifest';
@@ -140,6 +141,28 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    commandLine: checked.verified(
+      {
+        add: [['yarn', 'add']],
+        run: [{ command: ['yarn', 'dlx'], packageOptions: ['-p', '--package'] }],
+        create: [{ command: ['yarn', 'create'], packageOptions: ['-p', '--package'] }],
+        createNames: 'prefix-unless-prefixed',
+        workspaceCommands: [{ command: ['yarn', 'workspace'], operands: 1 }],
+        valueOptions: ['--mode'],
+      },
+      'https://github.com/yarnpkg/berry/tree/master/packages/plugin-dlx/sources/commands',
+      'dlx.ts (documented at https://yarnpkg.com/cli/dlx) downloads the package named by the command, or the ones given with -p/--package, into a temporary environment and runs it. create.ts (yarn create, not on yarnpkg.com) takes -p/--package as well and runs create-<name>: @foo becomes @foo/create, @foo/app becomes @foo/create-app, foo becomes create-foo, and a name that already matches ^create(-|$) is kept (so is create alone). yarn add (https://yarnpkg.com/cli/add) takes packages as arguments; of its options only --mode takes a value. yarn workspace <workspaceName> <commandName> … runs a command within that workspace, e.g. yarn workspace components add -D react (https://yarnpkg.com/cli/workspace).',
+    ),
+    packageSpecs: checked.verified(
+      { git: [], local: ['link:', 'portal:', 'file:'], workspace: ['workspace:'] },
+      'https://yarnpkg.com/protocols',
+      'Protocols besides npm: and git: exec:, file:, jsr:, link:, patch:, portal: and workspace:. link: connects an external directory (https://yarnpkg.com/protocol/link), portal: a relative path to a package folder (https://yarnpkg.com/protocol/portal) and file: copies a folder or tarball.',
+    ),
+    registryOverrides: checked.verified(
+      { registryOptions: [], registryVariables: ['YARN_NPM_REGISTRY_SERVER'], configOptions: [], configVariables: ['YARN_RC_FILENAME'] },
+      'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts',
+      'Environment variables that start with yarn_ (any case) set the setting named by the camel-cased rest, so YARN_NPM_REGISTRY_SERVER sets npmRegistryServer, the registry packages are fetched from (https://yarnpkg.com/configuration/yarnrc#npmRegistryServer). getRcFilename reads yarn_rc_filename (any case) as the name of the configuration file instead of .yarnrc.yml. npmScopes, an object, cannot be set this way.',
+    ),
     lockfileFormat: checked.verified(
       {
         installScripts: null,
@@ -177,7 +200,11 @@ export const yarn: ToolKnowledge = {
     ),
     latestVersion: verified('4.18.1', release('4.18.1'), 'Yarn 6 is still in preview.'),
     bypassFlag: verified('--no-time-gate on yarn add and yarn up (4.15.0+)', 'https://yarnpkg.com/cli/add'),
-    perScopeGate: verified('npmScopes.<scope>.npmMinimalAgeGate overrides the global gate (4.17.0+)', release('4.17.0')),
+    perScopeGate: rechecked.verified(
+      { scopes: 'npmScopes', setting: 'npmMinimalAgeGate', since: '4.17.0', unset: '1d' },
+      'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-npm/sources/npmConfigUtils.ts',
+      'getMinimalAgeGate: for a scoped package, a number in npmScopes.<scope>.npmMinimalAgeGate (the scope name without @) replaces the global gate, longer or shorter, and 0 turns the gate off for that scope (acceptance tests "npmScopes override" in features/npmMinimalAgeGate.test.ts at 4.18.1; the code is the same in 4.17.0 and absent in 4.16.0). Each npmScopes entry is a shape whose unset properties get their defaults (parseShape and getDefaultValue in yarnpkg-core Configuration.ts), so a scope listed only for its registry gets the default of 1d (scopablePackageGateSettings in plugin-npm index.ts) instead of the global gate; read from the code, no test covers that case.',
+    ),
     upgradeMigration: verified(
       'When the lockfile predates the new defaults and the key is unset, yarn install writes enableScripts: true, approvedGitRepositories: ["**"] and npmMinimalAgeGate: 0 into .yarnrc.yml',
       'https://github.com/yarnpkg/berry/pull/7135',

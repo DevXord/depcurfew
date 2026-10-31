@@ -3,14 +3,17 @@
 // with paths relative to the repository root for code scanning and sets the step outputs. It does not fail the
 // step itself, so the SARIF upload still runs; action.yml decides.
 import { appendFileSync, lstatSync, mkdirSync, realpathSync, statSync } from 'node:fs';
-import { basename, dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
+import { basename, dirname, posix, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { values } from './apply/facts.ts';
 import { PolicyError } from './apply/index.ts';
 import { writeChanges } from './apply/workspace.ts';
-import { Repository } from './detect/repository.ts';
 import { annotationCommands, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
+import { problemSummary } from './doctor/github.ts';
+import { lineReader } from './doctor/sarif.ts';
 import { environment } from './knowledge/environment.ts';
+import { isInside } from './paths.ts';
+import { printable } from './printable.ts';
 import { getVersion } from './version.ts';
 
 export interface ActionOutputs {
@@ -62,16 +65,11 @@ function untrusted(text: string): string {
   return `${commands.stop.replace('{token}', token)}\n${text.endsWith('\n') ? text : `${text}\n`}${commands.resume.replace('{token}', token)}\n`;
 }
 
-function inside(root: string, path: string): boolean {
-  const part = relative(root, path);
-  return part !== '..' && !part.startsWith(`..${sep}`) && !isAbsolute(part);
-}
-
 /** The real path of a directory inside the workspace, following symlinks only as far as they stay inside it. */
 function scannedDirectory(workspace: string, input: string): string | undefined {
   try {
     const real = realpathSync(resolve(workspace, input));
-    return inside(realpathSync(workspace), real) && statSync(real).isDirectory() ? real : undefined;
+    return isInside(realpathSync(workspace), real) && statSync(real).isDirectory() ? real : undefined;
   } catch {
     return undefined;
   }
@@ -82,7 +80,7 @@ function scannedDirectory(workspace: string, input: string): string | undefined 
  * no part of the path inside the workspace may be a symlink, which could send the report over a file elsewhere.
  */
 function unsafeOutput(workspace: string, file: string): string | undefined {
-  if (!inside(workspace, file)) return undefined;
+  if (!isInside(workspace, file)) return undefined;
   let current = workspace;
   for (const part of relative(workspace, file).split(sep)) {
     current = resolve(current, part);
@@ -99,9 +97,10 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   const sarifFile = resolve(workspace, sarifInput);
   const outputs: ActionOutputs = { 'sarif-file': '', errors: 0, warnings: 0, notes: 0, failure: '' };
   const summary = enabled(env, 'job-summary');
+  // Messages carry paths and text from the repository: control characters are shown as text in the log.
   const fail = (message: string): ActionOutputs => {
     outputs.failure = message;
-    io.log(untrusted(`depcurfew: ${message}\n`));
+    io.log(untrusted(`depcurfew: ${printable(message)}\n`));
     if (summary) io.summary(failureSummary(message));
     return outputs;
   };
@@ -115,11 +114,14 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     outputs.failure = [error.message, ...error.issues].join('; ');
-    io.log(untrusted(`depcurfew: ${error.message}\n${error.issues.map((issue) => `  ${issue}\n`).join('')}`));
+    io.log(untrusted(`depcurfew: ${printable(error.text)}\n${error.issues.map((issue) => `  ${printable(issue)}\n`).join('')}`));
     if (summary) io.summary(failureSummary(outputs.failure));
     return outputs;
   }
   io.log(untrusted(renderText(report, RULES)));
+  // The counts hold from here on, also when the SARIF file cannot be written.
+  const counts = countLevels(report.findings);
+  Object.assign(outputs, { errors: counts.error, warnings: counts.warning, notes: counts.note });
 
   const moved = relativeToWorkspace(report, prefix);
   if (enabled(env, 'annotations')) {
@@ -130,27 +132,34 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
     }
   }
   if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
-  const repository = new Repository(workspace);
-  const readLine = (file: string, line: number) => repository.readText(file)?.split(/\r?\n/u)[line - 1];
-  const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), readLine), null, 2)}\n`;
-  const shownSarif = inside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join('/') : sarifFile;
+  const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
+  const shownSarif = isInside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join('/') : sarifFile;
+  // doctor did run, so a SARIF file that cannot be written is a failure below the findings, not instead of them.
+  const sarifFailure = (reason: string): ActionOutputs => {
+    outputs.failure = `cannot write the SARIF file ${sarifInput}: ${reason}`;
+    io.log(untrusted(`depcurfew: ${printable(outputs.failure)}\n`));
+    if (summary) io.summary(problemSummary(outputs.failure));
+    return outputs;
+  };
   try {
     const unsafe = unsafeOutput(workspace, sarifFile);
-    if (unsafe !== undefined) return fail(`cannot write the SARIF file ${sarifInput}: ${unsafe}`);
+    if (unsafe !== undefined) return sarifFailure(unsafe);
     const before = lstatSync(sarifFile, { throwIfNoEntry: false }) === undefined ? null : '';
     mkdirSync(dirname(sarifFile), { recursive: true });
     writeChanges(dirname(sarifFile), [{ file: basename(sarifFile), before, after: sarif }]);
   } catch (error) {
-    return fail(`cannot write the SARIF file ${sarifInput}: ${error instanceof Error ? error.message : String(error)}`);
+    return sarifFailure(error instanceof Error ? error.message : String(error));
   }
-  const counts = countLevels(report.findings);
-  return { ...outputs, 'sarif-file': shownSarif, errors: counts.error, warnings: counts.warning, notes: counts.note };
+  return { ...outputs, 'sarif-file': shownSarif };
 }
 
-/** Writes step outputs in the format of the GITHUB_OUTPUT file. */
+/**
+ * Writes step outputs in the format of the GITHUB_OUTPUT file, each on one line. action.yml prints the failure output
+ * in the log, so its other control characters are shown as text too.
+ */
 export function formatOutputs(outputs: ActionOutputs): string {
   return Object.entries(outputs)
-    .map(([name, value]) => `${name}=${String(value).replaceAll(/[\r\n]+/gu, ' ')}\n`)
+    .map(([name, value]) => `${name}=${printable(String(value).replaceAll(/[\r\n]+/gu, ' '))}\n`)
     .join('');
 }
 

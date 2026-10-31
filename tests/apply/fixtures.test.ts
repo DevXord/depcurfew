@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { afterAll, describe, expect, it } from 'vitest';
 import { applyProject } from '../../src/apply/index.ts';
-import { BLOCK_END, BLOCK_START, SUPERSEDED } from '../../src/apply/block.ts';
+import { BLOCK_END, commentedOut, isBlockStart, SUPERSEDED } from '../../src/apply/block.ts';
 import { parseJsonc } from '../../src/detect/jsonc.ts';
 
 const REPOS = fileURLToPath(new URL('../fixtures/repos/', import.meta.url));
@@ -77,12 +77,21 @@ function expectNothingUnmanagedLost(file: string, before: string, after: string)
     }
     return;
   }
-  const lines = before.split(/\r?\n/u);
-  const start = lines.findIndex((line) => line.trim() === BLOCK_START);
-  const end = lines.findIndex((line) => line.trim() === BLOCK_END);
-  const outside = start === -1 ? lines : [...lines.slice(0, start), ...lines.slice(end + 1)];
-  for (const line of outside) {
+  // Lines outside depcurfew's blocks (every block, also one per table) must stay, possibly commented out by apply;
+  // a line apply commented out earlier may come back.
+  let inBlock = false;
+  for (const line of before.split(/\r?\n/u)) {
     const trimmed = line.trim();
+    if (isBlockStart(line)) inBlock = true;
+    if (inBlock) {
+      if (trimmed === BLOCK_END) inBlock = false;
+      continue;
+    }
+    const restored = commentedOut(line);
+    if (restored !== undefined) {
+      expect(after.includes(line) || after.includes(restored), `${file}: line "${line}" disappeared`).toBe(true);
+      continue;
+    }
     if (trimmed === '' || trimmed.startsWith('#') || trimmed.startsWith(';')) continue;
     const kept = after.includes(line) || after.includes(`${SUPERSEDED}${trimmed}`);
     expect(kept, `${file}: line "${line}" disappeared`).toBe(true);
@@ -105,7 +114,7 @@ describe('apply on fixture repositories', () => {
     expect(report.errors).toEqual([]);
     expect({
       changed: report.changes.map((change) => change.file).sort(),
-      warnings: report.warnings,
+      warnings: report.warningDetails,
       snippets: report.snippets,
     }).toEqual(JSON.parse(readFileSync(expectedReport, 'utf8')));
 

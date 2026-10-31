@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "36h", "exclude": ["pypi:acme-*", "pypi:Internal.Lib"] },
+  "installScripts": { "default": "deny", "allow": ["pypi:docopt"] },
+  "sources": { "git": "deny", "remoteTarball": "deny", "file": "allow", "directory": "allow" },
+  "targets": "auto"
+}

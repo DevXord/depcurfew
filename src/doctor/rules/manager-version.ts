@@ -7,8 +7,10 @@ import { describeRequirements } from '../../apply/requirements.ts';
 import type { PackageManagerInfo, VersionDeclaration } from '../../detect/types.ts';
 import { SOURCE_KINDS } from '../../knowledge/schema.ts';
 import type { Fact, ToolKnowledge } from '../../knowledge/types.ts';
+import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
+import { readPythonSetting } from '../python.ts';
 import { lineOf, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { belowVersion, formatBound, lowestVersion } from '../version-range.ts';
@@ -38,6 +40,9 @@ function policyFeatures(tool: ToolKnowledge, policy: ResolvedPolicy): Feature[] 
     if (policy.cooldown.exclude.length > 0) features.push(feature(settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince));
   }
   if (policy.installScripts !== undefined) {
+    // Python tools forbid building from source with a switch (decision D-065).
+    const build = tool.extra?.['buildSwitch'] === undefined ? undefined : values(tool.extra['buildSwitch'])[0];
+    if (policy.installScripts.default === 'deny' && isSwitch(build)) features.push(feature(build.setting, build.since));
     const allowAll = tool.extra?.['allowAllScripts'] ?? tool.extra?.['allowAllBuilds'];
     const switchFact = allowAll === undefined ? undefined : values(allowAll)[0];
     if (policy.installScripts.default === 'allow' && isSwitch(switchFact)) features.push(feature(switchFact.setting, switchFact.since));
@@ -69,19 +74,32 @@ function configuredFeatures(context: RuleContext, tool: ToolKnowledge): Feature[
     ...SOURCE_KINDS.map((kind): [string | null, Fact<string | null> | undefined] => [settingOf(tool.sources?.[kind]?.setting), tool.sources?.[kind]?.availableSince]),
   ];
   const files = tool.id === 'deno' ? context.detection.packageManagers.find((entry) => entry.id === 'deno')?.configFiles.filter((name) => /^deno\.jsonc?$/u.test(name)) ?? [] : [file];
+  const configured = (setting: string) =>
+    ecosystemOfTool(tool) === 'pypi'
+      ? readPythonSetting(context.repository, tool, setting) !== undefined
+      : files.some((name) => readSetting(context.repository, name, setting) !== undefined);
   return candidates
-    .filter(([setting]) => setting !== null && files.some((name) => readSetting(context.repository, name, setting) !== undefined))
+    .filter(([setting]) => setting !== null && configured(setting))
     .map(([setting, since]) => feature(setting, since))
     .filter((item): item is Feature => item !== undefined);
 }
 
 const SOURCE_LABEL: Record<VersionDeclaration['source'], string> = {
   packageManager: 'packageManager',
+  'tool-config': 'the required version',
   devEngines: 'devEngines',
   volta: 'Volta',
   'tool-versions': '.tool-versions',
   'github-actions': 'GitHub Actions',
 };
+
+/** Where a version is declared, for messages; a tool's own required version is named by its key. */
+function sourceLabel(tool: ToolKnowledge, declaration: VersionDeclaration): string {
+  if (declaration.source !== 'tool-config') return SOURCE_LABEL[declaration.source];
+  const required = tool.extra?.['requiredVersion'] === undefined ? undefined : values(tool.extra['requiredVersion'])[0];
+  if (!isRecord(required) || typeof required['key'] !== 'string') return SOURCE_LABEL[declaration.source];
+  return declaration.file.endsWith('pyproject.toml') && typeof required['table'] === 'string' ? `${required['key']} in [${required['table']}]` : required['key'];
+}
 
 function declarationLine(context: RuleContext, declaration: VersionDeclaration): number | undefined {
   if (declaration.line !== undefined) return declaration.line;
@@ -93,12 +111,13 @@ function declarationLine(context: RuleContext, declaration: VersionDeclaration):
 
 function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: ToolKnowledge): void {
   const features = new Map<string, Feature>();
-  for (const item of [...(context.policy === undefined ? [] : policyFeatures(tool, context.policy)), ...configuredFeatures(context, tool)]) features.set(item.setting, item);
+  for (const item of [...(context.policy === undefined ? [] : policyFeatures(tool, policyFor(context.policy, ecosystemOfTool(tool)))), ...configuredFeatures(context, tool)]) features.set(item.setting, item);
   if (features.size === 0) return;
   for (const declaration of manager.versions) {
     if (!('version' in declaration)) continue;
     const lowest = lowestVersion(declaration.version);
-    const where = `${SOURCE_LABEL[declaration.source]} (${declaration.file})`;
+    const label = sourceLabel(tool, declaration);
+    const where = `${label} (${declaration.file})`;
     if (lowest.kind === 'unknown') {
       context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
       continue;
@@ -118,7 +137,7 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
       level: lowest.kind === 'exact' ? 'error' : 'warning',
       location: line === undefined ? { file: declaration.file } : { file: declaration.file, line },
       message: subject,
-      fix: `Require ${tool.name} ${formatVersion(needed)} or later in ${SOURCE_LABEL[declaration.source]}`,
+      fix: `Require ${tool.name} ${formatVersion(needed)} or later in ${label}`,
     });
   }
 }

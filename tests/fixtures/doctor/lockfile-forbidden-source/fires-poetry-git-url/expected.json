@@ -1,0 +1,29 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "poetry.lock",
+      "line": 29
+    },
+    "message": "poetry.lock installs local-lib from a local directory (libs/local-lib), which depcurfew.json denies",
+    "fix": "Use a registry version of local-lib, or set sources.directory to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "poetry.lock",
+      "line": 58
+    },
+    "message": "poetry.lock installs sampleproject from a git repository (https://github.com/pypa/sampleproject), which depcurfew.json denies",
+    "fix": "Use a registry version of sampleproject, or set sources.git to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "poetry.lock",
+      "line": 81
+    },
+    "message": "poetry.lock installs six from a URL (https://files.pythonhosted.org/packages/d9/5a/e7c31adbe875f2abbb91bd84cf2dc52d792b5a01506781dbcf25c91daf11/six-1.16.0-py2.py3-none-any.whl), which depcurfew.json denies",
+    "fix": "Use a registry version of six, or set sources.remoteTarball to \"allow\" in depcurfew.json"
+  }
+]

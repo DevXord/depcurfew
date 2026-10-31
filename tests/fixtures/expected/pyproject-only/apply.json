@@ -1,0 +1,11 @@
+{
+  "changed": [],
+  "warnings": [
+    {
+      "code": "nothing-to-configure",
+      "message": "no tools to configure: depcurfew found no supported package manager or bot here",
+      "fix": "Run depcurfew explain to see what depcurfew detects"
+    }
+  ],
+  "snippets": []
+}

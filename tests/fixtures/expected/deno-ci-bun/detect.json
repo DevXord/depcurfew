@@ -1,0 +1,59 @@
+{
+  "packageManagers": [
+    {
+      "id": "bun",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "ci",
+          "file": ".github/workflows/ci.yml"
+        }
+      ],
+      "versions": [],
+      "configFiles": []
+    },
+    {
+      "id": "deno",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "config",
+          "file": "deno.json"
+        },
+        {
+          "kind": "ci",
+          "file": ".github/workflows/ci.yml"
+        }
+      ],
+      "versions": [
+        {
+          "version": "v2.x",
+          "source": "github-actions",
+          "file": ".github/workflows/ci.yml",
+          "line": 10
+        }
+      ],
+      "configFiles": [
+        "deno.json"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": {
+    "declarations": [
+      {
+        "file": "deno.json",
+        "patterns": []
+      }
+    ],
+    "packages": []
+  },
+  "npmrcFiles": [],
+  "workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "warnings": []
+}

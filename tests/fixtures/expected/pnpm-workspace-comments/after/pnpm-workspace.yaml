@@ -1,0 +1,17 @@
+packages:
+  - "packages/*"
+  # - "apps/*"
+# managed by depcurfew
+minimumReleaseAgeExclude:
+  - "@acme/*"
+  - left-pad
+  # - "vue"
+allowBuilds:
+  esbuild: true
+  # managed by depcurfew
+  core-js: true
+  # sharp: true
+# managed by depcurfew
+minimumReleaseAge: 4320
+# managed by depcurfew
+minimumReleaseAgeStrict: true

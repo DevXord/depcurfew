@@ -16,7 +16,8 @@ describe('annotations', () => {
     const crafted = finding('error', 'a,b:c\n::warning::x%0A', 'line one\n::error::injected', '100% sure\r\nnext');
     const { lines } = annotationCommands(report([crafted]), RULES);
     expect(lines).toEqual([
-      '::error file=a%2Cb%3Ac%0A%3A%3Awarning%3A%3Ax%250A,line=3,title=depcurfew%3A config-drift::line one%0A::error::injected%0AFix: 100%25 sure%0D%0Anext',
+      // Line breaks in the crafted text are shown as text, as in the log; the one before the fix is depcurfew's.
+      '::error file=a%2Cb%3Ac\\x0a%3A%3Awarning%3A%3Ax%250A,line=3,title=depcurfew%3A config-drift::line one\\x0a::error::injected%0AFix: 100%25 sure\\x0d\\x0anext',
     ]);
     expect(lines.join('\n').split('\n')).toHaveLength(1);
   });

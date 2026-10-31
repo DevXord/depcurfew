@@ -167,7 +167,7 @@ describe('convertCooldown with the real knowledge base', () => {
     ['2161h', 'Dependabot accepts at most 90 days, but 2161h needs 91 days'],
     ['1000d', 'Dependabot accepts at most 90 days, but 1000d needs 1000 days'],
   ])('refuses %s for Dependabot instead of shortening the delay', (text, reason) => {
-    expect(convertCooldown(tool('dependabot'), duration(text))).toEqual({ ok: false, tool: 'dependabot', reason });
+    expect(convertCooldown(tool('dependabot'), duration(text))).toEqual({ ok: false, tool: 'dependabot', reason, fix: 'Set cooldown.minimum in depcurfew.json to 90d or less' });
   });
 
   it.each(TOOL_IDS)('%s never gets 0 (which turns the delay off) and never a shorter delay', (id) => {
@@ -200,6 +200,7 @@ describe('convertCooldown with synthetic knowledge', () => {
       ok: false,
       tool: 'npm',
       reason: 'Sample npm has no release-age setting',
+      fix: 'Remove "npm" from targets in depcurfew.json, or delay its updates another way',
     });
     const maybe = syntheticTool({ 'cooldown.unit': disputed('days', null) });
     expect(convertCooldown(maybe, duration('3d'))).toMatchObject({ ok: false, reason: 'Sample npm has no release-age setting' });
@@ -211,6 +212,7 @@ describe('convertCooldown with synthetic knowledge', () => {
       ok: false,
       tool: 'npm',
       reason: 'the unit of the Sample npm release-age setting is disputed between a number and a duration string',
+      fix: 'Set the release-age delay in the Sample npm configuration by hand; depcurfew does not guess between the readings',
     });
   });
 
@@ -220,6 +222,7 @@ describe('convertCooldown with synthetic knowledge', () => {
       ok: false,
       tool: 'npm',
       reason: 'the knowledge base does not list which duration units Sample npm accepts (extra.durationUnits)',
+      fix: 'Set the release-age delay in the Sample npm configuration by hand, and report the gap at https://github.com/DevXord/depcurfew/issues',
     });
     const malformed = syntheticTool({ 'cooldown.unit': fact('duration-string'), 'extra.durationUnits': fact(['fortnights']) });
     expect(convertCooldown(malformed, duration('3d'))).toMatchObject({ ok: false });
@@ -246,6 +249,7 @@ describe('convertCooldown with synthetic knowledge', () => {
       ok: false,
       tool: 'npm',
       reason: 'Sample npm accepts at most 30 days, but 721h needs 31 days',
+      fix: 'Set cooldown.minimum in depcurfew.json to 30d or less',
     });
   });
 
@@ -256,6 +260,7 @@ describe('convertCooldown with synthetic knowledge', () => {
       ok: false,
       tool: 'npm',
       reason: 'Sample npm accepts at most 1 day, but 1441m needs 1441 minutes',
+      fix: 'Set cooldown.minimum in depcurfew.json to 1d or less',
     });
   });
 });

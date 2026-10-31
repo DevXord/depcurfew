@@ -1,0 +1,38 @@
+{
+  "changed": [
+    "Pipfile"
+  ],
+  "warnings": [
+    {
+      "code": "version-not-pinned",
+      "tool": "pipenv",
+      "message": "Pipenv: no exact version is pinned, so depcurfew configures for Pipenv 2026.10.4, the latest version it knows",
+      "fix": "Use Pipenv 2026.10.4 or a recent version wherever the project is installed; Pipenv has no setting that pins its version in the project"
+    },
+    {
+      "code": "exclude-unsupported",
+      "tool": "pipenv",
+      "message": "Pipenv: no setting exempts packages from cool-down-period, so the Python packages in cooldown.exclude wait like every other package",
+      "fix": "Nothing to set for Pipenv, which delays these packages too; keep them in cooldown.exclude for the other tools, or remove them if they can wait"
+    },
+    {
+      "code": "build-switch-environment-only",
+      "tool": "pipenv",
+      "message": "Pipenv: the Pipfile has no setting that forbids building packages from source, so installScripts \"deny\" is not written",
+      "fix": "Set PIP_ONLY_BINARY=:all: where Pipenv installs packages (CI, Dockerfile); Pipenv passes it on to pip"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "pipenv",
+      "message": "Pipenv has no setting for git dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "pipenv",
+      "message": "Pipenv has no setting for URL dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    }
+  ],
+  "snippets": []
+}

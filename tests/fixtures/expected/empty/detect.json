@@ -10,7 +10,7 @@
   "warnings": [
     {
       "code": "nothing-detected",
-      "message": "no package.json, deno.json or lockfile found",
+      "message": "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found",
       "files": []
     }
   ]

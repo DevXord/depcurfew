@@ -4,6 +4,7 @@ import { writeIniBlock } from '../../src/apply/ini.ts';
 import { jsonGet, jsonSet, jsonArrayAppend, jsonArrayRemove, jsonArrayReplace } from '../../src/apply/json-edit.ts';
 import { detectStyle, restoreStyle, toLf } from '../../src/apply/text.ts';
 import { writeTomlBlock } from '../../src/apply/toml.ts';
+import { parseToml } from '../../src/detect/toml.ts';
 import { yamlGet, yamlSet } from '../../src/apply/yaml-edit.ts';
 
 const START = '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead';
@@ -100,6 +101,12 @@ describe('writeTomlBlock (bunfig.toml)', () => {
     );
   });
 
+  it('restores the file when its block in the middle of the file is removed again', () => {
+    const before = '[install]\nexact = true\n\n[run]\nbun = true\n';
+    const once = writeTomlBlock(before, 'install', ['minimumReleaseAge = 259200'], ['minimumReleaseAge']);
+    expect(writeTomlBlock(once, 'install', [], ['minimumReleaseAge'])).toBe(before);
+  });
+
   it('replaces its block and is idempotent', () => {
     const once = writeTomlBlock('[install]\nexact = true\n', 'install', ['a = 1'], ['a']);
     expect(writeTomlBlock(once, 'install', ['a = 1'], ['a'])).toBe(once);
@@ -107,7 +114,83 @@ describe('writeTomlBlock (bunfig.toml)', () => {
   });
 });
 
+describe('writeTomlBlock (uv.toml, pyproject.toml, poetry.toml)', () => {
+  it('writes top-level keys after the existing ones and before the first table', () => {
+    const before = '# Shared settings.\nindex-strategy = "first-index"\nexclude-newer = "1 day"\n\n[[index]]\nname = "internal"\n';
+    expect(writeTomlBlock(before, '', ['exclude-newer = "3 days"'], ['exclude-newer'])).toBe(
+      [
+        '# Shared settings.',
+        'index-strategy = "first-index"',
+        '# depcurfew: superseded by the managed block: exclude-newer = "1 day"',
+        '',
+        START,
+        'exclude-newer = "3 days"',
+        END,
+        '',
+        '[[index]]',
+        'name = "internal"',
+        '',
+      ].join('\n'),
+    );
+    expect(writeTomlBlock('', '', ['no-build = true'], ['no-build'])).toBe(`${START}\nno-build = true\n${END}\n`);
+  });
+
+  it('keeps a top-level block in place and is idempotent', () => {
+    const once = writeTomlBlock('[[index]]\nname = "internal"\n', '', ['exclude-newer = "3 days"'], ['exclude-newer']);
+    expect(once).toBe(`${START}\nexclude-newer = "3 days"\n${END}\n\n[[index]]\nname = "internal"\n`);
+    expect(writeTomlBlock(once, '', ['exclude-newer = "3 days"'], ['exclude-newer'])).toBe(once);
+    expect(writeTomlBlock(once, '', [], ['exclude-newer'])).toBe('[[index]]\nname = "internal"\n');
+  });
+
+  it('writes into a dotted table such as [tool.uv] and leaves its subtables alone', () => {
+    const before = '[project]\nname = "demo"\n\n[tool.uv]\nrequired-version = "==0.13.6"\n\n[tool.uv.sources]\nlib = { path = "lib" }\n';
+    expect(writeTomlBlock(before, 'tool.uv', ['no-build = true'], ['no-build'])).toBe(
+      `[project]\nname = "demo"\n\n[tool.uv]\nrequired-version = "==0.13.6"\n\n${START}\nno-build = true\n${END}\n\n[tool.uv.sources]\nlib = { path = "lib" }\n`,
+    );
+  });
+
+  it('comments out a managed key written as a table of its own or with dotted keys', () => {
+    const before = '[tool.uv]\nno-build = false\n\n[tool.uv.exclude-newer-package]\nfoo = false\n\n[tool.uv.sources]\nlib = { path = "lib" }\n';
+    const after = writeTomlBlock(before, 'tool.uv', ['exclude-newer-package = { "idna" = false }'], ['exclude-newer-package']);
+    expect(after).toContain('# depcurfew: superseded by the managed block: [tool.uv.exclude-newer-package]\n# depcurfew: superseded by the managed block: foo = false');
+    expect(after).toContain('[tool.uv.sources]\nlib = { path = "lib" }');
+    expect(() => parseToml(after)).not.toThrow();
+    const top = writeTomlBlock('exclude-newer-package.foo = false\n', '', ['exclude-newer-package = { "a" = false }'], ['exclude-newer-package']);
+    expect(top.startsWith('# depcurfew: superseded by the managed block: exclude-newer-package.foo = false')).toBe(true);
+    expect(() => parseToml(top)).not.toThrow();
+  });
+
+  it('keeps one block per table when the blocks carry the table name', () => {
+    const solver = (body: string, days: number) => writeTomlBlock(body, 'solver', [`min-release-age = ${days}`], ['min-release-age'], 'solver');
+    const installer = (body: string) => writeTomlBlock(body, 'installer', ['only-binary = [":all:"]'], ['only-binary'], 'installer');
+    const once = installer(solver('[virtualenvs]\nin-project = true\n', 3));
+    const solverStart = START.replace(': ', ' [solver]: ');
+    const installerStart = START.replace(': ', ' [installer]: ');
+    expect(once).toBe(
+      `[virtualenvs]\nin-project = true\n\n[solver]\n${solverStart}\nmin-release-age = 3\n${END}\n\n[installer]\n${installerStart}\nonly-binary = [":all:"]\n${END}\n`,
+    );
+    expect(installer(solver(once, 3))).toBe(once);
+    expect(installer(solver(once, 5))).toBe(once.replace('min-release-age = 3', 'min-release-age = 5'));
+  });
+
+  it('restores the file when a block between two tables is removed again', () => {
+    const before = '[installer]\nparallel = false\n\n[solver]\nlazy-wheel = false\n';
+    const installer = (body: string, entries: string[]) => writeTomlBlock(body, 'installer', entries, ['only-binary'], 'installer');
+    const once = installer(before, ['only-binary = [":all:"]']);
+    expect(once).toContain(`parallel = false\n\n${START.replace(': ', ' [installer]: ')}`);
+    expect(installer(once, [])).toBe(before);
+  });
+});
+
 describe('yamlSet', () => {
+  it('does not mark a key again inside a map depcurfew already marked', () => {
+    const dependabot = ['version: 2', 'updates:', '  - package-ecosystem: "npm"', '    # managed by depcurfew', '    cooldown:', '      default-days: 1', ''].join('\n');
+    const fixed = yamlSet(dependabot, ['updates', 0, 'cooldown', 'default-days'], 3);
+    expect(fixed).toBe(dependabot.replace('default-days: 1', 'default-days: 3'));
+    expect(yamlSet(fixed, ['updates', 0, 'cooldown', 'default-days'], 3)).toBe(fixed);
+    expect(yamlSet(fixed, ['updates', 0, 'cooldown', 'exclude'], ['left-pad'])).toBe(`${fixed}      exclude:\n        - left-pad\n`);
+  });
+
   const pnpm = [
     '# pnpm settings',
     'packages:',

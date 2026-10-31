@@ -1,0 +1,19 @@
+{
+  "packageManagers": [],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": [
+    {
+      "code": "python-tool-unknown",
+      "message": "pyproject.toml has no [tool.uv], [tool.poetry] or [tool.pdm] table, and there is no uv.lock, pylock.toml, poetry.lock, pdm.lock, Pipfile.lock, requirements.txt or Pipfile; depcurfew cannot tell which tool installs this project, so it configures none. Hatch has no supply-chain settings of its own: if its environments use the uv installer, add \"uv\" to targets in depcurfew.json",
+      "files": [
+        "pyproject.toml"
+      ]
+    }
+  ]
+}

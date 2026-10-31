@@ -1,0 +1,14 @@
+{
+  "extends": ["config:best-practices"],
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchDatasources": ["npm"], "minimumReleaseAge": null },
+    { "matchPackageNames": ["!@acme/*", "!left-pad"], "minimumReleaseAge": null },
+    { "matchUpdateTypes": ["major", "minor", "patch"], "minimumReleaseAge": "0 days" },
+    { "matchDatasources": ["pypi"], "minimumReleaseAge": null },
+    { "matchPackageNames": ["@acme/*"], "matchDatasources": ["npm"], "minimumReleaseAge": null },
+    { "matchUpdateTypes": ["patch"], "matchDatasources": ["!pypi"], "minimumReleaseAge": null },
+    { "matchUpdateTypes": ["pin", "digest"], "minimumReleaseAge": null },
+    { "matchDepTypes": ["devDependencies"], "minimumReleaseAge": null }
+  ]
+}

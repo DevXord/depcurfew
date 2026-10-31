@@ -1,5 +1,7 @@
-// Readable doctor output: findings grouped by file, then notices.
+// Readable doctor output: findings grouped by file, then notices. File names and messages carry text from the
+// repository, so control characters in them are shown as visible text (printable) before colors are added.
 import { PLAIN, type Paint } from '../color.ts';
+import { printable } from '../printable.ts';
 import type { DoctorReport, Finding, Level, Rule } from './types.ts';
 
 export function countLevels(findings: readonly Finding[]): Record<'error' | 'warning' | 'note', number> {
@@ -29,16 +31,16 @@ export function renderText(report: DoctorReport, rules: readonly Rule[], colors:
     for (const finding of report.findings) {
       if (finding.location.file !== file) {
         file = finding.location.file;
-        lines.push('', colors.bold(file));
+        lines.push('', colors.bold(printable(file)));
       }
       const where = finding.location.line === undefined ? '' : `${finding.location.line}: `;
       const help = finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
-      lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${finding.message} ${colors.dim(`(${finding.rule})`)}`);
-      if (help !== undefined) lines.push(`    ${colors.green('fix:')} ${help}`);
+      lines.push(`  ${where}${levelColor(finding.level, colors)(finding.level)} ${printable(finding.message)} ${colors.dim(`(${printable(finding.rule)})`)}`);
+      if (help !== undefined) lines.push(`    ${colors.green('fix:')} ${printable(help)}`);
     }
   }
   if (report.notices.length > 0) {
-    lines.push('', colors.bold('Notes:'), ...report.notices.map((notice) => `  ${notice.message}`));
+    lines.push('', colors.bold('Notes:'), ...report.notices.map((notice) => `  ${printable(notice.message)}`));
   }
   return `${lines.join('\n')}\n`;
 }

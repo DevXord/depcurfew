@@ -1,0 +1,90 @@
+{
+  "name": "request",
+  "dist-tags": {
+    "latest": "2.88.2"
+  },
+  "time": {
+    "created": "2011-01-22T00:36:12.640Z",
+    "modified": "2026-07-17T17:10:13.431Z",
+    "2.84.0": "2018-03-12T08:40:34.279Z",
+    "2.85.0": "2018-03-12T10:37:49.925Z",
+    "2.86.0": "2018-05-15T12:06:18.253Z",
+    "2.87.0": "2018-05-21T07:35:02.834Z",
+    "2.88.0": "2018-08-10T16:26:50.936Z",
+    "2.88.2": "2020-02-11T16:35:36.122Z"
+  },
+  "versions": {
+    "2.88.2": {
+      "name": "request",
+      "version": "2.88.2",
+      "scripts": {
+        "lint": "standard",
+        "test": "npm run lint && npm run test-ci && npm run test-browser",
+        "test-ci": "taper tests/test-*.js",
+        "test-cov": "nyc --reporter=lcov tape tests/test-*.js",
+        "test-browser": "node tests/browser/start.js"
+      },
+      "deprecated": "request has been deprecated, see https://github.com/request/request/issues/3142"
+    },
+    "2.88.0": {
+      "name": "request",
+      "version": "2.88.0",
+      "scripts": {
+        "lint": "standard",
+        "test": "npm run lint && npm run test-ci && npm run test-browser",
+        "test-ci": "taper tests/test-*.js",
+        "test-cov": "istanbul cover tape tests/test-*.js",
+        "test-browser": "node tests/browser/start.js"
+      },
+      "deprecated": "request has been deprecated, see https://github.com/request/request/issues/3142"
+    },
+    "2.87.0": {
+      "name": "request",
+      "version": "2.87.0",
+      "scripts": {
+        "lint": "standard",
+        "test": "npm run lint && npm run test-ci && npm run test-browser",
+        "test-ci": "taper tests/test-*.js",
+        "test-cov": "istanbul cover tape tests/test-*.js",
+        "test-browser": "node tests/browser/start.js"
+      },
+      "deprecated": "request has been deprecated, see https://github.com/request/request/issues/3142"
+    },
+    "2.86.0": {
+      "name": "request",
+      "version": "2.86.0",
+      "scripts": {
+        "lint": "standard",
+        "test": "npm run lint && npm run test-ci && npm run test-browser",
+        "test-ci": "taper tests/test-*.js",
+        "test-cov": "istanbul cover tape tests/test-*.js",
+        "test-browser": "node tests/browser/start.js"
+      },
+      "deprecated": "request has been deprecated, see https://github.com/request/request/issues/3142"
+    },
+    "2.85.0": {
+      "name": "request",
+      "version": "2.85.0",
+      "scripts": {
+        "lint": "standard",
+        "test": "npm run lint && npm run test-ci && npm run test-browser",
+        "test-ci": "taper tests/test-*.js",
+        "test-cov": "istanbul cover tape tests/test-*.js",
+        "test-browser": "node tests/browser/start.js"
+      },
+      "deprecated": "request has been deprecated, see https://github.com/request/request/issues/3142"
+    },
+    "2.84.0": {
+      "name": "request",
+      "version": "2.84.0",
+      "scripts": {
+        "lint": "standard",
+        "test": "npm run lint && npm run test-ci && npm run test-browser",
+        "test-ci": "taper tests/test-*.js",
+        "test-cov": "istanbul cover tape tests/test-*.js",
+        "test-browser": "node tests/browser/start.js"
+      },
+      "deprecated": "request has been deprecated, see https://github.com/request/request/issues/3142"
+    }
+  }
+}

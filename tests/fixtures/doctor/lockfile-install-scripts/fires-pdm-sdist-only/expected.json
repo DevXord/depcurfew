@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "pdm.lock",
+      "line": 13
+    },
+    "message": "docopt is built from source when installed (its index has only a source distribution), which runs its build code, but depcurfew.json does not allow it",
+    "fix": "Review docopt and add \"pypi:docopt\" to installScripts.allow in depcurfew.json (it is then always built from source), or replace the package"
+  }
+]

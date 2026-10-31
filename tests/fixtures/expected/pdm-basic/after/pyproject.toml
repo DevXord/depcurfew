@@ -1,0 +1,23 @@
+[project]
+name = "demo"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "idna",
+  "docopt==0.6.2",
+  "sampleproject @ git+https://github.com/pypa/sampleproject",
+]
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.resolution]
+# Wheels first for the slow builds.
+prefer-binary = "idna"
+
+# >>> depcurfew managed block [tool.pdm.resolution]: edit depcurfew.json and run depcurfew apply instead
+exclude-newer = "36h"
+exclude-newer-override = { "internal-lib" = false }
+only-binary = ":all:"
+no-binary = ["docopt"]
+# <<< depcurfew managed block

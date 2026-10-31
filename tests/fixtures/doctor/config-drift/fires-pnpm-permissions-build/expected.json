@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "pnpm-workspace.yaml",
+      "line": 8
+    },
+    "message": "permissions in pnpm-workspace.yaml lets esbuild run install scripts, but depcurfew.json does not allow it",
+    "fix": "Remove esbuild from permissions, or add it to installScripts.allow in depcurfew.json"
+  }
+]

@@ -3,8 +3,18 @@
     "deno.json"
   ],
   "warnings": [
-    "Deno: no exact version is pinned, so depcurfew configures for Deno 2.9.8, the latest version it knows; pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it",
-    "Deno: allowScripts allowed every install script; replaced with the policy's allow-list"
+    {
+      "code": "version-not-pinned",
+      "tool": "deno",
+      "message": "Deno: no exact version is pinned, so depcurfew configures for Deno 2.9.8, the latest version it knows",
+      "fix": "Pin the version you use (packageManager, devEngines, .tool-versions or a CI setup step) to configure for it"
+    },
+    {
+      "code": "allow-all-replaced",
+      "tool": "deno",
+      "message": "Deno: allowScripts allowed every install script; replaced with the policy's allow-list",
+      "fix": "Add the packages whose install scripts must run to installScripts.allow in depcurfew.json, then run depcurfew apply again"
+    }
   ],
   "snippets": []
 }

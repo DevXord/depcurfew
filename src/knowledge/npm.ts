@@ -3,6 +3,7 @@ import type { ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
+const reviewed = verifiedOn('2026-10-30');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -25,7 +26,10 @@ const sourceFlagSince = () =>
 const LOCKFILE_V12 = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md';
 const PACKAGE_JSON = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md';
 const NPM_DEFINITIONS = 'https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js';
+const CMD_LIST = 'https://github.com/npm/cli/blob/v12.2.1/lib/utils/cmd-list.js';
+const INSTALL_ALIASES = ['install', 'add', 'i', 'in', 'ins', 'inst', 'insta', 'instal', 'isnt', 'isnta', 'isntal', 'isntall', 'install-test', 'it'];
 const NPM_DEFINITIONS_V11_16 = 'https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js';
+const NPM_SHORTHANDS = 'https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/index.js';
 
 export const npm: ToolKnowledge = {
   id: 'npm',
@@ -196,6 +200,11 @@ export const npm: ToolKnowledge = {
       'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md',
       'Only the .npmrc at the root of the project npm runs in is read. Inside a workspace package npm moves the prefix to the workspace root (using-npm/workspaces.md) and warns "ignoring workspace config" for the package .npmrc (workspaces/config/lib/index.js). The project .npmrc "is not read in global mode, such as when running npm install -g" (same page, v11.21.1 and v12.2.1).',
     ),
+    npmrcFormat: reviewed.verified(
+      { commentLines: ['#', ';'], inlineComments: ['#', ';'], escape: '\\', sectionHeader: '^\\[([^\\]]*)\\]\\s*$', keyWithoutValue: 'true', settingsFrom: 'top level' },
+      'https://github.com/npm/ini/blob/v7.0.0/lib/ini.js',
+      'npm reads .npmrc with the ini package: 7.0.0 in npm 12.2.1, and 6.0.0, whose lib/ini.js is the same, in npm 11.10.0 to 11.21.1 (package-lock.json of npm/cli). A line whose first non-blank character is # or ; is a comment. An unquoted key or value ends at the first # or ; that is not escaped with a backslash, so ignore-scripts=true # note sets true; a value in double quotes is parsed as a JSON string and one in single quotes loses its quotes, both keeping # and ;. A line without = sets the key to true. A [name] header at the start of a line, with nothing but spaces after it, starts a section: the keys below it belong to that section until the next header. npm applies only the top-level keys as settings (#loadObject in workspaces/config/lib/index.js at v12.2.1), so a key below a header has no effect.',
+    ),
     npmrcListSyntax: verified(
       '[]',
       'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/npmrc.md',
@@ -216,12 +225,10 @@ export const npm: ToolKnowledge = {
       release('12.2.1'),
       'Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1).',
     ),
-    beforeInteraction: verified(
-      [
-        { since: '11.10.0', value: 'min-release-age and before are mutually exclusive' },
-        { since: '11.15.0', value: 'both may be set; before wins within the same config source' },
-      ],
-      release('11.15.0'),
+    beforeInteraction: reviewed.verified(
+      { setting: 'before', exclusive: { since: '11.10.0', until: '11.15.0' }, beforeWinsSince: '11.15.0' },
+      'https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js',
+      'before is a date: npm installs only versions available on or before it. In 11.10.0 to 11.14.x the definitions of min-release-age and before name each other as exclusive, and npm stops with "--min-release-age cannot be provided when using --before" (or the reverse) once both are set in its config sources (#loadObject in workspaces/config/lib/index.js and definitions.js at v11.14.1). Since 11.15.0 both may be set: "If before and min-release-age are both set in the same source, before wins"; across sources the usual precedence applies (cli > env > project > user > global), so a before in the project .npmrc replaces its own min-release-age (definitions.js at v11.15.0 and v12.2.1; release notes of 11.15.0).',
     ),
     strictAllowScripts: checked.verified(
       { setting: 'strict-allow-scripts', value: true, since: '11.16.0' },
@@ -232,6 +239,120 @@ export const npm: ToolKnowledge = {
       'Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.',
       evidence('npm 12 throws on unknown config keys', release('12.0.0')),
       evidence('unknown keys only warn; throwing is planned for a future major version', NPMRC),
+    ),
+    commandLine: checked.verified(
+      {
+        add: INSTALL_ALIASES.map((alias) => ['npm', alias]),
+        run: [
+          { command: ['npx'], packageOptions: ['--package', '-p'], lineOptions: ['--call', '-c'] },
+          { command: ['npm', 'exec'], packageOptions: ['--package'], lineOptions: ['--call', '-c'] },
+          { command: ['npm', 'x'], packageOptions: ['--package'], lineOptions: ['--call', '-c'] },
+        ],
+        create: [
+          { command: ['npm', 'init'], packageOptions: [] },
+          { command: ['npm', 'create'], packageOptions: [] },
+          { command: ['npm', 'innit'], packageOptions: [] },
+        ],
+        createNames: 'prefix',
+        valueOptions: [],
+      },
+      CMD_LIST,
+      'Aliases of install (add, i and the typo aliases in, ins, inst, insta, instal, isnt, isnta, isntal, isntall), install-test (it), exec (x) and init (create, innit), the same in 11.19.1. install-test takes the same arguments as install (docs/lib/content/commands/npm-install-test.md). npm exec and npx take the packages to download from --package; -p means --package only in npx (in npm it is --parseable); without --package the first positional argument names the package, and -c/--call takes a command string that runs with the packages, shell operators included (npm-exec.md). npm init <initializer> runs npm exec create-<initializer>: foo → create-foo, @usr → @usr/create, @usr/foo@2.0.0 → @usr/create-foo@2.0.0 (npm-init.md).',
+    ),
+    valueOptions: checked.verified(
+      [
+        '--access', '--allow-directory', '--allow-file', '--allow-git', '--allow-remote', '--allow-scripts',
+        '--also', '--audit-level', '--auth-type', '--before', '--ca', '--cache', '--cache-max', '--cache-min',
+        '--cafile', '--call', '--cert', '--cidr', '--cpu', '--depth', '--diff', '--diff-dst-prefix',
+        '--diff-src-prefix', '--diff-unified', '--edit-dir', '--editor', '--expect-result-count', '--expires',
+        '--extension-file', '--fetch-retries', '--fetch-retry-factor', '--fetch-retry-maxtimeout',
+        '--fetch-retry-mintimeout', '--fetch-timeout', '--git', '--global-ignore-file', '--globalconfig',
+        '--heading', '--https-proxy', '--include', '--init-author-email', '--init-author-name', '--init-author-url',
+        '--init-license', '--init-module', '--init-type', '--init-version', '--install-strategy', '--key', '--libc',
+        '--local-address', '--location', '--lockfile-version', '--loglevel', '--logs-dir', '--logs-max',
+        '--maxsockets', '--message', '--min-release-age', '--min-release-age-exclude', '--name', '--node-gyp',
+        '--node-options', '--noproxy', '--omit', '--only', '--orgs', '--orgs-permission', '--os', '--otp',
+        '--pack-destination', '--package', '--packages', '--packages-and-scopes-permission', '--password',
+        '--patches-dir', '--prefix', '--preid', '--provenance-file', '--proxy', '--registry',
+        '--replace-registry-host', '--save-prefix', '--sbom-format', '--sbom-type', '--scope', '--scopes',
+        '--script-shell', '--searchexclude', '--searchlimit', '--searchopts', '--searchstaleness', '--shell',
+        '--tag', '--tag-version-prefix', '--to', '--token-description', '--umask', '--user-agent', '--userconfig',
+        '--viewer', '--which', '--workspace', '-C', '-L', '-c', '-m', '-w',
+      ],
+      NPM_DEFINITIONS,
+      'npm options that always take a value: every definition whose type does not include Boolean, as --name, and the short forms -C (prefix), -L (location), -c (call), -m (message) and -w (workspace). Options whose type includes Boolean (such as color and browser) may stand alone, so they are taken for flags.',
+    ),
+    flagOptions: reviewed.verified(
+      [
+        '--all', '--allow-same-version', '--allow-scripts-pending', '--allow-scripts-pin', '--allow-unused-patches',
+        '--audit', '--bin-links', '--browser', '--bypass-2fa', '--color', '--commit-hooks',
+        '--dangerously-allow-all-scripts', '--description', '--dev', '--diff-ignore-all-space', '--diff-name-only',
+        '--diff-no-prefix', '--diff-text', '--dry-run', '--engine-strict', '--expect-results', '--force',
+        '--foreground-scripts', '--format-package-lock', '--fund', '--git-tag-version', '--global', '--global-style',
+        '--if-present', '--ignore-existing', '--ignore-extension', '--ignore-patch-failures', '--ignore-scripts',
+        '--include-attestations', '--include-staged', '--include-workspace-root', '--init-private', '--install-links',
+        '--json', '--keep-edit-dir', '--legacy-bundling', '--legacy-peer-deps', '--link', '--long', '--offline',
+        '--omit-lockfile-registry-resolved', '--optional', '--package-lock', '--package-lock-only', '--packages-all',
+        '--parseable', '--prefer-dedupe', '--prefer-offline', '--prefer-online', '--production', '--progress',
+        '--provenance', '--read-only', '--rebuild-bundle', '--save', '--save-bundle', '--save-dev', '--save-exact',
+        '--save-optional', '--save-peer', '--save-prod', '--shrinkwrap', '--sign-git-commit', '--sign-git-tag',
+        '--strict-allow-scripts', '--strict-npmrc', '--strict-peer-deps', '--strict-ssl', '--timing', '--unicode',
+        '--update-notifier', '--usage', '--version', '--versions', '--workspaces', '--workspaces-update', '--yes',
+      ],
+      NPM_DEFINITIONS,
+      'npm options whose type includes Boolean, which may stand alone: the definitions of 12.2.1 and of 11.21.1 (where shrinkwrap is one too; 12.2.1 adds ignore-existing, ignore-extension, ignore-patch-failures, allow-unused-patches, keep-edit-dir and strict-npmrc). With valueOptions they are every npm option, so an abbreviated option can be resolved as npm resolves it.',
+    ),
+    parsing: reviewed.verified(
+      {
+        abbreviations: true,
+        anyDashes: true,
+        negation: '--no-',
+        shorthands: {
+          'enjoy-by': ['--before'], d: ['--loglevel', 'info'], dd: ['--loglevel', 'verbose'], ddd: ['--loglevel', 'silly'],
+          quiet: ['--loglevel', 'warn'], q: ['--loglevel', 'warn'], s: ['--loglevel', 'silent'], silent: ['--loglevel', 'silent'],
+          verbose: ['--loglevel', 'verbose'], desc: ['--description'], help: ['--usage'], local: ['--no-global'], n: ['--no-yes'],
+          no: ['--no-yes'], porcelain: ['--parseable'], readonly: ['--read-only'], reg: ['--registry'],
+          iwr: ['--include-workspace-root'], ws: ['--workspaces'], a: ['--all'], c: ['--call'], f: ['--force'], g: ['--global'],
+          L: ['--location'], l: ['--long'], m: ['--message'], p: ['--parseable'], C: ['--prefix'], S: ['--save'],
+          B: ['--save-bundle'], D: ['--save-dev'], E: ['--save-exact'], O: ['--save-optional'], P: ['--save-prod'],
+          '?': ['--usage'], H: ['--usage'], h: ['--usage'], v: ['--version'], w: ['--workspace'], y: ['--yes'],
+        },
+      },
+      NPM_SHORTHANDS,
+      'The shorthands npm passes to nopt: the list in definitions/index.js and the short names of the definitions (the same in 11.21.1). nopt (node_modules/nopt/lib/nopt-lib.js, versions 8.1.0 in npm 10.9.4, 9.0.0 in 11.21.1 and 10.0.1 in 12.2.1, same parse and resolveShort) strips every leading dash, so -reg, --reg and -registry work; takes an exact option first, then an exact shorthand, then a word of one-letter shorthands (-gD), then an unambiguous prefix of an option name (abbrev), then a prefix of a shorthand; and reads --no-<name> as a negated flag that takes no value. npm 10 expands abbreviations silently, npm 11 warns "Expanding --regis to --registry. This will stop working in the next major version of npm." and npm 12 refuses them with EUNKNOWNCONFIG (abbrevHandler in workspaces/config/lib/index.js of 11.21.1 and 12.2.1). Shorthands are expanded only on the command line, not in .npmrc or npm_config_ variables. npx turns -p into --package and expands exact shorthands itself before npm exec reads the rest (bin/npx-cli.js).',
+    ),
+    versionSelection: reviewed.verified(
+      { tagOption: '--tag', tagVariable: 'npm_config_tag', tagKey: 'tag', bareRange: '*' },
+      NPM_DEFINITIONS,
+      'tag (default latest): "If you ask npm to install a package and don\'t tell it a specific version, then it will install the specified tag"; like any setting it comes from --tag, npm_config_tag or .npmrc. A name without a version is name@* (npm-package-arg 14.0.0, lib/npa.js). npm-pick-manifest 12.0.0 (node_modules/npm-pick-manifest/lib/index.js) picks the version of that dist-tag when the range is * or the version satisfies the range, unless it is deprecated; otherwise the highest satisfying version, preferring versions that are not deprecated; prereleases match a range only when it names one, so name@* with latest on a prerelease installs that prerelease. npm exec and npm init pick with the same settings.',
+    ),
+    packageSpecs: checked.verified(
+      {
+        git: ['git://', 'git+ssh://', 'git+http://', 'git+https://', 'git+file://', 'github:', 'gist:', 'bitbucket:', 'gitlab:'],
+        local: ['file:'],
+        workspace: [],
+        alias: 'npm:',
+        remoteTarball: ['http://', 'https://'],
+        tarballExtensions: ['.tar', '.tar.gz', '.tgz'],
+        shorthand: 'github:',
+      },
+      'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-install.md',
+      'Forms of npm install <spec>: a folder; a tarball file, whose name must end in .tar, .tar.gz or .tgz; a tarball URL, which must start with http:// or https://; a git remote URL with the protocol git, git+ssh, git+http, git+https or git+file; <githubname>/<githubrepo> or github:<githubname>/<githubrepo>; gist:, bitbucket: and gitlab: shorthands; <alias>@npm:<name>. The file: prefix for local paths is documented in docs/lib/content/configuring-npm/package-json.md (Local Paths).',
+    ),
+    registryConfig: checked.verified(
+      { file: '.npmrc', userFile: '~/.npmrc', key: 'registry', scopeKeySuffix: ':registry' },
+      NPM_DEFINITIONS,
+      'userconfig, the location of user-level settings, defaults to ~/.npmrc; registry is the base URL of the npm registry (default https://registry.npmjs.org/); a per-project .npmrc can set it like any config key (docs/lib/content/using-npm/config.md). npm config set @myco:registry=http://reg.example.com associates a scope with a registry, and any npm install of a package with that scope then requests it from there (https://docs.npmjs.com/cli/v12/using-npm/scope#associating-a-scope-with-a-registry).',
+    ),
+    registryOverrides: checked.verified(
+      {
+        registryOptions: ['--registry', '--@<scope>:registry'],
+        registryVariables: ['npm_config_registry'],
+        configOptions: ['--userconfig', '--globalconfig'],
+        configVariables: ['npm_config_userconfig', 'npm_config_globalconfig'],
+      },
+      NPM_DEFINITIONS,
+      'registry is a URL; userconfig and globalconfig are the user and global configuration files. Putting --foo bar on the command line sets the foo configuration parameter, and environment variables that start with npm_config_ are configuration parameters too, without regard to case (docs/lib/content/using-npm/config.md); @scope:registry is the key of a scope\'s registry (https://docs.npmjs.com/cli/v12/using-npm/scope).',
     ),
     lockfileInstalls: uncertain(
       'npm ci installs versions pinned in package-lock.json without applying min-release-age',

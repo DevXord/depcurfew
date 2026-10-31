@@ -1,6 +1,6 @@
 // Runs the built executable. `npm test` builds with tsdown before running Vitest.
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,7 +79,7 @@ describe('built depcurfew executable', () => {
 
       const second = depcurfewIn(directory, 'init');
       expect(second.status).toBe(1);
-      expect(second.stderr).toContain('depcurfew.json already exists; pass --force to overwrite it.');
+      expect(second.stderr).toContain('error: depcurfew.json already exists (policy-exists)');
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -92,6 +92,8 @@ describe('built depcurfew executable', () => {
       schemaVersion: 1,
       project: JSON.parse(readFileSync(new URL('tests/fixtures/expected/npm-basic/detect.json', root), 'utf8')),
       policy: null,
+      notices: [],
+      errors: [],
     });
   });
 
@@ -122,7 +124,40 @@ describe('built depcurfew executable', () => {
   it('apply without a policy exits with 1', () => {
     const result = depcurfew('apply', fileURLToPath(new URL('tests/fixtures/repos/npm-basic', root)));
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("run 'depcurfew init' first");
+    expect(result.stderr).toContain("(policy-missing)\n  fix: Run 'depcurfew init' first\n");
+  });
+
+  it('doctor, explain and apply in a subdirectory use the depcurfew.json of the repository and say so', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'depcurfew-e2e-'));
+    try {
+      cpSync(fileURLToPath(new URL('tests/fixtures/doctor/lockfile-forbidden-source/fires-npm/repo', root)), directory, { recursive: true });
+      mkdirSync(join(directory, '.git'));
+      const deep = join(directory, 'src', 'deep');
+      mkdirSync(deep, { recursive: true });
+      const note = (command: string) => `using ../../depcurfew.json from a parent directory, so depcurfew ${command} works on ../..; paths are relative to it`;
+
+      const doctor = depcurfewIn(deep, 'doctor');
+      expect(doctor.status).toBe(1);
+      expect(doctor.stdout).toContain('package-lock.json\n  20: error package-lock.json installs ghshort from a git repository');
+      expect(doctor.stdout).toContain(`\nNotes:\n  ${note('doctor')}\n`);
+      expect(JSON.parse(depcurfewIn(deep, 'doctor', '--json').stdout)).toMatchObject({ policy: 'valid', notices: [{ message: note('doctor') }] });
+
+      const explain = depcurfewIn(deep, 'explain');
+      expect([explain.status, explain.stderr]).toEqual([0, `note: ${note('explain')}\n`]);
+      expect(explain.stdout).toContain('Policy (depcurfew.json):\n');
+      expect(JSON.parse(depcurfewIn(deep, 'explain', '--json').stdout)).toMatchObject({ notices: [{ message: note('explain') }], errors: [] });
+
+      const apply = depcurfewIn(deep, 'apply', '--dry-run');
+      expect(apply.status).toBe(0);
+      expect(apply.stderr.startsWith(`note: ${note('apply')}\n`)).toBe(true);
+      expect(apply.stdout).toContain('+++ b/.npmrc\n');
+      expect(JSON.parse(depcurfewIn(deep, 'apply', '--dry-run', '--json').stdout)).toMatchObject({ notices: [{ message: note('apply') }] });
+
+      // A directory given on the command line is taken as it is.
+      expect(depcurfew('doctor', deep).stdout).toContain('no depcurfew.json: only the rules that do not need a policy ran');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('doctor --sarif reports a fixture repository and fails on its error', () => {

@@ -1,0 +1,14 @@
+[project]
+name = "backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+
+# >>> depcurfew managed block [tool.uv]: edit depcurfew.json and run depcurfew apply instead
+exclude-newer = "3 days"
+exclude-newer-package = { "acme-lib" = false }
+no-build = true
+no-binary-package = ["docopt"]
+# <<< depcurfew managed block

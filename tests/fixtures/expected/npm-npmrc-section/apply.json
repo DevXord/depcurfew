@@ -1,0 +1,15 @@
+{
+  "changed": [
+    ".npmrc",
+    "package.json"
+  ],
+  "warnings": [
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "npm",
+      "message": "npm: allowScripts takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    }
+  ],
+  "snippets": []
+}

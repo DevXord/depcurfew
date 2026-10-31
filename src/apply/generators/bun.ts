@@ -1,5 +1,5 @@
 // Bun: [install] keys in a managed block in bunfig.toml; trustedDependencies in package.json.
-import { BLOCK_START } from '../block.ts';
+import { hasManagedLines } from '../block.ts';
 import { firstFile, settingOf, sinceOf } from '../facts.ts';
 import { allowedNames, cooldownValue, eachSource, exclusions, sameList, splitDotted } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
@@ -32,7 +32,11 @@ export const bun: ManagerGenerator = (context) => {
 
   if (policy.installScripts !== undefined) {
     if (policy.installScripts.default === 'allow') {
-      context.warn(`${context.name} has no setting that allows every install script; "allow" not written. List the packages under installScripts.allow instead`);
+      context.warn({
+        code: 'allow-all-unsupported',
+        message: `${context.name} has no setting that allows every install script; "allow" not written`,
+        fix: 'List the packages under installScripts.allow instead',
+      });
     } else {
       const setting = settingOf(tool.installScripts.allowList.setting);
       const since = sinceOf(tool.installScripts.allowList.availableSince);
@@ -40,10 +44,13 @@ export const bun: ManagerGenerator = (context) => {
         const listFile = settingOf(tool.installScripts.allowList.file) ?? 'package.json';
         const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
         const current = context.json(listFile).get([setting]);
-        if (current === undefined) {
-          context.warn(
-            `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed; add the ones that need their scripts to installScripts.allow`,
-          );
+        // Without package.json nothing is written (apply does not create manifests), so nothing is replaced either.
+        if (current === undefined && context.exists(listFile)) {
+          context.warn({
+            code: 'built-in-list-replaced',
+            message: `${context.name}: ${setting} replaces Bun's built-in list of trusted packages, so packages on that list no longer run install scripts unless listed`,
+            fix: 'Add the ones that need their scripts to installScripts.allow',
+          });
         }
         // Even an empty list is written: without one, the packages on Bun's built-in list still run their scripts.
         const list = Array.isArray(current) ? [...(current as unknown[])] : [];
@@ -55,6 +62,6 @@ export const bun: ManagerGenerator = (context) => {
 
   eachSource(context, () => undefined);
 
-  if (entries.length > 0 || context.read(file).includes(BLOCK_START)) context.toml(file, table, entries, managed);
+  if (entries.length > 0 || hasManagedLines(context.read(file))) context.toml(file, table, entries, managed);
   return minutes;
 };

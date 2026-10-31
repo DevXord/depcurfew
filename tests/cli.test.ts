@@ -66,9 +66,9 @@ describe('depcurfew CLI', () => {
   });
 
   it('rejects an option of another command', async () => {
-    const result = await exec('apply', '--json');
+    const result = await exec('apply', '--sarif');
     expect(result.code).toBe(EXIT_USAGE);
-    expect(result.stderr).toContain("option '--json' is not supported by 'apply'");
+    expect(result.stderr).toContain("option '--sarif' is not supported by 'apply'");
   });
 
   it('shows help instead of running a command when --help is given', async () => {
@@ -90,10 +90,11 @@ describe('depcurfew CLI', () => {
   });
 
   it('describes every command in its own help', async () => {
-    for (const command of ['init', 'apply', 'doctor', 'explain']) {
+    for (const command of ['init', 'apply', 'doctor', 'explain', 'check']) {
       const result = await exec(command, '--help');
       expect(result.stdout).toMatch(new RegExp(`^Usage: depcurfew ${command} `, 'm'));
       expect(result.stdout).toMatch(/^Exit codes:\n {2}0 /m);
+      expect(result.stdout.split('\n').filter((line) => line.length > 80)).toEqual([]);
     }
   });
 

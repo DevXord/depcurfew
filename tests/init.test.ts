@@ -55,7 +55,7 @@ describe('depcurfew init', () => {
     const result = await exec('init', directory);
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toBe(`depcurfew: ${policyFile} already exists; pass --force to overwrite it.\n`);
+    expect(result.stderr).toBe(`error: ${policyFile} already exists (policy-exists)\n  fix: Pass --force to overwrite it with the default policy, or edit it by hand\n`);
     expect(readFileSync(policyFile, 'utf8')).toBe('{ "version": 1 }\n');
   });
 
@@ -79,27 +79,89 @@ describe('depcurfew init', () => {
   it('fails when the directory does not exist', async () => {
     const missing = join(directory, 'missing');
     const result = await exec('init', missing);
-    expect(result).toEqual({ code: EXIT_FAILURE, stdout: '', stderr: `depcurfew: directory not found: ${missing}\n` });
+    expect(result).toEqual({ code: EXIT_USAGE, stdout: '', stderr: `error: directory not found: ${missing} (directory-not-found)\n  fix: Pass the path of an existing directory\n` });
   });
 
   it('fails when the target is a file, not a directory', async () => {
     const file = join(directory, 'file.txt');
     writeFileSync(file, '');
     const result = await exec('init', file);
-    expect(result).toEqual({ code: EXIT_FAILURE, stdout: '', stderr: `depcurfew: not a directory: ${file}\n` });
+    expect(result).toEqual({ code: EXIT_USAGE, stdout: '', stderr: `error: not a directory: ${file} (not-a-directory)\n  fix: Pass the directory of the project, not a file in it\n` });
   });
 
-  it('reports a write error', async () => {
+  it('says what to do when depcurfew.json is a directory, with or without --force', async () => {
     mkdirSync(policyFile);
-    const result = await exec('init', directory, '--force');
+    for (const argv of [[directory, '--force'], [directory]]) {
+      const result = await exec('init', ...argv);
+      expect(result).toEqual({
+        code: EXIT_FAILURE,
+        stdout: '',
+        stderr: `error: ${policyFile} is a directory, not a file (cannot-write)\n  fix: Remove or rename the directory ${policyFile}, then run depcurfew init again\n`,
+      });
+    }
+  });
+
+  it('reports any other write error with its reason and what to do', async () => {
+    const readOnly = join(directory, 'read-only');
+    mkdirSync(readOnly, { mode: 0o555 });
+    const result = await exec('init', readOnly);
+    // root may write anyway; then there is nothing to report.
+    if (result.code === EXIT_OK) return;
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toMatch(new RegExp(`^depcurfew: cannot write ${policyFile.replaceAll('\\', '\\\\')}: `));
+    expect(result.stderr).toMatch(new RegExp(`^error: cannot write ${join(readOnly, 'depcurfew.json').replaceAll('\\', '\\\\')}: EACCES[^\\n]* \\(cannot-write\\)\\n  fix: Make sure you can write to the directory, then run depcurfew init again\\n$`, 'u'));
   });
 
   it('reports the tools it detects', async () => {
     cpSync(fileURLToPath(new URL('fixtures/repos/pnpm11-dependabot', import.meta.url)), directory, { recursive: true });
     const result = await exec('init', directory);
     expect(result.stdout).toBe(`Created ${policyFile} with the default policy.\nDetected tools: pnpm, Dependabot.\n`);
+  });
+
+  it('lists a tool seen only in a CI setup step apart, as apply does not configure it', async () => {
+    cpSync(fileURLToPath(new URL('fixtures/repos/deno-ci-bun', import.meta.url)), directory, { recursive: true });
+    const result = await exec('init', directory);
+    expect(result).toEqual({
+      code: EXIT_OK,
+      stdout:
+        `Created ${policyFile} with the default policy.\n` +
+        'Detected tools: Deno.\n' +
+        'Bun is seen only in a CI setup step (.github/workflows/ci.yml), so depcurfew apply does not configure it; add "bun" to targets in depcurfew.json if it installs packages for this project.\n',
+      stderr: '',
+    });
+  });
+
+  it('keeps a longer release-age delay the repository already sets, and says where it is', async () => {
+    writeFileSync(join(directory, 'package.json'), '{"name": "app", "packageManager": "npm@11.19.1"}\n');
+    writeFileSync(join(directory, '.npmrc'), 'save-exact=true\nmin-release-age=14\n');
+    mkdirSync(join(directory, '.github'));
+    writeFileSync(
+      join(directory, '.github/dependabot.yml'),
+      'version: 2\nupdates:\n  - package-ecosystem: npm\n    directory: /\n    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 7\n',
+    );
+    const result = await exec('init', directory);
+    expect(result).toEqual({
+      code: EXIT_OK,
+      stdout:
+        `Created ${policyFile} with the default policy.\n` +
+        'cooldown.minimum is 14d instead of 3d, to keep the longest release-age delay already set: min-release-age: 14 in .npmrc (line 2).\n' +
+        'Detected tools: npm, Dependabot.\n',
+      stderr: '',
+    });
+    const policy = JSON.parse(readFileSync(policyFile, 'utf8')) as { cooldown: { minimum: string } };
+    expect(policy.cooldown.minimum).toBe('14d');
+    expect(parsePolicy(readFileSync(policyFile, 'utf8'))).toMatchObject({ ok: true });
+  });
+
+  it('rounds a delay up to whole minutes and keeps the default when existing delays are shorter', async () => {
+    writeFileSync(join(directory, 'package.json'), '{"name": "app"}\n');
+    writeFileSync(join(directory, 'bun.lock'), '{}\n');
+    writeFileSync(join(directory, 'bunfig.toml'), '[install]\nminimumReleaseAge = 345601\n');
+    await exec('init', directory);
+    expect((JSON.parse(readFileSync(policyFile, 'utf8')) as { cooldown: { minimum: string } }).cooldown.minimum).toBe('5761m');
+    writeFileSync(join(directory, 'bunfig.toml'), '[install]\nminimumReleaseAge = 86400\n');
+    const result = await exec('init', directory, '--force');
+    expect(result.stdout).toBe(`Overwrote ${policyFile} with the default policy.\nDetected tools: Bun.\n`);
+    expect(readFileSync(policyFile, 'utf8')).toBe(EXPECTED);
   });
 
   it('accepts at most one directory', async () => {

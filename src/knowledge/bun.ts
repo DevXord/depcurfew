@@ -109,6 +109,33 @@ export const bun: ToolKnowledge = {
     workspacesObjectKey: verified('packages', 'https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx', 'The object form also holds catalog and catalogs.'),
   },
   extra: {
+    commandLine: checked.verified(
+      {
+        add: [['bun', 'add']],
+        run: [
+          { command: ['bunx'], packageOptions: ['-p', '--package'] },
+          { command: ['bun', 'x'], packageOptions: ['-p', '--package'] },
+        ],
+        create: [{ command: ['bun', 'create'], packageOptions: [] }],
+        createNames: 'prefix',
+        valueOptions: [
+          '--omit', '--filter', '--ca', '--cafile', '--registry', '--network-concurrency', '--backend', '--concurrent-scripts',
+          '--cache-dir', '--config', '--cwd', '--env-file', '--minimum-release-age',
+        ],
+      },
+      'https://github.com/oven-sh/bun/tree/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/snippets/cli',
+      'Options of bun add (snippets/cli/add.mdx) and bunx (snippets/cli/bunx.mdx) typed string or number; --catalog takes its name only after =. -p is --package for bunx but the flag --production for bun add, so it is listed with bunx only. The short forms -F (--filter) and -c (--config) of bun add are left out because bunx does not document them, and an option wrongly read as taking a value would hide the package after it. bunx is an alias for bun x (docs/pm/bunx.mdx). bun create <template> runs the create-<template> package from npm unless a local template has that name; it also takes GitHub repositories and local paths (docs/runtime/templating/create.mdx).',
+    ),
+    packageSpecs: checked.verified(
+      { git: ['github:', 'git+ssh://', 'git+https://'], local: [], workspace: [], scp: true },
+      'https://github.com/oven-sh/bun/blob/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/pm/cli/add.mdx',
+      'Git dependencies: "Bun supports a variety of protocols, including github, git, git+ssh, and git+https", with the examples git@github.com:moment/moment.git and github:colinhacks/zod. Tarball URLs, local folders and local .tgz files are accepted too.',
+    ),
+    registryOverrides: checked.verified(
+      { registryOptions: ['--registry'], registryVariables: ['BUN_CONFIG_REGISTRY'], configOptions: ['--config', '-c'], configVariables: [] },
+      'https://github.com/oven-sh/bun/tree/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs',
+      'bun add takes --registry and --config (-c), a configuration file (snippets/cli/add.mdx). BUN_CONFIG_REGISTRY sets the npm registry and environment variables take priority over bunfig.toml (pm/cli/install.mdx).',
+    ),
     lockfileFormat: checked.verified(
       {
         installScripts: 'hasInstallScript',

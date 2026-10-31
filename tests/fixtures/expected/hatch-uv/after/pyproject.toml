@@ -1,0 +1,13 @@
+[project]
+name = "hatch-app"
+version = "0.1.0"
+dependencies = ["idna"]
+
+[tool.hatch.envs.default]
+installer = "uv"
+
+[tool.uv]
+# >>> depcurfew managed block [tool.uv]: edit depcurfew.json and run depcurfew apply instead
+exclude-newer = "3 days"
+no-build = true
+# <<< depcurfew managed block

@@ -1,0 +1,19 @@
+{
+  "packageManagers": [],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": [
+    {
+      "code": "invalid-file",
+      "message": "cannot parse pyproject.toml: invalid TOML at line 6: unterminated string",
+      "files": [
+        "pyproject.toml"
+      ]
+    }
+  ]
+}

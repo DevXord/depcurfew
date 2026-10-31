@@ -1,0 +1,47 @@
+{
+  "changed": [
+    ".github/dependabot.yml",
+    ".npmrc",
+    "package.json",
+    "renovate.json"
+  ],
+  "warnings": [
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "npm",
+      "message": "npm: allowScripts takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "cooldown-shortened",
+      "tool": "npm",
+      "location": {
+        "file": ".npmrc",
+        "line": 3
+      },
+      "message": "npm: min-release-age: 14 in .npmrc (line 3) waits 2 weeks, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply comments it out and writes min-release-age: 3 in its managed block, so npm waits only 3 days",
+      "fix": "To keep the longer delay, set cooldown.minimum to \"14d\" in depcurfew.json and run depcurfew apply again"
+    },
+    {
+      "code": "cooldown-shortened",
+      "tool": "renovate",
+      "location": {
+        "file": "renovate.json",
+        "line": 4
+      },
+      "message": "Renovate: minimumReleaseAge: \"10 days\" in renovate.json (line 4) waits 10 days, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply replaces it with \"3 days\", so Renovate waits only 3 days",
+      "fix": "To keep the longer delay, set cooldown.minimum to \"10d\" in depcurfew.json and run depcurfew apply again; if an earlier depcurfew apply wrote this value to renovate.json and you lowered cooldown.minimum on purpose, nothing to do"
+    },
+    {
+      "code": "cooldown-shortened",
+      "tool": "dependabot",
+      "location": {
+        "file": ".github/dependabot.yml",
+        "line": 8
+      },
+      "message": "Dependabot: default-days: 7 in .github/dependabot.yml (line 8) waits 1 week for npm updates, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply replaces it with 3, so Dependabot waits only 3 days",
+      "fix": "To keep the longer delay, set cooldown.minimum to \"7d\" in depcurfew.json and run depcurfew apply again"
+    }
+  ],
+  "snippets": []
+}

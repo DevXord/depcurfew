@@ -70,6 +70,7 @@ describe('colored output', () => {
       "\u001b[31m\u001b[1mdepcurfew:\u001b[22m\u001b[39m no\nRun 'depcurfew --help'\n\u001b[33mwarning:\u001b[39m w\n\u001b[31m\u001b[1merror:\u001b[22m\u001b[39m e\n",
     );
     expect(paintDiagnostics('depcurfew: no\n', PLAIN)).toBe('depcurfew: no\n');
+    expect(paintDiagnostics('note: n\n', COLORED)).toBe('\u001b[36mnote:\u001b[39m n\n');
   });
 
   it('colors each stream only when that stream allows it', async () => {

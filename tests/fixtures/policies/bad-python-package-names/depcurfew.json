@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3d", "exclude": ["pypi:", "pypi:*", "pypi:@acme/x", "pypi:requests==2.0", "pypi:-dash", "npm:esbuild"] },
+  "installScripts": { "default": "deny", "allow": ["pypi:docopt@0.6.2", "PyPI:docopt"] }
+}

@@ -2,15 +2,25 @@
 // directory, workspace) and, where the format records it, whether it has install scripts. The spelling of every
 // format comes from the knowledge base (extra.lockfileFormat).
 import { posix } from 'node:path';
-import { parse as parseYaml, parseAllDocuments } from 'yaml';
 import { isRecord, values } from '../apply/facts.ts';
 import { parseJsonc } from '../detect/jsonc.ts';
 import type { Repository } from '../detect/repository.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
+import { listing } from '../apply/requirements.ts';
+import { isAbsoluteAnywhere } from '../paths.ts';
+import { parseYaml, parseYamlDocuments } from '../yaml-parse.ts';
+import { pdmEntries, pipfileLockEntries, poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
 
 /** Lockfiles are often larger than configuration files. */
 export const MAX_LOCKFILE_SIZE = 64 * 1024 * 1024;
+
+/**
+ * YAML lockfiles (pnpm-lock.yaml, Yarn Berry's yarn.lock) are parsed into a syntax tree that takes about 60 times the
+ * size of the file in memory: a 16 MiB one about 1 GiB of the 2 GiB that Node.js gives itself on a CI runner with
+ * 7 GB of memory. A larger one is reported as not checked instead of ending doctor without a report.
+ */
+export const MAX_YAML_LOCKFILE_SIZE = 16 * 1024 * 1024;
 
 export type Source = 'registry' | 'git' | 'remoteTarball' | 'file' | 'directory' | 'workspace' | 'unknown';
 
@@ -23,6 +33,10 @@ export interface LockEntry {
   installScript: boolean | undefined;
   /** Text to look for when reporting the line. */
   anchor: string;
+  /** The line, when the parser knows it. */
+  line?: number;
+  /** A requirement without a package name (a bare URL or path): `name` is its location, and no allow-list matches it. */
+  unnamed?: boolean;
 }
 
 export interface Lockfile {
@@ -32,6 +46,8 @@ export interface Lockfile {
   recordsScripts: boolean;
   /** 1-based line of an entry's anchor (searched on demand, since lockfiles are large). */
   lineOf(entry: LockEntry): number | undefined;
+  /** pip requirements files: every file whose global options (such as --only-binary) apply to this one's packages. */
+  optionFiles?: readonly string[];
 }
 
 type Format = Record<string, unknown>;
@@ -168,8 +184,7 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[],
 function pnpmGraph(text: string, documents: Format | undefined): { document: unknown; start: number } {
   const marker = documents?.['bootMarker'];
   if (typeof marker !== 'string' || documents?.['graph'] !== 'last' || text.split(/\r?\n/u, 1)[0] !== marker) return { document: parseYaml(text), start: 0 };
-  const parsed = parseAllDocuments(text);
-  const all = Array.isArray(parsed) ? parsed : [parsed];
+  const all = parseYamlDocuments(text);
   for (const document of all) if (document.errors.length > 0) throw document.errors[0] as Error;
   const last = all.at(-1);
   return { document: last?.toJS() as unknown, start: last?.range[0] ?? 0 };
@@ -236,7 +251,7 @@ function yarnSource(locator: string, format: Format): Source {
 }
 
 function yarnEntries(text: string, format: Format): LockEntry[] {
-  const document = parseYaml(text) as unknown;
+  const document = parseYaml(text);
   if (!isRecord(document)) return [];
   return Object.entries(document)
     .filter(([key, value]) => key !== '__metadata' && isRecord(value) && typeof value['resolution'] === 'string')
@@ -296,7 +311,6 @@ function documentsOf(tool: ToolKnowledge): Format | undefined {
   return isRecord(value) ? value : undefined;
 }
 
-/** The lockfiles a package manager uses in the repository root, parsed. */
 /** The package.json next to a lockfile, or undefined when it is missing or not JSON. */
 function readManifest(repository: Repository, lockfile: string): unknown {
   const text = repository.readText(posix.join(posix.dirname(lockfile), 'package.json'));
@@ -314,17 +328,135 @@ function overridesFormatOf(tool: ToolKnowledge): Format | undefined {
   return isRecord(value) ? value : undefined;
 }
 
-export function readLockfiles(repository: Repository, manager: PackageManagerInfo, tool: ToolKnowledge, workspaces: readonly string[]): LockfileResult[] {
-  const fact = tool.extra?.['lockfileFormat'];
+const URL_LIKE = /^[a-z][a-z0-9+.-]+:/iu;
+
+/**
+ * pip reads the files a requirements file includes with -r and -c too, relative to the including file, and their
+ * global options apply to the whole install. For each requirements file of the trees under `roots`: every file of its
+ * tree. An include that cannot be read (a URL, a missing file, a path outside the repository) is reported.
+ */
+function requirementsTrees(repository: Repository, roots: readonly string[], format: Format): Map<string, string[]> {
+  const trees = new Map<string, string[]>();
+  for (const root of roots) {
+    const tree: string[] = [];
+    const queue = [root];
+    while (queue.length > 0) {
+      const file = queue.shift() as string;
+      if (tree.includes(file)) continue;
+      tree.push(file);
+      const text = repository.readText(file, MAX_LOCKFILE_SIZE);
+      if (text === undefined) continue;
+      const unreadable: string[] = [];
+      for (const { path, line } of requirementsIncludes(text, format)) {
+        const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll('\\', '/')));
+        const reason = URL_LIKE.test(path)
+          ? 'a URL'
+          : isAbsoluteAnywhere(path) || target === '..' || target.startsWith('../')
+            ? 'outside the repository'
+            : repository.isFile(target)
+              ? undefined
+              : 'missing';
+        if (reason === undefined) queue.push(target);
+        else unreadable.push(`${path} (line ${line}, ${reason})`);
+      }
+      if (unreadable.length > 0) repository.warn('unreadable-include', `cannot read the files that ${file} includes: ${listing(unreadable)}`, [file]);
+    }
+    for (const file of tree) trees.set(file, [...new Set([...(trees.get(file) ?? []), ...tree])]);
+  }
+  return trees;
+}
+
+/** A tool's extra.lockfileFormat. */
+function lockfileFormatOf(tool: ToolKnowledge | undefined): Format | undefined {
+  const fact = tool?.extra?.['lockfileFormat'];
   const format = fact === undefined ? undefined : values(fact)[0];
-  if (!isRecord(format)) return [];
-  const files = [...new Set(manager.evidence.filter((item) => item.kind === 'lockfile').map((item) => item.file))];
+  return isRecord(format) ? format : undefined;
+}
+
+/** pylock.toml and pylock.<name>.toml, which pip's knowledge names; detection gives one to the tool that wrote it. */
+function isPylock(pip: ToolKnowledge | undefined, file: string): boolean {
+  const lockfiles = pip?.project?.lockfiles;
+  const names = lockfiles === undefined ? [] : values(lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
+  const pattern = pip?.extra?.['lockfilePattern'] === undefined ? undefined : values(pip.extra['lockfilePattern'])[0];
+  return names.includes(file) || (typeof pattern === 'string' && new RegExp(pattern, 'u').test(file));
+}
+
+/**
+ * The 1-based line of every entry, found in one pass in the order of the entries (the order of the file) the first
+ * time a line is asked for, so that two rules asking for different entries get the same lines.
+ */
+function entryLines(text: string, start: number, entries: readonly LockEntry[]): (entry: LockEntry) => number | undefined {
+  let lines: Map<LockEntry, number | undefined> | undefined;
+  return (entry) => {
+    if (entry.line !== undefined) return entry.line;
+    if (lines === undefined) {
+      const find = lineFinder(text, start);
+      lines = new Map(entries.map((item) => [item, item.line ?? find(item.anchor)]));
+    }
+    return lines.has(entry) ? lines.get(entry) : lineFinder(text, start)(entry.anchor);
+  };
+}
+
+/** Lockfiles already read in a doctor run (one Repository): both lockfile rules read the same ones. */
+const READ = new WeakMap<Repository, Map<PackageManagerInfo, LockfileResult[]>>();
+
+/** The lockfiles a package manager uses, each read and parsed once per Repository. */
+export function readLockfiles(
+  repository: Repository,
+  manager: PackageManagerInfo,
+  tool: ToolKnowledge,
+  workspaces: readonly string[],
+  tools: readonly ToolKnowledge[] = [],
+): LockfileResult[] {
+  let read = READ.get(repository);
+  if (read === undefined) {
+    read = new Map();
+    READ.set(repository, read);
+  }
+  let results = read.get(manager);
+  if (results === undefined) {
+    results = parseLockfiles(repository, manager, tool, workspaces, tools);
+    read.set(manager, results);
+  }
+  return results;
+}
+
+/** A pnpm-lock.yaml or a Yarn Berry yarn.lock, which are parsed as YAML. */
+function isYamlLockfile(tool: ToolKnowledge, file: string): boolean {
+  return (tool.id === 'pnpm' || tool.id === 'yarn') && /\.ya?ml$|(?:^|\/)yarn\.lock$/u.test(file);
+}
+
+function parseLockfiles(
+  repository: Repository,
+  manager: PackageManagerInfo,
+  tool: ToolKnowledge,
+  workspaces: readonly string[],
+  tools: readonly ToolKnowledge[],
+): LockfileResult[] {
+  const format = lockfileFormatOf(tool);
+  if (format === undefined) return [];
+  const pip = tool.id === 'pip' ? tool : tools.find((entry) => entry.id === 'pip');
+  const pylockFormat = lockfileFormatOf(pip);
+  const lockfiles = manager.evidence.filter((item) => item.kind === 'lockfile').map((item) => item.file);
+  // pip has no lockfile of its own beyond pylock.toml; its requirements files, and the files they include, say where
+  // packages come from too.
+  const requirements = tool.id === 'pip' ? requirementsTrees(repository, manager.configFiles, requirementsFormatOf(tool)) : new Map<string, string[]>();
+  const files = [...new Set([...lockfiles, ...requirements.keys()])];
   return files.map((file): LockfileResult => {
     if (file.endsWith('.lockb')) return { ok: false, file, reason: 'it is a binary file in an undocumented format', unreadable: false };
     const text = repository.readText(file, MAX_LOCKFILE_SIZE);
     if (text === undefined) {
       if (!repository.warnings.some((warning) => warning.files.includes(file))) repository.warn('invalid-file', `cannot read ${file}`, [file]);
       return { ok: false, file, reason: 'it cannot be read', unreadable: true };
+    }
+    if (isYamlLockfile(tool, file) && Buffer.byteLength(text) > MAX_YAML_LOCKFILE_SIZE) {
+      const limit = MAX_YAML_LOCKFILE_SIZE / (1024 * 1024);
+      repository.warn(
+        'lockfile-too-large',
+        `${file} is larger than ${limit} MiB, the limit for YAML lockfiles (parsing a larger one needs more memory than a CI runner gives Node.js), and was not read`,
+        [file],
+      );
+      return { ok: false, file, reason: 'it is too large', unreadable: true };
     }
     try {
       let entries: LockEntry[];
@@ -334,9 +466,17 @@ export function readLockfiles(repository: Repository, manager: PackageManagerInf
       else if (tool.id === 'pnpm') ({ entries, start } = pnpmEntries(text, format, documentsOf(tool)));
       else if (tool.id === 'yarn') entries = yarnEntries(text, format);
       else if (tool.id === 'bun') entries = bunEntries(text, format);
+      else if (pylockFormat !== undefined && lockfiles.includes(file) && isPylock(pip, file)) {
+        entries = pylockEntries(text, pylockFormat, workspaces);
+        recordsScripts = pylockFormat['installScripts'] !== null;
+      } else if (tool.id === 'uv') entries = uvEntries(text, format, workspaces);
+      else if (tool.id === 'poetry') entries = poetryEntries(text, format);
+      else if (tool.id === 'pdm') entries = pdmEntries(text, format);
+      else if (tool.id === 'pipenv') entries = pipfileLockEntries(text, format);
+      else if (tool.id === 'pip') entries = requirementsEntries(text, requirementsFormatOf(tool));
       else ({ entries, recordsScripts } = denoEntries(text, format));
-      const find = lineFinder(text, start);
-      return { ok: true, lockfile: { file, entries, recordsScripts, lineOf: (entry) => find(entry.anchor) } };
+      const optionFiles = requirements.get(file);
+      return { ok: true, lockfile: { file, entries, recordsScripts, lineOf: entryLines(text, start, entries), ...(optionFiles === undefined ? {} : { optionFiles }) } };
     } catch (error) {
       if (error instanceof UnsupportedLockfile) return { ok: false, file, reason: error.message, unreadable: false };
       const message = error instanceof Error ? (error.message.split('\n')[0] ?? '') : String(error);

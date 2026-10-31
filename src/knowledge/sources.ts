@@ -16,6 +16,16 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   yarn: [{ host: 'yarnpkg.com' }, { host: 'github.com', pathPrefix: '/yarnpkg/' }],
   bun: [{ host: 'bun.com' }, { host: 'bun.sh' }, { host: 'github.com', pathPrefix: '/oven-sh/' }],
   deno: [{ host: 'docs.deno.com' }, { host: 'deno.com' }, { host: 'github.com', pathPrefix: '/denoland/' }],
+  uv: [{ host: 'docs.astral.sh' }, { host: 'github.com', pathPrefix: '/astral-sh/' }],
+  pip: [
+    { host: 'pip.pypa.io' },
+    { host: 'github.com', pathPrefix: '/pypa/' },
+    { host: 'packaging.python.org' },
+    { host: 'peps.python.org' },
+  ],
+  poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }],
+  pdm: [{ host: 'pdm-project.org' }, { host: 'github.com', pathPrefix: '/pdm-project/' }],
+  pipenv: [{ host: 'pipenv.pypa.io' }, { host: 'github.com', pathPrefix: '/pypa/' }],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   dependabot: [
     { host: 'docs.github.com' },
@@ -24,7 +34,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
 };
 
-/** Official locations for facts about the environment: Corepack and Node.js, npm, Volta, asdf and GitHub Actions. */
+/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git and the Windows shells. */
 export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'nodejs.org' },
   { host: 'github.com', pathPrefix: '/nodejs/' },
@@ -36,6 +46,24 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/pnpm/' },
   { host: 'github.com', pathPrefix: '/oven-sh/' },
   { host: 'github.com', pathPrefix: '/denoland/' },
+  { host: 'code.claude.com', pathPrefix: '/docs/' },
+  { host: 'packaging.python.org' },
+  { host: 'github.com', pathPrefix: '/pypa/' },
+  // PyPI: docs.pypi.org is built from docs/user in pypi/warehouse.
+  { host: 'github.com', pathPrefix: '/pypi/' },
+  // CPython: docs.python.org is built from Doc/ in python/cpython.
+  { host: 'docs.python.org' },
+  { host: 'github.com', pathPrefix: '/python/' },
+  { host: 'github.com', pathPrefix: '/astral-sh/' },
+  { host: 'github.com', pathPrefix: '/python-poetry/' },
+  // Third-party actions that install Poetry: their own repositories describe their inputs.
+  { host: 'github.com', pathPrefix: '/snok/' },
+  { host: 'github.com', pathPrefix: '/abatilo/' },
+  // git: git-scm.com/docs is built from Documentation/ in git/git.
+  { host: 'github.com', pathPrefix: '/git/' },
+  // PowerShell and cmd.exe: learn.microsoft.com is built from MicrosoftDocs repositories such as PowerShell-Docs.
+  { host: 'learn.microsoft.com' },
+  { host: 'github.com', pathPrefix: '/microsoftdocs/' },
 ];
 
 export function isOfficialSource(url: URL, rules: readonly SourceRule[]): boolean {
