@@ -579,6 +579,9 @@ const environment = {
 // src/knowledge/bun.ts
 const { verified: verified$11, uncertain: uncertain$11, disputed: disputed$6, evidence: evidence$6 } = verifiedOn("2026-10-28");
 const checked$6 = verifiedOn("2026-10-29");
+const user$9 = verifiedOn("2026-10-31");
+const BUN_V1_4_4 = "https://github.com/oven-sh/bun/blob/bun-v1.4.4";
+const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 const BUNFIG = "https://bun.com/docs/runtime/bunfig";
 const INSTALL$1 = "https://bun.com/docs/pm/cli/install";
 const LIFECYCLE = "https://bun.com/docs/pm/lifecycle";
@@ -644,6 +647,53 @@ const bun$1 = {
 			key: "workspaces"
 		}, WORKSPACES$2, "Full glob syntax, including ! patterns."),
 		workspacesObjectKey: verified$11("packages", "https://github.com/oven-sh/bun/blob/main/docs/pm/catalogs.mdx", "The object form also holds catalog and catalogs.")
+	},
+	user: {
+		files: user$9.verified([{
+			since: "0.0.0",
+			value: {
+				format: "toml",
+				locations: [{
+					platforms: [
+						"linux",
+						"darwin",
+						"win32"
+					],
+					directories: [{
+						from: {
+							env: "XDG_CONFIG_HOME",
+							absolute: true
+						},
+						path: ""
+					}, {
+						from: "home",
+						path: ""
+					}],
+					file: ".bunfig.toml"
+				}]
+			}
+		}], `${BUN_V1_4_4}/docs/runtime/bunfig.mdx`, "\"When XDG_CONFIG_HOME is set to an absolute path, Bun reads the file there and not the one in $HOME\"; HOME is USERPROFILE on Windows (src/bun_core/env_var.rs). Only one file is read, with no fallback when the XDG one is missing (get_home_config_path in src/bunfig/arguments.rs). Only package manager commands read it (bun install, add, remove, update, pm, bunx and so on), before the project bunfig.toml, whose keys win. 1.2.0 already reads it, and the first version was not tracked; 1.2.0 and 1.3.0 used XDG_CONFIG_HOME whenever it was set, and the version that started requiring an absolute path was not pinned."),
+		settings: user$9.verified([{
+			purpose: "cooldown",
+			key: "install.minimumReleaseAge",
+			since: "1.3.0"
+		}, {
+			purpose: "cooldownExclude",
+			key: "install.minimumReleaseAgeExcludes",
+			since: "1.3.0"
+		}], BUNFIG_PARSER, "parse_install reads both from the user file as from bunfig.toml (only globalDir and globalBinDir are user-only), as in 1.3.0 (bunfig.zig). trustedDependencies exists only in package.json and bunfig has no such key, so Bun has no user-level allow-list; install.ignoreScripts only turns scripts off. Write whole seconds: duration strings need 1.4.4."),
+		unknownKeys: user$9.verified("ignore", BUNFIG_PARSER, "The parser looks up only the keys it knows (install_obj.get), so another key, such as install.minimumReleaseAge before 1.3.0, is neither read nor reported."),
+		invalidValueFails: user$9.verified(true, `${BUN_V1_4_4}/src/bunfig/arguments.rs`, "load_global_bunfig ends the process through report_bunfig_load_failure when the user file has a value Bun cannot read, e.g. minimumReleaseAge = \"3d\" before 1.4.4 (\"Expected number of seconds for minimumReleaseAge\"), so every package manager command fails; 1.3.0 crashed the same way. A file Bun cannot read at all is skipped."),
+		weakening: user$9.verified([{
+			key: "install.minimumReleaseAge",
+			values: [0],
+			effect: "turns the release-age delay off in every project whose bunfig.toml does not set it"
+		}, {
+			key: "install.minimumReleaseAgeExcludes",
+			values: "any",
+			effect: "exempts these packages from the release-age delay in every project without a non-empty list of its own"
+		}], BUNFIG_PARSER, "Both files fill one set of options, the user file first, so a key in the project bunfig.toml replaces the user value; an empty minimumReleaseAgeExcludes list is skipped, so a project's [] does not clear the user list. 0 turns the delay off (src/install/PackageManager/PackageManagerOptions.rs keeps only values above 0). The command line beats both files."),
+		variables: user$9.uncertain([], `${BUN_V1_4_4}/docs/pm/cli/install.mdx`, "No environment variable sets minimumReleaseAge or its exclusions: concluded from the install page, which lists registry, token, lockfile and retry variables only. NPM_CONFIG_IGNORE_SCRIPTS only turns scripts off. XDG_CONFIG_HOME moves the user file (user.files).")
 	},
 	extra: {
 		commandLine: checked$6.verified({
@@ -719,6 +769,9 @@ const bun$1 = {
 const { verified: verified$10, uncertain: uncertain$10, disputed: disputed$5, evidence: evidence$5 } = verifiedOn("2026-10-28");
 const checked$5 = verifiedOn("2026-10-29");
 const reviewed$3 = verifiedOn("2026-10-30");
+const user$8 = verifiedOn("2026-10-31");
+const DENO_V2_9_8 = "https://github.com/denoland/deno/blob/v2.9.8";
+const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
 	"--package",
 	"-p",
@@ -796,6 +849,47 @@ const deno$1 = {
 			key: "workspace"
 		}, WORKSPACES$1, "Paths of members; globs and ! exclusions since Deno 2.1."),
 		workspacesObjectKey: verified$10("members", WORKSPACES$1)
+	},
+	user: {
+		files: user$8.verified([{
+			since: "1.45.0",
+			value: {
+				format: "ini",
+				locations: [{
+					platforms: [
+						"linux",
+						"darwin",
+						"win32"
+					],
+					directories: [{
+						from: "home",
+						path: ""
+					}],
+					file: ".npmrc"
+				}]
+			}
+		}], `${DENO_V2_9_8}/libs/resolver/npmrc.rs`, "Deno has no user configuration file of its own (deno.json is looked up from the working directory upwards). It reads .npmrc next to package.json or deno.json and in the home directory (HOME, USERPROFILE on Windows), not the file named by NPM_CONFIG_USERCONFIG and not under XDG_CONFIG_HOME. Home discovery arrived in 1.45.0 (#24021); since 2.1.8 (#27119) the project and home files are merged key by key, before that a project .npmrc hid the home one (Releases.md). This is the ~/.npmrc that npm reads. A home .npmrc Deno may not read is skipped; one that does not parse stops the command."),
+		settings: user$8.verified([{
+			purpose: "cooldown",
+			key: "min-release-age",
+			since: "2.8.0"
+		}], `${DENO_V2_9_8}/Releases.md`, "2.8.0: \"feat(npmrc): support min-release-age (#33983)\". A whole number of days (npmrcFormat); the same line sets npm's min-release-age, also in days. minimumDependencyAge.exclude and allowScripts exist only in deno.json (allowScripts at the workspace root), so Deno has no user-level exclusions or script settings."),
+		unknownKeys: user$8.verified("ignore", NPMRC_PARSER, "NpmRc::parse reads registry, auth, replace-registry-host, min-release-age and trust-policy keys and skips every other key without a message."),
+		invalidValueFails: user$8.verified(false, NPMRC_PARSER, "A min-release-age that is not a whole number of days, such as 72h, is ignored without a message (test \"invalid value is ignored\"), so the age silently comes from the next source. A home .npmrc that does not parse at all stops the command (libs/resolver/npmrc.rs)."),
+		weakening: user$8.verified([{
+			key: "min-release-age",
+			values: [0],
+			effect: "turns the default minimum dependency age of 24 hours (2.9.0+) off in every project without minimumDependencyAge in deno.json or min-release-age in its own .npmrc"
+		}], `${DENO_V2_9_8}/libs/resolver/factory.rs`, "The age comes from the command line, then minimumDependencyAge in deno.json, then .npmrc (the project file over the home file), then NPM_CONFIG_MIN_RELEASE_AGE, then the built-in 1440 minutes; 0 from .npmrc turns it off (apply_minimum_dependency_age_fallbacks). The same line turns npm's delay off too."),
+		variables: user$8.uncertain([{
+			name: "NPM_CONFIG_MIN_RELEASE_AGE",
+			values: "any",
+			effect: "sets min-release-age where no .npmrc has the key, and hides the home value in projects whose .npmrc lacks it (2.9.0+)"
+		}, {
+			name: "npm_config_min_release_age",
+			values: "any",
+			effect: "sets min-release-age where no .npmrc has the key, and hides the home value in projects whose .npmrc lacks it (2.9.0+)"
+		}], NPMRC_PARSER, "Only these two spellings are read (min_release_age_days_from_env); 0 turns the default 24 hours off. Read from code: every parsed .npmrc starts from the variable and its own key overrides it (test \".npmrc value takes precedence over the environment fallback\"), and the project file wins over the home file, so a project .npmrc without the key puts the variable above the home value. The first version is from denoland/deno#35458, which shipped in 2.9.0.")
 	},
 	extra: {
 		commandLine: reviewed$3.verified({
@@ -965,6 +1059,7 @@ const dependabot$1 = {
 const { verified: verified$8, uncertain: uncertain$8, disputed: disputed$3, evidence: evidence$3 } = verifiedOn("2026-10-28");
 const checked$4 = verifiedOn("2026-10-29");
 const reviewed$2 = verifiedOn("2026-10-30");
+const rechecked$4 = verifiedOn("2026-10-31");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$3 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -995,7 +1090,7 @@ const INSTALL_ALIASES = [
 const NPM_DEFINITIONS_V11_16 = "https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js";
 const NPM_GITHUB_V12 = "https://github.com/npm/cli/blob/v12.2.1";
 const NPM_CONFIG_LIB = `${NPM_GITHUB_V12}/workspaces/config/lib`;
-const user$5 = verifiedOn("2026-10-31");
+const user$7 = verifiedOn("2026-10-31");
 const NPM_SHORTHANDS = "https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/index.js";
 const npm$1 = {
 	id: "npm",
@@ -1117,7 +1212,7 @@ const npm$1 = {
 		workspacesObjectKey: uncertain$8("packages", "https://github.com/npm/map-workspaces/blob/main/lib/index.js", "Not documented; npm's map-workspaces also accepts { \"packages\": [...] } and negated patterns.")
 	},
 	user: {
-		files: user$5.verified([{
+		files: user$7.verified([{
 			since: "0.0.0",
 			value: {
 				format: "ini",
@@ -1144,7 +1239,7 @@ const npm$1 = {
 				}]
 			}
 		}], `${NPM_CONFIG_LIB}/index.js`, "userconfig defaults to ~/.npmrc (\"The location of user-level configuration settings. This may be overridden by the npm_config_userconfig environment variable or the --userconfig command line option\"); ~ is resolved against `this.env.HOME || homedir()`. Same in 11.21.1. The project .npmrc is loaded first and may set userconfig= itself."),
-		settings: user$5.verified([
+		settings: user$7.verified([
 			{
 				purpose: "cooldown",
 				key: "min-release-age",
@@ -1186,9 +1281,9 @@ const npm$1 = {
 				since: "11.15.0"
 			}
 		], `${NPM_CONFIG_LIB}/definitions/definition.js`, "Every config definition is read from any config file; only prefix is refused in a project .npmrc. allowScripts in package.json is project-only: at user level the allow-list is the allow-scripts key (allow only, every name becomes true; resolve-allow-scripts.js), used where the root package.json has no allowScripts and for npx, npm exec and npm install -g. The source keys use the later of the disputed first versions."),
-		unknownKeys: user$5.verified("warn", `${NPM_GITHUB_V12}/lib/base-cmd.js`, "Unknown .npmrc (file) configs warn by default, matching pre-npm-12 behavior, but error when strict-npmrc is set."),
-		invalidValueFails: user$5.verified(false, `${NPM_CONFIG_LIB}/index.js`, "A value of the wrong type is reported as invalid config and the default is used."),
-		weakening: user$5.verified([
+		unknownKeys: user$7.verified("warn", `${NPM_GITHUB_V12}/lib/base-cmd.js`, "Unknown .npmrc (file) configs warn by default, matching pre-npm-12 behavior, but error when strict-npmrc is set."),
+		invalidValueFails: user$7.verified(false, `${NPM_CONFIG_LIB}/index.js`, "A value of the wrong type is reported as invalid config and the default is used."),
+		weakening: user$7.verified([
 			{
 				key: "dangerously-allow-all-scripts",
 				values: [true],
@@ -1225,7 +1320,7 @@ const npm$1 = {
 				effect: "allows remote tarball dependencies"
 			}
 		], `${NPM_CONFIG_LIB}/definitions/definitions.js`, "A key in the project .npmrc replaces the user value, lists included (prototype chain, no merging); the CLI and npm_config_* variables beat both."),
-		variables: user$5.verified([
+		variables: user$7.verified([
 			{
 				name: "npm_config_userconfig",
 				anyCase: true,
@@ -1329,7 +1424,7 @@ const npm$1 = {
 			value: true,
 			since: "11.16.0"
 		}, NPM_DEFINITIONS_V11_16, "strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it."),
-		unknownNpmrcKeys: disputed$3("Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.", evidence$3("npm 12 throws on unknown config keys", release$3("12.0.0")), evidence$3("unknown keys only warn; throwing is planned for a future major version", NPMRC$1)),
+		unknownNpmrcKeys: rechecked$4.verified("unknown keys in .npmrc files only warn unless strict-npmrc is set; unknown command-line flags throw since npm 12", `${NPM_GITHUB_V12}/CHANGELOG.md`, "Matters for generated .npmrc files: keys npm does not know (e.g. pnpm-only keys) print a warning on every npm command. The 12.0.0 entry: unknown CLI flags \"now throw instead of warning. (Unknown .npmrc configs still warn by default; opt into erroring with the new strict-npmrc config.)\"; lib/base-cmd.js at 12.2.1 does the same."),
 		commandLine: checked$4.verified({
 			add: INSTALL_ALIASES.map((alias) => ["npm", alias]),
 			run: [
@@ -1658,7 +1753,7 @@ const rechecked$3 = verifiedOn("2026-10-31");
 const PIP = "https://github.com/pypa/pip/blob/26.2.2";
 const NEWS = `${PIP}/NEWS.rst`;
 const USER_GUIDE = `${PIP}/docs/html/user_guide.rst`;
-const CONFIGURATION$3 = `${PIP}/docs/html/topics/configuration.md`;
+const CONFIGURATION$4 = `${PIP}/docs/html/topics/configuration.md`;
 const SECURE_INSTALLS = `${PIP}/docs/html/topics/secure-installs.md`;
 const REQUIREMENTS_FORMAT = `${PIP}/docs/html/reference/requirements-file-format.md`;
 const REQ_FILE = `${PIP}/src/pip/_internal/req/req_file.py`;
@@ -1667,7 +1762,7 @@ const CMDOPTIONS = `${PIP}/src/pip/_internal/cli/cmdoptions.py`;
 const PIPX = "https://github.com/pypa/pipx/blob/1.18.10";
 const PYLOCK = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst";
 const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
-const user$4 = verifiedOn("2026-10-31");
+const user$6 = verifiedOn("2026-10-31");
 const noSetting$5 = (kind) => ({ setting: uncertain$7(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
 const pip$1 = {
 	id: "pip",
@@ -1676,7 +1771,7 @@ const pip$1 = {
 	ecosystem: "pypi",
 	cooldown: {
 		setting: verified$7("uploaded-prior-to", `${USER_GUIDE}#filtering-by-upload-time`, "Only files uploaded before the given time are considered; applies to packages from remote indexes, not to local files, find-links directories or VCS requirements. Isolated build environments get the same cutoff."),
-		configFiles: verified$7([], CONFIGURATION$3, "pip reads no configuration from the project: only the global, user and site (virtual environment) pip.conf, the file named by PIP_CONFIG_FILE and PIP_* environment variables. --uploaded-prior-to is not allowed in requirements files, so a project sets it through PIP_UPLOADED_PRIOR_TO or the command line, e.g. in CI."),
+		configFiles: verified$7([], CONFIGURATION$4, "pip reads no configuration from the project: only the global, user and site (virtual environment) pip.conf, the file named by PIP_CONFIG_FILE and PIP_* environment variables. --uploaded-prior-to is not allowed in requirements files, so a project sets it through PIP_UPLOADED_PRIOR_TO or the command line, e.g. in CI."),
 		cliFlag: verified$7("--uploaded-prior-to", `${USER_GUIDE}#filtering-by-upload-time`, "pip install, download, wheel, lock, index and list; environment variable PIP_UPLOADED_PRIOR_TO."),
 		unit: verified$7("days", `${PIP}/src/pip/_internal/cli/cmdoptions.py`, "A duration is written PnD, a whole number of days (P3D, matched by ^P(\\d+)D$); P1W, PT24H and \"7 days\" are rejected. An ISO 8601 date or time is a fixed cutoff instead. A day is always 24 hours."),
 		availableSince: verified$7("26.1.0", NEWS, "pip 26.1 accepts a duration in days (\"P3D for 3 days ago\"); the option itself exists since 26.0 with dates only."),
@@ -1716,7 +1811,7 @@ const pip$1 = {
 		workspacesObjectKey: uncertain$7(null, REQUIREMENTS_FORMAT, "No workspaces.")
 	},
 	user: {
-		files: user$4.verified([{
+		files: user$6.verified([{
 			since: "0.0.0",
 			value: {
 				format: "ini",
@@ -1757,8 +1852,8 @@ const pip$1 = {
 					}
 				]
 			}
-		}], `${CONFIGURATION$3}#location`, "The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir(\"pip\") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, \"which respects the XDG_CONFIG_HOME environment variable\" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py); since 26.2 $XDG_DATA_HOME/pip comes first when XDG_DATA_HOME is not empty and that directory exists, and with XDG_DATA_HOME set the Library directory is skipped. Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked."),
-		settings: user$4.verified([
+		}], `${CONFIGURATION$4}#location`, "The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir(\"pip\") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, \"which respects the XDG_CONFIG_HOME environment variable\" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py); since 26.2 $XDG_DATA_HOME/pip comes first when XDG_DATA_HOME is not empty and that directory exists, and with XDG_DATA_HOME set the Library directory is skipped. Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked."),
+		settings: user$6.verified([
 			{
 				purpose: "cooldown",
 				key: "uploaded-prior-to",
@@ -1775,9 +1870,9 @@ const pip$1 = {
 				since: "7.1.0"
 			}
 		], NEWS, "depcurfew writes them in [global], which reaches every command that has the option (install, download, wheel, lock, index, list) and the resolver of pipenv lock; [install] reaches only pip install. \"Accept --no-binary and --only-binary via pip.conf\" (7.1.0); uploaded-prior-to is read from pip.conf like every long option (\"To override a duration set in configuration, pass P0D on the command line\", user_guide.rst). 26.1.0 because depcurfew writes a PnD duration: pip 26.0 takes dates only and aborts on P7D, and 25.x ignores the key. uv does not read pip.conf."),
-		unknownKeys: user$4.verified("ignore", PARSER, "\"Ignore options not present in this parser\": a key that is not an option of the command is skipped without a word (same code in 25.0), so pip before 26.0 ignores uploaded-prior-to."),
-		invalidValueFails: user$4.verified(true, PARSER, "A pip.conf that is not valid INI stops pip (ConfigurationFileCouldNotBeLoaded, configuration.py), and a value an option rejects ends the command with a usage error: pip 26.0 aborts on uploaded-prior-to = P7D in every command that has the option, as it rejected PIP_UPLOADED_PRIOR_TO=P100000D in a test on 2026-10-30 (configuration values and PIP_* variables go through the same parsing). Commands without the option ignore the key."),
-		weakening: user$4.verified([
+		unknownKeys: user$6.verified("ignore", PARSER, "\"Ignore options not present in this parser\": a key that is not an option of the command is skipped without a word (same code in 25.0), so pip before 26.0 ignores uploaded-prior-to."),
+		invalidValueFails: user$6.verified(true, PARSER, "A pip.conf that is not valid INI stops pip (ConfigurationFileCouldNotBeLoaded, configuration.py), and a value an option rejects ends the command with a usage error: pip 26.0 aborts on uploaded-prior-to = P7D in every command that has the option, as it rejected PIP_UPLOADED_PRIOR_TO=P100000D in a test on 2026-10-30 (configuration values and PIP_* variables go through the same parsing). Commands without the option ignore the key."),
+		weakening: user$6.verified([
 			{
 				key: "no-binary",
 				values: [":all:"],
@@ -1799,7 +1894,7 @@ const pip$1 = {
 				effect: "adds find-links locations; packages from find-links directories skip uploaded-prior-to"
 			}
 		], FORMAT_CONTROL, "In any section of any pip.conf: [install] beats [global], and a later file (a virtual environment pip.conf, PIP_CONFIG_FILE) beats the user file per key, an empty value removing it (cli/parser.py). :all: in one of the lists clears the other and :none: clears its own (handle_mutual_excludes). P0D overrides a configured duration, and \"Local package files are allowed regardless of the --uploaded-prior-to setting\", find-links directories included (user_guide.rst). A requirements file can also pass --no-binary or --only-binary, but not --uploaded-prior-to."),
-		variables: user$4.verified([
+		variables: user$6.verified([
 			{
 				name: "PIP_CONFIG_FILE",
 				values: "any",
@@ -1820,7 +1915,7 @@ const pip$1 = {
 				values: "any",
 				effect: "is applied after every pip.conf and builds these packages from source; :all: clears only-binary"
 			}
-		], CONFIGURATION$3, "\"Note that if a file exists at the location that this is set to, the user config file will not be loaded.\" PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory (see files).")
+		], CONFIGURATION$4, "\"Note that if a file exists at the location that this is set to, the user config file will not be loaded.\" PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory (see files).")
 	},
 	extra: {
 		pylockCreatedBy: verified$7("pip", `${PIP}/src/pip/_internal/utils/pylock.py`, "pip lock writes created-by = \"pip\"."),
@@ -1889,8 +1984,8 @@ const pip$1 = {
 			covers: ["registry"]
 		}, NEWS, "The option exists since 7.0.0; when requirements files started to accept it is not recorded. pip applies it only to packages found on indexes and find-links (format_control is used only by the package finder), so VCS, local directory and direct URL source requirements are still built."),
 		configFileNames: verified$7(["pip.conf", "pip.ini"], `${PIP}/src/pip/_internal/configuration.py`, "CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project."),
-		configFileVariable: verified$7("PIP_CONFIG_FILE", `${CONFIGURATION$3}#environment-variable`, "Names a configuration file pip loads last; set to os.devnull it turns all configuration files off."),
-		environmentVariable: verified$7("PIP_UPLOADED_PRIOR_TO", `${CONFIGURATION$3}#environment-variables`, "Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores. Tested on 2026-10-30: pip 25.3 ignored PIP_UPLOADED_PRIOR_TO=P100000D without a word, 26.0 rejected the duration (dates only), 26.1 and 26.2.2 found no version."),
+		configFileVariable: verified$7("PIP_CONFIG_FILE", `${CONFIGURATION$4}#environment-variable`, "Names a configuration file pip loads last; set to os.devnull it turns all configuration files off."),
+		environmentVariable: verified$7("PIP_UPLOADED_PRIOR_TO", `${CONFIGURATION$4}#environment-variables`, "Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores. Tested on 2026-10-30: pip 25.3 ignored PIP_UPLOADED_PRIOR_TO=P100000D without a word, 26.0 rejected the duration (dates only), 26.1 and 26.2.2 found no version."),
 		durationStrings: verified$7({
 			since: "26.1.0",
 			syntax: "iso8601"
@@ -2184,7 +2279,7 @@ const pip$1 = {
 // src/knowledge/pdm.ts
 const { verified: verified$6, uncertain: uncertain$6 } = verifiedOn("2026-10-30");
 const rechecked$2 = verifiedOn("2026-10-31");
-const user$3 = verifiedOn("2026-10-31");
+const user$5 = verifiedOn("2026-10-31");
 const PDM = "https://github.com/pdm-project/pdm/blob/2.29.5";
 const LOCKFILE = `${PDM}/docs/usage/lockfile.md`;
 const CHANGELOG$2 = `${PDM}/CHANGELOG.md`;
@@ -2279,23 +2374,23 @@ const pdm$1 = {
 		workspacesObjectKey: uncertain$6(null, `${PDM}/docs/usage/workspace.md`, "Not read; see workspaces.")
 	},
 	user: {
-		files: user$3.disputed("The docs give ~/Library/Application Support/pdm on macOS. The code asks the installed platformdirs (not pinned in pyproject.toml), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) PDM reads $XDG_CONFIG_HOME/pdm/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in PDM's environment. Linux and Windows agree. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked.", user$3.evidence(userFiles$1([MACOS_DIRECTORY$1]), `${PDM}/docs/usage/config.md`, "<CONFIG_ROOT> is \"$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux\", \"~/Library/Application Support/pdm on macOS\" and \"%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows\"."), user$3.evidence(userFiles$1([{
+		files: user$5.disputed("The docs give ~/Library/Application Support/pdm on macOS. The code asks the installed platformdirs (not pinned in pyproject.toml), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) PDM reads $XDG_CONFIG_HOME/pdm/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in PDM's environment. Linux and Windows agree. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked.", user$5.evidence(userFiles$1([MACOS_DIRECTORY$1]), `${PDM}/docs/usage/config.md`, "<CONFIG_ROOT> is \"$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux\", \"~/Library/Application Support/pdm on macOS\" and \"%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows\"."), user$5.evidence(userFiles$1([{
 			from: { env: "XDG_CONFIG_HOME" },
 			path: "pdm"
 		}, MACOS_DIRECTORY$1]), `${PDM}/src/pdm/project/core.py`, "global_config = platformdirs.user_config_path(\"pdm\") / \"config.toml\", which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows the default appauthor repeats the name (pdm\\pdm) and roaming is off, so platformdirs asks for the Local AppData known folder.")),
-		settings: user$3.verified([{
+		settings: user$5.verified([{
 			purpose: "cooldown",
 			key: "strategy.exclude-newer",
 			since: "2.27.0"
 		}], CHANGELOG$2, "\"Allow configuring the default lock --exclude-newer value with strategy.exclude-newer\" (2.27.0, #3795): a TOML string such as \"7d\", a date or an RFC 3339 time. It applies where neither [tool.pdm.resolution] exclude-newer in pyproject.toml nor a project pdm.toml sets it (docs/usage/lockfile.md), and with it in effect pdm lock resolves every package again (src/pdm/cli/commands/lock.py). only-binary, no-binary and exclude-newer-override cannot be set in any PDM configuration file: PDM reads them from [tool.pdm.resolution] in pyproject.toml, only-binary and no-binary also from PDM_ONLY_BINARY and PDM_NO_BINARY (environments/base.py, Project.env_or_setting), so at user level they can be set only through those variables."),
-		unknownKeys: user$3.uncertain("ignore", CONFIG$1, "load_config keeps every key of config.toml without checking it, and only registered config items are ever read, so PDM before 2.27.0 ignores strategy.exclude-newer. Read from the code."),
-		invalidValueFails: user$3.uncertain(true, CONFIG$1, "A config.toml that is not valid TOML stops every command (load_config catches only FileNotFoundError). Values are coerced when read, and src/pdm/core.py reads strategy.exclude-newer before every command, so a value convert_to_datetime cannot parse (anything but Nd, Nh, Nw, a date or an RFC 3339 time) fails every command. Read from the code."),
-		weakening: user$3.verified([{
+		unknownKeys: user$5.uncertain("ignore", CONFIG$1, "load_config keeps every key of config.toml without checking it, and only registered config items are ever read, so PDM before 2.27.0 ignores strategy.exclude-newer. Read from the code."),
+		invalidValueFails: user$5.uncertain(true, CONFIG$1, "A config.toml that is not valid TOML stops every command (load_config catches only FileNotFoundError). Values are coerced when read, and src/pdm/core.py reads strategy.exclude-newer before every command, so a value convert_to_datetime cannot parse (anything but Nd, Nh, Nw, a date or an RFC 3339 time) fails every command. Read from the code."),
+		weakening: user$5.verified([{
 			key: "use_uv",
 			values: [true],
 			effect: "makes PDM resolve and install with uv, whose uv sync --frozen gets no build settings, so only-binary is not enforced when installing"
 		}], `${PDM}/docs/usage/uv.md`, "use_uv (experimental since 2.19.0, PDM_USE_UV) can be set in config.toml and in a project pdm.toml, which wins. PDM passes the cutoff and the build settings to uv lock but not to uv sync --frozen (src/pdm/installers/uv.py), and passes no --no-config, so uv also reads the user uv.toml. A home strategy.exclude-newer cannot weaken a project that sets [tool.pdm.resolution] exclude-newer."),
-		variables: user$3.verified([
+		variables: user$5.verified([
 			{
 				name: "PDM_CONFIG_FILE",
 				values: "any",
@@ -2460,8 +2555,8 @@ const { verified: verified$5, uncertain: uncertain$5 } = verifiedOn("2026-10-30"
 const PIPENV = "https://github.com/pypa/pipenv/blob/v2026.10.4";
 const PIPFILE = `${PIPENV}/docs/pipfile.md`;
 const CHANGELOG$1 = `${PIPENV}/CHANGELOG.md`;
-const CONFIGURATION$2 = `${PIPENV}/docs/configuration.md`;
-const user$2 = verifiedOn("2026-10-31");
+const CONFIGURATION$3 = `${PIPENV}/docs/configuration.md`;
+const user$4 = verifiedOn("2026-10-31");
 const noSetting$3 = (kind) => ({ setting: uncertain$5(null, PIPFILE, `No Pipfile setting allows or forbids ${kind} dependencies (concluded from the documented [pipenv] directives).`) });
 const pipenv$1 = {
 	id: "pipenv",
@@ -2485,9 +2580,9 @@ const pipenv$1 = {
 		defaultPolicy: verified$5([{
 			since: "0.0.0",
 			value: "run"
-		}], CONFIGURATION$2, "Pipenv installs with pip, which builds source distributions when no wheel fits. Pipenv honors pip configuration and PIP_* variables, which may forbid building (PIP_ONLY_BINARY=:all:), but the Pipfile has no setting for it."),
+		}], CONFIGURATION$3, "Pipenv installs with pip, which builds source distributions when no wheel fits. Pipenv honors pip configuration and PIP_* variables, which may forbid building (PIP_ONLY_BINARY=:all:), but the Pipfile has no setting for it."),
 		allowList: { setting: uncertain$5(null, PIPFILE, "No documented setting; a per-package no_binary = true exists in the code (pipenv/routines/install.py) but forces building rather than allowing it.") },
-		disableAll: uncertain$5(null, CONFIGURATION$2, "No Pipfile setting. Only pip configuration or PIP_ONLY_BINARY=:all: in the environment (Pipenv loads the project .env for every command) forbids building.")
+		disableAll: uncertain$5(null, CONFIGURATION$3, "No Pipfile setting. Only pip configuration or PIP_ONLY_BINARY=:all: in the environment (Pipenv loads the project .env for every command) forbids building.")
 	},
 	sources: {
 		git: noSetting$3("git"),
@@ -2505,15 +2600,15 @@ const pipenv$1 = {
 		workspacesObjectKey: uncertain$5(null, PIPFILE, "No workspaces.")
 	},
 	user: {
-		files: user$2.verified([{
+		files: user$4.verified([{
 			since: "0.0.0",
 			value: null
-		}], CONFIGURATION$2, "Pipenv has no user configuration file of its own: it reads environment variables (set in a shell profile), the project .env file and pip configuration; pipenv/environments.py looks up no file. Since 2026.3.0 the pip install step runs with PIP_CONFIG_FILE=/dev/null (pipenv/utils/pip.py; CHANGELOG.md, #6066), so a user pip.conf no longer protects pipenv install and sync. The lock resolver still reads pip.conf, but only [global], because its pip command is named InstallCommand (pipenv/utils/resolver.py), and a Pipfile cool-down-period replaces its uploaded-prior-to."),
-		settings: user$2.verified([], CONFIGURATION$2, "No user file to write to; at user level only PIP_* variables reach the pip install step (see variables)."),
-		unknownKeys: user$2.verified("ignore", CONFIGURATION$2, "No user file."),
-		invalidValueFails: user$2.verified(false, CONFIGURATION$2, "No user file."),
-		weakening: user$2.verified([], CONFIGURATION$2, "No user file; see variables."),
-		variables: user$2.uncertain([
+		}], CONFIGURATION$3, "Pipenv has no user configuration file of its own: it reads environment variables (set in a shell profile), the project .env file and pip configuration; pipenv/environments.py looks up no file. Since 2026.3.0 the pip install step runs with PIP_CONFIG_FILE=/dev/null (pipenv/utils/pip.py; CHANGELOG.md, #6066), so a user pip.conf no longer protects pipenv install and sync. The lock resolver still reads pip.conf, but only [global], because its pip command is named InstallCommand (pipenv/utils/resolver.py), and a Pipfile cool-down-period replaces its uploaded-prior-to."),
+		settings: user$4.verified([], CONFIGURATION$3, "No user file to write to; at user level only PIP_* variables reach the pip install step (see variables)."),
+		unknownKeys: user$4.verified("ignore", CONFIGURATION$3, "No user file."),
+		invalidValueFails: user$4.verified(false, CONFIGURATION$3, "No user file."),
+		weakening: user$4.verified([], CONFIGURATION$3, "No user file; see variables."),
+		variables: user$4.uncertain([
 			{
 				name: "PIPENV_RESOLVER",
 				values: ["pure-python"],
@@ -2620,7 +2715,7 @@ const pipenv$1 = {
 			registryVariables: ["PIPENV_PYPI_MIRROR"],
 			configOptions: ["--extra-pip-args"],
 			configVariables: ["PIPENV_DOTENV_LOCATION"]
-		}, CONFIGURATION$2, "--index names a package index by URL or by a source name of the Pipfile; --pypi-mirror and PIPENV_PYPI_MIRROR replace PyPI. --extra-pip-args hands arguments to pip, which may name another index, and Pipenv loads PIP_* variables from the .env file that PIPENV_DOTENV_LOCATION names (options.py)."),
+		}, CONFIGURATION$3, "--index names a package index by URL or by a source name of the Pipfile; --pypi-mirror and PIPENV_PYPI_MIRROR replace PyPI. --extra-pip-args hands arguments to pip, which may name another index, and Pipenv loads PIP_* variables from the .env file that PIPENV_DOTENV_LOCATION names (options.py)."),
 		selection: verified$5({
 			prereleases: { onFlags: ["--pre"] },
 			buildFromSource: {
@@ -2637,7 +2732,52 @@ const { verified: verified$4, uncertain: uncertain$4 } = verifiedOn("2026-10-28"
 const checked$3 = verifiedOn("2026-10-29");
 const reviewed$1 = verifiedOn("2026-10-30");
 const rechecked$1 = verifiedOn("2026-10-31");
+const user$3 = verifiedOn("2026-10-31");
 const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
+const PNPM_V11_CODE = "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src";
+/** A file in pnpm's config directory (getConfigDir): $XDG_CONFIG_HOME/pnpm when set, else the platform's own place. */
+const inConfigDir = (file) => [
+	{
+		platforms: ["linux"],
+		directories: [{
+			from: { env: "XDG_CONFIG_HOME" },
+			path: "pnpm"
+		}, {
+			from: "home",
+			path: ".config/pnpm"
+		}],
+		file
+	},
+	{
+		platforms: ["darwin"],
+		directories: [{
+			from: { env: "XDG_CONFIG_HOME" },
+			path: "pnpm"
+		}, {
+			from: "home",
+			path: "Library/Preferences/pnpm"
+		}],
+		file
+	},
+	{
+		platforms: ["win32"],
+		directories: [
+			{
+				from: { env: "XDG_CONFIG_HOME" },
+				path: "pnpm"
+			},
+			{
+				from: { env: "LOCALAPPDATA" },
+				path: "pnpm/config"
+			},
+			{
+				from: "home",
+				path: ".config/pnpm"
+			}
+		],
+		file
+	}
+];
 const RESOLUTION$1 = "https://pnpm.io/settings/dependency-resolution";
 const SETTINGS_V10 = "https://pnpm.io/10.x/settings";
 const BUILD = "https://pnpm.io/settings/build";
@@ -2664,7 +2804,7 @@ const pnpm$1 = {
 	kind: "package-manager",
 	cooldown: {
 		setting: verified$4("minimumReleaseAge", "https://pnpm.io/blog/releases/10.16"),
-		configFiles: verified$4(["pnpm-workspace.yaml"], release$2("11.0.0"), "pnpm-workspace.yaml (or the global config.yaml) works in every version that has the setting. pnpm 10 also reads minimum-release-age from .npmrc; pnpm 11+ reads only auth and registry settings from .npmrc and ignores the package.json \"pnpm\" field."),
+		configFiles: rechecked$1.verified(["pnpm-workspace.yaml"], release$2("11.0.0"), "pnpm-workspace.yaml works in every version that has the setting. The global config.yaml exists only from 11.0.0 (\"the new global config.yaml\"); pnpm 10 reads user-level settings from ~/.npmrc and <configDir>/rc instead (see user.files). pnpm 10 also reads minimum-release-age from .npmrc; pnpm 11+ reads only auth and registry settings from .npmrc and ignores the package.json \"pnpm\" field."),
 		cliFlag: uncertain$4(null, "https://pnpm.io/cli/install", "No dedicated flag is documented for install or add; release notes mention \"a CLI flag\" without syntax. Environment variable: PNPM_CONFIG_MINIMUM_RELEASE_AGE (pnpm 11+), npm_config_minimum_release_age (pnpm 10)."),
 		unit: verified$4("minutes", RESOLUTION$1, "Integer number of minutes, e.g. 1440 = 1 day; no duration strings."),
 		availableSince: verified$4("10.16.0", release$2("10.16.0")),
@@ -2719,6 +2859,173 @@ const pnpm$1 = {
 			key: "packages"
 		}, WORKSPACE_YAML_V10, "Globs with ! exclusions. Without packages only the root is in the workspace; pnpm still reads settings from the file in single-package projects. pnpm ignores workspaces in package.json."),
 		workspacesObjectKey: uncertain$4(null, WORKSPACE_YAML_V10, "The docs show packages only as a list; concluded from the absence of an object form.")
+	},
+	user: {
+		files: user$3.verified([{
+			since: "0.0.0",
+			value: {
+				format: "ini",
+				locations: inConfigDir("rc")
+			}
+		}, {
+			since: "11.0.0",
+			value: {
+				format: "yaml",
+				locations: inConfigDir("config.yaml")
+			}
+		}], `${PNPM_V11_CODE}/dirs.ts`, "getConfigDir: $XDG_CONFIG_HOME/pnpm when it is set, else ~/Library/Preferences/pnpm on macOS, %LOCALAPPDATA%/pnpm/config on Windows (~/.config/pnpm without LOCALAPPDATA) and ~/.config/pnpm elsewhere; the same in 10.34.9 (config/config/src/dirs.ts) and 12.17.0 (pnpm/crates/config-dir/src/lib.rs). pnpm 10 reads <configDir>/rc, INI with kebab-case keys (config/config/src/index.ts at 10.34.9; first version not tracked), and also ~/.npmrc for every setting, which beats rc. From 11.0.0 the settings file is <configDir>/config.yaml with camelCase keys (11.0.0 changelog: \"the new global config.yaml\"), and ~/.npmrc and <configDir>/auth.ini carry only auth, registry and network settings. The 11.x and 12.x docs page cli/config.md still names a global rc file for registry and auth settings, which that code no longer reads."),
+		settings: user$3.verified([
+			{
+				purpose: "cooldown",
+				key: "minimum-release-age",
+				since: "10.16.0",
+				until: "11.0.0"
+			},
+			{
+				purpose: "cooldownExclude",
+				key: "minimum-release-age-exclude",
+				since: "10.16.0",
+				until: "11.0.0"
+			},
+			{
+				purpose: "buildsAllow",
+				key: "only-built-dependencies",
+				since: "10.0.0",
+				until: "11.0.0"
+			},
+			{
+				purpose: "scriptsStrict",
+				key: "strict-dep-builds",
+				since: "10.3.0",
+				until: "11.0.0"
+			},
+			{
+				purpose: "sourcesExotic",
+				key: "block-exotic-subdeps",
+				since: "10.26.0",
+				until: "11.0.0"
+			},
+			{
+				purpose: "cooldown",
+				key: "minimumReleaseAge",
+				since: "11.0.0"
+			},
+			{
+				purpose: "cooldownExclude",
+				key: "minimumReleaseAgeExclude",
+				since: "11.0.0"
+			},
+			{
+				purpose: "cooldownStrict",
+				key: "minimumReleaseAgeStrict",
+				since: "11.0.0"
+			},
+			{
+				purpose: "scriptsStrict",
+				key: "strictDepBuilds",
+				since: "11.0.7"
+			},
+			{
+				purpose: "sourcesExotic",
+				key: "blockExoticSubdeps",
+				since: "11.0.0",
+				until: "12.0.0"
+			}
+		], `${PNPM_V11_CODE}/configFileKey.ts`, "pnpm 10 reads the kebab-case keys from rc as from any .npmrc (config/config/src/types.ts: only-built-dependencies at 10.0.0, strict-dep-builds at 10.3.0, minimum-release-age and minimum-release-age-exclude at 10.16.0, block-exotic-subdeps at 10.26.0); since 10.13.0 build settings from these files apply only to projects whose package.json \"pnpm\" field and pnpm-workspace.yaml set none of dangerouslyAllowAllBuilds, onlyBuiltDependencies(File), neverBuiltDependencies or allowBuilds, and always to global installs. pnpm 11+ applies a config.yaml key only when isConfigFileKey accepts it and it is camelCase: the minimumReleaseAge keys and blockExoticSubdeps since 11.0.0, strictDepBuilds since 11.0.7 (in excludedPnpmKeys in 11.0.0-11.0.6). allowBuilds is project-only from 11.0.0 and dropped with a warning, so pnpm 11+ has no user-level allow-list. pnpm 12 silently drops blockExoticSubdeps from config.yaml although its key gate accepts it (clear_workspace_resolution_fields in pnpm/crates/config/src/workspace_yaml/workspace_scope.rs, 12.0.0 to 12.17.0). pnpm self-update takes the minimumReleaseAge settings only from config.yaml, the environment and the command line, never from the project."),
+		unknownKeys: user$3.uncertain("warn", `${PNPM_V11_CODE}/getConfig/globalConfigYaml.ts`, "pnpm 11 drops config.yaml keys it does not accept (unknown, project-only or not camelCase) and prints a warning that names them; pnpm 12 warns about keys its port of isConfigFileKey rejects, but drops blockExoticSubdeps without a word. What pnpm 10 does with an unknown key in rc was not checked."),
+		invalidValueFails: user$3.uncertain(true, `${PNPM_V11_CODE}/index.ts`, "Read from code: pnpm 11.28.10 stops when the global config.yaml cannot be read (readGlobalYamlConfig) or applied (applyGlobalYamlConfig), except in commands that skip unreadable settings. Which values fail, and what pnpm 10 (rc) and pnpm 12 do, was not checked; true is the safe assumption."),
+		weakening: user$3.verified([
+			{
+				key: "dangerously-allow-all-builds",
+				values: [true],
+				effect: "runs every dependency build script in projects without build settings of their own and in global installs (pnpm 10)"
+			},
+			{
+				key: "only-built-dependencies",
+				values: "any",
+				effect: "lets these packages run build scripts in projects without build settings of their own and in global installs (pnpm 10)"
+			},
+			{
+				key: "minimum-release-age-exclude",
+				values: "any",
+				effect: "exempts these packages from the release-age delay in every project without its own list (pnpm 10)"
+			},
+			{
+				key: "dangerouslyAllowAllBuilds",
+				values: [true],
+				effect: "runs every dependency build script in projects that do not set it to false; before pnpm 12.12.0 also of packages denied in allowBuilds"
+			},
+			{
+				key: "minimumReleaseAge",
+				values: [0],
+				effect: "turns the default release-age delay off (pnpm 11+)"
+			},
+			{
+				key: "minimumReleaseAgeExclude",
+				values: "any",
+				effect: "exempts these packages from the release-age delay in every project without its own list (pnpm 11+)"
+			},
+			{
+				key: "minimumReleaseAgeStrict",
+				values: [false],
+				effect: "installs a version younger than minimumReleaseAge when no older one matches (pnpm 11+)"
+			},
+			{
+				key: "strictDepBuilds",
+				values: [false],
+				effect: "lets unreviewed build scripts warn instead of failing the install (pnpm 11.0.7+)"
+			},
+			{
+				key: "trustLockfile",
+				values: [true],
+				effect: "stops frozen-lockfile installs from re-checking the release age of lockfile entries (pnpm 11.3.0+)"
+			},
+			{
+				key: "blockExoticSubdeps",
+				values: [false],
+				effect: "allows git and tarball subdependencies again (pnpm 11; pnpm 12 ignores the key in config.yaml)"
+			}
+		], `${PNPM_V11_CODE}/getConfig/workspaceManifestSettings.ts`, "A key in pnpm-workspace.yaml replaces the user value, lists included (applyWorkspaceSetting: pnpmConfig[key] = value); PNPM_CONFIG_* variables and the command line beat both. In pnpm 10 the same keys in ~/.npmrc beat rc, and since 10.13.0 build settings from either file reach only projects without build settings of their own, and global installs (config/config/src/index.ts at 10.34.9; before 10.13.0 dangerously-allow-all-builds also joined a project's onlyBuiltDependencies). In config.yaml, dangerouslyAllowAllBuilds also overrides a project's allowBuilds: false in pnpm 11 and 12.0.0-12.11.x (see extra.allowAllBuilds). pnpm 10 has no default delay and its strict-dep-builds and block-exotic-subdeps default to false, so 0 or false there weakens nothing; trustLockfile is a global key since it appeared in 11.3.0."),
+		variables: user$3.verified([
+			{
+				name: "pnpm_config_minimum_release_age",
+				values: "any",
+				effect: "overrides minimumReleaseAge from every file (pnpm 11+)"
+			},
+			{
+				name: "PNPM_CONFIG_MINIMUM_RELEASE_AGE",
+				values: "any",
+				effect: "overrides minimumReleaseAge from every file (pnpm 11+)"
+			},
+			{
+				name: "pnpm_config_dangerously_allow_all_builds",
+				values: ["true"],
+				effect: "runs every dependency build script (pnpm 11+)"
+			},
+			{
+				name: "PNPM_CONFIG_DANGEROUSLY_ALLOW_ALL_BUILDS",
+				values: ["true"],
+				effect: "runs every dependency build script (pnpm 11+)"
+			},
+			{
+				name: "npm_config_minimum_release_age",
+				anyCase: true,
+				values: "any",
+				effect: "overrides minimum-release-age from every .npmrc and rc file; pnpm-workspace.yaml still wins (pnpm 10)"
+			},
+			{
+				name: "npm_config_dangerously_allow_all_builds",
+				anyCase: true,
+				values: ["true"],
+				effect: "runs every dependency build script in projects without build settings of their own (pnpm 10)"
+			},
+			{
+				name: "npm_config_userconfig",
+				anyCase: true,
+				values: "any",
+				effect: "moves the user .npmrc, which pnpm 10 reads for every setting ahead of rc"
+			}
+		], `${PNPM_V11_CODE}/env.ts`, "pnpm 11 reads pnpm_config_<key> in lower case or PNPM_CONFIG_<KEY> in upper case, not mixed case (getEnvKeySuffix), over pnpm-workspace.yaml and under the command line; pnpm 12 reads the same two forms (pnpm/crates/config/src/env_overlay.rs at 12.17.0). pnpm 11+ ignores npm_config_* except npm_config_userconfig, which then moves only the auth .npmrc. pnpm 10 reads npm_config_* in any case (lib/conf.js in @pnpm/npm-conf 3.0.3) under pnpm-workspace.yaml (npmrcPrecedence). XDG_CONFIG_HOME and LOCALAPPDATA move the config directory (user.files).")
 	},
 	extra: {
 		commandLine: rechecked$1.verified({
@@ -2880,11 +3187,11 @@ const pnpm$1 = {
 			since: "11.1.3",
 			value: true
 		}], release$2("11.1.3"), "Structured form of lockfileVerification: whether a frozen-lockfile install re-checks the age of versions already in the lockfile. trustLockfile: true (11.3.0) turns the check off."),
-		allowAllBuilds: verified$4({
+		allowAllBuilds: rechecked$1.verified({
 			setting: "dangerouslyAllowAllBuilds",
 			since: "10.9.0",
 			value: true
-		}, "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md", "Boolean, default false; packages denied in allowBuilds stay blocked."),
+		}, "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md", "Boolean, default false. Packages set to false in allowBuilds (or build: false in permissions) stay blocked only from pnpm 12.12.0 (release notes: \"A package set to false in allowBuilds no longer runs its build scripts when dangerouslyAllowAllBuilds is true\"). pnpm 10, 11 and 12.0.0-12.11.x run them too: the build policy allows every build before it reads allowBuilds (builder/policy at 10.34.9, building/policy at 11.28.10, allow_build_policy.rs at 12.0.0)."),
 		excludeWildcards: verified$4({
 			since: "10.17.0",
 			trailingOnly: false
@@ -2956,9 +3263,9 @@ const pnpm$1 = {
 
 // src/knowledge/poetry.ts
 const { verified: verified$3, uncertain: uncertain$3, disputed: disputed$2, evidence: evidence$2 } = verifiedOn("2026-10-30");
-const user$1 = verifiedOn("2026-10-31");
+const user$2 = verifiedOn("2026-10-31");
 const POETRY = "https://github.com/python-poetry/poetry/blob/2.5.1";
-const CONFIGURATION$1 = `${POETRY}/docs/configuration.md`;
+const CONFIGURATION$2 = `${POETRY}/docs/configuration.md`;
 const CHANGELOG = `${POETRY}/CHANGELOG.md`;
 const LOCKER = `${POETRY}/src/poetry/packages/locker.py`;
 const CHOOSER = `${POETRY}/src/poetry/installation/chooser.py`;
@@ -3003,41 +3310,41 @@ const MACOS_DIRECTORY = {
 	from: "home",
 	path: "Library/Application Support/pypoetry"
 };
-const noSetting$2 = (kind) => ({ setting: uncertain$3(null, `${CONFIGURATION$1}#available-settings`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings and Config.default_config); dependencies of dependencies may come from such sources too.`) });
+const noSetting$2 = (kind) => ({ setting: uncertain$3(null, `${CONFIGURATION$2}#available-settings`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings and Config.default_config); dependencies of dependencies may come from such sources too.`) });
 const poetry$1 = {
 	id: "poetry",
 	name: "Poetry",
 	kind: "package-manager",
 	ecosystem: "pypi",
 	cooldown: {
-		setting: verified$3("solver.min-release-age", `${CONFIGURATION$1}#solvermin-release-age`, "A version is ignored while any of its files was uploaded less than the given number of days ago. Applies when dependencies are resolved (poetry lock, add, update); poetry install installs the locked versions without checking."),
-		configFiles: verified$3(["poetry.toml"], `${CONFIGURATION$1}#local-configuration`, "The local configuration next to pyproject.toml (poetry config --local), not pyproject.toml itself. Environment variables (POETRY_SOLVER_MIN_RELEASE_AGE) win over poetry.toml, which wins over the user config.toml."),
+		setting: verified$3("solver.min-release-age", `${CONFIGURATION$2}#solvermin-release-age`, "A version is ignored while any of its files was uploaded less than the given number of days ago. Applies when dependencies are resolved (poetry lock, add, update); poetry install installs the locked versions without checking."),
+		configFiles: verified$3(["poetry.toml"], `${CONFIGURATION$2}#local-configuration`, "The local configuration next to pyproject.toml (poetry config --local), not pyproject.toml itself. Environment variables (POETRY_SOLVER_MIN_RELEASE_AGE) win over poetry.toml, which wins over the user config.toml."),
 		cliFlag: uncertain$3(null, `${POETRY}/docs/cli.md`, "No command-line option; the environment variable POETRY_SOLVER_MIN_RELEASE_AGE sets it for one command."),
-		unit: verified$3("days", `${CONFIGURATION$1}#solvermin-release-age`, "An integer; 0 (the default) turns it off."),
-		availableSince: verified$3("2.4.0", `${CONFIGURATION$1}#solvermin-release-age`, "\"Introduced in 2.4.0\"; announced as dependency cooldowns. Tested on 2026-10-30: Poetry 2.3.4 locked with min-release-age = 100000 in poetry.toml without a word, while 2.4.0 and 2.5.1 found no version."),
+		unit: verified$3("days", `${CONFIGURATION$2}#solvermin-release-age`, "An integer; 0 (the default) turns it off."),
+		availableSince: verified$3("2.4.0", `${CONFIGURATION$2}#solvermin-release-age`, "\"Introduced in 2.4.0\"; announced as dependency cooldowns. Tested on 2026-10-30: Poetry 2.3.4 locked with min-release-age = 100000 in poetry.toml without a word, while 2.4.0 and 2.5.1 found no version."),
 		default: verified$3([{
 			since: "2.4.0",
 			value: null
-		}], `${CONFIGURATION$1}#solvermin-release-age`, "Default 0: all versions are considered."),
+		}], `${CONFIGURATION$2}#solvermin-release-age`, "Default 0: all versions are considered."),
 		exclude: {
-			setting: verified$3("solver.min-release-age-exclude", `${CONFIGURATION$1}#solvermin-release-age-exclude`),
-			availableSince: verified$3("2.4.0", `${CONFIGURATION$1}#solvermin-release-age-exclude`),
-			patternSyntax: verified$3("Exact package names; no wildcards", `${CONFIGURATION$1}#solvermin-release-age-exclude`)
+			setting: verified$3("solver.min-release-age-exclude", `${CONFIGURATION$2}#solvermin-release-age-exclude`),
+			availableSince: verified$3("2.4.0", `${CONFIGURATION$2}#solvermin-release-age-exclude`),
+			patternSyntax: verified$3("Exact package names; no wildcards", `${CONFIGURATION$2}#solvermin-release-age-exclude`)
 		},
-		securityUpdates: uncertain$3("applies", `${CONFIGURATION$1}#solvermin-release-age`, "Poetry does not know which versions fix vulnerabilities; the delay holds back every new version of a package not listed in solver.min-release-age-exclude.")
+		securityUpdates: uncertain$3("applies", `${CONFIGURATION$2}#solvermin-release-age`, "Poetry does not know which versions fix vulnerabilities; the delay holds back every new version of a package not listed in solver.min-release-age-exclude.")
 	},
 	installScripts: {
 		defaultPolicy: verified$3([{
 			since: "0.0.0",
 			value: "run"
-		}], `${CONFIGURATION$1}#installeronly-binary`, "Without installer.only-binary, packages are built from source distributions when no wheel fits, which runs their build backend. Git and directory dependencies are always built. Installing a wheel runs no package code."),
+		}], `${CONFIGURATION$2}#installeronly-binary`, "Without installer.only-binary, packages are built from source distributions when no wheel fits, which runs their build backend. Git and directory dependencies are always built. Installing a wheel runs no package code."),
 		allowList: {
 			setting: verified$3("installer.no-binary", CHOOSER, "With installer.only-binary = [\":all:\"], the packages named in installer.no-binary are the only ones built from source; explicit names take precedence over :all: since 2.2.0. Their wheels are rejected, so they are always built."),
-			file: verified$3("poetry.toml", `${CONFIGURATION$1}#installerno-binary`, "The docs recommend configuring it with --local for a project."),
+			file: verified$3("poetry.toml", `${CONFIGURATION$2}#installerno-binary`, "The docs recommend configuring it with --local for a project."),
 			availableSince: verified$3("2.2.0", CHANGELOG, "\"explicit package names will take precedence over :all:\" (#10278). Before 2.2.0 a package listed in both settings has no file left to install."),
-			format: verified$3("A list of package names, or :all: or :none:", `${CONFIGURATION$1}#installerno-binary`, "poetry config stores the value as a list; written by hand, a boolean is not normalized.")
+			format: verified$3("A list of package names, or :all: or :none:", `${CONFIGURATION$2}#installerno-binary`, "poetry config stores the value as a list; written by hand, a boolean is not normalized.")
 		},
-		disableAll: verified$3("installer.only-binary", `${CONFIGURATION$1}#installeronly-binary`, "Since 2.0.0; the value [\":all:\"] forbids source distributions for every package. Applied only when installing: resolving dependencies may still build source distributions without static metadata, and git, path and url dependencies are built regardless.")
+		disableAll: verified$3("installer.only-binary", `${CONFIGURATION$2}#installeronly-binary`, "Since 2.0.0; the value [\":all:\"] forbids source distributions for every package. Applied only when installing: resolving dependencies may still build source distributions without static metadata, and git, path and url dependencies are built regardless.")
 	},
 	sources: {
 		git: noSetting$2("git"),
@@ -3055,11 +3362,11 @@ const poetry$1 = {
 		workspacesObjectKey: uncertain$3(null, "https://github.com/python-poetry/poetry/issues/2270", "No workspaces.")
 	},
 	user: {
-		files: user$1.disputed("The docs give ~/Library/Application Support/pypoetry on macOS. The code asks the installed platformdirs (pyproject.toml allows >=3.0.0,<5), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) Poetry reads $XDG_CONFIG_HOME/pypoetry/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in Poetry's environment. Linux and Windows agree. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked.", user$1.evidence(userFiles([MACOS_DIRECTORY]), `${CONFIGURATION$1}#config-directory`, "\"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry\"."), user$1.evidence(userFiles([{
+		files: user$2.disputed("The docs give ~/Library/Application Support/pypoetry on macOS. The code asks the installed platformdirs (pyproject.toml allows >=3.0.0,<5), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) Poetry reads $XDG_CONFIG_HOME/pypoetry/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in Poetry's environment. Linux and Windows agree. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked.", user$2.evidence(userFiles([MACOS_DIRECTORY]), `${CONFIGURATION$2}#config-directory`, "\"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry\"."), user$2.evidence(userFiles([{
 			from: { env: "XDG_CONFIG_HOME" },
 			path: "pypoetry"
 		}, MACOS_DIRECTORY]), `${POETRY}/src/poetry/locations.py`, "CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path(\"pypoetry\", appauthor=False, roaming=True) from platformdirs, which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names.")),
-		settings: user$1.verified([
+		settings: user$2.verified([
 			{
 				purpose: "cooldown",
 				key: "solver.min-release-age",
@@ -3081,9 +3388,9 @@ const poetry$1 = {
 				since: "1.2.0"
 			}
 		], CONFIG, "Every setting of Config.default_config is read from the user config.toml (\"As with all configurations described here, this is a user specific configuration\", docs/configuration.md); dotted names are nested tables. A project poetry.toml replaces a user value, lists included (merge_dicts in src/poetry/utils/helpers.py), and POETRY_* variables beat both. Names in installer.no-binary win over installer.only-binary = :all: only since 2.2.0. solver.min-release-age-exclude is written as a TOML array (see extra.excludeFormat)."),
-		unknownKeys: user$1.uncertain("ignore", CONFIG, "Config.merge keeps every key of config.toml and only known settings are read, so a version that does not know a key ignores it without a word. Read from the code; tested only with poetry.toml, which goes through the same merge (2.3.4 ignored solver.min-release-age there on 2026-10-30)."),
-		invalidValueFails: user$1.uncertain(false, `${POETRY}/src/poetry/toml/file.py`, "A config.toml that is not valid TOML stops every command (TOMLError \"Invalid TOML file\"). Values are not checked when the file is loaded (only POETRY_* variables go through the normalizers of config.py), and a key an older version does not know is never read, so the keys depcurfew writes need no exact version. Read from the code."),
-		weakening: user$1.verified([
+		unknownKeys: user$2.uncertain("ignore", CONFIG, "Config.merge keeps every key of config.toml and only known settings are read, so a version that does not know a key ignores it without a word. Read from the code; tested only with poetry.toml, which goes through the same merge (2.3.4 ignored solver.min-release-age there on 2026-10-30)."),
+		invalidValueFails: user$2.uncertain(false, `${POETRY}/src/poetry/toml/file.py`, "A config.toml that is not valid TOML stops every command (TOMLError \"Invalid TOML file\"). Values are not checked when the file is loaded (only POETRY_* variables go through the normalizers of config.py), and a key an older version does not know is never read, so the keys depcurfew writes need no exact version. Read from the code."),
+		weakening: user$2.verified([
 			{
 				key: "solver.min-release-age",
 				values: [0],
@@ -3109,8 +3416,8 @@ const poetry$1 = {
 				values: [false, ":none:"],
 				effect: "allows source builds in every project whose poetry.toml does not set the key"
 			}
-		], `${CONFIGURATION$1}#configuration-sources`, "Precedence: environment variables, then the local poetry.toml, then the global config.toml, then the default; a poetry.toml key replaces the user value, lists included. solver.min-release-age-exclude-source (2.4.0) takes source names from pyproject.toml or URLs. A source that gives no upload times is not filtered at all."),
-		variables: user$1.verified([
+		], `${CONFIGURATION$2}#configuration-sources`, "Precedence: environment variables, then the local poetry.toml, then the global config.toml, then the default; a poetry.toml key replaces the user value, lists included. solver.min-release-age-exclude-source (2.4.0) takes source names from pyproject.toml or URLs. A source that gives no upload times is not filtered at all."),
+		variables: user$2.verified([
 			{
 				name: "POETRY_CONFIG_DIR",
 				values: "any",
@@ -3141,7 +3448,7 @@ const poetry$1 = {
 				values: "any",
 				effect: "overrides installer.only-binary from every file"
 			}
-		], `${CONFIGURATION$1}#using-environment-variables`, "Any setting can be set as POETRY_ plus its name in capitals with dots and dashes replaced by underscores, and environment variables come first in the precedence (\"Configuration sources\"). POETRY_CONFIG_DIR replaces the platform directory (src/poetry/locations.py).")
+		], `${CONFIGURATION$2}#using-environment-variables`, "Any setting can be set as POETRY_ plus its name in capitals with dots and dashes replaced by underscores, and environment variables come first in the precedence (\"Configuration sources\"). POETRY_CONFIG_DIR replaces the platform directory (src/poetry/locations.py).")
 	},
 	extra: {
 		pylockCreatedBy: verified$3("poetry-plugin-export", "https://github.com/python-poetry/poetry-plugin-export/blob/1.10.1/src/poetry_plugin_export/exporter.py", "Poetry exports pylock.toml with its export plugin (poetry export --format pylock.toml), which writes created-by = \"poetry-plugin-export\"."),
@@ -3157,12 +3464,12 @@ const poetry$1 = {
 			since: "2.0.0",
 			covers: ["registry"]
 		}, CHANGELOG, "installer.only-binary was added in 2.0.0; [\":all:\"] forbids source distributions of index packages when installing. Git and directory dependencies, and source archives from a URL or path, are built regardless (src/poetry/installation/executor.py at 2.5.1)."),
-		excludeFormat: disputed$2("The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter. Tested on 2026-10-30: a TOML array exempted the package in Poetry 2.4.0 and 2.5.1.", evidence$2("comma-separated string", `${CONFIGURATION$1}#solvermin-release-age-exclude`), evidence$2("TOML array", "https://github.com/python-poetry/poetry/pull/11087")),
+		excludeFormat: disputed$2("The 2.5.1 docs give the type string, a comma-separated list; the docs on main (pull request #11087, not released) give array and say to use a TOML array in poetry.toml. The 2.5.1 code iterates the value as it is, so a string would be read letter by letter. Tested on 2026-10-30: a TOML array exempted the package in Poetry 2.4.0 and 2.5.1.", evidence$2("comma-separated string", `${CONFIGURATION$2}#solvermin-release-age-exclude`), evidence$2("TOML array", "https://github.com/python-poetry/poetry/pull/11087")),
 		excludeWildcards: verified$3({
 			since: null,
 			trailingOnly: false
-		}, `${CONFIGURATION$1}#solvermin-release-age-exclude`, "Package names only."),
-		missingUploadTime: verified$3("A release whose source gives no upload times is not filtered by solver.min-release-age", `${CONFIGURATION$1}#solvermin-release-age`),
+		}, `${CONFIGURATION$2}#solvermin-release-age-exclude`, "Package names only."),
+		missingUploadTime: verified$3("A release whose source gives no upload times is not filtered by solver.min-release-age", `${CONFIGURATION$2}#solvermin-release-age`),
 		lockedVersionsKept: uncertain$3("poetry lock and poetry add keep versions already in poetry.lock even when they are newer than the delay allows; poetry update and poetry lock --regenerate resolve them again", `${POETRY}/src/poetry/mixology/version_solver.py`, "Read from the solver code, which takes the locked package without asking the repository; the docs do not say it."),
 		requiredVersion: verified$3({
 			table: "tool.poetry",
@@ -3222,7 +3529,7 @@ const poetry$1 = {
 				offListVariables: ["POETRY_INSTALLER_ONLY_BINARY"],
 				listBooleans: true
 			}
-		}, CONFIGURATION$1, "installer.no-binary (POETRY_INSTALLER_NO_BINARY) disallows wheels for :all: or true, none for :none: or false, or the named packages separated by commas; installer.only-binary (POETRY_INSTALLER_ONLY_BINARY, since 2.0.0) takes the same values; explicit package names win over :all:. poetry add --allow-prereleases accepts pre-releases (src/poetry/console/commands/add.py)."),
+		}, CONFIGURATION$2, "installer.no-binary (POETRY_INSTALLER_NO_BINARY) disallows wheels for :all: or true, none for :none: or false, or the named packages separated by commas; installer.only-binary (POETRY_INSTALLER_ONLY_BINARY, since 2.0.0) takes the same values; explicit package names win over :all:. poetry add --allow-prereleases accepts pre-releases (src/poetry/console/commands/add.py)."),
 		latestVersion: verified$3("2.5.1", CHANGELOG, "Released on 2026-09-20.")
 	}
 };
@@ -3400,14 +3707,14 @@ const renovate$1 = {
 const { verified: verified$1, uncertain: uncertain$1 } = verifiedOn("2026-10-30");
 const UV = "https://github.com/astral-sh/uv/blob/0.13.6";
 const RESOLUTION = `${UV}/docs/concepts/resolution.md`;
-const CONFIGURATION = `${UV}/docs/concepts/configuration-files.md`;
+const CONFIGURATION$1 = `${UV}/docs/concepts/configuration-files.md`;
 const SETTINGS = `${UV}/crates/uv-settings/src/settings.rs`;
 const BUILD_OPTIONS = `${UV}/crates/uv-configuration/src/build_options.rs`;
 const WORKSPACES = `${UV}/docs/concepts/projects/workspaces.md`;
 const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
 const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor, version) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll(".", "")}`;
-const user = verifiedOn("2026-10-31");
+const user$1 = verifiedOn("2026-10-31");
 const noSetting$1 = (kind) => ({ setting: uncertain$1(null, `${UV}/uv.schema.json`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings). no-sources only ignores the tool.uv.sources table; a URL dependency introduced by a registry package is rejected during resolution (docs/pip/compatibility.md).`) });
 const uv$1 = {
 	id: "uv",
@@ -3416,7 +3723,7 @@ const uv$1 = {
 	ecosystem: "pypi",
 	cooldown: {
 		setting: verified$1("exclude-newer", SETTINGS, "Limits candidate packages to those uploaded before a date or, since 0.9.17, a duration ago. Compared with the upload time of each file, not the release date. false turns off a value from a lower-priority source (since 0.11.24)."),
-		configFiles: verified$1(["uv.toml", "pyproject.toml"], CONFIGURATION, "Top level of uv.toml or the [tool.uv] table of pyproject.toml. uv searches the current directory and its parents and uses the first directory with uv.toml or a pyproject.toml that has [tool.uv]; uv.toml wins over [tool.uv] in the same directory, with a warning. In a workspace only the root is read. User (~/.config/uv/uv.toml) and system (/etc/uv/uv.toml) files are merged below the project file; uv tool and uvx read only those. UV_EXCLUDE_NEWER overrides the files."),
+		configFiles: verified$1(["uv.toml", "pyproject.toml"], CONFIGURATION$1, "Top level of uv.toml or the [tool.uv] table of pyproject.toml. uv searches the current directory and its parents and uses the first directory with uv.toml or a pyproject.toml that has [tool.uv]; uv.toml wins over [tool.uv] in the same directory, with a warning. In a workspace only the root is read. User (~/.config/uv/uv.toml) and system (/etc/uv/uv.toml) files are merged below the project file; uv tool and uvx read only those. UV_EXCLUDE_NEWER overrides the files."),
 		cliFlag: verified$1("--exclude-newer", `${UV}/crates/uv-cli/src/lib.rs`, "Also the UV_EXCLUDE_NEWER environment variable."),
 		unit: verified$1("duration-string", RESOLUTION, "A \"friendly\" duration such as 24 hours, 1 week or 30 days, or an ISO 8601 duration such as P7D; months and years are rejected, a day is always 24 hours. An RFC 3339 timestamp is a fixed cutoff instead of a rolling delay."),
 		availableSince: verified$1("0.9.17", changelog("0.9", "0.9.17"), "Durations (\"dependency cooldowns\") since 0.9.17; before that exclude-newer took only dates, which do not move with time. Tested on 2026-10-30: uv 0.9.16 printed a warning that \"100000 days\" is not a date and resolved with no delay at all; 0.9.17 and later held back every version."),
@@ -3438,7 +3745,7 @@ const uv$1 = {
 		}], SETTINGS, "no-build defaults to false: source distributions, git and directory dependencies are built, which runs their build backend. Installing a wheel runs no package code."),
 		allowList: {
 			setting: verified$1("no-binary-package", BUILD_OPTIONS, "With no-build = true, the packages in no-binary-package are the only ones built from source (\"Allow `all` to be overridden by specific binary exclusions\"). Their wheels are not used, so they are always built."),
-			file: verified$1("pyproject.toml", CONFIGURATION, "Or uv.toml; the same table as exclude-newer."),
+			file: verified$1("pyproject.toml", CONFIGURATION$1, "Or uv.toml; the same table as exclude-newer."),
 			availableSince: verified$1("0.2.12", changelog("0.2", "0.2.12"), "Project settings no-build, no-build-package, no-binary and no-binary-package; uv sync and related commands respect them since 0.4.6."),
 			format: verified$1("A list of package names", SETTINGS)
 		},
@@ -3464,7 +3771,7 @@ const uv$1 = {
 		workspacesObjectKey: verified$1("members", WORKSPACES, "The workspace guide calls members required, while the settings reference (crates/uv-workspace/src/pyproject.rs) gives it a default of [].")
 	},
 	user: {
-		files: user.verified([{
+		files: user$1.verified([{
 			since: "0.0.0",
 			value: {
 				format: "toml",
@@ -3494,7 +3801,7 @@ const uv$1 = {
 				}]
 			}
 		}], `${UV}/docs/reference/storage.md#configuration-directories`, "User-level configuration is <config dir>/uv/uv.toml: $XDG_CONFIG_HOME/uv, else ~/.config/uv on Linux and macOS (not ~/Library), %APPDATA%\\uv, else uv in the Roaming AppData known folder, on Windows (FilesystemOptions::user in crates/uv-settings/src/lib.rs). The directory comes from the etcetera crate (crates/uv-dirs/src/lib.rs), which uses XDG_CONFIG_HOME only when it is an absolute path. Keys sit at the top level, as in [tool.uv] without the prefix; \"User- and system-level configuration files cannot use the pyproject.toml format\" (docs/concepts/configuration-files.md). The system file (/etc/uv/uv.toml, %PROGRAMDATA%\\uv\\uv.toml) is merged below it. Same path code at 0.9.0, 0.9.16 and 0.13.6; earlier versions are not tracked."),
-		settings: user.verified([
+		settings: user$1.verified([
 			{
 				purpose: "cooldown",
 				key: "exclude-newer",
@@ -3520,10 +3827,10 @@ const uv$1 = {
 				key: "no-binary-package",
 				since: "0.2.12"
 			}
-		], CONFIGURATION, "Settings of uv.toml are merged with project-level configuration taking precedence over the user-level configuration: a project exclude-newer or no-build wins, exclude-newer-package tables are merged with the project keys winning, and lists such as no-build-package and no-binary-package are concatenated (crates/uv-settings/src/combine.rs). uv tool and uvx read only the user and system files, so the user file is the only file that gives them these settings; uv pip applies the top-level keys unless its [pip] table overrides them. The versions are those of the values depcurfew writes: a duration in exclude-newer since 0.9.17, package = false in exclude-newer-package since 0.9.25. no-build-package takes effect only while no-build is unset."),
-		unknownKeys: user.verified("fail", SETTINGS, "uv.toml is parsed with deny_unknown_fields (OptionsWire), and fields allowed only in pyproject.toml (workspace, sources, dev-dependencies, conflicts, managed, package and others) are rejected by validate_uv_toml (crates/uv-settings/src/lib.rs, Error::PyprojectOnlyField); both are errors of the user file (see invalidValueFails)."),
-		invalidValueFails: user.verified(true, `${UV}/crates/uv-settings/src/lib.rs`, "FilesystemOptions::user() returns nothing only for a missing, not-a-directory or unreadable file; a TOML or schema error (Error::UvToml) is passed on, and crates/uv/src/lib.rs stops every command that reads configuration with it, unlike an invalid pyproject.toml, which is only warned about. So a value the installed uv does not know (a duration before 0.9.17, package = false before 0.9.25, exclude-newer = false before 0.11.24) breaks every uv command instead of being dropped. A required-version mismatch is reported before a schema error."),
-		weakening: user.verified([
+		], CONFIGURATION$1, "Settings of uv.toml are merged with project-level configuration taking precedence over the user-level configuration: a project exclude-newer or no-build wins, exclude-newer-package tables are merged with the project keys winning, and lists such as no-build-package and no-binary-package are concatenated (crates/uv-settings/src/combine.rs). uv tool and uvx read only the user and system files, so the user file is the only file that gives them these settings; uv pip applies the top-level keys unless its [pip] table overrides them. The versions are those of the values depcurfew writes: a duration in exclude-newer since 0.9.17, package = false in exclude-newer-package since 0.9.25. no-build-package takes effect only while no-build is unset."),
+		unknownKeys: user$1.verified("fail", SETTINGS, "uv.toml is parsed with deny_unknown_fields (OptionsWire), and fields allowed only in pyproject.toml (workspace, sources, dev-dependencies, conflicts, managed, package and others) are rejected by validate_uv_toml (crates/uv-settings/src/lib.rs, Error::PyprojectOnlyField); both are errors of the user file (see invalidValueFails)."),
+		invalidValueFails: user$1.verified(true, `${UV}/crates/uv-settings/src/lib.rs`, "FilesystemOptions::user() returns nothing only for a missing, not-a-directory or unreadable file; a TOML or schema error (Error::UvToml) is passed on, and crates/uv/src/lib.rs stops every command that reads configuration with it, unlike an invalid pyproject.toml, which is only warned about. So a value the installed uv does not know (a duration before 0.9.17, package = false before 0.9.25, exclude-newer = false before 0.11.24) breaks every uv command instead of being dropped. A required-version mismatch is reported before a schema error."),
+		weakening: user$1.verified([
 			{
 				key: "exclude-newer-package",
 				values: "any",
@@ -3545,7 +3852,7 @@ const uv$1 = {
 				effect: "turns the release-age delay off for uvx, uv tool and every project without its own exclude-newer"
 			}
 		], `${UV}/crates/uv-settings/src/combine.rs`, "Tables are merged with the project keys winning, lists are extended and scalars come from the project when it sets them (combine.rs); with no-build = false, NoBuild::from_args ignores the package list (crates/uv-configuration/src/build_options.rs). exclude-newer = false (since 0.11.24) turns off a value from a lower-priority source, the system file included. Read from the code, not run: a [pip] exclude-newer in the user file is combined above the top-level keys for uv pip, so it can override a project exclude-newer there, and a user [[index]] with exclude-newer = false (preview, 0.11.5) exempts the packages of that index."),
-		variables: user.verified([
+		variables: user$1.verified([
 			{
 				name: "UV_EXCLUDE_NEWER",
 				values: "any",
@@ -3588,11 +3895,11 @@ const uv$1 = {
 		configTables: verified$1({
 			"pyproject.toml": "tool.uv",
 			"uv.toml": ""
-		}, CONFIGURATION, "Settings sit in [tool.uv] in pyproject.toml and at the top level of uv.toml. uv.toml cannot hold workspace, sources and a few other project fields."),
-		pyprojectTable: verified$1("tool.uv", CONFIGURATION, "A pyproject.toml without a [tool.uv] table is ignored when uv searches for configuration."),
-		configPrecedence: verified$1("uv.toml wins over [tool.uv] in the same directory; only the nearest directory with either is read, and in a workspace only the root", CONFIGURATION, "A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories."),
-		configFileOrder: verified$1(["uv.toml", "pyproject.toml"], CONFIGURATION, "\"configuration will be read from uv.toml, and the [tool.uv] section in the accompanying pyproject.toml will be ignored\"; uv prints a warning listing the ignored fields."),
-		workspaceRootOnly: verified$1(true, CONFIGURATION, "\"In workspaces, uv will begin its search at the workspace root, ignoring any configuration defined in workspace members.\" Project fields such as tool.uv.sources of a member still apply."),
+		}, CONFIGURATION$1, "Settings sit in [tool.uv] in pyproject.toml and at the top level of uv.toml. uv.toml cannot hold workspace, sources and a few other project fields."),
+		pyprojectTable: verified$1("tool.uv", CONFIGURATION$1, "A pyproject.toml without a [tool.uv] table is ignored when uv searches for configuration."),
+		configPrecedence: verified$1("uv.toml wins over [tool.uv] in the same directory; only the nearest directory with either is read, and in a workspace only the root", CONFIGURATION$1, "A nested pyproject.toml with any [tool.uv] table hides the configuration of its parent directories."),
+		configFileOrder: verified$1(["uv.toml", "pyproject.toml"], CONFIGURATION$1, "\"configuration will be read from uv.toml, and the [tool.uv] section in the accompanying pyproject.toml will be ignored\"; uv prints a warning listing the ignored fields."),
+		workspaceRootOnly: verified$1(true, CONFIGURATION$1, "\"In workspaces, uv will begin its search at the workspace root, ignoring any configuration defined in workspace members.\" Project fields such as tool.uv.sources of a member still apply."),
 		buildSwitch: verified$1({
 			setting: "no-build",
 			value: true,
@@ -3640,7 +3947,7 @@ const uv$1 = {
 			wheels: "wheels",
 			packages: "package"
 		}, SERIALIZE, "uv.lock has no documented format (the docs say only that it is managed by uv). Each [[package]] has source = { registry = URL } for an index, { git = URL?rev#commit }, { url = URL }, { path = archive }, { directory = dir }, { editable = dir } or { virtual = dir } (a directory that is not built). Index packages list sdist and wheels; a package without wheels, or from git, a directory or a source archive, is built when installed."),
-		ignoredByToolCommands: verified$1("uv tool install, uv tool run and uvx ignore pyproject.toml and uv.toml in the project and read only user and system configuration", CONFIGURATION),
+		ignoredByToolCommands: verified$1("uv tool install, uv tool run and uvx ignore pyproject.toml and uv.toml in the project and read only user and system configuration", CONFIGURATION$1),
 		lockedSettings: verified$1({
 			settings: ["exclude-newer", "exclude-newer-package"],
 			lock: "uv lock",
@@ -3879,6 +4186,21 @@ const uv$1 = {
 const { verified, uncertain, disputed, evidence } = verifiedOn("2026-10-28");
 const checked$2 = verifiedOn("2026-10-29");
 const rechecked = verifiedOn("2026-10-31");
+const user = verifiedOn("2026-10-31");
+const BERRY = "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1";
+const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
+/** Variables for settings with a single value, which both the docs and the code accept. */
+const SCALAR_VARIABLES = [{
+	name: "YARN_ENABLE_SCRIPTS",
+	anyCase: true,
+	values: ["true", "1"],
+	effect: "runs dependency build scripts, whatever any .yarnrc.yml says"
+}, {
+	name: "YARN_NPM_MINIMAL_AGE_GATE",
+	anyCase: true,
+	values: "any",
+	effect: "replaces npmMinimalAgeGate from every .yarnrc.yml"
+}];
 const YARNRC = "https://yarnpkg.com/configuration/yarnrc";
 const MANIFEST = "https://yarnpkg.com/configuration/manifest";
 const SCHEMA = "https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json";
@@ -3962,6 +4284,92 @@ const yarn$1 = {
 			key: "workspaces"
 		}, `${MANIFEST}#workspaces`, "Array of folder glob patterns."),
 		workspacesObjectKey: uncertain("packages", "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Manifest.ts", "Not documented; the manifest parser also accepts { \"packages\": [...] }.")
+	},
+	user: {
+		files: user.verified([{
+			since: "0.0.0",
+			value: {
+				format: "yaml",
+				locations: [{
+					platforms: [
+						"linux",
+						"darwin",
+						"win32"
+					],
+					directories: [{
+						from: "home",
+						path: ""
+					}],
+					file: ".yarnrc.yml"
+				}]
+			}
+		}], CONFIGURATION, "Configuration.find adds .yarnrc.yml from the home folder (folderUtils.getHomeFolder: os.homedir(), else /usr/local/share) with the lowest priority, also for projects outside the home folder; the name stays .yarnrc.yml even when YARN_RC_FILENAME is set. The yarnrc page does not describe it; yarn config set -H writes the home file (https://yarnpkg.com/cli/config/set). The lookup is the same in 4.0.0, and the 2.2.0 changelog already speaks of the home configuration file; the first version was not tracked."),
+		settings: user.verified([
+			{
+				purpose: "cooldown",
+				key: "npmMinimalAgeGate",
+				since: "4.10.2"
+			},
+			{
+				purpose: "cooldownExclude",
+				key: "npmPreapprovedPackages",
+				since: "4.10.0"
+			},
+			{
+				purpose: "buildsDeny",
+				key: "enableScripts",
+				since: "4.0.0"
+			},
+			{
+				purpose: "sourceGit",
+				key: "approvedGitRepositories",
+				since: "4.14.0"
+			}
+		], CONFIGURATION, "Configuration.use knows no project-only settings, so the home file sets these wherever the version has them; the first versions are those of cooldown, cooldown.exclude and sources.git, and enableScripts is checked in 4.0.0. enableScripts: false denies every dependency build script (scriptsSwitch); buildsDeny is the closest purpose, since Yarn has no strict mode. The allow-list dependenciesMeta.<package>.built is read from the root package.json only (Project.getDependencyMeta), so Yarn has no user-level allow-list. depcurfew does not write npmScopes.<scope>.npmMinimalAgeGate."),
+		unknownKeys: user.verified("ignore", CONFIGURATION, "Configuration.use sets a key it does not know aside without an error when it comes from the home file, even with enableStrictSettings; other files throw. The 2.2.0 changelog: \"Unsupported options will simply be silently ignored.\""),
+		invalidValueFails: user.uncertain(true, CONFIGURATION, "Read from code at 4.18.1: parseValue errors are rethrown with the file name while the configuration loads, so a value Yarn cannot parse, such as enableScripts: maybe or a malformed duration, stops every command, also from the home file. On 4.10.x a duration string such as 7d silently had no effect instead (durationStrings). Not tested."),
+		weakening: user.uncertain([
+			{
+				key: "approvedGitRepositories",
+				values: "any",
+				effect: "approves these git repositories in every project, on top of the project's own list"
+			},
+			{
+				key: "npmPreapprovedPackages",
+				values: "any",
+				effect: "exempts these packages from the age gate in every project, on top of the project's own list"
+			},
+			{
+				key: "enableScripts",
+				values: [true],
+				effect: "runs dependency build scripts in every project whose .yarnrc.yml does not set enableScripts"
+			},
+			{
+				key: "npmMinimalAgeGate",
+				values: [0],
+				effect: "turns the age gate off in every project whose .yarnrc.yml does not set it"
+			},
+			{
+				key: "npmScopes.*.npmMinimalAgeGate",
+				values: [0],
+				effect: "turns the age gate off for that scope in every project"
+			}
+		], `${BERRY}/packages/yarnpkg-core/sources/configUtils.ts`, "Read from code (resolveRcFiles, the same since 4.0.0; not on yarnpkg.com, and no test was read): lists from every .yarnrc.yml are joined, so home entries add to a project's list unless the project uses the undocumented { onConflict: reset } form; objects such as npmScopes merge key by key; for single values the file closest to the project wins. Since 4.17.0 a scope listed in the home npmScopes only for its registry gets the default gate of 1d instead of the project's gate (perScopeGate). A .yarnrc.yml in any folder between the root and the project merges the same way."),
+		variables: user.disputed("The yarnrc docs say environment variables cannot set lists, but parseValue splits a string on commas for list settings, so by the code YARN_APPROVED_GIT_REPOSITORIES and YARN_NPM_PREAPPROVED_PACKAGES work. The safe choice is to treat both as effective.", user.evidence([
+			...SCALAR_VARIABLES,
+			{
+				name: "YARN_APPROVED_GIT_REPOSITORIES",
+				anyCase: true,
+				values: "any",
+				effect: "replaces approvedGitRepositories from every .yarnrc.yml (a comma-separated list)"
+			},
+			{
+				name: "YARN_NPM_PREAPPROVED_PACKAGES",
+				anyCase: true,
+				values: "any",
+				effect: "replaces npmPreapprovedPackages from every .yarnrc.yml (a comma-separated list)"
+			}
+		], CONFIGURATION, "A variable starting with yarn_ in any case sets the camel-cased setting before the rc files are read, and they cannot change it (Configuration.find and use; YARN_IGNORE_SCRIPTS is ignored); a list setting takes a comma-separated string (parseValue); enableScripts accepts true or 1 (parseBoolean)."), user.evidence(SCALAR_VARIABLES, `${BERRY}/packages/docusaurus/static/configuration/yarnrc.json`, "Most settings \"can also be defined through environment variables (at least for the simpler ones; arrays and objects aren't supported yet)\", and such values \"will overwrite any that might have been defined in the RC files\"."))
 	},
 	extra: {
 		commandLine: checked$2.verified({

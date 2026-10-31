@@ -88,6 +88,20 @@ describe('apply --user for npm and Deno (~/.npmrc)', () => {
     expect(given.report.changes).toEqual([]);
   });
 
+  it.skipIf(!canSymlink())('writes only min-release-age in whole days for Deno, in the same block when npm is configured too', () => {
+    const environment = machine({ npm: '11.21.1', deno: '2.9.8' });
+    const both = planUserApply(policy({ ...DEFAULT, cooldown: { minimum: '36h' } }), { environment });
+    const text = both.report.changes[0]?.after ?? '';
+    expect(text.match(/min-release-age=/gu)).toHaveLength(1);
+    // npm takes days with fractions rounded up as well: 36 hours is 2 days.
+    expect(text).toContain('min-release-age=2\n');
+    const alone = planUserApply(policy({ ...DEFAULT, cooldown: { minimum: '36h' }, targets: ['deno'] }), { environment });
+    expect(alone.report.changes[0]?.after).toBe(
+      ['# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead', 'min-release-age=2', '# <<< depcurfew managed block', ''].join('\n'),
+    );
+    expect(alone.report.warningDetails.map((warning) => warning.code)).toContain('user-setting-project-only');
+  });
+
   it('configures nothing when no tool is in PATH and the policy lists none', () => {
     const environment = machine();
     const planned = planUserApply(policy(DEFAULT), { environment });

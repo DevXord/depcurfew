@@ -126,7 +126,7 @@ function pnpm([target]: readonly UserTarget[]): void {
   if (policy.installScripts?.default === 'deny') {
     const strict = userKey(context, 'scriptsStrict');
     if (strict !== undefined) values.push([strict, true]);
-    const allowKey = userKey(context, 'scriptsAllow');
+    const allowKey = userKey(context, 'scriptsAllow') ?? userKey(context, 'buildsAllow');
     if (policy.installScripts.allow.length > 0) {
       if (allowKey !== undefined) values.push([allowKey, policy.installScripts.allow]);
       else projectOnly(target, 'allowBuilds', 'pnpm-workspace.yaml');

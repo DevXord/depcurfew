@@ -4,6 +4,7 @@ import type { ToolKnowledge } from './types.ts';
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
+const rechecked = verifiedOn('2026-10-31');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -296,10 +297,10 @@ export const npm: ToolKnowledge = {
       NPM_DEFINITIONS_V11_16,
       'strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it.',
     ),
-    unknownNpmrcKeys: disputed(
-      'Matters for generated .npmrc files: keys that npm does not know (e.g. pnpm-only keys) may break npm 12 installs.',
-      evidence('npm 12 throws on unknown config keys', release('12.0.0')),
-      evidence('unknown keys only warn; throwing is planned for a future major version', NPMRC),
+    unknownNpmrcKeys: rechecked.verified(
+      'unknown keys in .npmrc files only warn unless strict-npmrc is set; unknown command-line flags throw since npm 12',
+      `${NPM_GITHUB_V12}/CHANGELOG.md`,
+      'Matters for generated .npmrc files: keys npm does not know (e.g. pnpm-only keys) print a warning on every npm command. The 12.0.0 entry: unknown CLI flags "now throw instead of warning. (Unknown .npmrc configs still warn by default; opt into erroring with the new strict-npmrc config.)"; lib/base-cmd.js at 12.2.1 does the same.',
     ),
     commandLine: checked.verified(
       {
