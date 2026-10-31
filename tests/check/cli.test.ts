@@ -294,6 +294,18 @@ describe('depcurfew check and the hook against bypasses', () => {
     expect(report.notices).toEqual([{ message: 'npm prefers the dist-tag "beta" (tag= in .npmrc, line 2) for packages named without a version or with a range' }]);
   });
 
+  it('applies tag= from .npmrc to npm only: pnpm, Yarn, Bun and Deno pick the default tag', async () => {
+    const directory = project({ cooldown: { minimum: '10000d' } });
+    writeFileSync(join(directory, '.npmrc'), 'tag=beta\n');
+    const npm = decision((await exec(['check', '--hook', 'claude-code'], event('npm i cross-env', directory))).stdout);
+    expect(npm.permissionDecisionReason).toContain('- cross-env (tag beta): cross-env@5.0.0-beta.0 was published');
+    for (const command of ['yarn add cross-env', 'pnpm add cross-env', 'bun add cross-env']) {
+      const reason = decision((await exec(['check', '--hook', 'claude-code'], event(command, directory))).stdout).permissionDecisionReason;
+      expect(reason).not.toContain('tag beta');
+      expect(reason).not.toContain('5.0.0-beta.0');
+    }
+  });
+
   it("says which registry the project's .npmrc made it ask, in text, JSON and the hook's reason", async () => {
     const directory = project({});
     writeFileSync(join(directory, '.npmrc'), 'registry=http://npm.internal.example/\n');

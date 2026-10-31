@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-12 tools · 520 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-30.
+12 tools · 520 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-31.
 
 ## Release-age cooldown
 
@@ -158,7 +158,7 @@ Further facts used by generators and `doctor`.
 - `lockfileRecheck` (❓ uncertain): 10.16.0+: false<br>11.1.3+: true ❓ [↗](https://github.com/pnpm/pnpm/releases/tag/v11.1.3)
 - `allowAllBuilds` (✅ verified): `{"setting":"dangerouslyAllowAllBuilds","since":"10.9.0","value":true}` [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md)
 - `excludeWildcards` (✅ verified): `{"since":"10.17.0","trailingOnly":false}` [↗](https://pnpm.io/10.x/settings)
-- `onlyBuiltDependencies` (✅ verified): `{"since":"10.0.0","workspaceFileSince":"10.5.0","removedIn":"11.0.0"}` [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md)
+- `onlyBuiltDependencies` (✅ verified): `{"since":"6.32.1","workspaceFileSince":"10.5.0","removedIn":"11.0.0"}` [↗](https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md)
 - `latestVersion` (✅ verified): 12.16.1 [↗](https://github.com/pnpm/pnpm/releases/tag/v12.16.1)
 - `npmrcIgnored` (✅ verified): pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json "pnpm" field and no longer reads npm_config_* variables [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `legacyAllowList` (✅ verified): 10.0.0+: onlyBuiltDependencies (package.json pnpm field; pnpm-workspace.yaml since 10.5.0)<br>10.26.0+: allowBuilds; onlyBuiltDependencies and ignoredBuiltDependencies deprecated<br>11.0.0+: allowBuilds only; onlyBuiltDependencies, neverBuiltDependencies and ignoredBuiltDependencies removed [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md)
@@ -464,7 +464,7 @@ Context recorded with verified facts.
 - `extra.ignoredSince`: Structured form of npmrcIgnored: from 11.0.0 on, other .npmrc settings and the package.json "pnpm" field have no effect. [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `extra.allowAllBuilds`: Boolean, default false; packages denied in allowBuilds stay blocked. [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/settings.md)
 - `extra.excludeWildcards`: Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0. [↗](https://pnpm.io/10.x/settings)
-- `extra.onlyBuiltDependencies`: The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, also pnpm-workspace.yaml since 10.5.0; removed in 11.0.0 (see legacyAllowList). [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md)
+- `extra.onlyBuiltDependencies`: The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, added in 6.32.0 ("If this field exists, only mentioned packages will be able to run install scripts") and working since 6.32.1 ("released with a bug in v6.32.0"); also pnpm-workspace.yaml since 10.5.0 (10.5.0 changelog); removed in 11.0.0 (settings/build.md, see legacyAllowList). Before pnpm 10 any list, even an empty one, lets only the listed packages build (createAllowBuildFunction in @pnpm/builder.policy 3.0.0, which pnpm 9.15.0 uses). [↗](https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md)
 - `extra.latestVersion`: pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches. [↗](https://github.com/pnpm/pnpm/releases/tag/v12.16.1)
 - `extra.strictDepBuilds`: When true, an unreviewed dependency build script fails the install. [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `extra.strictMode`: In non-strict mode pnpm silently writes immature picks into minimumReleaseAgeExclude. Strict mode fails CI installs with ERR_PNPM_NO_MATURE_MATCHING_VERSION. [↗](https://github.com/pnpm/pnpm/releases/tag/v12.3.0)

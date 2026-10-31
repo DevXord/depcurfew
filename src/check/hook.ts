@@ -101,10 +101,12 @@ export const MAX_CHECKED = 50;
 export function requestedSpecs(command: string): { specs: CheckRequest[]; unreadable: string | undefined } {
   const scan = scanCommandLine(command);
   const unique = new Map<string, CheckRequest>();
-  for (const { spec, tag, prereleases, buildFromSource } of scan.requests) {
+  for (const { tool, spec, tag, prereleases, buildFromSource } of scan.requests) {
     const request: CheckRequest = {
       spec,
       ...(tag === undefined ? {} : { tag }),
+      // tag= in .npmrc is a setting of npm; pnpm, Yarn, Bun and Deno pick the registry's default tag.
+      ...(tool === 'npm' ? {} : { ignoresConfigTag: true }),
       ...(prereleases === undefined ? {} : { prereleases }),
       ...(buildFromSource === undefined ? {} : { buildFromSource }),
     };

@@ -57,9 +57,11 @@ describe('writeIniBlock and [section] headers', () => {
   const block = (entries: string[]) => [BLOCK_START, ...entries, BLOCK_END];
 
   it('puts a new block above the first section, where npm reads it', () => {
-    expect(writeIniBlock('save-exact=true\n\n[custom]\nfoo=bar\n', ['min-release-age=3'], ['min-release-age'])).toBe(
-      ['save-exact=true', '', ...block(['min-release-age=3']), '[custom]', 'foo=bar', ''].join('\n'),
-    );
+    // The blank line before the section stays the user's, so that a later removal of the block gives the file back.
+    const original = 'save-exact=true\n\n[custom]\nfoo=bar\n';
+    const written = writeIniBlock(original, ['min-release-age=3'], ['min-release-age']);
+    expect(written).toBe(['save-exact=true', '', ...block(['min-release-age=3']), '', '[custom]', 'foo=bar', ''].join('\n'));
+    expect(writeIniBlock(written, [], [])).toBe(original);
     expect(writeIniBlock('[custom]\nfoo=bar\n', ['a=1'], ['a'])).toBe([...block(['a=1']), '[custom]', 'foo=bar', ''].join('\n'));
   });
 
@@ -82,7 +84,7 @@ describe('writeIniBlock and the comments of a section', () => {
   it('puts a new block above the comment lines that introduce the first section, and keeps it there', () => {
     const before = 'save-exact=true\n\n# read by our scripts\n[custom]\nfoo=bar\n';
     const after = writeIniBlock(before, ['a=1'], ['a']);
-    expect(after).toBe(`save-exact=true\n\n${BLOCK_START}\na=1\n${BLOCK_END}\n# read by our scripts\n[custom]\nfoo=bar\n`);
+    expect(after).toBe(`save-exact=true\n\n${BLOCK_START}\na=1\n${BLOCK_END}\n\n# read by our scripts\n[custom]\nfoo=bar\n`);
     expect(writeIniBlock(after, ['a=2'], ['a'])).toBe(after.replace('a=1', 'a=2'));
   });
 });

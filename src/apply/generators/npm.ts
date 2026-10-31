@@ -1,11 +1,14 @@
 // npm: .npmrc keys in a managed block; the allowScripts allow-list in the root package.json.
+import { iniEntries } from '../../doctor/settings.ts';
 import { hasManagedLines } from '../block.ts';
-import { extraOf, firstFile, isSwitch, settingOf, sinceOf } from '../facts.ts';
+import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { formatVersion } from '../version.ts';
 import { allowedNames, cooldownValue, eachSource, exclusions, scriptsDefault } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
+const isBefore = (value: unknown): value is { setting: string; exclusive: { since: string; until: string }; beforeWinsSince: string } =>
+  isRecord(value) && typeof value['setting'] === 'string' && isRecord(value['exclusive']) && typeof value['beforeWinsSince'] === 'string';
 
 export const npm: ManagerGenerator = (context) => {
   const { tool, policy } = context;
@@ -21,6 +24,21 @@ export const npm: ManagerGenerator = (context) => {
       minutes = cooldown.minutes;
       entries.push(`${setting}=${cooldown.value}`);
       managed.push(setting);
+      // before= in the same file wins over min-release-age from 11.15.0 and makes 11.10 to 11.14 stop with an error
+      // (extra.beforeInteraction); it is the user's own setting, so it stays, with a warning (decision D-080).
+      const fact = extraOf(tool, 'beforeInteraction', isBefore);
+      const date = iniEntries(context.read(file)).filter((entry) => entry.key === fact.setting).at(-1);
+      if (date !== undefined && context.atLeast(fact.exclusive.since)) {
+        const label = `${context.name} ${formatVersion(context.version ?? [0, 0, 0])}`;
+        context.warn({
+          code: 'before-overrides-cooldown',
+          location: { file, line: date.line },
+          message: context.atLeast(fact.beforeWinsSince)
+            ? `${fact.setting}=${date.value} in ${file} (line ${date.line}) takes the place of ${setting} (${label} uses ${fact.setting} when both are set in the same file), so the release-age delay depcurfew apply writes has no effect`
+            : `${label} stops with an error when ${fact.setting} and ${setting} are both set, and ${file} sets ${fact.setting}=${date.value} (line ${date.line}), so every npm command fails once depcurfew apply writes ${setting}`,
+          fix: `Remove the ${fact.setting} line from ${file}, so that ${setting} applies`,
+        });
+      }
       const excludeSetting = settingOf(tool.cooldown.exclude.setting);
       const patterns = exclusions(context);
       if (excludeSetting !== null && patterns !== undefined && context.atLeast(sinceOf(tool.cooldown.exclude.availableSince))) {

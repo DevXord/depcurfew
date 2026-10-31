@@ -4,6 +4,7 @@ import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
+const rechecked = verifiedOn('2026-10-31');
 const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
 
 const RESOLUTION = 'https://pnpm.io/settings/dependency-resolution';
@@ -129,7 +130,7 @@ export const pnpm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, WORKSPACE_YAML_V10, 'The docs show packages only as a list; concluded from the absence of an object form.'),
   },
   extra: {
-    commandLine: checked.verified(
+    commandLine: rechecked.verified(
       {
         add: [['pnpm', 'add']],
         run: [
@@ -257,10 +258,10 @@ export const pnpm: ToolKnowledge = {
       SETTINGS_V10,
       'Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0.',
     ),
-    onlyBuiltDependencies: verified(
-      { since: '10.0.0', workspaceFileSince: '10.5.0', removedIn: '11.0.0' },
-      BUILD_V11,
-      'The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, also pnpm-workspace.yaml since 10.5.0; removed in 11.0.0 (see legacyAllowList).',
+    onlyBuiltDependencies: rechecked.verified(
+      { since: '6.32.1', workspaceFileSince: '10.5.0', removedIn: '11.0.0' },
+      'https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md',
+      'The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, added in 6.32.0 ("If this field exists, only mentioned packages will be able to run install scripts") and working since 6.32.1 ("released with a bug in v6.32.0"); also pnpm-workspace.yaml since 10.5.0 (10.5.0 changelog); removed in 11.0.0 (settings/build.md, see legacyAllowList). Before pnpm 10 any list, even an empty one, lets only the listed packages build (createAllowBuildFunction in @pnpm/builder.policy 3.0.0, which pnpm 9.15.0 uses).',
     ),
     latestVersion: verified(
       '12.16.1',

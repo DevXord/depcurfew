@@ -1120,7 +1120,7 @@ Przegląd przed wydaniem 1.0.0 (pentest i przegląd CLI) znalazł:
   - Działa przed dodaniem kolorów w tekście `doctor`, `check`, `apply` (ostrzeżenia, błędy, nazwy plików), `explain`, w błędach wejścia i w Action: log, adnotacje (także `file`, więc ścieżka ze znakiem sterującym traci link do pliku), podsumowanie zadania i wyjście `failure`.
   - JSON i SARIF bez zmian, bo JSON sam koduje znaki sterujące. Diff `apply --dry-run` jest zmieniany tylko na terminalu albo z kolorami (nowe pole `terminal` w `CliIo`); w pliku i potoku zostaje dokładny dla `git apply`.
 - **Błędy wejścia bez śladu stosu.**
-  - Nieczytelny `depcurfew.json` (np. EACCES): `readPolicyFile` łapie błąd odczytu, więc to `policy-unreadable` w `apply`, `check` i `explain` oraz `invalid-policy` w `doctor`. Wskazówka mówi też o uprawnieniach.
+  - Nieczytelny `depcurfew.json` (np. EACCES): `readPolicyFile` łapie błąd odczytu, więc to `policy-unreadable` w `apply` i `check`, problem polityki w `explain` (`policy.valid: false` z `issues`) oraz `invalid-policy` w `doctor`. Wskazówka mówi też o uprawnieniach.
   - Katalog, którego nie ma albo który jest plikiem (argument albo `check --dir`): nowe kody `directory-not-found` i `not-a-directory` w `APPLY_ERRORS` (README).
   - Tekst ma postać `error: <komunikat> (<kod>)`, problemy i `fix:`, jak `cannot-edit`; zastępuje `depcurfew: …` także przy `policy-missing` i `policy-invalid`.
   - `--json` daje dokument z `errors` w kształcie z `apply --json` i pusty stderr. `doctor --json` ma zawsze `errors`; przy błędzie `policy: null`, puste `findings`, a `summary.error` liczy też błędy, żeby odbiorca czytający samo podsumowanie widział porażkę. `apply --json` ma `policy: null`, a `explain --json` `project: null`. `doctor --sarif` daje przebieg z `executionSuccessful: false` i powiadomieniem `error` z kodem w `descriptor.id`.
@@ -1155,3 +1155,18 @@ Celowany pentest kodu z D-074–D-078 znalazł dwie podatności DoS i kilka rzec
 - **pnpm `--reporter` i `--loglevel`** są w bazie wiedzy jako opcje z wartością (pnpm.io: `cli/install.md`, `settings/cli.md`), więc `pnpm add --loglevel error lodash` nie bierze już `error` za paczkę.
 
 Bez zmian: rejestry pod nazwą, która rozwiązuje się na adres link-local, oraz adresy prywatne i loopback zostają dozwolone (D-077), bo nazw nie rozwiązujemy, a firmowe rejestry działają w sieciach prywatnych.
+
+## D-080 · Poprawki po przeglądzie scalonego kodu przed 1.0.0 (2026-10-31)
+
+Przegląd poprawności po scaleniu D-074–D-078 nie znalazł nic krytycznego. Poprawione ustalenia, każde z testem:
+
+- **`tag=` z `.npmrc` tylko dla npm.** Hook stosował go do wszystkich żądań, więc `yarn add foo`, `pnpm add foo`, `bun add foo` i `deno add npm:foo` sprawdzały wersję z tagu `beta`, choć te menedżery biorą `latest` (fakt `versionSelection` jest tylko w npm). Żądanie z innego menedżera ma teraz `ignoresConfigTag`.
+- **`apply` i `before=` w `.npmrc`.** `apply` zapisywał `min-release-age` obok `before`, przy którym npm 11.15+ ignoruje opóźnienie, a npm 11.10–11.14 kończy każde polecenie błędem (fakt `beforeInteraction`). `before` to ustawienie użytkownika, więc zostaje, ale `apply` ostrzega nowym kodem `before-overrides-cooldown`, z linią i treścią zależną od wersji, tak jak `doctor` (D-076).
+- **pnpm przed 10 ma listę dozwolonych.** `pnpm.onlyBuiltDependencies` w `package.json` działa od 6.32.1 (changelog pnpm: dodane w 6.32.0, „released with a bug in v6.32.0”), a każda lista, także pusta, pozwala budować tylko wymienionym paczkom (`createAllowBuildFunction` w `@pnpm/builder.policy` 3.0.0, którego używa pnpm 9.15.0). Fakt `onlyBuiltDependencies.since` był błędny (10.0.0). Dla pnpm 6.32.1–9.x przy `installScripts.default: "deny"` `apply` zapisuje teraz listę, także pustą; `scripts-not-enforceable` zostaje tylko dla wersji bez listy.
+- **`cooldown-shortened` w plikach JSON.** JSON nie ma znaczników, więc wartość wpisana przez wcześniejsze `apply` liczy się jak ręczna; wskazówka mówi teraz, że po celowym obniżeniu `cooldown.minimum` nie trzeba nic robić.
+- **`.npmrc` z sekcjami.** Blok wstawiany przed komentarzami pierwszej sekcji stoi teraz także nad pustymi liniami przed nimi, więc usunięcie bloku oddaje plik bez zmian. Klucz zakomentowany przez starsze `apply` pod nagłówkiem sekcji wraca, bo to inne ustawienie.
+- **Komunikaty `check` o rejestrze.** Brak ostrzeżenia `insecure-registry` dla rejestru na tym komputerze (127.0.0.0/8, `::1`, `localhost`), np. lokalnego Verdaccio. Uwaga o rejestrze link-local mówi, że depcurfew go nie pyta.
+- **Renovate i pnpm.** `bot-cooldown-mismatch` nie ostrzega już, że poprawki bezpieczeństwa Renovate nie przejdą przez opóźnienie pnpm ustawione w `pnpm-workspace.yaml`: Renovate sam dopisuje je wtedy do `minimumReleaseAgeExclude` (fakt `pnpmSecurityExclusions`, D-075).
+- **Dokumentacja:** `requirements.txt` na liście manifestów, `--index` w tabeli poleceń, poprawione zdanie D-078 o `explain`.
+
+Bez zmian: szukanie polityki w górę poza repozytorium git poprawił już D-079. Hook nie stosuje polityki spoza repozytorium (np. `~/depcurfew.json`); to celowe (D-078, D-079) i trafi do notatek wydania.

@@ -154,6 +154,15 @@ function rechecksLockfile(tool: ToolKnowledge, manager: PackageManagerInfo): boo
   return Array.isArray(list) && versionedValue(list as { since: string; value: unknown }[], pinnedVersion(manager) ?? latestVersion(tool)) === true;
 }
 
+/**
+ * Whether the bot exempts its security fixes from the manager's delay itself: Renovate adds each one to pnpm's
+ * minimumReleaseAgeExclude when the delay is set in pnpm-workspace.yaml (extra.pnpmSecurityExclusions).
+ */
+function exemptsSecurityFixes(bot: ToolKnowledge, manager: string, file: string | undefined): boolean {
+  const fact = bot.extra?.['pnpmSecurityExclusions'] === undefined ? undefined : extraOf(bot, 'pnpmSecurityExclusions', isRecord);
+  return fact !== undefined && Array.isArray(fact['managers']) && fact['managers'].includes(manager) && fact['file'] === file;
+}
+
 export const botCooldownMismatch: Rule = {
   id: 'bot-cooldown-mismatch',
   summary: 'An update bot waits less than the package manager before proposing a new version.',
@@ -203,7 +212,7 @@ export const botCooldownMismatch: Rule = {
                   ? `Make the ${delay.bot.name} delay at least ${describe(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)`
                   : `Make the ${delay.bot.name} delay at least ${describe(own.minutes)}, or run depcurfew apply`),
           });
-        } else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager)) {
+        } else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, own.location?.file)) {
           context.report({
             level: 'warning',
             location: delay.location,

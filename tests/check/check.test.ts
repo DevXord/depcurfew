@@ -281,6 +281,13 @@ describe('the registry depcurfew asks', () => {
       fix: 'Use an https:// URL for the registry',
     });
   });
+
+  it('does not warn about plain HTTP to a registry on this machine, such as a local Verdaccio', async () => {
+    for (const registry of ['http://127.0.0.1:4873/', 'http://localhost:4873/', 'http://[::1]:4873/']) {
+      const report = await checkSpec('lodash', options({ policy: lenient, registry, fetch: async (_url, init) => recordedFetch('https://registry.npmjs.org/lodash', init) }));
+      expect(codes(report.findings)).toEqual([]);
+    }
+  });
 });
 
 describe('checkSpecs', () => {

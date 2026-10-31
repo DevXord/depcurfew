@@ -219,7 +219,7 @@ export async function checkSpec(request: string | CheckRequest, options: CheckOp
     report.findings.push(...sourceFindings(spec, spec.kind, options.policy));
   } else if (spec.name !== undefined) {
     report.name = spec.name;
-    const preferred = chosen.tag ?? options.defaultTag ?? defaultTag();
+    const preferred = chosen.tag ?? (chosen.ignoresConfigTag === true ? undefined : options.defaultTag) ?? defaultTag();
     if (preferred !== defaultTag()) report.tag = preferred;
     await checkRegistryPackage(report, spec.name, spec.selector ?? '', options, preferred);
   }

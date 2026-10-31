@@ -34,7 +34,7 @@
         "line": 3
       },
       "message": "Renovate: minimumReleaseAge: \"7 days\" in renovate.json (line 3) waits 1 week, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply replaces it with \"3 days\", so Renovate waits only 3 days",
-      "fix": "To keep the longer delay, set cooldown.minimum to \"7d\" in depcurfew.json and run depcurfew apply again"
+      "fix": "To keep the longer delay, set cooldown.minimum to \"7d\" in depcurfew.json and run depcurfew apply again; if an earlier depcurfew apply wrote this value to renovate.json and you lowered cooldown.minimum on purpose, nothing to do"
     }
   ],
   "snippets": []

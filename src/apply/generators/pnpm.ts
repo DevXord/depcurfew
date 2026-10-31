@@ -80,13 +80,17 @@ export const pnpm: ManagerGenerator = (context) => {
     if (policy.installScripts.default === 'allow') {
       if (context.supports(allowAll.since, allowAll.setting)) yaml.set([allowAll.setting], allowAll.value);
     } else {
-      // Before pnpm 10, every dependency runs its install scripts and there is no allow-list to write.
+      // Before pnpm 10, every dependency runs its install scripts unless pnpm.onlyBuiltDependencies in package.json
+      // names the ones that may (since 6.32.1; any list, even an empty one, blocks the rest), so the list is written
+      // even when the policy allows nothing. Older versions have no allow-list at all.
       const defaults = scriptsDefault(context);
-      if (defaults.value === 'run') {
+      const legacy = extraOf(tool, 'onlyBuiltDependencies', isLegacy);
+      const mustList = defaults.value === 'run';
+      if (mustList && !context.atLeast(legacy.since)) {
         context.warn({
           code: 'scripts-not-enforceable',
           message: `${context.name} ${formatVersion(context.version ?? [0, 0, 0])} runs every dependency install script and has no allow-list, so "deny" cannot be enforced`,
-          fix: `Require pnpm ${defaults.changesIn ?? 'a newer version'} or later, which blocks dependency install scripts by default`,
+          fix: `Require pnpm ${legacy.since} or later, which reads pnpm.onlyBuiltDependencies in package.json, or ${defaults.changesIn ?? 'a newer version'}, which blocks dependency install scripts by default`,
         });
       }
       if (context.atLeast(allowAll.since) && yaml.get([allowAll.setting]) === allowAll.value) {
@@ -99,8 +103,7 @@ export const pnpm: ManagerGenerator = (context) => {
       if (context.atLeast(since)) {
         if (wanted) for (const name of allowedNames(context, setting)) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
       } else {
-        const legacy = extraOf(tool, 'onlyBuiltDependencies', isLegacy);
-        if (wanted && context.supports(legacy.since, 'onlyBuiltDependencies')) {
+        if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, 'onlyBuiltDependencies'))) {
           const names = allowedNames(context, 'onlyBuiltDependencies');
           const inWorkspaceFile = context.atLeast(legacy.workspaceFileSince);
           const target = inWorkspaceFile ? yaml : context.json('package.json');

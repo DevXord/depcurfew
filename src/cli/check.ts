@@ -11,7 +11,7 @@ import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
 import { isPythonSpec } from '../check/python.ts';
 import { blockingExitCode, decide, formatDecision, readHookEvent, requestedSpecs } from '../check/hook.ts';
-import { defaultRegistry, type FetchLike } from '../check/registry.ts';
+import { defaultRegistry, type FetchLike, isLinkLocal } from '../check/registry.ts';
 import { PopularNames } from '../check/similar.ts';
 import { Repository } from '../detect/repository.ts';
 import { iniEntries } from '../doctor/settings.ts';
@@ -114,7 +114,17 @@ function registryOf(flags: CheckFlags, registries: Registries): { url: string; w
 
 /** What to say about a registry other than the public one: a malicious .npmrc could name any. */
 function registryNote(registry: { url: string; where: string | undefined }): string | undefined {
-  return registry.where === undefined ? undefined : `npm packages were looked up in ${registry.url} (${registry.where}), not in the public npm registry`;
+  if (registry.where === undefined) return undefined;
+  let host = '';
+  try {
+    host = new URL(registry.url).hostname;
+  } catch {
+    // An invalid URL is reported by the lookup itself.
+  }
+  // A link-local registry is not asked at all (fetchSameOrigin), so the packages were not looked up there.
+  return isLinkLocal(host)
+    ? `npm packages would be looked up in ${registry.url} (${registry.where}), which depcurfew does not ask`
+    : `npm packages were looked up in ${registry.url} (${registry.where}), not in the public npm registry`;
 }
 
 function load(start: string, home: string): { policy: ResolvedPolicy; file: string | undefined; registries: Registries } {

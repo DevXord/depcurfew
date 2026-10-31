@@ -8826,6 +8826,7 @@ const pipenv$1 = {
 const { verified: verified$4, uncertain: uncertain$4 } = verifiedOn("2026-10-28");
 const checked$2 = verifiedOn("2026-10-29");
 const reviewed$1 = verifiedOn("2026-10-30");
+const rechecked = verifiedOn("2026-10-31");
 const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
 const RESOLUTION$1 = "https://pnpm.io/settings/dependency-resolution";
 const SETTINGS_V10 = "https://pnpm.io/10.x/settings";
@@ -8910,7 +8911,7 @@ const pnpm$1 = {
 		workspacesObjectKey: uncertain$4(null, WORKSPACE_YAML_V10, "The docs show packages only as a list; concluded from the absence of an object form.")
 	},
 	extra: {
-		commandLine: checked$2.verified({
+		commandLine: rechecked.verified({
 			add: [["pnpm", "add"]],
 			run: [
 				{
@@ -9078,11 +9079,11 @@ const pnpm$1 = {
 			since: "10.17.0",
 			trailingOnly: false
 		}, SETTINGS_V10, "Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0."),
-		onlyBuiltDependencies: verified$4({
-			since: "10.0.0",
+		onlyBuiltDependencies: rechecked.verified({
+			since: "6.32.1",
 			workspaceFileSince: "10.5.0",
 			removedIn: "11.0.0"
-		}, BUILD_V11, "The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, also pnpm-workspace.yaml since 10.5.0; removed in 11.0.0 (see legacyAllowList)."),
+		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, added in 6.32.0 (\"If this field exists, only mentioned packages will be able to run install scripts\") and working since 6.32.1 (\"released with a bug in v6.32.0\"); also pnpm-workspace.yaml since 10.5.0 (10.5.0 changelog); removed in 11.0.0 (settings/build.md, see legacyAllowList). Before pnpm 10 any list, even an empty one, lets only the listed packages build (createAllowBuildFunction in @pnpm/builder.policy 3.0.0, which pnpm 9.15.0 uses)."),
 		latestVersion: verified$4("12.16.1", release$2("12.16.1"), "pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches."),
 		npmrcIgnored: verified$4("pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json \"pnpm\" field and no longer reads npm_config_* variables", release$2("11.0.0")),
 		legacyAllowList: verified$4([
@@ -14153,7 +14154,7 @@ function shortenedDelays(root, changes, detection, tools, targets, policyMinimum
 			tool: old.tool,
 			location: { ...old.location },
 			message: `${name}: ${describeDelay(old)} waits ${formatMinutes(old.minutes)}${scope}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
-			fix: `To keep the longer delay, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again`
+			fix: `To keep the longer delay, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again${old.location.file.endsWith(".json") || old.location.file.endsWith(".jsonc") ? `; if an earlier depcurfew apply wrote this value to ${old.location.file} and you lowered cooldown.minimum on purpose, nothing to do` : ""}`
 		}];
 	});
 }
@@ -14637,7 +14638,7 @@ function writeIniBlock(body, entries, managedKeys) {
 	const topLevel = header === -1 ? removed.lines.length : header;
 	const lines = removed.lines.map((line, index) => {
 		const original = commentedOut(line);
-		if (original !== void 0) return managed.has(keyOf$1(original) ?? "") ? line : original;
+		if (original !== void 0) return index < topLevel && managed.has(keyOf$1(original) ?? "") ? line : original;
 		const key = index < topLevel ? keyOf$1(line) : void 0;
 		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}` : line;
 	});
@@ -14646,6 +14647,7 @@ function writeIniBlock(body, entries, managedKeys) {
 	const introduces = (line) => /^\s*[#;]/u.test(line) && !line.startsWith("# depcurfew: superseded by the managed block: ") && !line.startsWith("# depcurfew: turned off; depcurfew.json manages this setting: ");
 	let at = topLevel;
 	while (header !== -1 && at > 0 && introduces(lines[at - 1] ?? "")) at -= 1;
+	while (header !== -1 && at > 0 && (lines[at - 1] ?? "").trim() === "") at -= 1;
 	return joinLines(insertBlock(lines, at, entries));
 }
 
@@ -15118,6 +15120,7 @@ const dependabot = (context, duration) => {
 
 // src/apply/generators/npm.ts
 const isString$1 = (value) => typeof value === "string";
+const isBefore$1 = (value) => isRecord(value) && typeof value["setting"] === "string" && isRecord(value["exclusive"]) && typeof value["beforeWinsSince"] === "string";
 const npm = (context) => {
 	const { tool, policy } = context;
 	const file = firstFile(tool.cooldown.configFiles) ?? ".npmrc";
@@ -15131,6 +15134,24 @@ const npm = (context) => {
 			minutes = cooldown.minutes;
 			entries.push(`${setting}=${cooldown.value}`);
 			managed.push(setting);
+			const fact = extraOf(tool, "beforeInteraction", isBefore$1);
+			const date = iniEntries(context.read(file)).filter((entry) => entry.key === fact.setting).at(-1);
+			if (date !== void 0 && context.atLeast(fact.exclusive.since)) {
+				const label = `${context.name} ${formatVersion(context.version ?? [
+					0,
+					0,
+					0
+				])}`;
+				context.warn({
+					code: "before-overrides-cooldown",
+					location: {
+						file,
+						line: date.line
+					},
+					message: context.atLeast(fact.beforeWinsSince) ? `${fact.setting}=${date.value} in ${file} (line ${date.line}) takes the place of ${setting} (${label} uses ${fact.setting} when both are set in the same file), so the release-age delay depcurfew apply writes has no effect` : `${label} stops with an error when ${fact.setting} and ${setting} are both set, and ${file} sets ${fact.setting}=${date.value} (line ${date.line}), so every npm command fails once depcurfew apply writes ${setting}`,
+					fix: `Remove the ${fact.setting} line from ${file}, so that ${setting} applies`
+				});
+			}
 			const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 			const patterns = exclusions(context);
 			if (excludeSetting !== null && patterns !== void 0 && context.atLeast(sinceOf(tool.cooldown.exclude.availableSince))) {
@@ -15421,14 +15442,16 @@ const pnpm = (context) => {
 			if (context.supports(allowAll.since, allowAll.setting)) yaml.set([allowAll.setting], allowAll.value);
 		} else {
 			const defaults = scriptsDefault(context);
-			if (defaults.value === "run") context.warn({
+			const legacy = extraOf(tool, "onlyBuiltDependencies", isLegacy);
+			const mustList = defaults.value === "run";
+			if (mustList && !context.atLeast(legacy.since)) context.warn({
 				code: "scripts-not-enforceable",
 				message: `${context.name} ${formatVersion(context.version ?? [
 					0,
 					0,
 					0
 				])} runs every dependency install script and has no allow-list, so "deny" cannot be enforced`,
-				fix: `Require pnpm ${defaults.changesIn ?? "a newer version"} or later, which blocks dependency install scripts by default`
+				fix: `Require pnpm ${legacy.since} or later, which reads pnpm.onlyBuiltDependencies in package.json, or ${defaults.changesIn ?? "a newer version"}, which blocks dependency install scripts by default`
 			});
 			if (context.atLeast(allowAll.since) && yaml.get([allowAll.setting]) === allowAll.value) {
 				context.warn({
@@ -15444,18 +15467,15 @@ const pnpm = (context) => {
 				if (wanted) {
 					for (const name of allowedNames(context, setting)) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
 				}
-			} else {
-				const legacy = extraOf(tool, "onlyBuiltDependencies", isLegacy);
-				if (wanted && context.supports(legacy.since, "onlyBuiltDependencies")) {
-					const names = allowedNames(context, "onlyBuiltDependencies");
-					const inWorkspaceFile = context.atLeast(legacy.workspaceFileSince);
-					const target = inWorkspaceFile ? yaml : context.json("package.json");
-					const path = inWorkspaceFile ? ["onlyBuiltDependencies"] : ["pnpm", "onlyBuiltDependencies"];
-					const current = target.get(path);
-					const list = Array.isArray(current) ? [...current] : [];
-					const merged = [...list, ...names.filter((name) => !list.includes(name))];
-					if (!sameList(current, merged)) target.set(path, merged);
-				}
+			} else if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, "onlyBuiltDependencies"))) {
+				const names = allowedNames(context, "onlyBuiltDependencies");
+				const inWorkspaceFile = context.atLeast(legacy.workspaceFileSince);
+				const target = inWorkspaceFile ? yaml : context.json("package.json");
+				const path = inWorkspaceFile ? ["onlyBuiltDependencies"] : ["pnpm", "onlyBuiltDependencies"];
+				const current = target.get(path);
+				const list = Array.isArray(current) ? [...current] : [];
+				const merged = [...list, ...names.filter((name) => !list.includes(name))];
+				if (!sameList(current, merged)) target.set(path, merged);
 			}
 		}
 	}
@@ -16816,6 +16836,14 @@ function rechecksLockfile(tool, manager) {
 	const list = values$1(fact)[0];
 	return Array.isArray(list) && versionedValue(list, pinnedVersion(manager) ?? latestVersion$1(tool)) === true;
 }
+/**
+* Whether the bot exempts its security fixes from the manager's delay itself: Renovate adds each one to pnpm's
+* minimumReleaseAgeExclude when the delay is set in pnpm-workspace.yaml (extra.pnpmSecurityExclusions).
+*/
+function exemptsSecurityFixes(bot, manager, file) {
+	const fact = bot.extra?.["pnpmSecurityExclusions"] === void 0 ? void 0 : extraOf(bot, "pnpmSecurityExclusions", isRecord);
+	return fact !== void 0 && Array.isArray(fact["managers"]) && fact["managers"].includes(manager) && fact["file"] === file;
+}
 const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	summary: "An update bot waits less than the package manager before proposing a new version.",
@@ -16853,7 +16881,7 @@ const botCooldownMismatch = {
 				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
 				fix: delay.fix ?? (delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(own.minutes)}, or limit the rule to the packages that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`)
 			});
-			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager)) context.report({
+			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, own.location?.file)) context.report({
 				level: "warning",
 				location: delay.location,
 				message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe$1(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,

@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · Przegląd scalonego kodu i poprawki (D-080)
+
+- `tag=` z `.npmrc` tylko dla npm w hooku; `apply` ostrzega `before-overrides-cooldown`; pnpm 6.32.1–9 dostaje `pnpm.onlyBuiltDependencies` zamiast fałszywego `scripts-not-enforceable`; wskazówka `cooldown-shortened` dla plików JSON; pusta linia przed sekcją `.npmrc` zostaje; bez `insecure-registry` dla rejestru lokalnego; bez fałszywego ostrzeżenia o poprawkach bezpieczeństwa Renovate z pnpm; poprawki w README i D-078.
+- Weryfikacja: `npm test` (2219 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-31 · Pentest nowego kodu i poprawki (D-079)
 
 - Celowany pentest i przegląd kodu z D-074–D-078. Poprawione: przepełnienie stosu przy `.gitignore` z tysiącami `**/`, zawieszenie na indeksie git w wersji 4, uwagi `check` z `.npmrc` bez czyszczenia, znaki dwukierunkowe w tekście, polityka z katalogu nadrzędnego poza repozytorium git, `python3 -c "$(curl …)"` w hooku, pnpm `--reporter` i `--loglevel`.

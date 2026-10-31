@@ -23,7 +23,8 @@ export function writeIniBlock(body: string, entries: readonly string[], managedK
   const topLevel = header === -1 ? removed.lines.length : header;
   const lines = removed.lines.map((line, index) => {
     const original = commentedOut(line);
-    if (original !== undefined) return managed.has(keyOf(original) ?? '') ? line : original;
+    // A key commented out below a section header (by an older apply) is another setting: it comes back.
+    if (original !== undefined) return index < topLevel && managed.has(keyOf(original) ?? '') ? line : original;
     const key = index < topLevel ? keyOf(line) : undefined;
     return key !== undefined && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}` : line;
   });
@@ -33,5 +34,8 @@ export function writeIniBlock(body: string, entries: readonly string[], managedK
   const introduces = (line: string) => /^\s*[#;]/u.test(line) && !line.startsWith(SUPERSEDED) && !line.startsWith(TURNED_OFF);
   let at = topLevel;
   while (header !== -1 && at > 0 && introduces(lines[at - 1] ?? '')) at -= 1;
+  // Above the blank lines before them too, so that they stay the user's: removing the block later takes only the
+  // blank line insertBlock adds before it.
+  while (header !== -1 && at > 0 && (lines[at - 1] ?? '').trim() === '') at -= 1;
   return joinLines(insertBlock(lines, at, entries));
 }

@@ -31,14 +31,29 @@ const codes = (root: string) => applyProject(root, { write: false }).warningDeta
 describe('pnpm before 10 and installScripts "deny"', () => {
   const policy = '{"version": 1, "installScripts": {"default": "deny"}, "targets": ["pnpm"]}\n';
 
-  it('warns that pnpm runs every install script', () => {
+  it('writes an empty pnpm.onlyBuiltDependencies to package.json for pnpm 6.32.1 to 9, which blocks every install script', () => {
     const root = repo({ 'package.json': '{"name": "app", "packageManager": "pnpm@9.15.0"}\n', 'pnpm-lock.yaml': "lockfileVersion: '9.0'\n", 'depcurfew.json': policy });
+    const report = applyProject(root);
+    expect(report.warningDetails.map((warning) => warning.code)).not.toContain('scripts-not-enforceable');
+    expect(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))).toEqual({ name: 'app', packageManager: 'pnpm@9.15.0', pnpm: { onlyBuiltDependencies: [] } });
+    expect(applyProject(root).changes).toEqual([]);
+  });
+
+  it('adds the allowed packages to the list there', () => {
+    const allow = '{"version": 1, "installScripts": {"default": "deny", "allow": ["esbuild"]}, "targets": ["pnpm"]}\n';
+    const root = repo({ 'package.json': '{"name": "app", "packageManager": "pnpm@8.15.9", "pnpm": {"onlyBuiltDependencies": ["sharp"]}}\n', 'depcurfew.json': allow });
+    applyProject(root);
+    expect(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).pnpm).toEqual({ onlyBuiltDependencies: ['sharp', 'esbuild'] });
+  });
+
+  it('warns that pnpm before 6.32.1 runs every install script', () => {
+    const root = repo({ 'package.json': '{"name": "app", "packageManager": "pnpm@6.30.0"}\n', 'depcurfew.json': policy });
     expect(applyProject(root, { write: false }).warningDetails).toEqual([
       {
         code: 'scripts-not-enforceable',
         tool: 'pnpm',
-        message: 'pnpm 9.15.0 runs every dependency install script and has no allow-list, so "deny" cannot be enforced',
-        fix: 'Require pnpm 10.0.0 or later, which blocks dependency install scripts by default',
+        message: 'pnpm 6.30.0 runs every dependency install script and has no allow-list, so "deny" cannot be enforced',
+        fix: 'Require pnpm 6.32.1 or later, which reads pnpm.onlyBuiltDependencies in package.json, or 10.0.0, which blocks dependency install scripts by default',
       },
     ]);
   });
