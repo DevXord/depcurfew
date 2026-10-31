@@ -9,7 +9,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { applyProject } from '../../src/apply/index.ts';
 import { sameData, withValue, withValues } from '../../src/apply/expected.ts';
 import { yamlSet, yamlSetMany } from '../../src/apply/yaml-edit.ts';
-import { runDoctor } from '../../src/doctor/index.ts';
+import { RULES, runDoctor, toSarif } from '../../src/doctor/index.ts';
+import { lineReader } from '../../src/doctor/sarif.ts';
 import { requirementsLines } from '../../src/doctor/python-lockfiles.ts';
 import { MAX_YAML_DEPTH, parseYaml } from '../../src/yaml-parse.ts';
 
@@ -73,7 +74,7 @@ describe('many edits of one YAML file', () => {
     ['a scalar where a map is needed, then a key in it', 'version: 2\nupdates:\n  - package-ecosystem: npm\n    cooldown: 1\n', [[['updates', 0, 'cooldown', 'default-days'], 3], [['updates', 0, 'cooldown', 'exclude'], ['x']]]],
     ['the same path twice', 'a: 1\n', [[['a'], 2], [['a'], 3]]],
   ] as const)('gives the same text as yamlSet one by one: %s', (_name, text, edits) => {
-    const sequential = edits.reduce((current, [path, value]) => yamlSet(current, path, value), text);
+    const sequential = edits.reduce<string>((current, [path, value]) => yamlSet(current, path, value), text);
     expect(yamlSetMany(text, edits)).toBe(sequential);
   });
 
@@ -162,5 +163,26 @@ describe('YAML nested very deep', () => {
     expect(() => parseYaml(`a: ${'['.repeat(depth)}${']'.repeat(depth)}\n`)).not.toThrow();
     const brackets = '['.repeat(1000);
     expect(parseYaml(`a: "${brackets}"\nb: '${brackets}' # ${brackets}\nc: |\n  ${brackets}\n  "${brackets}\nd: ${brackets.replaceAll('[', 'x[')}\n`)).toMatchObject({ a: brackets, c: `${brackets}\n"${brackets}\n` });
+  });
+});
+
+describe('SARIF for many findings in one file', () => {
+  it('reads and splits each file once, however many findings it has', () => {
+    const root = repository({ 'a.txt': 'one\ntwo\r\nthree\n' });
+    const read = lineReader(root);
+    expect([read('a.txt', 1), read('a.txt', 2), read('a.txt', 3), read('a.txt', 4), read('missing.txt', 1)]).toEqual(['one', 'two', 'three', '', undefined]);
+    writeFileSync(join(root, 'a.txt'), 'changed\n');
+    expect(read('a.txt', 1)).toBe('one');
+  });
+
+  it('writes SARIF for 6000 findings in a package-lock.json in seconds', { timeout: 120_000 }, () => {
+    const packages: Record<string, object> = { '': { name: 'x' } };
+    for (let index = 0; index < 6000; index++) packages[`node_modules/p${index}`] = { version: '1.0.0', resolved: `https://registry.npmjs.org/p${index}/-/p${index}-1.0.0.tgz`, hasInstallScript: true };
+    const root = repository({ 'package.json': '{"name":"x","packageManager":"npm@11.19.1"}', 'package-lock.json': JSON.stringify({ name: 'x', lockfileVersion: 3, packages }, null, 2) });
+    const report = runDoctor(root);
+    expect(report.findings.filter((finding) => finding.rule === 'lockfile-install-scripts')).toHaveLength(6000);
+    let sarif: { runs: { results: unknown[] }[] } | undefined;
+    expect(seconds(() => (sarif = toSarif(report, RULES, '0.0.0', lineReader(root)) as typeof sarif))).toBeLessThan(5);
+    expect(sarif?.runs[0]?.results.length).toBe(report.findings.length);
   });
 });
