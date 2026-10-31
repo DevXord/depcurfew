@@ -1,7 +1,7 @@
 // Deno: minimumDependencyAge (a number, or { age, exclude } with npm: specifiers) and allowScripts in deno.json.
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions } from './common.ts';
+import { allowedNames, cooldownValue, deniedNames, denyList, eachSource, exclusions } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -59,6 +59,19 @@ export const deno: ManagerGenerator = (context) => {
           for (const specifier of specifiers) if (!allowed.includes(specifier)) json.append(path, specifier);
         } else {
           json.set(path, specifiers);
+        }
+      }
+      // installScripts.deny needs the object form { allow, deny }; an allow list already there moves into it.
+      const deny = denyList(context);
+      if (deny !== undefined && policy.installScripts.deny.length > 0 && context.supports(deny.since, deny.setting)) {
+        const denied = deniedNames(context, deny.setting).map((name) => String(deny.value).replace('<package>', name));
+        const now = json.get([setting]);
+        if (!isRecord(now)) {
+          json.set([setting], { allow: Array.isArray(now) ? now : [], deny: denied });
+        } else {
+          const list = Array.isArray(now['deny']) ? (now['deny'] as unknown[]) : undefined;
+          if (list === undefined) json.set([setting, 'deny'], denied);
+          else for (const specifier of denied) if (!list.includes(specifier)) json.append([setting, 'deny'], specifier);
         }
       }
     }

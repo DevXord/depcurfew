@@ -179,6 +179,11 @@ export const deno: ToolKnowledge = {
     ),
   },
   extra: {
+    denyList: user.verified(
+      { file: 'deno.json', setting: 'allowScripts.deny', value: 'npm:<package>', since: '2.6.0' },
+      'https://github.com/denoland/deno/blob/v2.9.8/libs/npm_installer/lifecycle_scripts.rs',
+      'The object form "allowScripts": { "allow": [...], "deny": ["npm:pkg"] } (schema since 2.6.0: "List of npm package constraints to deny running lifecycle scripts for"); deny beats allow, and a denied package is not added to the packages whose scripts were not run, so Deno does not warn about it.',
+    ),
     commandLine: reviewed.verified(
       {
         add: [

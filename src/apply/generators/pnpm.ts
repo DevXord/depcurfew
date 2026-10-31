@@ -3,7 +3,7 @@
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { isSecurityExclusionFormat, restoreEntries, securityEntries, withoutComments, type KeptEntry } from '../renovate-exclusions.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions, sameList, scriptsDefault, type SourceKind } from './common.ts';
+import { allowedNames, cooldownValue, eachSource, exclusions, sameList, scriptsDefault, writeDenyList, type SourceKind } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 import { formatVersion } from '../version.ts';
 
@@ -107,6 +107,7 @@ export const pnpm: ManagerGenerator = (context) => {
       const wanted = policy.installScripts.allow.length > 0;
       if (context.atLeast(since)) {
         if (wanted) for (const name of allowedNames(context, setting)) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
+        writeDenyList(context);
       } else {
         if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, 'onlyBuiltDependencies'))) {
           const names = allowedNames(context, 'onlyBuiltDependencies');

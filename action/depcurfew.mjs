@@ -892,6 +892,12 @@ const deno$1 = {
 		}], NPMRC_PARSER, "Only these two spellings are read (min_release_age_days_from_env); 0 turns the default 24 hours off. Read from code: every parsed .npmrc starts from the variable and its own key overrides it (test \".npmrc value takes precedence over the environment fallback\"), and the project file wins over the home file, so a project .npmrc without the key puts the variable above the home value. The first version is from denoland/deno#35458, which shipped in 2.9.0.")
 	},
 	extra: {
+		denyList: user$8.verified({
+			file: "deno.json",
+			setting: "allowScripts.deny",
+			value: "npm:<package>",
+			since: "2.6.0"
+		}, "https://github.com/denoland/deno/blob/v2.9.8/libs/npm_installer/lifecycle_scripts.rs", "The object form \"allowScripts\": { \"allow\": [...], \"deny\": [\"npm:pkg\"] } (schema since 2.6.0: \"List of npm package constraints to deny running lifecycle scripts for\"); deny beats allow, and a denied package is not added to the packages whose scripts were not run, so Deno does not warn about it."),
 		commandLine: reviewed$3.verified({
 			add: [["deno", "add"], ["deno", "install"]],
 			run: [
@@ -1348,6 +1354,12 @@ const npm$1 = {
 		], `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`, "Environment variables starting with npm_config_ are interpreted as configuration parameters; config values are case-insensitive, so NPM_CONFIG_FOO=bar works the same.")
 	},
 	extra: {
+		denyList: user$7.verified({
+			file: "package.json",
+			setting: "allowScripts",
+			value: false,
+			since: "11.16.0"
+		}, "https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/unreviewed-scripts.js", "A false entry in the root package.json allowScripts is an explicit denial: deny wins over allow, and denied packages are skipped silently, also under strict-allow-scripts (\"const verdict = isScriptAllowed(node, policy); if (verdict === true || verdict === false) { continue }\", the same in 11.16.0 check-allow-scripts.js). npm install-scripts deny writes a name-only false entry."),
 		trustedPublishing: checked$4.verified({
 			minimumNpm: "11.5.1",
 			minimumNode: "22.14.0",
@@ -3028,6 +3040,12 @@ const pnpm$1 = {
 		], `${PNPM_V11_CODE}/env.ts`, "pnpm 11 reads pnpm_config_<key> in lower case or PNPM_CONFIG_<KEY> in upper case, not mixed case (getEnvKeySuffix), over pnpm-workspace.yaml and under the command line; pnpm 12 reads the same two forms (pnpm/crates/config/src/env_overlay.rs at 12.17.0). pnpm 11+ ignores npm_config_* except npm_config_userconfig, which then moves only the auth .npmrc. pnpm 10 reads npm_config_* in any case (lib/conf.js in @pnpm/npm-conf 3.0.3) under pnpm-workspace.yaml (npmrcPrecedence). XDG_CONFIG_HOME and LOCALAPPDATA move the config directory (user.files).")
 	},
 	extra: {
+		denyList: user$3.verified({
+			file: "pnpm-workspace.yaml",
+			setting: "allowBuilds",
+			value: false,
+			since: "10.26.0"
+		}, "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/building/policy/src/index.ts", "allowBuilds: { pkg: false } records a denial: the build is decided, not reported as unreviewed and does not fail strictDepBuilds (\"A recorded build the policy denies was decided on purpose\"). pnpm 10.26 maps false to ignoredBuiltDependencies, which only silences the report. Under dangerouslyAllowAllBuilds a denied package still builds before pnpm 12.12.0."),
 		commandLine: rechecked$1.verified({
 			add: [["pnpm", "add"]],
 			run: [
@@ -4372,6 +4390,12 @@ const yarn$1 = {
 		], CONFIGURATION, "A variable starting with yarn_ in any case sets the camel-cased setting before the rc files are read, and they cannot change it (Configuration.find and use; YARN_IGNORE_SCRIPTS is ignored); a list setting takes a comma-separated string (parseValue); enableScripts accepts true or 1 (parseBoolean)."), user.evidence(SCALAR_VARIABLES, `${BERRY}/packages/docusaurus/static/configuration/yarnrc.json`, "Most settings \"can also be defined through environment variables (at least for the simpler ones; arrays and objects aren't supported yet)\", and such values \"will overwrite any that might have been defined in the RC files\"."))
 	},
 	extra: {
+		denyList: user.verified({
+			file: "package.json",
+			setting: "dependenciesMeta.<package>.built",
+			value: false,
+			since: "2.0.0"
+		}, "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-pnp/sources/jsInstallUtils.ts", "With built: false in the root package.json, Yarn reports that the build \"has been explicitly disabled through configuration\" as an info message instead of the warning that all build scripts are disabled; built: false also wins over enableScripts: true. Only the top-level manifest counts (CHANGELOG 2.0.0)."),
 		commandLine: checked$2.verified({
 			add: [["yarn", "add"]],
 			run: [{
@@ -16328,6 +16352,38 @@ function exclusions(context, patterns = context.policy.cooldown?.exclude ?? []) 
 		return accepted;
 	});
 }
+function denyList(context) {
+	const fact = context.tool.extra?.["denyList"];
+	if (fact === void 0) return void 0;
+	const value = evidenceOf(fact)[0]?.value;
+	return isRecord(value) && typeof value["file"] === "string" && typeof value["setting"] === "string" && typeof value["since"] === "string" ? value : void 0;
+}
+/** The packages of installScripts.deny the tool can record: names only, patterns are dropped with a warning. */
+function deniedNames(context, setting) {
+	return (context.policy.installScripts?.deny ?? []).filter((pattern) => {
+		if (!pattern.includes("*")) return true;
+		context.warn({
+			code: "deny-pattern-unsupported",
+			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
+			fix: "List the package names in installScripts.deny"
+		});
+		return false;
+	});
+}
+/**
+* Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
+* dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install.
+*/
+function writeDenyList(context) {
+	const deny = denyList(context);
+	if (deny === void 0 || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
+	if (!context.supports(deny.since, deny.setting)) return;
+	const file = deny.file.endsWith(".yaml") ? context.yaml(deny.file) : context.json(deny.file);
+	for (const name of deniedNames(context, deny.setting)) {
+		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
+		if (file.get(path) !== deny.value) file.set(path, deny.value);
+	}
+}
 /** Allow-lists take package names only; patterns are dropped with a warning. */
 function allowedNames(context, setting) {
 	return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
@@ -16881,6 +16937,20 @@ const deno = (context) => {
 					for (const specifier of specifiers) if (!allowed.includes(specifier)) json.append(path, specifier);
 				} else json.set(path, specifiers);
 			}
+			const deny = denyList(context);
+			if (deny !== void 0 && policy.installScripts.deny.length > 0 && context.supports(deny.since, deny.setting)) {
+				const denied = deniedNames(context, deny.setting).map((name) => String(deny.value).replace("<package>", name));
+				const now = json.get([setting]);
+				if (!isRecord(now)) json.set([setting], {
+					allow: Array.isArray(now) ? now : [],
+					deny: denied
+				});
+				else {
+					const list = Array.isArray(now["deny"]) ? now["deny"] : void 0;
+					if (list === void 0) json.set([setting, "deny"], denied);
+					else for (const specifier of denied) if (!list.includes(specifier)) json.append([setting, "deny"], specifier);
+				}
+			}
 		}
 	}
 	eachSource(context, () => void 0);
@@ -17052,6 +17122,7 @@ const npm = (context) => {
 					for (const name of allowedNames(context, setting)) if (json.get([setting, name]) !== true) json.set([setting, name], true);
 				}
 			}
+			writeDenyList(context);
 		}
 	}
 	eachSource(context, (_kind, setting, access) => {
@@ -17369,6 +17440,7 @@ const pnpm = (context) => {
 				if (wanted) {
 					for (const name of allowedNames(context, setting)) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
 				}
+				writeDenyList(context);
 			} else if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, "onlyBuiltDependencies"))) {
 				const names = allowedNames(context, "onlyBuiltDependencies");
 				const inWorkspaceFile = context.atLeast(legacy.workspaceFileSince);
@@ -17731,6 +17803,7 @@ const yarn = (context) => {
 				}
 			}
 		}
+		if (deny) writeDenyList(context);
 	}
 	eachSource(context, (_kind, setting, access) => {
 		const value = access === "deny" ? [] : ["**"];

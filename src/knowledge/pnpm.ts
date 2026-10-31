@@ -230,6 +230,11 @@ export const pnpm: ToolKnowledge = {
     ),
   },
   extra: {
+    denyList: user.verified(
+      { file: 'pnpm-workspace.yaml', setting: 'allowBuilds', value: false, since: '10.26.0' },
+      'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/building/policy/src/index.ts',
+      'allowBuilds: { pkg: false } records a denial: the build is decided, not reported as unreviewed and does not fail strictDepBuilds ("A recorded build the policy denies was decided on purpose"). pnpm 10.26 maps false to ignoredBuiltDependencies, which only silences the report. Under dangerouslyAllowAllBuilds a denied package still builds before pnpm 12.12.0.',
+    ),
     commandLine: rechecked.verified(
       {
         add: [['pnpm', 'add']],

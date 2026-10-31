@@ -220,6 +220,11 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    denyList: user.verified(
+      { file: 'package.json', setting: 'dependenciesMeta.<package>.built', value: false, since: '2.0.0' },
+      'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-pnp/sources/jsInstallUtils.ts',
+      'With built: false in the root package.json, Yarn reports that the build "has been explicitly disabled through configuration" as an info message instead of the warning that all build scripts are disabled; built: false also wins over enableScripts: true. Only the top-level manifest counts (CHANGELOG 2.0.0).',
+    ),
     commandLine: checked.verified(
       {
         add: [['yarn', 'add']],

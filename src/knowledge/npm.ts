@@ -224,6 +224,11 @@ export const npm: ToolKnowledge = {
     ),
   },
   extra: {
+    denyList: user.verified(
+      { file: 'package.json', setting: 'allowScripts', value: false, since: '11.16.0' },
+      'https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/unreviewed-scripts.js',
+      'A false entry in the root package.json allowScripts is an explicit denial: deny wins over allow, and denied packages are skipped silently, also under strict-allow-scripts ("const verdict = isScriptAllowed(node, policy); if (verdict === true || verdict === false) { continue }", the same in 11.16.0 check-allow-scripts.js). npm install-scripts deny writes a name-only false entry.',
+    ),
     trustedPublishing: checked.verified(
       { minimumNpm: '11.5.1', minimumNode: '22.14.0', githubPermission: 'id-token: write', automaticProvenance: true, firstPublishWithinDays: 2 },
       'https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/packages-and-modules/securing-your-code/trusted-publishers.mdx',

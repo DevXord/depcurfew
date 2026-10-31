@@ -1,7 +1,7 @@
 // Yarn (Berry): settings in .yarnrc.yml, always written explicitly so that Yarn's upgrade migration does not
 // write weaker values; the per-package allow-list is dependenciesMeta in the root package.json.
 import { extraOf, firstFile, isRecord, settingOf, sinceOf } from '../facts.ts';
-import { allowedNames, cooldownValue, eachSource, exclusions, sameList } from './common.ts';
+import { allowedNames, cooldownValue, eachSource, exclusions, sameList, writeDenyList } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
 
 interface ScriptsSwitch {
@@ -46,6 +46,7 @@ export const yarn: ManagerGenerator = (context) => {
         }
       }
     }
+    if (deny) writeDenyList(context);
   }
 
   eachSource(context, (_kind, setting, access) => {

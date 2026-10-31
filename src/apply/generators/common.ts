@@ -1,6 +1,7 @@
 // Policy rules shared by the generators: converting the cooldown, filtering exclusions and allow-lists by what a
 // tool accepts, and mapping dependency sources to settings. Anything a tool cannot express becomes a warning;
 // dropping it always errs on the safe side (a longer delay, fewer install scripts).
+import { evidenceOf } from '../../knowledge/facts.ts';
 import { convertCooldown } from '../../policy/convert.ts';
 import type { Duration } from '../../policy/duration.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
@@ -60,6 +61,47 @@ export function exclusions(context: Context, patterns: readonly string[] = conte
     }
     return accepted;
   });
+}
+
+/** How a tool records a package whose install scripts stay blocked on purpose (extra.denyList), if it can. */
+export interface DenyList {
+  file: string;
+  setting: string;
+  value: unknown;
+  since: string;
+}
+
+export function denyList(context: Context): DenyList | undefined {
+  const fact = context.tool.extra?.['denyList'];
+  if (fact === undefined) return undefined;
+  const value = evidenceOf(fact)[0]?.value;
+  return isRecord(value) && typeof value['file'] === 'string' && typeof value['setting'] === 'string' && typeof value['since'] === 'string'
+    ? (value as unknown as DenyList)
+    : undefined;
+}
+
+/** The packages of installScripts.deny the tool can record: names only, patterns are dropped with a warning. */
+export function deniedNames(context: Context, setting: string): string[] {
+  return (context.policy.installScripts?.deny ?? []).filter((pattern) => {
+    if (!pattern.includes('*')) return true;
+    context.warn({ code: 'deny-pattern-unsupported', message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`, fix: 'List the package names in installScripts.deny' });
+    return false;
+  });
+}
+
+/**
+ * Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
+ * dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install.
+ */
+export function writeDenyList(context: Context): void {
+  const deny = denyList(context);
+  if (deny === undefined || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
+  if (!context.supports(deny.since, deny.setting)) return;
+  const file = deny.file.endsWith('.yaml') ? context.yaml(deny.file) : context.json(deny.file);
+  for (const name of deniedNames(context, deny.setting)) {
+    const path = deny.setting.includes('<package>') ? deny.setting.split('.').map((segment) => (segment === '<package>' ? name : segment)) : [...deny.setting.split('.'), name];
+    if (file.get(path) !== deny.value) file.set(path, deny.value);
+  }
 }
 
 /** Allow-lists take package names only; patterns are dropped with a warning. */

@@ -20,6 +20,7 @@ export const APPLY_WARNINGS = {
   'exclude-pattern-unsupported': 'A cooldown exception uses a wildcard the tool does not support, so it is not written.',
   'exclude-unsupported': 'The tool has no setting for cooldown exceptions, so the release-age delay applies to every package.',
   'allow-pattern-unsupported': 'An installScripts.allow entry is a pattern, but the tool takes package names only, so it is not written.',
+  'deny-pattern-unsupported': 'An installScripts.deny entry is a pattern, but the tool records denials by package name only, so it is not written.',
   'allow-all-unsupported': 'The tool has no setting that allows every install script, so installScripts "allow" is not written.',
   'allow-all-replaced': 'A setting that allowed every install script was replaced, because the policy denies install scripts.',
   'allow-list-entry-outside-policy': 'An install-script allow-list in the repository lets a package run scripts the policy does not allow; apply does not remove it.',
