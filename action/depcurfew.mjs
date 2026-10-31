@@ -32,20 +32,58 @@ function evidenceOf(fact) {
 }
 
 // src/apply/version.ts
-/** An exact version such as 11.6.0 or v2.9.8; ranges, tags and expressions are not exact. */
+const EXACT = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+/** An exact version such as 11.6.0, v2.9.8 or 11.0.0-pre.1 (build metadata ignored); ranges, tags and expressions are not exact. */
 function parseVersion(text) {
-	const match = /^v?(\d+)\.(\d+)\.(\d+)$/u.exec(text.trim());
-	return match === null ? void 0 : [
+	const match = EXACT.exec(text.trim());
+	if (match === null) return void 0;
+	const [major, minor, patch] = [
 		Number(match[1]),
 		Number(match[2]),
 		Number(match[3])
 	];
+	return match[4] === void 0 ? [
+		major,
+		minor,
+		patch
+	] : [
+		major,
+		minor,
+		patch,
+		match[4]
+	];
 }
+/** Prerelease identifiers in semver order: numbers by value and before words, a shorter list before a longer one. */
+function comparePrereleases(a, b) {
+	const left = a.split(".");
+	const right = b.split(".");
+	for (let index = 0; index < Math.max(left.length, right.length); index++) {
+		const x = left[index];
+		const y = right[index];
+		if (x === void 0) return -1;
+		if (y === void 0) return 1;
+		const numeric = [/^\d+$/u.test(x), /^\d+$/u.test(y)];
+		if (numeric[0] === true && numeric[1] === true) {
+			const order = x.length - y.length || (x < y ? -1 : x > y ? 1 : 0);
+			if (order !== 0) return order;
+		} else if (numeric[0] !== numeric[1]) return numeric[0] === true ? -1 : 1;
+		else if (x !== y) return x < y ? -1 : 1;
+	}
+	return 0;
+}
+/** Orders versions as semver does: a prerelease comes before its release (11.0.0-pre.1 < 11.0.0). */
 function compareVersions$1(a, b) {
-	return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+	const order = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+	if (order !== 0) return order;
+	const [left, right] = [a[3], b[3]];
+	if (left === right) return 0;
+	if (left === void 0) return 1;
+	if (right === void 0) return -1;
+	return comparePrereleases(left, right);
 }
 function formatVersion(version) {
-	return version.join(".");
+	const release = `${version[0]}.${version[1]}.${version[2]}`;
+	return version[3] === void 0 ? release : `${release}-${version[3]}`;
 }
 /** The first exact version the repository pins, in the order of the detection (packageManager first). */
 function pinnedVersion(manager) {
@@ -17649,16 +17687,30 @@ function partial(text) {
 		complete
 	};
 }
-/** Orders bounds: by version, and a prerelease before its release. Prereleases of one version count as equal. */
+/** The bound as a version, with its prerelease identifiers. */
+function versionOf(bound) {
+	const [major, minor, patch] = bound.version;
+	return bound.prerelease === void 0 ? [
+		major,
+		minor,
+		patch
+	] : [
+		major,
+		minor,
+		patch,
+		bound.prerelease
+	];
+}
+/** Orders bounds as compareVersions orders pinned versions: a prerelease before its release, as in semver. */
 function compareBounds(a, b) {
-	return compareVersions$1(a.version, b.version) || (a.prerelease === void 0 ? 0 : -1) - (b.prerelease === void 0 ? 0 : -1);
+	return compareVersions$1(versionOf(a), versionOf(b));
 }
 /** Whether `bound` comes before the release `version`. */
 function belowVersion(bound, version) {
 	return compareBounds(bound, { version }) < 0;
 }
 function formatBound(bound) {
-	return bound.prerelease === void 0 ? formatVersion(bound.version) : `${formatVersion(bound.version)}-${bound.prerelease}`;
+	return formatVersion(versionOf(bound));
 }
 /** Lower bound of one comparator set (space-separated comparators that must all hold). */
 function setLowerBound(set) {
