@@ -16342,6 +16342,7 @@ function ignoredFileWarnings(root, changes) {
 		if (result.ignored !== true) return [];
 		if (tracked?.has(change.file) === true) return [];
 		const { rule } = result;
+		const pattern = rule.pattern.length > 120 ? `${rule.pattern.slice(0, 117)}...` : rule.pattern;
 		const unless = change.before === null || tracked !== void 0 ? "" : " unless git already tracks it";
 		return [{
 			code: "file-ignored-by-git",
@@ -16349,8 +16350,8 @@ function ignoredFileWarnings(root, changes) {
 				file: rule.file,
 				line: rule.line
 			},
-			message: `${change.file} matches the rule ${rule.pattern} in ${rule.file} (line ${rule.line}), so git ignores it${unless}: what depcurfew apply writes there stays on this machine, and a fresh clone (CI included) does not get it`,
-			fix: `Remove ${rule.pattern} from ${rule.file}, or add the file with git add -f ${change.file}, then commit it`
+			message: `${change.file} matches the rule ${pattern} in ${rule.file} (line ${rule.line}), so git ignores it${unless}: what depcurfew apply writes there stays on this machine, and a fresh clone (CI included) does not get it`,
+			fix: `Remove ${pattern} from ${rule.file}, or add the file with git add -f ${change.file}, then commit it`
 		}];
 	});
 }

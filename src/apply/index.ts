@@ -137,14 +137,16 @@ function ignoredFileWarnings(root: string, changes: readonly FileChange[]): Appl
     if (result.ignored !== true) return [];
     if (tracked?.has(change.file) === true) return [];
     const { rule } = result;
+    // A pattern can be as long as a line of the file; the warning names it, shortened, and the line.
+    const pattern = rule.pattern.length > 120 ? `${rule.pattern.slice(0, 117)}...` : rule.pattern;
     // A file apply creates cannot be tracked yet; for one it updates, only the index can tell.
     const unless = change.before === null || tracked !== undefined ? '' : ' unless git already tracks it';
     return [
       {
         code: 'file-ignored-by-git',
         location: { file: rule.file, line: rule.line },
-        message: `${change.file} matches the rule ${rule.pattern} in ${rule.file} (line ${rule.line}), so git ignores it${unless}: what depcurfew apply writes there stays on this machine, and a fresh clone (CI included) does not get it`,
-        fix: `Remove ${rule.pattern} from ${rule.file}, or add the file with git add -f ${change.file}, then commit it`,
+        message: `${change.file} matches the rule ${pattern} in ${rule.file} (line ${rule.line}), so git ignores it${unless}: what depcurfew apply writes there stays on this machine, and a fresh clone (CI included) does not get it`,
+        fix: `Remove ${pattern} from ${rule.file}, or add the file with git add -f ${change.file}, then commit it`,
       },
     ];
   });

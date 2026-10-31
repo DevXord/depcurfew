@@ -56,7 +56,9 @@ describe('.gitignore patterns with many segments', () => {
     const root = repo({ '.gitignore': deep, 'package.json': '{"name":"app","version":"1.0.0"}\n', 'depcurfew.json': '{"version":1,"cooldown":{"minimum":"3d"}}\n' });
     const report = applyProject(root, { write: false });
     expect(report.changes.map((change) => change.file)).toEqual(['.npmrc']);
-    expect(report.warningDetails.map((warning) => warning.code)).toContain('file-ignored-by-git');
+    const warning = report.warningDetails.find((entry) => entry.code === 'file-ignored-by-git');
+    expect(warning?.message).toContain('**/**/**/...');
+    expect(warning?.message.length).toBeLessThan(400);
   });
 });
 
