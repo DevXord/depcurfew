@@ -878,7 +878,7 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - `author: depcurfew` w `package.json` i `action.yml`;
   - `informationUri` w SARIF wskazuje stronę paczki na npm, więc wyniki code scanning u użytkownika nie wskazują konta autora.
 - **Pliki zapisywane w projektach użytkowników:** `depcurfew.json` (`$schema` na unpkg.com/depcurfew) i znaczniki zapisywane przez `apply` od początku zawierały tylko markę.
-- **Poza kodem:** rejestr npm pokazuje publicznie nazwę i mail opiekuna paczki (pole `maintainers`), a historia commitów na GitHubie — dotychczasowych autorów.
+- **Poza kodem:** rejestr npm pokazuje publicznie nazwę i mail opiekuna paczki (pole `maintainers`), a historia commitów na GitHubie - dotychczasowych autorów.
 - **README na stronie npm.** npm pokazuje README z opublikowanej paczki, więc nota „pre-release” i instrukcja „until the package is published” znikają przed tagiem `v1.0.0`, nie po nim.
 
 ## D-065 · Python: nazwy z prefiksem `pypi:`, budowanie ze źródeł jako `installScripts` (2026-10-30)
@@ -1008,7 +1008,7 @@ Numer jest wyższy, bo D-054–D-059 należą do fazy 7 na gałęzi `faza-7` (wy
   - `doctor` czyta `Pipfile.lock`: źródła git, URL i ścieżki. Dla paczek z indeksu hashe nie odróżniają wheel od sdista, więc budowanie jest nieznane. Zgłasza `resolver_backend = "pure-python"` (także stary klucz `resolver`), przy którym Pipenv blokuje wersje bez opóźnienia; to zachowanie nieudokumentowane, sprawdzone na 2026.10.4.
   - Hook czyta `pipenv install <paczka>` (bez paczek to instalacja z Pipfile); `-i`, `--pypi-mirror`, `PIPENV_PYPI_MIRROR`, `--extra-pip-args` i `PIPENV_DOTENV_LOCATION` dają „ask”.
 - **Wersji nie da się przypiąć.** Ani PDM, ani Pipenv nie mają ustawienia wersji w projekcie, więc `apply` konfiguruje dla najnowszej znanej wersji, a `version-not-pinned` mówi to wprost zamiast odsyłać do nieistniejącego miejsca.
-- **Hatch (1.18.2): bez generatora.** Hatch nie ma własnych ustawień opóźnienia, budowania ani źródeł; jego środowiska instalują przez uv albo pip. Projekt Hatch z instalatorem uv obsługuje istniejący generator uv (`"uv"` w `targets`, bo uv czyta `[tool.uv]` także pod Hatchem), a środowiska z pip — zmienne środowiskowe pip. README to opisuje; osobne wykrywanie Hatch nie dawałoby nic do skonfigurowania.
+- **Hatch (1.18.2): bez generatora.** Hatch nie ma własnych ustawień opóźnienia, budowania ani źródeł; jego środowiska instalują przez uv albo pip. Projekt Hatch z instalatorem uv obsługuje istniejący generator uv (`"uv"` w `targets`, bo uv czyta `[tool.uv]` także pod Hatchem), a środowiska z pip - zmienne środowiskowe pip. README to opisuje; osobne wykrywanie Hatch nie dawałoby nic do skonfigurowania.
 - **Boty.** Dependabot `pip` obejmuje Pipenv; PDM nie jest obsługiwany (dependabot-core pomija pyproject.toml przy pdm.lock). Renovate: `pep621` dla PDM, `pipenv` dla Pipenv.
 - **Nowe kody `apply`:** `exclude-unsupported`, `build-switch-environment-only`. Nowe narzędzia w `targets` (schema.json): `pdm`, `pipenv`.
 
