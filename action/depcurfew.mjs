@@ -993,6 +993,9 @@ const INSTALL_ALIASES = [
 	"it"
 ];
 const NPM_DEFINITIONS_V11_16 = "https://github.com/npm/cli/blob/v11.16.0/workspaces/config/lib/definitions/definitions.js";
+const NPM_GITHUB_V12 = "https://github.com/npm/cli/blob/v12.2.1";
+const NPM_CONFIG_LIB = `${NPM_GITHUB_V12}/workspaces/config/lib`;
+const user = verifiedOn("2026-10-31");
 const NPM_SHORTHANDS = "https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/index.js";
 const npm$1 = {
 	id: "npm",
@@ -1112,6 +1115,142 @@ const npm$1 = {
 			key: "workspaces"
 		}, `${PACKAGE_JSON$1}#workspaces`, "An array of folder paths or globs."),
 		workspacesObjectKey: uncertain$8("packages", "https://github.com/npm/map-workspaces/blob/main/lib/index.js", "Not documented; npm's map-workspaces also accepts { \"packages\": [...] } and negated patterns.")
+	},
+	user: {
+		files: user.verified([{
+			since: "0.0.0",
+			value: {
+				format: "ini",
+				locations: [{
+					platforms: ["linux", "darwin"],
+					directories: [{
+						from: "home",
+						path: ""
+					}],
+					file: ".npmrc"
+				}, {
+					platforms: ["win32"],
+					directories: [{
+						from: {
+							env: "HOME",
+							absolute: true
+						},
+						path: ""
+					}, {
+						from: "home",
+						path: ""
+					}],
+					file: ".npmrc"
+				}]
+			}
+		}], `${NPM_CONFIG_LIB}/index.js`, "userconfig defaults to ~/.npmrc (\"The location of user-level configuration settings. This may be overridden by the npm_config_userconfig environment variable or the --userconfig command line option\"); ~ is resolved against `this.env.HOME || homedir()`. Same in 11.21.1. The project .npmrc is loaded first and may set userconfig= itself."),
+		settings: user.verified([
+			{
+				purpose: "cooldown",
+				key: "min-release-age",
+				since: "11.10.0"
+			},
+			{
+				purpose: "cooldownExclude",
+				key: "min-release-age-exclude",
+				since: "11.17.0"
+			},
+			{
+				purpose: "scriptsStrict",
+				key: "strict-allow-scripts",
+				since: "11.16.0"
+			},
+			{
+				purpose: "scriptsAllow",
+				key: "allow-scripts",
+				since: "11.16.0"
+			},
+			{
+				purpose: "sourceGit",
+				key: "allow-git",
+				since: "11.10.0"
+			},
+			{
+				purpose: "sourceRemote",
+				key: "allow-remote",
+				since: "11.15.0"
+			},
+			{
+				purpose: "sourceFile",
+				key: "allow-file",
+				since: "11.15.0"
+			},
+			{
+				purpose: "sourceDirectory",
+				key: "allow-directory",
+				since: "11.15.0"
+			}
+		], `${NPM_CONFIG_LIB}/definitions/definition.js`, "Every config definition is read from any config file; only prefix is refused in a project .npmrc. allowScripts in package.json is project-only: at user level the allow-list is the allow-scripts key (allow only, every name becomes true; resolve-allow-scripts.js), used where the root package.json has no allowScripts and for npx, npm exec and npm install -g. The source keys use the later of the disputed first versions."),
+		unknownKeys: user.verified("warn", `${NPM_GITHUB_V12}/lib/base-cmd.js`, "Unknown .npmrc (file) configs warn by default, matching pre-npm-12 behavior, but error when strict-npmrc is set."),
+		invalidValueFails: user.verified(false, `${NPM_CONFIG_LIB}/index.js`, "A value of the wrong type is reported as invalid config and the default is used."),
+		weakening: user.verified([
+			{
+				key: "dangerously-allow-all-scripts",
+				values: [true],
+				effect: "runs every dependency install script, also those a package.json denies"
+			},
+			{
+				key: "allow-scripts",
+				values: "any",
+				effect: "approves the install scripts of these packages in every project without its own allowScripts, and in npx and global installs"
+			},
+			{
+				key: "min-release-age",
+				values: [0],
+				effect: "turns the release-age delay off"
+			},
+			{
+				key: "min-release-age-exclude",
+				values: "any",
+				effect: "exempts these packages from the release-age delay in every project without its own list"
+			},
+			{
+				key: "before",
+				values: "any",
+				effect: "takes the place of min-release-age in the same file"
+			},
+			{
+				key: "allow-git",
+				values: ["all", "root"],
+				effect: "allows git dependencies"
+			},
+			{
+				key: "allow-remote",
+				values: ["all", "root"],
+				effect: "allows remote tarball dependencies"
+			}
+		], `${NPM_CONFIG_LIB}/definitions/definitions.js`, "A key in the project .npmrc replaces the user value, lists included (prototype chain, no merging); the CLI and npm_config_* variables beat both."),
+		variables: user.verified([
+			{
+				name: "npm_config_userconfig",
+				anyCase: true,
+				values: "any",
+				effect: "makes npm read another user file"
+			},
+			{
+				name: "npm_config_min_release_age",
+				anyCase: true,
+				values: "any",
+				effect: "overrides min-release-age in every .npmrc"
+			},
+			{
+				name: "npm_config_dangerously_allow_all_scripts",
+				anyCase: true,
+				values: ["true"],
+				effect: "runs every dependency install script"
+			},
+			{
+				name: "npm_config_before",
+				anyCase: true,
+				values: "any",
+				effect: "takes the place of min-release-age"
+			}
+		], `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`, "Environment variables starting with npm_config_ are interpreted as configuration parameters; config values are case-insensitive, so NPM_CONFIG_FOO=bar works the same.")
 	},
 	extra: {
 		trustedPublishing: checked$4.verified({
