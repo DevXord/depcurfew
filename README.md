@@ -179,7 +179,7 @@ Errors (nothing is written):
 
 ## Supported tools
 
-What depcurfew configures and checks for each tool, from its [knowledge base](docs/knowledge.md), where every value links to the official documentation or changelog it was verified against.
+What depcurfew configures and checks for each tool, from its [knowledge base](https://github.com/DevXord/depcurfew/blob/main/docs/knowledge.md), where every value links to the official documentation or changelog it was verified against.
 
 <!-- BEGIN GENERATED: tools -->
 | Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source) | Dependency sources | Verified |
@@ -197,7 +197,7 @@ What depcurfew configures and checks for each tool, from its [knowledge base](do
 | Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 – 2026-10-30 |
 | Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 – 2026-10-30 |
 
-⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](docs/knowledge.md).
+⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](https://github.com/DevXord/depcurfew/blob/main/docs/knowledge.md).
 <!-- END GENERATED: tools -->
 
 Yarn Classic (1.x) is detected but not supported.
@@ -473,15 +473,15 @@ Only `check` and the Claude Code hook use the network. For each package they req
 
 ## Library
 
-The same functions are available from the package: `detectProject`, `planApply` and `applyProject`, `runDoctor` with `toSarif`, `checkSpecs` with `scanCommandLine`, and the policy parser and converters. See `src/index.ts`.
+The same functions are available from the package: `detectProject`, `planApply` and `applyProject`, `runDoctor` with `toSarif`, `checkSpecs` with `scanCommandLine`, and the policy parser and converters. Their types ship in `dist/index.d.ts`, and [`src/index.ts`](https://github.com/DevXord/depcurfew/blob/main/src/index.ts) lists every export. The package is an ES module only: use `import`; `require('depcurfew')` works on Node.js 22.12 and later, which load ES modules with `require()`.
 
 ## Contributing
 
-Facts about package managers live only in `src/knowledge/`, each with the official URL it was verified against and the date. A correction is welcome with a link to the official documentation or changelog. `npm test` builds the project and runs every test without network access.
+Facts about package managers live only in [`src/knowledge/`](https://github.com/DevXord/depcurfew/tree/main/src/knowledge), each with the official URL it was verified against and the date. A correction is welcome with a link to the official documentation or changelog. `npm test` builds the project and runs every test without network access.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/DevXord/depcurfew/blob/main/LICENSE)
 
 ## Trademarks
 

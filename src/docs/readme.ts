@@ -21,6 +21,9 @@ export interface ReadmeInputs {
   workflow: string;
 }
 
+/** The knowledge base document on GitHub: npmjs.com shows the README without the files of the repository. */
+export const KNOWLEDGE_DOCUMENT = 'https://github.com/DevXord/depcurfew/blob/main/docs/knowledge.md';
+
 const SOURCE_LABELS: Record<(typeof SOURCE_KINDS)[number], string> = {
   git: 'git',
   remoteTarball: 'remote tarball',
@@ -94,7 +97,7 @@ function toolsTable(tools: readonly ToolKnowledge[]): string {
     '| --- | --- | --- | --- | --- | --- |',
     ...rows,
     '',
-    '⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](docs/knowledge.md).',
+    `⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](${KNOWLEDGE_DOCUMENT}).`,
   ].join('\n');
 }
 
