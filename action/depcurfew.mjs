@@ -17052,7 +17052,20 @@ function stage(path, text, mode) {
 	}
 	return temporary;
 }
-/** Removes the directories mkdirSync created (`created`, the topmost of each) for `paths`, deepest first, if empty. */
+/**
+* The topmost directory that does not exist on the way to `directory`, which mkdirSync with recursive creates; undefined
+* when `directory` exists. Worked out here rather than taken from what mkdirSync returns: on Windows that is the
+* namespaced form (\\?\C:\...), which no other path apply works with is inside.
+*/
+function missingTop(directory) {
+	let top;
+	for (let current = directory; lstatSync(current, { throwIfNoEntry: false }) === void 0; current = dirname(current)) {
+		top = current;
+		if (dirname(current) === current) break;
+	}
+	return top;
+}
+/** Removes the directories apply created (`created`, the topmost of each) for `paths`, deepest first, if empty. */
 function removeDirectories(created, paths) {
 	const directories = /* @__PURE__ */ new Set();
 	for (const top of created) for (const path of paths) for (let directory = dirname(path); isInside(top, directory); directory = dirname(directory)) {
@@ -17091,8 +17104,9 @@ function writeChanges(root, changes, options = {}) {
 		for (const change of changes) {
 			current = change.file;
 			const path = join(root, change.file);
-			const directory = mkdirSync(dirname(path), { recursive: true });
-			if (directory !== void 0) created.push(directory);
+			const top = missingTop(dirname(path));
+			if (top !== void 0) created.push(top);
+			mkdirSync(dirname(path), { recursive: true });
 			const mode = change.before === null ? void 0 : statSync(path).mode & 4095;
 			staged.push({
 				change,

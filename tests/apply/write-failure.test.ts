@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { Workspace } from '../../src/apply/workspace.ts';
 import { EXIT_FAILURE, run } from '../../src/cli/run.ts';
-import { comparableMode } from '../support/platform.ts';
+import { comparableMode, windows } from '../support/platform.ts';
 
 const fault = vi.hoisted(() => ({
   /** Fail renameSync onto a path that ends like this. */
@@ -64,6 +64,14 @@ function project(): string {
   return directory;
 }
 
+/**
+ * The fix for a rename refused with EACCES: on Windows that means another program holds the file or it is read-only
+ * (apply tries again for a few seconds first), elsewhere that the user may not write it.
+ */
+const refusedFix = windows
+  ? 'Close the program that has renovate.json open (an editor or a sync client; a virus scan ends by itself), clear the read-only attribute if it is set (attrib -r renovate.json), then run depcurfew apply again'
+  : 'Make renovate.json and its directory writable for the user that runs depcurfew, then run depcurfew apply again';
+
 function snapshot(directory: string): Record<string, string> {
   return Object.fromEntries(readdirSync(directory).map((file) => [file, readFileSync(join(directory, file), 'utf8')]));
 }
@@ -91,7 +99,7 @@ describe('apply when a file cannot be written', () => {
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
     expect(result.stderr).toContain('error: cannot write renovate.json: permission denied (cannot-write)\n');
-    expect(result.stderr).toContain('  fix: Make renovate.json and its directory writable for the user that runs depcurfew, then run depcurfew apply again\n');
+    expect(result.stderr).toContain(`  fix: ${refusedFix}\n`);
     expect(result.stderr).toContain('depcurfew: nothing written because of the errors above.\n');
     expect(result.stderr).not.toContain('unexpected error');
     expect(snapshot(directory)).toEqual(before);
@@ -113,7 +121,7 @@ describe('apply when a file cannot be written', () => {
         level: 'error',
         location: { file: 'renovate.json' },
         message: 'cannot write renovate.json: permission denied',
-        fix: 'Make renovate.json and its directory writable for the user that runs depcurfew, then run depcurfew apply again',
+        fix: refusedFix,
       },
     ]);
     expect(snapshot(directory)).toEqual(before);

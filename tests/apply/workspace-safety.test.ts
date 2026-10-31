@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { restoreStyle, detectStyle, toLf } from '../../src/apply/text.ts';
 import { Workspace, WriteFailed, writeChanges } from '../../src/apply/workspace.ts';
+import { windows } from '../support/platform.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -26,7 +27,8 @@ function scratch(files: Record<string, string | Buffer> = {}): string {
 describe('writeChanges writes all files or none', () => {
   it('puts back the files it replaced and removes the ones it created when a rename fails', () => {
     const directory = scratch({ '.npmrc': 'save-exact=true\n', 'package.json': '{}\n' });
-    // A directory where a file is to be replaced: the rename fails (EISDIR) after the other files were renamed.
+    // A directory where a file is to be replaced: the rename fails after the other files were renamed, with EISDIR, or
+    // EPERM on Windows, which apply takes for a file another program holds and tries again (here without waiting).
     mkdirSync(join(directory, 'renovate.json', 'inner'), { recursive: true });
     const changes = [
       { file: '.npmrc', before: 'save-exact=true\n', after: 'save-exact=true\nmin-release-age=3\n' },
@@ -35,14 +37,14 @@ describe('writeChanges writes all files or none', () => {
     ];
     let failure: unknown;
     try {
-      writeChanges(directory, changes);
+      writeChanges(directory, changes, { sleep: () => undefined });
     } catch (error) {
       failure = error;
     }
     expect(failure).toBeInstanceOf(WriteFailed);
     expect((failure as WriteFailed).file).toBe('renovate.json');
     expect((failure as WriteFailed).unrestored).toEqual([]);
-    expect((failure as WriteFailed).message).toBe('it is a directory');
+    expect((failure as WriteFailed).message).toBe(windows ? 'operation not permitted' : 'it is a directory');
     expect(readFileSync(join(directory, '.npmrc'), 'utf8')).toBe('save-exact=true\n');
     expect(existsSync(join(directory, 'bunfig.toml'))).toBe(false);
     expect(readdirSync(directory).sort()).toEqual(['.npmrc', 'package.json', 'renovate.json']);

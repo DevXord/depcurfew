@@ -9,6 +9,7 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
 - Wydanie i dokumentacja (D-082): ostrzeżenie o nieaktualnym `pdm.lock`, wskazówka w każdym ostrzeżeniu `apply`, błędy `init` z kodem, README zgodne z działaniem i z bezwzględnymi linkami.
 - Jakość i wydajność (D-083): klucz `.npmrc` w cudzysłowie albo bez `=` nie omija już bloku; duże lockfile'e YAML parsowane raz i bez kwadratowego sprawdzania duplikatów (limit 16 MiB); spowolnienia `dependabot.yml`, `renovate.json`, `requirements.txt` i SARIF usunięte; spójny JSON przy błędnej polityce; wersje przedpremierowe; Yarn `npmScopes` i pnpm `permissions` w `doctor`; skrócone opcje pip w `requirements.txt`.
 - Wydanie: `CHANGELOG.md` z notatkami 1.0.0 dla użytkowników; workflow wydania przyjmuje tylko tag na commicie z `main` i ma limit czasu.
+- CI na Windows: `apply` po nieudanym zapisie usuwa utworzone katalogi także na Windows (wcześniej brał ścieżkę zwracaną przez `mkdirSync`, a ta ma tam postać `\\?\C:\...`); testy oczekują komunikatów, które daje dany system, a test ścieżki ze znakiem nowej linii nie działa na Windows, bo taka nazwa pliku jest tam niemożliwa.
 - Weryfikacja: `npm test` (2601 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
 
 ## 2026-10-31 · Przegląd scalonego kodu i poprawki (D-080)
