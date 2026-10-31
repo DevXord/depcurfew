@@ -13038,6 +13038,18 @@ function matchesPattern$1(name, pattern) {
 	return wildcardMatch(name, pattern);
 }
 
+// src/doctor/unreadable-warnings.ts
+/** Repository warnings that mean a file was not checked. */
+const UNREADABLE_WARNINGS = {
+	"invalid-file": "Fix the syntax error, so that depcurfew can check the file",
+	"unreadable-file": "Make the file readable for the user that runs depcurfew, so that depcurfew can check it",
+	"file-too-large": "Make the file smaller than the limit, or check its settings by hand",
+	"lockfile-too-large": `Check where the packages in the lockfile come from and which have install scripts by hand; depcurfew reads YAML lockfiles up to ${MAX_YAML_LOCKFILE_SIZE / 1048576} MiB and JSON lockfiles up to ${MAX_LOCKFILE_SIZE / 1048576} MiB`,
+	"outside-repository": "Replace the symlink with a regular file inside the repository",
+	"workspace-outside-repository": "Keep workspace packages inside the repository",
+	"unreadable-include": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them"
+};
+
 // src/policy/defaults.ts
 const POLICY_FILE = "depcurfew.json";
 
@@ -16931,6 +16943,13 @@ function latestVersion(tool) {
 	const value = fact === void 0 ? void 0 : values$1(fact)[0];
 	return typeof value === "string" ? value : void 0;
 }
+/** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
+const FILE_UNREADABLE = /* @__PURE__ */ new Set([
+	"invalid-file",
+	"file-too-large",
+	"unreadable-file",
+	"outside-repository"
+]);
 /** Where a repository can pin the version of a tool, for the warning when none is pinned. */
 /** Where the version of a tool can be pinned, or undefined when the project cannot pin it (PDM, Pipenv). */
 function pinPlaces(tool) {
@@ -17042,13 +17061,15 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		});
 		targets.delete(manager.id);
 	}
-	for (const warning of detection.warnings.filter((entry) => entry.code === "invalid-file")) {
+	for (const warning of detection.warnings) {
+		const fix = FILE_UNREADABLE.has(warning.code) ? UNREADABLE_WARNINGS[warning.code] : void 0;
+		if (fix === void 0) continue;
 		const file = warning.files[0];
 		warnings.push({
 			code: "file-unreadable",
 			...file === void 0 ? {} : { location: { file } },
-			message: `${warning.message}; depcurfew cannot tell which tools it configures`,
-			fix: `Fix the syntax error${file === void 0 ? "" : ` in ${file}`}, then run depcurfew apply again`
+			message: `${warning.message.replace(/:$/u, "")}; depcurfew cannot tell which tools it configures`,
+			fix: warning.code === "invalid-file" ? `Fix the syntax error${file === void 0 ? "" : ` in ${file}`}, then run depcurfew apply again` : `${fix}, then run depcurfew apply again`
 		});
 	}
 	if (targets.size === 0) warnings.push({
@@ -18843,16 +18864,6 @@ const pythonConfigIgnored = {
 };
 
 // src/doctor/rules/unreadable-config.ts
-/** Repository warnings that mean a file was not checked. */
-const UNREADABLE_WARNINGS = {
-	"invalid-file": "Fix the syntax error, so that depcurfew can check the file",
-	"unreadable-file": "Make the file readable for the user that runs depcurfew, so that depcurfew can check it",
-	"file-too-large": "Make the file smaller than the limit, or check its settings by hand",
-	"lockfile-too-large": `Check where the packages in the lockfile come from and which have install scripts by hand; depcurfew reads YAML lockfiles up to ${MAX_YAML_LOCKFILE_SIZE / 1048576} MiB and JSON lockfiles up to ${MAX_LOCKFILE_SIZE / 1048576} MiB`,
-	"outside-repository": "Replace the symlink with a regular file inside the repository",
-	"workspace-outside-repository": "Keep workspace packages inside the repository",
-	"unreadable-include": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them"
-};
 const unreadableConfig = {
 	id: "unreadable-config",
 	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.",

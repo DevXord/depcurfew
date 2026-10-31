@@ -4,6 +4,7 @@
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { allowEntries, matchesPattern } from '../doctor/allow-lists.ts';
+import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
 import type { Detection } from '../detect/types.ts';
 import { environment as environmentKnowledge } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -61,6 +62,9 @@ function latestVersion(tool: ToolKnowledge): string | undefined {
   const value = fact === undefined ? undefined : values(fact)[0];
   return typeof value === 'string' ? value : undefined;
 }
+
+/** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
+const FILE_UNREADABLE = new Set(['invalid-file', 'file-too-large', 'unreadable-file', 'outside-repository']);
 
 /** Where a repository can pin the version of a tool, for the warning when none is pinned. */
 /** Where the version of a tool can be pinned, or undefined when the project cannot pin it (PDM, Pipenv). */
@@ -186,14 +190,17 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       targets.delete(manager.id);
     }
   }
-  // A file detection could not parse may hide a tool; nothing is written into it, but the user should know.
-  for (const warning of detection.warnings.filter((entry) => entry.code === 'invalid-file')) {
+  // A file detection could not read or parse (too large, a symlink out of the repository, no permission, invalid) may
+  // hide a tool; nothing is written into it, but the user should know, as doctor reports it as unreadable-config.
+  for (const warning of detection.warnings) {
+    const fix = FILE_UNREADABLE.has(warning.code) ? UNREADABLE_WARNINGS[warning.code] : undefined;
+    if (fix === undefined) continue;
     const file = warning.files[0];
     warnings.push({
       code: 'file-unreadable',
       ...(file === undefined ? {} : { location: { file } }),
-      message: `${warning.message}; depcurfew cannot tell which tools it configures`,
-      fix: `Fix the syntax error${file === undefined ? '' : ` in ${file}`}, then run depcurfew apply again`,
+      message: `${warning.message.replace(/:$/u, '')}; depcurfew cannot tell which tools it configures`,
+      fix: warning.code === 'invalid-file' ? `Fix the syntax error${file === undefined ? '' : ` in ${file}`}, then run depcurfew apply again` : `${fix}, then run depcurfew apply again`,
     });
   }
   if (targets.size === 0) {
