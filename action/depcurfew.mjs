@@ -7124,12 +7124,25 @@ const environment = {
 			args: "args"
 		}
 	}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. Hooks that inspect shell commands should match Bash|PowerShell (names separated by | are each matched exactly): on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash the PowerShell tool is enabled automatically and the Bash tool is not registered at all, so a hook that matches only Bash never fires there (the PowerShell tool section of https://code.claude.com/docs/en/tools-reference says the same; on Windows with Git Bash the tool is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1). With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.") },
-	git: { ignore: gitFacts.verified({
-		file: ".gitignore",
-		excludeFile: ".git/info/exclude",
-		indexFile: ".git/index",
-		trackedFilesIgnored: false
-	}, "https://github.com/git/git/blob/v2.56.0/Documentation/gitignore.adoc", "git status and git add skip untracked files that match a pattern from a .gitignore in the same directory or a parent (deeper files override higher ones, and within one file the last matching pattern decides), then from $GIT_COMMON_DIR/info/exclude (.git/info/exclude outside linked worktrees), then from core.excludesFile. Files already tracked are not affected. Patterns: # comments, ! negation, a leading or middle / anchors the pattern to the directory of its .gitignore, a trailing / matches directories only, * and ? do not match /, **/, /** and /**/ match any number of directories; a file below an ignored directory cannot be re-included. The tracked files are the entries of $GIT_DIR/index (Documentation/gitformat-index.adoc at v2.56.0: versions 2, 3 and 4).") },
+	git: {
+		ignore: gitFacts.verified({
+			file: ".gitignore",
+			excludeFile: ".git/info/exclude",
+			indexFile: ".git/index",
+			trackedFilesIgnored: false
+		}, "https://github.com/git/git/blob/v2.56.0/Documentation/gitignore.adoc", "git status and git add skip untracked files that match a pattern from a .gitignore in the same directory or a parent (deeper files override higher ones, and within one file the last matching pattern decides), then from $GIT_COMMON_DIR/info/exclude (.git/info/exclude outside linked worktrees), then from core.excludesFile. Files already tracked are not affected. Patterns: # comments, ! negation, a leading or middle / anchors the pattern to the directory of its .gitignore, a trailing / matches directories only, * and ? do not match /, **/, /** and /**/ match any number of directories; a file below an ignored directory cannot be re-included. The tracked files are the entries of $GIT_DIR/index (Documentation/gitformat-index.adoc at v2.56.0: versions 2, 3 and 4)."),
+		ignoreCase: windows.verified({
+			configFile: ".git/config",
+			section: "core",
+			key: "ignorecase",
+			trueValues: [
+				"yes",
+				"on",
+				"true",
+				"1"
+			]
+		}, "https://github.com/git/git/blob/v2.56.0/Documentation/config/core.adoc", "core.ignoreCase turns on workarounds for file systems that are not case sensitive (APFS, HFS+, FAT, NTFS); it defaults to false, but git clone and git init probe the file system and set it to true when appropriate, so a repository cloned on Windows or macOS has it. With it, git matches .gitignore patterns and looks up the index without regard to case: match_basename and match_pathname in dir.c compare with fspathncmp and fnmatch_icase_mem, which fold case (strncasecmp, WM_CASEFOLD) when repo_ignore_case is set, and environment.c reads core.ignorecase (both at v2.56.0). Section and variable names are case-insensitive, true is yes, on, true or 1 in any case, and a variable without = <value> is true (Documentation/config.adoc at v2.56.0).")
+	},
 	windows: {
 		commandShims: windows.verified({
 			extensions: [".cmd", ".ps1"],
@@ -14265,8 +14278,11 @@ function matchGlob(parts, glob) {
 	}
 	return below[0] ?? false;
 }
-/** The rules of one pattern file; `base` is its directory ('' for the root and for .git/info/exclude). */
-function parseIgnoreFile(text, file, base) {
+/**
+* The rules of one pattern file; `base` is its directory ('' for the root and for .git/info/exclude). With
+* `ignoreCase`, the patterns and the base are matched in lower case (the pattern as written stays for messages).
+*/
+function parseIgnoreFile(text, file, base, ignoreCase = false) {
 	const rules = [];
 	text.split("\n").forEach((raw, index) => {
 		let line = raw.replace(/\r$/u, "");
@@ -14284,18 +14300,23 @@ function parseIgnoreFile(text, file, base) {
 		const anchored = line.includes("/");
 		if (line.startsWith("/")) line = line.slice(1);
 		if (line === "") return;
+		const glob = compileGlob(ignoreCase ? foldCase(line) : line);
 		rules.push({
 			pattern,
 			file,
 			line: index + 1,
-			base,
+			base: ignoreCase ? foldCase(base) : base,
 			negate,
 			directoryOnly,
 			anchored,
-			glob: compileGlob(line)
+			glob
 		});
 	});
 	return rules;
+}
+/** ASCII letters in lower case, as git folds case (strncasecmp, WM_CASEFOLD). */
+function foldCase(text) {
+	return text.replaceAll(/[A-Z]/gu, (letter) => letter.toLowerCase());
 }
 function matches(rule, path, directory) {
 	if (rule.base !== "" && !path.startsWith(`${rule.base}/`)) return false;
@@ -14326,7 +14347,7 @@ function ignoreFacts() {
 	};
 }
 /** Pattern files in the order git reads them for `path`: info/exclude, then .gitignore from the root down. */
-function rulesFor(repository, path, cache) {
+function rulesFor(repository, path, cache, ignoreCase) {
 	const facts = ignoreFacts();
 	const directories = path.split("/").slice(0, -1);
 	const files = [[facts.excludeFile, ""]];
@@ -14338,16 +14359,21 @@ function rulesFor(repository, path, cache) {
 		let rules = cache.get(file);
 		if (rules === void 0) {
 			const text = repository.isFile(file) ? repository.readText(file) : void 0;
-			rules = text === void 0 ? [] : parseIgnoreFile(text, file, base);
+			rules = text === void 0 ? [] : parseIgnoreFile(text, file, base, ignoreCase);
 			cache.set(file, rules);
 		}
 		return rules;
 	});
 }
-/** Whether git ignores the file at `path` (relative to the root, with `/`) when it is not tracked. */
-function ignoredByGit(repository, path, cache = /* @__PURE__ */ new Map()) {
-	const rules = rulesFor(repository, path, cache);
-	const parts = path.split("/");
+/**
+* Whether git ignores the file at `path` (relative to the root, with `/`) when it is not tracked. A cache serves one
+* value of `ignoreCase`.
+*/
+function ignoredByGit(repository, path, cache = /* @__PURE__ */ new Map(), options = {}) {
+	const ignoreCase = options.ignoreCase === true;
+	const rules = rulesFor(repository, path, cache, ignoreCase);
+	const compared = ignoreCase ? foldCase(path) : path;
+	const parts = compared.split("/");
 	for (let depth = 1; depth < parts.length; depth++) {
 		const decided = decide(rules, parts.slice(0, depth).join("/"), true);
 		if (decided === "unknown") return { ignored: "unknown" };
@@ -14360,7 +14386,7 @@ function ignoredByGit(repository, path, cache = /* @__PURE__ */ new Map()) {
 			}
 		};
 	}
-	const decided = decide(rules, path, false);
+	const decided = decide(rules, compared, false);
 	if (decided === "unknown") return { ignored: "unknown" };
 	return decided !== void 0 && !decided.negate ? {
 		ignored: true,
@@ -14370,6 +14396,33 @@ function ignoredByGit(repository, path, cache = /* @__PURE__ */ new Map()) {
 			line: decided.line
 		}
 	} : { ignored: false };
+}
+/**
+* Whether git compares names without regard to case in this repository: core.ignorecase in .git/config, which git
+* clone and git init set on file systems that ignore case (environment.git.ignoreCase). A linked worktree, whose .git
+* is a file, keeps its configuration elsewhere and counts as false.
+*/
+function ignoresCase(repository) {
+	const facts = values$1(environment.git.ignoreCase)[0];
+	if (facts === void 0 || !repository.isFile(facts.configFile)) return false;
+	const text = repository.readText(facts.configFile);
+	if (text === void 0) return false;
+	let inSection = false;
+	let value = false;
+	for (const raw of text.split("\n")) {
+		let line = raw.trim();
+		const header = /^\[([^\]]*)\](.*)$/u.exec(line);
+		if (header !== null) {
+			inSection = header[1].trim().toLowerCase() === facts.section;
+			line = header[2].trim();
+		}
+		if (!inSection) continue;
+		const setting = /^([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?$/u.exec(line.replace(/\s*[#;].*$/u, ""));
+		if (setting === null || setting[1].toLowerCase() !== facts.key) continue;
+		const given = (setting[2] ?? "").trim().replace(/^"(.*)"$/u, "$1").toLowerCase();
+		value = setting[2] === void 0 || facts.trueValues.includes(given);
+	}
+	return value;
 }
 const MAX_INDEX_SIZE = 67108864;
 /**
@@ -16478,20 +16531,26 @@ function allowListWarnings(root, policy, detection, targets, tools) {
 * file-ignored-by-git: a file apply writes that git does not pick up, so the protection never reaches the repository
 * and a fresh clone lacks it. Files git already tracks are not affected by .gitignore.
 */
+/** The tracked files in lower case, for a repository that ignores case. */
+function foldedSet(files) {
+	return files === void 0 ? void 0 : new Set([...files].map(foldCase));
+}
 function ignoredFileWarnings(root, changes) {
 	const repository = new Repository(root);
 	const cache = /* @__PURE__ */ new Map();
 	let tracked = null;
+	let ignoreCase;
 	return changes.flatMap((change) => {
 		let result;
 		try {
-			result = ignoredByGit(repository, change.file, cache);
-			if (result.ignored === true) tracked ??= trackedFiles(repository);
+			ignoreCase ??= ignoresCase(repository);
+			result = ignoredByGit(repository, change.file, cache, { ignoreCase });
+			if (result.ignored === true) tracked ??= ignoreCase ? foldedSet(trackedFiles(repository)) : trackedFiles(repository);
 		} catch {
 			return [];
 		}
 		if (result.ignored !== true) return [];
-		if (tracked?.has(change.file) === true) return [];
+		if (tracked?.has(ignoreCase === true ? foldCase(change.file) : change.file) === true) return [];
 		const { rule } = result;
 		const pattern = rule.pattern.length > 120 ? `${rule.pattern.slice(0, 117)}...` : rule.pattern;
 		const unless = change.before === null || tracked !== void 0 ? "" : " unless git already tracks it";

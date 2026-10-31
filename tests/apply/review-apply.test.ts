@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { applyProject } from '../../src/apply/index.ts';
-import { ignoredByGit, parseIgnoreFile, trackedFiles } from '../../src/apply/gitignore.ts';
+import { ignoredByGit, ignoresCase, parseIgnoreFile, trackedFiles } from '../../src/apply/gitignore.ts';
 import { Repository } from '../../src/detect/repository.ts';
 import { runDoctor } from '../../src/doctor/index.ts';
 import { buildReport } from '../../src/cli/explain.ts';
@@ -216,6 +216,56 @@ describe('files ignored by git', () => {
     // Without an index, a file that already exists may be tracked, and the message says so.
     const untracked = repo({ ...poetry, '.gitignore': '/poetry.toml\n', 'poetry.toml': '[virtualenvs]\nin-project = true\n' });
     expect(applyProject(untracked, { write: false }).warningDetails.find((entry) => entry.code === 'file-ignored-by-git')?.message).toContain('so git ignores it unless git already tracks it:');
+  });
+});
+
+describe('files ignored by git with core.ignorecase (the default of git init and clone on Windows and macOS)', () => {
+  const poetry = {
+    'pyproject.toml': '[project]\nname = "app"\nversion = "1.0.0"\n\n[tool.poetry]\npackage-mode = false\n',
+    'depcurfew.json': '{"version": 1, "cooldown": {"minimum": "3d"}}\n',
+  };
+  const config = (value: string) => `[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n${value}\n[remote "origin"]\n\tignorecase = false\n`;
+
+  it('matches patterns and paths without regard to case', () => {
+    const root = repo({ ...poetry, '.gitignore': '/Poetry.TOML\n', '.git/config': config('\tignorecase = true') });
+    const warning = applyProject(root, { write: false }).warningDetails.find((entry) => entry.code === 'file-ignored-by-git');
+    expect(warning?.message).toBe(
+      'poetry.toml matches the rule /Poetry.TOML in .gitignore (line 1), so git ignores it: what depcurfew apply writes there stays on this machine, and a fresh clone (CI included) does not get it',
+    );
+    expect(ignoredByGit(new Repository(root), 'POETRY.toml', new Map(), { ignoreCase: true })).toMatchObject({ ignored: true });
+    expect(ignoredByGit(new Repository(root), 'POETRY.toml')).toEqual({ ignored: false });
+  });
+
+  it.each([
+    ['\tIgnoreCase = TRUE', true],
+    ['\tignorecase = yes', true],
+    ['\tignorecase = on', true],
+    ['\tignorecase = 1', true],
+    ['\tignorecase', true],
+    ['\tignorecase = "true" ; set by git init', true],
+    ['\tignorecase = false', false],
+    ['\tignorecase = true\n\tignorecase = false', false],
+    ['', false],
+  ])('reads %j from .git/config', (value, expected) => {
+    const root = repo({ ...poetry, '.gitignore': '/POETRY.toml\n', '.git/config': config(value) });
+    expect(ignoresCase(new Repository(root))).toBe(expected);
+    expect(codes(root).includes('file-ignored-by-git')).toBe(expected);
+  });
+
+  it('reads [CORE] with the setting on the line of the section', () => {
+    const root = repo({ ...poetry, '.git/config': '[CORE] ignoreCase = true\n' });
+    expect(ignoresCase(new Repository(root))).toBe(true);
+  });
+
+  it('leaves out a file git tracks under another case', () => {
+    const name = Buffer.from('Poetry.toml');
+    const entry = Buffer.alloc(Math.ceil((62 + name.length + 1) / 8) * 8);
+    entry.writeUInt32BE(0o100644, 24);
+    entry.writeUInt16BE(name.length, 60);
+    name.copy(entry, 62);
+    const index = Buffer.concat([Buffer.from('DIRC'), Buffer.from([0, 0, 0, 2, 0, 0, 0, 1]), entry, Buffer.alloc(20)]);
+    const root = repo({ ...poetry, '.gitignore': '/poetry.toml\n', 'poetry.toml': '[virtualenvs]\nin-project = true\n', '.git/index': index, '.git/config': config('\tignorecase = true') });
+    expect(codes(root)).not.toContain('file-ignored-by-git');
   });
 });
 

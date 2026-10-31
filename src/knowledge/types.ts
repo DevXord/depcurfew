@@ -540,6 +540,16 @@ export interface CommandShimsKnowledge {
   argumentsVariable: string;
 }
 
+/** The git setting that makes .gitignore patterns and index lookups ignore case. */
+export interface GitIgnoreCaseKnowledge {
+  /** The repository's configuration file, relative to the working tree. */
+  configFile: string;
+  section: string;
+  key: string;
+  /** Values read as true (case-insensitive); a key without a value is true too. */
+  trueValues: readonly string[];
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
@@ -593,6 +603,7 @@ export interface EnvironmentKnowledge {
   git: {
     /** Where git reads the patterns of files it does not pick up, and the index that lists the tracked files. */
     ignore: Fact<GitIgnoreKnowledge>;
+    ignoreCase: Fact<GitIgnoreCaseKnowledge>;
   };
   windows: {
     commandShims: Fact<CommandShimsKnowledge>;
