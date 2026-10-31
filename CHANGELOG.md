@@ -17,6 +17,8 @@ All notable changes for users of depcurfew. The project follows [semantic versio
   - It writes the files of all tools or none, refuses a missing home directory (`home-missing`), skips a tool that would read a relative `XDG_CONFIG_HOME` or `%APPDATA%` (`user-directory-relative`), names every file by its `~/` path, and warns about environment variables that would leave what it writes without effect (`environment-overrides`).
   - `--for` accepts versions as tools print them (`pip@26.1`) and warns when it names a tool that is not configured (`version-not-used`).
   - After `corepack enable`, pnpm and Yarn shims are no longer read as version 0.34.0; their version is unknown until `--for` gives it.
+  - It warns (`user-setting-overridden`) when `~/.npmrc` overrides a setting it writes to pnpm 10's `rc`, and `doctor --user` reports that even before the first apply.
+  - `init --user` refuses a missing home directory as `apply --user` does, and a file in the way of `~/.config/depcurfew` is an error with a fix instead of a crash. Run as root with `HOME` kept, `init` and `apply --user` give new files in the home directory to its owner.
 
 ### Policy
 
@@ -29,10 +31,16 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 - `doctor` rule and `apply` warning `depcurfew-outdated`: the project installs a newer depcurfew than the one running (a global install or an old npx cache), which may not know what the project's version writes or checks. When the version is only pinned in `package-lock.json`, it says to run `npm ci` first.
 
+### Settings that switch protection off
+
+- `apply` and `doctor` treat a switch that allows every install script as on for every value the tool does not read as off: pnpm's `dangerouslyAllowAllBuilds: "false"` (a string), `yes` or `"true"`, `dangerously-allow-all-builds=1` in `.npmrc` (also in the project `.npmrc` with pnpm 10, which `doctor` now checks), npm's `dangerously-allow-all-scripts=1`, the same in `npm_config_*` variables, and Yarn's `enableScripts: 1`.
+- YAML merge keys (`<<: *defaults`) in `pnpm-workspace.yaml` and pnpm's `config.yaml` are read as pnpm reads them, so a setting that arrives through one is no longer hidden; `apply` writes its value into the map itself, which wins over merged keys. `.yarnrc.yml` and `dependabot.yml` are read without merging, as those tools do.
+- `doctor` reports an allow-list entry that lets a package of `installScripts.deny` run its scripts as an error, names a missing JSON setting by its path, lists every `.npmrc` line outside the block, and reports an `.npmrc` that is not a regular file instead of showing it as missing.
+
 ### Safety of output and files
 
 - Diffs from `apply --dry-run` and `apply --json` show tokens and passwords (`_authToken`, `_auth`, `_password`, `user:password@` in URLs) as `<redacted>`; the files on disk are untouched.
-- JSON and SARIF output escape C1 control and bidirectional characters, and file names in diff headers are escaped too.
+- JSON and SARIF output escape C1 control and bidirectional characters, and the text diff of `apply --dry-run` shows control characters from files as text, also when piped.
 - Files are read only when they are regular files and never past 1 MiB, whatever size the file system reports, so a FIFO or a file under `/proc` in place of a configuration file no longer makes depcurfew hang or run out of memory.
 - Run as root (`sudo` with `HOME` kept), `apply` keeps the owner of each file it replaces.
 - `depcurfew … | head` no longer ends with an EPIPE stack trace.

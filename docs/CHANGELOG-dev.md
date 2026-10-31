@@ -2,7 +2,7 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
-## 2026-10-31 · 1.2.0, część 4: przegląd przed wydaniem i poprawki (D-088–D-091)
+## 2026-10-31 · 1.2.0, część 4: przegląd przed wydaniem i poprawki (D-088–D-093)
 
 - Przegląd przed wydaniem: dwa przeglądy kodu (`--user`; `deny`, `depcurfew-outdated`, fakty, dokumentacja), test penetracyjny i testy na spakowanym tarballu z prawdziwymi narzędziami. Około 40 ustaleń, m.in. `doctor --user` mówiący „No problems found” przy osłabionej ochronie, tokeny z `~/.npmrc` w diffie, corepack odczytany jako pnpm/Yarn 0.34.0, `apply` przestawiające ręczne wpisy dla paczek z `deny`.
 - Wspólny `readLimited` (`src/read-limited.ts`): tylko zwykły plik, `O_NONBLOCK`/`O_NOFOLLOW`, odczyt do limitu niezależnie od rozmiaru ze `stat` (FIFO, `/proc`).
@@ -11,7 +11,10 @@ Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `
 - D-090: `apply --user` w zgodzie z trybem projektu (listy wyjątków, `cooldown-shortened`, `before=`, brakujące ostrzeżenia, znacznik bloku użytkownika, przywracanie linii pip).
 - D-091: zapis wszystko albo nic przez wiele katalogów, ścieżki `~/` w komunikatach, względne `XDG_CONFIG_HOME`, brak katalogu domowego, `--for` z dwuczęściową wersją, ukrywanie sekretów w diffie, `safeJson`, właściciel pliku pod `sudo`, EPIPE.
 - Po scaleniu: ostrzeżenie `environment-overrides` w `apply --user` (zmienne bez wartości), pip czyta klucze z podkreśleniami jak z myślnikami (`only_binary` = `only-binary`; `UserFile.underscoresAsDashes`, sprawdzone w `configuration.py` pip 26.2.2).
-- Weryfikacja: `npm test`, `npm run typecheck`, `npm run check:pkg`; ponowne odtworzenie wszystkich scenariuszy z raportów na scalonym kodzie.
+- Ponowna kontrola na scalonym kodzie: wszystkie 41 scenariuszy z raportów przechodzi; 10 nowych ustaleń, poprawionych w dwóch gałęziach:
+  - D-092: przełączniki wyłączające ochronę są włączone dla każdej wartości, której narzędzie nie czyta jako wyłączonej (pnpm `"false"`, `yes`, `=1`; potwierdzone na prawdziwym pnpm 10.28.0), klucze scalania YAML tam, gdzie narzędzie je stosuje (pnpm), `[pip] no-build` w uv nie jest osłabieniem, drobne poprawki `config-drift` i `explain`;
+  - D-093: `init --user` bez zakładania katalogu domowego i bez śladu stosu, `doctor --user` przy braku katalogu domowego i względnym `XDG_CONFIG_HOME`, `user-setting-overridden` dla pnpm 10, znaki sterujące w treści diffu, właściciel nowych plików pod `sudo`, konkretne poprawki w komunikatach.
+- Weryfikacja: `npm test` (2941 testów), `npm run typecheck`, `npm run check:pkg`; `depcurfew doctor .` bez uwag, `apply --dry-run .` bez zmian.
 
 ## 2026-10-31 · 1.2.0, część 3: `init`, `apply` i `doctor --user` (D-087), jawna blokada `deny`
 
