@@ -195,6 +195,14 @@ describe('places that override the user file', () => {
     expect(found?.message).toContain('[install]');
   });
 
+  it('reads a pip.conf key with underscores as pip does: only_binary is only-binary', () => {
+    const environment = machine({ python: { pip: '26.2.2' } });
+    applyUser(environment);
+    const path = userFile('pip', environment);
+    writeFileSync(path, `${readFileSync(path, 'utf8')}\n[install]\nUploaded_Prior_To = P0D\n`);
+    expect(keysOf(runUserDoctor({ environment }))).toEqual(['uploaded-prior-to']);
+  });
+
   it('reports the [pip] table of uv.toml, which uv pip reads over the top-level keys', () => {
     const environment = machine({ python: { uv: '0.13.6' } });
     applyUser(environment);

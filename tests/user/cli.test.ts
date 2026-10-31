@@ -120,3 +120,26 @@ describe('apply --user', () => {
     expect((await exec(environment, 'apply', '--user', '--for', 'renovate@41.0.0')).code).toBe(EXIT_USAGE);
   });
 });
+
+describe('apply --user and the environment', () => {
+  it.skipIf(!canSymlink())('warns about a variable that makes npm read another user file, without its value', async () => {
+    const environment = machine('11.21.1');
+    await exec(environment, 'init', '--user');
+    const moved: UserEnvironment = { ...environment, env: { ...environment.env, NPM_CONFIG_USERCONFIG: '/elsewhere/npmrc-with-secret' } };
+    const result = await exec(moved, 'apply', '--user', '--dry-run', '--json');
+    const document = JSON.parse(result.stdout) as { warnings: { code: string; message: string; fix: string }[] };
+    const warning = document.warnings.find((entry) => entry.code === 'environment-overrides');
+    expect(warning?.message).toContain('NPM_CONFIG_USERCONFIG is set in the environment');
+    expect(warning?.message).not.toContain('npmrc-with-secret');
+    expect(warning?.fix).toContain('depcurfew doctor --user');
+  });
+
+  it.skipIf(!canSymlink())('does not warn about the default ~/.npmrc that npm passes to npx', async () => {
+    const environment = machine('11.21.1');
+    await exec(environment, 'init', '--user');
+    const underNpx: UserEnvironment = { ...environment, env: { ...environment.env, npm_config_userconfig: join(environment.home, '.npmrc') } };
+    const result = await exec(underNpx, 'apply', '--user', '--dry-run', '--json');
+    const document = JSON.parse(result.stdout) as { warnings: { code: string }[] };
+    expect(document.warnings.map((entry) => entry.code)).not.toContain('environment-overrides');
+  });
+});

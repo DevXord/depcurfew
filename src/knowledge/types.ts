@@ -160,6 +160,8 @@ export interface UserFile {
   sections?: readonly string[];
   /** Other user-level files this version reads the same settings from, whose keys win over this file's. */
   overriddenBy?: readonly UserFile[];
+  /** INI only: the tool reads a key with underscores as the same key with dashes (pip: only_binary is only-binary). */
+  underscoresAsDashes?: boolean;
 }
 
 /** What depcurfew writes with a user-level setting. */

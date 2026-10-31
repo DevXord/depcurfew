@@ -9,14 +9,33 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 - `depcurfew init --user` writes a user policy (`~/.config/depcurfew/depcurfew.json`, `%APPDATA%\depcurfew\depcurfew.json` on Windows).
 - `depcurfew apply --user` writes it into the user-level configuration of the installed package managers (npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry and PDM), which protects every project that does not set those settings itself, and `npx`, `uvx` and global installs. Versions are read from the files next to each executable, never by running it; `--for tool@version` gives a version by hand, and a tool that stops every command on a value its version does not understand gets nothing until its version is known. pip gets its release-age delay this way, which a project cannot set.
 - `depcurfew doctor --user` reports user files that do not match the user policy, values in them that weaken every project, and environment variables that move, skip or override them.
+  - It also checks the places that beat the user file: command sections such as `[install]` in `pip.conf`, the `[pip]` table of `uv.toml`, and the `~/.npmrc` that pnpm 10 reads ahead of its `rc` file. A value counts as depcurfew's only when it is exactly what `apply --user` writes into its block.
+  - It fails closed: an invalid user policy (`user-policy-invalid`) and a user file it cannot read, parse or edit (`user-config-unreadable`) are errors with exit code 1.
+  - Environment variables are checked in every spelling and named as they are set. The default `~/.npmrc` that npm passes to `npx` and `npm run` is not reported, and values that may hold credentials are never printed. `--sarif` locates user files relative to `HOME` without revealing the home path.
+- `apply --user` treats a key in a user file as `apply` treats the same key in a project file: hand-written exception lists and Python build lists are commented out even when the policy lists none, longer delays it shortens are reported (`cooldown-shortened`), and the warnings of project mode appear here too (scripts that cannot be blocked, forced source builds, sources a user file cannot hold, allow-list patterns, denials that live only in project files, Yarn 1).
+  - With npm 11.10–11.14 it does not write `min-release-age` next to `before=` in `~/.npmrc`, where every npm command would fail; it warns instead.
+  - It writes the files of all tools or none, refuses a missing home directory (`home-missing`), skips a tool that would read a relative `XDG_CONFIG_HOME` or `%APPDATA%` (`user-directory-relative`), names every file by its `~/` path, and warns about environment variables that would leave what it writes without effect (`environment-overrides`).
+  - `--for` accepts versions as tools print them (`pip@26.1`) and warns when it names a tool that is not configured (`version-not-used`).
+  - After `corepack enable`, pnpm and Yarn shims are no longer read as version 0.34.0; their version is unknown until `--for` gives it.
 
 ### Policy
 
-- `installScripts.deny` lists packages you reviewed that work without their install scripts, such as `fsevents`, which ships a prebuilt binary. `doctor` no longer reports them while the tool does not run their scripts, and `apply` records the denial where the tool has one (npm, pnpm, Yarn, Deno), so the tool stops warning about them on every install. For Python packages it means never building them from source. Policies without it stay valid.
+- `installScripts.deny` lists packages you reviewed that work without their install scripts, such as `fsevents`, which ships a prebuilt binary. `doctor` no longer reports them while the tool does not run their scripts, and `apply` records the denial where the tool has one (npm 11.16+, pnpm 10.1+ as `ignoredBuiltDependencies` and from 10.26 in `allowBuilds`, Yarn, Deno 2.6+), so the tool stops warning about them on every install. For Python packages `doctor` reports a tool that would still build one from source. Policies without it stay valid.
+  - `apply` never changes an allow-list entry you wrote for a denied package, or a tool's own denial of an allowed one; it warns with `deny-conflicts-with-file`, and `doctor` reports the same entries.
+  - `depcurfew check` and the Claude Code hook do not block denied packages; a denied Python package without wheels gets a warning that it cannot be installed while building is blocked.
+  - An npm pattern in `allow` and a `pypi:` name in `deny` no longer clash; two patterns that can match the same name are rejected, with an example name.
 
 ### Messages
 
-- `doctor` rule and `apply` warning `depcurfew-outdated`: the project installs a newer depcurfew than the one running (a global install or an old npx cache), which may not know what the project's version writes or checks.
+- `doctor` rule and `apply` warning `depcurfew-outdated`: the project installs a newer depcurfew than the one running (a global install or an old npx cache), which may not know what the project's version writes or checks. When the version is only pinned in `package-lock.json`, it says to run `npm ci` first.
+
+### Safety of output and files
+
+- Diffs from `apply --dry-run` and `apply --json` show tokens and passwords (`_authToken`, `_auth`, `_password`, `user:password@` in URLs) as `<redacted>`; the files on disk are untouched.
+- JSON and SARIF output escape C1 control and bidirectional characters, and file names in diff headers are escaped too.
+- Files are read only when they are regular files and never past 1 MiB, whatever size the file system reports, so a FIFO or a file under `/proc` in place of a configuration file no longer makes depcurfew hang or run out of memory.
+- Run as root (`sudo` with `HOME` kept), `apply` keeps the owner of each file it replaces.
+- `depcurfew … | head` no longer ends with an EPIPE stack trace.
 
 ## 1.1.0
 

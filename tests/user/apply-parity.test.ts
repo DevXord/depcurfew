@@ -172,6 +172,15 @@ describe('pip.conf sections and the uv [pip] table', () => {
     );
   });
 
+  it('supersedes a spelling with underscores too, which pip reads as the same key', () => {
+    const environment = machine();
+    write('pip', environment, '[global]\nonly_binary = :none:\n\n[install]\nUploaded_Prior_To = P0D\n');
+    const planned = applyTwice({ ...DEFAULT, targets: ['pip'] }, environment, { pip: [26, 2, 2] });
+    const text = after(planned, 'pip', environment);
+    expect(text).toContain(`${SUPERSEDED}only_binary = :none:`);
+    expect(text).toContain(`${SUPERSEDED}Uploaded_Prior_To = P0D`);
+  });
+
   it('restores a line it commented out once the policy no longer manages its key', () => {
     const environment = machine();
     write('pip', environment, '[global]\nonly-binary = numpy\n');

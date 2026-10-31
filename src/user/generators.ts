@@ -11,6 +11,7 @@ import { buildAllowList, buildSwitchScopeWarning, compactDuration, forcedBuildWa
 import { convertCooldown } from '../policy/convert.ts';
 import { allowedNames, cooldownValue, denyList, eachSource, exclusions, sameList, scriptsDefault, type SourceKind } from '../apply/generators/common.ts';
 import type { Context } from '../apply/generators/context.ts';
+import { userFileFor } from './locate.ts';
 import { matchesPattern } from '../doctor/allow-lists.ts';
 import { delayMinutes, formatMinutes, type DelayValue } from '../doctor/durations.ts';
 import { splitSpec } from '../doctor/lockfiles.ts';
@@ -578,8 +579,16 @@ const keyOfLine = (line: string): string | undefined => /^\s*([^#;=\s][^=:]*?)\s
  * that section and, when `overriding`, in every other section (pip's command sections win over [global]); lines
  * commented out so come back once their key is no longer managed. An existing block stays where it is in its section.
  */
-export function writeSectionBlock(body: string, section: string, entries: readonly string[], managedKeys: readonly string[], options: { overriding?: boolean; marker?: string } = {}): string {
-  const managed = new Set(managedKeys);
+export function writeSectionBlock(
+  body: string,
+  section: string,
+  entries: readonly string[],
+  managedKeys: readonly string[],
+  options: { overriding?: boolean; marker?: string; underscoresAsDashes?: boolean } = {},
+): string {
+  // pip reads only_binary as only-binary: a hand-written spelling with underscores is the same key (UserFile.underscoresAsDashes).
+  const keyOf = (line: string): string | undefined => (options.underscoresAsDashes === true ? keyOfLine(line)?.replaceAll('_', '-') : keyOfLine(line));
+  const managed = new Set(managedKeys.map((key) => (options.underscoresAsDashes === true ? key.replaceAll('_', '-') : key)));
   const marker = options.marker ?? blockStart();
   const removed = removeBlock(splitLines(body), marker);
   const name = section.toLowerCase();
@@ -592,8 +601,8 @@ export function writeSectionBlock(body: string, section: string, entries: readon
     sections[index] = current;
     if (current === undefined || header !== null || (current !== name && options.overriding !== true)) return line;
     const original = commentedOut(line);
-    if (original !== undefined) return managed.has(keyOfLine(original) ?? '') ? line : original;
-    const key = keyOfLine(line);
+    if (original !== undefined) return managed.has(keyOf(original) ?? '') ? line : original;
+    const key = keyOf(line);
     return key !== undefined && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${line.trim()}` : line;
   });
   if (entries.length === 0) return joinLines(lines);
@@ -609,6 +618,8 @@ export function writeSectionBlock(body: string, section: string, entries: readon
 
 /** The hand-written value of a pip.conf key that pip install uses: [install] wins over [global]. */
 function pipFound(text: string, key: string, sections: PipSections): Found | undefined {
+  // pip reads only_binary as only-binary (UserFile.underscoresAsDashes in the pip knowledge).
+  const same = (candidate: string | undefined) => candidate?.replaceAll('_', '-') === key.replaceAll('_', '-');
   let current: string | undefined;
   const found = new Map<string, Found>();
   outsideBlocks(text)
@@ -620,7 +631,7 @@ function pipFound(text: string, key: string, sections: PipSections): Found | und
         return;
       }
       const equals = line.search(/[=:]/u);
-      if (current === undefined || keyOfLine(line) !== key || equals === -1) return;
+      if (current === undefined || !same(keyOfLine(line)) || equals === -1) return;
       found.set(current, { key, value: line.slice(equals + 1).trim(), line: index + 1 });
     });
   return (sections.commandsOverride ? found.get('install') : undefined) ?? found.get(sections.global);
@@ -662,7 +673,8 @@ function pip([target]: readonly UserTarget[]): void {
   }
   eachSource(context, () => undefined);
   const marker = blockStart(undefined, context.user ? 'user' : 'project');
-  context.workspace.edit(target.file, (body) => writeSectionBlock(body, sections.global, entries, managed, { overriding: sections.commandsOverride, marker }));
+  const underscoresAsDashes = userFileFor(context.tool, context.version)?.underscoresAsDashes === true;
+  context.workspace.edit(target.file, (body) => writeSectionBlock(body, sections.global, entries, managed, { overriding: sections.commandsOverride, marker, underscoresAsDashes }));
 }
 
 /** Poetry: config.toml with the keys of poetry.toml ([solver] and [installer] tables). */

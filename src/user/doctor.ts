@@ -109,10 +109,15 @@ function blockLines(lines: readonly string[]): Set<number> {
   return inside;
 }
 
-function iniRead(text: string): Entry[] {
+/** The key as the tool reads it: pip takes only_binary as only-binary (UserFile.underscoresAsDashes). */
+function iniKey(file: UserFile, key: string): string {
+  return file.underscoresAsDashes === true ? key.toLowerCase().replaceAll('_', '-') : key;
+}
+
+function iniRead(text: string, file?: UserFile): Entry[] {
   const managed = blockLines(text.split(/\r\n|\r|\n/u));
   return iniLines(text).map((entry) => ({
-    path: [entry.key.replace(/\[\]$/u, '')],
+    path: [file === undefined ? entry.key.replace(/\[\]$/u, '') : iniKey(file, entry.key.replace(/\[\]$/u, ''))],
     ...(entry.section === undefined ? {} : { section: entry.section }),
     value: entry.value,
     line: entry.line,
@@ -175,7 +180,7 @@ function yamlRead(text: string): Read {
 
 function parse(file: UserFile, text: string): Read {
   if (file.format === 'yaml') return yamlRead(text);
-  if (file.format === 'ini') return { ok: true, entries: iniRead(text) };
+  if (file.format === 'ini') return { ok: true, entries: iniRead(text, file) };
   try {
     return { ok: true, entries: tomlRead(text) };
   } catch (thrown) {
@@ -187,7 +192,7 @@ function parse(file: UserFile, text: string): Read {
 
 /** The keys of the entry match the dotted key; `*` matches any one key (npmScopes.*.npmMinimalAgeGate). INI keys are not dotted. */
 function keyMatches(file: UserFile, entry: Entry, key: string): boolean {
-  if (file.format === 'ini') return entry.path.length === 1 && entry.path[0] === key;
+  if (file.format === 'ini') return entry.path.length === 1 && entry.path[0] === iniKey(file, key);
   const parts = key.split('.');
   return parts.length === entry.path.length && parts.every((part, index) => part === '*' || part === entry.path[index]);
 }

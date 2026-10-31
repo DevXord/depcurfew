@@ -18,6 +18,7 @@ import type { ResolvedPolicy } from '../policy/schema.ts';
 import { reportProjectOnly, USER_GENERATORS, type UserTarget } from './generators.ts';
 import { locateUserFile, shownPath, userFileFor, type UserEnvironment } from './locate.ts';
 import { userPolicyPath } from './policy-path.ts';
+import { environmentOverrides } from './variables.ts';
 import { findExecutable, installedVersion } from './versions.ts';
 
 export interface UserChange extends FileChange {
@@ -188,6 +189,7 @@ export function planUserApply(policy: ResolvedPolicy, options: UserApplyOptions)
     });
   }
 
+  const versionsUsed: Partial<Record<ToolId, Version | undefined>> = {};
   // Tools that share a user file (npm and Deno read ~/.npmrc) are written by one generator call.
   const byFile = new Map<string, UserTarget[]>();
   /** The failures each target's context records, with the file relative to its workspace root. */
@@ -196,6 +198,7 @@ export function planUserApply(policy: ResolvedPolicy, options: UserApplyOptions)
     const given = options.versions?.[tool.id];
     const installed = given === undefined ? installedVersion(tool.id, ecosystemOfTool(tool), environment) : undefined;
     const version = given ?? installed?.version;
+    versionsUsed[tool.id] = version;
     if (version === undefined) {
       if (invalidValueFails(tool)) {
         warnings.push({
@@ -247,6 +250,18 @@ export function planUserApply(policy: ResolvedPolicy, options: UserApplyOptions)
     const group = byFile.get(path) ?? [];
     group.push(target);
     byFile.set(path, group);
+  }
+  // A variable that makes a tool read another file, or none, or override a value, would leave what apply writes
+  // without effect; doctor --user names them too. Only the name is shown: a value may hold credentials.
+  const overrides = environmentOverrides(environment, targets, versionsUsed);
+  for (const name of new Set(overrides.map((override) => override.name))) {
+    const forName = overrides.filter((override) => override.name === name);
+    const toolNames = [...new Set(forName.map((override) => tools.find((tool) => tool.id === override.tool)?.name ?? override.tool))].join(', ');
+    warnings.push({
+      code: 'environment-overrides',
+      message: `${name} is set in the environment and ${forName[0]?.effect ?? 'overrides the user-level configuration'} (${toolNames}), so what depcurfew apply --user writes may not take effect`,
+      fix: `Unset ${name} in your shell profile or CI settings; depcurfew doctor --user lists every such variable`,
+    });
   }
   for (const group of byFile.values()) {
     const first = group[0];

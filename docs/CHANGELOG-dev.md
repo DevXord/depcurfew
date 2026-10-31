@@ -2,6 +2,17 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · 1.2.0, część 4: przegląd przed wydaniem i poprawki (D-088–D-091)
+
+- Przegląd przed wydaniem: dwa przeglądy kodu (`--user`; `deny`, `depcurfew-outdated`, fakty, dokumentacja), test penetracyjny i testy na spakowanym tarballu z prawdziwymi narzędziami. Około 40 ustaleń, m.in. `doctor --user` mówiący „No problems found” przy osłabionej ochronie, tokeny z `~/.npmrc` w diffie, corepack odczytany jako pnpm/Yarn 0.34.0, `apply` przestawiające ręczne wpisy dla paczek z `deny`.
+- Wspólny `readLimited` (`src/read-limited.ts`): tylko zwykły plik, `O_NONBLOCK`/`O_NOFOLLOW`, odczyt do limitu niezależnie od rozmiaru ze `stat` (FIFO, `/proc`).
+- D-088: konflikty list narzędzia z `installScripts.allow`/`deny` (`deny-conflicts-with-file`), `check` i hook bez błędu dla `deny`, zapisane odmowy w `lockfile-install-scripts`, pnpm 10.1–10.25 `ignoredBuiltDependencies`, walidacja nakładania między ekosystemami i wzorcami.
+- D-089: `doctor --user` porównuje treść z planowanym blokiem zamiast celów polityki, sprawdza miejsca nadrzędne (`[install]` pip, `[pip]` uv, `~/.npmrc` pnpm 10), fail closed (`user-policy-invalid`, `user-config-unreadable`), zmienne w każdej pisowni (`src/user/variables.ts`), bez sekretów, SARIF względem `HOME`, wersje tylko z paczki samego narzędzia.
+- D-090: `apply --user` w zgodzie z trybem projektu (listy wyjątków, `cooldown-shortened`, `before=`, brakujące ostrzeżenia, znacznik bloku użytkownika, przywracanie linii pip).
+- D-091: zapis wszystko albo nic przez wiele katalogów, ścieżki `~/` w komunikatach, względne `XDG_CONFIG_HOME`, brak katalogu domowego, `--for` z dwuczęściową wersją, ukrywanie sekretów w diffie, `safeJson`, właściciel pliku pod `sudo`, EPIPE.
+- Po scaleniu: ostrzeżenie `environment-overrides` w `apply --user` (zmienne bez wartości), pip czyta klucze z podkreśleniami jak z myślnikami (`only_binary` = `only-binary`; `UserFile.underscoresAsDashes`, sprawdzone w `configuration.py` pip 26.2.2).
+- Weryfikacja: `npm test`, `npm run typecheck`, `npm run check:pkg`; ponowne odtworzenie wszystkich scenariuszy z raportów na scalonym kodzie.
+
 ## 2026-10-31 · 1.2.0, część 3: `init`, `apply` i `doctor --user` (D-087), jawna blokada `deny`
 
 - Badanie konfiguracji użytkownika 10 menedżerów (trzech agentów, źródła przypięte do tagów) i sekcja `user` w bazie wiedzy: pliki per wersja i system, ustawienia z wersjami, nieznane klucze, złe wartości, osłabiające wartości i zmienne.

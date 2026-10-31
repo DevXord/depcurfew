@@ -5,6 +5,7 @@ import type { ToolId } from '../knowledge/types.ts';
 
 export const APPLY_WARNINGS = {
   'nothing-to-configure': 'depcurfew found no supported package manager or bot, so nothing is configured.',
+  'environment-overrides': 'apply --user: an environment variable makes a tool read another user file or none, or overrides a value apply writes there.',
   'depcurfew-outdated': 'The project installs a newer depcurfew than the one running, which may not know settings that version writes.',
   'file-unreadable': 'A file that shows which tools a project uses cannot be read or parsed (too large, a symlink out of the repository, no read permission, invalid), so depcurfew may configure fewer tools than the project uses.',
   'tool-not-supported': 'A detected or installed tool is not supported (Yarn Classic), so nothing is written for it.',
