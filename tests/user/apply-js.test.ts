@@ -8,6 +8,9 @@ import { validatePolicy } from '../../src/policy/validate.ts';
 import type { ResolvedPolicy } from '../../src/policy/schema.ts';
 import { planUserApply, writeUserChanges } from '../../src/user/apply.ts';
 import type { UserEnvironment } from '../../src/user/locate.ts';
+import { platform, shownUserFile } from '../support/user.ts';
+import type { ToolId } from '../../src/knowledge/types.ts';
+import type { Version } from '../../src/apply/version.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -33,10 +36,12 @@ function machine(env: Record<string, string> = {}): UserEnvironment {
   temporary.push(root);
   const home = join(root, 'home');
   mkdirSync(home, { recursive: true });
-  return { platform: 'linux', home, env: { PATH: join(root, 'bin'), ...env } };
+  return { platform, home, env: { PATH: join(root, 'bin'), ...env } };
 }
 
-const after = (planned: ReturnType<typeof planUserApply>, file: string) => planned.report.changes.find((change) => change.file === file)?.after;
+/** The planned text of a tool's user file, wherever this platform keeps it. */
+const after = (planned: ReturnType<typeof planUserApply>, id: ToolId, environment: UserEnvironment, version?: Version) =>
+  planned.report.changes.find((change) => change.file === shownUserFile(id, environment, version))?.after;
 const codes = (planned: ReturnType<typeof planUserApply>) => planned.report.warningDetails.map((warning) => `${warning.tool ?? ''}:${warning.code}`);
 
 describe('apply --user for pnpm, Yarn and Bun', () => {
@@ -49,7 +54,7 @@ describe('apply --user for pnpm, Yarn and Bun', () => {
   it('writes ~/.config/pnpm/config.yaml for pnpm 11, with allowBuilds left to the projects', () => {
     const environment = machine();
     const planned = planUserApply(POLICY, { environment, versions: { pnpm: [11, 28, 10] } });
-    const text = after(planned, '~/.config/pnpm/config.yaml') ?? '';
+    const text = after(planned, 'pnpm', environment, [11, 28, 10]) ?? '';
     expect(text).toContain('minimumReleaseAge: 4320');
     expect(text).toContain('minimumReleaseAgeExclude:');
     expect(text).toContain('minimumReleaseAgeStrict: true');
@@ -70,8 +75,9 @@ describe('apply --user for pnpm, Yarn and Bun', () => {
   });
 
   it('writes <configDir>/rc in INI for pnpm 10, with the allow-list there', () => {
-    const planned = planUserApply(POLICY, { environment: machine(), versions: { pnpm: [10, 34, 9] } });
-    const text = after(planned, '~/.config/pnpm/rc') ?? '';
+    const environment = machine();
+    const planned = planUserApply(POLICY, { environment, versions: { pnpm: [10, 34, 9] } });
+    const text = after(planned, 'pnpm', environment, [10, 34, 9]) ?? '';
     expect(text).toContain('minimum-release-age=4320\n');
     expect(text).toContain('minimum-release-age-exclude[]=@acme/*\n');
     expect(text).toContain('only-built-dependencies[]=esbuild\n');
@@ -82,7 +88,7 @@ describe('apply --user for pnpm, Yarn and Bun', () => {
     const environment = machine();
     writeFileSync(join(environment.home, '.yarnrc.yml'), 'npmRegistryServer: "https://registry.example.com"\n');
     const planned = planUserApply(POLICY, { environment, versions: { yarn: [4, 18, 1] } });
-    const text = after(planned, '~/.yarnrc.yml') ?? '';
+    const text = after(planned, 'yarn', environment) ?? '';
     expect(text).toContain('npmRegistryServer: "https://registry.example.com"');
     expect(text).toContain('npmMinimalAgeGate:');
     expect(text).toContain('enableScripts: false');
@@ -91,8 +97,9 @@ describe('apply --user for pnpm, Yarn and Bun', () => {
   });
 
   it('writes [install] of ~/.bunfig.toml in seconds for Bun, and reports exceptions it cannot take', () => {
-    const planned = planUserApply(POLICY, { environment: machine(), versions: { bun: [1, 4, 4] } });
-    const text = after(planned, '~/.bunfig.toml') ?? '';
+    const environment = machine();
+    const planned = planUserApply(POLICY, { environment, versions: { bun: [1, 4, 4] } });
+    const text = after(planned, 'bun', environment) ?? '';
     expect(text).toContain('[install]\n');
     expect(text).toContain('minimumReleaseAge = 259200\n');
     // Bun takes exact package names only, so the @acme/* pattern is reported instead of written.

@@ -10,6 +10,7 @@ import type { ResolvedPolicy } from '../../src/policy/schema.ts';
 import { planUserApply, writeUserChanges } from '../../src/user/apply.ts';
 import type { UserEnvironment } from '../../src/user/locate.ts';
 import { canSymlink } from '../support/platform.ts';
+import { platform } from '../support/user.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -45,7 +46,7 @@ function machine(installed: Record<string, string> = {}): UserEnvironment & { ro
     if (canSymlink()) symlinkSync(join(pkg, 'bin', `${name}.js`), join(prefix, 'bin', name));
     else writeFileSync(join(prefix, 'bin', name), '');
   }
-  return { root, platform: process.platform === 'win32' ? 'linux' : process.platform, home, env: { PATH: join(prefix, 'bin') } };
+  return { root, platform, home, env: { PATH: join(prefix, 'bin') } };
 }
 
 describe('apply --user for npm and Deno (~/.npmrc)', () => {

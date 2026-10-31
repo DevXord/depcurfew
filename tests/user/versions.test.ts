@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { findExecutable, installedVersion } from '../../src/user/versions.ts';
 import { canSymlink } from '../support/platform.ts';
+import { platform } from '../support/user.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -21,7 +22,8 @@ function scratch(files: Record<string, string>): string {
   return root;
 }
 
-const linux = (path: string) => ({ platform: 'linux' as const, home: '/home/ada', env: { PATH: path } });
+/** An environment on this machine's platform whose PATH is one temporary folder. */
+const linux = (path: string) => ({ platform, home: tmpdir(), env: { PATH: path } });
 
 describe('installedVersion', () => {
   it.skipIf(!canSymlink())('reads npm from the package.json behind the symlink in the prefix bin folder', () => {

@@ -7,6 +7,8 @@ import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../../src/cli/run.ts';
 import type { CheckDependencies } from '../../src/cli/check.ts';
 import type { UserEnvironment } from '../../src/user/locate.ts';
 import { canSymlink } from '../support/platform.ts';
+import { platform, shownPolicy } from '../support/user.ts';
+import { userPolicyPath } from '../../src/user/policy-path.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -27,7 +29,7 @@ function machine(npmVersion?: string): UserEnvironment {
     writeFileSync(join(pkg, 'bin', 'npm-cli.js'), '');
     symlinkSync(join(pkg, 'bin', 'npm-cli.js'), join(bin, 'npm'));
   }
-  return { platform: process.platform === 'win32' ? 'linux' : process.platform, home, env: { PATH: bin } };
+  return { platform, home, env: { PATH: bin } };
 }
 
 async function exec(environment: UserEnvironment, ...argv: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -48,12 +50,12 @@ describe('init --user', () => {
     const environment = machine();
     const first = await exec(environment, 'init', '--user');
     expect(first.code).toBe(EXIT_OK);
-    expect(first.stdout).toContain('Created ~/.config/depcurfew/depcurfew.json with the default policy.\n');
-    const policy = join(environment.home, '.config', 'depcurfew', 'depcurfew.json');
+    expect(first.stdout).toContain(`Created ${shownPolicy(environment)} with the default policy.\n`);
+    const policy = userPolicyPath(environment);
     expect(JSON.parse(readFileSync(policy, 'utf8'))).toMatchObject({ version: 1, cooldown: { minimum: '3d' } });
     const again = await exec(environment, 'init', '--user');
     expect(again.code).toBe(EXIT_FAILURE);
-    expect(again.stderr).toContain('error: ~/.config/depcurfew/depcurfew.json already exists (policy-exists)');
+    expect(again.stderr).toContain(`error: ${shownPolicy(environment)} already exists (policy-exists)`);
     expect((await exec(environment, 'init', '--user', '--force')).code).toBe(EXIT_OK);
   });
 
@@ -66,9 +68,10 @@ describe('init --user', () => {
 
 describe('apply --user', () => {
   it('says how to create the user policy when there is none', async () => {
-    const result = await exec(machine(), 'apply', '--user');
+    const environment = machine();
+    const result = await exec(environment, 'apply', '--user');
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toContain('error: no user policy at ~/.config/depcurfew/depcurfew.json (policy-missing)');
+    expect(result.stderr).toContain(`error: no user policy at ${shownPolicy(environment)} (policy-missing)`);
     expect(result.stderr).toContain("fix: Run 'depcurfew init --user' first");
   });
 

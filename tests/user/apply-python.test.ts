@@ -8,6 +8,20 @@ import { validatePolicy } from '../../src/policy/validate.ts';
 import type { ResolvedPolicy } from '../../src/policy/schema.ts';
 import { planUserApply, writeUserChanges } from '../../src/user/apply.ts';
 import type { UserEnvironment } from '../../src/user/locate.ts';
+import { platform, shownUserFile } from '../support/user.ts';
+import type { ToolId } from '../../src/knowledge/types.ts';
+import type { Version } from '../../src/apply/version.ts';
+import { knowledgeBase } from '../../src/knowledge/index.ts';
+import { userFileFor, userFilePath } from '../../src/user/locate.ts';
+import { dirname } from 'node:path';
+
+function pathOfUserFile(id: ToolId, environment: UserEnvironment): string {
+  const tool = knowledgeBase.find((candidate) => candidate.id === id);
+  const file = tool === undefined ? null : userFileFor(tool, undefined);
+  const path = file === null ? undefined : userFilePath(file, environment);
+  if (path === undefined) throw new Error(`no user file for ${id}`);
+  return path;
+}
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -42,17 +56,19 @@ function machine(installed: Record<string, string>): UserEnvironment {
     writeFileSync(join(info, 'entry_points.txt'), `[console_scripts]\n${name} = ${name}.__main__:main\n`);
     writeFileSync(join(venv, 'bin', name), '#!/usr/bin/python3\n');
   }
-  return { platform: 'linux', home, env: { PATH: join(venv, 'bin') } };
+  return { platform, home, env: { PATH: join(venv, 'bin') } };
 }
 
-const after = (planned: ReturnType<typeof planUserApply>, file: string) => planned.report.changes.find((change) => change.file === file)?.after;
+/** The planned text of a tool's user file, wherever this platform keeps it. */
+const after = (planned: ReturnType<typeof planUserApply>, id: ToolId, environment: UserEnvironment, version?: Version) =>
+  planned.report.changes.find((change) => change.file === shownUserFile(id, environment, version))?.after;
 const codes = (planned: ReturnType<typeof planUserApply>) => planned.report.warningDetails.map((warning) => `${warning.tool ?? ''}:${warning.code}`);
 
 describe('apply --user for Python tools', () => {
   it('writes ~/.config/uv/uv.toml for the installed uv, and the second run changes nothing', () => {
     const environment = machine({ uv: '0.13.6' });
     const planned = planUserApply(POLICY, { environment });
-    expect(after(planned, '~/.config/uv/uv.toml')).toBe(
+    expect(after(planned, 'uv', environment)).toBe(
       [
         '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead',
         'exclude-newer = "3 days"',
@@ -79,19 +95,20 @@ describe('apply --user for Python tools', () => {
       'Pass the version with --for uv@<version> (uv --version shows it), then run depcurfew apply --user again',
     );
     const given = planUserApply(POLICY, { environment, versions: { uv: [0, 13, 6], pip: [26, 2, 2] } });
-    expect(given.report.changes.map((change) => change.file).sort()).toEqual(['~/.config/pip/pip.conf', '~/.config/uv/uv.toml']);
+    expect(given.report.changes.map((change) => change.file).sort()).toEqual([shownUserFile('pip', environment), shownUserFile('uv', environment)].sort());
     // A new pip.conf: the [global] section with the block, and nothing after it.
-    expect(after(given, '~/.config/pip/pip.conf')).toBe(
+    expect(after(given, 'pip', environment)).toBe(
       ['[global]', '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead', 'uploaded-prior-to = P3D', 'only-binary = :all:', 'no-binary = psycopg2', '# <<< depcurfew managed block', ''].join('\n'),
     );
   });
 
   it('writes [global] of pip.conf with uploaded-prior-to as a duration, keeping the rest of the file', () => {
     const environment = machine({ pip: '26.2.2' });
-    mkdirSync(join(environment.home, '.config', 'pip'), { recursive: true });
-    writeFileSync(join(environment.home, '.config', 'pip', 'pip.conf'), '[global]\nindex-url = https://pypi.org/simple\n\n[install]\nuser = true\n');
+    const pipConf = pathOfUserFile('pip', environment);
+    mkdirSync(dirname(pipConf), { recursive: true });
+    writeFileSync(pipConf, '[global]\nindex-url = https://pypi.org/simple\n\n[install]\nuser = true\n');
     const planned = planUserApply(POLICY, { environment });
-    expect(after(planned, '~/.config/pip/pip.conf')).toBe(
+    expect(after(planned, 'pip', environment)).toBe(
       [
         '[global]',
         '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead',
@@ -111,17 +128,18 @@ describe('apply --user for Python tools', () => {
   });
 
   it('does not write uploaded-prior-to for pip 26.0, which accepts only dates there', () => {
-    const planned = planUserApply(POLICY, { environment: machine({ pip: '26.0.1' }) });
-    expect(after(planned, '~/.config/pip/pip.conf')).not.toContain('uploaded-prior-to');
+    const environment = machine({ pip: '26.0.1' });
+    const planned = planUserApply(POLICY, { environment });
+    expect(after(planned, 'pip', environment)).not.toContain('uploaded-prior-to');
     expect(codes(planned)).toContain('pip:version-too-old');
   });
 
   it('writes Poetry and PDM config.toml, and nothing for Pipenv, which has no user file', () => {
     const environment = machine({ poetry: '2.5.1', pdm: '2.29.5', pipenv: '2026.10.4' });
     const planned = planUserApply(POLICY, { environment });
-    expect(after(planned, '~/.config/pypoetry/config.toml')).toContain('[solver]\n# >>> depcurfew managed block [solver]: edit depcurfew.json and run depcurfew apply instead\nmin-release-age = 3\n');
-    expect(after(planned, '~/.config/pypoetry/config.toml')).toContain('[installer]\n# >>> depcurfew managed block [installer]: edit depcurfew.json and run depcurfew apply instead\nonly-binary = [":all:"]\nno-binary = ["psycopg2"]\n');
-    expect(after(planned, '~/.config/pdm/config.toml')).toContain('exclude-newer = "3d"');
+    expect(after(planned, 'poetry', environment)).toContain('[solver]\n# >>> depcurfew managed block [solver]: edit depcurfew.json and run depcurfew apply instead\nmin-release-age = 3\n');
+    expect(after(planned, 'poetry', environment)).toContain('[installer]\n# >>> depcurfew managed block [installer]: edit depcurfew.json and run depcurfew apply instead\nonly-binary = [":all:"]\nno-binary = ["psycopg2"]\n');
+    expect(after(planned, 'pdm', environment)).toContain('exclude-newer = "3d"');
     expect(codes(planned)).toEqual(expect.arrayContaining(['pipenv:no-user-config', 'pdm:user-setting-project-only']));
   });
 });

@@ -12,6 +12,9 @@ import { runUserDoctor } from '../../src/user/doctor.ts';
 import type { UserEnvironment } from '../../src/user/locate.ts';
 import { loadUserPolicy } from '../../src/user/policy.ts';
 import { canSymlink } from '../support/platform.ts';
+import { platform, shownPolicy } from '../support/user.ts';
+import { userPolicyPath } from '../../src/user/policy-path.ts';
+import { dirname } from 'node:path';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -31,10 +34,11 @@ function machine(options: { policy?: boolean; env?: Record<string, string> } = {
   writeFileSync(join(pkg, 'bin', 'npm-cli.js'), '');
   if (canSymlink()) symlinkSync(join(pkg, 'bin', 'npm-cli.js'), join(bin, 'npm'));
   if (options.policy !== false) {
-    mkdirSync(join(home, '.config', 'depcurfew'), { recursive: true });
-    writeFileSync(join(home, '.config', 'depcurfew', 'depcurfew.json'), renderPolicy(DEFAULT_POLICY));
+    const policy = userPolicyPath({ platform, home, env: {} });
+    mkdirSync(dirname(policy), { recursive: true });
+    writeFileSync(policy, renderPolicy(DEFAULT_POLICY));
   }
-  return { platform: 'linux', home, env: { PATH: bin, ...options.env } };
+  return { platform, home, env: { PATH: bin, ...options.env } };
 }
 
 const rules = (report: ReturnType<typeof runUserDoctor>) => report.findings.map((finding) => finding.rule);
@@ -80,7 +84,7 @@ describe.skipIf(!canSymlink())('doctor --user', () => {
     const environment = machine({ policy: false, env: { npm_config_min_release_age: '0' } });
     const report = runUserDoctor({ environment });
     expect(report.policy).toBe('missing');
-    expect(report.notices[0]?.message).toContain('no user policy at ~/.config/depcurfew/depcurfew.json');
+    expect(report.notices[0]?.message).toContain(`no user policy at ${shownPolicy(environment)}`);
     expect(rules(report)).toEqual(['user-environment-overrides']);
   });
 
