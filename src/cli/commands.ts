@@ -75,6 +75,8 @@ export const COMMANDS: readonly CommandInfo[] = [
     options: [
       { name: 'json', summary: 'Print the findings as JSON' },
       { name: 'sarif', summary: 'Print the findings as SARIF 2.1.0 for code scanning' },
+      { name: 'user', summary: 'Check the user-level configuration of the installed tools against the user policy, and the environment' },
+      { name: 'for', value: 'tool@version', multiple: true, summary: 'With --user: the version of a tool, when depcurfew cannot read it from its files' },
     ],
     details:
       `Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depcurfew.json. Every finding says where it is and how to fix it. Without depcurfew.json, only the rules that do not need a policy run; an invalid depcurfew.json is reported as an error finding (invalid-policy), and the same rules run. ${NEAREST_POLICY}`,

@@ -4,6 +4,10 @@
 import { countLevels, renderText, RULES, runDoctor, toSarif, type DoctorReport } from '../doctor/index.ts';
 import { lineReader } from '../doctor/sarif.ts';
 import { getVersion } from '../version.ts';
+import type { Version } from '../apply/version.ts';
+import type { ToolId } from '../knowledge/types.ts';
+import { runUserDoctor, USER_RULES } from '../user/doctor.ts';
+import type { UserEnvironment } from '../user/locate.ts';
 import { paint } from '../color.ts';
 import { projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
@@ -14,11 +18,25 @@ function json(report: Omit<DoctorReport, 'policy'> & { policy: DoctorReport['pol
   return `${JSON.stringify({ ...report, errors, summary: { ...summary, error: summary.error + errors.length } }, null, 2)}\n`;
 }
 
-export function doctor(directory: string | undefined, format: { json: boolean; sarif: boolean }, io: CliIo): number {
+/** doctor --user: the user files and the environment, in the same formats; exit code 1 only for an error finding. */
+function doctorUser(format: { json: boolean; sarif: boolean }, user: { environment: UserEnvironment; versions: Partial<Record<ToolId, Version>> }, io: CliIo): number {
+  const { policyFile: _policyFile, ...report } = runUserDoctor({ environment: user.environment, versions: user.versions });
+  if (format.sarif) io.stdout(`${JSON.stringify(toSarif(report, USER_RULES, getVersion()), null, 2)}\n`);
+  else if (format.json) io.stdout(json(report, []));
+  else io.stdout(renderText(report, USER_RULES, paint(io.colors?.stdout)));
+  return countLevels(report.findings).error > 0 ? EXIT_FAILURE : EXIT_OK;
+}
+
+export function doctor(
+  directory: string | undefined,
+  format: { json: boolean; sarif: boolean; user?: { environment: UserEnvironment; versions: Partial<Record<ToolId, Version>> } },
+  io: CliIo,
+): number {
   if (format.json && format.sarif) {
     io.stderr("depcurfew: '--json' and '--sarif' cannot be used together; pick one\nRun 'depcurfew doctor --help' for usage.\n");
     return EXIT_USAGE;
   }
+  if (format.user !== undefined) return doctorUser(format, format.user, io);
   const target = projectDirectory(directory, 'doctor');
   if (!target.ok) {
     if (format.sarif) {
