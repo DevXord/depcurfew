@@ -2,7 +2,8 @@
 // byte order mark and final newline are restored when the changes are collected. Nothing is written here, except by
 // writeChanges, which writes all changes or none.
 import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, sep } from 'node:path';
+import { dirname, join } from 'node:path';
+import { isInside } from '../paths.ts';
 import { detectStyle, restoreStyle, toLf, type TextStyle } from './text.ts';
 
 export interface FileChange {
@@ -59,7 +60,7 @@ export class Workspace {
     } catch {
       parent = this.root;
     }
-    if (parent !== this.root && !parent.startsWith(this.root + sep)) throw new Error(`${file} is outside the repository`);
+    if (!isInside(this.root, parent)) throw new Error(`${file} is outside the repository`);
     let bytes: Buffer | undefined;
     try {
       if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
@@ -158,7 +159,10 @@ function removeDirectories(created: readonly string[], paths: readonly string[])
   const directories = new Set<string>();
   for (const top of created) {
     for (const path of paths) {
-      for (let directory = dirname(path); directory === top || directory.startsWith(top + sep); directory = dirname(directory)) directories.add(directory);
+      for (let directory = dirname(path); isInside(top, directory); directory = dirname(directory)) {
+        directories.add(directory);
+        if (directory === top) break;
+      }
     }
   }
   for (const directory of [...directories].sort((a, b) => b.length - a.length)) {

@@ -102,6 +102,18 @@ describe('detectProject stays inside the repository', () => {
     ]);
   });
 
+  it('ignores workspace patterns with a Windows drive or share', () => {
+    write('package.json', JSON.stringify({ workspaces: ['C:/elsewhere/*', '\\\\nas\\share\\*', 'packages/*'] }));
+    write('package-lock.json', '{}');
+    write('packages/a/package.json', '{}');
+    const result = detectProject(root);
+    expect(result.workspaces?.packages).toEqual(['packages/a']);
+    expect(result.warnings).toEqual([
+      { code: 'workspace-outside-repository', message: 'workspace pattern "C:/elsewhere/*" points outside the repository', files: ['package.json'] },
+      { code: 'workspace-outside-repository', message: 'workspace pattern "\\\\nas\\share\\*" points outside the repository', files: ['package.json'] },
+    ]);
+  });
+
   it('does not walk into node_modules, .git or symlinked directories when expanding **', () => {
     write('package.json', JSON.stringify({ workspaces: ['**'] }));
     write('package-lock.json', '{}');

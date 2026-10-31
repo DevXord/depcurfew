@@ -18,7 +18,7 @@
 // THIS SOFTWARE.
 import { createRequire } from "node:module";
 import { appendFileSync, chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
+import nodePath, { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 
 // \0rolldown/runtime.js
@@ -10166,6 +10166,25 @@ function detectionFacts(tools, environment) {
 	};
 }
 
+// src/paths.ts
+/**
+* Whether `path` is `root` or inside it. path.relative also works for a root that ends with a separator (/, P:\ from
+* subst or a Dev Drive, \\nas\share\), where root + separator is not a prefix of the paths inside, and on Windows it
+* ignores the case of the drive and the names, as the file system does. `paths` is node:path, or its win32 or posix
+* flavor in tests.
+*/
+function isInside(root, path, paths = nodePath) {
+	const part = paths.relative(root, path);
+	return part === "" || part !== ".." && !part.startsWith(`..${paths.sep}`) && !paths.isAbsolute(part);
+}
+/**
+* Whether a path written in a file, with / or \, is absolute on some system and so never inside the repository:
+* /x, \x, \\server\share\x, and a Windows drive (C:\x, C:/x, or C:x relative to the drive's current directory).
+*/
+function isAbsoluteAnywhere(path) {
+	return /^[\\/]/u.test(path) || /^[A-Za-z]:/u.test(path);
+}
+
 // src/detect/repository.ts
 const MAX_FILE_SIZE = 1048576;
 /** Directories never searched for workspace packages or configuration. */
@@ -10204,9 +10223,6 @@ var Repository = class {
 	#unreadable(path, error) {
 		this.warn("unreadable-file", `cannot read ${path} (${fileError(error)})`, [path]);
 	}
-	#inside(real) {
-		return real === this.root || real.startsWith(this.root + sep);
-	}
 	/** The real path of a repository-relative path, or undefined if it is missing or leads outside. */
 	#resolve(path, report) {
 		const full = join(this.root, path);
@@ -10222,7 +10238,7 @@ var Repository = class {
 		} catch {
 			return;
 		}
-		if (!this.#inside(real)) {
+		if (!isInside(this.root, real)) {
 			if (report) this.warn("outside-repository", `${path} points outside the repository and was not read`, [path]);
 			return;
 		}
@@ -10871,7 +10887,7 @@ function expandWorkspaces(repository, patterns, manifests, declaredIn) {
 	for (const raw of patterns) {
 		const negated = raw.startsWith("!");
 		const pattern = negated ? raw.slice(1) : raw;
-		if (pattern.startsWith("/") || pattern.split("/").includes("..")) {
+		if (isAbsoluteAnywhere(pattern) || pattern.split("/").includes("..")) {
 			repository.warn("workspace-outside-repository", `workspace pattern "${raw}" points outside the repository`, [declaredIn]);
 			continue;
 		}
@@ -11876,7 +11892,7 @@ function requirementsTrees(repository, roots, format) {
 			const unreadable = [];
 			for (const { path, line } of requirementsIncludes(text, format)) {
 				const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll("\\", "/")));
-				const reason = URL_LIKE.test(path) ? "a URL" : posix.isAbsolute(path) || target === ".." || target.startsWith("../") ? "outside the repository" : repository.isFile(target) ? void 0 : "missing";
+				const reason = URL_LIKE.test(path) ? "a URL" : isAbsoluteAnywhere(path) || target === ".." || target.startsWith("../") ? "outside the repository" : repository.isFile(target) ? void 0 : "missing";
 				if (reason === void 0) queue.push(target);
 				else unreadable.push(`${path} (line ${line}, ${reason})`);
 			}
@@ -16074,7 +16090,7 @@ var Workspace = class {
 		} catch {
 			parent = this.root;
 		}
-		if (parent !== this.root && !parent.startsWith(this.root + sep)) throw new Error(`${file} is outside the repository`);
+		if (!isInside(this.root, parent)) throw new Error(`${file} is outside the repository`);
 		let bytes;
 		try {
 			if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
@@ -16161,7 +16177,10 @@ function stage(path, text, mode) {
 /** Removes the directories mkdirSync created (`created`, the topmost of each) for `paths`, deepest first, if empty. */
 function removeDirectories(created, paths) {
 	const directories = /* @__PURE__ */ new Set();
-	for (const top of created) for (const path of paths) for (let directory = dirname(path); directory === top || directory.startsWith(top + sep); directory = dirname(directory)) directories.add(directory);
+	for (const top of created) for (const path of paths) for (let directory = dirname(path); isInside(top, directory); directory = dirname(directory)) {
+		directories.add(directory);
+		if (directory === top) break;
+	}
 	for (const directory of [...directories].sort((a, b) => b.length - a.length)) try {
 		rmdirSync(directory);
 	} catch {}
@@ -18587,15 +18606,11 @@ function untrusted(text) {
 	const token = randomUUID();
 	return `${commands.stop.replace("{token}", token)}\n${text.endsWith("\n") ? text : `${text}\n`}${commands.resume.replace("{token}", token)}\n`;
 }
-function inside(root, path) {
-	const part = relative(root, path);
-	return part !== ".." && !part.startsWith(`..${sep}`) && !isAbsolute(part);
-}
 /** The real path of a directory inside the workspace, following symlinks only as far as they stay inside it. */
 function scannedDirectory(workspace, input) {
 	try {
 		const real = realpathSync(resolve(workspace, input));
-		return inside(realpathSync(workspace), real) && statSync(real).isDirectory() ? real : void 0;
+		return isInside(realpathSync(workspace), real) && statSync(real).isDirectory() ? real : void 0;
 	} catch {
 		return;
 	}
@@ -18605,7 +18620,7 @@ function scannedDirectory(workspace, input) {
 * no part of the path inside the workspace may be a symlink, which could send the report over a file elsewhere.
 */
 function unsafeOutput(workspace, file) {
-	if (!inside(workspace, file)) return void 0;
+	if (!isInside(workspace, file)) return void 0;
 	let current = workspace;
 	for (const part of relative(workspace, file).split(sep)) {
 		current = resolve(current, part);
@@ -18661,7 +18676,7 @@ function runAction(env, io) {
 	}
 	if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
 	const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
-	const shownSarif = inside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join("/") : sarifFile;
+	const shownSarif = isInside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join("/") : sarifFile;
 	const sarifFailure = (reason) => {
 		outputs.failure = `cannot write the SARIF file ${sarifInput}: ${reason}`;
 		io.log(untrusted(`depcurfew: ${printable(outputs.failure)}\n`));

@@ -9,6 +9,7 @@ import type { Repository } from '../detect/repository.ts';
 import type { PackageManagerInfo } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { listing } from '../apply/requirements.ts';
+import { isAbsoluteAnywhere } from '../paths.ts';
 import { pdmEntries, pipfileLockEntries, poetryEntries, pylockEntries, requirementsEntries, requirementsFormatOf, requirementsIncludes, uvEntries } from './python-lockfiles.ts';
 
 /** Lockfiles are often larger than configuration files. */
@@ -345,7 +346,7 @@ function requirementsTrees(repository: Repository, roots: readonly string[], for
         const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll('\\', '/')));
         const reason = URL_LIKE.test(path)
           ? 'a URL'
-          : posix.isAbsolute(path) || target === '..' || target.startsWith('../')
+          : isAbsoluteAnywhere(path) || target === '..' || target.startsWith('../')
             ? 'outside the repository'
             : repository.isFile(target)
               ? undefined
