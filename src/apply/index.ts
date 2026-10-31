@@ -33,7 +33,7 @@ import { yarn } from './generators/yarn.ts';
 import { ManifestGuard, manifestNames } from './manifests.ts';
 import { listing } from './requirements.ts';
 import { autoTargets } from './targets.ts';
-import { pinnedVersion, type Version } from './version.ts';
+import { parseVersion, pinnedVersion, type Version } from './version.ts';
 import { warningText, type ApplyErrorCode, type ApplyWarning } from './warnings.ts';
 import { WriteFailed, writeChanges, type FileChange } from './workspace.ts';
 
@@ -103,7 +103,8 @@ function allowListWarnings(root: string, policy: ResolvedPolicy, detection: Dete
     .flatMap((manager) => {
       const tool = tools.find((entry) => entry.id === manager.id);
       const allow = policyFor(policy, tool === undefined ? 'npm' : ecosystemOfTool(tool)).installScripts?.allow ?? [];
-      return allowEntries(repository, manager.id, manager.configFiles)
+      const version = pinnedVersion(manager) ?? (tool === undefined ? undefined : parseVersion(latestVersion(tool) ?? ''));
+      return allowEntries(repository, manager.id, manager.configFiles, { ...(tool === undefined ? {} : { tool }), ...(version === undefined ? {} : { version }) })
         .filter((entry) => !allow.some((pattern) => matchesPattern(entry.package, pattern)))
         .map(
           (entry): ApplyWarning => ({

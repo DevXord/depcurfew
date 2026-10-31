@@ -2196,7 +2196,7 @@ const pipenv$1 = {
 const { verified: verified$4, uncertain: uncertain$4 } = verifiedOn("2026-10-28");
 const checked$3 = verifiedOn("2026-10-29");
 const reviewed$1 = verifiedOn("2026-10-30");
-const rechecked = verifiedOn("2026-10-31");
+const rechecked$1 = verifiedOn("2026-10-31");
 const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
 const RESOLUTION$1 = "https://pnpm.io/settings/dependency-resolution";
 const SETTINGS_V10 = "https://pnpm.io/10.x/settings";
@@ -2251,7 +2251,7 @@ const pnpm$1 = {
 			value: "deny-except-allowlist"
 		}], release$2("10.0.0"), "Unreviewed builds only warn in pnpm 10; strictDepBuilds is true by default since 11.0.0, so they fail the install. Prepare scripts of git-hosted dependencies are blocked since 10.26.0."),
 		allowList: {
-			setting: verified$4("allowBuilds", BUILD, "Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds."),
+			setting: verified$4("allowBuilds", BUILD, "Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds (extra.buildPermissions)."),
 			file: verified$4("pnpm-workspace.yaml", BUILD),
 			availableSince: verified$4("10.26.0", SETTINGS_V10),
 			format: verified$4("Map of package matcher to true (allow) or false (deny), e.g. esbuild: true or \"nx@21.6.4 || 21.6.5\": true; a bare name never approves git or tarball dependencies (pnpm 11+)", BUILD_V11)
@@ -2281,7 +2281,7 @@ const pnpm$1 = {
 		workspacesObjectKey: uncertain$4(null, WORKSPACE_YAML_V10, "The docs show packages only as a list; concluded from the absence of an object form.")
 	},
 	extra: {
-		commandLine: rechecked.verified({
+		commandLine: rechecked$1.verified({
 			add: [["pnpm", "add"]],
 			run: [
 				{
@@ -2449,13 +2449,20 @@ const pnpm$1 = {
 			since: "10.17.0",
 			trailingOnly: false
 		}, SETTINGS_V10, "Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0."),
-		onlyBuiltDependencies: rechecked.verified({
+		onlyBuiltDependencies: rechecked$1.verified({
 			since: "6.32.1",
 			workspaceFileSince: "10.5.0",
 			removedIn: "11.0.0"
 		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, added in 6.32.0 (\"If this field exists, only mentioned packages will be able to run install scripts\") and working since 6.32.1 (\"released with a bug in v6.32.0\"); also pnpm-workspace.yaml since 10.5.0 (10.5.0 changelog); removed in 11.0.0 (settings/build.md, see legacyAllowList). Before pnpm 10 any list, even an empty one, lets only the listed packages build (createAllowBuildFunction in @pnpm/builder.policy 3.0.0, which pnpm 9.15.0 uses)."),
 		latestVersion: verified$4("12.16.1", release$2("12.16.1"), "pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches."),
 		npmrcIgnored: verified$4("pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json \"pnpm\" field and no longer reads npm_config_* variables", release$2("11.0.0")),
+		buildPermissions: rechecked$1.verified({
+			setting: "permissions",
+			capability: "build",
+			since: "12.11.0",
+			allow: true,
+			deny: false
+		}, "https://github.com/pnpm/pnpm/blob/v12.16.1/pnpm/docs/settings/build.md", "permissions.<package>.build in pnpm-workspace.yaml: true lets the package run its build scripts, false denies them; the keys take the same forms as those of allowBuilds, and the entry outranks the package's allowBuilds entry (decided_build_approvals and apply_permissions in pnpm/crates/config/src/workspace_yaml/permissions.rs at v12.16.1, which warns when a package is in both). A string is an undecided placeholder (AllowBuild::Undecided in sections.rs). Added in 12.11.0 (docs/settings/build.md and docs/cli/permissions.md); pnpm approve writes a build decision there only when the file already has permissions."),
 		legacyAllowList: verified$4([
 			{
 				since: "10.0.0",
@@ -3175,6 +3182,7 @@ const uv$1 = {
 // src/knowledge/yarn.ts
 const { verified, uncertain, disputed, evidence } = verifiedOn("2026-10-28");
 const checked$2 = verifiedOn("2026-10-29");
+const rechecked = verifiedOn("2026-10-31");
 const YARNRC = "https://yarnpkg.com/configuration/yarnrc";
 const MANIFEST = "https://yarnpkg.com/configuration/manifest";
 const SCHEMA = "https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json";
@@ -3320,7 +3328,12 @@ const yarn$1 = {
 		classicLockfileHeader: verified("# yarn lockfile v1", "https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js", "Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js)."),
 		latestVersion: verified("4.18.1", release("4.18.1"), "Yarn 6 is still in preview."),
 		bypassFlag: verified("--no-time-gate on yarn add and yarn up (4.15.0+)", "https://yarnpkg.com/cli/add"),
-		perScopeGate: verified("npmScopes.<scope>.npmMinimalAgeGate overrides the global gate (4.17.0+)", release("4.17.0")),
+		perScopeGate: rechecked.verified({
+			scopes: "npmScopes",
+			setting: "npmMinimalAgeGate",
+			since: "4.17.0",
+			unset: "1d"
+		}, "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-npm/sources/npmConfigUtils.ts", "getMinimalAgeGate: for a scoped package, a number in npmScopes.<scope>.npmMinimalAgeGate (the scope name without @) replaces the global gate, longer or shorter, and 0 turns the gate off for that scope (acceptance tests \"npmScopes override\" in features/npmMinimalAgeGate.test.ts at 4.18.1; the code is the same in 4.17.0 and absent in 4.16.0). Each npmScopes entry is a shape whose unset properties get their defaults (parseShape and getDefaultValue in yarnpkg-core Configuration.ts), so a scope listed only for its registry gets the default of 1d (scopablePackageGateSettings in plugin-npm index.ts) instead of the global gate; read from the code, no test covers that case."),
 		upgradeMigration: verified("When the lockfile predates the new defaults and the key is unset, yarn install writes enableScripts: true, approvedGitRepositories: [\"**\"] and npmMinimalAgeGate: 0 into .yarnrc.yml", "https://github.com/yarnpkg/berry/pull/7135", "Explicit values written by depcurfew prevent the migration."),
 		missingPublishTime: verified("Versions without a publish time are quarantined while the gate is on", "https://github.com/yarnpkg/berry/pull/6907"),
 		unknownSettings: uncertain("Unknown keys in the project .yarnrc.yml throw (unless enableStrictSettings is false), so settings newer than the pinned Yarn break installs", "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts", "Read from the current source code; older releases were not checked.")
@@ -12947,8 +12960,39 @@ function fromList(text, file, setting, value, prefix = "") {
 		};
 	});
 }
-/** Entries that let a package run its install scripts, per manager. Unreadable files give no entries. */
-function allowEntries(repository, manager, configFiles) {
+const isPermissions = (value) => isRecord(value) && typeof value["setting"] === "string" && typeof value["capability"] === "string" && typeof value["since"] === "string";
+/**
+* pnpm 12.11+: permissions.<package>.build (extra.buildPermissions), which outranks the package's allowBuilds entry.
+* The decisions by package key, or undefined for a version without it or a tool without the fact.
+*/
+function buildPermissions(text, tool, version) {
+	if (tool?.extra?.["buildPermissions"] === void 0) return void 0;
+	const fact = extraOf(tool, "buildPermissions", isPermissions);
+	const since = parseVersion(fact.since);
+	if (version !== void 0 && since !== void 0 && compareVersions$1(version, since) < 0) return void 0;
+	const permissions = yamlSetting(text, [fact.setting]);
+	const decisions = /* @__PURE__ */ new Map();
+	if (permissions === void 0 || !isRecord(permissions.value)) return decisions;
+	for (const [name, entry] of Object.entries(permissions.value)) {
+		const decision = isRecord(entry) ? entry[fact.capability] : void 0;
+		if (decision !== fact.allow && decision !== fact.deny) continue;
+		decisions.set(name, {
+			allowed: decision === fact.allow,
+			line: yamlSetting(text, [
+				fact.setting,
+				name,
+				fact.capability
+			])?.line ?? permissions.line
+		});
+	}
+	return decisions;
+}
+/**
+* Entries that let a package run its install scripts, per manager. Unreadable files give no entries. `tool` and
+* `version` decide settings that depend on the version, such as pnpm's permissions (the latest known version when
+* none is given).
+*/
+function allowEntries(repository, manager, configFiles, options = {}) {
 	const manifest = read(repository, "package.json");
 	const entries = [];
 	const json = (path) => manifest === void 0 ? void 0 : jsonSetting(manifest, path)?.value;
@@ -12959,7 +13003,16 @@ function allowEntries(repository, manager, configFiles) {
 		case "pnpm": {
 			const workspace = read(repository, "pnpm-workspace.yaml");
 			if (workspace !== void 0) {
-				entries.push(...fromKeys(workspace, "pnpm-workspace.yaml", "allowBuilds", yamlSetting(workspace, ["allowBuilds"])?.value, (entry) => entry === true));
+				const permissions = buildPermissions(workspace, options.tool, options.version);
+				const allowBuilds = fromKeys(workspace, "pnpm-workspace.yaml", "allowBuilds", yamlSetting(workspace, ["allowBuilds"])?.value, (entry) => entry === true);
+				entries.push(...allowBuilds.filter((entry) => permissions?.has(entry.name) !== true));
+				for (const [name, decision] of permissions ?? []) if (decision.allowed) entries.push({
+					name,
+					package: splitSpec(name).name,
+					file: "pnpm-workspace.yaml",
+					line: decision.line,
+					setting: "permissions"
+				});
 				entries.push(...fromList(workspace, "pnpm-workspace.yaml", "onlyBuiltDependencies", yamlSetting(workspace, ["onlyBuiltDependencies"])?.value));
 			}
 			if (manifest !== void 0) entries.push(...fromList(manifest, "package.json", "pnpm.onlyBuiltDependencies", json(["pnpm", "onlyBuiltDependencies"])));
@@ -16914,7 +16967,11 @@ function allowListWarnings(root, policy, detection, targets, tools) {
 	return detection.packageManagers.filter((manager) => manager.supported && targets.has(manager.id)).flatMap((manager) => {
 		const tool = tools.find((entry) => entry.id === manager.id);
 		const allow = policyFor(policy, tool === void 0 ? "npm" : ecosystemOfTool(tool)).installScripts?.allow ?? [];
-		return allowEntries(repository, manager.id, manager.configFiles).filter((entry) => !allow.some((pattern) => matchesPattern$1(entry.package, pattern))).map((entry) => ({
+		const version = pinnedVersion(manager) ?? (tool === void 0 ? void 0 : parseVersion(latestVersion(tool) ?? ""));
+		return allowEntries(repository, manager.id, manager.configFiles, {
+			...tool === void 0 ? {} : { tool },
+			...version === void 0 ? {} : { version }
+		}).filter((entry) => !allow.some((pattern) => matchesPattern$1(entry.package, pattern))).map((entry) => ({
 			code: "allow-list-entry-outside-policy",
 			tool: manager.id,
 			location: { file: entry.file },
@@ -17537,6 +17594,63 @@ function checkDependabot(context, file) {
 		});
 	});
 }
+const isScopeGate = (value) => isRecord(value) && typeof value["scopes"] === "string" && typeof value["setting"] === "string" && typeof value["since"] === "string" && typeof value["unset"] === "string";
+/**
+* Yarn 4.17+: npmScopes.<scope>.npmMinimalAgeGate replaces the global gate for the packages of that scope (extra.perScopeGate),
+* and a scope listed without it gets Yarn's default instead of the global gate. A shorter delay than the policy's is an
+* exception the policy does not make, unless cooldown.exclude exempts the whole scope.
+*/
+function checkYarnScopes(context) {
+	const cooldown = context.policy === void 0 ? void 0 : policyFor(context.policy, "npm").cooldown;
+	const manager = context.detection.packageManagers.find((entry) => entry.id === "yarn" && entry.supported);
+	const yarn = tool(context, "yarn");
+	if (cooldown === void 0 || manager === void 0 || yarn?.extra?.["perScopeGate"] === void 0) return;
+	const fact = extraOf(yarn, "perScopeGate", isScopeGate);
+	const version = pinnedVersion(manager) ?? latestVersion$1(yarn);
+	const since = parseVersion(fact.since);
+	if (version === void 0 || since === void 0 || compareVersions$1(version, since) < 0) return;
+	const file = values$1(yarn.cooldown.configFiles)[0]?.[0] ?? ".yarnrc.yml";
+	const text = context.repository.readText(file);
+	const scopes = text === void 0 ? void 0 : yamlSetting(text, [fact.scopes]);
+	if (text === void 0 || scopes === void 0 || !isRecord(scopes.value)) return;
+	const wanted = convertCooldown(yarn, cooldown.minimum);
+	const label = `Yarn ${formatVersion(version)}`;
+	for (const [scope, settings] of Object.entries(scopes.value)) {
+		if (settings !== null && !isRecord(settings)) continue;
+		if (cooldown.exclude.some((pattern) => pattern === `@${scope}/*` || isBroad(pattern))) continue;
+		const explicit = settings?.[fact.setting];
+		const delay = delayMinutes(yarn, explicit ?? fact.unset, version);
+		if (!delay.ok || delay.minutes >= cooldown.minimum.minutes) continue;
+		const path = `${fact.scopes}.${scope}`;
+		const line = (explicit === void 0 ? void 0 : yamlSetting(text, [
+			fact.scopes,
+			scope,
+			fact.setting
+		])?.line) ?? yamlSetting(text, [fact.scopes, scope])?.line ?? scopes.line;
+		const value = wanted.ok ? String(wanted.value) : cooldown.minimum.text;
+		const fix = `Set ${path}.${fact.setting}: ${value} in ${file}, or add "@${scope}/*" to cooldown.exclude in ${POLICY_FILE} if the scope needs no delay`;
+		if (explicit === void 0) {
+			context.report({
+				level: "warning",
+				location: {
+					file,
+					line
+				},
+				message: `${path} in ${file} sets no ${fact.setting}, so ${label} gives @${scope} packages its default of ${formatMinutes(delay.minutes)} instead of the global ${fact.setting}, shorter than ${cooldown.minimum.text} in ${POLICY_FILE}`,
+				fix
+			});
+			continue;
+		}
+		context.report({
+			location: {
+				file,
+				line
+			},
+			message: delay.minutes === 0 ? `${path}.${fact.setting} in ${file} is 0, so ${label} applies no release-age delay to @${scope} packages, which ${POLICY_FILE} does not exempt` : `${path}.${fact.setting} in ${file} makes ${label} wait ${formatMinutes(delay.minutes)} for @${scope} packages instead of the global ${fact.setting}, shorter than ${cooldown.minimum.text} in ${POLICY_FILE}`,
+			fix
+		});
+	}
+}
 const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
 const isMatching = (value) => isRecord(value) && typeof value["negation"] === "string" && typeof value["datasourceMatcher"] === "string" && typeof value["updateTypeMatcher"] === "string";
 /** What a packageRules entry covers, for the message: its update types, names and datasources. */
@@ -17584,14 +17698,15 @@ function checkRenovate(context, file) {
 }
 const broadExclusion = {
 	id: "broad-exclusion",
-	summary: "An exception list matches every package, which turns the protection off.",
-	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name.",
+	summary: "An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.",
+	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.",
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
 	level: "error",
 	requiresPolicy: false,
 	check(context) {
 		checkPolicy(context);
 		checkManagers(context);
+		checkYarnScopes(context);
 		for (const bot of context.detection.bots) for (const file of bot.configFiles) {
 			if (bot.id === "dependabot") checkDependabot(context, file);
 			if (bot.id === "renovate") checkRenovate(context, file);
@@ -17691,7 +17806,11 @@ function checkAllowLists(context) {
 		if (targets !== "auto" && !targets.includes(manager.id)) continue;
 		const knowledge = context.tools.find((entry) => entry.id === manager.id);
 		const allow = policyFor(policy, knowledge === void 0 ? "npm" : ecosystemOfTool(knowledge)).installScripts?.allow ?? [];
-		for (const entry of allowEntries(context.repository, manager.id, manager.configFiles)) {
+		const version = pinnedVersion(manager) ?? (knowledge === void 0 ? void 0 : latestVersion$1(knowledge));
+		for (const entry of allowEntries(context.repository, manager.id, manager.configFiles, {
+			...knowledge === void 0 ? {} : { tool: knowledge },
+			...version === void 0 ? {} : { version }
+		})) {
 			if (allow.some((pattern) => matchesPattern$1(entry.package, pattern))) continue;
 			context.report({
 				level: "warning",
@@ -18880,15 +18999,20 @@ function ruleName(id) {
 function pathUri(file) {
 	return file.split("/").map((segment) => encodeURIComponent(segment.replaceAll(/[\uD800-\uDFFF]/gu, "�"))).join("/");
 }
-/** Reads lines of the repository's files; a file it cannot read (e.g. for lack of permission) gives no line. */
+/**
+* Reads lines of the repository's files; a file it cannot read (e.g. for lack of permission) gives no line. Each file
+* is read and split once: a lockfile with thousands of findings is not read again for each of them.
+*/
 function lineReader(root) {
 	const repository = new Repository(root);
+	const files = /* @__PURE__ */ new Map();
 	return (file, line) => {
-		try {
-			return repository.readText(file)?.split(/\r?\n/u)[line - 1];
+		if (!files.has(file)) try {
+			files.set(file, repository.readText(file)?.split(/\r?\n/u));
 		} catch {
-			return;
+			files.set(file, void 0);
 		}
+		return files.get(file)?.[line - 1];
 	};
 }
 function toSarif(report, rules, version, readLine = () => void 0, errors = []) {

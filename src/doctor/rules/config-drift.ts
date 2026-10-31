@@ -5,7 +5,9 @@ import { BLOCK_END, isBlockStart, SUPERSEDED, TURNED_OFF } from '../../apply/blo
 import { YAML_MARKER } from '../../apply/yaml-edit.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
+import { pinnedVersion } from '../../apply/version.ts';
 import { allowEntries, matchesPattern } from '../allow-lists.ts';
+import { latestVersion } from '../effective.ts';
 import { plannedApply } from '../plan.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
@@ -93,7 +95,8 @@ function checkAllowLists(context: RuleContext): void {
     if (targets !== 'auto' && !targets.includes(manager.id)) continue;
     const knowledge = context.tools.find((entry) => entry.id === manager.id);
     const allow = policyFor(policy, knowledge === undefined ? 'npm' : ecosystemOfTool(knowledge)).installScripts?.allow ?? [];
-    for (const entry of allowEntries(context.repository, manager.id, manager.configFiles)) {
+    const version = pinnedVersion(manager) ?? (knowledge === undefined ? undefined : latestVersion(knowledge));
+    for (const entry of allowEntries(context.repository, manager.id, manager.configFiles, { ...(knowledge === undefined ? {} : { tool: knowledge }), ...(version === undefined ? {} : { version }) })) {
       if (allow.some((pattern) => matchesPattern(entry.package, pattern))) continue;
       context.report({
         level: 'warning',

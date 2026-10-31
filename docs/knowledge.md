@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-12 tools · 520 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-31.
+12 tools · 521 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-31.
 
 ## Release-age cooldown
 
@@ -161,6 +161,7 @@ Further facts used by generators and `doctor`.
 - `onlyBuiltDependencies` (✅ verified): `{"since":"6.32.1","workspaceFileSince":"10.5.0","removedIn":"11.0.0"}` [↗](https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md)
 - `latestVersion` (✅ verified): 12.16.1 [↗](https://github.com/pnpm/pnpm/releases/tag/v12.16.1)
 - `npmrcIgnored` (✅ verified): pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json "pnpm" field and no longer reads npm_config_* variables [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
+- `buildPermissions` (✅ verified): `{"setting":"permissions","capability":"build","since":"12.11.0","allow":true,"deny":false}` [↗](https://github.com/pnpm/pnpm/blob/v12.16.1/pnpm/docs/settings/build.md)
 - `legacyAllowList` (✅ verified): 10.0.0+: onlyBuiltDependencies (package.json pnpm field; pnpm-workspace.yaml since 10.5.0)<br>10.26.0+: allowBuilds; onlyBuiltDependencies and ignoredBuiltDependencies deprecated<br>11.0.0+: allowBuilds only; onlyBuiltDependencies, neverBuiltDependencies and ignoredBuiltDependencies removed [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md)
 - `strictDepBuilds` (✅ verified): 10.3.0+: false<br>11.0.0+: true [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `strictMode` (✅ verified): 11.0.0+: minimumReleaseAgeStrict defaults to false<br>11.0.4+: strict whenever minimumReleaseAge is set explicitly<br>12.0.0+: explicit values treated as non-strict (regression)<br>12.3.0+: strict whenever minimumReleaseAge is set explicitly [↗](https://github.com/pnpm/pnpm/releases/tag/v12.3.0)
@@ -181,7 +182,7 @@ Further facts used by generators and `doctor`.
 - `classicLockfileHeader` (✅ verified): # yarn lockfile v1 [↗](https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js)
 - `latestVersion` (✅ verified): 4.18.1 [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.18.1)
 - `bypassFlag` (✅ verified): --no-time-gate on yarn add and yarn up (4.15.0+) [↗](https://yarnpkg.com/cli/add)
-- `perScopeGate` (✅ verified): npmScopes.<scope>.npmMinimalAgeGate overrides the global gate (4.17.0+) [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.17.0)
+- `perScopeGate` (✅ verified): `{"scopes":"npmScopes","setting":"npmMinimalAgeGate","since":"4.17.0","unset":"1d"}` [↗](https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-npm/sources/npmConfigUtils.ts)
 - `upgradeMigration` (✅ verified): When the lockfile predates the new defaults and the key is unset, yarn install writes enableScripts: true, approvedGitRepositories: ["**"] and npmMinimalAgeGate: 0 into .yarnrc.yml [↗](https://github.com/yarnpkg/berry/pull/7135)
 - `missingPublishTime` (✅ verified): Versions without a publish time are quarantined while the gate is on [↗](https://github.com/yarnpkg/berry/pull/6907)
 - `unknownSettings` (❓ uncertain): Unknown keys in the project .yarnrc.yml throw (unless enableStrictSettings is false), so settings newer than the pinned Yarn break installs ❓ [↗](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts)
@@ -445,7 +446,7 @@ Context recorded with verified facts.
 - `cooldown.default`: The built-in 1440 is non-strict: pnpm adds immature versions to minimumReleaseAgeExclude instead of failing (see strictMode). [↗](https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/dependency-resolution.md)
 - `cooldown.securityUpdates`: No setting bypasses the delay. Since 11.0.0, pnpm audit --fix adds the minimum patched version of each advisory to minimumReleaseAgeExclude (since 11.22.0 only while it is still inside the window). [↗](https://pnpm.io/cli/audit)
 - `installScripts.defaultPolicy`: Unreviewed builds only warn in pnpm 10; strictDepBuilds is true by default since 11.0.0, so they fail the install. Prepare scripts of git-hosted dependencies are blocked since 10.26.0. [↗](https://github.com/pnpm/pnpm/releases/tag/v10.0.0)
-- `installScripts.allowList.setting`: Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds. [↗](https://pnpm.io/settings/build)
+- `installScripts.allowList.setting`: Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds (extra.buildPermissions). [↗](https://pnpm.io/settings/build)
 - `installScripts.disableAll`: Default false; --ignore-scripts on the CLI. Also skips the project's own scripts. [↗](https://pnpm.io/cli/install)
 - `sources.git.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
 - `sources.remoteTarball.setting`: Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies. [↗](https://pnpm.io/10.x/settings)
@@ -466,6 +467,7 @@ Context recorded with verified facts.
 - `extra.excludeWildcards`: Globs such as @myorg/* in minimumReleaseAgeExclude since 10.17.0. [↗](https://pnpm.io/10.x/settings)
 - `extra.onlyBuiltDependencies`: The allow-list before allowBuilds: package.json pnpm.onlyBuiltDependencies, added in 6.32.0 ("If this field exists, only mentioned packages will be able to run install scripts") and working since 6.32.1 ("released with a bug in v6.32.0"); also pnpm-workspace.yaml since 10.5.0 (10.5.0 changelog); removed in 11.0.0 (settings/build.md, see legacyAllowList). Before pnpm 10 any list, even an empty one, lets only the listed packages build (createAllowBuildFunction in @pnpm/builder.policy 3.0.0, which pnpm 9.15.0 uses). [↗](https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md)
 - `extra.latestVersion`: pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches. [↗](https://github.com/pnpm/pnpm/releases/tag/v12.16.1)
+- `extra.buildPermissions`: permissions.<package>.build in pnpm-workspace.yaml: true lets the package run its build scripts, false denies them; the keys take the same forms as those of allowBuilds, and the entry outranks the package's allowBuilds entry (decided_build_approvals and apply_permissions in pnpm/crates/config/src/workspace_yaml/permissions.rs at v12.16.1, which warns when a package is in both). A string is an undecided placeholder (AllowBuild::Undecided in sections.rs). Added in 12.11.0 (docs/settings/build.md and docs/cli/permissions.md); pnpm approve writes a build decision there only when the file already has permissions. [↗](https://github.com/pnpm/pnpm/blob/v12.16.1/pnpm/docs/settings/build.md)
 - `extra.strictDepBuilds`: When true, an unreviewed dependency build script fails the install. [↗](https://github.com/pnpm/pnpm/releases/tag/v11.0.0)
 - `extra.strictMode`: In non-strict mode pnpm silently writes immature picks into minimumReleaseAgeExclude. Strict mode fails CI installs with ERR_PNPM_NO_MATURE_MATCHING_VERSION. [↗](https://github.com/pnpm/pnpm/releases/tag/v12.3.0)
 
@@ -488,6 +490,7 @@ Context recorded with verified facts.
 - `extra.excludeWildcards`: Name globs such as @scope/* or package* in npmPreapprovedPackages. [↗](https://yarnpkg.com/configuration/yarnrc#npmPreapprovedPackages)
 - `extra.classicLockfileHeader`: Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js). [↗](https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js)
 - `extra.latestVersion`: Yarn 6 is still in preview. [↗](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.18.1)
+- `extra.perScopeGate`: getMinimalAgeGate: for a scoped package, a number in npmScopes.<scope>.npmMinimalAgeGate (the scope name without @) replaces the global gate, longer or shorter, and 0 turns the gate off for that scope (acceptance tests "npmScopes override" in features/npmMinimalAgeGate.test.ts at 4.18.1; the code is the same in 4.17.0 and absent in 4.16.0). Each npmScopes entry is a shape whose unset properties get their defaults (parseShape and getDefaultValue in yarnpkg-core Configuration.ts), so a scope listed only for its registry gets the default of 1d (scopablePackageGateSettings in plugin-npm index.ts) instead of the global gate; read from the code, no test covers that case. [↗](https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-npm/sources/npmConfigUtils.ts)
 - `extra.upgradeMigration`: Explicit values written by depcurfew prevent the migration. [↗](https://github.com/yarnpkg/berry/pull/7135)
 
 ### Bun

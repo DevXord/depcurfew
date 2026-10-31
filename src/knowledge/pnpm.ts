@@ -95,7 +95,7 @@ export const pnpm: ToolKnowledge = {
       setting: verified(
         'allowBuilds',
         BUILD,
-        'Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds.',
+        'Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds (extra.buildPermissions).',
       ),
       file: verified('pnpm-workspace.yaml', BUILD),
       availableSince: verified('10.26.0', SETTINGS_V10),
@@ -271,6 +271,11 @@ export const pnpm: ToolKnowledge = {
     npmrcIgnored: verified(
       'pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json "pnpm" field and no longer reads npm_config_* variables',
       release('11.0.0'),
+    ),
+    buildPermissions: rechecked.verified(
+      { setting: 'permissions', capability: 'build', since: '12.11.0', allow: true, deny: false },
+      'https://github.com/pnpm/pnpm/blob/v12.16.1/pnpm/docs/settings/build.md',
+      'permissions.<package>.build in pnpm-workspace.yaml: true lets the package run its build scripts, false denies them; the keys take the same forms as those of allowBuilds, and the entry outranks the package\'s allowBuilds entry (decided_build_approvals and apply_permissions in pnpm/crates/config/src/workspace_yaml/permissions.rs at v12.16.1, which warns when a package is in both). A string is an undecided placeholder (AllowBuild::Undecided in sections.rs). Added in 12.11.0 (docs/settings/build.md and docs/cli/permissions.md); pnpm approve writes a build decision there only when the file already has permissions.',
     ),
     legacyAllowList: verified(
       [
