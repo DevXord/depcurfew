@@ -1,5 +1,6 @@
 // Expands workspace patterns into package directories with a small, conservative glob matcher: `*` matches
 // within one path segment, `**` matches any number of segments, and a leading `!` excludes matches.
+import { isAbsoluteAnywhere } from '../paths.ts';
 import { joinPath, type Repository } from './repository.ts';
 import { wildcardMatch } from './wildcard.ts';
 
@@ -56,7 +57,7 @@ export function expandWorkspaces(
   for (const raw of patterns) {
     const negated = raw.startsWith('!');
     const pattern = negated ? raw.slice(1) : raw;
-    if (pattern.startsWith('/') || pattern.split('/').includes('..')) {
+    if (isAbsoluteAnywhere(pattern) || pattern.split('/').includes('..')) {
       repository.warn('workspace-outside-repository', `workspace pattern "${raw}" points outside the repository`, [declaredIn]);
       continue;
     }

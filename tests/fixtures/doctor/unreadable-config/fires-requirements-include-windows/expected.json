@@ -1,0 +1,10 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "requirements.txt"
+    },
+    "message": "cannot read the files that requirements.txt includes: C:\\x\\req.txt (line 1, outside the repository), D:req.txt (line 2, outside the repository), \\\\nas\\share\\constraints.txt (line 3, outside the repository), \\tools\\req.txt (line 4, outside the repository) and sub\\missing.txt (line 5, missing); depcurfew cannot check it",
+    "fix": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them"
+  }
+]

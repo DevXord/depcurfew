@@ -3,7 +3,7 @@
 // with paths relative to the repository root for code scanning and sets the step outputs. It does not fail the
 // step itself, so the SARIF upload still runs; action.yml decides.
 import { appendFileSync, lstatSync, mkdirSync, realpathSync, statSync } from 'node:fs';
-import { basename, dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
+import { basename, dirname, posix, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { values } from './apply/facts.ts';
 import { PolicyError } from './apply/index.ts';
@@ -12,6 +12,7 @@ import { annotationCommands, countLevels, failureSummary, jobSummary, renderText
 import { problemSummary } from './doctor/github.ts';
 import { lineReader } from './doctor/sarif.ts';
 import { environment } from './knowledge/environment.ts';
+import { isInside } from './paths.ts';
 import { printable } from './printable.ts';
 import { getVersion } from './version.ts';
 
@@ -64,16 +65,11 @@ function untrusted(text: string): string {
   return `${commands.stop.replace('{token}', token)}\n${text.endsWith('\n') ? text : `${text}\n`}${commands.resume.replace('{token}', token)}\n`;
 }
 
-function inside(root: string, path: string): boolean {
-  const part = relative(root, path);
-  return part !== '..' && !part.startsWith(`..${sep}`) && !isAbsolute(part);
-}
-
 /** The real path of a directory inside the workspace, following symlinks only as far as they stay inside it. */
 function scannedDirectory(workspace: string, input: string): string | undefined {
   try {
     const real = realpathSync(resolve(workspace, input));
-    return inside(realpathSync(workspace), real) && statSync(real).isDirectory() ? real : undefined;
+    return isInside(realpathSync(workspace), real) && statSync(real).isDirectory() ? real : undefined;
   } catch {
     return undefined;
   }
@@ -84,7 +80,7 @@ function scannedDirectory(workspace: string, input: string): string | undefined 
  * no part of the path inside the workspace may be a symlink, which could send the report over a file elsewhere.
  */
 function unsafeOutput(workspace: string, file: string): string | undefined {
-  if (!inside(workspace, file)) return undefined;
+  if (!isInside(workspace, file)) return undefined;
   let current = workspace;
   for (const part of relative(workspace, file).split(sep)) {
     current = resolve(current, part);
@@ -137,7 +133,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   }
   if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
   const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
-  const shownSarif = inside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join('/') : sarifFile;
+  const shownSarif = isInside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join('/') : sarifFile;
   // doctor did run, so a SARIF file that cannot be written is a failure below the findings, not instead of them.
   const sarifFailure = (reason: string): ActionOutputs => {
     outputs.failure = `cannot write the SARIF file ${sarifInput}: ${reason}`;

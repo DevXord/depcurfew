@@ -179,7 +179,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   const scripts = scriptNames.filter((script) => typeof document?.scripts?.[script] === 'string');
   const allowed = policy.installScripts?.allow.some((pattern) => matchesPattern(name, pattern)) ?? false;
   if (scripts.length > 0 && policy.installScripts?.default === 'deny' && !allowed) {
-    const listed = scripts.map((script) => `${script}: ${String(document?.scripts?.[script])}`).join('; ');
+    const listed = scripts.map((script) => (options.scriptBodies === false ? script : `${script}: ${String(document?.scripts?.[script])}`)).join('; ');
     add({
       level: 'error',
       code: 'install-scripts',

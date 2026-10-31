@@ -18,7 +18,7 @@
 // THIS SOFTWARE.
 import { createRequire } from "node:module";
 import { appendFileSync, chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
+import nodePath, { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 
 // \0rolldown/runtime.js
@@ -6808,6 +6808,7 @@ const { verified: verified$12 } = verifiedOn("2026-10-28");
 const checked$6 = verifiedOn("2026-10-29");
 const python$2 = verifiedOn("2026-10-30");
 const gitFacts = verifiedOn("2026-10-30");
+const audited = verifiedOn("2026-10-31");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
 const NPM_PACKAGE_JSON = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
@@ -7082,49 +7083,86 @@ const environment = {
 			warned: ["archived", "deprecated"]
 		}, `${SPECIFICATIONS}/project-status-markers.rst`, "A project has exactly one status, active when none is given. quarantined: considered generally unsafe (for example malware), and the index must not offer any of its files. archived: no new uploads, existing files stay; installers may warn. deprecated: obsolete, perhaps superseded by another project; installers may warn.")
 	},
-	claudeCode: { hooks: checked$6.verified({
-		settingsFile: ".claude/settings.json",
-		event: "PreToolUse",
-		shellTool: "Bash",
-		input: {
-			event: "hook_event_name",
-			tool: "tool_name",
-			command: "tool_input.command",
-			cwd: "cwd"
-		},
-		output: {
-			container: "hookSpecificOutput",
-			event: "hookEventName",
-			decision: "permissionDecision",
-			reason: "permissionDecisionReason"
-		},
-		decisions: {
-			deny: "deny",
-			ask: "ask"
-		},
-		blockingExitCode: 2,
-		onFailure: {
-			field: "onFailure",
-			value: "block",
-			since: "2.1.295"
-		},
-		projectDir: "${CLAUDE_PROJECT_DIR}",
-		settings: {
-			hooks: "hooks",
-			matcher: "matcher",
-			handlers: "hooks",
-			type: "type",
-			commandType: "command",
-			command: "command",
-			args: "args"
-		}
-	}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.") },
-	git: { ignore: gitFacts.verified({
-		file: ".gitignore",
-		excludeFile: ".git/info/exclude",
-		indexFile: ".git/index",
-		trackedFilesIgnored: false
-	}, "https://github.com/git/git/blob/v2.56.0/Documentation/gitignore.adoc", "git status and git add skip untracked files that match a pattern from a .gitignore in the same directory or a parent (deeper files override higher ones, and within one file the last matching pattern decides), then from $GIT_COMMON_DIR/info/exclude (.git/info/exclude outside linked worktrees), then from core.excludesFile. Files already tracked are not affected. Patterns: # comments, ! negation, a leading or middle / anchors the pattern to the directory of its .gitignore, a trailing / matches directories only, * and ? do not match /, **/, /** and /**/ match any number of directories; a file below an ignored directory cannot be re-included. The tracked files are the entries of $GIT_DIR/index (Documentation/gitformat-index.adoc at v2.56.0: versions 2, 3 and 4).") },
+	claudeCode: {
+		hooks: audited.verified({
+			settingsFile: ".claude/settings.json",
+			event: "PreToolUse",
+			matcherSeparator: "|",
+			input: {
+				event: "hook_event_name",
+				tool: "tool_name",
+				command: "tool_input.command",
+				cwd: "cwd"
+			},
+			output: {
+				container: "hookSpecificOutput",
+				event: "hookEventName",
+				decision: "permissionDecision",
+				reason: "permissionDecisionReason"
+			},
+			decisions: {
+				deny: "deny",
+				ask: "ask"
+			},
+			blockingExitCode: 2,
+			onFailure: {
+				field: "onFailure",
+				value: "block",
+				since: "2.1.295"
+			},
+			projectDir: "${CLAUDE_PROJECT_DIR}",
+			settings: {
+				hooks: "hooks",
+				matcher: "matcher",
+				handlers: "hooks",
+				type: "type",
+				commandType: "command",
+				command: "command",
+				args: "args"
+			}
+		}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. A matcher of names separated by | matches each of them exactly. With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules."),
+		shellTools: audited.verified([
+			{
+				tool: "Bash",
+				shell: "bash"
+			},
+			{
+				tool: "PowerShell",
+				shell: "powershell"
+			},
+			{
+				tool: "Monitor",
+				shell: "bash"
+			}
+		], "https://code.claude.com/docs/en/tools-reference", "Tool names are the exact strings of hook matchers. Bash executes shell commands. PowerShell executes PowerShell commands natively; hooks get its command in tool_input.command with the same fields as Bash, and the docs say to match Bash|PowerShell in hooks that inspect shell commands: on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash it is enabled automatically and the Bash tool is not registered at all (also https://code.claude.com/docs/en/hooks#powershell). On Windows with Git Bash it is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1. Monitor runs a command in the background and feeds its output lines back to Claude, with the same permission rules as Bash; on Windows it is available only with Git Bash; a WebSocket watch takes a ws input in place of command.")
+	},
+	git: {
+		ignore: gitFacts.verified({
+			file: ".gitignore",
+			excludeFile: ".git/info/exclude",
+			indexFile: ".git/index",
+			trackedFilesIgnored: false
+		}, "https://github.com/git/git/blob/v2.56.0/Documentation/gitignore.adoc", "git status and git add skip untracked files that match a pattern from a .gitignore in the same directory or a parent (deeper files override higher ones, and within one file the last matching pattern decides), then from $GIT_COMMON_DIR/info/exclude (.git/info/exclude outside linked worktrees), then from core.excludesFile. Files already tracked are not affected. Patterns: # comments, ! negation, a leading or middle / anchors the pattern to the directory of its .gitignore, a trailing / matches directories only, * and ? do not match /, **/, /** and /**/ match any number of directories; a file below an ignored directory cannot be re-included. The tracked files are the entries of $GIT_DIR/index (Documentation/gitformat-index.adoc at v2.56.0: versions 2, 3 and 4)."),
+		ignoreCase: audited.verified({
+			configFile: ".git/config",
+			section: "core",
+			key: "ignorecase",
+			trueValues: [
+				"yes",
+				"on",
+				"true",
+				"1"
+			]
+		}, "https://github.com/git/git/blob/v2.56.0/Documentation/config/core.adoc", "core.ignoreCase turns on workarounds for file systems that are not case sensitive (APFS, HFS+, FAT, NTFS); it defaults to false, but git clone and git init probe the file system and set it to true when appropriate, so a repository cloned on Windows or macOS has it. With it, git matches .gitignore patterns and looks up the index without regard to case: match_basename and match_pathname in dir.c compare with fspathncmp and fnmatch_icase_mem, which fold case (strncasecmp, WM_CASEFOLD) when repo_ignore_case is set, and environment.c reads core.ignorecase (both at v2.56.0). Section and variable names are case-insensitive, true is yes, on, true or 1 in any case, and a variable without = <value> is true (Documentation/config.adoc at v2.56.0).")
+	},
+	windows: {
+		commandShims: audited.verified({
+			extensions: [".cmd", ".ps1"],
+			batchExtension: ".cmd",
+			argumentsVariable: "%*"
+		}, "https://github.com/npm/cmd-shim/blob/v9.0.2/lib/index.js", "cmd-shim is \"the cmd-shim used in npm to create executable scripts on Windows\" (README): for each program of a package it writes <name>.cmd, which runs the program with %* (so cmd.exe reads the arguments again), <name>.ps1 for PowerShell and a sh script. npm ships the same files for itself: bin/npm.cmd, bin/npm.ps1, bin/npx.cmd and bin/npx.ps1 in github.com/npm/cli at v12.2.1, the .cmd files ending in \"%NODE_EXE%\" \"%NPM_CLI_JS%\" %*."),
+		batchArguments: audited.verified({ extensions: [".bat", ".cmd"] }, "https://github.com/MicrosoftDocs/PowerShell-Docs/blob/0061dc7f35abfa6bb5ffabaada1650163761f2e1/reference/7.5/Microsoft.PowerShell.Core/About/about_Parsing.md", "about_Parsing (the source of https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_parsing): on Windows, arguments for batch files are passed as raw command-line strings to cmd.exe, and untrusted input should be passed another way. In the Windows mode of $PSNativeCommandArgumentPassing, the default on Windows since PowerShell 7.3, files ending in .bat or .cmd (also cmd.exe, cscript.exe, wscript.exe, .js, .vbs and .wsf) keep the legacy argument passing of Windows PowerShell 5.1.")
+	},
 	python: {
 		nameNormalization: python$2.verified({
 			separators: "[-_.]+",
@@ -7150,7 +7188,7 @@ const environment = {
 			pyprojectTable: "tool.hatch",
 			configFile: "hatch.toml"
 		}, "https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md", "Hatch reads its project configuration from [tool.hatch] of pyproject.toml or from hatch.toml. It has no setting of its own for a release-age delay, building from source or dependency sources; its environments install with uv (installer = \"uv\", the default of its internal environments) or pip (docs/how-to/environment/select-installer.md), and uv reads [tool.uv] of the project under Hatch too (tested on 2026-10-30 with Hatch 1.18.2 and uv 0.13.6)."),
-		interpreter: python$2.verified({
+		interpreter: audited.verified({
 			executables: [
 				"python",
 				"python3",
@@ -7162,8 +7200,9 @@ const environment = {
 				"-W",
 				"-X",
 				"--check-hash-based-pycs"
-			]
-		}, "https://github.com/python/cpython/blob/v3.14.0/Doc/using/cmdline.rst", "python [-bBdEhiIOPqRsSuvVWx?] [-c command | -m module-name | script | - ] [args]: -m and -c end the interpreter options, and what follows goes to the module or the command; -W arg, -X option and --check-hash-based-pycs mode take a value, the other options are flags. pip documents running itself as python -m pip, and as py -m pip with the Windows launcher (github.com/pypa/pip/blob/26.2.2/docs/html/cli/pip_install.rst).")
+			],
+			groupedShortOptions: true
+		}, "https://github.com/python/cpython/blob/v3.14.0/Doc/using/cmdline.rst", "python [-bBdEhiIOPqRsSuvVWx?] [-c command | -m module-name | script | - ] [args]: -m and -c end the interpreter options, and what follows goes to the module or the command; -W arg, -X option and --check-hash-based-pycs mode take a value, the other options are flags. One-letter options may be grouped after one dash: _PyOS_GetOpt in Python/getopt.c (v3.14.0, SHORT_OPTS \"bBc:dEhiIm:OPqRsStuvVW:xX:?\") reads them one by one, and c, m, W and X take the rest of the word or the next word, so python3 -Im pip runs pip. pip documents running itself as python -m pip, and as py -m pip with the Windows launcher (github.com/pypa/pip/blob/26.2.2/docs/html/cli/pip_install.rst).")
 	}
 };
 
@@ -10163,6 +10202,25 @@ function detectionFacts(tools, environment) {
 	};
 }
 
+// src/paths.ts
+/**
+* Whether `path` is `root` or inside it. path.relative also works for a root that ends with a separator (/, P:\ from
+* subst or a Dev Drive, \\nas\share\), where root + separator is not a prefix of the paths inside, and on Windows it
+* ignores the case of the drive and the names, as the file system does. `paths` is node:path, or its win32 or posix
+* flavor in tests.
+*/
+function isInside(root, path, paths = nodePath) {
+	const part = paths.relative(root, path);
+	return part === "" || part !== ".." && !part.startsWith(`..${paths.sep}`) && !paths.isAbsolute(part);
+}
+/**
+* Whether a path written in a file, with / or \, is absolute on some system and so never inside the repository:
+* /x, \x, \\server\share\x, and a Windows drive (C:\x, C:/x, or C:x relative to the drive's current directory).
+*/
+function isAbsoluteAnywhere(path) {
+	return /^[\\/]/u.test(path) || /^[A-Za-z]:/u.test(path);
+}
+
 // src/detect/repository.ts
 const MAX_FILE_SIZE = 1048576;
 /** Directories never searched for workspace packages or configuration. */
@@ -10201,9 +10259,6 @@ var Repository = class {
 	#unreadable(path, error) {
 		this.warn("unreadable-file", `cannot read ${path} (${fileError(error)})`, [path]);
 	}
-	#inside(real) {
-		return real === this.root || real.startsWith(this.root + sep);
-	}
 	/** The real path of a repository-relative path, or undefined if it is missing or leads outside. */
 	#resolve(path, report) {
 		const full = join(this.root, path);
@@ -10219,7 +10274,7 @@ var Repository = class {
 		} catch {
 			return;
 		}
-		if (!this.#inside(real)) {
+		if (!isInside(this.root, real)) {
 			if (report) this.warn("outside-repository", `${path} points outside the repository and was not read`, [path]);
 			return;
 		}
@@ -10868,7 +10923,7 @@ function expandWorkspaces(repository, patterns, manifests, declaredIn) {
 	for (const raw of patterns) {
 		const negated = raw.startsWith("!");
 		const pattern = negated ? raw.slice(1) : raw;
-		if (pattern.startsWith("/") || pattern.split("/").includes("..")) {
+		if (isAbsoluteAnywhere(pattern) || pattern.split("/").includes("..")) {
 			repository.warn("workspace-outside-repository", `workspace pattern "${raw}" points outside the repository`, [declaredIn]);
 			continue;
 		}
@@ -11873,7 +11928,7 @@ function requirementsTrees(repository, roots, format) {
 			const unreadable = [];
 			for (const { path, line } of requirementsIncludes(text, format)) {
 				const target = posix.normalize(posix.join(posix.dirname(file), path.replaceAll("\\", "/")));
-				const reason = URL_LIKE.test(path) ? "a URL" : posix.isAbsolute(path) || target === ".." || target.startsWith("../") ? "outside the repository" : repository.isFile(target) ? void 0 : "missing";
+				const reason = URL_LIKE.test(path) ? "a URL" : isAbsoluteAnywhere(path) || target === ".." || target.startsWith("../") ? "outside the repository" : repository.isFile(target) ? void 0 : "missing";
 				if (reason === void 0) queue.push(target);
 				else unreadable.push(`${path} (line ${line}, ${reason})`);
 			}
@@ -14247,8 +14302,11 @@ function matchGlob(parts, glob) {
 	}
 	return below[0] ?? false;
 }
-/** The rules of one pattern file; `base` is its directory ('' for the root and for .git/info/exclude). */
-function parseIgnoreFile(text, file, base) {
+/**
+* The rules of one pattern file; `base` is its directory ('' for the root and for .git/info/exclude). With
+* `ignoreCase`, the patterns and the base are matched in lower case (the pattern as written stays for messages).
+*/
+function parseIgnoreFile(text, file, base, ignoreCase = false) {
 	const rules = [];
 	text.split("\n").forEach((raw, index) => {
 		let line = raw.replace(/\r$/u, "");
@@ -14266,18 +14324,23 @@ function parseIgnoreFile(text, file, base) {
 		const anchored = line.includes("/");
 		if (line.startsWith("/")) line = line.slice(1);
 		if (line === "") return;
+		const glob = compileGlob(ignoreCase ? foldCase(line) : line);
 		rules.push({
 			pattern,
 			file,
 			line: index + 1,
-			base,
+			base: ignoreCase ? foldCase(base) : base,
 			negate,
 			directoryOnly,
 			anchored,
-			glob: compileGlob(line)
+			glob
 		});
 	});
 	return rules;
+}
+/** ASCII letters in lower case, as git folds case (strncasecmp, WM_CASEFOLD). */
+function foldCase(text) {
+	return text.replaceAll(/[A-Z]/gu, (letter) => letter.toLowerCase());
 }
 function matches(rule, path, directory) {
 	if (rule.base !== "" && !path.startsWith(`${rule.base}/`)) return false;
@@ -14308,7 +14371,7 @@ function ignoreFacts() {
 	};
 }
 /** Pattern files in the order git reads them for `path`: info/exclude, then .gitignore from the root down. */
-function rulesFor(repository, path, cache) {
+function rulesFor(repository, path, cache, ignoreCase) {
 	const facts = ignoreFacts();
 	const directories = path.split("/").slice(0, -1);
 	const files = [[facts.excludeFile, ""]];
@@ -14320,16 +14383,21 @@ function rulesFor(repository, path, cache) {
 		let rules = cache.get(file);
 		if (rules === void 0) {
 			const text = repository.isFile(file) ? repository.readText(file) : void 0;
-			rules = text === void 0 ? [] : parseIgnoreFile(text, file, base);
+			rules = text === void 0 ? [] : parseIgnoreFile(text, file, base, ignoreCase);
 			cache.set(file, rules);
 		}
 		return rules;
 	});
 }
-/** Whether git ignores the file at `path` (relative to the root, with `/`) when it is not tracked. */
-function ignoredByGit(repository, path, cache = /* @__PURE__ */ new Map()) {
-	const rules = rulesFor(repository, path, cache);
-	const parts = path.split("/");
+/**
+* Whether git ignores the file at `path` (relative to the root, with `/`) when it is not tracked. A cache serves one
+* value of `ignoreCase`.
+*/
+function ignoredByGit(repository, path, cache = /* @__PURE__ */ new Map(), options = {}) {
+	const ignoreCase = options.ignoreCase === true;
+	const rules = rulesFor(repository, path, cache, ignoreCase);
+	const compared = ignoreCase ? foldCase(path) : path;
+	const parts = compared.split("/");
 	for (let depth = 1; depth < parts.length; depth++) {
 		const decided = decide(rules, parts.slice(0, depth).join("/"), true);
 		if (decided === "unknown") return { ignored: "unknown" };
@@ -14342,7 +14410,7 @@ function ignoredByGit(repository, path, cache = /* @__PURE__ */ new Map()) {
 			}
 		};
 	}
-	const decided = decide(rules, path, false);
+	const decided = decide(rules, compared, false);
 	if (decided === "unknown") return { ignored: "unknown" };
 	return decided !== void 0 && !decided.negate ? {
 		ignored: true,
@@ -14352,6 +14420,33 @@ function ignoredByGit(repository, path, cache = /* @__PURE__ */ new Map()) {
 			line: decided.line
 		}
 	} : { ignored: false };
+}
+/**
+* Whether git compares names without regard to case in this repository: core.ignorecase in .git/config, which git
+* clone and git init set on file systems that ignore case (environment.git.ignoreCase). A linked worktree, whose .git
+* is a file, keeps its configuration elsewhere and counts as false.
+*/
+function ignoresCase(repository) {
+	const facts = values$1(environment.git.ignoreCase)[0];
+	if (facts === void 0 || !repository.isFile(facts.configFile)) return false;
+	const text = repository.readText(facts.configFile);
+	if (text === void 0) return false;
+	let inSection = false;
+	let value = false;
+	for (const raw of text.split("\n")) {
+		let line = raw.trim();
+		const header = /^\[([^\]]*)\](.*)$/u.exec(line);
+		if (header !== null) {
+			inSection = header[1].trim().toLowerCase() === facts.section;
+			line = header[2].trim();
+		}
+		if (!inSection) continue;
+		const setting = /^([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?$/u.exec(line.replace(/\s*[#;].*$/u, ""));
+		if (setting === null || setting[1].toLowerCase() !== facts.key) continue;
+		const given = (setting[2] ?? "").trim().replace(/^"(.*)"$/u, "$1").toLowerCase();
+		value = setting[2] === void 0 || facts.trueValues.includes(given);
+	}
+	return value;
 }
 const MAX_INDEX_SIZE = 67108864;
 /**
@@ -16097,10 +16192,12 @@ var Workspace = class {
 		} catch {
 			parent = this.root;
 		}
-		if (parent !== this.root && !parent.startsWith(this.root + sep)) throw new Error(`${file} is outside the repository`);
+		if (!isInside(this.root, parent)) throw new Error(`${file} is outside the repository`);
 		let bytes;
 		try {
-			if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
+			const stats = lstatSync(path);
+			if (stats.isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
+			if (stats.isFile() && stats.size > 1048576) throw new Error(`${file} is larger than 1 MiB, so depcurfew does not edit it`);
 			bytes = readFileSync(path);
 		} catch (error) {
 			if (error.code === void 0) throw error;
@@ -16147,8 +16244,55 @@ var Workspace = class {
 	}
 };
 /**
+* Codes with which Windows refuses to replace or remove a file that another process holds open for a moment: an
+* antivirus scanner, the search indexer, an editor or a sync client. npm's file system layer (graceful-fs) tries
+* renames again on them too. EBUSY also means busy elsewhere; EPERM and EACCES only on Windows, where a read-only file
+* gives EPERM as well.
+*/
+const BUSY = /* @__PURE__ */ new Set([
+	"EPERM",
+	"EACCES",
+	"EBUSY"
+]);
+/** Growing waits between attempts on Windows: 3.27 seconds in all. */
+const RETRY_DELAYS = [
+	10,
+	20,
+	40,
+	80,
+	160,
+	320,
+	640,
+	1e3,
+	1e3
+];
+function wait(milliseconds) {
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+function codeOf(error) {
+	return error?.code;
+}
+/** Whether an error means that another program holds the file (or, on Windows, that it is read-only). */
+function isBusy(error, platform) {
+	const code = codeOf(error);
+	return code === "EBUSY" || platform === "win32" && code !== void 0 && BUSY.has(code);
+}
+/** Runs a file system call; on Windows it is tried again, with growing waits, while another program holds the file. */
+function retried(call, options) {
+	const platform = options.platform ?? process.platform;
+	if (platform !== "win32") return call();
+	for (const delay of RETRY_DELAYS) try {
+		return call();
+	} catch (error) {
+		if (!isBusy(error, platform)) throw error;
+		(options.sleep ?? wait)(delay);
+	}
+	return call();
+}
+/**
 * A file could not be written. writeChanges has removed its temporary files and put back the files it had already
-* replaced, so nothing changed, except for the files in `unrestored`. The message says why, without the file name.
+* replaced, so nothing changed, except for the files in `unrestored` (whose earlier text is in `backups` when it could
+* be written) and the temporary files in `leftovers`. The message says why, without the file name.
 */
 var WriteFailed = class extends Error {
 	file;
@@ -16156,25 +16300,49 @@ var WriteFailed = class extends Error {
 	reason;
 	/** Files already replaced that could not be put back (normally none). */
 	unrestored;
-	constructor(file, error, unrestored) {
+	/** For files in `unrestored`: the temporary file, next to it, that holds its earlier text. */
+	backups;
+	/** Temporary files that could not be removed, relative to the root. */
+	leftovers;
+	/** Another program holds the file, or (on Windows) it is read-only. */
+	busy;
+	platform;
+	constructor(file, error, unrestored, details = {}) {
 		const reason = fileSystemReason(error);
-		super(unrestored.length === 0 ? reason : `${reason}; ${unrestored.join(", ")} had already been replaced and could not be put back`, { cause: error });
+		const backups = details.backups ?? {};
+		const leftovers = details.leftovers ?? [];
+		const kept = unrestored.filter((entry) => backups[entry] !== void 0);
+		const where = kept.length === 0 ? "" : unrestored.length === 1 ? ` (its earlier text is in ${backups[kept[0]]})` : ` (${kept.map((entry) => `the earlier text of ${entry} is in ${backups[entry]}`).join(", ")})`;
+		const parts = [
+			reason,
+			...unrestored.length === 0 ? [] : [`${unrestored.join(", ")} had already been replaced and could not be put back${where}`],
+			...leftovers.length === 0 ? [] : [`the temporary file${leftovers.length === 1 ? "" : "s"} ${leftovers.join(", ")} could not be removed`]
+		];
+		super(parts.join("; "), { cause: error });
 		this.file = file;
 		this.reason = reason;
 		this.unrestored = unrestored;
+		this.backups = backups;
+		this.leftovers = leftovers;
+		this.platform = details.platform ?? process.platform;
+		this.busy = isBusy(error, this.platform);
 	}
 };
 let counter = 0;
-/** Writes `text` to a new temporary file next to `path`, created with `mode`; the file is removed if writing fails. */
+/**
+* Writes `text` to a new temporary file next to `path`; the file is removed if writing fails. It replaces a file of
+* mode `mode`, or with undefined it becomes a new file, whose mode the umask decides (0666 narrowed by it), as for
+* any file a program creates.
+*/
 function stage(path, text, mode) {
 	counter += 1;
 	const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}-${counter}`;
 	try {
 		writeFileSync(temporary, text, {
 			flag: "wx",
-			mode
+			mode: mode ?? 438
 		});
-		chmodSync(temporary, mode);
+		if (mode !== void 0) chmodSync(temporary, mode);
 	} catch (error) {
 		if (error.code !== "EEXIST") rmSync(temporary, { force: true });
 		throw error;
@@ -16184,7 +16352,10 @@ function stage(path, text, mode) {
 /** Removes the directories mkdirSync created (`created`, the topmost of each) for `paths`, deepest first, if empty. */
 function removeDirectories(created, paths) {
 	const directories = /* @__PURE__ */ new Set();
-	for (const top of created) for (const path of paths) for (let directory = dirname(path); directory === top || directory.startsWith(top + sep); directory = dirname(directory)) directories.add(directory);
+	for (const top of created) for (const path of paths) for (let directory = dirname(path); isInside(top, directory); directory = dirname(directory)) {
+		directories.add(directory);
+		if (directory === top) break;
+	}
 	for (const directory of [...directories].sort((a, b) => b.length - a.length)) try {
 		rmdirSync(directory);
 	} catch {}
@@ -16192,11 +16363,26 @@ function removeDirectories(created, paths) {
 /**
 * Writes each changed file through a temporary file and a rename, keeping the permissions of existing files. All
 * files or none: every temporary file is written first and only then are they renamed; if anything fails, the
-* temporary files are removed and the files already replaced get their old text back, and WriteFailed is thrown.
+* temporary files are removed and the files already replaced get their old text back, and WriteFailed is thrown. On
+* Windows, renames and removals are tried again for a few seconds while another program holds the file.
 */
-function writeChanges(root, changes) {
+function writeChanges(root, changes, options = {}) {
 	const staged = [];
 	const created = [];
+	const leftovers = [];
+	const shown = (path) => relative(root, path).split(sep).join("/");
+	/** Removes a temporary file; one that stays is named in the error. */
+	const remove = (temporary) => {
+		try {
+			retried(() => rmSync(temporary, { force: true }), options);
+		} catch {
+			leftovers.push(shown(temporary));
+		}
+	};
+	const details = () => ({
+		...options.platform === void 0 ? {} : { platform: options.platform },
+		leftovers
+	});
 	let current = changes[0]?.file ?? "";
 	try {
 		for (const change of changes) {
@@ -16204,7 +16390,7 @@ function writeChanges(root, changes) {
 			const path = join(root, change.file);
 			const directory = mkdirSync(dirname(path), { recursive: true });
 			if (directory !== void 0) created.push(directory);
-			const mode = change.before === null ? 438 : statSync(path).mode & 4095;
+			const mode = change.before === null ? void 0 : statSync(path).mode & 4095;
 			staged.push({
 				change,
 				path,
@@ -16213,28 +16399,45 @@ function writeChanges(root, changes) {
 			});
 		}
 	} catch (error) {
-		for (const entry of staged) rmSync(entry.temporary, { force: true });
+		for (const entry of staged) remove(entry.temporary);
 		removeDirectories(created, changes.map((change) => join(root, change.file)));
-		throw new WriteFailed(current, error, []);
+		throw new WriteFailed(current, error, [], details());
 	}
 	const renamed = [];
 	try {
 		for (const entry of staged) {
 			current = entry.change.file;
-			renameSync(entry.temporary, entry.path);
+			retried(() => renameSync(entry.temporary, entry.path), options);
 			renamed.push(entry);
 		}
 	} catch (error) {
-		for (const entry of staged.slice(renamed.length)) rmSync(entry.temporary, { force: true });
+		for (const entry of staged.slice(renamed.length)) remove(entry.temporary);
 		const unrestored = [];
-		for (const entry of renamed.reverse()) try {
-			if (entry.change.before === null) rmSync(entry.path, { force: true });
-			else renameSync(stage(entry.path, entry.change.before, entry.mode), entry.path);
-		} catch {
-			unrestored.push(entry.change.file);
+		const backups = {};
+		for (const entry of renamed.reverse()) {
+			if (entry.change.before === null) {
+				try {
+					retried(() => rmSync(entry.path, { force: true }), options);
+				} catch {
+					unrestored.push(entry.change.file);
+				}
+				continue;
+			}
+			let backup;
+			try {
+				backup = stage(entry.path, entry.change.before, entry.mode);
+				const from = backup;
+				retried(() => renameSync(from, entry.path), options);
+			} catch {
+				unrestored.push(entry.change.file);
+				if (backup !== void 0) backups[entry.change.file] = shown(backup);
+			}
 		}
 		removeDirectories(created, changes.map((change) => join(root, change.file)));
-		throw new WriteFailed(current, error, unrestored.reverse());
+		throw new WriteFailed(current, error, unrestored.reverse(), {
+			...details(),
+			backups
+		});
 	}
 }
 
@@ -16383,20 +16586,26 @@ function allowListWarnings(root, policy, detection, targets, tools) {
 * file-ignored-by-git: a file apply writes that git does not pick up, so the protection never reaches the repository
 * and a fresh clone lacks it. Files git already tracks are not affected by .gitignore.
 */
+/** The tracked files in lower case, for a repository that ignores case. */
+function foldedSet(files) {
+	return files === void 0 ? void 0 : new Set([...files].map(foldCase));
+}
 function ignoredFileWarnings(root, changes) {
 	const repository = new Repository(root);
 	const cache = /* @__PURE__ */ new Map();
 	let tracked = null;
+	let ignoreCase;
 	return changes.flatMap((change) => {
 		let result;
 		try {
-			result = ignoredByGit(repository, change.file, cache);
-			if (result.ignored === true) tracked ??= trackedFiles(repository);
+			ignoreCase ??= ignoresCase(repository);
+			result = ignoredByGit(repository, change.file, cache, { ignoreCase });
+			if (result.ignored === true) tracked ??= ignoreCase ? foldedSet(trackedFiles(repository)) : trackedFiles(repository);
 		} catch {
 			return [];
 		}
 		if (result.ignored !== true) return [];
-		if (tracked?.has(change.file) === true) return [];
+		if (tracked?.has(ignoreCase === true ? foldCase(change.file) : change.file) === true) return [];
 		const { rule } = result;
 		const pattern = rule.pattern.length > 120 ? `${rule.pattern.slice(0, 117)}...` : rule.pattern;
 		const unless = change.before === null || tracked !== void 0 ? "" : " unless git already tracks it";
@@ -18610,15 +18819,11 @@ function untrusted(text) {
 	const token = randomUUID();
 	return `${commands.stop.replace("{token}", token)}\n${text.endsWith("\n") ? text : `${text}\n`}${commands.resume.replace("{token}", token)}\n`;
 }
-function inside(root, path) {
-	const part = relative(root, path);
-	return part !== ".." && !part.startsWith(`..${sep}`) && !isAbsolute(part);
-}
 /** The real path of a directory inside the workspace, following symlinks only as far as they stay inside it. */
 function scannedDirectory(workspace, input) {
 	try {
 		const real = realpathSync(resolve(workspace, input));
-		return inside(realpathSync(workspace), real) && statSync(real).isDirectory() ? real : void 0;
+		return isInside(realpathSync(workspace), real) && statSync(real).isDirectory() ? real : void 0;
 	} catch {
 		return;
 	}
@@ -18628,7 +18833,7 @@ function scannedDirectory(workspace, input) {
 * no part of the path inside the workspace may be a symlink, which could send the report over a file elsewhere.
 */
 function unsafeOutput(workspace, file) {
-	if (!inside(workspace, file)) return void 0;
+	if (!isInside(workspace, file)) return void 0;
 	let current = workspace;
 	for (const part of relative(workspace, file).split(sep)) {
 		current = resolve(current, part);
@@ -18684,7 +18889,7 @@ function runAction(env, io) {
 	}
 	if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
 	const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
-	const shownSarif = inside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join("/") : sarifFile;
+	const shownSarif = isInside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join("/") : sarifFile;
 	const sarifFailure = (reason) => {
 		outputs.failure = `cannot write the SARIF file ${sarifInput}: ${reason}`;
 		io.log(untrusted(`depcurfew: ${printable(outputs.failure)}\n`));

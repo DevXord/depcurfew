@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { Workspace } from '../../src/apply/workspace.ts';
 import { EXIT_FAILURE, run } from '../../src/cli/run.ts';
+import { comparableMode } from '../support/platform.ts';
 
 const fault = vi.hoisted(() => ({
   /** Fail renameSync onto a path that ends like this. */
@@ -94,7 +95,7 @@ describe('apply when a file cannot be written', () => {
     expect(result.stderr).toContain('depcurfew: nothing written because of the errors above.\n');
     expect(result.stderr).not.toContain('unexpected error');
     expect(snapshot(directory)).toEqual(before);
-    expect(statSync(join(directory, '.npmrc')).mode & 0o777).toBe(0o600);
+    expect(comparableMode(statSync(join(directory, '.npmrc')).mode)).toBe(comparableMode(0o600));
   });
 
   it('prints one JSON document on stdout with --json', async () => {
@@ -130,12 +131,12 @@ describe('apply when a file cannot be written', () => {
 
   it('creates the temporary file of .npmrc with the mode of .npmrc', async () => {
     const directory = project();
-    const renovate = statSync(join(directory, 'renovate.json')).mode & 0o777;
+    const renovate = statSync(join(directory, 'renovate.json')).mode;
     const result = await exec('apply', directory);
     expect(result.code).toBe(0);
-    // .npmrc and renovate.json, in the order of their names.
-    expect(fault.modes).toEqual([0o600, renovate]);
-    expect(statSync(join(directory, '.npmrc')).mode & 0o777).toBe(0o600);
+    // .npmrc and renovate.json, in the order of their names; Windows keeps only whether the file can be written.
+    expect(fault.modes.map(comparableMode)).toEqual([0o600, renovate].map(comparableMode));
+    expect(comparableMode(statSync(join(directory, '.npmrc')).mode)).toBe(comparableMode(0o600));
   });
 });
 

@@ -1,0 +1,6 @@
+-r C:\x\req.txt
+-r D:req.txt
+-c \\nas\share\constraints.txt
+-r \tools\req.txt
+-r sub\missing.txt
+requests==2.32.3

@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
 import { isPythonSpec } from '../check/python.ts';
-import { blockingExitCode, decide, formatDecision, readHookEvent, requestedSpecs } from '../check/hook.ts';
+import { blockingExitCode, decide, formatDecision, readHookEvent, reasonText, requestedSpecs } from '../check/hook.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal } from '../check/registry.ts';
 import { PopularNames } from '../check/similar.ts';
 import { Repository } from '../detect/repository.ts';
@@ -26,7 +26,7 @@ import { findPolicyDirectory } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { parsePolicy } from '../policy/validate.ts';
 import { paint, type Paint } from '../color.ts';
-import { printable } from '../printable.ts';
+import { printable, withoutCredentials } from '../printable.ts';
 import { checkDirectory, policyInputError, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
@@ -96,9 +96,10 @@ function npmrcRegistries(directory: string, home: string): Registries {
   for (const { text, file } of files) {
     for (const { key, value, line } of iniEntries(text)) {
       const where = `${key}= in ${file}, line ${line}`;
-      if (key === fact.key) result.registry = { value, where };
+      // A user name and password in a registry URL are neither sent (fetch refuses them anyway) nor shown.
+      if (key === fact.key) result.registry = { value: withoutCredentials(value), where };
       else if (tagKey !== undefined && key === tagKey) result.tag = { value, where };
-      else if (key.startsWith('@') && key.endsWith(fact.scopeKeySuffix)) result.scopes.set(key.slice(0, -fact.scopeKeySuffix.length), value);
+      else if (key.startsWith('@') && key.endsWith(fact.scopeKeySuffix)) result.scopes.set(key.slice(0, -fact.scopeKeySuffix.length), withoutCredentials(value));
     }
   }
   return result;
@@ -106,7 +107,7 @@ function npmrcRegistries(directory: string, home: string): Registries {
 
 /** The npm registry to ask and where it comes from; `where` is undefined for the public registry. */
 function registryOf(flags: CheckFlags, registries: Registries): { url: string; where: string | undefined } {
-  const url = flags.registry ?? registries.registry?.value ?? defaultRegistry();
+  const url = flags.registry === undefined ? (registries.registry?.value ?? defaultRegistry()) : withoutCredentials(flags.registry);
   const normalized = (text: string) => text.replace(/\/+$/u, '').toLowerCase();
   if (normalized(url) === normalized(defaultRegistry())) return { url, where: undefined };
   return { url, where: flags.registry === undefined ? (registries.registry?.where ?? 'the configuration') : '--registry' };
@@ -180,7 +181,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
   }
   if (event === undefined) return EXIT_OK;
   try {
-    const { specs, unreadable } = requestedSpecs(event.command);
+    const { specs, unreadable } = requestedSpecs(event.command, event.shell);
     if (specs.length === 0 && unreadable === undefined) return EXIT_OK;
     const loaded = load(flags.dir ?? event.cwd ?? process.cwd(), dependencies.home?.() ?? homedir());
     const registry = registryOf(flags, loaded.registries);
@@ -192,8 +193,9 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       popular: new PopularNames(values(popularPackages)[0] ?? []),
       popularPython: popularPython(),
       scopeRegistries: loaded.registries.scopes,
-      ...(flags.index === undefined ? {} : { index: flags.index }),
+      ...(flags.index === undefined ? {} : { index: withoutCredentials(flags.index) }),
       ...(loaded.registries.tag === undefined ? {} : { defaultTag: loaded.registries.tag.value }),
+      scriptBodies: false,
     });
     // Say which registry answered when it is not the public one, if an npm package was looked up there.
     const scopeOf = (name: string) => (name.startsWith('@') ? name.slice(0, name.indexOf('/')) : '');
@@ -201,7 +203,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     const note = lookedUp ? registryNote(registry) : undefined;
     io.stdout(formatDecision(decide(reports, unreadable, note === undefined ? [] : [`${note}.`])) ?? '');
   } catch (error) {
-    io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${messageOf(error)}` }) ?? '');
+    io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(messageOf(error))}` }) ?? '');
   }
   return EXIT_OK;
 }
@@ -257,7 +259,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     popular: new PopularNames(values(popularPackages)[0] ?? []),
     popularPython: popularPython(),
     scopeRegistries: loaded.registries.scopes,
-    ...(flags.index === undefined ? {} : { index: flags.index }),
+    ...(flags.index === undefined ? {} : { index: withoutCredentials(flags.index) }),
     ...(tag === undefined ? {} : { defaultTag: tag.value }),
   });
   io.stdout(flags.json ? `${JSON.stringify({ schemaVersion: 1, policy: loaded.file ?? null, packages: reports, notices, errors: [] }, null, 2)}\n` : render(reports, paint(io.colors?.stdout)));

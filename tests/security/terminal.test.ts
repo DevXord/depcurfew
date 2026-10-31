@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runAction } from '../../src/action.ts';
 import type { FetchLike } from '../../src/check/registry.ts';
 import { run } from '../../src/cli/run.ts';
+import { windows } from '../support/platform.ts';
 
 const ESC = '\u001b';
 const BEL = '\u0007';
@@ -19,6 +20,10 @@ const CLEAR = `\r${ESC}[2K`;
 const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/u;
 /** The colors depcurfew adds itself. */
 const SGR = /\u001b\[\d+m/gu;
+/** A workspace directory with control characters in its name; Windows allows none in file names. */
+const PACKAGE = windows ? 'pkg' : `${TITLE}pkg`;
+/** How text output shows it. */
+const SHOWN_PACKAGE = windows ? 'pkg' : '\\x1b]0;PWNED\\x07pkg';
 
 const temporary: string[] = [];
 let repo = '';
@@ -33,8 +38,8 @@ beforeAll(() => {
       null,
       2,
     ),
-    [`packages/${TITLE}pkg/package.json`]: JSON.stringify({ name: 'pkg', version: '1.0.0' }),
-    [`packages/${TITLE}pkg/.npmrc`]: 'min-release-age=0\n',
+    [`packages/${PACKAGE}/package.json`]: JSON.stringify({ name: 'pkg', version: '1.0.0' }),
+    [`packages/${PACKAGE}/.npmrc`]: 'min-release-age=0\n',
   };
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(join(repo, file, '..'), { recursive: true });
@@ -85,8 +90,8 @@ describe('control characters from untrusted sources in text output', () => {
       const plain = result.stdout.replace(SGR, '');
       expect(plain).toContain('installs \\x1b]8;;http://evil.example/\\x07lodash\\x1b]8;;\\x07 from a git repository (git+ssh://git@github.com/a/b.git#abc\\x0d\\x1b[2K)');
       expect(plain).toContain('lets \\x1b]0;PWNED\\x07sharp run install scripts');
-      expect(plain).toContain('\npackages/\\x1b]0;PWNED\\x07pkg/.npmrc\n');
-      expect(plain).toContain('so min-release-age in packages/\\x1b]0;PWNED\\x07pkg/.npmrc has no effect');
+      expect(plain).toContain(`\npackages/${SHOWN_PACKAGE}/.npmrc\n`);
+      expect(plain).toContain(`so min-release-age in packages/${SHOWN_PACKAGE}/.npmrc has no effect`);
     }
   });
 
@@ -102,7 +107,7 @@ describe('control characters from untrusted sources in text output', () => {
   it('explain shows them as \\xHH', async () => {
     const result = await exec(['explain', repo], true);
     expectVisible(result.stdout);
-    expect(result.stdout.replace(SGR, '')).toContain('Workspaces: packages/\\x1b]0;PWNED\\x07pkg (declared in package.json)');
+    expect(result.stdout.replace(SGR, '')).toContain(`Workspaces: packages/${SHOWN_PACKAGE} (declared in package.json)`);
   });
 
   it('apply shows them as \\xHH in its warnings', async () => {

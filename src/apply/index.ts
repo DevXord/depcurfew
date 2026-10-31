@@ -16,7 +16,7 @@ import type { ResolvedPolicy } from '../policy/schema.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
 import { shortenedDelays } from './delays.ts';
 import { isRecord, sinceOf, values } from './facts.ts';
-import { ignoredByGit, trackedFiles } from './gitignore.ts';
+import { foldCase, ignoredByGit, ignoresCase, trackedFiles } from './gitignore.ts';
 import { bun } from './generators/bun.ts';
 import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet } from './generators/context.ts';
 import { deno } from './generators/deno.ts';
@@ -121,21 +121,28 @@ function allowListWarnings(root: string, policy: ResolvedPolicy, detection: Dete
  * file-ignored-by-git: a file apply writes that git does not pick up, so the protection never reaches the repository
  * and a fresh clone lacks it. Files git already tracks are not affected by .gitignore.
  */
+/** The tracked files in lower case, for a repository that ignores case. */
+function foldedSet(files: Set<string> | undefined): Set<string> | undefined {
+  return files === undefined ? undefined : new Set([...files].map(foldCase));
+}
+
 function ignoredFileWarnings(root: string, changes: readonly FileChange[]): ApplyWarning[] {
   const repository = new Repository(root);
   const cache: Parameters<typeof ignoredByGit>[2] = new Map();
   let tracked: Set<string> | undefined | null = null;
+  let ignoreCase: boolean | undefined;
   return changes.flatMap((change): ApplyWarning[] => {
     let result: ReturnType<typeof ignoredByGit>;
     try {
-      result = ignoredByGit(repository, change.file, cache);
-      if (result.ignored === true) tracked ??= trackedFiles(repository);
+      ignoreCase ??= ignoresCase(repository);
+      result = ignoredByGit(repository, change.file, cache, { ignoreCase });
+      if (result.ignored === true) tracked ??= ignoreCase ? foldedSet(trackedFiles(repository)) : trackedFiles(repository);
     } catch {
       // The warning only helps; .gitignore and the index come from the repository, so they never stop apply.
       return [];
     }
     if (result.ignored !== true) return [];
-    if (tracked?.has(change.file) === true) return [];
+    if (tracked?.has(ignoreCase === true ? foldCase(change.file) : change.file) === true) return [];
     const { rule } = result;
     // A pattern can be as long as a line of the file; the warning names it, shortened, and the line.
     const pattern = rule.pattern.length > 120 ? `${rule.pattern.slice(0, 117)}...` : rule.pattern;
@@ -338,8 +345,21 @@ export class ApplyWriteError extends Error {
       EDQUOT: 'Free some disk space, then run depcurfew apply again',
       EISDIR: `Move the directory ${failure.file} out of the way, then run depcurfew apply again`,
     };
-    const fix = (code === undefined ? undefined : fixes[code]) ?? `Make ${failure.file} and its directory writable for the user that runs depcurfew, then run depcurfew apply again`;
-    this.fix = this.unrestored.length === 0 ? fix : `Restore ${this.unrestored.join(', ')} from version control or a backup. ${fix}`;
+    const quoted = /\s/u.test(failure.file) ? `"${failure.file}"` : failure.file;
+    const busy = !failure.busy
+      ? undefined
+      : failure.platform === 'win32'
+        ? `Close the program that has ${failure.file} open (an editor or a sync client; a virus scan ends by itself), clear the read-only attribute if it is set (attrib -r ${quoted}), then run depcurfew apply again`
+        : `Close the program that has ${failure.file} open, then run depcurfew apply again`;
+    const fix = busy ?? (code === undefined ? undefined : fixes[code]) ?? `Make ${failure.file} and its directory writable for the user that runs depcurfew, then run depcurfew apply again`;
+    const withBackup = this.unrestored.filter((file) => failure.backups[file] !== undefined);
+    const withoutBackup = this.unrestored.filter((file) => failure.backups[file] === undefined);
+    this.fix = [
+      ...withBackup.map((file) => `Restore ${file} from ${failure.backups[file] as string}, which holds its earlier text, or from version control.`),
+      ...(withoutBackup.length === 0 ? [] : [`Restore ${withoutBackup.join(', ')} from version control or a backup.`]),
+      ...(failure.leftovers.length === 0 ? [] : [`Delete ${failure.leftovers.join(', ')}.`]),
+      fix,
+    ].join(' ');
   }
 }
 

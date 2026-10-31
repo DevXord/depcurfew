@@ -7,6 +7,7 @@ const { verified } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const python = verifiedOn('2026-10-30');
 const gitFacts = verifiedOn('2026-10-30');
+const audited = verifiedOn('2026-10-31');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -256,11 +257,11 @@ export const environment: EnvironmentKnowledge = {
     ),
   },
   claudeCode: {
-    hooks: checked.verified(
+    hooks: audited.verified(
       {
         settingsFile: '.claude/settings.json',
         event: 'PreToolUse',
-        shellTool: 'Bash',
+        matcherSeparator: '|',
         input: { event: 'hook_event_name', tool: 'tool_name', command: 'tool_input.command', cwd: 'cwd' },
         output: { container: 'hookSpecificOutput', event: 'hookEventName', decision: 'permissionDecision', reason: 'permissionDecisionReason' },
         decisions: { deny: 'deny', ask: 'ask' },
@@ -270,7 +271,16 @@ export const environment: EnvironmentKnowledge = {
         settings: { hooks: 'hooks', matcher: 'matcher', handlers: 'hooks', type: 'type', commandType: 'command', command: 'command', args: 'args' },
       },
       'https://code.claude.com/docs/en/hooks',
-      'A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.',
+      'A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. A matcher of names separated by | matches each of them exactly. With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.',
+    ),
+    shellTools: audited.verified(
+      [
+        { tool: 'Bash', shell: 'bash' },
+        { tool: 'PowerShell', shell: 'powershell' },
+        { tool: 'Monitor', shell: 'bash' },
+      ],
+      'https://code.claude.com/docs/en/tools-reference',
+      'Tool names are the exact strings of hook matchers. Bash executes shell commands. PowerShell executes PowerShell commands natively; hooks get its command in tool_input.command with the same fields as Bash, and the docs say to match Bash|PowerShell in hooks that inspect shell commands: on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash it is enabled automatically and the Bash tool is not registered at all (also https://code.claude.com/docs/en/hooks#powershell). On Windows with Git Bash it is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1. Monitor runs a command in the background and feeds its output lines back to Claude, with the same permission rules as Bash; on Windows it is available only with Git Bash; a WebSocket watch takes a ws input in place of command.',
     ),
   },
   git: {
@@ -278,6 +288,23 @@ export const environment: EnvironmentKnowledge = {
       { file: '.gitignore', excludeFile: '.git/info/exclude', indexFile: '.git/index', trackedFilesIgnored: false },
       'https://github.com/git/git/blob/v2.56.0/Documentation/gitignore.adoc',
       'git status and git add skip untracked files that match a pattern from a .gitignore in the same directory or a parent (deeper files override higher ones, and within one file the last matching pattern decides), then from $GIT_COMMON_DIR/info/exclude (.git/info/exclude outside linked worktrees), then from core.excludesFile. Files already tracked are not affected. Patterns: # comments, ! negation, a leading or middle / anchors the pattern to the directory of its .gitignore, a trailing / matches directories only, * and ? do not match /, **/, /** and /**/ match any number of directories; a file below an ignored directory cannot be re-included. The tracked files are the entries of $GIT_DIR/index (Documentation/gitformat-index.adoc at v2.56.0: versions 2, 3 and 4).',
+    ),
+    ignoreCase: audited.verified(
+      { configFile: '.git/config', section: 'core', key: 'ignorecase', trueValues: ['yes', 'on', 'true', '1'] },
+      'https://github.com/git/git/blob/v2.56.0/Documentation/config/core.adoc',
+      'core.ignoreCase turns on workarounds for file systems that are not case sensitive (APFS, HFS+, FAT, NTFS); it defaults to false, but git clone and git init probe the file system and set it to true when appropriate, so a repository cloned on Windows or macOS has it. With it, git matches .gitignore patterns and looks up the index without regard to case: match_basename and match_pathname in dir.c compare with fspathncmp and fnmatch_icase_mem, which fold case (strncasecmp, WM_CASEFOLD) when repo_ignore_case is set, and environment.c reads core.ignorecase (both at v2.56.0). Section and variable names are case-insensitive, true is yes, on, true or 1 in any case, and a variable without = <value> is true (Documentation/config.adoc at v2.56.0).',
+    ),
+  },
+  windows: {
+    commandShims: audited.verified(
+      { extensions: ['.cmd', '.ps1'], batchExtension: '.cmd', argumentsVariable: '%*' },
+      'https://github.com/npm/cmd-shim/blob/v9.0.2/lib/index.js',
+      'cmd-shim is "the cmd-shim used in npm to create executable scripts on Windows" (README): for each program of a package it writes <name>.cmd, which runs the program with %* (so cmd.exe reads the arguments again), <name>.ps1 for PowerShell and a sh script. npm ships the same files for itself: bin/npm.cmd, bin/npm.ps1, bin/npx.cmd and bin/npx.ps1 in github.com/npm/cli at v12.2.1, the .cmd files ending in "%NODE_EXE%" "%NPM_CLI_JS%" %*.',
+    ),
+    batchArguments: audited.verified(
+      { extensions: ['.bat', '.cmd'] },
+      'https://github.com/MicrosoftDocs/PowerShell-Docs/blob/0061dc7f35abfa6bb5ffabaada1650163761f2e1/reference/7.5/Microsoft.PowerShell.Core/About/about_Parsing.md',
+      'about_Parsing (the source of https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_parsing): on Windows, arguments for batch files are passed as raw command-line strings to cmd.exe, and untrusted input should be passed another way. In the Windows mode of $PSNativeCommandArgumentPassing, the default on Windows since PowerShell 7.3, files ending in .bat or .cmd (also cmd.exe, cscript.exe, wscript.exe, .js, .vbs and .wsf) keep the legacy argument passing of Windows PowerShell 5.1.',
     ),
   },
   python: {
@@ -311,10 +338,10 @@ export const environment: EnvironmentKnowledge = {
       'https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md',
       'Hatch reads its project configuration from [tool.hatch] of pyproject.toml or from hatch.toml. It has no setting of its own for a release-age delay, building from source or dependency sources; its environments install with uv (installer = "uv", the default of its internal environments) or pip (docs/how-to/environment/select-installer.md), and uv reads [tool.uv] of the project under Hatch too (tested on 2026-10-30 with Hatch 1.18.2 and uv 0.13.6).',
     ),
-    interpreter: python.verified(
-      { executables: ['python', 'python3', 'py'], moduleOption: '-m', commandOption: '-c', valueOptions: ['-W', '-X', '--check-hash-based-pycs'] },
+    interpreter: audited.verified(
+      { executables: ['python', 'python3', 'py'], moduleOption: '-m', commandOption: '-c', valueOptions: ['-W', '-X', '--check-hash-based-pycs'], groupedShortOptions: true },
       'https://github.com/python/cpython/blob/v3.14.0/Doc/using/cmdline.rst',
-      'python [-bBdEhiIOPqRsSuvVWx?] [-c command | -m module-name | script | - ] [args]: -m and -c end the interpreter options, and what follows goes to the module or the command; -W arg, -X option and --check-hash-based-pycs mode take a value, the other options are flags. pip documents running itself as python -m pip, and as py -m pip with the Windows launcher (github.com/pypa/pip/blob/26.2.2/docs/html/cli/pip_install.rst).',
+      'python [-bBdEhiIOPqRsSuvVWx?] [-c command | -m module-name | script | - ] [args]: -m and -c end the interpreter options, and what follows goes to the module or the command; -W arg, -X option and --check-hash-based-pycs mode take a value, the other options are flags. One-letter options may be grouped after one dash: _PyOS_GetOpt in Python/getopt.c (v3.14.0, SHORT_OPTS "bBc:dEhiIm:OPqRsStuvVW:xX:?") reads them one by one, and c, m, W and X take the rest of the word or the next word, so python3 -Im pip runs pip. pip documents running itself as python -m pip, and as py -m pip with the Windows launcher (github.com/pypa/pip/blob/26.2.2/docs/html/cli/pip_install.rst).',
     ),
   },
 };

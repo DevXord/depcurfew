@@ -34,7 +34,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
 };
 
-/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging and git. */
+/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git and the Windows shells. */
 export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'nodejs.org' },
   { host: 'github.com', pathPrefix: '/nodejs/' },
@@ -61,6 +61,9 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/abatilo/' },
   // git: git-scm.com/docs is built from Documentation/ in git/git.
   { host: 'github.com', pathPrefix: '/git/' },
+  // PowerShell and cmd.exe: learn.microsoft.com is built from MicrosoftDocs repositories such as PowerShell-Docs.
+  { host: 'learn.microsoft.com' },
+  { host: 'github.com', pathPrefix: '/microsoftdocs/' },
 ];
 
 export function isOfficialSource(url: URL, rules: readonly SourceRule[]): boolean {

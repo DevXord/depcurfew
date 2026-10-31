@@ -13,6 +13,7 @@ jobs:
   self:
     name: depcurfew on itself, with upload
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       security-events: write
@@ -35,6 +36,7 @@ jobs:
   clean-fixture:
     name: Clean fixture, with upload
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       security-events: write
@@ -61,6 +63,7 @@ jobs:
   failing-fixture:
     name: Failing fixture, without upload
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -84,6 +87,7 @@ jobs:
   old-node:
     name: Sets up Node.js 22 on a runner with Node.js 20
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
