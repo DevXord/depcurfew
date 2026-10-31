@@ -189,7 +189,7 @@ export const uv: ToolKnowledge = {
       CONFIGURATION,
     ),
     lockedSettings: verified(
-      ['exclude-newer', 'exclude-newer-package'],
+      { settings: ['exclude-newer', 'exclude-newer-package'], lock: 'uv lock', failing: ['uv sync --locked', 'uv lock --check'] },
       SERIALIZE,
       'uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again ("Resolving despite existing lockfile due to addition of global exclude newer", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded.',
     ),

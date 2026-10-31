@@ -9,7 +9,7 @@ export type { ApplyErrorCode, ApplyWarning, ApplyWarningCode } from './apply/war
 export { checkSpec, checkSpecs } from './check/index.ts';
 export type { CheckFinding, CheckOptions, FindingCode, PackageReport } from './check/index.ts';
 export { scanCommandLine } from './check/command.ts';
-export type { CommandScan, InstallRequest } from './check/command.ts';
+export type { CommandScan, InstallRequest, ScanOptions } from './check/command.ts';
 export { PopularNames } from './check/similar.ts';
 export { detectProject } from './detect/index.ts';
 export { countLevels, renderText, RULES, runDoctor, toSarif } from './doctor/index.ts';

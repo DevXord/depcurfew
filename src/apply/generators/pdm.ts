@@ -1,10 +1,12 @@
 // PDM: exclude-newer, its per-package overrides and the build settings in one managed block in [tool.pdm.resolution]
-// of pyproject.toml, the only project file PDM reads them from. Durations are written as PDM's N{h|d|w}.
+// of pyproject.toml, the only project file PDM reads them from. Durations are written as PDM's N{h|d|w}. pdm.lock
+// is checked against that whole table, so a change to it means locking again.
 import { hasManagedLines } from '../block.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
+import { writeTomlBlock } from '../toml.ts';
 import { cooldownValue, eachSource, exclusions } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
-import { buildAllowList, buildSwitchScopeWarning, compactDuration, forcedBuildWarning, pythonNames, tomlValue } from './python.ts';
+import { buildAllowList, buildSwitchScopeWarning, compactDuration, forcedBuildWarning, pythonNames, relockWarning, tomlValue } from './python.ts';
 
 export const pdm: ManagerGenerator = (context) => {
   const { tool, policy } = context;
@@ -53,6 +55,10 @@ export const pdm: ManagerGenerator = (context) => {
   eachSource(context, () => undefined);
 
   // The marker names the table, because uv may keep a block of its own in the same pyproject.toml.
-  if (entries.length > 0 || (context.exists(file) && hasManagedLines(context.read(file)))) context.toml(file, table, entries, managed, table);
+  if (entries.length > 0 || (context.exists(file) && hasManagedLines(context.read(file)))) {
+    // Before the edit: the context reads a file as edited once its change is planned.
+    relockWarning(context, file, table, (body) => writeTomlBlock(body, table, entries, managed, table));
+    context.toml(file, table, entries, managed, table);
+  }
   return minutes;
 };

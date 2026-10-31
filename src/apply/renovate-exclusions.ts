@@ -2,7 +2,8 @@
 // Renovate): "<name>@<version>" with the comment "# Renovate security update: <name>@<version>" on the line above,
 // later versions joined with " || ". apply keeps them, comment included, and changes only the policy's entries, so
 // the next Renovate security pull request does not fail config-drift (decision D-075). Only that format counts.
-import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Node, type Pair } from 'yaml';
+import { isMap, isScalar, isSeq, LineCounter, type Node, type Pair } from 'yaml';
+import { parseYamlDocument } from '../yaml-parse.ts';
 import { isRecord } from './facts.ts';
 
 export interface SecurityExclusionFormat {
@@ -40,7 +41,7 @@ function split(spec: string, separator: string): { name: string; versions: strin
 
 function sequenceAt(text: string, key: string): { items: Node[]; lineCounter: LineCounter } | undefined {
   const lineCounter = new LineCounter();
-  const document = parseDocument(text, { lineCounter });
+  const document = parseYamlDocument(text, lineCounter);
   if (document.errors.length > 0 || !isMap(document.contents)) return undefined;
   const pair = (document.contents.items as Pair<Node, Node | null>[]).filter((item) => isScalar(item.key) && String(item.key.value) === key).at(-1);
   if (pair === undefined || pair.value === null || !isSeq(pair.value) || pair.value.flow === true) return undefined;

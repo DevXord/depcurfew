@@ -2,6 +2,7 @@
 // collects warnings instead of throwing. Nothing in the repository is executed.
 import { closeSync, lstatSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import { isInside } from '../paths.ts';
 import type { DetectionWarning } from './types.ts';
 
 export const MAX_FILE_SIZE = 1024 * 1024;
@@ -46,9 +47,6 @@ export class Repository {
     this.warn('unreadable-file', `cannot read ${path} (${fileError(error)})`, [path]);
   }
 
-  #inside(real: string): boolean {
-    return real === this.root || real.startsWith(this.root + sep);
-  }
 
   /** The real path of a repository-relative path, or undefined if it is missing or leads outside. */
   #resolve(path: string, report: boolean): string | undefined {
@@ -65,7 +63,7 @@ export class Repository {
     } catch {
       return undefined;
     }
-    if (!this.#inside(real)) {
+    if (!isInside(this.root, real)) {
       if (report) this.warn('outside-repository', `${path} points outside the repository and was not read`, [path]);
       return undefined;
     }

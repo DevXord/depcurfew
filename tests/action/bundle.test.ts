@@ -10,7 +10,8 @@ import { describe, expect, it } from 'vitest';
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 describe('action bundle', () => {
-  it('equals a fresh build (run npm run build:action after changing src/)', () => {
+  // CI checks it on Linux, where the release is built; on Windows the bundler may name modules with \.
+  it.skipIf(process.platform === 'win32')('equals a fresh build (run npm run build:action after changing src/)', () => {
     const out = mkdtempSync(join(tmpdir(), 'depcurfew-bundle-'));
     try {
       const build = spawnSync(process.execPath, [join(ROOT, 'node_modules/tsdown/dist/run.mjs'), '-c', 'tsdown.action.config.ts', '-d', out], {

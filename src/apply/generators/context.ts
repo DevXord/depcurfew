@@ -8,12 +8,14 @@ import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
 import { writeIniBlock } from '../ini.ts';
 import { jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonSet } from '../json-edit.ts';
 import { writeRequirementsBlock } from '../pip-requirements.ts';
+import { requirementsLongOptions } from '../../doctor/python.ts';
+import { requirementsFormatOf } from '../../doctor/python-lockfiles.ts';
 import { describeRequirements, type Requirement } from '../requirements.ts';
 import { writeTomlBlock } from '../toml.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
 import type { ApplyWarning } from '../warnings.ts';
 import type { Workspace } from '../workspace.ts';
-import { yamlGet, yamlSet } from '../yaml-edit.ts';
+import { yamlGet, yamlSet, yamlSetMany } from '../yaml-edit.ts';
 
 export interface Snippet {
   tool: ToolId;
@@ -72,6 +74,8 @@ export interface JsonFile {
 export interface YamlFile {
   get(path: readonly (string | number)[]): unknown;
   set(path: readonly (string | number)[], value: unknown): void;
+  /** Sets several values: the same result and checks as set one after another, much faster for many edits. */
+  setMany(edits: readonly (readonly [readonly (string | number)[], unknown])[]): void;
 }
 
 /** A generator for a package manager returns the cooldown it wrote, in minutes, so bots can wait at least as long. */
@@ -152,6 +156,7 @@ export function createContext(options: {
     yaml: (file) => ({
       get: (path) => guard(file, () => (workspace.exists(file) ? yamlGet(workspace.read(file), path) : undefined)),
       set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value))),
+      setMany: (edits) => guard(file, () => workspace.edit(file, (body) => yamlSetMany(body, edits))),
     }),
     ini: (file, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeIniBlock(body, entries, managedKeys))),
     // The block is written line by line; a file that does not parse is not edited, and the result has to parse.
@@ -165,6 +170,6 @@ export function createContext(options: {
         }),
       ),
     requirements: (file, entries, managedOptions) =>
-      guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions))),
+      guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions, requirementsLongOptions(requirementsFormatOf(tool))))),
   };
 }

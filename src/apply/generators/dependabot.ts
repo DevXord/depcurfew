@@ -3,6 +3,7 @@
 // stay. Each entry gets the exclusions of its registry: npm names for npm, bun and deno, pypi: names for pip and uv.
 import { convertCooldown } from '../../policy/convert.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
+import { POLICY_FILE } from '../../policy/defaults.ts';
 import { patternsFor } from '../../policy/package-pattern.ts';
 import { extraOf, isRecord, settingOf, values } from '../facts.ts';
 import { exclusions, sameList } from './common.ts';
@@ -34,11 +35,15 @@ export const dependabot: BotGenerator = (context, duration) => {
     return;
   }
   if (policy.cooldown.securityUpdates === 'delay') {
-    context.warn({ code: 'security-delay-unsupported', message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied` });
+    context.warn({
+      code: 'security-delay-unsupported',
+      message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`,
+      fix: `Review ${context.name} security pull requests before merging them, or set cooldown.securityUpdates to "bypass" in ${POLICY_FILE}, which is what ${context.name} does`,
+    });
   }
   const result = convertCooldown(tool, duration);
   if (!result.ok) {
-    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, ...(result.fix === undefined ? {} : { fix: result.fix }) });
+    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, fix: result.fix });
     return;
   }
   const keys = extraOf(tool, 'cooldownKeys', isKeys);
@@ -53,24 +58,27 @@ export const dependabot: BotGenerator = (context, duration) => {
     return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], python ? 'pypi' : 'npm')) ?? [];
   };
   let configured = 0;
+  // A dependabot.yml may have an entry for every directory of a monorepo: the edits are made together.
+  const edits: [(string | number)[], unknown][] = [];
   (Array.isArray(updates) ? updates : []).forEach((entry: unknown, index) => {
     if (!isRecord(entry) || !ecosystems.includes(String(entry['package-ecosystem']))) return;
     configured += 1;
     const patterns = patternsOf(String(entry['package-ecosystem']));
     const current = entry[setting];
     if (!isRecord(current)) {
-      yaml.set(['updates', index, setting], { [keys.days]: result.value, ...(patterns.length > 0 ? { [keys.exclude]: patterns } : {}) });
+      edits.push([['updates', index, setting], { [keys.days]: result.value, ...(patterns.length > 0 ? { [keys.exclude]: patterns } : {}) }]);
       return;
     }
-    yaml.set(['updates', index, setting, keys.days], result.value);
+    edits.push([['updates', index, setting, keys.days], result.value]);
     for (const key of keys.semverDays) {
       const days = current[key];
-      if (typeof days === 'number' && typeof result.value === 'number' && days < result.value) yaml.set(['updates', index, setting, key], result.value);
+      if (typeof days === 'number' && typeof result.value === 'number' && days < result.value) edits.push([['updates', index, setting, key], result.value]);
     }
     if ((patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) {
-      yaml.set(['updates', index, setting, keys.exclude], patterns);
+      edits.push([['updates', index, setting, keys.exclude], patterns]);
     }
   });
+  if (edits.length > 0) yaml.setMany(edits);
   if (configured === 0) {
     context.warn({
       code: 'bot-entries-missing',

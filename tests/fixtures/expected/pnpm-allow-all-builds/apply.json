@@ -6,7 +6,8 @@
     {
       "code": "allow-all-replaced",
       "tool": "pnpm",
-      "message": "pnpm: dangerouslyAllowAllBuilds allowed every build script; set to false because the policy denies install scripts"
+      "message": "pnpm: dangerouslyAllowAllBuilds allowed every build script; set to false because the policy denies install scripts",
+      "fix": "Add the packages whose install scripts must run to installScripts.allow in depcurfew.json, then run depcurfew apply again"
     },
     {
       "code": "allow-pattern-unsupported",

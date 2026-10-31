@@ -423,6 +423,11 @@ export interface PythonInterpreterKnowledge {
   commandOption: string;
   /** Other options followed by a separate value. */
   valueOptions: readonly string[];
+  /**
+   * One-letter options may be grouped after one dash (-Im pip): flags, then perhaps an option with a value, which is
+   * the rest of the word or the next word.
+   */
+  groupedShortOptions: boolean;
 }
 
 /** How poetry add reads name@constraint (and uv tool commands name@version). */
@@ -475,8 +480,8 @@ export interface ClaudeCodeHooksKnowledge {
   /** Project settings file that can be committed. */
   settingsFile: string;
   event: string;
-  /** The tool name of shell commands, matched by the matcher. */
-  shellTool: string;
+  /** Separates the tool names of a matcher that lists several, each matched exactly. */
+  matcherSeparator: string;
   /** Fields of the JSON a command hook reads on stdin. */
   input: { event: string; tool: string; command: string; cwd: string };
   /** Fields of the JSON object a hook prints to decide. */
@@ -490,6 +495,12 @@ export interface ClaudeCodeHooksKnowledge {
   projectDir: string;
   /** Keys of a settings file: the hooks map, a matcher group and a command handler run without a shell. */
   settings: { hooks: string; matcher: string; handlers: string; type: string; commandType: string; command: string; args: string };
+}
+
+/** A Claude Code tool that runs shell commands, by the name a matcher and the event use, and the shell it runs them in. */
+export interface ClaudeCodeShellTool {
+  tool: string;
+  shell: 'bash' | 'powershell';
 }
 
 /**
@@ -524,6 +535,25 @@ export interface GitIgnoreKnowledge {
   indexFile: string;
   /** Whether a pattern also hides a file git already tracks (it does not). */
   trackedFilesIgnored: boolean;
+}
+
+/** npm's shims for the programs of packages on Windows. */
+export interface CommandShimsKnowledge {
+  /** The files written next to each program (besides a sh script). */
+  extensions: readonly string[];
+  /** The shim cmd.exe runs, which passes its arguments on with `argumentsVariable`, so they are read once more. */
+  batchExtension: string;
+  argumentsVariable: string;
+}
+
+/** The git setting that makes .gitignore patterns and index lookups ignore case. */
+export interface GitIgnoreCaseKnowledge {
+  /** The repository's configuration file, relative to the working tree. */
+  configFile: string;
+  section: string;
+  key: string;
+  /** Values read as true (case-insensitive); a key without a value is true too. */
+  trueValues: readonly string[];
 }
 
 export interface EnvironmentKnowledge {
@@ -575,10 +605,18 @@ export interface EnvironmentKnowledge {
   };
   claudeCode: {
     hooks: Fact<ClaudeCodeHooksKnowledge>;
+    /** The tools whose PreToolUse events carry a shell command in the hooks fact's input.command. */
+    shellTools: Fact<readonly ClaudeCodeShellTool[]>;
   };
   git: {
     /** Where git reads the patterns of files it does not pick up, and the index that lists the tracked files. */
     ignore: Fact<GitIgnoreKnowledge>;
+    ignoreCase: Fact<GitIgnoreCaseKnowledge>;
+  };
+  windows: {
+    commandShims: Fact<CommandShimsKnowledge>;
+    /** Files whose arguments PowerShell hands to cmd.exe as a raw command line. */
+    batchArguments: Fact<{ extensions: readonly string[] }>;
   };
   python: {
     /** How Python package names are compared: lowercased, with every run of these characters replaced by `replacement`. */

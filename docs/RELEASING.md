@@ -9,7 +9,7 @@ Fakty o npm, na których opiera się ta procedura (wymagane wersje, zachowanie e
 `.github/workflows/release.yml` uruchamia się po wypchnięciu tagu `vX.Y.Z`:
 
 1. Ma tylko uprawnienia `contents: read` i `id-token: write`, a akcje są przypięte do pełnych SHA.
-2. Na Node 24 sprawdza, że npm ma co najmniej 11.15.0 (etapowanie z trusted publishing) i że tag zgadza się z wersją w `package.json`.
+2. Na Node 24 sprawdza, że npm ma co najmniej 11.15.0 (etapowanie z trusted publishing), że tag zgadza się z wersją w `package.json` i że oznaczony commit jest w `main` (tag postawiony na innej gałęzi zatrzymuje workflow). Job ma limit 30 minut.
 3. Uruchamia `npm ci` (bez skryptów zależności), `npm test`, `typecheck`, `check:pkg` i zgodność bundla akcji, a potem `depcurfew doctor` na samym repozytorium.
 4. Wykonuje `npm stage publish --provenance`. npm uwierzytelnia się przez OIDC, a proweniencja powstaje, bo repozytorium i paczka są publiczne.
 
@@ -61,7 +61,7 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
 
 ## Każde wydanie
 
-1. **Wersja.** Na gałęzi podnieś wersję (`npm version X.Y.Z --no-git-tag-version`), dopisz zmiany do `docs/CHANGELOG-dev.md`, scal PR do `main`. Wersja 1.0.0 jest już ustawiona w `package.json`.
+1. **Wersja.** Na gałęzi podnieś wersję (`npm version X.Y.Z --no-git-tag-version`), dopisz zmiany dla użytkowników po angielsku do `CHANGELOG.md` (i deweloperskie do `docs/CHANGELOG-dev.md`), scal PR do `main`. Wersja 1.0.0 jest już ustawiona w `package.json`, a jej notatki są w `CHANGELOG.md`.
 2. **Tag na commicie z `main`:**
 
    ```bash
@@ -83,7 +83,7 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
    Pobrany plik `.tgz` można porównać z `npm pack --dry-run` w checkoucie tagu.
 5. **Zatwierdzenie z 2FA:** na npmjs.com zakładka **Staged Packages** → **Approve**, albo `npm stage approve <stage-id>`.
 6. **Sprawdzenie proweniencji:** strona paczki na npmjs.com pokazuje proweniencję (repozytorium, workflow, commit). W dowolnym projekcie po instalacji `depcurfew@X.Y.Z` polecenie `npm audit signatures` powinno wykazać zweryfikowaną attestację.
-7. **Po wydaniu** w README wpisać w przykładzie Action pełny SHA commita wydania.
+7. **Po wydaniu** w README wpisać w przykładzie Action pełny SHA commita wydania i utworzyć na GitHubie Release `vX.Y.Z` z tagu, z sekcją wersji z `CHANGELOG.md` jako opisem.
 8. **Tylko po pierwszym wydaniu:** odrzuć etap próbny z kroku 2 jednorazowej konfiguracji (`npm stage list depcurfew`, potem `npm stage reject <stage-id>`, z 2FA). Opublikowana 1.0.0 zostaje. README trafia do paczki w chwili publikacji i to ono jest na stronie npm, więc wszystko, co ma się tam znaleźć, musi być w `main` przed tagiem.
 
 ## Gdy coś nie działa

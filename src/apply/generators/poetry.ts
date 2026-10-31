@@ -1,7 +1,7 @@
 // Poetry: solver.min-release-age and the installer build settings in poetry.toml, the only project file Poetry reads
 // them from: one managed block in [solver] and one in [installer], each marked with its table.
 import { hasManagedLines } from '../block.ts';
-import { extraOf, firstFile, isSwitch, settingOf, sinceOf } from '../facts.ts';
+import { extraOf, firstFile, isSwitch, settingOf, sinceOf, values } from '../facts.ts';
 import { cooldownValue, eachSource, exclusions, splitDotted } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 import { buildAllowList, buildSwitchScopeWarning, forcedBuildWarning, pythonNames, tomlValue } from './python.ts';
@@ -45,7 +45,12 @@ export const poetry: ManagerGenerator = (context) => {
     if (context.supports(build.since, build.setting)) {
       installer.entries.push(`${key} = ${tomlValue(build.value)}`);
       installer.managed.push(key);
-      context.warn({ code: 'build-switch-install-only', message: `${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies` });
+      const lockfile = (tool.project === undefined ? [] : values(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value))[0] ?? 'the lockfile';
+      context.warn({
+        code: 'build-switch-install-only',
+        message: `${context.name}: ${build.setting} applies when packages are installed; poetry lock may still build source distributions to read their dependencies`,
+        fix: `Run poetry lock where a build cannot reach secrets (CI or a container), and depcurfew doctor, which lists the packages in ${lockfile} without a wheel`,
+      });
       buildSwitchScopeWarning(context, build.setting, build.covers);
       const setting = settingOf(tool.installScripts.allowList.setting);
       if (setting !== null) {

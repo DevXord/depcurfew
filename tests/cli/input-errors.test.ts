@@ -4,7 +4,7 @@
 // read error is simulated in node:fs.
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_FAILURE, EXIT_USAGE, run } from '../../src/cli/run.ts';
 
@@ -51,7 +51,8 @@ async function exec(...argv: string[]): Promise<{ code: number; stdout: string; 
 describe('a depcurfew.json that cannot be read', () => {
   const unreadable = () => {
     const directory = project();
-    failing.suffix = `${directory}/depcurfew.json`;
+    // The directory's own name and the file, whatever form of the temporary directory's path is read (8.3 names on Windows).
+    failing.suffix = join(basename(directory), 'depcurfew.json');
     return directory;
   };
   // The reading layer names the error code and leaves out the absolute path (decision D-076).
@@ -85,7 +86,8 @@ describe('a depcurfew.json that cannot be read', () => {
 
   it('check reports it with its code, and --json as JSON', async () => {
     const directory = unreadable();
-    const file = join(directory, 'depcurfew.json');
+    // Relative to the directory check works on, as in apply --json.
+    const file = 'depcurfew.json';
     expect(await exec('check', '--dir', directory, 'lodash')).toEqual({ code: EXIT_FAILURE, stdout: '', stderr: `error: ${message(directory)} (policy-unreadable)\n  fix: ${fix}\n` });
     const json = await exec('check', '--json', '--dir', directory, 'lodash');
     expect([json.code, json.stderr]).toEqual([EXIT_FAILURE, '']);
@@ -102,7 +104,10 @@ describe('a depcurfew.json that cannot be read', () => {
     const directory = unreadable();
     const result = await exec('explain', '--json', directory);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(JSON.parse(result.stdout)).toMatchObject({ policy: { file: 'depcurfew.json', valid: false, issues: [message(directory)] } });
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      policy: { file: 'depcurfew.json', valid: false, issues: [message(directory)] },
+      errors: [{ code: 'policy-unreadable', level: 'error', location: { file: 'depcurfew.json' }, message: message(directory), fix }],
+    });
   });
 });
 

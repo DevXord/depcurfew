@@ -3,18 +3,11 @@
 // last, so it also sees what the other rules could not read.
 import type { DetectionWarning } from '../../detect/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
+import { UNREADABLE_WARNINGS } from '../unreadable-warnings.ts';
 import { plannedApply } from '../plan.ts';
 import type { Rule } from '../types.ts';
 
-/** Repository warnings that mean a file was not checked. */
-export const UNREADABLE_WARNINGS: Readonly<Record<string, string>> = {
-  'invalid-file': 'Fix the syntax error, so that depcurfew can check the file',
-  'unreadable-file': 'Make the file readable for the user that runs depcurfew, so that depcurfew can check it',
-  'file-too-large': 'Make the file smaller than the limit, or check its settings by hand',
-  'outside-repository': 'Replace the symlink with a regular file inside the repository',
-  'workspace-outside-repository': 'Keep workspace packages inside the repository',
-  'unreadable-include': 'Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them',
-};
+export { UNREADABLE_WARNINGS } from '../unreadable-warnings.ts';
 
 export const unreadableConfig: Rule = {
   id: 'unreadable-config',

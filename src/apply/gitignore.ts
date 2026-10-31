@@ -2,7 +2,8 @@
 // A small matcher for the usual .gitignore syntax (environment.git.ignore in the knowledge base): .gitignore files in
 // the repository root and the directories down to the file, after .git/info/exclude. Patterns it does not understand
 // (character classes) are skipped; when a skipped pattern re-includes files (!), the answer is "unknown", so there is
-// never a warning that might be wrong. Tracked files are not ignored, so the index is read to leave them out.
+// never a warning that might be wrong. Tracked files are not ignored, so the index is read to leave them out. With
+// core.ignorecase in .git/config (set by git clone and init on Windows and macOS), case does not matter, as for git.
 import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Repository } from '../detect/repository.ts';
@@ -117,8 +118,11 @@ function matchGlob(parts: readonly string[], glob: Glob): boolean {
   return below[0] ?? false;
 }
 
-/** The rules of one pattern file; `base` is its directory ('' for the root and for .git/info/exclude). */
-export function parseIgnoreFile(text: string, file: string, base: string): Rule[] {
+/**
+ * The rules of one pattern file; `base` is its directory ('' for the root and for .git/info/exclude). With
+ * `ignoreCase`, the patterns and the base are matched in lower case (the pattern as written stays for messages).
+ */
+export function parseIgnoreFile(text: string, file: string, base: string, ignoreCase = false): Rule[] {
   const rules: Rule[] = [];
   text.split('\n').forEach((raw, index) => {
     let line = raw.replace(/\r$/u, '');
@@ -137,9 +141,15 @@ export function parseIgnoreFile(text: string, file: string, base: string): Rule[
     const anchored = line.includes('/');
     if (line.startsWith('/')) line = line.slice(1);
     if (line === '') return;
-    rules.push({ pattern, file, line: index + 1, base, negate, directoryOnly, anchored, glob: compileGlob(line) });
+    const glob = compileGlob(ignoreCase ? foldCase(line) : line);
+    rules.push({ pattern, file, line: index + 1, base: ignoreCase ? foldCase(base) : base, negate, directoryOnly, anchored, glob });
   });
   return rules;
+}
+
+/** ASCII letters in lower case, as git folds case (strncasecmp, WM_CASEFOLD). */
+export function foldCase(text: string): string {
+  return text.replaceAll(/[A-Z]/gu, (letter) => letter.toLowerCase());
 }
 
 function matches(rule: Rule, path: string, directory: boolean): boolean | undefined {
@@ -171,7 +181,7 @@ function ignoreFacts(): { file: string; excludeFile: string; indexFile: string }
 }
 
 /** Pattern files in the order git reads them for `path`: info/exclude, then .gitignore from the root down. */
-function rulesFor(repository: Repository, path: string, cache: Map<string, Rule[]>): Rule[] {
+function rulesFor(repository: Repository, path: string, cache: Map<string, Rule[]>, ignoreCase: boolean): Rule[] {
   const facts = ignoreFacts();
   const directories = path.split('/').slice(0, -1);
   const files: [string, string][] = [[facts.excludeFile, '']];
@@ -183,17 +193,22 @@ function rulesFor(repository: Repository, path: string, cache: Map<string, Rule[
     let rules = cache.get(file);
     if (rules === undefined) {
       const text = repository.isFile(file) ? repository.readText(file) : undefined;
-      rules = text === undefined ? [] : parseIgnoreFile(text, file, base);
+      rules = text === undefined ? [] : parseIgnoreFile(text, file, base, ignoreCase);
       cache.set(file, rules);
     }
     return rules;
   });
 }
 
-/** Whether git ignores the file at `path` (relative to the root, with `/`) when it is not tracked. */
-export function ignoredByGit(repository: Repository, path: string, cache = new Map<string, Rule[]>()): IgnoreResult {
-  const rules = rulesFor(repository, path, cache);
-  const parts = path.split('/');
+/**
+ * Whether git ignores the file at `path` (relative to the root, with `/`) when it is not tracked. A cache serves one
+ * value of `ignoreCase`.
+ */
+export function ignoredByGit(repository: Repository, path: string, cache = new Map<string, Rule[]>(), options: { ignoreCase?: boolean } = {}): IgnoreResult {
+  const ignoreCase = options.ignoreCase === true;
+  const rules = rulesFor(repository, path, cache, ignoreCase);
+  const compared = ignoreCase ? foldCase(path) : path;
+  const parts = compared.split('/');
   // A file below an ignored directory cannot be re-included; git does not even look inside.
   for (let depth = 1; depth < parts.length; depth++) {
     const directory = parts.slice(0, depth).join('/');
@@ -201,9 +216,38 @@ export function ignoredByGit(repository: Repository, path: string, cache = new M
     if (decided === 'unknown') return { ignored: 'unknown' };
     if (decided !== undefined && !decided.negate) return { ignored: true, rule: { pattern: decided.pattern, file: decided.file, line: decided.line } };
   }
-  const decided = decide(rules, path, false);
+  const decided = decide(rules, compared, false);
   if (decided === 'unknown') return { ignored: 'unknown' };
   return decided !== undefined && !decided.negate ? { ignored: true, rule: { pattern: decided.pattern, file: decided.file, line: decided.line } } : { ignored: false };
+}
+
+/**
+ * Whether git compares names without regard to case in this repository: core.ignorecase in .git/config, which git
+ * clone and git init set on file systems that ignore case (environment.git.ignoreCase). A linked worktree, whose .git
+ * is a file, keeps its configuration elsewhere and counts as false.
+ */
+export function ignoresCase(repository: Repository): boolean {
+  const facts = values(environment.git.ignoreCase)[0];
+  if (facts === undefined || !repository.isFile(facts.configFile)) return false;
+  const text = repository.readText(facts.configFile);
+  if (text === undefined) return false;
+  let inSection = false;
+  let value = false;
+  for (const raw of text.split('\n')) {
+    let line = raw.trim();
+    const header = /^\[([^\]]*)\](.*)$/u.exec(line);
+    if (header !== null) {
+      // [core] only: [core "name"] is a subsection, another section.
+      inSection = (header[1] as string).trim().toLowerCase() === facts.section;
+      line = (header[2] as string).trim();
+    }
+    if (!inSection) continue;
+    const setting = /^([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?$/u.exec(line.replace(/\s*[#;].*$/u, ''));
+    if (setting === null || (setting[1] as string).toLowerCase() !== facts.key) continue;
+    const given = (setting[2] ?? '').trim().replace(/^"(.*)"$/u, '$1').toLowerCase();
+    value = setting[2] === undefined || facts.trueValues.includes(given);
+  }
+  return value;
 }
 
 const MAX_INDEX_SIZE = 64 * 1024 * 1024;

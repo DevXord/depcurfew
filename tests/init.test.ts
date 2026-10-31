@@ -55,7 +55,7 @@ describe('depcurfew init', () => {
     const result = await exec('init', directory);
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toBe(`depcurfew: ${policyFile} already exists; pass --force to overwrite it.\n`);
+    expect(result.stderr).toBe(`error: ${policyFile} already exists (policy-exists)\n  fix: Pass --force to overwrite it with the default policy, or edit it by hand\n`);
     expect(readFileSync(policyFile, 'utf8')).toBe('{ "version": 1 }\n');
   });
 
@@ -89,17 +89,45 @@ describe('depcurfew init', () => {
     expect(result).toEqual({ code: EXIT_USAGE, stdout: '', stderr: `error: not a directory: ${file} (not-a-directory)\n  fix: Pass the directory of the project, not a file in it\n` });
   });
 
-  it('reports a write error', async () => {
+  it('says what to do when depcurfew.json is a directory, with or without --force', async () => {
     mkdirSync(policyFile);
-    const result = await exec('init', directory, '--force');
+    for (const argv of [[directory, '--force'], [directory]]) {
+      const result = await exec('init', ...argv);
+      expect(result).toEqual({
+        code: EXIT_FAILURE,
+        stdout: '',
+        stderr: `error: ${policyFile} is a directory, not a file (cannot-write)\n  fix: Remove or rename the directory ${policyFile}, then run depcurfew init again\n`,
+      });
+    }
+  });
+
+  it('reports any other write error with its reason and what to do', async () => {
+    const readOnly = join(directory, 'read-only');
+    mkdirSync(readOnly, { mode: 0o555 });
+    const result = await exec('init', readOnly);
+    // root may write anyway; then there is nothing to report.
+    if (result.code === EXIT_OK) return;
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toMatch(new RegExp(`^depcurfew: cannot write ${policyFile.replaceAll('\\', '\\\\')}: `));
+    expect(result.stderr).toMatch(new RegExp(`^error: cannot write ${join(readOnly, 'depcurfew.json').replaceAll('\\', '\\\\')}: EACCES[^\\n]* \\(cannot-write\\)\\n  fix: Make sure you can write to the directory, then run depcurfew init again\\n$`, 'u'));
   });
 
   it('reports the tools it detects', async () => {
     cpSync(fileURLToPath(new URL('fixtures/repos/pnpm11-dependabot', import.meta.url)), directory, { recursive: true });
     const result = await exec('init', directory);
     expect(result.stdout).toBe(`Created ${policyFile} with the default policy.\nDetected tools: pnpm, Dependabot.\n`);
+  });
+
+  it('lists a tool seen only in a CI setup step apart, as apply does not configure it', async () => {
+    cpSync(fileURLToPath(new URL('fixtures/repos/deno-ci-bun', import.meta.url)), directory, { recursive: true });
+    const result = await exec('init', directory);
+    expect(result).toEqual({
+      code: EXIT_OK,
+      stdout:
+        `Created ${policyFile} with the default policy.\n` +
+        'Detected tools: Deno.\n' +
+        'Bun is seen only in a CI setup step (.github/workflows/ci.yml), so depcurfew apply does not configure it; add "bun" to targets in depcurfew.json if it installs packages for this project.\n',
+      stderr: '',
+    });
   });
 
   it('keeps a longer release-age delay the repository already sets, and says where it is', async () => {

@@ -1,5 +1,6 @@
 // pnpm: settings in pnpm-workspace.yaml (read in every version that has them, also in single-package projects);
 // the allow-list is allowBuilds since 10.26.0 and onlyBuiltDependencies before.
+import { POLICY_FILE } from '../../policy/defaults.ts';
 import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { isSecurityExclusionFormat, restoreEntries, securityEntries, withoutComments, type KeptEntry } from '../renovate-exclusions.ts';
 import { allowedNames, cooldownValue, eachSource, exclusions, sameList, scriptsDefault, type SourceKind } from './common.ts';
@@ -94,7 +95,11 @@ export const pnpm: ManagerGenerator = (context) => {
         });
       }
       if (context.atLeast(allowAll.since) && yaml.get([allowAll.setting]) === allowAll.value) {
-        context.warn({ code: 'allow-all-replaced', message: `${context.name}: ${allowAll.setting} allowed every build script; set to false because the policy denies install scripts` });
+        context.warn({
+          code: 'allow-all-replaced',
+          message: `${context.name}: ${allowAll.setting} allowed every build script; set to false because the policy denies install scripts`,
+          fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`,
+        });
         yaml.set([allowAll.setting], false);
       }
       const setting = settingOf(tool.installScripts.allowList.setting) ?? 'allowBuilds';
@@ -133,7 +138,11 @@ export const pnpm: ManagerGenerator = (context) => {
         fix: 'Run depcurfew doctor, which reports direct ones in pnpm-lock.yaml',
       });
       if (denied.length < exotic.size) {
-        context.warn({ code: 'source-switch-combined', message: `pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(' and ')}` });
+        context.warn({
+          code: 'source-switch-combined',
+          message: `pnpm: ${exoticSetting} covers git and tarball dependencies together; set to true because the policy denies ${denied.join(' and ')}`,
+          fix: `pnpm cannot deny one and allow the other: give sources.git and sources.remoteTarball the same value in ${POLICY_FILE}, so that the policy says what pnpm does`,
+        });
       }
     }
     yaml.set([exoticSetting], denied.length > 0);

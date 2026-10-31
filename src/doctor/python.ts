@@ -48,14 +48,33 @@ export function readPythonSetting(repository: Repository, tool: ToolKnowledge, s
 }
 
 /**
- * The global option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines. Options after
- * a requirement on the same logical line (--hash on a continuation line) belong to that requirement and are skipped.
+ * A long option of a requirements file as pip reads it (extra.requirementsParser): an exact name, or a prefix that
+ * names exactly one option of the parser; anything else (an unknown option or an ambiguous prefix) as written.
+ */
+export function expandRequirementsOption(option: string, longOptions: readonly string[]): string {
+  if (longOptions.includes(option)) return option;
+  const matches = longOptions.filter((name) => name.startsWith(option));
+  return matches.length === 1 ? (matches[0] ?? option) : option;
+}
+
+/** The long options of pip's requirements parser in a requirements format record (requirementsFormatOf). */
+export function requirementsLongOptions(format: Record<string, unknown>): string[] {
+  const parser = format['parser'];
+  const options = isRecord(parser) && parser['abbreviations'] === true ? parser['longOptions'] : undefined;
+  return isStringList(options) ? options : [];
+}
+
+/**
+ * The global option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines; an
+ * abbreviated option (--only-bin) as the option pip reads it as. Options after a requirement on the same logical line
+ * (--hash on a continuation line) belong to that requirement and are skipped.
  */
 export function requirementsOptions(repository: Repository, file: string, format: Record<string, unknown>): { option: string; value: string; line: number }[] {
   const text = repository.readText(file);
   if (text === undefined) return [];
+  const longOptions = requirementsLongOptions(format);
   return requirementsLines(text, format).flatMap(({ text: line, line: number }) => {
     const match = /^(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(line);
-    return match === null ? [] : [{ option: match[1] ?? '', value: match[2] ?? '', line: number }];
+    return match === null ? [] : [{ option: expandRequirementsOption(match[1] ?? '', longOptions), value: match[2] ?? '', line: number }];
   });
 }

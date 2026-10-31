@@ -5,7 +5,7 @@ import type { ToolId } from '../knowledge/types.ts';
 
 export const APPLY_WARNINGS = {
   'nothing-to-configure': 'depcurfew found no supported package manager or bot, so nothing is configured.',
-  'file-unreadable': 'A file that shows which tools a project uses cannot be parsed, so depcurfew may configure fewer tools than the project uses.',
+  'file-unreadable': 'A file that shows which tools a project uses cannot be read or parsed (too large, a symlink out of the repository, no read permission, invalid), so depcurfew may configure fewer tools than the project uses.',
   'tool-not-supported': 'A detected tool is not supported (Yarn Classic), so nothing is written for it.',
   'tool-only-in-ci': 'A tool appears only in a CI setup step, with no manifest, lockfile or configuration in the repository, so targets "auto" does not configure it.',
   'version-not-pinned': 'No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.',
@@ -32,7 +32,7 @@ export const APPLY_WARNINGS = {
   'build-switch-environment-only': 'The tool has no project setting that forbids building from source, so it has to be set in the environment where the tool runs.',
   'requirements-file-missing': 'There is no requirements file to write pip options into.',
   'manifest-missing': 'A setting belongs in a project manifest (package.json, deno.json, pyproject.toml, Pipfile) that does not exist, and apply does not create manifests.',
-  'lockfile-out-of-date': 'The lockfile records a setting apply changed, so it has to be locked again.',
+  'lockfile-out-of-date': 'The lockfile records, or is checked against, a setting apply changed, so it has to be locked again.',
   'file-ignored-by-git': 'A file apply writes matches a .gitignore rule, so the change may never reach the repository.',
   'bot-config-missing': 'A bot has no configuration file, and depcurfew does not create one.',
   'bot-config-not-edited': 'A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.',
@@ -42,10 +42,11 @@ export const APPLY_WARNINGS = {
 
 export const APPLY_ERRORS = {
   'cannot-edit': 'A file cannot be read or edited safely (invalid syntax, a symlink, a style depcurfew does not edit), so nothing is written.',
-  'cannot-write': 'A file cannot be written (no permission, a read-only file system, a full disk); the files already written are put back, so nothing changes.',
+  'cannot-write': 'A file cannot be written (no permission, a read-only file system, a full disk, a directory or symlink in its place); the files already written are put back, so nothing changes.',
   'policy-missing': 'The directory has no depcurfew.json.',
   'policy-invalid': 'depcurfew.json does not follow the schema; issues lists the problems.',
   'policy-unreadable': 'depcurfew.json cannot be read.',
+  'policy-exists': 'depcurfew init found a depcurfew.json and writes it only with --force.',
   'directory-not-found': 'The directory given on the command line does not exist or cannot be opened.',
   'not-a-directory': 'The path given on the command line is a file, not a directory.',
 } as const satisfies Record<string, string>;

@@ -27,15 +27,22 @@ export function pathUri(file: string): string {
 /** The text of a line in a repository file, to give regions the end column GitHub asks for. */
 export type LineReader = (file: string, line: number) => string | undefined;
 
-/** Reads lines of the repository's files; a file it cannot read (e.g. for lack of permission) gives no line. */
+/**
+ * Reads lines of the repository's files; a file it cannot read (e.g. for lack of permission) gives no line. Each file
+ * is read and split once: a lockfile with thousands of findings is not read again for each of them.
+ */
 export function lineReader(root: string): LineReader {
   const repository = new Repository(root);
+  const files = new Map<string, string[] | undefined>();
   return (file, line) => {
-    try {
-      return repository.readText(file)?.split(/\r?\n/u)[line - 1];
-    } catch {
-      return undefined;
+    if (!files.has(file)) {
+      try {
+        files.set(file, repository.readText(file)?.split(/\r?\n/u));
+      } catch {
+        files.set(file, undefined);
+      }
     }
+    return files.get(file)?.[line - 1];
   };
 }
 

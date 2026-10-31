@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { formatOutputs, runAction } from '../../src/action.ts';
+import { canSymlink, windows } from '../support/platform.ts';
 
 const DOCTOR = fileURLToPath(new URL('../fixtures/doctor/', import.meta.url));
 const temporary: string[] = [];
@@ -103,7 +104,7 @@ describe('GitHub Action entry point', () => {
     expect(log).toMatch(/^::stop-commands::[0-9a-f-]{36}\ndepcurfew: depcurfew\.json is invalid\n/u);
   });
 
-  it('keeps the counts and adds one line to the job summary when the SARIF file cannot be written', () => {
+  it.skipIf(!canSymlink())('keeps the counts and adds one line to the job summary when the SARIF file cannot be written', () => {
     const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter');
     writeFileSync(join(root, 'elsewhere.txt'), 'keep\n');
     symlinkSync(join(root, 'elsewhere.txt'), join(root, 'report.sarif'));
@@ -118,7 +119,8 @@ describe('GitHub Action entry point', () => {
     expect(readFileSync(join(root, 'elsewhere.txt'), 'utf8')).toBe('keep\n');
   });
 
-  it('keeps every row of the job summary on one line when a path has a line break, and encodes it in SARIF', () => {
+  // Windows refuses a line break in a file name, so such a path cannot exist there.
+  it.skipIf(windows)('keeps every row of the job summary on one line when a path has a line break, and encodes it in SARIF', () => {
     const directory = 'odd dir\n| x |';
     const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter', directory);
     const { summary } = run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: directory });

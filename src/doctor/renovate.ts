@@ -5,7 +5,7 @@
 import { extraOf, isRecord } from '../apply/facts.ts';
 import { wildcardMatch } from '../detect/wildcard.ts';
 import type { Ecosystem, ToolKnowledge } from '../knowledge/types.ts';
-import { jsonSetting } from './settings.ts';
+import { jsonElementLines, jsonSetting } from './settings.ts';
 
 export type UpdateType = string;
 
@@ -51,10 +51,10 @@ export function readRenovateConfig(text: string, file: string, base: readonly st
   const top = jsonSetting(text, [...base, 'minimumReleaseAge']);
   const extendsList = jsonSetting(text, [...base, 'extends']);
   const list = jsonSetting(text, [...base, 'packageRules']);
+  // The lines of all rules from one parse: a file with thousands of rules is not parsed again for each.
+  const lines = Array.isArray(list?.value) ? jsonElementLines(text, [...base, 'packageRules']) : undefined;
   const rules = Array.isArray(list?.value)
-    ? (list.value as unknown[]).flatMap((rule, index): RenovateRule[] =>
-        isRecord(rule) ? [{ index, rule, line: jsonSetting(text, [...base, 'packageRules', index])?.line ?? list.line }] : [],
-      )
+    ? (list.value as unknown[]).flatMap((rule, index): RenovateRule[] => (isRecord(rule) ? [{ index, rule, line: lines?.[index] ?? list.line }] : []))
     : [];
   return {
     file,

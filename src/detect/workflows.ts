@@ -1,6 +1,7 @@
 // Reads GitHub Actions workflows: versions passed to the setup actions known to the knowledge base, and global
 // npm upgrades in run steps (`npm install -g npm@<version>`).
-import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Node } from 'yaml';
+import { isMap, isScalar, isSeq, LineCounter, type Node } from 'yaml';
+import { parseYamlDocument } from '../yaml-parse.ts';
 import type { RuntimeOrTool, SetupActionKnowledge } from '../knowledge/types.ts';
 import type { DetectionFacts } from './knowledge.ts';
 import { joinPath, type Repository } from './repository.ts';
@@ -38,7 +39,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
     const text = repository.readText(file);
     if (text === undefined) continue;
     const lineCounter = new LineCounter();
-    const document = parseDocument(text, { lineCounter });
+    const document = parseYamlDocument(text, lineCounter);
     if (document.errors.length > 0) {
       const message = document.errors[0]?.message.split('\n', 1)[0] ?? 'invalid YAML';
       repository.warn('invalid-file', `cannot parse ${file}: ${message}`, [file]);

@@ -30,7 +30,7 @@ export function cooldownValue(context: Context, duration: Duration | undefined =
   if (setting === null) return undefined;
   const result = convertCooldown(context.tool, duration);
   if (!result.ok) {
-    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, ...(result.fix === undefined ? {} : { fix: result.fix }) });
+    context.warn({ code: 'cooldown-not-written', message: `${context.name}: cooldown not written: ${result.reason}`, fix: result.fix });
     return undefined;
   }
   if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return undefined;
@@ -89,6 +89,11 @@ export function scriptsDefault(context: Context): { value: unknown; changesIn: s
   return { value, changesIn };
 }
 
+/** Where depcurfew doctor finds a tool's dependencies: the lockfile, or pip's requirements files. */
+export function dependencyFiles(context: Context): string {
+  return context.tool.extra?.['requirementsFormat'] === undefined ? 'the lockfile' : 'the requirements files';
+}
+
 /** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
 function lockfileShowsSources(tool: Context['tool']): boolean {
   const fact = tool.extra?.['lockfileFormat'];
@@ -111,7 +116,7 @@ export function eachSource(context: Context, apply: (kind: SourceKind, setting: 
           code: 'source-not-enforceable',
           message: `${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
           fix: lockfileShowsSources(context.tool)
-            ? 'Run depcurfew doctor, which reports such dependencies in the lockfile'
+            ? `Run depcurfew doctor, which reports such dependencies in ${dependencyFiles(context)}`
             : 'Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either',
         });
       }

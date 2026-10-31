@@ -21,6 +21,9 @@ export interface ReadmeInputs {
   workflow: string;
 }
 
+/** The knowledge base document on GitHub: npmjs.com shows the README without the files of the repository. */
+export const KNOWLEDGE_DOCUMENT = 'https://github.com/DevXord/depcurfew/blob/main/docs/knowledge.md';
+
 const SOURCE_LABELS: Record<(typeof SOURCE_KINDS)[number], string> = {
   git: 'git',
   remoteTarball: 'remote tarball',
@@ -94,7 +97,7 @@ function toolsTable(tools: readonly ToolKnowledge[]): string {
     '| --- | --- | --- | --- | --- | --- |',
     ...rows,
     '',
-    '⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](docs/knowledge.md).',
+    `⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](${KNOWLEDGE_DOCUMENT}).`,
   ].join('\n');
 }
 
@@ -165,6 +168,7 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
     'jobs:',
     '  doctor:',
     '    runs-on: ubuntu-latest',
+    '    timeout-minutes: 15',
     '    permissions:',
     ...permissions(upload.permissions.always, '      '),
     '      # Only needed in private repositories:',
@@ -185,13 +189,15 @@ function commandList(entries: readonly (readonly string[])[]): string {
 /** The Claude Code hook settings and the install commands the guard reads, from the knowledge base. */
 function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolKnowledge[]): string {
   const hooks = values(environment.claudeCode.hooks)[0];
-  if (hooks === undefined) throw new Error('README: missing the Claude Code hooks fact');
+  const shellTools = values(environment.claudeCode.shellTools)[0];
+  if (hooks === undefined || shellTools === undefined) throw new Error('README: missing the Claude Code hooks or shell tools fact');
+  const matcher = shellTools.map((entry) => entry.tool).join(hooks.matcherSeparator);
   const keys = hooks.settings;
   const settings = {
     [keys.hooks]: {
       [hooks.event]: [
         {
-          [keys.matcher]: hooks.shellTool,
+          [keys.matcher]: matcher,
           [keys.handlers]: [
             {
               [keys.type]: keys.commandType,
@@ -225,6 +231,8 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     '```json',
     JSON.stringify(settings, null, 2),
     '```',
+    '',
+    `The matcher \`${matcher}\` covers every tool that runs shell commands. On Windows, PowerShell is the main shell wherever the PowerShell tool is on, and without Git Bash there is no Bash tool, so a hook on \`Bash\` alone never runs there; Monitor runs a command in the background. \`${hooks.settings.command}\` is \`node\` itself, which also starts on Windows, where Claude Code runs it without a shell.`,
     '',
     `\`${hooks.onFailure.field}: "${hooks.onFailure.value}"\` needs Claude Code ${hooks.onFailure.since} or later; without it, a hook that fails to start, crashes or times out lets the command through.`,
     '',

@@ -28,6 +28,7 @@ export const pipenv: ManagerGenerator = (context) => {
       context.warn({
         code: 'exclude-unsupported',
         message: `${context.name}: no setting exempts packages from ${setting}, so the Python packages in cooldown.exclude wait like every other package`,
+        fix: `Nothing to set for ${context.name}, which delays these packages too; keep them in cooldown.exclude for the other tools, or remove them if they can wait`,
       });
     }
   }

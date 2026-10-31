@@ -2,6 +2,16 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · Końcowy przegląd przed 1.0.0 i poprawki (D-081 – D-083)
+
+- Końcowy przegląd całości z treścią 1.0.0: audyt bezpieczeństwa, przegląd jakości, gotowość wydania z testem end-to-end na 10 menedżerach i zgodność z Windows.
+- Windows i hook (D-081): hook sprawdza narzędzia PowerShell i Monitor Claude Code (matcher `Bash|PowerShell|Monitor`), formy `cmd /c`, nazwy poleceń bez wielkości liter, `$env:` w PowerShell, `$SHELL -c`, `python3 -Im pip`; repozytorium w katalogu głównym dysku; zapis ponawiany przy zablokowanych plikach; `.gitignore` z `core.ignorecase`; CI na Linux i Windows z Node 22, 24 i 26. Z audytu: nowe pliki z trybem z umask, powód hooka czyszczony i przycinany (bez treści skryptów), URL rejestru bez haseł, polityka z katalogu nadrzędnego tylko z katalogu użytkownika i bez `node_modules`, limit 1 MiB przy edycji.
+- Wydanie i dokumentacja (D-082): ostrzeżenie o nieaktualnym `pdm.lock`, wskazówka w każdym ostrzeżeniu `apply`, błędy `init` z kodem, README zgodne z działaniem i z bezwzględnymi linkami.
+- Jakość i wydajność (D-083): klucz `.npmrc` w cudzysłowie albo bez `=` nie omija już bloku; duże lockfile'e YAML parsowane raz i bez kwadratowego sprawdzania duplikatów (limit 16 MiB); spowolnienia `dependabot.yml`, `renovate.json`, `requirements.txt` i SARIF usunięte; spójny JSON przy błędnej polityce; wersje przedpremierowe; Yarn `npmScopes` i pnpm `permissions` w `doctor`; skrócone opcje pip w `requirements.txt`.
+- Wydanie: `CHANGELOG.md` z notatkami 1.0.0 dla użytkowników; workflow wydania przyjmuje tylko tag na commicie z `main` i ma limit czasu.
+- CI na Windows: `apply` po nieudanym zapisie usuwa utworzone katalogi także na Windows (wcześniej brał ścieżkę zwracaną przez `mkdirSync`, a ta ma tam postać `\\?\C:\...`); testy oczekują komunikatów, które daje dany system, a test ścieżki ze znakiem nowej linii nie działa na Windows, bo taka nazwa pliku jest tam niemożliwa.
+- Weryfikacja: `npm test` (2601 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-31 · Przegląd scalonego kodu i poprawki (D-080)
 
 - `tag=` z `.npmrc` tylko dla npm w hooku; `apply` ostrzega `before-overrides-cooldown`; pnpm 6.32.1–9 dostaje `pnpm.onlyBuiltDependencies` zamiast fałszywego `scripts-not-enforceable`; wskazówka `cooldown-shortened` dla plików JSON; pusta linia przed sekcją `.npmrc` zostaje; bez `insecure-registry` dla rejestru lokalnego; bez fałszywego ostrzeżenia o poprawkach bezpieczeństwa Renovate z pnpm; poprawki w README i D-078.

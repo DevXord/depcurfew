@@ -11,6 +11,17 @@ const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
 /** The Unicode bidirectional formatting characters: ALM, LRM, RLM, LRE to RLO, LRI to PDI. */
 const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
 
+/** The user name and password of a URL (scheme://user:password@host), anywhere in a text. */
+const CREDENTIALS = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@]+@/giu;
+
+/**
+ * The text with the user name and password of every URL in it left out (https://user:token@host/ becomes
+ * https://host/): a registry URL from .npmrc may carry them, and depcurfew shows and sends no credentials.
+ */
+export function withoutCredentials(text: string): string {
+  return text.replace(CREDENTIALS, '$1');
+}
+
 /**
  * The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`. Line breaks are control
  * characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text

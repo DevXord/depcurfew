@@ -200,6 +200,7 @@ describe('convertCooldown with synthetic knowledge', () => {
       ok: false,
       tool: 'npm',
       reason: 'Sample npm has no release-age setting',
+      fix: 'Remove "npm" from targets in depcurfew.json, or delay its updates another way',
     });
     const maybe = syntheticTool({ 'cooldown.unit': disputed('days', null) });
     expect(convertCooldown(maybe, duration('3d'))).toMatchObject({ ok: false, reason: 'Sample npm has no release-age setting' });
@@ -211,6 +212,7 @@ describe('convertCooldown with synthetic knowledge', () => {
       ok: false,
       tool: 'npm',
       reason: 'the unit of the Sample npm release-age setting is disputed between a number and a duration string',
+      fix: 'Set the release-age delay in the Sample npm configuration by hand; depcurfew does not guess between the readings',
     });
   });
 
@@ -220,6 +222,7 @@ describe('convertCooldown with synthetic knowledge', () => {
       ok: false,
       tool: 'npm',
       reason: 'the knowledge base does not list which duration units Sample npm accepts (extra.durationUnits)',
+      fix: 'Set the release-age delay in the Sample npm configuration by hand, and report the gap at https://github.com/DevXord/depcurfew/issues',
     });
     const malformed = syntheticTool({ 'cooldown.unit': fact('duration-string'), 'extra.durationUnits': fact(['fortnights']) });
     expect(convertCooldown(malformed, duration('3d'))).toMatchObject({ ok: false });

@@ -1,9 +1,11 @@
 // Inputs from an untrusted repository cannot make depcurfew run for minutes (decision P7 of the review before 1.0.0):
-// wildcard patterns from depcurfew.json or workspace declarations, and many ** segments in a workspace pattern.
+// wildcard patterns from depcurfew.json or workspace declarations, and many ** segments in a workspace pattern. Nor can
+// a hook event of 1 MiB (the most the hook reads) with brackets, quotes or variables for the PowerShell and cmd readers.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { scanCommandLine } from '../../src/check/command.ts';
 import { detectProject } from '../../src/detect/index.ts';
 import { wildcardMatch } from '../../src/detect/wildcard.ts';
 import { matchesPattern } from '../../src/doctor/allow-lists.ts';
@@ -66,5 +68,21 @@ describe('patterns that make regular expressions backtrack', () => {
     let packages: string[] = [];
     expect(elapsed(() => (packages = detectProject(root).workspaces?.packages ?? []))).toBeLessThan(2000);
     expect(packages).toEqual(['d1/d2/d3/d4/d5/d6/d7/d8/d9/d10/d11/d12/pkg']);
+  });
+});
+
+describe('PowerShell and cmd command lines of a hook event', () => {
+  it.each([
+    ['deeply nested brackets', '('.repeat(300_000) + ')'.repeat(300_000), 'powershell'],
+    ['many brackets', '(a) '.repeat(250_000), 'powershell'],
+    ['many subexpressions next to npm', 'npm i $(a) '.repeat(90_000), 'powershell'],
+    ['many variables in strings', '"x$y" '.repeat(160_000), 'powershell'],
+    ['many open quotes', "'a\"b".repeat(250_000), 'powershell'],
+    ['many statements', 'npm i x; '.repeat(110_000), 'powershell'],
+    ['many splats', '@a '.repeat(330_000), 'powershell'],
+    ['nested groups in cmd /c', `cmd /c "${'('.repeat(300_000)}npm i x${')'.repeat(300_000)}"`, 'posix'],
+    ['many expansions in cmd /c', `cmd /c "npm i ${'%x% '.repeat(250_000)}"`, 'posix'],
+  ] as const)('reads %s quickly', (_label, line, shell) => {
+    expect(elapsed(() => scanCommandLine(line, { shell }))).toBeLessThan(5000);
   });
 });
