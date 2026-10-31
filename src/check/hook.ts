@@ -1,11 +1,11 @@
-// `depcurfew check --hook claude-code`: a Claude Code PreToolUse hook for the Bash tool. It reads the event from stdin,
+// `depcurfew check --hook claude-code`: a Claude Code PreToolUse hook for the Bash and PowerShell tools. It reads the event from stdin,
 // finds the packages the command would install or run, checks them and answers with a decision: deny when a package
 // breaks the policy, ask when depcurfew cannot tell (an unreadable command, a look-alike name, a registry it cannot
 // reach), and nothing when everything checks out, which leaves the call to Claude Code's normal permission flow.
 import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import type { ClaudeCodeHooksKnowledge } from '../knowledge/types.ts';
-import { scanCommandLine, TOO_MANY, unreadableFix } from './command.ts';
+import { scanCommandLine, TOO_MANY, unreadableFix, type ScanOptions } from './command.ts';
 import type { CheckFinding, CheckRequest, FindingCode, PackageReport } from './findings.ts';
 
 /** Findings that break the policy outright; other errors only mean that depcurfew cannot vouch for the package. */
@@ -16,6 +16,8 @@ export type HookDecision = { decision: 'deny' | 'ask'; reason: string } | { deci
 export interface HookEvent {
   command: string;
   cwd: string | undefined;
+  /** The shell of the tool: a POSIX shell for Bash (Git Bash on Windows), PowerShell for the PowerShell tool. */
+  shell: NonNullable<ScanOptions['shell']>;
 }
 
 function facts(): ClaudeCodeHooksKnowledge {
@@ -35,14 +37,16 @@ export function blockingExitCode(): number {
   return facts().blockingExitCode;
 }
 
-/** The shell command of a PreToolUse event for the Bash tool; undefined for any other event or tool. */
+/** The shell command of a PreToolUse event for the Bash or the PowerShell tool; undefined for any other event or tool. */
 export function readHookEvent(input: string): HookEvent | undefined {
   const hooks = facts();
   const event = JSON.parse(input) as unknown;
-  if (field(event, hooks.input.event) !== hooks.event || field(event, hooks.input.tool) !== hooks.shellTool) return undefined;
+  const tool = field(event, hooks.input.tool);
+  const shell = tool === hooks.shellTools.bash ? 'posix' : tool === hooks.shellTools.powerShell ? 'powershell' : undefined;
+  if (field(event, hooks.input.event) !== hooks.event || shell === undefined) return undefined;
   const command = field(event, hooks.input.command);
   const cwd = field(event, hooks.input.cwd);
-  return typeof command === 'string' ? { command, cwd: typeof cwd === 'string' ? cwd : undefined } : undefined;
+  return typeof command === 'string' ? { command, cwd: typeof cwd === 'string' ? cwd : undefined, shell } : undefined;
 }
 
 /** The spec as the agent wrote it, with what the command changes about the version or the build. */
@@ -98,8 +102,8 @@ export function formatDecision(decision: HookDecision): string | undefined {
 export const MAX_CHECKED = 50;
 
 /** Specs to check for a command, without repeats and at most MAX_CHECKED, and why part of it could not be read. */
-export function requestedSpecs(command: string): { specs: CheckRequest[]; unreadable: string | undefined } {
-  const scan = scanCommandLine(command);
+export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'posix'): { specs: CheckRequest[]; unreadable: string | undefined } {
+  const scan = scanCommandLine(command, { shell });
   const unique = new Map<string, CheckRequest>();
   for (const { tool, spec, tag, prereleases, buildFromSource } of scan.requests) {
     const request: CheckRequest = {

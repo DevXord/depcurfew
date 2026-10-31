@@ -408,13 +408,15 @@ Git repositories, tarball URLs and local paths are checked against the `sources`
 
 ### Claude Code
 
-`depcurfew check --hook claude-code` runs as a Claude Code hook before every shell command. It finds the packages the command would install or download to run, checks them and answers:
+`depcurfew check --hook claude-code` runs as a Claude Code hook before every command of the Bash and PowerShell tools. It finds the packages the command would install or download to run, checks them and answers:
 
 - **deny** when a package breaks the policy (Claude sees the reason and can pick another package or version);
 - **ask** when depcurfew cannot vouch for the command: a look-alike name, a registry it cannot reach, an error of its own, or a command it cannot read, such as one with `$(...)` or variables in its arguments, or a shell that runs commands from a pipe (`curl … | sh`);
 - nothing when everything checks out, so the command goes through Claude Code's usual permission prompts.
 
-It follows the command lines inside a command: `$(...)` and backticks, `sh -c`, PowerShell's `-Command`, `eval`, `npx -c`, `yarn workspace <name>`, `python -m pip`, the command `uv run` runs, a package manager run by `npx`, `uvx` or `pipx run`, and wrappers such as `sudo`, `su -c`, `env`, `timeout`, `flock` and `xargs`. It reads options the way each tool does, including npm's and pnpm's shorthands and abbreviations (`--reg` and `--regis` for `--registry`), abbreviated long options of pip and pipx (`--extra` for `--extra-index-url`) and short options with their value in the same word (`-ihttps://…`), so an option, or a variable such as `PIP_INDEX_URL` or `UV_INDEX`, that points the tool at another index makes it ask. It checks the version the command would install: the dist-tag `--tag` or `npm_config_tag` makes npm prefer, pre-releases that `--pre`, `--prerelease allow` and the like allow, and builds from source that the command's options or variables force (wheels refused), which count as install scripts. A script piped into an interpreter (`curl … | python3`, `irm … | iex`) or read from `<(curl …)` makes it ask, and so does a command with more than 50 packages, of which the first 50 are checked. `deno x` and `dx` are read like `npx`. Packages from requirements files (`pip install -r`) and the project's own files (`uv sync`, `poetry install`) are not checked, as with `npm install` without names; `depcurfew doctor` checks the lockfiles. When it cannot read the hook event at all, it exits with code 2, which blocks the command in every Claude Code version.
+It follows the command lines inside a command: `$(...)` and backticks, `sh -c`, PowerShell's `-Command`, `cmd /c`, `eval`, `npx -c`, `yarn workspace <name>`, `python -m pip`, the command `uv run` runs, a package manager run by `npx`, `uvx` or `pipx run`, and wrappers such as `sudo`, `su -c`, `env`, `timeout`, `flock` and `xargs`. It reads options the way each tool does, including npm's and pnpm's shorthands and abbreviations (`--reg` and `--regis` for `--registry`), abbreviated long options of pip and pipx (`--extra` for `--extra-index-url`) and short options with their value in the same word (`-ihttps://…`), so an option, or a variable such as `PIP_INDEX_URL` or `UV_INDEX`, that points the tool at another index makes it ask. It checks the version the command would install: the dist-tag `--tag` or `npm_config_tag` makes npm prefer, pre-releases that `--pre`, `--prerelease allow` and the like allow, and builds from source that the command's options or variables force (wheels refused), which count as install scripts. A script piped into an interpreter (`curl … | python3`, `irm … | iex`) or read from `<(curl …)` makes it ask, and so does a command with more than 50 packages, of which the first 50 are checked. `deno x` and `dx` are read like `npx`. Packages from requirements files (`pip install -r`) and the project's own files (`uv sync`, `poetry install`) are not checked, as with `npm install` without names; `depcurfew doctor` checks the lockfiles. When it cannot read the hook event at all, it exits with code 2, which blocks the command in every Claude Code version.
+
+It reads commands the way Windows runs them too: executables in any case and with `.exe`, `.cmd`, `.bat` or `.ps1` (`NPM.CMD i lodash`), paths with backslashes, and `cmd /c` or `cmd /k` (also `//c` from Git Bash), where `%VAR%` and `!VAR!` count as expansions. PowerShell commands (the PowerShell tool, `powershell -c`, `pwsh -c` and `iex`) are read like any other when they are plain commands: quotes, `;`, `|`, `&&`, the call operator `&`, redirections and `$env:NAME = "value"` before a command. PowerShell syntax it does not read, such as variables, `(...)`, `$(...)`, `{...}`, `@(...)`, backticks, commas, `Start-Process` or `Set-Alias`, makes it ask when the same statement names a package manager; a statement without one, such as `Get-ChildItem | Where-Object { $_.Length -gt 1kb }`, goes through. It also asks about an argument with `&`, `|`, `<`, `>` or `"` for a package manager run from PowerShell, because the `.cmd` shim of a package manager hands its arguments to cmd.exe again.
 
 Install depcurfew as a development dependency of the project, then add the hook:
 
@@ -426,7 +428,7 @@ In `.claude/settings.json` of the project:
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           {
             "type": "command",
@@ -445,6 +447,8 @@ In `.claude/settings.json` of the project:
   }
 }
 ```
+
+The matcher `Bash|PowerShell` covers both shell tools: on Windows, PowerShell is the main shell wherever the PowerShell tool is on, and without Git Bash there is no Bash tool, so a hook on `Bash` alone never runs there. `command` is `node` itself, which also starts on Windows, where Claude Code runs it without a shell.
 
 `onFailure: "block"` needs Claude Code 2.1.295 or later; without it, a hook that fails to start, crashes or times out lets the command through.
 

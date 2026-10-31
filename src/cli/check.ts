@@ -180,7 +180,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
   }
   if (event === undefined) return EXIT_OK;
   try {
-    const { specs, unreadable } = requestedSpecs(event.command);
+    const { specs, unreadable } = requestedSpecs(event.command, event.shell);
     if (specs.length === 0 && unreadable === undefined) return EXIT_OK;
     const loaded = load(flags.dir ?? event.cwd ?? process.cwd(), dependencies.home?.() ?? homedir());
     const registry = registryOf(flags, loaded.registries);

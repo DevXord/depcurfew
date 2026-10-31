@@ -7,6 +7,7 @@ const { verified } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const python = verifiedOn('2026-10-30');
 const gitFacts = verifiedOn('2026-10-30');
+const windows = verifiedOn('2026-10-31');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -256,11 +257,12 @@ export const environment: EnvironmentKnowledge = {
     ),
   },
   claudeCode: {
-    hooks: checked.verified(
+    hooks: windows.verified(
       {
         settingsFile: '.claude/settings.json',
         event: 'PreToolUse',
-        shellTool: 'Bash',
+        shellTools: { bash: 'Bash', powerShell: 'PowerShell' },
+        matcherSeparator: '|',
         input: { event: 'hook_event_name', tool: 'tool_name', command: 'tool_input.command', cwd: 'cwd' },
         output: { container: 'hookSpecificOutput', event: 'hookEventName', decision: 'permissionDecision', reason: 'permissionDecisionReason' },
         decisions: { deny: 'deny', ask: 'ask' },
@@ -270,7 +272,7 @@ export const environment: EnvironmentKnowledge = {
         settings: { hooks: 'hooks', matcher: 'matcher', handlers: 'hooks', type: 'type', commandType: 'command', command: 'command', args: 'args' },
       },
       'https://code.claude.com/docs/en/hooks',
-      'A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. With args set, command runs as an executable without a shell, which also works on Windows. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.',
+      'A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. Hooks that inspect shell commands should match Bash|PowerShell (names separated by | are each matched exactly): on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash the PowerShell tool is enabled automatically and the Bash tool is not registered at all, so a hook that matches only Bash never fires there (the PowerShell tool section of https://code.claude.com/docs/en/tools-reference says the same; on Windows with Git Bash the tool is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1). With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.',
     ),
   },
   git: {
@@ -278,6 +280,18 @@ export const environment: EnvironmentKnowledge = {
       { file: '.gitignore', excludeFile: '.git/info/exclude', indexFile: '.git/index', trackedFilesIgnored: false },
       'https://github.com/git/git/blob/v2.56.0/Documentation/gitignore.adoc',
       'git status and git add skip untracked files that match a pattern from a .gitignore in the same directory or a parent (deeper files override higher ones, and within one file the last matching pattern decides), then from $GIT_COMMON_DIR/info/exclude (.git/info/exclude outside linked worktrees), then from core.excludesFile. Files already tracked are not affected. Patterns: # comments, ! negation, a leading or middle / anchors the pattern to the directory of its .gitignore, a trailing / matches directories only, * and ? do not match /, **/, /** and /**/ match any number of directories; a file below an ignored directory cannot be re-included. The tracked files are the entries of $GIT_DIR/index (Documentation/gitformat-index.adoc at v2.56.0: versions 2, 3 and 4).',
+    ),
+  },
+  windows: {
+    commandShims: windows.verified(
+      { extensions: ['.cmd', '.ps1'], batchExtension: '.cmd', argumentsVariable: '%*' },
+      'https://github.com/npm/cmd-shim/blob/v9.0.2/lib/index.js',
+      'cmd-shim is "the cmd-shim used in npm to create executable scripts on Windows" (README): for each program of a package it writes <name>.cmd, which runs the program with %* (so cmd.exe reads the arguments again), <name>.ps1 for PowerShell and a sh script. npm ships the same files for itself: bin/npm.cmd, bin/npm.ps1, bin/npx.cmd and bin/npx.ps1 in github.com/npm/cli at v12.2.1, the .cmd files ending in "%NODE_EXE%" "%NPM_CLI_JS%" %*.',
+    ),
+    batchArguments: windows.verified(
+      { extensions: ['.bat', '.cmd'] },
+      'https://github.com/MicrosoftDocs/PowerShell-Docs/blob/0061dc7f35abfa6bb5ffabaada1650163761f2e1/reference/7.5/Microsoft.PowerShell.Core/About/about_Parsing.md',
+      'about_Parsing (the source of https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_parsing): on Windows, arguments for batch files are passed as raw command-line strings to cmd.exe, and untrusted input should be passed another way. In the Windows mode of $PSNativeCommandArgumentPassing, the default on Windows since PowerShell 7.3, files ending in .bat or .cmd (also cmd.exe, cscript.exe, wscript.exe, .js, .vbs and .wsf) keep the legacy argument passing of Windows PowerShell 5.1.',
     ),
   },
   python: {

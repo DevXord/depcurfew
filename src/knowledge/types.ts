@@ -475,8 +475,13 @@ export interface ClaudeCodeHooksKnowledge {
   /** Project settings file that can be committed. */
   settingsFile: string;
   event: string;
-  /** The tool name of shell commands, matched by the matcher. */
-  shellTool: string;
+  /**
+   * The tools that run shell commands, by the names a matcher and the event use: the Bash tool and the PowerShell tool,
+   * whose events carry the command in the same field. On Windows the PowerShell tool may be the only shell tool.
+   */
+  shellTools: { bash: string; powerShell: string };
+  /** Separates the tool names of a matcher that lists several, each matched exactly. */
+  matcherSeparator: string;
   /** Fields of the JSON a command hook reads on stdin. */
   input: { event: string; tool: string; command: string; cwd: string };
   /** Fields of the JSON object a hook prints to decide. */
@@ -524,6 +529,15 @@ export interface GitIgnoreKnowledge {
   indexFile: string;
   /** Whether a pattern also hides a file git already tracks (it does not). */
   trackedFilesIgnored: boolean;
+}
+
+/** npm's shims for the programs of packages on Windows. */
+export interface CommandShimsKnowledge {
+  /** The files written next to each program (besides a sh script). */
+  extensions: readonly string[];
+  /** The shim cmd.exe runs, which passes its arguments on with `argumentsVariable`, so they are read once more. */
+  batchExtension: string;
+  argumentsVariable: string;
 }
 
 export interface EnvironmentKnowledge {
@@ -579,6 +593,11 @@ export interface EnvironmentKnowledge {
   git: {
     /** Where git reads the patterns of files it does not pick up, and the index that lists the tracked files. */
     ignore: Fact<GitIgnoreKnowledge>;
+  };
+  windows: {
+    commandShims: Fact<CommandShimsKnowledge>;
+    /** Files whose arguments PowerShell hands to cmd.exe as a raw command line. */
+    batchArguments: Fact<{ extensions: readonly string[] }>;
   };
   python: {
     /** How Python package names are compared: lowercased, with every run of these characters replaced by `replacement`. */

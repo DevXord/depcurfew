@@ -8,6 +8,9 @@
 // into a shell or an interpreter. Options and variables that change the version the package manager picks (npm's
 // --tag, pip's --pre) or make it build from source (--no-binary) go with each request. It is a guard against mistakes
 // and simple disguises, not a sandbox: a program that installs packages itself (node -e, a script file) is not seen.
+// PowerShell lines (the PowerShell tool, powershell -c) and cmd /c lines have their own readers in windows-shells.ts;
+// PowerShell syntax that reader does not understand makes the line unreadable when its statement names a package
+// manager. Executables are matched in any case and without .exe, .cmd, .bat or .ps1, as Windows and macOS find them.
 import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -27,8 +30,9 @@ import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { PYPI_PREFIX } from '../policy/package-pattern.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { parsePythonSpec } from './python-spec.ts';
+import { NestingTooDeep, readCmd, readPowerShell } from './windows-shells.ts';
 
-interface Word {
+export interface Word {
   text: string;
   /** The shell would expand part of it. */
   dynamic: boolean;
@@ -42,7 +46,7 @@ interface HereDocument {
   body: string;
 }
 
-type Item =
+export type Item =
   | { kind: 'word'; word: Word }
   | { kind: 'separator'; pipe?: boolean }
   | { kind: 'redirect'; input: boolean }
@@ -78,8 +82,8 @@ const BRACES = /\{[^{}]*(?:,|\.\.)[^{}]*\}/u;
 /** Globs in the unquoted part of a word: *, ? and a bracket expression such as [ab]. */
 const GLOB = /[*?]|\[[^\]]*\]/u;
 const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=/u;
-/** A word that is one expansion as a whole, so nothing of it is known: $CMD, ${CMD}, $(...) or `...`. */
-const WHOLE_EXPANSION = /^(?:\$[A-Za-z_][A-Za-z0-9_]*|\$[0-9@*#?$!-]|\$\{[^}]*\}|\$\(.*\)|`.*`)$/su;
+/** A word that is one expansion as a whole, so nothing of it is known: $CMD, ${CMD}, $(...), `...`, or cmd's %CMD% and !CMD!. */
+const WHOLE_EXPANSION = /^(?:\$[A-Za-z_][A-Za-z0-9_]*|\$[0-9@*#?$!-]|\$\{[^}]*\}|\$\(.*\)|`.*`|%[^%\s]+%|![^!\s]+!)$/su;
 
 class Unreadable extends Error {}
 
@@ -406,8 +410,13 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
   return { items, substitutions, end: line.length, closed: false };
 }
 
+/** The shells whose command lines the scanner reads. */
+export type Shell = 'posix' | 'powershell' | 'cmd';
+
 interface SimpleCommand {
   words: Word[];
+  /** The shell that runs it, when it matters (PowerShell passes arguments to batch files through cmd.exe). */
+  shell?: Shell;
   /** Bodies of its here-documents and here-strings, which become its input. */
   input: string[];
   /** Its input comes from a word the shell expands. */
@@ -418,14 +427,14 @@ interface SimpleCommand {
   stdin?: 'pipe' | 'file';
 }
 
-function simpleCommands(items: readonly Item[]): SimpleCommand[] {
+function simpleCommands(items: readonly Item[], shell: Shell = 'posix'): SimpleCommand[] {
   const commands: SimpleCommand[] = [];
-  let current: SimpleCommand = { words: [], input: [], redirected: false };
+  let current: SimpleCommand = { words: [], input: [], redirected: false, shell };
   let next: 'word' | 'skip' | 'source' | 'input' = 'word';
   for (const item of items) {
     if (item.kind === 'separator') {
       if (current.words.length > 0) commands.push(current);
-      current = item.pipe === true ? { words: [], input: [], redirected: false, stdin: 'pipe' } : { words: [], input: [], redirected: false };
+      current = item.pipe === true ? { words: [], input: [], redirected: false, shell, stdin: 'pipe' } : { words: [], input: [], redirected: false, shell };
       next = 'word';
     } else if (item.kind === 'redirect') {
       if (item.input) current.stdin = 'file';
@@ -480,6 +489,8 @@ interface Commands {
   add: ReadonlySet<string>;
   /** Executables of every package manager command. */
   executables: ReadonlySet<string>;
+  /** Executables of the npm package managers, which npm installs on Windows as .cmd shims. */
+  npmExecutables: ReadonlySet<string>;
   /** Last words of every install, run and create command, to spot them behind an executable the shell expands. */
   installWords: ReadonlySet<string>;
   /** Commands whose arguments may run a package manager: package manager executables, shells, wrappers and Python. */
@@ -592,11 +603,13 @@ function commands(): Commands {
     tools,
     add: new Set(npmTools.flatMap(({ facts }) => facts.add.map((entry) => entry.at(-1) ?? ''))),
     executables,
+    npmExecutables: new Set(npmTools.flatMap(({ facts }) => [...facts.add, ...[...facts.create, ...facts.run].map((entry) => entry.command)].map((entry) => entry[0] ?? ''))),
     installWords: new Set(all.map((entry) => entry.at(-1) ?? '')),
     runners: new Set([
       ...executables,
       ...SHELLS,
       ...POWERSHELLS,
+      ...CMD,
       ...PROGRAM_READERS.keys(),
       ...WRAPPERS.keys(),
       ...(interpreter()?.executables ?? []),
@@ -705,6 +718,8 @@ const KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'until', 
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'fish', 'ash', 'mksh', 'yash', 'posh', 'csh', 'tcsh']);
 /** PowerShell: pwsh (6 and later) runs a script file given without a parameter, Windows PowerShell a command. */
 const POWERSHELLS = new Set(['pwsh', 'powershell']);
+/** cmd.exe: /c and /k run the rest of the line as a command line. */
+const CMD = new Set(['cmd']);
 /** Run a file in the current shell. */
 const SOURCES = new Set(['source', '.']);
 /** PowerShell's Invoke-Expression and its alias: they run the code given to them or piped into them. */
@@ -744,8 +759,9 @@ function isProcessSubstitution(word: Word): boolean {
   return word.dynamic && word.text.startsWith('<(');
 }
 
+/** The name of the program a word runs, lowercased: Windows and macOS find NPM.CMD and npm alike. */
 function basename(text: string): string {
-  return (text.split(/[/\\]/u).at(-1) ?? text).replace(/\.(?:cmd|exe|ps1)$/iu, '');
+  return (text.split(/[/\\]/u).at(-1) ?? text).replace(/\.(?:cmd|exe|ps1|bat)$/iu, '').toLowerCase();
 }
 
 function createPackage(argument: string, rule: CommandLineKnowledge['createNames'] = 'prefix'): string {
@@ -802,6 +818,9 @@ function printedCode(word: Word | undefined): boolean {
 const FROM_PROGRAM = 'it runs a program from its input';
 const ENCODED = 'is encoded, so depcurfew cannot read it';
 const VERSION_SETTING = 'is set to a value the shell expands, which may change the version that is installed';
+const SET_UNREAD = 'is set in a way depcurfew does not read, which may change the version that is installed';
+const POWERSHELL_UNREAD = 'in PowerShell, and the statement names';
+const CMD_READS_AGAIN = 'has & | < > " or a line break, which cmd.exe may read as another command';
 /** More specs than the hook checks for one command. */
 export const TOO_MANY = 'depcurfew checks at most';
 
@@ -820,6 +839,11 @@ export function unreadableFix(reason: string): string {
   }
   if (reason.includes(ENCODED)) return 'Write the command out as plain text, so depcurfew can check it';
   if (reason.includes(VERSION_SETTING)) return 'Write the value out in the command, so depcurfew can check the version it selects';
+  if (reason.includes(SET_UNREAD)) return "Set the variable as $env:NAME = 'value' or NAME=value before the command, or leave it out, so depcurfew can check the version it selects";
+  if (reason.includes(POWERSHELL_UNREAD)) {
+    return 'Run the package manager as a plain command with the package names written out (no variables, (...), {...}, Start-Process or aliases), so depcurfew can check them';
+  }
+  if (reason.includes(CMD_READS_AGAIN)) return 'Leave & | < > and " out of the arguments of the package manager, so depcurfew can check the command';
   if (reason.includes(TOO_MANY)) return 'Install the packages in smaller groups, so depcurfew can check each of them';
   return 'Write the package names out in the command, so depcurfew can check them';
 }
@@ -1229,12 +1253,21 @@ function laterCommand(words: readonly Word[], depth: number): CommandScan {
 }
 
 /** The commands in the input of a command that runs it as commands: a here-document or here-string is known, a pipe or a file is not. */
-function scanInput(words: readonly Word[], command: SimpleCommand, depth: number): CommandScan {
+function scanInput(words: readonly Word[], command: SimpleCommand, depth: number, shell: Shell = 'posix'): CommandScan {
   if (command.later === true) return NOTHING;
   if (command.input.length === 0 || command.redirected) return unreadable(`${shown(joined(words))}: ${FROM_INPUT}`);
   const scan: CommandScan = { requests: [], unreadable: undefined };
-  for (const input of command.input) merge(scan, scanLine(input, depth + 1));
+  for (const input of command.input) merge(scan, scanLine(input, depth + 1, shell));
   return scan;
+}
+
+/**
+ * The command line another shell (PowerShell, cmd) gets as words: a word the calling shell expands changes the text
+ * before that shell reads it, so the line cannot be known.
+ */
+function commandLineOf(words: readonly Word[], rest: readonly Word[]): { line: string } | { unreadable: string } {
+  const expands = rest.find((word) => word.dynamic);
+  return expands === undefined ? { line: joined(rest) } : { unreadable: `${shown(joined(words))}: ${expanded(expands)}` };
 }
 
 /** A shell: the command string after -c is read like any other line; without one it runs commands from its input. */
@@ -1309,8 +1342,8 @@ function scanPowerShell(words: readonly Word[], command: SimpleCommand, depth: n
     if (powerShellParameter(given, 'commandwithargs', ['cwa'], 8)) {
       const first = words[index + 1];
       if (first === undefined) return NOTHING;
-      if (first.input === true) return unreadable(`${shown(joined(words))}: ${expanded(first)}`);
-      return scanLine(first.text, depth + 1);
+      if (first.input === true || first.dynamic) return unreadable(`${shown(joined(words))}: ${expanded(first)}`);
+      return scanLine(first.text, depth + 1, 'powershell');
     }
     if (powerShellParameter(given, 'command', ['c'], 3)) {
       mode = 'command';
@@ -1329,11 +1362,28 @@ function scanPowerShell(words: readonly Word[], command: SimpleCommand, depth: n
   if (first === undefined) return NOTHING;
   if ((mode ?? (windows ? 'command' : 'file')) === 'file') {
     if (isProcessSubstitution(first)) return unreadable(`${shown(joined(words))}: ${FROM_PROCESS}`);
-    return STDIN_FILES.has(first.text) ? scanInput(words, command, depth) : NOTHING;
+    return STDIN_FILES.has(first.text) ? scanInput(words, command, depth, 'powershell') : NOTHING;
   }
-  if (first.text === '-') return scanInput(words, command, depth);
-  const filled = rest.find((word) => word.input === true);
-  return filled === undefined ? scanLine(joined(rest), depth + 1) : unreadable(`${shown(joined(words))}: ${expanded(filled)}`);
+  if (first.text === '-') return scanInput(words, command, depth, 'powershell');
+  const commandLine = commandLineOf(words, rest);
+  return 'line' in commandLine ? scanLine(commandLine.line, depth + 1, 'powershell') : unreadable(commandLine.unreadable);
+}
+
+/** cmd /c and cmd /k run the rest as a cmd command line (also /cdir, and //c from Git Bash); without either cmd reads commands from its input. */
+function scanCmd(words: readonly Word[], command: SimpleCommand, depth: number): CommandScan {
+  for (let index = 1; index < words.length; index++) {
+    const word = words[index] as Word;
+    const option = /^\/+([A-Za-z])(.*)$/su.exec(word.text);
+    if (option === null || word.dynamic) break;
+    if (/^[ck]$/iu.test(option[1] as string)) {
+      const glued = option[2] as string;
+      const rest = [...(glued === '' ? [] : [{ text: glued, dynamic: false }]), ...words.slice(index + 1)];
+      if (rest.length === 0) return NOTHING;
+      const commandLine = commandLineOf(words, rest);
+      return 'line' in commandLine ? scanLine(commandLine.line, depth + 1, 'cmd') : unreadable(commandLine.unreadable);
+    }
+  }
+  return scanInput(words, command, depth, 'cmd');
 }
 
 /** Invoke-Expression (iex) runs the code it is given, or the code piped into it: iex (irm …) and irm … | iex download and run a script. */
@@ -1343,7 +1393,7 @@ function scanInvokeExpression(words: readonly Word[], command: SimpleCommand, de
   if (command.later === true) return NOTHING;
   if (code === undefined || command.stdin === 'pipe') return unreadable(`${shown(joined(words))}: ${FROM_INPUT}`);
   if (code.dynamic) return unreadable(`${shown(joined(words))}: ${expanded(code, 'the code ')}`);
-  return scanLine(code.text, depth + 1);
+  return scanLine(code.text, depth + 1, 'powershell');
 }
 
 /** What a wrapper runs: the remaining words, or a command line to read. */
@@ -1554,8 +1604,26 @@ function scanPythonTool(tool: ToolCommands, executable: string, rest: readonly W
   return undefined;
 }
 
+/**
+ * Why cmd.exe may read an argument differently from the scanner: PowerShell hands the arguments of a batch file to
+ * cmd.exe as a raw command line (environment.windows.batchArguments), npm's shims for package managers on Windows are
+ * .cmd files that pass them on with %* (environment.windows.commandShims), and a .cmd file named outright runs so from
+ * any shell. An argument with & | < > " or a line break may then run another command.
+ */
+function batchArgument(first: Word, executable: string, rest: readonly Word[], shell: Shell | undefined): string | undefined {
+  if (shell === 'cmd') return undefined;
+  const batch = values(environment.windows.batchArguments)[0];
+  const shims = values(environment.windows.commandShims)[0];
+  const named = batch?.extensions.some((extension) => first.text.toLowerCase().endsWith(extension)) === true;
+  const shim = shell === 'powershell' && shims !== undefined && batch?.extensions.includes(shims.batchExtension) === true && commands().npmExecutables.has(executable);
+  if (!named && !shim) return undefined;
+  const word = rest.find((entry) => /[&|<>"\r\n]/u.test(entry.text));
+  if (word === undefined) return undefined;
+  return `"${shown(word.text)}" ${CMD_READS_AGAIN} when ${executable} runs as a batch file (${batch?.extensions.join(' or ') ?? '.cmd'})`;
+}
+
 function scanCommand(command: SimpleCommand, depth: number): CommandScan {
-  const { tools, add, installWords } = commands();
+  const { installWords } = commands();
   let words = command.words;
   // Assignments, reserved words and wrappers such as sudo or env come before the command itself.
   for (;;) {
@@ -1579,17 +1647,34 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
   }
   const first = words[0] as Word;
   const line = joined(words);
-  // A command line built at run time (eval "$CMD", sh -c "$X") cannot be known in advance.
-  if (depth > 0 && WHOLE_EXPANSION.test(first.text)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
+  // A command line built at run time (eval "$CMD", sh -c "$X") cannot be known in advance. In PowerShell a variable
+  // on its own is a value, not a command: only & or . would run it, and then its arguments decide.
+  if (depth > 0 && command.shell !== 'powershell' && WHOLE_EXPANSION.test(first.text)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
   const executable = first.dynamic ? basename(first.text) : executableOf(first.text);
   if (SHELLS.has(executable)) return scanShell(words, command, depth);
-  if (!first.dynamic && POWERSHELLS.has(executable.toLowerCase())) return scanPowerShell(words, command, depth, executable.toLowerCase() === 'powershell');
+  if (!first.dynamic && POWERSHELLS.has(executable)) return scanPowerShell(words, command, depth, executable === 'powershell');
+  if (!first.dynamic && CMD.has(executable)) return scanCmd(words, command, depth);
   if (!first.dynamic && SOURCES.has(executable)) return scanSource(words, command) ?? scanInput(words, command, depth);
-  if (!first.dynamic && EXPRESSION_RUNNERS.has(executable.toLowerCase())) return scanInvokeExpression(words, command, depth);
+  if (!first.dynamic && EXPRESSION_RUNNERS.has(executable)) return scanInvokeExpression(words, command, depth);
   if (!first.dynamic && interpreter()?.executables.includes(executable) === true) return scanInterpreter(words, command, depth);
   const reader = first.dynamic ? undefined : PROGRAM_READERS.get(executable);
   if (reader !== undefined) return scanProgramReader(words, command, reader);
   const rest = words.slice(1);
+  const scan = scanPackageManager(command, first, executable, rest, line, depth);
+  if (scan !== undefined) {
+    const batch = batchArgument(first, executable, rest, command.shell);
+    return batch === undefined ? scan : { requests: scan.requests, unreadable: scan.unreadable ?? `${shown(line)}: ${batch}` };
+  }
+  const subcommand = rest.find((word) => !isOption(word.text));
+  if (first.dynamic && subcommand !== undefined && installWords.has(subcommand.text)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
+  // echo npm install lodash prints the words; it runs nothing.
+  if (!first.dynamic && PRINTERS.has(executable)) return NOTHING;
+  return laterCommand(rest, depth);
+}
+
+/** A command of a package manager: the packages it installs or runs; undefined when no package manager owns the executable. */
+function scanPackageManager(command: SimpleCommand, first: Word, executable: string, rest: readonly Word[], line: string, depth: number): CommandScan | undefined {
+  const { tools, add } = commands();
   for (const tool of tools) {
     const { facts } = tool;
     const run = facts.run.find((entry) => entry.command.length === 1 && entry.command[0] === executable);
@@ -1638,11 +1723,7 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
     if (later !== -1) return finish(tool, line, readArguments(after.slice(later + 1), 'add', tool, undefined, context), depth, before, context);
     return NOTHING;
   }
-  const subcommand = rest.find((word) => !isOption(word.text));
-  if (first.dynamic && subcommand !== undefined && installWords.has(subcommand.text)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
-  // echo npm install lodash prints the words; it runs nothing.
-  if (!first.dynamic && PRINTERS.has(executable)) return NOTHING;
-  return laterCommand(rest, depth);
+  return undefined;
 }
 
 /** A variable set anywhere on the line that may point a package manager at another registry or configuration file. */
@@ -1656,20 +1737,77 @@ function registryAssignment(items: readonly Item[]): string | undefined {
   return undefined;
 }
 
-function scanLine(line: string, depth: number): CommandScan {
-  if (depth > MAX_DEPTH) return unreadable(`${shown(line)}: command lines are nested more than ${MAX_DEPTH} levels deep`);
-  let reading: Reading;
+/** Package managers, shells and Invoke-Expression, which a PowerShell statement naming them may run. */
+const RUNNER_NAMES = new Set(['corepack', ...SHELLS, ...POWERSHELLS, ...CMD, ...EXPRESSION_RUNNERS]);
+
+/** The first package manager, shell or Invoke-Expression that a text names anywhere, also inside strings and paths. */
+function namedRunner(text: string): string | undefined {
+  const { executables } = commands();
+  for (const piece of text.split(/[^A-Za-z0-9_.-]+/u)) {
+    const name = executableOf(piece.replace(/^\.+|\.+$/gu, ''));
+    if (name !== '' && (executables.has(name) || RUNNER_NAMES.has(name))) return name;
+  }
+  return undefined;
+}
+
+/**
+ * A variable that may point a package manager at another registry, or change the version it picks, named anywhere in
+ * a PowerShell line outside the $env:NAME = value assignments that were read (Set-Item env:…, ${env:…} = …,
+ * [Environment]::SetEnvironmentVariable(…)).
+ */
+function namedSetting(text: string): string | undefined {
+  const { configVariables, registryVariables, selectionVariables } = commands();
+  for (const piece of text.split(/[^A-Za-z0-9_]+/u)) {
+    const lower = piece.toLowerCase();
+    if (configVariables.has(lower) || registryVariables.has(lower)) return anotherRegistry(piece);
+    if (selectionVariables.has(lower)) return `${piece} ${SET_UNREAD}`;
+  }
+  return undefined;
+}
+
+interface LineReading {
+  items: Item[];
+  /** Command lines inside the line, read with the shell given. */
+  nested: { line: string; shell: Shell }[];
+  /** Why part of a PowerShell line cannot be read, found before its commands are scanned. */
+  unreadable?: string;
+  /** PowerShell: the line without what was read as an assignment, for variables set in other ways. */
+  named?: string;
+}
+
+function readLine(line: string, shell: Shell): LineReading {
+  if (shell === 'cmd') return { items: readCmd(line), nested: [] };
+  if (shell === 'posix') {
+    const reading = read(line, 0, undefined, 0);
+    return { items: reading.items, nested: reading.substitutions.map((inner) => ({ line: inner, shell })) };
+  }
+  const reading = readPowerShell(line);
+  let doubt: string | undefined;
+  for (const statement of reading.statements) {
+    const runner = statement.constructs.length === 0 ? undefined : namedRunner(statement.text);
+    if (runner !== undefined) doubt ??= `${shown(statement.text.trim())}: depcurfew does not read ${statement.constructs[0] as string} ${POWERSHELL_UNREAD} ${runner}`;
+  }
+  return { items: reading.items, nested: reading.nested.map((inner) => ({ line: inner, shell })), named: reading.named, ...(doubt === undefined ? {} : { unreadable: doubt }) };
+}
+
+function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandScan {
+  if (depth > MAX_DEPTH) {
+    // Brackets nest deeply in ordinary PowerShell; there only a line that names a package manager matters.
+    if (shell === 'powershell' && namedRunner(line) === undefined) return NOTHING;
+    return unreadable(`${shown(line)}: command lines are nested more than ${MAX_DEPTH} levels deep`);
+  }
+  let reading: LineReading;
   try {
-    reading = read(line, 0, undefined, 0);
+    reading = readLine(line, shell);
   } catch (error) {
-    if (error instanceof Unreadable) return unreadable(`${shown(line)}: ${error.message}`);
+    if (error instanceof Unreadable || error instanceof NestingTooDeep) return unreadable(`${shown(line)}: ${error.message}`);
     throw error;
   }
-  const scan: CommandScan = { requests: [], unreadable: undefined };
-  for (const command of simpleCommands(reading.items)) merge(scan, scanCommand(command, depth));
-  for (const inner of reading.substitutions) merge(scan, scanLine(inner, depth + 1));
+  const scan: CommandScan = { requests: [], unreadable: reading.unreadable };
+  for (const command of simpleCommands(reading.items, shell)) merge(scan, scanCommand(command, depth));
+  for (const inner of reading.nested) merge(scan, scanLine(inner.line, depth + 1, inner.shell));
   if (scan.requests.length > 0) {
-    const setting = registryAssignment(reading.items);
+    const setting = registryAssignment(reading.items) ?? (reading.named === undefined ? undefined : namedSetting(reading.named));
     if (setting !== undefined) scan.unreadable ??= `${shown(line)}: ${setting}`;
     const variables = selectionAssignments(reading.items);
     if ('unreadable' in variables) scan.unreadable ??= `${shown(line)}: ${variables.unreadable}`;
@@ -1711,8 +1849,13 @@ function settle(request: InstallRequest): InstallRequest {
   return result;
 }
 
+export interface ScanOptions {
+  /** The shell that runs the line: a POSIX shell (the default; also Git Bash) or PowerShell. */
+  shell?: 'posix' | 'powershell';
+}
+
 /** The packages a command line installs or downloads to run with npm, pnpm, Yarn, Bun, Deno, pip, uv, Poetry, PDM, Pipenv or pipx. */
-export function scanCommandLine(line: string): CommandScan {
-  const scan = scanLine(line, 0);
+export function scanCommandLine(line: string, options: ScanOptions = {}): CommandScan {
+  const scan = scanLine(line, 0, options.shell ?? 'posix');
   return { requests: scan.requests.map(settle), unreadable: scan.unreadable };
 }

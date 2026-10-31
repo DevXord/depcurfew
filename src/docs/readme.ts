@@ -191,7 +191,7 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     [keys.hooks]: {
       [hooks.event]: [
         {
-          [keys.matcher]: hooks.shellTool,
+          [keys.matcher]: [hooks.shellTools.bash, hooks.shellTools.powerShell].join(hooks.matcherSeparator),
           [keys.handlers]: [
             {
               [keys.type]: keys.commandType,
@@ -225,6 +225,8 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     '```json',
     JSON.stringify(settings, null, 2),
     '```',
+    '',
+    `The matcher \`${[hooks.shellTools.bash, hooks.shellTools.powerShell].join(hooks.matcherSeparator)}\` covers both shell tools: on Windows, ${hooks.shellTools.powerShell} is the main shell wherever the ${hooks.shellTools.powerShell} tool is on, and without Git Bash there is no ${hooks.shellTools.bash} tool, so a hook on \`${hooks.shellTools.bash}\` alone never runs there. \`${hooks.settings.command}\` is \`node\` itself, which also starts on Windows, where Claude Code runs it without a shell.`,
     '',
     `\`${hooks.onFailure.field}: "${hooks.onFailure.value}"\` needs Claude Code ${hooks.onFailure.since} or later; without it, a hook that fails to start, crashes or times out lets the command through.`,
     '',
