@@ -33,9 +33,15 @@ function partial(text: string): { bound: Bound; complete: boolean } | undefined 
   return { bound: complete && match[4] !== undefined ? { version, prerelease: match[4] } : { version }, complete };
 }
 
-/** Orders bounds: by version, and a prerelease before its release. Prereleases of one version count as equal. */
+/** The bound as a version, with its prerelease identifiers. */
+function versionOf(bound: Bound): Version {
+  const [major, minor, patch] = bound.version;
+  return bound.prerelease === undefined ? [major, minor, patch] : [major, minor, patch, bound.prerelease];
+}
+
+/** Orders bounds as compareVersions orders pinned versions: a prerelease before its release, as in semver. */
 function compareBounds(a: Bound, b: Bound): number {
-  return compareVersions(a.version, b.version) || (a.prerelease === undefined ? 0 : -1) - (b.prerelease === undefined ? 0 : -1);
+  return compareVersions(versionOf(a), versionOf(b));
 }
 
 /** Whether `bound` comes before the release `version`. */
@@ -44,7 +50,7 @@ export function belowVersion(bound: Bound, version: Version): boolean {
 }
 
 export function formatBound(bound: Bound): string {
-  return bound.prerelease === undefined ? formatVersion(bound.version) : `${formatVersion(bound.version)}-${bound.prerelease}`;
+  return formatVersion(versionOf(bound));
 }
 
 /** Lower bound of one comparator set (space-separated comparators that must all hold). */

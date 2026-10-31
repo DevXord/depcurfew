@@ -1,7 +1,9 @@
 // The install-script allow-lists written in each package manager's own format, read back as package names with
 // the line that names them.
-import { isRecord } from '../apply/facts.ts';
+import { extraOf, isRecord } from '../apply/facts.ts';
+import { compareVersions, parseVersion, type Version } from '../apply/version.ts';
 import type { PackageManagerId } from '../detect/types.ts';
+import type { ToolKnowledge } from '../knowledge/types.ts';
 import type { Repository } from '../detect/repository.ts';
 import { wildcardMatch } from '../detect/wildcard.ts';
 import { splitSpec } from './lockfiles.ts';
@@ -39,8 +41,40 @@ function fromList(text: string, file: string, setting: string, value: unknown, p
     });
 }
 
-/** Entries that let a package run its install scripts, per manager. Unreadable files give no entries. */
-export function allowEntries(repository: Repository, manager: PackageManagerId, configFiles: readonly string[]): AllowEntry[] {
+const isPermissions = (value: unknown): value is { setting: string; capability: string; since: string; allow: unknown; deny: unknown } =>
+  isRecord(value) && typeof value['setting'] === 'string' && typeof value['capability'] === 'string' && typeof value['since'] === 'string';
+
+/**
+ * pnpm 12.11+: permissions.<package>.build (extra.buildPermissions), which outranks the package's allowBuilds entry.
+ * The decisions by package key, or undefined for a version without it or a tool without the fact.
+ */
+function buildPermissions(text: string, tool: ToolKnowledge | undefined, version: Version | undefined): Map<string, { allowed: boolean; line: number }> | undefined {
+  if (tool?.extra?.['buildPermissions'] === undefined) return undefined;
+  const fact = extraOf(tool, 'buildPermissions', isPermissions);
+  const since = parseVersion(fact.since);
+  if (version !== undefined && since !== undefined && compareVersions(version, since) < 0) return undefined;
+  const permissions = yamlSetting(text, [fact.setting]);
+  const decisions = new Map<string, { allowed: boolean; line: number }>();
+  if (permissions === undefined || !isRecord(permissions.value)) return decisions;
+  for (const [name, entry] of Object.entries(permissions.value)) {
+    const decision = isRecord(entry) ? entry[fact.capability] : undefined;
+    if (decision !== fact.allow && decision !== fact.deny) continue;
+    decisions.set(name, { allowed: decision === fact.allow, line: yamlSetting(text, [fact.setting, name, fact.capability])?.line ?? permissions.line });
+  }
+  return decisions;
+}
+
+/**
+ * Entries that let a package run its install scripts, per manager. Unreadable files give no entries. `tool` and
+ * `version` decide settings that depend on the version, such as pnpm's permissions (the latest known version when
+ * none is given).
+ */
+export function allowEntries(
+  repository: Repository,
+  manager: PackageManagerId,
+  configFiles: readonly string[],
+  options: { tool?: ToolKnowledge; version?: Version } = {},
+): AllowEntry[] {
   const manifest = read(repository, 'package.json');
   const entries: AllowEntry[] = [];
   const json = (path: string[]) => (manifest === undefined ? undefined : jsonSetting(manifest, path)?.value);
@@ -51,7 +85,13 @@ export function allowEntries(repository: Repository, manager: PackageManagerId, 
     case 'pnpm': {
       const workspace = read(repository, 'pnpm-workspace.yaml');
       if (workspace !== undefined) {
-        entries.push(...fromKeys(workspace, 'pnpm-workspace.yaml', 'allowBuilds', yamlSetting(workspace, ['allowBuilds'])?.value, (entry) => entry === true));
+        const permissions = buildPermissions(workspace, options.tool, options.version);
+        // A permissions entry outranks the allowBuilds entry of the same package.
+        const allowBuilds = fromKeys(workspace, 'pnpm-workspace.yaml', 'allowBuilds', yamlSetting(workspace, ['allowBuilds'])?.value, (entry) => entry === true);
+        entries.push(...allowBuilds.filter((entry) => permissions?.has(entry.name) !== true));
+        for (const [name, decision] of permissions ?? []) {
+          if (decision.allowed) entries.push({ name, package: splitSpec(name).name, file: 'pnpm-workspace.yaml', line: decision.line, setting: 'permissions' });
+        }
         entries.push(...fromList(workspace, 'pnpm-workspace.yaml', 'onlyBuiltDependencies', yamlSetting(workspace, ['onlyBuiltDependencies'])?.value));
       }
       if (manifest !== undefined) entries.push(...fromList(manifest, 'package.json', 'pnpm.onlyBuiltDependencies', json(['pnpm', 'onlyBuiltDependencies'])));

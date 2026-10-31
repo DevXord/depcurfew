@@ -4,6 +4,7 @@
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { allowEntries, matchesPattern } from '../doctor/allow-lists.ts';
+import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
 import type { Detection } from '../detect/types.ts';
 import { environment as environmentKnowledge } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -33,7 +34,7 @@ import { yarn } from './generators/yarn.ts';
 import { ManifestGuard, manifestNames } from './manifests.ts';
 import { listing } from './requirements.ts';
 import { autoTargets } from './targets.ts';
-import { pinnedVersion, type Version } from './version.ts';
+import { parseVersion, pinnedVersion, type Version } from './version.ts';
 import { warningText, type ApplyErrorCode, type ApplyWarning } from './warnings.ts';
 import { WriteFailed, writeChanges, type FileChange } from './workspace.ts';
 
@@ -61,6 +62,9 @@ function latestVersion(tool: ToolKnowledge): string | undefined {
   const value = fact === undefined ? undefined : values(fact)[0];
   return typeof value === 'string' ? value : undefined;
 }
+
+/** Detection warnings about a file it could not read or parse (the codes of unreadable-config for single files). */
+const FILE_UNREADABLE = new Set(['invalid-file', 'file-too-large', 'unreadable-file', 'outside-repository']);
 
 /** Where a repository can pin the version of a tool, for the warning when none is pinned. */
 /** Where the version of a tool can be pinned, or undefined when the project cannot pin it (PDM, Pipenv). */
@@ -103,7 +107,8 @@ function allowListWarnings(root: string, policy: ResolvedPolicy, detection: Dete
     .flatMap((manager) => {
       const tool = tools.find((entry) => entry.id === manager.id);
       const allow = policyFor(policy, tool === undefined ? 'npm' : ecosystemOfTool(tool)).installScripts?.allow ?? [];
-      return allowEntries(repository, manager.id, manager.configFiles)
+      const version = pinnedVersion(manager) ?? (tool === undefined ? undefined : parseVersion(latestVersion(tool) ?? ''));
+      return allowEntries(repository, manager.id, manager.configFiles, { ...(tool === undefined ? {} : { tool }), ...(version === undefined ? {} : { version }) })
         .filter((entry) => !allow.some((pattern) => matchesPattern(entry.package, pattern)))
         .map(
           (entry): ApplyWarning => ({
@@ -195,15 +200,18 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       targets.delete(manager.id);
     }
   }
-  // A file detection could not parse may hide a tool; nothing is written into it, but the user should know.
-  for (const warning of detection.warnings.filter((entry) => entry.code === 'invalid-file')) {
+  // A file detection could not read or parse (too large, a symlink out of the repository, no permission, invalid) may
+  // hide a tool; nothing is written into it, but the user should know, as doctor reports it as unreadable-config.
+  for (const warning of detection.warnings) {
+    const fix = FILE_UNREADABLE.has(warning.code) ? UNREADABLE_WARNINGS[warning.code] : undefined;
+    if (fix === undefined) continue;
     const file = warning.files[0];
     warnings.push({
       code: 'file-unreadable',
       ...(file === undefined ? {} : { location: { file } }),
       // A YAML error's first line ends with the colon of a code excerpt that is not shown.
       message: `${warning.message.replace(/:$/u, '')}; depcurfew cannot tell which tools it configures`,
-      fix: `Fix the syntax error${file === undefined ? '' : ` in ${file}`}, then run depcurfew apply again`,
+      fix: warning.code === 'invalid-file' ? `Fix the syntax error${file === undefined ? '' : ` in ${file}`}, then run depcurfew apply again` : `${fix}, then run depcurfew apply again`,
     });
   }
   if (targets.size === 0) {

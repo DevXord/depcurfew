@@ -3,6 +3,7 @@ import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
+const rechecked = verifiedOn('2026-10-31');
 
 const YARNRC = 'https://yarnpkg.com/configuration/yarnrc';
 const MANIFEST = 'https://yarnpkg.com/configuration/manifest';
@@ -199,7 +200,11 @@ export const yarn: ToolKnowledge = {
     ),
     latestVersion: verified('4.18.1', release('4.18.1'), 'Yarn 6 is still in preview.'),
     bypassFlag: verified('--no-time-gate on yarn add and yarn up (4.15.0+)', 'https://yarnpkg.com/cli/add'),
-    perScopeGate: verified('npmScopes.<scope>.npmMinimalAgeGate overrides the global gate (4.17.0+)', release('4.17.0')),
+    perScopeGate: rechecked.verified(
+      { scopes: 'npmScopes', setting: 'npmMinimalAgeGate', since: '4.17.0', unset: '1d' },
+      'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-npm/sources/npmConfigUtils.ts',
+      'getMinimalAgeGate: for a scoped package, a number in npmScopes.<scope>.npmMinimalAgeGate (the scope name without @) replaces the global gate, longer or shorter, and 0 turns the gate off for that scope (acceptance tests "npmScopes override" in features/npmMinimalAgeGate.test.ts at 4.18.1; the code is the same in 4.17.0 and absent in 4.16.0). Each npmScopes entry is a shape whose unset properties get their defaults (parseShape and getDefaultValue in yarnpkg-core Configuration.ts), so a scope listed only for its registry gets the default of 1d (scopablePackageGateSettings in plugin-npm index.ts) instead of the global gate; read from the code, no test covers that case.',
+    ),
     upgradeMigration: verified(
       'When the lockfile predates the new defaults and the key is unset, yarn install writes enableScripts: true, approvedGitRepositories: ["**"] and npmMinimalAgeGate: 0 into .yarnrc.yml',
       'https://github.com/yarnpkg/berry/pull/7135',

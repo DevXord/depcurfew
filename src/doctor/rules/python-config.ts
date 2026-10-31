@@ -5,7 +5,8 @@
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../../apply/facts.ts';
 import { joinPath } from '../../detect/repository.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
-import { readPythonSetting, requirementsOptions, tomlSettingAt } from '../python.ts';
+import { requirementsFormatOf } from '../python-lockfiles.ts';
+import { readPythonSetting, requirementsLongOptions, requirementsOptions, tomlSettingAt } from '../python.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
 const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
@@ -124,8 +125,9 @@ function checkPip(context: RuleContext, tool: ToolKnowledge, configFiles: readon
       });
     }
   }
-  const allowed = new Set(extraOf(tool, 'requirementsOptions', isStrings));
-  const format = extraOf(tool, 'requirementsFormat', isRecord);
+  const format = requirementsFormatOf(tool);
+  // Options of the requirements parser are accepted; --hash and --config-settings on a line of their own are ignored.
+  const allowed = new Set([...extraOf(tool, 'requirementsOptions', isStrings), ...requirementsLongOptions(format)]);
   const cooldownFlag = `--${settingOf(tool.cooldown.setting) ?? ''}`;
   const variable = extraOf(tool, 'environmentVariable', (value): value is string => typeof value === 'string');
   for (const file of configFiles) {

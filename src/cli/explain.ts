@@ -4,14 +4,13 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId } from '../knowledge/types.ts';
 import { convertCooldown } from '../policy/convert.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
-import { readPolicyFile } from '../policy/file.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
-import { formatIssue, parsePolicy } from '../policy/validate.ts';
+import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { autoTargets } from '../apply/targets.ts';
 import { managerName, toolName } from './describe.ts';
 import { paint, PLAIN, type Paint } from '../color.ts';
 import { printable } from '../printable.ts';
-import { projectDirectory, reportInputError } from './directory.ts';
+import { policyInputError, projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
 type CooldownEntry =
@@ -31,6 +30,8 @@ export interface ExplainReport {
   schemaVersion: 1;
   project: Detection;
   policy: PolicyReport | null;
+  /** A depcurfew.json that cannot be used, in the shape of the errors of apply --json and check --json. */
+  errors: InputError[];
 }
 
 function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[]): { minimum: string; tools: CooldownEntry[] } | null {
@@ -49,22 +50,27 @@ function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[]): { min
   return { minimum: minimum.text, tools: entries };
 }
 
-function policyReport(directory: string, detection: Detection): PolicyReport | null {
-  const file = readPolicyFile(directory);
-  if (file.status === 'missing') return null;
-  if (file.status === 'unreadable') return { file: POLICY_FILE, valid: false, issues: [file.reason] };
-  const result = parsePolicy(file.text);
-  if (!result.ok) return { file: POLICY_FILE, valid: false, issues: result.issues.map(formatIssue) };
+/** The policy section; a depcurfew.json that cannot be used is read as apply reads it, with the same error. */
+function policyReport(directory: string, detection: Detection): { policy: PolicyReport | null; errors: InputError[] } {
+  let policy: ResolvedPolicy | undefined;
+  try {
+    policy = loadPolicyIfPresent(directory);
+  } catch (error) {
+    if (!(error instanceof PolicyError)) throw error;
+    const issues = error.issues.length > 0 ? error.issues : [error.message];
+    return { policy: { file: POLICY_FILE, valid: false, issues }, errors: [policyInputError(error, POLICY_FILE)] };
+  }
+  if (policy === undefined) return { policy: null, errors: [] };
   const targets =
-    result.policy.targets === 'auto'
+    policy.targets === 'auto'
       ? { mode: 'auto' as const, tools: autoTargets(directory, detection).targets }
-      : { mode: 'listed' as const, tools: [...result.policy.targets] };
-  return { file: POLICY_FILE, valid: true, targets, cooldown: cooldownReport(result.policy, targets.tools) };
+      : { mode: 'listed' as const, tools: [...policy.targets] };
+  return { policy: { file: POLICY_FILE, valid: true, targets, cooldown: cooldownReport(policy, targets.tools) }, errors: [] };
 }
 
 export function buildReport(directory: string): ExplainReport {
   const project = detectProject(directory);
-  return { schemaVersion: 1, project, policy: policyReport(directory, project) };
+  return { schemaVersion: 1, project, ...policyReport(directory, project) };
 }
 
 // Readable output
@@ -150,7 +156,8 @@ export function explain(directory: string | undefined, json: boolean, io: CliIo)
   const report = buildReport(target.directory);
   const notices = target.notice === undefined ? [] : [{ message: target.notice }];
   if (json) {
-    io.stdout(`${JSON.stringify({ ...report, notices, errors: [] }, null, 2)}\n`);
+    const { errors, ...rest } = report;
+    io.stdout(`${JSON.stringify({ ...rest, notices, errors }, null, 2)}\n`);
   } else {
     for (const notice of notices) io.stderr(`note: ${notice.message}\n`);
     io.stdout(renderReport(report, paint(io.colors?.stdout)));

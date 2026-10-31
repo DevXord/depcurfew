@@ -86,7 +86,8 @@ describe('a depcurfew.json that cannot be read', () => {
 
   it('check reports it with its code, and --json as JSON', async () => {
     const directory = unreadable();
-    const file = join(directory, 'depcurfew.json');
+    // Relative to the directory check works on, as in apply --json.
+    const file = 'depcurfew.json';
     expect(await exec('check', '--dir', directory, 'lodash')).toEqual({ code: EXIT_FAILURE, stdout: '', stderr: `error: ${message(directory)} (policy-unreadable)\n  fix: ${fix}\n` });
     const json = await exec('check', '--json', '--dir', directory, 'lodash');
     expect([json.code, json.stderr]).toEqual([EXIT_FAILURE, '']);
@@ -103,7 +104,10 @@ describe('a depcurfew.json that cannot be read', () => {
     const directory = unreadable();
     const result = await exec('explain', '--json', directory);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(JSON.parse(result.stdout)).toMatchObject({ policy: { file: 'depcurfew.json', valid: false, issues: [message(directory)] } });
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      policy: { file: 'depcurfew.json', valid: false, issues: [message(directory)] },
+      errors: [{ code: 'policy-unreadable', level: 'error', location: { file: 'depcurfew.json' }, message: message(directory), fix }],
+    });
   });
 });
 

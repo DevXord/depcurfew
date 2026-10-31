@@ -143,6 +143,8 @@ describe('check', () => {
       stdin: async () => '',
       home: () => deep,
     });
-    expect(JSON.parse(stdout)).toMatchObject({ policy: join(repo, 'depcurfew.json'), notices: [] });
+    // Relative to the directory check works on (--dir), like every path in the JSON of depcurfew.
+    expect(JSON.parse(stdout)).toMatchObject({ policy: '../../depcurfew.json', notices: [] });
+    expect(join(deep, '../../depcurfew.json')).toBe(join(repo, 'depcurfew.json'));
   });
 });

@@ -1,0 +1,13 @@
+packages: []
+# managed by depcurfew
+allowBuilds:
+  sharp: true
+permissions:
+  esbuild:
+    build: true
+  sharp:
+    build: false
+  drizzle-kit:
+    skills: true
+  "@prisma/engines":
+    build: "pending"
