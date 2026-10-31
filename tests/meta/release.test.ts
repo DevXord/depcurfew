@@ -8,7 +8,7 @@ const text = readFileSync(new URL('../../.github/workflows/release.yml', import.
 const workflow = parse(text) as {
   on: { push: { tags: string[] } };
   permissions: Record<string, string>;
-  jobs: Record<string, { permissions: Record<string, string>; steps: { run?: string; uses?: string; with?: Record<string, unknown> }[] }>;
+  jobs: Record<string, { permissions: Record<string, string>; 'timeout-minutes'?: number; steps: { run?: string; uses?: string; with?: Record<string, unknown> }[] }>;
 };
 const steps = Object.values(workflow.jobs).flatMap((job) => job.steps);
 const runs = steps.map((step) => step.run ?? '').join('\n');
@@ -30,6 +30,13 @@ describe('release workflow', () => {
   it('stages with provenance instead of publishing directly', () => {
     expect(runs).toContain('npm stage publish --provenance');
     expect(runs).not.toMatch(/npm publish/u);
+  });
+
+  it('stages only a tag on a commit of main, and has a time limit', () => {
+    expect(steps.find((step) => step.uses?.startsWith('actions/checkout@'))?.with).toMatchObject({ 'fetch-depth': 0 });
+    expect(runs.indexOf('git merge-base --is-ancestor HEAD origin/main')).toBeGreaterThan(-1);
+    expect(runs.indexOf('git merge-base --is-ancestor HEAD origin/main')).toBeLessThan(runs.indexOf('npm stage publish'));
+    for (const job of Object.values(workflow.jobs)) expect(job['timeout-minutes']).toBeGreaterThan(0);
   });
 
   it('checks everything before staging', () => {

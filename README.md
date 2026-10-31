@@ -335,6 +335,7 @@ on:
 jobs:
   doctor:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       security-events: write
       # Only needed in private repositories:

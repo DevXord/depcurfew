@@ -168,6 +168,7 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
     'jobs:',
     '  doctor:',
     '    runs-on: ubuntu-latest',
+    '    timeout-minutes: 15',
     '    permissions:',
     ...permissions(upload.permissions.always, '      '),
     '      # Only needed in private repositories:',

@@ -9,7 +9,7 @@ Fakty o npm, na których opiera się ta procedura (wymagane wersje, zachowanie e
 `.github/workflows/release.yml` uruchamia się po wypchnięciu tagu `vX.Y.Z`:
 
 1. Ma tylko uprawnienia `contents: read` i `id-token: write`, a akcje są przypięte do pełnych SHA.
-2. Na Node 24 sprawdza, że npm ma co najmniej 11.15.0 (etapowanie z trusted publishing) i że tag zgadza się z wersją w `package.json`.
+2. Na Node 24 sprawdza, że npm ma co najmniej 11.15.0 (etapowanie z trusted publishing), że tag zgadza się z wersją w `package.json` i że oznaczony commit jest w `main` (tag postawiony na innej gałęzi zatrzymuje workflow). Job ma limit 30 minut.
 3. Uruchamia `npm ci` (bez skryptów zależności), `npm test`, `typecheck`, `check:pkg` i zgodność bundla akcji, a potem `depcurfew doctor` na samym repozytorium.
 4. Wykonuje `npm stage publish --provenance`. npm uwierzytelnia się przez OIDC, a proweniencja powstaje, bo repozytorium i paczka są publiczne.
 
