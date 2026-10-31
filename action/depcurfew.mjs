@@ -16158,7 +16158,9 @@ var Workspace = class {
 		if (!isInside(this.root, parent)) throw new Error(`${file} is outside the repository`);
 		let bytes;
 		try {
-			if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
+			const stats = lstatSync(path);
+			if (stats.isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
+			if (stats.isFile() && stats.size > 1048576) throw new Error(`${file} is larger than 1 MiB, so depcurfew does not edit it`);
 			bytes = readFileSync(path);
 		} catch (error) {
 			if (error.code === void 0) throw error;
@@ -16290,16 +16292,20 @@ var WriteFailed = class extends Error {
 	}
 };
 let counter = 0;
-/** Writes `text` to a new temporary file next to `path`, created with `mode`; the file is removed if writing fails. */
+/**
+* Writes `text` to a new temporary file next to `path`; the file is removed if writing fails. It replaces a file of
+* mode `mode`, or with undefined it becomes a new file, whose mode the umask decides (0666 narrowed by it), as for
+* any file a program creates.
+*/
 function stage(path, text, mode) {
 	counter += 1;
 	const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}-${counter}`;
 	try {
 		writeFileSync(temporary, text, {
 			flag: "wx",
-			mode
+			mode: mode ?? 438
 		});
-		chmodSync(temporary, mode);
+		if (mode !== void 0) chmodSync(temporary, mode);
 	} catch (error) {
 		if (error.code !== "EEXIST") rmSync(temporary, { force: true });
 		throw error;
@@ -16347,7 +16353,7 @@ function writeChanges(root, changes, options = {}) {
 			const path = join(root, change.file);
 			const directory = mkdirSync(dirname(path), { recursive: true });
 			if (directory !== void 0) created.push(directory);
-			const mode = change.before === null ? 438 : statSync(path).mode & 4095;
+			const mode = change.before === null ? void 0 : statSync(path).mode & 4095;
 			staged.push({
 				change,
 				path,

@@ -3,6 +3,7 @@
 // writeChanges, which writes all changes or none.
 import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
+import { MAX_FILE_SIZE } from '../detect/repository.ts';
 import { isInside } from '../paths.ts';
 import { detectStyle, restoreStyle, toLf, type TextStyle } from './text.ts';
 
@@ -63,7 +64,10 @@ export class Workspace {
     if (!isInside(this.root, parent)) throw new Error(`${file} is outside the repository`);
     let bytes: Buffer | undefined;
     try {
-      if (lstatSync(path).isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
+      const stats = lstatSync(path);
+      if (stats.isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
+      // The same limit as for reading configuration (Repository): a huge file would take as much memory several times over.
+      if (stats.isFile() && stats.size > MAX_FILE_SIZE) throw new Error(`${file} is larger than 1 MiB, so depcurfew does not edit it`);
       bytes = readFileSync(path);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === undefined) throw error;
@@ -204,20 +208,25 @@ interface Staged {
   change: FileChange;
   path: string;
   temporary: string;
-  mode: number;
+  /** The mode of the file it replaces; undefined for a new file. */
+  mode: number | undefined;
 }
 
 let counter = 0;
 
-/** Writes `text` to a new temporary file next to `path`, created with `mode`; the file is removed if writing fails. */
-function stage(path: string, text: string, mode: number): string {
+/**
+ * Writes `text` to a new temporary file next to `path`; the file is removed if writing fails. It replaces a file of
+ * mode `mode`, or with undefined it becomes a new file, whose mode the umask decides (0666 narrowed by it), as for
+ * any file a program creates.
+ */
+function stage(path: string, text: string, mode: number | undefined): string {
   counter += 1;
   const temporary = `${path}.depcurfew-${process.pid}-${Date.now()}-${counter}`;
   try {
     // Created with the final mode (the umask can only narrow it), so a file such as .npmrc with a token in it is
-    // never readable by others, not even for a moment; chmod then sets the mode exactly.
-    writeFileSync(temporary, text, { flag: 'wx', mode });
-    chmodSync(temporary, mode);
+    // never readable by others, not even for a moment; for a file it replaces, chmod then sets that mode exactly.
+    writeFileSync(temporary, text, { flag: 'wx', mode: mode ?? 0o666 });
+    if (mode !== undefined) chmodSync(temporary, mode);
   } catch (error) {
     // 'wx' fails when the name exists: that file is not ours.
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') rmSync(temporary, { force: true });
@@ -273,7 +282,7 @@ export function writeChanges(root: string, changes: readonly FileChange[], optio
       const path = join(root, change.file);
       const directory = mkdirSync(dirname(path), { recursive: true });
       if (directory !== undefined) created.push(directory);
-      const mode = change.before === null ? 0o666 : statSync(path).mode & 0o7777;
+      const mode = change.before === null ? undefined : statSync(path).mode & 0o7777;
       staged.push({ change, path, temporary: stage(path, change.after, mode), mode });
     }
   } catch (error) {
