@@ -1,9 +1,10 @@
 // A buffer of edited files: generators read and edit text with LF line endings, and the original line endings,
 // byte order mark and final newline are restored when the changes are collected. Nothing is written here, except by
 // writeChanges, which writes all changes or none.
-import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, lstatSync, mkdirSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { MAX_FILE_SIZE } from '../detect/repository.ts';
+import { readLimited } from '../read-limited.ts';
 import { isInside } from '../paths.ts';
 import { detectStyle, restoreStyle, toLf, type TextStyle } from './text.ts';
 
@@ -63,15 +64,17 @@ export class Workspace {
     }
     if (!isInside(this.root, parent)) throw new Error(`${file} is outside the repository`);
     let bytes: Buffer | undefined;
-    try {
-      const stats = lstatSync(path);
-      if (stats.isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
-      // The same limit as for reading configuration (Repository): a huge file would take as much memory several times over.
-      if (stats.isFile() && stats.size > MAX_FILE_SIZE) throw new Error(`${file} is larger than 1 MiB, so depcurfew does not edit it`);
-      bytes = readFileSync(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === undefined) throw error;
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error(`${file} cannot be read: ${fileSystemReason(error)}`);
+    const stats = lstatSync(path, { throwIfNoEntry: false });
+    if (stats?.isSymbolicLink() === true) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
+    if (stats !== undefined) {
+      // The same limit as for reading configuration (Repository): a huge file would take as much memory several times
+      // over. readLimited also refuses a FIFO or a device instead of waiting on it, and a symlink put in place meanwhile.
+      const read = readLimited(path, MAX_FILE_SIZE, { noFollow: true });
+      if (read.ok) bytes = read.bytes;
+      else if (read.problem === 'symlink') throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
+      else if (read.problem === 'too-large') throw new Error(`${file} is larger than 1 MiB, so depcurfew does not edit it`);
+      else if (read.problem === 'not-a-file') throw new Error(`${file} cannot be read: ${stats.isDirectory() ? 'it is a directory' : 'it is not a regular file'}`);
+      else if (read.problem === 'unreadable') throw new Error(`${file} cannot be read: ${fileSystemReason(read.error)}`);
     }
     let original: string | null = null;
     if (bytes !== undefined) {

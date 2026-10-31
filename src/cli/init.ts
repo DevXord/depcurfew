@@ -33,6 +33,7 @@ export function initUser(force: boolean, environment: UserEnvironment, io: CliIo
   if (existing?.isDirectory() === true) return fail('cannot-write', `${shown} is a directory, not a file`, `Remove or rename the directory ${shown}, then run depcurfew init --user again`);
   if (existing !== undefined && !force) return fail('policy-exists', `${shown} already exists`, 'Pass --force to overwrite it with the default policy, or edit it by hand');
   if (existing?.isSymbolicLink() === true) return fail('cannot-write', `${shown} is a symlink; depcurfew does not write through symlinks`, 'Replace the symlink with a regular file');
+  if (existing !== undefined && !existing.isFile()) return fail('cannot-write', `${shown} is not a regular file`, `Remove ${shown}, then run depcurfew init --user again`);
   const directory = dirname(target);
   try {
     mkdirSync(directory, { recursive: true });
@@ -78,6 +79,9 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
         `${shownTarget} is a symlink; depcurfew does not write through symlinks`,
         'Replace the symlink with a regular file, or run depcurfew init in the directory it points to',
       );
+    } else if (!existing.isFile()) {
+      // A FIFO or a device: reading it for the earlier text would wait for ever or never end.
+      return fail('cannot-write', `${shownTarget} is not a regular file`, `Remove ${shownTarget}, then run depcurfew init again`);
     } else {
       // Through a temporary file and a rename, like apply: the directory entry is replaced, never followed.
       writeChanges(absolute, [{ file: POLICY_FILE, before: readFileSync(target, 'utf8'), after: text }]);

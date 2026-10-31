@@ -1,9 +1,10 @@
 // The installed version of a tool, read from files next to its executable (decision D-087): depcurfew never runs
 // another program. A tool installed from npm has a package.json whose `bin` names the executable; one installed from
 // PyPI has a .dist-info folder whose entry points or RECORD name it. Anything else stays unknown.
-import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { readdirSync, realpathSync, statSync } from 'node:fs';
 import { posix, win32 } from 'node:path';
 import { parseVersion, type Version } from '../apply/version.ts';
+import { readLimitedText } from '../read-limited.ts';
 import type { UserEnvironment } from './locate.ts';
 
 export interface InstalledVersion {
@@ -16,15 +17,7 @@ export interface InstalledVersion {
 const MAX_FILE = 1024 * 1024;
 const WINDOWS_SUFFIXES = ['.exe', '.cmd', '.bat', '.ps1', ''];
 
-function readSmall(path: string): string | undefined {
-  try {
-    const stats = statSync(path);
-    if (!stats.isFile() || stats.size > MAX_FILE) return undefined;
-    return readFileSync(path, 'utf8');
-  } catch {
-    return undefined;
-  }
-}
+const readSmall = (path: string): string | undefined => readLimitedText(path, MAX_FILE);
 
 function isFile(path: string): boolean {
   try {

@@ -1,7 +1,6 @@
 // `depcurfew doctor --user` (decision D-087): the user-level configuration of the installed tools against the user
 // policy (user-config-drift), values in those files that weaken every project (user-config-weakens) and environment
 // variables that move, skip or override them (user-environment-overrides). Nothing is written or executed.
-import { readFileSync, statSync } from 'node:fs';
 import { PolicyError } from '../apply/index.ts';
 import type { Version } from '../apply/version.ts';
 import { iniLines } from '../doctor/settings.ts';
@@ -13,6 +12,7 @@ import type { ToolId, ToolKnowledge, UserFile, UserSettingPurpose, UserWeakening
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { parseYaml } from '../yaml-parse.ts';
+import { readLimitedText } from '../read-limited.ts';
 import { planUserApply } from './apply.ts';
 import { shownPath, userFileFor, userFilePath, type UserEnvironment } from './locate.ts';
 import { loadUserPolicy } from './policy.ts';
@@ -55,15 +55,7 @@ export const USER_RULES: readonly Rule[] = [
 
 const MAX_FILE = 1024 * 1024;
 
-function readFile(path: string): string | undefined {
-  try {
-    const stats = statSync(path);
-    if (!stats.isFile() || stats.size > MAX_FILE) return undefined;
-    return readFileSync(path, 'utf8');
-  } catch {
-    return undefined;
-  }
-}
+const readFile = (path: string): string | undefined => readLimitedText(path, MAX_FILE);
 
 /** The values at a dotted key; `*` matches every key of an object (npmScopes.*.npmMinimalAgeGate). */
 function valuesAt(document: unknown, key: string): unknown[] {

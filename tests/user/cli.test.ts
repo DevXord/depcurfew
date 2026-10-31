@@ -1,4 +1,5 @@
 // depcurfew init --user and apply --user on the command line, with a temporary home directory and PATH.
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -59,6 +60,16 @@ describe('init --user', () => {
     expect((await exec(environment, 'init', '--user', '--force')).code).toBe(EXIT_OK);
   });
 
+  it.skipIf(process.platform === 'win32')('refuses a FIFO in place of the policy instead of waiting on it', async () => {
+    const environment = machine();
+    const policy = userPolicyPath(environment);
+    mkdirSync(join(policy, '..'), { recursive: true });
+    execFileSync('mkfifo', [policy]);
+    const result = await exec(environment, 'init', '--user', '--force');
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stderr).toContain('is not a regular file');
+  });
+
   it('takes no directory', async () => {
     const result = await exec(machine(), 'init', '--user', 'somewhere');
     expect(result.code).toBe(EXIT_USAGE);
@@ -89,6 +100,15 @@ describe('apply --user', () => {
     expect(readFileSync(join(environment.home, '.npmrc'), 'utf8')).toContain('min-release-age=3\n');
     const json = await exec(environment, 'apply', '--user', '--json');
     expect(JSON.parse(json.stdout)).toMatchObject({ schemaVersion: 1, policy: 'valid', changes: [], written: false });
+  });
+
+  it.skipIf(!canSymlink() || process.platform === 'win32')('reports a FIFO in place of ~/.npmrc instead of waiting on it', async () => {
+    const environment = machine('11.21.1');
+    await exec(environment, 'init', '--user');
+    execFileSync('mkfifo', [join(environment.home, '.npmrc')]);
+    const result = await exec(environment, 'apply', '--user', '--dry-run');
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stderr).toContain('is not a regular file');
   });
 
   it('checks --for and allows it only with --user', async () => {

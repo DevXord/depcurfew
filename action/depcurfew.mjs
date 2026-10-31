@@ -17,7 +17,7 @@
 // TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 // THIS SOFTWARE.
 import { createRequire } from "node:module";
-import { appendFileSync, chmodSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import nodePath, { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -17843,6 +17843,76 @@ function autoTargets(root, detection, tools = knowledgeBase) {
 	};
 }
 
+// src/read-limited.ts
+const CHUNK = 65536;
+/**
+* The bytes of the regular file at `path`, at most `limit` of them. `noFollow` refuses a symlink in the last part of
+* the path where the platform can tell (O_NOFOLLOW), so that a file cannot be swapped for a link between a check and
+* the read.
+*/
+function readLimited(path, limit, options = {}) {
+	const flags = constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (options.noFollow === true ? constants.O_NOFOLLOW ?? 0 : 0);
+	let descriptor;
+	try {
+		descriptor = openSync(path, flags);
+	} catch (error) {
+		const code = error.code;
+		if (code === "ENOENT" || code === "ENOTDIR") return {
+			ok: false,
+			problem: "missing"
+		};
+		if (code === "ELOOP" && options.noFollow === true) return {
+			ok: false,
+			problem: "symlink"
+		};
+		if (code === "EISDIR") return {
+			ok: false,
+			problem: "not-a-file"
+		};
+		return {
+			ok: false,
+			problem: "unreadable",
+			error
+		};
+	}
+	try {
+		const stats = fstatSync(descriptor);
+		if (!stats.isFile()) return {
+			ok: false,
+			problem: "not-a-file"
+		};
+		if (stats.size > limit) return {
+			ok: false,
+			problem: "too-large"
+		};
+		const chunks = [];
+		const buffer = Buffer.alloc(Math.min(CHUNK, limit + 1));
+		let total = 0;
+		for (;;) {
+			const read = readSync(descriptor, buffer, 0, Math.min(buffer.length, limit + 1 - total), null);
+			if (read === 0) break;
+			chunks.push(Buffer.from(buffer.subarray(0, read)));
+			total += read;
+			if (total > limit) return {
+				ok: false,
+				problem: "too-large"
+			};
+		}
+		return {
+			ok: true,
+			bytes: Buffer.concat(chunks, total)
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			problem: "unreadable",
+			error
+		};
+	} finally {
+		closeSync(descriptor);
+	}
+}
+
 // src/apply/diff.ts
 /** Marks a last line without a line break, so it differs from the same line with one, as in `diff -u`. */
 const NO_EOL = "\0";
@@ -18082,14 +18152,15 @@ var Workspace = class {
 		}
 		if (!isInside(this.root, parent)) throw new Error(`${file} is outside the repository`);
 		let bytes;
-		try {
-			const stats = lstatSync(path);
-			if (stats.isSymbolicLink()) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
-			if (stats.isFile() && stats.size > 1048576) throw new Error(`${file} is larger than 1 MiB, so depcurfew does not edit it`);
-			bytes = readFileSync(path);
-		} catch (error) {
-			if (error.code === void 0) throw error;
-			if (error.code !== "ENOENT") throw new Error(`${file} cannot be read: ${fileSystemReason(error)}`);
+		const stats = lstatSync(path, { throwIfNoEntry: false });
+		if (stats?.isSymbolicLink() === true) throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
+		if (stats !== void 0) {
+			const read = readLimited(path, MAX_FILE_SIZE, { noFollow: true });
+			if (read.ok) bytes = read.bytes;
+			else if (read.problem === "symlink") throw new Error(`${file} is a symlink; depcurfew does not write through symlinks`);
+			else if (read.problem === "too-large") throw new Error(`${file} is larger than 1 MiB, so depcurfew does not edit it`);
+			else if (read.problem === "not-a-file") throw new Error(`${file} cannot be read: ${stats.isDirectory() ? "it is a directory" : "it is not a regular file"}`);
+			else if (read.problem === "unreadable") throw new Error(`${file} cannot be read: ${fileSystemReason(read.error)}`);
 		}
 		let original = null;
 		if (bytes !== void 0) try {

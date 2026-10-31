@@ -13,7 +13,7 @@ const fault = vi.hoisted(() => ({
   rename: undefined as string | undefined,
   /** Fail writeFileSync of a temporary file next to a path that ends like this. */
   write: undefined as string | undefined,
-  /** Fail readFileSync of a path that ends like this. */
+  /** Fail openSync and readFileSync of a path that ends like this. */
   read: undefined as string | undefined,
   /** The mode of every temporary file right after it was created. */
   modes: [] as number[],
@@ -35,6 +35,10 @@ vi.mock('node:fs', async (importOriginal) => {
       if (temporary && fault.write !== undefined && String(path).split('.depcurfew-')[0]?.endsWith(fault.write)) refuse('open', String(path));
       actual.writeFileSync(path, data, options);
       if (temporary) fault.modes.push(actual.statSync(path).mode & 0o777);
+    },
+    openSync: (path: string, flags: number, mode?: number) => {
+      if (fault.read !== undefined && String(path).endsWith(fault.read)) refuse('open', String(path));
+      return actual.openSync(path, flags, mode);
     },
     readFileSync: (path: string, options?: unknown) => {
       if (fault.read !== undefined && String(path).endsWith(fault.read)) refuse('open', String(path));
