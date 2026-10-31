@@ -197,12 +197,28 @@ export function requirementsLines(input: string, format: Format): { text: string
   const result: { text: string; line: number }[] = [];
   for (let index = 0; index < lines.length; index++) {
     const start = index;
-    let line = (lines[index] ?? '').replace(commentPattern, '');
-    while (line.trimEnd().endsWith(continuation) && index + 1 < lines.length) {
+    // The logical line in parts, joined once at the end: joining a growing text for every continuation line takes
+    // minutes on a file of many short continued lines. Trailing whitespace is trimmed as it is checked, since the
+    // logical line is trimmed in the end anyway.
+    const parts = [(lines[index] ?? '').replace(commentPattern, '')];
+    const trimEnd = () => {
+      while (parts.length > 0) {
+        const last = (parts.at(-1) ?? '').trimEnd();
+        if (last !== '') {
+          parts[parts.length - 1] = last;
+          return;
+        }
+        parts.pop();
+      }
+    };
+    trimEnd();
+    while ((parts.at(-1) ?? '').endsWith(continuation) && index + 1 < lines.length) {
       index += 1;
-      line = `${line.trimEnd().slice(0, -continuation.length)} ${(lines[index] ?? '').replace(commentPattern, '')}`;
+      parts[parts.length - 1] = (parts.at(-1) ?? '').slice(0, -continuation.length);
+      parts.push(' ', (lines[index] ?? '').replace(commentPattern, ''));
+      trimEnd();
     }
-    const text = line.trim();
+    const text = parts.join('').trim();
     if (text !== '') result.push({ text, line: start + 1 });
   }
   return result;

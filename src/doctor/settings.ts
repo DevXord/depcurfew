@@ -2,7 +2,7 @@
 // (bunfig.toml) and JSON/JSONC. Unreadable files give no value; detection already reports them.
 import { LineCounter, isMap, isScalar, isSeq, type Document, type Node, type Pair } from 'yaml';
 import { extraOf, isRecord } from '../apply/facts.ts';
-import { jsonGet, jsonOffset } from '../apply/json-edit.ts';
+import { jsonElementOffsets, jsonGet, jsonOffset } from '../apply/json-edit.ts';
 import { BLOCK_END, BLOCK_START } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
@@ -137,8 +137,8 @@ function lineAt(text: string, offset: number): number {
 /** The text yamlSetting parsed last: rules ask for several settings of the same file in a row. Only read, never changed. */
 let lastYaml: { text: string; document: Document.Parsed; lineCounter: LineCounter } | undefined;
 
-/** The YAML value at `path` and the line of its key. */
-export function yamlSetting(text: string, path: readonly string[]): { value: unknown; line: number } | undefined {
+/** The YAML node at `path` and the line of its key; the value is not converted, which takes long for a large node. */
+function yamlNode(text: string, path: readonly string[]): { node: Node | null; line: number } | undefined {
   if (lastYaml?.text !== text) {
     const lineCounter = new LineCounter();
     lastYaml = { text, document: parseYamlDocument(text, lineCounter), lineCounter };
@@ -161,8 +161,45 @@ export function yamlSetting(text: string, path: readonly string[]): { value: unk
     keyOffset = pair.key.range?.[0] ?? 0;
     node = pair.value;
   }
+  return { node, line: lineCounter.linePos(keyOffset).line };
+}
+
+/** The YAML value at `path` and the line of its key. */
+export function yamlSetting(text: string, path: readonly string[]): { value: unknown; line: number } | undefined {
+  const found = yamlNode(text, path);
+  if (found === undefined) return undefined;
+  const { node, line } = found;
   const value: unknown = node === null ? null : isMap(node) || isSeq(node) || isScalar(node) ? (node.toJSON() as unknown) : undefined;
-  return { value, line: lineCounter.linePos(keyOffset).line };
+  return { value, line };
+}
+
+/** The line of the key at `path` in YAML, without its value. */
+export function yamlKeyLine(text: string, path: readonly string[]): number | undefined {
+  return yamlNode(text, path)?.line;
+}
+
+/** The 1-based line of an offset, found by binary search in the positions of the line breaks of `text`. */
+export function lineIndex(text: string): (offset: number) => number {
+  const breaks: number[] = [];
+  for (let index = text.indexOf('\n'); index !== -1; index = text.indexOf('\n', index + 1)) breaks.push(index);
+  return (offset) => {
+    let low = 0;
+    let high = breaks.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if ((breaks[middle] ?? 0) < offset) low = middle + 1;
+      else high = middle;
+    }
+    return low + 1;
+  };
+}
+
+/** The line of every element of the JSON array at `path`, from one parse. */
+export function jsonElementLines(text: string, path: readonly (string | number)[]): number[] | undefined {
+  const offsets = jsonElementOffsets(text, path);
+  if (offsets === undefined) return undefined;
+  const line = lineIndex(text);
+  return offsets.map(line);
 }
 
 /** The JSON value at `path` and the line where it starts. */

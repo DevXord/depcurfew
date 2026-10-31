@@ -242,6 +242,16 @@ export function jsonOffset(text: string, path: Path): number | undefined {
   }
 }
 
+/** Where every element of the array at `path` starts, from one parse; undefined when there is no array there. */
+export function jsonElementOffsets(text: string, path: Path): number[] | undefined {
+  try {
+    const node = find(text, path);
+    return node?.kind === 'array' ? node.elements.map((element) => element.start) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function jsonGet(text: string, path: Path): unknown {
   let value: unknown = parseStrict(text);
   for (const segment of path) {

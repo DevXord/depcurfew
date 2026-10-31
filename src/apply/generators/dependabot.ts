@@ -53,24 +53,27 @@ export const dependabot: BotGenerator = (context, duration) => {
     return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], python ? 'pypi' : 'npm')) ?? [];
   };
   let configured = 0;
+  // A dependabot.yml may have an entry for every directory of a monorepo: the edits are made together.
+  const edits: [(string | number)[], unknown][] = [];
   (Array.isArray(updates) ? updates : []).forEach((entry: unknown, index) => {
     if (!isRecord(entry) || !ecosystems.includes(String(entry['package-ecosystem']))) return;
     configured += 1;
     const patterns = patternsOf(String(entry['package-ecosystem']));
     const current = entry[setting];
     if (!isRecord(current)) {
-      yaml.set(['updates', index, setting], { [keys.days]: result.value, ...(patterns.length > 0 ? { [keys.exclude]: patterns } : {}) });
+      edits.push([['updates', index, setting], { [keys.days]: result.value, ...(patterns.length > 0 ? { [keys.exclude]: patterns } : {}) }]);
       return;
     }
-    yaml.set(['updates', index, setting, keys.days], result.value);
+    edits.push([['updates', index, setting, keys.days], result.value]);
     for (const key of keys.semverDays) {
       const days = current[key];
-      if (typeof days === 'number' && typeof result.value === 'number' && days < result.value) yaml.set(['updates', index, setting, key], result.value);
+      if (typeof days === 'number' && typeof result.value === 'number' && days < result.value) edits.push([['updates', index, setting, key], result.value]);
     }
     if ((patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) {
-      yaml.set(['updates', index, setting, keys.exclude], patterns);
+      edits.push([['updates', index, setting, keys.exclude], patterns]);
     }
   });
+  if (edits.length > 0) yaml.setMany(edits);
   if (configured === 0) {
     context.warn({
       code: 'bot-entries-missing',

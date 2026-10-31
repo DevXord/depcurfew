@@ -25,6 +25,50 @@ export function withValue(data: unknown, path: Path, value: unknown): unknown {
   return copy;
 }
 
+/**
+ * `data` with every value set at its path, as withValue one after another would give it, but changing a copy in place:
+ * withValue copies the whole list on the way to each value, which for thousands of values in one list is slow. The
+ * copy is made through JSON, which is all sameData compares.
+ */
+export function withValues(data: unknown, edits: readonly { path: Path; value: unknown }[]): unknown {
+  let root: unknown = data === undefined ? undefined : (JSON.parse(JSON.stringify(data) ?? 'null') as unknown);
+  const define = (object: Record<string, unknown>, key: string, value: unknown) =>
+    Object.defineProperty(object, key, { value, enumerable: true, writable: true, configurable: true });
+  for (const { path, value } of edits) {
+    if (path.length === 0) {
+      root = value;
+      continue;
+    }
+    if (!(Array.isArray(root) && typeof path[0] === 'number') && !isObject(root)) root = {};
+    let container = root as Record<string, unknown> | unknown[];
+    for (const [index, segment] of path.entries()) {
+      const last = index === path.length - 1;
+      const key = String(segment);
+      if (Array.isArray(container) && typeof segment === 'number') {
+        if (last) container[segment] = value;
+        else {
+          const next = container[segment];
+          const nextSegment = path[index + 1];
+          if (!(Array.isArray(next) && typeof nextSegment === 'number') && !isObject(next)) container[segment] = {};
+          container = container[segment] as Record<string, unknown> | unknown[];
+        }
+        continue;
+      }
+      // withValue turns anything but an object (an array too, for a key that is not a number) into an object.
+      const object = container as Record<string, unknown>;
+      if (last) {
+        define(object, key, value);
+        continue;
+      }
+      const next = Object.hasOwn(object, key) ? object[key] : undefined;
+      const nextSegment = path[index + 1];
+      if (!(Array.isArray(next) && typeof nextSegment === 'number') && !isObject(next)) define(object, key, {});
+      container = object[key] as Record<string, unknown> | unknown[];
+    }
+  }
+  return root;
+}
+
 /** A copy of `data` with the array at `path` changed by `change`. */
 export function withArray(data: unknown, path: Path, change: (array: unknown[]) => unknown[]): unknown {
   let current: unknown = data;

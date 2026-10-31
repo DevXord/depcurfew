@@ -13,7 +13,7 @@ import { writeTomlBlock } from '../toml.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
 import type { ApplyWarning } from '../warnings.ts';
 import type { Workspace } from '../workspace.ts';
-import { yamlGet, yamlSet } from '../yaml-edit.ts';
+import { yamlGet, yamlSet, yamlSetMany } from '../yaml-edit.ts';
 
 export interface Snippet {
   tool: ToolId;
@@ -72,6 +72,8 @@ export interface JsonFile {
 export interface YamlFile {
   get(path: readonly (string | number)[]): unknown;
   set(path: readonly (string | number)[], value: unknown): void;
+  /** Sets several values: the same result and checks as set one after another, much faster for many edits. */
+  setMany(edits: readonly (readonly [readonly (string | number)[], unknown])[]): void;
 }
 
 /** A generator for a package manager returns the cooldown it wrote, in minutes, so bots can wait at least as long. */
@@ -152,6 +154,7 @@ export function createContext(options: {
     yaml: (file) => ({
       get: (path) => guard(file, () => (workspace.exists(file) ? yamlGet(workspace.read(file), path) : undefined)),
       set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value))),
+      setMany: (edits) => guard(file, () => workspace.edit(file, (body) => yamlSetMany(body, edits))),
     }),
     ini: (file, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeIniBlock(body, entries, managedKeys))),
     // The block is written line by line; a file that does not parse is not edited, and the result has to parse.

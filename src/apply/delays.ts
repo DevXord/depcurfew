@@ -4,7 +4,7 @@
 import { delayMinutes, formatMinutes } from '../doctor/durations.ts';
 import { latestVersion } from '../doctor/effective.ts';
 import { readPythonSetting } from '../doctor/python.ts';
-import { jsonSetting, readSetting, yamlSetting, type Setting } from '../doctor/settings.ts';
+import { jsonSetting, readSetting, yamlKeyLine, yamlSetting, type Setting } from '../doctor/settings.ts';
 import { Repository } from '../detect/repository.ts';
 import type { Detection, PackageManagerInfo } from '../detect/types.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -56,12 +56,12 @@ function insideBlock(text: string, line: number): boolean {
 }
 
 /** Whether a YAML key, or a map it sits in, carries depcurfew's marker on the line above. */
-function markedInYaml(text: string, path: readonly string[]): boolean {
-  const all = lines(text);
+/** Whether a key on `path` has depcurfew's marker above it; `all` are the lines of `text`. */
+function markedInYaml(text: string, path: readonly string[], all: readonly string[] = lines(text)): boolean {
   for (let length = 1; length <= path.length; length++) {
     if (/^\d+$/u.test(path[length - 1] ?? '')) continue;
-    const found = yamlSetting(text, path.slice(0, length));
-    if (found !== undefined && all[found.line - 2]?.trim() === YAML_MARKER) return true;
+    const line = yamlKeyLine(text, path.slice(0, length));
+    if (line !== undefined && all[line - 2]?.trim() === YAML_MARKER) return true;
   }
   return false;
 }
@@ -141,6 +141,7 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
   const keys = extraOf(bot, 'cooldownKeys', isCooldownKeys);
   const ecosystems = Object.keys(extraOf(bot, 'ecosystems', isRecord));
   const setting = settingOf(bot.cooldown.setting) ?? 'cooldown';
+  const all = lines(text);
   return (updates.value as unknown[]).flatMap((entry, index): ConfiguredDelay[] => {
     if (!isRecord(entry) || !ecosystems.includes(String(entry['package-ecosystem']))) return [];
     const cooldown = entry[setting];
@@ -157,7 +158,7 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
         value: days,
         minutes: days * 1440,
         location: { file, line },
-        managed: markedInYaml(text, path),
+        managed: markedInYaml(text, path, all),
       },
     ];
   });

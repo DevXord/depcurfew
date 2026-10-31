@@ -13,37 +13,62 @@ export function lines(text: string): string[] {
   return result;
 }
 
-/** The shortest edit script from `a` to `b`. */
+/**
+ * Above this many changed lines, or when the search would take too long, the diff is made by a quicker method that
+ * keeps changes local but may not be the shortest (approximateEdit): the search keeps memory for every step, which
+ * for thousands of changes in a large file would take gigabytes.
+ */
+const MAX_EDITS = 2000;
+const MAX_STEPS = 50_000_000;
+
+/** An edit script from `a` to `b`: the shortest one (Myers), or a close one for very different texts. */
 export function myers(a: readonly string[], b: readonly string[]): Operation[] {
-  const max = a.length + b.length;
+  let prefix = 0;
+  while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix += 1;
+  let suffix = 0;
+  while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix += 1;
+  const left = a.slice(prefix, a.length - suffix);
+  const right = b.slice(prefix, b.length - suffix);
+  const budget = Math.min(MAX_EDITS, Math.max(100, Math.floor(MAX_STEPS / (left.length + right.length + 1))));
+  const middle = shortestEdit(left, right, budget) ?? approximateEdit(left, right);
+  const same = (line: string): Operation => ({ kind: 'same', line });
+  return [...a.slice(0, prefix).map(same), ...middle, ...a.slice(a.length - suffix).map(same)];
+}
+
+/** Myers' algorithm; undefined when the texts differ in more than `maxEdits` lines. */
+function shortestEdit(a: readonly string[], b: readonly string[], maxEdits: number): Operation[] | undefined {
+  const max = Math.min(a.length + b.length, maxEdits);
   const offset = max + 1;
-  const frontier = new Array<number>(2 * max + 3).fill(0);
-  const trace: number[][] = [];
+  const frontier = new Int32Array(2 * max + 3);
+  // Only the diagonals a step can reach are kept: trace[d] holds diagonals -d-1 to d+1 before step d.
+  const trace: Int32Array[] = [];
+  let done = false;
   outer: for (let d = 0; d <= max; d++) {
-    trace.push([...frontier]);
+    trace.push(frontier.slice(offset - d - 1, offset + d + 2));
     for (let k = -d; k <= d; k += 2) {
-      let x =
-        k === -d || (k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0))
-          ? (frontier[offset + k + 1] ?? 0)
-          : (frontier[offset + k - 1] ?? 0) + 1;
+      let x = k === -d || (k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0)) ? (frontier[offset + k + 1] ?? 0) : (frontier[offset + k - 1] ?? 0) + 1;
       let y = x - k;
       while (x < a.length && y < b.length && a[x] === b[y]) {
         x += 1;
         y += 1;
       }
       frontier[offset + k] = x;
-      if (x >= a.length && y >= b.length) break outer;
+      if (x >= a.length && y >= b.length) {
+        done = true;
+        break outer;
+      }
     }
   }
+  if (!done) return undefined;
   const operations: Operation[] = [];
   let x = a.length;
   let y = b.length;
   for (let d = trace.length - 1; d >= 0; d--) {
-    const v = trace[d] as number[];
+    const v = trace[d] as Int32Array;
+    const at = (k: number) => v[k + d + 1] ?? 0;
     const k = x - y;
-    const previousK =
-      k === -d || (k !== d && (v[offset + k - 1] ?? 0) < (v[offset + k + 1] ?? 0)) ? k + 1 : k - 1;
-    const previousX = v[offset + previousK] ?? 0;
+    const previousK = k === -d || (k !== d && at(k - 1) < at(k + 1)) ? k + 1 : k - 1;
+    const previousX = at(previousK);
     const previousY = previousX - previousK;
     while (x > previousX && y > previousY) {
       operations.push({ kind: 'same', line: a[x - 1] as string });
@@ -60,6 +85,38 @@ export function myers(a: readonly string[], b: readonly string[]): Operation[] {
   return operations.reverse();
 }
 
+/**
+ * A close edit script in linear time: equal lines are kept, and after a difference the nearest place where the texts
+ * agree again, within a few lines, is where they continue. Changes stay where they are, as apply makes them.
+ */
+function approximateEdit(a: readonly string[], b: readonly string[], window = 32): Operation[] {
+  const operations: Operation[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      operations.push({ kind: 'same', line: a[i] as string });
+      i += 1;
+      j += 1;
+      continue;
+    }
+    let skip: [number, number] | undefined;
+    search: for (let distance = 1; distance <= window; distance++) {
+      for (let fromA = 0; fromA <= distance; fromA++) {
+        const fromB = distance - fromA;
+        if (i + fromA < a.length && j + fromB < b.length && a[i + fromA] === b[j + fromB]) {
+          skip = [fromA, fromB];
+          break search;
+        }
+      }
+    }
+    const [deletes, inserts] = skip ?? [i < a.length ? 1 : 0, j < b.length ? 1 : 0];
+    for (let count = 0; count < deletes; count++) operations.push({ kind: 'delete', line: a[i++] as string });
+    for (let count = 0; count < inserts; count++) operations.push({ kind: 'insert', line: b[j++] as string });
+  }
+  return operations;
+}
+
 function range(start: number, count: number): string {
   if (count === 0) return `${start - 1},0`;
   return count === 1 ? `${start}` : `${start},${count}`;
@@ -72,6 +129,9 @@ export function unifiedDiff(file: string, before: string | null, after: string, 
   const output = [before === null ? '--- /dev/null' : `--- a/${file}`, `+++ b/${file}`];
 
   let index = 0;
+  let counted = 0;
+  let oldStart = 1;
+  let newStart = 1;
   while (index < operations.length) {
     while (index < operations.length && operations[index]?.kind === 'same') index += 1;
     if (index >= operations.length) break;
@@ -90,11 +150,10 @@ export function unifiedDiff(file: string, before: string | null, after: string, 
     }
     const stop = Math.min(operations.length, end + context);
 
-    let oldStart = 1;
-    let newStart = 1;
-    for (const operation of operations.slice(0, start)) {
-      if (operation.kind !== 'insert') oldStart += 1;
-      if (operation.kind !== 'delete') newStart += 1;
+    // Line numbers count on from the previous hunk, so that many hunks do not recount the file each time.
+    for (; counted < start; counted++) {
+      if (operations[counted]?.kind !== 'insert') oldStart += 1;
+      if (operations[counted]?.kind !== 'delete') newStart += 1;
     }
     const hunk = operations.slice(start, stop);
     const oldCount = hunk.filter((operation) => operation.kind !== 'insert').length;

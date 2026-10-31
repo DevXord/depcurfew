@@ -10737,6 +10737,78 @@ var require_dist = /* @__PURE__ */ __commonJSMin(((exports) => {
 
 // src/yaml-parse.ts
 var import_dist = require_dist();
+/**
+* The yaml package builds nested collections by recursion, so a file nested a few hundred levels deep exhausts the
+* stack (about 800 levels in a plain Node.js process, fewer inside doctor), and at 100 000 levels Node.js can end the
+* process with a fatal error instead of an exception. Configuration and lockfiles are nested a dozen levels at most.
+*/
+const MAX_YAML_DEPTH = 256;
+/** Tokens the lexer adds that are not in the text: document start, scalar start and flow end. */
+const CONTROL = /* @__PURE__ */ new Set([
+	"",
+	"",
+	""
+]);
+/**
+* The position where collections are nested deeper than MAX_YAML_DEPTH, found with the lexer of the yaml package
+* (which reads quotes, comments and block scalars as the parser does, without recursion): flow collections, block
+* collections by their indentation, and compact items such as "- - -" on one line. undefined when the text is fine.
+*/
+function tooDeep(text) {
+	let offset = 0;
+	let flow = 0;
+	let compact = 0;
+	let lineStart = true;
+	let indent = 0;
+	let indents = [];
+	for (const token of new import_dist.Lexer().lex(text)) {
+		const start = offset;
+		if (CONTROL.has(token)) continue;
+		offset += token.length;
+		if (/^(?:\r?\n)+$/u.test(token)) {
+			lineStart = true;
+			indent = 0;
+			compact = 0;
+			continue;
+		}
+		if (lineStart && /^[ \t]+$/u.test(token)) {
+			indent = token.length;
+			continue;
+		}
+		if (lineStart) {
+			lineStart = false;
+			if (token === "---" || token === "...") {
+				indents = [];
+				flow = 0;
+			} else if (flow === 0 && !token.startsWith("#")) {
+				while (indents.length > 0 && (indents.at(-1) ?? 0) >= indent) indents.pop();
+				indents.push(indent);
+			}
+		}
+		if (token === "[" || token === "{") flow += 1;
+		else if (token === "]" || token === "}") flow = Math.max(0, flow - 1);
+		else if ((token === "-" || token === "?") && flow === 0) compact += 1;
+		if (flow + indents.length + compact > 256) return start;
+	}
+}
+/** A document that was not parsed because it is nested too deep, with the error that says so. */
+function tooDeepDocument(text, offset) {
+	const document = (0, import_dist.parseDocument)("", { lineCounter: new import_dist.LineCounter() });
+	let line = 1;
+	let lineStart = 0;
+	for (let index = text.indexOf("\n"); index !== -1 && index < offset; index = text.indexOf("\n", index + 1)) {
+		line += 1;
+		lineStart = index + 1;
+	}
+	const col = offset - lineStart + 1;
+	const error = new import_dist.YAMLParseError([offset, offset + 1], "BAD_INDENT", `collections are nested more than ${256} levels deep at line ${line}, column ${col}, deeper than depcurfew parses`);
+	error.linePos = [{
+		line,
+		col
+	}];
+	document.errors.push(error);
+	return document;
+}
 /** The second occurrence of a key in a map (keys compared as the yaml package does: scalar values with ===). */
 function duplicateKey(document, lineCounter) {
 	const stack = [document.contents];
@@ -10770,15 +10842,19 @@ function checked$1(document, lineCounter) {
 	}
 	return document;
 }
-/** One YAML document, as parseDocument gives it; a duplicate key is in `errors`. */
+/** One YAML document, as parseDocument gives it; a duplicate key or nesting deeper than MAX_YAML_DEPTH is in `errors`. */
 function parseYamlDocument(text, lineCounter = new import_dist.LineCounter()) {
+	const deep = tooDeep(text);
+	if (deep !== void 0) return tooDeepDocument(text, deep);
 	return checked$1((0, import_dist.parseDocument)(text, {
 		uniqueKeys: false,
 		lineCounter
 	}), lineCounter);
 }
-/** Every document of a YAML stream, as parseAllDocuments gives them; a duplicate key is in `errors`. */
+/** Every document of a YAML stream, as parseAllDocuments gives them; errors as in parseYamlDocument. */
 function parseYamlDocuments(text, lineCounter = new import_dist.LineCounter()) {
+	const deep = tooDeep(text);
+	if (deep !== void 0) return [tooDeepDocument(text, deep)];
 	const parsed = (0, import_dist.parseAllDocuments)(text, {
 		uniqueKeys: false,
 		lineCounter
@@ -11516,12 +11592,25 @@ function requirementsLines(input, format) {
 	const result = [];
 	for (let index = 0; index < lines.length; index++) {
 		const start = index;
-		let line = (lines[index] ?? "").replace(commentPattern, "");
-		while (line.trimEnd().endsWith(continuation) && index + 1 < lines.length) {
+		const parts = [(lines[index] ?? "").replace(commentPattern, "")];
+		const trimEnd = () => {
+			while (parts.length > 0) {
+				const last = (parts.at(-1) ?? "").trimEnd();
+				if (last !== "") {
+					parts[parts.length - 1] = last;
+					return;
+				}
+				parts.pop();
+			}
+		};
+		trimEnd();
+		while ((parts.at(-1) ?? "").endsWith(continuation) && index + 1 < lines.length) {
 			index += 1;
-			line = `${line.trimEnd().slice(0, -continuation.length)} ${(lines[index] ?? "").replace(commentPattern, "")}`;
+			parts[parts.length - 1] = (parts.at(-1) ?? "").slice(0, -continuation.length);
+			parts.push(" ", (lines[index] ?? "").replace(commentPattern, ""));
+			trimEnd();
 		}
-		const text = line.trim();
+		const text = parts.join("").trim();
 		if (text !== "") result.push({
 			text,
 			line: start + 1
@@ -12124,6 +12213,52 @@ function withValue(data, path, value) {
 	});
 	return copy;
 }
+/**
+* `data` with every value set at its path, as withValue one after another would give it, but changing a copy in place:
+* withValue copies the whole list on the way to each value, which for thousands of values in one list is slow. The
+* copy is made through JSON, which is all sameData compares.
+*/
+function withValues(data, edits) {
+	let root = data === void 0 ? void 0 : JSON.parse(JSON.stringify(data) ?? "null");
+	const define = (object, key, value) => Object.defineProperty(object, key, {
+		value,
+		enumerable: true,
+		writable: true,
+		configurable: true
+	});
+	for (const { path, value } of edits) {
+		if (path.length === 0) {
+			root = value;
+			continue;
+		}
+		if (!(Array.isArray(root) && typeof path[0] === "number") && !isObject(root)) root = {};
+		let container = root;
+		for (const [index, segment] of path.entries()) {
+			const last = index === path.length - 1;
+			const key = String(segment);
+			if (Array.isArray(container) && typeof segment === "number") {
+				if (last) container[segment] = value;
+				else {
+					const next = container[segment];
+					const nextSegment = path[index + 1];
+					if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject(next)) container[segment] = {};
+					container = container[segment];
+				}
+				continue;
+			}
+			const object = container;
+			if (last) {
+				define(object, key, value);
+				continue;
+			}
+			const next = Object.hasOwn(object, key) ? object[key] : void 0;
+			const nextSegment = path[index + 1];
+			if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject(next)) define(object, key, {});
+			container = object[key];
+		}
+	}
+	return root;
+}
 /** A copy of `data` with the array at `path` changed by `change`. */
 function withArray(data, path, change) {
 	let current = data;
@@ -12350,6 +12485,15 @@ function find(text, path) {
 function jsonOffset(text, path) {
 	try {
 		return find(text, path)?.start;
+	} catch {
+		return;
+	}
+}
+/** Where every element of the array at `path` starts, from one parse; undefined when there is no array there. */
+function jsonElementOffsets(text, path) {
+	try {
+		const node = find(text, path);
+		return node?.kind === "array" ? node.elements.map((element) => element.start) : void 0;
 	} catch {
 		return;
 	}
@@ -12624,8 +12768,8 @@ function lineAt(text, offset) {
 }
 /** The text yamlSetting parsed last: rules ask for several settings of the same file in a row. Only read, never changed. */
 let lastYaml;
-/** The YAML value at `path` and the line of its key. */
-function yamlSetting(text, path) {
+/** The YAML node at `path` and the line of its key; the value is not converted, which takes long for a large node. */
+function yamlNode(text, path) {
 	if (lastYaml?.text !== text) {
 		const lineCounter = new import_dist.LineCounter();
 		lastYaml = {
@@ -12653,9 +12797,45 @@ function yamlSetting(text, path) {
 		node = pair.value;
 	}
 	return {
-		value: node === null ? null : (0, import_dist.isMap)(node) || (0, import_dist.isSeq)(node) || (0, import_dist.isScalar)(node) ? node.toJSON() : void 0,
+		node,
 		line: lineCounter.linePos(keyOffset).line
 	};
+}
+/** The YAML value at `path` and the line of its key. */
+function yamlSetting(text, path) {
+	const found = yamlNode(text, path);
+	if (found === void 0) return void 0;
+	const { node, line } = found;
+	return {
+		value: node === null ? null : (0, import_dist.isMap)(node) || (0, import_dist.isSeq)(node) || (0, import_dist.isScalar)(node) ? node.toJSON() : void 0,
+		line
+	};
+}
+/** The line of the key at `path` in YAML, without its value. */
+function yamlKeyLine(text, path) {
+	return yamlNode(text, path)?.line;
+}
+/** The 1-based line of an offset, found by binary search in the positions of the line breaks of `text`. */
+function lineIndex(text) {
+	const breaks = [];
+	for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1)) breaks.push(index);
+	return (offset) => {
+		let low = 0;
+		let high = breaks.length;
+		while (low < high) {
+			const middle = low + high >> 1;
+			if ((breaks[middle] ?? 0) < offset) low = middle + 1;
+			else high = middle;
+		}
+		return low + 1;
+	};
+}
+/** The line of every element of the JSON array at `path`, from one parse. */
+function jsonElementLines(text, path) {
+	const offsets = jsonElementOffsets(text, path);
+	if (offsets === void 0) return void 0;
+	const line = lineIndex(text);
+	return offsets.map(line);
 }
 /** The JSON value at `path` and the line where it starts. */
 function jsonSetting(text, path) {
@@ -13851,14 +14031,33 @@ function managerDelay$1(context, manager, tool) {
 
 // src/apply/yaml-edit.ts
 const YAML_MARKER = "# managed by depcurfew";
+/**
+* The last texts parsed. Every edit parses the text before it (to find the node and to compare the data) and the
+* text after it (to check the result), and the text after one edit is the text before the next: each is parsed once,
+* so a file with hundreds of edits (a dependabot.yml with an entry per directory) is not parsed four times per edit.
+* Documents are only read, never changed.
+*/
+const recent = [];
 function parse(text) {
-	const lineCounter = new import_dist.LineCounter();
-	const document = parseYamlDocument(text, lineCounter);
-	if (document.errors.length > 0) throw new Error(document.errors[0]?.message.split("\n", 1)[0] ?? "invalid YAML");
-	return {
-		document,
-		lineCounter
-	};
+	let parsed = recent.find((entry) => entry.text === text);
+	if (parsed === void 0) {
+		const lineCounter = new import_dist.LineCounter();
+		parsed = {
+			text,
+			document: parseYamlDocument(text, lineCounter),
+			lineCounter
+		};
+		recent.unshift(parsed);
+		recent.length = Math.min(recent.length, 2);
+	}
+	if (parsed.document.errors.length > 0) throw new Error(parsed.document.errors[0]?.message.split("\n", 1)[0] ?? "invalid YAML");
+	return parsed;
+}
+/** The data of a text, for comparing before and after an edit. */
+function dataOf(text) {
+	const parsed = parse(text);
+	if (!("data" in parsed)) parsed.data = parsed.document.toJS();
+	return parsed.data;
 }
 function equal(a, b) {
 	return JSON.stringify(a) === JSON.stringify(b);
@@ -13914,13 +14113,24 @@ function indentsSequences(text) {
 	return match === null ? true : (match[2]?.length ?? 0) > (match[1]?.length ?? 0);
 }
 function indentUnit(text) {
-	const sizes = [...text.matchAll(/\n( +)\S/gu)].map((match) => match[1]?.length ?? 0).filter((size) => size > 0);
-	return sizes.length === 0 ? 2 : Math.min(...sizes);
+	let unit = 0;
+	for (const match of text.matchAll(/\n( +)\S/gu)) {
+		const size = match[1]?.length ?? 0;
+		if (size > 0 && (unit === 0 || size < unit)) unit = size;
+	}
+	return unit === 0 ? 2 : unit;
 }
+/** The style of the last text rendered for: edits of one file in a batch all render for the same text. */
+let lastStyle;
 function render(value, text) {
-	return (0, import_dist.stringify)(value, {
+	if (lastStyle?.text !== text) lastStyle = {
+		text,
 		indent: indentUnit(text),
-		indentSeq: indentsSequences(text),
+		indentSeq: indentsSequences(text)
+	};
+	return (0, import_dist.stringify)(value, {
+		indent: lastStyle.indent,
+		indentSeq: lastStyle.indentSeq,
 		lineWidth: 0
 	});
 }
@@ -13935,11 +14145,15 @@ function marked(text, keyStart) {
 	const start = lineStart(text, keyStart);
 	return start > 0 && text.slice(lineStart(text, start - 1), start - 1).trim() === "# managed by depcurfew";
 }
-/** Adds the marker line above the key at `keyStart`, unless it is already there or the key shares a line with "- ". */
-function mark(text, keyStart) {
-	const start = lineStart(text, keyStart);
-	const indent = text.slice(start, keyStart);
-	if (!/^[ \t]*$/u.test(indent) || marked(text, keyStart)) return text;
+/**
+* Adds the marker line above the key at `keyStart`, unless it is already there or the key shares a line with "- ".
+* `original` is the same text up to the key (before the value after it changed); positions are looked up there, so
+* that the edited text is not copied once more for each edit.
+*/
+function mark(text, keyStart, original = text) {
+	const start = lineStart(original, keyStart);
+	const indent = original.slice(start, keyStart);
+	if (!/^[ \t]*$/u.test(indent) || marked(original, keyStart)) return text;
 	return `${text.slice(0, start)}${indent}${YAML_MARKER}\n${text.slice(start)}`;
 }
 /**
@@ -14017,20 +14231,134 @@ function pathLine(text, path) {
 * parse and hold the same data as before apart from that value; otherwise nothing is changed and an error says so.
 */
 function yamlSet(text, path, value) {
-	const before = parse(text).document.toJS();
+	const before = dataOf(text);
 	const edited = setValue(text, path, value);
 	if (edited === text) return text;
-	const line = pathLine(text, path);
-	const setting = `${path.join(".")}${line === void 0 ? "" : ` (line ${line})`}`;
+	const setting = () => {
+		const line = pathLine(text, path);
+		return `${path.join(".")}${line === void 0 ? "" : ` (line ${line})`}`;
+	};
 	const byHand = `set ${path.join(".")} to ${JSON.stringify(value)} by hand`;
 	let after;
 	try {
-		after = parse(edited).document.toJS();
+		after = dataOf(edited);
 	} catch (error) {
-		throw new Error(`setting ${setting} would leave invalid YAML (${error instanceof Error ? error.message : String(error)}), so depcurfew did not edit it; ${byHand}`);
+		throw new Error(`setting ${setting()} would leave invalid YAML (${error instanceof Error ? error.message : String(error)}), so depcurfew did not edit it; ${byHand}`);
 	}
-	if (!sameData(after, withValue(before, path, value))) throw new Error(`setting ${setting} would change other settings in the file, so depcurfew did not edit it; ${byHand}`);
+	if (!sameData(after, withValue(before, path, value))) throw new Error(`setting ${setting()} would change other settings in the file, so depcurfew did not edit it; ${byHand}`);
 	return edited;
+}
+/** The keys of a path and of every path above it, from the shortest: one key per level. */
+function pathKeys(path) {
+	return path.map((_, index) => JSON.stringify(path.slice(0, index + 1).map(String)));
+}
+/** Where `edited` differs from `text`: one stretch [start, end) of `text`, replaced by `replacement`. */
+function changedStretch(text, edited) {
+	const CHUNK = 4096;
+	const limit = Math.min(text.length, edited.length);
+	let start = 0;
+	while (start + CHUNK <= limit && text.slice(start, start + CHUNK) === edited.slice(start, start + CHUNK)) start += CHUNK;
+	while (start < limit && text.charCodeAt(start) === edited.charCodeAt(start)) start += 1;
+	let suffix = 0;
+	const room = limit - start;
+	while (suffix + CHUNK <= room && text.slice(text.length - suffix - CHUNK, text.length - suffix) === edited.slice(edited.length - suffix - CHUNK, edited.length - suffix)) suffix += CHUNK;
+	while (suffix < room && text.charCodeAt(text.length - suffix - 1) === edited.charCodeAt(edited.length - suffix - 1)) suffix += 1;
+	return {
+		start,
+		end: text.length - suffix,
+		replacement: Buffer.from(edited.slice(start, edited.length - suffix), "utf8").toString("utf8")
+	};
+}
+/**
+* Sets several values, with the same result and the same checks as yamlSet one after another, in time that grows with
+* the size of the file rather than with the size times the number of edits. Edits of separate parts of the file (the
+* cooldown of each dependabot.yml entry) are all made on the text as it was, and their result is parsed and checked
+* once: it must hold the old data with exactly these values set. An edit that touches the stretch of another, or a
+* path inside another, first applies the edits before it. When the check fails, the edits are made one by one with
+* yamlSet, which gives the same result or the same error as without batching.
+*/
+function yamlSetMany(text, edits) {
+	let base = text;
+	let pending = [];
+	let byStart = [];
+	let paths = /* @__PURE__ */ new Set();
+	let parents = /* @__PURE__ */ new Set();
+	const related = (path) => {
+		const keys = pathKeys(path);
+		return keys.some((key) => paths.has(key)) || parents.has(keys.at(-1) ?? "");
+	};
+	const after = (position) => {
+		let low = 0;
+		let high = byStart.length;
+		while (low < high) {
+			const middle = low + high >> 1;
+			if ((byStart[middle]?.start ?? 0) <= position) low = middle + 1;
+			else high = middle;
+		}
+		return low;
+	};
+	const overlaps = (start, end) => {
+		const next = after(end);
+		const previous = byStart[next - 1];
+		return previous !== void 0 && previous.end >= start;
+	};
+	const add = (edit) => {
+		pending.push(edit);
+		byStart.splice(after(edit.start), 0, edit);
+		const keys = pathKeys(edit.path);
+		paths.add(keys.at(-1) ?? "");
+		for (const key of keys.slice(0, -1)) parents.add(key);
+	};
+	const flush = () => {
+		if (pending.length === 0) return;
+		const parts = [];
+		let at = 0;
+		for (const edit of byStart) {
+			parts.push(base.slice(at, edit.start), edit.replacement);
+			at = edit.end;
+		}
+		parts.push(base.slice(at));
+		const edited = parts.join("");
+		const expected = withValues(dataOf(base), pending);
+		let same = false;
+		try {
+			same = sameData(dataOf(edited), expected);
+		} catch {
+			same = false;
+		}
+		if (same) base = edited;
+		else for (const edit of pending) base = yamlSet(base, edit.path, edit.value);
+		pending = [];
+		byStart = [];
+		paths = /* @__PURE__ */ new Set();
+		parents = /* @__PURE__ */ new Set();
+	};
+	for (const [path, value] of edits) {
+		if (related(path)) flush();
+		let edited;
+		try {
+			edited = setValue(base, path, value);
+		} catch {
+			flush();
+			base = yamlSet(base, path, value);
+			continue;
+		}
+		if (edited === base) continue;
+		let stretch = changedStretch(base, edited);
+		if (overlaps(stretch.start, stretch.end)) {
+			flush();
+			edited = setValue(base, path, value);
+			if (edited === base) continue;
+			stretch = changedStretch(base, edited);
+		}
+		add({
+			path,
+			value,
+			...stretch
+		});
+	}
+	flush();
+	return base;
 }
 function setValue(text, path, value) {
 	const { document, lineCounter } = parse(text);
@@ -14069,7 +14397,7 @@ function setValue(text, path, value) {
 				if (isFlow(node)) refuseFlow(path, index, value);
 				replaced = replaceValue(text, keyRange, valueNode, value, column(keyRange[0]));
 			}
-			return insideMarked ? replaced : mark(replaced, keyRange[0]);
+			return insideMarked ? replaced : mark(replaced, keyRange[0], text);
 		}
 		if (pair.value === null || !((0, import_dist.isMap)(pair.value) || (0, import_dist.isSeq)(pair.value))) {
 			if (isFlow(node)) refuseFlow(path, index, value);
@@ -14100,12 +14428,12 @@ function insideBlock(text, line) {
 	return inside;
 }
 /** Whether a YAML key, or a map it sits in, carries depcurfew's marker on the line above. */
-function markedInYaml(text, path) {
-	const all = lines$1(text);
+/** Whether a key on `path` has depcurfew's marker above it; `all` are the lines of `text`. */
+function markedInYaml(text, path, all = lines$1(text)) {
 	for (let length = 1; length <= path.length; length++) {
 		if (/^\d+$/u.test(path[length - 1] ?? "")) continue;
-		const found = yamlSetting(text, path.slice(0, length));
-		if (found !== void 0 && all[found.line - 2]?.trim() === "# managed by depcurfew") return true;
+		const line = yamlKeyLine(text, path.slice(0, length));
+		if (line !== void 0 && all[line - 2]?.trim() === "# managed by depcurfew") return true;
 	}
 	return false;
 }
@@ -14190,6 +14518,7 @@ function dependabotDelays$1(repository, bot, file) {
 	const keys = extraOf(bot, "cooldownKeys", isCooldownKeys$1);
 	const ecosystems = Object.keys(extraOf(bot, "ecosystems", isRecord));
 	const setting = settingOf(bot.cooldown.setting) ?? "cooldown";
+	const all = lines$1(text);
 	return updates.value.flatMap((entry, index) => {
 		if (!isRecord(entry) || !ecosystems.includes(String(entry["package-ecosystem"]))) return [];
 		const cooldown = entry[setting];
@@ -14213,7 +14542,7 @@ function dependabotDelays$1(repository, bot, file) {
 				file,
 				line
 			},
-			managed: markedInYaml(text, path)
+			managed: markedInYaml(text, path, all)
 		}];
 	});
 }
@@ -15144,7 +15473,8 @@ function createContext(options) {
 		}),
 		yaml: (file) => ({
 			get: (path) => guard(file, () => workspace.exists(file) ? yamlGet(workspace.read(file), path) : void 0),
-			set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value)))
+			set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value))),
+			setMany: (edits) => guard(file, () => workspace.edit(file, (body) => yamlSetMany(body, edits)))
 		}),
 		ini: (file, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeIniBlock(body, entries, managedKeys))),
 		toml: (file, table, entries, managedKeys, label) => guard(file, () => workspace.edit(file, (body) => {
@@ -15250,44 +15580,46 @@ const dependabot = (context, duration) => {
 		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], python ? "pypi" : "npm")) ?? [];
 	};
 	let configured = 0;
+	const edits = [];
 	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
 		if (!isRecord(entry) || !ecosystems.includes(String(entry["package-ecosystem"]))) return;
 		configured += 1;
 		const patterns = patternsOf(String(entry["package-ecosystem"]));
 		const current = entry[setting];
 		if (!isRecord(current)) {
-			yaml.set([
+			edits.push([[
 				"updates",
 				index,
 				setting
 			], {
 				[keys.days]: result.value,
 				...patterns.length > 0 ? { [keys.exclude]: patterns } : {}
-			});
+			}]);
 			return;
 		}
-		yaml.set([
+		edits.push([[
 			"updates",
 			index,
 			setting,
 			keys.days
-		], result.value);
+		], result.value]);
 		for (const key of keys.semverDays) {
 			const days = current[key];
-			if (typeof days === "number" && typeof result.value === "number" && days < result.value) yaml.set([
+			if (typeof days === "number" && typeof result.value === "number" && days < result.value) edits.push([[
 				"updates",
 				index,
 				setting,
 				key
-			], result.value);
+			], result.value]);
 		}
-		if ((patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) yaml.set([
+		if ((patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) edits.push([[
 			"updates",
 			index,
 			setting,
 			keys.exclude
-		], patterns);
+		], patterns]);
 	});
+	if (edits.length > 0) yaml.setMany(edits);
 	if (configured === 0) context.warn({
 		code: "bot-entries-missing",
 		location: { file },
@@ -16082,14 +16414,41 @@ function lines(text) {
 	else result[result.length - 1] += NO_EOL;
 	return result;
 }
-/** The shortest edit script from `a` to `b`. */
+/**
+* Above this many changed lines, or when the search would take too long, the diff is made by a quicker method that
+* keeps changes local but may not be the shortest (approximateEdit): the search keeps memory for every step, which
+* for thousands of changes in a large file would take gigabytes.
+*/
+const MAX_EDITS = 2e3;
+const MAX_STEPS = 5e7;
+/** An edit script from `a` to `b`: the shortest one (Myers), or a close one for very different texts. */
 function myers(a, b) {
-	const max = a.length + b.length;
+	let prefix = 0;
+	while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix += 1;
+	let suffix = 0;
+	while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix += 1;
+	const left = a.slice(prefix, a.length - suffix);
+	const right = b.slice(prefix, b.length - suffix);
+	const middle = shortestEdit(left, right, Math.min(MAX_EDITS, Math.max(100, Math.floor(MAX_STEPS / (left.length + right.length + 1))))) ?? approximateEdit(left, right);
+	const same = (line) => ({
+		kind: "same",
+		line
+	});
+	return [
+		...a.slice(0, prefix).map(same),
+		...middle,
+		...a.slice(a.length - suffix).map(same)
+	];
+}
+/** Myers' algorithm; undefined when the texts differ in more than `maxEdits` lines. */
+function shortestEdit(a, b, maxEdits) {
+	const max = Math.min(a.length + b.length, maxEdits);
 	const offset = max + 1;
-	const frontier = new Array(2 * max + 3).fill(0);
+	const frontier = new Int32Array(2 * max + 3);
 	const trace = [];
+	let done = false;
 	outer: for (let d = 0; d <= max; d++) {
-		trace.push([...frontier]);
+		trace.push(frontier.slice(offset - d - 1, offset + d + 2));
 		for (let k = -d; k <= d; k += 2) {
 			let x = k === -d || k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0) ? frontier[offset + k + 1] ?? 0 : (frontier[offset + k - 1] ?? 0) + 1;
 			let y = x - k;
@@ -16098,17 +16457,22 @@ function myers(a, b) {
 				y += 1;
 			}
 			frontier[offset + k] = x;
-			if (x >= a.length && y >= b.length) break outer;
+			if (x >= a.length && y >= b.length) {
+				done = true;
+				break outer;
+			}
 		}
 	}
+	if (!done) return void 0;
 	const operations = [];
 	let x = a.length;
 	let y = b.length;
 	for (let d = trace.length - 1; d >= 0; d--) {
 		const v = trace[d];
+		const at = (k) => v[k + d + 1] ?? 0;
 		const k = x - y;
-		const previousK = k === -d || k !== d && (v[offset + k - 1] ?? 0) < (v[offset + k + 1] ?? 0) ? k + 1 : k - 1;
-		const previousX = v[offset + previousK] ?? 0;
+		const previousK = k === -d || k !== d && at(k - 1) < at(k + 1) ? k + 1 : k - 1;
+		const previousX = at(previousK);
 		const previousY = previousX - previousK;
 		while (x > previousX && y > previousY) {
 			operations.push({
@@ -16132,6 +16496,44 @@ function myers(a, b) {
 		y = previousY;
 	}
 	return operations.reverse();
+}
+/**
+* A close edit script in linear time: equal lines are kept, and after a difference the nearest place where the texts
+* agree again, within a few lines, is where they continue. Changes stay where they are, as apply makes them.
+*/
+function approximateEdit(a, b, window = 32) {
+	const operations = [];
+	let i = 0;
+	let j = 0;
+	while (i < a.length || j < b.length) {
+		if (i < a.length && j < b.length && a[i] === b[j]) {
+			operations.push({
+				kind: "same",
+				line: a[i]
+			});
+			i += 1;
+			j += 1;
+			continue;
+		}
+		let skip;
+		search: for (let distance = 1; distance <= window; distance++) for (let fromA = 0; fromA <= distance; fromA++) {
+			const fromB = distance - fromA;
+			if (i + fromA < a.length && j + fromB < b.length && a[i + fromA] === b[j + fromB]) {
+				skip = [fromA, fromB];
+				break search;
+			}
+		}
+		const [deletes, inserts] = skip ?? [i < a.length ? 1 : 0, j < b.length ? 1 : 0];
+		for (let count = 0; count < deletes; count++) operations.push({
+			kind: "delete",
+			line: a[i++]
+		});
+		for (let count = 0; count < inserts; count++) operations.push({
+			kind: "insert",
+			line: b[j++]
+		});
+	}
+	return operations;
 }
 
 // src/apply/text.ts
@@ -16708,14 +17110,11 @@ function readRenovateConfig(text, file, base) {
 	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
 	const extendsList = jsonSetting(text, [...base, "extends"]);
 	const list = jsonSetting(text, [...base, "packageRules"]);
+	const lines = Array.isArray(list?.value) ? jsonElementLines(text, [...base, "packageRules"]) : void 0;
 	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
 		index,
 		rule,
-		line: jsonSetting(text, [
-			...base,
-			"packageRules",
-			index
-		])?.line ?? list.line
+		line: lines?.[index] ?? list.line
 	}] : []) : [];
 	return {
 		file,
