@@ -134,9 +134,11 @@ export type UserPlatform = 'linux' | 'darwin' | 'win32';
 export interface UserDirectory {
   /**
    * Where it starts: an environment variable (used only when it is set and not empty, and with `absolute` only when
-   * it is an absolute path), or the home directory (HOME on Linux and macOS, USERPROFILE on Windows).
+   * it is an absolute path), or the home directory (HOME on Linux and macOS, USERPROFILE on Windows). With
+   * `relativeToCwd` the tool takes a relative value as it is, so it reads the file relative to the directory each
+   * command runs in; without it and without `absolute`, what the tool does with a relative value is not known.
    */
-  from: { env: string; absolute?: boolean } | 'home';
+  from: { env: string; absolute?: boolean; relativeToCwd?: boolean } | 'home';
   /** Path below it, with / separators; empty for the directory itself. */
   path: string;
   /** Use this directory only when it already exists (pip on macOS). */

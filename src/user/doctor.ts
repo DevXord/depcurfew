@@ -16,11 +16,13 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId, ToolKnowledge, UserFile, UserWeakening } from '../knowledge/types.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
-import { withoutCredentials } from '../printable.ts';
+import { listing } from '../apply/requirements.ts';
+import { redactCredentials } from '../printable.ts';
 import { readLimited } from '../read-limited.ts';
 import { parseYamlDocument } from '../yaml-parse.ts';
 import { planUserApply } from './apply.ts';
-import { shownPath, userFileFor, userFilePath, type UserEnvironment } from './locate.ts';
+import { homeProblem, type HomeProblem } from './home.ts';
+import { locateUserFile, shownPath, userFileFor, userFilePath, type RelativeDirectory, type UserEnvironment } from './locate.ts';
 import { userPolicyPath } from './policy-path.ts';
 import { loadUserPolicy, userPolicyFix } from './policy.ts';
 import { environmentOverrides } from './variables.ts';
@@ -41,10 +43,10 @@ export const USER_RULES: readonly Rule[] = [
   },
   {
     id: 'user-config-unreadable',
-    summary: 'A user-level configuration file cannot be read, parsed or edited, so depcurfew cannot check it.',
+    summary: 'A user-level configuration file cannot be read, parsed or edited, or the home directory does not exist, so depcurfew cannot check it.',
     description:
-      'The package manager may still read the file (or stop on it), and its settings may weaken every project on the machine; doctor --user fails closed and reports an error instead of passing silently.',
-    help: 'Fix what the message describes: invalid syntax, missing read permission, a symlink apply --user does not write through, or a file over 1 MiB.',
+      'The package manager may still read the file (or stop on it), and its settings may weaken every project on the machine; doctor --user fails closed and reports an error instead of passing silently. Without a home directory the user files of most tools cannot be found at all.',
+    help: 'Do what the fix of the finding says: fix invalid syntax, give read permission, replace a symlink apply --user does not write through, make a file smaller than 1 MiB, or set HOME to an existing directory.',
     level: 'error',
     requiresPolicy: false,
     check: noCheck,
@@ -212,11 +214,36 @@ const SECRET_KEY = /(?:^|[:_.-])(?:_?auth(?:token)?|_?password|token|secret|user
 const json = (value: unknown): string | undefined =>
   JSON.stringify(value, (_key, item: unknown) => (typeof item === 'bigint' ? item.toString() : item instanceof TomlDateTime ? item.toString() : item));
 
-/** A value for a message: JSON, without the credentials of URLs in it; undefined for a credential. */
+/** A value for a message: JSON, with the credentials of URLs in it as <redacted>; undefined for a credential. */
 function shownValue(key: string, value: unknown): string | undefined {
   if (SECRET_KEY.test(key)) return undefined;
   const text = json(value);
-  return text === undefined ? undefined : withoutCredentials(text);
+  return text === undefined ? undefined : redactCredentials(text);
+}
+
+/** Whether a text names the tool as a word, not as part of a file name (pip, but not pip.conf). */
+function namesTool(tool: ToolKnowledge, text: string): boolean {
+  const name = tool.name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  return new RegExp(`(?<![\\w.-])${name}(?![\\w-]|\\.\\w)`, 'u').test(text);
+}
+
+/**
+ * An effect from the knowledge base and how a message names its tool once: a version range at its end for this tool
+ * ("(pnpm 11+)") is taken out and becomes the tag; an effect that names the tool needs no tag; any other gets the
+ * tool's name.
+ */
+function toolTag(tool: ToolKnowledge, effect: string): { effect: string; tag?: string; range?: string } {
+  const name = tool.name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  const range = new RegExp(`\\s*\\((${name} [0-9][0-9.]*\\+?)\\)$`, 'u').exec(effect);
+  if (range?.[1] !== undefined) return { effect: effect.slice(0, range.index), tag: range[1], range: range[1] };
+  return namesTool(tool, effect) ? { effect } : { effect, tag: tool.name };
+}
+
+/** How far a weakening value reaches, unless its effect says so itself. */
+function scopeOf(effect: string): string {
+  if (/\bprojects?\b/u.test(effect)) return '';
+  if (effect.includes(';')) return '; this applies in every project that does not set it itself';
+  return `${effect.includes(',') ? ',' : ''} in every project that does not set it itself`;
 }
 
 /** A key and its value for a message (key = "value"), or the key alone for credentials. */
@@ -251,6 +278,22 @@ function readProblem(shown: string, read: ReturnType<typeof readLimited>, tool: 
   return { message: `${shown} is not a regular file, so depcurfew cannot check it`, fix: `Replace ${shown} with a regular file, or remove it` };
 }
 
+/** user-environment-overrides for a variable that names a user directory with a relative path (XDG_CONFIG_HOME=cfg). */
+function relativeFinding(variable: string, value: string, known: readonly { tool: ToolKnowledge; file: string }[], unknown: readonly ToolKnowledge[]): Finding {
+  const parts = known.map(({ tool, file }) => `${tool.name} reads ${file} relative to the directory each command runs in`);
+  if (unknown.length > 0) {
+    const names = listing(unknown.map((tool) => tool.name));
+    parts.push(`where ${names} ${unknown.length === 1 ? 'looks for its user file' : 'look for their user files'} then is not known`);
+  }
+  return {
+    rule: 'user-environment-overrides',
+    level: 'warning',
+    location: { file: 'environment', variable },
+    message: `${variable} is the relative path ${JSON.stringify(value)}: ${parts.join(', and ')}, so depcurfew apply --user writes nothing for ${known.length + unknown.length === 1 ? 'it' : 'them'}`,
+    fix: `Set ${variable} to an absolute path, or unset it, in your shell profile or CI settings, then run depcurfew apply --user`,
+  };
+}
+
 export interface UserDoctorOptions {
   environment: UserEnvironment;
   versions?: Partial<Record<ToolId, Version>>;
@@ -270,6 +313,15 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   let policy: ResolvedPolicy | undefined;
   let status: DoctorReport['policy'] = 'valid';
   const policyFile = shownPath(userPolicyPath(environment), environment);
+  // Without a home directory most user files cannot exist, so a clean report would mean nothing: it is an error.
+  const problems = new Set<string>();
+  const reportProblem = (problem: HomeProblem) => {
+    if (problems.has(problem.code)) return;
+    problems.add(problem.code);
+    findings.push({ rule: 'user-config-unreadable', level: 'error', location: problem.location, message: problem.message, fix: problem.fix });
+  };
+  const home = homeProblem(environment, 'doctor');
+  if (home !== undefined) reportProblem(home);
   try {
     policy = loadUserPolicy(environment).policy;
   } catch (error) {
@@ -280,10 +332,12 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     } else {
       status = 'invalid';
       notice(`${policyFile} cannot be used: only the checks that do not need a user policy ran`);
+      // A JSON syntax error says where it is ("invalid JSON at line 2, column 16").
+      const line = /\binvalid JSON at line (\d+)\b/u.exec(error.issues.join('\n'))?.[1];
       findings.push({
         rule: 'user-policy-invalid',
         level: 'error',
-        location: { file: policyFile },
+        location: { file: policyFile, ...(line === undefined ? {} : { line: Number(line) }) },
         message: error.issues.length === 0 ? error.message : `${error.message}: ${error.issues.join('; ')}`,
         fix: userPolicyFix(error, policyFile),
       });
@@ -306,6 +360,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   let tooOld: ApplyWarning[] = [];
   if (policy !== undefined) {
     const plan = planUserApply(policy, { environment, ...(options.versions === undefined ? {} : { versions: options.versions }), tools });
+    for (const problem of plan.report.problems) reportProblem(problem);
     const skipped = new Set(plan.report.warningDetails.filter((warning) => SKIPPED.has(warning.code)).map((warning) => warning.tool));
     const pathOf = (tool: ToolKnowledge): string | undefined => {
       const file = userFileFor(tool, versions.get(tool.id) ?? options.versions?.[tool.id]);
@@ -319,11 +374,12 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       if (path !== undefined) failedPaths.add(path);
       const shown = path === undefined ? failure.file : shownPath(path, environment);
       const reason = failure.message.startsWith(`${failure.file} `) ? `${shown} ${failure.message.slice(failure.file.length + 1)}` : failure.message;
+      const line = /\bat line (\d+)\b/u.exec(failure.message)?.[1];
       reportUnreadable(shown, {
         message: `depcurfew apply --user cannot edit ${shown} for ${tool?.name ?? failure.tool} (${reason}), so it cannot be compared with the user policy (${policyFile})`,
-        fix: /symlink/u.test(failure.message)
-          ? 'Replace the symlink with the file it points to, so that depcurfew apply --user can write it, or add the settings of the user policy to that file by hand'
-          : 'Fix what the message describes, then run depcurfew apply --user; or add the settings of the user policy by hand',
+        // The same fix as apply --user gives for the file: what to do about this reason in particular.
+        fix: failure.fix,
+        ...(line === undefined ? {} : { line: Number(line) }),
       });
     }
     for (const change of plan.report.changes) {
@@ -359,6 +415,43 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     tooOld = plan.report.warningDetails.filter((warning) => warning.code === 'version-too-old');
   }
 
+  // A version given with --for for a tool that is not checked, as apply --user warns (version-not-used); a tool that
+  // targets lists is planned for drift without being in PATH.
+  for (const [id, version] of Object.entries(options.versions ?? {}) as [ToolId, Version | undefined][]) {
+    if (version === undefined || installed.some((tool) => tool.id === id)) continue;
+    const tool = tools.find((candidate) => candidate.id === id);
+    if (tool?.user !== undefined && policy !== undefined && policy.targets !== 'auto' && policy.targets.includes(id)) continue;
+    const toolName = tool?.name ?? id;
+    notice(
+      `${toolName}: --for ${id}@${formatVersion(version)} is not used, because ${tool?.user === undefined ? `depcurfew knows no user-level configuration of ${toolName}` : `${toolName} is not in PATH, so doctor --user does not check it`}`,
+    );
+  }
+
+  // A variable that names a user directory with a relative path: the tool reads another file from each directory, or
+  // where it reads one is not known, so apply --user writes nothing for it. One finding per variable.
+  const relative = new Map<string, { value: string; known: { tool: ToolKnowledge; file: string }[]; unknown: ToolKnowledge[] }>();
+  /** The file a tool reads: its user file, or the one a relative directory names from the current directory. */
+  const readPath = (file: UserFile): string | undefined => {
+    const located = locateUserFile(file, environment);
+    return located === undefined ? undefined : 'relative' in located ? located.relative.path : located.path;
+  };
+  const filesOf = (tool: ToolKnowledge, version: Version | undefined): (UserFile | null)[] =>
+    tool.user === undefined ? [] : version === undefined ? (evidenceOf(tool.user.files)[0]?.value ?? []).map((entry) => entry.value) : [userFileFor(tool, version)];
+  for (const tool of installed) {
+    for (const file of filesOf(tool, versions.get(tool.id))) {
+      const located = file === null ? undefined : locateUserFile(file, environment);
+      if (located === undefined || !('relative' in located)) continue;
+      const { variable, value, file: shown, path }: RelativeDirectory = located.relative;
+      const entry = relative.get(variable) ?? { value, known: [], unknown: [] };
+      relative.set(variable, entry);
+      if (path !== undefined && !entry.known.some((known) => known.tool === tool)) entry.known.push({ tool, file: shown });
+      else if (path === undefined && !entry.unknown.includes(tool)) entry.unknown.push(tool);
+    }
+  }
+  for (const [variable, { value, known, unknown }] of relative) {
+    findings.push(relativeFinding(variable, value, known, unknown.filter((tool) => !known.some((entry) => entry.tool === tool))));
+  }
+
   const reads = new Map<string, Read | undefined>();
   /** The entries of a file, read and parsed once; undefined when it does not exist or cannot be checked (reported). */
   const entriesOf = (file: UserFile, path: string, tool: ToolKnowledge): Entry[] | undefined => {
@@ -378,6 +471,9 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
             ...(result.line === undefined ? {} : { line: result.line }),
           });
         }
+      } else {
+        // A missing file has no entries, but what apply --user would write into it still counts (plannedEntries).
+        result = { ok: true, entries: [] };
       }
       reads.set(key, result);
     }
@@ -407,10 +503,10 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     const version = versions.get(tool.id);
     const weakening = evidenceOf(user.weakening)[0]?.value ?? [];
     // Without a version every file the tool has had is checked: the one in use is not known.
-    const files = version === undefined ? (evidenceOf(user.files)[0]?.value ?? []).map((entry) => entry.value) : [userFileFor(tool, version)];
+    const files = filesOf(tool, version);
     const seen = new Set<string>();
     for (const file of files) {
-      const path = file === null ? undefined : userFilePath(file, environment);
+      const path = file === null ? undefined : readPath(file);
       if (file === null || path === undefined || seen.has(path)) continue;
       seen.add(path);
       const shown = shownPath(path, environment);
@@ -421,8 +517,8 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
         for (const rule of weakening) {
           if (!keyMatches(file, entry, rule.key) || !matches(entry.value, rule)) continue;
           const where = entry.section === undefined ? shown : `[${entry.section}] of ${shown}`;
-          const scope = /\bprojects?\b/u.test(rule.effect) ? '' : ', in every project that does not set it itself';
-          weakens(tool, shown, entry, `${keyAndValue(entry)} in ${where} ${rule.effect} (${tool.name})${scope}`, `Remove ${entry.path.join('.')} from ${where}${orPolicy}`);
+          const { effect, tag } = toolTag(tool, rule.effect);
+          weakens(tool, shown, entry, `${keyAndValue(entry)} in ${where}${tag === undefined ? '' : ` (${tag})`} ${effect}${scopeOf(rule.effect)}`, `Remove ${entry.path.join('.')} from ${where}${orPolicy}`);
         }
       }
       for (const other of file.overriddenBy ?? []) {
@@ -431,14 +527,19 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
         const otherShown = shownPath(otherPath, environment);
         const otherEntries = entriesOf(other, otherPath, tool);
         const otherPlanned = otherEntries === undefined ? undefined : plannedEntries(other, otherPath, otherEntries);
-        const ahead = `${tool.name} reads ${otherShown} ahead of ${shown}`;
         const read = (otherEntries ?? []).filter((entry) => readsSection(other, entry));
         for (const entry of read) {
           if (sameAsPlanned(entry, otherPlanned)) continue;
           const rule = weakening.find((candidate) => keyMatches(other, entry, candidate.key) && matches(entry.value, candidate));
           if (rule === undefined) continue;
-          const scope = /\bprojects?\b/u.test(rule.effect) ? '' : ', in every project that does not set it itself';
-          weakens(tool, otherShown, entry, `${keyAndValue(entry)} in ${otherShown} ${rule.effect} (${ahead})${scope}`, `Remove ${entry.path.join('.')} from ${otherShown}${orPolicy}`);
+          const { effect, range } = toolTag(tool, rule.effect);
+          weakens(
+            tool,
+            otherShown,
+            entry,
+            `${keyAndValue(entry)} in ${otherShown} (${range ?? tool.name} reads it ahead of ${shown}) ${effect}${scopeOf(rule.effect)}`,
+            `Remove ${entry.path.join('.')} from ${otherShown}${orPolicy}`,
+          );
         }
         // A key apply --user writes into the user file: a different value in the file read ahead of it replaces it.
         const values = (entries: readonly Entry[], key: string) => entries.filter((entry) => entry.path.join('.') === key).map((entry) => String(entry.value));
@@ -452,7 +553,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
             tool,
             otherShown,
             first,
-            `${keyAndValue(first)} in ${otherShown} replaces the ${key} that depcurfew apply --user writes to ${shown} (${ahead}), so the user policy does not hold there`,
+            `${keyAndValue(first)} in ${otherShown} replaces the ${key} that depcurfew apply --user writes to ${shown} (${tool.name} reads ${otherShown} ahead of it), so the user policy does not hold there`,
             `Remove ${key} from ${otherShown}, or give it the value in ${shown}`,
           );
         }
@@ -474,9 +575,14 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   for (const name of new Set(overrides.map((override) => override.name))) {
     const forName = overrides.filter((override) => override.name === name);
     const listed = forName.find((override) => !override.anyValue);
-    const effects = forName.map((override) => `${override.effect} (${tools.find((tool) => tool.id === override.tool)?.name ?? override.tool})`);
+    // Each effect names its tool once: as it says itself, or in parentheses.
+    const tagged = forName.map((override) => {
+      const tool = tools.find((candidate) => candidate.id === override.tool);
+      return tool === undefined ? { effect: override.effect, tag: override.tool } : toolTag(tool, override.effect);
+    });
+    const effects = tagged.map(({ effect, tag }) => `${effect}${tag === undefined ? '' : ` (${tag})`}`);
     // Values matter only for variables whose weakening values the knowledge base lists; others may hold credentials.
-    const subject = listed === undefined ? name : `${name}=${withoutCredentials(listed.value.trim())}`;
+    const subject = listed === undefined ? name : `${name}=${redactCredentials(listed.value.trim())}`;
     const npmPassed = /^npm_config_/iu.test(name) && (environment.env['npm_execpath'] ?? '') !== '';
     findings.push({
       rule: 'user-environment-overrides',
@@ -484,7 +590,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       location: { file: 'environment', variable: name },
       message:
         forName.length === 1
-          ? `${subject} is set in the environment (${tools.find((tool) => tool.id === forName[0]?.tool)?.name ?? ''}): ${forName[0]?.effect ?? ''}`
+          ? `${subject} is set in the environment${tagged[0]?.tag === undefined ? '' : ` (${tagged[0].tag})`}: ${tagged[0]?.effect ?? ''}`
           : `${subject} is set in the environment: ${effects.join('; ')}`,
       fix: `Unset ${name} in your shell profile or CI settings, or set it to a value the policy allows${npmPassed ? '; under npx or npm run, npm sets npm_config_* variables from the .npmrc files and flags it read' : ''}`,
     });
@@ -494,7 +600,8 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   const order = new Map<string, number>();
   for (const finding of findings) if (!order.has(finding.location.file)) order.set(finding.location.file, order.size);
   findings.sort((a, b) => (order.get(a.location.file) ?? 0) - (order.get(b.location.file) ?? 0) || (a.location.line ?? 0) - (b.location.line ?? 0));
-  // Messages carry values from files and the environment: never the credentials of a URL in them.
-  const clean = findings.map((finding) => ({ ...finding, message: withoutCredentials(finding.message), ...(finding.fix === undefined ? {} : { fix: withoutCredentials(finding.fix) }) }));
-  return { schemaVersion: 1, policy: status, findings: clean, notices: notices.map((item) => ({ ...item, message: withoutCredentials(item.message) })), policyFile };
+  // Messages carry values from files and the environment: never the credentials of a URL in them, which show as
+  // <redacted>@, as in the diff of apply --user.
+  const clean = findings.map((finding) => ({ ...finding, message: redactCredentials(finding.message), ...(finding.fix === undefined ? {} : { fix: redactCredentials(finding.fix) }) }));
+  return { schemaVersion: 1, policy: status, findings: clean, notices: notices.map((item) => ({ ...item, message: redactCredentials(item.message) })), policyFile };
 }

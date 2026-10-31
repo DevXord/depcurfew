@@ -17,7 +17,7 @@
 // TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 // THIS SOFTWARE.
 import { createRequire } from "node:module";
-import { appendFileSync, closeSync, constants, fchmodSync, fchownSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, constants, fchmodSync, fchownSync, fstatSync, lchownSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import nodePath, { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -1837,7 +1837,10 @@ const pip$1 = {
 					{
 						platforms: ["linux"],
 						directories: [{
-							from: { env: "XDG_CONFIG_HOME" },
+							from: {
+								env: "XDG_CONFIG_HOME",
+								relativeToCwd: true
+							},
 							path: "pip"
 						}, {
 							from: "home",
@@ -1888,7 +1891,10 @@ const pip$1 = {
 					{
 						platforms: ["linux"],
 						directories: [{
-							from: { env: "XDG_CONFIG_HOME" },
+							from: {
+								env: "XDG_CONFIG_HOME",
+								relativeToCwd: true
+							},
 							path: "pip"
 						}, {
 							from: "home",
@@ -1940,7 +1946,7 @@ const pip$1 = {
 				],
 				underscoresAsDashes: true
 			}
-		}], `${CONFIGURATION$4}#location`, "The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir(\"pip\") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, \"which respects the XDG_CONFIG_HOME environment variable\" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py: _macos_user_config_dir takes platformdirs user_data_dir when os.path.isdir); since 26.2 that user_data_dir is $XDG_DATA_HOME/pip when XDG_DATA_HOME is not empty after stripping spaces, so with XDG_DATA_HOME set the Library directory is skipped and ~/.config/pip is used unless $XDG_DATA_HOME/pip exists (XDGMixin in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2; src/pip/_vendor/vendor.txt names platformdirs 4.10.0 in 26.2 and 4.5.1 in 26.1.1, whose macos.py has no XDG handling). Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked. A command reads [global] and the section named after itself, which wins key by key (override_order [\"global\", self.name, \":env:\"] in cli/parser.py); the options doctor --user checks (index_group and package_selection_group in cli/cmdoptions.py) belong to install, download, wheel, lock, index and list (src/pip/_internal/commands at 26.2.2). Keys are read without regard to case and with underscores as dashes, so only_binary in a file is the same setting as only-binary, and the later one wins (_normalize_name in src/pip/_internal/configuration.py at 26.2.2: name.lower().replace(\"_\", \"-\"), applied to every key of every file)."),
+		}], `${CONFIGURATION$4}#location`, "The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir(\"pip\") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, \"which respects the XDG_CONFIG_HOME environment variable\" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). A relative XDG_CONFIG_HOME is used as it is, so pip reads <value>/pip/pip.conf relative to the directory each command runs in: XDGMixin.user_config_dir in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2 returns the stripped value with no absolute-path check, _append_app_name_and_version (api.py) only joins the app name, and utils/appdirs.py and configuration.py (os.path.join, then os.path.exists and parser.read) make nothing absolute; 26.1.1 (platformdirs 4.5.1, Unix.user_config_dir in unix.py) does the same without stripping the value. macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py: _macos_user_config_dir takes platformdirs user_data_dir when os.path.isdir); since 26.2 that user_data_dir is $XDG_DATA_HOME/pip when XDG_DATA_HOME is not empty after stripping spaces, so with XDG_DATA_HOME set the Library directory is skipped and ~/.config/pip is used unless $XDG_DATA_HOME/pip exists (XDGMixin in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2; src/pip/_vendor/vendor.txt names platformdirs 4.10.0 in 26.2 and 4.5.1 in 26.1.1, whose macos.py has no XDG handling). Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked. A command reads [global] and the section named after itself, which wins key by key (override_order [\"global\", self.name, \":env:\"] in cli/parser.py); the options doctor --user checks (index_group and package_selection_group in cli/cmdoptions.py) belong to install, download, wheel, lock, index and list (src/pip/_internal/commands at 26.2.2). Keys are read without regard to case and with underscores as dashes, so only_binary in a file is the same setting as only-binary, and the later one wins (_normalize_name in src/pip/_internal/configuration.py at 26.2.2: name.lower().replace(\"_\", \"-\"), applied to every key of every file)."),
 		settings: user$6.verified([
 			{
 				purpose: "cooldown",
@@ -18520,14 +18526,27 @@ const UTF8 = new TextDecoder("utf-8", {
 var Workspace = class {
 	root;
 	#files = /* @__PURE__ */ new Map();
+	#problems = /* @__PURE__ */ new Map();
 	#name;
 	constructor(root, options = {}) {
 		this.root = realpathSync(root);
 		this.#name = options.name ?? ((file) => file);
 	}
+	/** Why a file could not be read, after reading it failed with an error; undefined when it did not. */
+	problem(file) {
+		return this.#problems.get(file);
+	}
+	/** Records why the file cannot be read and returns the error to throw. */
+	#fail(file, problem, message) {
+		this.#problems.set(file, problem);
+		return new Error(message);
+	}
 	/** Why the file cannot be looked at: a part of its path that is a file rather than a directory, or the reason. */
 	#statFailure(file, error) {
-		return (error.code === "ENOTDIR" ? this.#notADirectory(file) : void 0) ?? /* @__PURE__ */ new Error(`${this.#name(file)} cannot be read: ${fileSystemReason(error)}`);
+		return (error.code === "ENOTDIR" ? this.#notADirectory(file) : void 0) ?? this.#fail(file, {
+			kind: "unreadable",
+			code: codeOf(error)
+		}, `${this.#name(file)} cannot be read: ${fileSystemReason(error)}`);
 	}
 	/**
 	* A part of the file's path that exists but is not a directory, so the file can be neither read nor created. POSIX
@@ -18544,7 +18563,10 @@ var Workspace = class {
 				return;
 			}
 			if (stats === void 0) return void 0;
-			if (!stats.isDirectory() && !stats.isSymbolicLink()) return /* @__PURE__ */ new Error(`${this.#name(part)} is not a directory`);
+			if (!stats.isDirectory() && !stats.isSymbolicLink()) return this.#fail(file, {
+				kind: "not-a-directory",
+				part: this.#name(part)
+			}, `${this.#name(part)} is not a directory`);
 		}
 	}
 	#load(file) {
@@ -18558,7 +18580,7 @@ var Workspace = class {
 		} catch {
 			parent = this.root;
 		}
-		if (!isInside(this.root, parent)) throw new Error(`${name} is outside the repository`);
+		if (!isInside(this.root, parent)) throw this.#fail(file, { kind: "outside" }, `${name} is outside the repository`);
 		let bytes;
 		let stats;
 		try {
@@ -18566,23 +18588,29 @@ var Workspace = class {
 		} catch (error) {
 			throw this.#statFailure(file, error);
 		}
-		if (stats?.isSymbolicLink() === true) throw new Error(`${name} is a symlink; depcurfew does not write through symlinks`);
+		const symlink = () => this.#fail(file, { kind: "symlink" }, `${name} is a symlink; depcurfew does not write through symlinks`);
+		if (stats?.isSymbolicLink() === true) throw symlink();
 		if (stats === void 0) {
 			const blocked = this.#notADirectory(file);
 			if (blocked !== void 0) throw blocked;
 		} else {
 			const read = readLimited(path, MAX_FILE_SIZE, { noFollow: true });
 			if (read.ok) bytes = read.bytes;
-			else if (read.problem === "symlink") throw new Error(`${name} is a symlink; depcurfew does not write through symlinks`);
-			else if (read.problem === "too-large") throw new Error(`${name} is larger than 1 MiB, so depcurfew does not edit it`);
-			else if (read.problem === "not-a-file") throw new Error(`${name} cannot be read: ${stats.isDirectory() ? "it is a directory" : "it is not a regular file"}`);
-			else if (read.problem === "unreadable") throw new Error(`${name} cannot be read: ${fileSystemReason(read.error)}`);
+			else if (read.problem === "symlink") throw symlink();
+			else if (read.problem === "too-large") throw this.#fail(file, { kind: "too-large" }, `${name} is larger than 1 MiB, so depcurfew does not edit it`);
+			else if (read.problem === "not-a-file") {
+				const directory = stats.isDirectory();
+				throw this.#fail(file, { kind: directory ? "directory" : "not-a-file" }, `${name} cannot be read: ${directory ? "it is a directory" : "it is not a regular file"}`);
+			} else if (read.problem === "unreadable") throw this.#fail(file, {
+				kind: "unreadable",
+				code: read.error.code
+			}, `${name} cannot be read: ${fileSystemReason(read.error)}`);
 		}
 		let original = null;
 		if (bytes !== void 0) try {
 			original = UTF8.decode(bytes);
 		} catch {
-			throw new Error(`${name} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`);
+			throw this.#fail(file, { kind: "not-utf8" }, `${name} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`);
 		}
 		const entry = {
 			original,
@@ -18718,10 +18746,14 @@ function ownerToKeep(path) {
 		gid: stats.gid
 	};
 }
+/** The owner WriteOptions.ownerOfNew names for a new file, by the real path of its directory. */
+function newOwner(path, ownerOfNew) {
+	return ownerOfNew === void 0 ? void 0 : ownerOfNew(join(realpathSync(dirname(path)), basename(path)));
+}
 /**
 * Writes `text` to a new temporary file next to `path`; the file is removed if writing fails. It replaces a file of
 * mode `mode` (and owner `owner`, see ownerToKeep), or with undefined it becomes a new file, whose mode the umask
-* decides (0666 narrowed by it), as for any file a program creates.
+* decides (0666 narrowed by it), as for any file a program creates, and whose owner is `owner` when given.
 */
 function stage(path, text, mode, owner) {
 	counter += 1;
@@ -18754,6 +18786,41 @@ function missingTop(directory) {
 		if (dirname(current) === current) break;
 	}
 	return top;
+}
+/**
+* Creates `directory` and the directories above it that are missing, one level at a time, and gives each one it
+* creates to the owner `ownerOfNew` names for its real path, so that a directory a symlink led elsewhere (out of the
+* home directory) is not given away. Each is checked with lstat after mkdir: a directory that root just made, not a
+* symlink that the owner of the parent put there meanwhile; lchown does not follow a symlink either, so a swap between
+* the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p.
+*/
+function makeDirectories(directory, ownerOfNew) {
+	if (ownerOfNew === void 0) {
+		mkdirSync(directory, { recursive: true });
+		return;
+	}
+	const missing = [];
+	for (let current = directory; lstatSync(current, { throwIfNoEntry: false }) === void 0; current = dirname(current)) {
+		missing.unshift(current);
+		if (dirname(current) === current) break;
+	}
+	const changed = (level) => Object.assign(/* @__PURE__ */ new Error(`${level} changed while it was created`), { code: "EEXIST" });
+	for (const level of missing) {
+		try {
+			mkdirSync(level);
+		} catch (error) {
+			if (codeOf(error) === "EEXIST" && lstatSync(level).isDirectory()) continue;
+			throw error;
+		}
+		const made = lstatSync(level);
+		const uid = process.getuid?.();
+		if (!made.isDirectory() || uid !== void 0 && made.uid !== uid) throw changed(level);
+		const owner = ownerOfNew(realpathSync(level));
+		if (owner === void 0) continue;
+		lchownSync(level, owner.uid, owner.gid);
+		const given = lstatSync(level);
+		if (!given.isDirectory() || given.ino !== made.ino || given.dev !== made.dev) throw changed(level);
+	}
 }
 /** Removes the directories apply created (`created`, the topmost of each) for `paths`, deepest first, if empty. */
 function removeDirectories(created, paths) {
@@ -18811,10 +18878,10 @@ function writeChangeSets(sets, options = {}) {
 			current = item.name;
 			const top = missingTop(dirname(item.path));
 			if (top !== void 0) created.push(top);
-			mkdirSync(dirname(item.path), { recursive: true });
+			makeDirectories(dirname(item.path), options.ownerOfNew);
 			const stats = item.change.before === null ? void 0 : statSync(item.path);
 			const mode = stats === void 0 ? void 0 : stats.mode & 4095;
-			const owner = stats === void 0 ? void 0 : ownerToKeep(item.path);
+			const owner = stats === void 0 ? newOwner(item.path, options.ownerOfNew) : ownerToKeep(item.path);
 			staged.push({
 				...item,
 				temporary: stage(item.path, item.change.after, mode, owner),

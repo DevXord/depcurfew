@@ -48,15 +48,29 @@ async function exec(environment: UserEnvironment, ...argv: string[]): Promise<{ 
 }
 
 const PIP = { pip: '26.1' };
-const CANNOT_EDIT_FIX = 'Fix what the message describes, then run depcurfew apply --user again; or add the settings by hand';
 
 describe('apply --user reports a user file it cannot read instead of skipping it', () => {
-  const cases: [string, (path: string) => void, (shown: string) => string][] = [
-    ['is not UTF-8', (path) => writeFileSync(path, Buffer.from([0xff, 0xfe, 0x5b, 0x67, 0x0a])), (shown) => `${shown} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`],
-    ['is larger than 1 MiB', (path) => writeFileSync(path, `[global]\n${'#'.repeat(1024 * 1024)}\n`), (shown) => `${shown} is larger than 1 MiB, so depcurfew does not edit it`],
-    ['is a directory', (path) => mkdirSync(path), (shown) => `${shown} cannot be read: it is a directory`],
+  const cases: [string, (path: string) => void, (shown: string) => string, (shown: string) => string][] = [
+    [
+      'is not UTF-8',
+      (path) => writeFileSync(path, Buffer.from([0xff, 0xfe, 0x5b, 0x67, 0x0a])),
+      (shown) => `${shown} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`,
+      (shown) => `Save ${shown} as UTF-8, then run depcurfew apply --user again`,
+    ],
+    [
+      'is larger than 1 MiB',
+      (path) => writeFileSync(path, `[global]\n${'#'.repeat(1024 * 1024)}\n`),
+      (shown) => `${shown} is larger than 1 MiB, so depcurfew does not edit it`,
+      (shown) => `Make ${shown} smaller than 1 MiB, then run depcurfew apply --user again; or add the settings of the user policy by hand`,
+    ],
+    [
+      'is a directory',
+      (path) => mkdirSync(path),
+      (shown) => `${shown} cannot be read: it is a directory`,
+      (shown) => `Remove or rename the directory ${shown}, then run depcurfew apply --user again`,
+    ],
   ];
-  it.each(cases)('a pip.conf that %s is an error with the file as the user sees it, and nothing is planned', (_name, prepare, message) => {
+  it.each(cases)('a pip.conf that %s is an error with the file as the user sees it and a fix for it, and nothing is planned', (_name, prepare, message, fix) => {
     const environment = fakeMachine({ python: PIP }, temporary);
     const path = userFileOf('pip', environment, [26, 1, 0]);
     mkdirSync(dirname(path), { recursive: true });
@@ -64,7 +78,7 @@ describe('apply --user reports a user file it cannot read instead of skipping it
     const shown = shownUserFile('pip', environment, [26, 1, 0]);
     const planned = planUserApply(policy(POLICY), { environment });
     expect(planned.report.errors).toEqual([`pip: cannot edit ${shown}: ${message(shown)}`]);
-    expect(planned.report.failures).toEqual([{ tool: 'pip', file: shown, message: message(shown) }]);
+    expect(planned.report.failures).toEqual([{ tool: 'pip', file: shown, message: message(shown), fix: fix(shown) }]);
   });
 
   it.skipIf(!canSymlink())('a symlinked pip.conf is an error', () => {
@@ -74,7 +88,11 @@ describe('apply --user reports a user file it cannot read instead of skipping it
     writeFileSync(join(environment.root, 'elsewhere.conf'), '[global]\n');
     symlinkSync(join(environment.root, 'elsewhere.conf'), path);
     const shown = shownUserFile('pip', environment, [26, 1, 0]);
-    expect(planUserApply(policy(POLICY), { environment }).report.errors).toEqual([`pip: cannot edit ${shown}: ${shown} is a symlink; depcurfew does not write through symlinks`]);
+    const planned = planUserApply(policy(POLICY), { environment });
+    expect(planned.report.errors).toEqual([`pip: cannot edit ${shown}: ${shown} is a symlink; depcurfew does not write through symlinks`]);
+    expect(planned.report.failures[0]?.fix).toBe(
+      `Replace the symlink ${shown} with the file it points to, so that depcurfew apply --user can write it, or add the settings of the user policy to that file by hand`,
+    );
   });
 
   it('reports a regular file where the directory of pip.conf belongs', () => {
@@ -83,7 +101,9 @@ describe('apply --user reports a user file it cannot read instead of skipping it
     mkdirSync(dirname(directory), { recursive: true });
     writeFileSync(directory, 'not a directory\n');
     const shown = shownUserFile('pip', environment, [26, 1, 0]);
-    expect(planUserApply(policy(POLICY), { environment }).report.errors).toEqual([`pip: cannot edit ${shown}: ${shownPath(directory, environment)} is not a directory`]);
+    const planned = planUserApply(policy(POLICY), { environment });
+    expect(planned.report.errors).toEqual([`pip: cannot edit ${shown}: ${shownPath(directory, environment)} is not a directory`]);
+    expect(planned.report.failures[0]?.fix).toBe(`Move the file ${shownPath(directory, environment)} out of the way, then run depcurfew apply --user again`);
   });
 
   it('writes nothing at all on the command line, and says where and how to run again', async () => {
@@ -96,7 +116,9 @@ describe('apply --user reports a user file it cannot read instead of skipping it
     const result = await exec(environment, 'apply', '--user');
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toContain(`error: pip: cannot edit ${shown}: ${shown} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8 (cannot-edit)\n  fix: ${CANNOT_EDIT_FIX}\n`);
+    expect(result.stderr).toContain(
+      `error: pip: cannot edit ${shown}: ${shown} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8 (cannot-edit)\n  fix: Save ${shown} as UTF-8, then run depcurfew apply --user again\n`,
+    );
     expect(result.stderr).toContain('depcurfew: nothing written because of the errors above.\n');
     expect(existsSync(join(environment.home, '.npmrc'))).toBe(false);
   });
@@ -110,13 +132,15 @@ describe('apply --user names user files as the user sees them, in text and JSON'
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, 'exclude-newer = = 1\n');
     const shown = shownUserFile('uv', environment);
+    const fix = `Fix the TOML error in ${shown} at line 1, then run depcurfew apply --user again`;
     const text = await exec(environment, 'apply', '--user', '--dry-run');
     expect(text.code).toBe(EXIT_FAILURE);
-    expect(text.stderr).toMatch(new RegExp(`error: uv: cannot edit ${shown.replace(/[.*+?^${}()|[\]\\/]/gu, '\\$&')}: invalid TOML at line 1\\b.* \\(cannot-edit\\)\n  fix: ${CANNOT_EDIT_FIX}\n`, 'u'));
+    expect(text.stderr).toMatch(new RegExp(`error: uv: cannot edit ${shown.replace(/[.*+?^${}()|[\]\\/]/gu, '\\$&')}: invalid TOML at line 1\\b.* \\(cannot-edit\\)\n`, 'u'));
+    expect(text.stderr).toContain(`(cannot-edit)\n  fix: ${fix}\n`);
     const json = await exec(environment, 'apply', '--user', '--json');
     const document = JSON.parse(json.stdout) as { errors: Record<string, unknown>[] };
     expect(document.errors).toEqual([
-      { code: 'cannot-edit', level: 'error', tool: 'uv', location: { file: shown, line: 1 }, message: expect.stringMatching(new RegExp(`^uv: cannot edit ${shown.replace(/[.*+?^${}()|[\]\\/]/gu, '\\$&')}: invalid TOML at line 1`, 'u')), fix: CANNOT_EDIT_FIX },
+      { code: 'cannot-edit', level: 'error', tool: 'uv', location: { file: shown, line: 1 }, message: expect.stringMatching(new RegExp(`^uv: cannot edit ${shown.replace(/[.*+?^${}()|[\]\\/]/gu, '\\$&')}: invalid TOML at line 1`, 'u')), fix },
     ]);
   });
 
@@ -142,9 +166,10 @@ describe.skipIf(process.platform === 'win32')('apply --user with a relative XDG_
     expect(relative[0]).toEqual({
       code: 'user-directory-relative',
       tool: 'pip',
-      message: 'pip: XDG_CONFIG_HOME is the relative path "cfg", and depcurfew does not know where pip looks for its user file then, so nothing is written for it',
+      message: 'pip: XDG_CONFIG_HOME is the relative path "cfg", so pip reads cfg/pip/pip.conf relative to the directory each command runs in, a different file in each directory; nothing is written for it',
       fix: 'Set XDG_CONFIG_HOME to an absolute path, or unset it, then run depcurfew apply --user again',
     });
+    expect(relative[1]?.message).toBe('Poetry: XDG_CONFIG_HOME is the relative path "cfg", and depcurfew does not know where Poetry looks for its user file then, so nothing is written for it');
     expect(existsSync(join(process.cwd(), 'cfg'))).toBe(false);
   });
 });
@@ -233,5 +258,37 @@ describe('apply --user keeps the file it reads', () => {
     writeFileSync(path, Buffer.from([0xff, 0x0a]));
     await exec(environment, 'apply', '--user');
     expect([...readFileSync(path)]).toEqual([0xff, 0x0a]);
+  });
+});
+
+describe('apply --user and a file the tool reads ahead of its user file', () => {
+  it('warns when ~/.npmrc gives pnpm 10 another value of a key written to rc, with the line and a fix', async () => {
+    const environment = fakeMachine({ npm: { pnpm: '10.26.0' } }, temporary);
+    withPolicy(environment);
+    writeFileSync(join(environment.home, '.npmrc'), 'save-exact=true\nminimum-release-age=0\n');
+    const rc = shownUserFile('pnpm', environment, [10, 26, 0]);
+    const planned = planUserApply(policy(POLICY), { environment });
+    expect(planned.report.changes.map((change) => change.file)).toEqual([rc]);
+    expect(planned.report.warningDetails.filter((warning) => warning.code === 'user-setting-overridden')).toEqual([
+      {
+        code: 'user-setting-overridden',
+        tool: 'pnpm',
+        location: { file: '~/.npmrc', line: 2 },
+        message: `pnpm: minimum-release-age=0 in ~/.npmrc (line 2) overrides the minimum-release-age=4320 that depcurfew apply --user writes to ${rc}, because pnpm 10.26.0 reads ~/.npmrc ahead of it`,
+        fix: 'Remove the minimum-release-age line from ~/.npmrc, or set it to 4320 there',
+      },
+    ]);
+    const result = await exec(environment, 'apply', '--user');
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toBe(`Created ${rc}\n`);
+    expect(result.stderr).toContain('(user-setting-overridden)\n  fix: Remove the minimum-release-age line from ~/.npmrc, or set it to 4320 there\n');
+  });
+
+  it('says nothing when ~/.npmrc has the same value, or none', () => {
+    const environment = fakeMachine({ npm: { pnpm: '10.26.0' } }, temporary);
+    const codes = () => planUserApply(policy(POLICY), { environment }).report.warningDetails.map((warning) => warning.code);
+    expect(codes()).not.toContain('user-setting-overridden');
+    writeFileSync(join(environment.home, '.npmrc'), 'minimum-release-age=4320\n');
+    expect(codes()).not.toContain('user-setting-overridden');
   });
 });

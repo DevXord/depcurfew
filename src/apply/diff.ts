@@ -1,4 +1,5 @@
 // Unified diff of two texts (Myers' algorithm on lines), for `apply --dry-run`.
+import { isAbsoluteAnywhere } from '../paths.ts';
 import { printable } from '../printable.ts';
 
 export type Operation = { kind: 'same' | 'delete' | 'insert'; line: string };
@@ -131,13 +132,15 @@ export interface DiffOptions {
 /**
  * A unified diff with three lines of context; empty when the texts are equal. `before` is null for a new file.
  * Control characters in the file name are shown as text (printable), so that a name cannot start a line of its own
- * and forge a header or a hunk.
+ * and forge a header or a hunk. A file with an absolute path (a user file outside the home directory) is named as it
+ * is, without the a/ and b/ of repository paths.
  */
 export function unifiedDiff(file: string, before: string | null, after: string, context = 3, options: DiffOptions = {}): string {
   if (before === after) return '';
   const operations = myers(lines(before ?? ''), lines(after));
   const name = printable(file);
-  const output = [before === null ? '--- /dev/null' : `--- a/${name}`, `+++ b/${name}`];
+  const [oldName, newName] = isAbsoluteAnywhere(file) ? [name, name] : [`a/${name}`, `b/${name}`];
+  const output = [before === null ? '--- /dev/null' : `--- ${oldName}`, `+++ ${newName}`];
   const shown = options.redact === true ? redactSecrets : (line: string) => line;
 
   let index = 0;

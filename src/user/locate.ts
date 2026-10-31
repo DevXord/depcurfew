@@ -11,6 +11,8 @@ export interface UserEnvironment {
   /** HOME on Linux and macOS, USERPROFILE on Windows: what os.homedir() returns. */
   home: string;
   env: Readonly<Record<string, string | undefined>>;
+  /** The current directory, against which a tool resolves a relative XDG_CONFIG_HOME (relativeToCwd); process.cwd() by default. */
+  cwd?: string;
   /** Whether a directory exists; replaceable in tests. */
   isDirectory?: (path: string) => boolean;
 }
@@ -47,9 +49,16 @@ export function userFileFor(tool: ToolKnowledge, version: Version | undefined): 
 export interface RelativeDirectory {
   variable: string;
   value: string;
+  /** The user file below the relative directory, as relative as the variable (cfg/pip/pip.conf). */
+  file: string;
+  /**
+   * When the knowledge base records that the tool resolves the value against the directory each command runs in
+   * (relativeToCwd): the absolute path of the file it reads from the current directory.
+   */
+  path?: string;
 }
 
-type Directory = { path: string } | { relative: RelativeDirectory } | undefined;
+type Directory = { path: string } | { relative: Omit<RelativeDirectory, 'file' | 'path'>; directory: string; fromCwd: boolean } | undefined;
 
 function directoryOf(directory: UserDirectory, environment: UserEnvironment): Directory {
   const path = paths(environment.platform);
@@ -61,9 +70,12 @@ function directoryOf(directory: UserDirectory, environment: UserEnvironment): Di
     const value = environment.env[directory.from.env]?.trim();
     if (value === undefined || value === '') return undefined;
     if (!path.isAbsolute(value)) {
-      // With `absolute` the knowledge base records that the tool skips a relative value. Without it, nobody knows
-      // where the tool looks then (from the directory each command runs in?), so the location cannot be worked out.
-      return directory.from.absolute === true ? undefined : { relative: { variable: directory.from.env, value } };
+      // With `absolute` the knowledge base records that the tool skips a relative value, and with `relativeToCwd` that
+      // it reads from the directory each command runs in. Without either, nobody knows where the tool looks then. Either
+      // way there is no one place for apply --user to write to.
+      if (directory.from.absolute === true) return undefined;
+      const below = directory.path === '' ? value : path.join(value, ...directory.path.split('/'));
+      return { relative: { variable: directory.from.env, value }, directory: below, fromCwd: directory.from.relativeToCwd === true };
     }
     base = value;
   }
@@ -80,10 +92,13 @@ export function locateUserFile(file: UserFile, environment: UserEnvironment): { 
   const family = platformFamily(environment.platform);
   const location = file.locations.find((candidate) => candidate.platforms.includes(family));
   if (location === undefined) return undefined;
+  const module = paths(environment.platform);
   for (const directory of location.directories) {
     const base = directoryOf(directory, environment);
     if (base === undefined) continue;
-    return 'relative' in base ? base : { path: paths(environment.platform).join(base.path, location.file) };
+    if (!('relative' in base)) return { path: module.join(base.path, location.file) };
+    const file = module.join(base.directory, location.file);
+    return { relative: { ...base.relative, file, ...(base.fromCwd ? { path: module.resolve(environment.cwd ?? process.cwd(), file) } : {}) } };
   }
   return undefined;
 }

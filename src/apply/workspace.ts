@@ -1,8 +1,8 @@
 // A buffer of edited files: generators read and edit text with LF line endings, and the original line endings,
 // byte order mark and final newline are restored when the changes are collected. Nothing is written here, except by
 // writeChanges, which writes all changes or none.
-import { closeSync, fchmodSync, fchownSync, lstatSync, mkdirSync, openSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, sep } from 'node:path';
+import { closeSync, fchmodSync, fchownSync, lchownSync, lstatSync, mkdirSync, openSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative, sep } from 'node:path';
 import { MAX_FILE_SIZE } from '../detect/repository.ts';
 import { readLimited } from '../read-limited.ts';
 import { isInside } from '../paths.ts';
@@ -49,9 +49,19 @@ export interface WorkspaceOptions {
   name?: (file: string) => string;
 }
 
+/**
+ * Why the workspace could not read a file, for a fix that fits (apply --user): `part` is the part of its path that is
+ * not a directory, named as messages name files; `code` the error code of a file that cannot be read.
+ */
+export type FileProblem =
+  | { kind: 'symlink' | 'too-large' | 'not-utf8' | 'directory' | 'not-a-file' | 'outside' }
+  | { kind: 'unreadable'; code: string | undefined }
+  | { kind: 'not-a-directory'; part: string };
+
 export class Workspace {
   readonly root: string;
   readonly #files = new Map<string, Entry>();
+  readonly #problems = new Map<string, FileProblem>();
   readonly #name: (file: string) => string;
 
   constructor(root: string, options: WorkspaceOptions = {}) {
@@ -59,9 +69,23 @@ export class Workspace {
     this.#name = options.name ?? ((file) => file);
   }
 
+  /** Why a file could not be read, after reading it failed with an error; undefined when it did not. */
+  problem(file: string): FileProblem | undefined {
+    return this.#problems.get(file);
+  }
+
+  /** Records why the file cannot be read and returns the error to throw. */
+  #fail(file: string, problem: FileProblem, message: string): Error {
+    this.#problems.set(file, problem);
+    return new Error(message);
+  }
+
   /** Why the file cannot be looked at: a part of its path that is a file rather than a directory, or the reason. */
   #statFailure(file: string, error: unknown): Error {
-    return ((error as NodeJS.ErrnoException).code === 'ENOTDIR' ? this.#notADirectory(file) : undefined) ?? new Error(`${this.#name(file)} cannot be read: ${fileSystemReason(error)}`);
+    return (
+      ((error as NodeJS.ErrnoException).code === 'ENOTDIR' ? this.#notADirectory(file) : undefined) ??
+      this.#fail(file, { kind: 'unreadable', code: codeOf(error) }, `${this.#name(file)} cannot be read: ${fileSystemReason(error)}`)
+    );
   }
 
   /**
@@ -79,7 +103,7 @@ export class Workspace {
         return undefined;
       }
       if (stats === undefined) return undefined;
-      if (!stats.isDirectory() && !stats.isSymbolicLink()) return new Error(`${this.#name(part)} is not a directory`);
+      if (!stats.isDirectory() && !stats.isSymbolicLink()) return this.#fail(file, { kind: 'not-a-directory', part: this.#name(part) }, `${this.#name(part)} is not a directory`);
     }
     return undefined;
   }
@@ -95,7 +119,7 @@ export class Workspace {
     } catch {
       parent = this.root;
     }
-    if (!isInside(this.root, parent)) throw new Error(`${name} is outside the repository`);
+    if (!isInside(this.root, parent)) throw this.#fail(file, { kind: 'outside' }, `${name} is outside the repository`);
     let bytes: Buffer | undefined;
     let stats;
     try {
@@ -103,7 +127,8 @@ export class Workspace {
     } catch (error) {
       throw this.#statFailure(file, error);
     }
-    if (stats?.isSymbolicLink() === true) throw new Error(`${name} is a symlink; depcurfew does not write through symlinks`);
+    const symlink = () => this.#fail(file, { kind: 'symlink' }, `${name} is a symlink; depcurfew does not write through symlinks`);
+    if (stats?.isSymbolicLink() === true) throw symlink();
     if (stats === undefined) {
       const blocked = this.#notADirectory(file);
       if (blocked !== undefined) throw blocked;
@@ -112,17 +137,19 @@ export class Workspace {
       // over. readLimited also refuses a FIFO or a device instead of waiting on it, and a symlink put in place meanwhile.
       const read = readLimited(path, MAX_FILE_SIZE, { noFollow: true });
       if (read.ok) bytes = read.bytes;
-      else if (read.problem === 'symlink') throw new Error(`${name} is a symlink; depcurfew does not write through symlinks`);
-      else if (read.problem === 'too-large') throw new Error(`${name} is larger than 1 MiB, so depcurfew does not edit it`);
-      else if (read.problem === 'not-a-file') throw new Error(`${name} cannot be read: ${stats.isDirectory() ? 'it is a directory' : 'it is not a regular file'}`);
-      else if (read.problem === 'unreadable') throw new Error(`${name} cannot be read: ${fileSystemReason(read.error)}`);
+      else if (read.problem === 'symlink') throw symlink();
+      else if (read.problem === 'too-large') throw this.#fail(file, { kind: 'too-large' }, `${name} is larger than 1 MiB, so depcurfew does not edit it`);
+      else if (read.problem === 'not-a-file') {
+        const directory = stats.isDirectory();
+        throw this.#fail(file, { kind: directory ? 'directory' : 'not-a-file' }, `${name} cannot be read: ${directory ? 'it is a directory' : 'it is not a regular file'}`);
+      } else if (read.problem === 'unreadable') throw this.#fail(file, { kind: 'unreadable', code: read.error.code }, `${name} cannot be read: ${fileSystemReason(read.error)}`);
     }
     let original: string | null = null;
     if (bytes !== undefined) {
       try {
         original = UTF8.decode(bytes);
       } catch {
-        throw new Error(`${name} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`);
+        throw this.#fail(file, { kind: 'not-utf8' }, `${name} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8`);
       }
     }
     const entry: Entry = { original, style: detectStyle(original ?? ''), body: toLf(original ?? '') };
@@ -166,6 +193,11 @@ export interface WriteOptions {
    * apply --user, whose files are in several roots.
    */
   name?: (root: string, file: string) => string;
+  /**
+   * The owner to give a new file or directory at this absolute path, or undefined to leave it to the running user:
+   * apply and init --user, run by root in the home directory of another user, give what they create there to that user.
+   */
+  ownerOfNew?: (path: string) => Owner | undefined;
 }
 
 /** The changes of one workspace root, for writeChangeSets. */
@@ -259,8 +291,8 @@ export class WriteFailed extends Error {
   }
 }
 
-/** The owner a replaced file keeps when depcurfew runs as root. */
-interface Owner {
+/** The owner a replaced file keeps when depcurfew runs as root, or a new file gets (WriteOptions.ownerOfNew). */
+export interface Owner {
   uid: number;
   gid: number;
 }
@@ -277,7 +309,10 @@ interface Staged extends Item {
   temporary: string;
   /** The mode of the file it replaces; undefined for a new file. */
   mode: number | undefined;
-  /** The owner of the file it replaces, when that has to be set (running as root); undefined otherwise. */
+  /**
+   * The owner to set: of the file it replaces when that has to be set (running as root), or for a new file the one
+   * WriteOptions.ownerOfNew names; undefined otherwise.
+   */
   owner: Owner | undefined;
 }
 
@@ -296,10 +331,15 @@ function ownerToKeep(path: string): Owner | undefined {
   return stats.uid === process.getuid() && stats.gid === process.getgid?.() ? undefined : { uid: stats.uid, gid: stats.gid };
 }
 
+/** The owner WriteOptions.ownerOfNew names for a new file, by the real path of its directory. */
+function newOwner(path: string, ownerOfNew: WriteOptions['ownerOfNew']): Owner | undefined {
+  return ownerOfNew === undefined ? undefined : ownerOfNew(join(realpathSync(dirname(path)), basename(path)));
+}
+
 /**
  * Writes `text` to a new temporary file next to `path`; the file is removed if writing fails. It replaces a file of
  * mode `mode` (and owner `owner`, see ownerToKeep), or with undefined it becomes a new file, whose mode the umask
- * decides (0666 narrowed by it), as for any file a program creates.
+ * decides (0666 narrowed by it), as for any file a program creates, and whose owner is `owner` when given.
  */
 function stage(path: string, text: string, mode: number | undefined, owner?: Owner): string {
   counter += 1;
@@ -338,6 +378,43 @@ function missingTop(directory: string): string | undefined {
     if (dirname(current) === current) break;
   }
   return top;
+}
+
+/**
+ * Creates `directory` and the directories above it that are missing, one level at a time, and gives each one it
+ * creates to the owner `ownerOfNew` names for its real path, so that a directory a symlink led elsewhere (out of the
+ * home directory) is not given away. Each is checked with lstat after mkdir: a directory that root just made, not a
+ * symlink that the owner of the parent put there meanwhile; lchown does not follow a symlink either, so a swap between
+ * the check and lchown gives away the link at most, never what it points to. Without an owner it is mkdir -p.
+ */
+function makeDirectories(directory: string, ownerOfNew: WriteOptions['ownerOfNew']): void {
+  if (ownerOfNew === undefined) {
+    mkdirSync(directory, { recursive: true });
+    return;
+  }
+  const missing: string[] = [];
+  for (let current = directory; lstatSync(current, { throwIfNoEntry: false }) === undefined; current = dirname(current)) {
+    missing.unshift(current);
+    if (dirname(current) === current) break;
+  }
+  const changed = (level: string) => Object.assign(new Error(`${level} changed while it was created`), { code: 'EEXIST' });
+  for (const level of missing) {
+    try {
+      mkdirSync(level);
+    } catch (error) {
+      // Made by another program meanwhile: used as mkdir -p would, but not given away, as it is not ours.
+      if (codeOf(error) === 'EEXIST' && lstatSync(level).isDirectory()) continue;
+      throw error;
+    }
+    const made = lstatSync(level);
+    const uid = process.getuid?.();
+    if (!made.isDirectory() || (uid !== undefined && made.uid !== uid)) throw changed(level);
+    const owner = ownerOfNew(realpathSync(level));
+    if (owner === undefined) continue;
+    lchownSync(level, owner.uid, owner.gid);
+    const given = lstatSync(level);
+    if (!given.isDirectory() || given.ino !== made.ino || given.dev !== made.dev) throw changed(level);
+  }
 }
 
 /** Removes the directories apply created (`created`, the topmost of each) for `paths`, deepest first, if empty. */
@@ -396,10 +473,10 @@ export function writeChangeSets(sets: readonly ChangeSet[], options: WriteOption
       const top = missingTop(dirname(item.path));
       // Recorded first, so that the directories are removed even when mkdirSync creates some of them and then fails.
       if (top !== undefined) created.push(top);
-      mkdirSync(dirname(item.path), { recursive: true });
+      makeDirectories(dirname(item.path), options.ownerOfNew);
       const stats = item.change.before === null ? undefined : statSync(item.path);
       const mode = stats === undefined ? undefined : stats.mode & 0o7777;
-      const owner = stats === undefined ? undefined : ownerToKeep(item.path);
+      const owner = stats === undefined ? newOwner(item.path, options.ownerOfNew) : ownerToKeep(item.path);
       staged.push({ ...item, temporary: stage(item.path, item.change.after, mode, owner), mode, owner });
     }
   } catch (error) {

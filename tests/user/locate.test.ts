@@ -31,13 +31,15 @@ describe('userFilePath', () => {
     expect(userFilePath(xdgFile, { platform: 'win32', home: 'C:\\Users\\Ada', env: {} })).toBe('C:\\Users\\Ada\\AppData\\Roaming\\tool\\config.ini');
   });
 
-  it('does not guess a path from a relative value a tool may use: locateUserFile says so, and userFilePath has none', () => {
+  it('does not guess a path from a relative value: locateUserFile says so, with the file read from the current directory where that is known, and userFilePath has none', () => {
     const file = userFileFor(pip, [26, 1, 0]);
     expect(file).not.toBeNull();
-    const linux = { platform: 'linux' as const, home: '/home/ada', env: { XDG_CONFIG_HOME: 'cfg' } };
-    expect(locateUserFile(file!, linux)).toEqual({ relative: { variable: 'XDG_CONFIG_HOME', value: 'cfg' } });
+    const linux = { platform: 'linux' as const, home: '/home/ada', env: { XDG_CONFIG_HOME: 'cfg' }, cwd: '/work' };
+    // pip takes a relative XDG_CONFIG_HOME as it is (vendored platformdirs), so it reads cfg/pip/pip.conf from where it runs.
+    expect(locateUserFile(file!, linux)).toEqual({ relative: { variable: 'XDG_CONFIG_HOME', value: 'cfg', file: 'cfg/pip/pip.conf', path: '/work/cfg/pip/pip.conf' } });
     expect(userFilePath(file!, linux)).toBeUndefined();
-    expect(locateUserFile(file!, { platform: 'win32', home: 'C:\\Users\\Ada', env: { APPDATA: 'Roaming' } })).toEqual({ relative: { variable: 'APPDATA', value: 'Roaming' } });
+    // What pip does with a relative APPDATA is not known.
+    expect(locateUserFile(file!, { platform: 'win32', home: 'C:\\Users\\Ada', env: { APPDATA: 'Roaming' } })).toEqual({ relative: { variable: 'APPDATA', value: 'Roaming', file: 'Roaming\\pip\\pip.ini' } });
     expect(locateUserFile(file!, { ...linux, env: { XDG_CONFIG_HOME: '/srv/cfg' } })).toEqual({ path: '/srv/cfg/pip/pip.conf' });
   });
 

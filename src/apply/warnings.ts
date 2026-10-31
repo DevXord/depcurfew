@@ -15,7 +15,8 @@ export const APPLY_WARNINGS = {
   'version-unknown': 'apply --user: the installed version of a tool cannot be read from its files, and a value it does not understand would stop every command, so nothing is written for it.',
   'no-user-config': 'apply --user: the tool has no user-level configuration file, so nothing is written for it.',
   'user-setting-project-only': 'apply --user: the tool reads a part of the policy only from project files, so it is not written into the user file.',
-  'user-directory-relative': 'apply --user: the environment variable that names the directory of the user file (XDG_CONFIG_HOME, APPDATA) is a relative path, and where the tool looks then is not known, so nothing is written for it.',
+  'user-directory-relative': 'apply --user: the environment variable that names the directory of the user file (XDG_CONFIG_HOME, APPDATA) is a relative path, so the tool looks in another place from each directory, or where it looks then is not known; nothing is written for it.',
+  'user-setting-overridden': 'apply --user: a file the tool reads ahead of its user file (~/.npmrc for pnpm 10) sets a key apply writes there to another value, so the value written has no effect.',
   'version-not-used': 'apply --user: --for gives the version of a tool that apply --user does not configure (not in PATH with targets "auto", or not listed under targets).',
   'cooldown-not-written': 'The release-age delay cannot be written for a tool.',
   'cooldown-shortened': 'A release-age delay set outside depcurfew\'s markers (in JSON files also one an earlier apply wrote) is longer than the policy, and apply replaces it with the shorter one.',
@@ -59,7 +60,7 @@ export const APPLY_ERRORS = {
   'policy-exists': 'depcurfew init found a depcurfew.json and writes it only with --force.',
   'directory-not-found': 'The directory given on the command line does not exist or cannot be opened.',
   'not-a-directory': 'The path given on the command line is a file, not a directory.',
-  'home-missing': 'apply --user: the home directory (HOME, USERPROFILE on Windows) does not exist or is not an absolute path, so nothing is written.',
+  'home-missing': 'apply --user and init --user: the home directory (HOME, USERPROFILE on Windows) does not exist or is not an absolute path, so nothing is written.',
 } as const satisfies Record<string, string>;
 
 export type ApplyWarningCode = keyof typeof APPLY_WARNINGS;

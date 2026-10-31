@@ -69,7 +69,7 @@ describe.skipIf(!canSymlink())('doctor --user', () => {
     expect(weakens).toHaveLength(1);
     expect(weakens[0]?.location.file).toBe('~/.npmrc');
     expect(weakens[0]?.location.line).toBeGreaterThan(1);
-    expect(weakens[0]?.message).toContain('dangerously-allow-all-scripts = "true" in ~/.npmrc runs every dependency install script');
+    expect(weakens[0]?.message).toContain('dangerously-allow-all-scripts = "true" in ~/.npmrc (npm) runs every dependency install script, also those a package.json denies, in every project that does not set it itself');
   });
 
   it('reports environment variables that move or override the user file, in any case for npm', () => {
@@ -77,7 +77,7 @@ describe.skipIf(!canSymlink())('doctor --user', () => {
     const report = runUserDoctor({ environment });
     const found = report.findings.find((finding) => finding.rule === 'user-environment-overrides');
     expect(found).toMatchObject({ level: 'warning', location: { file: 'environment' } });
-    expect(found?.message).toBe('NPM_CONFIG_USERCONFIG is set in the environment (npm): makes npm read another user file');
+    expect(found?.message).toBe('NPM_CONFIG_USERCONFIG is set in the environment: makes npm read another user file');
     expect(found?.fix).toContain('Unset NPM_CONFIG_USERCONFIG');
     expect(found?.location).toEqual({ file: 'environment', variable: 'NPM_CONFIG_USERCONFIG' });
   });

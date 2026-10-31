@@ -64,7 +64,7 @@ describe('doctor --user', () => {
     const weakening = { ...user.weakening, value: [{ key: '//registry.example.com/:_authToken', values: 'any', effect: 'sends a token' }] } as typeof user.weakening;
     const tools = [{ ...npm, user: { ...user, weakening } }];
     const [finding] = runUserDoctor({ environment, tools }).findings;
-    expect(finding?.message).toContain('//registry.example.com/:_authToken in ~/.npmrc sends a token');
+    expect(finding?.message).toContain('//registry.example.com/:_authToken in ~/.npmrc (npm) sends a token');
     expect(JSON.stringify(finding)).not.toContain('npm_SECRET');
   });
 });

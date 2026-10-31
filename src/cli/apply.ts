@@ -3,8 +3,10 @@
 // cannot be edited, nothing is written and stdout stays empty, also with --dry-run. With --json, stdout holds one JSON
 // document with all of it (each change with its diff, warnings and errors with a code) and stderr stays empty. Without
 // a directory it works on the nearest directory with depcurfew.json (projectDirectory in directory.ts). Diffs never
-// show the values of secrets (tokens and passwords in .npmrc and the like), and file names in their headers show
-// control characters as text.
+// show the values of secrets (tokens and passwords in .npmrc and the like). The text diff shows control and
+// bidirectional characters from the files as text (\x1b, ‮) in every line, on a terminal and in a pipe alike (in
+// a pipe the CR of CRLF line breaks stays, so the diff still applies); the diff in the JSON document keeps them all,
+// escaped by JSON.
 import { applyProject, ApplyWriteError, PolicyError, type ApplyReport } from '../apply/index.ts';
 import { unifiedDiff } from '../apply/diff.ts';
 import type { Version } from '../apply/version.ts';
@@ -45,9 +47,23 @@ function diffOf(change: { file: string; before: string | null; after: string }):
   return unifiedDiff(change.file, change.before, change.after, 3, { redact: true });
 }
 
-/** What to do about a file that cannot be edited; `command` is what to run again. */
-function cannotEditFix(command: string): string {
-  return `Fix what the message describes, then run ${command} again; or add the settings by hand`;
+/** What to do about a file that cannot be edited; `command` is what to run again. apply --user names a fix of its own. */
+function cannotEditFix(failure: object, command: string): string {
+  return 'fix' in failure && typeof failure.fix === 'string' ? failure.fix : `Fix what the message describes, then run ${command} again; or add the settings by hand`;
+}
+
+/**
+ * A diff for text output: control and bidirectional characters from the files written as text in each line
+ * (printable), the +, - and space at the start of a line kept. A terminal control sequence in a configuration value
+ * would otherwise reach the terminal or the CI log as it is. Written to a file or a pipe, the carriage return of a
+ * CRLF line break stays, so that the diff of a file with Windows line endings still applies; on a terminal, where
+ * the diff is only read, it shows as \x0d too.
+ */
+function printableDiff(diff: string, terminal: boolean): string {
+  return diff
+    .split('\n')
+    .map((line) => (!terminal && line.endsWith('\r') ? `${printable(line.slice(0, -1), { lines: true })}\r` : printable(line, { lines: true })))
+    .join('\n');
 }
 
 /**
@@ -108,7 +124,7 @@ function planErrors(report: ApplyReport, problems: readonly UserProblem[], comma
         tool: failure.tool,
         location: { file: failure.file, ...(line === undefined ? {} : { line }) },
         message: report.errors[problems.length + index] ?? failure.message,
-        fix: cannotEditFix(command),
+        fix: cannotEditFix(failure, command),
       };
     }),
   ];
@@ -227,11 +243,8 @@ function printReport(report: ApplyReport, errors: JsonError[], options: { dryRun
   const colors = paint(io.colors?.stdout);
   // With errors nothing would be written, so a dry run prints no diff either: applying it would apply half the policy.
   if (errors.length === 0 && dryRun) {
-    const diff = report.changes.map(diffOf).join('');
-    // On a terminal the diff is for reading, so control characters in the files are shown as text; written to a file
-    // or a pipe it stays exactly what git apply needs, but for the redacted secrets and the escaped file names.
-    const shown = io.terminal?.stdout === true || io.colors?.stdout === true ? diff.split('\n').map((line) => printable(line)).join('\n') : diff;
-    io.stdout(paintDiff(shown, colors));
+    const terminal = io.terminal?.stdout === true || io.colors?.stdout === true;
+    io.stdout(paintDiff(printableDiff(report.changes.map(diffOf).join(''), terminal), colors));
   } else if (errors.length === 0) {
     io.stdout(
       report.changes.length === 0

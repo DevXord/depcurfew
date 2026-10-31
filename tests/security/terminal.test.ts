@@ -116,7 +116,7 @@ describe('control characters from untrusted sources in text output', () => {
     expect(result.stderr.replace(SGR, '')).toContain('allowScripts in package.json (line 1) lets \\x1b]0;PWNED\\x07sharp run install scripts');
   });
 
-  it('apply --dry-run shows them as \\xHH in the diff on a terminal, and keeps the diff exact in a pipe', async () => {
+  it('apply --dry-run shows them as \\xHH in the diff, on a terminal and in a pipe (keeping the CR of CRLF there); the JSON document keeps the exact diff', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'depcurfew-terminal-'));
     temporary.push(directory);
     writeFileSync(join(directory, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '3d' } }));
@@ -129,7 +129,24 @@ describe('control characters from untrusted sources in text output', () => {
     await run(['apply', '--dry-run', directory], { stdout: (text) => (terminal += text), stderr: () => undefined, terminal: { stdout: true, stderr: true } });
     expect(terminal).toContain(' # \\x1b]0;PWNED\\x07note\\x0d\n');
     const piped = await exec(['apply', '--dry-run', directory]);
-    expect(piped.stdout).toContain(` # ${TITLE}note\r\n`);
+    // The CR of a CRLF line break stays in a pipe, so that the diff of a file with Windows line endings applies.
+    expectVisible(piped.stdout.replaceAll('\r\n', '\n'));
+    expect(piped.stdout).toContain(' # \\x1b]0;PWNED\\x07note\r\n');
+    const json = JSON.parse((await exec(['apply', '--dry-run', '--json', directory])).stdout) as { changes: { diff: string }[] };
+    expect(json.changes[0]?.diff).toContain(` # ${TITLE}note\r\n`);
+  });
+
+  it('apply --dry-run escapes control and bidirectional characters in every diff line, keeping the +, - and space prefixes', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'depcurfew-terminal-'));
+    temporary.push(directory);
+    writeFileSync(join(directory, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '3d' }, targets: ['npm'] }));
+    writeFileSync(join(directory, 'package.json'), JSON.stringify({ name: 'app', packageManager: 'npm@11.21.1' }));
+    writeFileSync(join(directory, '.npmrc'), `registry=https://r.example.com/${TITLE}\nmin-release-age=1 ${ESC}[2J‮\n`);
+    const piped = await exec(['apply', '--dry-run', directory]);
+    expectVisible(piped.stdout);
+    expect(piped.stdout).not.toContain('‮');
+    expect(piped.stdout).toContain('\n registry=https://r.example.com/\\x1b]0;PWNED\\x07\n');
+    expect(piped.stdout).toContain('\n-min-release-age=1 \\x1b[2J\\u202e\n');
   });
 
   it('apply and check show no control characters in the problems of depcurfew.json', async () => {
