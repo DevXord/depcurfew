@@ -83,7 +83,10 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
    Pobrany plik `.tgz` można porównać z `npm pack --dry-run` w checkoucie tagu.
 5. **Zatwierdzenie z 2FA:** na npmjs.com zakładka **Staged Packages** → **Approve**, albo `npm stage approve <stage-id>`.
 6. **Sprawdzenie proweniencji:** strona paczki na npmjs.com pokazuje proweniencję (repozytorium, workflow, commit). W dowolnym projekcie po instalacji `depcurfew@X.Y.Z` polecenie `npm audit signatures` powinno wykazać zweryfikowaną attestację.
-7. **Po wydaniu** w README wpisać w przykładzie Action pełny SHA commita wydania i utworzyć na GitHubie Release `vX.Y.Z` z tagu, z sekcją wersji z `CHANGELOG.md` jako opisem.
+7. **Po wydaniu:**
+   - w `src/docs/readme.ts` wpisać w `ACTION_RELEASE` wersję i pełny SHA commita wydania (`git rev-parse vX.Y.Z`), potem `npm run docs:readme` i PR do `main`; przykład Action w README przypina wtedy ten commit;
+   - utworzyć na GitHubie Release `vX.Y.Z` z tagu, z sekcją wersji z `CHANGELOG.md` jako opisem;
+   - poprzednią wersję z błędem, którego nie powinno się już instalować, oznaczyć `npm deprecate`.
 8. **Tylko po pierwszym wydaniu:** odrzuć etap próbny z kroku 2 jednorazowej konfiguracji (`npm stage list depcurfew`, potem `npm stage reject <stage-id>`, z 2FA). Opublikowana wersja zostaje. Po 1.0.0 to już zrobione. README trafia do paczki w chwili publikacji i to ono jest na stronie npm, więc wszystko, co ma się tam znaleźć, musi być w `main` przed tagiem.
 
 ## Gdy coś nie działa

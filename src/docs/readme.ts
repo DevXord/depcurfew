@@ -24,6 +24,12 @@ export interface ReadmeInputs {
 /** The knowledge base document on GitHub: npmjs.com shows the README without the files of the repository. */
 export const KNOWLEDGE_DOCUMENT = 'https://github.com/DevXord/depcurfew/blob/main/docs/knowledge.md';
 
+/**
+ * The release the example workflow pins the action to: its full commit, with the tag in a comment. Updated after each
+ * release (docs/RELEASING.md, „Każde wydanie”), then npm run docs:readme.
+ */
+export const ACTION_RELEASE = { version: '1.1.0', commit: '77ecd935be36510cae04290423cb02681080403f' } as const;
+
 const SOURCE_LABELS: Record<(typeof SOURCE_KINDS)[number], string> = {
   git: 'git',
   remoteTarball: 'remote tarball',
@@ -177,7 +183,7 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
     `      - uses: ${checkout}`,
     '        with:',
     '          persist-credentials: false',
-    '      - uses: DevXord/depcurfew@<full-commit-sha> # pin a commit, not a tag',
+    `      - uses: DevXord/depcurfew@${ACTION_RELEASE.commit} # v${ACTION_RELEASE.version}`,
     '```',
   ].join('\n');
 }
