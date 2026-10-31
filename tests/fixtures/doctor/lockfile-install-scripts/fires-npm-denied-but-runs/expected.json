@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 41
+    },
+    "message": "core-js has install scripts and npm runs them by default, but depcurfew.json denies them",
+    "fix": "Make npm stop running dependency install scripts (run depcurfew apply and follow its warnings), or replace the package"
+  }
+]

@@ -5,6 +5,6 @@
     "exclude": ["@acme/*", "pypi:acme-*", "pypi:Zope.Interface", "string_decoder"],
     "securityUpdates": "bypass"
   },
-  "installScripts": { "default": "deny", "allow": ["esbuild", "pypi:docopt", "pypi:typing_extensions"] },
+  "installScripts": { "default": "deny", "allow": ["esbuild", "pypi:docopt", "pypi:typing_extensions"], "deny": [] },
   "targets": ["npm", "uv", "pip", "poetry"]
 }

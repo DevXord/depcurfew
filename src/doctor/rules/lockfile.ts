@@ -153,15 +153,31 @@ function switchIsOn(value: unknown, wanted: unknown): boolean {
   return wanted.every((item) => items.includes(item));
 }
 
-function reportPythonBuilds(context: RuleContext, lockfile: Lockfile, tool: ToolKnowledge, allow: readonly string[]): void {
+function reportPythonBuilds(context: RuleContext, lockfile: Lockfile, tool: ToolKnowledge, allow: readonly string[], deny: readonly string[]): void {
   const forbiddenBy = buildsForbiddenBy(context, tool, lockfile);
   const build = tool.extra?.['buildSwitch'] === undefined ? undefined : extraOf(tool, 'buildSwitch', isSwitch);
   const covers = build?.covers ?? [];
   const patterns = allow.map(normalizePythonName);
+  const denied = deny.map(normalizePythonName);
   for (const entry of lockfile.entries) {
     if (entry.installScript !== true || entry.source === 'workspace') continue;
     if (entry.unnamed !== true && patterns.some((pattern) => matchesPattern(entry.name, pattern))) continue;
     const stopped = forbiddenBy !== undefined && covers.includes(entry.source);
+    if (entry.unnamed !== true && denied.some((pattern) => matchesPattern(entry.name, pattern))) {
+      // Denied on purpose: never built from source. Where the tool still builds it, the policy is broken; where it
+      // refuses, installing fails, which the owner should still see.
+      context.report({
+        level: stopped ? 'warning' : 'error',
+        location: location(lockfile, entry),
+        message: stopped
+          ? `${entry.name} has to be built from source (${BUILT_FROM[entry.source]}), but ${forbiddenBy} and ${POLICY_FILE} denies it, so installing it fails`
+          : `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code, but ${POLICY_FILE} denies it`,
+        fix: stopped
+          ? `Replace ${entry.name} with a package that has wheels, or remove "${PYPI_PREFIX}${entry.name}" from installScripts.deny and add it to installScripts.allow after reviewing it`
+          : `Make ${tool.name} stop building it (run depcurfew apply and follow its warnings), or replace the package`,
+      });
+      continue;
+    }
     const fix =
       entry.unnamed === true
         ? `Give the requirement a package name (name @ ${entry.spec}) so that it can be allowed with "${PYPI_PREFIX}name" in installScripts.allow in ${POLICY_FILE}, or remove it`
@@ -184,16 +200,18 @@ export const lockfileInstallScripts: Rule = {
   summary: 'The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.',
   description:
     'Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.',
-  help: 'Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing it (Python packages with the prefix pypi:).',
+  help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:).',
   level: 'error',
   requiresPolicy: true,
   check(context) {
     const policy = context.policy;
     if (policy?.installScripts?.default !== 'deny') return;
     eachLockfile(context, 'lockfile-install-scripts', (lockfile, tool) => {
-      const allow = policyFor(policy, ecosystemOfTool(tool)).installScripts?.allow ?? [];
+      const view = policyFor(policy, ecosystemOfTool(tool)).installScripts;
+      const allow = view?.allow ?? [];
+      const deny = view?.deny ?? [];
       if (ecosystemOfTool(tool) === 'pypi') {
-        reportPythonBuilds(context, lockfile, tool, allow);
+        reportPythonBuilds(context, lockfile, tool, allow, deny);
         return;
       }
       if (!lockfile.recordsScripts) {
@@ -208,6 +226,17 @@ export const lockfileInstallScripts: Rule = {
       const running = disabledBy === undefined && runsScripts(context, tool);
       for (const entry of flagged) {
         if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
+        if (deny.some((pattern) => matchesPattern(entry.name, pattern))) {
+          // Reviewed and blocked on purpose: nothing to report while the tool does not run its scripts.
+          if (!running) continue;
+          context.report({
+            level: 'error',
+            location: location(lockfile, entry),
+            message: `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} denies them`,
+            fix: `Make ${tool.name} stop running dependency install scripts (run depcurfew apply and follow its warnings), or replace the package`,
+          });
+          continue;
+        }
         context.report({
           level: running ? 'error' : 'warning',
           location: location(lockfile, entry),

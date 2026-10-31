@@ -31,7 +31,8 @@ The default policy:
   },
   "installScripts": {
     "default": "deny",
-    "allow": []
+    "allow": [],
+    "deny": []
   },
   "sources": {
     "git": "deny",
@@ -88,6 +89,7 @@ Every section is optional: a section that is absent means depcurfew does not man
 | `installScripts` |  |  | Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python. |
 | `installScripts.default` | `"allow"`, `"deny"` |  | Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source. |
 | `installScripts.allow` |  | `[]` | Packages whose lifecycle scripts may run when the default is "deny"; Python packages listed here are always built from source. |
+| `installScripts.deny` |  | `[]` | Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example "fsevents", which ships a prebuilt binary. Python packages listed here are never built from source. |
 | `sources` |  |  | Where dependencies may come from besides the registry. An absent field is not managed. |
 | `sources.git` | `"allow"`, `"deny"` |  | Dependencies installed from git repositories. |
 | `sources.remoteTarball` | `"allow"`, `"deny"` |  | Dependencies installed from tarball URLs outside the registry. |
@@ -309,7 +311,7 @@ Fix: Replace the dependency with a registry version, or allow that source in dep
 
 Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.
 
-Fix: Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing it (Python packages with the prefix pypi:).
+Fix: Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:).
 
 ### `unreadable-config`
 

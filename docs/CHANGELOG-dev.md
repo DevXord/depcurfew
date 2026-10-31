@@ -2,6 +2,13 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · 1.2.0, część 1: `installScripts.deny` (D-085)
+
+- Nowe pole polityki `installScripts.deny`: paczki sprawdzone i celowo bez skryptów (np. `fsevents` z gotowym plikiem binarnym). `doctor` ich nie zgłasza, dopóki narzędzie nie uruchamia ich skryptów; dla Pythona blokada budowania ze źródeł. Walidacja nakładania się z `allow`.
+- `schema.json`, README (sekcje generowane), `init` z `"deny": []`, bundel akcji.
+- Repozytorium: `"deny": ["fsevents"]`; `depcurfew doctor .` nic nie zgłasza.
+- Weryfikacja: `npm test` (2616 testów) i `npm run typecheck` przechodzą.
+
 ## 2026-10-31 · Po wydaniu 1.1.0: przykład Action z SHA wydania
 
 - `depcurfew@1.1.0` opublikowana 12:46 UTC z tagu `v1.1.0` (commit 77ecd93) przez trusted publishing, z proweniencją; plik w rejestrze jest bajt w bajt taki sam jak tarball przetestowany na 14 projektach.

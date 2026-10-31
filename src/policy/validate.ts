@@ -1,6 +1,9 @@
+import { wildcardMatch } from '../detect/wildcard.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { convertCooldown } from './convert.ts';
+import { ecosystemOf } from './package-pattern.ts';
+import { normalizePythonName } from './python-names.ts';
 import { cooldownShape, installScriptsShape, policyShape, targetsShape, type ResolvedPolicy } from './schema.ts';
 import { formatPath, type Issue, type Shape } from './shape.ts';
 
@@ -15,6 +18,30 @@ function section<Out>(shape: Shape<unknown, Out>, document: unknown, key: string
   return result.ok ? result.value : undefined;
 }
 
+/** A pattern as compared across the two lists: Python names normalized, so pypi:Foo_Bar and pypi:foo-bar are one. */
+function comparable(pattern: string): string {
+  return ecosystemOf(pattern) === 'pypi' ? normalizePythonName(pattern) : pattern;
+}
+
+/** A package can be allowed or denied, not both: the same entry, or an entry of one list covered by a pattern of the other. */
+function overlaps(allow: readonly string[], deny: readonly string[]): PolicyIssue[] {
+  const issues: PolicyIssue[] = [];
+  const advice = 'a package is either allowed or denied, so remove it from one list';
+  for (const denied of deny) {
+    for (const allowed of allow) {
+      const [d, a] = [comparable(denied), comparable(allowed)];
+      if (d === a) {
+        issues.push({ path: formatPath(['installScripts', 'deny']), message: `"${denied}" is also in installScripts.allow; ${advice}` });
+      } else if (wildcardMatch(d, a)) {
+        issues.push({ path: formatPath(['installScripts', 'deny']), message: `"${denied}" is also covered by "${allowed}" in installScripts.allow; ${advice}` });
+      } else if (wildcardMatch(a, d)) {
+        issues.push({ path: formatPath(['installScripts', 'allow']), message: `"${allowed}" is also covered by "${denied}" in installScripts.deny; ${advice}` });
+      }
+    }
+  }
+  return issues;
+}
+
 function crossFieldIssues(document: unknown, tools: readonly ToolKnowledge[]): PolicyIssue[] {
   const issues: PolicyIssue[] = [];
 
@@ -25,6 +52,14 @@ function crossFieldIssues(document: unknown, tools: readonly ToolKnowledge[]): P
       message: 'has no effect when default is "allow"; remove the list or set default to "deny"',
     });
   }
+
+  if (installScripts?.default === 'allow' && installScripts.deny.length > 0) {
+    issues.push({
+      path: formatPath(['installScripts', 'deny']),
+      message: 'has no effect when default is "allow"; remove the list or set default to "deny"',
+    });
+  }
+  if (installScripts !== undefined) issues.push(...overlaps(installScripts.allow, installScripts.deny));
 
   // With "auto", the targets are known only after detection, so apply checks the limits there.
   const cooldown = section(cooldownShape, document, 'cooldown');

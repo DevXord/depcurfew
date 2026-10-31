@@ -13320,7 +13320,7 @@ function patternsFor(patterns, ecosystem) {
 function ecosystemOfTool(tool) {
 	return tool.ecosystem ?? "npm";
 }
-/** The policy with cooldown.exclude and installScripts.allow reduced to the patterns of one ecosystem. */
+/** The policy with cooldown.exclude, installScripts.allow and installScripts.deny reduced to the patterns of one ecosystem. */
 function policyFor(policy, ecosystem) {
 	return {
 		...policy,
@@ -13330,7 +13330,8 @@ function policyFor(policy, ecosystem) {
 		} },
 		...policy.installScripts === void 0 ? {} : { installScripts: {
 			...policy.installScripts,
-			allow: patternsFor(policy.installScripts.allow, ecosystem)
+			allow: patternsFor(policy.installScripts.allow, ecosystem),
+			deny: patternsFor(policy.installScripts.deny, ecosystem)
 		} }
 	};
 }
@@ -13841,7 +13842,8 @@ const cooldownShape = object({
 }, { description: "Release-age delay (cooldown): freshly published versions wait before they are used." });
 const installScriptsShape = object({
 	default: required(access("Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source.")),
-	allow: withDefault(packagePatterns("Packages whose lifecycle scripts may run when the default is \"deny\"; Python packages listed here are always built from source."), [])
+	allow: withDefault(packagePatterns("Packages whose lifecycle scripts may run when the default is \"deny\"; Python packages listed here are always built from source."), []),
+	deny: withDefault(packagePatterns("Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example \"fsevents\", which ships a prebuilt binary. Python packages listed here are never built from source."), [])
 }, { description: "Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python." });
 const sourcesShape = object({
 	git: optional(access("Dependencies installed from git repositories.")),
@@ -13871,6 +13873,31 @@ function section(shape, document, key) {
 	const result = shape.parse(document[key], [key], []);
 	return result.ok ? result.value : void 0;
 }
+/** A pattern as compared across the two lists: Python names normalized, so pypi:Foo_Bar and pypi:foo-bar are one. */
+function comparable$1(pattern) {
+	return ecosystemOf(pattern) === "pypi" ? normalizePythonName(pattern) : pattern;
+}
+/** A package can be allowed or denied, not both: the same entry, or an entry of one list covered by a pattern of the other. */
+function overlaps(allow, deny) {
+	const issues = [];
+	const advice = "a package is either allowed or denied, so remove it from one list";
+	for (const denied of deny) for (const allowed of allow) {
+		const [d, a] = [comparable$1(denied), comparable$1(allowed)];
+		if (d === a) issues.push({
+			path: formatPath(["installScripts", "deny"]),
+			message: `"${denied}" is also in installScripts.allow; ${advice}`
+		});
+		else if (wildcardMatch(d, a)) issues.push({
+			path: formatPath(["installScripts", "deny"]),
+			message: `"${denied}" is also covered by "${allowed}" in installScripts.allow; ${advice}`
+		});
+		else if (wildcardMatch(a, d)) issues.push({
+			path: formatPath(["installScripts", "allow"]),
+			message: `"${allowed}" is also covered by "${denied}" in installScripts.deny; ${advice}`
+		});
+	}
+	return issues;
+}
 function crossFieldIssues(document, tools) {
 	const issues = [];
 	const installScripts = section(installScriptsShape, document, "installScripts");
@@ -13878,6 +13905,11 @@ function crossFieldIssues(document, tools) {
 		path: formatPath(["installScripts", "allow"]),
 		message: "has no effect when default is \"allow\"; remove the list or set default to \"deny\""
 	});
+	if (installScripts?.default === "allow" && installScripts.deny.length > 0) issues.push({
+		path: formatPath(["installScripts", "deny"]),
+		message: "has no effect when default is \"allow\"; remove the list or set default to \"deny\""
+	});
+	if (installScripts !== void 0) issues.push(...overlaps(installScripts.allow, installScripts.deny));
 	const cooldown = section(cooldownShape, document, "cooldown");
 	const targets = section(targetsShape, document, "targets");
 	if (cooldown !== void 0 && Array.isArray(targets)) for (const id of targets) {
@@ -18464,14 +18496,24 @@ function switchIsOn(value, wanted) {
 	const items = value === true ? wanted : typeof value === "string" ? value.split(",").map((item) => item.trim()) : Array.isArray(value) ? value : [];
 	return wanted.every((item) => items.includes(item));
 }
-function reportPythonBuilds(context, lockfile, tool, allow) {
+function reportPythonBuilds(context, lockfile, tool, allow, deny) {
 	const forbiddenBy = buildsForbiddenBy(context, tool, lockfile);
 	const covers = (tool.extra?.["buildSwitch"] === void 0 ? void 0 : extraOf(tool, "buildSwitch", isSwitch))?.covers ?? [];
 	const patterns = allow.map(normalizePythonName);
+	const denied = deny.map(normalizePythonName);
 	for (const entry of lockfile.entries) {
 		if (entry.installScript !== true || entry.source === "workspace") continue;
 		if (entry.unnamed !== true && patterns.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
 		const stopped = forbiddenBy !== void 0 && covers.includes(entry.source);
+		if (entry.unnamed !== true && denied.some((pattern) => matchesPattern$1(entry.name, pattern))) {
+			context.report({
+				level: stopped ? "warning" : "error",
+				location: location(lockfile, entry),
+				message: stopped ? `${entry.name} has to be built from source (${BUILT_FROM[entry.source]}), but ${forbiddenBy} and ${POLICY_FILE} denies it, so installing it fails` : `${entry.name} is built from source when installed (${BUILT_FROM[entry.source]}), which runs its build code, but ${POLICY_FILE} denies it`,
+				fix: stopped ? `Replace ${entry.name} with a package that has wheels, or remove "${PYPI_PREFIX}${entry.name}" from installScripts.deny and add it to installScripts.allow after reviewing it` : `Make ${tool.name} stop building it (run depcurfew apply and follow its warnings), or replace the package`
+			});
+			continue;
+		}
 		const fix = entry.unnamed === true ? `Give the requirement a package name (name @ ${entry.spec}) so that it can be allowed with "${PYPI_PREFIX}name" in installScripts.allow in ${POLICY_FILE}, or remove it` : `Review ${entry.name} and add "${PYPI_PREFIX}${entry.name}" to installScripts.allow in ${POLICY_FILE} (it is then always built from source), or replace the package`;
 		context.report({
 			level: stopped ? "warning" : "error",
@@ -18485,16 +18527,18 @@ const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
 	summary: "The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.",
 	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.",
-	help: "Remove or replace the package, or add it to installScripts.allow in depcurfew.json after reviewing it (Python packages with the prefix pypi:).",
+	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:).",
 	level: "error",
 	requiresPolicy: true,
 	check(context) {
 		const policy = context.policy;
 		if (policy?.installScripts?.default !== "deny") return;
 		eachLockfile(context, "lockfile-install-scripts", (lockfile, tool) => {
-			const allow = policyFor(policy, ecosystemOfTool(tool)).installScripts?.allow ?? [];
+			const view = policyFor(policy, ecosystemOfTool(tool)).installScripts;
+			const allow = view?.allow ?? [];
+			const deny = view?.deny ?? [];
 			if (ecosystemOfTool(tool) === "pypi") {
-				reportPythonBuilds(context, lockfile, tool, allow);
+				reportPythonBuilds(context, lockfile, tool, allow, deny);
 				return;
 			}
 			if (!lockfile.recordsScripts) {
@@ -18507,6 +18551,16 @@ const lockfileInstallScripts = {
 			const running = disabledBy === void 0 && runsScripts(context, tool);
 			for (const entry of flagged) {
 				if (allow.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
+				if (deny.some((pattern) => matchesPattern$1(entry.name, pattern))) {
+					if (!running) continue;
+					context.report({
+						level: "error",
+						location: location(lockfile, entry),
+						message: `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} denies them`,
+						fix: `Make ${tool.name} stop running dependency install scripts (run depcurfew apply and follow its warnings), or replace the package`
+					});
+					continue;
+				}
 				context.report({
 					level: running ? "error" : "warning",
 					location: location(lockfile, entry),

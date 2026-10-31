@@ -1,0 +1,2 @@
+installScripts.deny: "esbuild" is also in installScripts.allow; a package is either allowed or denied, so remove it from one list
+installScripts.deny: "@acme/native" is also covered by "@acme/*" in installScripts.allow; a package is either allowed or denied, so remove it from one list

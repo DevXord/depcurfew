@@ -76,6 +76,17 @@
           },
           "uniqueItems": true,
           "default": []
+        },
+        "deny": {
+          "description": "Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example \"fsevents\", which ships a prebuilt binary. Python packages listed here are never built from source.",
+          "type": "array",
+          "items": {
+            "description": "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\". No versions.",
+            "type": "string",
+            "pattern": "^(?:pypi:(?!\\*+$)[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?|(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*)$"
+          },
+          "uniqueItems": true,
+          "default": []
         }
       },
       "required": [

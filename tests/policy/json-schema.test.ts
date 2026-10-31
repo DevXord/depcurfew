@@ -12,7 +12,7 @@ const root = new URL('../../', import.meta.url);
 const schema = policyJsonSchema() as Record<string, unknown>;
 
 // Checks that need code: arithmetic limits and rules that span several fields.
-const VALIDATOR_ONLY = new Set(['duration-too-large', 'dependabot-over-maximum', 'allow-list-without-effect']);
+const VALIDATOR_ONLY = new Set(['duration-too-large', 'dependabot-over-maximum', 'allow-list-without-effect', 'deny-list-without-effect', 'allow-and-deny-overlap']);
 
 function walkSchemas(node: unknown, visit: (schema: Record<string, unknown>, path: string) => void, path = '#'): void {
   if (typeof node !== 'object' || node === null || Array.isArray(node)) return;

@@ -1245,3 +1245,15 @@ Tag `v1.0.0` trafił na `main` (03bdb75), zanim PR #6 przeniósł tam `faza-7`. 
 - `CHANGELOG.md` opisuje 1.0.0 tak, jak faktycznie wyszła, a resztę w 1.1.0.
 - 1.0.0 zostaje w rejestrze. Po wydaniu 1.1.0 zalecane `npm deprecate depcurfew@1.0.0` z odesłaniem do 1.1.0, bo 1.0.0 nie ma poprawek z przeglądu (np. nie konfiguruje `dependabot.yml` z komentarzem po ostatnim wpisie, tylko kończy się błędem).
 - `docs/RELEASING.md`: tag dopiero po scaleniu PR wydania do `main`, a przy złej treści nowa wersja i `npm deprecate`.
+
+## D-085 · `installScripts.deny`: paczki celowo bez skryptów (2026-10-31)
+
+- **Problem.** `doctor` na samym repozytorium zgłaszał `fsevents` (`lockfile-install-scripts`, ostrzeżenie, alert w code scanning): npm nie uruchomi jego skryptu, bo `ignore-scripts`, „a paczka może go potrzebować”. fsevents 2.3.3 ma w paczce gotowy `fsevents.node`, a skrypt `install` to `node-gyp rebuild` (sprawdzone w `npm view fsevents@2.3.3 scripts` i w zawartości tarballa, bez uruchamiania). Skrypt nie jest potrzebny, ale polityka nie miała jak tego zapisać, a dopisanie do `allow` pozwoliłoby mu działać.
+- **Decyzja właściciela:** nowe pole `installScripts.deny` z listą paczek (te same wzorce co `allow`, Python z prefiksem `pypi:`). Znaczy: „sprawdzone, działają bez skryptów, skrypty zostają zablokowane celowo”.
+  - `doctor` nie zgłasza takiej paczki, dopóki narzędzie nie uruchamia jej skryptów. Gdy je uruchamia (np. npm bez `ignore-scripts`), to błąd z innym brzmieniem: polityka zabrania, a narzędzie uruchamia.
+  - Python: paczka z `deny` nigdy nie jest budowana ze źródeł. Gdy narzędzie i tak by ją zbudowało, to błąd. Gdy budowanie jest zablokowane, a paczka ma tylko źródła, zostaje ostrzeżenie, bo instalacja się nie uda; wskazówka mówi o paczce z kołami albo o przeniesieniu do `allow`.
+  - Walidacja: `deny` przy `default: "allow"` nie działa (jak `allow`), a paczka nie może być w obu listach: ten sam wpis albo wpis jednej listy objęty wzorcem drugiej (nazwy Pythona po normalizacji).
+- **Zgodność wstecz.** Nowe pole z wartością domyślną `[]`, polityka zostaje `version: 1`, a `schemaVersion` się nie zmienia. `init` zapisuje `"deny": []`, żeby pole było widać.
+- **Repozytorium:** `depcurfew.json` ma `"deny": ["fsevents"]`, więc `doctor` nic nie zgłasza, a alert zamknie się po scaleniu.
+- **Dalej (1.2.0):** `apply` zapisze jawną blokadę tam, gdzie narzędzie ją ma (fakty w bazie wiedzy po badaniu), żeby narzędzie samo też nie ostrzegało o pominiętych skryptach.
+

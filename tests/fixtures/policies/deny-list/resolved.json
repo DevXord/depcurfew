@@ -1,0 +1,1 @@
+{ "version": 1, "installScripts": { "default": "deny", "allow": ["esbuild"], "deny": ["fsevents", "pypi:docopt"] }, "targets": "auto" }
