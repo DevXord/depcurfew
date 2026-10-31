@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · Wydanie 1.0.0 ze starszego `main`, przygotowanie 1.1.0 (D-084)
+
+- `depcurfew@1.0.0` opublikowana z `main` sprzed scalenia `faza-7` (commit 03bdb75, proweniencja z `release.yml`). Pełna wersja dostaje numer 1.1.0, bo npm nie pozwala użyć 1.0.0 ponownie.
+- `package.json` 1.1.0; `CHANGELOG.md` z 1.0.0 zgodną z opublikowaną paczką i nową sekcją 1.1.0; `docs/RELEASING.md` z ostrzeżeniem o kolejności (najpierw scalenie, potem tag).
+
 ## 2026-10-31 · Końcowy przegląd przed 1.0.0 i poprawki (D-081 – D-083)
 
 - Końcowy przegląd całości z treścią 1.0.0: audyt bezpieczeństwa, przegląd jakości, gotowość wydania z testem end-to-end na 10 menedżerach i zgodność z Windows.

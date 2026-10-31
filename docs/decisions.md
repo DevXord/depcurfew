@@ -1236,3 +1236,12 @@ Każde ustalenie odtworzone przed i po poprawce (zapis konsoli poza repozytorium
   - `dependabot.yml`: edycje wpisów są robione razem na tekście sprzed nich i sprawdzane raz (`yamlSetMany`). Gdy sprawdzenie zawodzi albo edycje na siebie zachodzą, są robione po kolei przez `yamlSet`, z tym samym wynikiem i błędem. Parsowania są zapamiętane. Diff ma ograniczoną pamięć i tryb przybliżony, liniowy, dla tysięcy zmian (wcześniej gigabajty pamięci). 250 wpisów: 55 s → 0,4 s; 1 MiB (ok. 9700 wpisów): ok. 13 s.
   - `renovate.json`: linie wszystkich `packageRules` z jednego parsowania (4000 reguł: 29 s → 0,15 s).
   - `requirements.txt`: linie kontynuacji sklejane przez tablicę (1 MiB: ponad 120 s → 0,8 s).
+
+## D-084 · 1.0.0 wyszła ze starszego `main`, pełna wersja jako 1.1.0 (2026-10-31)
+
+Tag `v1.0.0` trafił na `main` (03bdb75), zanim PR #6 przeniósł tam `faza-7`. Workflow wydania przeszedł, a właściciel zatwierdził etap, więc `depcurfew@1.0.0` ma proweniencję z tego commitu: `init`, `apply`, `doctor`, `explain` i Action dla npm, pnpm, Yarn, Bun, Deno, Renovate i Dependabota, bez `check`, hooka, Pythona i poprawek z przeglądów D-071–D-083.
+
+- Numeru 1.0.0 nie da się użyć ponownie, także po `npm unpublish` ([polityka npm](https://github.com/npm/documentation/blob/28eb0ccc64dc/content/policies/unpublish.mdx): „Once `package@version` has been used, you can never use it again.”). Pełna wersja wychodzi jako **1.1.0**: dochodzą polecenia i obsługa Pythona, więc według semver to wersja minor, a polityka, opcje, kody wyjścia i `schemaVersion` są zgodne wstecz.
+- `CHANGELOG.md` opisuje 1.0.0 tak, jak faktycznie wyszła, a resztę w 1.1.0.
+- 1.0.0 zostaje w rejestrze. Po wydaniu 1.1.0 zalecane `npm deprecate depcurfew@1.0.0` z odesłaniem do 1.1.0, bo 1.0.0 nie ma poprawek z przeglądu (np. nie konfiguruje `dependabot.yml` z komentarzem po ostatnim wpisie, tylko kończy się błędem).
+- `docs/RELEASING.md`: tag dopiero po scaleniu PR wydania do `main`, a przy złej treści nowa wersja i `npm deprecate`.
