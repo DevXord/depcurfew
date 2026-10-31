@@ -12349,9 +12349,30 @@ function parseYamlDocuments(text, lineCounter = new import_dist.LineCounter()) {
 	});
 	return (Array.isArray(parsed) ? parsed : []).map((document) => checked$1(document, lineCounter, false));
 }
+/** Parsed documents for reading, newest last: detection and the rules read the same file several times in one run. */
+const READ_CACHE = /* @__PURE__ */ new Map();
+const READ_CACHE_SIZE = 4;
+/**
+* A parsed document and its line counter for reading only, shared by every reader of the same text in a run, so that
+* a large file is parsed once. Nothing may change the document; apply parses its own copy to edit.
+*/
+function readYamlDocument(text, options = {}) {
+	const key = `${options.merge === true ? "merge" : "plain"}\n${text}`;
+	const cached = READ_CACHE.get(key);
+	if (cached !== void 0) return cached;
+	const lineCounter = new import_dist.LineCounter();
+	const entry = {
+		document: parseYamlDocument(text, lineCounter, options),
+		lineCounter
+	};
+	READ_CACHE.set(key, entry);
+	const oldest = READ_CACHE.keys().next().value;
+	if (READ_CACHE.size > READ_CACHE_SIZE && oldest !== void 0) READ_CACHE.delete(oldest);
+	return entry;
+}
 /** One YAML document as plain values; throws its first error, like parse from the yaml package. */
 function parseYaml(text, options = {}) {
-	const document = parseYamlDocument(text, new import_dist.LineCounter(), options);
+	const { document } = readYamlDocument(text, options);
 	if (document.errors.length > 0) throw document.errors[0];
 	return document.toJS();
 }
@@ -14285,8 +14306,6 @@ function lineAt$1(text, offset) {
 	for (let index = 0; index < offset && index < text.length; index++) if (text[index] === "\n") line += 1;
 	return line;
 }
-/** The text yamlSetting parsed last: rules ask for several settings of the same file in a row. Only read, never changed. */
-let lastYaml;
 /**
 * The YAML node at `path` and the line of its key; the value is not converted, which takes long for a large node. With
 * `merge` (files of tools whose loader applies merge keys), a key the map gets through << counts, at the line where
@@ -14294,16 +14313,7 @@ let lastYaml;
 */
 function yamlNode(text, path, options = {}) {
 	const merge = options.merge === true;
-	if (lastYaml?.text !== text || lastYaml.merge !== merge) {
-		const lineCounter = new import_dist.LineCounter();
-		lastYaml = {
-			text,
-			merge,
-			document: parseYamlDocument(text, lineCounter, { merge }),
-			lineCounter
-		};
-	}
-	const { document, lineCounter } = lastYaml;
+	const { document, lineCounter } = readYamlDocument(text, { merge });
 	if (document.errors.length > 0) return void 0;
 	let node = document.contents;
 	let keyOffset = 0;

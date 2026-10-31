@@ -63,6 +63,8 @@ describe('init --user with a file where a directory belongs', () => {
     const environment = fakeMachine({}, temporary);
     const policy = userPolicyPath(environment);
     const blocker = join(policy, '..', '..');
+    // On Windows the policy sits in home/AppData/Roaming, whose parent the fake home does not have yet.
+    mkdirSync(join(blocker, '..'), { recursive: true });
     writeFileSync(blocker, 'not a directory\n');
     const result = await exec(environment, 'init', '--user');
     expect(result.code).toBe(EXIT_FAILURE);

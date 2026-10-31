@@ -6,7 +6,7 @@ import { jsonElementOffsets, jsonGet, jsonOffset } from '../apply/json-edit.ts';
 import { BLOCK_END, isBlockStart } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
-import { mergedPair, ownPair, parseYamlDocument, type YamlOptions } from '../yaml-parse.ts';
+import { mergedPair, ownPair, readYamlDocument, type YamlOptions } from '../yaml-parse.ts';
 
 export interface Setting {
   file: string;
@@ -136,8 +136,6 @@ function lineAt(text: string, offset: number): number {
   return line;
 }
 
-/** The text yamlSetting parsed last: rules ask for several settings of the same file in a row. Only read, never changed. */
-let lastYaml: { text: string; merge: boolean; document: Document.Parsed; lineCounter: LineCounter } | undefined;
 
 /**
  * The YAML node at `path` and the line of its key; the value is not converted, which takes long for a large node. With
@@ -145,12 +143,9 @@ let lastYaml: { text: string; merge: boolean; document: Document.Parsed; lineCou
  * the merged map sets it, and `mergedAt` is the line of the << that brings it in.
  */
 function yamlNode(text: string, path: readonly string[], options: YamlOptions = {}): { node: Node | null; line: number; mergedAt?: number; document: Document.Parsed } | undefined {
+  // Shared with detection and the other rules, which read the same file (readYamlDocument); only read here.
   const merge = options.merge === true;
-  if (lastYaml?.text !== text || lastYaml.merge !== merge) {
-    const lineCounter = new LineCounter();
-    lastYaml = { text, merge, document: parseYamlDocument(text, lineCounter, { merge }), lineCounter };
-  }
-  const { document, lineCounter } = lastYaml;
+  const { document, lineCounter } = readYamlDocument(text, { merge });
   if (document.errors.length > 0) return undefined;
   let node: Node | null = document.contents as Node | null;
   let keyOffset = 0;

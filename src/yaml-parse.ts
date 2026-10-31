@@ -216,9 +216,29 @@ export function parseYamlDocuments(text: string, lineCounter = new LineCounter()
   return (Array.isArray(parsed) ? parsed : []).map((document) => checked(document, lineCounter, false));
 }
 
+/** Parsed documents for reading, newest last: detection and the rules read the same file several times in one run. */
+const READ_CACHE = new Map<string, { document: Document.Parsed; lineCounter: LineCounter }>();
+const READ_CACHE_SIZE = 4;
+
+/**
+ * A parsed document and its line counter for reading only, shared by every reader of the same text in a run, so that
+ * a large file is parsed once. Nothing may change the document; apply parses its own copy to edit.
+ */
+export function readYamlDocument(text: string, options: YamlOptions = {}): { document: Document.Parsed; lineCounter: LineCounter } {
+  const key = `${options.merge === true ? 'merge' : 'plain'}\n${text}`;
+  const cached = READ_CACHE.get(key);
+  if (cached !== undefined) return cached;
+  const lineCounter = new LineCounter();
+  const entry = { document: parseYamlDocument(text, lineCounter, options), lineCounter };
+  READ_CACHE.set(key, entry);
+  const oldest = READ_CACHE.keys().next().value;
+  if (READ_CACHE.size > READ_CACHE_SIZE && oldest !== undefined) READ_CACHE.delete(oldest);
+  return entry;
+}
+
 /** One YAML document as plain values; throws its first error, like parse from the yaml package. */
 export function parseYaml(text: string, options: YamlOptions = {}): unknown {
-  const document = parseYamlDocument(text, new LineCounter(), options);
+  const { document } = readYamlDocument(text, options);
   if (document.errors.length > 0) throw document.errors[0] as Error;
   return document.toJS() as unknown;
 }
