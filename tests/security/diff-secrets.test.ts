@@ -87,6 +87,13 @@ describe('unifiedDiff', () => {
     const diff = unifiedDiff('evil\n+++ b/forged\u001b[2K', null, 'x\n');
     expect(diff.split('\n').slice(0, 2)).toEqual(['--- /dev/null', '+++ b/evil\\x0a+++ b/forged\\x1b[2K']);
   });
+
+  it('names a file with an absolute path as it is, without a/ and b/', () => {
+    expect(unifiedDiff('/tmp/cfg/uv/uv.toml', null, 'x\n').split('\n').slice(0, 2)).toEqual(['--- /dev/null', '+++ /tmp/cfg/uv/uv.toml']);
+    expect(unifiedDiff('/tmp/cfg/uv/uv.toml', 'a\n', 'b\n').split('\n').slice(0, 2)).toEqual(['--- /tmp/cfg/uv/uv.toml', '+++ /tmp/cfg/uv/uv.toml']);
+    expect(unifiedDiff('C:\\cfg\\uv\\uv.toml', 'a\n', 'b\n').split('\n').slice(0, 2)).toEqual(['--- C:\\cfg\\uv\\uv.toml', '+++ C:\\cfg\\uv\\uv.toml']);
+    expect(unifiedDiff('~/.npmrc', 'a\n', 'b\n').split('\n').slice(0, 2)).toEqual(['--- a/~/.npmrc', '+++ b/~/.npmrc']);
+  });
 });
 
 describe('apply output', () => {
@@ -118,6 +125,30 @@ describe('apply output', () => {
     const headers = result.stdout.split('\n').filter((line) => line.startsWith('+++') || line.startsWith('---'));
     expect(headers).toHaveLength(2);
     expect(headers[1]).toContain('cfg\\x0a+++ b/forged\\x1b[2K');
+  });
+
+  it('apply --user --dry-run shows control and bidirectional characters of a user file as text in every diff line', async () => {
+    const environment = fakeMachine({ npm: { npm: '11.21.1' } }, temporary);
+    const policy = userPolicyPath(environment);
+    mkdirSync(dirname(policy), { recursive: true });
+    writeFileSync(policy, '{ "version": 1, "cooldown": { "minimum": "3d" }, "targets": ["npm"] }');
+    writeFileSync(join(environment.home, '.npmrc'), 'registry=https://r.example.com/\u001b]0;PWNED\u0007\nsave-exact=true \u001b[2J‮\n');
+    const result = await exec(['apply', '--user', '--dry-run'], environment);
+    expect(result.code).toBe(0);
+    expect(result.stdout).not.toMatch(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f‮]/u);
+    expect(result.stdout).toContain('\n registry=https://r.example.com/\\x1b]0;PWNED\\x07\n');
+    expect(result.stdout).toContain('\n save-exact=true \\x1b[2J\\u202e\n');
+  });
+
+  it.skipIf(windows)('apply --user --dry-run names a user file outside the home directory by its absolute path in the headers', async () => {
+    const machine = fakeMachine({ npm: { npm: '11.21.1' } }, temporary);
+    const config = join(machine.root, 'cfg');
+    const environment: UserEnvironment = { ...machine, env: { ...machine.env, XDG_CONFIG_HOME: config } };
+    const policy = userPolicyPath(environment);
+    mkdirSync(dirname(policy), { recursive: true });
+    writeFileSync(policy, '{ "version": 1, "cooldown": { "minimum": "3d" }, "targets": ["pnpm"] }');
+    const result = await exec(['apply', '--user', '--dry-run', '--for', 'pnpm@11.28.10'], environment);
+    expect(result.stdout.split('\n').slice(0, 2)).toEqual(['--- /dev/null', `+++ ${join(config, 'pnpm', 'config.yaml')}`]);
   });
 
   it.skipIf(windows)('apply --json escapes C1 and bidirectional controls in paths', async () => {

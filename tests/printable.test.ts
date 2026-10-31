@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { printable } from '../src/printable.ts';
+import { printable, redactCredentials, withoutCredentials } from '../src/printable.ts';
 
 describe('printable', () => {
   it('writes ESC, BEL, CR, LF and other C0 controls as \\xHH', () => {
@@ -22,5 +22,17 @@ describe('printable', () => {
 
   it('keeps line feeds only when asked to', () => {
     expect(printable('one\ntwo\r\n\u001b', { lines: true })).toBe('one\ntwo\\x0d\n\\x1b');
+  });
+});
+
+describe('redactCredentials', () => {
+  it('shows the user and password of a URL as <redacted>, also a password with an unencoded @, and a token alone', () => {
+    expect(redactCredentials('find-links = "https://bob:ghp_TOKEN@host.example.com/links"')).toBe('find-links = "https://<redacted>@host.example.com/links"');
+    expect(redactCredentials('https://ada:p@ss@npm.example.com/ and https://npm_TOKEN@r.example.com/')).toBe('https://<redacted>@npm.example.com/ and https://<redacted>@r.example.com/');
+    expect(redactCredentials('https://registry.npmjs.org/')).toBe('https://registry.npmjs.org/');
+  });
+
+  it('leaves withoutCredentials, for URLs depcurfew sends, as it was', () => {
+    expect(withoutCredentials('https://bob:ghp_TOKEN@host.example.com/links')).toBe('https://host.example.com/links');
   });
 });

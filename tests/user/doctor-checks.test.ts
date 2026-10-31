@@ -101,7 +101,7 @@ describe('weakening values next to a user policy', () => {
     const report = runUserDoctor({ environment });
     expect(report.findings.map((finding) => finding.rule)).toEqual(['user-config-weakens']);
     expect(weakens(report)[0]).toMatchObject({ location: { file: '~/.npmrc' } });
-    expect(weakens(report)[0]?.message).toContain('allow-scripts = "evil-pkg" in ~/.npmrc approves the install scripts of these packages');
+    expect(weakens(report)[0]?.message).toContain('allow-scripts = "evil-pkg" in ~/.npmrc (npm) approves the install scripts of these packages');
     expect(weakens(report)[0]?.location.line).toBeGreaterThan(1);
   });
 
