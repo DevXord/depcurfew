@@ -1,12 +1,13 @@
 // Where apply, doctor and explain work when no directory is given: the nearest directory with depcurfew.json, from
 // the current one up to the root of the repository. A directory given on the command line is taken as it is.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, chownSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { projectDirectory } from '../../src/cli/directory.ts';
 import { run } from '../../src/cli/run.ts';
 import { findPolicyDirectory } from '../../src/policy/file.ts';
+import { windows } from '../support/platform.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -50,6 +51,51 @@ describe('findPolicyDirectory outside a git repository', () => {
     expect(findPolicyDirectory(outer)).toBe(outer);
     expect(findPolicyDirectory(deep)).toBeUndefined();
     expect(projectDirectory(undefined, 'apply', deep)).toEqual({ ok: true, directory: deep });
+  });
+});
+
+describe('findPolicyDirectory and planted files (from the security review before 1.0.0)', () => {
+  /** shared/{.git, depcurfew.json} planted by someone else, and the user's project shared/victim/project. */
+  function planted(): { shared: string; project: string } {
+    const shared = mkdtempSync(join(tmpdir(), 'depcurfew-shared-'));
+    temporary.push(shared);
+    const project = join(shared, 'victim', 'project');
+    mkdirSync(project, { recursive: true });
+    writeFileSync(join(shared, '.git'), '');
+    writeFileSync(join(shared, 'depcurfew.json'), '{ "version": 1, "sources": { "git": "allow" } }\n');
+    return { shared, project };
+  }
+
+  it.skipIf(windows)('does not take depcurfew.json from a parent directory others may write to, such as /tmp', () => {
+    const { shared, project } = planted();
+    chmodSync(shared, 0o777);
+    expect(findPolicyDirectory(project)).toBeUndefined();
+    expect(projectDirectory(undefined, 'apply', project)).toEqual({ ok: true, directory: project });
+    chmodSync(shared, 0o755);
+    expect(findPolicyDirectory(project)).toBe(shared);
+  });
+
+  it.skipIf(windows || process.getuid?.() !== 0)('does not take depcurfew.json from a parent directory of another user', () => {
+    const { shared, project } = planted();
+    chownSync(shared, 65534, 65534);
+    expect(findPolicyDirectory(project)).toBeUndefined();
+  });
+
+  it('still takes depcurfew.json from the directory itself, whoever may write its parent', () => {
+    const { shared, project } = planted();
+    if (!windows) chmodSync(shared, 0o777);
+    writeFileSync(join(project, 'depcurfew.json'), '{ "version": 1 }\n');
+    expect(findPolicyDirectory(project)).toBe(project);
+  });
+
+  it('skips directories in node_modules: a dependency does not bring its own policy', () => {
+    const { repo } = layout({ repoPolicy: true, git: 'directory' });
+    const dependency = join(repo, 'node_modules', 'dep');
+    mkdirSync(join(dependency, 'lib'), { recursive: true });
+    mkdirSync(join(dependency, '.git'));
+    writeFileSync(join(dependency, 'depcurfew.json'), '{ "version": 1, "sources": { "git": "allow" } }\n');
+    expect(findPolicyDirectory(join(dependency, 'lib'))).toBe(repo);
+    expect(findPolicyDirectory(dependency)).toBe(repo);
   });
 });
 
