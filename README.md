@@ -324,7 +324,7 @@ Fix: Fix what the message describes: invalid syntax, missing read permission, a 
 
 The action runs `depcurfew doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
 
-Pin it to a full commit SHA, like every action in your workflows. If the repository cannot use code scanning, set `upload-sarif: false`; the findings stay in the job log.
+Pin it to a full commit SHA, like every action in your workflows; the example pins the commit of the latest release, and the comment names its tag. If the repository cannot use code scanning, set `upload-sarif: false`; the findings stay in the job log.
 
 <!-- BEGIN GENERATED: action-workflow -->
 ```yaml
@@ -347,7 +347,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: DevXord/depcurfew@<full-commit-sha> # pin a commit, not a tag
+      - uses: DevXord/depcurfew@77ecd935be36510cae04290423cb02681080403f # v1.1.0
 ```
 <!-- END GENERATED: action-workflow -->
 

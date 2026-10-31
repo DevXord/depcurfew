@@ -2,6 +2,12 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · Po wydaniu 1.1.0: przykład Action z SHA wydania
+
+- `depcurfew@1.1.0` opublikowana 12:46 UTC z tagu `v1.1.0` (commit 77ecd93) przez trusted publishing, z proweniencją; plik w rejestrze jest bajt w bajt taki sam jak tarball przetestowany na 14 projektach.
+- Przykład Action w README przypina `DevXord/depcurfew@77ecd935be36510cae04290423cb02681080403f # v1.1.0` zamiast `<full-commit-sha>`; wersja i commit są w `ACTION_RELEASE` w `src/docs/readme.ts`, a test pilnuje pełnego SHA i wersji nie nowszej niż `package.json`.
+- `docs/RELEASING.md`: krok 7 mówi, gdzie zmienić SHA po wydaniu, i przypomina o `npm deprecate`.
+
 ## 2026-10-31 · Wydanie 1.0.0 ze starszego `main`, przygotowanie 1.1.0 (D-084)
 
 - `depcurfew@1.0.0` opublikowana z `main` sprzed scalenia `faza-7` (commit 03bdb75, proweniencja z `release.yml`). Pełna wersja dostaje numer 1.1.0, bo npm nie pozwala użyć 1.0.0 ponownie.

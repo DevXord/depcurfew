@@ -2,7 +2,8 @@
 // facts of its own (no setting name from the knowledge base appears outside the generated sections).
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { handWritten, renderReadme } from '../../src/docs/readme.ts';
+import { ACTION_RELEASE, handWritten, renderReadme } from '../../src/docs/readme.ts';
+import { compareVersions, parseVersion } from '../../src/apply/version.ts';
 import { values } from '../../src/apply/facts.ts';
 import { environment } from '../../src/knowledge/environment.ts';
 import { collectFacts } from '../../src/knowledge/facts.ts';
@@ -77,5 +78,16 @@ describe('README.md', () => {
       expect(readme).toContain(`<!-- BEGIN GENERATED: ${name} -->`);
       expect(readme).toContain(`<!-- END GENERATED: ${name} -->`);
     }
+  });
+
+  it('pins the action in the example workflow to the full commit of a release, named by its tag', () => {
+    expect(ACTION_RELEASE.commit).toMatch(/^[0-9a-f]{40}$/u);
+    expect(readme).toContain(`      - uses: DevXord/depcurfew@${ACTION_RELEASE.commit} # v${ACTION_RELEASE.version}\n`);
+    // A release that already exists: never newer than the version being prepared in package.json.
+    const released = parseVersion(ACTION_RELEASE.version);
+    const current = parseVersion((JSON.parse(read('package.json')) as { version: string }).version);
+    expect(released).toBeDefined();
+    expect(current).toBeDefined();
+    expect(compareVersions(released!, current!)).toBeLessThanOrEqual(0);
   });
 });
