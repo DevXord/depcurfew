@@ -11124,14 +11124,15 @@ function devEngineEntries(value) {
 		...typeof entry["version"] === "string" ? { version: entry["version"] } : {}
 	}] : []);
 }
-function compareVersions(a, b) {
-	return SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source) || a.file.localeCompare(b.file) || (a.line ?? 0) - (b.line ?? 0);
-}
-function compareEvidence(a, b) {
-	return EVIDENCE_ORDER.indexOf(a.kind) - EVIDENCE_ORDER.indexOf(b.kind) || a.file.localeCompare(b.file);
-}
+/** Orders paths and codes by their UTF-16 code units, the same on every machine (localeCompare depends on the locale). */
 function byPath(a, b) {
 	return a < b ? -1 : a > b ? 1 : 0;
+}
+function compareVersions(a, b) {
+	return SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source) || byPath(a.file, b.file) || (a.line ?? 0) - (b.line ?? 0);
+}
+function compareEvidence(a, b) {
+	return EVIDENCE_ORDER.indexOf(a.kind) - EVIDENCE_ORDER.indexOf(b.kind) || byPath(a.file, b.file);
 }
 function tomlAt(document, path) {
 	return document === void 0 ? void 0 : tomlValueAt(document, path);
@@ -11438,7 +11439,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		workspaces,
 		npmrcFiles: directories.map((directory) => joinPath(directory, ".npmrc")).filter((file) => repository.isFile(file)).sort(byPath),
 		workflows: workflows.files,
-		warnings: [...repository.warnings].sort((a, b) => a.code.localeCompare(b.code) || a.files.join().localeCompare(b.files.join()))
+		warnings: [...repository.warnings].sort((a, b) => byPath(a.code, b.code) || byPath(a.files.join(), b.files.join()))
 	};
 }
 

@@ -48,20 +48,17 @@ function devEngineEntries(value: unknown): { name: string; version?: string }[] 
   );
 }
 
+/** Orders paths and codes by their UTF-16 code units, the same on every machine (localeCompare depends on the locale). */
+function byPath(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function compareVersions(a: VersionDeclaration, b: VersionDeclaration): number {
-  return (
-    SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source) ||
-    a.file.localeCompare(b.file) ||
-    (a.line ?? 0) - (b.line ?? 0)
-  );
+  return SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source) || byPath(a.file, b.file) || (a.line ?? 0) - (b.line ?? 0);
 }
 
 function compareEvidence(a: Evidence, b: Evidence): number {
-  return EVIDENCE_ORDER.indexOf(a.kind) - EVIDENCE_ORDER.indexOf(b.kind) || a.file.localeCompare(b.file);
-}
-
-function byPath(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
+  return EVIDENCE_ORDER.indexOf(a.kind) - EVIDENCE_ORDER.indexOf(b.kind) || byPath(a.file, b.file);
 }
 
 function tomlAt(document: TomlDocument | undefined, path: readonly string[]): TomlValue | undefined {
@@ -392,6 +389,6 @@ export function detectProject(
     workspaces,
     npmrcFiles: directories.map((directory) => joinPath(directory, '.npmrc')).filter((file) => repository.isFile(file)).sort(byPath),
     workflows: workflows.files,
-    warnings: [...repository.warnings].sort((a, b) => a.code.localeCompare(b.code) || a.files.join().localeCompare(b.files.join())),
+    warnings: [...repository.warnings].sort((a, b) => byPath(a.code, b.code) || byPath(a.files.join(), b.files.join())),
   };
 }
