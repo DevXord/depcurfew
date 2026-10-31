@@ -6,7 +6,7 @@
 // in hook mode the decision goes to stdout as JSON and the exit code is 0.
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
 import { isPythonSpec } from '../check/python.ts';
@@ -137,6 +137,11 @@ function load(start: string, home: string): { policy: ResolvedPolicy; file: stri
   };
 }
 
+/** A path as the JSON of every command gives it: relative to the directory the command works on, with / separators. */
+function shownPath(start: string, file: string): string {
+  return relative(start, file).split(sep).join('/');
+}
+
 function render(reports: readonly PackageReport[], colors: Paint): string {
   const lines: string[] = [];
   for (const report of reports) {
@@ -237,7 +242,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     const directory = findPolicyDirectory(start);
-    const file = directory === undefined ? POLICY_FILE : join(directory, POLICY_FILE);
+    const file = directory === undefined ? POLICY_FILE : shownPath(start, join(directory, POLICY_FILE));
     return failed(file, policyInputError(error, file), EXIT_FAILURE);
   }
   const registry = registryOf(flags, loaded.registries);
@@ -260,6 +265,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     ...(flags.index === undefined ? {} : { index: flags.index }),
     ...(tag === undefined ? {} : { defaultTag: tag.value }),
   });
-  io.stdout(flags.json ? `${JSON.stringify({ schemaVersion: 1, policy: loaded.file ?? null, packages: reports, notices, errors: [] }, null, 2)}\n` : render(reports, paint(io.colors?.stdout)));
+  const policy = loaded.file === undefined ? null : shownPath(start, loaded.file);
+  io.stdout(flags.json ? `${JSON.stringify({ schemaVersion: 1, policy, packages: reports, notices, errors: [] }, null, 2)}\n` : render(reports, paint(io.colors?.stdout)));
   return reports.some((report) => report.findings.some((finding) => finding.level === 'error')) ? EXIT_FAILURE : EXIT_OK;
 }

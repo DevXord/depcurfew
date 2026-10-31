@@ -123,14 +123,14 @@ describe('depcurfew check', () => {
     expect([result.code, result.stderr]).toEqual([EXIT_FAILURE, '']);
     expect(JSON.parse(result.stdout)).toEqual({
       schemaVersion: 1,
-      policy: join(directory, 'depcurfew.json'),
+      policy: 'depcurfew.json',
       packages: [],
       notices: [],
       errors: [
         {
           code: 'policy-invalid',
           level: 'error',
-          location: { file: join(directory, 'depcurfew.json') },
+          location: { file: 'depcurfew.json' },
           message: 'depcurfew.json is invalid',
           fix: 'Fix these problems in depcurfew.json; an editor that reads its $schema shows them as you type',
           issues: ['version: must be 1, got 2'],
