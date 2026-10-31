@@ -8,6 +8,7 @@ const PIPENV = 'https://github.com/pypa/pipenv/blob/v2026.10.4';
 const PIPFILE = `${PIPENV}/docs/pipfile.md`;
 const CHANGELOG = `${PIPENV}/CHANGELOG.md`;
 const CONFIGURATION = `${PIPENV}/docs/configuration.md`;
+const user = verifiedOn('2026-10-31');
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(null, PIPFILE, `No Pipfile setting allows or forbids ${kind} dependencies (concluded from the documented [pipenv] directives).`),
@@ -64,6 +65,27 @@ export const pipenv: ToolKnowledge = {
     manifests: verified(['Pipfile'], `${PIPFILE}#pipfile`, 'TOML.'),
     workspaces: uncertain(null, PIPFILE, 'Pipenv has no workspaces.'),
     workspacesObjectKey: uncertain(null, PIPFILE, 'No workspaces.'),
+  },
+  user: {
+    files: user.verified(
+      [{ since: '0.0.0', value: null }],
+      CONFIGURATION,
+      'Pipenv has no user configuration file of its own: it reads environment variables (set in a shell profile), the project .env file and pip configuration; pipenv/environments.py looks up no file. Since 2026.3.0 the pip install step runs with PIP_CONFIG_FILE=/dev/null (pipenv/utils/pip.py; CHANGELOG.md, #6066), so a user pip.conf no longer protects pipenv install and sync. The lock resolver still reads pip.conf, but only [global], because its pip command is named InstallCommand (pipenv/utils/resolver.py), and a Pipfile cool-down-period replaces its uploaded-prior-to.',
+    ),
+    settings: user.verified([], CONFIGURATION, 'No user file to write to; at user level only PIP_* variables reach the pip install step (see variables).'),
+    unknownKeys: user.verified('ignore', CONFIGURATION, 'No user file.'),
+    invalidValueFails: user.verified(false, CONFIGURATION, 'No user file.'),
+    weakening: user.verified([], CONFIGURATION, 'No user file; see variables.'),
+    variables: user.uncertain(
+      [
+        { name: 'PIPENV_RESOLVER', values: ['pure-python'], effect: 'selects the pure-python resolver, which ignores cool-down-period' },
+        { name: 'PIPENV_PYPI_MIRROR', values: 'any', effect: 'replaces PyPI; on a mirror without upload times cool-down-period has no effect' },
+        { name: 'PIP_ONLY_BINARY', values: 'any', effect: 'sets only-binary of the pip Pipenv installs with, which no pip.conf reaches since 2026.3.0' },
+        { name: 'PIP_NO_BINARY', values: 'any', effect: 'builds these packages from source when installing, and pipenv install records no_binary for a named package in the Pipfile' },
+      ],
+      `${PIPENV}/pipenv/utils/resolver.py`,
+      'PIPENV_RESOLVER is not documented. The code ranks it above the resolver key of the Pipfile ("CLI/caller > env > current project\'s Pipfile > default"), and the pure-python backend locked the newest versions despite cool-down-period when chosen in the Pipfile (extra.resolverBypass, tested on 2026-10-30); the variable itself was not tested. PIPENV_PYPI_MIRROR: "When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect" (docs/pipfile.md). PIP_* variables are merged over the environment of the pip subprocess (pipenv/utils/processes.py), so they still reach it while pip.conf does not; pipenv/routines/install.py also reads PIP_NO_BINARY.',
+    ),
   },
   extra: {
     pylockCreatedBy: verified(
