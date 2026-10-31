@@ -1476,6 +1476,7 @@ const npm$1 = {
 
 // src/knowledge/pip.ts
 const { verified: verified$7, uncertain: uncertain$7 } = verifiedOn("2026-10-30");
+const rechecked$2 = verifiedOn("2026-10-31");
 const PIP = "https://github.com/pypa/pip/blob/26.2.2";
 const NEWS = `${PIP}/NEWS.rst`;
 const USER_GUIDE = `${PIP}/docs/html/user_guide.rst`;
@@ -1536,9 +1537,10 @@ const pip$1 = {
 	},
 	extra: {
 		pylockCreatedBy: verified$7("pip", `${PIP}/src/pip/_internal/utils/pylock.py`, "pip lock writes created-by = \"pip\"."),
-		requirementsOptions: verified$7([
+		requirementsOptions: rechecked$2.verified([
 			"-i",
 			"--index-url",
+			"--pypi-url",
 			"--extra-index-url",
 			"--no-index",
 			"-c",
@@ -1559,7 +1561,40 @@ const pip$1 = {
 			"--only-final",
 			"--trusted-host",
 			"--use-feature"
-		], REQ_FILE, "SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse."),
+		], REQ_FILE, "SUPPORTED_OPTIONS in pip 26.2.2 (--pypi-url is a second name of --index-url in cmdoptions.py); per requirement also --hash and -C/--config-settings (extra.requirementsParser). Any other option, --uploaded-prior-to included, makes the file fail to parse."),
+		requirementsParser: rechecked$2.verified({
+			longOptions: [
+				"--index-url",
+				"--pypi-url",
+				"--extra-index-url",
+				"--no-index",
+				"--constraint",
+				"--requirement",
+				"--editable",
+				"--find-links",
+				"--no-binary",
+				"--only-binary",
+				"--prefer-binary",
+				"--require-hashes",
+				"--no-require-hashes",
+				"--pre",
+				"--all-releases",
+				"--only-final",
+				"--trusted-host",
+				"--use-feature",
+				"--hash",
+				"--config-settings"
+			],
+			shortOptions: [
+				"-i",
+				"-c",
+				"-r",
+				"-e",
+				"-f",
+				"-C"
+			],
+			abbreviations: true
+		}, REQ_FILE, "build_parser reads each line with optparse.OptionParser(add_help_option=False) holding SUPPORTED_OPTIONS and SUPPORTED_OPTIONS_REQ (--hash, -C/--config-settings), with the names from cmdoptions.py in pip 26.2.2. optparse takes a long option shortened to a prefix that names exactly one of them (_match_abbrev; an exact name wins), so --no-bin :all: is --no-binary :all:, and an ambiguous prefix such as --no is an error. --hash and --config-settings belong to the requirement on their line; on a line of their own they are accepted and ignored."),
 		buildSwitch: uncertain$7({
 			setting: "--only-binary",
 			value: ":all:",
@@ -11642,7 +11677,8 @@ function requirementsFormatOf(tool) {
 	return {
 		...record("requirementsFormat"),
 		includes: record("requirementsIncludes"),
-		paths: record("requirementsPaths")
+		paths: record("requirementsPaths"),
+		parser: record("requirementsParser")
 	};
 }
 function escapeRegExp(text) {
@@ -13994,16 +14030,33 @@ function readPythonSetting(repository, tool, setting) {
 	}
 }
 /**
-* The global option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines. Options after
-* a requirement on the same logical line (--hash on a continuation line) belong to that requirement and are skipped.
+* A long option of a requirements file as pip reads it (extra.requirementsParser): an exact name, or a prefix that
+* names exactly one option of the parser; anything else (an unknown option or an ambiguous prefix) as written.
+*/
+function expandRequirementsOption(option, longOptions) {
+	if (longOptions.includes(option)) return option;
+	const matches = longOptions.filter((name) => name.startsWith(option));
+	return matches.length === 1 ? matches[0] ?? option : option;
+}
+/** The long options of pip's requirements parser in a requirements format record (requirementsFormatOf). */
+function requirementsLongOptions(format) {
+	const parser = format["parser"];
+	const options = isRecord(parser) && parser["abbreviations"] === true ? parser["longOptions"] : void 0;
+	return isStringList$1(options) ? options : [];
+}
+/**
+* The global option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines; an
+* abbreviated option (--only-bin) as the option pip reads it as. Options after a requirement on the same logical line
+* (--hash on a continuation line) belong to that requirement and are skipped.
 */
 function requirementsOptions(repository, file, format) {
 	const text = repository.readText(file);
 	if (text === void 0) return [];
+	const longOptions = requirementsLongOptions(format);
 	return requirementsLines(text, format).flatMap(({ text: line, line: number }) => {
 		const match = /^(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(line);
 		return match === null ? [] : [{
-			option: match[1] ?? "",
+			option: expandRequirementsOption(match[1] ?? "", longOptions),
 			value: match[2] ?? "",
 			line: number
 		}];
@@ -15224,11 +15277,15 @@ function writeIniBlock(body, entries, managedKeys) {
 }
 
 // src/apply/pip-requirements.ts
-/** The option a requirements line sets (--only-binary=x and --only-binary x alike), if it is an option line. */
-function optionOf(line) {
-	return /^\s*(--[a-z-]+)(?=[=\s]|$)/u.exec(line)?.[1];
-}
-function writeRequirementsBlock(body, entries, managedOptions) {
+/**
+* `longOptions` are those of pip's requirements parser (extra.requirementsParser): pip takes an unambiguous prefix of
+* one (--no-bin for --no-binary), so a managed option is recognized in that form too.
+*/
+function writeRequirementsBlock(body, entries, managedOptions, longOptions = []) {
+	const optionOf = (line) => {
+		const option = /^\s*(--[a-z-]+)(?=[=\s]|$)/u.exec(line)?.[1];
+		return option === void 0 ? void 0 : expandRequirementsOption(option, longOptions);
+	};
 	const managed = new Set(managedOptions);
 	const removed = removeBlock(splitLines(body));
 	let at = 0;
@@ -15548,7 +15605,7 @@ function createContext(options) {
 			parseToml(edited);
 			return edited;
 		})),
-		requirements: (file, entries, managedOptions) => guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions)))
+		requirements: (file, entries, managedOptions) => guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions, requirementsLongOptions(requirementsFormatOf(tool)))))
 	};
 }
 
@@ -18828,8 +18885,8 @@ function checkPip(context, tool, configFiles) {
 			fix: `Set ${configVariable}=${file} where pip runs, or put the options in the requirements file pip installs from`
 		});
 	}
-	const allowed = new Set(extraOf(tool, "requirementsOptions", isStrings));
-	const format = extraOf(tool, "requirementsFormat", isRecord);
+	const format = requirementsFormatOf(tool);
+	const allowed = /* @__PURE__ */ new Set([...extraOf(tool, "requirementsOptions", isStrings), ...requirementsLongOptions(format)]);
 	const cooldownFlag = `--${settingOf(tool.cooldown.setting) ?? ""}`;
 	const variable = extraOf(tool, "environmentVariable", (value) => typeof value === "string");
 	for (const file of configFiles) for (const { option, line } of requirementsOptions(context.repository, file, format)) {

@@ -6,7 +6,7 @@ The facts depcurfew relies on, each linked to the official documentation or chan
 
 Legend: ↗ source · ❓ uncertain (official sources are incomplete) · ⚠️ disputed (official sources disagree; every variant is shown) · `1.2.3+` means "from version 1.2.3".
 
-12 tools · 521 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-31.
+12 tools · 522 facts · 85 uncertain · 13 disputed · verified 2026-10-28 to 2026-10-31.
 
 ## Release-age cooldown
 
@@ -242,7 +242,8 @@ Further facts used by generators and `doctor`.
 ### pip
 
 - `pylockCreatedBy` (✅ verified): pip [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/pylock.py)
-- `requirementsOptions` (✅ verified): -i, --index-url, --extra-index-url, --no-index, -c, --constraint, -r, --requirement, -e, --editable, -f, --find-links, --no-binary, --only-binary, --prefer-binary, --require-hashes, --no-require-hashes, --pre, --all-releases, --only-final, --trusted-host, --use-feature [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
+- `requirementsOptions` (✅ verified): -i, --index-url, --pypi-url, --extra-index-url, --no-index, -c, --constraint, -r, --requirement, -e, --editable, -f, --find-links, --no-binary, --only-binary, --prefer-binary, --require-hashes, --no-require-hashes, --pre, --all-releases, --only-final, --trusted-host, --use-feature [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
+- `requirementsParser` (✅ verified): `{"longOptions":["--index-url","--pypi-url","--extra-index-url","--no-index","--constraint","--requirement","--editable","--find-links","--no-binary","--only-binary","--prefer-binary","--require-hashes","--no-require-hashes","--pre","--all-releases","--only-final","--trusted-host","--use-feature","--hash","--config-settings"],"shortOptions":["-i","-c","-r","-e","-f","-C"],"abbreviations":true}` [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
 - `buildSwitch` (❓ uncertain): `{"setting":"--only-binary","value":":all:","since":"7.0.0","covers":["registry"]}` ❓ [↗](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)
 - `configFileNames` (✅ verified): pip.conf, pip.ini [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/configuration.py)
 - `configFileVariable` (✅ verified): PIP_CONFIG_FILE [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variable)
@@ -591,7 +592,8 @@ Context recorded with verified facts.
 - `project.lockfiles`: pip lock (experimental since 25.1) writes pylock.toml; pip install -r pylock.toml is experimental since 26.1. The specification also allows pylock.<name>.toml (extra.lockfilePattern). [↗](https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst#file-name)
 - `project.manifests`: "requirements.txt is usually what these files are named (although, that is not a requirement)"; the format is meant only for pip. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/reference/requirements-file-format.md)
 - `extra.pylockCreatedBy`: pip lock writes created-by = "pip". [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/pylock.py)
-- `extra.requirementsOptions`: SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
+- `extra.requirementsOptions`: SUPPORTED_OPTIONS in pip 26.2.2 (--pypi-url is a second name of --index-url in cmdoptions.py); per requirement also --hash and -C/--config-settings (extra.requirementsParser). Any other option, --uploaded-prior-to included, makes the file fail to parse. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
+- `extra.requirementsParser`: build_parser reads each line with optparse.OptionParser(add_help_option=False) holding SUPPORTED_OPTIONS and SUPPORTED_OPTIONS_REQ (--hash, -C/--config-settings), with the names from cmdoptions.py in pip 26.2.2. optparse takes a long option shortened to a prefix that names exactly one of them (_match_abbrev; an exact name wins), so --no-bin :all: is --no-binary :all:, and an ambiguous prefix such as --no is an error. --hash and --config-settings belong to the requirement on their line; on a line of their own they are accepted and ignored. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/req/req_file.py)
 - `extra.configFileNames`: CONFIG_BASENAME is pip.ini on Windows and pip.conf elsewhere; pip looks for it only in the global, user and site locations, never in the project. [↗](https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/configuration.py)
 - `extra.configFileVariable`: Names a configuration file pip loads last; set to os.devnull it turns all configuration files off. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variable)
 - `extra.environmentVariable`: Every long option has a PIP_<UPPER_LONG_NAME> variable with dashes replaced by underscores. Tested on 2026-10-30: pip 25.3 ignored PIP_UPLOADED_PRIOR_TO=P100000D without a word, 26.0 rejected the duration (dates only), 26.1 and 26.2.2 found no version. [↗](https://github.com/pypa/pip/blob/26.2.2/docs/html/topics/configuration.md#environment-variables)

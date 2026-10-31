@@ -192,7 +192,7 @@ What depcurfew configures and checks for each tool, from its [knowledge base](do
 | Bun | `install.minimumReleaseAge` in `bunfig.toml` (seconds), since 1.3.0 | `install.minimumReleaseAgeExcludes`, since 1.3.0 | `trustedDependencies` in `package.json` | none | 2026-10-28 – 2026-10-29 |
 | Deno | `minimumDependencyAge` in `deno.json`, `.npmrc` (minutes), since 2.5.5 / 2.6.0 ⚠️ | `minimumDependencyAge.exclude`, since 2.5.5 | `allowScripts` in `deno.json` | none | 2026-10-28 – 2026-10-30 |
 | uv | `exclude-newer` in `uv.toml`, `pyproject.toml` (duration string), since 0.9.17 | `exclude-newer-package`, since 0.9.25 | `no-binary-package` in `pyproject.toml` | none | 2026-10-30 |
-| pip | `uploaded-prior-to` on the command line or in the environment (no project file) (days), since 26.1.0 | none | `--no-binary` in `requirements.txt` | none | 2026-10-30 |
+| pip | `uploaded-prior-to` on the command line or in the environment (no project file) (days), since 26.1.0 | none | `--no-binary` in `requirements.txt` | none | 2026-10-30 – 2026-10-31 |
 | Poetry | `solver.min-release-age` in `poetry.toml` (days), since 2.4.0 | `solver.min-release-age-exclude`, since 2.4.0 | `installer.no-binary` in `poetry.toml` | none | 2026-10-30 |
 | PDM | `exclude-newer` in `pyproject.toml` (duration string), since 2.26.9 | `exclude-newer-override`, since 2.29.1 | `no-binary` in `pyproject.toml` | none | 2026-10-30 |
 | Pipenv | `cool-down-period` in `Pipfile` (duration string), since 2026.6.2 | none | none | none | 2026-10-30 |

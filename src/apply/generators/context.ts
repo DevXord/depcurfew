@@ -8,6 +8,8 @@ import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
 import { writeIniBlock } from '../ini.ts';
 import { jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonSet } from '../json-edit.ts';
 import { writeRequirementsBlock } from '../pip-requirements.ts';
+import { requirementsLongOptions } from '../../doctor/python.ts';
+import { requirementsFormatOf } from '../../doctor/python-lockfiles.ts';
 import { describeRequirements, type Requirement } from '../requirements.ts';
 import { writeTomlBlock } from '../toml.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
@@ -168,6 +170,6 @@ export function createContext(options: {
         }),
       ),
     requirements: (file, entries, managedOptions) =>
-      guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions))),
+      guard(file, () => workspace.edit(file, (body) => writeRequirementsBlock(body, entries, managedOptions, requirementsLongOptions(requirementsFormatOf(tool))))),
   };
 }

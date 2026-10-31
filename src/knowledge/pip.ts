@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
+const rechecked = verifiedOn('2026-10-31');
 
 // pip.pypa.io is built from docs/html in the repository.
 const PIP = 'https://github.com/pypa/pip/blob/26.2.2';
@@ -113,14 +114,27 @@ export const pip: ToolKnowledge = {
   },
   extra: {
     pylockCreatedBy: verified('pip', `${PIP}/src/pip/_internal/utils/pylock.py`, 'pip lock writes created-by = "pip".'),
-    requirementsOptions: verified(
+    requirementsOptions: rechecked.verified(
       [
-        '-i', '--index-url', '--extra-index-url', '--no-index', '-c', '--constraint', '-r', '--requirement', '-e', '--editable',
+        '-i', '--index-url', '--pypi-url', '--extra-index-url', '--no-index', '-c', '--constraint', '-r', '--requirement', '-e', '--editable',
         '-f', '--find-links', '--no-binary', '--only-binary', '--prefer-binary', '--require-hashes', '--no-require-hashes',
         '--pre', '--all-releases', '--only-final', '--trusted-host', '--use-feature',
       ],
       REQ_FILE,
-      'SUPPORTED_OPTIONS in pip 26.2.2; per requirement also --hash and --config-settings. Any other option, --uploaded-prior-to included, makes the file fail to parse.',
+      'SUPPORTED_OPTIONS in pip 26.2.2 (--pypi-url is a second name of --index-url in cmdoptions.py); per requirement also --hash and -C/--config-settings (extra.requirementsParser). Any other option, --uploaded-prior-to included, makes the file fail to parse.',
+    ),
+    requirementsParser: rechecked.verified(
+      {
+        longOptions: [
+          '--index-url', '--pypi-url', '--extra-index-url', '--no-index', '--constraint', '--requirement', '--editable', '--find-links',
+          '--no-binary', '--only-binary', '--prefer-binary', '--require-hashes', '--no-require-hashes', '--pre', '--all-releases',
+          '--only-final', '--trusted-host', '--use-feature', '--hash', '--config-settings',
+        ],
+        shortOptions: ['-i', '-c', '-r', '-e', '-f', '-C'],
+        abbreviations: true,
+      },
+      REQ_FILE,
+      'build_parser reads each line with optparse.OptionParser(add_help_option=False) holding SUPPORTED_OPTIONS and SUPPORTED_OPTIONS_REQ (--hash, -C/--config-settings), with the names from cmdoptions.py in pip 26.2.2. optparse takes a long option shortened to a prefix that names exactly one of them (_match_abbrev; an exact name wins), so --no-bin :all: is --no-binary :all:, and an ambiguous prefix such as --no is an error. --hash and --config-settings belong to the requirement on their line; on a line of their own they are accepted and ignored.',
     ),
     buildSwitch: uncertain(
       { setting: '--only-binary', value: ':all:', since: '7.0.0', covers: ['registry'] },

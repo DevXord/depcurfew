@@ -233,7 +233,7 @@ export function requirementsFormatOf(tool: ToolKnowledge): Format {
     const value = fact === undefined ? undefined : values(fact)[0];
     return isRecord(value) ? value : {};
   };
-  return { ...record('requirementsFormat'), includes: record('requirementsIncludes'), paths: record('requirementsPaths') };
+  return { ...record('requirementsFormat'), includes: record('requirementsIncludes'), paths: record('requirementsPaths'), parser: record('requirementsParser') };
 }
 
 function escapeRegExp(text: string): string {
