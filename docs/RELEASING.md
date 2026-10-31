@@ -45,7 +45,19 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
 
 4. **Wyłączenie publikacji tokenami:** paczka → **Settings** → **Publishing access** → „Require two-factor authentication and disallow tokens” → **Update Package Settings**. Trusted publishing działa dalej, bo nie używa tokenów.
 
-5. **Zalecane:** w ustawieniach repozytorium GitHub reguła, która pozwala tworzyć tagi `v*` tylko właścicielowi, żeby nikt inny nie mógł uruchomić workflow wydania.
+5. **Paczka w organizacji npm `depcurfew`.** Nazwa zostaje bez zakresu, żeby działało `npx depcurfew`. Organizacja nie może przejąć takiej paczki na własność, więc właścicielem zostaje konto, które ją utworzyło. Organizacja zarządza nią przez zespół `developers`, do którego należą wszyscy jej członkowie, także właściciel. Przyznaj temu zespołowi prawo zapisu w jeden z dwóch sposobów:
+   - na npmjs.com: organizacja `depcurfew` → **Teams** → przy zespole `developers` **Packages** → w polu „Package” wpisz `depcurfew` → **+ Add Existing Package** → **read/write**;
+   - z wiersza poleceń, z 2FA:
+
+     ```bash
+     npm access grant read-write depcurfew:developers depcurfew
+     ```
+
+   Paczka pojawi się wtedy w zakładce **Packages** organizacji. Prawo zapisu wystarcza, żeby etapować i zatwierdzać wersje (z 2FA), więc do organizacji dodawaj tylko zaufane osoby. Zalecane: organizacja → **Members** → **Enable 2FA Enforcement**, żeby nikt bez 2FA nie był jej członkiem.
+
+   Źródła (dokumentacja npm, stan z 2026-10-29): [paczki bez zakresu w organizacji](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/organizations/managing-organization-packages/about-organization-scopes-and-packages.mdx), [dostęp zespołu do paczki](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/organizations/managing-teams/managing-team-access-to-organization-packages.mdx), [zespół `developers`](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/organizations/managing-teams/about-developers-team.mdx), [brak przeniesienia paczki na organizację](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/packages-and-modules/introduction-to-packages-and-modules/package-scope-access-level-and-visibility.mdx), [2FA w organizacji](https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/organizations/creating-and-managing-organizations/requiring-two-factor-authentication-in-your-organization.mdx).
+
+6. **Zalecane:** w ustawieniach repozytorium GitHub reguła, która pozwala tworzyć tagi `v*` tylko właścicielowi, żeby nikt inny nie mógł uruchomić workflow wydania.
 
 ## Każde wydanie
 
@@ -77,6 +89,7 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
 ## Gdy coś nie działa
 
 - **`ENEEDAUTH` przy etapowaniu:** nazwa pliku (`release.yml`), właściciel i repozytorium muszą zgadzać się dokładnie z konfiguracją trusted publishera, wielkość liter też. Workflow musi mieć `id-token: write` i działać na runnerze hostowanym przez GitHub.
+- **`E403` przy `npm access grant`:** paczka jeszcze nie istnieje w rejestrze (`npm view depcurfew` nic nie pokazuje). Najpierw wykonaj krok 2 jednorazowej konfiguracji; zespół dostaje dostęp tylko do istniejącej paczki. Tak było 2026-10-30: nazwa była jeszcze zablokowana po wycofaniu z 2026-10-29.
 - **Konfiguracja wygasła** (brak udanej publikacji w 2 dni): usuń ją, utwórz nową i od razu wydaj wersję.
 - **Brak proweniencji:** publikacja musi przejść przez OIDC z publicznego repozytorium, a paczka musi być publiczna.
 - **Zły tag albo wersja:** workflow zatrzyma się na sprawdzeniu tagu. Usuń tag (`git push origin :refs/tags/vX.Y.Z` i `git tag -d vX.Y.Z`), popraw i wypchnij ponownie. Błędną etapowaną wersję odrzuć: `npm stage reject <stage-id>`.

@@ -164,6 +164,80 @@ export interface DownloadCommand {
   scriptSuffixes?: readonly string[];
   /** A first argument that is an http or https URL is a script to download and run. */
   scriptUrls?: boolean;
+  /** The package may be followed by /<binary>, which picks one of its executables and is not part of its name (deno x npm:typescript/tsc). */
+  binaryPath?: boolean;
+}
+
+/** How a tool reads its options. A fact of its own (`parsing`) next to the command-line fact adds to these. */
+export interface CommandLineParsing {
+  /**
+   * A long option may be shortened to any prefix that names one option (optparse, argparse, nopt). The scanner
+   * resolves a prefix to any option only when the tool lists all of its flags (`flagOptions`); otherwise only to an
+   * option that changes the registry or the configuration file.
+   */
+  abbreviations?: boolean;
+  /** Short options may be grouped (-Uq) and the last may carry its value in the same word (-ivalue). */
+  groupedShortOptions?: boolean;
+  /** Any number of leading dashes names the same option: -registry, --registry and ---registry (nopt). */
+  anyDashes?: boolean;
+  /** An option starting with this prefix is a negated flag and never takes a value (nopt: --no-save). */
+  negation?: string;
+  /**
+   * Words that stand for other options, without their dashes (nopt shorthands): reg is --registry. A word made only
+   * of one-letter shorthands (-gD) stands for each of them, and an unambiguous prefix of a shorthand for the shorthand.
+   */
+  shorthands?: Readonly<Record<string, readonly string[]>>;
+  /** An option starting with this prefix sets the setting named after it, as the option of that name does (pnpm: --config.registry=…). */
+  settingPrefix?: string;
+}
+
+/**
+ * Options and environment variables that turn a per-package choice on or off. Variables come first, then the
+ * options in the order written; a later one wins, and a package named on its own wins over :all:.
+ */
+export interface SelectionSwitches {
+  /** Flags that turn it on, or off, for every package. */
+  onFlags?: readonly string[];
+  offFlags?: readonly string[];
+  /** Options whose value is a comma-separated list of packages to turn it on, or off, for; :all: is every package and :none: empties the list. */
+  onLists?: readonly string[];
+  offLists?: readonly string[];
+  /** In lists, true stands for :all: and false for :none: (Poetry). */
+  listBooleans?: boolean;
+  /** Options whose value names packages to turn it on for. */
+  onPackages?: readonly string[];
+  /** Options whose value is a mode: one of onModes turns it on for every package, one of offModes off, any other mode leaves the default. */
+  modeOptions?: readonly string[];
+  /** Options whose value is PACKAGE=MODE, with the modes of modeOptions. */
+  packageModeOptions?: readonly string[];
+  onModes?: readonly string[];
+  offModes?: readonly string[];
+  /** Variables: a boolean that turns it on for every package, lists as onLists and offLists, packages separated by spaces, or a mode. */
+  flagVariables?: readonly string[];
+  onListVariables?: readonly string[];
+  offListVariables?: readonly string[];
+  onPackageVariables?: readonly string[];
+  modeVariables?: readonly string[];
+}
+
+/** How a Python tool's command line chooses pre-releases and building from source, which change what is installed. */
+export interface PythonSelectionKnowledge {
+  /** On: pre-releases may be picked; off: never. Left at the default, PEP 440 applies (only when asked for or nothing else fits). */
+  prereleases: SelectionSwitches;
+  /** On: the package is built from source even when it has wheels, which runs its build code; off: wheels only. */
+  buildFromSource: SelectionSwitches;
+  /** Commands that read these options differently; their switches replace the ones above. */
+  commands?: readonly { command: readonly string[]; prereleases?: SelectionSwitches; buildFromSource?: SelectionSwitches }[];
+}
+
+/** How npm picks the version of a package named without one, or with a range. */
+export interface NpmVersionSelectionKnowledge {
+  /** The option, variable (without regard to case) and .npmrc key of the dist-tag npm prefers. */
+  tagOption: string;
+  tagVariable: string;
+  tagKey: string;
+  /** The range a name without a version stands for. */
+  bareRange: string;
 }
 
 /** Options that only some commands of a tool have, or that mean something else in its other commands. */
@@ -199,13 +273,8 @@ export interface CommandLineKnowledge {
   valueOptions: readonly string[];
   /** Options that stand alone, for tools that accept abbreviated long options: an exact name is never a prefix. */
   flagOptions?: readonly string[];
-  /** How options are read; left out, as for npm, only whole option names with = or a separate value are read. */
-  parsing?: {
-    /** A long option may be shortened to any prefix that names one option (optparse and argparse). */
-    abbreviations?: boolean;
-    /** Short options may be grouped (-Uq) and the last may carry its value in the same word (-ivalue). */
-    groupedShortOptions?: boolean;
-  };
+  /** How options are read; left out, only whole option names with = or a separate value are read. */
+  parsing?: CommandLineParsing;
   /** Options of the add commands whose value names a package to install as well. */
   addPackageOptions?: readonly string[];
   /** Options whose value is a local path or VCS URL installed in editable mode. */
@@ -446,6 +515,17 @@ export interface StepSummaryKnowledge {
   maxBytes: number;
 }
 
+export interface GitIgnoreKnowledge {
+  /** The per-directory pattern file, e.g. .gitignore. */
+  file: string;
+  /** The repository's own pattern file, relative to the working tree. */
+  excludeFile: string;
+  /** The index, whose entries are the tracked files. */
+  indexFile: string;
+  /** Whether a pattern also hides a file git already tracks (it does not). */
+  trackedFilesIgnored: boolean;
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
@@ -495,6 +575,10 @@ export interface EnvironmentKnowledge {
   };
   claudeCode: {
     hooks: Fact<ClaudeCodeHooksKnowledge>;
+  };
+  git: {
+    /** Where git reads the patterns of files it does not pick up, and the index that lists the tracked files. */
+    ignore: Fact<GitIgnoreKnowledge>;
   };
   python: {
     /** How Python package names are compared: lowercased, with every run of these characters replaced by `replacement`. */

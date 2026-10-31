@@ -1,0 +1,7 @@
+# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+--only-binary=:all:
+# <<< depcurfew managed block
+requests==2.32.0
+lxml
+# depcurfew: superseded by the managed block: --no-binary=lxml
+# depcurfew: superseded by the managed block: --only-binary :none:

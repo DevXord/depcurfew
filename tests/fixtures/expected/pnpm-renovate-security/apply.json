@@ -1,0 +1,41 @@
+{
+  "changed": [
+    "pnpm-workspace.yaml",
+    "renovate.json"
+  ],
+  "warnings": [
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "pnpm",
+      "message": "pnpm: allowBuilds takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "source-switch-indirect-only",
+      "tool": "pnpm",
+      "message": "pnpm: blockExoticSubdeps stops git and tarball sources only for indirect dependencies; direct ones stay allowed",
+      "fix": "Run depcurfew doctor, which reports direct ones in pnpm-lock.yaml"
+    },
+    {
+      "code": "cooldown-shortened",
+      "tool": "pnpm",
+      "location": {
+        "file": "pnpm-workspace.yaml",
+        "line": 5
+      },
+      "message": "pnpm: minimumReleaseAge: 10080 in pnpm-workspace.yaml (line 5) waits 1 week, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply replaces it with 4320, so pnpm waits only 3 days",
+      "fix": "To keep the longer delay, set cooldown.minimum to \"7d\" in depcurfew.json and run depcurfew apply again"
+    },
+    {
+      "code": "cooldown-shortened",
+      "tool": "renovate",
+      "location": {
+        "file": "renovate.json",
+        "line": 3
+      },
+      "message": "Renovate: minimumReleaseAge: \"7 days\" in renovate.json (line 3) waits 1 week, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply replaces it with \"3 days\", so Renovate waits only 3 days",
+      "fix": "To keep the longer delay, set cooldown.minimum to \"7d\" in depcurfew.json and run depcurfew apply again; if an earlier depcurfew apply wrote this value to renovate.json and you lowered cooldown.minimum on purpose, nothing to do"
+    }
+  ],
+  "snippets": []
+}

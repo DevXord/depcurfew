@@ -1,0 +1,6 @@
+{
+  "name": "npm-npmrc-section",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "npm@12.2.1"
+}

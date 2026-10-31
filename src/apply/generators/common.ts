@@ -71,6 +71,24 @@ export function allowedNames(context: Context, setting: string): string[] {
   });
 }
 
+/**
+ * What the pinned version does with dependency install scripts by default (installScripts.defaultPolicy), and the
+ * first later version that does something else.
+ */
+export function scriptsDefault(context: Context): { value: unknown; changesIn: string | undefined } {
+  let value: unknown;
+  let changesIn: string | undefined;
+  for (const entry of values(context.tool.installScripts.defaultPolicy)[0] ?? []) {
+    if (context.atLeast(entry.since)) {
+      value = entry.value;
+      changesIn = undefined;
+    } else {
+      changesIn ??= entry.since;
+    }
+  }
+  return { value, changesIn };
+}
+
 /** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
 function lockfileShowsSources(tool: Context['tool']): boolean {
   const fact = tool.extra?.['lockfileFormat'];

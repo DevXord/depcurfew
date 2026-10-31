@@ -79,14 +79,14 @@ describe('depcurfew init', () => {
   it('fails when the directory does not exist', async () => {
     const missing = join(directory, 'missing');
     const result = await exec('init', missing);
-    expect(result).toEqual({ code: EXIT_FAILURE, stdout: '', stderr: `depcurfew: directory not found: ${missing}\n` });
+    expect(result).toEqual({ code: EXIT_USAGE, stdout: '', stderr: `error: directory not found: ${missing} (directory-not-found)\n  fix: Pass the path of an existing directory\n` });
   });
 
   it('fails when the target is a file, not a directory', async () => {
     const file = join(directory, 'file.txt');
     writeFileSync(file, '');
     const result = await exec('init', file);
-    expect(result).toEqual({ code: EXIT_FAILURE, stdout: '', stderr: `depcurfew: not a directory: ${file}\n` });
+    expect(result).toEqual({ code: EXIT_USAGE, stdout: '', stderr: `error: not a directory: ${file} (not-a-directory)\n  fix: Pass the directory of the project, not a file in it\n` });
   });
 
   it('reports a write error', async () => {
@@ -100,6 +100,40 @@ describe('depcurfew init', () => {
     cpSync(fileURLToPath(new URL('fixtures/repos/pnpm11-dependabot', import.meta.url)), directory, { recursive: true });
     const result = await exec('init', directory);
     expect(result.stdout).toBe(`Created ${policyFile} with the default policy.\nDetected tools: pnpm, Dependabot.\n`);
+  });
+
+  it('keeps a longer release-age delay the repository already sets, and says where it is', async () => {
+    writeFileSync(join(directory, 'package.json'), '{"name": "app", "packageManager": "npm@11.19.1"}\n');
+    writeFileSync(join(directory, '.npmrc'), 'save-exact=true\nmin-release-age=14\n');
+    mkdirSync(join(directory, '.github'));
+    writeFileSync(
+      join(directory, '.github/dependabot.yml'),
+      'version: 2\nupdates:\n  - package-ecosystem: npm\n    directory: /\n    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 7\n',
+    );
+    const result = await exec('init', directory);
+    expect(result).toEqual({
+      code: EXIT_OK,
+      stdout:
+        `Created ${policyFile} with the default policy.\n` +
+        'cooldown.minimum is 14d instead of 3d, to keep the longest release-age delay already set: min-release-age: 14 in .npmrc (line 2).\n' +
+        'Detected tools: npm, Dependabot.\n',
+      stderr: '',
+    });
+    const policy = JSON.parse(readFileSync(policyFile, 'utf8')) as { cooldown: { minimum: string } };
+    expect(policy.cooldown.minimum).toBe('14d');
+    expect(parsePolicy(readFileSync(policyFile, 'utf8'))).toMatchObject({ ok: true });
+  });
+
+  it('rounds a delay up to whole minutes and keeps the default when existing delays are shorter', async () => {
+    writeFileSync(join(directory, 'package.json'), '{"name": "app"}\n');
+    writeFileSync(join(directory, 'bun.lock'), '{}\n');
+    writeFileSync(join(directory, 'bunfig.toml'), '[install]\nminimumReleaseAge = 345601\n');
+    await exec('init', directory);
+    expect((JSON.parse(readFileSync(policyFile, 'utf8')) as { cooldown: { minimum: string } }).cooldown.minimum).toBe('5761m');
+    writeFileSync(join(directory, 'bunfig.toml'), '[install]\nminimumReleaseAge = 86400\n');
+    const result = await exec('init', directory, '--force');
+    expect(result.stdout).toBe(`Overwrote ${policyFile} with the default policy.\nDetected tools: Bun.\n`);
+    expect(readFileSync(policyFile, 'utf8')).toBe(EXPECTED);
   });
 
   it('accepts at most one directory', async () => {

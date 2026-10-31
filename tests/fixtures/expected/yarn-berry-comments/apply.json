@@ -1,0 +1,21 @@
+{
+  "changed": [
+    ".yarnrc.yml",
+    "package.json"
+  ],
+  "warnings": [
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "yarn",
+      "message": "Yarn (Berry): dependenciesMeta takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "source-not-enforceable",
+      "tool": "yarn",
+      "message": "Yarn (Berry) has no setting for remote tarball dependencies, so \"deny\" cannot be enforced",
+      "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+    }
+  ],
+  "snippets": []
+}

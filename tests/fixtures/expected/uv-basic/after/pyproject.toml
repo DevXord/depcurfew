@@ -14,7 +14,7 @@ dependencies = [
 # Keep uv in step with CI.
 required-version = "==0.13.6"
 
-# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+# >>> depcurfew managed block [tool.uv]: edit depcurfew.json and run depcurfew apply instead
 exclude-newer = "36 hours"
 exclude-newer-package = { "internal-lib" = false }
 no-build = true

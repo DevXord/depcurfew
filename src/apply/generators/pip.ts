@@ -1,7 +1,7 @@
 // pip: no project configuration. The build options go into requirements.txt in a managed block; the release-age
 // delay cannot be set in the project, so apply says how to set it where pip runs.
 import { convertCooldown } from '../../policy/convert.ts';
-import { BLOCK_START } from '../block.ts';
+import { hasManagedLines } from '../block.ts';
 import { extraOf, firstFile, isSwitch, settingOf, sinceOf } from '../facts.ts';
 import { formatVersion } from '../version.ts';
 import { eachSource } from './common.ts';
@@ -56,6 +56,6 @@ export const pip: ManagerGenerator = (context) => {
     }
     return undefined;
   }
-  if (entries.length > 0 || context.read(file).includes(BLOCK_START)) context.requirements(file, entries, managed);
+  if (entries.length > 0 || hasManagedLines(context.read(file))) context.requirements(file, entries, managed);
   return undefined;
 };

@@ -1,0 +1,4 @@
+requests==2.32.0
+lxml
+--no-binary=lxml
+--only-binary :none:

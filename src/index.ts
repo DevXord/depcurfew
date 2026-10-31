@@ -1,7 +1,7 @@
 export { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from './cli/run.ts';
 export type { CliIo } from './cli/run.ts';
 export { getVersion } from './version.ts';
-export { applyProject, botDuration, loadPolicy, planApply, PolicyError } from './apply/index.ts';
+export { applyProject, ApplyWriteError, botDuration, loadPolicy, planApply, PolicyError } from './apply/index.ts';
 export type { ApplyReport, FileChange, Snippet } from './apply/index.ts';
 export { unifiedDiff } from './apply/diff.ts';
 export { APPLY_ERRORS, APPLY_WARNINGS, warningText } from './apply/warnings.ts';

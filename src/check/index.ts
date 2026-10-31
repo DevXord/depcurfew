@@ -7,15 +7,16 @@ import { values } from '../apply/facts.ts';
 import { matchesPattern } from '../doctor/allow-lists.ts';
 import { formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
+import { knowledgeBase } from '../knowledge/index.ts';
 import { policyFor } from '../policy/ecosystem.ts';
-import { CHECK_BY_HAND, describeAge, sourceFindings, type CheckFinding, type CheckOptions, type PackageReport } from './findings.ts';
+import { CHECK_BY_HAND, describeAge, insecureFinding, sourceFindings, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
 import { checkPythonSpec, isPythonSpec } from './python.ts';
 import { fetchPackument, type Packument } from './registry.ts';
 import { compareSemver, maxSatisfying, parseRange, parseSemver, satisfies } from './semver.ts';
 import { parseSpec } from './spec.ts';
 
 export { describeAge } from './findings.ts';
-export type { CheckFinding, CheckOptions, FindingCode, PackageReport } from './findings.ts';
+export type { CheckFinding, CheckOptions, CheckRequest, FindingCode, PackageReport } from './findings.ts';
 
 function defaultTag(): string {
   return values(environment.npmRegistry.api)[0]?.defaultTag ?? 'latest';
@@ -25,24 +26,41 @@ function tag(packument: Packument, name: string): string | undefined {
   return Object.hasOwn(packument.distTags, name) ? packument.distTags[name] : undefined;
 }
 
-/** The version a registry spec installs, like npm: the default tag when it satisfies the range, else the highest match. */
-export function pickVersion(packument: Packument, selector: string): string | undefined {
-  const latest = tag(packument, defaultTag());
-  if (selector === '') return latest;
-  const exact = parseSemver(selector);
+function versionSelection(): { bareRange: string } {
+  const npm = knowledgeBase.find((tool) => tool.id === 'npm');
+  const fact = npm?.extra?.['versionSelection'];
+  const value = fact === undefined ? undefined : (values(fact)[0] as { bareRange?: unknown } | undefined);
+  return { bareRange: typeof value?.bareRange === 'string' ? value.bareRange : '*' };
+}
+
+function deprecated(packument: Packument, version: string): boolean {
+  const reason = packument.versions[version]?.deprecated;
+  return reason !== undefined && reason !== null && reason !== false && reason !== '';
+}
+
+/**
+ * The version a registry spec installs, like npm (npm-pick-manifest): an exact version or a dist-tag as named;
+ * for a range (a bare name is *), the version of the preferred dist-tag when the range is * or it satisfies the range
+ * and it is not deprecated, else the highest match, preferring versions that are not deprecated.
+ */
+export function pickVersion(packument: Packument, selector: string, preferred = defaultTag()): string | undefined {
+  const bare = versionSelection().bareRange;
+  const wanted = selector.trim() === '' ? bare : selector.trim();
+  const exact = parseSemver(wanted);
   if (exact !== undefined) {
-    if (Object.hasOwn(packument.versions, selector)) return selector;
+    if (Object.hasOwn(packument.versions, wanted)) return wanted;
     // npm reads v1.2.3 and 1.2.3+build as 1.2.3.
     return Object.keys(packument.versions).find((version) => {
       const parsed = parseSemver(version);
       return parsed !== undefined && compareSemver(parsed, exact) === 0;
     });
   }
-  if (parseRange(selector) === undefined) return tag(packument, selector);
-  if (latest !== undefined && satisfies(latest, selector)) return latest;
+  if (parseRange(wanted) === undefined) return tag(packument, wanted);
+  const tagged = tag(packument, preferred);
+  if (tagged !== undefined && Object.hasOwn(packument.versions, tagged) && (wanted === bare || satisfies(tagged, wanted)) && !deprecated(packument, tagged)) return tagged;
   const all = Object.keys(packument.versions);
-  const current = all.filter((version) => packument.versions[version]?.deprecated === undefined);
-  return maxSatisfying(current, selector) ?? maxSatisfying(all, selector);
+  const current = all.filter((version) => !deprecated(packument, version));
+  return maxSatisfying(current, wanted) ?? maxSatisfying(all, wanted);
 }
 
 /** The newest version the spec allows that is old enough, to suggest instead. */
@@ -55,7 +73,7 @@ function oldEnough(packument: Packument, selector: string, cutoff: number): stri
   return maxSatisfying(versions, range);
 }
 
-async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions): Promise<void> {
+async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions, preferred: string): Promise<void> {
   // check looks up npm packages, so only the policy's npm names apply.
   const policy = policyFor(options.policy, 'npm');
   const add = (finding: CheckFinding) => report.findings.push(finding);
@@ -81,6 +99,8 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
     });
   }
 
+  const insecure = insecureFinding(options.registry, 'registry');
+  if (insecure !== undefined) add(insecure);
   const lookup = await fetchPackument(name, { registry: options.registry, fetch: options.fetch });
   if (lookup.status === 'not-found') {
     if (scope !== undefined) {
@@ -106,7 +126,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
       level: 'error',
       code: 'unverified',
       message: `it cannot be checked: ${lookup.reason}`,
-      fix: 'Run depcurfew check again when the registry is reachable, or pass --registry with a registry you can reach',
+      fix: lookup.fix ?? 'Run depcurfew check again when the registry is reachable, or pass --registry with a registry you can reach',
     });
     return;
   }
@@ -116,12 +136,12 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
     const publishedAt = packument.time[latest];
     report.latest = publishedAt === undefined ? { version: latest } : { version: latest, publishedAt };
   }
-  const version = pickVersion(packument, selector);
+  const version = pickVersion(packument, selector, preferred);
   if (version === undefined) {
     add({
       level: 'error',
       code: 'no-version',
-      message: `no version of ${name} matches "${selector || 'latest'}"`,
+      message: `no version of ${name} matches "${selector || preferred}"`,
       fix: latest === undefined ? `Pick a version of ${name} that exists` : `Pick a version of ${name} that exists, such as ${name}@${latest}`,
     });
     return;
@@ -177,8 +197,9 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   }
 }
 
-export async function checkSpec(raw: string, options: CheckOptions): Promise<PackageReport> {
-  if (isPythonSpec(raw)) return checkPythonSpec(raw, options);
+export async function checkSpec(request: string | CheckRequest, options: CheckOptions): Promise<PackageReport> {
+  const { spec: raw, ...chosen } = typeof request === 'string' ? { spec: request } : request;
+  if (isPythonSpec(raw)) return checkPythonSpec(raw, options, chosen);
   const spec = parseSpec(raw);
   if (spec === undefined) {
     const finding: CheckFinding = { level: 'error', code: 'invalid-spec', message: `"${raw}" is not a package spec`, fix: 'Write it as name, name@version, name@range or name@tag' };
@@ -198,7 +219,9 @@ export async function checkSpec(raw: string, options: CheckOptions): Promise<Pac
     report.findings.push(...sourceFindings(spec, spec.kind, options.policy));
   } else if (spec.name !== undefined) {
     report.name = spec.name;
-    await checkRegistryPackage(report, spec.name, spec.selector ?? '', options);
+    const preferred = chosen.tag ?? (chosen.ignoresConfigTag === true ? undefined : options.defaultTag) ?? defaultTag();
+    if (preferred !== defaultTag()) report.tag = preferred;
+    await checkRegistryPackage(report, spec.name, spec.selector ?? '', options, preferred);
   }
   return report;
 }
@@ -207,13 +230,13 @@ export async function checkSpec(raw: string, options: CheckOptions): Promise<Pac
 const CONCURRENCY = 6;
 
 /** Checks the specs a few at a time; the reports keep the order of the specs. */
-export async function checkSpecs(specs: readonly string[], options: CheckOptions): Promise<PackageReport[]> {
+export async function checkSpecs(specs: readonly (string | CheckRequest)[], options: CheckOptions): Promise<PackageReport[]> {
   const reports: PackageReport[] = [];
   let next = 0;
   const worker = async (): Promise<void> => {
     while (next < specs.length) {
       const index = next++;
-      reports[index] = await checkSpec(specs[index] as string, options);
+      reports[index] = await checkSpec(specs[index] as string | CheckRequest, options);
     }
   };
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, specs.length) }, worker));

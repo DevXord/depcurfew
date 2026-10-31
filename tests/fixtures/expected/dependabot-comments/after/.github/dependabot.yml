@@ -1,0 +1,43 @@
+version: 2
+updates:
+  # The app
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # managed by depcurfew
+    cooldown:
+      default-days: 3
+      exclude:
+        - "@acme/*"
+        - left-pad
+    # open-pull-requests-limit: 5
+  - package-ecosystem: "npm"
+    directory: "/tools"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "react"
+      # - dependency-name: "eslint"
+    # managed by depcurfew
+    cooldown:
+      default-days: 3
+      exclude:
+        - "@acme/*"
+        - left-pad
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      # managed by depcurfew
+      default-days: 3
+      # managed by depcurfew
+      exclude:
+        - "@acme/*"
+        - left-pad
+        # - "vue"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

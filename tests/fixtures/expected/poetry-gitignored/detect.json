@@ -1,0 +1,44 @@
+{
+  "packageManagers": [
+    {
+      "id": "poetry",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "poetry.lock"
+        },
+        {
+          "kind": "config",
+          "file": "pyproject.toml"
+        }
+      ],
+      "versions": [
+        {
+          "version": ">=2.4",
+          "source": "tool-config",
+          "file": "pyproject.toml",
+          "line": 8
+        }
+      ],
+      "configFiles": [
+        "pyproject.toml"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [
+    {
+      "id": "dependabot",
+      "configFiles": [
+        ".github/dependabot.yml"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}

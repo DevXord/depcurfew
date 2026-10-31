@@ -140,6 +140,8 @@ export function pipfileLockEntries(input: string, format: Format): LockEntry[] {
       const anchored = (found: LockEntry): LockEntry => ({ ...found, anchor: JSON.stringify(name) });
       if (git !== undefined) entries.push(anchored(entry(name, git, 'git', true, undefined)));
       else if (file !== undefined) entries.push(anchored(entry(name, file, 'remoteTarball', !isWheel(file), undefined)));
+      // The project itself (pipenv install -e . writes path "."), as -e . in a requirements file.
+      else if (path !== undefined && isProject(path)) entries.push(anchored(entry(name, path, 'workspace', false, undefined)));
       else if (path !== undefined) entries.push(anchored(entry(name, path, 'directory', true, undefined)));
       else entries.push(anchored(entry(name, 'an index', 'registry', undefined, undefined)));
     }
@@ -147,8 +149,17 @@ export function pipfileLockEntries(input: string, format: Format): LockEntry[] {
   return entries;
 }
 
-/** pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. */
-export function pylockEntries(input: string, format: Format): LockEntry[] {
+/** "." or "./": the project itself, relative to the lockfile at its root. */
+function isProject(path: string): boolean {
+  return /^\.\/?$/u.test(path);
+}
+
+/**
+ * pylock.toml (PEP 751): each [[packages]] has one of vcs, directory, archive, or sdist and wheels from an index. A
+ * directory path is relative to the lock file, so "." is the project itself, which, like a workspace member, is part
+ * of the work on the project rather than a dependency built from source.
+ */
+export function pylockEntries(input: string, format: Format, workspaces: readonly string[] = []): LockEntry[] {
   const document = parseToml(input);
   const key = (name: string) => String(format[name]);
   return list(document.root[key('packages')]).flatMap((item, index): LockEntry[] => {
@@ -158,7 +169,12 @@ export function pylockEntries(input: string, format: Format): LockEntry[] {
     const vcs = item[key('vcs')];
     if (isRecord(vcs)) return [entry(item['name'], location(vcs), text(vcs['type']) === 'git' ? 'git' : 'unknown', true, line)];
     const directory = item[key('directory')];
-    if (isRecord(directory)) return [entry(item['name'], location(directory), 'directory', true, line)];
+    if (isRecord(directory)) {
+      const path = location(directory);
+      const relative = path.replaceAll('\\', '/').replace(/^\.\//u, '').replace(/\/+$/u, '');
+      const member = isProject(path) || relative === '' || workspaces.includes(relative);
+      return [entry(item['name'], path, member ? 'workspace' : 'directory', !member, line)];
+    }
     const archive = item[key('archive')];
     if (isRecord(archive)) {
       const where = location(archive);

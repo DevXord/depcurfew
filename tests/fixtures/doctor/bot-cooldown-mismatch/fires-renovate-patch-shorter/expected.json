@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 4
+    },
+    "message": "Renovate proposes patch updates after 1 day (minimumReleaseAge: \"1 day\" in packageRules[0] of renovate.json), but npm waits 3 days (min-release-age: 3 in .npmrc); its pull requests bring in versions younger than npm accepts, or fail where the lockfile is re-checked",
+    "fix": "Make minimumReleaseAge in packageRules[0] of renovate.json at least 3 days, or limit the rule to the packages that need a shorter delay"
+  }
+]

@@ -140,6 +140,8 @@ export function createContext(options: {
       });
     },
     atLeast,
+    // The JSON and YAML editors parse the file before an edit and the result after it, and refuse an edit whose
+    // result does not parse or changes anything besides the managed value (see expected.ts).
     json: (file) => ({
       get: (path) => guard(file, () => (workspace.exists(file) ? jsonGet(workspace.read(file), path) : undefined)),
       set: (path, value) => guard(file, () => workspace.edit(file, (body) => jsonSet(body === '' ? '{}\n' : body, path, value))),

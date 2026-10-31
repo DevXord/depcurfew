@@ -18,7 +18,8 @@ export type FindingCode =
   | 'deprecated'
   | 'yanked'
   | 'archived'
-  | 'quarantined';
+  | 'quarantined'
+  | 'insecure-registry';
 
 export interface CheckFinding {
   level: 'error' | 'warning';
@@ -37,7 +38,26 @@ export interface PackageReport {
   version?: string;
   publishedAt?: string;
   latest?: { version: string; publishedAt?: string };
+  /** npm: the dist-tag the version was picked by, when it is not the default one (--tag, npm_config_tag, tag in .npmrc). */
+  tag?: string;
+  /** Python: pre-releases allowed or forbidden by the command. */
+  prereleases?: 'allow' | 'deny';
+  /** Python: the command builds the package from source (true) or installs wheels only (false). */
+  buildFromSource?: boolean;
   findings: CheckFinding[];
+}
+
+/** A spec with what the install command changes about the version or the build. */
+export interface CheckRequest {
+  spec: string;
+  /** npm: the dist-tag npm prefers for a name without a version or with a range; the registry's default when left out. */
+  tag?: string;
+  /** The package manager is not npm, so tag= in .npmrc (CheckOptions.defaultTag) does not choose its version. */
+  ignoresConfigTag?: boolean;
+  /** Python: pre-releases allowed or forbidden; PEP 440's default when left out. */
+  prereleases?: 'allow' | 'deny';
+  /** Python: the package is built from source even when it has wheels (true), or only wheels are used (false). */
+  buildFromSource?: boolean;
 }
 
 export interface CheckOptions {
@@ -52,6 +72,31 @@ export interface CheckOptions {
   index?: string;
   /** Popular Python projects, by normalized name, for look-alike names. */
   popularPython?: PopularNames;
+  /** npm: the dist-tag npm prefers when a request names none (tag in .npmrc); the registry's default when left out. */
+  defaultTag?: string;
+}
+
+/** This machine (a local registry such as Verdaccio): plain HTTP to it does not leave the machine. */
+function isLoopback(host: string): boolean {
+  const bare = host.replace(/^\[|\]$/gu, '').toLowerCase();
+  return bare === 'localhost' || bare.endsWith('.localhost') || bare === '::1' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/u.test(bare);
+}
+
+/** A warning about a registry or index reached over plain HTTP, whose answers anyone on the way could change. */
+export function insecureFinding(url: string, what: 'registry' | 'index'): CheckFinding | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== 'http:' || isLoopback(parsed.hostname)) return undefined;
+  return {
+    level: 'warning',
+    code: 'insecure-registry',
+    message: `the ${what} ${url} is reached over plain HTTP, so anyone on the network path can change what it answers and the package it serves`,
+    fix: `Use an https:// URL for the ${what}`,
+  };
 }
 
 export const SOURCE_LABELS: Record<'git' | 'remoteTarball' | 'file' | 'directory', string> = {

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".npmrc",
+      "line": 2
+    },
+    "message": "npm 11.12.0 does not accept before and min-release-age together and stops with an error, so every npm command fails while both are set in .npmrc",
+    "fix": "Remove the before line from .npmrc (npm 11.15.0 and later accept both, but before then takes the place of min-release-age)"
+  }
+]

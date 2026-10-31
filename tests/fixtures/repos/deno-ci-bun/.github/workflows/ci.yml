@@ -1,0 +1,13 @@
+name: ci
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: oven-sh/setup-bun@v2
+      - run: deno task test
+      - run: bun test bun_test.ts

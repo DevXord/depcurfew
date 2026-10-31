@@ -6,6 +6,7 @@ run(process.argv.slice(2), {
   stdout: (text) => process.stdout.write(text),
   stderr: (text) => process.stderr.write(text),
   colors: { stdout: colorsFor(process.stdout, process.env), stderr: colorsFor(process.stderr, process.env) },
+  terminal: { stdout: process.stdout.isTTY === true, stderr: process.stderr.isTTY === true },
 }).then(
   (code) => {
     process.exitCode = code;

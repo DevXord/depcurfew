@@ -1,0 +1,41 @@
+{
+  "packageManagers": [
+    {
+      "id": "yarn",
+      "variant": "berry",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "yarn.lock"
+        },
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        },
+        {
+          "kind": "config",
+          "file": ".yarnrc.yml"
+        }
+      ],
+      "versions": [
+        {
+          "version": "4.18.1",
+          "source": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": [
+        ".yarnrc.yml"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}

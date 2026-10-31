@@ -126,7 +126,7 @@ describe('depcurfew doctor', () => {
 
   it('fails for a directory that does not exist', async () => {
     const result = await exec('doctor', join(tmpdir(), 'depcurfew-does-not-exist'));
-    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.code).toBe(EXIT_USAGE);
     expect(result.stderr).toContain('directory not found');
   });
 });

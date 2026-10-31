@@ -1,0 +1,7 @@
+{
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchPackageNames": ["@acme/*"], "minimumReleaseAge": null },
+    { "matchDatasources": ["npm"], "minimumReleaseAge": "1 day" }
+  ]
+}

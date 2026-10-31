@@ -2,9 +2,10 @@
 // (e.g. [install] or [tool.uv]), or among the top-level keys before the first table when the table is ''. TOML
 // forbids defining a table twice, so the block cannot simply be appended with its own header. Managed keys set
 // elsewhere in that table, or as dotted keys (install.key = ...) outside it, are commented out with a note, every
-// line of the value. Values are followed across lines, so a line inside an array or a multi-line string is never
-// taken for a key or a header. A file with blocks in several tables names the table in each block's marker.
-import { blockStart, insertBlock, joinLines, removeBlock, splitLines, SUPERSEDED, TURNED_OFF } from './block.ts';
+// line of the value, and come back as they were once the policy no longer manages them. Values are followed across
+// lines, so a line inside an array or a multi-line string is never taken for a key or a header. A file with blocks
+// in several tables names the table in each block's marker.
+import { BLOCK_START, blockStart, commentedOut, insertBlock, joinLines, removeBlock, removeBlockAt, splitLines, SUPERSEDED, TURNED_OFF, type RemovedBlock } from './block.ts';
 
 const HEADER = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/u;
 
@@ -69,10 +70,86 @@ function valueEnd(lines: readonly string[], index: number): number {
   return end;
 }
 
+/** The table each line is in (undefined before the first table), following values over several lines. */
+function tablesOf(lines: readonly string[]): (string | undefined)[] {
+  const tables: (string | undefined)[] = [];
+  let current: string | undefined;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] ?? '';
+    const header = HEADER.exec(line);
+    if (header !== null) current = header[1];
+    tables[index] = current;
+    if (header === null && keyOf(line) !== undefined) {
+      const end = valueEnd(lines, index);
+      for (let next = index + 1; next <= end; next++) tables[next] = current;
+      index = end;
+    }
+  }
+  return tables;
+}
+
+/**
+ * Removes the block with this marker. A labeled block that is not there yet may have been written by an earlier
+ * version without the label: an unlabeled block inside the same table is then taken for it.
+ */
+function removeOwnBlock(lines: readonly string[], table: string, label: string | undefined): RemovedBlock {
+  const removed = removeBlock(lines, blockStart(label));
+  if (removed.at !== undefined || label === undefined) return removed;
+  const tables = tablesOf(lines);
+  const legacy = lines.findIndex((line, index) => line.trim() === BLOCK_START && (tables[index] ?? '') === table);
+  return legacy === -1 ? removed : removeBlockAt(lines, legacy);
+}
+
+/**
+ * Lines apply commented out in this table (and the dotted keys and subtables of it) come back as they were, every
+ * line of the value, when the policy no longer manages their key. Lines commented out in other tables stay.
+ */
+function restoreLines(lines: string[], table: string, isManaged: (key: string) => boolean): void {
+  const topLevel = table === '';
+  const prefix = topLevel ? '' : `${table}.`;
+  let current: string | undefined;
+  // After a header apply commented out: 'restored' when it came back, 'kept' when it stays commented out.
+  let section: 'table' | 'restored' | 'kept' = 'table';
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] ?? '';
+    const header = HEADER.exec(line);
+    if (header !== null) {
+      current = header[1];
+      section = 'table';
+      continue;
+    }
+    const original = commentedOut(line);
+    if (original === undefined) {
+      if (keyOf(line) !== undefined) index = valueEnd(lines, index);
+      continue;
+    }
+    const noted = HEADER.exec(original);
+    if (noted !== null) {
+      const name = noted[1] ?? '';
+      section = name.startsWith(prefix) && !isManaged(name.slice(prefix.length)) ? 'restored' : 'kept';
+      if (section === 'restored') lines[index] = original;
+      continue;
+    }
+    const key = keyOf(original);
+    if (key === undefined || section === 'kept') continue;
+    const dotted = !topLevel && current === undefined && key.startsWith(prefix);
+    const inTable = topLevel ? current === undefined : current === table;
+    if (section === 'table' && !((inTable && !isManaged(key)) || (dotted && !isManaged(key.slice(prefix.length))))) continue;
+    lines[index] = original;
+    // The other lines of the value were commented out with "# ".
+    let state = scanLine(original.slice(original.indexOf('=') + 1), { depth: 0, string: '' });
+    while ((state.depth > 0 || state.string !== '') && lines[index + 1]?.startsWith('# ') === true) {
+      index += 1;
+      lines[index] = (lines[index] ?? '').slice(2);
+      state = scanLine(lines[index] ?? '', state);
+    }
+  }
+}
+
 export function writeTomlBlock(body: string, table: string, entries: readonly string[], managedKeys: readonly string[], label?: string): string {
   const managed = new Set(managedKeys);
   const marker = blockStart(label);
-  const removed = removeBlock(splitLines(body), marker);
+  const removed = removeOwnBlock(splitLines(body), table, label);
   const lines = [...removed.lines];
   const topLevel = table === '';
   // A top-level block at the start of the file is followed by a blank line; drop it with the block.
@@ -85,6 +162,7 @@ export function writeTomlBlock(body: string, table: string, entries: readonly st
   let definedAtTop = false;
   // A managed key may also be written as a dotted key (key.sub = ...) or as a table of its own ([table.key]).
   const isManaged = (key: string) => managed.has(key) || [...managed].some((name) => key.startsWith(`${name}.`));
+  restoreLines(lines, table, isManaged);
   const prefix = topLevel ? '' : `${table}.`;
   const note = entries.length === 0 ? TURNED_OFF : SUPERSEDED;
   let inManagedTable = false;

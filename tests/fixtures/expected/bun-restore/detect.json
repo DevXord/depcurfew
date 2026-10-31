@@ -1,0 +1,40 @@
+{
+  "packageManagers": [
+    {
+      "id": "bun",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "bun.lock"
+        },
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        },
+        {
+          "kind": "config",
+          "file": "bunfig.toml"
+        }
+      ],
+      "versions": [
+        {
+          "version": "1.3.5",
+          "source": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": [
+        "bunfig.toml"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "warnings": []
+}

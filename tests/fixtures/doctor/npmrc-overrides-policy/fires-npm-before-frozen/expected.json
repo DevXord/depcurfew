@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".npmrc",
+      "line": 1
+    },
+    "message": "before=2020-01-01 in .npmrc takes the place of min-release-age (npm 11.19.1 uses before when both are set in the same file), so npm never installs a version published after 2020-01-01: that freezes dependencies, security fixes included, instead of a delay that moves with time",
+    "fix": "Remove the before line from .npmrc, so that min-release-age applies; for a one-off install from a fixed date, pass --before on the command line"
+  }
+]

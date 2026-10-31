@@ -112,6 +112,7 @@ export const pip: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, REQUIREMENTS_FORMAT, 'No workspaces.'),
   },
   extra: {
+    pylockCreatedBy: verified('pip', `${PIP}/src/pip/_internal/utils/pylock.py`, 'pip lock writes created-by = "pip".'),
     requirementsOptions: verified(
       [
         '-i', '--index-url', '--extra-index-url', '--no-index', '-c', '--constraint', '-r', '--requirement', '-e', '--editable',
@@ -148,9 +149,9 @@ export const pip: ToolKnowledge = {
       'Upload times exist only in the JSON form of the simple repository API (PEP 700); indexes that serve only HTML have none.',
     ),
     lockfileFormat: verified(
-      { packages: 'packages', vcs: 'vcs', directory: 'directory', archive: 'archive', sdist: 'sdist', wheels: 'wheels', index: 'index', sources: { git: 'vcs', remoteTarball: 'archive', directory: 'directory' } },
+      { packages: 'packages', vcs: 'vcs', directory: 'directory', archive: 'archive', sdist: 'sdist', wheels: 'wheels', index: 'index', createdBy: 'created-by', sources: { git: 'vcs', remoteTarball: 'archive', directory: 'directory' } },
       PYLOCK,
-      'Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed.',
+      'Each [[packages]] entry has exactly one of vcs (always built), directory (always built), archive (a source tree or wheel at a URL or path) or sdist and wheels from an index. A package with an sdist and no wheels is built when installed. A relative directory path is relative to the lock file. The required top-level created-by records the name of the tool that wrote the file, preferably its normalized Python package name.',
     ),
     requirementsForms: verified(
       'name==version with --hash options, name @ URL for an archive, a local archive or project path, and VCS URLs (name @ git+https://… or -e git+…)',
@@ -221,6 +222,34 @@ export const pip: ToolKnowledge = {
       },
       CMDOPTIONS,
       'index_group: --index-url (alias -i, --pypi-url) is the base URL of the package index, --extra-index-url adds indexes, --find-links (-f) adds an HTML page or a directory of archives. Every long option can be set as PIP_<UPPER_LONG_NAME>, dashes replaced by underscores (docs/html/topics/configuration.md); PIP_CONFIG_FILE names a configuration file loaded last, which may set any index. Requirements files may set --index-url, --extra-index-url and --find-links too (req/req_file.py).',
+    ),
+    selection: verified(
+      {
+        prereleases: {
+          onFlags: ['--pre'],
+          onLists: ['--all-releases'],
+          offLists: ['--only-final'],
+          flagVariables: ['PIP_PRE'],
+          onListVariables: ['PIP_ALL_RELEASES'],
+          offListVariables: ['PIP_ONLY_FINAL'],
+        },
+        buildFromSource: {
+          onLists: ['--no-binary'],
+          offLists: ['--only-binary'],
+          onListVariables: ['PIP_NO_BINARY'],
+          offListVariables: ['PIP_ONLY_BINARY'],
+        },
+      },
+      CMDOPTIONS,
+      '--pre includes pre-release and development versions (pip only finds stable versions by default) and stands for --all-releases :all:; --all-releases and --only-final take :all:, :none: or package names separated by commas and allow or forbid pre-releases of those packages (models/release_control.py, allows_prereleases: a named package first, then :all:). --no-binary and --only-binary take the same lists: --no-binary keeps pip from using wheels, so the package is built from source, --only-binary from using source distributions (models/format_control.py, handle_mutual_excludes and get_allowed_formats). Each long option can also be set as PIP_<NAME> (docs/html/topics/configuration.md), which the command line overrides.',
+    ),
+    pipxSelection: verified(
+      {
+        prereleases: { flagVariables: ['PIP_PRE'], onListVariables: ['PIP_ALL_RELEASES'], offListVariables: ['PIP_ONLY_FINAL'] },
+        buildFromSource: { onListVariables: ['PIP_NO_BINARY'], offListVariables: ['PIP_ONLY_BINARY'] },
+      },
+      `${PIPX}/docs/reference/environment-variables.rst`,
+      'pipx forwards the standard PIP_* variables to pip (except PIP_USER, PIP_DISABLE_PIP_VERSION_CHECK, PIP_TARGET and PIP_KEYRING_PROVIDER); the uv backend ignores them (docs/how-to/use-private-index.rst). pipx has no option of its own for pre-releases or source builds; --pip-args may carry them.',
     ),
     pipxCommandLine: verified(
       {

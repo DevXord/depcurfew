@@ -33,6 +33,16 @@ function page(body: object): FetchLike {
   return async () => new Response(JSON.stringify({ name: 'demo', meta: { 'api-version': '1.4' }, ...body }), { status: 200 });
 }
 
+/** An old final release with a wheel and a source distribution, and a newer pre-release. */
+const WITH_PRERELEASE = {
+  versions: ['1.0', '2.0rc1'],
+  files: [
+    { filename: 'demo-1.0-py3-none-any.whl', 'upload-time': '2024-01-01T00:00:00Z', yanked: false },
+    { filename: 'demo-1.0.tar.gz', 'upload-time': '2024-01-01T00:00:00Z', yanked: false },
+    { filename: 'demo-2.0rc1-py3-none-any.whl', 'upload-time': '2024-06-01T00:00:00Z', yanked: false },
+  ],
+};
+
 describe('depcurfew check on pypi: packages', () => {
   it('passes an old package with wheels', async () => {
     const report = await checkSpec('pypi:requests', options());
@@ -81,6 +91,41 @@ describe('depcurfew check on pypi: packages', () => {
     expect((await checkSpec('pypi:python-dateutil', options({ policy: excluded }))).findings).toEqual([]);
     const npmName = policy({ cooldown: { minimum: '14d', exclude: ['python-dateutil'] } });
     expect(codes((await checkSpec('pypi:python-dateutil', options({ policy: npmName }))).findings)).toEqual(['error:too-young']);
+  });
+
+  it('compares the names of the policy after normalization, as doctor does', async () => {
+    const excluded = policy({ cooldown: { minimum: '14d', exclude: ['pypi:Python_DateUtil'] } });
+    expect((await checkSpec('pypi:python-dateutil', options({ policy: excluded }))).findings).toEqual([]);
+    const allowed = policy({ installScripts: { default: 'deny', allow: ['pypi:PyCrypto'] } });
+    expect((await checkSpec('pypi:pycrypto', options({ policy: allowed }))).findings).toEqual([]);
+    const glob = policy({ installScripts: { default: 'deny', allow: ['pypi:Py_Crypto*'] } });
+    expect((await checkSpec('pypi:py.crypto-extra', options({ policy: glob, fetch: page(WITH_PRERELEASE) }))).findings).toEqual([]);
+  });
+
+  it('picks a pre-release when the command allows them, and never one when it forbids them', async () => {
+    const lenient = policy({});
+    expect((await checkSpec('pypi:demo', options({ policy: lenient, fetch: page(WITH_PRERELEASE) }))).version).toBe('1.0');
+    const allowed = await checkSpec({ spec: 'pypi:demo', prereleases: 'allow' }, options({ policy: lenient, fetch: page(WITH_PRERELEASE) }));
+    expect(allowed).toMatchObject({ version: '2.0rc1', prereleases: 'allow' });
+    const denied = await checkSpec({ spec: 'pypi:demo==2.0rc1', prereleases: 'deny' }, options({ policy: lenient, fetch: page(WITH_PRERELEASE) }));
+    expect(codes(denied.findings)).toEqual(['error:no-version']);
+  });
+
+  it('treats a package the command builds from source like one without wheels', async () => {
+    const strict = policy({ installScripts: { default: 'deny' } });
+    expect((await checkSpec('pypi:demo', options({ policy: strict, fetch: page(WITH_PRERELEASE) }))).findings).toEqual([]);
+    const built = await checkSpec({ spec: 'pypi:demo', buildFromSource: true }, options({ policy: strict, fetch: page(WITH_PRERELEASE) }));
+    expect(codes(built.findings)).toEqual(['error:install-scripts']);
+    expect(built.findings[0]?.message).toBe(
+      'pypi:demo 1.0 is built from its source distribution, because the command refuses wheels (no-binary), and runs its build code, which depcurfew.json does not allow (installScripts)',
+    );
+    expect(built.buildFromSource).toBe(true);
+  });
+
+  it('does not follow an index that redirects to another host', async () => {
+    const fetch: FetchLike = async () => new Response(null, { status: 302, headers: { location: 'https://evil.example/simple/requests/' } });
+    const report = await checkSpec('pypi:requests', options({ fetch }));
+    expect(report.findings.at(-1)?.message).toBe('it cannot be checked: the index redirected to https://evil.example, another host, which depcurfew does not follow: that host could answer for any package');
   });
 
   it('warns about a pinned yanked version, and leaves yanked versions out otherwise', async () => {
