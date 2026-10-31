@@ -138,6 +138,7 @@ export const pip: ToolKnowledge = {
                 file: 'pip.ini',
               },
             ],
+            sections: ['global', 'install', 'download', 'wheel', 'lock', 'index', 'list'],
           },
         },
         {
@@ -171,7 +172,7 @@ export const pip: ToolKnowledge = {
         },
       ],
       `${CONFIGURATION}#location`,
-      'The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir("pip") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, "which respects the XDG_CONFIG_HOME environment variable" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py: _macos_user_config_dir takes platformdirs user_data_dir when os.path.isdir); since 26.2 that user_data_dir is $XDG_DATA_HOME/pip when XDG_DATA_HOME is not empty after stripping spaces, so with XDG_DATA_HOME set the Library directory is skipped and ~/.config/pip is used unless $XDG_DATA_HOME/pip exists (XDGMixin in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2; src/pip/_vendor/vendor.txt names platformdirs 4.10.0 in 26.2 and 4.5.1 in 26.1.1, whose macos.py has no XDG handling). Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked.',
+      'The user file is pip.conf (pip.ini on Windows) in appdirs.user_config_dir("pip") (configuration.py), written in INI with [global] and per-command sections. Linux: $HOME/.config/pip/pip.conf, "which respects the XDG_CONFIG_HOME environment variable" (used when it is not empty after stripping spaces, vendored platformdirs _xdg.py). macOS: ~/Library/Application Support/pip when that directory exists, else ~/.config/pip, where XDG_CONFIG_HOME is not used (utils/appdirs.py: _macos_user_config_dir takes platformdirs user_data_dir when os.path.isdir); since 26.2 that user_data_dir is $XDG_DATA_HOME/pip when XDG_DATA_HOME is not empty after stripping spaces, so with XDG_DATA_HOME set the Library directory is skipped and ~/.config/pip is used unless $XDG_DATA_HOME/pip exists (XDGMixin in src/pip/_vendor/platformdirs/_xdg.py at 26.2.2; src/pip/_vendor/vendor.txt names platformdirs 4.10.0 in 26.2 and 4.5.1 in 26.1.1, whose macos.py has no XDG handling). Windows: %APPDATA%\\pip\\pip.ini; platformdirs asks Windows for the Roaming AppData known folder, which APPDATA normally names. The legacy ~/.pip/pip.conf (%HOME%\\pip\\pip.ini) is loaded as well, below this file. Same path code in 25.0; earlier versions are not tracked. A command reads [global] and the section named after itself, which wins key by key (override_order ["global", self.name, ":env:"] in cli/parser.py); the options doctor --user checks (index_group and package_selection_group in cli/cmdoptions.py) belong to install, download, wheel, lock, index and list (src/pip/_internal/commands at 26.2.2).',
     ),
     settings: user.verified(
       [

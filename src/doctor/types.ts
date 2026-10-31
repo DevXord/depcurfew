@@ -11,6 +11,8 @@ export interface Location {
   file: string;
   /** 1-based; absent when the finding concerns the whole file. */
   line?: number;
+  /** doctor --user: the environment variable, as it is set, of a finding whose file is "environment". */
+  variable?: string;
 }
 
 export interface Finding {

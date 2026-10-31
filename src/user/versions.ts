@@ -1,6 +1,7 @@
 // The installed version of a tool, read from files next to its executable (decision D-087): depcurfew never runs
-// another program. A tool installed from npm has a package.json whose `bin` names the executable; one installed from
-// PyPI has a .dist-info folder whose entry points or RECORD name it. Anything else stays unknown.
+// another program. A tool installed from npm has a package.json of its own package (not corepack's) whose `bin` names
+// the executable; one installed from PyPI has a .dist-info folder whose entry points or RECORD name it. Anything else
+// stays unknown.
 import { readdirSync, realpathSync, statSync } from 'node:fs';
 import { posix, win32 } from 'node:path';
 import { parseVersion, type Version } from '../apply/version.ts';
@@ -61,8 +62,12 @@ function versionOf(text: string | undefined, file: string): InstalledVersion | u
   return version === undefined ? undefined : { version, text, file };
 }
 
-/** A package.json whose bin field names `name`. */
-function packageVersion(file: string, name: string): InstalledVersion | undefined {
+/**
+ * A package.json whose bin field names `name`: the version when it is the tool's own package (named like the tool,
+ * or in the tool's scope, such as @pnpm/exe), null when another package declares the executable (corepack's shims
+ * for pnpm and yarn), undefined when it does not declare it.
+ */
+function packageVersion(file: string, name: string): InstalledVersion | null | undefined {
   const text = readSmall(file);
   if (text === undefined) return undefined;
   let manifest: unknown;
@@ -74,18 +79,22 @@ function packageVersion(file: string, name: string): InstalledVersion | undefine
   if (typeof manifest !== 'object' || manifest === null) return undefined;
   const { bin, name: packageName, version } = manifest as Record<string, unknown>;
   const names = typeof bin === 'string' ? [typeof packageName === 'string' ? packageName.replace(/^@[^/]+\//u, '') : ''] : typeof bin === 'object' && bin !== null ? Object.keys(bin) : [];
-  return names.includes(name) && typeof version === 'string' ? versionOf(version, file) : undefined;
+  if (!names.includes(name)) return undefined;
+  const own = packageName === name || (typeof packageName === 'string' && packageName.startsWith(`@${name}/`));
+  if (!own || typeof version !== 'string') return null;
+  return versionOf(version, file) ?? null;
 }
 
 function fromNpm(executable: string, real: string, name: string, module: typeof posix): InstalledVersion | undefined {
-  // Through the symlink npm creates: walk up from the real file to the package that declares the executable.
+  // Through the symlink npm creates: walk up from the real file to the package that declares the executable. The
+  // first one decides: when it is another package (corepack), the version of the tool it runs is not on disk.
   for (let directory = module.dirname(real), depth = 0; depth < 6; directory = module.dirname(directory), depth += 1) {
     const found = packageVersion(module.join(directory, 'package.json'), name);
-    if (found !== undefined) return found;
+    if (found !== undefined) return found ?? undefined;
     if (module.dirname(directory) === directory) break;
   }
   // A Windows shim (npm.cmd) sits in the prefix next to node_modules.
-  return packageVersion(module.join(module.dirname(executable), 'node_modules', name, 'package.json'), name);
+  return packageVersion(module.join(module.dirname(executable), 'node_modules', name, 'package.json'), name) ?? undefined;
 }
 
 const normalized = (name: string) => name.toLowerCase().replace(/[-_.]+/gu, '_');

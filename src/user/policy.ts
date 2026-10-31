@@ -15,6 +15,14 @@ export interface UserPolicy {
   shown: string;
 }
 
+/** What to do about a user policy that cannot be used, naming it as messages show it. */
+export function userPolicyFix(error: PolicyError, shown: string): string {
+  if (error.fix !== undefined) return error.fix;
+  return error.code === 'policy-unreadable'
+    ? `Make ${shown} a regular file of at most 1 MiB that the user running depcurfew can read, or write a new one with depcurfew init --user --force`
+    : `Fix these problems in ${shown}; an editor that reads its $schema shows them as you type`;
+}
+
 /** The user policy; PolicyError when it is missing, unreadable or invalid, as for a project policy. */
 export function loadUserPolicy(environment: UserEnvironment): UserPolicy {
   const path = userPolicyPath(environment);

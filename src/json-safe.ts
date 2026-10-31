@@ -8,6 +8,6 @@
 const UNSAFE = /[\u0080-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/gu;
 
 /** JSON.stringify(value, null, space) with the characters above escaped; they can only stand inside strings. */
-export function safeJson(value: unknown, space?: number): string {
+export function safeJson(value: unknown, space?: string | number): string {
   return (JSON.stringify(value, null, space) ?? 'null').replace(UNSAFE, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }

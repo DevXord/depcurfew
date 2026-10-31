@@ -177,11 +177,12 @@ export const npm: ToolKnowledge = {
               { platforms: ['linux', 'darwin'], directories: [{ from: 'home', path: '' }], file: '.npmrc' },
               { platforms: ['win32'], directories: [{ from: { env: 'HOME', absolute: true }, path: '' }, { from: 'home', path: '' }], file: '.npmrc' },
             ],
+            sections: [''],
           },
         },
       ],
       `${NPM_CONFIG_LIB}/index.js`,
-      'userconfig defaults to ~/.npmrc ("The location of user-level configuration settings. This may be overridden by the npm_config_userconfig environment variable or the --userconfig command line option"); ~ is resolved against `this.env.HOME || homedir()`. Same in 11.21.1. The project .npmrc is loaded first and may set userconfig= itself.',
+      'userconfig defaults to ~/.npmrc ("The location of user-level configuration settings. This may be overridden by the npm_config_userconfig environment variable or the --userconfig command line option"); ~ is resolved against `this.env.HOME || homedir()`. Same in 11.21.1. The project .npmrc is loaded first and may set userconfig= itself. Only the keys above the first [section] header are settings (extra.npmrcFormat).',
     ),
     settings: user.verified(
       [
@@ -214,16 +215,21 @@ export const npm: ToolKnowledge = {
     ),
     variables: user.verified(
       [
-        { name: 'npm_config_userconfig', anyCase: true, values: 'any', effect: 'makes npm read another user file' },
+        { name: 'npm_config_userconfig', anyCase: true, values: 'any', effect: 'makes npm read another user file', defaultPath: '.npmrc' },
         { name: 'npm_config_min_release_age', anyCase: true, values: 'any', effect: 'overrides min-release-age in every .npmrc' },
         { name: 'npm_config_dangerously_allow_all_scripts', anyCase: true, values: ['true'], effect: 'runs every dependency install script' },
         { name: 'npm_config_before', anyCase: true, values: 'any', effect: 'takes the place of min-release-age' },
       ],
       `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`,
-      'Environment variables starting with npm_config_ are interpreted as configuration parameters; config values are case-insensitive, so NPM_CONFIG_FOO=bar works the same.',
+      'Environment variables starting with npm_config_ are interpreted as configuration parameters; config values are case-insensitive, so NPM_CONFIG_FOO=bar works the same. loadEnv in workspaces/config/lib/index.js (11.21.1 and 12.2.1) skips variables whose value is empty and reads them in the order of the environment, so of two spellings the later one wins. userconfig defaults to ~/.npmrc (definitions.js), and npm exports the resolved path as npm_config_userconfig to every command it runs (see extra.childEnvironment), so that value names the default file.',
     ),
   },
   extra: {
+    childEnvironment: user.verified(
+      { marker: 'npm_execpath', prefix: 'npm_config_' },
+      'https://github.com/npm/cli/blob/v11.21.1/workspaces/config/lib/set-envs.js',
+      'setEnvs gives the scripts and commands npm runs (npm run, npx, npm exec) every setting that is not its default as npm_config_<key> in lower case with - as _, whichever file or flag set it, unless the definition has envExport: false (allow-scripts, min-release-age and min-release-age-exclude in 11.21.1 and 12.2.1); keys npm does not know, such as pnpm keys in .npmrc, are exported too. userconfig is always exported, because its default is the literal ~/.npmrc and the value the resolved path. It also sets npm_execpath to the npm it runs. The same in 10.9.4 and 12.2.1 (12.x and 11.x also export npm_config_node_gyp and npm_config_npm_version).',
+    ),
     denyList: user.verified(
       { file: 'package.json', setting: 'allowScripts', value: false, since: '11.16.0' },
       'https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/unreviewed-scripts.js',

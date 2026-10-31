@@ -156,6 +156,10 @@ export interface UserLocation {
 export interface UserFile {
   format: 'ini' | 'yaml' | 'toml';
   locations: readonly UserLocation[];
+  /** INI only: the [sections] whose keys the tool reads, '' for the keys above the first header; absent: every key. */
+  sections?: readonly string[];
+  /** Other user-level files this version reads the same settings from, whose keys win over this file's. */
+  overriddenBy?: readonly UserFile[];
 }
 
 /** What depcurfew writes with a user-level setting. */
@@ -199,6 +203,12 @@ export interface UserVariable {
   /** 'any' when every value matters, else the values that weaken. */
   values: 'any' | readonly string[];
   effect: string;
+  /** First version that reads the variable; every version when absent. */
+  since?: string;
+  /** First version that no longer reads it. */
+  until?: string;
+  /** The file the tool reads when the variable is unset, from the home directory (~/.npmrc): naming it changes nothing. */
+  defaultPath?: string;
 }
 
 /** The tool's user-level configuration, for `depcurfew apply --user` and `doctor --user`. */

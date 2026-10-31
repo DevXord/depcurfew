@@ -15,6 +15,8 @@ const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
 const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor: string, version: string) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll('.', '')}`;
 const user = verifiedOn('2026-10-31');
+/** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
+const TRUE_VALUES = ['1', 'true', 't', 'yes', 'y', 'on'];
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -169,22 +171,27 @@ export const uv: ToolKnowledge = {
         { key: 'no-binary-package', values: 'any', effect: 'adds these packages to the build allow-list of every project (lists are concatenated)' },
         { key: 'no-build', values: [false], effect: 'makes uv ignore the no-build-package list of every project that does not set no-build itself' },
         { key: 'exclude-newer', values: [false], effect: 'turns the release-age delay off for uvx, uv tool and every project without its own exclude-newer' },
+        { key: 'no-binary', values: [true], effect: 'installs every package from source in every project that does not set no-binary itself' },
+        { key: 'pip.exclude-newer', values: [false], effect: 'turns the release-age delay off for uv pip commands, over the top-level exclude-newer' },
+        { key: 'pip.exclude-newer-package', values: 'any', effect: 'sets the delay of these packages (false exempts them) for uv pip commands' },
+        { key: 'pip.no-build', values: [false], effect: 'lets uv pip commands build source distributions, over the top-level no-build' },
+        { key: 'pip.no-binary', values: 'any', effect: 'builds these packages from source in uv pip commands (:all: every package)' },
       ],
       `${UV}/crates/uv-settings/src/combine.rs`,
-      'Tables are merged with the project keys winning, lists are extended and scalars come from the project when it sets them (combine.rs); with no-build = false, NoBuild::from_args ignores the package list (crates/uv-configuration/src/build_options.rs). exclude-newer = false (since 0.11.24) turns off a value from a lower-priority source, the system file included. Read from the code, not run: a [pip] exclude-newer in the user file is combined above the top-level keys for uv pip, so it can override a project exclude-newer there, and a user [[index]] with exclude-newer = false (preview, 0.11.5) exempts the packages of that index.',
+      'Tables are merged with the project keys winning, lists are extended and scalars come from the project when it sets them (combine.rs); with no-build = false, NoBuild::from_args ignores the package list (crates/uv-configuration/src/build_options.rs). exclude-newer = false (since 0.11.24) turns off a value from a lower-priority source, the system file included. Read from the code, not run: a [pip] exclude-newer in the user file is combined above the top-level keys for uv pip, so it can override a project exclude-newer there, and a user [[index]] with exclude-newer = false (preview, 0.11.5) exempts the packages of that index. The [pip] table configures "just the uv pip command line interface", and its settings win over the top-level ones there ("many of the settings in this section have corollaries in the top-level namespace which do apply to the uv pip interface unless they are overridden by a value in the uv.pip section", docs/concepts/configuration-files.md); PipOptions has exclude-newer (false disables it), exclude-newer-package, no-build and no-binary (a list, :all: for every package), and the top level no-binary = true builds every package from source (settings.rs).',
     ),
     variables: user.verified(
       [
         { name: 'UV_EXCLUDE_NEWER', values: 'any', effect: 'overrides exclude-newer from every file; false turns the delay off' },
-        { name: 'UV_NO_BUILD', values: 'any', effect: 'overrides no-build from every file' },
+        { name: 'UV_NO_BUILD', values: TRUE_VALUES, effect: 'forbids every source build, like --no-build, also of the packages the build allow-list needs built' },
         { name: 'UV_NO_BUILD_PACKAGE', values: 'any', effect: 'sets no-build-package for every command, like --no-build-package' },
-        { name: 'UV_NO_BINARY', values: 'any', effect: 'installs every package from source, like --no-binary' },
+        { name: 'UV_NO_BINARY', values: TRUE_VALUES, effect: 'installs every package from source, like --no-binary' },
         { name: 'UV_NO_BINARY_PACKAGE', values: 'any', effect: 'builds these packages from source, like --no-binary-package' },
-        { name: 'UV_NO_CONFIG', values: 'any', effect: 'makes uv read no configuration file from the project, its parents or the user directory' },
+        { name: 'UV_NO_CONFIG', values: TRUE_VALUES, effect: 'makes uv read no configuration file from the project, its parents or the user directory' },
         { name: 'UV_CONFIG_FILE', values: 'any', effect: 'makes uv read this file in place of every discovered one, so the user uv.toml is ignored' },
       ],
       `${UV}/crates/uv-static/src/env_vars.rs`,
-      '"Settings provided via environment variables take precedence over persistent configuration, and settings provided via the command line take precedence over both" (docs/concepts/configuration-files.md). UV_NO_BUILD_PACKAGE since 0.6.5, UV_NO_BINARY and UV_NO_BINARY_PACKAGE since 0.5.30 (lists separated by spaces), UV_NO_CONFIG since 0.2.30, UV_CONFIG_FILE since 0.1.34. XDG_CONFIG_HOME and APPDATA move the user directory (see files).',
+      '"Settings provided via environment variables take precedence over persistent configuration, and settings provided via the command line take precedence over both" (docs/concepts/configuration-files.md). UV_NO_BUILD_PACKAGE since 0.6.5, UV_NO_BINARY and UV_NO_BINARY_PACKAGE since 0.5.30 (lists separated by spaces), UV_NO_CONFIG since 0.2.30, UV_CONFIG_FILE since 0.1.34. UV_NO_BUILD, UV_NO_BINARY and UV_NO_CONFIG are flags parsed with the BoolishValueParser of clap (crates/uv-cli/src/lib.rs), whose true values are y, yes, t, true, on and 1 and false values n, no, f, false, off and 0, in any case (https://github.com/clap-rs/clap/blob/v4.6.7/clap_builder/src/util/str_to_bool.rs, the clap_builder version in the Cargo.lock of uv); a false value leaves the flag unset (flag() in crates/uv-cli/src/options.rs gives None), so the files decide (with UV_NO_BUILD=0 uv 0.11.32 still refused to build in a review test on 2026-10-31). XDG_CONFIG_HOME and APPDATA move the user directory (see files).',
     ),
   },
   extra: {

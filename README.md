@@ -232,6 +232,22 @@ depcurfew doctor --user
 ### doctor --user rules
 
 <!-- BEGIN GENERATED: user-rules -->
+### `user-policy-invalid`
+
+**error** · The user policy does not follow the schema or cannot be read.
+
+Without a valid user policy (~/.config/depcurfew/depcurfew.json), doctor --user cannot compare the user-level configuration with it, so only the checks that need no user policy run, as when there is none.
+
+Fix: Fix what the message lists, or write a new user policy with depcurfew init --user --force.
+
+### `user-config-unreadable`
+
+**error** · A user-level configuration file cannot be read, parsed or edited, so depcurfew cannot check it.
+
+The package manager may still read the file (or stop on it), and its settings may weaken every project on the machine; doctor --user fails closed and reports an error instead of passing silently.
+
+Fix: Fix what the message describes: invalid syntax, missing read permission, a symlink apply --user does not write through, or a file over 1 MiB.
+
 ### `user-config-drift`
 
 **warning** · needs depcurfew.json · A user-level configuration file does not match the user policy.
@@ -244,7 +260,7 @@ Fix: Run depcurfew apply --user.
 
 **warning** · A user-level configuration file has a value that weakens every project that does not set it itself.
 
-Settings in the user-level configuration apply to every project that does not set the same key, and some apply even then (lists that tools merge across files). A value that turns the release-age delay off, exempts packages or allows install scripts or git dependencies there weakens all of them at once.
+Settings in the user-level configuration apply to every project that does not set the same key, and some apply even then (lists that tools merge across files). A value that turns the release-age delay off, exempts packages or allows install scripts or git dependencies there weakens all of them at once, and so does a file the tool reads ahead of the user file.
 
 Fix: Remove the value from the file, or set it in the policy and run depcurfew apply --user.
 
