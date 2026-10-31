@@ -9,13 +9,14 @@ import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { RULES } from './rules/index.ts';
 import { UNREADABLE_WARNINGS, unreadableConfig } from './rules/unreadable-config.ts';
-import type { DoctorReport, Finding, Notice, Rule } from './types.ts';
+import type { Detection } from '../detect/types.ts';
+import type { Checked, DoctorReport, Finding, Notice, Rule } from './types.ts';
 
-export type { DoctorReport, Finding, Level, Location, Notice, Rule } from './types.ts';
+export type { Checked, CheckedTool, DoctorReport, Finding, Level, Location, Notice, Rule } from './types.ts';
 export { RULES } from './rules/index.ts';
 export { countLevels, renderText } from './render.ts';
 export { toSarif } from './sarif.ts';
-export { annotationCommands, failureSummary, jobSummary } from './github.ts';
+export { annotationCommands, cleanNotice, failureSummary, jobSummary } from './github.ts';
 
 const LEVEL_ORDER = { error: 0, warning: 1, note: 2 } as const;
 
@@ -68,5 +69,43 @@ export function runDoctor(
   for (const warning of repository.warnings) {
     if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
   }
-  return { schemaVersion: 1, policy: invalid ? 'invalid' : policy === undefined ? 'missing' : 'valid', findings: findings.sort(byLocation), notices };
+  const ran = rules.filter((rule) => !(rule.requiresPolicy && policy === undefined));
+  return {
+    schemaVersion: 1,
+    policy: invalid ? 'invalid' : policy === undefined ? 'missing' : 'valid',
+    findings: findings.sort(byLocation),
+    notices,
+    checked: {
+      ...checkedOf(detection, repository, tools, policy !== undefined || invalid),
+      rules: ran.map((rule) => rule.id),
+      skippedRules: rules.filter((rule) => !ran.includes(rule)).map((rule) => rule.id),
+      policyFile: POLICY_FILE,
+    },
+  };
+}
+
+/** The tools found and the files read by detection and the rules, for the log of what doctor checked. */
+function checkedOf(detection: Detection, repository: Repository, tools: readonly ToolKnowledge[], policyRead: boolean): Pick<Checked, 'tools' | 'files'> {
+  const name = (id: string) => tools.find((tool) => tool.id === id)?.name ?? id;
+  const found: Checked['tools'] = [
+    ...detection.packageManagers
+      .filter((manager) => manager.supported)
+      .map((manager) => {
+        const declared = manager.versions.find((declaration) => 'version' in declaration);
+        return {
+          id: manager.id,
+          name: name(manager.id),
+          ...(declared === undefined || !('version' in declared) ? {} : { version: declared.version, versionFrom: declared.file }),
+        };
+      }),
+    ...detection.bots.map((bot) => ({ id: bot.id, name: name(bot.id) })),
+  ];
+  const files = new Set<string>(repository.read);
+  for (const manager of detection.packageManagers) {
+    for (const file of [...manager.evidence.map((evidence) => evidence.file), ...manager.configFiles, ...manager.versions.map((declaration) => declaration.file)]) files.add(file);
+  }
+  for (const file of [...detection.bots.flatMap((bot) => bot.configFiles), ...detection.npmrcFiles, ...detection.workflows]) files.add(file);
+  for (const declaration of detection.workspaces?.declarations ?? []) files.add(declaration.file);
+  if (policyRead) files.add(POLICY_FILE);
+  return { tools: found, files: [...files].filter((file) => file !== '' && repository.isFile(file)).sort() };
 }

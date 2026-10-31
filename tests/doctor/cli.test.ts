@@ -51,6 +51,14 @@ describe('depcurfew doctor', () => {
     const result = await exec('doctor', CLEAN);
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout.startsWith('No problems found.\n')).toBe(true);
+    // A clean report says what it covered, so it cannot be mistaken for a run that checked nothing.
+    // This fixture has no depcurfew.json, so the rules that compare with one are named as not run.
+    expect(result.stdout).toMatch(/\n\nChecked: .+\nFiles read: .*\.github\/dependabot\.yml.*\nRules: \d+ ran; \d+ more need depcurfew\.json and did not run\n$/u);
+    const json = JSON.parse((await exec('doctor', '--json', CLEAN)).stdout) as { checked: { tools: unknown[]; files: string[]; rules: string[]; skippedRules: string[]; policyFile: string } };
+    expect(json.checked.files).toContain('.github/dependabot.yml');
+    expect(json.checked.rules.length).toBeGreaterThan(0);
+    expect(json.checked.skippedRules).toContain('config-drift');
+    expect(json.checked.policyFile).toBe('depcurfew.json');
   });
 
   it('--json prints the report with a summary', async () => {

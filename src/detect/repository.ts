@@ -28,6 +28,8 @@ const MISSING = new Set(['ENOENT', 'ENOTDIR']);
 export class Repository {
   readonly root: string;
   readonly warnings: DetectionWarning[] = [];
+  /** Repository-relative paths of the files that were read, for the log of what doctor checked. */
+  readonly read = new Set<string>();
   readonly #warned = new Set<string>();
   readonly #parsed = new Map<(text: string) => unknown, Map<string, unknown>>();
 
@@ -100,6 +102,7 @@ export class Repository {
       this.#unreadable(path, error);
       return undefined;
     }
+    this.read.add(path);
     return text.startsWith('﻿') ? text.slice(1) : text;
   }
 
@@ -116,7 +119,9 @@ export class Repository {
       return undefined;
     }
     try {
-      return buffer.subarray(0, readSync(descriptor, buffer, 0, bytes, 0)).toString('utf8');
+      const head = buffer.subarray(0, readSync(descriptor, buffer, 0, bytes, 0)).toString('utf8');
+      this.read.add(path);
+      return head;
     } finally {
       closeSync(descriptor);
     }

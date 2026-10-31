@@ -2,7 +2,7 @@
 // repository, so control characters in them are shown as visible text (printable) before colors are added.
 import { PLAIN, type Paint } from '../color.ts';
 import { printable } from '../printable.ts';
-import type { DoctorReport, Finding, Level, Rule } from './types.ts';
+import type { Checked, CheckedTool, DoctorReport, Finding, Level, Rule } from './types.ts';
 
 export function countLevels(findings: readonly Finding[]): Record<'error' | 'warning' | 'note', number> {
   const counts = { error: 0, warning: 0, note: 0 };
@@ -17,6 +17,22 @@ function plural(count: number, word: string): string {
 function levelColor(level: Level, colors: Paint): (text: string) => string {
   if (level === 'error') return (text) => colors.bold(colors.red(text));
   return level === 'warning' ? colors.yellow : colors.cyan;
+}
+
+/** A tool as the log of what was checked names it: npm 11.21.1 (package.json). */
+export function checkedTool(tool: CheckedTool): string {
+  if (tool.version === undefined) return tool.name;
+  return `${tool.name} ${tool.version}${tool.versionFrom === undefined ? '' : ` (${tool.versionFrom})`}`;
+}
+
+/** The lines below the result that say what doctor checked: tools, files read and rules, so a clean report is not mistaken for one that did nothing. */
+export function checkedLines(checked: Checked): string[] {
+  const skipped = checked.skippedRules.length === 0 ? '' : `; ${checked.skippedRules.length} more need ${checked.policyFile} and did not run`;
+  return [
+    `Checked: ${checked.tools.length === 0 ? 'no package manager or bot found' : checked.tools.map(checkedTool).join(', ')}`,
+    `Files read: ${checked.files.length === 0 ? 'none' : checked.files.join(', ')}`,
+    `Rules: ${checked.rules.length} ran${skipped}`,
+  ];
 }
 
 export function renderText(report: DoctorReport, rules: readonly Rule[], colors: Paint = PLAIN): string {
@@ -42,5 +58,6 @@ export function renderText(report: DoctorReport, rules: readonly Rule[], colors:
   if (report.notices.length > 0) {
     lines.push('', colors.bold('Notes:'), ...report.notices.map((notice) => `  ${printable(notice.message)}`));
   }
+  if (report.checked !== undefined) lines.push('', ...checkedLines(report.checked).map((line) => colors.dim(printable(line))));
   return `${lines.join('\n')}\n`;
 }

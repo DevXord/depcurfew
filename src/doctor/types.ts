@@ -57,10 +57,34 @@ export interface Rule {
   check(context: RuleContext): void;
 }
 
+/** A package manager or bot doctor checked, with the version it checked against when one is known. */
+export interface CheckedTool {
+  id: string;
+  name: string;
+  version?: string;
+  /** Where the version comes from: a repository file, or PATH for doctor --user. */
+  versionFrom?: string;
+}
+
+/** What doctor looked at, shown below the result, so that a clean report says what it covers. */
+export interface Checked {
+  tools: CheckedTool[];
+  /** Files that were read, repository-relative (doctor) or as shown (~/.npmrc, doctor --user). */
+  files: string[];
+  /** Rules that ran. */
+  rules: string[];
+  /** Rules that did not run because they compare with a policy and there is none (or it is invalid). */
+  skippedRules: string[];
+  /** The policy those rules need, as messages show it. */
+  policyFile: string;
+}
+
 export interface DoctorReport {
   schemaVersion: 1;
   /** invalid: depcurfew.json does not follow the schema or cannot be read (only with invalidPolicy: 'report'). */
   policy: 'valid' | 'missing' | 'invalid';
   findings: Finding[];
   notices: Notice[];
+  /** What was checked. */
+  checked?: Checked;
 }

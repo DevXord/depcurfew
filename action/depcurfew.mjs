@@ -4951,6 +4951,8 @@ const MISSING = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 var Repository = class {
 	root;
 	warnings = [];
+	/** Repository-relative paths of the files that were read, for the log of what doctor checked. */
+	read = /* @__PURE__ */ new Set();
 	#warned = /* @__PURE__ */ new Set();
 	#parsed = /* @__PURE__ */ new Map();
 	constructor(root) {
@@ -5019,6 +5021,7 @@ var Repository = class {
 			this.#unreadable(path, error);
 			return;
 		}
+		this.read.add(path);
 		return text.startsWith("﻿") ? text.slice(1) : text;
 	}
 	/** The first bytes of a file, e.g. to recognize a lockfile format without reading a large file. */
@@ -5034,7 +5037,9 @@ var Repository = class {
 			return;
 		}
 		try {
-			return buffer.subarray(0, readSync(descriptor, buffer, 0, bytes, 0)).toString("utf8");
+			const head = buffer.subarray(0, readSync(descriptor, buffer, 0, bytes, 0)).toString("utf8");
+			this.read.add(path);
+			return head;
 		} finally {
 			closeSync(descriptor);
 		}
@@ -21592,6 +21597,20 @@ function levelColor(level, colors) {
 	if (level === "error") return (text) => colors.bold(colors.red(text));
 	return level === "warning" ? colors.yellow : colors.cyan;
 }
+/** A tool as the log of what was checked names it: npm 11.21.1 (package.json). */
+function checkedTool(tool) {
+	if (tool.version === void 0) return tool.name;
+	return `${tool.name} ${tool.version}${tool.versionFrom === void 0 ? "" : ` (${tool.versionFrom})`}`;
+}
+/** The lines below the result that say what doctor checked: tools, files read and rules, so a clean report is not mistaken for one that did nothing. */
+function checkedLines(checked) {
+	const skipped = checked.skippedRules.length === 0 ? "" : `; ${checked.skippedRules.length} more need ${checked.policyFile} and did not run`;
+	return [
+		`Checked: ${checked.tools.length === 0 ? "no package manager or bot found" : checked.tools.map(checkedTool).join(", ")}`,
+		`Files read: ${checked.files.length === 0 ? "none" : checked.files.join(", ")}`,
+		`Rules: ${checked.rules.length} ran${skipped}`
+	];
+}
 function renderText(report, rules, colors = PLAIN) {
 	const counts = countLevels(report.findings);
 	const lines = [];
@@ -21612,6 +21631,7 @@ function renderText(report, rules, colors = PLAIN) {
 		}
 	}
 	if (report.notices.length > 0) lines.push("", colors.bold("Notes:"), ...report.notices.map((notice) => `  ${printable(notice.message)}`));
+	if (report.checked !== void 0) lines.push("", ...checkedLines(report.checked).map((line) => colors.dim(printable(line))));
 	return `${lines.join("\n")}\n`;
 }
 
@@ -21745,6 +21765,15 @@ function annotationCommands(report, rules, format = values$1(environment.githubA
 		omitted: report.findings.length - lines.length
 	};
 }
+/** A notice annotation for a clean report, so that the run shows that doctor ran and what it covered. */
+function cleanNotice(report, format = values$1(environment.githubActions.annotations)[0]) {
+	if (format === void 0 || report.findings.length > 0) return void 0;
+	const data = (text) => escaped(text, format.escape);
+	const property = (text) => escaped(escaped(text, format.escape), format.escapeProperty);
+	const checked = report.checked;
+	const what = checked === void 0 ? "" : `: ${plural(checked.rules.length, "rule")} checked ${plural(checked.files.length, "file")}${checked.tools.length === 0 ? "" : ` for ${checked.tools.map(checkedTool).join(", ")}`}`;
+	return `::${format.commands.note} ${format.properties.title}=${property("depcurfew doctor")}::${data(printable(`No problems found${what}`))}`;
+}
 /** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
 function markdown(text) {
 	return printable(text.replaceAll(/\s*[\r\n]+\s*/gu, " ")).split(/(`[^`]*`)/u).map((part, index) => index % 2 === 1 ? part.replaceAll("|", "\\|") : part.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll(/([\\`*_[\]|~#!])/gu, "\\$1").replaceAll(/(https?|www)(?=[:.])/gu, "$1&#8203;")).join("");
@@ -21762,17 +21791,21 @@ function jobSummary(report, rules, directory, maxBytes) {
 	const counts = countLevels(report.findings);
 	const where = directory === "" ? "" : ` in ${code(directory)}`;
 	const head = ["## depcurfew doctor", ""];
-	if (report.findings.length === 0) head.push(`No problems found${where}.`);
+	if (report.findings.length === 0) head.push(`**No problems found**${where}.`);
 	else {
 		const count = (level) => counts[level] === 0 ? plural(0, level) : `**${plural(counts[level], level)}**`;
 		head.push(`${count("error")}, ${count("warning")}, ${count("note")}${where}.`, "", "| Level | Where | Problem | How to fix |", "| --- | --- | --- | --- |");
 	}
-	const tail = [...report.notices.length === 0 ? [] : [
-		"",
-		"### Notes",
-		"",
-		...report.notices.map((notice) => `- ${markdown(notice.message)}`)
-	], ""];
+	const tail = [
+		...report.notices.length === 0 ? [] : [
+			"",
+			"### Notes",
+			"",
+			...report.notices.map((notice) => `- ${markdown(notice.message)}`)
+		],
+		...checkedSummary(report),
+		""
+	];
 	let size = Buffer.byteLength([...head, ...tail].join("\n")) + 200;
 	const rows = [];
 	for (const finding of report.findings) {
@@ -21790,6 +21823,26 @@ function jobSummary(report, rules, directory, maxBytes) {
 		...more,
 		...tail
 	].join("\n");
+}
+/** What doctor checked, below the findings: the tools, the files read and the rules, the rule ids folded away. */
+function checkedSummary(report) {
+	const checked = report.checked;
+	if (checked === void 0) return [];
+	const skipped = checked.skippedRules.length === 0 ? "" : `; ${checked.skippedRules.length} more need ${code(checked.policyFile)} and did not run`;
+	return [
+		"",
+		"### What was checked",
+		"",
+		`- Tools: ${checked.tools.length === 0 ? "no package manager or bot found" : checked.tools.map((tool) => markdown(checkedTool(tool))).join(", ")}`,
+		`- Files read: ${checked.files.length === 0 ? "none" : checked.files.map(code).join(", ")}`,
+		`- Rules: ${checked.rules.length} ran${skipped}`,
+		"",
+		"<details><summary>Rules that ran</summary>",
+		"",
+		checked.rules.map(code).join(", "),
+		"",
+		"</details>"
+	];
 }
 /** A problem after doctor ran, such as a SARIF file that cannot be written: a line below the findings of the job summary. */
 function problemSummary(message) {
@@ -21864,11 +21917,53 @@ function runDoctor(root, options = {}) {
 	}
 	const reported = rules.includes(unreadableConfig);
 	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
+	const ran = rules.filter((rule) => !(rule.requiresPolicy && policy === void 0));
 	return {
 		schemaVersion: 1,
 		policy: invalid ? "invalid" : policy === void 0 ? "missing" : "valid",
 		findings: findings.sort(byLocation),
-		notices
+		notices,
+		checked: {
+			...checkedOf(detection, repository, tools, policy !== void 0 || invalid),
+			rules: ran.map((rule) => rule.id),
+			skippedRules: rules.filter((rule) => !ran.includes(rule)).map((rule) => rule.id),
+			policyFile: POLICY_FILE
+		}
+	};
+}
+/** The tools found and the files read by detection and the rules, for the log of what doctor checked. */
+function checkedOf(detection, repository, tools, policyRead) {
+	const name = (id) => tools.find((tool) => tool.id === id)?.name ?? id;
+	const found = [...detection.packageManagers.filter((manager) => manager.supported).map((manager) => {
+		const declared = manager.versions.find((declaration) => "version" in declaration);
+		return {
+			id: manager.id,
+			name: name(manager.id),
+			...declared === void 0 || !("version" in declared) ? {} : {
+				version: declared.version,
+				versionFrom: declared.file
+			}
+		};
+	}), ...detection.bots.map((bot) => ({
+		id: bot.id,
+		name: name(bot.id)
+	}))];
+	const files = new Set(repository.read);
+	for (const manager of detection.packageManagers) for (const file of [
+		...manager.evidence.map((evidence) => evidence.file),
+		...manager.configFiles,
+		...manager.versions.map((declaration) => declaration.file)
+	]) files.add(file);
+	for (const file of [
+		...detection.bots.flatMap((bot) => bot.configFiles),
+		...detection.npmrcFiles,
+		...detection.workflows
+	]) files.add(file);
+	for (const declaration of detection.workspaces?.declarations ?? []) files.add(declaration.file);
+	if (policyRead) files.add(POLICY_FILE);
+	return {
+		tools: found,
+		files: [...files].filter((file) => file !== "" && repository.isFile(file)).sort()
 	};
 }
 
@@ -21977,6 +22072,8 @@ function runAction(env, io) {
 	if (enabled(env, "annotations")) {
 		const annotations = annotationCommands(moved, RULES);
 		if (annotations.lines.length > 0) io.log(`${annotations.lines.join("\n")}\n`);
+		const clean = cleanNotice(moved);
+		if (clean !== void 0) io.log(`${clean}\n`);
 		if (annotations.omitted > 0) io.log(`GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? "finding is" : "findings are"} in the report above.\n`);
 	}
 	if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));

@@ -38,6 +38,11 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 - YAML merge keys (`<<: *defaults`) in `pnpm-workspace.yaml` and pnpm's `config.yaml` are read as pnpm reads them, so a setting that arrives through one is no longer hidden; `apply` writes its value into the map itself, which wins over merged keys. `.yarnrc.yml` and `dependabot.yml` are read without merging, as those tools do.
 - `doctor` reports an allow-list entry that lets a package of `installScripts.deny` run its scripts as an error, names a missing JSON setting by its path, lists every `.npmrc` line outside the block, and reports an `.npmrc` that is not a regular file instead of showing it as missing.
 
+### What doctor checked
+
+- `doctor` and `doctor --user` say below the result what they checked: the package managers and bots found, with the version they checked against, the files read and how many rules ran (and which need a policy that is missing). `--json` has the same in the new `checked` field.
+- The GitHub Action prints the same in the log, adds a "What was checked" section to the job summary and, when there is nothing to report, a notice ("No problems found: … rules checked … files"), so a clean run no longer looks like one that did nothing.
+
 ### Safety of output and files
 
 - Diffs from `apply --dry-run` and `apply --json` show tokens and passwords (`_authToken`, `_auth`, `_password`, `user:password@` in URLs) as `<redacted>`; the files on disk are untouched.

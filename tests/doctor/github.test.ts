@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { annotationCommands, jobSummary, RULES } from '../../src/doctor/index.ts';
+import { annotationCommands, cleanNotice, jobSummary, RULES } from '../../src/doctor/index.ts';
 import { markdown } from '../../src/doctor/github.ts';
 import type { DoctorReport, Finding } from '../../src/doctor/types.ts';
 
@@ -49,7 +49,7 @@ describe('job summary', () => {
   });
 
   it('says when there is nothing to fix', () => {
-    expect(jobSummary(report([]), RULES, '', 1024 * 1024)).toBe('## depcurfew doctor\n\nNo problems found.\n');
+    expect(jobSummary(report([]), RULES, '', 1024 * 1024)).toBe('## depcurfew doctor\n\n**No problems found**.\n');
   });
 
   it('leaves out rows that would make it too long and says how many', () => {
@@ -57,5 +57,33 @@ describe('job summary', () => {
     const text = jobSummary(report(findings), RULES, '', 4096);
     expect(Buffer.byteLength(text)).toBeLessThanOrEqual(4096);
     expect(text).toMatch(/\n\d+ more findings did not fit in the summary; the step log lists every finding\.\n$/u);
+  });
+});
+
+describe('what was checked', () => {
+  const checked = {
+    tools: [{ id: 'npm', name: 'npm', version: '11.21.1', versionFrom: 'package.json' }, { id: 'renovate', name: 'Renovate' }],
+    files: ['package.json', 'renovate.json'],
+    rules: ['config-drift', 'broad-exclusion'],
+    skippedRules: ['bot-cooldown-mismatch'],
+    policyFile: 'depcurfew.json',
+  };
+
+  it('lists the tools, the files read and the rules in the job summary', () => {
+    const summary = jobSummary({ ...report([]), checked }, RULES, '', 1024 * 1024);
+    expect(summary).toContain('**No problems found**.');
+    expect(summary).toContain('### What was checked\n\n- Tools: npm 11.21.1 (package.json), Renovate\n- Files read: `package.json`, `renovate.json`\n- Rules: 2 ran; 1 more need `depcurfew.json` and did not run\n');
+    expect(summary).toContain('<details><summary>Rules that ran</summary>\n\n`config-drift`, `broad-exclusion`\n\n</details>');
+  });
+
+  it('adds a notice for a clean report, so the run shows that doctor ran', () => {
+    expect(cleanNotice({ ...report([]), checked })).toBe('::notice title=depcurfew doctor::No problems found: 2 rules checked 2 files for npm 11.21.1 (package.json), Renovate');
+    expect(cleanNotice(report([{ rule: 'config-drift', level: 'warning', message: 'x', location: { file: 'a' } }]))).toBeUndefined();
+  });
+
+  it('escapes the notice so a file name cannot start another workflow command', () => {
+    const line = cleanNotice({ ...report([]), checked: { ...checked, tools: [{ id: 'npm', name: 'npm', version: '1%0A::error::x', versionFrom: 'a\nb' }] } });
+    expect(line?.split('\n')).toHaveLength(1);
+    expect(line).not.toContain('\n::error');
   });
 });

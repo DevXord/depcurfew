@@ -9,7 +9,7 @@ import { formatVersion, type Version } from '../apply/version.ts';
 import type { ApplyWarning } from '../apply/warnings.ts';
 import { YAML_MARKER } from '../apply/yaml-edit.ts';
 import { iniLines } from '../doctor/settings.ts';
-import type { DoctorReport, Finding, Notice, Rule } from '../doctor/types.ts';
+import type { Checked, DoctorReport, Finding, Notice, Rule } from '../doctor/types.ts';
 import { parseToml, TomlDateTime, type TomlDocument, type TomlTable } from '../detect/toml.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -470,6 +470,8 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   }
 
   const reads = new Map<string, Read | undefined>();
+  /** Files that were read, as shown, for the log of what doctor --user checked. */
+  const filesRead = new Set<string>();
   /** The entries of a file, read and parsed once; undefined when it does not exist or cannot be checked (reported). */
   const entriesOf = (file: UserFile, path: string, tool: ToolKnowledge): Entry[] | undefined => {
     const key = `${file.format}\0${path}`;
@@ -480,6 +482,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       let result: Read | undefined;
       if (problem !== undefined) reportUnreadable(shown, problem);
       else if (read.ok) {
+        filesRead.add(shown);
         result = parse(file, read.bytes.toString('utf8'));
         if (!result.ok) {
           reportUnreadable(shown, {
@@ -620,5 +623,17 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   // Messages carry values from files and the environment: never the credentials of a URL in them, which show as
   // <redacted>@, as in the diff of apply --user.
   const clean = findings.map((finding) => ({ ...finding, message: redactCredentials(finding.message), ...(finding.fix === undefined ? {} : { fix: redactCredentials(finding.fix) }) }));
-  return { schemaVersion: 1, policy: status, findings: clean, notices: notices.map((item) => ({ ...item, message: redactCredentials(item.message) })), policyFile };
+  if (status !== 'missing') filesRead.add(policyFile);
+  const ran = USER_RULES.filter((rule) => !(rule.requiresPolicy && policy === undefined));
+  const checked: Checked = {
+    tools: installed.map((tool) => {
+      const version = versions.get(tool.id);
+      return { id: tool.id, name: tool.name, ...(version === undefined ? {} : { version: formatVersion(version), versionFrom: options.versions?.[tool.id] === undefined ? 'PATH' : '--for' }) };
+    }),
+    files: [...filesRead].sort(),
+    rules: ran.map((rule) => rule.id),
+    skippedRules: USER_RULES.filter((rule) => !ran.includes(rule)).map((rule) => rule.id),
+    policyFile,
+  };
+  return { schemaVersion: 1, policy: status, findings: clean, notices: notices.map((item) => ({ ...item, message: redactCredentials(item.message) })), checked, policyFile };
 }

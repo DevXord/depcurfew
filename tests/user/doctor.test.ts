@@ -90,6 +90,15 @@ describe.skipIf(!canSymlink())('doctor --user', () => {
     expect(rules(report)).toEqual(['user-environment-overrides']);
   });
 
+  it('says what it checked: the tools in PATH with their versions, the files read and the rules', () => {
+    const environment = machine();
+    writeUserChanges(planUserApply(loadUserPolicy(environment).policy, { environment }));
+    const report = runUserDoctor({ environment });
+    expect(report.findings).toEqual([]);
+    expect(report.checked).toMatchObject({ tools: [{ id: 'npm', name: 'npm', version: '11.21.1', versionFrom: 'PATH' }], files: expect.arrayContaining(['~/.npmrc']), skippedRules: [] });
+    expect(report.checked?.rules).toContain('user-config-weakens');
+  });
+
   it('prints JSON and SARIF on the command line', async () => {
     const environment = machine();
     let stdout = '';

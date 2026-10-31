@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { values } from './apply/facts.ts';
 import { PolicyError } from './apply/index.ts';
 import { writeChanges } from './apply/workspace.ts';
-import { annotationCommands, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
+import { annotationCommands, cleanNotice, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
 import { problemSummary } from './doctor/github.ts';
 import { lineReader } from './doctor/sarif.ts';
 import { environment } from './knowledge/environment.ts';
@@ -127,6 +127,8 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   if (enabled(env, 'annotations')) {
     const annotations = annotationCommands(moved, RULES);
     if (annotations.lines.length > 0) io.log(`${annotations.lines.join('\n')}\n`);
+    const clean = cleanNotice(moved);
+    if (clean !== undefined) io.log(`${clean}\n`);
     if (annotations.omitted > 0) {
       io.log(`GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? 'finding is' : 'findings are'} in the report above.\n`);
     }

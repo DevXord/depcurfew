@@ -84,9 +84,14 @@ describe('GitHub Action entry point', () => {
     expect(location?.region.endColumn).toBe(14);
   });
 
-  it('reports a clean repository with zero counts', () => {
-    const { outputs } = run({ GITHUB_WORKSPACE: workspace('bot-cooldown-mismatch/passes-consistent') });
+  it('reports a clean repository with zero counts, a notice and what was checked', () => {
+    const { outputs, log, summary } = run({ GITHUB_WORKSPACE: workspace('bot-cooldown-mismatch/passes-consistent') });
     expect(outputs).toMatchObject({ errors: 0, warnings: 0, failure: '' });
+    expect(log).toContain('No problems found.\n');
+    expect(log).toMatch(/^Checked: .+\nFiles read: .*dependabot\.yml.*\nRules: \d+ ran/mu);
+    expect(log).toMatch(/^::notice title=depcurfew doctor::No problems found: \d+ rules checked \d+ files/mu);
+    expect(summary).toContain('**No problems found**.');
+    expect(summary).toContain('### What was checked');
   });
 
   it('refuses a directory outside the workspace', () => {

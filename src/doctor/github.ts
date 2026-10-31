@@ -7,7 +7,7 @@ import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import { printable } from '../printable.ts';
 import type { AnnotationLimitsKnowledge, AnnotationsKnowledge } from '../knowledge/types.ts';
-import { countLevels } from './render.ts';
+import { checkedTool, countLevels } from './render.ts';
 import type { DoctorReport, Finding, Level, Rule } from './types.ts';
 
 const LEVELS: readonly Level[] = ['error', 'warning', 'note'];
@@ -58,6 +58,19 @@ export function annotationCommands(
   return { lines, omitted: report.findings.length - lines.length };
 }
 
+/** A notice annotation for a clean report, so that the run shows that doctor ran and what it covered. */
+export function cleanNotice(report: DoctorReport, format: AnnotationsKnowledge | undefined = values(environment.githubActions.annotations)[0]): string | undefined {
+  if (format === undefined || report.findings.length > 0) return undefined;
+  const data = (text: string) => escaped(text, format.escape);
+  const property = (text: string) => escaped(escaped(text, format.escape), format.escapeProperty);
+  const checked = report.checked;
+  const what =
+    checked === undefined
+      ? ''
+      : `: ${plural(checked.rules.length, 'rule')} checked ${plural(checked.files.length, 'file')}${checked.tools.length === 0 ? '' : ` for ${checked.tools.map(checkedTool).join(', ')}`}`;
+  return `::${format.commands.note} ${format.properties.title}=${property('depcurfew doctor')}::${data(printable(`No problems found${what}`))}`;
+}
+
 /** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
 export function markdown(text: string): string {
   const flat = printable(text.replaceAll(/\s*[\r\n]+\s*/gu, ' '));
@@ -91,14 +104,14 @@ export function jobSummary(report: DoctorReport, rules: readonly Rule[], directo
   const where = directory === '' ? '' : ` in ${code(directory)}`;
   const head = ['## depcurfew doctor', ''];
   if (report.findings.length === 0) {
-    head.push(`No problems found${where}.`);
+    head.push(`**No problems found**${where}.`);
   } else {
     const count = (level: Level) => (counts[level] === 0 ? plural(0, level) : `**${plural(counts[level], level)}**`);
     head.push(`${count('error')}, ${count('warning')}, ${count('note')}${where}.`, '', '| Level | Where | Problem | How to fix |', '| --- | --- | --- | --- |');
   }
   const notes =
     report.notices.length === 0 ? [] : ['', '### Notes', '', ...report.notices.map((notice) => `- ${markdown(notice.message)}`)];
-  const tail = [...notes, ''];
+  const tail = [...notes, ...checkedSummary(report), ''];
   let size = Buffer.byteLength([...head, ...tail].join('\n')) + 200;
   const rows: string[] = [];
   for (const finding of report.findings) {
@@ -112,6 +125,27 @@ export function jobSummary(report: DoctorReport, rules: readonly Rule[], directo
   const omitted = report.findings.length - rows.length;
   const more = omitted === 0 ? [] : ['', `${plural(omitted, 'more finding')} did not fit in the summary; the step log lists every finding.`];
   return [...head, ...rows, ...more, ...tail].join('\n');
+}
+
+/** What doctor checked, below the findings: the tools, the files read and the rules, the rule ids folded away. */
+function checkedSummary(report: DoctorReport): string[] {
+  const checked = report.checked;
+  if (checked === undefined) return [];
+  const skipped = checked.skippedRules.length === 0 ? '' : `; ${checked.skippedRules.length} more need ${code(checked.policyFile)} and did not run`;
+  return [
+    '',
+    '### What was checked',
+    '',
+    `- Tools: ${checked.tools.length === 0 ? 'no package manager or bot found' : checked.tools.map((tool) => markdown(checkedTool(tool))).join(', ')}`,
+    `- Files read: ${checked.files.length === 0 ? 'none' : checked.files.map(code).join(', ')}`,
+    `- Rules: ${checked.rules.length} ran${skipped}`,
+    '',
+    '<details><summary>Rules that ran</summary>',
+    '',
+    checked.rules.map(code).join(', '),
+    '',
+    '</details>',
+  ];
 }
 
 /** A problem after doctor ran, such as a SARIF file that cannot be written: a line below the findings of the job summary. */
