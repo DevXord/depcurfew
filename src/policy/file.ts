@@ -43,13 +43,23 @@ export function readPolicyFile(root: string): PolicyFile {
 }
 
 /**
- * The directory whose depcurfew.json applies to `start`: `start` itself or the nearest parent with one, up to the root
- * of the repository (the first directory with .git) or of the file system; undefined when there is none. A policy
- * above the repository belongs to another project and is not used.
+ * The directory whose depcurfew.json applies to `start`: `start` itself, or the nearest parent with one up to the root
+ * of the repository (the first directory with .git); undefined when there is none. A policy above the repository
+ * belongs to another project. Outside a repository only `start` counts: a parent such as /tmp or a shared folder may
+ * hold a depcurfew.json that someone else put there (decision D-079).
  */
 export function findPolicyDirectory(start: string): string | undefined {
-  for (let directory = resolve(start); ; directory = dirname(directory)) {
-    if (exists(join(directory, POLICY_FILE))) return directory;
+  const first = resolve(start);
+  for (let directory = first; ; directory = dirname(directory)) {
+    if (exists(join(directory, POLICY_FILE))) return directory === first || insideRepository(directory) ? directory : undefined;
     if (exists(join(directory, GIT_ENTRY)) || dirname(directory) === directory) return undefined;
+  }
+}
+
+/** Whether `directory` or one of its parents has .git. */
+function insideRepository(directory: string): boolean {
+  for (let current = directory; ; current = dirname(current)) {
+    if (exists(join(current, GIT_ENTRY))) return true;
+    if (dirname(current) === current) return false;
   }
 }

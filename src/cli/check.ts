@@ -238,7 +238,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     ...(tag === undefined || !specs.some((spec) => !isPythonSpec(spec)) ? [] : [{ message: `npm prefers the dist-tag "${tag.value}" (${tag.where}) for packages named without a version or with a range` }]),
   ];
   // With --json the notes go into the document, so that stderr stays empty for programs.
-  if (!flags.json) for (const notice of notices) io.stderr(`note: ${notice.message}\n`);
+  if (!flags.json) for (const notice of notices) io.stderr(`note: ${printable(notice.message)}\n`);
   const reports = await checkSpecs(specs, {
     policy: loaded.policy,
     fetch: dependencies.fetch,

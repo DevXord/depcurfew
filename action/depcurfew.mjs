@@ -8948,9 +8948,11 @@ const pnpm$1 = {
 				"-C",
 				"--dir",
 				"--workspace-packages",
-				"--env-file"
+				"--env-file",
+				"--reporter",
+				"--loglevel"
 			]
-		}, "https://github.com/pnpm/pnpm.io/tree/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli", "From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c 'echo hi | cowsay'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx only and is listed there. -F is the short form of --filter (filtering.md)."),
+		}, "https://github.com/pnpm/pnpm.io/tree/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli", "From cli/add.md, cli/pnx.md, cli/create.md and pnpm-cli.md at that commit. pnx (pnpm 12) has the aliases pnpm dlx and pnpx; pnpm 10 documents pnpm dlx with the alias pnpx (versioned_docs/version-10.x/cli/dlx.md). --shell-mode (-c) runs the command inside a shell, e.g. pnx --package cowsay -c 'echo hi | cowsay'. pnpm create maps foo and create-foo to create-foo, @scope to @scope/create and @scope/foo to @scope/create-foo, and runs it with pnx. --registry and --allow-build are shown with =, the other value options with a separate value. --package belongs to pnx only and is listed there. -F is the short form of --filter (filtering.md). --reporter takes the name of a reporter (cli/install.md) and --loglevel a level (the loglevel setting in settings/cli.md, given as a flag); both take a separate value too."),
 		packageSpecs: checked$2.verified({
 			git: [
 				"github:",
@@ -14217,27 +14219,21 @@ function matchSegment(name, tokens) {
 	while (tokens[index]?.kind === "any") index += 1;
 	return index === tokens.length;
 }
-/** Path segments against pattern segments: ** at the start or in the middle matches zero or more, at the end one or more. */
+/**
+* Path segments against pattern segments: ** at the start or in the middle matches zero or more, at the end one or
+* more. Computed from the last pattern segment back, one row per segment, so a pattern with thousands of ** segments
+* (from a repository) needs no recursion and no more memory than the path has segments.
+*/
 function matchGlob(parts, glob) {
-	const memo = /* @__PURE__ */ new Map();
-	const match = (pattern, part) => {
-		const key = pattern * (parts.length + 1) + part;
-		const known = memo.get(key);
-		if (known !== void 0) return known;
-		let result;
+	let below = parts.map(() => false).concat(true);
+	for (let pattern = glob.length - 1; pattern >= 0; pattern--) {
 		const segment = glob[pattern];
-		if (segment === void 0) result = part === parts.length;
-		else if (segment === "**") {
-			if (pattern === glob.length - 1) result = part < parts.length;
-			else {
-				result = false;
-				for (let next = part; next <= parts.length && !result; next++) result = match(pattern + 1, next);
-			}
-		} else result = part < parts.length && matchSegment(parts[part] ?? "", segment) && match(pattern + 1, part + 1);
-		memo.set(key, result);
-		return result;
-	};
-	return match(0, 0);
+		const row = new Array(parts.length + 1).fill(false);
+		for (let part = parts.length; part >= 0; part--) if (segment === "**") row[part] = pattern === glob.length - 1 ? part < parts.length : (below[part] ?? false) || part < parts.length && (row[part + 1] ?? false);
+		else row[part] = part < parts.length && (below[part + 1] ?? false) && matchSegment(parts[part] ?? "", segment);
+		below = row;
+	}
+	return below[0] ?? false;
 }
 /** The rules of one pattern file; `base` is its directory ('' for the root and for .git/info/exclude). */
 function parseIgnoreFile(text, file, base) {
@@ -14346,6 +14342,11 @@ function ignoredByGit(repository, path, cache = /* @__PURE__ */ new Map()) {
 	} : { ignored: false };
 }
 const MAX_INDEX_SIZE = 67108864;
+/**
+* The most bytes of path names an index may add up to. In version 4 each entry repeats the previous name minus a
+* prefix, so a crafted index of a few megabytes can name gigabytes; one beyond this is not read (decision D-079).
+*/
+const MAX_INDEX_NAMES = 268435456;
 /** A number in the variable-width encoding of index version 4 (as OFS_DELTA offsets in pack files). */
 function readOffset(buffer, start) {
 	let index = start;
@@ -14372,6 +14373,7 @@ function indexPaths(buffer, hashSize) {
 	const paths = /* @__PURE__ */ new Set();
 	let offset = 12;
 	let previous = Buffer.alloc(0);
+	let names = 0;
 	for (let entry = 0; entry < count; entry++) {
 		const start = offset;
 		const flagsAt = start + 40 + hashSize;
@@ -14388,6 +14390,8 @@ function indexPaths(buffer, hashSize) {
 			if (strip === void 0 || strip.value > previous.length) return void 0;
 			const end = buffer.indexOf(0, strip.next);
 			if (end === -1) return void 0;
+			names += previous.length - strip.value + end - strip.next;
+			if (names > MAX_INDEX_NAMES) return void 0;
 			name = Buffer.concat([previous.subarray(0, previous.length - strip.value), buffer.subarray(strip.next, end)]);
 			offset = end + 1;
 		} else {
@@ -16328,9 +16332,14 @@ function ignoredFileWarnings(root, changes) {
 	const cache = /* @__PURE__ */ new Map();
 	let tracked = null;
 	return changes.flatMap((change) => {
-		const result = ignoredByGit(repository, change.file, cache);
+		let result;
+		try {
+			result = ignoredByGit(repository, change.file, cache);
+			if (result.ignored === true) tracked ??= trackedFiles(repository);
+		} catch {
+			return [];
+		}
 		if (result.ignored !== true) return [];
-		tracked ??= trackedFiles(repository);
 		if (tracked?.has(change.file) === true) return [];
 		const { rule } = result;
 		const unless = change.before === null || tracked !== void 0 ? "" : " unless git already tracks it";
@@ -18186,13 +18195,15 @@ const COLORED = {
 /** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
 const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
 const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
+/** The Unicode bidirectional formatting characters: ALM, LRM, RLM, LRE to RLO, LRI to PDI. */
+const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
 /**
 * The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`. Line breaks are control
 * characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
 * depcurfew lays out in lines itself, such as a snippet to add by hand. Apply it before adding colors.
 */
 function printable(text, options = {}) {
-	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`);
+	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(BIDI, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
 // src/doctor/render.ts

@@ -126,9 +126,15 @@ function ignoredFileWarnings(root: string, changes: readonly FileChange[]): Appl
   const cache: Parameters<typeof ignoredByGit>[2] = new Map();
   let tracked: Set<string> | undefined | null = null;
   return changes.flatMap((change): ApplyWarning[] => {
-    const result = ignoredByGit(repository, change.file, cache);
+    let result: ReturnType<typeof ignoredByGit>;
+    try {
+      result = ignoredByGit(repository, change.file, cache);
+      if (result.ignored === true) tracked ??= trackedFiles(repository);
+    } catch {
+      // The warning only helps; .gitignore and the index come from the repository, so they never stop apply.
+      return [];
+    }
     if (result.ignored !== true) return [];
-    tracked ??= trackedFiles(repository);
     if (tracked?.has(change.file) === true) return [];
     const { rule } = result;
     // A file apply creates cannot be tracked yet; for one it updates, only the index can tell.

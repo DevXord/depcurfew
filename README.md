@@ -109,7 +109,7 @@ The package installs two names for the same command: `depcurfew` and the short `
 | `depcurfew check <package...> [--json] [--dir <directory>] [--registry <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
 | `depcurfew check --hook claude-code` | The same check as a Claude Code hook that blocks install commands breaking the policy. |
 
-Without a directory, `explain`, `apply` and `doctor` work on the nearest directory with `depcurfew.json`, from the current directory up to the root of the repository (the directory with `.git`), and say so when that is a parent directory, so `doctor` run in a subdirectory does not pass for a project without a policy. A directory given on the command line is used as it is. `check` looks for `depcurfew.json` the same way, starting in `--dir`.
+Without a directory, `explain`, `apply` and `doctor` work on the nearest directory with `depcurfew.json`, from the current directory up to the root of the repository (the directory with `.git`), and say so when that is a parent directory (outside a git repository only the current directory counts, because a shared parent such as `/tmp` may hold someone else's `depcurfew.json`), so `doctor` run in a subdirectory does not pass for a project without a policy. A directory given on the command line is used as it is. `check` looks for `depcurfew.json` the same way, starting in `--dir`.
 
 Exit codes: `0` success (warnings included), `1` an error (an invalid or unreadable policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error (such as an unknown option or a directory that does not exist). `depcurfew <command> --help` describes a command with examples and its exit codes.
 

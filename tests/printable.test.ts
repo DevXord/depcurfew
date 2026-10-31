@@ -15,6 +15,11 @@ describe('printable', () => {
     expect(printable('name\tvalue zażółć 100% ~ \u00a0é 日本')).toBe('name\tvalue zażółć 100% ~ \u00a0é 日本');
   });
 
+  it('writes the bidirectional controls as \\uHHHH, so that text cannot be shown reordered (Trojan Source)', () => {
+    expect(printable('evil\u202egnp.')).toBe('evil\\u202egnp.');
+    expect(printable('\u2066a\u2069 \u200e\u200f\u061c\u202a\u202d')).toBe('\\u2066a\\u2069 \\u200e\\u200f\\u061c\\u202a\\u202d');
+  });
+
   it('keeps line feeds only when asked to', () => {
     expect(printable('one\ntwo\r\n\u001b', { lines: true })).toBe('one\ntwo\\x0d\n\\x1b');
   });

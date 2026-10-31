@@ -793,6 +793,12 @@ const ANOTHER_REGISTRY = 'may point the package manager at another registry, whi
 const SCRIPT_DOWNLOAD = 'downloads and runs a script from';
 const FROM_INPUT = 'it runs commands from its input';
 const FROM_PROCESS = 'it runs commands that another command prints';
+const FROM_PRINTED_CODE = 'it runs code that another command prints';
+
+/** Inline code (python -c, node -e) that a command substitution fills in: what runs is what that command prints. */
+function printedCode(word: Word | undefined): boolean {
+  return word !== undefined && word.dynamic && /\$\(|`/u.test(word.text);
+}
 const FROM_PROGRAM = 'it runs a program from its input';
 const ENCODED = 'is encoded, so depcurfew cannot read it';
 const VERSION_SETTING = 'is set to a value the shell expands, which may change the version that is installed';
@@ -1453,7 +1459,11 @@ function scanProgramReader(words: readonly Word[], command: SimpleCommand, reade
     const word = words[index] as Word;
     if (!isOption(word.text)) return scanProgram(words, command, word);
     const [name] = splitOption(word.text);
-    if (reader.inline.some((option) => name === option || (option.length === 2 && name.startsWith(option)))) return NOTHING;
+    const inline = reader.inline.find((option) => name === option || (option.length === 2 && name.startsWith(option)));
+    if (inline !== undefined) {
+      const code = word.text.length > inline.length ? word : words[index + 1];
+      return printedCode(code) ? unreadable(`${shown(joined(words))}: ${FROM_PRINTED_CODE}`) : NOTHING;
+    }
     if (reader.values.includes(name) && !word.text.includes('=')) index += 1;
   }
   return scanProgram(words, command, undefined);
@@ -1467,8 +1477,11 @@ function scanInterpreter(words: readonly Word[], command: SimpleCommand, depth: 
     const word = words[index] as Word;
     if (!isOption(word.text)) return scanProgram(words, command, word);
     if (word.dynamic) return unreadable(`${shown(joined(words))}: ${expanded(word)}`);
-    // A command string (-c) is Python code, which depcurfew does not read.
-    if (word.text.startsWith(facts.commandOption)) return NOTHING;
+    // A command string (-c) is Python code, which depcurfew does not read, unless another command prints it.
+    if (word.text.startsWith(facts.commandOption)) {
+      const code = word.text.length > facts.commandOption.length ? word : words[index + 1];
+      return printedCode(code) ? unreadable(`${shown(joined(words))}: ${FROM_PRINTED_CODE}`) : NOTHING;
+    }
     if (word.text.startsWith(facts.moduleOption)) {
       const attached = word.text.slice(facts.moduleOption.length);
       const module = attached === '' ? words[index + 1] : { text: attached, dynamic: false };

@@ -150,6 +150,17 @@ describe('control characters from untrusted sources in text output', () => {
     expect(json.packages[0]?.findings.some((finding) => finding.message.includes(`instead${TITLE}`))).toBe(true);
   });
 
+  it('check shows them as \\xHH in its notes about the registry and the dist-tag from .npmrc', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'depcurfew-terminal-notes-'));
+    temporary.push(directory);
+    writeFileSync(join(directory, 'depcurfew.json'), '{ "version": 1 }\n');
+    writeFileSync(join(directory, '.npmrc'), `registry=http://127.0.0.1:9/${CLEAR}\ntag=next${TITLE}x\n`);
+    const result = await exec(['check', '--dir', directory, 'evil-pkg'], true);
+    expectVisible(result.stderr);
+    // .npmrc ends a value at ";" (as the ini package npm uses), so the tag is next, ESC and "]0".
+    expect(result.stderr.replace(SGR, '')).toContain('npm prefers the dist-tag "next\\x1b]0"');
+  });
+
   it('the GitHub Action shows them as \\xHH in the log, the annotations and the job summary', () => {
     let log = '';
     let summary = '';

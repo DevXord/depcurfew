@@ -1141,3 +1141,17 @@ Przegląd przed wydaniem 1.0.0 (pentest i przegląd CLI) znalazł:
   - Bundel akcji zaczyna się notą licencji ISC `yaml` (generowaną z `node_modules/yaml/LICENSE` przez `banner` w `tsdown.action.config.ts`) i odsyłaczem do THIRD_PARTY_LICENSES.md. W tym pliku doszły helpery runtime rolldown 1.2.15 (MIT, VoidZero Inc. & Contributors, z notami Rollup i esbuild z jego THIRD-PARTY-LICENSE).
   - SECURITY.md opisuje prywatne zgłoszenia przez GitHub (Security → Report a vulnerability), wspieraną najnowszą 1.x i czego się spodziewać. Prywatne zgłaszanie podatności musi włączyć właściciel w ustawieniach repozytorium.
   - Kopia schematu SARIF ma notę OASIS. `src/check/pep440.ts` wskazuje PEP 440, Appendix B (domena publiczna), jako źródło wyrażenia regularnego.
+
+## D-079 · Poprawki po pentestcie nowego kodu przed 1.0.0 (2026-10-31)
+
+Celowany pentest kodu z D-074–D-078 znalazł dwie podatności DoS i kilka rzeczy do utwardzenia. Wszystkie mają testy (`tests/apply/gitignore-limits.test.ts`, `tests/printable.test.ts`, `tests/security/terminal.test.ts`, `tests/cli/policy-search.test.ts`, `tests/check/command.test.ts`).
+
+- **`.gitignore` z tysiącami segmentów `**/`.** Dopasowanie szło rekurencją po segmentach wzorca, więc jedna linia `**/` × 30 000 w `.gitignore` z PR-a przepełniała stos i przerywała `apply`, `doctor` i akcję. Dopasowanie liczy się teraz od ostatniego segmentu wstecz, wiersz po wierszu, bez rekurencji. Ostrzeżenie `file-ignored-by-git` tylko pomaga, więc wyjątek przy czytaniu `.gitignore` albo indeksu nie przerywa już `apply`: ostrzeżenia po prostu nie ma.
+- **Indeks git w wersji 4.** Każdy wpis powtarza poprzednią nazwę bez prefiksu, więc indeks o rozmiarze kilku MiB mógł opisywać gigabajty nazw i zawiesić `apply`. Suma długości nazw ma limit 256 MiB; indeks ponad nim nie jest czytany (jak brak indeksu: „unless git already tracks it”).
+- **Uwagi `check` o rejestrze i tagu z `.npmrc`** szły na terminal bez `printable` (D-078). Teraz są czyszczone jak reszta tekstu.
+- **Znaki dwukierunkowe** (U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069) `printable` zapisuje jako `\uHHHH`, żeby nazwa z repozytorium nie dała się pokazać w innej kolejności (Trojan Source). D-078 tego nie obejmował.
+- **Polityka z katalogu nadrzędnego tylko w repozytorium git.** D-078 szukał `depcurfew.json` w górę do katalogu z `.git` albo do korzenia systemu plików. Bez `.git` po drodze `apply` uruchomione w `/tmp/x` brało podrzucone `/tmp/depcurfew.json` i zapisywało pliki w `/tmp`, a hook mógł przyjąć cudzą, łagodną politykę. Poza repozytorium liczy się teraz tylko bieżący katalog (`--dir` w `check` też).
+- **Kod interpretera z podstawienia polecenia.** `python3 -c "$(curl …)"`, `node -e "$(curl …)"`, `perl -e`, `ruby -e` i `php -r` z `$(…)` albo odwrotnymi apostrofami dają w hooku ask, jak `bash -c "$(curl …)"`. Zwykły kod w `-c`/`-e`, także ze zmienną, nadal nie jest czytany.
+- **pnpm `--reporter` i `--loglevel`** są w bazie wiedzy jako opcje z wartością (pnpm.io: `cli/install.md`, `settings/cli.md`), więc `pnpm add --loglevel error lodash` nie bierze już `error` za paczkę.
+
+Bez zmian: rejestry pod nazwą, która rozwiązuje się na adres link-local, oraz adresy prywatne i loopback zostają dozwolone (D-077), bo nazw nie rozwiązujemy, a firmowe rejestry działają w sieciach prywatnych.

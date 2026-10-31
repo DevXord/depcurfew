@@ -97,27 +97,24 @@ function matchSegment(name: string, tokens: readonly Token[]): boolean {
   return index === tokens.length;
 }
 
-/** Path segments against pattern segments: ** at the start or in the middle matches zero or more, at the end one or more. */
+/**
+ * Path segments against pattern segments: ** at the start or in the middle matches zero or more, at the end one or
+ * more. Computed from the last pattern segment back, one row per segment, so a pattern with thousands of ** segments
+ * (from a repository) needs no recursion and no more memory than the path has segments.
+ */
 function matchGlob(parts: readonly string[], glob: Glob): boolean {
-  const memo = new Map<number, boolean>();
-  const match = (pattern: number, part: number): boolean => {
-    const key = pattern * (parts.length + 1) + part;
-    const known = memo.get(key);
-    if (known !== undefined) return known;
-    let result: boolean;
-    const segment = glob[pattern];
-    if (segment === undefined) result = part === parts.length;
-    else if (segment === '**') {
-      if (pattern === glob.length - 1) result = part < parts.length;
-      else {
-        result = false;
-        for (let next = part; next <= parts.length && !result; next++) result = match(pattern + 1, next);
-      }
-    } else result = part < parts.length && matchSegment(parts[part] ?? '', segment) && match(pattern + 1, part + 1);
-    memo.set(key, result);
-    return result;
-  };
-  return match(0, 0);
+  // below[part]: whether the pattern segments after the current one match the path from `part` on.
+  let below = parts.map(() => false).concat(true);
+  for (let pattern = glob.length - 1; pattern >= 0; pattern--) {
+    const segment = glob[pattern] as Glob[number];
+    const row = new Array<boolean>(parts.length + 1).fill(false);
+    for (let part = parts.length; part >= 0; part--) {
+      if (segment === '**') row[part] = pattern === glob.length - 1 ? part < parts.length : (below[part] ?? false) || (part < parts.length && (row[part + 1] ?? false));
+      else row[part] = part < parts.length && (below[part + 1] ?? false) && matchSegment(parts[part] ?? '', segment);
+    }
+    below = row;
+  }
+  return below[0] ?? false;
 }
 
 /** The rules of one pattern file; `base` is its directory ('' for the root and for .git/info/exclude). */
@@ -210,6 +207,11 @@ export function ignoredByGit(repository: Repository, path: string, cache = new M
 }
 
 const MAX_INDEX_SIZE = 64 * 1024 * 1024;
+/**
+ * The most bytes of path names an index may add up to. In version 4 each entry repeats the previous name minus a
+ * prefix, so a crafted index of a few megabytes can name gigabytes; one beyond this is not read (decision D-079).
+ */
+const MAX_INDEX_NAMES = 256 * 1024 * 1024;
 
 /** A number in the variable-width encoding of index version 4 (as OFS_DELTA offsets in pack files). */
 function readOffset(buffer: Buffer, start: number): { value: number; next: number } | undefined {
@@ -235,6 +237,7 @@ function indexPaths(buffer: Buffer, hashSize: number): Set<string> | undefined {
   const paths = new Set<string>();
   let offset = 12;
   let previous: Buffer = Buffer.alloc(0);
+  let names = 0;
   for (let entry = 0; entry < count; entry++) {
     const start = offset;
     const flagsAt = start + 40 + hashSize;
@@ -251,6 +254,8 @@ function indexPaths(buffer: Buffer, hashSize: number): Set<string> | undefined {
       if (strip === undefined || strip.value > previous.length) return undefined;
       const end = buffer.indexOf(0, strip.next);
       if (end === -1) return undefined;
+      names += previous.length - strip.value + end - strip.next;
+      if (names > MAX_INDEX_NAMES) return undefined;
       name = Buffer.concat([previous.subarray(0, previous.length - strip.value), buffer.subarray(strip.next, end)]);
       offset = end + 1;
     } else {

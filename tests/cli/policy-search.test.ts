@@ -40,6 +40,19 @@ describe('findPolicyDirectory', () => {
   });
 });
 
+describe('findPolicyDirectory outside a git repository', () => {
+  it('uses depcurfew.json of the directory itself, but not of a parent: in a shared directory such as /tmp anyone may put one there', () => {
+    const outer = mkdtempSync(join(tmpdir(), 'depcurfew-search-'));
+    temporary.push(outer);
+    const deep = join(outer, 'a', 'b');
+    mkdirSync(deep, { recursive: true });
+    writeFileSync(join(outer, 'depcurfew.json'), '{ "version": 1 }\n');
+    expect(findPolicyDirectory(outer)).toBe(outer);
+    expect(findPolicyDirectory(deep)).toBeUndefined();
+    expect(projectDirectory(undefined, 'apply', deep)).toEqual({ ok: true, directory: deep });
+  });
+});
+
 describe('projectDirectory', () => {
   it('without a directory, works on the nearest parent with depcurfew.json and says so', () => {
     const { repo, deep } = layout({ repoPolicy: true, git: 'directory' });

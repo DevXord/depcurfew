@@ -212,8 +212,9 @@ describe('depcurfew check --hook claude-code', () => {
     expect(result).toEqual({ code: EXIT_OK, stdout: '', stderr: '' });
   });
 
-  it('finds depcurfew.json in a parent of the working directory', async () => {
+  it('finds depcurfew.json in a parent of the working directory, inside the same git repository', async () => {
     const directory = project({ installScripts: { default: 'deny', allow: ['esbuild'] } });
+    mkdirSync(join(directory, '.git'));
     mkdirSync(join(directory, 'packages', 'app'), { recursive: true });
     const result = await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', join(directory, 'packages', 'app')));
     expect(result.stdout).toBe('');

@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-10-31 · Pentest nowego kodu i poprawki (D-079)
+
+- Celowany pentest i przegląd kodu z D-074–D-078. Poprawione: przepełnienie stosu przy `.gitignore` z tysiącami `**/`, zawieszenie na indeksie git w wersji 4, uwagi `check` z `.npmrc` bez czyszczenia, znaki dwukierunkowe w tekście, polityka z katalogu nadrzędnego poza repozytorium git, `python3 -c "$(curl …)"` w hooku, pnpm `--reporter` i `--loglevel`.
+- Weryfikacja: `npm test` (2209 testów), `npm run typecheck` i `npm run check:pkg` przechodzą, a bundel akcji jest zgodny ze źródłem.
+
 ## 2026-10-30 · Przegląd przed wydaniem 1.0.0 i poprawki (D-074 – D-078)
 
 - Przegląd całości przed pierwszym wydaniem: ocena prawna, dwa przeglądy kodu, testy na 12 prawdziwych repozytoriach (CRLF, BOM, aktualizacja, ścieżki) i testy penetracyjne. Projekty testowe usunięte, zapis konsoli w scratchpadzie. Pierwsze wydanie obejmie całość jako 1.0.0.
