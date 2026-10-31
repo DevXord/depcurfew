@@ -470,3 +470,34 @@ describe('wording', () => {
     expect(warningsOf(planned, 'version-too-old').map((warning) => warning.message)).toEqual(['pip 24.0 does not support uploaded-prior-to (since 26.1.0); not written']);
   });
 });
+
+describe('a switch in a user file that allows every install script', () => {
+  it('is superseded in ~/.npmrc for any value npm reads as on, as in a project .npmrc', () => {
+    const environment = machine();
+    write('npm', environment, 'dangerously-allow-all-scripts=1\n');
+    const planned = applyTwice({ ...DEFAULT, targets: ['npm'] }, environment, { npm: [11, 21, 1] });
+    expect(after(planned, 'npm', environment)).toContain(`${SUPERSEDED}dangerously-allow-all-scripts=1`);
+  });
+
+  it('is superseded in the pnpm 10 rc', () => {
+    const environment = machine();
+    write('pnpm', environment, 'dangerously-allow-all-builds=yes\n', [10, 28, 0]);
+    const planned = applyTwice({ ...DEFAULT, targets: ['pnpm'] }, environment, { pnpm: [10, 28, 0] });
+    expect(after(planned, 'pnpm', environment, [10, 28, 0])).toContain(`${SUPERSEDED}dangerously-allow-all-builds=yes`);
+  });
+
+  it('is replaced with false in the pnpm 11 config.yaml, with allow-all-replaced', () => {
+    const environment = machine();
+    write('pnpm', environment, 'dangerouslyAllowAllBuilds: "false"\n', [11, 28, 10]);
+    const planned = applyTwice({ ...DEFAULT, targets: ['pnpm'] }, environment, { pnpm: [11, 28, 10] });
+    expect(after(planned, 'pnpm', environment, [11, 28, 10])).toMatch(/^dangerouslyAllowAllBuilds: false$/mu);
+    expect(warningsOf(planned, 'allow-all-replaced')).toHaveLength(1);
+  });
+
+  it('stays when the policy allows every install script', () => {
+    const environment = machine();
+    write('npm', environment, 'dangerously-allow-all-scripts=true\n');
+    const planned = plan({ ...DEFAULT, installScripts: { default: 'allow', allow: [], deny: [] }, targets: ['npm'] }, environment, { npm: [11, 21, 1] });
+    expect(after(planned, 'npm', environment) ?? 'dangerously-allow-all-scripts=true\n').not.toContain(SUPERSEDED + 'dangerously');
+  });
+});

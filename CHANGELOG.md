@@ -17,6 +17,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
   - It writes the files of all tools or none, refuses a missing home directory (`home-missing`), skips a tool that would read a relative `XDG_CONFIG_HOME` or `%APPDATA%` (`user-directory-relative`), names every file by its `~/` path, and warns about environment variables that would leave what it writes without effect (`environment-overrides`).
   - `--for` accepts versions as tools print them (`pip@26.1`) and warns when it names a tool that is not configured (`version-not-used`).
   - After `corepack enable`, pnpm and Yarn shims are no longer read as version 0.34.0; their version is unknown until `--for` gives it.
+  - It turns off a switch in a user file that runs every install script (`dangerously-allow-all-scripts` in `~/.npmrc`, pnpm's `dangerously-allow-all-builds` in `rc` and `dangerouslyAllowAllBuilds` in `config.yaml`) when the user policy denies install scripts, as `apply` does in a project.
   - It warns (`user-setting-overridden`) when `~/.npmrc` overrides a setting it writes to pnpm 10's `rc`, and `doctor --user` reports that even before the first apply.
   - `init --user` refuses a missing home directory as `apply --user` does, and a file in the way of `~/.config/depcurfew` is an error with a fix instead of a crash. Run as root with `HOME` kept, `init` and `apply --user` give new files in the home directory to its owner.
 

@@ -291,6 +291,9 @@ function npmrc(targets: readonly UserTarget[]): void {
       if (allowKey !== undefined && names.length > 0) add(allowKey, [`${allowKey}=${names.join(',')}`]);
       else if (allowKey !== undefined) afterWrite.push(() => outsidePolicy(target, allowKey, iniListEntries(context.read(target.file), allowKey)));
       denialsProjectOnly(target, 'the denials of installScripts.deny (allowScripts entries set to false)', 'the root package.json of each project', true);
+      // As in a project .npmrc: the switch that runs every script is superseded, whatever value it has.
+      const allowAll = extraOf(context.tool, 'allowAllScripts', isSwitch);
+      if (context.atLeast(allowAll.since) && !managed.includes(allowAll.setting)) managed.push(allowAll.setting);
     }
     userSources(target, '.npmrc', (_kind, key, access) => add(key, [`${key}=${access === 'deny' ? 'none' : 'all'}`]));
   }
@@ -305,6 +308,43 @@ interface ScriptsSwitch {
   deny: unknown;
 }
 const isScriptsSwitch = (value: unknown): value is ScriptsSwitch => isRecord(value) && typeof value['setting'] === 'string' && 'allow' in value && 'deny' in value;
+
+interface AllowAllSwitch {
+  setting: string;
+  since: string;
+  off: readonly unknown[];
+}
+const isAllowAllSwitch = (value: unknown): value is AllowAllSwitch =>
+  isRecord(value) && typeof value['setting'] === 'string' && typeof value['since'] === 'string' && Array.isArray(value['off']);
+interface NpmrcBuildSettings {
+  allowAll: { key: string; since: string };
+}
+const isNpmrcBuildSettings = (value: unknown): value is NpmrcBuildSettings =>
+  isRecord(value) && isRecord(value['allowAll']) && typeof value['allowAll']['key'] === 'string' && typeof value['allowAll']['since'] === 'string';
+
+/**
+ * pnpm: the switch that runs every build (extra.allowAllBuilds, in rc extra.npmrcBuildSettings), as apply turns it off
+ * in a project: rc keeps the line commented out; config.yaml gets false where a value pnpm reads as on stands.
+ */
+function allowAllOff(target: UserTarget, yaml: boolean, text: string, values: [string, unknown][], managed: string[]): void {
+  const { context } = target;
+  if (!yaml) {
+    const settings = context.tool.extra?.['npmrcBuildSettings'] === undefined ? undefined : extraOf(context.tool, 'npmrcBuildSettings', isNpmrcBuildSettings);
+    if (settings !== undefined && context.atLeast(settings.allowAll.since)) managed.push(settings.allowAll.key);
+    return;
+  }
+  const allowAll = extraOf(context.tool, 'allowAllBuilds', isAllowAllSwitch);
+  if (!context.atLeast(allowAll.since)) return;
+  const found = yamlFound(text, allowAll.setting);
+  if (found === undefined || allowAll.off.some((off) => off === found.value)) return;
+  values.push([allowAll.setting, false]);
+  context.warn({
+    code: 'allow-all-replaced',
+    location: { file: target.shown, line: found.line },
+    message: `${allowAll.setting}: ${JSON.stringify(found.value)} in ${target.shown} (line ${found.line}) ran every dependency build script in every project that does not set it itself; depcurfew apply --user sets it to false, because the user policy denies install scripts`,
+    fix: `Allow the packages that need their build scripts under installScripts.allow in ${target.policyFile} instead`,
+  });
+}
 
 /** pnpm: <configDir>/rc (INI, pnpm 10) or <configDir>/config.yaml (pnpm 11 and later); allowBuilds is project-only. */
 function pnpm([target]: readonly UserTarget[]): void {
@@ -373,6 +413,7 @@ function pnpm([target]: readonly UserTarget[]): void {
       else projectOnly(target, 'allowBuilds', 'pnpm-workspace.yaml');
     }
     denialsProjectOnly(target, 'allowBuilds', 'pnpm-workspace.yaml');
+    allowAllOff(target, yaml, text, values, managed);
   }
   // git and remote tarballs share one setting, which covers only indirect dependencies.
   let exotic: string | undefined;
