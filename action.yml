@@ -10,7 +10,7 @@ inputs:
     description: Directory to check, relative to the workspace.
     default: '.'
   sarif-file:
-    description: Where to write the SARIF report, relative to the workspace.
+    description: Where to write the SARIF report, relative to the workspace; a path outside it works too.
     default: depcurfew.sarif
   upload-sarif:
     description: Upload the SARIF report to GitHub code scanning. The job needs the security-events write permission.
@@ -39,7 +39,7 @@ outputs:
     description: Number of findings with level note.
     value: ${{ steps.doctor.outputs.notes }}
   sarif-file:
-    description: Path of the SARIF report, relative to the workspace; empty when doctor could not run.
+    description: Path of the SARIF report, relative to the workspace when it is inside it, otherwise absolute; empty when doctor could not run or the report could not be written.
     value: ${{ steps.doctor.outputs.sarif-file }}
 
 runs:

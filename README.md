@@ -57,7 +57,7 @@ npx dcf doctor
 
 Who needs it installed:
 
-- **Developers working on the project:** nothing to do. The protection does not depend on depcurfew being installed: it lives in the package manager configuration that `apply` writes into the repository (`.npmrc`, `pnpm-workspace.yaml`, `.yarnrc.yml`, `bunfig.toml`, `deno.json` and the bot configuration), and the package managers read it on their own. The project install brings depcurfew along as a development dependency anyway.
+- **Developers working on the project:** nothing to do. The protection does not depend on depcurfew being installed: it lives in the package manager configuration that `apply` writes into the repository (`.npmrc`, `package.json`, `pnpm-workspace.yaml`, `.yarnrc.yml`, `bunfig.toml`, `deno.json`, `pyproject.toml` or `uv.toml`, `poetry.toml`, `Pipfile`, `requirements.txt` and the bot configuration), and the package managers read it on their own. pip's release-age delay is the exception: pip reads it only from the environment where it runs, and `apply` says what to set there. The project install brings depcurfew along as a development dependency anyway.
 - **Whoever changes `depcurfew.json`:** runs `npx dcf apply` and commits the result.
 - **CI:** runs `doctor`, with the GitHub Action below or with the project's own copy on other CI systems.
 
@@ -113,7 +113,7 @@ Without a directory, `explain`, `apply` and `doctor` work on the nearest directo
 
 Exit codes: `0` success (warnings included), `1` an error (an invalid or unreadable policy, a file that cannot be edited, a doctor finding with level error), `2` a usage error (such as an unknown option or a directory that does not exist). `depcurfew <command> --help` describes a command with examples and its exit codes.
 
-Every finding and warning says what to do about it. When a command cannot start, it says why with a code (`directory-not-found`, `not-a-directory`, `policy-missing`, `policy-invalid`, `policy-unreadable`) and what to do; with `--json` that is a document with `errors` on stdout, and `doctor --sarif` prints a run marked as not successful. Text for people is colored on a terminal; `NO_COLOR=1` turns colors off and `FORCE_COLOR=1` turns them on, for example in a CI log that shows them. Control characters in names and values from the repository or a registry are shown as text (ESC as `\x1b`), so a crafted package or file name cannot change the terminal. `--json`, `--sarif` and a diff written to a file stay plain, for programs and AI agents.
+Every finding and warning says what to do about it. When a command cannot start, it says why with a code (`directory-not-found`, `not-a-directory`, `policy-missing`, `policy-invalid`, `policy-unreadable`, and for `init` also `policy-exists` and `cannot-write`) and what to do; with `--json` that is a document with `errors` on stdout, and `doctor --sarif` prints a run marked as not successful. Text for people is colored on a terminal; `NO_COLOR=1` turns colors off and `FORCE_COLOR=1` turns them on, for example in a CI log that shows them. Control characters in names and values from the repository or a registry are shown as text (ESC as `\x1b`, or as `\u001b` inside a quoted value such as a package name in the problems of `depcurfew.json`), so a crafted package or file name cannot change the terminal. `--json`, `--sarif` and a diff written to a file stay plain, for programs and AI agents.
 
 How `apply` edits files:
 
@@ -126,7 +126,7 @@ How `apply` edits files:
 
 ### apply warnings and errors
 
-Each warning and error of `apply` has a code. The text output shows it in parentheses after the message, with what to do on the next line, like a doctor finding. `depcurfew apply --json` (also with `--dry-run`) prints one JSON document and nothing on stderr: `changes` (each file with its action and unified diff), `warnings` and `errors` (each with `code`, `level`, the tool, the file when there is one, `message` and `fix`), `snippets` to add by hand, `notices` (such as the parent directory whose `depcurfew.json` was used) and `written`. A run that writes nothing because of an error lists no changes and exits with 1.
+Each warning and error of `apply` has a code. The text output shows it in parentheses after the message, with what to do on the next line, like a doctor finding. `depcurfew apply --json` (also with `--dry-run`) prints one JSON document and nothing on stderr: `changes` (each file with its action and unified diff), `warnings` and `errors` (each with `code`, `level`, `message` and `fix`; `tool` when it concerns one tool; `location` when it concerns one file, with `file` and, when known, `line`; for an invalid policy also `issues`), `snippets` to add by hand, `notices` (such as the parent directory whose `depcurfew.json` was used) and `written`. A run that writes nothing because of an error lists no changes and exits with 1.
 
 <!-- BEGIN GENERATED: apply-codes -->
 Warnings:
@@ -212,7 +212,7 @@ depcurfew configures uv, Poetry, PDM, Pipenv and pip from the same `depcurfew.js
 - **Install scripts are builds.** A wheel installs without running package code; a source distribution, a git repository or a local directory is built, which runs its build code. `installScripts.default: "deny"` forbids building, and the packages in `installScripts.allow` are the exceptions. None of the three tools can only allow a build, so these packages are always built from source, even where a wheel exists; `apply` says so, and `doctor` lists the packages in the lockfile that would be built.
 - **pip reads no project configuration.** `apply` writes the build options into `requirements.txt`. The release-age delay cannot live in the project, so `apply` prints the environment variable to set where pip runs. `doctor` also checks the files a requirements file includes with `-r` and `-c`, and reports an include it cannot read.
 - **Lock again after `apply`.** `uv.lock` records the release-age delay, and PDM checks `pdm.lock` against all of its resolution settings, the delay and the build ban included. After `apply` changes them, `uv sync --locked` and `uv lock --check` fail until you run `uv lock`, and `pdm lock --check` and `pdm install --check` until you run `pdm lock`; `apply` says so (`lockfile-out-of-date`). `poetry.lock` and `Pipfile.lock` do not depend on the settings `apply` writes.
-- **PDM and Pipenv cannot pin their own version.** `apply` configures for the latest version depcurfew knows and says which version the settings need. Pipenv takes the delay in whole days only (rounded up), has no exceptions and no project setting that forbids building; `apply` says what to set where Pipenv runs instead. `doctor` reads `pdm.lock` and `Pipfile.lock`, and reports settings that turn the delay or the build ban off without a word: Pipenv's pure-Python resolver and PDM's uv mode.
+- **PDM and Pipenv cannot pin their own version.** `apply` configures for the latest version depcurfew knows and names that version (`version-not-pinned`). Pipenv takes the delay in whole days only (rounded up), has no exceptions and no project setting that forbids building; `apply` says what to set where Pipenv runs instead. `doctor` reads `pdm.lock` and `Pipfile.lock`, and reports settings that turn the delay or the build ban off without a word: Pipenv's pure-Python resolver and PDM's uv mode.
 - **Hatch has no settings of its own.** Its environments install with uv or pip, so a Hatch project is covered by the uv configuration (add `"uv"` to `targets` when its environments use the uv installer) or by the environment variables of pip.
 - **Running depcurfew.** depcurfew is a Node.js program. In a project without `package.json`, run a pinned version with `npx --yes depcurfew@<version>`; in CI the [GitHub Action](#github-action) needs nothing else.
 
@@ -352,7 +352,7 @@ jobs:
 | Input | Default | Description |
 | --- | --- | --- |
 | `directory` | `.` | Directory to check, relative to the workspace. |
-| `sarif-file` | `depcurfew.sarif` | Where to write the SARIF report, relative to the workspace. |
+| `sarif-file` | `depcurfew.sarif` | Where to write the SARIF report, relative to the workspace; a path outside it works too. |
 | `upload-sarif` | `true` | Upload the SARIF report to GitHub code scanning. The job needs the security-events write permission. |
 | `category` | `depcurfew` | Code scanning category of the upload, to tell several depcurfew runs in one workflow apart. |
 | `fail-on-error` | `true` | Fail the step when doctor reports an error. |
@@ -364,7 +364,7 @@ jobs:
 | `errors` | Number of findings with level error. |
 | `warnings` | Number of findings with level warning. |
 | `notes` | Number of findings with level note. |
-| `sarif-file` | Path of the SARIF report, relative to the workspace; empty when doctor could not run. |
+| `sarif-file` | Path of the SARIF report, relative to the workspace when it is inside it, otherwise absolute; empty when doctor could not run or the report could not be written. |
 <!-- END GENERATED: action-reference -->
 
 ### Other CI systems
@@ -399,9 +399,9 @@ For each package it looks up the npm registry (the one `--registry` or `registry
 - install scripts the policy does not allow; for a Python package, a version without wheels, which is built from source and so runs its build code;
 - a name that differs by a letter or two, or only in separators, from a popular package of its registry: 5,000 npm packages with the most weekly downloads among the results of several hundred registry searches (the npm registry has no download ranking, so a popular package can be missing), and the 5,000 most downloaded PyPI projects of a recent month;
 - a deprecated version (a warning);
-- a registry or index reached over plain HTTP (a warning).
+- a registry or index reached over plain HTTP (a warning), unless it is on this computer (`localhost`, `127.0.0.0/8` or `::1`), such as a local registry for testing.
 
-A registry that redirects to another host, and one at a link-local address, where cloud metadata services answer, is not followed or asked: the package counts as not checked. For a name without a version or with a range, npm prefers the dist-tag `tag=` in `.npmrc` names, and so does `check`.
+A registry that redirects to another origin (another host, port or scheme, so also from `http://` to `https://` on the same host), and one at a link-local address, where cloud metadata services answer, is not followed or asked: the package counts as not checked. For a name without a version or with a range, npm prefers the dist-tag `tag=` in `.npmrc` names, and so does `check`.
 
 Python packages are written as pip takes them after the prefix (`pypi:name`, `pypi:name==1.2`, `pypi:name[extra]>=1.2,<2`), or as `pypi:name@1.2`, `pypi:name@^1.2` and `pypi:name@latest`, as `uvx` and `poetry add` take them. The version is picked as pip picks it: the newest match, pre-releases only when asked for or when nothing else matches, and yanked versions only when pinned with `==` (a warning). A version is as old as its newest file, because files can be added to a release later. A project PyPI quarantines (as malware, for example) is an error; an archived or deprecated one, a warning. `--index` looks Python packages up in another index that serves the JSON form of the simple repository API.
 
