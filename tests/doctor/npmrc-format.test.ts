@@ -88,3 +88,73 @@ describe('writeIniBlock and the comments of a section', () => {
     expect(writeIniBlock(after, ['a=2'], ['a'])).toBe(after.replace('a=1', 'a=2'));
   });
 });
+
+describe('writeIniBlock reads keys as npm does', () => {
+  // npm's ini removes the quotes of a key (unsafe(match[2])), sets a key without = to true, and the later value wins,
+  // so a managed key in any of these forms after the block would replace what the block sets.
+  const block = (entries: string[]) => [BLOCK_START, ...entries, BLOCK_END];
+  const managed = ['min-release-age', 'allow-git', 'dangerously-allow-all-scripts'];
+  const entries = ['min-release-age=3', 'allow-git=none'];
+  const superseded = (line: string) => `# depcurfew: superseded by the managed block: ${line}`;
+
+  it('comments out quoted keys and a key without = after the block, and stays the same on the next run', () => {
+    const before = [...block(entries), '"dangerously-allow-all-scripts"=true', "'allow-git'=all", ' "min-release-age" = 0', 'dangerously-allow-all-scripts', 'save-exact=true', ''].join('\n');
+    const after = writeIniBlock(before, entries, managed);
+    expect(after).toBe(
+      [
+        ...block(entries),
+        superseded('"dangerously-allow-all-scripts"=true'),
+        superseded("'allow-git'=all"),
+        superseded('"min-release-age" = 0'),
+        superseded('dangerously-allow-all-scripts'),
+        'save-exact=true',
+        '',
+      ].join('\n'),
+    );
+    expect(writeIniBlock(after, entries, managed)).toBe(after);
+    // What npm reads afterwards: only the block sets managed keys.
+    expect(iniEntries(after).filter((entry) => managed.includes(entry.key)).every((entry) => entry.managed)).toBe(true);
+  });
+
+  it('comments out a key with a trailing comment, escapes in quotes and a list key in quotes', () => {
+    const before = 'dangerously-allow-all-scripts # on\n"min-release-age\\u002d"=1\n"min-release\\u002dage"=0\n"min-release-age-exclude[]"=x\n';
+    expect(writeIniBlock(before, entries, [...managed, 'min-release-age-exclude'])).toBe(
+      [
+        superseded('dangerously-allow-all-scripts # on'),
+        '"min-release-age\\u002d"=1',
+        superseded('"min-release\\u002dage"=0'),
+        superseded('"min-release-age-exclude[]"=x'),
+        '',
+        ...block(entries),
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('turns off a quoted switch when no block is written, and gives it back once the policy no longer manages it', () => {
+    const before = 'save-exact=true\n"dangerously-allow-all-scripts"=true\n';
+    const off = writeIniBlock(before, [], ['dangerously-allow-all-scripts']);
+    expect(off).toBe('save-exact=true\n# depcurfew: turned off; depcurfew.json manages this setting: "dangerously-allow-all-scripts"=true\n');
+    expect(writeIniBlock(off, [], ['dangerously-allow-all-scripts'])).toBe(off);
+    expect(writeIniBlock(off, [], [])).toBe(before);
+  });
+
+  it('treats a carriage return inside a line as the line break npm reads there', () => {
+    // npm's ini splits lines at every run of \r and \n, so "a=1\rmin-release-age=0" sets min-release-age.
+    const before = `${block(entries).join('\n')}\nsave-exact=true\rmin-release-age=0\n`;
+    const after = writeIniBlock(before, entries, managed);
+    expect(after).toBe(`${block(entries).join('\n')}\nsave-exact=true\r${superseded('min-release-age=0')}\n`);
+    expect(writeIniBlock(after, entries, managed)).toBe(after);
+    expect(writeIniBlock(after, [], [])).toBe('save-exact=true\rmin-release-age=0\n');
+  });
+
+  it('takes a header after a carriage return as a section, as npm does', () => {
+    const before = 'save-exact=true\r[custom]\nmin-release-age=0\n';
+    expect(writeIniBlock(before, entries, managed)).toBe([...block(entries), 'save-exact=true\r[custom]', 'min-release-age=0', ''].join('\n'));
+  });
+
+  it('leaves quoted keys below a [section] header alone', () => {
+    const before = '[custom]\n"min-release-age"=0\n';
+    expect(writeIniBlock(before, entries, managed)).toBe([...block(entries), '[custom]', '"min-release-age"=0', ''].join('\n'));
+  });
+});

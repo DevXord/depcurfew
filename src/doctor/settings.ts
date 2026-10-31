@@ -62,6 +62,29 @@ function iniText(raw: string): string {
   return (escaped ? `${result}${ESCAPE}` : result).trim();
 }
 
+/** One line of an .npmrc file as npm's ini reads it (extra.npmrcFormat): nothing, a [section] header, or a key and value. */
+export type IniLine = { section: string } | { key: string; value: string };
+
+/**
+ * A line of an .npmrc file, without its line break, as npm reads it: comment and blank lines give nothing, quotes are
+ * removed from keys and values, a key without = is true; `key[]` keeps its brackets. apply reads lines with this too.
+ */
+export function iniLine(raw: string): IniLine | undefined {
+  const trimmed = raw.trim();
+  if (trimmed === '' || COMMENT_LINES.some((mark) => trimmed.startsWith(mark))) return undefined;
+  const header = SECTION.exec(raw);
+  if (header !== null) return { section: iniText(header[1] ?? '') };
+  const equals = raw.indexOf('=');
+  if (equals === 0) return undefined;
+  return {
+    key: iniText(equals === -1 ? raw : raw.slice(0, equals)),
+    value: equals === -1 ? KEY_WITHOUT_VALUE : iniText(raw.slice(equals + 1)),
+  };
+}
+
+/** npm's ini splits lines at every carriage return and line feed, so a lone \r also ends a line. */
+const INI_LINE_BREAK = /\r\n|\r|\n/u;
+
 /**
  * Every setting line of an .npmrc file as npm reads it (extra.npmrcFormat), including keys below a [section] header,
  * which npm does not apply; `key[]` keeps its brackets.
@@ -70,21 +93,17 @@ export function iniLines(text: string): IniEntry[] {
   const entries: IniEntry[] = [];
   let managed = false;
   let section: string | undefined;
-  text.split(/\r\n|\r|\n/u).forEach((raw, index) => {
+  text.split(INI_LINE_BREAK).forEach((raw, index) => {
     const trimmed = raw.trim();
     if (trimmed === BLOCK_START) managed = true;
     else if (trimmed === BLOCK_END) managed = false;
-    if (trimmed === '' || COMMENT_LINES.some((mark) => trimmed.startsWith(mark))) return;
-    const header = SECTION.exec(raw);
-    if (header !== null) {
-      section = iniText(header[1] ?? '');
+    const line = iniLine(raw);
+    if (line === undefined) return;
+    if ('section' in line) {
+      section = line.section;
       return;
     }
-    const equals = raw.indexOf('=');
-    if (equals === 0) return;
-    const key = iniText(equals === -1 ? raw : raw.slice(0, equals));
-    const value = equals === -1 ? KEY_WITHOUT_VALUE : iniText(raw.slice(equals + 1));
-    entries.push({ key, value, line: index + 1, managed, ...(section === undefined ? {} : { section }) });
+    entries.push({ key: line.key, value: line.value, line: index + 1, managed, ...(section === undefined ? {} : { section }) });
   });
   return entries;
 }
