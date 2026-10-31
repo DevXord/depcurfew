@@ -127,6 +127,94 @@ export interface ProjectKnowledge {
   workspacesObjectKey: Fact<string | null>;
 }
 
+/** A platform family for user-level paths. */
+export type UserPlatform = 'linux' | 'darwin' | 'win32';
+
+/** A base directory for a user-level file. */
+export interface UserDirectory {
+  /**
+   * Where it starts: an environment variable (used only when it is set and not empty, and with `absolute` only when
+   * it is an absolute path), or the home directory (HOME on Linux and macOS, USERPROFILE on Windows).
+   */
+  from: { env: string; absolute?: boolean } | 'home';
+  /** Path below it, with / separators; empty for the directory itself. */
+  path: string;
+  /** Use this directory only when it already exists (pip on macOS). */
+  ifExists?: boolean;
+}
+
+/** Where the user file is on some platforms: the first directory that applies is used. */
+export interface UserLocation {
+  platforms: readonly UserPlatform[];
+  directories: readonly UserDirectory[];
+  file: string;
+}
+
+/** The user-level configuration file of a range of versions. */
+export interface UserFile {
+  format: 'ini' | 'yaml' | 'toml';
+  locations: readonly UserLocation[];
+}
+
+/** What depcurfew writes with a user-level setting. */
+export type UserSettingPurpose =
+  | 'cooldown'
+  | 'cooldownExclude'
+  | 'cooldownStrict'
+  | 'scriptsAllow'
+  | 'scriptsStrict'
+  | 'buildsDeny'
+  | 'buildsAllow'
+  | 'sourceGit'
+  | 'sourceRemote'
+  | 'sourceFile'
+  | 'sourceDirectory'
+  | 'sourcesExotic';
+
+/** A setting the tool reads from its user file: the key there and the versions that read it from that file. */
+export interface UserSetting {
+  purpose: UserSettingPurpose;
+  key: string;
+  since: string;
+  /** First version that no longer reads it from the user file. */
+  until?: string;
+}
+
+/** A value in the user file that weakens every project that does not set the key itself (doctor --user). */
+export interface UserWeakening {
+  key: string;
+  /** 'any' for every value, else the values that weaken. */
+  values: 'any' | readonly (string | number | boolean)[];
+  /** What it does, for the message. */
+  effect: string;
+}
+
+/** An environment variable that bypasses or overrides the user file or the policy (doctor --user). */
+export interface UserVariable {
+  /** The variable name; matched without regard to case when `anyCase`. */
+  name: string;
+  anyCase?: boolean;
+  /** 'any' when every value matters, else the values that weaken. */
+  values: 'any' | readonly string[];
+  effect: string;
+}
+
+/** The tool's user-level configuration, for `depcurfew apply --user` and `doctor --user`. */
+export interface UserConfigKnowledge {
+  /** The user file per version, oldest first; an empty list when the tool has no user file. */
+  files: Fact<Versioned<UserFile | null>>;
+  /** Settings depcurfew can write there. */
+  settings: Fact<readonly UserSetting[]>;
+  /** What a version does with a key it does not know in the user file: ignore it, warn, or fail. */
+  unknownKeys: Fact<'ignore' | 'warn' | 'fail'>;
+  /** Whether a value the installed version cannot parse makes every command fail; depcurfew then needs the exact version. */
+  invalidValueFails: Fact<boolean>;
+  /** Values in the user file that weaken projects. */
+  weakening: Fact<readonly UserWeakening[]>;
+  /** Environment variables that move or skip the user file or override settings. */
+  variables: Fact<readonly UserVariable[]>;
+}
+
 export interface ToolKnowledge {
   id: ToolId;
   name: string;
@@ -139,6 +227,8 @@ export interface ToolKnowledge {
   sources?: SourcesKnowledge;
   /** Package managers only: how to recognize the tool in a repository. */
   project?: ProjectKnowledge;
+  /** Package managers only: the user-level configuration (`--user`). */
+  user?: UserConfigKnowledge;
   /** Further sourced facts that matter for generators and `doctor`, keyed by a short name. */
   extra?: Readonly<Record<string, Fact<unknown>>>;
 }
