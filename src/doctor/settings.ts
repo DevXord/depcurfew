@@ -3,7 +3,7 @@
 import { LineCounter, isMap, isScalar, isSeq, type Document, type Node, type Pair } from 'yaml';
 import { extraOf, isRecord } from '../apply/facts.ts';
 import { jsonElementOffsets, jsonGet, jsonOffset } from '../apply/json-edit.ts';
-import { BLOCK_END, BLOCK_START } from '../apply/block.ts';
+import { BLOCK_END, isBlockStart } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
 import { parseYamlDocument } from '../yaml-parse.ts';
@@ -96,7 +96,7 @@ export function iniLines(text: string): IniEntry[] {
   let section: string | undefined;
   text.split(INI_LINE_BREAK).forEach((raw, index) => {
     const trimmed = raw.trim();
-    if (trimmed === BLOCK_START) managed = true;
+    if (isBlockStart(trimmed)) managed = true;
     else if (trimmed === BLOCK_END) managed = false;
     const line = iniLine(raw);
     if (line === undefined) return;

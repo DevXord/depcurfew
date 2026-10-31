@@ -141,10 +141,10 @@ Warnings:
 - `nothing-to-configure`: depcurfew found no supported package manager or bot, so nothing is configured.
 - `depcurfew-outdated`: The project installs a newer depcurfew than the one running, which may not know settings that version writes.
 - `file-unreadable`: A file that shows which tools a project uses cannot be read or parsed (too large, a symlink out of the repository, no read permission, invalid), so depcurfew may configure fewer tools than the project uses.
-- `tool-not-supported`: A detected tool is not supported (Yarn Classic), so nothing is written for it.
+- `tool-not-supported`: A detected or installed tool is not supported (Yarn Classic), so nothing is written for it.
 - `tool-only-in-ci`: A tool appears only in a CI setup step, with no manifest, lockfile or configuration in the repository, so targets "auto" does not configure it.
 - `version-not-pinned`: No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.
-- `version-too-old`: The pinned version of a tool lacks a setting the policy needs, so that setting is not written.
+- `version-too-old`: The pinned version of a tool (with apply --user, the installed one) lacks a setting the policy needs, so that setting is not written.
 - `version-unknown`: apply --user: the installed version of a tool cannot be read from its files, and a value it does not understand would stop every command, so nothing is written for it.
 - `no-user-config`: apply --user: the tool has no user-level configuration file, so nothing is written for it.
 - `user-setting-project-only`: apply --user: the tool reads a part of the policy only from project files, so it is not written into the user file.
@@ -157,11 +157,11 @@ Warnings:
 - `deny-pattern-unsupported`: An installScripts.deny entry is a pattern, but the tool records denials by package name only, so it is not written.
 - `allow-all-unsupported`: The tool has no setting that allows every install script, so installScripts "allow" is not written.
 - `allow-all-replaced`: A setting that allowed every install script was replaced, because the policy denies install scripts.
-- `allow-list-entry-outside-policy`: An install-script allow-list in the repository lets a package run scripts the policy does not allow; apply does not remove it.
+- `allow-list-entry-outside-policy`: An install-script allow-list in the repository (with apply --user, in a user file) lets a package run scripts the policy does not allow; apply does not remove it.
 - `built-in-list-replaced`: Bun's built-in list of trusted packages is replaced by the policy's allow-list.
-- `scripts-not-enforceable`: The pinned npm or pnpm runs every install script and has no allow-list, so "deny" cannot be enforced.
-- `before-overrides-cooldown`: before= in .npmrc takes the place of the release-age delay apply writes, or makes npm stop with an error next to it.
-- `exact-version-gap`: The pinned pnpm skips the release-age delay for packages requested by exact version.
+- `scripts-not-enforceable`: The pinned (with apply --user, the installed) npm or pnpm runs every install script and has no allow-list, so "deny" cannot be enforced.
+- `before-overrides-cooldown`: before= in .npmrc takes the place of the release-age delay apply writes, or makes npm stop with an error next to it (apply --user then does not write the delay).
+- `exact-version-gap`: The pinned (with apply --user, the installed) pnpm skips the release-age delay for packages requested by exact version.
 - `source-not-enforceable`: The tool has no setting for a dependency source the policy denies; doctor checks the lockfile instead.
 - `source-switch-indirect-only`: The pnpm setting for git and tarball sources stops them only for indirect dependencies.
 - `source-switch-combined`: One pnpm setting covers git and tarball sources, so denying one denies both.
@@ -204,6 +204,7 @@ depcurfew doctor --user
 - The user policy is `~/.config/depcurfew/depcurfew.json` (in `$XDG_CONFIG_HOME/depcurfew/` when that variable is set to an absolute path, in `%APPDATA%\depcurfew\` on Windows). It has the same format as a project policy; under `targets: "auto"` it configures the package managers found in `PATH`.
 - depcurfew does not run other programs to learn their versions. It reads the version from the files next to the executable in `PATH`: the `package.json` of a tool installed from npm, the `.dist-info` folder of one installed from PyPI. When it cannot, it configures for the latest version it knows and says so, except for tools that stop every command on a value their version does not understand (the last column below): for those it writes nothing until you pass the version, for example `--for uv@0.13.6`.
 - A tool's own project settings win over its user file for the same key. Parts of the policy that a tool reads only from project files, such as per-package allow-lists, are not written into the user file; `apply --user` names them, and `depcurfew apply` in the project writes them.
+- A user file is edited as `apply` edits a project file: a setting the policy manages that is set by hand elsewhere in the file is commented out and comes back when the policy stops managing it (YAML files get the policy's value instead). That includes an exception list the policy leaves empty, the command sections of `pip.conf` such as `[install]`, and the `[pip]` table of `uv.toml`. Install-script allow-list entries that the policy does not allow are kept and reported; a longer delay that the policy shortens is reported.
 - `doctor --user` reports a user file that does not match the user policy, values in user files that weaken every project, and environment variables that make a tool read another file, no file or other values.
 - Tools that record the release-age delay in their lockfile may lock differently on a machine whose user file sets one than on a machine without it; set the same delay in the project with `depcurfew apply` so that every machine and CI agree.
 

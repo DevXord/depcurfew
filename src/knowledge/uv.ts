@@ -334,5 +334,10 @@ export const uv: ToolKnowledge = {
       'VersionSelectionArgs: --prerelease takes disallow, allow, if-necessary, explicit or if-necessary-or-explicit (UV_PRERELEASE); allow considers pre-releases of every package and disallow none (docs/concepts/resolution.md); --prerelease-package takes PACKAGE=MODE; the hidden --pre means allow. BuildOptionsArgs of uv add, uv run, uv tool install and uv tool run (uvx): --no-binary (UV_NO_BINARY, a boolean) installs every package from source, --binary turns it off, --no-binary-package names one package (UV_NO_BINARY_PACKAGE, separated by spaces). uv pip install takes --no-binary and --only-binary as lists separated by commas with :all: and :none:, as pip does (PipInstallArgs).',
     ),
     latestVersion: verified('0.13.6', `${UV}/CHANGELOG.md`, 'Released on 2026-10-26.'),
+    pipTable: user.verified(
+      { table: 'pip', keys: { 'exclude-newer': 'exclude-newer', 'exclude-newer-package': 'exclude-newer-package', 'no-binary-package': 'no-binary' } },
+      `${UV}/crates/uv-cli/src/settings.rs`,
+      'For uv pip commands, PipSettings::combine merges the [pip] table of a configuration file above its top-level keys ("Merge the top-level options (`tool.uv`) with the pip-specific options (`tool.uv.pip`), preferring the latter"): [pip] exclude-newer replaces the top-level value (false turns the delay off), [pip] exclude-newer-package entries win over top-level entries for the same package, and [pip] no-binary (package names, or :all:) is added to the top-level no-binary-package (NoBinary::combine in crates/uv-configuration/src/build_options.rs). [pip] no-build and only-binary are joined with the top-level no-build, so they cannot turn it off. Commands outside uv pip ignore [pip] ("These values will be ignored when running commands outside the `uv pip` namespace", PipOptions in crates/uv-settings/src/settings.rs). keys maps each top-level key depcurfew writes to the [pip] key that overrides or extends it. The same code in 0.11.32 (crates/uv/src/settings.rs).',
+    ),
   },
 };

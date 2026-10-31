@@ -62,7 +62,7 @@ describe('apply --user for npm and Deno (~/.npmrc)', () => {
         '//registry.npmjs.org/:_authToken=${NPM_TOKEN}',
         'save-exact=true',
         '',
-        '# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead',
+        '# >>> depcurfew managed block: edit the user depcurfew.json and run depcurfew apply --user instead',
         'min-release-age=3',
         'strict-allow-scripts=true',
         'allow-scripts=esbuild',
@@ -98,7 +98,7 @@ describe('apply --user for npm and Deno (~/.npmrc)', () => {
     expect(text).toContain('min-release-age=2\n');
     const alone = planUserApply(policy({ ...DEFAULT, cooldown: { minimum: '36h' }, targets: ['deno'] }), { environment });
     expect(alone.report.changes[0]?.after).toBe(
-      ['# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead', 'min-release-age=2', '# <<< depcurfew managed block', ''].join('\n'),
+      ['# >>> depcurfew managed block: edit the user depcurfew.json and run depcurfew apply --user instead', 'min-release-age=2', '# <<< depcurfew managed block', ''].join('\n'),
     );
     expect(alone.report.warningDetails.map((warning) => warning.code)).toContain('user-setting-project-only');
   });

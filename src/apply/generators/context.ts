@@ -5,6 +5,7 @@ import { parseToml } from '../../detect/toml.ts';
 import type { Duration } from '../../policy/duration.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
+import { blockStart } from '../block.ts';
 import { writeIniBlock } from '../ini.ts';
 import { jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonSet } from '../json-edit.ts';
 import { writeRequirementsBlock } from '../pip-requirements.ts';
@@ -40,6 +41,10 @@ export interface Context {
   policy: ResolvedPolicy;
   /** undefined: no exact version is pinned, so the latest known version is assumed. */
   version: Version | undefined;
+  /** The version as messages show it: as the tool prints it when that is known (24.0), else as major.minor.patch. */
+  versionLabel: string;
+  /** apply --user: blocks name the user policy, and a version that is too old is updated where it is installed. */
+  user: boolean;
   workspace: Workspace;
   /** Whether the file exists; a file that cannot be read stops the generator with an error. */
   exists(file: string): boolean;
@@ -94,8 +99,13 @@ export function createContext(options: {
   warnings: ApplyWarning[];
   snippets: Snippet[];
   failures: EditFailure[];
+  /** apply --user, with the version as the installed tool states it when it was read from its files. */
+  user?: { versionText?: string };
 }): Context {
   const { tool, workspace, warnings, failures } = options;
+  const user = options.user !== undefined;
+  const versionLabel = options.user?.versionText ?? formatVersion(options.version ?? [0, 0, 0]);
+  const scope = user ? 'user' : 'project';
   const atLeast = (since: string | undefined): boolean => {
     const required = since === undefined ? undefined : parseVersion(since);
     return options.version === undefined || required === undefined || compareVersions(options.version, required) >= 0;
@@ -123,6 +133,8 @@ export function createContext(options: {
     name: tool.name,
     policy: options.policy,
     version: options.version,
+    versionLabel,
+    user,
     workspace,
     exists: (file) => guard(file, () => workspace.exists(file)),
     read: (file) => guard(file, () => workspace.read(file)),
@@ -139,8 +151,9 @@ export function createContext(options: {
       const needed = unsupported.map((item) => item.since).reduce((a, b) => (compareVersions(parseVersion(a) ?? [0, 0, 0], parseVersion(b) ?? [0, 0, 0]) >= 0 ? a : b));
       warn({
         code: 'version-too-old',
-        message: `${tool.name} ${formatVersion(options.version ?? [0, 0, 0])} does not support ${describeRequirements(unsupported)}; not written`,
-        fix: `Require ${tool.name} ${needed} or later where the version is pinned`,
+        message: `${tool.name} ${versionLabel} does not support ${describeRequirements(unsupported)}; not written`,
+        // A project pins the version; on this machine the installed tool is what has to change.
+        fix: user ? `Update ${tool.name} to ${needed} or later, then run depcurfew apply --user again` : `Require ${tool.name} ${needed} or later where the version is pinned`,
       });
     },
     atLeast,
@@ -158,13 +171,13 @@ export function createContext(options: {
       set: (path, value) => guard(file, () => workspace.edit(file, (body) => yamlSet(body, path, value))),
       setMany: (edits) => guard(file, () => workspace.edit(file, (body) => yamlSetMany(body, edits))),
     }),
-    ini: (file, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeIniBlock(body, entries, managedKeys))),
+    ini: (file, entries, managedKeys) => guard(file, () => workspace.edit(file, (body) => writeIniBlock(body, entries, managedKeys, blockStart(undefined, scope)))),
     // The block is written line by line; a file that does not parse is not edited, and the result has to parse.
     toml: (file, table, entries, managedKeys, label) =>
       guard(file, () =>
         workspace.edit(file, (body) => {
           parseToml(body);
-          const edited = writeTomlBlock(body, table, entries, managedKeys, label);
+          const edited = writeTomlBlock(body, table, entries, managedKeys, label, scope);
           parseToml(edited);
           return edited;
         }),
