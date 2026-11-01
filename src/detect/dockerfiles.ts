@@ -1,7 +1,7 @@
 // Dockerfiles and Containerfiles: which official node or python image each build stage starts from, and where npm
 // and pip install packages or are replaced. File names, image names and tags come from the knowledge base.
 import type { DockerfileSyntaxKnowledge, ImageReferenceKnowledge, RuntimeImageKnowledge } from '../knowledge/types.ts';
-import { findExecCommands, findToolCommands, type CommandFacts, type Word } from './commands.ts';
+import { findExecCommands, findToolCommands, type CommandFacts, type Environment, type Word } from './commands.ts';
 import { argDeclarations, lineAt, readDockerfile, substitute, type Instruction } from './dockerfile.ts';
 import { joinPath, type Repository } from './repository.ts';
 import type { DockerfileInfo, DockerStage, StageRuntime, ToolCommand, VersionDeclaration } from './types.ts';
@@ -18,6 +18,8 @@ export interface DockerFacts {
   pythonTags: Readonly<Record<string, string>>;
   /** LTS codenames of Node.js, in lower case. */
   codenames: readonly string[];
+  /** ENV and how stages inherit it (decision D-115). */
+  environment: { instruction: string; inheritedByStages: boolean; spaceForm: boolean };
   commands: CommandFacts;
 }
 
@@ -62,6 +64,11 @@ function pythonTagVersion(tag: string, facts: DockerFacts): string | undefined {
   return facts.python.variants.includes(tag) || facts.python.variants.some((variant) => tag.startsWith(`${variant}-`)) ? 'latest' : undefined;
 }
 
+/** The official node or python image a reference names, with the version of its tag; also for jobs.<id>.container. */
+export function imageRuntime(reference: string, facts: DockerFacts): StageRuntime | undefined {
+  return runtimeOf(reference, facts);
+}
+
 function runtimeOf(reference: string, facts: DockerFacts): StageRuntime | undefined {
   const { repository, hub, tag, digest } = splitReference(reference, facts);
   if (!hub) return undefined;
@@ -104,21 +111,65 @@ function isScript(command: string | undefined): boolean {
   return command !== undefined && (command === '' || /^(?:\S*\/)?(?:sh|bash|ash|dash|zsh)(?: -\S+)*$/u.test(command));
 }
 
-function runCommands(instruction: Instruction, facts: DockerFacts): { commands: ToolCommand[] } {
+/** A command as found, with the directory of its cd (relative to the working directory) as `directory`. */
+function located({ cd, ...command }: Omit<ToolCommand, 'line'> & { cd?: string }, line: number): ToolCommand {
+  return { ...command, line, ...(cd === undefined ? {} : { directory: cd }) };
+}
+
+/**
+ * ENV NAME=value [NAME2=value2 ...], or the older ENV NAME value: the variables it sets, quotes removed. A value with $
+ * is kept as written (depcurfew does not expand it, so it never reads as true).
+ */
+export function envDeclarations(text: string, spaceForm: boolean): [string, string][] {
+  const words: string[] = [];
+  let word = '';
+  let inWord = false;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index] ?? '';
+    if (char === ' ' || char === '\t') {
+      if (inWord) words.push(word);
+      word = '';
+      inWord = false;
+    } else if (char === '"' || char === "'") {
+      const end = text.indexOf(char, index + 1);
+      const close = end < 0 ? text.length : end;
+      word += text.slice(index + 1, close);
+      inWord = true;
+      index = close;
+    } else if (char === '\\' && index + 1 < text.length) {
+      word += text[index + 1] ?? '';
+      inWord = true;
+      index += 1;
+    } else {
+      word += char;
+      inWord = true;
+    }
+  }
+  if (inWord) words.push(word);
+  const first = words[0];
+  if (first === undefined) return [];
+  if (!first.includes('=')) return spaceForm && words.length > 1 ? [[first, words.slice(1).join(' ')]] : [];
+  return words.flatMap((item): [string, string][] => {
+    const equals = item.indexOf('=');
+    return equals > 0 ? [[item.slice(0, equals), item.slice(equals + 1)]] : [];
+  });
+}
+
+function runCommands(instruction: Instruction, facts: DockerFacts, environment: Environment): { commands: ToolCommand[] } {
   const commands: ToolCommand[] = [];
   const { text, offset } = withoutOptions(instruction.text);
   const exec = execWords(text);
   if (exec !== undefined) {
     const words: Word[] = exec.map((word) => ({ text: word, offset: 0 }));
-    for (const { offset: _offset, ...command } of findExecCommands(words, facts.commands).commands) commands.push({ ...command, line: instruction.line });
+    for (const { offset: _offset, ...command } of findExecCommands(words, facts.commands, environment).commands) commands.push(located(command, instruction.line));
     return { commands };
   }
-  for (const { offset: at, ...command } of findToolCommands(text, facts.commands).commands) commands.push({ ...command, line: lineAt(instruction, offset + at) });
+  for (const { offset: at, ...command } of findToolCommands(text, facts.commands, 0, environment).commands) commands.push(located(command, lineAt(instruction, offset + at)));
   for (const heredoc of instruction.heredocs) {
     if (!isScript(heredoc.command)) continue;
     const lineStarts = [0];
     for (let index = heredoc.body.indexOf('\n'); index >= 0; index = heredoc.body.indexOf('\n', index + 1)) lineStarts.push(index + 1);
-    for (const { offset: at, ...command } of findToolCommands(heredoc.body, facts.commands).commands) {
+    for (const { offset: at, ...command } of findToolCommands(heredoc.body, facts.commands, 0, environment).commands) {
       let low = 0;
       let high = lineStarts.length - 1;
       while (low < high) {
@@ -126,7 +177,7 @@ function runCommands(instruction: Instruction, facts: DockerFacts): { commands: 
         if ((lineStarts[middle] ?? 0) <= at) low = middle;
         else high = middle - 1;
       }
-      commands.push({ ...command, line: heredoc.line + low });
+      commands.push(located(command, heredoc.line + low));
     }
   }
   return { commands };
@@ -148,8 +199,8 @@ function copySources(text: string): string[] {
 
 export interface DockerfileReading {
   info: DockerfileInfo;
-  /** Node.js from FROM, npm and pip from RUN (npm install -g npm@X, pip install pip==X). */
-  versions: { tool: 'node' | 'npm' | 'pip'; declaration: VersionDeclaration }[];
+  /** Node.js from FROM, npm, pip and Poetry from RUN (npm install -g npm@X, pip install pip==X, pipx install poetry==X). */
+  versions: { tool: 'node' | 'npm' | 'pip' | 'poetry'; declaration: VersionDeclaration }[];
 }
 
 /** Reads one Dockerfile. */
@@ -162,6 +213,8 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
   const stages: DockerStage[] = [];
   // The first stage of each name, for FROM <name>.
   const named = new Map<string, number>();
+  // The variables ENV sets in each stage, which the stages that start from it inherit (docker.environment).
+  const environments: Map<string, string>[] = [];
   const versions: DockerfileReading['versions'] = [];
   for (const instruction of instructions) {
     if (instruction.keyword === facts.syntax.globalArgInstruction && stages.length === 0) {
@@ -209,19 +262,26 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
       }
       const { commands: _commands, ...fields } = stage;
       if (alias !== undefined && !named.has(alias)) named.set(alias, stages.length);
+      const parent = stage.from === undefined || !facts.environment.inheritedByStages ? undefined : environments[stage.from];
+      environments.push(new Map(parent ?? []));
       stages.push({ ...fields, commands: [] });
       continue;
     }
     const stage = stages.at(-1);
+    const environment = environments.at(-1);
+    if (instruction.keyword === facts.environment.instruction && environment !== undefined) {
+      for (const [name, value] of envDeclarations(instruction.text, facts.environment.spaceForm)) environment.set(name, value);
+      continue;
+    }
     if ((instruction.keyword === 'COPY' || instruction.keyword === 'ADD') && stage !== undefined) {
       const sources = copySources(instruction.text);
       if (sources.length > 0) stage.copies = [...(stage.copies ?? []), ...sources].slice(0, MAX_COPIES);
       continue;
     }
     if (instruction.keyword !== 'RUN' || stage === undefined) continue;
-    for (const command of runCommands(instruction, facts).commands) {
+    for (const command of runCommands(instruction, facts, environment ?? new Map()).commands) {
       stage.commands.push(command);
-      if (command.kind === 'upgrade' && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip')) {
+      if (command.kind === 'upgrade' && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip' || command.tool === 'poetry')) {
         versions.push({ tool: command.tool, declaration: { version: command.version, source: 'dockerfile', file, line: command.line, stage: stage.name ?? String(stages.length - 1) } });
       }
     }

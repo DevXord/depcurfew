@@ -7,6 +7,7 @@ import { basename, dirname, posix, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { values } from './apply/facts.ts';
 import { loadPolicyIfPresent, PolicyError } from './apply/index.ts';
+import { listedAsProject } from './apply/projects.ts';
 import { fileSystemReason, writeChanges } from './apply/workspace.ts';
 import { checkRunName, createCheckRun, fitSummary, type CheckRunContent, type CheckRunFetch } from './action-check-run.ts';
 import { annotationCommands, cleanNotice, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
@@ -98,6 +99,18 @@ function untrusted(text: string): string {
   return `${commands.stop.replace('{token}', token)}\n${text.endsWith('\n') ? text : `${text}\n`}${commands.resume.replace('{token}', token)}\n`;
 }
 
+/**
+ * The directory itself, unless the nearest depcurfew.json above it in the workspace lists it under projects: then that
+ * root, which checks it as one of its projects (decision D-115).
+ */
+function policyDirectory(workspace: string, directory: string): string {
+  for (let current = directory; isInside(workspace, current); current = dirname(current)) {
+    if (lstatSync(resolve(current, POLICY_FILE), { throwIfNoEntry: false }) !== undefined) return current !== directory && listedAsProject(current, directory) ? current : directory;
+    if (current === workspace || dirname(current) === current) break;
+  }
+  return directory;
+}
+
 /** The real path of a directory inside the workspace, following symlinks only as far as they stay inside it. */
 function scannedDirectory(workspace: string, input: string): string | undefined {
   try {
@@ -148,9 +161,16 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
       `the input fail-on is "${failOnInput}"; set it to error (errors fail the step) or warning (warnings fail it too), or leave it empty to follow doctor.failOn in ${POLICY_FILE} (errors only without it)`,
     );
   }
-  const directory = scannedDirectory(workspace, input(env, 'directory', '.'));
-  if (directory === undefined) return fail(`directory "${input(env, 'directory', '.')}" is not a directory inside the workspace`);
+  const given = scannedDirectory(workspace, input(env, 'directory', '.'));
+  if (given === undefined) return fail(`directory "${input(env, 'directory', '.')}" is not a directory inside the workspace`);
+  // A directory without depcurfew.json of its own (one listed in projects) is checked with the nearest policy above it
+  // in the workspace, as depcurfew doctor does from there (decision D-115).
+  const directory = policyDirectory(realpathSync(workspace), given);
   const prefix = relative(realpathSync(workspace), directory).split(sep).join('/');
+  if (directory !== given) {
+    const file = prefix === '' ? POLICY_FILE : posix.join(prefix, POLICY_FILE);
+    io.log(untrusted(`depcurfew: ${printable(input(env, 'directory', '.'))} is listed in projects in ${printable(file)}, so depcurfew doctor checks ${prefix === '' ? 'the repository root' : printable(prefix)} with its projects\n`));
+  }
 
   let report: DoctorReport;
   let failOn: FailOnSetting | undefined;

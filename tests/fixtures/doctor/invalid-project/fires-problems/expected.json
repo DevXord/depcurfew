@@ -2,10 +2,11 @@
   {
     "level": "error",
     "location": {
-      "file": "backend/depcurfew.json"
+      "file": "depcurfew.json",
+      "line": 4
     },
-    "message": "backend/depcurfew.json is a second policy for backend, which projects in the depcurfew.json of the repository root already covers",
-    "fix": "Remove backend/depcurfew.json (move what it sets into the depcurfew.json of the root), or remove \"backend\" from projects in depcurfew.json and run depcurfew in backend on its own"
+    "message": "the project directory frontend listed in projects does not exist",
+    "fix": "Create frontend, or correct or remove \"frontend\" from projects in depcurfew.json"
   },
   {
     "level": "error",
@@ -13,8 +14,8 @@
       "file": "depcurfew.json",
       "line": 4
     },
-    "message": "the project directory frontend listed in projects does not exist",
-    "fix": "Create frontend, or correct or remove \"frontend\" from projects in depcurfew.json"
+    "message": "backend/depcurfew.json is a second policy for backend, which projects in the depcurfew.json of the repository root already covers",
+    "fix": "Remove backend/depcurfew.json (move what it sets into the depcurfew.json of the root), or remove \"backend\" from projects in depcurfew.json and run depcurfew in backend on its own"
   },
   {
     "level": "error",

@@ -14,6 +14,7 @@ const actionChecks = verifiedOn('2026-11-01');
 const leftovers = verifiedOn('2026-11-01');
 const runtimes = verifiedOn('2026-11-01');
 const recheck = verifiedOn('2026-11-01');
+const finalReview = verifiedOn('2026-11-01');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -186,9 +187,9 @@ export const environment: EnvironmentKnowledge = {
       'start, lts and end of each line from 4 on, codenames in lower case as nvm and the node image tags write them. After end a line gets no more releases, security fixes included; the README says "Production applications should only use Active LTS or Maintenance LTS releases". From Node.js 27 every line first goes through an alpha phase (27 has "alpha": "2026-10-28" and no codename yet) and every line becomes LTS.',
     ),
     nvmrc: runtimes.verified(
-      { file: '.nvmrc', comment: '#', newest: ['node', 'stable'], newestLts: 'lts/*', ltsPrefix: 'lts/' },
+      { file: '.nvmrc', comment: '#', newest: ['node', 'stable'], newestLts: 'lts/*', ltsPrefix: 'lts/', previousLtsPrefix: 'lts/-' },
       'https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md',
-      'The file must contain precisely one version followed by a newline; # starts a comment, and comments, blank lines and leading and trailing white space are ignored. node is the latest version and stable an alias for it; lts/* is the latest LTS and lts/<codename> the LTS releases of that line. nvm use looks for the file from the current directory upwards.',
+      'The file must contain precisely one version followed by a newline; # starts a comment, and comments, blank lines and leading and trailing white space are ignored. node is the latest version and stable an alias for it; lts/* is the latest LTS and lts/<codename> the LTS releases of that line; the file may hold "any other string that nvm understands". nvm use looks for the file from the current directory upwards. lts/-n is not in the README but in nvm.sh at the same commit (https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/nvm.sh, read 2026-11-01): nvm_normalize_lts, which nvm_alias calls for every alias (so also for the version of .nvmrc), matches "lts/-[123456789] | lts/-[123456789][0123456789]*", takes N from after the -, adds 1 and picks the N-th last entry of the lts alias directory, whose entries are the LTS codenames (alphabetical, which is release order) after *; so lts/-1 is the LTS line before the newest one, as in setup-node. When nothing matches it says "That many LTS releases do not exist yet."',
     ),
     nodeVersionFile: runtimes.verified(
       { file: '.node-version' },
@@ -221,6 +222,11 @@ export const environment: EnvironmentKnowledge = {
       { relativeTo: 'context', parentNavigation: 'removed', trailingSlash: 'ignored' },
       `${DOCKERFILE_REFERENCE}#copying-from-the-build-context`,
       'COPY and ADD without --from: "When copying source files from the build context, paths are interpreted as relative to the root of the context. Specifying a source path with a leading slash or one that navigates outside the build context, such as COPY ../something /something, automatically removes any parent directory navigation (../). Trailing slashes in the source path are also disregarded, making COPY something/ /something equivalent to COPY something /something." The ADD section says the same about ADD ../something. So /frontend/x, ../frontend/x and frontend/x are the same file, and frontend/.. is the root of the context.',
+    ),
+    environment: finalReview.verified(
+      { instruction: 'ENV', inheritedByStages: true, spaceForm: true },
+      `${DOCKERFILE_REFERENCE}#env`,
+      'ENV <key>=<value> [<key>=<value>...]: "This value will be in the environment for all subsequent instructions in the build stage", and "A stage inherits any environment variables that were set using ENV by its parent stage or any ancestor". "Like command line parsing, quotes and backslashes can be used to include spaces within values". The alternative "ENV <key> <value>, omitting the =" sets one variable, and is discouraged. RUN commands see these variables, and ENV wins over an ARG of the same name.',
     ),
     dockerfileNames: runtimes.verified(
       { defaultName: 'Dockerfile', suffix: '.Dockerfile' },
@@ -310,6 +316,16 @@ export const environment: EnvironmentKnowledge = {
       { packageJson: 'package.json', packageJsonOrder: ['volta.node', 'devEngines.runtime', 'engines.node'], textPattern: '^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$' },
       `${SETUP_NODE}/docs/advanced-usage.md`,
       'node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE. In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile in src/util.ts tries JSON, then TOML tools.node, then the first line that matches the pattern, then the whole text trimmed.',
+    ),
+    jobContainer: finalReview.verified(
+      { key: 'container', imageKey: 'image', envKey: 'env' },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobscontainer',
+      'Read from the page source in github/docs (data/reusables/actions/jobs/section-running-jobs-in-a-container.md and section-running-jobs-in-a-container-image.md, main on 2026-11-01): "Use jobs.<job_id>.container to create a container to run any steps in a job that don\'t already specify a container"; "If you do not set a container, all steps will run directly on the host specified by runs-on"; "When you only specify a container image, you can omit the image keyword" (container: node:18); jobs.<job_id>.container.image is "the Docker image to use as the container to run the action", and container.env sets variables in the container. So the run steps of such a job use the Node.js and npm of that image, until a setup step installs another.',
+    ),
+    environmentKeys: finalReview.verified(
+      { key: 'env', levels: ['workflow', 'job', 'step'] },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env',
+      'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is "A map of variables that are available to the steps of all jobs in the workflow", jobs.<job_id>.env "A map of variables that are available to all steps in the job", and jobs.<job_id>.steps[*].env "Sets variables for steps to use in the runner environment"; for the same name GitHub "uses the most specific variable": the step\'s over the job\'s over the workflow\'s.',
     ),
     pnpmActionSetup: verified(
       { action: 'pnpm/action-setup', installs: ['pnpm'], inputs: [{ name: 'version', kind: 'version', tool: 'pnpm' }] },
@@ -664,6 +680,11 @@ export const environment: EnvironmentKnowledge = {
       { configFile: '.git/config', section: 'core', key: 'ignorecase', trueValues: ['yes', 'on', 'true', '1'] },
       'https://github.com/git/git/blob/v2.56.0/Documentation/config/core.adoc',
       'core.ignoreCase turns on workarounds for file systems that are not case sensitive (APFS, HFS+, FAT, NTFS); it defaults to false, but git clone and git init probe the file system and set it to true when appropriate, so a repository cloned on Windows or macOS has it. With it, git matches .gitignore patterns and looks up the index without regard to case: match_basename and match_pathname in dir.c compare with fspathncmp and fnmatch_icase_mem, which fold case (strncasecmp, WM_CASEFOLD) when repo_ignore_case is set, and environment.c reads core.ignorecase (both at v2.56.0). Section and variable names are case-insensitive, true is yes, on, true or 1 in any case, and a variable without = <value> is true (Documentation/config.adoc at v2.56.0).',
+    ),
+    repositoryEntry: finalReview.verified(
+      { entry: '.git', submoduleEntry: 'file' },
+      'https://github.com/git/git/blob/v2.56.0/Documentation/gitsubmodules.adoc',
+      '"A submodule is a repository embedded inside another repository", with its own history; "the repository it is embedded in is called a superproject". Its git directory is "located under the $GIT_DIR/modules/ directory of its superproject", with "a .git file at the root of the submodule\'s working directory pointing to" it, and the superproject tracks it only "via a gitlink entry in the tree" with the commit it expects. So a directory with a .git entry of its own (a directory, or the file of a submodule) holds the files of another repository.',
     ),
   },
   windows: {

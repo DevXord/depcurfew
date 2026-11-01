@@ -32,7 +32,7 @@ const LOCK = '{ "name": "app", "lockfileVersion": 3, "requires": true, "packages
 const POLICY = '{ "version": 1, "cooldown": { "minimum": "3d" }, "targets": "auto" }\n';
 
 function setupNodeSteps(count: number, version: string): string {
-  return Array.from({ length: count }, () => `      - uses: actions/setup-node@v4\n        with:\n          node-version: ${version}\n      - run: npm ci\n`).join('');
+  return Array.from({ length: count }, () => `      - uses: actions/setup-node@v4\n        with:\n          node-version: ${version}\n      - run: npm install\n`).join('');
 }
 
 describe('runtime-end-of-life notes', () => {
@@ -41,12 +41,12 @@ describe('runtime-end-of-life notes', () => {
     const directory = repository({
       'package.json': PACKAGE,
       'package-lock.json': LOCK,
-      '.nvmrc': 'lts/-9\n',
+      '.nvmrc': 'lts/-99\n',
       Dockerfile: 'FROM node:something-new\nRUN npm ci\n',
     });
     const report = runDoctor(directory, { policy: null });
     expect(report.findings.filter((finding) => finding.rule === 'runtime-end-of-life').map((finding) => [finding.level, finding.location, finding.message])).toEqual([
-      ['note', { file: '.nvmrc', line: 1 }, 'runtime-end-of-life cannot tell whether Node.js lts/-9 in .nvmrc is past its end of life: it is not a version or a range depcurfew can read'],
+      ['note', { file: '.nvmrc', line: 1 }, 'runtime-end-of-life cannot tell whether Node.js lts/-99 in .nvmrc is past its end of life: it is not a version or a range depcurfew can read'],
       ['note', { file: 'Dockerfile', line: 1 }, 'runtime-end-of-life cannot tell whether Node.js (node:something-new) in Dockerfile is past its end of life: depcurfew does not know the tag something-new'],
     ]);
   });

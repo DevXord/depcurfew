@@ -72,6 +72,16 @@ export function condensed(findings: readonly Finding[]): Finding[] {
   return kept;
 }
 
+/**
+ * A fix that runs depcurfew apply, while an entry of projects cannot be used: apply writes nothing until it is fixed, so
+ * the fix says so first (decision D-115). invalid-project's own findings say what to change in projects.
+ */
+function applyWaits(finding: Finding, count: number): Finding {
+  if (finding.rule === 'invalid-project' || finding.fix === undefined || !finding.fix.includes('depcurfew apply')) return finding;
+  const entries = count === 1 ? 'the entry of projects' : 'the entries of projects';
+  return { ...finding, fix: `First fix ${entries} in ${POLICY_FILE} that invalid-project reports, because depcurfew apply writes nothing until then; then ${finding.fix.charAt(0).toLowerCase()}${finding.fix.slice(1)}` };
+}
+
 /** What the rules found in one directory: the root or a project. */
 interface DirectoryRun {
   findings: Finding[];
@@ -199,7 +209,7 @@ export function runDoctor(
     findings.push(...relocated.findings);
     for (const item of relocated.notices) addNotice(item);
   }
-  const sorted = condensed(findings).sort(byLocation);
+  const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length))).sort(byLocation);
   const rootChecked = checkedOf(detection, rootRun.repository, tools, policy !== undefined || invalid);
   const projectChecked = projectRuns.map(({ view, run }) => {
     const checked = checkedOf(run.detection, run.repository, tools, false);
@@ -227,11 +237,12 @@ export function runDoctor(
     checked: {
       tools: [...rootChecked.tools, ...projectChecked.flatMap((checked) => checked.tools)],
       files: [...new Set([...rootChecked.files, ...projectChecked.flatMap((checked) => checked.files)])].sort(),
-      // Each rule once, with the findings of every directory; invalid-policy has nothing to check without a depcurfew.json.
+      // Each rule once, with the findings of every directory; invalid-policy has nothing to check without a depcurfew.json,
+      // and a rule that needs the policy did not run when it is missing or invalid (decision D-115).
       rules: ruleResults(
         rules,
         sorted,
-        (rule) => policy === undefined && !invalid && (rule.requiresPolicy || rule.id === 'invalid-policy'),
+        (rule) => policy === undefined && (rule.requiresPolicy || (!invalid && rule.id === 'invalid-policy')),
         (rule) => rule.applies === undefined || scopes.some((scope) => rule.applies?.(scope) === true),
       ),
       policyFile: POLICY_FILE,

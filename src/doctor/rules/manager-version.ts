@@ -23,7 +23,14 @@ export interface Feature {
   disputed: boolean;
   /** Another way to have it from an earlier version: a setting in a file (strict-allow-scripts=true in .npmrc). */
   instead?: { setting: string; file: string; since: string };
+  /**
+   * Part of the release-age delay or of blocking install scripts: npm ci installs the locked versions, so a CI job or
+   * Dockerfile stage that only runs it needs no delay, and one with scripts off no script blocking (decision D-115).
+   */
+  kind?: 'cooldown' | 'scripts';
 }
+
+const kinded = (kind: 'cooldown' | 'scripts', found: Feature | undefined): Feature | undefined => (found === undefined ? undefined : { ...found, kind });
 
 /**
  * When a missing feature can also be had with a setting from an earlier version (decision D-105): that version, the
@@ -70,28 +77,31 @@ function feature(setting: string | null, since: Fact<string | null> | string | u
 function policyFeatures(tool: ToolKnowledge, policy: ResolvedPolicy): Feature[] {
   const features: (Feature | undefined)[] = [];
   if (policy.cooldown !== undefined) {
-    features.push(feature(settingOf(tool.cooldown.setting), tool.cooldown.availableSince));
+    features.push(kinded('cooldown', feature(settingOf(tool.cooldown.setting), tool.cooldown.availableSince)));
     // A version that has the setting but skips it in some cases (pnpm before 10.17.0: exact versions).
     const exact = tool.extra?.['cooldownExactVersions'] === undefined ? undefined : values(tool.extra['cooldownExactVersions'])[0];
     const setting = settingOf(tool.cooldown.setting);
-    if (typeof exact === 'string' && setting !== null) features.push(feature(`${setting} for packages requested by exact version`, exact));
-    if (policy.cooldown.exclude.length > 0) features.push(feature(settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince));
+    if (typeof exact === 'string' && setting !== null) features.push(kinded('cooldown', feature(`${setting} for packages requested by exact version`, exact)));
+    if (policy.cooldown.exclude.length > 0) features.push(kinded('cooldown', feature(settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince)));
   }
   if (policy.installScripts !== undefined) {
     // Python tools forbid building from source with a switch (decision D-065).
     const build = tool.extra?.['buildSwitch'] === undefined ? undefined : values(tool.extra['buildSwitch'])[0];
-    if (policy.installScripts.default === 'deny' && isSwitch(build)) features.push(feature(build.setting, build.since));
+    if (policy.installScripts.default === 'deny' && isSwitch(build)) features.push(kinded('scripts', feature(build.setting, build.since)));
     const allowAll = tool.extra?.['allowAllScripts'] ?? tool.extra?.['allowAllBuilds'];
     const switchFact = allowAll === undefined ? undefined : values(allowAll)[0];
-    if (policy.installScripts.default === 'allow' && isSwitch(switchFact)) features.push(feature(switchFact.setting, switchFact.since));
+    if (policy.installScripts.default === 'allow' && isSwitch(switchFact)) features.push(kinded('scripts', feature(switchFact.setting, switchFact.since)));
     if (policy.installScripts.default === 'deny' && policy.installScripts.allow.length > 0) {
       // pnpm falls back to onlyBuiltDependencies before allowBuilds existed.
       const legacy = tool.extra?.['onlyBuiltDependencies'] === undefined ? undefined : extraOf(tool, 'onlyBuiltDependencies', isRecord);
       const setting = settingOf(tool.installScripts.allowList.setting);
       features.push(
-        legacy !== undefined && typeof legacy['since'] === 'string'
-          ? feature(setting, legacy['since'])
-          : feature(setting?.includes('<') ? (setting.split('.')[0] ?? setting) : setting, tool.installScripts.allowList.availableSince),
+        kinded(
+          'scripts',
+          legacy !== undefined && typeof legacy['since'] === 'string'
+            ? feature(setting, legacy['since'])
+            : feature(setting?.includes('<') ? (setting.split('.')[0] ?? setting) : setting, tool.installScripts.allowList.availableSince),
+        ),
       );
     }
   }
@@ -106,10 +116,10 @@ function policyFeatures(tool: ToolKnowledge, policy: ResolvedPolicy): Feature[] 
 function configuredFeatures(context: RuleContext, tool: ToolKnowledge): Feature[] {
   const file = values(tool.cooldown.configFiles)[0]?.[0];
   if (file === undefined) return [];
-  const candidates: [string | null, Fact<string | null> | undefined][] = [
-    [settingOf(tool.cooldown.setting), tool.cooldown.availableSince],
-    [settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince],
-    ...SOURCE_KINDS.map((kind): [string | null, Fact<string | null> | undefined] => [settingOf(tool.sources?.[kind]?.setting), tool.sources?.[kind]?.availableSince]),
+  const candidates: [string | null, Fact<string | null> | undefined, Feature['kind']][] = [
+    [settingOf(tool.cooldown.setting), tool.cooldown.availableSince, 'cooldown'],
+    [settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince, 'cooldown'],
+    ...SOURCE_KINDS.map((kind): [string | null, Fact<string | null> | undefined, Feature['kind']] => [settingOf(tool.sources?.[kind]?.setting), tool.sources?.[kind]?.availableSince, undefined]),
   ];
   const files = tool.id === 'deno' ? context.detection.packageManagers.find((entry) => entry.id === 'deno')?.configFiles.filter((name) => /^deno\.jsonc?$/u.test(name)) ?? [] : [file];
   const configured = (setting: string) =>
@@ -118,7 +128,7 @@ function configuredFeatures(context: RuleContext, tool: ToolKnowledge): Feature[
       : files.some((name) => readSetting(context.repository, name, setting) !== undefined);
   return candidates
     .filter(([setting]) => setting !== null && configured(setting))
-    .map(([setting, since]) => feature(setting, since))
+    .map(([setting, since, kind]) => (kind === undefined ? feature(setting, since) : kinded(kind, feature(setting, since))))
     .filter((item): item is Feature => item !== undefined);
 }
 
@@ -155,10 +165,10 @@ function scriptFeatures(context: RuleContext, tool: ToolKnowledge, policy: Resol
   if (typeof disable === 'string' && /^[\w.-]+$/u.test(disable) && readSetting(context.repository, file, disable)?.value === true) return [];
   const strict = extraOf(tool, 'strictAllowScripts', isSwitch);
   if (readSetting(context.repository, file, strict.setting)?.value === strict.value) {
-    const found = feature(strict.setting, strict.since);
+    const found = kinded('scripts', feature(strict.setting, strict.since));
     return found === undefined ? [] : [found];
   }
-  const blocks = feature(`blocking dependency install scripts without ${strict.setting}`, (values(tool.installScripts.defaultPolicy)[0] ?? []).find((entry) => entry.value === 'deny-except-allowlist')?.since);
+  const blocks = kinded('scripts', feature(`blocking dependency install scripts without ${strict.setting}`, (values(tool.installScripts.defaultPolicy)[0] ?? []).find((entry) => entry.value === 'deny-except-allowlist')?.since));
   return blocks === undefined || strict.since === undefined ? [] : [{ ...blocks, instead: { setting: `${strict.setting}=${String(strict.value)}`, file, since: strict.since } }];
 }
 
@@ -182,6 +192,9 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
   const advice = features.some((item) => item.instead !== undefined) ? strictAdvice(context, tool) : { now: false, targeted: false };
   for (const declaration of manager.versions) {
     if (!('version' in declaration)) continue;
+    // npm install -g npm@X in a CI job or a Dockerfile counts where it installs packages, with the settings of that
+    // directory (checkBundledVersions, decision D-115).
+    if (tool.id === 'npm' && (declaration.source === 'github-actions' || declaration.source === 'dockerfile')) continue;
     const lowest = lowestVersion(declaration.version);
     const label = sourceLabel(tool, declaration);
     // "Dockerfile" or ".tool-versions" at the root is both the label and the file: named once.

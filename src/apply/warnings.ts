@@ -68,6 +68,7 @@ export const APPLY_ERRORS = {
   'project-not-a-directory': 'A path listed in projects in depcurfew.json is a file, not a directory, so nothing is written.',
   'project-symlink': 'A directory listed in projects in depcurfew.json is a symlink or lies under one, which may lead out of the repository, so nothing is written.',
   'project-has-policy': 'A directory listed in projects has a depcurfew.json of its own, a second policy for the same files, so nothing is written.',
+  'project-is-repository': 'A directory listed in projects is a separate git repository or lies in one (it has a .git of its own, as a git submodule does), whose files belong to that repository, so nothing is written.',
   'project-in-workspace': 'A directory listed in projects is, holds or lies in a workspace package of the repository root, which the root configuration already covers, so nothing is written.',
   'home-missing': 'apply --user and init --user: the home directory (HOME, USERPROFILE on Windows) does not exist or is not an absolute path, so nothing is written.',
 } as const satisfies Record<string, string>;

@@ -115,8 +115,17 @@ describe('projectDirectory', () => {
     expect(projectDirectory(undefined, 'apply', deep)).toEqual({ ok: true, directory: deep });
   });
 
-  it('takes a directory given on the command line as it is', () => {
+  it('takes a directory given on the command line as it is, unless the policy above it lists it under projects (decision D-115)', () => {
     const { repo, deep } = layout({ repoPolicy: true, git: 'directory' });
+    expect(projectDirectory('src/deep', 'doctor', repo)).toEqual({ ok: true, directory: deep });
+    writeFileSync(join(repo, 'depcurfew.json'), '{ "version": 1, "projects": ["src"] }\n');
+    expect(projectDirectory('src/deep', 'doctor', repo)).toEqual({
+      ok: true,
+      directory: repo,
+      notice: 'src/deep is listed in projects in depcurfew.json, so depcurfew doctor works on ., which covers it with that policy; paths are relative to it',
+    });
+    expect(projectDirectory('..', 'apply', deep)).toEqual({ ok: true, directory: repo, notice: '.. is listed in projects in ../../depcurfew.json, so depcurfew apply works on ../.., which covers it with that policy; paths are relative to it' });
+    writeFileSync(join(deep, 'depcurfew.json'), '{ "version": 1 }\n');
     expect(projectDirectory('src/deep', 'doctor', repo)).toEqual({ ok: true, directory: deep });
   });
 });

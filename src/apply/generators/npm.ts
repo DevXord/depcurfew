@@ -62,11 +62,25 @@ function scriptsForVersionsInUse(context: Context, file: string, entries: string
       const since = values(tool.installScripts.defaultPolicy)[0]?.find((entry) => entry.value === 'deny-except-allowlist')?.since ?? later?.since ?? '';
       const target = pin !== undefined && versionedValue(defaults, pin.versions[0] as Version) === 'deny-except-allowlist' ? formatVersion(pin.versions[0] as Version) : since;
       const effect = later === undefined ? '' : `; with it, in npm ${later.since} and later ${later.value}${blocking.length === 0 ? '' : `, which applies to ${places(blocking)}`}`;
+      // The pin is raised where it is pinned; the other places (CI jobs, Dockerfiles, Node.js version files) install a
+      // newer npm, which a pin does not change (decision D-115).
+      const others = notices.filter((item) => item.entry.pin !== true);
+      const steps = [
+        ...(pinNeedsIt ? [`require npm ${since} or later in ${pin.where}`] : []),
+        ...(others.length === 0
+          ? []
+          : [
+              `make ${pinNeedsIt ? 'the other places listed here' : 'every place listed here'} run npm ${since} or later (npm install -g npm@${target} before it installs packages; a pin in packageManager or devEngines does not change the npm they run)`,
+            ]),
+      ];
+      const how = steps.join(', and ');
+      // A Dockerfile's or a CI job's npm install -g npm@X does not pin npm for every place (decision D-115).
+      const unpinned = `nothing pins one npm for ${context.project ?? 'the repository'} (packageManager, devEngines, Volta or .tool-versions), and `;
       context.warn({
         code: 'strict-allow-scripts-for-npm-in-use',
         ...where(notices),
-        message: `${pin === undefined ? `npm is not pinned for ${context.project ?? 'the repository'}, and ` : ''}${places(notices)} ${plural(notices) ? 'run' : 'runs'} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${effect}`,
-        fix: `Make every place listed here run npm ${since} or later (npm install -g npm@${target} before it installs packages), and depcurfew apply leaves ${strict.setting} out; pinning npm in packageManager or devEngines does not change the npm they run. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in ${POLICY_FILE}`,
+        message: `${pin === undefined ? unpinned : ''}${places(notices)} ${plural(notices) ? 'run' : 'runs'} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${effect}`,
+        fix: `${how.charAt(0).toUpperCase()}${how.slice(1)}, and depcurfew apply leaves ${strict.setting} out. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in ${POLICY_FILE}`,
       });
     }
   }

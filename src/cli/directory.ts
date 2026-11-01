@@ -4,6 +4,7 @@
 import { statSync } from 'node:fs';
 import { relative, resolve, sep } from 'node:path';
 import { PolicyError, policyErrorFix } from '../apply/index.ts';
+import { listedAsProject } from '../apply/projects.ts';
 import type { ApplyErrorCode } from '../apply/warnings.ts';
 import { paint, PLAIN, type Paint } from '../color.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
@@ -46,12 +47,26 @@ export function checkDirectory(directory: string | undefined, cwd = process.cwd(
 }
 
 /**
- * The directory apply, doctor and explain work on. A directory given on the command line is taken as it is. Without
- * one, it is the nearest directory with depcurfew.json from `cwd` up to the root of the repository, so a command run
- * in a subdirectory does not pass for a project without a policy; `notice` then says which directory it is.
+ * The directory apply, doctor and explain work on. Without a directory on the command line, it is the nearest directory
+ * with depcurfew.json from `cwd` up to the root of the repository, so a command run in a subdirectory does not pass for
+ * a project without a policy. A directory given on the command line is taken as it is, unless the nearest depcurfew.json
+ * above it lists it (or a directory it lies in) under projects: then the command works on that root, which checks it as
+ * one of its projects, as when run in that directory (decision D-115). `notice` says which directory it is.
  */
 export function projectDirectory(directory: string | undefined, command: string, cwd = process.cwd()): DirectoryResult {
-  if (directory !== undefined) return checkDirectory(directory, cwd);
+  if (directory !== undefined) {
+    const checked = checkDirectory(directory, cwd);
+    if (!checked.ok) return checked;
+    const found = findPolicyDirectory(checked.directory);
+    if (found === undefined || found === checked.directory || !listedAsProject(found, checked.directory)) return checked;
+    const shown = relative(resolve(cwd), found).split(sep).join('/') || '.';
+    const file = shown === '.' ? POLICY_FILE : `${shown}/${POLICY_FILE}`;
+    return {
+      ok: true,
+      directory: found,
+      notice: `${directory} is listed in projects in ${file}, so depcurfew ${command} works on ${shown}, which covers it with that policy; paths are relative to it`,
+    };
+  }
   const start = resolve(cwd);
   const found = findPolicyDirectory(start);
   if (found === undefined || found === start) return checkDirectory(undefined, start);

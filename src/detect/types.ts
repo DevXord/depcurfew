@@ -47,6 +47,11 @@ export type VersionDeclaration = ({ version: string; versionFile?: string } | { 
   unknown?: string;
   /** dockerfile: the build stage, by its name or its number from 0. */
   stage?: string;
+  /**
+   * github-actions: the image of jobs.<id>.container (node:20) the version comes from, read like a FROM of a Dockerfile
+   * (decision D-115); the line is the image's, and it stands for the job's steps until a setup step.
+   */
+  container?: string;
 };
 
 /**
@@ -57,14 +62,28 @@ export type VersionDeclaration = ({ version: string; versionFile?: string } | { 
  */
 export interface ToolCommand {
   kind: 'install' | 'upgrade';
-  /** pnpm, Yarn and Bun only install (their versions come from packageManager and the setup actions). */
-  tool: 'npm' | 'pip' | 'pnpm' | 'yarn' | 'bun';
+  /**
+   * pnpm, Yarn and Bun only install (their versions come from packageManager and the setup actions); poetry only
+   * upgrades: pipx install poetry==2.3.0 or pip install poetry==2.3.0 installs that Poetry (decision D-115).
+   */
+  tool: 'npm' | 'pip' | 'pnpm' | 'yarn' | 'bun' | 'poetry';
   /** upgrade: the version asked for as written, latest when none is; absent when the command does not say (corepack enable npm). */
   version?: string;
+  /** npm ci and its aliases, which install exactly the versions of package-lock.json (decision D-115). */
+  lockfile?: true;
+  /** npm runs it with dependency install scripts off (--ignore-scripts, npm_config_ignore_scripts=true; decision D-115). */
+  scriptsOff?: true;
+  /** pip install: the release-age delay it gets, as written (--uploaded-prior-to, PIP_UPLOADED_PRIOR_TO; decision D-115). */
+  delay?: string;
+  /** pip install: PIP_CONFIG_FILE names a file that may set the delay, or the value is a variable depcurfew does not read. */
+  delayUnknown?: true;
   line: number;
   /**
    * github-actions: the working directory of the run step as written (working-directory of the step, or
-   * defaults.run.working-directory of the job or the workflow), without ./ and a trailing /; absent for the root.
+   * defaults.run.working-directory of the job or the workflow), without ./ and a trailing /, joined with the literal
+   * cd before the command (cd frontend && npm ci); absent for the root. dockerfile: the directory of a literal cd before
+   * the command, relative to the working directory of the instruction. A cd depcurfew does not follow ($DIR, an
+   * absolute path) gives a directory that is no project (decision D-115).
    */
   directory?: string;
 }

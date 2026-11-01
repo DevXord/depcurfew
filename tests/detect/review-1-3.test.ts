@@ -38,7 +38,7 @@ describe('install commands', () => {
     ['npm i --global typescript', []],
     ['npm install --location=global pnpm', []],
     ['npm install --global npm@11.19.1', [{ kind: 'upgrade', tool: 'npm', version: '11.19.1' }]],
-    ['npm ci', [{ kind: 'install', tool: 'npm' }]],
+    ['npm ci', [{ kind: 'install', tool: 'npm', lockfile: true }]],
     ['pnpm install --frozen-lockfile', [{ kind: 'install', tool: 'pnpm' }]],
     ['pnpm i', [{ kind: 'install', tool: 'pnpm' }]],
     ['pnpm add -D esbuild', [{ kind: 'install', tool: 'pnpm' }]],
@@ -70,7 +70,7 @@ describe('install commands', () => {
     const result = readDockerStages('Dockerfile', ['FROM node:22', 'RUN npm install -g pnpm@10 && pnpm install', 'RUN npm ci'].join('\n'), facts.docker);
     expect(result.info.stages[0]?.commands).toEqual([
       { kind: 'install', tool: 'pnpm', line: 2 },
-      { kind: 'install', tool: 'npm', line: 3 },
+      { kind: 'install', tool: 'npm', lockfile: true, line: 3 },
     ]);
   });
 });
@@ -85,13 +85,13 @@ describe('here-documents', () => {
       ['RUN', 0],
       ['FROM', 0],
     ]);
-    expect(readDockerStages('Dockerfile', lines.join('\n'), facts.docker).info.stages.map((stage) => stage.commands)).toEqual([[{ kind: 'install', tool: 'npm', line: 2 }], []]);
+    expect(readDockerStages('Dockerfile', lines.join('\n'), facts.docker).info.stages.map((stage) => stage.commands)).toEqual([[{ kind: 'install', tool: 'npm', lockfile: true, line: 2 }], []]);
   });
 
   it('starts one at a whole word, also with a file descriptor or a quoted delimiter, and reads scripts fed to a shell', () => {
     const result = readDockerStages('Dockerfile', ['FROM node:22', 'RUN 0<<"EOF" bash -e', 'npm ci', 'EOF', 'RUN <<A cat > a && <<B sh', 'npm install', 'A', 'pnpm install', 'B'].join('\n'), facts.docker);
     expect(result.info.stages[0]?.commands).toEqual([
-      { kind: 'install', tool: 'npm', line: 3 },
+      { kind: 'install', tool: 'npm', lockfile: true, line: 3 },
       { kind: 'install', tool: 'pnpm', line: 8 },
     ]);
   });
@@ -177,11 +177,11 @@ describe('workflows', () => {
     const detection = detectProject(repository({ '.github/workflows/ci.yml': workflow }));
     expect(detection.jobs.map((job) => job.commands)).toEqual([
       [
-        { kind: 'install', tool: 'npm', line: 7, directory: 'web' },
-        { kind: 'install', tool: 'npm', line: 8 },
+        { kind: 'install', tool: 'npm', lockfile: true, line: 7, directory: 'web' },
+        { kind: 'install', tool: 'npm', lockfile: true, line: 8 },
       ],
       [
-        { kind: 'install', tool: 'npm', line: 15, directory: 'frontend' },
+        { kind: 'install', tool: 'npm', lockfile: true, line: 15, directory: 'frontend' },
         { kind: 'install', tool: 'yarn', line: 16, directory: 'frontend/app' },
       ],
     ]);

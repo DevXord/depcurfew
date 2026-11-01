@@ -105,7 +105,7 @@ describe('strict-allow-scripts from every place npm runs (item 1)', () => {
       location: { file: 'Dockerfile', line: 1 },
       message:
         'npm 11.16.0 (with Node.js 24.18.0 of node:24.18.0 in Dockerfile) runs dependency install scripts that allowScripts does not cover unless strict-allow-scripts is set, so depcurfew apply writes strict-allow-scripts=true; with it, in npm 12.0.0 and later the install fails instead of blocking the script with a warning, which applies to npm 12.2.1 (packageManager in package.json)',
-      fix: 'Make every place listed here run npm 12.0.0 or later (npm install -g npm@12.2.1 before it installs packages), and depcurfew apply leaves strict-allow-scripts out; pinning npm in packageManager or devEngines does not change the npm they run. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in depcurfew.json',
+      fix: 'Make every place listed here run npm 12.0.0 or later (npm install -g npm@12.2.1 before it installs packages; a pin in packageManager or devEngines does not change the npm they run), and depcurfew apply leaves strict-allow-scripts out. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in depcurfew.json',
     });
     const after = runDoctor(directory);
     expect(rule(after, 'manager-version-too-old')).toEqual([]);
@@ -199,7 +199,7 @@ describe('Node.js version files of the root for projects (item 2)', () => {
     promisesHold(directory);
     const report = applyProject(directory, { write: true });
     expect(npmrc(directory, 'frontend/.npmrc')).toContain('strict-allow-scripts=true\n');
-    expect(report.warningDetails.find((item) => item.code === 'strict-allow-scripts-for-npm-in-use')?.message).toMatch(/^frontend: npm is not pinned for frontend, and npm 11\.16\.0 \(with Node\.js 24\.18\.0 in \.nvmrc at the repository root\) runs /u);
+    expect(report.warningDetails.find((item) => item.code === 'strict-allow-scripts-for-npm-in-use')?.message).toMatch(/^frontend: nothing pins one npm for frontend \(packageManager, devEngines, Volta or \.tool-versions\), and npm 11\.16\.0 \(with Node\.js 24\.18\.0 in \.nvmrc at the repository root\) runs /u);
     const after = runDoctor(directory);
     expect(rule(after, 'manager-version-too-old')).toEqual([]);
     expect(rule(after, 'lockfile-install-scripts').map((finding) => finding.level)).toEqual(['warning']);
@@ -226,9 +226,12 @@ describe('Node.js version files of the root for projects (item 2)', () => {
     expect(docker[0]?.message).toContain('installs packages with it for frontend on line 4');
     expect(docker[0]?.fix).toMatch(/^Set strict-allow-scripts=true in frontend\/\.npmrc, which depcurfew apply writes for this repository, or /u);
     promisesHold(copies);
-    // COPY . . builds from the whole repository: not clearly a build of frontend.
-    const whole = projectRepo({ 'frontend/.nvmrc': '22.11.0\n', Dockerfile: 'FROM node:24.18.0\nCOPY . .\nRUN cd frontend && npm ci\n' });
+    // COPY . . builds from the whole repository: not clearly a build of frontend, unless the install runs in frontend
+    // (cd frontend && npm ci, decision D-115).
+    const whole = projectRepo({ 'frontend/.nvmrc': '22.11.0\n', Dockerfile: 'FROM node:24.18.0\nCOPY . .\nRUN npm ci\n' });
     expect(planRepository(whole, loadPolicyIfPresent(whole) as never).changes.find((change) => change.file === 'frontend/.npmrc')?.after).not.toContain('strict-allow-scripts');
+    const inFrontend = projectRepo({ 'frontend/.nvmrc': '22.11.0\n', Dockerfile: 'FROM node:24.18.0\nCOPY . .\nRUN cd frontend && npm ci\n' });
+    expect(planRepository(inFrontend, loadPolicyIfPresent(inFrontend) as never).changes.find((change) => change.file === 'frontend/.npmrc')?.after).toContain('strict-allow-scripts=true');
     // Files of two directories: not clearly one project either.
     const both = projectRepo({ 'frontend/.nvmrc': '22.11.0\n', Dockerfile: 'FROM node:24.18.0\nCOPY frontend/package.json shared/x.json ./\nRUN npm ci\n' });
     expect(planRepository(both, loadPolicyIfPresent(both) as never).changes.find((change) => change.file === 'frontend/.npmrc')?.after).not.toContain('strict-allow-scripts');
@@ -254,7 +257,7 @@ describe('Node.js version files of the root for projects (item 2)', () => {
 });
 
 describe('duplicate findings (item 3)', () => {
-  const steps = (count: number, version: string) => Array.from({ length: count }, () => `      - uses: actions/setup-node@v4\n        with:\n          node-version: ${version}\n      - run: npm ci\n`).join('');
+  const steps = (count: number, version: string) => Array.from({ length: count }, () => `      - uses: actions/setup-node@v4\n        with:\n          node-version: ${version}\n      - run: npm install\n`).join('');
   const workflow = (values: string, count: number) => `on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        node: [${values}]\n    steps:\n${steps(count, '${{ matrix.node }}')}`;
 
   it('reports the same finding once', () => {
@@ -286,14 +289,14 @@ describe('duplicate findings (item 3)', () => {
 
 describe('runtime-end-of-life for versions it cannot read (item 4)', () => {
   it('gives a note with the file, line and fix instead of passing', async () => {
-    const directory = repository({ 'package.json': '{ "name": "app", "private": true }\n', 'package-lock.json': '{ "lockfileVersion": 3, "packages": {} }\n', '.nvmrc': 'lts/-9\n', Dockerfile: 'FROM node:weird-tag\nRUN npm ci\n' });
+    const directory = repository({ 'package.json': '{ "name": "app", "private": true }\n', 'package-lock.json': '{ "lockfileVersion": 3, "packages": {} }\n', '.nvmrc': 'lts/-99\n', Dockerfile: 'FROM node:weird-tag\nRUN npm ci\n' });
     const report = runDoctor(directory, { policy: null });
     expect(rule(report, 'runtime-end-of-life')).toEqual([
       {
         rule: 'runtime-end-of-life',
         level: 'note',
         location: { file: '.nvmrc', line: 1 },
-        message: 'runtime-end-of-life cannot tell whether Node.js lts/-9 in .nvmrc is past its end of life: it is not a version or a range depcurfew can read',
+        message: 'runtime-end-of-life cannot tell whether Node.js lts/-99 in .nvmrc is past its end of life: it is not a version or a range depcurfew can read',
         fix: 'Write the version in .nvmrc as depcurfew reads it (such as 24, 24.11.0 or lts/krypton), or check by hand that it is a supported Node.js LTS line: 22 (until 2027-04-30), 24 (until 2028-04-30) or 26 (until 2029-04-30)',
       },
       {

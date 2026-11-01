@@ -6,6 +6,7 @@ const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
+const finalReview = verifiedOn('2026-11-01');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -528,6 +529,24 @@ export const npm: ToolKnowledge = {
       'npm ci installs versions pinned in package-lock.json without applying min-release-age',
       'https://docs.npmjs.com/cli/v12/commands/npm-ci',
       'Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window.',
+    ),
+    cleanInstall: finalReview.verified(
+      { commands: 'clean', installsLockedVersions: true, failsWhenOutOfSync: true, writesLockfile: false },
+      'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-ci.md',
+      'npm ci (the clean commands of installCommands): "The project must have an existing package-lock.json"; "If dependencies in the package lock do not match those in package.json, npm ci will exit with an error, instead of updating the package lock"; "It will never write to package.json or package-lock.json: installs are essentially frozen." lib/commands/ci.js at v12.2.1 loads the lockfile (loadVirtual), builds the ideal tree, throws "`npm ci` can only install packages when your package.json and package-lock.json are in sync" when validateLockfile finds a difference, and reifies with packageLock: true and save: false. So npm ci installs exactly the versions package-lock.json records, and a release-age delay cannot change which versions it installs; the settings of its params (ignore-scripts, allow-scripts, strict-allow-scripts, allow-git, allow-remote, allow-file, allow-directory) still apply.',
+    ),
+    scriptsOff: finalReview.verified(
+      { option: '--ignore-scripts', variable: 'npm_config_ignore_scripts', anyCase: true, value: 'true' },
+      'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/config.md',
+      'ignore-scripts (Boolean, default false; definitions.js at v12.2.1: "If true, npm does not run scripts specified in package.json files") is one of the params of npm ci and npm install (lib/commands/ci.js). On the command line --ignore-scripts sets it; "Any environment variables that start with npm_config_ will be interpreted as a configuration parameter", with underscores for dashes, and "Config values are case-insensitive, so NPM_CONFIG_FOO=bar will work the same". depcurfew counts only the value true (and the flag without a value) as off: parseField turns only "true" into true, and loadEnv skips empty values (user.variables).',
+    ),
+    nodeEngines: finalReview.verified(
+      [
+        { since: '11.0.0', node: '^20.17.0 || >=22.9.0' },
+        { since: '12.0.0', node: '^22.22.2 || ^24.15.0 || >=26.0.0' },
+      ],
+      'https://github.com/npm/cli/blob/v11.19.1/package.json',
+      'engines.node of npm/cli package.json, the same at the tags v11.0.0, v11.10.0, v11.16.0, v11.19.1 and v11.21.1 (^20.17.0 || >=22.9.0) and at v12.0.0 and v12.2.1 (^22.22.2 || ^24.15.0 || >=26.0.0, https://github.com/npm/cli/blob/v12.2.1/package.json). On a Node.js outside the range npm only warns that it does not support it: lib/cli/entry.js at v11.19.1 runs log.warn(\'cli\', validateEngines.unsupportedMessage) when !satisfies(node, engines), for a Node.js "still unsupported and untested and might not work reliably", and lib/cli/validate-engines.js prints "ERROR: npm ... is known not to run on Node.js ..." when it fails with a SyntaxError. So npm install -g npm@11 on Node.js 18 installs an npm that is not meant to run there.',
     ),
   },
 };

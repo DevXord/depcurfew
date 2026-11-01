@@ -41,7 +41,8 @@ export interface LeftOutProject {
 /**
  * The direct subdirectories of `root` that hold a manifest or lockfile, sorted, when the root itself holds none; an
  * empty list otherwise. Symlinks are not followed: apply refuses a project reached through one. A directory that apply
- * would refuse as a project (projectProblems: one with a depcurfew.json of its own) is left out, with the reason.
+ * would refuse as a project (projectProblems: one with a depcurfew.json of its own, or a git submodule or other
+ * repository of its own) is left out, with the reason.
  */
 export function proposedProjects(root: string): { projects: string[]; leftOut: LeftOutProject[] } {
   const files = projectFiles();
@@ -67,7 +68,9 @@ export function proposedProjects(root: string): { projects: string[]; leftOut: L
       reason:
         problem.code === 'project-has-policy'
           ? `${own} is a policy of its own, and two policies for the same files are refused; run depcurfew in ${problem.project} on its own, or move what ${own} sets into ${POLICY_FILE}, remove it and add "${problem.project}" to projects`
-          : `${problem.message}; depcurfew apply would refuse it`,
+          : problem.code === 'project-is-repository'
+            ? `it is a separate git repository (it has a .git of its own, as a git submodule does), whose files belong to that repository; run depcurfew init in ${problem.project} for it`
+            : `${problem.message}; depcurfew apply would refuse it`,
     };
   });
   return { projects: candidates.filter((name) => !problems.some((problem) => problem.project === name)), leftOut };

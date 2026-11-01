@@ -268,7 +268,7 @@ describe('wording', () => {
     const warnings = plan(directory).warningDetails.filter((item) => item.project === 'frontend');
     expect(warnings.length).toBeGreaterThan(2);
     for (const warning of warnings) expect(warning.message).toMatch(/^frontend: /u);
-    expect(warnings.find((item) => item.code === 'strict-allow-scripts-for-npm-in-use')?.message).toMatch(/^frontend: npm is not pinned for frontend, and /u);
+    expect(warnings.find((item) => item.code === 'strict-allow-scripts-for-npm-in-use')?.message).toMatch(/^frontend: nothing pins one npm for frontend \(packageManager, devEngines, Volta or \.tool-versions\), and /u);
     expect(warnings.find((item) => item.code === 'scripts-not-enforceable')?.message).toBe(
       'frontend: npm 10.9.0 (with Node.js 22.11.0 of node:22.11.0 in frontend/Dockerfile) runs every dependency install script and has no allow-list, so "deny" cannot be enforced there',
     );

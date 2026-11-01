@@ -1087,6 +1087,8 @@ export interface EnvironmentKnowledge {
     syntax: Fact<DockerfileSyntaxKnowledge>;
     /** How COPY and ADD read a source path in the build context: from its root, with ../ and trailing slashes removed. */
     copySources: Fact<{ relativeTo: 'context'; parentNavigation: 'removed'; trailingSlash: 'ignored' }>;
+    /** ENV: variables for the later instructions of the stage and the stages that start from it (decision D-115). */
+    environment: Fact<{ instruction: string; inheritedByStages: boolean; spaceForm: boolean }>;
     /** The default file name, and the suffix of other Dockerfiles (build.Dockerfile). */
     dockerfileNames: Fact<{ defaultName: string; suffix: string }>;
     /** Dockerfile.<name>: a common convention without an official source. */
@@ -1116,6 +1118,13 @@ export interface EnvironmentKnowledge {
     /** The versions node-version accepts besides semver ranges. */
     setupNodeVersions: Fact<NodeVersionNamesKnowledge>;
     setupNodeVersionFile: Fact<SetupNodeVersionFileKnowledge>;
+    /**
+     * jobs.<job_id>.container: the image the job's run steps run in, as a string or under image, with its env
+     * (decision D-115).
+     */
+    jobContainer: Fact<{ key: string; imageKey: string; envKey: string }>;
+    /** The env maps of a workflow, a job and a step; the most specific one wins (decision D-115). */
+    environmentKeys: Fact<{ key: string; levels: readonly ('workflow' | 'job' | 'step')[] }>;
     pnpmActionSetup: Fact<SetupActionKnowledge>;
     pnpmSetup: Fact<SetupActionKnowledge>;
     setupBun: Fact<SetupActionKnowledge>;
@@ -1168,6 +1177,11 @@ export interface EnvironmentKnowledge {
     /** Where git reads the patterns of files it does not pick up, and the index that lists the tracked files. */
     ignore: Fact<GitIgnoreKnowledge>;
     ignoreCase: Fact<GitIgnoreCaseKnowledge>;
+    /**
+     * The entry at the root of a working tree that makes a directory a repository of its own: a .git directory, or in
+     * a submodule a .git file pointing to its git directory in the superproject (decision D-115).
+     */
+    repositoryEntry: Fact<{ entry: string; submoduleEntry: 'file' }>;
   };
   windows: {
     commandShims: Fact<CommandShimsKnowledge>;

@@ -3,7 +3,7 @@
 // A version it cannot read gives a note with the place and a fix, so "passed" never stands for "not looked at"
 // (decisions D-105 and D-109).
 import { environment } from '../../knowledge/environment.ts';
-import { namingOf, nodeLines, runtimeFacts, supportedLtsLines, today } from '../runtime-versions.ts';
+import { namingFor, nodeLines, runtimeFacts, supportedLtsLines, today } from '../runtime-versions.ts';
 import { commandsAfterStep, jobIndex, nodeSubject } from './bundled-versions.ts';
 import type { Rule } from '../types.ts';
 import { declarationLine, SOURCE_LABEL } from './manager-version.ts';
@@ -59,7 +59,7 @@ export const runtimeEndOfLife: Rule = {
         cannotTell(subject, declaration.unknown, location, check.replace('it is', 'every value is'));
         continue;
       }
-      const found = nodeLines(declaration.version, namingOf(declaration.source), facts);
+      const found = nodeLines(declaration.version, namingFor(declaration), facts);
       if (found === undefined) {
         cannotTell(subject, 'it is not a version or a range depcurfew can read', location, `write the version in ${label} as depcurfew reads it (such as 24, 24.11.0 or lts/krypton), or ${check}`);
         continue;

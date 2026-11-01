@@ -111,7 +111,7 @@ describe('apply with projects', () => {
       {
         code: 'project-has-policy',
         level: 'error',
-        location: { file: 'deck/depcurfew.json' },
+        location: { file: 'depcurfew.json', line: 26 },
         message: 'deck/depcurfew.json is a second policy for deck, which projects in the depcurfew.json of the repository root already covers',
         fix: 'Remove deck/depcurfew.json (move what it sets into the depcurfew.json of the root), or remove "deck" from projects in depcurfew.json and run depcurfew in deck on its own',
       },
@@ -216,6 +216,8 @@ describe('doctor with projects', () => {
     writePolicy();
     const report = runDoctor(directory);
     expect(report.findings.map((finding) => [finding.rule, finding.location.file])).toEqual([
+      // Both entries lack the cooldown: config-drift reports each place (decision D-115).
+      ['config-drift', '.github/dependabot.yml'],
       ['config-drift', '.github/dependabot.yml'],
       ['config-drift', 'backend/pyproject.toml'],
       ['config-drift', 'depcurfew.json'],
@@ -223,8 +225,8 @@ describe('doctor with projects', () => {
       // Without frontend/.npmrc nothing makes npm 11.19.1 block dependency install scripts (decision D-105).
       ['manager-version-too-old', 'frontend/package.json'],
     ]);
-    expect(report.findings[2]?.message).toBe('frontend/.npmrc is missing; depcurfew apply would create it with the settings from depcurfew.json');
-    expect(report.findings[4]).toMatchObject({
+    expect(report.findings[3]?.message).toBe('frontend/.npmrc is missing; depcurfew apply would create it with the settings from depcurfew.json');
+    expect(report.findings[5]).toMatchObject({
       message: 'npm 11.19.1 in packageManager (frontend/package.json) does not support blocking dependency install scripts without strict-allow-scripts (added in 12.0.0)',
       fix: 'Set strict-allow-scripts=true in frontend/.npmrc, which depcurfew apply writes for this repository, or require npm 12.0.0 or later in packageManager',
     });
@@ -236,7 +238,7 @@ describe('doctor with projects', () => {
     expect(report.checked?.files).toEqual(['.github/dependabot.yml', 'backend/pyproject.toml', 'backend/uv.lock', 'depcurfew.json', 'frontend/package-lock.json', 'frontend/package.json']);
     // Each rule once, its result over every directory.
     expect(report.checked?.rules.map((rule) => rule.rule)).toEqual(RULES.map((rule) => rule.id));
-    expect(report.checked?.rules.find((rule) => rule.rule === 'config-drift')).toMatchObject({ result: 'problems', errors: 4 });
+    expect(report.checked?.rules.find((rule) => rule.rule === 'config-drift')).toMatchObject({ result: 'problems', errors: 5 });
     expect(renderText(report, RULES)).toContain('npm 11.19.1 (frontend/package.json) in frontend');
     const sarif = JSON.stringify(toSarif(report, RULES, '0.0.0'));
     expect(sarif).toContain('"uri":"frontend/package.json"');
@@ -389,7 +391,7 @@ describe('init with projects', () => {
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout).toContain('projects lists backend and frontend:');
     expect(result.stdout).toContain(
-      'deck is not in projects: deck/depcurfew.json is a policy of its own, and two policies for the same files are refused; run depcurfew in deck on its own, or move what deck/depcurfew.json sets into depcurfew.json, remove it and add "deck" to projects.\n',
+      'warning: deck is not in projects: deck/depcurfew.json is a policy of its own, and two policies for the same files are refused; run depcurfew in deck on its own, or move what deck/depcurfew.json sets into depcurfew.json, remove it and add "deck" to projects.\n',
     );
     expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { projects: ['backend', 'frontend'] } });
     const apply = await exec('apply', '--dry-run', directory);

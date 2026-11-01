@@ -4,13 +4,15 @@
 // What is planned or found in a project names its files relative to that project; the helpers here name them
 // relative to the repository root again, in paths and in the text of messages.
 import { lstatSync, realpathSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import type { Detection, VersionDeclaration } from '../detect/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { readPolicyFile } from '../policy/file.ts';
 import { lineOf } from '../doctor/settings.ts';
 import { jsonElementOffsets, jsonGet } from './json-edit.ts';
 import { isInside } from '../paths.ts';
+import { environment } from '../knowledge/environment.ts';
+import { values } from './facts.ts';
 import type { ApplyErrorCode } from './warnings.ts';
 
 /** The detection of a project with every file named relative to the repository root, for explain. */
@@ -53,6 +55,25 @@ export function relocateDetection(project: string, detection: Detection): Detect
     files: warning.files.map((file) => inProject(project, file)),
   }));
   return relocated;
+}
+
+/**
+ * Whether the depcurfew.json of `root` lists `directory` (an absolute path below it), or a directory it lies in, under
+ * projects, so that depcurfew run on `directory` works on the root, which checks it as one of its projects (decision
+ * D-115). A policy that cannot be read lists nothing.
+ */
+export function listedAsProject(root: string, directory: string): boolean {
+  const file = readPolicyFile(root);
+  if (file.status !== 'ok') return false;
+  let projects: unknown;
+  try {
+    projects = (JSON.parse(file.text) as { projects?: unknown }).projects;
+  } catch {
+    return false;
+  }
+  if (!Array.isArray(projects)) return false;
+  const path = relative(root, directory).split(sep).join('/');
+  return projects.some((project) => typeof project === 'string' && project !== '' && (path === project || path.startsWith(`${project}/`)));
 }
 
 /** A path of a project file as seen from the repository root. */
@@ -113,9 +134,29 @@ function overlaps(a: string, b: string): boolean {
   return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 
+/** The entry that makes a directory a repository of its own (.git, a directory or a submodule's file). */
+function repositoryEntry(): string {
+  return values(environment.git.repositoryEntry)[0]?.entry ?? '.git';
+}
+
+/** The directory on the way to a project (or the project itself) that is a repository of its own, if any. */
+function nestedRepository(root: string, project: string): string | undefined {
+  const parts = project.split('/');
+  for (let count = 1; count <= parts.length; count++) {
+    const part = parts.slice(0, count).join('/');
+    try {
+      if (lstatSync(join(root, part, repositoryEntry()), { throwIfNoEntry: false }) !== undefined) return part;
+    } catch {
+      // A directory that cannot be looked into is reported by apply when it reads it.
+    }
+  }
+  return undefined;
+}
+
 /**
  * The problems of the directories listed in projects: one that does not exist, is not a directory, is reached through
- * a symlink (which may lead out of the repository, and would put the files apply writes in another place), has a
+ * a symlink (which may lead out of the repository, and would put the files apply writes in another place), is a
+ * repository of its own or lies in one (a git submodule: its files belong to another repository), has a
  * depcurfew.json of its own (two policies for the same files), or overlaps a workspace package of the root (whose
  * configuration the root already writes). `rootDetection` is the detection of the root, for its workspaces.
  */
@@ -181,12 +222,22 @@ export function projectProblems(root: string, projects: readonly string[], rootD
       problem('project-not-a-directory', `${file} is a file, so the project directory ${project} listed in projects is not a directory`, `List the directory of the project, not a file in it, or ${remove}`);
       continue;
     }
+    const repository = nestedRepository(root, project);
+    if (repository !== undefined) {
+      const entry = inProject(repository, repositoryEntry());
+      problem(
+        'project-is-repository',
+        `the project directory ${project} listed in projects ${repository === project ? 'is' : `lies in ${repository}, which is`} a separate git repository (${entry} is there, as in a git submodule), so the files depcurfew would write there belong to that repository`,
+        `${remove.charAt(0).toUpperCase()}${remove.slice(1)}, and run depcurfew in ${repository} on its own, with a ${POLICY_FILE} of that repository`,
+      );
+      continue;
+    }
+    // At the line of the entry, as the other problems: the fix is to remove either the entry or the second policy.
     if (readPolicyFile(join(root, project)).status !== 'missing') {
       problem(
         'project-has-policy',
         `${inProject(project, POLICY_FILE)} is a second policy for ${project}, which projects in the ${POLICY_FILE} of the repository root already covers`,
         `Remove ${inProject(project, POLICY_FILE)} (move what it sets into the ${POLICY_FILE} of the root), or ${remove} and run depcurfew in ${project} on its own`,
-        { file: inProject(project, POLICY_FILE) },
       );
       continue;
     }

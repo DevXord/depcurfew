@@ -629,6 +629,7 @@ const checked$5 = verifiedOn("2026-10-29");
 const reviewed$2 = verifiedOn("2026-10-30");
 const rechecked$4 = verifiedOn("2026-10-31");
 const runtimes$2 = verifiedOn("2026-11-01");
+const finalReview$2 = verifiedOn("2026-11-01");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -1613,7 +1614,26 @@ const npm$1 = {
 			since: "11.2.0",
 			value: "warning"
 		}], "https://github.com/npm/cli/blob/v10.9.9/workspaces/config/lib/index.js", "npm 10 loads every key of an .npmrc without checking whether it knows it (#loadObject only checks deprecated and exclusive keys), so a setting it does not have yet, such as min-release-age, is ignored without any message. checkUnknown first appears in v11.2.0 (workspaces/config/lib/index.js), which warns: Unknown project config \"<key>\". This will stop working in the next major version of npm. The 11.2.0 changelog does not name the change; the version comes from reading the code at the tags. npm 12 collects unknown keys to fail the command (v12.2.1), with the exact behavior not read."),
-		lockfileInstalls: uncertain$8("npm ci installs versions pinned in package-lock.json without applying min-release-age", "https://docs.npmjs.com/cli/v12/commands/npm-ci", "Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window.")
+		lockfileInstalls: uncertain$8("npm ci installs versions pinned in package-lock.json without applying min-release-age", "https://docs.npmjs.com/cli/v12/commands/npm-ci", "Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window."),
+		cleanInstall: finalReview$2.verified({
+			commands: "clean",
+			installsLockedVersions: true,
+			failsWhenOutOfSync: true,
+			writesLockfile: false
+		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-ci.md", "npm ci (the clean commands of installCommands): \"The project must have an existing package-lock.json\"; \"If dependencies in the package lock do not match those in package.json, npm ci will exit with an error, instead of updating the package lock\"; \"It will never write to package.json or package-lock.json: installs are essentially frozen.\" lib/commands/ci.js at v12.2.1 loads the lockfile (loadVirtual), builds the ideal tree, throws \"`npm ci` can only install packages when your package.json and package-lock.json are in sync\" when validateLockfile finds a difference, and reifies with packageLock: true and save: false. So npm ci installs exactly the versions package-lock.json records, and a release-age delay cannot change which versions it installs; the settings of its params (ignore-scripts, allow-scripts, strict-allow-scripts, allow-git, allow-remote, allow-file, allow-directory) still apply."),
+		scriptsOff: finalReview$2.verified({
+			option: "--ignore-scripts",
+			variable: "npm_config_ignore_scripts",
+			anyCase: true,
+			value: "true"
+		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/config.md", "ignore-scripts (Boolean, default false; definitions.js at v12.2.1: \"If true, npm does not run scripts specified in package.json files\") is one of the params of npm ci and npm install (lib/commands/ci.js). On the command line --ignore-scripts sets it; \"Any environment variables that start with npm_config_ will be interpreted as a configuration parameter\", with underscores for dashes, and \"Config values are case-insensitive, so NPM_CONFIG_FOO=bar will work the same\". depcurfew counts only the value true (and the flag without a value) as off: parseField turns only \"true\" into true, and loadEnv skips empty values (user.variables)."),
+		nodeEngines: finalReview$2.verified([{
+			since: "11.0.0",
+			node: "^20.17.0 || >=22.9.0"
+		}, {
+			since: "12.0.0",
+			node: "^22.22.2 || ^24.15.0 || >=26.0.0"
+		}], "https://github.com/npm/cli/blob/v11.19.1/package.json", "engines.node of npm/cli package.json, the same at the tags v11.0.0, v11.10.0, v11.16.0, v11.19.1 and v11.21.1 (^20.17.0 || >=22.9.0) and at v12.0.0 and v12.2.1 (^22.22.2 || ^24.15.0 || >=26.0.0, https://github.com/npm/cli/blob/v12.2.1/package.json). On a Node.js outside the range npm only warns that it does not support it: lib/cli/entry.js at v11.19.1 runs log.warn('cli', validateEngines.unsupportedMessage) when !satisfies(node, engines), for a Node.js \"still unsupported and untested and might not work reliably\", and lib/cli/validate-engines.js prints \"ERROR: npm ... is known not to run on Node.js ...\" when it fails with a SyntaxError. So npm install -g npm@11 on Node.js 18 installs an npm that is not meant to run there.")
 	}
 };
 
@@ -3511,6 +3531,7 @@ const pnpm$1 = {
 const { verified: verified$4, uncertain: uncertain$3, disputed: disputed$2, evidence: evidence$2 } = verifiedOn("2026-10-30");
 const user$2 = verifiedOn("2026-10-31");
 const leftovers$2 = verifiedOn("2026-11-01");
+const finalReview$1 = verifiedOn("2026-11-01");
 const POETRY = "https://github.com/python-poetry/poetry/blob/2.5.1";
 const CONFIGURATION$2 = `${POETRY}/docs/configuration.md`;
 const CHANGELOG = `${POETRY}/CHANGELOG.md`;
@@ -3696,6 +3717,10 @@ const poetry$1 = {
 		], `${CONFIGURATION$2}#using-environment-variables`, "Any setting can be set as POETRY_ plus its name in capitals with dots and dashes replaced by underscores, and environment variables come first in the precedence (\"Configuration sources\"). POETRY_CONFIG_DIR replaces the platform directory (src/poetry/locations.py).")
 	},
 	extra: {
+		installedPackage: finalReview$1.verified({
+			name: "poetry",
+			commands: [["pipx", "install"], ["pip", "install"]]
+		}, `${POETRY}/docs/_index.md`, "The installation page installs a given version with \"pipx install poetry==1.8.4\", in CI with \"$POETRY_HOME/bin/pip install poetry==2.0.0\", and manually with pip in a virtual environment (\"$VENV_PATH/bin/pip install poetry\"). So poetry==<version> in such a command of a CI job or a Dockerfile is the Poetry the later commands run (decision D-115)."),
 		pylockCreatedBy: verified$4("poetry-plugin-export", "https://github.com/python-poetry/poetry-plugin-export/blob/1.10.1/src/poetry_plugin_export/exporter.py", "Poetry exports pylock.toml with its export plugin (poetry export --format pylock.toml), which writes created-by = \"poetry-plugin-export\"."),
 		configTable: verified$4({
 			solver: "solver",
@@ -4978,6 +5003,7 @@ const actionChecks = verifiedOn("2026-11-01");
 const leftovers = verifiedOn("2026-11-01");
 const runtimes = verifiedOn("2026-11-01");
 const recheck = verifiedOn("2026-11-01");
+const finalReview = verifiedOn("2026-11-01");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
 const COREPACK_V0_36_0 = "https://github.com/nodejs/corepack/blob/v0.36.0";
@@ -5771,8 +5797,9 @@ const environment = {
 			comment: "#",
 			newest: ["node", "stable"],
 			newestLts: "lts/*",
-			ltsPrefix: "lts/"
-		}, "https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md", "The file must contain precisely one version followed by a newline; # starts a comment, and comments, blank lines and leading and trailing white space are ignored. node is the latest version and stable an alias for it; lts/* is the latest LTS and lts/<codename> the LTS releases of that line. nvm use looks for the file from the current directory upwards."),
+			ltsPrefix: "lts/",
+			previousLtsPrefix: "lts/-"
+		}, "https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md", "The file must contain precisely one version followed by a newline; # starts a comment, and comments, blank lines and leading and trailing white space are ignored. node is the latest version and stable an alias for it; lts/* is the latest LTS and lts/<codename> the LTS releases of that line; the file may hold \"any other string that nvm understands\". nvm use looks for the file from the current directory upwards. lts/-n is not in the README but in nvm.sh at the same commit (https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/nvm.sh, read 2026-11-01): nvm_normalize_lts, which nvm_alias calls for every alias (so also for the version of .nvmrc), matches \"lts/-[123456789] | lts/-[123456789][0123456789]*\", takes N from after the -, adds 1 and picks the N-th last entry of the lts alias directory, whose entries are the LTS codenames (alphabetical, which is release order) after *; so lts/-1 is the LTS line before the newest one, as in setup-node. When nothing matches it says \"That many LTS releases do not exist yet.\""),
 		nodeVersionFile: runtimes.verified({ file: ".node-version" }, "https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/README.md", "nodenv uses the version in .node-version of the project directory. fnm reads .node-version and .nvmrc and writes the file with node --version, so a leading v occurs (github.com/Schniz/fnm/blob/07f13237ae208f531f8ea88d4cfde3160c22f99a/README.md); setup-node reads it through node-version-file."),
 		engines: runtimes.verified({
 			key: "engines",
@@ -5806,6 +5833,11 @@ const environment = {
 			parentNavigation: "removed",
 			trailingSlash: "ignored"
 		}, `${DOCKERFILE_REFERENCE}#copying-from-the-build-context`, "COPY and ADD without --from: \"When copying source files from the build context, paths are interpreted as relative to the root of the context. Specifying a source path with a leading slash or one that navigates outside the build context, such as COPY ../something /something, automatically removes any parent directory navigation (../). Trailing slashes in the source path are also disregarded, making COPY something/ /something equivalent to COPY something /something.\" The ADD section says the same about ADD ../something. So /frontend/x, ../frontend/x and frontend/x are the same file, and frontend/.. is the root of the context."),
+		environment: finalReview.verified({
+			instruction: "ENV",
+			inheritedByStages: true,
+			spaceForm: true
+		}, `${DOCKERFILE_REFERENCE}#env`, "ENV <key>=<value> [<key>=<value>...]: \"This value will be in the environment for all subsequent instructions in the build stage\", and \"A stage inherits any environment variables that were set using ENV by its parent stage or any ancestor\". \"Like command line parsing, quotes and backslashes can be used to include spaces within values\". The alternative \"ENV <key> <value>, omitting the =\" sets one variable, and is discouraged. RUN commands see these variables, and ENV wins over an ARG of the same name."),
 		dockerfileNames: runtimes.verified({
 			defaultName: "Dockerfile",
 			suffix: ".Dockerfile"
@@ -5919,6 +5951,19 @@ const environment = {
 			],
 			textPattern: "^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$"
 		}, `${SETUP_NODE}/docs/advanced-usage.md`, "node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE. In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile in src/util.ts tries JSON, then TOML tools.node, then the first line that matches the pattern, then the whole text trimmed."),
+		jobContainer: finalReview.verified({
+			key: "container",
+			imageKey: "image",
+			envKey: "env"
+		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobscontainer", "Read from the page source in github/docs (data/reusables/actions/jobs/section-running-jobs-in-a-container.md and section-running-jobs-in-a-container-image.md, main on 2026-11-01): \"Use jobs.<job_id>.container to create a container to run any steps in a job that don't already specify a container\"; \"If you do not set a container, all steps will run directly on the host specified by runs-on\"; \"When you only specify a container image, you can omit the image keyword\" (container: node:18); jobs.<job_id>.container.image is \"the Docker image to use as the container to run the action\", and container.env sets variables in the container. So the run steps of such a job use the Node.js and npm of that image, until a setup step installs another."),
+		environmentKeys: finalReview.verified({
+			key: "env",
+			levels: [
+				"workflow",
+				"job",
+				"step"
+			]
+		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env", "Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is \"A map of variables that are available to the steps of all jobs in the workflow\", jobs.<job_id>.env \"A map of variables that are available to all steps in the job\", and jobs.<job_id>.steps[*].env \"Sets variables for steps to use in the runner environment\"; for the same name GitHub \"uses the most specific variable\": the step's over the job's over the workflow's."),
 		pnpmActionSetup: verified({
 			action: "pnpm/action-setup",
 			installs: ["pnpm"],
@@ -6350,7 +6395,11 @@ const environment = {
 				"true",
 				"1"
 			]
-		}, "https://github.com/git/git/blob/v2.56.0/Documentation/config/core.adoc", "core.ignoreCase turns on workarounds for file systems that are not case sensitive (APFS, HFS+, FAT, NTFS); it defaults to false, but git clone and git init probe the file system and set it to true when appropriate, so a repository cloned on Windows or macOS has it. With it, git matches .gitignore patterns and looks up the index without regard to case: match_basename and match_pathname in dir.c compare with fspathncmp and fnmatch_icase_mem, which fold case (strncasecmp, WM_CASEFOLD) when repo_ignore_case is set, and environment.c reads core.ignorecase (both at v2.56.0). Section and variable names are case-insensitive, true is yes, on, true or 1 in any case, and a variable without = <value> is true (Documentation/config.adoc at v2.56.0).")
+		}, "https://github.com/git/git/blob/v2.56.0/Documentation/config/core.adoc", "core.ignoreCase turns on workarounds for file systems that are not case sensitive (APFS, HFS+, FAT, NTFS); it defaults to false, but git clone and git init probe the file system and set it to true when appropriate, so a repository cloned on Windows or macOS has it. With it, git matches .gitignore patterns and looks up the index without regard to case: match_basename and match_pathname in dir.c compare with fspathncmp and fnmatch_icase_mem, which fold case (strncasecmp, WM_CASEFOLD) when repo_ignore_case is set, and environment.c reads core.ignorecase (both at v2.56.0). Section and variable names are case-insensitive, true is yes, on, true or 1 in any case, and a variable without = <value> is true (Documentation/config.adoc at v2.56.0)."),
+		repositoryEntry: finalReview.verified({
+			entry: ".git",
+			submoduleEntry: "file"
+		}, "https://github.com/git/git/blob/v2.56.0/Documentation/gitsubmodules.adoc", "\"A submodule is a repository embedded inside another repository\", with its own history; \"the repository it is embedded in is called a superproject\". Its git directory is \"located under the $GIT_DIR/modules/ directory of its superproject\", with \"a .git file at the root of the submodule's working directory pointing to\" it, and the superproject tracks it only \"via a gitlink entry in the tree\" with the commit it expects. So a directory with a .git entry of its own (a directory, or the file of a submodule) holds the files of another repository.")
 	},
 	windows: {
 		commandShims: audited.verified({
@@ -6790,6 +6839,13 @@ function detectionFacts(tools, environment) {
 	const pipLine = extraValue(pip, "commandLine");
 	const interpreter = first$1(environment.python.interpreter);
 	const scope = extraValue(npm, "npmrcScope");
+	const clean = extraValue(npm, "cleanInstall");
+	const pipFlag = pip.cooldown.cliFlag === void 0 ? void 0 : first$1(pip.cooldown.cliFlag);
+	const pipVariable = extraValue(pip, "environmentVariable");
+	const pipConfig = extraValue(pip, "configFileVariable");
+	const poetryTool = tools.find((candidate) => candidate.id === "poetry");
+	const poetryPackage = poetryTool === void 0 ? void 0 : extraValue(poetryTool, "installedPackage");
+	const off = extraValue(npm, "scriptsOff");
 	const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 	const others = [
 		"pnpm",
@@ -6814,16 +6870,31 @@ function detectionFacts(tools, environment) {
 			installCommands,
 			globalOptions: strings(globalOptions),
 			valueOptions: strings(npmValues),
-			globalIgnoresProject: isRecord(scope) && scope["globalMode"] === "ignored"
+			globalIgnoresProject: isRecord(scope) && scope["globalMode"] === "ignored",
+			cleanCommands: isRecord(installs) && isRecord(clean) && typeof clean["commands"] === "string" && Array.isArray(installs[clean["commands"]]) ? strings(installs[clean["commands"]]) : [],
+			...isRecord(off) && typeof off["option"] === "string" && typeof off["variable"] === "string" && typeof off["value"] === "string" ? { scriptsOff: {
+				option: off["option"],
+				variable: off["variable"],
+				value: off["value"]
+			} } : {}
 		},
 		others,
 		pip: {
 			executables: unique((pipLine?.add ?? []).map((command) => command[0] ?? "")),
 			installCommand: pipLine?.add[0]?.[1] ?? "install",
-			valueOptions: pipLine?.valueOptions ?? []
+			valueOptions: pipLine?.valueOptions ?? [],
+			...typeof pipFlag === "string" && typeof pipVariable === "string" && typeof pipConfig === "string" ? { delay: {
+				option: pipFlag,
+				variable: pipVariable,
+				configVariable: pipConfig
+			} } : {}
 		},
 		python: interpreter,
-		corepack: { enableCommand: first$1(environment.corepack.enableNpm).command }
+		corepack: { enableCommand: first$1(environment.corepack.enableNpm).command },
+		...isRecord(poetryPackage) && typeof poetryPackage["name"] === "string" && Array.isArray(poetryPackage["commands"]) ? { poetry: {
+			name: poetryPackage["name"],
+			commands: poetryPackage["commands"].filter((item) => Array.isArray(item))
+		} } : {}
 	};
 	const docker = environment.docker;
 	const names = first$1(docker.dockerfileNames);
@@ -6845,6 +6916,8 @@ function detectionFacts(tools, environment) {
 			plugins: first$1(environment.asdf.plugins)
 		},
 		workflows: first$1(actions.workflows),
+		jobContainer: first$1(actions.jobContainer),
+		workflowEnvironment: { key: first$1(actions.environmentKeys).key },
 		setupActions: [
 			actions.setupNode,
 			actions.pnpmActionSetup,
@@ -6879,6 +6952,7 @@ function detectionFacts(tools, environment) {
 			nodeTags: first$1(docker.nodeImageTags).tags,
 			pythonTags: first$1(docker.pythonImageTags).tags,
 			codenames: first$1(environment.node.releaseSchedule).flatMap((line) => line.codename === void 0 ? [] : [line.codename]),
+			environment: first$1(docker.environment),
 			commands
 		},
 		commands
@@ -14400,14 +14474,15 @@ const RESERVED = /* @__PURE__ */ new Set([
 ]);
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
 /**
-* Splits a script into simple commands of words, in one pass over the text. Quotes are removed, a backslash before a
-* line break joins the lines, and `#` at the start of a word starts a comment.
+* The same, with how deep in ( ) and $( ) each command is: a cd in a subshell does not change the directory of the
+* commands after it (decision D-115).
 */
-function splitCommands(script) {
+function splitWithDepth(script) {
 	const commands = [];
 	let words = [];
 	let text = "";
 	let start = -1;
+	let depth = 0;
 	const endWord = () => {
 		if (start >= 0) words.push({
 			text,
@@ -14418,7 +14493,10 @@ function splitCommands(script) {
 	};
 	const endCommand = () => {
 		endWord();
-		if (words.length > 0) commands.push(words);
+		if (words.length > 0) commands.push({
+			words,
+			depth
+		});
 		words = [];
 	};
 	const begin = (index) => {
@@ -14471,6 +14549,8 @@ function splitCommands(script) {
 				start = -1;
 			}
 			endCommand();
+			if (char === "(") depth += 1;
+			else if (char === ")" && depth > 0) depth -= 1;
 		} else {
 			begin(index);
 			text += char;
@@ -14483,18 +14563,26 @@ function splitCommands(script) {
 function programName(word) {
 	return word.slice(Math.max(word.lastIndexOf("/"), word.lastIndexOf("\\")) + 1).toLowerCase().replace(/\.(?:exe|cmd|bat|ps1)$/u, "");
 }
-/** The words after assignments and wrappers such as sudo or env: the program and its arguments. */
-function commandWords(words) {
+/** The program and its arguments, and the variables the command line sets for it (NAME=value, env NAME=value). */
+function commandParts(words) {
+	const assignments = [];
 	let index = 0;
 	while (index < words.length) {
 		const text = words[index]?.text ?? "";
-		if (ASSIGNMENT.test(text) || RESERVED.has(text)) index += 1;
+		if (ASSIGNMENT.test(text)) {
+			const equals = text.indexOf("=");
+			assignments.push([text.slice(0, equals), text.slice(equals + 1)]);
+			index += 1;
+		} else if (RESERVED.has(text)) index += 1;
 		else if (WRAPPERS.has(programName(text))) {
 			index += 1;
 			while (index < words.length && /^-/u.test(words[index]?.text ?? "")) index += 1;
 		} else break;
 	}
-	return words.slice(index);
+	return {
+		command: words.slice(index),
+		assignments
+	};
 }
 /** The first argument that is not an option, skipping the values of options that take one. */
 function firstOperand(args, valueOptions) {
@@ -14512,6 +14600,16 @@ function operands(args, valueOptions) {
 		if (word === void 0) continue;
 		if (!word.text.startsWith("-")) found.push(word);
 		else if (!word.text.includes("=") && valueOptions.has(word.text)) index += 1;
+	}
+	return found;
+}
+/** The options of a list as a set, made once per list (the facts are the same for every command of a run). */
+const SETS = /* @__PURE__ */ new WeakMap();
+function setOf(list) {
+	let found = SETS.get(list);
+	if (found === void 0) {
+		found = new Set(list);
+		SETS.set(list, found);
 	}
 	return found;
 }
@@ -14540,8 +14638,30 @@ function isCommandOption(text) {
 	}
 	return command;
 }
-function npmCommand(args, at, facts) {
-	const values = new Set(facts.npm.valueOptions);
+/** The value of a variable that the tool reads in any case (npm_config_*), the last one set winning. */
+function anyCase(environment, name) {
+	let found;
+	const lower = name.toLowerCase();
+	for (const [key, value] of environment) if (key.toLowerCase() === lower) found = value;
+	return found;
+}
+/**
+* Whether npm runs with dependency install scripts off: npm_config_ignore_scripts=true in any case, then
+* --ignore-scripts (or =true, or followed by true) on the command line, which a later --ignore-scripts=false or
+* --no-ignore-scripts turns back on. Only the value true counts: anything else may leave them on (decision D-115).
+*/
+function scriptsOff(args, environment, facts) {
+	const known = facts.npm.scriptsOff;
+	if (known === void 0) return false;
+	let off = anyCase(environment, known.variable) === known.value;
+	const negated = `--no-${known.option.slice(2)}`;
+	for (const [index, word] of args.entries()) if (word.text === known.option) off = args[index + 1]?.text !== "false";
+	else if (word.text.startsWith(`${known.option}=`)) off = word.text.slice(known.option.length + 1) === known.value;
+	else if (word.text === negated) off = false;
+	return off;
+}
+function npmCommand(args, at, facts, environment) {
+	const values = setOf(facts.npm.valueOptions);
 	const index = firstOperand(args, values);
 	const command = args[index]?.text;
 	if (command === void 0 || !facts.npm.installCommands.includes(command)) return void 0;
@@ -14558,12 +14678,14 @@ function npmCommand(args, at, facts) {
 	return {
 		kind: "install",
 		tool: "npm",
+		...facts.npm.cleanCommands.includes(command) ? { lockfile: true } : {},
+		...scriptsOff(rest, environment, facts) ? { scriptsOff: true } : {},
 		offset: at
 	};
 }
 /** pnpm install, pnpm i, pnpm add, yarn, yarn install, yarn add, bun install, bun add. */
 function otherCommand(tool, args, at) {
-	const command = args[firstOperand(args, new Set(tool.valueOptions))]?.text;
+	const command = args[firstOperand(args, setOf(tool.valueOptions))]?.text;
 	if (command === void 0 ? tool.bare : tool.install.includes(command) || tool.add.includes(command)) return {
 		kind: "install",
 		tool: tool.tool,
@@ -14595,7 +14717,7 @@ function pipArguments(words, facts) {
 	if (matchesExecutable(name, facts.pip.executables)) return words.slice(1);
 	if (!matchesExecutable(name, facts.python.executables)) return void 0;
 	const { moduleOption, commandOption } = facts.python;
-	const values = new Set(facts.python.valueOptions);
+	const values = setOf(facts.python.valueOptions);
 	const letter = moduleOption.slice(1);
 	for (let index = 1; index < words.length; index++) {
 		const text = words[index]?.text ?? "";
@@ -14616,50 +14738,87 @@ function pipVersion(spec) {
 	}
 	return spec.trim();
 }
-function pipCommand(args, at, facts) {
-	const values = new Set(facts.pip.valueOptions);
+/** poetry==2.3.0 (or poetry>=2.4) among the operands of an install: the Poetry it installs, as written (decision D-115). */
+function poetryVersions(words, at, facts) {
+	const name = facts.poetry?.name;
+	if (name === void 0) return [];
+	return words.flatMap((word) => {
+		const spec = new RegExp(`^${name}(?:\\[[^\\]]*\\])?\\s*([=<>~!].*)$`, "iu").exec(word.text)?.[1];
+		return spec === void 0 ? [] : [{
+			kind: "upgrade",
+			tool: "poetry",
+			version: pipVersion(spec),
+			offset: at
+		}];
+	});
+}
+/**
+* The release-age delay a pip install gets (decision D-115): --uploaded-prior-to on the command line, else
+* PIP_UPLOADED_PRIOR_TO; unknown when PIP_CONFIG_FILE names a file that may set it, or the value has a variable.
+*/
+function pipDelay(args, environment, facts) {
+	const known = facts.pip.delay;
+	if (known === void 0) return {};
+	let value = environment.get(known.variable);
+	for (const [index, word] of args.entries()) if (word.text === known.option) value = args[index + 1]?.text;
+	else if (word.text.startsWith(`${known.option}=`)) value = word.text.slice(known.option.length + 1);
+	const config = environment.get(known.configVariable);
+	if (config !== void 0 && config !== "" || value?.includes("$") === true) return { delayUnknown: true };
+	return value === void 0 || value === "" ? {} : { delay: value };
+}
+function pipCommand(args, at, facts, environment) {
+	const values = setOf(facts.pip.valueOptions);
 	const index = firstOperand(args, values);
-	if (args[index]?.text !== facts.pip.installCommand) return void 0;
+	if (args[index]?.text !== facts.pip.installCommand) return [];
 	const rest = args.slice(index + 1);
 	const upgrade = rest.some((word) => word.text === "-U" || word.text === "--upgrade");
 	for (const word of operands(rest, values)) {
 		const match = /^pip(?=$|[=<>~!\s[;])(?:\[[^\]]*\])?\s*(.*)$/iu.exec(word.text);
 		if (match === null) continue;
 		const spec = match[1] ?? "";
-		if (spec !== "") return {
+		if (spec !== "") return [{
 			kind: "upgrade",
 			tool: "pip",
 			version: pipVersion(spec),
 			offset: at
-		};
-		if (upgrade) return {
+		}];
+		if (upgrade) return [{
 			kind: "upgrade",
 			tool: "pip",
 			version: "latest",
 			offset: at
-		};
-		return;
+		}];
+		return [];
 	}
-	return {
+	return [{
 		kind: "install",
 		tool: "pip",
+		...pipDelay(rest, environment, facts),
 		offset: at
-	};
+	}, ...poetryVersions(operands(rest, values), at, facts)];
+}
+/** pipx install poetry==2.3.0: the Poetry it installs. */
+function pipxCommand(args, at, facts) {
+	const pipx = facts.poetry?.commands.find((command) => command[0] === "pipx");
+	const index = args.findIndex((word) => !word.text.startsWith("-"));
+	if (pipx === void 0 || args[index]?.text !== pipx[1]) return [];
+	return poetryVersions(args.slice(index + 1).filter((word) => !word.text.startsWith("-")), at, facts);
 }
 /** What one simple command does with npm or pip, if anything. */
-function readCommand(words, facts, depth) {
-	const command = commandWords(words);
+function readCommand(words, facts, depth, environment = /* @__PURE__ */ new Map()) {
+	const { command, assignments } = commandParts(words);
 	const first = command[0];
 	if (first === void 0) return {
 		found: [],
 		runsNode: false
 	};
+	const seen = assignments.length === 0 ? environment : new Map([...environment, ...assignments]);
 	const name = programName(first.text);
 	const args = command.slice(1);
 	if (SHELLS.has(name) && depth < 2) {
 		const script = args.find((_word, index) => index > 0 && isCommandOption(args[index - 1]?.text ?? ""));
 		if (script !== void 0) {
-			const inner = findToolCommands(script.text, facts, depth + 1);
+			const inner = findToolCommands(script.text, facts, depth + 1, seen);
 			return {
 				found: inner.commands.map((item) => ({
 					...item,
@@ -14671,7 +14830,7 @@ function readCommand(words, facts, depth) {
 	}
 	const runsNode = NODE_EXECUTABLES.has(name);
 	if (name === "npm") return {
-		found: [npmCommand(args, first.offset, facts)].filter((item) => item !== void 0),
+		found: [npmCommand(args, first.offset, facts, seen)].filter((item) => item !== void 0),
 		runsNode
 	};
 	if (name === "corepack") return {
@@ -14683,9 +14842,13 @@ function readCommand(words, facts, depth) {
 		found: [otherCommand(other, args, first.offset)].filter((item) => item !== void 0),
 		runsNode
 	};
+	if (name === "pipx") return {
+		found: pipxCommand(args, first.offset, facts),
+		runsNode
+	};
 	const pip = pipArguments(command, facts);
 	if (pip !== void 0) return {
-		found: [pipCommand(pip, first.offset, facts)].filter((item) => item !== void 0),
+		found: pipCommand(pip, first.offset, facts, seen),
 		runsNode
 	};
 	return {
@@ -14693,13 +14856,63 @@ function readCommand(words, facts, depth) {
 		runsNode
 	};
 }
-/** The install and upgrade commands of a script, with the offset of each in the script, and whether it runs Node.js. */
-function findToolCommands(script, facts, depth = 0) {
+/**
+* A directory a cd leads to that depcurfew does not follow ($DIR, ~, an absolute path, a path out of the start). No
+* directory listed in projects can have this name (project-directory.ts refuses < and >).
+*/
+const UNKNOWN_DIRECTORY = "<unknown>";
+/**
+* The directory after `cd <path>` from `current` (relative to where the script starts, '' there): a literal relative
+* path is followed, .. included; anything else (a variable, ~, -, an absolute path, out of the start) is unknown.
+*/
+function changeDirectory(current, target) {
+	if (current === "<unknown>" || target === void 0 || target === "" || /[$~`*?]/u.test(target) || target.startsWith("/") || target === "-") return UNKNOWN_DIRECTORY;
+	const parts = current === "" ? [] : current.split("/");
+	for (const part of target.replace(/\\/gu, "/").split("/")) {
+		if (part === "" || part === ".") continue;
+		if (part === "..") {
+			if (parts.length === 0) return UNKNOWN_DIRECTORY;
+			parts.pop();
+		} else parts.push(part);
+	}
+	return parts.join("/");
+}
+/**
+* The install and upgrade commands of a script, with the offset of each in the script, and whether it runs Node.js.
+* `environment` holds the variables set before the script (CI env, Dockerfile ENV); export NAME=value adds to them for
+* the later commands. A literal cd changes the directory of the later commands of the same shell (`cd`, relative to
+* where the script starts), not of those after the ( ) it is in (decision D-115).
+*/
+function findToolCommands(script, facts, depth = 0, environment = /* @__PURE__ */ new Map()) {
 	const commands = [];
 	let runsNode = false;
-	for (const words of splitCommands(script)) {
-		const result = readCommand(words, facts, depth);
-		commands.push(...result.found);
+	const variables = new Map(environment);
+	const directories = [""];
+	for (const { words, depth: level } of splitWithDepth(script)) {
+		while (directories.length <= level) directories.push(directories.at(-1) ?? "");
+		directories.length = level + 1;
+		const here = directories[level] ?? "";
+		const { command } = commandParts(words);
+		const program = command[0]?.text;
+		if (program === "cd") {
+			directories[level] = changeDirectory(here, command.find((word, index) => index > 0 && !word.text.startsWith("-"))?.text ?? "~");
+			continue;
+		}
+		if (program === "export") {
+			for (const word of command.slice(1)) {
+				const equals = word.text.indexOf("=");
+				if (equals > 0 && ASSIGNMENT.test(word.text)) variables.set(word.text.slice(0, equals), word.text.slice(equals + 1));
+			}
+			continue;
+		}
+		const result = readCommand(words, facts, depth, variables);
+		for (const found of result.found) {
+			const cd = found.cd === void 0 ? here : here === "" ? found.cd : found.cd === "" ? here : changeDirectory(here, found.cd);
+			commands.push(cd === "" ? (({ cd: _cd, ...rest }) => rest)(found) : {
+				...found,
+				cd
+			});
+		}
 		runsNode ||= result.runsNode;
 	}
 	return {
@@ -14708,224 +14921,12 @@ function findToolCommands(script, facts, depth = 0) {
 	};
 }
 /** The same for the words of an exec form (RUN ["npm", "ci"]), which no shell splits. */
-function findExecCommands(words, facts) {
-	const result = readCommand(words, facts, 0);
+function findExecCommands(words, facts, environment = /* @__PURE__ */ new Map()) {
+	const result = readCommand(words, facts, 0, environment);
 	return {
 		commands: result.found,
 		runsNode: result.runsNode
 	};
-}
-
-// src/detect/workflows.ts
-const MATRIX_VALUE = /^\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}$/u;
-/** At most this many values of one matrix key are checked; a longer list is reported as not checked (a notice). */
-const MAX_MATRIX_VALUES = 256;
-function scalarText(node) {
-	if (!(0, import_dist.isScalar)(node) || node.value === null || node.value === void 0) return void 0;
-	return String(node.value);
-}
-function findAction(actions, uses) {
-	const name = uses.split("@", 1)[0]?.toLowerCase();
-	return actions.find((action) => action.action.toLowerCase() === name);
-}
-/**
-* The values of a matrix key: its list and the values include entries give it, each value once (at its first line),
-* without the values an exclude entry with only this key removes (an entry with more keys removes some combinations
-* only, so the value stays). undefined when they cannot be listed, `too-many` past MAX_MATRIX_VALUES.
-*/
-function matrixValues(job, key) {
-	const strategy = job.get("strategy");
-	const matrix = (0, import_dist.isMap)(strategy) ? strategy.get("matrix") : void 0;
-	if (!(0, import_dist.isMap)(matrix)) return void 0;
-	const values = /* @__PURE__ */ new Map();
-	const add = (item) => {
-		const text = scalarText(item);
-		if (text === void 0 || values.has(text)) return true;
-		if (values.size >= 256) return false;
-		values.set(text, item);
-		return true;
-	};
-	const list = matrix.get(key, true);
-	if ((0, import_dist.isSeq)(list)) for (const item of list.items) {
-		if (!(0, import_dist.isScalar)(item)) return void 0;
-		if (!add(item)) return "too-many";
-	}
-	else if (list !== void 0) return;
-	const include = matrix.get("include");
-	if ((0, import_dist.isSeq)(include)) for (const entry of include.items) {
-		const value = (0, import_dist.isMap)(entry) ? entry.get(key, true) : void 0;
-		if ((0, import_dist.isScalar)(value) && !add(value)) return "too-many";
-	}
-	const exclude = matrix.get("exclude");
-	if ((0, import_dist.isSeq)(exclude) && (0, import_dist.isSeq)(list)) {
-		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText(item.get(key, true)) : void 0) : []);
-		for (const entry of exclude.items) {
-			if (!(0, import_dist.isMap)(entry) || entry.items.length !== 1) continue;
-			const value = entry.get(key, true);
-			const text = (0, import_dist.isScalar)(value) ? scalarText(value) : void 0;
-			if (text !== void 0 && !included.has(text)) values.delete(text);
-		}
-	}
-	return values.size === 0 ? void 0 : [...values.values()];
-}
-/** A working directory as written, without ./ and a trailing /; undefined for the root. */
-function workingDirectory(node) {
-	const text = scalarText(node)?.trim();
-	if (text === void 0) return void 0;
-	let value = text.replace(/\\/gu, "/");
-	while (value.startsWith("./")) value = value.slice(2);
-	while (value.endsWith("/")) value = value.slice(0, -1);
-	return value === "" || value === "." ? void 0 : value;
-}
-/** defaults.run.working-directory of a workflow or a job. */
-function defaultDirectory(node) {
-	const defaults = (0, import_dist.isMap)(node) ? node.get("defaults") : void 0;
-	const run = (0, import_dist.isMap)(defaults) ? defaults.get("run") : void 0;
-	return (0, import_dist.isMap)(run) ? workingDirectory(run.get("working-directory", true)) : void 0;
-}
-function readWorkflows(repository, facts) {
-	const { directory, extensions } = facts.workflows;
-	const files = repository.listFiles(directory).filter((name) => extensions.some((extension) => name.endsWith(extension))).map((name) => joinPath(directory, name));
-	const findings = {
-		files,
-		versions: [],
-		installs: [],
-		jobs: []
-	};
-	for (const file of files) {
-		const text = repository.readText(file);
-		if (text === void 0) continue;
-		const lineCounter = new import_dist.LineCounter();
-		const document = parseYamlDocument(text, lineCounter);
-		if (document.errors.length > 0) {
-			const message = document.errors[0]?.message.split("\n", 1)[0] ?? "invalid YAML";
-			repository.warn("invalid-file", `cannot parse ${file}: ${message}`, [file]);
-			continue;
-		}
-		const lineOf = (node) => node.range === void 0 || node.range === null ? void 0 : lineCounter.linePos(node.range[0]).line;
-		const jobs = document.get("jobs");
-		if (!(0, import_dist.isMap)(jobs)) continue;
-		const workflowDirectory = defaultDirectory(document.contents);
-		for (const pair of jobs.items) {
-			const id = scalarText(pair.key);
-			const job = pair.value;
-			if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
-			const declare = (tool, value, node, step) => {
-				const matrix = "version" in value ? MATRIX_VALUE.exec(value.version)?.[1] : void 0;
-				const expanded = matrix === void 0 ? void 0 : matrixValues(job, matrix);
-				if (matrix !== void 0 && expanded === "too-many") {
-					const line = lineOf(node);
-					const unknown = `the matrix lists more than ${256} values for ${matrix}, which depcurfew does not check`;
-					findings.versions.push({
-						tool,
-						declaration: {
-							...value,
-							source: "github-actions",
-							file,
-							...line === void 0 ? {} : { line },
-							job: id,
-							...step === void 0 ? {} : { step },
-							matrix,
-							unknown
-						}
-					});
-					return;
-				}
-				if (matrix !== void 0 && Array.isArray(expanded)) {
-					for (const item of expanded) {
-						const version = scalarText(item);
-						const line = lineOf(item);
-						if (version !== void 0) findings.versions.push({
-							tool,
-							declaration: {
-								version,
-								source: "github-actions",
-								file,
-								...line === void 0 ? {} : { line },
-								job: id,
-								...step === void 0 ? {} : { step },
-								matrix
-							}
-						});
-					}
-					return;
-				}
-				const line = lineOf(node);
-				findings.versions.push({
-					tool,
-					declaration: {
-						...value,
-						source: "github-actions",
-						file,
-						...line === void 0 ? {} : { line },
-						job: id,
-						...step === void 0 ? {} : { step }
-					}
-				});
-			};
-			const record = {
-				file,
-				id,
-				line: ((0, import_dist.isScalar)(pair.key) ? lineOf(pair.key) : void 0) ?? 1,
-				commands: [],
-				runsNode: false
-			};
-			findings.jobs.push(record);
-			const jobDirectory = defaultDirectory(job) ?? workflowDirectory;
-			const steps = job.get("steps");
-			if (!(0, import_dist.isSeq)(steps)) continue;
-			for (const step of steps.items) {
-				if (!(0, import_dist.isMap)(step)) continue;
-				const uses = scalarText(step.get("uses", true));
-				const action = uses === void 0 ? void 0 : findAction(facts.setupActions, uses);
-				if (action !== void 0) {
-					const stepLine = lineOf(step);
-					for (const tool of action.installs) findings.installs.push({
-						tool,
-						file
-					});
-					const inputs = step.get("with");
-					if ((0, import_dist.isMap)(inputs)) for (const input of action.inputs) {
-						const node = inputs.get(input.name, true);
-						const value = scalarText(node);
-						if (value === void 0 || !(0, import_dist.isScalar)(node)) continue;
-						if (input.kind === "version" && input.tool !== void 0) declare(input.tool, { version: value }, node, stepLine);
-						if (input.kind === "version-file" && input.tool !== void 0) declare(input.tool, { versionFile: value }, node, stepLine);
-						if (input.kind === "runtime") {
-							const [name, version] = value.split("@");
-							if ((name === "node" || name === "bun" || name === "deno") && version !== void 0 && version !== "") declare(name, { version }, node, stepLine);
-						}
-					}
-				}
-				const run = step.get("run", true);
-				if ((0, import_dist.isScalar)(run) && typeof run.value === "string" && run.range !== void 0 && run.range !== null) {
-					const start = run.range[0];
-					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands);
-					record.runsNode ||= found.runsNode;
-					const stepDirectory = step.has("working-directory") ? workingDirectory(step.get("working-directory", true)) : jobDirectory;
-					for (const { offset, ...command } of found.commands) {
-						const line = lineCounter.linePos(start + offset).line;
-						record.commands.push({
-							...command,
-							line,
-							...stepDirectory === void 0 ? {} : { directory: stepDirectory }
-						});
-						if (command.tool === "npm" && command.kind === "upgrade" && command.version !== void 0) findings.versions.push({
-							tool: "npm",
-							declaration: {
-								version: command.version,
-								source: "github-actions",
-								file,
-								line,
-								job: id
-							}
-						});
-					}
-				}
-			}
-		}
-	}
-	return findings;
 }
 
 // src/detect/dockerfile.ts
@@ -15276,6 +15277,10 @@ function pythonTagVersion(tag, facts) {
 	if (Object.hasOwn(facts.pythonTags, tag)) return tag;
 	return facts.python.variants.includes(tag) || facts.python.variants.some((variant) => tag.startsWith(`${variant}-`)) ? "latest" : void 0;
 }
+/** The official node or python image a reference names, with the version of its tag; also for jobs.<id>.container. */
+function imageRuntime(reference, facts) {
+	return runtimeOf(reference, facts);
+}
 function runtimeOf(reference, facts) {
 	const { repository, hub, tag, digest } = splitReference(reference, facts);
 	if (!hub) return void 0;
@@ -15326,7 +15331,53 @@ function withoutOptions(text) {
 function isScript(command) {
 	return command !== void 0 && (command === "" || /^(?:\S*\/)?(?:sh|bash|ash|dash|zsh)(?: -\S+)*$/u.test(command));
 }
-function runCommands(instruction, facts) {
+/** A command as found, with the directory of its cd (relative to the working directory) as `directory`. */
+function located({ cd, ...command }, line) {
+	return {
+		...command,
+		line,
+		...cd === void 0 ? {} : { directory: cd }
+	};
+}
+/**
+* ENV NAME=value [NAME2=value2 ...], or the older ENV NAME value: the variables it sets, quotes removed. A value with $
+* is kept as written (depcurfew does not expand it, so it never reads as true).
+*/
+function envDeclarations(text, spaceForm) {
+	const words = [];
+	let word = "";
+	let inWord = false;
+	for (let index = 0; index < text.length; index++) {
+		const char = text[index] ?? "";
+		if (char === " " || char === "	") {
+			if (inWord) words.push(word);
+			word = "";
+			inWord = false;
+		} else if (char === "\"" || char === "'") {
+			const end = text.indexOf(char, index + 1);
+			const close = end < 0 ? text.length : end;
+			word += text.slice(index + 1, close);
+			inWord = true;
+			index = close;
+		} else if (char === "\\" && index + 1 < text.length) {
+			word += text[index + 1] ?? "";
+			inWord = true;
+			index += 1;
+		} else {
+			word += char;
+			inWord = true;
+		}
+	}
+	if (inWord) words.push(word);
+	const first = words[0];
+	if (first === void 0) return [];
+	if (!first.includes("=")) return spaceForm && words.length > 1 ? [[first, words.slice(1).join(" ")]] : [];
+	return words.flatMap((item) => {
+		const equals = item.indexOf("=");
+		return equals > 0 ? [[item.slice(0, equals), item.slice(equals + 1)]] : [];
+	});
+}
+function runCommands(instruction, facts, environment) {
 	const commands = [];
 	const { text, offset } = withoutOptions(instruction.text);
 	const exec = execWords(text);
@@ -15335,21 +15386,15 @@ function runCommands(instruction, facts) {
 			text: word,
 			offset: 0
 		}));
-		for (const { offset: _offset, ...command } of findExecCommands(words, facts.commands).commands) commands.push({
-			...command,
-			line: instruction.line
-		});
+		for (const { offset: _offset, ...command } of findExecCommands(words, facts.commands, environment).commands) commands.push(located(command, instruction.line));
 		return { commands };
 	}
-	for (const { offset: at, ...command } of findToolCommands(text, facts.commands).commands) commands.push({
-		...command,
-		line: lineAt$2(instruction, offset + at)
-	});
+	for (const { offset: at, ...command } of findToolCommands(text, facts.commands, 0, environment).commands) commands.push(located(command, lineAt$2(instruction, offset + at)));
 	for (const heredoc of instruction.heredocs) {
 		if (!isScript(heredoc.command)) continue;
 		const lineStarts = [0];
 		for (let index = heredoc.body.indexOf("\n"); index >= 0; index = heredoc.body.indexOf("\n", index + 1)) lineStarts.push(index + 1);
-		for (const { offset: at, ...command } of findToolCommands(heredoc.body, facts.commands).commands) {
+		for (const { offset: at, ...command } of findToolCommands(heredoc.body, facts.commands, 0, environment).commands) {
 			let low = 0;
 			let high = lineStarts.length - 1;
 			while (low < high) {
@@ -15357,10 +15402,7 @@ function runCommands(instruction, facts) {
 				if ((lineStarts[middle] ?? 0) <= at) low = middle;
 				else high = middle - 1;
 			}
-			commands.push({
-				...command,
-				line: heredoc.line + low
-			});
+			commands.push(located(command, heredoc.line + low));
 		}
 	}
 	return { commands };
@@ -15384,6 +15426,7 @@ function readDockerStages(file, text, facts) {
 	const unreadable = /* @__PURE__ */ new Map();
 	const stages = [];
 	const named = /* @__PURE__ */ new Map();
+	const environments = [];
 	const versions = [];
 	for (const instruction of instructions) {
 		if (instruction.keyword === facts.syntax.globalArgInstruction && stages.length === 0) {
@@ -15444,6 +15487,8 @@ function readDockerStages(file, text, facts) {
 			}
 			const { commands: _commands, ...fields } = stage;
 			if (alias !== void 0 && !named.has(alias)) named.set(alias, stages.length);
+			const parent = stage.from === void 0 || !facts.environment.inheritedByStages ? void 0 : environments[stage.from];
+			environments.push(new Map(parent ?? []));
 			stages.push({
 				...fields,
 				commands: []
@@ -15451,15 +15496,20 @@ function readDockerStages(file, text, facts) {
 			continue;
 		}
 		const stage = stages.at(-1);
+		const environment = environments.at(-1);
+		if (instruction.keyword === facts.environment.instruction && environment !== void 0) {
+			for (const [name, value] of envDeclarations(instruction.text, facts.environment.spaceForm)) environment.set(name, value);
+			continue;
+		}
 		if ((instruction.keyword === "COPY" || instruction.keyword === "ADD") && stage !== void 0) {
 			const sources = copySources(instruction.text);
 			if (sources.length > 0) stage.copies = [...stage.copies ?? [], ...sources].slice(0, MAX_COPIES);
 			continue;
 		}
 		if (instruction.keyword !== "RUN" || stage === void 0) continue;
-		for (const command of runCommands(instruction, facts).commands) {
+		for (const command of runCommands(instruction, facts, environment ?? /* @__PURE__ */ new Map()).commands) {
 			stage.commands.push(command);
-			if (command.kind === "upgrade" && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip")) versions.push({
+			if (command.kind === "upgrade" && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry")) versions.push({
 				tool: command.tool,
 				declaration: {
 					version: command.version,
@@ -15489,6 +15539,270 @@ function dockerfileCandidates(repository, facts, manifests, packages) {
 	const files = [];
 	for (const directory of directories) for (const name of repository.listFiles(directory)) if (isDockerfileName(name, facts)) files.push(joinPath(directory, name));
 	return [...new Set(files)].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+}
+
+// src/detect/workflows.ts
+const MATRIX_VALUE = /^\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}$/u;
+/** At most this many values of one matrix key are checked; a longer list is reported as not checked (a notice). */
+const MAX_MATRIX_VALUES = 256;
+function scalarText(node) {
+	if (!(0, import_dist.isScalar)(node) || node.value === null || node.value === void 0) return void 0;
+	return String(node.value);
+}
+function findAction(actions, uses) {
+	const name = uses.split("@", 1)[0]?.toLowerCase();
+	return actions.find((action) => action.action.toLowerCase() === name);
+}
+/**
+* The values of a matrix key: its list and the values include entries give it, each value once (at its first line),
+* without the values an exclude entry with only this key removes (an entry with more keys removes some combinations
+* only, so the value stays). undefined when they cannot be listed, `too-many` past MAX_MATRIX_VALUES.
+*/
+function matrixValues(job, key) {
+	const strategy = job.get("strategy");
+	const matrix = (0, import_dist.isMap)(strategy) ? strategy.get("matrix") : void 0;
+	if (!(0, import_dist.isMap)(matrix)) return void 0;
+	const values = /* @__PURE__ */ new Map();
+	const add = (item) => {
+		const text = scalarText(item);
+		if (text === void 0 || values.has(text)) return true;
+		if (values.size >= 256) return false;
+		values.set(text, item);
+		return true;
+	};
+	const list = matrix.get(key, true);
+	if ((0, import_dist.isSeq)(list)) for (const item of list.items) {
+		if (!(0, import_dist.isScalar)(item)) return void 0;
+		if (!add(item)) return "too-many";
+	}
+	else if (list !== void 0) return;
+	const include = matrix.get("include");
+	if ((0, import_dist.isSeq)(include)) for (const entry of include.items) {
+		const value = (0, import_dist.isMap)(entry) ? entry.get(key, true) : void 0;
+		if ((0, import_dist.isScalar)(value) && !add(value)) return "too-many";
+	}
+	const exclude = matrix.get("exclude");
+	if ((0, import_dist.isSeq)(exclude) && (0, import_dist.isSeq)(list)) {
+		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText(item.get(key, true)) : void 0) : []);
+		for (const entry of exclude.items) {
+			if (!(0, import_dist.isMap)(entry) || entry.items.length !== 1) continue;
+			const value = entry.get(key, true);
+			const text = (0, import_dist.isScalar)(value) ? scalarText(value) : void 0;
+			if (text !== void 0 && !included.has(text)) values.delete(text);
+		}
+	}
+	return values.size === 0 ? void 0 : [...values.values()];
+}
+/** A working directory as written, without ./ and a trailing /; undefined for the root. */
+function workingDirectory(node) {
+	const text = scalarText(node)?.trim();
+	if (text === void 0) return void 0;
+	let value = text.replace(/\\/gu, "/");
+	while (value.startsWith("./")) value = value.slice(2);
+	while (value.endsWith("/")) value = value.slice(0, -1);
+	return value === "" || value === "." ? void 0 : value;
+}
+/** The directory of a command: the working directory of its step joined with the literal cd before it (decision D-115). */
+function commandDirectory(step, cd) {
+	if (cd === void 0) return step;
+	if (cd === "<unknown>" || step === void 0) return cd;
+	return `${step}/${cd}`;
+}
+/** The variables of an env map whose values are scalars, as text (a YAML true is "true"). */
+function environmentOf(node) {
+	const found = /* @__PURE__ */ new Map();
+	if (!(0, import_dist.isMap)(node)) return found;
+	for (const pair of node.items) {
+		const key = scalarText(pair.key);
+		const value = scalarText(pair.value);
+		if (key !== void 0 && value !== void 0) found.set(key, value);
+	}
+	return found;
+}
+/** defaults.run.working-directory of a workflow or a job. */
+function defaultDirectory(node) {
+	const defaults = (0, import_dist.isMap)(node) ? node.get("defaults") : void 0;
+	const run = (0, import_dist.isMap)(defaults) ? defaults.get("run") : void 0;
+	return (0, import_dist.isMap)(run) ? workingDirectory(run.get("working-directory", true)) : void 0;
+}
+function readWorkflows(repository, facts) {
+	const { directory, extensions } = facts.workflows;
+	const files = repository.listFiles(directory).filter((name) => extensions.some((extension) => name.endsWith(extension))).map((name) => joinPath(directory, name));
+	const findings = {
+		files,
+		versions: [],
+		installs: [],
+		jobs: []
+	};
+	for (const file of files) {
+		const text = repository.readText(file);
+		if (text === void 0) continue;
+		const lineCounter = new import_dist.LineCounter();
+		const document = parseYamlDocument(text, lineCounter);
+		if (document.errors.length > 0) {
+			const message = document.errors[0]?.message.split("\n", 1)[0] ?? "invalid YAML";
+			repository.warn("invalid-file", `cannot parse ${file}: ${message}`, [file]);
+			continue;
+		}
+		const lineOf = (node) => node.range === void 0 || node.range === null ? void 0 : lineCounter.linePos(node.range[0]).line;
+		const jobs = document.get("jobs");
+		if (!(0, import_dist.isMap)(jobs)) continue;
+		const workflowDirectory = defaultDirectory(document.contents);
+		const { key: envKey } = facts.workflowEnvironment;
+		const workflowEnvironment = environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(envKey) : void 0);
+		for (const pair of jobs.items) {
+			const id = scalarText(pair.key);
+			const job = pair.value;
+			if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
+			const declare = (tool, value, node, step) => {
+				const matrix = "version" in value ? MATRIX_VALUE.exec(value.version)?.[1] : void 0;
+				const expanded = matrix === void 0 ? void 0 : matrixValues(job, matrix);
+				if (matrix !== void 0 && expanded === "too-many") {
+					const line = lineOf(node);
+					const unknown = `the matrix lists more than ${256} values for ${matrix}, which depcurfew does not check`;
+					findings.versions.push({
+						tool,
+						declaration: {
+							...value,
+							source: "github-actions",
+							file,
+							...line === void 0 ? {} : { line },
+							job: id,
+							...step === void 0 ? {} : { step },
+							matrix,
+							unknown
+						}
+					});
+					return;
+				}
+				if (matrix !== void 0 && Array.isArray(expanded)) {
+					for (const item of expanded) {
+						const version = scalarText(item);
+						const line = lineOf(item);
+						if (version !== void 0) findings.versions.push({
+							tool,
+							declaration: {
+								version,
+								source: "github-actions",
+								file,
+								...line === void 0 ? {} : { line },
+								job: id,
+								...step === void 0 ? {} : { step },
+								matrix
+							}
+						});
+					}
+					return;
+				}
+				const line = lineOf(node);
+				findings.versions.push({
+					tool,
+					declaration: {
+						...value,
+						source: "github-actions",
+						file,
+						...line === void 0 ? {} : { line },
+						job: id,
+						...step === void 0 ? {} : { step }
+					}
+				});
+			};
+			const record = {
+				file,
+				id,
+				line: ((0, import_dist.isScalar)(pair.key) ? lineOf(pair.key) : void 0) ?? 1,
+				commands: [],
+				runsNode: false
+			};
+			findings.jobs.push(record);
+			const jobDirectory = defaultDirectory(job) ?? workflowDirectory;
+			const { key: containerKey, imageKey, envKey: containerEnvKey } = facts.jobContainer;
+			const container = job.get(containerKey, true);
+			const imageNode = (0, import_dist.isMap)(container) ? container.get(imageKey, true) : container;
+			const image = scalarText(imageNode);
+			if (image !== void 0 && (0, import_dist.isScalar)(imageNode) && !image.includes("${{")) {
+				const runtime = imageRuntime(image.trim(), facts.docker);
+				const line = lineOf(imageNode);
+				if (runtime?.tool === "node") {
+					const at = line === void 0 ? {} : {
+						line,
+						step: line
+					};
+					findings.versions.push({
+						tool: "node",
+						declaration: {
+							version: runtime.version ?? runtime.tag ?? image,
+							source: "github-actions",
+							file,
+							...at,
+							job: id,
+							container: image.trim(),
+							...runtime.version === void 0 ? { unknown: runtime.unknown ?? "the tag names no version" } : {}
+						}
+					});
+				}
+			}
+			const jobEnvironment = new Map([
+				...environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0),
+				...workflowEnvironment,
+				...environmentOf(job.get(envKey))
+			]);
+			const steps = job.get("steps");
+			if (!(0, import_dist.isSeq)(steps)) continue;
+			for (const step of steps.items) {
+				if (!(0, import_dist.isMap)(step)) continue;
+				const uses = scalarText(step.get("uses", true));
+				const action = uses === void 0 ? void 0 : findAction(facts.setupActions, uses);
+				if (action !== void 0) {
+					const stepLine = lineOf(step);
+					for (const tool of action.installs) findings.installs.push({
+						tool,
+						file
+					});
+					const inputs = step.get("with");
+					if ((0, import_dist.isMap)(inputs)) for (const input of action.inputs) {
+						const node = inputs.get(input.name, true);
+						const value = scalarText(node);
+						if (value === void 0 || !(0, import_dist.isScalar)(node)) continue;
+						if (input.kind === "version" && input.tool !== void 0) declare(input.tool, { version: value }, node, stepLine);
+						if (input.kind === "version-file" && input.tool !== void 0) declare(input.tool, { versionFile: value }, node, stepLine);
+						if (input.kind === "runtime") {
+							const [name, version] = value.split("@");
+							if ((name === "node" || name === "bun" || name === "deno") && version !== void 0 && version !== "") declare(name, { version }, node, stepLine);
+						}
+					}
+				}
+				const run = step.get("run", true);
+				if ((0, import_dist.isScalar)(run) && typeof run.value === "string" && run.range !== void 0 && run.range !== null) {
+					const start = run.range[0];
+					const environment = new Map([...jobEnvironment, ...environmentOf(step.get(envKey))]);
+					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
+					record.runsNode ||= found.runsNode;
+					const stepDirectory = step.has("working-directory") ? workingDirectory(step.get("working-directory", true)) : jobDirectory;
+					for (const { offset, cd, ...command } of found.commands) {
+						const line = lineCounter.linePos(start + offset).line;
+						const directory = commandDirectory(stepDirectory, cd);
+						record.commands.push({
+							...command,
+							line,
+							...directory === void 0 ? {} : { directory }
+						});
+						if ((command.tool === "npm" || command.tool === "poetry") && command.kind === "upgrade" && command.version !== void 0) findings.versions.push({
+							tool: command.tool,
+							declaration: {
+								version: command.version,
+								source: "github-actions",
+								file,
+								line,
+								job: id
+							}
+						});
+					}
+				}
+			}
+		}
+	}
+	return findings;
 }
 
 // src/detect/wildcard.ts
@@ -17851,6 +18165,216 @@ const UNREADABLE_WARNINGS = {
 	"unreadable-include": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them"
 };
 
+// src/check/semver.ts
+const VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+function parseSemver(text) {
+	const match = VERSION.exec(text.trim());
+	if (match === null) return void 0;
+	const prerelease = match[4] === void 0 ? [] : match[4].split(".").map((part) => /^\d+$/u.test(part) ? Number(part) : part);
+	return {
+		major: Number(match[1]),
+		minor: Number(match[2]),
+		patch: Number(match[3]),
+		prerelease
+	};
+}
+function compareSemver(a, b) {
+	const main = a.major - b.major || a.minor - b.minor || a.patch - b.patch;
+	if (main !== 0) return main;
+	if (a.prerelease.length === 0 || b.prerelease.length === 0) return b.prerelease.length - a.prerelease.length;
+	for (let index = 0; index < Math.max(a.prerelease.length, b.prerelease.length); index++) {
+		const left = a.prerelease[index];
+		const right = b.prerelease[index];
+		if (left === void 0) return -1;
+		if (right === void 0) return 1;
+		if (left === right) continue;
+		if (typeof left === "number" && typeof right === "number") return left - right;
+		if (typeof left === "number") return -1;
+		if (typeof right === "number") return 1;
+		return left < right ? -1 : 1;
+	}
+	return 0;
+}
+const PARTIAL$1 = /^v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+function partial$1(text) {
+	if (text === "" || text === "*" || text === "x" || text === "X") return {
+		major: void 0,
+		minor: void 0,
+		patch: void 0,
+		prerelease: []
+	};
+	const match = PARTIAL$1.exec(text);
+	if (match === null) return void 0;
+	const number = (part) => part === void 0 || /^[xX*]$/u.test(part) ? void 0 : Number(part);
+	const major = number(match[1]);
+	const minor = major === void 0 ? void 0 : number(match[2]);
+	const patch = minor === void 0 ? void 0 : number(match[3]);
+	return {
+		major,
+		minor,
+		patch,
+		prerelease: patch === void 0 || match[4] === void 0 ? [] : match[4].split(".").map((part) => /^\d+$/u.test(part) ? Number(part) : part)
+	};
+}
+const version = (major, minor, patch, prerelease = []) => ({
+	major,
+	minor,
+	patch,
+	prerelease
+});
+/** The lowest version of a release line, below its prereleases: x.y.z-0. */
+const floor = (major, minor, patch) => version(major, minor, patch, [0]);
+function full(value) {
+	return version(value.major ?? 0, value.minor ?? 0, value.patch ?? 0, value.prerelease);
+}
+/** Comparators of one operator and partial version, as npm desugars them. */
+function desugar(operator, value) {
+	const { major, minor, patch } = value;
+	if (major === void 0) return operator === "<" || operator === ">" ? [{
+		operator: "<",
+		version: floor(0, 0, 0)
+	}] : [];
+	switch (operator) {
+		case "":
+		case "=":
+			if (minor === void 0) return [{
+				operator: ">=",
+				version: version(major, 0, 0)
+			}, {
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			if (patch === void 0) return [{
+				operator: ">=",
+				version: version(major, minor, 0)
+			}, {
+				operator: "<",
+				version: floor(major, minor + 1, 0)
+			}];
+			return [{
+				operator: "=",
+				version: full(value)
+			}];
+		case "~":
+		case "~>":
+			if (minor === void 0) return [{
+				operator: ">=",
+				version: version(major, 0, 0)
+			}, {
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			return [{
+				operator: ">=",
+				version: full(value)
+			}, {
+				operator: "<",
+				version: floor(major, minor + 1, 0)
+			}];
+		case "^": {
+			const lower = {
+				operator: ">=",
+				version: full(value)
+			};
+			if (major > 0 || minor === void 0) return [lower, {
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			if (minor > 0 || patch === void 0) return [lower, {
+				operator: "<",
+				version: floor(0, minor + 1, 0)
+			}];
+			return [lower, {
+				operator: "<",
+				version: floor(0, 0, patch + 1)
+			}];
+		}
+		case ">":
+			if (minor === void 0) return [{
+				operator: ">=",
+				version: version(major + 1, 0, 0)
+			}];
+			if (patch === void 0) return [{
+				operator: ">=",
+				version: version(major, minor + 1, 0)
+			}];
+			return [{
+				operator: ">",
+				version: full(value)
+			}];
+		case ">=": return [{
+			operator: ">=",
+			version: full(value)
+		}];
+		case "<": return [{
+			operator: "<",
+			version: patch === void 0 ? floor(major, minor ?? 0, 0) : full(value)
+		}];
+		case "<=":
+			if (minor === void 0) return [{
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			if (patch === void 0) return [{
+				operator: "<",
+				version: floor(major, minor + 1, 0)
+			}];
+			return [{
+				operator: "<=",
+				version: full(value)
+			}];
+		default: return;
+	}
+}
+/** Comparator sets joined by ||; undefined when the text is not a range (for example a dist-tag). */
+function parseRange(text) {
+	const sets = [];
+	for (const raw of text.split("||")) {
+		const set = raw.trim().replaceAll(/(\^|~>?|>=|<=|>|<|=)\s+/gu, "$1");
+		const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(set);
+		if (hyphen !== null) {
+			const from = partial$1(hyphen[1] ?? "");
+			const to = partial$1(hyphen[2] ?? "");
+			if (from === void 0 || to === void 0) return void 0;
+			const lower = desugar(">=", from) ?? [];
+			const upper = to.major === void 0 ? [] : desugar("<=", to) ?? [];
+			sets.push([...lower, ...upper]);
+			continue;
+		}
+		const comparators = [];
+		for (const part of set === "" ? [""] : set.split(/\s+/u)) {
+			const match = /^(\^|~>?|>=|<=|>|<|=)?(.*)$/u.exec(part);
+			const value = partial$1(match?.[2] ?? "");
+			if (match === null || value === void 0) return void 0;
+			const desugared = desugar(match[1] ?? "", value);
+			if (desugared === void 0) return void 0;
+			comparators.push(...desugared);
+		}
+		sets.push(comparators);
+	}
+	return sets;
+}
+function holds(comparator, candidate) {
+	const order = compareSemver(candidate, comparator.version);
+	switch (comparator.operator) {
+		case "<": return order < 0;
+		case "<=": return order <= 0;
+		case ">": return order > 0;
+		case ">=": return order >= 0;
+		case "=": return order === 0;
+	}
+}
+function satisfiesSet(candidate, set) {
+	if (!set.every((comparator) => holds(comparator, candidate))) return false;
+	if (candidate.prerelease.length === 0) return true;
+	return set.some((comparator) => comparator.version.prerelease.length > 0 && !(comparator.version.prerelease.length === 1 && comparator.version.prerelease[0] === 0 && comparator.operator === "<") && comparator.version.major === candidate.major && comparator.version.minor === candidate.minor && comparator.version.patch === candidate.patch);
+}
+function satisfies(candidate, range) {
+	const parsed = parseSemver(candidate);
+	const sets = parseRange(range);
+	return parsed !== void 0 && sets !== void 0 && sets.some((set) => satisfiesSet(parsed, set));
+}
+
 // src/doctor/durations.ts
 const MINUTES$2 = {
 	ms: 1 / 6e4,
@@ -18188,6 +18712,24 @@ function readPolicyFile(root) {
 }
 
 // src/apply/projects.ts
+/**
+* Whether the depcurfew.json of `root` lists `directory` (an absolute path below it), or a directory it lies in, under
+* projects, so that depcurfew run on `directory` works on the root, which checks it as one of its projects (decision
+* D-115). A policy that cannot be read lists nothing.
+*/
+function listedAsProject(root, directory) {
+	const file = readPolicyFile(root);
+	if (file.status !== "ok") return false;
+	let projects;
+	try {
+		projects = JSON.parse(file.text).projects;
+	} catch {
+		return false;
+	}
+	if (!Array.isArray(projects)) return false;
+	const path = relative(root, directory).split(sep).join("/");
+	return projects.some((project) => typeof project === "string" && project !== "" && (path === project || path.startsWith(`${project}/`)));
+}
 /** A path of a project file as seen from the repository root. */
 function inProject(project, file) {
 	return file === "" || file === "." ? project : `${project}/${file}`;
@@ -18230,9 +18772,24 @@ function projectLines(text) {
 function overlaps$1(a, b) {
 	return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
+/** The entry that makes a directory a repository of its own (.git, a directory or a submodule's file). */
+function repositoryEntry() {
+	return values$1(environment.git.repositoryEntry)[0]?.entry ?? ".git";
+}
+/** The directory on the way to a project (or the project itself) that is a repository of its own, if any. */
+function nestedRepository(root, project) {
+	const parts = project.split("/");
+	for (let count = 1; count <= parts.length; count++) {
+		const part = parts.slice(0, count).join("/");
+		try {
+			if (lstatSync(join(root, part, repositoryEntry()), { throwIfNoEntry: false }) !== void 0) return part;
+		} catch {}
+	}
+}
 /**
 * The problems of the directories listed in projects: one that does not exist, is not a directory, is reached through
-* a symlink (which may lead out of the repository, and would put the files apply writes in another place), has a
+* a symlink (which may lead out of the repository, and would put the files apply writes in another place), is a
+* repository of its own or lies in one (a git submodule: its files belong to another repository), has a
 * depcurfew.json of its own (two policies for the same files), or overlaps a workspace package of the root (whose
 * configuration the root already writes). `rootDetection` is the detection of the root, for its workspaces.
 */
@@ -18301,8 +18858,14 @@ function projectProblems(root, projects, rootDetection) {
 			problem("project-not-a-directory", `${file} is a file, so the project directory ${project} listed in projects is not a directory`, `List the directory of the project, not a file in it, or ${remove}`);
 			continue;
 		}
+		const repository = nestedRepository(root, project);
+		if (repository !== void 0) {
+			const entry = inProject(repository, repositoryEntry());
+			problem("project-is-repository", `the project directory ${project} listed in projects ${repository === project ? "is" : `lies in ${repository}, which is`} a separate git repository (${entry} is there, as in a git submodule), so the files depcurfew would write there belong to that repository`, `${remove.charAt(0).toUpperCase()}${remove.slice(1)}, and run depcurfew in ${repository} on its own, with a ${POLICY_FILE} of that repository`);
+			continue;
+		}
 		if (readPolicyFile(join(root, project)).status !== "missing") {
-			problem("project-has-policy", `${inProject(project, POLICY_FILE)} is a second policy for ${project}, which projects in the ${POLICY_FILE} of the repository root already covers`, `Remove ${inProject(project, POLICY_FILE)} (move what it sets into the ${POLICY_FILE} of the root), or ${remove} and run depcurfew in ${project} on its own`, { file: inProject(project, POLICY_FILE) });
+			problem("project-has-policy", `${inProject(project, POLICY_FILE)} is a second policy for ${project}, which projects in the ${POLICY_FILE} of the repository root already covers`, `Remove ${inProject(project, POLICY_FILE)} (move what it sets into the ${POLICY_FILE} of the root), or ${remove} and run depcurfew in ${project} on its own`);
 			continue;
 		}
 		const member = rootDetection?.workspaces?.packages.find((directory) => overlaps$1(directory, project));
@@ -18341,11 +18904,11 @@ function managerSources$1(context) {
 }
 
 // src/doctor/version-range.ts
-const PARTIAL$1 = /^v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+const PARTIAL = /^v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
 /** Comparator operators; a space between an operator and its version is allowed, as in semver. */
 const OPERATOR = /(\^|~>?|>=|<=|>|<|=)\s+/gu;
-function partial$1(text) {
-	const match = PARTIAL$1.exec(text);
+function partial(text) {
+	const match = PARTIAL.exec(text);
 	if (match === null) return void 0;
 	const number = (part) => part === void 0 || /^[xX*]$/u.test(part) ? void 0 : Number(part);
 	const major = Number(match[1]);
@@ -18394,7 +18957,7 @@ function formatBound(bound) {
 function setLowerBound(set) {
 	const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(set);
 	if (hyphen !== null) {
-		const from = partial$1(hyphen[1] ?? "");
+		const from = partial(hyphen[1] ?? "");
 		return from === void 0 ? void 0 : {
 			bound: from.bound,
 			exact: false
@@ -18419,7 +18982,7 @@ function setLowerBound(set) {
 		const match = /^(\^|~>?|>=|<=|>|<|=)?(.+)$/u.exec(comparator);
 		if (match === null) return void 0;
 		const operator = match[1] ?? "";
-		const value = partial$1(match[2] ?? "");
+		const value = partial(match[2] ?? "");
 		if (value === void 0) return void 0;
 		if (operator === "<" || operator === "<=") {
 			exact = false;
@@ -18474,216 +19037,6 @@ function lowestVersion(text) {
 	};
 }
 
-// src/check/semver.ts
-const VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
-function parseSemver(text) {
-	const match = VERSION.exec(text.trim());
-	if (match === null) return void 0;
-	const prerelease = match[4] === void 0 ? [] : match[4].split(".").map((part) => /^\d+$/u.test(part) ? Number(part) : part);
-	return {
-		major: Number(match[1]),
-		minor: Number(match[2]),
-		patch: Number(match[3]),
-		prerelease
-	};
-}
-function compareSemver(a, b) {
-	const main = a.major - b.major || a.minor - b.minor || a.patch - b.patch;
-	if (main !== 0) return main;
-	if (a.prerelease.length === 0 || b.prerelease.length === 0) return b.prerelease.length - a.prerelease.length;
-	for (let index = 0; index < Math.max(a.prerelease.length, b.prerelease.length); index++) {
-		const left = a.prerelease[index];
-		const right = b.prerelease[index];
-		if (left === void 0) return -1;
-		if (right === void 0) return 1;
-		if (left === right) continue;
-		if (typeof left === "number" && typeof right === "number") return left - right;
-		if (typeof left === "number") return -1;
-		if (typeof right === "number") return 1;
-		return left < right ? -1 : 1;
-	}
-	return 0;
-}
-const PARTIAL = /^v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
-function partial(text) {
-	if (text === "" || text === "*" || text === "x" || text === "X") return {
-		major: void 0,
-		minor: void 0,
-		patch: void 0,
-		prerelease: []
-	};
-	const match = PARTIAL.exec(text);
-	if (match === null) return void 0;
-	const number = (part) => part === void 0 || /^[xX*]$/u.test(part) ? void 0 : Number(part);
-	const major = number(match[1]);
-	const minor = major === void 0 ? void 0 : number(match[2]);
-	const patch = minor === void 0 ? void 0 : number(match[3]);
-	return {
-		major,
-		minor,
-		patch,
-		prerelease: patch === void 0 || match[4] === void 0 ? [] : match[4].split(".").map((part) => /^\d+$/u.test(part) ? Number(part) : part)
-	};
-}
-const version = (major, minor, patch, prerelease = []) => ({
-	major,
-	minor,
-	patch,
-	prerelease
-});
-/** The lowest version of a release line, below its prereleases: x.y.z-0. */
-const floor = (major, minor, patch) => version(major, minor, patch, [0]);
-function full(value) {
-	return version(value.major ?? 0, value.minor ?? 0, value.patch ?? 0, value.prerelease);
-}
-/** Comparators of one operator and partial version, as npm desugars them. */
-function desugar(operator, value) {
-	const { major, minor, patch } = value;
-	if (major === void 0) return operator === "<" || operator === ">" ? [{
-		operator: "<",
-		version: floor(0, 0, 0)
-	}] : [];
-	switch (operator) {
-		case "":
-		case "=":
-			if (minor === void 0) return [{
-				operator: ">=",
-				version: version(major, 0, 0)
-			}, {
-				operator: "<",
-				version: floor(major + 1, 0, 0)
-			}];
-			if (patch === void 0) return [{
-				operator: ">=",
-				version: version(major, minor, 0)
-			}, {
-				operator: "<",
-				version: floor(major, minor + 1, 0)
-			}];
-			return [{
-				operator: "=",
-				version: full(value)
-			}];
-		case "~":
-		case "~>":
-			if (minor === void 0) return [{
-				operator: ">=",
-				version: version(major, 0, 0)
-			}, {
-				operator: "<",
-				version: floor(major + 1, 0, 0)
-			}];
-			return [{
-				operator: ">=",
-				version: full(value)
-			}, {
-				operator: "<",
-				version: floor(major, minor + 1, 0)
-			}];
-		case "^": {
-			const lower = {
-				operator: ">=",
-				version: full(value)
-			};
-			if (major > 0 || minor === void 0) return [lower, {
-				operator: "<",
-				version: floor(major + 1, 0, 0)
-			}];
-			if (minor > 0 || patch === void 0) return [lower, {
-				operator: "<",
-				version: floor(0, minor + 1, 0)
-			}];
-			return [lower, {
-				operator: "<",
-				version: floor(0, 0, patch + 1)
-			}];
-		}
-		case ">":
-			if (minor === void 0) return [{
-				operator: ">=",
-				version: version(major + 1, 0, 0)
-			}];
-			if (patch === void 0) return [{
-				operator: ">=",
-				version: version(major, minor + 1, 0)
-			}];
-			return [{
-				operator: ">",
-				version: full(value)
-			}];
-		case ">=": return [{
-			operator: ">=",
-			version: full(value)
-		}];
-		case "<": return [{
-			operator: "<",
-			version: patch === void 0 ? floor(major, minor ?? 0, 0) : full(value)
-		}];
-		case "<=":
-			if (minor === void 0) return [{
-				operator: "<",
-				version: floor(major + 1, 0, 0)
-			}];
-			if (patch === void 0) return [{
-				operator: "<",
-				version: floor(major, minor + 1, 0)
-			}];
-			return [{
-				operator: "<=",
-				version: full(value)
-			}];
-		default: return;
-	}
-}
-/** Comparator sets joined by ||; undefined when the text is not a range (for example a dist-tag). */
-function parseRange(text) {
-	const sets = [];
-	for (const raw of text.split("||")) {
-		const set = raw.trim().replaceAll(/(\^|~>?|>=|<=|>|<|=)\s+/gu, "$1");
-		const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(set);
-		if (hyphen !== null) {
-			const from = partial(hyphen[1] ?? "");
-			const to = partial(hyphen[2] ?? "");
-			if (from === void 0 || to === void 0) return void 0;
-			const lower = desugar(">=", from) ?? [];
-			const upper = to.major === void 0 ? [] : desugar("<=", to) ?? [];
-			sets.push([...lower, ...upper]);
-			continue;
-		}
-		const comparators = [];
-		for (const part of set === "" ? [""] : set.split(/\s+/u)) {
-			const match = /^(\^|~>?|>=|<=|>|<|=)?(.*)$/u.exec(part);
-			const value = partial(match?.[2] ?? "");
-			if (match === null || value === void 0) return void 0;
-			const desugared = desugar(match[1] ?? "", value);
-			if (desugared === void 0) return void 0;
-			comparators.push(...desugared);
-		}
-		sets.push(comparators);
-	}
-	return sets;
-}
-function holds(comparator, candidate) {
-	const order = compareSemver(candidate, comparator.version);
-	switch (comparator.operator) {
-		case "<": return order < 0;
-		case "<=": return order <= 0;
-		case ">": return order > 0;
-		case ">=": return order >= 0;
-		case "=": return order === 0;
-	}
-}
-function satisfiesSet(candidate, set) {
-	if (!set.every((comparator) => holds(comparator, candidate))) return false;
-	if (candidate.prerelease.length === 0) return true;
-	return set.some((comparator) => comparator.version.prerelease.length > 0 && !(comparator.version.prerelease.length === 1 && comparator.version.prerelease[0] === 0 && comparator.operator === "<") && comparator.version.major === candidate.major && comparator.version.minor === candidate.minor && comparator.version.patch === candidate.patch);
-}
-function satisfies(candidate, range) {
-	const parsed = parseSemver(candidate);
-	const sets = parseRange(range);
-	return parsed !== void 0 && sets !== void 0 && sets.some((set) => satisfiesSet(parsed, set));
-}
-
 // src/doctor/runtime-versions.ts
 function first(fact) {
 	return evidenceOf(fact)[0]?.value;
@@ -18694,6 +19047,10 @@ function namingOf(source) {
 	if (source === "dockerfile") return "docker";
 	if (source === "nvmrc" || source === "node-version") return "nvm";
 	return "semver";
+}
+/** The names a declaration may use: a job container's image tag reads like a Dockerfile's (decision D-115). */
+function namingFor(declaration) {
+	return declaration.container === void 0 ? namingOf(declaration.source) : "docker";
 }
 function segmentsOf(lines) {
 	return lines.flatMap((entry) => {
@@ -18832,6 +19189,49 @@ function resolveIn(text, segments, lineOf) {
 function nodeBundledNpm(written, naming, facts) {
 	const text = written.trim();
 	return resolveIn(nodeName(text, naming, facts) ?? text, facts.node, nodeLineOf);
+}
+/** The last release before `until` in the same line, for testing a range against the end of a segment. */
+function justBefore(until) {
+	if (until[2] > 0) return [
+		until[0],
+		until[1],
+		until[2] - 1
+	];
+	if (until[1] > 0) return [
+		until[0],
+		until[1] - 1,
+		Number.MAX_SAFE_INTEGER
+	];
+	return [
+		until[0] - 1,
+		Number.MAX_SAFE_INTEGER,
+		Number.MAX_SAFE_INTEGER
+	];
+}
+/**
+* Whether the Node.js releases a declaration allows lie in a range (engines.node of npm, decision D-115): `all`, `none`
+* or `some`, undefined when the declaration cannot be read. Each known segment of releases is tested at its first and
+* its last release the declaration allows; the ranges npm declares (^20.17.0 || >=22.9.0) are intervals, so that is
+* enough.
+*/
+function nodeReleasesIn(written, naming, range, facts) {
+	const text = nodeName(written.trim(), naming, facts) ?? written.trim();
+	const lowest = lowestVersion(text);
+	if (lowest.kind === "unknown") return void 0;
+	const inside = (version) => satisfies(formatVersion(version), range);
+	if (lowest.kind === "exact") return inside(release(lowest.version)) ? "all" : "none";
+	const found = matching(text, facts.node);
+	if (found === void 0 || found.length === 0) return void 0;
+	let yes = false;
+	let no = false;
+	for (const segment of found) {
+		const first = max(segment.from, release(lowest.version));
+		const end = segment.until === void 0 ? segment.latest : justBefore(segment.until);
+		const last = satisfies(formatVersion(end), text) ? end : first;
+		for (const version of [first, last]) if (inside(version)) yes = true;
+		else no = true;
+	}
+	return yes && no ? "some" : yes ? "all" : "none";
 }
 /** The release line of a Node.js version: the major version from 4 on, the minor one before (0.12). */
 function nodeLineOf(version) {
@@ -19005,31 +19405,42 @@ function commandsAfterStep(group, declaration) {
 	group.after.set(step, found);
 	return found;
 }
-/** The first install with the tool that nothing before it replaced; undefined when the tool is replaced first or not used. */
-function firstPlainInstall(commands, tool, replaced) {
-	if (replaced) return void 0;
-	for (const command of commands) {
-		if (command.tool !== tool) continue;
-		if (command.kind === "upgrade") return void 0;
-		return command.line;
-	}
-}
 /** The project (a directory listed in projects) a command's working directory lies in; '' for the root. */
 function projectOf(command, projects) {
 	const directory = command.directory;
 	if (directory === void 0) return "";
 	return projects.find((project) => directory === project || directory.startsWith(`${project}/`)) ?? "";
 }
-/** Per project ('' for the root): the first npm install of the commands that nothing before it replaced. */
-function firstInstallsByProject(commands, projects) {
-	const found = /* @__PURE__ */ new Map();
+function addInstall(found, command) {
+	if (found === void 0) return {
+		first: command.line,
+		lockfile: command.lockfile === true,
+		scriptsOff: command.scriptsOff === true
+	};
+	return {
+		first: Math.min(found.first, command.line),
+		lockfile: found.lockfile && command.lockfile === true,
+		scriptsOff: found.scriptsOff && command.scriptsOff === true
+	};
+}
+/**
+* Per project ('' for the root) and per npm (`source`: the bundled one, or the npm install -g npm@X before them): the
+* installs of a run of commands. An upgrade replaces npm for every later command of the run, whatever the directory.
+*/
+function installsBySource(commands, tool, projectFor, start, found) {
+	let source = start;
 	for (const command of commands) {
-		if (command.tool !== "npm") continue;
-		if (command.kind === "upgrade") break;
-		const project = projectOf(command, projects);
-		if (!found.has(project)) found.set(project, command.line);
+		if (command.tool !== tool) continue;
+		if (command.kind === "upgrade") {
+			source = command;
+			continue;
+		}
+		const project = projectFor(command);
+		const byProject = found.get(source) ?? /* @__PURE__ */ new Map();
+		found.set(source, byProject);
+		byProject.set(project, addInstall(byProject.get(project), command));
 	}
-	return found;
+	return source;
 }
 /**
 * The root jobs, with only the commands that install in `project` or replace npm or pip, for a project's plan and the
@@ -19051,36 +19462,13 @@ function jobsInProject(detection, project) {
 		versions
 	};
 }
-/**
-* For every stage: the stage it starts from, up to the one with an image, and whether the tool was replaced on the
-* way. A stage only starts from an earlier one, so one pass in order is enough, also for a long chain of stages.
-*/
-function ancestries(file, tool) {
-	const found = [];
-	for (const [index, stage] of file.stages.entries()) {
-		const from = stage.from;
-		const parent = from === void 0 || from >= index ? void 0 : file.stages[from];
-		const above = from === void 0 ? void 0 : found[from];
-		if (parent === void 0 || above === void 0) {
-			found.push({
-				root: stage,
-				replaced: false
-			});
-			continue;
-		}
-		found.push({
-			root: above.root,
-			replaced: above.replaced || parent.commands.some((command) => command.tool === tool && command.kind === "upgrade")
-		});
-	}
-	return found;
-}
 /** "Node.js 22 (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test)", "Node.js 22 in .nvmrc". */
 function nodeSubject(declaration, label) {
 	const matrix = declaration.matrix === void 0 ? "" : ` (matrix.${declaration.matrix})`;
+	const container = declaration.container === void 0 ? "" : ` of the job container ${declaration.container}`;
 	const where = declaration.source === "github-actions" && declaration.job !== void 0 ? `${declaration.file}, job ${declaration.job}` : declaration.file;
 	const from = declaration.versionFile === void 0 ? "" : ` from ${declaration.versionFile}`;
-	return `Node.js ${declaration.version}${matrix}${from} in ${label === where ? label : `${label} (${where})`}`;
+	return `Node.js ${declaration.version}${matrix}${container}${from} in ${label === where ? label : `${label} (${where})`}`;
 }
 /** nodeBundledNpm with the result kept per text, for a matrix that repeats one version in many steps. */
 function resolver(facts) {
@@ -19095,39 +19483,105 @@ function resolver(facts) {
 		return found;
 	};
 }
+/**
+* The places of every job (decision D-115): the commands after a setup step (or the job container) and before the
+* next one use its Node.js; npm install -g npm@X replaces npm for the later commands of that part of the job.
+*/
 function jobPlaces(detection, projects) {
 	const places = [];
-	for (const group of jobIndex(detection).groups) for (const declaration of group.declarations) for (const [project, install] of firstInstallsByProject(commandsAfterStep(group, declaration), projects)) places.push({
-		job: group.job,
-		declaration,
-		project,
-		install
-	});
+	for (const group of jobIndex(detection).groups) {
+		const byStep = /* @__PURE__ */ new Map();
+		for (const declaration of group.declarations) {
+			const list = byStep.get(declaration.step) ?? [];
+			list.push(declaration);
+			byStep.set(declaration.step, list);
+		}
+		const parts = /* @__PURE__ */ new Map();
+		for (const command of group.commands) {
+			const index = firstAbove(group.steps, command.line - 1);
+			const step = index === 0 ? void 0 : group.steps[index - 1];
+			const list = parts.get(step) ?? [];
+			list.push(command);
+			parts.set(step, list);
+		}
+		const project = (command) => projectOf(command, projects);
+		for (const [step, commands] of parts) {
+			const found = /* @__PURE__ */ new Map();
+			installsBySource(commands, "npm", project, void 0, found);
+			const nodes = byStep.get(step) ?? [];
+			for (const [source, byProject] of found) for (const [directory, installs] of byProject) if (source !== void 0) places.push({
+				job: group.job,
+				upgrade: source,
+				nodes,
+				project: directory,
+				installs
+			});
+			else for (const declaration of nodes) places.push({
+				job: group.job,
+				declaration,
+				nodes: [declaration],
+				project: directory,
+				installs
+			});
+		}
+	}
 	return places;
 }
-/** The stages that install with the tool of their image; `keep` chooses the stages (a project's, or the root's). */
-function dockerPlaces(dockerfiles, tool, keep = () => true) {
+/**
+* The places of every stage (decision D-115). A stage starts with the tool of the stage it starts from, or of its image;
+* its installs belong to the project its COPY sources name (stageProjects), or, in a stage that copies the whole build
+* context, to the project of the directory a literal cd leads to (cd frontend && npm ci); otherwise to the root. The
+* installs with the same tool and of the same project are one place, at the first stage that has them. One pass in
+* order: a stage only starts from an earlier one.
+*/
+function dockerPlaces(dockerfiles, tool, projects = []) {
 	const runtimeTool = tool === "npm" ? "node" : "python";
 	const places = [];
+	const built = builtByProject(projects);
 	for (const file of dockerfiles) {
-		const reported = /* @__PURE__ */ new Set();
-		const lineage = ancestries(file, tool);
+		const lineage = [];
+		const known = /* @__PURE__ */ new Map();
 		for (const [index, stage] of file.stages.entries()) {
-			if (stage.runtime?.tool !== runtimeTool || !keep(file, index)) continue;
-			const { root, replaced } = lineage[index] ?? {
-				root: stage,
-				replaced: false
-			};
-			const install = firstPlainInstall(stage.commands, tool, replaced);
-			if (install === void 0 || reported.has(root)) continue;
-			reported.add(root);
-			places.push({
-				file,
-				index,
-				stage,
+			const from = stage.from;
+			const above = from === void 0 || from >= index ? void 0 : lineage[from];
+			const whole = (above?.whole ?? false) || (stage.copies ?? []).some((source) => contextPath(source) === ".");
+			const assigned = built(file, index);
+			const projectFor = (command) => assigned ?? (whole ? projectOf(command, projects) : "");
+			const found = /* @__PURE__ */ new Map();
+			const last = installsBySource(stage.commands, tool, projectFor, above?.upgrade, found);
+			const root = above?.root ?? stage;
+			lineage.push({
 				root,
-				install
+				upgrade: last,
+				whole
 			});
+			for (const [source, byProject] of found) {
+				if (source === void 0 && stage.runtime?.tool !== runtimeTool) continue;
+				const ofSource = known.get(source ?? root) ?? /* @__PURE__ */ new Map();
+				known.set(source ?? root, ofSource);
+				for (const [project, installs] of byProject) {
+					const place = ofSource.get(project);
+					if (place !== void 0) {
+						place.installs = {
+							first: place.installs.first,
+							lockfile: place.installs.lockfile && installs.lockfile,
+							scriptsOff: place.installs.scriptsOff && installs.scriptsOff
+						};
+						continue;
+					}
+					const created = {
+						file,
+						index,
+						stage,
+						root,
+						...source === void 0 ? {} : { upgrade: source },
+						project,
+						installs
+					};
+					ofSource.set(project, created);
+					places.push(created);
+				}
+			}
 		}
 	}
 	return places;
@@ -19216,12 +19670,18 @@ function stageProjects(file, projects) {
 function rootPlaces(rootDetection, project, projectDetection) {
 	const own = new Set(projectDetection?.node.versions.map((declaration) => declaration.source) ?? []);
 	const inherited = inheritedSources();
+	const versions = rootDetection.node.versions.filter((declaration) => inherited.has(declaration.source) && !own.has(declaration.source));
+	const installing = /* @__PURE__ */ new Map();
+	for (const place of dockerPlaces(rootDetection.dockerfiles, "npm", [project])) if (place.project === project) installing.set(place.file, [...installing.get(place.file) ?? [], place.index]);
 	return {
-		versions: rootDetection.node.versions.filter((declaration) => inherited.has(declaration.source) && !own.has(declaration.source)),
-		dockerfiles: rootDetection.dockerfiles.map((file) => ({
-			file,
-			stages: stageProjects(file, [project]).flatMap((built, index) => built === project ? [index] : [])
-		})).filter((entry) => entry.stages.length > 0)
+		project,
+		versions,
+		dockerfiles: rootDetection.dockerfiles.map((file) => {
+			return {
+				file,
+				stages: [.../* @__PURE__ */ new Set([...stageProjects(file, [project]).flatMap((built, index) => built === project ? [index] : []), ...installing.get(file) ?? []])].sort((a, b) => a - b)
+			};
+		}).filter((entry) => entry.stages.length > 0)
 	};
 }
 /** Whether a stage of a root Dockerfile builds one of the projects, so that it is not the root's. */
@@ -19238,14 +19698,58 @@ function builtByProject(projects) {
 	};
 }
 const AT_ROOT = " at the repository root";
+/** The versions from which npm treats dependency scripts and the settings of the policy otherwise. */
+function npmMarks() {
+	return [
+		...(values$1(npm$1.installScripts.defaultPolicy)[0] ?? []).map((entry) => entry.since),
+		sinceOf(npm$1.installScripts.allowList.availableSince),
+		sinceOf(npm$1.cooldown.availableSince)
+	].flatMap((text) => {
+		const version = text === void 0 ? void 0 : parseVersion(text);
+		return version === void 0 ? [] : [version];
+	});
+}
 /**
-* The npm versions a directory runs (decisions D-105 and D-109): the versions declared for npm itself (the pin for the
-* repository, other declarations, the lowest version of a range, npm install -g npm@<version> in CI jobs and
-* Dockerfiles), and the npm that comes with the Node.js of every place manager-version-too-old checks (CI jobs and
-* Dockerfile stages that install with it, developer version files). Versions that cannot be read are left out.
-* `projects` leaves out root CI installs in those directories and root Dockerfile stages that build them; `extra` adds
-* root jobs that install in this project (jobsInProject), `root` the root's version files and Dockerfile stages
-* (rootPlaces). apply writes strict-allow-scripts from this list, and doctor promises it from the same list.
+* The npm of npm install -g npm@<spec> (decision D-115): an exact version; for a range (npm@11, npm@^11.10.0) its lowest
+* version and the versions it allows from which npm treats dependency scripts otherwise, as for a range in
+* packageManager; for a spec depcurfew cannot read (npm@latest, npm@${NPM_VERSION}) an npm it cannot tell, which
+* counts as one that runs every dependency install script (decision D-111).
+*/
+function upgradeEntry(spec, where, location) {
+	const fields = {
+		where,
+		...location === void 0 ? {} : { location }
+	};
+	const exact = parseVersion(spec);
+	if (exact !== void 0) return {
+		versions: [exact],
+		...fields
+	};
+	const lowest = lowestVersion(spec);
+	if (lowest.kind === "unknown") return {
+		versions: [],
+		unknown: `npm@${spec} names no version depcurfew can read`,
+		spec,
+		...fields
+	};
+	const candidates = [lowest.version, ...npmMarks()].filter((version) => satisfies(formatVersion(version), spec)).sort(compareVersions$1);
+	const versions = candidates.filter((version, index) => index === 0 || compareVersions$1(version, candidates[index - 1]) !== 0);
+	return {
+		versions: versions.length === 0 ? [lowest.version] : versions,
+		range: spec,
+		...fields
+	};
+}
+/**
+* The npm versions a directory runs (decisions D-105, D-109 and D-115): the versions declared for npm itself (the pin
+* for the repository, other declarations, the lowest version of a range), npm install -g npm@<version> in CI jobs and
+* Dockerfile stages that install packages with it, and the npm that comes with the Node.js of every place
+* manager-version-too-old checks (CI jobs and Dockerfile stages that install with it, developer version files). A
+* version that cannot be read stays in the list as unknown. A place whose installs all run with scripts off
+* (--ignore-scripts) is left out: it runs no dependency script. `projects` leaves out root CI installs in those
+* directories and root Dockerfile stages that build them; `extra` adds root jobs that install in this project
+* (jobsInProject), `root` the root's version files and Dockerfile stages (rootPlaces). apply writes
+* strict-allow-scripts from this list, and doctor promises it from the same list.
 */
 function npmInUse(detection, manifest, label, options = {}) {
 	const resolve = resolver(runtimeFacts(environment));
@@ -19279,29 +19783,17 @@ function npmInUse(detection, manifest, label, options = {}) {
 		file,
 		...line === void 0 ? {} : { line }
 	});
+	const upgrade = (command, where, location) => {
+		if (command.version !== void 0) push(upgradeEntry(command.version, where, location));
+	};
 	const projects = options.projects ?? [];
-	const built = builtByProject(projects);
 	const manager = detection.packageManagers.find((entry) => entry.id === "npm");
 	const pin = manager === void 0 ? void 0 : repositoryPin(manager);
 	let pinned = false;
 	for (const declaration of manager?.versions ?? []) {
 		if (!("version" in declaration)) continue;
+		if (declaration.source === "github-actions" || declaration.source === "dockerfile") continue;
 		const exact = parseVersion(declaration.version);
-		if (declaration.source === "github-actions" || declaration.source === "dockerfile") {
-			if (exact === void 0) continue;
-			if (declaration.source === "dockerfile") {
-				const file = detection.dockerfiles.find((entry) => entry.file === declaration.file);
-				const index = file === void 0 ? -1 : file.stages.findIndex((stage, position) => (stage.name ?? String(position)) === declaration.stage);
-				if (file !== void 0 && index >= 0 && built(file, index) !== void 0) continue;
-			}
-			const job = declaration.job === void 0 ? "" : ` job ${declaration.job} of`;
-			push({
-				versions: [exact],
-				where: `installed in${job} ${declaration.file}${declaration.line === void 0 ? "" : `, line ${declaration.line}`}`,
-				location: at(declaration.file, declaration.line)
-			});
-			continue;
-		}
 		if (exact !== void 0) {
 			const isPin = !pinned && pin !== void 0 && compareVersions$1(exact, pin) === 0;
 			pinned ||= isPin;
@@ -19328,66 +19820,135 @@ function npmInUse(detection, manifest, label, options = {}) {
 		node: { versions: [...options.extra.versions] },
 		dockerfiles: []
 	});
-	for (const [index, view] of views.entries()) for (const place of jobPlaces(view, index === 0 ? projects : [])) {
+	const jobs = views.flatMap((view, index) => jobPlaces(view, index === 0 ? projects : []).map((place) => ({
+		place,
+		ownFile: index === 0
+	})));
+	const own = dockerPlaces(detection.dockerfiles, "npm", projects).filter((place) => place.project === "");
+	const rootProject = options.root?.project;
+	const fromRoot = (options.root?.dockerfiles ?? []).flatMap(({ file, stages }) => {
+		const keep = new Set(stages);
+		return dockerPlaces([file], "npm", rootProject === void 0 ? [] : [rootProject]).filter((place) => rootProject === void 0 ? keep.has(place.index) : place.project === rootProject);
+	});
+	for (const { place, ownFile } of jobs) {
+		if (place.upgrade === void 0 || place.project !== "" || place.installs.scriptsOff) continue;
+		upgrade(place.upgrade, `installed in job ${place.job.id} of ${place.job.file}${ownFile ? "" : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : void 0);
+	}
+	for (const place of own) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}, line ${place.upgrade.line}`, at(place.file.file, place.upgrade.line));
+	for (const place of fromRoot) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}${AT_ROOT}, line ${place.upgrade.line}`, void 0);
+	for (const { place, ownFile } of jobs) {
 		const declaration = place.declaration;
-		if (place.project !== "") continue;
-		const location = index === 0 ? at(declaration.file, declaration.line) : void 0;
-		const job = `job ${place.job.id} of ${declaration.file}${index === 0 ? "" : AT_ROOT}`;
+		if (declaration === void 0 || place.project !== "" || place.installs.scriptsOff) continue;
+		const location = ownFile ? at(declaration.file, declaration.line) : void 0;
+		const job = `job ${place.job.id} of ${declaration.file}${ownFile ? "" : AT_ROOT}`;
 		if (!("version" in declaration)) {
 			unknownNode("depcurfew cannot read the version from that file", `Node.js from ${declaration.versionFile} in ${job}`, location);
 			continue;
 		}
 		const matrix = declaration.matrix === void 0 ? "" : ` (matrix.${declaration.matrix})`;
+		const container = declaration.container === void 0 ? "" : ` of the job container ${declaration.container}`;
 		const from = declaration.versionFile === void 0 ? "" : ` from ${declaration.versionFile}`;
-		const where = `Node.js ${declaration.version}${matrix}${from} in ${job}`;
+		const where = `Node.js ${declaration.version}${matrix}${container}${from} in ${job}`;
 		if (declaration.unknown !== void 0) unknownNode(declaration.unknown, where, location);
-		else add(resolve(declaration.version, "setup-node"), where, location);
+		else add(resolve(declaration.version, namingFor(declaration)), where, location);
 	}
-	const subject = (place) => `Node.js ${place.stage.runtime.version === void 0 ? "" : `${place.stage.runtime.version} `}of ${place.root.image ?? "node"} in ${place.file.file}`;
+	const subject = (place) => `Node.js ${place.stage.runtime?.version === void 0 ? "" : `${place.stage.runtime.version} `}of ${place.root.image ?? "node"} in ${place.file.file}`;
 	const stage = (place, suffix, location) => {
-		const version = place.stage.runtime.version;
-		if (version === void 0) unknownNode(place.stage.runtime.unknown ?? "the tag names no version", `${subject(place)}${suffix}`, location);
+		if (place.upgrade !== void 0 || place.installs.scriptsOff) return;
+		const version = place.stage.runtime?.version;
+		if (version === void 0) unknownNode(place.stage.runtime?.unknown ?? "the tag names no version", `${subject(place)}${suffix}`, location);
 		else add(resolve(version, "docker"), `${subject(place)}${suffix}`, location);
 	};
-	for (const place of dockerPlaces(detection.dockerfiles, "npm", (file, index) => built(file, index) === void 0)) stage(place, "", at(place.file.file, place.root.line));
+	for (const place of own) stage(place, "", at(place.file.file, place.root.line));
 	for (const declaration of developerPlaces(detection, manager, manifest, (options.root?.versions.length ?? 0) > 0)) {
 		const where = declaration.file === label(declaration) ? declaration.file : `${label(declaration)} in ${declaration.file}`;
 		add(resolve(declaration.version, namingOf(declaration.source)), `Node.js ${declaration.version} in ${where}`, at(declaration.file, declaration.line));
 	}
 	for (const declaration of options.root?.versions ?? []) if ("version" in declaration) add(resolve(declaration.version, namingOf(declaration.source)), `Node.js ${declaration.version} in ${declaration.file}${AT_ROOT}`, void 0);
-	for (const { file, stages } of options.root?.dockerfiles ?? []) {
-		const keep = new Set(stages);
-		for (const place of dockerPlaces([file], "npm", (_file, index) => keep.has(index))) stage(place, AT_ROOT, void 0);
-		for (const index of stages) for (const command of file.stages[index]?.commands ?? []) {
-			const version = command.tool === "npm" && command.kind === "upgrade" && command.version !== void 0 ? parseVersion(command.version) : void 0;
-			if (version !== void 0) push({
-				versions: [version],
-				where: `installed in ${file.file}${AT_ROOT}, line ${command.line}`
-			});
-		}
-	}
-	for (const job of options.extra?.jobs ?? []) for (const command of job.commands) {
-		const version = command.tool === "npm" && command.kind === "upgrade" && command.version !== void 0 ? parseVersion(command.version) : void 0;
-		if (version !== void 0) push({
-			versions: [version],
-			where: `installed in job ${job.id} of ${job.file}${AT_ROOT}, line ${command.line}`
-		});
-	}
+	for (const place of fromRoot) stage(place, AT_ROOT, void 0);
 	return found;
 }
 /** "npm 11.16.0 (with Node.js 24.18.0 in .nvmrc)", "npm 11.3.0 to 11.19.1 (…)": the versions of an entry, or some of them. */
 function npmInUseText(entry, versions = entry.versions) {
+	if (entry.spec !== void 0) return `npm@${entry.spec} (${entry.where}; depcurfew cannot tell which version that is)`;
 	if (entry.unknown !== void 0 || versions.length === 0) return `the npm that comes ${entry.where} (depcurfew cannot tell which one: ${entry.unknown ?? "no version is known"})`;
+	if (entry.range !== void 0) return `npm@${entry.range} (${entry.where})`;
 	const sorted = [...versions].sort(compareVersions$1);
 	const low = formatVersion(sorted[0]);
 	const high = formatVersion(sorted.at(-1));
 	return `npm ${low === high ? low : `${low} to ${high}`} (${entry.where})`;
 }
+function nodeOf(declaration) {
+	return "version" in declaration && declaration.unknown === void 0 ? [{
+		version: declaration.version,
+		naming: namingFor(declaration)
+	}] : [];
+}
+/** Whether npm ci installs exactly the versions of package-lock.json, so that a release-age delay changes nothing there. */
+function lockedVersionsInstalled() {
+	const fact = npm$1.extra?.["cleanInstall"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return typeof value === "object" && value !== null && value["installsLockedVersions"] === true;
+}
+/**
+* The settings the installs of a place rely on (decision D-115): npm ci installs the versions package-lock.json records,
+* so the release-age delay changes nothing there; installs with dependency scripts off need no script blocking.
+*/
+function placeFeatures(features, installs) {
+	if (installs === void 0) return [...features];
+	const locked = installs.lockfile && lockedVersionsInstalled();
+	return features.filter((item) => !(locked && item.kind === "cooldown") && !(installs.scriptsOff && item.kind === "scripts"));
+}
+/** The range of Node.js versions an npm version is meant to run on (engines.node of npm/cli at its release). */
+function npmEngines(version) {
+	const fact = npm$1.extra?.["nodeEngines"];
+	const list = fact === void 0 ? void 0 : values$1(fact)[0];
+	if (!Array.isArray(list)) return void 0;
+	let found;
+	for (const entry of list) {
+		const since = parseVersion(entry.since);
+		if (since !== void 0 && compareVersions$1(version, since) >= 0) found = entry.node;
+	}
+	return found;
+}
+/**
+* Whether the npm a fix names runs on the Node.js of the place (decision D-115): `none` when no release the place allows
+* is in the engines range of that npm (npm 11 on Node.js 18), `some` when only some are (npm 11 on Node.js 20 runs from
+* 20.17.0), undefined when every one is or it cannot be told.
+*/
+function enginesVerdict(version, nodes, facts) {
+	const range = npmEngines(version);
+	if (range === void 0 || nodes === void 0 || nodes.length === 0) return void 0;
+	const known = VERDICTS.get(facts) ?? /* @__PURE__ */ new Map();
+	VERDICTS.set(facts, known);
+	const verdicts = nodes.map((node) => {
+		const key = `${node.version}\u0000${node.naming}\u0000${range}`;
+		if (!known.has(key)) known.set(key, nodeReleasesIn(node.version, node.naming, range, facts));
+		return known.get(key);
+	});
+	if (verdicts.every((verdict) => verdict === "none")) return {
+		verdict: "none",
+		range
+	};
+	if (verdicts.some((verdict) => verdict === "none" || verdict === "some")) return {
+		verdict: "some",
+		range
+	};
+}
+const VERDICTS = /* @__PURE__ */ new WeakMap();
+/** An install of npm `version` in a place, with what the Node.js there needs for it. */
+function installOn(place, version, facts) {
+	const text = formatVersion(version);
+	const engines = enginesVerdict(version, place.nodes, facts);
+	if (engines === void 0) return place.install(text);
+	if (engines.verdict === "none") return `move to a Node.js release that npm ${text} runs on (${engines.range}), then ${place.install(text)}`;
+	return `${place.install(text)} (npm ${text} runs on Node.js ${engines.range} only)`;
+}
 function report$1(context, helpers, check, place, resolution, facts) {
 	const name = check.tool.name;
 	const low = resolution.bundled[0];
 	const high = newest(resolution.bundled);
-	const missing = helpers.missing(check.features, (since) => compareVersions$1(low, since) < 0);
+	const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => compareVersions$1(low, since) < 0);
 	if (missing.length === 0) return;
 	const none = missing.filter((item) => compareVersions$1(high, parseVersion(item.since)) < 0);
 	const some = missing.filter((item) => !none.includes(item));
@@ -19416,11 +19977,12 @@ function report$1(context, helpers, check, place, resolution, facts) {
 	const enough = other !== void 0 && compareVersions$1(low, other.version) >= 0;
 	const otherRuntime = other === void 0 || enough ? void 0 : runtimeFor(other.version);
 	const noRelease = better.length === 0 && check.tool.id === "npm" ? `; no supported Node.js release comes with ${name} ${formatVersion(needed)} yet` : "";
+	const install = (version) => check.tool.id === "npm" ? installOn(place, version, facts) : place.install(formatVersion(version));
 	const fix = [
 		...enough ? [other.set] : [],
-		place.install(formatVersion(target)),
+		install(target),
 		...runtime === void 0 ? [] : [runtime],
-		...other === void 0 || enough ? [] : [`${place.install(formatVersion(other.version))} ${other.suffix(place.installSeen ? "repository" : "machine")}`, ...otherRuntime === void 0 ? [] : [`${otherRuntime} ${other.suffix("repository")}`]]
+		...other === void 0 || enough ? [] : [`${install(other.version)} ${other.suffix(place.installSeen ? "repository" : "machine")}`, ...otherRuntime === void 0 ? [] : [`${otherRuntime} ${other.suffix("repository")}`]]
 	].join(", or ");
 	const level = place.enforced && none.length > 0 ? "error" : "warning";
 	context.report({
@@ -19437,15 +19999,69 @@ function unknown(context, subject, reason, file) {
 	context.notice(`${RULE$1} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
 }
 /**
-* CI jobs that install with the npm of a declared Node.js. An install in the directory of a project (working-directory:
-* frontend) uses that project's npm configuration, so it is checked against the project's settings (decision D-105).
+* The npm an npm install -g npm@X puts in place, checked against the settings of the directory its installs run in, as
+* for packageManager: an exact version that lacks one is an error, a range whose lowest version does a warning, and a
+* version depcurfew cannot read a notice (apply counts it as an npm that runs every dependency install script).
+*/
+function checkUpgrade(context, helpers, check, place, facts) {
+	const spec = place.command.version;
+	if (spec === void 0) return;
+	const name = check.tool.name;
+	const where = place.label === place.file ? place.label : `${place.label} (${place.file})`;
+	const lowest = lowestVersion(spec);
+	if (lowest.kind === "unknown") {
+		context.notice(`${RULE$1} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
+		return;
+	}
+	const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => belowVersion(lowest, since));
+	if (missing.length === 0) return;
+	const needed = newest(missing.map((item) => parseVersion(item.since)));
+	const list = describeRequirements(missing);
+	const subject = lowest.kind === "exact" ? `${name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} allows ${name} ${formatBound(lowest)} ("${spec}"), which does not support ${list}`;
+	const alternative = helpers.alternative(missing, name, check.advice);
+	const engines = (version) => {
+		const found = enginesVerdict(version, place.nodes, facts);
+		if (found === void 0) return "";
+		return found.verdict === "none" ? ` (npm ${formatVersion(version)} runs on Node.js ${found.range}, so move to such a Node.js release first)` : ` (npm ${formatVersion(version)} runs on Node.js ${found.range} only)`;
+	};
+	const fix = alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}` : `Require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}${alternative === void 0 ? "" : `, or ${alternative.text}`}`;
+	context.report({
+		level: lowest.kind === "exact" ? "error" : "warning",
+		location: {
+			file: place.file,
+			line: place.command.line
+		},
+		message: `${subject}${place.installs === void 0 ? "" : `, and ${place.installs}`}`,
+		fix
+	});
+}
+/**
+* CI jobs that install with npm: with the npm of a declared Node.js, or with the npm npm install -g npm@X puts in its
+* place. An install in the directory of a project (working-directory: frontend, cd frontend) uses that project's npm
+* configuration, so it is checked against the project's settings (decisions D-105 and D-115).
 */
 function checkJobs(context, helpers, checkFor, facts) {
 	const projects = (context.projects ?? []).map((view) => view.directory);
 	const resolve = resolver(facts);
-	for (const { job, declaration, project, install } of jobPlaces(context.detection, projects)) {
+	for (const place of jobPlaces(context.detection, projects)) {
+		const { job, project, installs } = place;
 		const check = checkFor(project);
 		if (check === void 0) continue;
+		const where = project === "" ? "" : ` in ${project}`;
+		const uses = `job ${job.id} installs packages with it${where} on line ${installs.first}`;
+		if (place.upgrade !== void 0) {
+			checkUpgrade(context, helpers, check, {
+				command: place.upgrade,
+				file: job.file,
+				label: SOURCE_LABEL["github-actions"],
+				...project === "" ? {} : { installs: uses },
+				of: installs,
+				nodes: place.nodes.flatMap(nodeOf)
+			}, facts);
+			continue;
+		}
+		const declaration = place.declaration;
+		if (declaration === void 0) continue;
 		if (!("version" in declaration)) {
 			unknown(context, `the Node.js of ${declaration.versionFile} in ${declaration.file}`, "depcurfew cannot read the version from that file", declaration.file);
 			continue;
@@ -19455,39 +20071,61 @@ function checkJobs(context, helpers, checkFor, facts) {
 			unknown(context, subject, declaration.unknown, declaration.file);
 			continue;
 		}
-		const resolution = resolve(declaration.version, "setup-node");
+		const resolution = resolve(declaration.version, namingFor(declaration));
 		if (resolution.kind === "unknown") {
 			unknown(context, subject, resolution.reason, declaration.file);
 			continue;
 		}
-		const where = project === "" ? "" : ` in ${project}`;
 		report$1(context, helpers, check, {
 			subject,
 			file: declaration.file,
 			...declaration.line === void 0 ? {} : { line: declaration.line },
 			enforced: true,
-			installs: `job ${job.id} installs packages with it${where} on line ${install}`,
+			installs: uses,
+			of: installs,
+			nodes: nodeOf(declaration),
 			install: (version) => `run npm install -g npm@${version} in job ${job.id} before it installs packages`,
 			installSeen: true,
-			runtime: (releases, _first, bundled) => `set up a Node.js release that comes with npm ${bundled} or later (${releases})`
+			runtime: (releases, _first, bundled) => declaration.container === void 0 ? `set up a Node.js release that comes with npm ${bundled} or later (${releases})` : `run the job in a node image whose Node.js release comes with npm ${bundled} or later (${releases})`
 		}, resolution, facts);
 	}
 }
-/** Dockerfile stages that install with the tool of their image; a root stage that builds a project is checked for it. */
+/**
+* Dockerfile stages that install with the tool of their image, or with the npm an npm install -g npm@X puts in its
+* place; a root stage that builds a project, or installs in its directory, is checked for it.
+*/
 function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 	const runtimeTool = tool === "npm" ? "node" : "python";
-	const built = tool === "npm" ? builtByProject((context.projects ?? []).map((view) => view.directory)) : () => void 0;
-	for (const { file, index, stage, root, install } of dockerPlaces(context.detection.dockerfiles, tool)) {
-		const project = built(file, index) ?? "";
+	const projects = tool === "npm" ? (context.projects ?? []).map((view) => view.directory) : [];
+	for (const { file, stage, root, upgrade, project, installs } of dockerPlaces(context.detection.dockerfiles, tool, projects)) {
 		const check = checkFor(project);
 		if (check === void 0) continue;
-		const image = root.image ?? (runtimeTool === "node" ? "node" : "python");
 		const name = stage.name === void 0 ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
+		const uses = `${name} installs packages with it${project === "" ? "" : ` for ${project}`} on line ${installs.first}`;
+		const runtime = stage.runtime;
+		if (upgrade !== void 0) {
+			if (tool !== "npm") continue;
+			const nodes = runtime?.tool === "node" && runtime.version !== void 0 ? [{
+				version: runtime.version,
+				naming: "docker"
+			}] : [];
+			checkUpgrade(context, helpers, check, {
+				command: upgrade,
+				file: file.file,
+				label: SOURCE_LABEL.dockerfile,
+				...project === "" ? {} : { installs: uses },
+				of: installs,
+				nodes
+			}, facts);
+			continue;
+		}
+		if (runtime === void 0) continue;
+		const image = root.image ?? (runtimeTool === "node" ? "node" : "python");
 		const runtimeName = runtimeTool === "node" ? "Node.js" : "Python";
-		const version = stage.runtime.version;
+		const version = runtime.version;
 		const subject = `${runtimeName}${version === void 0 ? "" : ` ${version}`} (${image}) in ${file.file}`;
 		if (version === void 0) {
-			unknown(context, subject, stage.runtime.unknown ?? "the tag names no version", file.file);
+			unknown(context, subject, runtime.unknown ?? "the tag names no version", file.file);
 			continue;
 		}
 		const resolution = runtimeTool === "node" ? nodeBundledNpm(version, "docker", facts) : pythonBundledPip(version, facts);
@@ -19495,14 +20133,19 @@ function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 			unknown(context, subject, resolution.reason, file.file);
 			continue;
 		}
-		const upgrade = tool === "npm" ? (target) => `npm install -g npm@${target}` : (target) => `pip install pip==${target}`;
+		const replace = tool === "npm" ? (target) => `npm install -g npm@${target}` : (target) => `pip install pip==${target}`;
 		report$1(context, helpers, check, {
 			subject,
 			file: file.file,
 			line: root.line,
 			enforced: true,
-			installs: `${name} installs packages with it${project === "" ? "" : ` for ${project}`} on line ${install}`,
-			install: (target) => `add RUN ${upgrade(target)} to ${name} before it installs packages`,
+			installs: uses,
+			of: installs,
+			...tool === "npm" ? { nodes: [{
+				version,
+				naming: "docker"
+			}] } : {},
+			install: (target) => `add RUN ${replace(target)} to ${name} before it installs packages`,
 			installSeen: true,
 			runtime: (releases, first, bundled) => `start from a ${runtimeTool} image whose ${runtimeName} release comes with ${tool} ${bundled} or later (${releases}), such as ${runtimeTool}:${first}`
 		}, resolution, facts);
@@ -19686,6 +20329,10 @@ const SOURCE_GROUPS = SOURCE_KINDS.map((kind) => ({
 }));
 
 // src/doctor/rules/manager-version.ts
+const kinded = (kind, found) => found === void 0 ? void 0 : {
+	...found,
+	kind
+};
 /**
 * When a missing feature can also be had with a setting from an earlier version (decision D-105): that version, the
 * newest of it and the other missing features, and how to say it in a fix. The fix promises that depcurfew apply writes
@@ -19721,22 +20368,22 @@ function feature(setting, since) {
 function policyFeatures(tool, policy) {
 	const features = [];
 	if (policy.cooldown !== void 0) {
-		features.push(feature(settingOf(tool.cooldown.setting), tool.cooldown.availableSince));
+		features.push(kinded("cooldown", feature(settingOf(tool.cooldown.setting), tool.cooldown.availableSince)));
 		const exact = tool.extra?.["cooldownExactVersions"] === void 0 ? void 0 : values$1(tool.extra["cooldownExactVersions"])[0];
 		const setting = settingOf(tool.cooldown.setting);
-		if (typeof exact === "string" && setting !== null) features.push(feature(`${setting} for packages requested by exact version`, exact));
-		if (policy.cooldown.exclude.length > 0) features.push(feature(settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince));
+		if (typeof exact === "string" && setting !== null) features.push(kinded("cooldown", feature(`${setting} for packages requested by exact version`, exact)));
+		if (policy.cooldown.exclude.length > 0) features.push(kinded("cooldown", feature(settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince)));
 	}
 	if (policy.installScripts !== void 0) {
 		const build = tool.extra?.["buildSwitch"] === void 0 ? void 0 : values$1(tool.extra["buildSwitch"])[0];
-		if (policy.installScripts.default === "deny" && isSwitch(build)) features.push(feature(build.setting, build.since));
+		if (policy.installScripts.default === "deny" && isSwitch(build)) features.push(kinded("scripts", feature(build.setting, build.since)));
 		const allowAll = tool.extra?.["allowAllScripts"] ?? tool.extra?.["allowAllBuilds"];
 		const switchFact = allowAll === void 0 ? void 0 : values$1(allowAll)[0];
-		if (policy.installScripts.default === "allow" && isSwitch(switchFact)) features.push(feature(switchFact.setting, switchFact.since));
+		if (policy.installScripts.default === "allow" && isSwitch(switchFact)) features.push(kinded("scripts", feature(switchFact.setting, switchFact.since)));
 		if (policy.installScripts.default === "deny" && policy.installScripts.allow.length > 0) {
 			const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord);
 			const setting = settingOf(tool.installScripts.allowList.setting);
-			features.push(legacy !== void 0 && typeof legacy["since"] === "string" ? feature(setting, legacy["since"]) : feature(setting?.includes("<") ? setting.split(".")[0] ?? setting : setting, tool.installScripts.allowList.availableSince));
+			features.push(kinded("scripts", legacy !== void 0 && typeof legacy["since"] === "string" ? feature(setting, legacy["since"]) : feature(setting?.includes("<") ? setting.split(".")[0] ?? setting : setting, tool.installScripts.allowList.availableSince)));
 		}
 	}
 	for (const kind of SOURCE_KINDS) {
@@ -19750,13 +20397,25 @@ function configuredFeatures(context, tool) {
 	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
 	if (file === void 0) return [];
 	const candidates = [
-		[settingOf(tool.cooldown.setting), tool.cooldown.availableSince],
-		[settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince],
-		...SOURCE_KINDS.map((kind) => [settingOf(tool.sources?.[kind]?.setting), tool.sources?.[kind]?.availableSince])
+		[
+			settingOf(tool.cooldown.setting),
+			tool.cooldown.availableSince,
+			"cooldown"
+		],
+		[
+			settingOf(tool.cooldown.exclude.setting),
+			tool.cooldown.exclude.availableSince,
+			"cooldown"
+		],
+		...SOURCE_KINDS.map((kind) => [
+			settingOf(tool.sources?.[kind]?.setting),
+			tool.sources?.[kind]?.availableSince,
+			void 0
+		])
 	];
 	const files = tool.id === "deno" ? context.detection.packageManagers.find((entry) => entry.id === "deno")?.configFiles.filter((name) => /^deno\.jsonc?$/u.test(name)) ?? [] : [file];
 	const configured = (setting) => ecosystemOfTool(tool) === "pypi" ? readPythonSetting(context.repository, tool, setting) !== void 0 : files.some((name) => readSetting(context.repository, name, setting) !== void 0);
-	return candidates.filter(([setting]) => setting !== null && configured(setting)).map(([setting, since]) => feature(setting, since)).filter((item) => item !== void 0);
+	return candidates.filter(([setting]) => setting !== null && configured(setting)).map(([setting, since, kind]) => kind === void 0 ? feature(setting, since) : kinded(kind, feature(setting, since))).filter((item) => item !== void 0);
 }
 /** Where a version is declared, for messages; a tool's own required version is named by its key. */
 function sourceLabel(tool, declaration) {
@@ -19791,10 +20450,10 @@ function scriptFeatures(context, tool, policy) {
 	if (typeof disable === "string" && /^[\w.-]+$/u.test(disable) && readSetting(context.repository, file, disable)?.value === true) return [];
 	const strict = extraOf(tool, "strictAllowScripts", isSwitch);
 	if (readSetting(context.repository, file, strict.setting)?.value === strict.value) {
-		const found = feature(strict.setting, strict.since);
+		const found = kinded("scripts", feature(strict.setting, strict.since));
 		return found === void 0 ? [] : [found];
 	}
-	const blocks = feature(`blocking dependency install scripts without ${strict.setting}`, (values$1(tool.installScripts.defaultPolicy)[0] ?? []).find((entry) => entry.value === "deny-except-allowlist")?.since);
+	const blocks = kinded("scripts", feature(`blocking dependency install scripts without ${strict.setting}`, (values$1(tool.installScripts.defaultPolicy)[0] ?? []).find((entry) => entry.value === "deny-except-allowlist")?.since));
 	return blocks === void 0 || strict.since === void 0 ? [] : [{
 		...blocks,
 		instead: {
@@ -19825,6 +20484,7 @@ function checkManager(context, manager, tool, features) {
 	};
 	for (const declaration of manager.versions) {
 		if (!("version" in declaration)) continue;
+		if (tool.id === "npm" && (declaration.source === "github-actions" || declaration.source === "dockerfile")) continue;
 		const lowest = lowestVersion(declaration.version);
 		const label = sourceLabel(tool, declaration);
 		const where = label === declaration.file ? label : `${label} (${declaration.file})`;
@@ -22025,7 +22685,7 @@ const bun = (context) => {
 * The setting a line sets, read as npm reads it, with the reader doctor uses (extra.npmrcFormat): quotes removed,
 * a key without = included, a trailing comment cut off; `key[]` as `key`.
 */
-function keyOf$1(line) {
+function keyOf$2(line) {
 	const parsed = iniLine(line);
 	return parsed === void 0 || "section" in parsed ? void 0 : parsed.key.replace(/\[\]$/u, "");
 }
@@ -22050,8 +22710,8 @@ function writeIniBlock(body, entries, managedKeys, marker = BLOCK_START) {
 	const lines = removed.lines.map((line) => parts(line).map((part) => {
 		if (isSection(part)) inSection = true;
 		const original = commentedOut(part);
-		if (original !== void 0) return !inSection && managed.has(keyOf$1(original) ?? "") ? part : original;
-		const key = inSection ? void 0 : keyOf$1(part);
+		if (original !== void 0) return !inSection && managed.has(keyOf$2(original) ?? "") ? part : original;
+		const key = inSection ? void 0 : keyOf$2(part);
 		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${part.trim()}` : part;
 	}).join("\r"));
 	if (entries.length === 0) return joinLines(lines);
@@ -22089,7 +22749,7 @@ function writeRequirementsBlock(body, entries, managedOptions, longOptions = [])
 
 // src/apply/toml.ts
 const HEADER = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/u;
-function keyOf(line) {
+function keyOf$1(line) {
 	const trimmed = line.trim();
 	if (trimmed === "" || trimmed.startsWith("#") || trimmed.startsWith("[")) return void 0;
 	const equals = trimmed.indexOf("=");
@@ -22154,7 +22814,7 @@ function tablesOf(lines) {
 		const header = HEADER.exec(line);
 		if (header !== null) current = header[1];
 		tables[index] = current;
-		if (header === null && keyOf(line) !== void 0) {
+		if (header === null && keyOf$1(line) !== void 0) {
 			const end = valueEnd(lines, index);
 			for (let next = index + 1; next <= end; next++) tables[next] = current;
 			index = end;
@@ -22192,7 +22852,7 @@ function restoreLines(lines, table, isManaged) {
 		}
 		const original = commentedOut(line);
 		if (original === void 0) {
-			if (keyOf(line) !== void 0) index = valueEnd(lines, index);
+			if (keyOf$1(line) !== void 0) index = valueEnd(lines, index);
 			continue;
 		}
 		const noted = HEADER.exec(original);
@@ -22202,7 +22862,7 @@ function restoreLines(lines, table, isManaged) {
 			if (section === "restored") lines[index] = original;
 			continue;
 		}
-		const key = keyOf(original);
+		const key = keyOf$1(original);
 		if (key === void 0 || section === "kept") continue;
 		const dotted = !topLevel && current === void 0 && key.startsWith(prefix);
 		if (section === "table" && !((topLevel ? current === void 0 : current === table) && !isManaged(key) || dotted && !isManaged(key.slice(prefix.length)))) continue;
@@ -22249,7 +22909,7 @@ function writeTomlBlock(body, table, entries, managedKeys, label, scope = "proje
 			if (!line.trim().startsWith("[[")) headers.set(index, current);
 			continue;
 		}
-		const key = keyOf(line);
+		const key = keyOf$1(line);
 		if (key === void 0) continue;
 		const end = valueEnd(lines, index);
 		const inTable = (topLevel ? current === void 0 : current === table) && isManaged(key);
@@ -22642,16 +23302,20 @@ function scriptsForVersionsInUse(context, file, entries, managed) {
 		context.writes("installScripts", strict.setting, file);
 		const blocking = of("deny-except-allowlist");
 		const pin = context.inUse.find((entry) => entry.pin === true);
-		if (!(pin !== void 0 && notices.some((item) => item.entry === pin)) || blocking.length > 0) {
+		const pinNeedsIt = pin !== void 0 && notices.some((item) => item.entry === pin);
+		if (!pinNeedsIt || blocking.length > 0) {
 			const later = effects.at(-1);
 			const since = values$1(tool.installScripts.defaultPolicy)[0]?.find((entry) => entry.value === "deny-except-allowlist")?.since ?? later?.since ?? "";
 			const target = pin !== void 0 && versionedValue(defaults, pin.versions[0]) === "deny-except-allowlist" ? formatVersion(pin.versions[0]) : since;
 			const effect = later === void 0 ? "" : `; with it, in npm ${later.since} and later ${later.value}${blocking.length === 0 ? "" : `, which applies to ${places(blocking)}`}`;
+			const others = notices.filter((item) => item.entry.pin !== true);
+			const how = [...pinNeedsIt ? [`require npm ${since} or later in ${pin.where}`] : [], ...others.length === 0 ? [] : [`make ${pinNeedsIt ? "the other places listed here" : "every place listed here"} run npm ${since} or later (npm install -g npm@${target} before it installs packages; a pin in packageManager or devEngines does not change the npm they run)`]].join(", and ");
+			const unpinned = `nothing pins one npm for ${context.project ?? "the repository"} (packageManager, devEngines, Volta or .tool-versions), and `;
 			context.warn({
 				code: "strict-allow-scripts-for-npm-in-use",
 				...where(notices),
-				message: `${pin === void 0 ? `npm is not pinned for ${context.project ?? "the repository"}, and ` : ""}${places(notices)} ${plural(notices) ? "run" : "runs"} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${effect}`,
-				fix: `Make every place listed here run npm ${since} or later (npm install -g npm@${target} before it installs packages), and depcurfew apply leaves ${strict.setting} out; pinning npm in packageManager or devEngines does not change the npm they run. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in ${POLICY_FILE}`
+				message: `${pin === void 0 ? unpinned : ""}${places(notices)} ${plural(notices) ? "run" : "runs"} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${effect}`,
+				fix: `${how.charAt(0).toUpperCase()}${how.slice(1)}, and depcurfew apply leaves ${strict.setting} out. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in ${POLICY_FILE}`
 			});
 		}
 	}
@@ -25918,6 +26582,8 @@ const broadExclusion = {
 };
 
 // src/doctor/rules/config-drift.ts
+/** The most findings of one file; the last one says how many places differ besides. */
+const MAX_DIFFERENCES = 5;
 function clean(line) {
 	return line.replace(/[\r\u0000]/gu, "").trim();
 }
@@ -25930,34 +26596,48 @@ function isFrame(line) {
 	return line === "" || line === "# managed by depcurfew" || isBlockStart(line) || line === "# <<< depcurfew managed block";
 }
 /**
-* The first block of lines that apply would change, without the lines that only gain or lose a trailing comma
-* (adding a JSON key changes the line before it) and without depcurfew's frame lines.
+* Every block of lines that apply would change, in order, without the lines that only gain or lose a trailing comma
+* (adding a JSON key changes the line before it) and without depcurfew's frame lines; a block left empty by that is
+* left out, but the first one stays. The first block also lists the lines apply comments out further down.
 */
-function firstDifference(before, after) {
+function differences(before, after) {
 	const operations = myers(lines(before), lines(after));
+	const total = Math.max(lines(before).length, 1);
+	const found = [];
 	let line = 1;
 	let index = 0;
-	while (index < operations.length && operations[index]?.kind === "same") {
-		line += 1;
-		index += 1;
+	while (index < operations.length) {
+		while (index < operations.length && operations[index]?.kind === "same") {
+			line += 1;
+			index += 1;
+		}
+		if (index >= operations.length) break;
+		const start = line;
+		let removed = [];
+		let added = [];
+		for (; index < operations.length && operations[index]?.kind !== "same"; index++) {
+			const operation = operations[index];
+			if (operation === void 0) break;
+			if (operation.kind === "delete") line += 1;
+			(operation.kind === "delete" ? removed : added).push(clean(operation.line));
+		}
+		const commaOnly = new Set(removed.filter((text) => added.some((other) => withoutComma(other) === withoutComma(text))).map(withoutComma));
+		removed = removed.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
+		added = added.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
+		const commentedLater = found.length === 0 ? operations.slice(index).filter((operation) => operation.kind === "insert" && isCommentedOut(clean(operation.line))).map((operation) => clean(operation.line)) : [];
+		if (found.length === 0 || removed.length > 0 || added.length > 0) found.push({
+			line: Math.min(start, total),
+			removed,
+			added,
+			commentedLater
+		});
 	}
-	let removed = [];
-	let added = [];
-	for (; index < operations.length && operations[index]?.kind !== "same"; index++) {
-		const operation = operations[index];
-		if (operation === void 0) break;
-		(operation.kind === "delete" ? removed : added).push(clean(operation.line));
-	}
-	const commaOnly = new Set(removed.filter((text) => added.some((other) => withoutComma(other) === withoutComma(text))).map(withoutComma));
-	removed = removed.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
-	added = added.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
-	const commentedLater = operations.slice(index).filter((operation) => operation.kind === "insert" && isCommentedOut(clean(operation.line))).map((operation) => clean(operation.line));
-	return {
-		line: Math.min(line, Math.max(lines(before).length, 1)),
-		removed,
-		added,
-		commentedLater
-	};
+	return found.length === 0 ? [{
+		line: 1,
+		removed: [],
+		added: [],
+		commentedLater: []
+	}] : found;
 }
 function isCommentedOut(line) {
 	return line.startsWith("# depcurfew: superseded by the managed block: ") || line.startsWith("# depcurfew: turned off; depcurfew.json manages this setting: ");
@@ -26028,6 +26708,10 @@ function jsonPair(line) {
 		return;
 	}
 }
+/** The key of a `key=value`, `key = value` or `key: value` line, for pairing an old line with its replacement. */
+function keyOf(line) {
+	return /^\s*(?:-\s+)?["']?([^=:"'\s]+)["']?\s*[=:]/u.exec(line)?.[1];
+}
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
 function describe(file, difference, before, after) {
 	const commented = difference.added.filter(isCommentedOut);
@@ -26047,6 +26731,7 @@ function describe(file, difference, before, after) {
 		return parts.join("; ");
 	}
 	const [removed] = difference.removed;
+	if (difference.removed.length > 1 && difference.removed.length === difference.added.length && difference.removed.every((text, index) => keyOf(text) !== void 0 && keyOf(text) === keyOf(difference.added[index] ?? ""))) return difference.removed.map((text, index) => `${code$1(text)} should be ${code$1(difference.added[index] ?? "")}${quotedNote(file, text, difference.added[index] ?? "")}`).join(", ");
 	if (removed !== void 0 && difference.added.length > 0) return `${code$1(removed)} should be ${addedText(difference.added)}${quotedNote(file, removed, difference.added[0] ?? "")}`;
 	if (difference.added.length > 0) {
 		const top = difference.added.length === 1 ? topLevelYaml(file, difference.added[0] ?? "") : void 0;
@@ -26138,15 +26823,23 @@ const configDrift = {
 				});
 				continue;
 			}
-			const difference = firstDifference(change.before, change.after);
-			context.report({
-				location: {
-					file: change.file,
-					line: findingLine(change.file, difference, change.before)
-				},
-				message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, change.before, change.after)}`,
-				fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`
-			});
+			const [first, ...later] = differences(change.before, change.after);
+			const named = new Set(first?.commentedLater ?? []);
+			const repeats = (item) => item.added.some((text) => named.has(text)) && item.removed.every((text) => [...named].some((line) => line.endsWith(text)));
+			const all = [first, ...later.filter((item) => !repeats(item))].filter((item) => item !== void 0);
+			const shown = all.slice(0, MAX_DIFFERENCES);
+			const rest = all.length - shown.length;
+			for (const [index, difference] of shown.entries()) {
+				const more = index === shown.length - 1 && rest > 0 ? `; ${rest} more ${rest === 1 ? "place" : "places"} in ${change.file} ${rest === 1 ? "differs" : "differ"} too (depcurfew apply --dry-run shows them)` : "";
+				context.report({
+					location: {
+						file: change.file,
+						line: findingLine(change.file, difference, change.before)
+					},
+					message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, change.before, change.after)}${more}`,
+					fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`
+				});
+			}
 		}
 		checkAllowLists(context, plan);
 	}
@@ -27036,6 +27729,77 @@ function checkPip(context, tool, configFiles) {
 		});
 	}
 }
+/**
+* pip installs in Dockerfile stages of the official python image, which has no pip.conf: pip reads no configuration
+* from the project, so the release-age delay of the policy holds there only when the stage sets PIP_UPLOADED_PRIOR_TO
+* (ENV, also in a stage it starts from, or on the command) or passes --uploaded-prior-to, with at least as many days
+* (decision D-115). A stage that copies a pip.conf or pip.ini, or names one with PIP_CONFIG_FILE, is not checked.
+*/
+function checkPipDockerfiles(context, tool) {
+	const policy = context.policy;
+	if (policy?.cooldown === void 0 || policy.targets !== "auto" && !policy.targets.includes("pip")) return;
+	const converted = convertCooldown(tool, policy.cooldown.minimum);
+	if (!converted.ok || typeof converted.value !== "number") return;
+	const days = converted.value;
+	const variable = extraOf(tool, "environmentVariable", (value) => typeof value === "string");
+	const option = `--${settingOf(tool.cooldown.setting) ?? ""}`;
+	const names = extraOf(tool, "configFileNames", isStrings);
+	const since = sinceOf(tool.cooldown.availableSince);
+	const plural = (count) => `${count} ${count === 1 ? "day" : "days"}`;
+	for (const file of context.detection.dockerfiles) {
+		const copiesConfig = [];
+		for (const [index, stage] of file.stages.entries()) {
+			const own = (stage.copies ?? []).some((source) => names.includes(source.split("/").at(-1) ?? ""));
+			copiesConfig.push(own || stage.from !== void 0 && stage.from < index && copiesConfig[stage.from] === true);
+			if (stage.runtime?.tool !== "python" || copiesConfig[index] === true) continue;
+			const name = stage.name === void 0 ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
+			for (const command of stage.commands) {
+				if (command.tool !== "pip" || command.kind !== "install" || command.delayUnknown === true) continue;
+				const where = `${name} in ${file.file} installs packages with pip on line ${command.line}`;
+				const set = `ENV ${variable}=P${days}D to ${name} before line ${command.line}, or pass ${option}=P${days}D to that pip install (pip ${since ?? "a recent version"} or later reads a number of days)`;
+				const instead = `Set ${variable}=P${days}D instead, with ENV in ${name} before line ${command.line} or as ${option}=P${days}D on that pip install`;
+				if (command.delay === void 0) {
+					context.report({
+						location: {
+							file: file.file,
+							line: command.line
+						},
+						message: `${where} without a release-age delay: pip reads no configuration from the project, and nothing sets ${variable} or ${option} there, so the ${policy.cooldown.minimum.text} of ${POLICY_FILE} does not hold for it`,
+						fix: `Add ${set}`
+					});
+					break;
+				}
+				const written = /^P(\d+)D$/u.exec(command.delay)?.[1];
+				if (written === void 0) {
+					if (/^\d{4}-\d{2}-\d{2}/u.test(command.delay)) {
+						context.report({
+							level: "warning",
+							location: {
+								file: file.file,
+								line: command.line
+							},
+							message: `${where} with the release-age delay ${command.delay}, a fixed date: it holds back every later upload instead of delaying each new version by the ${policy.cooldown.minimum.text} of ${POLICY_FILE}`,
+							fix: instead
+						});
+						break;
+					}
+					continue;
+				}
+				if (Number(written) < days) {
+					context.report({
+						location: {
+							file: file.file,
+							line: command.line
+						},
+						message: `${where} with the release-age delay ${command.delay} (${plural(Number(written))}), shorter than the ${policy.cooldown.minimum.text} of ${POLICY_FILE} (${plural(days)} for pip)`,
+						fix: instead
+					});
+					break;
+				}
+			}
+		}
+	}
+}
 const PYTHON_TOOLS = /* @__PURE__ */ new Set([
 	"uv",
 	"pip",
@@ -27046,7 +27810,7 @@ const pythonConfigIgnored = {
 	id: "python-config-ignored",
 	checks: "Python tools read their settings where they are written",
 	summary: "A Python tool ignores a setting where it is written.",
-	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
+	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files, so a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
 	help: "Move the setting to the file the tool reads.",
 	level: "error",
 	requiresPolicy: false,
@@ -27056,7 +27820,10 @@ const pythonConfigIgnored = {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
 			if (tool === void 0) continue;
 			if (tool.id === "uv") checkUv(context, tool);
-			if (tool.id === "pip") checkPip(context, tool, manager.configFiles);
+			if (tool.id === "pip") {
+				checkPip(context, tool, manager.configFiles);
+				checkPipDockerfiles(context, tool);
+			}
 			if (tool.id === "pdm") checkPdm(context, tool);
 			if (tool.id === "pipenv") checkPipenv(context, tool);
 		}
@@ -27111,7 +27878,7 @@ const runtimeEndOfLife = {
 				cannotTell(subject, declaration.unknown, location, check.replace("it is", "every value is"));
 				continue;
 			}
-			const found = nodeLines(declaration.version, namingOf(declaration.source), facts);
+			const found = nodeLines(declaration.version, namingFor(declaration), facts);
 			if (found === void 0) {
 				cannotTell(subject, "it is not a version or a range depcurfew can read", location, `write the version in ${label} as depcurfew reads it (such as 24, 24.11.0 or lts/krypton), or ${check}`);
 				continue;
@@ -27523,6 +28290,18 @@ function condensed(findings) {
 	}
 	return kept;
 }
+/**
+* A fix that runs depcurfew apply, while an entry of projects cannot be used: apply writes nothing until it is fixed, so
+* the fix says so first (decision D-115). invalid-project's own findings say what to change in projects.
+*/
+function applyWaits(finding, count) {
+	if (finding.rule === "invalid-project" || finding.fix === void 0 || !finding.fix.includes("depcurfew apply")) return finding;
+	const entries = count === 1 ? "the entry of projects" : "the entries of projects";
+	return {
+		...finding,
+		fix: `First fix ${entries} in ${POLICY_FILE} that invalid-project reports, because depcurfew apply writes nothing until then; then ${finding.fix.charAt(0).toLowerCase()}${finding.fix.slice(1)}`
+	};
+}
 /** Runs the rules on one directory, with the policy of the repository root. */
 function runRules(root, policy, rules, tools, where = {}) {
 	const detection = where.detection ?? detectProject(root, tools);
@@ -27649,7 +28428,7 @@ function runDoctor(root, options = {}) {
 		findings.push(...relocated.findings);
 		for (const item of relocated.notices) addNotice(item);
 	}
-	const sorted = condensed(findings).sort(byLocation);
+	const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length))).sort(byLocation);
 	const rootChecked = checkedOf(detection, rootRun.repository, tools, policy !== void 0 || invalid);
 	const projectChecked = projectRuns.map(({ view, run }) => {
 		const checked = checkedOf(run.detection, run.repository, tools, false);
@@ -27686,7 +28465,7 @@ function runDoctor(root, options = {}) {
 		checked: {
 			tools: [...rootChecked.tools, ...projectChecked.flatMap((checked) => checked.tools)],
 			files: [.../* @__PURE__ */ new Set([...rootChecked.files, ...projectChecked.flatMap((checked) => checked.files)])].sort(),
-			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && !invalid && (rule.requiresPolicy || rule.id === "invalid-policy"), (rule) => rule.applies === void 0 || scopes.some((scope) => rule.applies?.(scope) === true)),
+			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && (rule.requiresPolicy || !invalid && rule.id === "invalid-policy"), (rule) => rule.applies === void 0 || scopes.some((scope) => rule.applies?.(scope) === true)),
 			policyFile: POLICY_FILE
 		}
 	};
@@ -27794,6 +28573,17 @@ function untrusted(text) {
 	const token = randomUUID();
 	return `${commands.stop.replace("{token}", token)}\n${text.endsWith("\n") ? text : `${text}\n`}${commands.resume.replace("{token}", token)}\n`;
 }
+/**
+* The directory itself, unless the nearest depcurfew.json above it in the workspace lists it under projects: then that
+* root, which checks it as one of its projects (decision D-115).
+*/
+function policyDirectory(workspace, directory) {
+	for (let current = directory; isInside(workspace, current); current = dirname(current)) {
+		if (lstatSync(resolve(current, "depcurfew.json"), { throwIfNoEntry: false }) !== void 0) return current !== directory && listedAsProject(current, directory) ? current : directory;
+		if (current === workspace || dirname(current) === current) break;
+	}
+	return directory;
+}
 /** The real path of a directory inside the workspace, following symlinks only as far as they stay inside it. */
 function scannedDirectory(workspace, input) {
 	try {
@@ -27847,9 +28637,14 @@ function runAction(env, io) {
 	};
 	const failOnInput = input(env, "fail-on", "");
 	if (failOnInput !== "" && !FAIL_ON.includes(failOnInput)) return fail(`the input fail-on is "${failOnInput}"; set it to error (errors fail the step) or warning (warnings fail it too), or leave it empty to follow doctor.failOn in ${POLICY_FILE} (errors only without it)`);
-	const directory = scannedDirectory(workspace, input(env, "directory", "."));
-	if (directory === void 0) return fail(`directory "${input(env, "directory", ".")}" is not a directory inside the workspace`);
+	const given = scannedDirectory(workspace, input(env, "directory", "."));
+	if (given === void 0) return fail(`directory "${input(env, "directory", ".")}" is not a directory inside the workspace`);
+	const directory = policyDirectory(realpathSync(workspace), given);
 	const prefix = relative(realpathSync(workspace), directory).split(sep).join("/");
+	if (directory !== given) {
+		const file = prefix === "" ? POLICY_FILE : posix.join(prefix, POLICY_FILE);
+		io.log(untrusted(`depcurfew: ${printable(input(env, "directory", "."))} is listed in projects in ${printable(file)}, so depcurfew doctor checks ${prefix === "" ? "the repository root" : printable(prefix)} with its projects\n`));
+	}
 	let report;
 	let failOn;
 	try {

@@ -66,6 +66,9 @@ export interface DetectionFacts {
   volta: { key: string; tools: readonly RuntimeOrTool[] };
   toolVersions: { file: string; plugins: Readonly<Record<string, RuntimeOrTool>> };
   workflows: { directory: string; extensions: readonly string[] };
+  /** jobs.<id>.container and the env maps of workflows, jobs and steps (decision D-115). */
+  jobContainer: { key: string; imageKey: string; envKey: string };
+  workflowEnvironment: { key: string };
   setupActions: SetupActionKnowledge[];
   /** The action whose version inputs set up Node.js, and how it reads node-version-file. */
   setupNode: { action: string; versionFile: SetupNodeVersionFileKnowledge };
@@ -186,6 +189,13 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
   const pipLine = extraValue(pip, 'commandLine') as CommandLineKnowledge | undefined;
   const interpreter = first(environment.python.interpreter);
   const scope = extraValue(npm, 'npmrcScope');
+  const clean = extraValue(npm, 'cleanInstall');
+  const pipFlag = pip.cooldown.cliFlag === undefined ? undefined : first(pip.cooldown.cliFlag);
+  const pipVariable = extraValue(pip, 'environmentVariable');
+  const pipConfig = extraValue(pip, 'configFileVariable');
+  const poetryTool = tools.find((candidate) => candidate.id === 'poetry');
+  const poetryPackage = poetryTool === undefined ? undefined : extraValue(poetryTool, 'installedPackage');
+  const off = extraValue(npm, 'scriptsOff');
   const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
   // pnpm, Yarn and Bun: the commands that install the project's dependencies and those that add packages.
   const others = (['pnpm', 'yarn', 'bun'] as const).flatMap((id) => {
@@ -202,15 +212,23 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       globalOptions: strings(globalOptions),
       valueOptions: strings(npmValues),
       globalIgnoresProject: isRecord(scope) && scope['globalMode'] === 'ignored',
+      cleanCommands: isRecord(installs) && isRecord(clean) && typeof clean['commands'] === 'string' && Array.isArray(installs[clean['commands']]) ? strings(installs[clean['commands']]) : [],
+      ...(isRecord(off) && typeof off['option'] === 'string' && typeof off['variable'] === 'string' && typeof off['value'] === 'string'
+        ? { scriptsOff: { option: off['option'], variable: off['variable'], value: off['value'] } }
+        : {}),
     },
     others,
     pip: {
       executables: unique((pipLine?.add ?? []).map((command) => command[0] ?? '')),
       installCommand: pipLine?.add[0]?.[1] ?? 'install',
       valueOptions: pipLine?.valueOptions ?? [],
+      ...(typeof pipFlag === 'string' && typeof pipVariable === 'string' && typeof pipConfig === 'string' ? { delay: { option: pipFlag, variable: pipVariable, configVariable: pipConfig } } : {}),
     },
     python: interpreter,
     corepack: { enableCommand: first(environment.corepack.enableNpm).command },
+    ...(isRecord(poetryPackage) && typeof poetryPackage['name'] === 'string' && Array.isArray(poetryPackage['commands'])
+      ? { poetry: { name: poetryPackage['name'], commands: (poetryPackage['commands'] as unknown[]).filter((item): item is string[] => Array.isArray(item)) } }
+      : {}),
   };
   const docker = environment.docker;
   const names = first(docker.dockerfileNames);
@@ -226,6 +244,8 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     volta: first(environment.volta.manifest),
     toolVersions: { file: first(environment.asdf.toolVersionsFile), plugins: first(environment.asdf.plugins) },
     workflows: first(actions.workflows),
+    jobContainer: first(actions.jobContainer),
+    workflowEnvironment: { key: first(actions.environmentKeys).key },
     setupActions: [
       actions.setupNode,
       actions.pnpmActionSetup,
@@ -248,6 +268,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       nodeTags: first(docker.nodeImageTags).tags,
       pythonTags: first(docker.pythonImageTags).tags,
       codenames: first(environment.node.releaseSchedule).flatMap((line) => (line.codename === undefined ? [] : [line.codename])),
+      environment: first(docker.environment),
       commands,
     },
     commands,

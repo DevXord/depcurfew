@@ -4,7 +4,8 @@
 import { isMap, isScalar, isSeq, LineCounter, type Node, type YAMLMap } from 'yaml';
 import { parseYamlDocument } from '../yaml-parse.ts';
 import type { RuntimeOrTool, SetupActionKnowledge } from '../knowledge/types.ts';
-import { findToolCommands } from './commands.ts';
+import { findToolCommands, UNKNOWN_DIRECTORY } from './commands.ts';
+import { imageRuntime } from './dockerfiles.ts';
 import type { DetectionFacts } from './knowledge.ts';
 import { joinPath, type Repository } from './repository.ts';
 import type { VersionDeclaration, WorkflowJob } from './types.ts';
@@ -89,6 +90,25 @@ function workingDirectory(node: unknown): string | undefined {
   return value === '' || value === '.' ? undefined : value;
 }
 
+/** The directory of a command: the working directory of its step joined with the literal cd before it (decision D-115). */
+function commandDirectory(step: string | undefined, cd: string | undefined): string | undefined {
+  if (cd === undefined) return step;
+  if (cd === UNKNOWN_DIRECTORY || step === undefined) return cd;
+  return `${step}/${cd}`;
+}
+
+/** The variables of an env map whose values are scalars, as text (a YAML true is "true"). */
+function environmentOf(node: unknown): Map<string, string> {
+  const found = new Map<string, string>();
+  if (!isMap(node)) return found;
+  for (const pair of node.items) {
+    const key = scalarText(pair.key);
+    const value = scalarText(pair.value);
+    if (key !== undefined && value !== undefined) found.set(key, value);
+  }
+  return found;
+}
+
 /** defaults.run.working-directory of a workflow or a job. */
 function defaultDirectory(node: unknown): string | undefined {
   const defaults = isMap(node) ? node.get('defaults') : undefined;
@@ -119,6 +139,8 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
     const jobs = document.get('jobs');
     if (!isMap(jobs)) continue;
     const workflowDirectory = defaultDirectory(document.contents);
+    const { key: envKey } = facts.workflowEnvironment;
+    const workflowEnvironment = environmentOf(isMap(document.contents) ? document.contents.get(envKey) : undefined);
     for (const pair of jobs.items) {
       const id = scalarText(pair.key);
       const job = pair.value;
@@ -147,6 +169,24 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
       const record: WorkflowJob = { file, id, line: keyLine ?? 1, commands: [], runsNode: false };
       findings.jobs.push(record);
       const jobDirectory = defaultDirectory(job) ?? workflowDirectory;
+      // The image of jobs.<id>.container runs the steps: its node image declares the Node.js they use (decision D-115).
+      const { key: containerKey, imageKey, envKey: containerEnvKey } = facts.jobContainer;
+      const container = job.get(containerKey, true);
+      const imageNode = isMap(container) ? container.get(imageKey, true) : container;
+      const image = scalarText(imageNode);
+      if (image !== undefined && isScalar(imageNode) && !image.includes('${{')) {
+        const runtime = imageRuntime(image.trim(), facts.docker);
+        const line = lineOf(imageNode);
+        if (runtime?.tool === 'node') {
+          const at = line === undefined ? {} : { line, step: line };
+          findings.versions.push({
+            tool: 'node',
+            declaration: { version: runtime.version ?? runtime.tag ?? image, source: 'github-actions', file, ...at, job: id, container: image.trim(), ...(runtime.version === undefined ? { unknown: runtime.unknown ?? 'the tag names no version' } : {}) },
+          });
+        }
+      }
+      // The container's env, then the workflow's and the job's, which docker exec passes over it, then each step's.
+      const jobEnvironment = new Map([...environmentOf(isMap(container) ? container.get(containerEnvKey) : undefined), ...workflowEnvironment, ...environmentOf(job.get(envKey))]);
       const steps = job.get('steps');
       if (!isSeq(steps)) continue;
       for (const step of steps.items) {
@@ -177,14 +217,16 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
         if (isScalar(run) && typeof run.value === 'string' && run.range !== undefined && run.range !== null) {
           // Read the source text of the step, so that commands inside block scalars get their own line.
           const start = run.range[0];
-          const found = findToolCommands(text.slice(start, run.range[1]), facts.commands);
+          const environment = new Map([...jobEnvironment, ...environmentOf(step.get(envKey))]);
+          const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
           record.runsNode ||= found.runsNode;
           const stepDirectory = step.has('working-directory') ? workingDirectory(step.get('working-directory', true)) : jobDirectory;
-          for (const { offset, ...command } of found.commands) {
+          for (const { offset, cd, ...command } of found.commands) {
             const line = lineCounter.linePos(start + offset).line;
-            record.commands.push({ ...command, line, ...(stepDirectory === undefined ? {} : { directory: stepDirectory }) });
-            if (command.tool === 'npm' && command.kind === 'upgrade' && command.version !== undefined) {
-              findings.versions.push({ tool: 'npm', declaration: { version: command.version, source: 'github-actions', file, line, job: id } });
+            const directory = commandDirectory(stepDirectory, cd);
+            record.commands.push({ ...command, line, ...(directory === undefined ? {} : { directory }) });
+            if ((command.tool === 'npm' || command.tool === 'poetry') && command.kind === 'upgrade' && command.version !== undefined) {
+              findings.versions.push({ tool: command.tool, declaration: { version: command.version, source: 'github-actions', file, line, job: id } });
             }
           }
         }

@@ -165,7 +165,7 @@ describe('readDockerStages', () => {
     ]);
     expect(result.info.stages).toEqual([
       { line: 3, name: 'base', image: 'node:22-alpine', runtime: { tool: 'node', tag: '22-alpine', version: '22' }, commands: [{ kind: 'upgrade', tool: 'npm', version: '11.17.0', line: 4 }] },
-      { line: 5, name: 'build', image: 'base', from: 0, runtime: { tool: 'node', tag: '22-alpine', version: '22' }, commands: [{ kind: 'install', tool: 'npm', line: 6 }] },
+      { line: 5, name: 'build', image: 'base', from: 0, runtime: { tool: 'node', tag: '22-alpine', version: '22' }, commands: [{ kind: 'install', tool: 'npm', lockfile: true, line: 6 }] },
       { line: 7, runtime: { tool: 'node', unknown: 'the ARG VARIANT it uses has no value in the Dockerfile' }, commands: [{ kind: 'install', tool: 'npm', line: 8 }] },
       { line: 9, commands: [] },
     ]);
@@ -200,8 +200,8 @@ describe('findToolCommands', () => {
   const commands = (script: string) => findToolCommands(script, facts.commands).commands.map(({ offset: _offset, ...command }) => command);
 
   it.each([
-    ['npm ci', [{ kind: 'install', tool: 'npm' }]],
-    ['npm clean-install --omit=dev', [{ kind: 'install', tool: 'npm' }]],
+    ['npm ci', [{ kind: 'install', tool: 'npm', lockfile: true }]],
+    ['npm clean-install --omit=dev', [{ kind: 'install', tool: 'npm', lockfile: true }]],
     ['NODE_ENV=production npm i', [{ kind: 'install', tool: 'npm' }]],
     ['sudo -E npm install --global npm@11.19.1', [{ kind: 'upgrade', tool: 'npm', version: '11.19.1' }]],
     ['npm i -g npm', [{ kind: 'upgrade', tool: 'npm', version: 'latest' }]],
@@ -212,7 +212,7 @@ describe('findToolCommands', () => {
     ['corepack enable', []],
     ['corepack enable npm', [{ kind: 'upgrade', tool: 'npm' }]],
     ['corepack install -g npm@11.17.0', [{ kind: 'upgrade', tool: 'npm', version: '11.17.0' }]],
-    ['if true; then npm ci; fi', [{ kind: 'install', tool: 'npm' }]],
+    ['if true; then npm ci; fi', [{ kind: 'install', tool: 'npm', lockfile: true }]],
     ['pip install --no-cache-dir -r requirements.txt', [{ kind: 'install', tool: 'pip' }]],
     ['pip3 install -U pip setuptools', [{ kind: 'upgrade', tool: 'pip', version: 'latest' }]],
     ["python -m pip install 'pip>=26.1'", [{ kind: 'upgrade', tool: 'pip', version: '>=26.1' }]],

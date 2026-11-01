@@ -16,6 +16,10 @@ export interface CommandFacts {
     valueOptions: readonly string[];
     /** npm does not read the project .npmrc in global mode, so npm install -g <package> is no install into the project. */
     globalIgnoresProject: boolean;
+    /** npm ci and its aliases: they install the versions of package-lock.json (extra.cleanInstall). */
+    cleanCommands: readonly string[];
+    /** --ignore-scripts and npm_config_ignore_scripts=true turn dependency install scripts off (extra.scriptsOff). */
+    scriptsOff?: { option: string; variable: string; value: string };
   };
   /** pnpm, Yarn and Bun: install commands (pnpm install, pnpm i), add commands, and whether the bare tool installs (yarn). */
   others: readonly { tool: 'pnpm' | 'yarn' | 'bun'; install: readonly string[]; add: readonly string[]; bare: boolean; valueOptions: readonly string[] }[];
@@ -24,9 +28,13 @@ export interface CommandFacts {
     executables: readonly string[];
     installCommand: string;
     valueOptions: readonly string[];
+    /** --uploaded-prior-to, PIP_UPLOADED_PRIOR_TO and PIP_CONFIG_FILE: where pip takes its release-age delay from. */
+    delay?: { option: string; variable: string; configVariable: string };
   };
   python: { executables: readonly string[]; moduleOption: string; commandOption: string; valueOptions: readonly string[] };
   corepack: { enableCommand: string };
+  /** The package of Poetry and the commands that install it (pipx install, pip install; poetry extra.installedPackage). */
+  poetry?: { name: string; commands: readonly (readonly string[])[] };
 }
 
 export interface Word {
@@ -49,10 +57,19 @@ const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
  * line break joins the lines, and `#` at the start of a word starts a comment.
  */
 export function splitCommands(script: string): Word[][] {
-  const commands: Word[][] = [];
+  return splitWithDepth(script).map((command) => command.words);
+}
+
+/**
+ * The same, with how deep in ( ) and $( ) each command is: a cd in a subshell does not change the directory of the
+ * commands after it (decision D-115).
+ */
+function splitWithDepth(script: string): { words: Word[]; depth: number }[] {
+  const commands: { words: Word[]; depth: number }[] = [];
   let words: Word[] = [];
   let text = '';
   let start = -1;
+  let depth = 0;
   const endWord = () => {
     if (start >= 0) words.push({ text, offset: start });
     text = '';
@@ -60,7 +77,7 @@ export function splitCommands(script: string): Word[][] {
   };
   const endCommand = () => {
     endWord();
-    if (words.length > 0) commands.push(words);
+    if (words.length > 0) commands.push({ words, depth });
     words = [];
   };
   const begin = (index: number) => {
@@ -116,6 +133,8 @@ export function splitCommands(script: string): Word[][] {
         start = -1;
       }
       endCommand();
+      if (char === '(') depth += 1;
+      else if (char === ')' && depth > 0) depth -= 1;
     } else {
       begin(index);
       text += char;
@@ -133,10 +152,20 @@ function programName(word: string): string {
 
 /** The words after assignments and wrappers such as sudo or env: the program and its arguments. */
 function commandWords(words: readonly Word[]): Word[] {
+  return commandParts(words).command;
+}
+
+/** The program and its arguments, and the variables the command line sets for it (NAME=value, env NAME=value). */
+function commandParts(words: readonly Word[]): { command: Word[]; assignments: [string, string][] } {
+  const assignments: [string, string][] = [];
   let index = 0;
   while (index < words.length) {
     const text = words[index]?.text ?? '';
-    if (ASSIGNMENT.test(text) || RESERVED.has(text)) {
+    if (ASSIGNMENT.test(text)) {
+      const equals = text.indexOf('=');
+      assignments.push([text.slice(0, equals), text.slice(equals + 1)]);
+      index += 1;
+    } else if (RESERVED.has(text)) {
       index += 1;
     } else if (WRAPPERS.has(programName(text))) {
       index += 1;
@@ -145,7 +174,7 @@ function commandWords(words: readonly Word[]): Word[] {
       break;
     }
   }
-  return words.slice(index);
+  return { command: words.slice(index), assignments };
 }
 
 /** The first argument that is not an option, skipping the values of options that take one. */
@@ -165,6 +194,17 @@ function operands(args: readonly Word[], valueOptions: ReadonlySet<string>): Wor
     if (word === undefined) continue;
     if (!word.text.startsWith('-')) found.push(word);
     else if (!word.text.includes('=') && valueOptions.has(word.text)) index += 1;
+  }
+  return found;
+}
+
+/** The options of a list as a set, made once per list (the facts are the same for every command of a run). */
+const SETS = new WeakMap<readonly string[], ReadonlySet<string>>();
+function setOf(list: readonly string[]): ReadonlySet<string> {
+  let found = SETS.get(list);
+  if (found === undefined) {
+    found = new Set(list);
+    SETS.set(list, found);
   }
   return found;
 }
@@ -198,10 +238,45 @@ export function isCommandOption(text: string): boolean {
   return command;
 }
 
-type Found = Omit<ToolCommand, 'line'> & { offset: number };
+/** A command as found: `cd` is the directory it runs in relative to where the script starts ('' there), as written. */
+type Found = Omit<ToolCommand, 'line' | 'directory'> & { offset: number; cd?: string };
 
-function npmCommand(args: readonly Word[], at: number, facts: CommandFacts): Found | undefined {
-  const values = new Set(facts.npm.valueOptions);
+/** The variables a command sees: those set before the script (CI env, Dockerfile ENV), by export, and on its own line. */
+export type Environment = ReadonlyMap<string, string>;
+
+/** The value of a variable that the tool reads in any case (npm_config_*), the last one set winning. */
+function anyCase(environment: Environment, name: string): string | undefined {
+  let found: string | undefined;
+  const lower = name.toLowerCase();
+  for (const [key, value] of environment) if (key.toLowerCase() === lower) found = value;
+  return found;
+}
+
+/**
+ * Whether npm runs with dependency install scripts off: npm_config_ignore_scripts=true in any case, then
+ * --ignore-scripts (or =true, or followed by true) on the command line, which a later --ignore-scripts=false or
+ * --no-ignore-scripts turns back on. Only the value true counts: anything else may leave them on (decision D-115).
+ */
+function scriptsOff(args: readonly Word[], environment: Environment, facts: CommandFacts): boolean {
+  const known = facts.npm.scriptsOff;
+  if (known === undefined) return false;
+  let off = anyCase(environment, known.variable) === known.value;
+  const negated = `--no-${known.option.slice(2)}`;
+  for (const [index, word] of args.entries()) {
+    if (word.text === known.option) {
+      const next = args[index + 1]?.text;
+      off = next !== 'false';
+    } else if (word.text.startsWith(`${known.option}=`)) {
+      off = word.text.slice(known.option.length + 1) === known.value;
+    } else if (word.text === negated) {
+      off = false;
+    }
+  }
+  return off;
+}
+
+function npmCommand(args: readonly Word[], at: number, facts: CommandFacts, environment: Environment): Found | undefined {
+  const values = setOf(facts.npm.valueOptions);
   const index = firstOperand(args, values);
   const command = args[index]?.text;
   if (command === undefined || !facts.npm.installCommands.includes(command)) return undefined;
@@ -211,12 +286,18 @@ function npmCommand(args: readonly Word[], at: number, facts: CommandFacts): Fou
   if (global && self !== undefined) return { kind: 'upgrade', tool: 'npm', version: self.text.includes('@') ? self.text.slice(4) || 'latest' : 'latest', offset: at };
   // npm install -g typescript installs a program for the machine; npm does not read the project .npmrc then.
   if (global && facts.npm.globalIgnoresProject) return undefined;
-  return { kind: 'install', tool: 'npm', offset: at };
+  return {
+    kind: 'install',
+    tool: 'npm',
+    ...(facts.npm.cleanCommands.includes(command) ? { lockfile: true as const } : {}),
+    ...(scriptsOff(rest, environment, facts) ? { scriptsOff: true as const } : {}),
+    offset: at,
+  };
 }
 
 /** pnpm install, pnpm i, pnpm add, yarn, yarn install, yarn add, bun install, bun add. */
 function otherCommand(tool: CommandFacts['others'][number], args: readonly Word[], at: number): Found | undefined {
-  const index = firstOperand(args, new Set(tool.valueOptions));
+  const index = firstOperand(args, setOf(tool.valueOptions));
   const command = args[index]?.text;
   if (command === undefined ? tool.bare : tool.install.includes(command) || tool.add.includes(command)) return { kind: 'install', tool: tool.tool, offset: at };
   return undefined;
@@ -242,7 +323,7 @@ function pipArguments(words: readonly Word[], facts: CommandFacts): Word[] | und
   if (matchesExecutable(name, facts.pip.executables)) return words.slice(1);
   if (!matchesExecutable(name, facts.python.executables)) return undefined;
   const { moduleOption, commandOption } = facts.python;
-  const values = new Set(facts.python.valueOptions);
+  const values = setOf(facts.python.valueOptions);
   const letter = moduleOption.slice(1);
   for (let index = 1; index < words.length; index++) {
     const text = words[index]?.text ?? '';
@@ -269,62 +350,152 @@ function pipVersion(spec: string): string {
   return spec.trim();
 }
 
-function pipCommand(args: readonly Word[], at: number, facts: CommandFacts): Found | undefined {
-  const values = new Set(facts.pip.valueOptions);
+/** poetry==2.3.0 (or poetry>=2.4) among the operands of an install: the Poetry it installs, as written (decision D-115). */
+function poetryVersions(words: readonly Word[], at: number, facts: CommandFacts): Found[] {
+  const name = facts.poetry?.name;
+  if (name === undefined) return [];
+  return words.flatMap((word): Found[] => {
+    const match = new RegExp(`^${name}(?:\\[[^\\]]*\\])?\\s*([=<>~!].*)$`, 'iu').exec(word.text);
+    const spec = match?.[1];
+    return spec === undefined ? [] : [{ kind: 'upgrade', tool: 'poetry', version: pipVersion(spec), offset: at }];
+  });
+}
+
+/**
+ * The release-age delay a pip install gets (decision D-115): --uploaded-prior-to on the command line, else
+ * PIP_UPLOADED_PRIOR_TO; unknown when PIP_CONFIG_FILE names a file that may set it, or the value has a variable.
+ */
+function pipDelay(args: readonly Word[], environment: Environment, facts: CommandFacts): Pick<ToolCommand, 'delay' | 'delayUnknown'> {
+  const known = facts.pip.delay;
+  if (known === undefined) return {};
+  let value = environment.get(known.variable);
+  for (const [index, word] of args.entries()) {
+    if (word.text === known.option) value = args[index + 1]?.text;
+    else if (word.text.startsWith(`${known.option}=`)) value = word.text.slice(known.option.length + 1);
+  }
+  const config = environment.get(known.configVariable);
+  if ((config !== undefined && config !== '') || value?.includes('$') === true) return { delayUnknown: true };
+  return value === undefined || value === '' ? {} : { delay: value };
+}
+
+function pipCommand(args: readonly Word[], at: number, facts: CommandFacts, environment: Environment): Found[] {
+  const values = setOf(facts.pip.valueOptions);
   const index = firstOperand(args, values);
-  if (args[index]?.text !== facts.pip.installCommand) return undefined;
+  if (args[index]?.text !== facts.pip.installCommand) return [];
   const rest = args.slice(index + 1);
   const upgrade = rest.some((word) => word.text === '-U' || word.text === '--upgrade');
   for (const word of operands(rest, values)) {
     const match = /^pip(?=$|[=<>~!\s[;])(?:\[[^\]]*\])?\s*(.*)$/iu.exec(word.text);
     if (match === null) continue;
     const spec = match[1] ?? '';
-    if (spec !== '') return { kind: 'upgrade', tool: 'pip', version: pipVersion(spec), offset: at };
-    if (upgrade) return { kind: 'upgrade', tool: 'pip', version: 'latest', offset: at };
-    return undefined;
+    if (spec !== '') return [{ kind: 'upgrade', tool: 'pip', version: pipVersion(spec), offset: at }];
+    if (upgrade) return [{ kind: 'upgrade', tool: 'pip', version: 'latest', offset: at }];
+    return [];
   }
-  return { kind: 'install', tool: 'pip', offset: at };
+  return [{ kind: 'install', tool: 'pip', ...pipDelay(rest, environment, facts), offset: at }, ...poetryVersions(operands(rest, values), at, facts)];
+}
+
+/** pipx install poetry==2.3.0: the Poetry it installs. */
+function pipxCommand(args: readonly Word[], at: number, facts: CommandFacts): Found[] {
+  const pipx = facts.poetry?.commands.find((command) => command[0] === 'pipx');
+  const index = args.findIndex((word) => !word.text.startsWith('-'));
+  if (pipx === undefined || args[index]?.text !== pipx[1]) return [];
+  return poetryVersions(args.slice(index + 1).filter((word) => !word.text.startsWith('-')), at, facts);
 }
 
 /** What one simple command does with npm or pip, if anything. */
-function readCommand(words: readonly Word[], facts: CommandFacts, depth: number): { found: Found[]; runsNode: boolean } {
-  const command = commandWords(words);
+function readCommand(words: readonly Word[], facts: CommandFacts, depth: number, environment: Environment = new Map()): { found: Found[]; runsNode: boolean } {
+  const { command, assignments } = commandParts(words);
   const first = command[0];
   if (first === undefined) return { found: [], runsNode: false };
+  const seen: Environment = assignments.length === 0 ? environment : new Map([...environment, ...assignments]);
   const name = programName(first.text);
   const args = command.slice(1);
   // sh -c '...' runs its argument as a script.
   if (SHELLS.has(name) && depth < 2) {
     const script = args.find((_word, index) => index > 0 && isCommandOption(args[index - 1]?.text ?? ''));
     if (script !== undefined) {
-      const inner = findToolCommands(script.text, facts, depth + 1);
+      const inner = findToolCommands(script.text, facts, depth + 1, seen);
       return { found: inner.commands.map((item) => ({ ...item, offset: script.offset })), runsNode: inner.runsNode };
     }
   }
   const runsNode = NODE_EXECUTABLES.has(name);
-  if (name === 'npm') return { found: [npmCommand(args, first.offset, facts)].filter((item) => item !== undefined), runsNode };
+  if (name === 'npm') return { found: [npmCommand(args, first.offset, facts, seen)].filter((item) => item !== undefined), runsNode };
   if (name === 'corepack') return { found: [corepackCommand(args, first.offset, facts)].filter((item) => item !== undefined), runsNode };
   const other = facts.others.find((entry) => entry.tool === name);
   if (other !== undefined) return { found: [otherCommand(other, args, first.offset)].filter((item) => item !== undefined), runsNode };
+  if (name === 'pipx') return { found: pipxCommand(args, first.offset, facts), runsNode };
   const pip = pipArguments(command, facts);
-  if (pip !== undefined) return { found: [pipCommand(pip, first.offset, facts)].filter((item) => item !== undefined), runsNode };
+  if (pip !== undefined) return { found: pipCommand(pip, first.offset, facts, seen), runsNode };
   return { found: [], runsNode };
 }
 
-/** The install and upgrade commands of a script, with the offset of each in the script, and whether it runs Node.js. */
-export function findToolCommands(script: string, facts: CommandFacts, depth = 0): { commands: Found[]; runsNode: boolean } {
+/**
+ * A directory a cd leads to that depcurfew does not follow ($DIR, ~, an absolute path, a path out of the start). No
+ * directory listed in projects can have this name (project-directory.ts refuses < and >).
+ */
+export const UNKNOWN_DIRECTORY = '<unknown>';
+
+/**
+ * The directory after `cd <path>` from `current` (relative to where the script starts, '' there): a literal relative
+ * path is followed, .. included; anything else (a variable, ~, -, an absolute path, out of the start) is unknown.
+ */
+function changeDirectory(current: string, target: string | undefined): string {
+  if (current === UNKNOWN_DIRECTORY || target === undefined || target === '' || /[$~`*?]/u.test(target) || target.startsWith('/') || target === '-') return UNKNOWN_DIRECTORY;
+  const parts = current === '' ? [] : current.split('/');
+  for (const part of target.replace(/\\/gu, '/').split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') {
+      if (parts.length === 0) return UNKNOWN_DIRECTORY;
+      parts.pop();
+    } else {
+      parts.push(part);
+    }
+  }
+  return parts.join('/');
+}
+
+/**
+ * The install and upgrade commands of a script, with the offset of each in the script, and whether it runs Node.js.
+ * `environment` holds the variables set before the script (CI env, Dockerfile ENV); export NAME=value adds to them for
+ * the later commands. A literal cd changes the directory of the later commands of the same shell (`cd`, relative to
+ * where the script starts), not of those after the ( ) it is in (decision D-115).
+ */
+export function findToolCommands(script: string, facts: CommandFacts, depth = 0, environment: Environment = new Map()): { commands: Found[]; runsNode: boolean } {
   const commands: Found[] = [];
   let runsNode = false;
-  for (const words of splitCommands(script)) {
-    const result = readCommand(words, facts, depth);
-    commands.push(...result.found);
+  const variables = new Map(environment);
+  // The directory at each depth of ( ); a deeper command starts from the one around it.
+  const directories: string[] = [''];
+  for (const { words, depth: level } of splitWithDepth(script)) {
+    while (directories.length <= level) directories.push(directories.at(-1) ?? '');
+    directories.length = level + 1;
+    const here = directories[level] ?? '';
+    const { command } = commandParts(words);
+    const program = command[0]?.text;
+    if (program === 'cd') {
+      directories[level] = changeDirectory(here, command.find((word, index) => index > 0 && !word.text.startsWith('-'))?.text ?? '~');
+      continue;
+    }
+    if (program === 'export') {
+      for (const word of command.slice(1)) {
+        const equals = word.text.indexOf('=');
+        if (equals > 0 && ASSIGNMENT.test(word.text)) variables.set(word.text.slice(0, equals), word.text.slice(equals + 1));
+      }
+      continue;
+    }
+    const result = readCommand(words, facts, depth, variables);
+    for (const found of result.found) {
+      const cd = found.cd === undefined ? here : here === '' ? found.cd : found.cd === '' ? here : changeDirectory(here, found.cd);
+      commands.push(cd === '' ? (({ cd: _cd, ...rest }) => rest)(found) : { ...found, cd });
+    }
     runsNode ||= result.runsNode;
   }
   return { commands, runsNode };
 }
 
 /** The same for the words of an exec form (RUN ["npm", "ci"]), which no shell splits. */
-export function findExecCommands(words: readonly Word[], facts: CommandFacts): { commands: Found[]; runsNode: boolean } {
-  const result = readCommand(words, facts, 0);
+export function findExecCommands(words: readonly Word[], facts: CommandFacts, environment: Environment = new Map()): { commands: Found[]; runsNode: boolean } {
+  const result = readCommand(words, facts, 0, environment);
   return { commands: result.found, runsNode: result.runsNode };
 }

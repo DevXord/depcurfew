@@ -6,7 +6,7 @@
       "line": 12
     },
     "message": "Node.js 22 in GitHub Actions (.github/workflows/ci.yml, job build) can come with npm 10.5.1 to 10.9.9, none of which supports min-release-age (added in 11.10.0), and job build installs packages with it in frontend on line 13; npm before 11.2.0 ignores settings it does not know without a warning",
-    "fix": "Run npm install -g npm@11.10.0 in job build before it installs packages, or set up a Node.js release that comes with npm 11.10.0 or later (24.14.1 or a later 24.x; 26.0.0 or later)"
+    "fix": "Run npm install -g npm@11.10.0 in job build before it installs packages (npm 11.10.0 runs on Node.js ^20.17.0 || >=22.9.0 only), or set up a Node.js release that comes with npm 11.10.0 or later (24.14.1 or a later 24.x; 26.0.0 or later)"
   },
   {
     "level": "error",
@@ -15,6 +15,6 @@
       "line": 19
     },
     "message": "Node.js 20 in GitHub Actions (.github/workflows/ci.yml, job site) can come with npm 9.6.4 to 10.8.2, none of which supports min-release-age (added in 11.10.0), and job site installs packages with it in frontend on line 20; npm before 11.2.0 ignores settings it does not know without a warning",
-    "fix": "Run npm install -g npm@11.10.0 in job site before it installs packages, or set up a Node.js release that comes with npm 11.10.0 or later (24.14.1 or a later 24.x; 26.0.0 or later)"
+    "fix": "Run npm install -g npm@11.10.0 in job site before it installs packages (npm 11.10.0 runs on Node.js ^20.17.0 || >=22.9.0 only), or set up a Node.js release that comes with npm 11.10.0 or later (24.14.1 or a later 24.x; 26.0.0 or later)"
   }
 ]

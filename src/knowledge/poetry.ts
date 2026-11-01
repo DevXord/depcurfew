@@ -5,6 +5,7 @@ import type { SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-30');
 const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
+const finalReview = verifiedOn('2026-11-01');
 
 // python-poetry.org/docs is built from docs/ in the repository.
 const POETRY = 'https://github.com/python-poetry/poetry/blob/2.5.1';
@@ -191,6 +192,11 @@ export const poetry: ToolKnowledge = {
     ),
   },
   extra: {
+    installedPackage: finalReview.verified(
+      { name: 'poetry', commands: [['pipx', 'install'], ['pip', 'install']] },
+      `${POETRY}/docs/_index.md`,
+      'The installation page installs a given version with "pipx install poetry==1.8.4", in CI with "$POETRY_HOME/bin/pip install poetry==2.0.0", and manually with pip in a virtual environment ("$VENV_PATH/bin/pip install poetry"). So poetry==<version> in such a command of a CI job or a Dockerfile is the Poetry the later commands run (decision D-115).',
+    ),
     pylockCreatedBy: verified(
       'poetry-plugin-export',
       'https://github.com/python-poetry/poetry-plugin-export/blob/1.10.1/src/poetry_plugin_export/exporter.py',

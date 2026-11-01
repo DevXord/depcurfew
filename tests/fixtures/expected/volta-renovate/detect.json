@@ -78,6 +78,7 @@
         {
           "kind": "install",
           "tool": "npm",
+          "lockfile": true,
           "line": 12
         }
       ],

@@ -1,5 +1,5 @@
 // config-drift: what `depcurfew apply` would change is exactly what no longer matches the policy, so the rule plans
-// an apply in memory and reports the first difference in every file.
+// an apply in memory and reports every difference in every file (decision D-115: not only the first).
 import { lines, myers } from '../../apply/diff.ts';
 import { BLOCK_END, isBlockStart, SUPERSEDED, TURNED_OFF } from '../../apply/block.ts';
 import { YAML_MARKER } from '../../apply/yaml-edit.ts';
@@ -15,6 +15,9 @@ import { latestVersion } from '../effective.ts';
 import { plannedApply } from '../plan.ts';
 import { yamlSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
+
+/** The most findings of one file; the last one says how many places differ besides. */
+const MAX_DIFFERENCES = 5;
 
 function clean(line: string): string {
   return line.replace(/[\r\u0000]/gu, '').trim();
@@ -40,32 +43,44 @@ interface Difference {
 }
 
 /**
- * The first block of lines that apply would change, without the lines that only gain or lose a trailing comma
- * (adding a JSON key changes the line before it) and without depcurfew's frame lines.
+ * Every block of lines that apply would change, in order, without the lines that only gain or lose a trailing comma
+ * (adding a JSON key changes the line before it) and without depcurfew's frame lines; a block left empty by that is
+ * left out, but the first one stays. The first block also lists the lines apply comments out further down.
  */
-function firstDifference(before: string, after: string): Difference {
+function differences(before: string, after: string): Difference[] {
   const operations = myers(lines(before), lines(after));
+  const total = Math.max(lines(before).length, 1);
+  const found: Difference[] = [];
   let line = 1;
   let index = 0;
-  while (index < operations.length && operations[index]?.kind === 'same') {
-    line += 1;
-    index += 1;
+  while (index < operations.length) {
+    while (index < operations.length && operations[index]?.kind === 'same') {
+      line += 1;
+      index += 1;
+    }
+    if (index >= operations.length) break;
+    const start = line;
+    let removed: string[] = [];
+    let added: string[] = [];
+    for (; index < operations.length && operations[index]?.kind !== 'same'; index++) {
+      const operation = operations[index];
+      if (operation === undefined) break;
+      if (operation.kind === 'delete') line += 1;
+      (operation.kind === 'delete' ? removed : added).push(clean(operation.line));
+    }
+    const commaOnly = new Set(removed.filter((text) => added.some((other) => withoutComma(other) === withoutComma(text))).map(withoutComma));
+    removed = removed.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
+    added = added.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
+    const commentedLater =
+      found.length === 0
+        ? operations
+            .slice(index)
+            .filter((operation) => operation.kind === 'insert' && isCommentedOut(clean(operation.line)))
+            .map((operation) => clean(operation.line))
+        : [];
+    if (found.length === 0 || removed.length > 0 || added.length > 0) found.push({ line: Math.min(start, total), removed, added, commentedLater });
   }
-  let removed: string[] = [];
-  let added: string[] = [];
-  for (; index < operations.length && operations[index]?.kind !== 'same'; index++) {
-    const operation = operations[index];
-    if (operation === undefined) break;
-    (operation.kind === 'delete' ? removed : added).push(clean(operation.line));
-  }
-  const commaOnly = new Set(removed.filter((text) => added.some((other) => withoutComma(other) === withoutComma(text))).map(withoutComma));
-  removed = removed.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
-  added = added.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
-  const commentedLater = operations
-    .slice(index)
-    .filter((operation) => operation.kind === 'insert' && isCommentedOut(clean(operation.line)))
-    .map((operation) => clean(operation.line));
-  return { line: Math.min(line, Math.max(lines(before).length, 1)), removed, added, commentedLater };
+  return found.length === 0 ? [{ line: 1, removed: [], added: [], commentedLater: [] }] : found;
 }
 
 function isCommentedOut(line: string): boolean {
@@ -143,6 +158,11 @@ function jsonPair(line: string): { key: string; value: unknown } | undefined {
   }
 }
 
+/** The key of a `key=value`, `key = value` or `key: value` line, for pairing an old line with its replacement. */
+function keyOf(line: string): string | undefined {
+  return /^\s*(?:-\s+)?["']?([^=:"'\s]+)["']?\s*[=:]/u.exec(line)?.[1];
+}
+
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
 function describe(file: string, difference: Difference, before: string, after: string): string {
   const commented = difference.added.filter(isCommentedOut);
@@ -165,6 +185,9 @@ function describe(file: string, difference: Difference, before: string, after: s
     return parts.join('; ');
   }
   const [removed] = difference.removed;
+  // Several settings of one block changed: each old line and the line that replaces it (decision D-115).
+  const pairs = difference.removed.length > 1 && difference.removed.length === difference.added.length && difference.removed.every((text, index) => keyOf(text) !== undefined && keyOf(text) === keyOf(difference.added[index] ?? ''));
+  if (pairs) return difference.removed.map((text, index) => `${code(text)} should be ${code(difference.added[index] ?? '')}${quotedNote(file, text, difference.added[index] ?? '')}`).join(', ');
   if (removed !== undefined && difference.added.length > 0) return `${code(removed)} should be ${addedText(difference.added)}${quotedNote(file, removed, difference.added[0] ?? '')}`;
   if (difference.added.length > 0) {
     // A YAML key the map gets through a merge key (<<): the value apply writes into the map itself wins over it.
@@ -252,12 +275,22 @@ export const configDrift: Rule = {
         });
         continue;
       }
-      const difference = firstDifference(change.before, change.after);
-      context.report({
-        location: { file: change.file, line: findingLine(change.file, difference, change.before) },
-        message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, change.before, change.after)}`,
-        fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`,
-      });
+      const [first, ...later] = differences(change.before, change.after);
+      // The lines the first finding names as commented out further down are not reported again.
+      const named = new Set(first?.commentedLater ?? []);
+      const repeats = (item: Difference) => item.added.some((text) => named.has(text)) && item.removed.every((text) => [...named].some((line) => line.endsWith(text)));
+      const all = [first, ...later.filter((item) => !repeats(item))].filter((item): item is Difference => item !== undefined);
+      // A file with hundreds of differences (500 Dependabot entries) gives MAX_DIFFERENCES findings, the last with the count.
+      const shown = all.slice(0, MAX_DIFFERENCES);
+      const rest = all.length - shown.length;
+      for (const [index, difference] of shown.entries()) {
+        const more = index === shown.length - 1 && rest > 0 ? `; ${rest} more ${rest === 1 ? 'place' : 'places'} in ${change.file} ${rest === 1 ? 'differs' : 'differ'} too (depcurfew apply --dry-run shows them)` : '';
+        context.report({
+          location: { file: change.file, line: findingLine(change.file, difference, change.before) },
+          message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, change.before, change.after)}${more}`,
+          fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`,
+        });
+      }
     }
     checkAllowLists(context, plan);
   },

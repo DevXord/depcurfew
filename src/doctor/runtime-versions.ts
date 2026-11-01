@@ -6,7 +6,7 @@ import { compareVersions, formatVersion, parseVersion, type Version } from '../a
 import { satisfies } from '../check/semver.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import type { BundledVersionsLine, EnvironmentKnowledge, Fact, NodeVersionNamesKnowledge, ReleaseLineSchedule } from '../knowledge/types.ts';
-import type { VersionSource } from '../detect/types.ts';
+import type { VersionDeclaration, VersionSource } from '../detect/types.ts';
 import { lowestVersion } from './version-range.ts';
 
 function first<T>(fact: Fact<T>): T {
@@ -22,6 +22,11 @@ export function namingOf(source: VersionSource): Naming {
   if (source === 'dockerfile') return 'docker';
   if (source === 'nvmrc' || source === 'node-version') return 'nvm';
   return 'semver';
+}
+
+/** The names a declaration may use: a job container's image tag reads like a Dockerfile's (decision D-115). */
+export function namingFor(declaration: VersionDeclaration): Naming {
+  return declaration.container === undefined ? namingOf(declaration.source) : 'docker';
 }
 
 interface Segment {
@@ -170,6 +175,41 @@ export function nodeBundledNpm(written: string, naming: Naming, facts: RuntimeFa
   const text = written.trim();
   const line = nodeName(text, naming, facts);
   return resolveIn(line ?? text, facts.node, nodeLineOf);
+}
+
+/** The last release before `until` in the same line, for testing a range against the end of a segment. */
+function justBefore(until: Version): Version {
+  if (until[2] > 0) return [until[0], until[1], until[2] - 1];
+  if (until[1] > 0) return [until[0], until[1] - 1, Number.MAX_SAFE_INTEGER];
+  return [until[0] - 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER];
+}
+
+/**
+ * Whether the Node.js releases a declaration allows lie in a range (engines.node of npm, decision D-115): `all`, `none`
+ * or `some`, undefined when the declaration cannot be read. Each known segment of releases is tested at its first and
+ * its last release the declaration allows; the ranges npm declares (^20.17.0 || >=22.9.0) are intervals, so that is
+ * enough.
+ */
+export function nodeReleasesIn(written: string, naming: Naming, range: string, facts: RuntimeFacts): 'all' | 'none' | 'some' | undefined {
+  const text = nodeName(written.trim(), naming, facts) ?? written.trim();
+  const lowest = lowestVersion(text);
+  if (lowest.kind === 'unknown') return undefined;
+  const inside = (version: Version) => satisfies(formatVersion(version), range);
+  if (lowest.kind === 'exact') return inside(release(lowest.version)) ? 'all' : 'none';
+  const found = matching(text, facts.node);
+  if (found === undefined || found.length === 0) return undefined;
+  let yes = false;
+  let no = false;
+  for (const segment of found) {
+    const first = max(segment.from, release(lowest.version));
+    const end = segment.until === undefined ? segment.latest : justBefore(segment.until);
+    const last = satisfies(formatVersion(end), text) ? end : first;
+    for (const version of [first, last]) {
+      if (inside(version)) yes = true;
+      else no = true;
+    }
+  }
+  return yes && no ? 'some' : yes ? 'all' : 'none';
 }
 
 /** The release line of a Node.js version: the major version from 4 on, the minor one before (0.12). */

@@ -142,7 +142,7 @@ describe('depcurfew init', () => {
       stdout:
         `Created ${policyFile} with the default policy.\n` +
         'Detected tools: Deno.\n' +
-        'Bun is seen only in a CI setup step (.github/workflows/ci.yml), so depcurfew apply does not configure it; add "bun" to targets in depcurfew.json if it installs packages for this project.\n',
+        'note: Bun is seen only in a CI setup step (.github/workflows/ci.yml), so depcurfew apply does not configure it; add "bun" to targets in depcurfew.json if it installs packages for this project.\n',
       stderr: '',
     });
   });

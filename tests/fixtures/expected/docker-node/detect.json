@@ -90,6 +90,7 @@
             {
               "kind": "install",
               "tool": "npm",
+              "lockfile": true,
               "line": 6
             }
           ],
@@ -138,6 +139,7 @@
             {
               "kind": "install",
               "tool": "npm",
+              "lockfile": true,
               "line": 2
             }
           ]

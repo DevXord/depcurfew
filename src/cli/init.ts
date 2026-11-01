@@ -185,7 +185,7 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
       `projects lists ${listing(projects.map((entry) => entry.project))}: the root has no manifest or lockfile, these directories do, so depcurfew configures each as a project of its own and the bots from the root; edit projects in ${POLICY_FILE} if that is not right.\n`,
     );
   }
-  for (const entry of proposed.leftOut) io.stdout(`${entry.project} is not in projects: ${entry.reason}.\n`);
+  for (const entry of proposed.leftOut) io.stdout(`warning: ${entry.project} is not in projects: ${entry.reason}.\n`);
   if (kept !== undefined) io.stdout(keptMessage(kept, minimum));
   io.stdout(`Detected tools: ${detected.length === 0 ? 'none' : detected.join(', ')}.\n`);
   // Building from source runs the package's own build code, so the default deny blocks it (decision D-065); a package
@@ -209,7 +209,7 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
   const inProjects = new Set(projects.flatMap((entry) => entry.detection.packageManagers.map((manager) => manager.id)));
   for (const entry of ciOnly.filter((item) => !inProjects.has(item.id as never))) {
     io.stdout(
-      `${toolName(entry.id)} is seen only in a CI setup step (${listing(entry.workflows)}), so depcurfew apply does not configure it; add "${entry.id}" to targets in ${POLICY_FILE} if it installs packages for this project.\n`,
+      `note: ${toolName(entry.id)} is seen only in a CI setup step (${listing(entry.workflows)}), so depcurfew apply does not configure it; add "${entry.id}" to targets in ${POLICY_FILE} if it installs packages for this project.\n`,
     );
   }
   return EXIT_OK;
