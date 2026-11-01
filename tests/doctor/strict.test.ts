@@ -79,6 +79,15 @@ describe('depcurfew doctor --strict', () => {
     expect((await exec(['doctor', '--user', '--strict'], environment)).code).toBe(EXIT_FAILURE);
   });
 
+  it('reports a usage error with --sarif as a SARIF run that did not succeed, with nothing on stderr', async () => {
+    const result = await exec(['doctor', '--sarif', '--jsn', CLEAN]);
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stderr).toBe('');
+    const sarif = JSON.parse(result.stdout) as { runs: { invocations: { executionSuccessful: boolean; toolExecutionNotifications: { message: { text: string } }[] }[] }[] };
+    expect(sarif.runs[0]?.invocations[0]?.executionSuccessful).toBe(false);
+    expect(sarif.runs[0]?.invocations[0]?.toolExecutionNotifications[0]?.message.text).toContain("unknown option '--jsn'");
+  });
+
   it('is a doctor option only', async () => {
     const result = await exec(['explain', '--strict', CLEAN]);
     expect(result.code).toBe(EXIT_USAGE);

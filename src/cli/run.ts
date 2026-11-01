@@ -5,6 +5,7 @@ import { paint, paintDiagnostics } from '../color.ts';
 import { check, type CheckDependencies } from './check.ts';
 import { COMMANDS, findCommand } from './commands.ts';
 import { doctor } from './doctor.ts';
+import { RULES, toSarif } from '../doctor/index.ts';
 import { commandHelpText, helpText } from './help.ts';
 import { explain } from './explain.ts';
 import { init, initUser } from './init.ts';
@@ -36,9 +37,12 @@ function errorMessage(error: unknown): string {
  */
 type Usage = (message: string, hint: string) => number;
 
-function usageReporter(io: CliIo, json: () => boolean): Usage {
+function usageReporter(io: CliIo, json: () => boolean, sarif: () => boolean = () => false): Usage {
   return (message, hint) => {
-    if (json()) io.stdout(`${safeJson({ schemaVersion: 1, errors: [{ code: 'usage', level: 'error', message, fix: hint.replace(/\.\n?$/u, '') }] }, 2)}\n`);
+    const error = { code: 'usage', level: 'error' as const, location: { file: '' }, message, fix: hint.replace(/\.\n?$/u, '') };
+    if (json()) io.stdout(`${safeJson({ schemaVersion: 1, errors: [{ code: error.code, level: error.level, message, fix: error.fix }] }, 2)}\n`);
+    // doctor --sarif alone: a run that did not succeed, so an upload to code scanning gets a document, not an empty file.
+    else if (sarif()) io.stdout(`${safeJson(toSarif({ schemaVersion: 1, policy: 'missing', findings: [], notices: [] }, RULES, getVersion(), undefined, [error]), 2)}\n`);
     else io.stderr(`depcurfew: ${message}\n${hint.endsWith('\n') ? hint : `${hint}\n`}`);
     return EXIT_USAGE;
   };
@@ -93,7 +97,12 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
   const jsonGiven = (end === -1 ? argv : argv.slice(0, end)).includes('--json');
   // Only for a command that prints JSON: the stdout of mcp is its protocol, and init has no --json.
   const named = findCommand(argv.find((argument) => !argument.startsWith('-')) ?? '');
-  const usage = usageReporter(io, () => jsonGiven && named?.options?.some((option) => option.name === 'json') === true);
+  const sarifGiven = (end === -1 ? argv : argv.slice(0, end)).includes('--sarif');
+  const usage = usageReporter(
+    io,
+    () => jsonGiven && named?.options?.some((option) => option.name === 'json') === true,
+    () => sarifGiven && named?.options?.some((option) => option.name === 'sarif') === true,
+  );
   const commandOptions = Object.fromEntries(
     COMMANDS.flatMap((command) => command.options ?? []).map((option) => [
       option.name,
