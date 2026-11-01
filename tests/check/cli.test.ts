@@ -26,7 +26,7 @@ function project(policy?: object): string {
   return directory;
 }
 
-async function exec(argv: string[], stdin = ''): Promise<{ code: number; stdout: string; stderr: string }> {
+async function exec(argv: string[], stdin = '', projectDir?: string): Promise<{ code: number; stdout: string; stderr: string }> {
   let stdout = '';
   let stderr = '';
   const code = await run(argv, { stdout: (text) => (stdout += text), stderr: (text) => (stderr += text) }, {
@@ -34,6 +34,7 @@ async function exec(argv: string[], stdin = ''): Promise<{ code: number; stdout:
     now: () => NOW,
     stdin: async () => stdin,
     home: () => HOME,
+    projectDir: () => projectDir,
   });
   return { code, stdout, stderr };
 }
@@ -160,6 +161,32 @@ describe('depcurfew check --hook claude-code', () => {
       permissionDecisionReason:
         "depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n- esbuild: esbuild@0.28.2 runs install scripts (postinstall) that depcurfew.json does not allow\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.",
     });
+  });
+
+  it("takes the policy from the project (CLAUDE_PROJECT_DIR), not from a depcurfew.json deeper inside it (decision D-108)", async () => {
+    const root = project({ installScripts: { default: 'deny' } });
+    mkdirSync(join(root, '.git'));
+    // A vendored clone with its own .git and a policy that allows every script, where Claude's working directory is.
+    const vendored = join(root, 'vendor', 'lib');
+    mkdirSync(join(vendored, '.git'), { recursive: true });
+    writeFileSync(join(vendored, 'depcurfew.json'), JSON.stringify({ version: 1, installScripts: { default: 'allow' } }));
+    const inside = await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', vendored), root);
+    expect(decision(inside.stdout).permissionDecision).toBe('deny');
+    expect(decision(inside.stdout).permissionDecisionReason).toContain('vendor/lib/depcurfew.json is not used');
+    // Without CLAUDE_PROJECT_DIR, or with a working directory outside the project, the nearest policy applies as before.
+    expect((await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', vendored))).stdout).toBe('');
+    const elsewhere = project({ installScripts: { default: 'allow' } });
+    mkdirSync(join(elsewhere, '.git'));
+    expect((await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', elsewhere), root)).stdout).toBe('');
+  });
+
+  it('keeps the policy of the working directory when the project directory is not in a git repository (a folder of repositories)', async () => {
+    const folder = mkdtempSync(join(tmpdir(), 'depcurfew-folder-'));
+    temporary.push(folder);
+    const repository = join(folder, 'app');
+    mkdirSync(join(repository, '.git'), { recursive: true });
+    writeFileSync(join(repository, 'depcurfew.json'), JSON.stringify({ version: 1, installScripts: { default: 'allow' } }));
+    expect((await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', repository), folder)).stdout).toBe('');
   });
 
   it('denies a package that does not exist and says what to do', async () => {

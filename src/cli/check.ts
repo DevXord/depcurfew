@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { UserEnvironment } from '../user/locate.ts';
 import type { McpProcess } from './mcp.ts';
-import { join, relative, resolve, sep } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
 import { isPythonSpec } from '../check/python.ts';
@@ -25,7 +25,9 @@ import { popularPackages } from '../knowledge/popular.ts';
 import { popularPythonPackages } from '../knowledge/popular-python.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
-import { findPolicyDirectory } from '../policy/file.ts';
+import { findPolicyDirectory, insideRepository } from '../policy/file.ts';
+import { environment } from '../knowledge/environment.ts';
+import { isInside } from '../paths.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { parsePolicy } from '../policy/validate.ts';
 import { paint, type Paint } from '../color.ts';
@@ -43,6 +45,8 @@ export interface CheckDependencies {
   stdin: () => Promise<string>;
   /** The user's home directory, with the user's .npmrc. */
   home?: () => string;
+  /** The project root Claude Code gives hooks (CLAUDE_PROJECT_DIR); tests replace it. */
+  projectDir?: () => string | undefined;
   /** --user: platform, home directory and environment variables (tests replace them). */
   userEnvironment?: () => UserEnvironment;
   /** depcurfew mcp: the streams the server talks over, its environment and signals (tests replace them). */
@@ -195,6 +199,25 @@ function messageOf(error: unknown): string {
 const UNREADABLE_EVENT_FIX =
   'Claude Code sends the PreToolUse event as one JSON object on stdin, at most 1 MiB: run depcurfew check --hook claude-code as a PreToolUse command hook (see the README), or pipe such an event into it to try it, e.g. {"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm install lodash"},"cwd":"."}';
 
+/** The variable Claude Code sets for hooks to the project root, from the knowledge base. */
+function projectDirVariable(): string {
+  return values(environment.claudeCode.sessionStart)[0]?.projectDirVariable ?? 'CLAUDE_PROJECT_DIR';
+}
+
+/**
+ * Where the hook looks for depcurfew.json (decision D-108). Claude's working directory can be anywhere in the project,
+ * also in a vendored clone with its own .git or in a package folder that ships a depcurfew.json allowing everything;
+ * so when the project root lies in a git repository and the working directory is inside it, the policy is the
+ * project's, and a policy deeper inside is named as not used. A project root outside any repository (a folder that
+ * holds several repositories) keeps the lookup from the working directory.
+ */
+export function hookPolicyStart(cwd: string, projectDir: string | undefined): { start: string; ignored?: string } {
+  if (projectDir === undefined || projectDir === '' || !isAbsolute(projectDir) || !isInside(projectDir, cwd) || !insideRepository(projectDir)) return { start: cwd };
+  const nearest = findPolicyDirectory(cwd);
+  const project = findPolicyDirectory(projectDir);
+  return nearest === undefined || nearest === project ? { start: projectDir } : { start: projectDir, ignored: nearest };
+}
+
 async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencies): Promise<number> {
   let event: ReturnType<typeof readHookEvent>;
   try {
@@ -210,7 +233,9 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
   try {
     const { specs, unreadable } = requestedSpecs(event.command, event.shell);
     if (specs.length === 0 && unreadable === undefined) return EXIT_OK;
-    const loaded = load(flags.dir ?? event.cwd ?? process.cwd(), dependencies.home?.() ?? homedir());
+    const cwd = flags.dir ?? event.cwd ?? process.cwd();
+    const root = flags.dir === undefined ? hookPolicyStart(resolve(cwd), (dependencies.projectDir ?? (() => process.env[projectDirVariable()]))()) : { start: cwd };
+    const loaded = load(root.start, dependencies.home?.() ?? homedir());
     const registry = registryOf(flags.registry, loaded.registries);
     const reports = await checkSpecs(specs, {
       policy: loaded.policy,
@@ -228,7 +253,13 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     const scopeOf = (name: string) => (name.startsWith('@') ? name.slice(0, name.indexOf('/')) : '');
     const lookedUp = reports.some((report) => report.kind === 'registry' && !isPythonSpec(report.spec) && report.name !== undefined && !loaded.registries.scopes.has(scopeOf(report.name)));
     const note = lookedUp ? registryNote(registry) : undefined;
-    io.stdout(formatDecision(decide(reports, unreadable, note === undefined ? [] : [`${note}.`])) ?? '');
+    const notes = [
+      ...(note === undefined ? [] : [`${note}.`]),
+      ...(root.ignored === undefined
+        ? []
+        : [`${reasonText(relative(root.start, join(root.ignored, POLICY_FILE)).split(sep).join('/'))} is not used: the hook applies the policy of the project (${projectDirVariable()}), whatever directory a command runs in.`]),
+    ];
+    io.stdout(formatDecision(decide(reports, unreadable, notes)) ?? '');
   } catch (error) {
     io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(messageOf(error))}` }) ?? '');
   }
