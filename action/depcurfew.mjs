@@ -278,9 +278,13 @@ const bun$1 = {
 				name: "--minimum-release-age",
 				weakens: "delay",
 				values: "delay"
+			}, {
+				name: "--trust",
+				weakens: "scripts",
+				values: "any"
 			}],
 			variables: []
-		}, "https://github.com/oven-sh/bun/blob/main/docs/pm/cli/install.mdx", "bun add @types/bun --minimum-release-age 259200 # seconds: \"A number is in seconds\", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it.")
+		}, "https://github.com/oven-sh/bun/blob/main/docs/pm/cli/install.mdx", "bun add @types/bun --minimum-release-age 259200 # seconds: \"A number is in seconds\", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it. bun add --trust \"adds the package to trustedDependencies in the project's package.json and installs it\", so its lifecycle scripts run (docs/snippets/cli/add.mdx and docs/pm/lifecycle.mdx at bun-v1.4.4); lifecycle.mdx names no variable that turns scripts on, and ignore-scripts read from the environment \"only turns scripts off\".")
 	}
 };
 
@@ -1352,15 +1356,8 @@ const npm$1 = {
 				writes: [
 					"set",
 					"delete",
-					"edit",
-					"fix"
-				]
-			},
-			{
-				command: ["npm", "c"],
-				writes: [
-					"set",
-					"delete",
+					"rm",
+					"del",
 					"edit",
 					"fix"
 				]
@@ -1368,8 +1365,147 @@ const npm$1 = {
 			{
 				command: ["npm", "set"],
 				operands: 1
+			},
+			{
+				command: ["npm", "pkg"],
+				writes: [
+					"set",
+					"delete",
+					"fix"
+				],
+				manifest: true
 			}
-		], "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-config.md", "npm config set sets keys (in the user configuration unless location is given), delete removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list only read. c is an alias of config (lib/utils/cmd-list.js at v12.2.1). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js)."),
+		], "https://github.com/npm/cli/blob/v12.2.1/lib/commands/config.js", "npm config set sets keys (in the user configuration unless location is given), delete (also rm and del) removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list (ls) only read (the switch in exec, and docs/lib/content/commands/npm-config.md). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js). npm pkg set, delete and fix write package.json back, get only reads (lib/commands/pkg.js). Other spellings of these commands come from commandNames."),
+		commandNames: runtimes$2.verified({
+			commands: [
+				"access",
+				"approve-scripts",
+				"audit",
+				"bugs",
+				"cache",
+				"ci",
+				"completion",
+				"config",
+				"dedupe",
+				"deny-scripts",
+				"deprecate",
+				"diff",
+				"dist-tag",
+				"docs",
+				"doctor",
+				"edit",
+				"exec",
+				"explain",
+				"explore",
+				"find-dupes",
+				"fund",
+				"get",
+				"help",
+				"help-search",
+				"init",
+				"install",
+				"install-ci-test",
+				"install-scripts",
+				"install-test",
+				"link",
+				"ll",
+				"login",
+				"logout",
+				"ls",
+				"org",
+				"outdated",
+				"owner",
+				"pack",
+				"patch",
+				"ping",
+				"pkg",
+				"prefix",
+				"profile",
+				"prune",
+				"publish",
+				"query",
+				"rebuild",
+				"repo",
+				"restart",
+				"root",
+				"run",
+				"sbom",
+				"search",
+				"set",
+				"stage",
+				"start",
+				"stop",
+				"team",
+				"test",
+				"token",
+				"trust",
+				"undeprecate",
+				"uninstall",
+				"unpublish",
+				"update",
+				"version",
+				"view",
+				"whoami"
+			],
+			aliases: {
+				author: "owner",
+				home: "docs",
+				issues: "bugs",
+				info: "view",
+				show: "view",
+				find: "search",
+				add: "install",
+				unlink: "uninstall",
+				remove: "uninstall",
+				rm: "uninstall",
+				r: "uninstall",
+				un: "uninstall",
+				rb: "rebuild",
+				list: "ls",
+				ln: "link",
+				create: "init",
+				i: "install",
+				it: "install-test",
+				cit: "install-ci-test",
+				u: "update",
+				up: "update",
+				c: "config",
+				s: "search",
+				se: "search",
+				tst: "test",
+				t: "test",
+				ddp: "dedupe",
+				v: "view",
+				"run-script": "run",
+				"clean-install": "ci",
+				"clean-install-test": "install-ci-test",
+				x: "exec",
+				why: "explain",
+				la: "ll",
+				verison: "version",
+				ic: "ci",
+				innit: "init",
+				in: "install",
+				ins: "install",
+				inst: "install",
+				insta: "install",
+				instal: "install",
+				isnt: "install",
+				isnta: "install",
+				isntal: "install",
+				isntall: "install",
+				"install-clean": "ci",
+				"isntall-clean": "ci",
+				hlep: "help",
+				"dist-tags": "dist-tag",
+				upgrade: "update",
+				udpate: "update",
+				rum: "run",
+				sit: "install-ci-test",
+				urn: "run",
+				ogr: "org"
+			}
+		}, CMD_LIST, "deref resolves a command name: camelCase to kebab-case (installTest is install-test), an exact command, a direct alias, else a unique abbreviation of the commands and alias names (abbrev), whose aliases are followed to the command (npm install-cl is install-clean, then ci). So npm c, npm con, npm conf and npm confi are npm config, and npm pk is npm pkg."),
 		installOverrides: runtimes$2.verified({
 			options: [
 				{
@@ -3086,13 +3222,25 @@ const pnpm$1 = {
 			}
 		}, `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`, "pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag. Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y."),
 		booleanWords: runtimes$1.verified(true, "https://github.com/pnpm/nopt/blob/main/lib/nopt.js", "The nopt fork pnpm imports (@pnpm/nopt, imported by pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1) reads a Boolean option followed by the word true or false as that value and skips the word, inverted after --no- (parse in lib/nopt.js)."),
-		configCommands: runtimes$1.verified([{
-			command: ["pnpm", "config"],
-			writes: ["set", "delete"]
-		}, {
-			command: ["pnpm", "c"],
-			writes: ["set", "delete"]
-		}], "https://github.com/pnpm/pnpm.io/blob/main/docs/cli/config.md", "pnpm config (aliases: c) manages the configuration files: set <key> <value>, get <key>, delete <key> and list; get and list only read."),
+		configCommands: runtimes$1.verified([
+			{
+				command: ["pnpm", "config"],
+				writes: ["set", "delete"]
+			},
+			{
+				command: ["pnpm", "c"],
+				writes: ["set", "delete"]
+			},
+			{
+				command: ["pnpm", "pkg"],
+				writes: [
+					"set",
+					"delete",
+					"fix"
+				],
+				manifest: true
+			}
+		], "https://github.com/pnpm/pnpm.io/blob/main/docs/cli/config.md", "pnpm config (aliases: c) manages the configuration files: set <key> <value>, get <key>, delete <key> and list; get and list only read. pnpm pkg \"Manages the contents of package.json from the command line\": get, set, delete and fix, no aliases (docs/cli/pkg.md)."),
 		installOverrides: runtimes$1.verified({
 			options: [
 				{

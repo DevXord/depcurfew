@@ -22,6 +22,7 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import type {
   CommandLineKnowledge,
   CommandLineParsing,
+  CommandNamesKnowledge,
   ConfigCommand,
   DownloadCommand,
   Ecosystem,
@@ -522,6 +523,8 @@ interface ToolCommands {
   overrides: InstallOverridesKnowledge | undefined;
   /** Commands that change the tool's configuration. */
   configCommands: readonly ConfigCommand[];
+  /** How the tool resolves aliases and abbreviations of its command names (npm). */
+  commandNames: CommandNamesKnowledge | undefined;
 }
 
 interface Commands {
@@ -629,6 +632,7 @@ function commands(): Commands {
             versionSelection: factOf<NpmVersionSelectionKnowledge>(tool, sibling(key, 'versionSelection')),
             overrides: factOf<InstallOverridesKnowledge>(tool, sibling(key, 'installOverrides')),
             configCommands: factOf<ConfigCommand[]>(tool, sibling(key, 'configCommands')) ?? [],
+            commandNames: factOf<CommandNamesKnowledge>(tool, sibling(key, 'commandNames')),
           },
         ];
       }),
@@ -886,7 +890,9 @@ const CMD_READS_AGAIN = 'has & | < > " or a line break, which cmd.exe may read a
 const MAY_BE_SHELL = 'and may be a shell that runs the command line it is given';
 const MAY_BE_MANAGER = 'and may be a package manager';
 const CONFIG_CHANGE =
-  "changes the package manager's configuration, which the install in the same command would use, while depcurfew checks packages with the configuration from before the change";
+  "changes the package manager's configuration, which the install or other package manager command in the same command would use, while depcurfew checks it with the configuration from before the change";
+const MANIFEST_CHANGE =
+  'changes package.json, whose settings (overrides, scripts, allowScripts, trustedDependencies, pnpm settings) the install or other package manager command in the same command would use, while depcurfew checks it with the package.json from before the change';
 const WEAKENS = 'what the project configured for every package this install fetches, also those depcurfew does not check';
 const OVERRIDE_UNREAD = `is set in a way depcurfew does not read, which may weaken ${WEAKENS}`;
 /** More specs than the hook checks for one command. */
@@ -915,6 +921,9 @@ export function unreadableFix(reason: string): string {
   if (reason.includes(MAY_BE_MANAGER)) return 'Run the package manager by its name (npm, pnpm, yarn, bun, pip, uv) with the package names written out, so depcurfew can check the command';
   if (reason.includes(CONFIG_CHANGE)) {
     return "Run the install as a command of its own, so depcurfew checks it with the configuration it will use; a change to the package manager's configuration is for the user to decide";
+  }
+  if (reason.includes(MANIFEST_CHANGE)) {
+    return 'Run the install as a command of its own, so depcurfew checks it with the package.json it will use; a change to the settings in package.json is for the user to decide';
   }
   if (reason.includes(WEAKENS)) {
     return 'Run the install without that option or variable, so it keeps the release-age delay and install-script settings of the project; if the change is intended, the user decides';
@@ -2001,7 +2010,9 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
   const reader = first.dynamic ? undefined : PROGRAM_READERS.get(executable);
   if (reader !== undefined) return scanProgramReader(words, command, reader, depth);
   const rest = words.slice(1);
-  if (!first.dynamic && configChange(executable, rest)) return { requests: [], unreadable: undefined, changes: `${shown(line)}: ${CONFIG_CHANGE}`, manager: true };
+  // A change of the configuration or of package.json counts when another package manager command is on the line.
+  const change = first.dynamic ? undefined : configChange(executable, rest);
+  if (change !== undefined) return { requests: [], unreadable: undefined, changes: `${shown(line)}: ${change === 'manifest' ? MANIFEST_CHANGE : CONFIG_CHANGE}` };
   const scan = scanPackageManager(command, first, executable, rest, line, depth);
   if (scan !== undefined) {
     const batch = batchArgument(first, executable, rest, command.shell);
@@ -2015,11 +2026,30 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
 }
 
 /**
- * Whether a command changes a package manager's configuration (npm config set, pnpm config delete, yarn config set,
- * pip config set, poetry config key value): its subcommand words, skipping options and their values, match a
- * command of configCommands that writes. A word the shell expands where a writing word may stand counts as one.
+ * A command name as the tool resolves it (npm's deref, commandNames): camelCase as kebab-case, an exact command, an
+ * alias, or a unique prefix of a command or an alias, whose alias is followed (npm conf is config, npm pk is pkg).
  */
-function configChange(executable: string, rest: readonly Word[]): boolean {
+function commandName(names: CommandNamesKnowledge, word: string): string {
+  const name = /[A-Z]/u.test(word) ? word.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`) : word;
+  if (names.commands.includes(name)) return name;
+  const alias = (key: string) => (Object.hasOwn(names.aliases, key) ? names.aliases[key] : undefined);
+  let resolved = alias(name);
+  if (resolved === undefined) {
+    const candidates = [...names.commands, ...Object.keys(names.aliases)].filter((candidate) => candidate.startsWith(name));
+    if (candidates.length !== 1) return name;
+    resolved = candidates[0] as string;
+  }
+  for (let step = 0; step < 8 && !names.commands.includes(resolved); step++) resolved = alias(resolved) ?? resolved;
+  return resolved;
+}
+
+/**
+ * Whether a command changes a package manager's configuration (npm config set, pnpm config delete, yarn config set,
+ * pip config set, poetry config key value) or package.json (npm pkg set): its subcommand words, skipping options and
+ * their values, match a command of configCommands that writes. A word the shell expands where a writing word may
+ * stand counts as one.
+ */
+function configChange(executable: string, rest: readonly Word[]): 'configuration' | 'manifest' | undefined {
   for (const tool of commands().tools) {
     for (const entry of tool.configCommands) {
       if (entry.command[0] !== executable) continue;
@@ -2040,15 +2070,18 @@ function configChange(executable: string, rest: readonly Word[]): boolean {
         if (option.next !== undefined) index += 1;
       }
       const parts = entry.command.slice(1);
-      if (!parts.every((part, index) => positional[index]?.text === part && positional[index]?.dynamic !== true)) continue;
+      const names = tool.commandNames;
+      const named = (word: Word | undefined, index: number) => (word === undefined || index > 0 || names === undefined ? word?.text : commandName(names, word.text));
+      if (!parts.every((part, index) => named(positional[index], index) === part && positional[index]?.dynamic !== true)) continue;
       const after = positional.slice(parts.length);
       const word = after[0];
-      if (entry.writes !== undefined && word !== undefined && (word.dynamic || entry.writes.includes(word.text))) return true;
-      if (entry.operands !== undefined && (after.length >= entry.operands || after.some((part) => part.dynamic))) return true;
-      if (entry.options?.some((option) => options.includes(option)) === true) return true;
+      const kind = entry.manifest === true ? 'manifest' : 'configuration';
+      if (entry.writes !== undefined && word !== undefined && (word.dynamic || entry.writes.includes(word.text))) return kind;
+      if (entry.operands !== undefined && (after.length >= entry.operands || after.some((part) => part.dynamic))) return kind;
+      if (entry.options?.some((option) => options.includes(option)) === true) return kind;
     }
   }
-  return false;
+  return undefined;
 }
 
 /** A command of a package manager: the packages it installs or runs; undefined when no package manager owns the executable. */
@@ -2278,8 +2311,8 @@ export function scanCommandLine(line: string, options: ScanOptions = {}): Comman
   aliases = new Map();
   try {
     const scan = scanLine(line, 0, options.shell ?? 'posix');
-    // A change of the configuration matters to the packages installed next to it (npm config set registry … && npm i x).
-    const unreadable = scan.unreadable ?? (scan.requests.length > 0 ? scan.changes : undefined);
+    // A change of the configuration matters to the installs next to it, also those without names (npm config set … && npm ci).
+    const unreadable = scan.unreadable ?? (scan.requests.length > 0 || scan.manager === true ? scan.changes : undefined);
     return { requests: scan.requests.map(settle), unreadable, ...(scan.overrides === undefined ? {} : { overrides: scan.overrides }) };
   } finally {
     aliases = previous;

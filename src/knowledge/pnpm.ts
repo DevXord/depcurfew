@@ -326,9 +326,10 @@ export const pnpm: ToolKnowledge = {
       [
         { command: ['pnpm', 'config'], writes: ['set', 'delete'] },
         { command: ['pnpm', 'c'], writes: ['set', 'delete'] },
+        { command: ['pnpm', 'pkg'], writes: ['set', 'delete', 'fix'], manifest: true },
       ],
       'https://github.com/pnpm/pnpm.io/blob/main/docs/cli/config.md',
-      'pnpm config (aliases: c) manages the configuration files: set <key> <value>, get <key>, delete <key> and list; get and list only read.',
+      'pnpm config (aliases: c) manages the configuration files: set <key> <value>, get <key>, delete <key> and list; get and list only read. pnpm pkg "Manages the contents of package.json from the command line": get, set, delete and fix, no aliases (docs/cli/pkg.md).',
     ),
     installOverrides: runtimes.verified(
       {

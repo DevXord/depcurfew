@@ -488,6 +488,18 @@ export interface ConfigCommand {
   operands?: number;
   /** Options that make it change the configuration (poetry config --unset). */
   options?: readonly string[];
+  /** It changes package.json (npm pkg set), whose settings the install reads, rather than a configuration file. */
+  manifest?: boolean;
+}
+
+/**
+ * The command names a tool accepts and how it resolves them (npm's deref): camelCase is read as kebab-case, then an
+ * exact command, an alias, or a unique prefix of a command or an alias, whose alias is followed to its command.
+ */
+export interface CommandNamesKnowledge {
+  commands: readonly string[];
+  /** Alias to the name it stands for (a command or another alias). */
+  aliases: Readonly<Record<string, string>>;
 }
 
 /**

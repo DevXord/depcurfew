@@ -340,9 +340,18 @@ describe('depcurfew check --hook claude-code', () => {
     const asked = decision((await exec(['check', '--hook', 'claude-code'], event('npm config set registry https://registry.example && npm install lodash', directory))).stdout);
     expect(asked).toMatchObject({ permissionDecision: 'ask' });
     expect(asked.permissionDecisionReason).toContain(
-      "- npm config set registry https://registry.example: changes the package manager's configuration, which the install in the same command would use, while depcurfew checks packages with the configuration from before the change. Fix: Run the install as a command of its own",
+      "- npm config set registry https://registry.example: changes the package manager's configuration, which the install or other package manager command in the same command would use, while depcurfew checks it with the configuration from before the change. Fix: Run the install as a command of its own",
     );
     expect((await exec(['check', '--hook', 'claude-code'], event('npm config get registry && npm install lodash', directory))).stdout).toBe('');
+    // A lockfile install runs with the changed settings too, and package.json is read like the configuration.
+    const lockfile = decision((await exec(['check', '--hook', 'claude-code'], event('npm conf set ignore-scripts false && npm ci', directory))).stdout);
+    expect(lockfile).toMatchObject({ permissionDecision: 'ask' });
+    expect(lockfile.permissionDecisionReason).toContain('- npm conf set ignore-scripts false: changes the package manager');
+    const manifest = decision((await exec(['check', '--hook', 'claude-code'], event('npm pkg set overrides.lodash=4.17.20 && npm install', directory))).stdout);
+    expect(manifest.permissionDecisionReason).toContain(
+      '- npm pkg set overrides.lodash=4.17.20: changes package.json, whose settings (overrides, scripts, allowScripts, trustedDependencies, pnpm settings) the install or other package manager command in the same command would use, while depcurfew checks it with the package.json from before the change. Fix: Run the install as a command of its own, so depcurfew checks it with the package.json it will use; a change to the settings in package.json is for the user to decide',
+    );
+    expect((await exec(['check', '--hook', 'claude-code'], event('npm pkg get name && npm ci', directory))).stdout).toBe('');
   });
 
   it('stays silent for a command that passes or installs nothing', async () => {

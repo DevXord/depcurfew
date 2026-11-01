@@ -443,12 +443,37 @@ export const npm: ToolKnowledge = {
     ),
     configCommands: runtimes.verified(
       [
-        { command: ['npm', 'config'], writes: ['set', 'delete', 'edit', 'fix'] },
-        { command: ['npm', 'c'], writes: ['set', 'delete', 'edit', 'fix'] },
+        { command: ['npm', 'config'], writes: ['set', 'delete', 'rm', 'del', 'edit', 'fix'] },
         { command: ['npm', 'set'], operands: 1 },
+        { command: ['npm', 'pkg'], writes: ['set', 'delete', 'fix'], manifest: true },
       ],
-      'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-config.md',
-      'npm config set sets keys (in the user configuration unless location is given), delete removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list only read. c is an alias of config (lib/utils/cmd-list.js at v12.2.1). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js).',
+      'https://github.com/npm/cli/blob/v12.2.1/lib/commands/config.js',
+      'npm config set sets keys (in the user configuration unless location is given), delete (also rm and del) removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list (ls) only read (the switch in exec, and docs/lib/content/commands/npm-config.md). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js). npm pkg set, delete and fix write package.json back, get only reads (lib/commands/pkg.js). Other spellings of these commands come from commandNames.',
+    ),
+    commandNames: runtimes.verified(
+      {
+        commands: [
+          'access', 'approve-scripts', 'audit', 'bugs', 'cache', 'ci', 'completion', 'config', 'dedupe', 'deny-scripts',
+          'deprecate', 'diff', 'dist-tag', 'docs', 'doctor', 'edit', 'exec', 'explain', 'explore', 'find-dupes', 'fund',
+          'get', 'help', 'help-search', 'init', 'install', 'install-ci-test', 'install-scripts', 'install-test', 'link', 'll',
+          'login', 'logout', 'ls', 'org', 'outdated', 'owner', 'pack', 'patch', 'ping', 'pkg', 'prefix', 'profile', 'prune',
+          'publish', 'query', 'rebuild', 'repo', 'restart', 'root', 'run', 'sbom', 'search', 'set', 'stage', 'start', 'stop',
+          'team', 'test', 'token', 'trust', 'undeprecate', 'uninstall', 'unpublish', 'update', 'version', 'view', 'whoami'
+        ],
+        aliases: {
+          author: 'owner', home: 'docs', issues: 'bugs', info: 'view', show: 'view', find: 'search', add: 'install',
+          unlink: 'uninstall', remove: 'uninstall', rm: 'uninstall', r: 'uninstall', un: 'uninstall', rb: 'rebuild', list: 'ls',
+          ln: 'link', create: 'init', i: 'install', it: 'install-test', cit: 'install-ci-test', u: 'update', up: 'update',
+          c: 'config', s: 'search', se: 'search', tst: 'test', t: 'test', ddp: 'dedupe', v: 'view', 'run-script': 'run',
+          'clean-install': 'ci', 'clean-install-test': 'install-ci-test', x: 'exec', why: 'explain', la: 'll',
+          verison: 'version', ic: 'ci', innit: 'init', in: 'install', ins: 'install', inst: 'install', insta: 'install',
+          instal: 'install', isnt: 'install', isnta: 'install', isntal: 'install', isntall: 'install', 'install-clean': 'ci',
+          'isntall-clean': 'ci', hlep: 'help', 'dist-tags': 'dist-tag', upgrade: 'update', udpate: 'update', rum: 'run',
+          sit: 'install-ci-test', urn: 'run', ogr: 'org'
+        },
+      },
+      CMD_LIST,
+      'deref resolves a command name: camelCase to kebab-case (installTest is install-test), an exact command, a direct alias, else a unique abbreviation of the commands and alias names (abbrev), whose aliases are followed to the command (npm install-cl is install-clean, then ci). So npm c, npm con, npm conf and npm confi are npm config, and npm pk is npm pkg.',
     ),
     installOverrides: runtimes.verified(
       {
