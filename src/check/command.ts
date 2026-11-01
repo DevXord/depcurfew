@@ -11,15 +11,24 @@
 // PowerShell lines (the PowerShell tool, powershell -c) and cmd /c lines have their own readers in windows-shells.ts;
 // PowerShell syntax that reader does not understand makes the line unreadable when its statement names a package
 // manager. Executables are matched in any case and without .exe, .cmd, .bat or .ps1, as Windows and macOS find them.
+// Options and variables that weaken, for one command, the release-age delay or the rule on install scripts that
+// depcurfew apply configured (--min-release-age=0, npm_config_ignore_scripts=false) are returned as overrides, which
+// the hook compares with the policy; a command that changes the package manager's configuration (npm config set)
+// next to an install makes that install unreadable, as the install would not use the configuration that was read.
 import { values } from '../apply/facts.ts';
+import { delayMinutes, formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type {
   CommandLineKnowledge,
   CommandLineParsing,
+  ConfigCommand,
   DownloadCommand,
   Ecosystem,
+  InstallOverridesKnowledge,
   NpmVersionSelectionKnowledge,
+  OverrideSwitch,
+  OverrideValues,
   PythonInterpreterKnowledge,
   PythonSelectionKnowledge,
   RegistryOverridesKnowledge,
@@ -29,6 +38,7 @@ import type {
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { PYPI_PREFIX } from '../policy/package-pattern.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
+import type { ResolvedPolicy } from '../policy/schema.ts';
 import { parsePythonSpec } from './python-spec.ts';
 import { NestingTooDeep, readCmd, readPowerShell } from './windows-shells.ts';
 
@@ -66,11 +76,34 @@ export interface InstallRequest {
   buildFromSource?: boolean;
 }
 
+/** An option or variable of a command that weakens the release-age delay or the rule on install scripts (installOverrides). */
+export interface Override {
+  tool: ToolId;
+  /** The command it is on, for messages. */
+  command: string;
+  /** As written: --min-release-age=0, npm_config_ignore_scripts=false. */
+  written: string;
+  weakens: OverrideSwitch['weakens'];
+  /** The delay it sets, to compare with the policy; left out when any value weakens it. */
+  delay?: string;
+  /** The shell expands its value. */
+  expanded?: boolean;
+}
+
 export interface CommandScan {
   requests: InstallRequest[];
   /** Why an install command could not be read; undefined when every one could. */
   unreadable: string | undefined;
+  /** Options and variables that weaken what depcurfew apply configured, to be compared with the policy. */
+  overrides?: Override[];
+  /** A command on the line changes the package manager's configuration; it counts when the line installs packages. */
+  changes?: string;
+  /** A package manager runs on the line, so variables that weaken it count. */
+  manager?: boolean;
 }
+
+/** An override before the command it is on is known. */
+type Found = Omit<Override, 'command'>;
 
 const SEPARATORS = ['&&', '||', '|&', ';;', '|', ';', '&', '(', ')'];
 /** How deep command lines inside command lines are followed; anything deeper cannot be read. */
@@ -205,13 +238,17 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
     text += line.slice(from, end);
     return end;
   };
-  /** The delimiter word of a here-document: quoting any part of it keeps the body from being expanded. */
+  /**
+   * The delimiter word of a here-document: quoting any part of it keeps the body from being expanded. It ends at a
+   * blank (space, tab), a newline or an operator, as bash's words do: a carriage return of a CRLF line belongs to it,
+   * and bash ends the body only at a line that holds it too (cat <<EOF\r\n…\r\nEOF\r\n).
+   */
   const delimiter = (from: number): { word: string; quoted: boolean; end: number } => {
     let index = from;
     while (line[index] === ' ' || line[index] === '\t') index += 1;
     let word = '';
     let quoted = false;
-    while (index < line.length && !/[\s;&|<>()]/u.test(line[index] as string)) {
+    while (index < line.length && !/[ \t\n;&|<>()]/u.test(line[index] as string)) {
       const char = line[index] as string;
       if (char === "'" || char === '"') {
         const end = line.indexOf(char, index + 1);
@@ -481,6 +518,10 @@ interface ToolCommands {
   /** How the command line changes which version is picked (Python) and which dist-tag npm prefers. */
   selection: PythonSelectionKnowledge | undefined;
   versionSelection: NpmVersionSelectionKnowledge | undefined;
+  /** Options and variables that weaken the delay or the rule on install scripts for one command. */
+  overrides: InstallOverridesKnowledge | undefined;
+  /** Commands that change the tool's configuration. */
+  configCommands: readonly ConfigCommand[];
 }
 
 interface Commands {
@@ -500,6 +541,8 @@ interface Commands {
   configVariables: ReadonlySet<string>;
   /** Variables, lowercased, that change the version a package manager picks or whether it builds from source. */
   selectionVariables: ReadonlySet<string>;
+  /** Variables, lowercased, that weaken the delay or the rule on install scripts, with the tools that read them. */
+  overrideVariables: ReadonlyMap<string, readonly { tool: ToolId; entry: OverrideSwitch }[]>;
 }
 
 /** The variables of a tool's selection switches. */
@@ -551,7 +594,11 @@ function commands(): Commands {
         if (facts === undefined) return [];
         const more = factOf<string[]>(tool, sibling(key, 'valueOptions')) ?? [];
         const flags = [...(facts.flagOptions ?? []), ...(factOf<string[]>(tool, sibling(key, 'flagOptions')) ?? [])];
-        const parsing: CommandLineParsing = { ...facts.parsing, ...factOf<CommandLineParsing>(tool, sibling(key, 'parsing')) };
+        const parsing: CommandLineParsing = {
+          ...facts.parsing,
+          ...factOf<CommandLineParsing>(tool, sibling(key, 'parsing')),
+          ...(factOf<boolean>(tool, sibling(key, 'booleanWords')) === true ? { booleanWords: true } : {}),
+        };
         const overrides = factOf<RegistryOverridesKnowledge>(tool, sibling(key, 'registryOverrides'));
         const ecosystem = ecosystemOfTool(tool);
         const download = [...facts.run, ...facts.create];
@@ -580,10 +627,19 @@ function commands(): Commands {
             complete: flags.length > 0,
             selection: factOf<PythonSelectionKnowledge>(tool, sibling(key, 'selection')),
             versionSelection: factOf<NpmVersionSelectionKnowledge>(tool, sibling(key, 'versionSelection')),
+            overrides: factOf<InstallOverridesKnowledge>(tool, sibling(key, 'installOverrides')),
+            configCommands: factOf<ConfigCommand[]>(tool, sibling(key, 'configCommands')) ?? [],
           },
         ];
       }),
   );
+  const overrideVariables = new Map<string, { tool: ToolId; entry: OverrideSwitch }[]>();
+  for (const tool of tools) {
+    for (const entry of tool.overrides?.variables ?? []) {
+      const name = entry.name.toLowerCase();
+      overrideVariables.set(name, [...(overrideVariables.get(name) ?? []), { tool: tool.tool, entry }]);
+    }
+  }
   const all = tools.flatMap(({ facts }) => [...facts.add, ...[...facts.create, ...facts.run].map((entry) => entry.command)]);
   const executables = new Set(all.map((entry) => entry[0] ?? ''));
   const overrides = tools.flatMap((tool) => {
@@ -624,6 +680,7 @@ function commands(): Commands {
         ])
         .map((name) => name.toLowerCase()),
     ),
+    overrideVariables,
   };
   return cached;
 }
@@ -649,6 +706,8 @@ interface Wrapper {
   anywhere?: boolean;
   /** Options after which the remaining words are the command (runuser -u user command). */
   commandAfter?: readonly string[];
+  /** Flags that make it run the remaining words through a shell as one command line (sudo -s, sudo -i). */
+  shellOptions?: readonly string[];
 }
 
 /** Commands that run the rest of the line as a command. */
@@ -661,6 +720,9 @@ const WRAPPERS: ReadonlyMap<string, Wrapper> = new Map<string, Wrapper>([
         '-D', '--chdir', '-R', '--chroot', '-r', '--role', '-t', '--type', '-T', '--command-timeout', '-a', '--auth-type',
         '-c', '--login-class',
       ],
+      // sudo -s and -i run the command through a shell: its words are read as one command line, which also covers a
+      // command line given as one word (sudo -s 'npm i x'), whatever escaping the sudo version applies.
+      shellOptions: ['-s', '--shell', '-i', '--login'],
     },
   ],
   ['doas', { values: ['-u', '-C'] }],
@@ -822,6 +884,11 @@ const SET_UNREAD = 'is set in a way depcurfew does not read, which may change th
 const POWERSHELL_UNREAD = 'in PowerShell, and the statement names';
 const CMD_READS_AGAIN = 'has & | < > " or a line break, which cmd.exe may read as another command';
 const MAY_BE_SHELL = 'and may be a shell that runs the command line it is given';
+const MAY_BE_MANAGER = 'and may be a package manager';
+const CONFIG_CHANGE =
+  "changes the package manager's configuration, which the install in the same command would use, while depcurfew checks packages with the configuration from before the change";
+const WEAKENS = 'what the project configured for every package this install fetches, also those depcurfew does not check';
+const OVERRIDE_UNREAD = `is set in a way depcurfew does not read, which may weaken ${WEAKENS}`;
 /** More specs than the hook checks for one command. */
 export const TOO_MANY = 'depcurfew checks at most';
 
@@ -845,6 +912,13 @@ export function unreadableFix(reason: string): string {
     return 'Run the package manager as a plain command with the package names written out (no variables, (...), {...}, Start-Process or aliases), so depcurfew can check them';
   }
   if (reason.includes(MAY_BE_SHELL)) return 'Name the shell (bash -c, sh -c) or run the command itself, so depcurfew can check it';
+  if (reason.includes(MAY_BE_MANAGER)) return 'Run the package manager by its name (npm, pnpm, yarn, bun, pip, uv) with the package names written out, so depcurfew can check the command';
+  if (reason.includes(CONFIG_CHANGE)) {
+    return "Run the install as a command of its own, so depcurfew checks it with the configuration it will use; a change to the package manager's configuration is for the user to decide";
+  }
+  if (reason.includes(WEAKENS)) {
+    return 'Run the install without that option or variable, so it keeps the release-age delay and install-script settings of the project; if the change is intended, the user decides';
+  }
   if (reason.includes(CMD_READS_AGAIN)) return 'Leave & | < > and " out of the arguments of the package manager, so depcurfew can check the command';
   if (reason.includes(TOO_MANY)) return 'Install the packages in smaller groups, so depcurfew can check each of them';
   return 'Write the package names out in the command, so depcurfew can check them';
@@ -875,6 +949,54 @@ function unreadable(reason: string): CommandScan {
 function merge(into: CommandScan, scan: CommandScan): void {
   into.requests.push(...scan.requests);
   into.unreadable ??= scan.unreadable;
+  if (scan.overrides !== undefined && scan.overrides.length > 0) into.overrides = [...(into.overrides ?? []), ...scan.overrides];
+  if (into.changes === undefined && scan.changes !== undefined) into.changes = scan.changes;
+  if (scan.manager === true) into.manager = true;
+}
+
+/** Whether a switch weakens the protection with this value: lists match in any case, exceptions only exactly (fail closed). */
+function weakensWith(values: OverrideValues, value: string): boolean {
+  if (values === 'delay' || values === 'any') return true;
+  const text = value.trim();
+  if ('except' in values) return !values.except.includes(text);
+  return values.some((entry) => entry.toLowerCase() === text.toLowerCase());
+}
+
+/**
+ * The override an option of a tool's command sets, read as the tool reads it: a flag alone is true, and nopt's
+ * --no-<name> is <name> set to false (--no-<name> true sets it to false too, as nopt inverts the word).
+ */
+function overrideOption(tool: ToolCommands, name: string, value: string | undefined, written: string): Found | undefined {
+  const options = tool.overrides?.options ?? [];
+  let entry = options.find((option) => option.name === name);
+  let given = value ?? 'true';
+  const negation = tool.parsing.negation;
+  if (entry === undefined && negation !== undefined && name.startsWith(negation)) {
+    entry = options.find((option) => option.name === `--${name.slice(negation.length)}`);
+    given = value === 'false' ? 'true' : 'false';
+  }
+  if (entry === undefined || !weakensWith(entry.values, given)) return undefined;
+  return { tool: tool.tool, written, weakens: entry.weakens, ...(entry.values === 'delay' ? { delay: given } : {}) };
+}
+
+/** The overrides among the options of a command that is not an install (npm ci --ignore-scripts=false). */
+function optionOverrides(tool: ToolCommands, words: readonly Word[]): Found[] {
+  const found: Found[] = [];
+  for (let index = 0; index < words.length; index++) {
+    const word = words[index] as Word;
+    if (word.text === '--') break;
+    if (!isOption(word.text) || word.dynamic) continue;
+    const option = readOption(words, index, tool, (name) => tool.valueOptions.has(name));
+    const override = overrideOption(tool, option.name, option.value, option.next === undefined ? word.text : `${word.text} ${option.next.text}`);
+    if (override !== undefined) found.push(override);
+    if (option.next !== undefined) index += 1;
+  }
+  return found;
+}
+
+/** The tool's command with what it weakens; it runs a package manager, so variables on its line count. */
+function managerScan(line: string, found: readonly Found[]): CommandScan {
+  return { requests: [], unreadable: undefined, manager: true, ...(found.length === 0 ? {} : { overrides: found.map((override) => ({ ...override, command: line })) }) };
 }
 
 /** What an option or a variable changes about the version a package manager picks or how it installs it. */
@@ -890,7 +1012,7 @@ type SelectionEvent =
       list?: boolean;
     };
 
-type Outcome = { specs: string[]; lines: string[]; rest: Word[]; events: SelectionEvent[] } | { unreadable: string };
+type Outcome = { specs: string[]; lines: string[]; rest: Word[]; events: SelectionEvent[]; overrides: Found[] } | { unreadable: string };
 
 interface Switches {
   prereleases: SelectionSwitches;
@@ -1065,10 +1187,18 @@ function readOption(words: readonly Word[], index: number, tool: ToolCommands, t
   const text = (words[index] as Word).text;
   const parsing = tool.parsing;
   let [name, attached] = splitOption(text);
+  // nopt takes the word true or false after a flag as its value (--ignore-scripts false), also after --no-<name>.
+  const word = words[index + 1];
+  const booleanWord = parsing.booleanWords === true && attached === undefined && word !== undefined && !word.dynamic && (word.text === 'true' || word.text === 'false') ? word : undefined;
   if (parsing.anyDashes === true) {
     const option = noptOption(tool, name.replace(/^-+/u, ''));
-    if (option.fixed) return { name: option.name, value: attached ?? option.value, next: undefined };
+    if (option.fixed) {
+      const negated = parsing.negation !== undefined && option.name.startsWith(parsing.negation) && option.value === undefined;
+      if (negated && booleanWord !== undefined) return { name: option.name, value: booleanWord.text, next: booleanWord };
+      return { name: option.name, value: attached ?? option.value, next: undefined };
+    }
     name = option.name;
+    if (booleanWord !== undefined && !takes(name) && tool.known.has(name)) return { name, value: booleanWord.text, next: booleanWord };
   } else if (parsing.groupedShortOptions === true && /^-[^-]./u.test(text) && attached === undefined) {
     // -Uihttps://… is -U, then -i with the rest of the word as its value.
     for (let position = 1; position < text.length; position++) {
@@ -1130,6 +1260,7 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
   const specs: string[] = [];
   const lines: string[] = [];
   const events: SelectionEvent[] = [];
+  const overrides: Found[] = [];
   let named = false;
   let positional = false;
   let shell = false;
@@ -1145,7 +1276,7 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
       const option = readOption(words, index, tool, takes);
       const { name, value, next } = option;
       // The arguments are local files (deno install --entrypoint), so no package is named.
-      if (mode === 'add' && tool.facts.fileOptions?.includes(name) === true) return { specs: [], lines, rest: [], events };
+      if (mode === 'add' && tool.facts.fileOptions?.includes(name) === true) return { specs: [], lines, rest: [], events, overrides };
       if (entry?.shellOptions?.includes(name) === true) {
         shell = true;
         continue;
@@ -1160,6 +1291,8 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
       if (next?.dynamic === true) return { unreadable: `"${shown(`${word.text} ${next.text}`)}" is expanded by the shell` };
       const setting = registryOption(tool, name, value);
       if (setting !== undefined) return { unreadable: setting };
+      const override = overrideOption(tool, name, value, next === undefined ? word.text : `${word.text} ${next.text}`);
+      if (override !== undefined) overrides.push(override);
       events.push(...optionEvents(context, name, value));
       if (value === undefined) continue;
       const listed = tool.facts.commaSeparatedOptions?.includes(name) === true ? commaSeparated(value) : [value];
@@ -1174,7 +1307,7 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
       // Shell mode: the argument is a command line that runs with the packages.
       if (word.input === true) return { unreadable: expanded(word) };
       lines.push(word.text);
-      return { specs, lines, rest: [], events };
+      return { specs, lines, rest: [], events, overrides };
     }
     if (word.dynamic) return { unreadable: expanded(word) };
     if (mode === 'add') {
@@ -1186,18 +1319,18 @@ function readArguments(words: readonly Word[], mode: 'add' | 'run' | 'create', t
       const url = /^https?:\/\//iu.test(word.text);
       if (entry?.packageArgument === false) {
         if (entry.scriptUrls === true && url) return { unreadable: scriptDownload(word.text) };
-        return { specs, lines, rest: words.slice(index), events };
+        return { specs, lines, rest: words.slice(index), events, overrides };
       }
       if (entry?.scriptSuffixes?.some((suffix) => word.text.toLowerCase().endsWith(suffix)) === true) {
-        return url ? { unreadable: scriptDownload(word.text) } : { specs, lines, rest: [], events };
+        return url ? { unreadable: scriptDownload(word.text) } : { specs, lines, rest: [], events, overrides };
       }
-      if (!named && isInterpreter(word.text, tool.facts.interpreterNames)) return { specs, lines, rest: words.slice(index), events };
+      if (!named && isInterpreter(word.text, tool.facts.interpreterNames)) return { specs, lines, rest: words.slice(index), events, overrides };
       if (!named) specs.push(entry?.binaryPath === true ? withoutBinary(word.text) : word.text);
     }
     if (mode === 'create') specs.push(/^[.~/\\]|^[^@][^/]*\//u.test(word.text) ? word.text : createPackage(word.text, tool.facts.createNames));
-    return { specs, lines, rest: words.slice(index), events };
+    return { specs, lines, rest: words.slice(index), events, overrides };
   }
-  return { specs, lines, rest: [], events };
+  return { specs, lines, rest: [], events, overrides };
 }
 
 /** A package without the /<binary> after it (deno x npm:typescript/tsc); scoped names keep their own slash. */
@@ -1222,7 +1355,15 @@ interface Pending {
 /** What is still to be settled about each request: the variables of the lines around it come in on the way out. */
 const PENDING = new WeakMap<InstallRequest, Pending>();
 
-function finish(tool: ToolCommands, line: string, outcome: Outcome, depth: number, before: readonly SelectionEvent[] = [], context?: CommandContext): CommandScan {
+function finish(
+  tool: ToolCommands,
+  line: string,
+  outcome: Outcome,
+  depth: number,
+  before: readonly SelectionEvent[] = [],
+  context?: CommandContext,
+  overridesBefore: readonly Found[] = [],
+): CommandScan {
   if ('unreadable' in outcome) return unreadable(`${shown(line)}: ${outcome.unreadable}`);
   // Python specs carry the prefix of the policy, so that check looks them up on the index.
   const prefix = tool.ecosystem === 'pypi' ? PYPI_PREFIX : '';
@@ -1232,7 +1373,8 @@ function finish(tool: ToolCommands, line: string, outcome: Outcome, depth: numbe
     PENDING.set(request, { events, variables: [], switches: context?.switches, tagVariable: tool.versionSelection?.tagVariable });
     return request;
   });
-  const scan: CommandScan = { requests, unreadable: undefined };
+  const scan: CommandScan = managerScan(line, [...overridesBefore, ...outcome.overrides]);
+  scan.requests.push(...requests);
   for (const nested of outcome.lines) merge(scan, scanLine(nested, depth + 1));
   // The package may run a package manager in turn (npx cross-env NODE_ENV=x npm install …).
   merge(scan, laterCommand(outcome.rest, depth));
@@ -1308,12 +1450,66 @@ function scanShell(words: readonly Word[], command: SimpleCommand, depth: number
   return reads ? scanInput(words, command, depth) : NOTHING;
 }
 
-/** source file and . file run a file in the current shell: a local script is not read, but standard input and <(…) are. */
-function scanSource(words: readonly Word[], command: SimpleCommand): CommandScan | undefined {
+/**
+ * source file and . file run a file in the current shell: a local script is not read, but standard input and <(…)
+ * are. bash finds a file named without a slash on PATH and passes it the words after it, so . npm i x runs an npm
+ * that is a shell script (Git Bash) with i x; in PowerShell, . npm i x dot-sources the command npm. Either way the
+ * package manager it names is read with those words.
+ */
+function scanSource(words: readonly Word[], command: SimpleCommand, depth: number): CommandScan | undefined {
   const file = words[1];
   if (file === undefined) return NOTHING;
   if (isProcessSubstitution(file)) return unreadable(`${shown(joined(words))}: ${FROM_PROCESS}`);
+  const manager = file.dynamic ? undefined : scriptManager(file.text);
+  if (manager !== undefined) return scanCommand({ ...command, words: [{ text: manager, dynamic: false }, ...words.slice(2)] }, depth);
   return file.dynamic || !STDIN_FILES.has(file.text) ? NOTHING : undefined;
+}
+
+/** trap action signal…: the action is a command line the shell runs on those signals (EXIT, DEBUG, ERR…); - and a number reset them. */
+function scanTrap(words: readonly Word[], depth: number): CommandScan {
+  let index = 1;
+  while (index < words.length && /^-[lpP]+$/u.test((words[index] as Word).text)) index += 1;
+  if (words[index]?.text === '--') index += 1;
+  const action = words[index];
+  if (action === undefined || (!action.dynamic && (action.text === '-' || /^\d+$/u.test(action.text)))) return NOTHING;
+  if (action.input === true) return unreadable(`${shown(joined(words))}: ${expanded(action)}`);
+  return scanLine(action.text, depth + 1);
+}
+
+/** The aliases defined so far in the command line being scanned, by name, with their values. */
+let aliases = new Map<string, string>();
+
+/**
+ * alias name=value: the value is read as a command line, and a later command that starts with the name is read with
+ * the value in its place. bash expands aliases only in later lines and with expand_aliases, zsh in any shell; depcurfew
+ * reads them everywhere, which at worst checks a command that would not run.
+ */
+function scanAlias(words: readonly Word[], depth: number): CommandScan {
+  const scan: CommandScan = { requests: [], unreadable: undefined };
+  for (const word of words.slice(1)) {
+    const equals = word.text.indexOf('=');
+    if (isOption(word.text) || equals <= 0) continue;
+    const value = word.text.slice(equals + 1);
+    aliases.set(word.text.slice(0, equals), value);
+    merge(scan, scanLine(value, depth + 1));
+  }
+  return scan;
+}
+
+/** The words an alias stands for, or undefined when its value is more than one simple command (it is then read as a line). */
+function aliasWords(value: string): Word[] | undefined {
+  try {
+    const reading = read(value, 0, undefined, 0);
+    return reading.items.every((item) => item.kind === 'word') ? reading.items.map((item) => (item as { word: Word }).word) : undefined;
+  } catch (error) {
+    if (error instanceof Unreadable) return undefined;
+    throw error;
+  }
+}
+
+/** A word as the shell would read it back: in single quotes unless the shell expands it. */
+function requoted(word: Word): string {
+  return word.dynamic ? word.text : `'${word.text.replaceAll("'", "'\\''")}'`;
 }
 
 /** PowerShell parameters with a separate value, by name and alias; any other parameter is a switch. */
@@ -1415,6 +1611,7 @@ function unwrap(words: readonly Word[], wrapper: Wrapper): { words: Word[] } | {
   if (wrapper.anywhere === true) return unwrapAnywhere(words, wrapper);
   let index = 1;
   let replace: string | undefined;
+  let shell = false;
   while (index < words.length) {
     const text = (words[index] as Word).text;
     if (ASSIGNMENT.test(text)) {
@@ -1427,11 +1624,17 @@ function unwrap(words: readonly Word[], wrapper: Wrapper): { words: Word[] } | {
       break;
     }
     const [name, attached] = splitOption(text);
-    if (wrapper.split?.includes(name)) {
+    // getopt_long takes an unambiguous prefix of a long option: env --split='npm i x'.
+    if (wrapper.split?.some((option) => option === name || (name.startsWith('--') && name.length > 2 && option.startsWith(name))) === true) {
       const value = attached ?? words[index + 1]?.text ?? '';
       return { line: [value, ...words.slice(index + (attached === undefined ? 2 : 1)).map((word) => word.text)].join(' ') };
     }
     if (wrapper.lineOptions?.includes(name)) return lineOf(attached, words[index + 1]);
+    if (wrapper.shellOptions?.includes(name)) {
+      shell = true;
+      index += 1;
+      continue;
+    }
     const inputOption = wrapper.input?.find((option) => name === option || (option.length === 2 && name.startsWith(option)));
     if (inputOption !== undefined) {
       // xargs -I{} or --replace={}: the string is replaced with input; -i alone means {}.
@@ -1440,9 +1643,21 @@ function unwrap(words: readonly Word[], wrapper: Wrapper): { words: Word[] } | {
       index += inline === undefined && inputOption !== '-i' ? 2 : 1;
       continue;
     }
+    if (/^-[^-]./u.test(text)) {
+      const grouped = groupedOptions(words, index, wrapper);
+      if (!('next' in grouped)) return grouped;
+      shell ||= grouped.shell;
+      index = grouped.next;
+      continue;
+    }
     index += attached === undefined && wrapper.values?.includes(name) === true ? 2 : 1;
   }
   const rest = words.slice(index + (wrapper.operands ?? 0));
+  if (shell) {
+    if (rest.length === 0) return { words: [] };
+    const filled = rest.find((word) => word.input === true);
+    return filled === undefined ? { line: joined(rest) } : { unreadable: expanded(filled) };
+  }
   // flock file -c command: a line option may follow the operands.
   const [after, value] = splitOption(rest[0]?.text ?? '');
   if (wrapper.operands !== undefined && wrapper.lineOptions?.includes(after) === true) return lineOf(value, rest[1]);
@@ -1454,6 +1669,28 @@ function unwrap(words: readonly Word[], wrapper: Wrapper): { words: Word[] } | {
   if (replace === undefined) return { words: [...rest, XARGS_INPUT] };
   const marker = replace;
   return { words: rest.map((word) => (word.text.includes(marker) ? { text: word.text, dynamic: true, input: true } : word)) };
+}
+
+/**
+ * One-letter options of a wrapper grouped in one word, as getopt reads them (env -iS'npm i x', env -vS 'npm i x',
+ * sudo -Es): flags, then perhaps an option whose value is the rest of the word or the next word. The = of -u=x is part
+ * of the value, so the word is read as written.
+ */
+function groupedOptions(words: readonly Word[], index: number, wrapper: Wrapper): { next: number; shell: boolean } | { line: string } | { unreadable: string } {
+  const text = (words[index] as Word).text;
+  let shell = false;
+  for (let position = 1; position < text.length; position++) {
+    const option = `-${text[position] as string}`;
+    const rest = text.slice(position + 1);
+    if (wrapper.split?.includes(option)) {
+      const value = rest === '' ? (words[index + 1]?.text ?? '') : rest;
+      return { line: [value, ...words.slice(index + (rest === '' ? 2 : 1)).map((word) => word.text)].join(' ') };
+    }
+    if (wrapper.lineOptions?.includes(option)) return lineOf(rest === '' ? undefined : rest, words[index + 1]);
+    if (wrapper.shellOptions?.includes(option)) shell = true;
+    if (wrapper.values?.includes(option)) return { next: index + (rest === '' ? 2 : 1), shell };
+  }
+  return { next: index + 1, shell };
 }
 
 /** The command line given to a line option: in the same word (attached) or the next one. */
@@ -1507,6 +1744,55 @@ function executableOf(text: string): string {
   return unversioned !== name && (executables.has(unversioned) || interpreter()?.executables.includes(unversioned) === true) ? unversioned : name;
 }
 
+/** Script files a JavaScript or Python interpreter runs: npm-cli.js, yarn-4.1.0.cjs, pnpm.mjs, pip.pyz, __main__.py. */
+const SCRIPT_EXTENSIONS = /\.(?:js|cjs|mjs|pyz|py)$/iu;
+
+/**
+ * The package manager a script path runs: its file name without the extension, -cli or a version (/usr/bin/npm,
+ * node_modules/npm/bin/npm-cli.js, .yarn/releases/yarn-4.1.0.cjs, pip.pyz), the folder of a __main__.py, or the Yarn
+ * a project keeps in .yarn/releases; undefined when it names none.
+ */
+function scriptManager(text: string): string | undefined {
+  const { executables } = commands();
+  const parts = text.split(/[/\\]/u).filter((part) => part !== '');
+  let name = (parts.at(-1) ?? '').replace(SCRIPT_EXTENSIONS, '');
+  if (name === '__main__') name = parts.at(-2) ?? '';
+  for (const candidate of [name, name.replace(/-cli$/iu, ''), name.replace(/-v?\d[\w.+-]*$/u, '')]) {
+    const executable = executableOf(candidate);
+    if (candidate !== '' && executables.has(executable)) return executable;
+  }
+  return parts.at(-3) === '.yarn' && parts.at(-2) === 'releases' && executables.has('yarn') ? 'yarn' : undefined;
+}
+
+/** A package manager a folder of a script path names (/usr/lib/node_modules/npm/lib/cli.js): the script may be its entry point. */
+function managerFolder(text: string): string | undefined {
+  const { executables } = commands();
+  return text
+    .split(/[/\\]/u)
+    .slice(0, -1)
+    .map((part) => executableOf(part))
+    .find((part) => executables.has(part));
+}
+
+/**
+ * The script an interpreter runs, with the words after it: a package manager's script is that package manager; a
+ * script the shell expands, or one in a package manager's folder, followed by an install word may be one (ask).
+ */
+function scanScript(words: readonly Word[], index: number, command: SimpleCommand, depth: number): CommandScan {
+  const script = words[index] as Word;
+  const rest = words.slice(index + 1);
+  const manager = script.dynamic ? undefined : scriptManager(script.text);
+  if (manager !== undefined) return scanCommand({ ...command, words: [{ text: manager, dynamic: false }, ...rest] }, depth);
+  const next = rest.find((word) => !isOption(word.text));
+  // run is left out: node "$SCRIPT" run lint is common, and running a script of a project installs nothing.
+  if (next !== undefined && !next.dynamic && next.text !== 'run' && commands().installWords.has(next.text)) {
+    if (script.dynamic && !isProcessSubstitution(script)) return unreadable(`${shown(joined(words))}: ${expanded(script, 'the script ')} ${MAY_BE_MANAGER}`);
+    const folder = script.dynamic ? undefined : managerFolder(script.text);
+    if (folder !== undefined) return unreadable(`${shown(joined(words))}: the script "${shown(script.text)}" is in a folder named ${folder} ${MAY_BE_MANAGER}`);
+  }
+  return scanProgram(words, command, script);
+}
+
 /**
  * The script operand of an interpreter run without inline code: a program read from a pipe (curl … | python3) or
  * printed by another command (python3 <(curl …)) cannot be read; a local script and a here-document are not read.
@@ -1518,10 +1804,10 @@ function scanProgram(words: readonly Word[], command: SimpleCommand, script: Wor
 }
 
 /** node, ruby, perl or php: options, then the script; without one (or with -) they run the program on their input. */
-function scanProgramReader(words: readonly Word[], command: SimpleCommand, reader: ProgramReader): CommandScan {
+function scanProgramReader(words: readonly Word[], command: SimpleCommand, reader: ProgramReader, depth: number): CommandScan {
   for (let index = 1; index < words.length; index++) {
     const word = words[index] as Word;
-    if (!isOption(word.text)) return scanProgram(words, command, word);
+    if (!isOption(word.text)) return scanScript(words, index, command, depth);
     const [name] = splitOption(word.text);
     const inline = reader.inline.find((option) => name === option || (option.length === 2 && name.startsWith(option)));
     if (inline !== undefined) {
@@ -1539,9 +1825,9 @@ function scanInterpreter(words: readonly Word[], command: SimpleCommand, depth: 
   if (facts === undefined) return NOTHING;
   for (let index = 1; index < words.length; index++) {
     const word = words[index] as Word;
-    if (!isOption(word.text)) return scanProgram(words, command, word);
+    if (!isOption(word.text)) return scanScript(words, index, command, depth);
     if (word.dynamic) return unreadable(`${shown(joined(words))}: ${expanded(word)}`);
-    if (word.text === '--') return scanProgram(words, command, words[index + 1]);
+    if (word.text === '--') return words[index + 1] === undefined ? scanProgram(words, command, undefined) : scanScript(words, index + 1, command, depth);
     if (word.text.startsWith('--')) {
       if (facts.valueOptions.includes(word.text)) index += 1;
       continue;
@@ -1561,8 +1847,10 @@ function scanInterpreter(words: readonly Word[], command: SimpleCommand, depth: 
         const module = attached === '' ? words[index + 1] : { text: attached, dynamic: false };
         if (module === undefined) return NOTHING;
         if (module.dynamic) return unreadable(`${shown(joined(words))}: ${expanded(module, 'the module ')}`);
-        if (!commands().executables.has(module.text)) return NOTHING;
-        return scanCommand({ ...command, words: [{ text: module.text, dynamic: false }, ...words.slice(index + (attached === '' ? 2 : 1))] }, depth);
+        // A module inside a package manager's package runs that package manager: python -m pip.__main__.
+        const name = module.text.split('.')[0] ?? '';
+        if (!commands().executables.has(name)) return NOTHING;
+        return scanCommand({ ...command, words: [{ text: name, dynamic: false }, ...words.slice(index + (attached === '' ? 2 : 1))] }, depth);
       }
       if (facts.valueOptions.includes(option)) {
         if (attached === '') index += 1;
@@ -1574,9 +1862,14 @@ function scanInterpreter(words: readonly Word[], command: SimpleCommand, depth: 
 }
 
 /** The subcommand words after the executable, skipping options and their values, with where each one stands. */
-function commandWords(rest: readonly Word[], tool: ToolCommands, line: string): { words: { word: Word; index: number }[]; events: SelectionEvent[] } | { unreadable: string } {
+function commandWords(
+  rest: readonly Word[],
+  tool: ToolCommands,
+  line: string,
+): { words: { word: Word; index: number }[]; events: SelectionEvent[]; overrides: Found[] } | { unreadable: string } {
   const found: { word: Word; index: number }[] = [];
   const events: SelectionEvent[] = [];
+  const overrides: Found[] = [];
   const context = contextOf(tool, undefined);
   for (let index = 0; index < rest.length && found.length < 3; index++) {
     const word = rest[index] as Word;
@@ -1587,13 +1880,15 @@ function commandWords(rest: readonly Word[], tool: ToolCommands, line: string): 
       if (option.next?.dynamic === true) return { unreadable: `${shown(line)}: "${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell` };
       const setting = registryOption(tool, option.name, option.value);
       if (setting !== undefined) return { unreadable: `${shown(line)}: ${setting}` };
+      const override = overrideOption(tool, option.name, option.value, option.next === undefined ? word.text : `${word.text} ${option.next.text}`);
+      if (override !== undefined) overrides.push(override);
       events.push(...optionEvents(context, option.name, option.value));
       if (option.next !== undefined) index += 1;
       continue;
     }
     found.push({ word, index });
   }
-  return { words: found, events };
+  return { words: found, events, overrides };
 }
 
 /** pip, uv, Poetry, PDM, Pipenv and pipx: their install, run and add commands matched word for word (uv pip install, uv tool run). */
@@ -1614,7 +1909,7 @@ function scanPythonTool(tool: ToolCommands, executable: string, rest: readonly W
   const byLength = <T>(list: readonly T[], command: (entry: T) => readonly string[]) => [...list].sort((a, b) => command(b).length - command(a).length);
   const run = (mode: 'add' | 'run' | 'create', start: number, command: readonly string[], entry: DownloadCommand | undefined) => {
     const context = contextOf(tool, command);
-    return finish(tool, line, readArguments(rest.slice(start), mode, tool, entry, context), depth, read.events, context);
+    return finish(tool, line, readArguments(rest.slice(start), mode, tool, entry, context), depth, read.events, context, read.overrides);
   };
   for (const entry of byLength(facts.run, (item) => item.command)) {
     const start = match(entry.command);
@@ -1629,7 +1924,10 @@ function scanPythonTool(tool: ToolCommands, executable: string, rest: readonly W
     if (start !== undefined) return run('add', start, command, undefined);
   }
   if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic.word, 'the subcommand ')}`);
-  return undefined;
+  // Another command of the tool (uv sync, poetry run): what its options weaken, and a package manager it runs.
+  const scan = managerScan(line, optionOverrides(tool, rest));
+  merge(scan, laterCommand(rest, depth));
+  return scan;
 }
 
 /**
@@ -1653,7 +1951,9 @@ function batchArgument(first: Word, executable: string, rest: readonly Word[], s
 function scanCommand(command: SimpleCommand, depth: number): CommandScan {
   const { installWords } = commands();
   let words = command.words;
-  // Assignments, reserved words and wrappers such as sudo or env come before the command itself.
+  /** Aliases already put in place, which bash does not expand a second time (alias ls='ls -F'). */
+  const replaced = new Set<string>();
+  // Assignments, reserved words, aliases and wrappers such as sudo or env come before the command itself.
   for (;;) {
     const head = words[0];
     if (head === undefined) return NOTHING;
@@ -1662,6 +1962,13 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
       words = words.slice(1);
     } else if (!head.dynamic && KEYWORDS.has(head.text)) {
       words = words.slice(1);
+    } else if (!head.dynamic && aliases.has(head.text) && !replaced.has(head.text)) {
+      // Checked after wrappers too, as an alias whose value ends in a blank (alias s='sudo ') makes bash do.
+      const value = aliases.get(head.text) as string;
+      replaced.add(head.text);
+      const own = aliasWords(value);
+      if (own === undefined) return scanLine([value, ...words.slice(1).map(requoted)].join(' '), depth + 1);
+      words = [...own, ...words.slice(1)];
     } else if (!head.dynamic && head.text === 'function') {
       words = words.slice(2);
     } else if (!head.dynamic && WRAPPERS.has(basename(head.text))) {
@@ -1686,22 +1993,62 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
   if (SHELLS.has(executable)) return scanShell(words, command, depth);
   if (!first.dynamic && POWERSHELLS.has(executable)) return scanPowerShell(words, command, depth, executable === 'powershell');
   if (!first.dynamic && CMD.has(executable)) return scanCmd(words, command, depth);
-  if (!first.dynamic && SOURCES.has(executable)) return scanSource(words, command) ?? scanInput(words, command, depth);
+  if (!first.dynamic && SOURCES.has(executable)) return scanSource(words, command, depth) ?? scanInput(words, command, depth);
+  if (!first.dynamic && executable === 'trap') return scanTrap(words, depth);
+  if (!first.dynamic && executable === 'alias') return scanAlias(words, depth);
   if (!first.dynamic && EXPRESSION_RUNNERS.has(executable)) return scanInvokeExpression(words, command, depth);
   if (!first.dynamic && interpreter()?.executables.includes(executable) === true) return scanInterpreter(words, command, depth);
   const reader = first.dynamic ? undefined : PROGRAM_READERS.get(executable);
-  if (reader !== undefined) return scanProgramReader(words, command, reader);
+  if (reader !== undefined) return scanProgramReader(words, command, reader, depth);
   const rest = words.slice(1);
+  if (!first.dynamic && configChange(executable, rest)) return { requests: [], unreadable: undefined, changes: `${shown(line)}: ${CONFIG_CHANGE}`, manager: true };
   const scan = scanPackageManager(command, first, executable, rest, line, depth);
   if (scan !== undefined) {
     const batch = batchArgument(first, executable, rest, command.shell);
-    return batch === undefined ? scan : { requests: scan.requests, unreadable: scan.unreadable ?? `${shown(line)}: ${batch}` };
+    return batch === undefined ? scan : { ...scan, unreadable: scan.unreadable ?? `${shown(line)}: ${batch}` };
   }
   const subcommand = rest.find((word) => !isOption(word.text));
   if (first.dynamic && subcommand !== undefined && installWords.has(subcommand.text)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
   // echo npm install lodash prints the words; it runs nothing.
   if (!first.dynamic && PRINTERS.has(executable)) return NOTHING;
   return laterCommand(rest, depth);
+}
+
+/**
+ * Whether a command changes a package manager's configuration (npm config set, pnpm config delete, yarn config set,
+ * pip config set, poetry config key value): its subcommand words, skipping options and their values, match a
+ * command of configCommands that writes. A word the shell expands where a writing word may stand counts as one.
+ */
+function configChange(executable: string, rest: readonly Word[]): boolean {
+  for (const tool of commands().tools) {
+    for (const entry of tool.configCommands) {
+      if (entry.command[0] !== executable) continue;
+      const positional: Word[] = [];
+      const options: string[] = [];
+      for (let index = 0; index < rest.length; index++) {
+        const word = rest[index] as Word;
+        if (word.text === '--') {
+          positional.push(...rest.slice(index + 1));
+          break;
+        }
+        if (!isOption(word.text)) {
+          positional.push(word);
+          continue;
+        }
+        const option = readOption(rest, index, tool, (name) => tool.valueOptions.has(name));
+        options.push(option.name);
+        if (option.next !== undefined) index += 1;
+      }
+      const parts = entry.command.slice(1);
+      if (!parts.every((part, index) => positional[index]?.text === part && positional[index]?.dynamic !== true)) continue;
+      const after = positional.slice(parts.length);
+      const word = after[0];
+      if (entry.writes !== undefined && word !== undefined && (word.dynamic || entry.writes.includes(word.text))) return true;
+      if (entry.operands !== undefined && (after.length >= entry.operands || after.some((part) => part.dynamic))) return true;
+      if (entry.options?.some((option) => options.includes(option)) === true) return true;
+    }
+  }
+  return false;
 }
 
 /** A command of a package manager: the packages it installs or runs; undefined when no package manager owns the executable. */
@@ -1724,6 +2071,7 @@ function scanPackageManager(command: SimpleCommand, first: Word, executable: str
     // The subcommand is the first word that is not an option or an option's value.
     let index = 0;
     const before: SelectionEvent[] = [];
+    const overridesBefore: Found[] = [];
     while (index < rest.length && isOption(rest[index]?.text ?? '')) {
       const word = rest[index] as Word;
       if (word.dynamic) return unreadable(`${shown(line)}: ${expanded(word)}`);
@@ -1731,11 +2079,13 @@ function scanPackageManager(command: SimpleCommand, first: Word, executable: str
       if (option.next?.dynamic === true) return unreadable(`${shown(line)}: "${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell`);
       const setting = registryOption(tool, option.name, option.value);
       if (setting !== undefined) return unreadable(`${shown(line)}: ${setting}`);
+      const override = overrideOption(tool, option.name, option.value, option.next === undefined ? word.text : `${word.text} ${option.next.text}`);
+      if (override !== undefined) overridesBefore.push(override);
       before.push(...optionEvents(contextOf(tool, undefined), option.name, option.value));
       index += option.next === undefined ? 1 : 2;
     }
     const subcommand = rest[index];
-    if (subcommand === undefined) return NOTHING;
+    if (subcommand === undefined) return managerScan(line, overridesBefore);
     if (subcommand.dynamic) return unreadable(`${shown(line)}: ${expanded(subcommand, 'the subcommand ')}`);
     const after = rest.slice(index + 1);
     const context = contextOf(tool, undefined);
@@ -1745,15 +2095,19 @@ function scanPackageManager(command: SimpleCommand, first: Word, executable: str
     const runEntry = find(facts.run);
     if (runEntry !== undefined) {
       const own = contextOf(tool, runEntry.command);
-      return finish(tool, line, readArguments(after, 'run', tool, runEntry, own), depth, before, own);
+      return finish(tool, line, readArguments(after, 'run', tool, runEntry, own), depth, before, own, overridesBefore);
     }
     const createEntry = find(facts.create);
-    if (createEntry !== undefined) return finish(tool, line, readArguments(after, 'create', tool, createEntry, context), depth, before, context);
-    if (add.has(subcommand.text)) return finish(tool, line, readArguments(after, 'add', tool, undefined, context), depth, before, context);
+    if (createEntry !== undefined) return finish(tool, line, readArguments(after, 'create', tool, createEntry, context), depth, before, context, overridesBefore);
+    if (add.has(subcommand.text)) return finish(tool, line, readArguments(after, 'add', tool, undefined, context), depth, before, context, overridesBefore);
+    // A package manager's script run by its path (bun /usr/bin/npx …, bun ./npm-cli.js …) is that package manager.
+    const manager = /[\\/]/u.test(subcommand.text) || SCRIPT_EXTENSIONS.test(subcommand.text) ? scriptManager(subcommand.text) : undefined;
+    if (manager !== undefined) return scanCommand({ ...command, words: [{ text: manager, dynamic: false }, ...after] }, depth);
     // Another subcommand that ends in an add subcommand (yarn global add, yarn workspaces foreach -A add) adds too.
     const later = after.findIndex((word) => !word.dynamic && add.has(word.text));
-    if (later !== -1) return finish(tool, line, readArguments(after.slice(later + 1), 'add', tool, undefined, context), depth, before, context);
-    return NOTHING;
+    if (later !== -1) return finish(tool, line, readArguments(after.slice(later + 1), 'add', tool, undefined, context), depth, before, context, overridesBefore);
+    // Any other command (npm ci, npm rebuild): what its options weaken.
+    return managerScan(line, [...overridesBefore, ...optionOverrides(tool, after)]);
   }
   return undefined;
 }
@@ -1795,6 +2149,31 @@ function namedSetting(text: string): string | undefined {
     if (selectionVariables.has(lower)) return `${piece} ${SET_UNREAD}`;
   }
   return undefined;
+}
+
+/** A variable that weakens the delay or the rule on install scripts, named in a PowerShell line outside what was read. */
+function namedOverride(text: string): string | undefined {
+  const { overrideVariables } = commands();
+  const piece = text.split(/[^A-Za-z0-9_]+/u).find((part) => overrideVariables.has(part.toLowerCase()));
+  return piece === undefined ? undefined : `${piece} ${OVERRIDE_UNREAD}`;
+}
+
+/** Variables set anywhere on the line that weaken the delay or the rule on install scripts (installOverrides). */
+function overrideAssignments(items: readonly Item[], line: string): Override[] {
+  const { overrideVariables } = commands();
+  const found: Override[] = [];
+  for (const item of items) {
+    if (item.kind !== 'word') continue;
+    const name = ASSIGNMENT.exec(item.word.text)?.[1];
+    if (name === undefined) continue;
+    const value = item.word.text.slice(name.length + 1);
+    for (const { tool, entry } of overrideVariables.get(name.toLowerCase()) ?? []) {
+      const base = { tool, command: line, written: item.word.text, weakens: entry.weakens };
+      if (item.word.dynamic) found.push({ ...base, expanded: true });
+      else if (weakensWith(entry.values, value)) found.push({ ...base, ...(entry.values === 'delay' ? { delay: value } : {}) });
+    }
+  }
+  return found;
 }
 
 interface LineReading {
@@ -1846,6 +2225,13 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     // Variables set on this line count before those of the lines inside it, which come in first.
     else for (const request of scan.requests) PENDING.get(request)?.variables.unshift(...variables.set);
   }
+  if (scan.requests.length > 0 || scan.manager === true) {
+    // npm_config_ignore_scripts=false npm ci weakens that install as much as npm i lodash.
+    const found = overrideAssignments(reading.items, shown(line));
+    if (found.length > 0) scan.overrides = [...(scan.overrides ?? []), ...found];
+    const named = reading.named === undefined ? undefined : namedOverride(reading.named);
+    if (named !== undefined) scan.unreadable ??= `${shown(line)}: ${named}`;
+  }
   return scan;
 }
 
@@ -1888,6 +2274,43 @@ export interface ScanOptions {
 
 /** The packages a command line installs or downloads to run with npm, pnpm, Yarn, Bun, Deno, pip, uv, Poetry, PDM, Pipenv or pipx. */
 export function scanCommandLine(line: string, options: ScanOptions = {}): CommandScan {
-  const scan = scanLine(line, 0, options.shell ?? 'posix');
-  return { requests: scan.requests.map(settle), unreadable: scan.unreadable };
+  const previous = aliases;
+  aliases = new Map();
+  try {
+    const scan = scanLine(line, 0, options.shell ?? 'posix');
+    // A change of the configuration matters to the packages installed next to it (npm config set registry … && npm i x).
+    const unreadable = scan.unreadable ?? (scan.requests.length > 0 ? scan.changes : undefined);
+    return { requests: scan.requests.map(settle), unreadable, ...(scan.overrides === undefined ? {} : { overrides: scan.overrides }) };
+  } finally {
+    aliases = previous;
+  }
+}
+
+/**
+ * Why the options and variables of a command (scanCommandLine's overrides) weaken one of the policies, for the hook:
+ * a release-age delay shorter than the longest cooldown, or that cannot be compared with it, and install scripts
+ * turned on where a policy restricts them; undefined when none does.
+ */
+export function overrideDoubt(overrides: readonly Override[] | undefined, policies: readonly ResolvedPolicy[]): string | undefined {
+  const required = Math.max(0, ...policies.map((policy) => policy.cooldown?.minimum.minutes ?? 0));
+  // A deny list counts only with the default deny (validation), so the default decides whether scripts are restricted.
+  const scripts = policies.some((policy) => policy.installScripts?.default === 'deny');
+  for (const override of overrides ?? []) {
+    const where = `${shown(override.command)}: ${override.written}`;
+    if (override.weakens === 'scripts') {
+      if (!scripts) continue;
+      if (override.expanded === true) return `${where} is set to a value the shell expands, which may turn on dependency install scripts that depcurfew.json restricts, and may weaken ${WEAKENS}`;
+      return `${where} lets dependency install scripts run that depcurfew.json restricts, and weakens ${WEAKENS}`;
+    }
+    if (required <= 0) continue;
+    const policy = formatMinutes(required);
+    if (override.expanded === true) return `${where} is set to a value the shell expands, so its release-age delay cannot be compared with the ${policy} in depcurfew.json, and may weaken ${WEAKENS}`;
+    if (override.delay === undefined) return `${where} changes the release-age delay of ${policy} that depcurfew.json requires, and weakens ${WEAKENS}`;
+    const tool = knowledgeBase.find((entry) => entry.id === override.tool);
+    const delay = tool === undefined ? undefined : delayMinutes(tool, override.delay, undefined);
+    if (delay?.ok === true && delay.minutes >= required) continue;
+    if (delay?.ok === true) return `${where} sets the release-age delay to ${formatMinutes(delay.minutes)}, shorter than the ${policy} in depcurfew.json, and weakens ${WEAKENS}`;
+    return `${where} sets the release-age delay to a value depcurfew does not compare with the ${policy} in depcurfew.json (a date, false or another form), and may weaken ${WEAKENS}`;
+  }
+  return undefined;
 }

@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
+const guard = verifiedOn('2026-11-01');
 
 // docs.astral.sh is built from docs/ in the repository; the settings and CLI references are generated from the code.
 const UV = 'https://github.com/astral-sh/uv/blob/0.13.6';
@@ -340,6 +341,17 @@ export const uv: ToolKnowledge = {
       'VersionSelectionArgs: --prerelease takes disallow, allow, if-necessary, explicit or if-necessary-or-explicit (UV_PRERELEASE); allow considers pre-releases of every package and disallow none (docs/concepts/resolution.md); --prerelease-package takes PACKAGE=MODE; the hidden --pre means allow. BuildOptionsArgs of uv add, uv run, uv tool install and uv tool run (uvx): --no-binary (UV_NO_BINARY, a boolean) installs every package from source, --binary turns it off, --no-binary-package names one package (UV_NO_BINARY_PACKAGE, separated by spaces). uv pip install takes --no-binary and --only-binary as lists separated by commas with :all: and :none:, as pip does (PipInstallArgs).',
     ),
     latestVersion: verified('0.13.6', `${UV}/CHANGELOG.md`, 'Released on 2026-10-26.'),
+    installOverrides: guard.verified(
+      {
+        options: [
+          { name: '--exclude-newer', weakens: 'delay', values: 'delay' },
+          { name: '--exclude-newer-package', weakens: 'delay', values: 'any' },
+        ],
+        variables: [{ name: 'UV_EXCLUDE_NEWER', weakens: 'delay', values: 'delay' }],
+      },
+      `${UV}/crates/uv-cli/src/lib.rs`,
+      'ExcludeNewerArgs: #[arg(long, env = EnvVars::UV_EXCLUDE_NEWER)] exclude_newer accepts RFC 3339 timestamps, local dates, friendly and ISO 8601 durations, and false to disable it; PackageExcludeNewerArgs adds --exclude-newer-package PACKAGE=DATE and is flattened into ResolverArgs, InstallerArgs and ResolverInstallerArgs. A date is not compared with the policy, so it is asked about.',
+    ),
     pipTable: user.verified(
       { table: 'pip', keys: { 'exclude-newer': 'exclude-newer', 'exclude-newer-package': 'exclude-newer-package', 'no-binary-package': 'no-binary' } },
       `${UV}/crates/uv-cli/src/settings.rs`,

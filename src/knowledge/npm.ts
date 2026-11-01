@@ -436,6 +436,42 @@ export const npm: ToolKnowledge = {
       NPM_DEFINITIONS,
       'registry is a URL; userconfig and globalconfig are the user and global configuration files. Putting --foo bar on the command line sets the foo configuration parameter, and environment variables that start with npm_config_ are configuration parameters too, without regard to case (docs/lib/content/using-npm/config.md); @scope:registry is the key of a scope\'s registry (https://docs.npmjs.com/cli/v12/using-npm/scope).',
     ),
+    configCommands: runtimes.verified(
+      [
+        { command: ['npm', 'config'], writes: ['set', 'delete', 'edit', 'fix'] },
+        { command: ['npm', 'c'], writes: ['set', 'delete', 'edit', 'fix'] },
+        { command: ['npm', 'set'], operands: 1 },
+      ],
+      'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-config.md',
+      'npm config set sets keys (in the user configuration unless location is given), delete removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list only read. c is an alias of config (lib/utils/cmd-list.js at v12.2.1). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js).',
+    ),
+    installOverrides: runtimes.verified(
+      {
+        options: [
+          { name: '--min-release-age', weakens: 'delay', values: 'delay' },
+          { name: '--before', weakens: 'delay', values: 'any' },
+          { name: '--min-release-age-exclude', weakens: 'delay', values: 'any' },
+          { name: '--ignore-scripts', weakens: 'scripts', values: { except: ['true'] } },
+          { name: '--dangerously-allow-all-scripts', weakens: 'scripts', values: { except: ['false', 'null', 'undefined'] } },
+          { name: '--allow-scripts', weakens: 'scripts', values: 'any' },
+        ],
+        variables: [
+          { name: 'npm_config_min_release_age', weakens: 'delay', values: 'delay' },
+          { name: 'npm_config_before', weakens: 'delay', values: 'any' },
+          { name: 'npm_config_min_release_age_exclude', weakens: 'delay', values: 'any' },
+          { name: 'npm_config_ignore_scripts', weakens: 'scripts', values: { except: ['true', ''] } },
+          { name: 'npm_config_dangerously_allow_all_scripts', weakens: 'scripts', values: { except: ['false', 'null', 'undefined'] } },
+          { name: 'npm_config_allow_scripts', weakens: 'scripts', values: 'any' },
+        ],
+      },
+      NPM_DEFINITIONS,
+      'Settings that a single npm command can change on its command line or in its environment: "Putting --foo bar on the command line sets the foo configuration parameter", "--flag without specifying any value will set the value to true", "Any environment variables that start with npm_config_ will be interpreted as a configuration parameter", case-insensitive, and an environment configuration without a value is true (docs/lib/content/using-npm/config.md at v12.2.1). Types in definitions.js at v12.2.1: ignore-scripts Boolean, default false ("If true, npm does not run scripts specified in package.json files"); min-release-age null or Number of days; before null or Date; min-release-age-exclude a list exempt from min-release-age and before; dangerously-allow-all-scripts Boolean, which bypasses the allowScripts policy; allow-scripts a list of packages whose install scripts may run. A value other than true for ignore-scripts, any true value of dangerously-allow-all-scripts (the false values as in user.variables), any allow-scripts, before or min-release-age-exclude, and a min-release-age shorter than the policy weaken what depcurfew apply wrote.',
+    ),
+    booleanWords: runtimes.verified(
+      true,
+      'https://github.com/npm/nopt/blob/v10.0.1/lib/nopt-lib.js',
+      'nopt, which parses the npm command line, also supports "--bool true or --bool false": a Boolean option followed by the word true or false takes it as its value and skips it, and a --no- prefix inverts the value (parse in lib/nopt-lib.js at v10.0.1, used by npm 12.2.1, and the same code at v9.0.0, used by npm 11.21.1).',
+    ),
     installCommands: runtimes.verified(
       {
         install: INSTALL_ALIASES,

@@ -8,7 +8,7 @@ import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import { printable, withoutCredentials } from '../printable.ts';
 import type { ClaudeCodeHookContextKnowledge, ClaudeCodeHooksKnowledge, ClaudeCodeShellTool } from '../knowledge/types.ts';
-import { scanCommandLine, TOO_MANY, unreadableFix, type ScanOptions } from './command.ts';
+import { scanCommandLine, TOO_MANY, unreadableFix, type Override, type ScanOptions } from './command.ts';
 import type { CheckFinding, CheckRequest, FindingCode, PackageReport } from './findings.ts';
 import { REGISTRY_RETRY_FIX } from './index.ts';
 import { INDEX_RETRY_FIX } from './python.ts';
@@ -197,8 +197,11 @@ export function formatDecision(decision: HookDecision): string | undefined {
 /** How many specs of one command are checked: more would mean as many requests to the registry. */
 export const MAX_CHECKED = 50;
 
-/** Specs to check for a command, without repeats and at most MAX_CHECKED, and why part of it could not be read. */
-export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'posix'): { specs: CheckRequest[]; unreadable: string | undefined } {
+/**
+ * Specs to check for a command, without repeats and at most MAX_CHECKED, why part of it could not be read, and the
+ * options and variables that weaken the delay or the rule on install scripts (compared with the policy by overrideDoubt).
+ */
+export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'posix'): { specs: CheckRequest[]; unreadable: string | undefined; overrides: readonly Override[] } {
   const scan = scanCommandLine(command, { shell });
   const unique = new Map<string, CheckRequest>();
   for (const { tool, spec, tag, prereleases, buildFromSource } of scan.requests) {
@@ -213,7 +216,8 @@ export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'pos
     unique.set(JSON.stringify(request), request);
   }
   const specs = [...unique.values()];
-  if (specs.length <= MAX_CHECKED) return { specs, unreadable: scan.unreadable };
+  const overrides = scan.overrides ?? [];
+  if (specs.length <= MAX_CHECKED) return { specs, unreadable: scan.unreadable, overrides };
   const tooMany = `the command names ${specs.length} packages and ${TOO_MANY} ${MAX_CHECKED} in one command; the first ${MAX_CHECKED} were checked`;
-  return { specs: specs.slice(0, MAX_CHECKED), unreadable: scan.unreadable ?? tooMany };
+  return { specs: specs.slice(0, MAX_CHECKED), unreadable: scan.unreadable ?? tooMany, overrides };
 }

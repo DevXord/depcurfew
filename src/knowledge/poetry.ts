@@ -275,5 +275,22 @@ export const poetry: ToolKnowledge = {
       'installer.no-binary (POETRY_INSTALLER_NO_BINARY) disallows wheels for :all: or true, none for :none: or false, or the named packages separated by commas; installer.only-binary (POETRY_INSTALLER_ONLY_BINARY, since 2.0.0) takes the same values; explicit package names win over :all:. poetry add --allow-prereleases accepts pre-releases (src/poetry/console/commands/add.py).',
     ),
     latestVersion: verified('2.5.1', CHANGELOG, 'Released on 2026-09-20.'),
+    configCommands: leftovers.verified(
+      [{ command: ['poetry', 'config'], operands: 2, options: ['--unset', '--migrate'] }],
+      'https://github.com/python-poetry/poetry/blob/main/docs/cli.md',
+      'poetry config [options] [setting-key] [setting-value1] ... [setting-valueN] sets a key to a value; --unset removes the key, --migrate migrates outdated settings and --list only shows them.',
+    ),
+    installOverrides: leftovers.verified(
+      {
+        options: [],
+        variables: [
+          { name: 'POETRY_SOLVER_MIN_RELEASE_AGE', weakens: 'delay', values: 'delay' },
+          { name: 'POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE', weakens: 'delay', values: 'any' },
+          { name: 'POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE_SOURCE', weakens: 'delay', values: 'any' },
+        ],
+      },
+      'https://github.com/python-poetry/poetry/blob/main/docs/configuration.md',
+      'Settings can be set with environment variables prefixed by POETRY_, the upper-case setting name with dots and dashes replaced by underscores; solver.min-release-age (int, days) is POETRY_SOLVER_MIN_RELEASE_AGE. poetry add has no option for it.',
+    ),
   },
 };

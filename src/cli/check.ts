@@ -13,6 +13,7 @@ import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
 import { isPythonSpec } from '../check/python.ts';
 import { blockingExitCode, decide, formatDecision, readHookEvent, reasonText, requestedSpecs } from '../check/hook.ts';
+import { overrideDoubt } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
 import { PopularNames } from '../check/similar.ts';
@@ -243,8 +244,8 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
   }
   if (event === undefined) return EXIT_OK;
   try {
-    const { specs, unreadable } = requestedSpecs(event.command, event.shell);
-    if (specs.length === 0 && unreadable === undefined) return EXIT_OK;
+    const { specs, unreadable, overrides } = requestedSpecs(event.command, event.shell);
+    if (specs.length === 0 && unreadable === undefined && overrides.length === 0) return EXIT_OK;
     const cwd = flags.dir ?? event.cwd ?? process.cwd();
     const root = flags.dir === undefined ? hookPolicyStart(resolve(cwd), (dependencies.projectDir ?? (() => process.env[projectDirVariable()]))()) : { start: cwd };
     const loaded = load(root.start, dependencies.home?.() ?? homedir());
@@ -297,7 +298,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
             `Besides ${loaded.file === undefined ? `the default policy (the project has no ${POLICY_FILE})` : `the policy of the project (${projectDirVariable()})`}, ${reasonText(nearerFile ?? POLICY_FILE)} also applies here; the stricter answer counts.`,
           ]),
     ];
-    io.stdout(formatDecision(decide(reports, unreadable, notes)) ?? '');
+    io.stdout(formatDecision(decide(reports, unreadable ?? overrideDoubt(overrides, policies), notes)) ?? '');
   } catch (error) {
     io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(messageOf(error))}` }) ?? '');
   }

@@ -255,7 +255,15 @@ const bun$1 = {
 		latestVersion: verified$12("1.4.4", "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4"),
 		trustedDependenciesReplacesDefaults: checked$7.verified("Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts", `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`, "So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild's postinstall (esbuild is on the built-in list); with \"trustedDependencies\": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29."),
 		lockedVersionsNotRechecked: verified$12("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$1}#minimum-release-age`),
-		bunxCooldown: verified$12("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4")
+		bunxCooldown: verified$12("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4"),
+		installOverrides: runtimes$3.verified({
+			options: [{
+				name: "--minimum-release-age",
+				weakens: "delay",
+				values: "delay"
+			}],
+			variables: []
+		}, "https://github.com/oven-sh/bun/blob/main/docs/pm/cli/install.mdx", "bun add @types/bun --minimum-release-age 259200 # seconds: \"A number is in seconds\", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it.")
 	}
 };
 
@@ -478,6 +486,26 @@ const deno$1 = {
 		npmrcFormat: disputed$5("The safe choice is an integer number of days, which also matches npm.", evidence$5("whole days only, e.g. min-release-age=3", SUPPLY_CHAIN), evidence$5("a duration with a unit, e.g. min-release-age=72h", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
 		fileLinkSkipped: disputed$5("Official pages disagree on whether the project's own file: and link: dependencies are skipped, or only those in published packages' metadata.", evidence$5("file: and link: dependencies in the project package.json are silently skipped", NOT_SUPPORTED), evidence$5("file: and link: specifiers in registry metadata of npm packages are skipped", "https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages")),
 		denoXCooldown: verified$11("deno x honors minimumDependencyAge only since 2.9.4", release$5("2.9.4")),
+		installOverrides: leftovers$4.verified({
+			options: [
+				{
+					name: "--minimum-dependency-age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--min-dep-age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--allow-scripts",
+					weakens: "scripts",
+					values: "any"
+				}
+			],
+			variables: []
+		}, "https://github.com/denoland/docs/blob/main/runtime/packages/supply_chain.md", "deno install --minimum-dependency-age=P3D: deno.json and the flag accept an ISO-8601 duration such as P3D or PT72H, or an integer of minutes, and 0 turns it off; --min-dep-age is its alias (cooldown.cliFlag). deno install --allow-scripts=<packages> lets those packages run their lifecycle scripts, which Deno does not run by default (runtime/reference/cli/install.md in denoland/docs)."),
 		dxRunsScripts: verified$11("dx defaults to --allow-all and runs lifecycle scripts once the download prompt is accepted", "https://deno.com/blog/v2.6")
 	}
 };
@@ -1290,6 +1318,105 @@ const npm$1 = {
 			configOptions: ["--userconfig", "--globalconfig"],
 			configVariables: ["npm_config_userconfig", "npm_config_globalconfig"]
 		}, NPM_DEFINITIONS, "registry is a URL; userconfig and globalconfig are the user and global configuration files. Putting --foo bar on the command line sets the foo configuration parameter, and environment variables that start with npm_config_ are configuration parameters too, without regard to case (docs/lib/content/using-npm/config.md); @scope:registry is the key of a scope's registry (https://docs.npmjs.com/cli/v12/using-npm/scope)."),
+		configCommands: runtimes$2.verified([
+			{
+				command: ["npm", "config"],
+				writes: [
+					"set",
+					"delete",
+					"edit",
+					"fix"
+				]
+			},
+			{
+				command: ["npm", "c"],
+				writes: [
+					"set",
+					"delete",
+					"edit",
+					"fix"
+				]
+			},
+			{
+				command: ["npm", "set"],
+				operands: 1
+			}
+		], "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-config.md", "npm config set sets keys (in the user configuration unless location is given), delete removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list only read. c is an alias of config (lib/utils/cmd-list.js at v12.2.1). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js)."),
+		installOverrides: runtimes$2.verified({
+			options: [
+				{
+					name: "--min-release-age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--before",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "--min-release-age-exclude",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "--ignore-scripts",
+					weakens: "scripts",
+					values: { except: ["true"] }
+				},
+				{
+					name: "--dangerously-allow-all-scripts",
+					weakens: "scripts",
+					values: { except: [
+						"false",
+						"null",
+						"undefined"
+					] }
+				},
+				{
+					name: "--allow-scripts",
+					weakens: "scripts",
+					values: "any"
+				}
+			],
+			variables: [
+				{
+					name: "npm_config_min_release_age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "npm_config_before",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "npm_config_min_release_age_exclude",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "npm_config_ignore_scripts",
+					weakens: "scripts",
+					values: { except: ["true", ""] }
+				},
+				{
+					name: "npm_config_dangerously_allow_all_scripts",
+					weakens: "scripts",
+					values: { except: [
+						"false",
+						"null",
+						"undefined"
+					] }
+				},
+				{
+					name: "npm_config_allow_scripts",
+					weakens: "scripts",
+					values: "any"
+				}
+			]
+		}, NPM_DEFINITIONS, "Settings that a single npm command can change on its command line or in its environment: \"Putting --foo bar on the command line sets the foo configuration parameter\", \"--flag without specifying any value will set the value to true\", \"Any environment variables that start with npm_config_ will be interpreted as a configuration parameter\", case-insensitive, and an environment configuration without a value is true (docs/lib/content/using-npm/config.md at v12.2.1). Types in definitions.js at v12.2.1: ignore-scripts Boolean, default false (\"If true, npm does not run scripts specified in package.json files\"); min-release-age null or Number of days; before null or Date; min-release-age-exclude a list exempt from min-release-age and before; dangerously-allow-all-scripts Boolean, which bypasses the allowScripts policy; allow-scripts a list of packages whose install scripts may run. A value other than true for ignore-scripts, any true value of dangerously-allow-all-scripts (the false values as in user.variables), any allow-scripts, before or min-release-age-exclude, and a min-release-age shorter than the policy weaken what depcurfew apply wrote."),
+		booleanWords: runtimes$2.verified(true, "https://github.com/npm/nopt/blob/v10.0.1/lib/nopt-lib.js", "nopt, which parses the npm command line, also supports \"--bool true or --bool false\": a Boolean option followed by the word true or false takes it as its value and skips it, and a --no- prefix inverts the value (parse in lib/nopt-lib.js at v10.0.1, used by npm 12.2.1, and the same code at v9.0.0, used by npm 11.21.1)."),
 		installCommands: runtimes$2.verified({
 			install: INSTALL_ALIASES,
 			clean: [
@@ -1328,6 +1455,7 @@ const npm$1 = {
 
 // src/knowledge/pip.ts
 const { verified: verified$8, uncertain: uncertain$7 } = verifiedOn("2026-10-30");
+const guard$1 = verifiedOn("2026-11-01");
 const rechecked$3 = verifiedOn("2026-10-31");
 const PIP = "https://github.com/pypa/pip/blob/26.2.2";
 const NEWS = `${PIP}/NEWS.rst`;
@@ -1931,7 +2059,34 @@ const pip$1 = {
 			configOptions: ["--pip-args"],
 			configVariables: []
 		}, `${PIPX}/src/pipx/main.py`, "--index-url is the base URL of the index; --pip-args is split and handed to pip, so it may carry --extra-index-url, --find-links or --no-index. With the pip backend pipx passes the PIP_* variables on to pip; with the uv backend it ignores them and uv reads its own (docs/how-to/use-uv-backend.rst); both kinds are registry variables of pip and uv."),
-		latestVersion: verified$8("26.2.2", NEWS, "Released on 2026-10-20.")
+		latestVersion: verified$8("26.2.2", NEWS, "Released on 2026-10-20."),
+		configCommands: guard$1.verified([{
+			command: ["pip", "config"],
+			writes: [
+				"set",
+				"unset",
+				"edit"
+			]
+		}, {
+			command: ["pip3", "config"],
+			writes: [
+				"set",
+				"unset",
+				"edit"
+			]
+		}], "https://github.com/pypa/pip/blob/main/src/pip/_internal/commands/configuration.py", "pip config list, edit, get, set, unset and debug: set and unset change a value and save the file, edit opens it in an editor, list, get and debug only read. Without --user, --global or --site the site file is used if one exists, else the user file."),
+		installOverrides: guard$1.verified({
+			options: [{
+				name: "--uploaded-prior-to",
+				weakens: "delay",
+				values: "delay"
+			}],
+			variables: [{
+				name: "PIP_UPLOADED_PRIOR_TO",
+				weakens: "delay",
+				values: "delay"
+			}]
+		}, "https://github.com/pypa/pip/blob/main/src/pip/_internal/cli/cmdoptions.py", "--uploaded-prior-to (metavar datetime_or_duration): \"Only consider packages uploaded prior to the given value\", an ISO 8601 datetime or a duration of whole days P<n>D. PIP_UPLOADED_PRIOR_TO is its environment variable (environmentVariable). A datetime is not compared with the policy, so it is asked about.")
 	}
 };
 
@@ -2902,6 +3057,114 @@ const pnpm$1 = {
 				y: ["--yes"]
 			}
 		}, `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`, "pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag. Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y."),
+		booleanWords: runtimes$1.verified(true, "https://github.com/pnpm/nopt/blob/main/lib/nopt.js", "The nopt fork pnpm imports (@pnpm/nopt, imported by pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1) reads a Boolean option followed by the word true or false as that value and skips the word, inverted after --no- (parse in lib/nopt.js)."),
+		configCommands: runtimes$1.verified([{
+			command: ["pnpm", "config"],
+			writes: ["set", "delete"]
+		}, {
+			command: ["pnpm", "c"],
+			writes: ["set", "delete"]
+		}], "https://github.com/pnpm/pnpm.io/blob/main/docs/cli/config.md", "pnpm config (aliases: c) manages the configuration files: set <key> <value>, get <key>, delete <key> and list; get and list only read."),
+		installOverrides: runtimes$1.verified({
+			options: [
+				{
+					name: "--ignore-scripts",
+					weakens: "scripts",
+					values: { except: ["true"] }
+				},
+				{
+					name: "--ignoreScripts",
+					weakens: "scripts",
+					values: { except: ["true"] }
+				},
+				{
+					name: "--allow-build",
+					weakens: "scripts",
+					values: "any"
+				},
+				{
+					name: "--dangerouslyAllowAllBuilds",
+					weakens: "scripts",
+					values: { except: ["false"] }
+				},
+				{
+					name: "--dangerously-allow-all-builds",
+					weakens: "scripts",
+					values: { except: ["false"] }
+				},
+				{
+					name: "--minimumReleaseAge",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--minimum-release-age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--minimumReleaseAgeExclude",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "--minimum-release-age-exclude",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "--minimumReleaseAgeStrict",
+					weakens: "delay",
+					values: { except: ["true"] }
+				},
+				{
+					name: "--minimum-release-age-strict",
+					weakens: "delay",
+					values: { except: ["true"] }
+				}
+			],
+			variables: [
+				{
+					name: "pnpm_config_minimum_release_age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "pnpm_config_minimum_release_age_exclude",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "pnpm_config_minimum_release_age_strict",
+					weakens: "delay",
+					values: { except: ["true"] }
+				},
+				{
+					name: "pnpm_config_ignore_scripts",
+					weakens: "scripts",
+					values: { except: ["true"] }
+				},
+				{
+					name: "pnpm_config_dangerously_allow_all_builds",
+					weakens: "scripts",
+					values: ["true"]
+				},
+				{
+					name: "npm_config_minimum_release_age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "npm_config_dangerously_allow_all_builds",
+					weakens: "scripts",
+					values: { except: [
+						"false",
+						"null",
+						"undefined"
+					] }
+				}
+			]
+		}, `${PNPM_V12}/pnpm11/config/reader/src/env.ts`, "pnpm add takes --ignore-scripts (\"Same as the ignoreScripts setting\") and --allow-build, which lists packages allowed to run postinstall scripts (docs/cli/add.md in pnpm/pnpm.io; a ! prefix denies one instead, still asked about). Any setting can be given as --config.<key>=<value>, the key kept as written (normalizeOptions in pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1), so both spellings are listed and the scanner reads the key without --config.. pnpm_config_<key> and PNPM_CONFIG_<KEY> set the setting of the camel-cased key; a Boolean only from the exact words true and false, a number with Number (parseEnvVars in env.ts). pnpm 10 reads npm_config_* variables as npm does (registryOverrides). minimumReleaseAgeStrict false installs a younger version when no older one matches (user.weakening)."),
 		minimumReleaseAgeStrict: checked$4.verified({
 			setting: "minimumReleaseAgeStrict",
 			value: true,
@@ -3336,7 +3599,32 @@ const poetry$1 = {
 				listBooleans: true
 			}
 		}, CONFIGURATION$2, "installer.no-binary (POETRY_INSTALLER_NO_BINARY) disallows wheels for :all: or true, none for :none: or false, or the named packages separated by commas; installer.only-binary (POETRY_INSTALLER_ONLY_BINARY, since 2.0.0) takes the same values; explicit package names win over :all:. poetry add --allow-prereleases accepts pre-releases (src/poetry/console/commands/add.py)."),
-		latestVersion: verified$4("2.5.1", CHANGELOG, "Released on 2026-09-20.")
+		latestVersion: verified$4("2.5.1", CHANGELOG, "Released on 2026-09-20."),
+		configCommands: leftovers$2.verified([{
+			command: ["poetry", "config"],
+			operands: 2,
+			options: ["--unset", "--migrate"]
+		}], "https://github.com/python-poetry/poetry/blob/main/docs/cli.md", "poetry config [options] [setting-key] [setting-value1] ... [setting-valueN] sets a key to a value; --unset removes the key, --migrate migrates outdated settings and --list only shows them."),
+		installOverrides: leftovers$2.verified({
+			options: [],
+			variables: [
+				{
+					name: "POETRY_SOLVER_MIN_RELEASE_AGE",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE_SOURCE",
+					weakens: "delay",
+					values: "any"
+				}
+			]
+		}, "https://github.com/python-poetry/poetry/blob/main/docs/configuration.md", "Settings can be set with environment variables prefixed by POETRY_, the upper-case setting name with dots and dashes replaced by underscores; solver.min-release-age (int, days) is POETRY_SOLVER_MIN_RELEASE_AGE. poetry add has no option for it.")
 	}
 };
 
@@ -3516,6 +3804,7 @@ const renovate$1 = {
 
 // src/knowledge/uv.ts
 const { verified: verified$2, uncertain: uncertain$1 } = verifiedOn("2026-10-30");
+const guard = verifiedOn("2026-11-01");
 const UV = "https://github.com/astral-sh/uv/blob/0.13.6";
 const RESOLUTION = `${UV}/docs/concepts/resolution.md`;
 const CONFIGURATION$1 = `${UV}/docs/concepts/configuration-files.md`;
@@ -4019,6 +4308,22 @@ const uv$1 = {
 			}]
 		}, CLI, "VersionSelectionArgs: --prerelease takes disallow, allow, if-necessary, explicit or if-necessary-or-explicit (UV_PRERELEASE); allow considers pre-releases of every package and disallow none (docs/concepts/resolution.md); --prerelease-package takes PACKAGE=MODE; the hidden --pre means allow. BuildOptionsArgs of uv add, uv run, uv tool install and uv tool run (uvx): --no-binary (UV_NO_BINARY, a boolean) installs every package from source, --binary turns it off, --no-binary-package names one package (UV_NO_BINARY_PACKAGE, separated by spaces). uv pip install takes --no-binary and --only-binary as lists separated by commas with :all: and :none:, as pip does (PipInstallArgs)."),
 		latestVersion: verified$2("0.13.6", `${UV}/CHANGELOG.md`, "Released on 2026-10-26."),
+		installOverrides: guard.verified({
+			options: [{
+				name: "--exclude-newer",
+				weakens: "delay",
+				values: "delay"
+			}, {
+				name: "--exclude-newer-package",
+				weakens: "delay",
+				values: "any"
+			}],
+			variables: [{
+				name: "UV_EXCLUDE_NEWER",
+				weakens: "delay",
+				values: "delay"
+			}]
+		}, `${UV}/crates/uv-cli/src/lib.rs`, "ExcludeNewerArgs: #[arg(long, env = EnvVars::UV_EXCLUDE_NEWER)] exclude_newer accepts RFC 3339 timestamps, local dates, friendly and ISO 8601 durations, and false to disable it; PackageExcludeNewerArgs adds --exclude-newer-package PACKAGE=DATE and is flattened into ResolverArgs, InstallerArgs and ResolverInstallerArgs. A date is not compared with the policy, so it is asked about."),
 		pipTable: user$1.verified({
 			table: "pip",
 			keys: {
@@ -4306,6 +4611,34 @@ const yarn$1 = {
 		classicLockfileHeader: verified$1("# yarn lockfile v1", "https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js", "Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js)."),
 		latestVersion: verified$1("4.18.1", release$1("4.18.1"), "Yarn 6 is still in preview."),
 		bypassFlag: verified$1("--no-time-gate on yarn add and yarn up (4.15.0+)", "https://yarnpkg.com/cli/add"),
+		configCommands: leftovers$1.verified([{
+			command: ["yarn", "config"],
+			writes: ["set", "unset"]
+		}], `${BERRY}/packages/plugin-essentials/sources/index.ts`, "plugin-essentials registers config get, config set and config unset next to config (commands/config/*.ts at 4.18.1). yarn config set updates the project configuration, or the home configuration with -H/--home (commands/config/set.ts); yarn config and yarn config get only print settings (commands/config.ts: \"This command prints the current active configuration settings\")."),
+		installOverrides: leftovers$1.verified({
+			options: [{
+				name: "--no-time-gate",
+				weakens: "delay",
+				values: "any"
+			}],
+			variables: [
+				{
+					name: "YARN_NPM_MINIMAL_AGE_GATE",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "YARN_NPM_PREAPPROVED_PACKAGES",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "YARN_ENABLE_SCRIPTS",
+					weakens: "scripts",
+					values: { except: ["false", "0"] }
+				}
+			]
+		}, `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`, "yarn add declares noTimeGate = Option.Boolean(`--no-time-gate`), \"Disable the minimum release age check for this command\" (plugin-essentials/sources/commands/add.ts at 4.18.1). getEnvironmentSettings lowercases every environment variable, keeps those starting with yarn_ and camel-cases the rest into a setting (ENVIRONMENT_PREFIX), so YARN_NPM_MINIMAL_AGE_GATE sets npmMinimalAgeGate, YARN_NPM_PREAPPROVED_PACKAGES npmPreapprovedPackages and YARN_ENABLE_SCRIPTS enableScripts; the values that keep scripts off are those of user.variables."),
 		perScopeGate: rechecked.verified({
 			scopes: "npmScopes",
 			setting: "npmMinimalAgeGate",

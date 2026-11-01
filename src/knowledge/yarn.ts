@@ -305,6 +305,23 @@ export const yarn: ToolKnowledge = {
     ),
     latestVersion: verified('4.18.1', release('4.18.1'), 'Yarn 6 is still in preview.'),
     bypassFlag: verified('--no-time-gate on yarn add and yarn up (4.15.0+)', 'https://yarnpkg.com/cli/add'),
+    configCommands: leftovers.verified(
+      [{ command: ['yarn', 'config'], writes: ['set', 'unset'] }],
+      `${BERRY}/packages/plugin-essentials/sources/index.ts`,
+      'plugin-essentials registers config get, config set and config unset next to config (commands/config/*.ts at 4.18.1). yarn config set updates the project configuration, or the home configuration with -H/--home (commands/config/set.ts); yarn config and yarn config get only print settings (commands/config.ts: "This command prints the current active configuration settings").',
+    ),
+    installOverrides: leftovers.verified(
+      {
+        options: [{ name: '--no-time-gate', weakens: 'delay', values: 'any' }],
+        variables: [
+          { name: 'YARN_NPM_MINIMAL_AGE_GATE', weakens: 'delay', values: 'delay' },
+          { name: 'YARN_NPM_PREAPPROVED_PACKAGES', weakens: 'delay', values: 'any' },
+          { name: 'YARN_ENABLE_SCRIPTS', weakens: 'scripts', values: { except: ['false', '0'] } },
+        ],
+      },
+      `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`,
+      'yarn add declares noTimeGate = Option.Boolean(`--no-time-gate`), "Disable the minimum release age check for this command" (plugin-essentials/sources/commands/add.ts at 4.18.1). getEnvironmentSettings lowercases every environment variable, keeps those starting with yarn_ and camel-cases the rest into a setting (ENVIRONMENT_PREFIX), so YARN_NPM_MINIMAL_AGE_GATE sets npmMinimalAgeGate, YARN_NPM_PREAPPROVED_PACKAGES npmPreapprovedPackages and YARN_ENABLE_SCRIPTS enableScripts; the values that keep scripts off are those of user.variables.',
+    ),
     perScopeGate: rechecked.verified(
       { scopes: 'npmScopes', setting: 'npmMinimalAgeGate', since: '4.17.0', unset: '1d' },
       'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-npm/sources/npmConfigUtils.ts',

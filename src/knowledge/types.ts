@@ -333,6 +333,8 @@ export interface CommandLineParsing {
   shorthands?: Readonly<Record<string, readonly string[]>>;
   /** An option starting with this prefix sets the setting named after it, as the option of that name does (pnpm: --config.registry=…). */
   settingPrefix?: string;
+  /** A flag takes true or false from the next word (nopt: --ignore-scripts false); listed in a fact of its own (booleanWords). */
+  booleanWords?: boolean;
 }
 
 /**
@@ -449,6 +451,43 @@ export interface PackageSpecKnowledge {
   shorthand?: string;
   /** user@host:path (the scp-like form of an ssh URL) is a git repository. */
   scp?: boolean;
+}
+
+/**
+ * The values with which a switch weakens a protection: `delay` is a release-age delay in the tool's unit
+ * (cooldown.unit) or a duration string (durationStrings), which depcurfew compares with the policy; `any` is every
+ * value; otherwise the values listed, or every value except those (fail closed). A flag without a value is "true".
+ */
+export type OverrideValues = 'delay' | 'any' | readonly string[] | { readonly except: readonly string[] };
+
+/** An option or environment variable of one command that weakens what depcurfew apply configured. */
+export interface OverrideSwitch {
+  /** The option as the scanner resolves it (--name) or the variable, compared without regard to case. */
+  name: string;
+  /** The release-age delay, or the rule on dependency install scripts. */
+  weakens: 'delay' | 'scripts';
+  values: OverrideValues;
+}
+
+/**
+ * Options and environment variables that weaken, for a single command, the release-age delay or the rule on
+ * dependency install scripts that depcurfew apply wrote into the tool's configuration (the install guard asks).
+ */
+export interface InstallOverridesKnowledge {
+  options: readonly OverrideSwitch[];
+  variables: readonly OverrideSwitch[];
+}
+
+/** A command that changes the tool's configuration, which an install later in the same command line reads. */
+export interface ConfigCommand {
+  /** The executable and its subcommand, e.g. ["npm", "config"]. */
+  command: readonly string[];
+  /** Words after it that change the configuration (set, delete); others only read it. */
+  writes?: readonly string[];
+  /** It changes the configuration when given at least this many arguments (poetry config key value). */
+  operands?: number;
+  /** Options that make it change the configuration (poetry config --unset). */
+  options?: readonly string[];
 }
 
 /**

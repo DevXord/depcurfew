@@ -317,6 +317,47 @@ export const pnpm: ToolKnowledge = {
       `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`,
       'pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag. Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y.',
     ),
+    booleanWords: runtimes.verified(
+      true,
+      'https://github.com/pnpm/nopt/blob/main/lib/nopt.js',
+      'The nopt fork pnpm imports (@pnpm/nopt, imported by pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1) reads a Boolean option followed by the word true or false as that value and skips the word, inverted after --no- (parse in lib/nopt.js).',
+    ),
+    configCommands: runtimes.verified(
+      [
+        { command: ['pnpm', 'config'], writes: ['set', 'delete'] },
+        { command: ['pnpm', 'c'], writes: ['set', 'delete'] },
+      ],
+      'https://github.com/pnpm/pnpm.io/blob/main/docs/cli/config.md',
+      'pnpm config (aliases: c) manages the configuration files: set <key> <value>, get <key>, delete <key> and list; get and list only read.',
+    ),
+    installOverrides: runtimes.verified(
+      {
+        options: [
+          { name: '--ignore-scripts', weakens: 'scripts', values: { except: ['true'] } },
+          { name: '--ignoreScripts', weakens: 'scripts', values: { except: ['true'] } },
+          { name: '--allow-build', weakens: 'scripts', values: 'any' },
+          { name: '--dangerouslyAllowAllBuilds', weakens: 'scripts', values: { except: ['false'] } },
+          { name: '--dangerously-allow-all-builds', weakens: 'scripts', values: { except: ['false'] } },
+          { name: '--minimumReleaseAge', weakens: 'delay', values: 'delay' },
+          { name: '--minimum-release-age', weakens: 'delay', values: 'delay' },
+          { name: '--minimumReleaseAgeExclude', weakens: 'delay', values: 'any' },
+          { name: '--minimum-release-age-exclude', weakens: 'delay', values: 'any' },
+          { name: '--minimumReleaseAgeStrict', weakens: 'delay', values: { except: ['true'] } },
+          { name: '--minimum-release-age-strict', weakens: 'delay', values: { except: ['true'] } },
+        ],
+        variables: [
+          { name: 'pnpm_config_minimum_release_age', weakens: 'delay', values: 'delay' },
+          { name: 'pnpm_config_minimum_release_age_exclude', weakens: 'delay', values: 'any' },
+          { name: 'pnpm_config_minimum_release_age_strict', weakens: 'delay', values: { except: ['true'] } },
+          { name: 'pnpm_config_ignore_scripts', weakens: 'scripts', values: { except: ['true'] } },
+          { name: 'pnpm_config_dangerously_allow_all_builds', weakens: 'scripts', values: ['true'] },
+          { name: 'npm_config_minimum_release_age', weakens: 'delay', values: 'delay' },
+          { name: 'npm_config_dangerously_allow_all_builds', weakens: 'scripts', values: { except: ['false', 'null', 'undefined'] } },
+        ],
+      },
+      `${PNPM_V12}/pnpm11/config/reader/src/env.ts`,
+      'pnpm add takes --ignore-scripts ("Same as the ignoreScripts setting") and --allow-build, which lists packages allowed to run postinstall scripts (docs/cli/add.md in pnpm/pnpm.io; a ! prefix denies one instead, still asked about). Any setting can be given as --config.<key>=<value>, the key kept as written (normalizeOptions in pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1), so both spellings are listed and the scanner reads the key without --config.. pnpm_config_<key> and PNPM_CONFIG_<KEY> set the setting of the camel-cased key; a Boolean only from the exact words true and false, a number with Number (parseEnvVars in env.ts). pnpm 10 reads npm_config_* variables as npm does (registryOverrides). minimumReleaseAgeStrict false installs a younger version when no older one matches (user.weakening).',
+    ),
     minimumReleaseAgeStrict: checked.verified(
       { setting: 'minimumReleaseAgeStrict', value: true, since: '11.0.0' },
       RESOLUTION,

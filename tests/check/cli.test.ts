@@ -268,6 +268,34 @@ describe('depcurfew check --hook claude-code', () => {
     expect(decision(result.stdout).permissionDecisionReason).toContain('"$PACKAGE" is expanded by the shell. Fix: Write the package names out in the command');
   });
 
+  it('asks about an option or variable that weakens the policy for the install (D-114)', async () => {
+    const directory = project({ cooldown: { minimum: '3d' }, installScripts: { default: 'deny', allow: [] } });
+    const hook = async (command: string) => (await exec(['check', '--hook', 'claude-code'], event(command, directory))).stdout;
+    const shorter = decision(await hook('npm install --min-release-age=0 lodash'));
+    expect(shorter).toMatchObject({ permissionDecision: 'ask' });
+    expect(shorter.permissionDecisionReason).toBe(
+      'depcurfew cannot vouch for what this command installs:\n- npm install --min-release-age=0 lodash: --min-release-age=0 sets the release-age delay to 0 minutes, shorter than the 3 days in depcurfew.json, and weakens what the project configured for every package this install fetches, also those depcurfew does not check. Fix: Run the install without that option or variable, so it keeps the release-age delay and install-script settings of the project; if the change is intended, the user decides',
+    );
+    // An install without package names (npm ci) is weakened just as much.
+    const scripts = decision(await hook('npm_config_ignore_scripts=false npm ci'));
+    expect(scripts).toMatchObject({ permissionDecision: 'ask' });
+    expect(scripts.permissionDecisionReason).toContain('npm_config_ignore_scripts=false lets dependency install scripts run that depcurfew.json restricts');
+    expect(await hook('npm install --min-release-age=7 --ignore-scripts lodash')).toBe('');
+    expect(await hook('npm ci --ignore-scripts')).toBe('');
+    // Without a delay in the policy, a shorter one weakens nothing.
+    expect((await exec(['check', '--hook', 'claude-code'], event('npm install --min-release-age=0 lodash', project({})))).stdout).toBe('');
+  });
+
+  it('asks about a configuration change next to an install (D-114)', async () => {
+    const directory = project({ cooldown: { minimum: '3d' } });
+    const asked = decision((await exec(['check', '--hook', 'claude-code'], event('npm config set registry https://registry.example && npm install lodash', directory))).stdout);
+    expect(asked).toMatchObject({ permissionDecision: 'ask' });
+    expect(asked.permissionDecisionReason).toContain(
+      "- npm config set registry https://registry.example: changes the package manager's configuration, which the install in the same command would use, while depcurfew checks packages with the configuration from before the change. Fix: Run the install as a command of its own",
+    );
+    expect((await exec(['check', '--hook', 'claude-code'], event('npm config get registry && npm install lodash', directory))).stdout).toBe('');
+  });
+
   it('stays silent for a command that passes or installs nothing', async () => {
     const directory = project({ cooldown: { minimum: '3d' } });
     expect((await exec(['check', '--hook', 'claude-code'], event('npm install lodash', directory))).stdout).toBe('');

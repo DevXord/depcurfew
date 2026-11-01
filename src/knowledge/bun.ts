@@ -237,5 +237,10 @@ export const bun: ToolKnowledge = {
       `${INSTALL}#minimum-release-age`,
     ),
     bunxCooldown: verified('bunx applies --minimum-release-age only since 1.4.4', 'https://bun.com/blog/bun-v1.4.4'),
+    installOverrides: runtimes.verified(
+      { options: [{ name: '--minimum-release-age', weakens: 'delay', values: 'delay' }], variables: [] },
+      'https://github.com/oven-sh/bun/blob/main/docs/pm/cli/install.mdx',
+      'bun add @types/bun --minimum-release-age 259200 # seconds: "A number is in seconds", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it.',
+    ),
   },
 };

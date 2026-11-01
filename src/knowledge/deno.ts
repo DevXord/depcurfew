@@ -253,6 +253,18 @@ export const deno: ToolKnowledge = {
       ),
     ),
     denoXCooldown: verified('deno x honors minimumDependencyAge only since 2.9.4', release('2.9.4')),
+    installOverrides: leftovers.verified(
+      {
+        options: [
+          { name: '--minimum-dependency-age', weakens: 'delay', values: 'delay' },
+          { name: '--min-dep-age', weakens: 'delay', values: 'delay' },
+          { name: '--allow-scripts', weakens: 'scripts', values: 'any' },
+        ],
+        variables: [],
+      },
+      'https://github.com/denoland/docs/blob/main/runtime/packages/supply_chain.md',
+      'deno install --minimum-dependency-age=P3D: deno.json and the flag accept an ISO-8601 duration such as P3D or PT72H, or an integer of minutes, and 0 turns it off; --min-dep-age is its alias (cooldown.cliFlag). deno install --allow-scripts=<packages> lets those packages run their lifecycle scripts, which Deno does not run by default (runtime/reference/cli/install.md in denoland/docs).',
+    ),
     dxRunsScripts: verified('dx defaults to --allow-all and runs lifecycle scripts once the download prompt is accepted', 'https://deno.com/blog/v2.6'),
   },
 };
