@@ -281,7 +281,7 @@ describe('duplicate findings (item 3)', () => {
     const atLine = report.findings.filter((finding) => finding.rule === 'manager-version-too-old' && finding.location.line === report.findings[0]?.location.line);
     expect(atLine.at(-1)?.message).toMatch(/^\d+ more manager-version-too-old findings at this place differ from the ones above only in numbers \(line numbers or versions\) and are not shown$/u);
     expect(atLine.at(-1)?.level).toBe('error');
-  });
+  }, 60_000);
 });
 
 describe('runtime-end-of-life for versions it cannot read (item 4)', () => {

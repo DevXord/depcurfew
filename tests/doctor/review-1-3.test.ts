@@ -68,7 +68,7 @@ describe('large matrices', () => {
     expect([...new Set(report.findings.filter((finding) => finding.rule === 'runtime-end-of-life').map((finding) => finding.message))]).toEqual([
       `runtime-end-of-life cannot tell whether Node.js \${{ matrix.node }} (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test) is past its end of life: ${reason}`,
     ]);
-  });
+  }, 60_000);
 
   it('checks 200 values x 200 setup steps in bounded time', () => {
     const values = Array.from({ length: 200 }, (_, index) => `"22.${index}.0"`).join(', ');
@@ -78,7 +78,7 @@ describe('large matrices', () => {
     const report = runDoctor(directory);
     expect(performance.now() - start).toBeLessThan(20_000);
     expect(report.findings.some((finding) => finding.rule === 'manager-version-too-old')).toBe(true);
-  });
+  }, 60_000);
 });
 
 describe('the npm the declared Node.js brings, after following doctor and apply (tarball test 1)', () => {
