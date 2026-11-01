@@ -6,7 +6,7 @@
 // longer delay that the policy shortens is reported (cooldown-shortened).
 import { extraOf, isRecord, isSwitch, sinceOf } from '../apply/facts.ts';
 import { BLOCK_END, blockLines, blockStart, commentedOut, insertBlock, isBlockStart, joinLines, removeBlock, splitLines, SUPERSEDED, TURNED_OFF } from '../apply/block.ts';
-import { policyDuration } from '../apply/delays.ts';
+import { policyDuration, settingText } from '../apply/delays.ts';
 import { buildAllowList, buildSwitchScopeWarning, compactDuration, forcedBuildWarning, pythonNames, tomlValue } from '../apply/generators/python.ts';
 import { convertCooldown } from '../policy/convert.ts';
 import { allowedNames, cooldownValue, denyList, eachSource, exclusions, sameList, scriptsDefault, type SourceKind } from '../apply/generators/common.ts';
@@ -130,11 +130,11 @@ function shortenedWarning(
   const delay = minutesOf(found.value);
   if (!delay.ok || delay.minutes <= written.minutes) return;
   const policyFile = policyOf(target);
-  const action = how === 'block' ? `comments it out and writes ${written.key}: ${JSON.stringify(written.value)} in its managed block` : `replaces it with ${JSON.stringify(written.value)}`;
+  const action = how === 'block' ? `comments it out and writes ${settingText(target.file, written.key, written.value)} in its managed block` : `replaces it with ${JSON.stringify(written.value)}`;
   context.warn({
     code: 'cooldown-shortened',
     location: { file: target.shown, line: found.line },
-    message: `${context.name}: ${found.key}: ${JSON.stringify(found.value)} in ${target.shown} (line ${found.line}) waits ${formatMinutes(delay.minutes)}, longer than cooldown.minimum "${minimum.text}" in ${policyFile}; depcurfew apply --user ${action}, so ${context.name} waits only ${formatMinutes(written.minutes)}`,
+    message: `${context.name}: ${settingText(target.file, found.key, found.value)} in ${target.shown} (line ${found.line}) waits ${formatMinutes(delay.minutes)}, longer than cooldown.minimum "${minimum.text}" in ${policyFile}; depcurfew apply --user ${action}, so ${context.name} waits only ${formatMinutes(written.minutes)}`,
     fix: `To keep the longer delay, set cooldown.minimum to "${policyDuration(delay.minutes)}" in ${policyFile} and run depcurfew apply --user again`,
   });
 }

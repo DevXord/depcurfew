@@ -182,6 +182,6 @@ describe('installScripts.deny in pnpm before allowBuilds', () => {
   it('says so when the version is too old to record a denial at all', () => {
     const directory = project({ 'package.json': '{ "name": "app", "packageManager": "pnpm@10.0.0" }\n', 'pnpm-lock.yaml': "lockfileVersion: '9.0'\n" });
     const warning = applyProject(directory, { write: false }).warningDetails.find((item) => item.code === 'version-too-old');
-    expect(warning?.message).toBe('pnpm 10.0.0 does not support ignoredBuiltDependencies (since 10.1.0); not written');
+    expect(warning?.message).toBe('pnpm 10.0.0 does not support ignoredBuiltDependencies (added in 10.1.0); not written');
   });
 });

@@ -988,6 +988,8 @@ export interface EnvironmentKnowledge {
   docker: {
     imageReference: Fact<ImageReferenceKnowledge>;
     syntax: Fact<DockerfileSyntaxKnowledge>;
+    /** How COPY and ADD read a source path in the build context: from its root, with ../ and trailing slashes removed. */
+    copySources: Fact<{ relativeTo: 'context'; parentNavigation: 'removed'; trailingSlash: 'ignored' }>;
     /** The default file name, and the suffix of other Dockerfiles (build.Dockerfile). */
     dockerfileNames: Fact<{ defaultName: string; suffix: string }>;
     /** Dockerfile.<name>: a common convention without an official source. */

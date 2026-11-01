@@ -107,7 +107,9 @@ function versionsInUse(context: RuleContext, tool: ToolKnowledge): { version: Ve
   const manager = context.detection.packageManagers.find((entry) => entry.id === tool.id);
   if (manager === undefined) return [{ version: latestVersion(tool) }];
   if (tool.id !== 'npm') return [{ version: repositoryPin(manager) ?? pinnedVersion(manager) ?? latestVersion(tool) }];
-  const places = npmPlaces(context).flatMap((place) => place.versions.map((version) => ({ version, place })));
+  const places = npmPlaces(context).flatMap((place): { version: Version | undefined; place: NpmInUse }[] =>
+    place.unknown !== undefined ? [{ version: undefined, place }] : place.versions.map((version) => ({ version, place })),
+  );
   return places.length > 0 ? places : [{ version: pinnedVersion(manager) ?? latestVersion(tool) }];
 }
 
@@ -116,15 +118,17 @@ function versionsInUse(context: RuleContext, tool: ToolKnowledge): { version: Ve
  * runs them all, or, unless strict-allow-scripts is set (`strict`), one that runs them with a notice. `text` names the
  * versions of that place that run them ("npm 11.16.0 (with Node.js 24.18.0 in Dockerfile)"), absent without a place.
  */
-function runsScripts(context: RuleContext, tool: ToolKnowledge, strict: boolean): { text?: string; several?: boolean } | undefined {
+function runsScripts(context: RuleContext, tool: ToolKnowledge, strict: boolean): { text?: string; several?: boolean; unknown?: true } | undefined {
   const runs = (version: Version | undefined) =>
     evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
       const policy: ScriptPolicy | undefined = versionedValue(evidence.value, version);
       return policy === 'run' || (policy === 'run-with-warning' && !strict);
     });
-  const found = versionsInUse(context, tool).find((entry) => runs(entry.version));
+  // An npm depcurfew cannot tell counts as one that runs them (decision D-111).
+  const found = versionsInUse(context, tool).find((entry) => entry.place?.unknown !== undefined || runs(entry.version));
   if (found === undefined) return undefined;
   const place = found.place;
+  if (place?.unknown !== undefined) return { text: npmInUseText(place), unknown: true };
   const versions = place?.versions.filter(runs) ?? [];
   return place === undefined ? {} : { text: npmInUseText(place, versions), several: versions.length > 1 };
 }
@@ -279,7 +283,7 @@ export const lockfileInstallScripts: Rule = {
       const runner = disabledBy?.all === true ? undefined : runsScripts(context, tool, disabledBy !== undefined);
       const running = runner !== undefined;
       // "npm 11.16.0 (with Node.js 24.18.0 in Dockerfile) runs them": the npm in use that does (decision D-109).
-      const runs = runner?.text === undefined ? `${tool.name} runs them by default` : `${runner.text} ${runner.several === true ? 'run' : 'runs'} them`;
+      const runs = runner?.text === undefined ? `${tool.name} runs them by default` : `${runner.text} ${runner.unknown === true ? 'may run' : runner.several === true ? 'run' : 'runs'} them`;
       const lists = ownLists(context, tool);
       for (const entry of flagged) {
         if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;

@@ -119,7 +119,7 @@ describe('apply and a longer delay set by hand', () => {
         tool: 'npm',
         location: { file: '.npmrc', line: 2 },
         message:
-          'npm: min-release-age: 14 in .npmrc (line 2) waits 2 weeks, longer than cooldown.minimum "3d" in depcurfew.json; depcurfew apply comments it out and writes min-release-age: 3 in its managed block, so npm waits only 3 days',
+          'npm: min-release-age=14 in .npmrc (line 2) waits 2 weeks, longer than cooldown.minimum "3d" in depcurfew.json; depcurfew apply comments it out and writes min-release-age=3 in its managed block, so npm waits only 3 days',
         fix: 'To keep the longer delay, set cooldown.minimum to "14d" in depcurfew.json and run depcurfew apply again',
       },
     ]);
@@ -148,7 +148,7 @@ describe('apply and a longer delay set by hand', () => {
     });
     const warning = applyProject(root, { write: false }).warningDetails.find((entry) => entry.code === 'cooldown-shortened');
     expect(warning?.message).toBe(
-      'pnpm: minimum-release-age: 10080 in .npmrc (line 1) waits 1 week, longer than cooldown.minimum "3d" in depcurfew.json; depcurfew apply writes minimumReleaseAge: 4320 to pnpm-workspace.yaml, which pnpm reads first, so pnpm waits only 3 days',
+      'pnpm: minimum-release-age=10080 in .npmrc (line 1) waits 1 week, longer than cooldown.minimum "3d" in depcurfew.json; depcurfew apply writes minimumReleaseAge: 4320 to pnpm-workspace.yaml, which pnpm reads first, so pnpm waits only 3 days',
     );
     expect(warning?.location).toEqual({ file: '.npmrc', line: 1 });
   });

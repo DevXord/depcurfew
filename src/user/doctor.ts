@@ -333,11 +333,10 @@ const SKIPPED = new Set<ApplyWarning['code']>(['version-unknown', 'no-user-confi
 /** The warnings of apply --user that say the installed version cannot take a setting the user policy needs. */
 const TOO_OLD = new Set<ApplyWarning['code']>(['version-too-old', 'scripts-not-enforceable']);
 
-/** "min-release-age (since 11.10.0)" from "npm 10.9.9 does not support min-release-age (since 11.10.0); not written". */
+/** "min-release-age (added in 11.10.0)" from "npm 10.9.9 does not support min-release-age (added in 11.10.0); not written". */
 function unsupported(warning: ApplyWarning): string {
   if (warning.code === 'scripts-not-enforceable') return 'an allow-list for install scripts';
-  const setting = /\bdoes not support (.+?)(?:; not written)?$/u.exec(warning.message)?.[1];
-  return setting === undefined ? warning.message : setting.replace(/\(since ([^)]+)\)/gu, '(added in $1)');
+  return /\bdoes not support (.+?)(?:; not written)?$/u.exec(warning.message)?.[1] ?? warning.message;
 }
 
 /**

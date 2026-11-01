@@ -64,10 +64,21 @@ function scriptsForVersionsInUse(context: Context, entries: string[], managed: s
       context.warn({
         code: 'strict-allow-scripts-for-npm-in-use',
         ...where(notices),
-        message: `${pin === undefined ? 'npm is not pinned for the repository, and ' : ''}${places(notices)} ${plural(notices) ? 'run' : 'runs'} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${effect}`,
+        message: `${pin === undefined ? `npm is not pinned for ${context.project ?? 'the repository'}, and ` : ''}${places(notices)} ${plural(notices) ? 'run' : 'runs'} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${effect}`,
         fix: `Make every place listed here run npm ${since} or later (npm install -g npm@${target} before it installs packages), and depcurfew apply leaves ${strict.setting} out; pinning npm in packageManager or devEngines does not change the npm they run. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in ${POLICY_FILE}`,
       });
     }
+  }
+  // An npm depcurfew cannot tell counts as one that runs every dependency install script (decision D-111).
+  const unknown = context.inUse.filter((entry) => entry.unknown !== undefined).map((entry) => ({ text: npmInUseText(entry), several: false, entry }));
+  if (unknown.length > 0) {
+    const since = sinceOf(tool.installScripts.allowList.availableSince) ?? '';
+    context.warn({
+      code: 'scripts-not-enforceable',
+      ...where(unknown),
+      message: `${places(unknown)} may run every dependency install script, so depcurfew counts ${unknown.length > 1 ? 'them as ones that do' : 'it as one that does'}, and "deny" may not be enforced there`,
+      fix: `Declare a Node.js version depcurfew knows there (an exact release it knows or a release line such as 24), or install npm ${since} or later before packages are installed there (npm install -g npm@${since}); npm 12 blocks dependency scripts by default`,
+    });
   }
   const running = of('run');
   if (running.length > 0) {
@@ -90,7 +101,8 @@ function scriptsForVersionsInUse(context: Context, entries: string[], managed: s
 function someSupports(context: Context, since: string | undefined, setting: string): boolean {
   if (context.inUse.length === 0) return context.supports(since, setting);
   const required = since === undefined ? undefined : parseVersion(since);
-  if (required === undefined || context.inUse.some((entry) => entry.versions.some((version) => compareVersions(version, required) >= 0))) return true;
+  // An npm depcurfew cannot tell may have it: the setting is written for it.
+  if (required === undefined || context.inUse.some((entry) => entry.unknown !== undefined || entry.versions.some((version) => compareVersions(version, required) >= 0))) return true;
   // No npm in use has it: a pinned version too old for it says so in version-too-old, as without other places.
   context.supports(since, setting);
   return false;

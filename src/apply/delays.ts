@@ -233,7 +233,21 @@ export function policyDuration(minutes: number): string {
 
 /** A value and where it is set, for messages: `min-release-age: 14 in .npmrc (line 2)`. */
 export function describeDelay(delay: ConfiguredDelay): string {
-  return `${delay.setting}: ${JSON.stringify(delay.value)} in ${delay.location.file} (line ${delay.location.line})`;
+  return `${settingText(delay.location.file, delay.setting, delay.value)} in ${delay.location.file} (line ${delay.location.line})`;
+}
+
+/** INI files: .npmrc, pnpm's rc and pip's configuration files. */
+const INI_FILES = new Set(['.npmrc', 'rc', 'pip.conf', 'pip.ini']);
+
+/**
+ * A setting as its file writes it (decision D-111): "min-release-age=3" in an INI file such as .npmrc,
+ * 'exclude-newer = "3 days"' in TOML, 'minimumReleaseAge: 4320' in YAML and JSON.
+ */
+export function settingText(file: string, key: string, value: unknown): string {
+  const name = file.split('/').at(-1) ?? file;
+  if (INI_FILES.has(name)) return `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`;
+  if (name.endsWith('.toml') || name === 'Pipfile') return `${key} = ${JSON.stringify(value)}`;
+  return `${key}: ${JSON.stringify(value)}`;
 }
 
 /** Files read as lines, where apply comments out a setting it takes over instead of replacing its value. */
@@ -276,9 +290,9 @@ export function shortenedDelays(root: string, changes: readonly FileChange[], de
     const scope = old.label === undefined ? '' : ` for ${old.label}`;
     const same = now.location.file === old.location.file && now.setting === old.setting;
     const action = !same
-      ? `writes ${now.setting}: ${JSON.stringify(now.value)} to ${now.location.file}, which ${name} reads first`
+      ? `writes ${settingText(now.location.file, now.setting, now.value)} to ${now.location.file}, which ${name} reads first`
       : lineBased(old.location.file)
-        ? `comments it out and writes ${now.setting}: ${JSON.stringify(now.value)} in its managed block`
+        ? `comments it out and writes ${settingText(now.location.file, now.setting, now.value)} in its managed block`
         : `replaces it with ${JSON.stringify(now.value)}`;
     return [
       {

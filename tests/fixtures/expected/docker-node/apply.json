@@ -18,6 +18,16 @@
       "code": "scripts-not-enforceable",
       "tool": "npm",
       "location": {
+        "file": "apps/web/Containerfile",
+        "line": 1
+      },
+      "message": "the npm that comes with Node.js of node@sha256:4f1d2b5c0a9e8f7d6c5b4a3928170615f4e3d2c1b0a9f8e7d6c5b4a392817061 in apps/web/Containerfile (depcurfew cannot tell which one: the image is pinned by digest only (node@sha256:4f1d2b5c0a9e8f7d6c5b4a3928170615f4e3d2c1b0a9f8e7d6c5b4a392817061)) may run every dependency install script, so depcurfew counts it as one that does, and \"deny\" may not be enforced there",
+      "fix": "Declare a Node.js version depcurfew knows there (an exact release it knows or a release line such as 24), or install npm 11.16.0 or later before packages are installed there (npm install -g npm@11.16.0); npm 12 blocks dependency scripts by default"
+    },
+    {
+      "code": "scripts-not-enforceable",
+      "tool": "npm",
+      "location": {
         "file": "Dockerfile",
         "line": 3
       },

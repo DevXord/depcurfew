@@ -192,32 +192,33 @@ describe('Node.js version files of the root for projects (item 2)', () => {
     expect(nvmrc.map((finding) => [finding.level, finding.message])).toEqual([
       [
         'warning',
-        'Node.js 24.18.0 in .nvmrc comes with npm 11.16.0, which does not support blocking dependency install scripts without strict-allow-scripts (since 12.0.0), and frontend has no Node.js version file of its own, so it uses this one',
+        'Node.js 24.18.0 in .nvmrc comes with npm 11.16.0, which does not support blocking dependency install scripts without strict-allow-scripts (added in 12.0.0), and frontend has no .nvmrc of its own, so it uses this one',
       ],
     ]);
     expect(nvmrc[0]?.fix).toMatch(/^Set strict-allow-scripts=true in frontend\/\.npmrc, which depcurfew apply writes for this repository, or /u);
     promisesHold(directory);
     const report = applyProject(directory, { write: true });
     expect(npmrc(directory, 'frontend/.npmrc')).toContain('strict-allow-scripts=true\n');
-    expect(report.warningDetails.find((item) => item.code === 'strict-allow-scripts-for-npm-in-use')?.message).toMatch(/^frontend: npm is not pinned for the repository, and npm 11\.16\.0 \(with Node\.js 24\.18\.0 in \.nvmrc at the repository root\) runs /u);
+    expect(report.warningDetails.find((item) => item.code === 'strict-allow-scripts-for-npm-in-use')?.message).toMatch(/^frontend: npm is not pinned for frontend, and npm 11\.16\.0 \(with Node\.js 24\.18\.0 in \.nvmrc at the repository root\) runs /u);
     const after = runDoctor(directory);
     expect(rule(after, 'manager-version-too-old')).toEqual([]);
     expect(rule(after, 'lockfile-install-scripts').map((finding) => finding.level)).toEqual(['warning']);
     expect(applyProject(directory, { write: true }).changes).toEqual([]);
   });
 
-  it('leaves the root .nvmrc out for a project with a version file of its own', () => {
-    // Node.js 22.11.0 comes with npm 10.9.0, which has no allow-list: nothing to write strict-allow-scripts for.
-    const directory = projectRepo({ 'frontend/.node-version': '22.11.0\n' });
+  it('leaves the root .nvmrc out for a project with a .nvmrc of its own', () => {
+    // Node.js 22.11.0 comes with npm 10.9.0, which has no allow-list: nothing to write strict-allow-scripts for. Only a
+    // .nvmrc hides the root .nvmrc (decision D-111); tests/recheck-2-1-3.test.ts covers the other kinds.
+    const directory = projectRepo({ 'frontend/.nvmrc': '22.11.0\n' });
     const plan = planRepository(directory, loadPolicyIfPresent(directory) as never);
     expect(plan.changes.find((change) => change.file === 'frontend/.npmrc')?.after).not.toContain('strict-allow-scripts');
     expect(rule(runDoctor(directory), 'lockfile-install-scripts').map((finding) => finding.message)).toEqual([
-      'core-js has install scripts and npm 10.9.0 (with Node.js 22.11.0 in frontend/.node-version) runs them, but depcurfew.json does not allow it',
+      'core-js has install scripts and npm 10.9.0 (with Node.js 22.11.0 in frontend/.nvmrc) runs them, but depcurfew.json does not allow it',
     ]);
   });
 
   it('counts a root Dockerfile for the project whose files it copies, and only then', () => {
-    const copies = projectRepo({ 'frontend/.node-version': '22.11.0\n', Dockerfile: 'FROM node:24.18.0\nWORKDIR /app\nCOPY frontend/package.json frontend/package-lock.json ./\nRUN npm ci\n' });
+    const copies = projectRepo({ 'frontend/.nvmrc': '22.11.0\n', Dockerfile: 'FROM node:24.18.0\nWORKDIR /app\nCOPY frontend/package.json frontend/package-lock.json ./\nRUN npm ci\n' });
     expect(planRepository(copies, loadPolicyIfPresent(copies) as never).changes.find((change) => change.file === 'frontend/.npmrc')?.after).toContain('strict-allow-scripts=true');
     const before = runDoctor(copies);
     const docker = rule(before, 'manager-version-too-old').filter((finding) => finding.location.file === 'Dockerfile');
@@ -226,16 +227,16 @@ describe('Node.js version files of the root for projects (item 2)', () => {
     expect(docker[0]?.fix).toMatch(/^Set strict-allow-scripts=true in frontend\/\.npmrc, which depcurfew apply writes for this repository, or /u);
     promisesHold(copies);
     // COPY . . builds from the whole repository: not clearly a build of frontend.
-    const whole = projectRepo({ 'frontend/.node-version': '22.11.0\n', Dockerfile: 'FROM node:24.18.0\nCOPY . .\nRUN cd frontend && npm ci\n' });
+    const whole = projectRepo({ 'frontend/.nvmrc': '22.11.0\n', Dockerfile: 'FROM node:24.18.0\nCOPY . .\nRUN cd frontend && npm ci\n' });
     expect(planRepository(whole, loadPolicyIfPresent(whole) as never).changes.find((change) => change.file === 'frontend/.npmrc')?.after).not.toContain('strict-allow-scripts');
     // Files of two directories: not clearly one project either.
-    const both = projectRepo({ 'frontend/.node-version': '22.11.0\n', Dockerfile: 'FROM node:24.18.0\nCOPY frontend/package.json shared/x.json ./\nRUN npm ci\n' });
+    const both = projectRepo({ 'frontend/.nvmrc': '22.11.0\n', Dockerfile: 'FROM node:24.18.0\nCOPY frontend/package.json shared/x.json ./\nRUN npm ci\n' });
     expect(planRepository(both, loadPolicyIfPresent(both) as never).changes.find((change) => change.file === 'frontend/.npmrc')?.after).not.toContain('strict-allow-scripts');
   });
 
   it('names a root Dockerfile from the root also when the project has a Dockerfile of its own', () => {
     const directory = projectRepo({
-      'frontend/.node-version': '22.11.0\n',
+      'frontend/.nvmrc': '22.11.0\n',
       'frontend/Dockerfile': 'FROM node:22.11.0\nRUN npm install -g npm@12.2.1\nRUN npm ci\n',
       Dockerfile: 'FROM node:24.18.0 AS web\nCOPY ./frontend/ .\nRUN npm ci\n',
     });

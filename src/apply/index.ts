@@ -325,6 +325,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       snippets,
       failures,
       ...(inUse === undefined ? {} : { inUse }),
+      ...(options.project === undefined ? {} : { project: options.project }),
     });
     workspace.startTool(tool.id);
     try {
@@ -452,8 +453,8 @@ function relocateReport(project: string, report: ApplyReport, detection: Detecti
       project,
       ...rest,
       ...(location === undefined ? {} : { location: { ...location, file: inProject(project, location.file) } }),
-      // A message without a file would not say which project it is about.
-      message: location === undefined ? `${project}: ${text(message)}` : text(message),
+      // Every warning of a project says which project it is about, also one with a file (decision D-111).
+      message: `${project}: ${text(message)}`,
       ...(fix === undefined ? {} : { fix: text(fix) }),
     };
   });

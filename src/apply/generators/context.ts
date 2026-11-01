@@ -48,6 +48,8 @@ export interface Context {
    * versions, npm installed in CI and Dockerfiles), for the install-script settings (decision D-105); empty otherwise.
    */
   inUse: readonly NpmInUse[];
+  /** The directory listed in projects this run configures, for messages ("npm is not pinned for frontend"); absent at the root. */
+  project?: string;
   /** The version as messages show it: as the tool prints it when that is known (24.0), else as major.minor.patch. */
   versionLabel: string;
   /** apply --user: blocks name the user policy, and a version that is too old is updated where it is installed. */
@@ -104,6 +106,7 @@ export function createContext(options: {
   version: Version | undefined;
   /** npm without a pin for the whole repository: the npm versions the repository runs. */
   inUse?: readonly NpmInUse[];
+  project?: string;
   workspace: Workspace;
   warnings: ApplyWarning[];
   snippets: Snippet[];
@@ -144,6 +147,7 @@ export function createContext(options: {
     policy: options.policy,
     version: options.version,
     inUse: options.inUse ?? [],
+    ...(options.project === undefined ? {} : { project: options.project }),
     versionLabel,
     user,
     workspace,

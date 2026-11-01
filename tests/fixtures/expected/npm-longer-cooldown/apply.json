@@ -19,7 +19,7 @@
         "file": ".npmrc",
         "line": 3
       },
-      "message": "npm: min-release-age: 14 in .npmrc (line 3) waits 2 weeks, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply comments it out and writes min-release-age: 3 in its managed block, so npm waits only 3 days",
+      "message": "npm: min-release-age=14 in .npmrc (line 3) waits 2 weeks, longer than cooldown.minimum \"3d\" in depcurfew.json; depcurfew apply comments it out and writes min-release-age=3 in its managed block, so npm waits only 3 days",
       "fix": "To keep the longer delay, set cooldown.minimum to \"14d\" in depcurfew.json and run depcurfew apply again"
     },
     {

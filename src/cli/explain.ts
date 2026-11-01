@@ -10,11 +10,13 @@ import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { join } from 'node:path';
 import { projectProblems, relocateDetection } from '../apply/projects.ts';
 import { autoTargets, directoryTargets } from '../apply/targets.ts';
+import { listing } from '../apply/requirements.ts';
+import { rootPlaces } from '../doctor/rules/bundled-versions.ts';
 import { managerName, toolName } from './describe.ts';
 import { paint, PLAIN, type Paint } from '../color.ts';
 import { printable } from '../printable.ts';
 import { safeJson } from '../json-safe.ts';
-import { policyInputError, projectDirectory, reportInputError, type InputError } from './directory.ts';
+import { inputErrorLines, policyInputError, projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
 type CooldownEntry =
@@ -43,9 +45,19 @@ export interface ExplainWarning extends DetectionWarning {
 /** What detection found, with the warnings as explain reports them. */
 export type ExplainDetection = Omit<Detection, 'warnings'> & { warnings: ExplainWarning[] };
 
+/**
+ * What a project takes from the repository root (decisions D-109 and D-111): the root's Node.js version files of the
+ * kinds it has none of, and the stages of root Dockerfiles that build it (numbers from 0, as `from` counts them). Files
+ * are named relative to the root.
+ */
+export interface FromRoot {
+  versions: VersionDeclaration[];
+  dockerfiles: { file: string; stages: number[] }[];
+}
+
 /** A directory listed in projects in depcurfew.json (decision D-100), with its files named relative to the root. */
 export type ProjectReport =
-  | { directory: string; project: ExplainDetection; targets: { mode: 'auto' | 'listed'; tools: ToolId[] } }
+  | { directory: string; project: ExplainDetection; fromRoot: FromRoot; targets: { mode: 'auto' | 'listed'; tools: ToolId[] } }
   | { directory: string; project: null; error: { code: string; level: 'error'; location: { file: string; line?: number }; message: string; fix: string } };
 
 export interface ExplainReport {
@@ -132,7 +144,9 @@ function policyReport(directory: string, detection: Detection): { policy: Policy
     const root = join(directory, entry);
     const found = detectProject(root);
     const { targets } = directoryTargets(root, policy, found, knowledgeBase, { project: entry, withProjects });
-    return { directory: entry, project: explained(relocateDetection(entry, found)), targets: { mode, tools: [...targets] } };
+    const places = rootPlaces(detection, entry, found);
+    const fromRoot: FromRoot = { versions: [...places.versions], dockerfiles: places.dockerfiles.map((item) => ({ file: item.file.file, stages: [...item.stages] })) };
+    return { directory: entry, project: explained(relocateDetection(entry, found)), fromRoot, targets: { mode, tools: [...targets] } };
   });
   const tools = withProjects ? [...directoryTargets(directory, policy, detection, knowledgeBase, { withProjects }).targets] : policy.targets === 'auto' ? autoTargets(directory, detection).targets : [...policy.targets];
   const every = [...new Set([...tools, ...projects.flatMap((entry) => ('targets' in entry ? entry.targets.tools : []))])];
@@ -171,12 +185,13 @@ function commandText(command: ToolCommand): string {
   return `${what} on line ${command.line}`;
 }
 
-/** "deps: node:22-alpine (Node.js 22), npm installs on line 6". */
+/** "deps: node:22-alpine (Node.js 22), copies package.json and package-lock.json, npm installs on line 6". */
 function stageText(stage: DockerStage, index: number, stages: readonly DockerStage[]): string {
   const name = stage.name ?? `#${index}`;
   const base = stage.from === undefined ? (stage.image ?? 'an image from an ARG without a value') : `stage ${stages[stage.from]?.name ?? `#${stage.from}`}`;
   const runtime = stage.runtime === undefined ? '' : stage.runtime.version === undefined ? ` (${stage.runtime.tool}, version unknown)` : ` (${stage.runtime.tool === 'node' ? 'Node.js' : 'Python'} ${stage.runtime.version})`;
-  return [`${name}: ${base}${runtime}`, ...stage.commands.map(commandText)].join(', ');
+  const copies = stage.copies === undefined || stage.copies.length === 0 ? [] : [`copies ${listing(stage.copies)}`];
+  return [`${name}: ${base}${runtime}`, ...copies, ...stage.commands.map(commandText)].join(', ');
 }
 
 function amount(value: number | string, unit: string): string {
@@ -184,7 +199,9 @@ function amount(value: number | string, unit: string): string {
   return `${value} ${value === 1 ? unit.replace(/s$/u, '') : unit}`;
 }
 
-function projectLines(project: ExplainDetection): string[] {
+const AT_ROOT = 'at the repository root';
+
+function projectLines(project: ExplainDetection, fromRoot?: { directory: string; places: FromRoot; detection: Pick<Detection, 'dockerfiles'> }): string[] {
   const lines = [project.packageManagers.length === 0 ? 'Package managers: none' : 'Package managers:'];
   for (const manager of project.packageManagers) {
     lines.push(`  ${managerName(manager)}`);
@@ -192,8 +209,10 @@ function projectLines(project: ExplainDetection): string[] {
     lines.push(`    evidence: ${manager.evidence.map((item) => `${item.file} (${item.kind})`).join(', ')}`);
     if (manager.configFiles.length > 0) lines.push(`    config files: ${manager.configFiles.join(', ')}`);
   }
-  if (project.node.versions.length === 0) lines.push('Node.js versions: none declared');
-  else lines.push('Node.js versions:', ...project.node.versions.map((version) => `  ${where(version)}`));
+  // A project also uses the root's version files of the kinds it has none of (decision D-111).
+  const versions = [...project.node.versions.map((version) => `  ${where(version)}`), ...(fromRoot?.places.versions ?? []).map((version) => `  ${where(version).replace(/\)$/u, `, ${AT_ROOT})`)}`)];
+  if (versions.length === 0) lines.push('Node.js versions: none declared');
+  else lines.push('Node.js versions:', ...versions);
   if (project.bots.length === 0) lines.push('Bots: none');
   else lines.push('Bots:', ...project.bots.map((bot) => `  ${toolName(bot.id)}: ${bot.configFiles.join(', ')}`));
   if (project.workspaces === null) {
@@ -207,16 +226,29 @@ function projectLines(project: ExplainDetection): string[] {
   const npmrc = [...project.npmrcFiles, ...special.map((file) => `${file} (not a regular file, not read)`)];
   lines.push(`.npmrc files: ${npmrc.length === 0 ? 'none' : npmrc.join(', ')}`);
   lines.push(`GitHub Actions workflows: ${project.workflows.length === 0 ? 'none' : project.workflows.join(', ')}`);
-  if (project.dockerfiles.length === 0) lines.push('Dockerfiles: none');
-  else lines.push('Dockerfiles:', ...project.dockerfiles.flatMap((file) => [`  ${file.file}`, ...file.stages.map((stage, index) => `    ${stageText(stage, index, file.stages)}`)]));
+  // The stages of root Dockerfiles that build the project (they copy only its files).
+  const rootStages = (fromRoot?.places.dockerfiles ?? []).flatMap((entry) => {
+    const file = fromRoot?.detection.dockerfiles.find((item) => item.file === entry.file);
+    if (file === undefined) return [];
+    const stages = entry.stages.length === 1 ? 'the stage below builds' : 'the stages below build';
+    return [`  ${entry.file} (${AT_ROOT}; ${stages} ${fromRoot?.directory ?? ''})`, ...entry.stages.map((index) => `    ${stageText(file.stages[index] as DockerStage, index, file.stages)}`)];
+  });
+  const dockerfiles = [...project.dockerfiles.flatMap((file) => [`  ${file.file}`, ...file.stages.map((stage, index) => `    ${stageText(stage, index, file.stages)}`)]), ...rootStages];
+  if (dockerfiles.length === 0) lines.push('Dockerfiles: none');
+  else lines.push('Dockerfiles:', ...dockerfiles);
   if (project.warnings.length === 0) lines.push('Warnings: none');
   else lines.push('Warnings:', ...project.warnings.flatMap((warning) => [`  ${warning.code}: ${warning.message}`, `    fix: ${warning.fix}`]));
   return lines;
 }
 
-function policyLines(policy: PolicyReport | null): string[] {
+function policyLines(policy: PolicyReport | null, errors: readonly InputError[]): string[] {
   if (policy === null) return [`Policy: no ${POLICY_FILE}`];
-  if (!policy.valid) return [`Policy (${policy.file}): invalid`, ...policy.issues.map((issue) => `  ${issue}`)];
+  // As apply says it: the level, the message with its code, the issues and what to do (decision D-111).
+  if (!policy.valid) {
+    const error = errors.find((item) => item.location.file === policy.file && item.code.startsWith('policy-')) ?? errors[0];
+    const details = error === undefined ? policy.issues.map((issue) => `  ${issue}`) : inputErrorLines(error).map((line) => `  ${line}`);
+    return [`Policy (${policy.file}): invalid`, ...details];
+  }
   const names = policy.targets.tools.map(toolName);
   const lines = [
     `Policy (${policy.file}):`,
@@ -244,7 +276,7 @@ function paintReport(lines: readonly string[], colors: Paint): string[] {
 }
 
 /** A directory listed in projects: what was found there and what apply configures, or why it cannot be used. */
-function listedProjectLines(entry: ProjectReport): string[] {
+function listedProjectLines(entry: ProjectReport, rootDetection: Pick<Detection, 'dockerfiles'>): string[] {
   if (entry.project === null) {
     // As apply says it: the level, then the entry of depcurfew.json, unless the message names the file itself.
     const { file, line } = entry.error.location;
@@ -254,15 +286,15 @@ function listedProjectLines(entry: ProjectReport): string[] {
   const names = entry.targets.tools.map(toolName);
   return [
     `Project ${entry.directory}:`,
-    ...projectLines(entry.project).map((line) => `  ${line}`),
+    ...projectLines(entry.project, { directory: entry.directory, places: entry.fromRoot, detection: rootDetection }).map((line) => `  ${line}`),
     `  targets: ${names.length === 0 ? 'none' : names.join(', ')} (${entry.targets.mode === 'auto' ? 'detected' : 'listed'})`,
   ];
 }
 
 export function renderReport(report: ExplainReport, colors: Paint = PLAIN): string {
   // Every line holds names and values from the repository: control characters in them are shown as text.
-  const projects = report.projects.flatMap((entry) => ['', ...listedProjectLines(entry)]);
-  const lines = [...projectLines(report.project), '', ...policyLines(report.policy), ...projects].map((line) => printable(line));
+  const projects = report.projects.flatMap((entry) => ['', ...listedProjectLines(entry, report.project)]);
+  const lines = [...projectLines(report.project), '', ...policyLines(report.policy, report.errors), ...projects].map((line) => printable(line));
   return `${paintReport(lines, colors).join('\n')}\n`;
 }
 

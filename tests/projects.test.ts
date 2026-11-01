@@ -85,7 +85,7 @@ describe('apply with projects', () => {
     const result = await exec('apply', '--dry-run', directory);
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout).toContain('--- /dev/null\n+++ b/frontend/.npmrc\n');
-    expect(result.stderr).toContain('warning: uv: backend/uv.lock records exclude-newer, so it is out of date after this change (lockfile-out-of-date)\n  fix: Run uv lock and commit backend/uv.lock;');
+    expect(result.stderr).toContain('warning: backend: uv: backend/uv.lock records exclude-newer, so it is out of date after this change (lockfile-out-of-date)\n  fix: Run uv lock and commit backend/uv.lock;');
     expect(result.stderr).toContain('warning: backend: uv has no setting for git dependencies');
   });
 
@@ -225,7 +225,7 @@ describe('doctor with projects', () => {
     ]);
     expect(report.findings[2]?.message).toBe('frontend/.npmrc is missing; depcurfew apply would create it with the settings from depcurfew.json');
     expect(report.findings[4]).toMatchObject({
-      message: 'npm 11.19.1 in packageManager (frontend/package.json) does not support blocking dependency install scripts without strict-allow-scripts (since 12.0.0)',
+      message: 'npm 11.19.1 in packageManager (frontend/package.json) does not support blocking dependency install scripts without strict-allow-scripts (added in 12.0.0)',
       fix: 'Set strict-allow-scripts=true in frontend/.npmrc, which depcurfew apply writes for this repository, or require npm 12.0.0 or later in packageManager',
     });
     expect(report.checked?.tools).toEqual([
@@ -377,7 +377,7 @@ describe('init with projects', () => {
   it('keeps the longest delay a project already sets', async () => {
     writeFileSync(join(directory, 'frontend', '.npmrc'), 'min-release-age=10\n');
     const result = await exec('init', directory);
-    expect(result.stdout).toContain('cooldown.minimum is 10d instead of 3d, to keep the longest release-age delay already set: min-release-age: 10 in frontend/.npmrc (line 1).\n');
+    expect(result.stdout).toContain('cooldown.minimum is 10d instead of 3d, to keep the longest release-age delay already set: min-release-age=10 in frontend/.npmrc (line 1).\n');
     expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { cooldown: { minimum: { text: '10d' } } } });
   });
 

@@ -318,8 +318,13 @@ function developerPlaces(detection: Detection, manager: PackageManagerInfo | und
 
 /** One npm version in use, or a range of them, and where it comes from, for apply's and doctor's messages. */
 export interface NpmInUse {
-  /** The npm versions, lowest first. */
+  /** The npm versions, lowest first; empty when depcurfew cannot tell which npm it is (`unknown`). */
   versions: Version[];
+  /**
+   * Why depcurfew cannot tell which npm this place runs ("it is newer than the releases depcurfew knows (24 up to
+   * 24.22.2)"). Such an npm counts as one that runs every dependency install script (decision D-111).
+   */
+  unknown?: string;
   /**
    * Where it comes from, for "npm 10.9.9 (with Node.js 22 in .nvmrc)": "with Node.js 22 in .nvmrc", "installed in
    * Dockerfile, line 3", "packageManager in package.json", "the lowest version devEngines in package.json allows".
@@ -333,14 +338,11 @@ export interface NpmInUse {
 
 /** What a directory listed in projects takes from the repository root besides its CI installs (decision D-109). */
 export interface RootPlaces {
-  /** The root's Node.js version files (.nvmrc, .node-version, .tool-versions), when the project has none of its own. */
+  /** The root's Node.js version files (.nvmrc, .node-version, .tool-versions) of the kinds the project has none of. */
   versions: readonly VersionDeclaration[];
   /** Root Dockerfiles with the stages that build the project (they copy only its files). */
   dockerfiles: readonly { file: DockerfileInfo; stages: readonly number[] }[];
 }
-
-/** What makes a project choose its Node.js itself: a version file or a key of its package.json that names one. */
-const OWN_SOURCES = new Set<VersionDeclaration['source']>(['nvmrc', 'node-version', 'tool-versions', 'volta', 'devEngines']);
 
 /** The sources of the version files that version managers also use in subdirectories (environment.node.inheritedVersionFiles). */
 function inheritedSources(): Set<VersionDeclaration['source']> {
@@ -349,11 +351,31 @@ function inheritedSources(): Set<VersionDeclaration['source']> {
   return new Set(files.flatMap((file) => (sources[file] === undefined ? [] : [sources[file]])));
 }
 
-/** "frontend/x" and "./frontend" lie in frontend; "." and "../frontend" do not. */
+/**
+ * A COPY or ADD source as Docker reads it in the build context (environment.docker.copySources): from the root of the
+ * context, with . and .. resolved, ../ that would leave the context and trailing slashes removed. "frontend/../" is
+ * the root ("."), "./frontend/./x" and "/frontend/x" are "frontend/x". Undefined when Docker would read it otherwise
+ * than depcurfew assumes (the fact changed).
+ */
+export function contextPath(source: string): string | undefined {
+  const facts = values(environment.docker.copySources)[0];
+  if (facts === undefined || facts.relativeTo !== 'context' || facts.parentNavigation !== 'removed') return undefined;
+  const parts: string[] = [];
+  for (const part of source.split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') parts.pop();
+    else parts.push(part);
+  }
+  return parts.length === 0 ? '.' : parts.join('/');
+}
+
+/**
+ * The project a COPY or ADD source lies in: "frontend/x", "./frontend/./x" and "frontend/" lie in frontend; ".",
+ * "frontend/../", "frontend-old/" and a source the project name only starts (frontend*) do not (decision D-111).
+ */
 function copiedProject(source: string, projects: readonly string[]): string | undefined {
-  let path = source;
-  while (path.startsWith('./')) path = path.slice(2);
-  path = path.replace(/^\/+/u, '').replace(/\/+\.?$/u, '');
+  const path = contextPath(source);
+  if (path === undefined || path.split('/').includes('..')) return undefined;
   return projects.find((project) => path === project || path.startsWith(`${project}/`));
 }
 
@@ -381,15 +403,16 @@ export function stageProjects(file: DockerfileInfo, projects: readonly string[])
 }
 
 /**
- * What a project takes from the root (decision D-109): the root's .nvmrc, .node-version and .tool-versions, which nvm,
- * nodenv and asdf also use in its directory, when the project chooses no Node.js of its own (Volta, devEngines and
- * engines of the root package.json do not reach a project with a package.json of its own); and the stages of root
- * Dockerfiles that build it.
+ * What a project takes from the root (decisions D-109 and D-111): the root's .nvmrc, .node-version and .tool-versions,
+ * which nvm, nodenv and asdf also use in its directory. Each tool reads only its own file, so a project's own file
+ * hides only the root file of the same kind: with frontend/.nvmrc, asdf still finds the root .tool-versions there.
+ * Volta, devEngines and engines of the root package.json do not reach a project with a package.json of its own. And
+ * the stages of root Dockerfiles that build it.
  */
 export function rootPlaces(rootDetection: Detection, project: string, projectDetection: Detection | undefined): RootPlaces {
-  const own = projectDetection?.node.versions.some((declaration) => OWN_SOURCES.has(declaration.source)) ?? false;
+  const own = new Set(projectDetection?.node.versions.map((declaration) => declaration.source) ?? []);
   const inherited = inheritedSources();
-  const versions = own ? [] : rootDetection.node.versions.filter((declaration) => inherited.has(declaration.source));
+  const versions = rootDetection.node.versions.filter((declaration) => inherited.has(declaration.source) && !own.has(declaration.source));
   const dockerfiles = rootDetection.dockerfiles
     .map((file) => ({ file, stages: stageProjects(file, [project]).flatMap((built, index) => (built === project ? [index] : [])) }))
     .filter((entry) => entry.stages.length > 0);
@@ -432,14 +455,17 @@ export function npmInUse(
   const found: NpmInUse[] = [];
   const keys = new Set<string>();
   const push = (entry: NpmInUse) => {
-    const key = `${entry.where}\u0000${entry.versions.map(formatVersion).join(' ')}`;
+    const key = `${entry.where}\u0000${entry.versions.map(formatVersion).join(' ')}\u0000${entry.unknown ?? ''}`;
     if (keys.has(key)) return;
     keys.add(key);
     found.push(entry);
   };
+  // A version depcurfew cannot map to an npm stays in the list as unknown: it must not pass for one that blocks scripts.
   const add = (resolution: Resolved, where: string, location: NpmInUse['location']) => {
-    if (resolution.kind !== 'unknown') push({ versions: [...resolution.bundled], where: `with ${where}`, ...(location === undefined ? {} : { location }) });
+    const fields = { where: `with ${where}`, ...(location === undefined ? {} : { location }) };
+    push(resolution.kind === 'unknown' ? { versions: [], unknown: resolution.reason, ...fields } : { versions: [...resolution.bundled], ...fields });
   };
+  const unknownNode = (reason: string, where: string, location: NpmInUse['location']) => add({ kind: 'unknown', reason }, where, location);
   const at = (file: string, line: number | undefined) => ({ file, ...(line === undefined ? {} : { line }) });
   const projects = options.projects ?? [];
   const built = builtByProject(projects);
@@ -478,18 +504,27 @@ export function npmInUse(
   for (const [index, view] of views.entries()) {
     for (const place of jobPlaces(view, index === 0 ? projects : [])) {
       const declaration = place.declaration;
-      if (place.project !== '' || !('version' in declaration) || declaration.unknown !== undefined) continue;
+      if (place.project !== '') continue;
+      const location = index === 0 ? at(declaration.file, declaration.line) : undefined;
+      const job = `job ${place.job.id} of ${declaration.file}${index === 0 ? '' : AT_ROOT}`;
+      if (!('version' in declaration)) {
+        unknownNode('depcurfew cannot read the version from that file', `Node.js from ${declaration.versionFile} in ${job}`, location);
+        continue;
+      }
       const matrix = declaration.matrix === undefined ? '' : ` (matrix.${declaration.matrix})`;
       const from = declaration.versionFile === undefined ? '' : ` from ${declaration.versionFile}`;
-      const where = `Node.js ${declaration.version}${matrix}${from} in job ${place.job.id} of ${declaration.file}${index === 0 ? '' : AT_ROOT}`;
-      add(resolve(declaration.version, 'setup-node'), where, index === 0 ? at(declaration.file, declaration.line) : undefined);
+      const where = `Node.js ${declaration.version}${matrix}${from} in ${job}`;
+      if (declaration.unknown !== undefined) unknownNode(declaration.unknown, where, location);
+      else add(resolve(declaration.version, 'setup-node'), where, location);
     }
   }
-  const subject = (place: DockerPlace) => `Node.js ${place.stage.runtime.version ?? ''} of ${place.root.image ?? 'node'} in ${place.file.file}`;
-  for (const place of dockerPlaces(detection.dockerfiles, 'npm', (file, index) => built(file, index) === undefined)) {
+  const subject = (place: DockerPlace) => `Node.js ${place.stage.runtime.version === undefined ? '' : `${place.stage.runtime.version} `}of ${place.root.image ?? 'node'} in ${place.file.file}`;
+  const stage = (place: DockerPlace, suffix: string, location: NpmInUse['location']) => {
     const version = place.stage.runtime.version;
-    if (version !== undefined) add(resolve(version, 'docker'), subject(place), at(place.file.file, place.root.line));
-  }
+    if (version === undefined) unknownNode(place.stage.runtime.unknown ?? 'the tag names no version', `${subject(place)}${suffix}`, location);
+    else add(resolve(version, 'docker'), `${subject(place)}${suffix}`, location);
+  };
+  for (const place of dockerPlaces(detection.dockerfiles, 'npm', (file, index) => built(file, index) === undefined)) stage(place, '', at(place.file.file, place.root.line));
   for (const declaration of developerPlaces(detection, manager, manifest, (options.root?.versions.length ?? 0) > 0)) {
     const where = declaration.file === label(declaration) ? declaration.file : `${label(declaration)} in ${declaration.file}`;
     add(resolve(declaration.version, namingOf(declaration.source)), `Node.js ${declaration.version} in ${where}`, at(declaration.file, declaration.line));
@@ -500,9 +535,7 @@ export function npmInUse(
   }
   for (const { file, stages } of options.root?.dockerfiles ?? []) {
     const keep = new Set(stages);
-    for (const place of dockerPlaces([file], 'npm', (_file, index) => keep.has(index))) {
-      if (place.stage.runtime.version !== undefined) add(resolve(place.stage.runtime.version, 'docker'), `${subject(place)}${AT_ROOT}`, undefined);
-    }
+    for (const place of dockerPlaces([file], 'npm', (_file, index) => keep.has(index))) stage(place, AT_ROOT, undefined);
     for (const index of stages) {
       for (const command of file.stages[index]?.commands ?? []) {
         const version = command.tool === 'npm' && command.kind === 'upgrade' && command.version !== undefined ? parseVersion(command.version) : undefined;
@@ -522,6 +555,8 @@ export function npmInUse(
 
 /** "npm 11.16.0 (with Node.js 24.18.0 in .nvmrc)", "npm 11.3.0 to 11.19.1 (…)": the versions of an entry, or some of them. */
 export function npmInUseText(entry: NpmInUse, versions: readonly Version[] = entry.versions): string {
+  // "the npm that comes with Node.js 24.99.0 in .nvmrc (depcurfew cannot tell which one: it is newer than …)".
+  if (entry.unknown !== undefined || versions.length === 0) return `the npm that comes ${entry.where} (depcurfew cannot tell which one: ${entry.unknown ?? 'no version is known'})`;
   const sorted = [...versions].sort(compareVersions);
   const low = formatVersion(sorted[0] as Version);
   const high = formatVersion(sorted.at(-1) as Version);
@@ -716,7 +751,7 @@ function checkDeveloperFiles(
       file: declaration.file,
       ...(line === undefined ? {} : { line }),
       enforced: false,
-      ...(project === undefined ? {} : { installs: `${project} has no Node.js version file of its own, so it uses this one` }),
+      ...(project === undefined ? {} : { installs: `${project} has no ${declaration.file.split('/').at(-1) ?? declaration.file} of its own, so it uses this one` }),
       install: (version) => `install npm ${version} where this Node.js is used (npm install -g npm@${version})`,
       installSeen: false,
       runtime: (releases, _first, bundled) => `require a Node.js release that comes with npm ${bundled} or later in ${helpers.label(declaration)} (${releases})`,

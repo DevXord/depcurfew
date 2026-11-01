@@ -1,5 +1,6 @@
-// Settings a tool version is too old for, in one readable phrase: "min-release-age and allow-git (since 11.10.0),
-// allowScripts (since 11.16.0)". Settings that arrived in the same version are listed together.
+// Settings a tool version is too old for, in one readable phrase: "min-release-age and allow-git (added in 11.10.0),
+// allowScripts (added in 11.16.0)". Settings that arrived in the same version are listed together. apply, doctor and
+// doctor --user all say "added in" (decision D-111).
 import { compareVersions, parseVersion } from './version.ts';
 
 export interface Requirement {
@@ -26,7 +27,7 @@ export function describeRequirements(requirements: readonly Requirement[]): stri
   const order = (a: string, b: string) => compareVersions(parseVersion(a) ?? [0, 0, 0], parseVersion(b) ?? [0, 0, 0]);
   const text = [...groups.entries()]
     .sort(([a], [b]) => order(a, b))
-    .map(([since, group]) => `${listing(group.settings)} (since ${since})`)
+    .map(([since, group]) => `${listing(group.settings)} (added in ${since})`)
     .join(', ');
   const disputed = [...groups.values()].some((group) => group.disputed);
   return disputed ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;

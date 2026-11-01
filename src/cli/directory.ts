@@ -5,7 +5,7 @@ import { statSync } from 'node:fs';
 import { relative, resolve, sep } from 'node:path';
 import { PolicyError, policyErrorFix } from '../apply/index.ts';
 import type { ApplyErrorCode } from '../apply/warnings.ts';
-import { paint } from '../color.ts';
+import { paint, PLAIN, type Paint } from '../color.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { findPolicyDirectory } from '../policy/file.ts';
 import { printable } from '../printable.ts';
@@ -71,15 +71,21 @@ export function policyInputError(error: PolicyError, file: string): InputError {
   };
 }
 
-/** An input error on stderr, like an error of apply: the message with its code, the issues, then what to do. */
-export function reportInputError(error: InputError, io: CliIo): void {
-  const colors = paint(io.colors?.stderr);
-  const lines = [
+/**
+ * An input error as lines, like an error of apply: the level and the message with its code, the issues, then what to
+ * do. One source for stderr and for explain, which shows an unusable depcurfew.json in its report (decision D-111).
+ */
+export function inputErrorLines(error: InputError, colors: Paint = PLAIN): string[] {
+  return [
     `error: ${printable(error.message)} ${colors.dim(`(${error.code})`)}`,
     ...(error.issues ?? []).map((issue) => `  ${printable(issue)}`),
     `  ${colors.green('fix:')} ${printable(error.fix)}`,
   ];
-  io.stderr(`${lines.join('\n')}\n`);
+}
+
+/** An input error on stderr (inputErrorLines). */
+export function reportInputError(error: InputError, io: CliIo): void {
+  io.stderr(`${inputErrorLines(error, paint(io.colors?.stderr)).join('\n')}\n`);
 }
 
 /** The absolute path of an existing directory given on the command line, or undefined after reporting the error. */

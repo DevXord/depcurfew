@@ -160,7 +160,7 @@ describe('depcurfew init', () => {
       code: EXIT_OK,
       stdout:
         `Created ${policyFile} with the default policy.\n` +
-        'cooldown.minimum is 14d instead of 3d, to keep the longest release-age delay already set: min-release-age: 14 in .npmrc (line 2).\n' +
+        'cooldown.minimum is 14d instead of 3d, to keep the longest release-age delay already set: min-release-age=14 in .npmrc (line 2).\n' +
         'Detected tools: npm, Dependabot.\n',
       stderr: '',
     });

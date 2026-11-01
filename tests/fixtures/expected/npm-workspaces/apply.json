@@ -13,7 +13,7 @@
     {
       "code": "version-too-old",
       "tool": "npm",
-      "message": "npm 11.6.0 does not support min-release-age and allow-git (since 11.10.0), allow-remote, allow-file and allow-directory (since 11.15.0), allowScripts (since 11.16.0); not written",
+      "message": "npm 11.6.0 does not support min-release-age and allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), allowScripts (added in 11.16.0); not written",
       "fix": "Require npm 11.16.0 or later where the version is pinned"
     }
   ],

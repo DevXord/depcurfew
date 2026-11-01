@@ -121,7 +121,7 @@ describe('apply --user for npm and Deno (~/.npmrc)', () => {
     expect(ignored.report.warningDetails.map((warning) => warning.code)).not.toContain('cooldown-shortened');
     writeFileSync(join(environment.home, '.npmrc'), 'min-release-age=5\n');
     const longer = planUserApply(policy({ ...DEFAULT, targets: ['deno'] }), { environment });
-    expect(longer.report.warningDetails.find((warning) => warning.code === 'cooldown-shortened')?.message).toContain('min-release-age: 5 in ~/.npmrc (line 1) waits 5 days');
+    expect(longer.report.warningDetails.find((warning) => warning.code === 'cooldown-shortened')?.message).toContain('min-release-age=5 in ~/.npmrc (line 1) waits 5 days');
   });
 
   it('configures nothing when no tool is in PATH and the policy lists none', () => {

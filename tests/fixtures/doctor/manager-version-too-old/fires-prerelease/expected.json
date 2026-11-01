@@ -5,7 +5,7 @@
       "file": "package.json",
       "line": 3
     },
-    "message": "pnpm 10.16.0-rc.1 in packageManager (package.json) does not support minimumReleaseAge (since 10.16.0)",
+    "message": "pnpm 10.16.0-rc.1 in packageManager (package.json) does not support minimumReleaseAge (added in 10.16.0)",
     "fix": "Require pnpm 10.16.0 or later in packageManager"
   },
   {
@@ -14,7 +14,7 @@
       "file": "package.json",
       "line": 4
     },
-    "message": "devEngines (package.json) allows pnpm 10.16.0-rc.1 (\">= 10.16.0-rc.1\"), which does not support minimumReleaseAge (since 10.16.0)",
+    "message": "devEngines (package.json) allows pnpm 10.16.0-rc.1 (\">= 10.16.0-rc.1\"), which does not support minimumReleaseAge (added in 10.16.0)",
     "fix": "Require pnpm 10.16.0 or later in devEngines"
   }
 ]

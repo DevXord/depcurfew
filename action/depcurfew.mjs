@@ -4449,6 +4449,385 @@ const environment = {
 	node: {
 		bundledNpm: runtimes.verified([
 			{
+				line: "0.6",
+				latest: "0.6.21",
+				bundles: [
+					["0.6.3", "1.1.0-alpha-2"],
+					["0.6.4", "1.1.0-alpha-6"],
+					["0.6.6", "1.1.0-beta-4"],
+					["0.6.7", "1.1.0-beta-10"],
+					["0.6.8", "1.1.0-2"],
+					["0.6.9", "1.1.0-3"],
+					["0.6.11", "1.1.1"],
+					["0.6.12", "1.1.4"],
+					["0.6.13", "1.1.9"],
+					["0.6.14", "1.1.12"],
+					["0.6.15", "1.1.16"],
+					["0.6.16", "1.1.19"],
+					["0.6.17", "1.1.21"],
+					["0.6.19", "1.1.24"],
+					["0.6.20", "1.1.37"]
+				]
+			},
+			{
+				line: "0.7",
+				latest: "0.7.12",
+				bundles: [
+					["0.7.0", "1.1.0-2"],
+					["0.7.2", "1.1.0-3"],
+					["0.7.4", "1.1.1"],
+					["0.7.6", "1.1.8"],
+					["0.7.7", "1.1.15"],
+					["0.7.8", "1.1.18"],
+					["0.7.9", "1.1.23"],
+					["0.7.10", "1.1.25"],
+					["0.7.11", "1.1.26"],
+					["0.7.12", "1.1.30"]
+				]
+			},
+			{
+				line: "0.8",
+				latest: "0.8.28",
+				bundles: [
+					["0.8.0", "1.1.32"],
+					["0.8.1", "1.1.33"],
+					["0.8.2", "1.1.36"],
+					["0.8.3", "1.1.43"],
+					["0.8.4", "1.1.45"],
+					["0.8.5", "1.1.46"],
+					["0.8.6", "1.1.48"],
+					["0.8.7", "1.1.49"],
+					["0.8.8", "1.1.59"],
+					["0.8.9", "1.1.61"],
+					["0.8.10", "1.1.62"],
+					["0.8.12", "1.1.63"],
+					["0.8.13", "1.1.65"],
+					["0.8.15", "1.1.66"],
+					["0.8.16", "1.1.69"],
+					["0.8.17", "1.2.0"],
+					["0.8.18", "1.2.2"],
+					["0.8.19", "1.2.10"],
+					["0.8.20", "1.2.11"],
+					["0.8.22", "1.2.14"],
+					["0.8.23", "1.2.18"],
+					["0.8.24", "1.2.24"],
+					["0.8.25", "1.2.30"]
+				]
+			},
+			{
+				line: "0.9",
+				latest: "0.9.12",
+				bundles: [
+					["0.9.0", "1.1.44"],
+					["0.9.1", "1.1.59"],
+					["0.9.2", "1.1.61"],
+					["0.9.3", "1.1.64"],
+					["0.9.4", "1.1.70"],
+					["0.9.6", "1.2.0"],
+					["0.9.7", "1.2.2"],
+					["0.9.8", "1.2.3"],
+					["0.9.9", "1.2.10"],
+					["0.9.10", "1.2.12"]
+				]
+			},
+			{
+				line: "0.10",
+				latest: "0.10.48",
+				bundles: [
+					["0.10.0", "1.2.14"],
+					["0.10.1", "1.2.15"],
+					["0.10.3", "1.2.17"],
+					["0.10.4", "1.2.18"],
+					["0.10.7", "1.2.21"],
+					["0.10.8", "1.2.23"],
+					["0.10.9", "1.2.24"],
+					["0.10.10", "1.2.25"],
+					["0.10.11", "1.2.30"],
+					["0.10.12", "1.2.32"],
+					["0.10.13", "1.3.2"],
+					["0.10.14", "1.3.5"],
+					["0.10.16", "1.3.8"],
+					["0.10.19", "1.3.11"],
+					["0.10.22", "1.3.14"],
+					["0.10.23", "1.3.17"],
+					["0.10.24", "1.3.21"],
+					["0.10.25", "1.3.24"],
+					["0.10.26", "1.4.3"],
+					["0.10.27", "1.4.8"],
+					["0.10.28", "1.4.9"],
+					["0.10.29", "1.4.14"],
+					["0.10.30", "1.4.21"],
+					["0.10.31", "1.4.23"],
+					["0.10.32", "1.4.28"],
+					["0.10.41", "1.4.29"],
+					["0.10.44", "2.15.0"],
+					["0.10.45", "2.15.1"]
+				]
+			},
+			{
+				line: "0.11",
+				latest: "0.11.16",
+				bundles: [
+					["0.11.0", "1.2.15"],
+					["0.11.1", "1.2.18"],
+					["0.11.2", "1.2.21"],
+					["0.11.3", "1.2.25"],
+					["0.11.4", "1.3.4"],
+					["0.11.5", "1.3.6"],
+					["0.11.6", "1.3.8"],
+					["0.11.8", "1.3.13"],
+					["0.11.9", "1.3.15"],
+					["0.11.10", "1.3.22"],
+					["0.11.11", "1.3.25"],
+					["0.11.12", "1.4.3"],
+					["0.11.13", "1.4.9"],
+					["0.11.14", "2.0.0"],
+					["0.11.15", "2.1.6"],
+					["0.11.16", "2.3.0"]
+				]
+			},
+			{
+				line: "0.12",
+				latest: "0.12.18",
+				bundles: [
+					["0.12.0", "2.5.1"],
+					["0.12.2", "2.7.4"],
+					["0.12.3", "2.9.1"],
+					["0.12.4", "2.10.1"],
+					["0.12.5", "2.11.2"],
+					["0.12.7", "2.11.3"],
+					["0.12.8", "2.14.9"],
+					["0.12.13", "2.15.0"],
+					["0.12.14", "2.15.1"],
+					["0.12.18", "2.15.11"]
+				]
+			},
+			{
+				line: "4",
+				latest: "4.9.1",
+				bundles: [
+					["4.0.0", "2.14.2"],
+					["4.1.0", "2.14.3"],
+					["4.1.1", "2.14.4"],
+					["4.2.0", "2.14.7"],
+					["4.2.4", "2.14.12"],
+					["4.4.0", "2.14.20"],
+					["4.4.2", "2.15.0"],
+					["4.4.3", "2.15.1"],
+					["4.4.5", "2.15.5"],
+					["4.4.7", "2.15.8"],
+					["4.5.0", "2.15.9"],
+					["4.6.2", "2.15.11"]
+				]
+			},
+			{
+				line: "5",
+				latest: "5.12.0",
+				bundles: [
+					["5.0.0", "3.3.6"],
+					["5.1.0", "3.3.12"],
+					["5.6.0", "3.6.0"],
+					["5.8.0", "3.7.3"],
+					["5.10.0", "3.8.3"],
+					["5.11.0", "3.8.6"]
+				]
+			},
+			{
+				line: "6",
+				latest: "6.17.1",
+				bundles: [
+					["6.0.0", "3.8.6"],
+					["6.2.0", "3.8.9"],
+					["6.2.1", "3.9.3"],
+					["6.2.2", "3.9.5"],
+					["6.3.0", "3.10.3"],
+					["6.8.0", "3.10.8"],
+					["6.9.2", "3.10.9"],
+					["6.9.3", "3.10.10"]
+				]
+			},
+			{
+				line: "7",
+				latest: "7.10.1",
+				bundles: [
+					["7.0.0", "3.10.8"],
+					["7.1.0", "3.10.9"],
+					["7.2.1", "3.10.10"],
+					["7.4.0", "4.0.5"],
+					["7.5.0", "4.1.2"],
+					["7.8.0", "4.2.0"]
+				]
+			},
+			{
+				line: "8",
+				latest: "8.17.0",
+				bundles: [
+					["8.0.0", "5.0.0"],
+					["8.1.0", "5.0.3"],
+					["8.2.0", "5.3.0"],
+					["8.7.0", "5.4.2"],
+					["8.9.0", "5.5.1"],
+					["8.9.4", "5.6.0"],
+					["8.12.0", "6.4.1"],
+					["8.17.0", "6.13.4"]
+				]
+			},
+			{
+				line: "9",
+				latest: "9.11.2",
+				bundles: [["9.0.0", "5.5.1"], ["9.4.0", "5.6.0"]]
+			},
+			{
+				line: "10",
+				latest: "10.24.1",
+				bundles: [
+					["10.0.0", "5.6.0"],
+					["10.3.0", "6.1.0"],
+					["10.8.0", "6.2.0"],
+					["10.10.0", "6.4.1"],
+					["10.16.0", "6.9.0"],
+					["10.17.0", "6.11.3"],
+					["10.18.0", "6.13.4"],
+					["10.20.0", "6.14.4"],
+					["10.22.0", "6.14.6"],
+					["10.23.0", "6.14.8"],
+					["10.23.1", "6.14.10"],
+					["10.23.3", "6.14.11"],
+					["10.24.1", "6.14.12"]
+				]
+			},
+			{
+				line: "11",
+				latest: "11.15.0",
+				bundles: [
+					["11.0.0", "6.4.1"],
+					["11.6.0", "6.5.0-next.0"],
+					["11.7.0", "6.5.0"],
+					["11.10.0", "6.7.0"]
+				]
+			},
+			{
+				line: "12",
+				latest: "12.22.12",
+				bundles: [
+					["12.0.0", "6.9.0"],
+					["12.7.0", "6.10.0"],
+					["12.8.0", "6.10.2"],
+					["12.10.0", "6.10.3"],
+					["12.11.0", "6.11.3"],
+					["12.13.0", "6.12.0"],
+					["12.13.1", "6.12.1"],
+					["12.14.0", "6.13.4"],
+					["12.16.2", "6.14.4"],
+					["12.18.1", "6.14.5"],
+					["12.18.3", "6.14.6"],
+					["12.19.0", "6.14.8"],
+					["12.20.1", "6.14.10"],
+					["12.20.2", "6.14.11"],
+					["12.22.1", "6.14.12"],
+					["12.22.2", "6.14.13"],
+					["12.22.4", "6.14.14"],
+					["12.22.6", "6.14.15"],
+					["12.22.10", "6.14.16"]
+				]
+			},
+			{
+				line: "13",
+				latest: "13.14.0",
+				bundles: [
+					["13.0.0", "6.12.0"],
+					["13.1.0", "6.12.1"],
+					["13.2.0", "6.13.1"],
+					["13.4.0", "6.13.4"],
+					["13.7.0", "6.13.6"],
+					["13.9.0", "6.13.7"],
+					["13.12.0", "6.14.4"]
+				]
+			},
+			{
+				line: "14",
+				latest: "14.21.3",
+				bundles: [
+					["14.0.0", "6.14.4"],
+					["14.3.0", "6.14.5"],
+					["14.6.0", "6.14.6"],
+					["14.7.0", "6.14.7"],
+					["14.9.0", "6.14.8"],
+					["14.15.2", "6.14.9"],
+					["14.15.4", "6.14.10"],
+					["14.15.5", "6.14.11"],
+					["14.16.1", "6.14.12"],
+					["14.17.0", "6.14.13"],
+					["14.17.4", "6.14.14"],
+					["14.17.6", "6.14.15"],
+					["14.19.0", "6.14.16"],
+					["14.19.2", "6.14.17"],
+					["14.21.3", "6.14.18"]
+				]
+			},
+			{
+				line: "15",
+				latest: "15.14.0",
+				bundles: [
+					["15.0.0", "7.0.2"],
+					["15.0.1", "7.0.3"],
+					["15.1.0", "7.0.8"],
+					["15.3.0", "7.0.14"],
+					["15.4.0", "7.0.15"],
+					["15.5.0", "7.3.0"],
+					["15.6.0", "7.4.0"],
+					["15.7.0", "7.4.3"],
+					["15.8.0", "7.5.1"],
+					["15.9.0", "7.5.3"],
+					["15.11.0", "7.6.0"],
+					["15.12.0", "7.6.3"],
+					["15.13.0", "7.7.6"]
+				]
+			},
+			{
+				line: "16",
+				latest: "16.20.2",
+				bundles: [
+					["16.0.0", "7.10.0"],
+					["16.1.0", "7.11.2"],
+					["16.2.0", "7.13.0"],
+					["16.3.0", "7.15.1"],
+					["16.4.0", "7.18.1"],
+					["16.5.0", "7.19.1"],
+					["16.6.1", "7.20.3"],
+					["16.8.0", "7.21.0"],
+					["16.9.0", "7.21.1"],
+					["16.10.0", "7.24.0"],
+					["16.11.0", "8.0.0"],
+					["16.12.0", "8.1.0"],
+					["16.13.1", "8.1.2"],
+					["16.14.0", "8.3.1"],
+					["16.14.1", "8.5.0"],
+					["16.15.0", "8.5.5"],
+					["16.15.1", "8.11.0"],
+					["16.17.0", "8.15.0"],
+					["16.18.0", "8.19.2"],
+					["16.19.0", "8.19.3"],
+					["16.20.0", "8.19.4"]
+				]
+			},
+			{
+				line: "17",
+				latest: "17.9.1",
+				bundles: [
+					["17.0.0", "8.1.0"],
+					["17.1.0", "8.1.2"],
+					["17.2.0", "8.1.4"],
+					["17.3.0", "8.3.0"],
+					["17.4.0", "8.3.1"],
+					["17.5.0", "8.4.1"],
+					["17.6.0", "8.5.1"],
+					["17.7.0", "8.5.2"],
+					["17.8.0", "8.5.5"],
+					["17.9.1", "8.11.0"]
+				]
+			},
+			{
 				line: "18",
 				latest: "18.20.8",
 				bundles: [
@@ -4591,7 +4970,7 @@ const environment = {
 					["26.11.0", "11.20.0"]
 				]
 			}
-		], "https://nodejs.org/dist/index.json", "The npm field of every release from 18.0.0 on (index.json fetched on 2026-11-01, sha256 6b27fe5766e87929d16ccdde05c516cbdd12200eab62b28d4b2f31d34e21481a), as the first release of each line that bundles each npm version; latest is the newest release of the line that day. The bundled npm never goes down within a line. 27.0.0-alpha.0.0.0 (npm 12.1.0) is a prerelease and left out: no release bundles npm 12 yet, Node.js 22 stays on npm 10.9.x, 24 reaches npm 11.10 or later only from 24.14.1 (npm 11.10.x was skipped) and 25 ends at npm 11.12.1."),
+		], "https://nodejs.org/dist/index.json", "The npm field of every release in index.json (fetched on 2026-11-01, sha256 6b27fe5766e87929d16ccdde05c516cbdd12200eab62b28d4b2f31d34e21481a), as the first release of each line that bundles each npm version; latest is the newest release of the line that day. Lines are the major version from 4 on and the minor version before (0.6 to 0.12, as Node.js numbered them then). The bundled npm never goes down within a line. Releases before 0.6.3 (0.1.14 to 0.5.10 and 0.6.0 to 0.6.2) have no npm field: they came without npm. Every release before 18.0.0 bundles npm 8.19.4 or earlier (16.20.2 has npm 8.19.4), so none of them has min-release-age, allowScripts or strict-allow-scripts. 27.0.0-alpha.0.0.0 (npm 12.1.0) is a prerelease and left out: no release bundles npm 12 yet, Node.js 22 stays on npm 10.9.x, 24 reaches npm 11.10 or later only from 24.14.1 (npm 11.10.x was skipped) and 25 ends at npm 11.12.1."),
 		releaseSchedule: runtimes.verified([
 			{
 				line: 4,
@@ -4774,6 +5153,11 @@ const environment = {
 			escapeCharacters: ["\\", "`"],
 			globalArgInstruction: "ARG"
 		}, DOCKERFILE_REFERENCE, "Instructions are not case-sensitive. A line that begins with # is a comment unless it is a parser directive; comment lines are removed also inside a continued instruction. Parser directives (syntax, escape, check; keys not case-sensitive) must come first: after a comment, an empty line or an instruction none is read. The escape character (\\ by default, or `) at the end of a line continues the instruction; escaping is not performed in RUN except at the end of a line. ARG is the only instruction allowed before FROM, and FROM reads ARGs declared before the first FROM ($VAR, ${VAR}, ${VAR:-word}, ${VAR-word}, ${VAR:+word}, ${VAR+word}); --build-arg can change them. FROM [--platform=<platform>] <image>[:<tag>][@<digest>] [AS <name>]; a later FROM <name> starts from that stage. A here-document (RUN <<EOF) makes the following lines part of the instruction, up to the line with only the delimiter. Only RUN, COPY and ADD in shell form take here-documents, and only a whole word starts one: the parser splits the line into words with quotes kept (shlex.RawQuotes) and matches each word against ^(\\d*)<<(-?)\\s*([^<]*)$, so a quoted \"a <<b\" starts none (heredocsFromLine and reHeredoc in frontend/dockerfile/parser/parser.go at the same commit)."),
+		copySources: recheck.verified({
+			relativeTo: "context",
+			parentNavigation: "removed",
+			trailingSlash: "ignored"
+		}, `${DOCKERFILE_REFERENCE}#copying-from-the-build-context`, "COPY and ADD without --from: \"When copying source files from the build context, paths are interpreted as relative to the root of the context. Specifying a source path with a leading slash or one that navigates outside the build context, such as COPY ../something /something, automatically removes any parent directory navigation (../). Trailing slashes in the source path are also disregarded, making COPY something/ /something equivalent to COPY something /something.\" The ADD section says the same about ADD ../something. So /frontend/x, ../frontend/x and frontend/x are the same file, and frontend/.. is the root of the context."),
 		dockerfileNames: runtimes.verified({
 			defaultName: "Dockerfile",
 			suffix: ".Dockerfile"
@@ -15014,7 +15398,7 @@ function describeRequirements(requirements) {
 		0,
 		0
 	]);
-	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$1(group.settings)} (since ${since})`).join(", ");
+	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$1(group.settings)} (added in ${since})`).join(", ");
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
 }
 
@@ -17766,11 +18150,12 @@ function resolveIn(text, segments, lineOf) {
 			kind: "unknown",
 			reason: `it is newer than the releases depcurfew knows (${line} up to ${formatVersion(latest)})`
 		};
-		const segment = ofLine.findLast((entry) => compareVersions$1(entry.from, version) <= 0) ?? ofLine[0];
-		return segment === void 0 ? {
+		const segment = ofLine.findLast((entry) => compareVersions$1(entry.from, version) <= 0);
+		if (segment === void 0) return {
 			kind: "unknown",
-			reason: "no release of it is known"
-		} : {
+			reason: `depcurfew knows no version that it comes with (the first release of ${line} that does is ${formatVersion(ofLine[0]?.from)})`
+		};
+		return {
 			kind: "exact",
 			bundled: [segment.bundled],
 			lines: [line]
@@ -17794,7 +18179,11 @@ function resolveIn(text, segments, lineOf) {
 /** The npm versions the Node.js releases a declaration allows come with. */
 function nodeBundledNpm(written, naming, facts) {
 	const text = written.trim();
-	return resolveIn(nodeName(text, naming, facts) ?? text, facts.node, (version) => String(version[0]));
+	return resolveIn(nodeName(text, naming, facts) ?? text, facts.node, nodeLineOf);
+}
+/** The release line of a Node.js version: the major version from 4 on, the minor one before (0.12). */
+function nodeLineOf(version) {
+	return version[0] === 0 ? `0.${version[1]}` : String(version[0]);
 }
 /** The pip versions the CPython releases of a python image tag version (3.12, 3.12.4, latest) come with. */
 function pythonBundledPip(written, facts) {
@@ -18103,14 +18492,6 @@ function developerPlaces(detection, manager, manifest, fromRoot = false) {
 		return !(declaration.source === "engines" && (!isPrivate || others));
 	});
 }
-/** What makes a project choose its Node.js itself: a version file or a key of its package.json that names one. */
-const OWN_SOURCES = /* @__PURE__ */ new Set([
-	"nvmrc",
-	"node-version",
-	"tool-versions",
-	"volta",
-	"devEngines"
-]);
 /** The sources of the version files that version managers also use in subdirectories (environment.node.inheritedVersionFiles). */
 function inheritedSources() {
 	const files = values$1(environment.node.inheritedVersionFiles)[0] ?? [];
@@ -18121,11 +18502,30 @@ function inheritedSources() {
 	};
 	return new Set(files.flatMap((file) => sources[file] === void 0 ? [] : [sources[file]]));
 }
-/** "frontend/x" and "./frontend" lie in frontend; "." and "../frontend" do not. */
+/**
+* A COPY or ADD source as Docker reads it in the build context (environment.docker.copySources): from the root of the
+* context, with . and .. resolved, ../ that would leave the context and trailing slashes removed. "frontend/../" is
+* the root ("."), "./frontend/./x" and "/frontend/x" are "frontend/x". Undefined when Docker would read it otherwise
+* than depcurfew assumes (the fact changed).
+*/
+function contextPath(source) {
+	const facts = values$1(environment.docker.copySources)[0];
+	if (facts === void 0 || facts.relativeTo !== "context" || facts.parentNavigation !== "removed") return void 0;
+	const parts = [];
+	for (const part of source.split("/")) {
+		if (part === "" || part === ".") continue;
+		if (part === "..") parts.pop();
+		else parts.push(part);
+	}
+	return parts.length === 0 ? "." : parts.join("/");
+}
+/**
+* The project a COPY or ADD source lies in: "frontend/x", "./frontend/./x" and "frontend/" lie in frontend; ".",
+* "frontend/../", "frontend-old/" and a source the project name only starts (frontend*) do not (decision D-111).
+*/
 function copiedProject(source, projects) {
-	let path = source;
-	while (path.startsWith("./")) path = path.slice(2);
-	path = path.replace(/^\/+/u, "").replace(/\/+\.?$/u, "");
+	const path = contextPath(source);
+	if (path === void 0 || path.split("/").includes("..")) return void 0;
 	return projects.find((project) => path === project || path.startsWith(`${project}/`));
 }
 /**
@@ -18155,16 +18555,17 @@ function stageProjects(file, projects) {
 	return found.map((entry) => entry.any && !entry.mixed ? entry.project : void 0);
 }
 /**
-* What a project takes from the root (decision D-109): the root's .nvmrc, .node-version and .tool-versions, which nvm,
-* nodenv and asdf also use in its directory, when the project chooses no Node.js of its own (Volta, devEngines and
-* engines of the root package.json do not reach a project with a package.json of its own); and the stages of root
-* Dockerfiles that build it.
+* What a project takes from the root (decisions D-109 and D-111): the root's .nvmrc, .node-version and .tool-versions,
+* which nvm, nodenv and asdf also use in its directory. Each tool reads only its own file, so a project's own file
+* hides only the root file of the same kind: with frontend/.nvmrc, asdf still finds the root .tool-versions there.
+* Volta, devEngines and engines of the root package.json do not reach a project with a package.json of its own. And
+* the stages of root Dockerfiles that build it.
 */
 function rootPlaces(rootDetection, project, projectDetection) {
-	const own = projectDetection?.node.versions.some((declaration) => OWN_SOURCES.has(declaration.source)) ?? false;
+	const own = new Set(projectDetection?.node.versions.map((declaration) => declaration.source) ?? []);
 	const inherited = inheritedSources();
 	return {
-		versions: own ? [] : rootDetection.node.versions.filter((declaration) => inherited.has(declaration.source)),
+		versions: rootDetection.node.versions.filter((declaration) => inherited.has(declaration.source) && !own.has(declaration.source)),
 		dockerfiles: rootDetection.dockerfiles.map((file) => ({
 			file,
 			stages: stageProjects(file, [project]).flatMap((built, index) => built === project ? [index] : [])
@@ -18199,18 +18600,29 @@ function npmInUse(detection, manifest, label, options = {}) {
 	const found = [];
 	const keys = /* @__PURE__ */ new Set();
 	const push = (entry) => {
-		const key = `${entry.where}\u0000${entry.versions.map(formatVersion).join(" ")}`;
+		const key = `${entry.where}\u0000${entry.versions.map(formatVersion).join(" ")}\u0000${entry.unknown ?? ""}`;
 		if (keys.has(key)) return;
 		keys.add(key);
 		found.push(entry);
 	};
 	const add = (resolution, where, location) => {
-		if (resolution.kind !== "unknown") push({
-			versions: [...resolution.bundled],
+		const fields = {
 			where: `with ${where}`,
 			...location === void 0 ? {} : { location }
+		};
+		push(resolution.kind === "unknown" ? {
+			versions: [],
+			unknown: resolution.reason,
+			...fields
+		} : {
+			versions: [...resolution.bundled],
+			...fields
 		});
 	};
+	const unknownNode = (reason, where, location) => add({
+		kind: "unknown",
+		reason
+	}, where, location);
 	const at = (file, line) => ({
 		file,
 		...line === void 0 ? {} : { line }
@@ -18266,17 +18678,26 @@ function npmInUse(detection, manifest, label, options = {}) {
 	});
 	for (const [index, view] of views.entries()) for (const place of jobPlaces(view, index === 0 ? projects : [])) {
 		const declaration = place.declaration;
-		if (place.project !== "" || !("version" in declaration) || declaration.unknown !== void 0) continue;
+		if (place.project !== "") continue;
+		const location = index === 0 ? at(declaration.file, declaration.line) : void 0;
+		const job = `job ${place.job.id} of ${declaration.file}${index === 0 ? "" : AT_ROOT}`;
+		if (!("version" in declaration)) {
+			unknownNode("depcurfew cannot read the version from that file", `Node.js from ${declaration.versionFile} in ${job}`, location);
+			continue;
+		}
 		const matrix = declaration.matrix === void 0 ? "" : ` (matrix.${declaration.matrix})`;
 		const from = declaration.versionFile === void 0 ? "" : ` from ${declaration.versionFile}`;
-		const where = `Node.js ${declaration.version}${matrix}${from} in job ${place.job.id} of ${declaration.file}${index === 0 ? "" : AT_ROOT}`;
-		add(resolve(declaration.version, "setup-node"), where, index === 0 ? at(declaration.file, declaration.line) : void 0);
+		const where = `Node.js ${declaration.version}${matrix}${from} in ${job}`;
+		if (declaration.unknown !== void 0) unknownNode(declaration.unknown, where, location);
+		else add(resolve(declaration.version, "setup-node"), where, location);
 	}
-	const subject = (place) => `Node.js ${place.stage.runtime.version ?? ""} of ${place.root.image ?? "node"} in ${place.file.file}`;
-	for (const place of dockerPlaces(detection.dockerfiles, "npm", (file, index) => built(file, index) === void 0)) {
+	const subject = (place) => `Node.js ${place.stage.runtime.version === void 0 ? "" : `${place.stage.runtime.version} `}of ${place.root.image ?? "node"} in ${place.file.file}`;
+	const stage = (place, suffix, location) => {
 		const version = place.stage.runtime.version;
-		if (version !== void 0) add(resolve(version, "docker"), subject(place), at(place.file.file, place.root.line));
-	}
+		if (version === void 0) unknownNode(place.stage.runtime.unknown ?? "the tag names no version", `${subject(place)}${suffix}`, location);
+		else add(resolve(version, "docker"), `${subject(place)}${suffix}`, location);
+	};
+	for (const place of dockerPlaces(detection.dockerfiles, "npm", (file, index) => built(file, index) === void 0)) stage(place, "", at(place.file.file, place.root.line));
 	for (const declaration of developerPlaces(detection, manager, manifest, (options.root?.versions.length ?? 0) > 0)) {
 		const where = declaration.file === label(declaration) ? declaration.file : `${label(declaration)} in ${declaration.file}`;
 		add(resolve(declaration.version, namingOf(declaration.source)), `Node.js ${declaration.version} in ${where}`, at(declaration.file, declaration.line));
@@ -18284,7 +18705,7 @@ function npmInUse(detection, manifest, label, options = {}) {
 	for (const declaration of options.root?.versions ?? []) if ("version" in declaration) add(resolve(declaration.version, namingOf(declaration.source)), `Node.js ${declaration.version} in ${declaration.file}${AT_ROOT}`, void 0);
 	for (const { file, stages } of options.root?.dockerfiles ?? []) {
 		const keep = new Set(stages);
-		for (const place of dockerPlaces([file], "npm", (_file, index) => keep.has(index))) if (place.stage.runtime.version !== void 0) add(resolve(place.stage.runtime.version, "docker"), `${subject(place)}${AT_ROOT}`, void 0);
+		for (const place of dockerPlaces([file], "npm", (_file, index) => keep.has(index))) stage(place, AT_ROOT, void 0);
 		for (const index of stages) for (const command of file.stages[index]?.commands ?? []) {
 			const version = command.tool === "npm" && command.kind === "upgrade" && command.version !== void 0 ? parseVersion(command.version) : void 0;
 			if (version !== void 0) push({
@@ -18304,6 +18725,7 @@ function npmInUse(detection, manifest, label, options = {}) {
 }
 /** "npm 11.16.0 (with Node.js 24.18.0 in .nvmrc)", "npm 11.3.0 to 11.19.1 (…)": the versions of an entry, or some of them. */
 function npmInUseText(entry, versions = entry.versions) {
+	if (entry.unknown !== void 0 || versions.length === 0) return `the npm that comes ${entry.where} (depcurfew cannot tell which one: ${entry.unknown ?? "no version is known"})`;
 	const sorted = [...versions].sort(compareVersions$1);
 	const low = formatVersion(sorted[0]);
 	const high = formatVersion(sorted.at(-1));
@@ -18452,7 +18874,7 @@ function checkDeveloperFiles(context, helpers, check, declarations, facts, proje
 			file: declaration.file,
 			...line === void 0 ? {} : { line },
 			enforced: false,
-			...project === void 0 ? {} : { installs: `${project} has no Node.js version file of its own, so it uses this one` },
+			...project === void 0 ? {} : { installs: `${project} has no ${declaration.file.split("/").at(-1) ?? declaration.file} of its own, so it uses this one` },
 			install: (version) => `install npm ${version} where this Node.js is used (npm install -g npm@${version})`,
 			installSeen: false,
 			runtime: (releases, _first, bundled) => `require a Node.js release that comes with npm ${bundled} or later in ${helpers.label(declaration)} (${releases})`
@@ -18753,7 +19175,7 @@ function checkManager(context, manager, tool, features) {
 		if (!("version" in declaration)) continue;
 		const lowest = lowestVersion(declaration.version);
 		const label = sourceLabel(tool, declaration);
-		const where = `${label} (${declaration.file})`;
+		const where = label === declaration.file ? label : `${label} (${declaration.file})`;
 		if (lowest.kind === "unknown") {
 			context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
 			continue;
@@ -20306,7 +20728,24 @@ function policyDuration(minutes) {
 }
 /** A value and where it is set, for messages: `min-release-age: 14 in .npmrc (line 2)`. */
 function describeDelay(delay) {
-	return `${delay.setting}: ${JSON.stringify(delay.value)} in ${delay.location.file} (line ${delay.location.line})`;
+	return `${settingText(delay.location.file, delay.setting, delay.value)} in ${delay.location.file} (line ${delay.location.line})`;
+}
+/** INI files: .npmrc, pnpm's rc and pip's configuration files. */
+const INI_FILES = /* @__PURE__ */ new Set([
+	".npmrc",
+	"rc",
+	"pip.conf",
+	"pip.ini"
+]);
+/**
+* A setting as its file writes it (decision D-111): "min-release-age=3" in an INI file such as .npmrc,
+* 'exclude-newer = "3 days"' in TOML, 'minimumReleaseAge: 4320' in YAML and JSON.
+*/
+function settingText(file, key, value) {
+	const name = file.split("/").at(-1) ?? file;
+	if (INI_FILES.has(name)) return `${key}=${typeof value === "string" ? value : JSON.stringify(value)}`;
+	if (name.endsWith(".toml") || name === "Pipfile") return `${key} = ${JSON.stringify(value)}`;
+	return `${key}: ${JSON.stringify(value)}`;
 }
 /** Files read as lines, where apply comments out a setting it takes over instead of replacing its value. */
 function lineBased(file) {
@@ -20341,7 +20780,7 @@ function shortenedDelays(root, changes, detection, tools, targets, policyMinimum
 		if (now === void 0 || now.minutes >= old.minutes) return [];
 		const name = tools.find((tool) => tool.id === old.tool)?.name ?? old.tool;
 		const scope = old.label === void 0 ? "" : ` for ${old.label}`;
-		const action = !(now.location.file === old.location.file && now.setting === old.setting) ? `writes ${now.setting}: ${JSON.stringify(now.value)} to ${now.location.file}, which ${name} reads first` : lineBased(old.location.file) ? `comments it out and writes ${now.setting}: ${JSON.stringify(now.value)} in its managed block` : `replaces it with ${JSON.stringify(now.value)}`;
+		const action = !(now.location.file === old.location.file && now.setting === old.setting) ? `writes ${settingText(now.location.file, now.setting, now.value)} to ${now.location.file}, which ${name} reads first` : lineBased(old.location.file) ? `comments it out and writes ${settingText(now.location.file, now.setting, now.value)} in its managed block` : `replaces it with ${JSON.stringify(now.value)}`;
 		return [{
 			code: "cooldown-shortened",
 			tool: old.tool,
@@ -21249,6 +21688,7 @@ function createContext(options) {
 		policy: options.policy,
 		version: options.version,
 		inUse: options.inUse ?? [],
+		...options.project === void 0 ? {} : { project: options.project },
 		versionLabel,
 		user,
 		workspace,
@@ -21523,10 +21963,24 @@ function scriptsForVersionsInUse(context, entries, managed) {
 			context.warn({
 				code: "strict-allow-scripts-for-npm-in-use",
 				...where(notices),
-				message: `${pin === void 0 ? "npm is not pinned for the repository, and " : ""}${places(notices)} ${plural(notices) ? "run" : "runs"} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${effect}`,
+				message: `${pin === void 0 ? `npm is not pinned for ${context.project ?? "the repository"}, and ` : ""}${places(notices)} ${plural(notices) ? "run" : "runs"} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${effect}`,
 				fix: `Make every place listed here run npm ${since} or later (npm install -g npm@${target} before it installs packages), and depcurfew apply leaves ${strict.setting} out; pinning npm in packageManager or devEngines does not change the npm they run. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in ${POLICY_FILE}`
 			});
 		}
+	}
+	const unknown = context.inUse.filter((entry) => entry.unknown !== void 0).map((entry) => ({
+		text: npmInUseText(entry),
+		several: false,
+		entry
+	}));
+	if (unknown.length > 0) {
+		const since = sinceOf(tool.installScripts.allowList.availableSince) ?? "";
+		context.warn({
+			code: "scripts-not-enforceable",
+			...where(unknown),
+			message: `${places(unknown)} may run every dependency install script, so depcurfew counts ${unknown.length > 1 ? "them as ones that do" : "it as one that does"}, and "deny" may not be enforced there`,
+			fix: `Declare a Node.js version depcurfew knows there (an exact release it knows or a release line such as 24), or install npm ${since} or later before packages are installed there (npm install -g npm@${since}); npm 12 blocks dependency scripts by default`
+		});
 	}
 	const running = of("run");
 	if (running.length > 0) {
@@ -21545,7 +21999,7 @@ function scriptsForVersionsInUse(context, entries, managed) {
 function someSupports(context, since, setting) {
 	if (context.inUse.length === 0) return context.supports(since, setting);
 	const required = since === void 0 ? void 0 : parseVersion(since);
-	if (required === void 0 || context.inUse.some((entry) => entry.versions.some((version) => compareVersions$1(version, required) >= 0))) return true;
+	if (required === void 0 || context.inUse.some((entry) => entry.unknown !== void 0 || entry.versions.some((version) => compareVersions$1(version, required) >= 0))) return true;
 	context.supports(since, setting);
 	return false;
 }
@@ -23500,7 +23954,8 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 			warnings,
 			snippets,
 			failures,
-			...inUse === void 0 ? {} : { inUse }
+			...inUse === void 0 ? {} : { inUse },
+			...options.project === void 0 ? {} : { project: options.project }
 		});
 		workspace.startTool(tool.id);
 		try {
@@ -25195,7 +25650,10 @@ function versionsInUse(context, tool) {
 	const manager = context.detection.packageManagers.find((entry) => entry.id === tool.id);
 	if (manager === void 0) return [{ version: latestVersion$1(tool) }];
 	if (tool.id !== "npm") return [{ version: repositoryPin(manager) ?? pinnedVersion(manager) ?? latestVersion$1(tool) }];
-	const places = npmPlaces(context).flatMap((place) => place.versions.map((version) => ({
+	const places = npmPlaces(context).flatMap((place) => place.unknown !== void 0 ? [{
+		version: void 0,
+		place
+	}] : place.versions.map((version) => ({
 		version,
 		place
 	})));
@@ -25211,9 +25669,13 @@ function runsScripts(context, tool, strict) {
 		const policy = versionedValue(evidence.value, version);
 		return policy === "run" || policy === "run-with-warning" && !strict;
 	});
-	const found = versionsInUse(context, tool).find((entry) => runs(entry.version));
+	const found = versionsInUse(context, tool).find((entry) => entry.place?.unknown !== void 0 || runs(entry.version));
 	if (found === void 0) return void 0;
 	const place = found.place;
+	if (place?.unknown !== void 0) return {
+		text: npmInUseText(place),
+		unknown: true
+	};
 	const versions = place?.versions.filter(runs) ?? [];
 	return place === void 0 ? {} : {
 		text: npmInUseText(place, versions),
@@ -25338,7 +25800,7 @@ const lockfileInstallScripts = {
 			const disabledBy = scriptsDisabledBy(context, tool);
 			const runner = disabledBy?.all === true ? void 0 : runsScripts(context, tool, disabledBy !== void 0);
 			const running = runner !== void 0;
-			const runs = runner?.text === void 0 ? `${tool.name} runs them by default` : `${runner.text} ${runner.several === true ? "run" : "runs"} them`;
+			const runs = runner?.text === void 0 ? `${tool.name} runs them by default` : `${runner.text} ${runner.unknown === true ? "may run" : runner.several === true ? "run" : "runs"} them`;
 			const lists = ownLists(context, tool);
 			for (const entry of flagged) {
 				if (allow.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;

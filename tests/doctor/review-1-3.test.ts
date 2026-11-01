@@ -92,7 +92,7 @@ describe('the npm the declared Node.js brings, after following doctor and apply 
     expect(readFileSync(join(directory, 'frontend/.npmrc'), 'utf8')).toContain('strict-allow-scripts=true\n');
     const after = runDoctor(directory);
     expect(after.findings.map((finding) => [finding.rule, finding.location.file, finding.message])).toEqual([
-      ['manager-version-too-old', 'frontend/Dockerfile', 'npm 11.15.0 in frontend/Dockerfile (frontend/Dockerfile) does not support strict-allow-scripts (since 11.16.0)'],
+      ['manager-version-too-old', 'frontend/Dockerfile', 'npm 11.15.0 in frontend/Dockerfile does not support strict-allow-scripts (added in 11.16.0)'],
       ['lockfile-install-scripts', 'frontend/package-lock.json', 'core-js has install scripts and npm 11.15.0 (installed in frontend/Dockerfile, line 3) runs them, but depcurfew.json does not allow it'],
     ]);
     // Following the fix: npm 11.16.0 in the Dockerfile reads strict-allow-scripts, so the script no longer runs.

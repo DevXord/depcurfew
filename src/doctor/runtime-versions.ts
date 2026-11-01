@@ -154,8 +154,10 @@ function resolveIn(text: string, segments: readonly Segment[], lineOf: (version:
     const latest = ofLine[0]?.latest;
     if (latest === undefined) return { kind: 'unknown', reason: `depcurfew does not know which version its line ${line} bundles` };
     if (compareVersions(version, latest) > 0) return { kind: 'unknown', reason: `it is newer than the releases depcurfew knows (${line} up to ${formatVersion(latest)})` };
-    const segment = ofLine.findLast((entry) => compareVersions(entry.from, version) <= 0) ?? ofLine[0];
-    return segment === undefined ? { kind: 'unknown', reason: 'no release of it is known' } : { kind: 'exact', bundled: [segment.bundled], lines: [line] };
+    // Releases of a line before its first segment came without the tool (Node.js before 0.6.3 had no npm).
+    const segment = ofLine.findLast((entry) => compareVersions(entry.from, version) <= 0);
+    if (segment === undefined) return { kind: 'unknown', reason: `depcurfew knows no version that it comes with (the first release of ${line} that does is ${formatVersion(ofLine[0]?.from as Version)})` };
+    return { kind: 'exact', bundled: [segment.bundled], lines: [line] };
   }
   const found = matching(text, segments);
   if (found === undefined) return { kind: 'unknown', reason: 'it is not a version or a range depcurfew can read' };
@@ -167,7 +169,12 @@ function resolveIn(text: string, segments: readonly Segment[], lineOf: (version:
 export function nodeBundledNpm(written: string, naming: Naming, facts: RuntimeFacts): Resolved {
   const text = written.trim();
   const line = nodeName(text, naming, facts);
-  return resolveIn(line ?? text, facts.node, (version) => String(version[0]));
+  return resolveIn(line ?? text, facts.node, nodeLineOf);
+}
+
+/** The release line of a Node.js version: the major version from 4 on, the minor one before (0.12). */
+function nodeLineOf(version: Version): string {
+  return version[0] === 0 ? `0.${version[1]}` : String(version[0]);
 }
 
 /** The pip versions the CPython releases of a python image tag version (3.12, 3.12.4, latest) come with. */

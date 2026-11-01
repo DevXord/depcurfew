@@ -34,7 +34,7 @@
       "location": {
         "file": "backend/uv.lock"
       },
-      "message": "uv: backend/uv.lock records exclude-newer, so it is out of date after this change",
+      "message": "backend: uv: backend/uv.lock records exclude-newer, so it is out of date after this change",
       "fix": "Run uv lock and commit backend/uv.lock; until then uv sync --locked and uv lock --check fail"
     }
   ],

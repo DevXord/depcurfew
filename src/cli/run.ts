@@ -94,10 +94,13 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
   const io: CliIo = { ...output, stderr: (text) => output.stderr(paintDiagnostics(text, errors)) };
   // --json before the end of the options, also when they cannot be parsed.
   const end = argv.indexOf('--');
-  const jsonGiven = (end === -1 ? argv : argv.slice(0, end)).includes('--json');
+  // --json=x and --sarif=x (a value for an option that takes none) are usage errors too, reported in that format.
+  const options = end === -1 ? argv : argv.slice(0, end);
+  const given = (name: string) => options.some((argument) => argument === `--${name}` || argument.startsWith(`--${name}=`));
+  const jsonGiven = given('json');
   // Only for a command that prints JSON: the stdout of mcp is its protocol, and init has no --json.
   const named = findCommand(argv.find((argument) => !argument.startsWith('-')) ?? '');
-  const sarifGiven = (end === -1 ? argv : argv.slice(0, end)).includes('--sarif');
+  const sarifGiven = given('sarif');
   const usage = usageReporter(
     io,
     () => jsonGiven && named?.options?.some((option) => option.name === 'json') === true,
@@ -124,8 +127,9 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
   } catch (error) {
     // parseArgs explains how to pass a positional that starts with '-'; an unknown option is the usual case.
     const unknown = /Unknown option '([^']+)'/u.exec(errorMessage(error))?.[1];
+    const valued = /Option '(--[^']+)' does not take an argument/u.exec(errorMessage(error))?.[1];
     const hint = named === undefined ? USAGE_HINT : `Run 'depcurfew ${named.name} --help' for its options.\n`;
-    return usage(unknown === undefined ? errorMessage(error) : `unknown option '${unknown}'`, hint);
+    return usage(unknown !== undefined ? `unknown option '${unknown}'` : valued !== undefined ? `option '${valued}' takes no value` : errorMessage(error), hint);
   }
 
   const [commandName, ...rest] = parsed.positionals;

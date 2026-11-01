@@ -43,7 +43,7 @@ describe('init --user and a longer delay in the user files', () => {
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout).toBe(
       `Created ${shownPolicy(environment)} with the default policy.\n` +
-        'cooldown.minimum is 7d instead of 3d, to keep the longest release-age delay already set: min-release-age: 7 in ~/.npmrc (line 2).\n' +
+        'cooldown.minimum is 7d instead of 3d, to keep the longest release-age delay already set: min-release-age=7 in ~/.npmrc (line 2).\n' +
         'Run depcurfew apply --user --dry-run to see what it writes into the user-level configuration of your tools.\n',
     );
     expect(minimum(environment)).toBe('7d');
@@ -60,7 +60,7 @@ describe('init --user and a longer delay in the user files', () => {
     const result = await exec(environment, 'init', '--user');
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout).toContain(
-      `cooldown.minimum is 14d instead of 3d, to keep the longest release-age delay already set: exclude-newer: "2 weeks" in ${shownUserFile('uv', environment)} (line 2).\n`,
+      `cooldown.minimum is 14d instead of 3d, to keep the longest release-age delay already set: exclude-newer = "2 weeks" in ${shownUserFile('uv', environment)} (line 2).\n`,
     );
     expect(minimum(environment)).toBe('14d');
   });
@@ -84,14 +84,14 @@ describe('init --user and a longer delay in the user files', () => {
     // 400001 seconds are 6666.68 minutes, longer than 4 days (5760 minutes): the policy gets 6667m, never the shorter 6666m.
     write(userFileOf('bun', environment), '[install]\nminimumReleaseAge = 400001\n');
     const result = await exec(environment, 'init', '--user');
-    expect(result.stdout).toContain(`cooldown.minimum is 6667m instead of 3d, to keep the longest release-age delay already set: install.minimumReleaseAge: 400001 in ${shownUserFile('bun', environment)} (line 2).\n`);
+    expect(result.stdout).toContain(`cooldown.minimum is 6667m instead of 3d, to keep the longest release-age delay already set: install.minimumReleaseAge = 400001 in ${shownUserFile('bun', environment)} (line 2).\n`);
     expect(minimum(environment)).toBe('6667m');
   });
 
   it('reads min-release-age in ~/.npmrc as days for Deno, whose own setting takes minutes, and skips values Deno ignores', async () => {
     const environment = fakeMachine({ npm: { deno: '2.9.8' } }, temporary);
     write(userFileOf('deno', environment), 'min-release-age=5\n');
-    expect((await exec(environment, 'init', '--user')).stdout).toContain('min-release-age: 5 in ~/.npmrc (line 1).\n');
+    expect((await exec(environment, 'init', '--user')).stdout).toContain('min-release-age=5 in ~/.npmrc (line 1).\n');
     expect(minimum(environment)).toBe('5d');
 
     const ignored = fakeMachine({ npm: { deno: '2.9.8' } }, temporary);

@@ -225,14 +225,15 @@ describe('pip.conf sections and the uv [pip] table', () => {
 });
 
 describe('a longer delay in a user file', () => {
-  const cases: { id: ToolId; version: Version; text: string; key: string }[] = [
-    { id: 'pnpm', version: [11, 28, 10], text: 'minimumReleaseAge: 10080\n', key: 'minimumReleaseAge' },
-    { id: 'npm', version: [11, 21, 1], text: 'min-release-age=7\n', key: 'min-release-age' },
-    { id: 'bun', version: [1, 4, 4], text: '[install]\nminimumReleaseAge = 604800\n', key: 'minimumReleaseAge' },
-    { id: 'uv', version: [0, 13, 6], text: 'exclude-newer = "7 days"\n', key: 'exclude-newer' },
-    { id: 'pip', version: [26, 2, 2], text: '[global]\nuploaded-prior-to = P7D\n', key: 'uploaded-prior-to' },
+  // The setting as its file writes it (decision D-111): key=value in INI files, key = value in TOML, key: value in YAML.
+  const cases: { id: ToolId; version: Version; text: string; key: string; shown: string }[] = [
+    { id: 'pnpm', version: [11, 28, 10], text: 'minimumReleaseAge: 10080\n', key: 'minimumReleaseAge', shown: 'minimumReleaseAge: 10080' },
+    { id: 'npm', version: [11, 21, 1], text: 'min-release-age=7\n', key: 'min-release-age', shown: 'min-release-age=7' },
+    { id: 'bun', version: [1, 4, 4], text: '[install]\nminimumReleaseAge = 604800\n', key: 'minimumReleaseAge', shown: 'minimumReleaseAge = 604800' },
+    { id: 'uv', version: [0, 13, 6], text: 'exclude-newer = "7 days"\n', key: 'exclude-newer', shown: 'exclude-newer = "7 days"' },
+    { id: 'pip', version: [26, 2, 2], text: '[global]\nuploaded-prior-to = P7D\n', key: 'uploaded-prior-to', shown: 'uploaded-prior-to=P7D' },
   ];
-  for (const { id, version, text, key } of cases) {
+  for (const { id, version, text, key, shown } of cases) {
     it(`warns when the policy shortens ${key} for ${id}, and says how to keep it`, () => {
       const environment = machine();
       write(id, environment, text, version);
@@ -240,7 +241,7 @@ describe('a longer delay in a user file', () => {
       const warnings = warningsOf(planned, 'cooldown-shortened');
       expect(warnings).toHaveLength(1);
       expect(warnings[0]).toMatchObject({ tool: id, location: { file: shownUserFile(id, environment, version) } });
-      expect(warnings[0]?.message).toContain(`${key}: `);
+      expect(warnings[0]?.message).toContain(`: ${shown} in `);
       expect(warnings[0]?.message).toContain(`waits 1 week, longer than cooldown.minimum "3d" in ${shownPolicy(environment)}; depcurfew apply --user`);
       expect(warnings[0]?.fix).toBe(`To keep the longer delay, set cooldown.minimum to "7d" in ${shownPolicy(environment)} and run depcurfew apply --user again`);
     });
@@ -251,7 +252,7 @@ describe('a longer delay in a user file', () => {
     write('npm', environment, 'min-release-age=7\n');
     const planned = plan({ cooldown: { minimum: '3d' }, targets: ['npm'] }, environment, { npm: [11, 21, 1] });
     expect(warningsOf(planned, 'cooldown-shortened').map((warning) => warning.message)).toEqual([
-      `npm: min-release-age: 7 in ~/.npmrc (line 1) waits 1 week, longer than cooldown.minimum "3d" in ${shownPolicy(environment)}; depcurfew apply --user comments it out and writes min-release-age: 3 in its managed block, so npm waits only 3 days`,
+      `npm: min-release-age=7 in ~/.npmrc (line 1) waits 1 week, longer than cooldown.minimum "3d" in ${shownPolicy(environment)}; depcurfew apply --user comments it out and writes min-release-age=3 in its managed block, so npm waits only 3 days`,
     ]);
   });
 
@@ -343,7 +344,7 @@ describe('warnings project mode gives', () => {
     write('npm', environment, 'min-release-age=7\n');
     const planned = plan({ cooldown: { minimum: '3d' }, targets: ['deno'] }, environment, { deno: [2, 9, 8] });
     expect(warningsOf(planned, 'cooldown-shortened').map((warning) => warning.message)).toEqual([
-      `Deno: min-release-age: 7 in ~/.npmrc (line 1) waits 1 week, longer than cooldown.minimum "3d" in ${shownPolicy(environment)}; depcurfew apply --user comments it out and writes min-release-age: 3 in its managed block, so Deno waits only 3 days`,
+      `Deno: min-release-age=7 in ~/.npmrc (line 1) waits 1 week, longer than cooldown.minimum "3d" in ${shownPolicy(environment)}; depcurfew apply --user comments it out and writes min-release-age=3 in its managed block, so Deno waits only 3 days`,
     ]);
     const broken = machine();
     write('npm', broken, 'before=2025-01-01\n');
@@ -415,7 +416,7 @@ describe('version-too-old only for what the policy needs', () => {
     const environment = machine();
     const planned = plan({ cooldown: { minimum: '3d' }, targets: ['npm'] }, environment, { npm: [11, 6, 0] });
     expect(warningsOf(planned, 'version-too-old')).toEqual([
-      expect.objectContaining({ message: 'npm 11.6.0 does not support min-release-age (since 11.10.0); not written', fix: 'Update npm to 11.10.0 or later, then run depcurfew apply --user again' }),
+      expect.objectContaining({ message: 'npm 11.6.0 does not support min-release-age (added in 11.10.0); not written', fix: 'Update npm to 11.10.0 or later, then run depcurfew apply --user again' }),
     ]);
   });
 });
@@ -467,7 +468,7 @@ describe('wording', () => {
     writeFileSync(join(info, 'entry_points.txt'), '[console_scripts]\npip = pip._internal.cli.main:main\n');
     writeFileSync(join(venv, 'bin', 'pip'), '#!/usr/bin/python3\n');
     const planned = planUserApply(policy({ cooldown: { minimum: '3d' }, targets: ['pip'] }), { environment: { platform, home, env: { PATH: join(venv, 'bin') } } });
-    expect(warningsOf(planned, 'version-too-old').map((warning) => warning.message)).toEqual(['pip 24.0 does not support uploaded-prior-to (since 26.1.0); not written']);
+    expect(warningsOf(planned, 'version-too-old').map((warning) => warning.message)).toEqual(['pip 24.0 does not support uploaded-prior-to (added in 26.1.0); not written']);
   });
 });
 

@@ -184,7 +184,8 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
     if (!('version' in declaration)) continue;
     const lowest = lowestVersion(declaration.version);
     const label = sourceLabel(tool, declaration);
-    const where = `${label} (${declaration.file})`;
+    // "Dockerfile" or ".tool-versions" at the root is both the label and the file: named once.
+    const where = label === declaration.file ? label : `${label} (${declaration.file})`;
     if (lowest.kind === 'unknown') {
       context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
       continue;
