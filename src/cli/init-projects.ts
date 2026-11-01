@@ -32,10 +32,13 @@ function hasProject(directory: string, files: readonly string[]): boolean {
   return files.some((file) => isFile(join(directory, file)));
 }
 
-/** A subdirectory init leaves out of projects, because apply would refuse it, and why in words for the output of init. */
+/** A subdirectory init leaves out of projects, because apply would refuse it: why and what to do, for the output of init. */
 export interface LeftOutProject {
   project: string;
+  /** The file that makes apply refuse it (its own depcurfew.json), else the directory. */
+  file: string;
   reason: string;
+  fix: string;
 }
 
 /**
@@ -62,16 +65,26 @@ export function proposedProjects(root: string): { projects: string[]; leftOut: L
   // The root has no manifest, so no workspaces either; what is left is a policy of its own, or a directory that changed.
   const problems = projectProblems(root, candidates, undefined);
   const leftOut = problems.map((problem): LeftOutProject => {
-    const own = inProject(problem.project, POLICY_FILE);
-    return {
-      project: problem.project,
-      reason:
-        problem.code === 'project-has-policy'
-          ? `${own} is a policy of its own, and two policies for the same files are refused; run depcurfew in ${problem.project} on its own, or move what ${own} sets into ${POLICY_FILE}, remove it and add "${problem.project}" to projects`
-          : problem.code === 'project-is-repository'
-            ? `it is a separate git repository (it has a .git of its own, as a git submodule does), whose files belong to that repository; run depcurfew init in ${problem.project} for it`
-            : `${problem.message}; depcurfew apply would refuse it`,
-    };
+    const { project } = problem;
+    const own = inProject(project, POLICY_FILE);
+    if (problem.code === 'project-has-policy') {
+      return {
+        project,
+        file: own,
+        reason: `${own} is a policy of its own, and two policies for the same files are refused`,
+        fix: `Run depcurfew in ${project} on its own, or move what ${own} sets into ${POLICY_FILE}, remove it and add "${project}" to projects`,
+      };
+    }
+    if (problem.code === 'project-is-repository') {
+      return {
+        project,
+        file: project,
+        reason: 'it is a separate git repository (it has a .git of its own, as a git submodule does), whose files belong to that repository',
+        fix: `Run depcurfew init in ${project} for it`,
+      };
+    }
+    // The fix of apply speaks of an entry of projects, which init did not write: what to do here instead.
+    return { project, file: project, reason: `${problem.message}; depcurfew apply would refuse it`, fix: `Fix what the message describes, then run depcurfew init --force to list ${project}` };
   });
   return { projects: candidates.filter((name) => !problems.some((problem) => problem.project === name)), leftOut };
 }

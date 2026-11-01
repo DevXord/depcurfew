@@ -126,7 +126,7 @@ describe('apply with projects', () => {
     expect(read('.github/dependabot.yml')).toBe(before);
     const text = await exec('apply', directory);
     expect(text.stderr).toContain('error: depcurfew.json (line 25): the project directory shared listed in projects does not exist (project-not-found)\n  fix: Create shared,');
-    expect(text.stderr).toContain('depcurfew: nothing written because of the errors above.\n');
+    expect(text.stderr).toContain('note: nothing written because of the errors above\n');
   });
 
   it('gives the line of the entry in projects, not of the same name elsewhere in depcurfew.json', async () => {
@@ -376,7 +376,7 @@ describe('init with projects', () => {
     const result = await exec('init', directory);
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout).toContain(
-      'projects lists backend and frontend: the root has no manifest or lockfile, these directories do, so depcurfew configures each as a project of its own and the bots from the root; edit projects in depcurfew.json if that is not right.\n',
+      'note: projects lists backend and frontend: the root has no manifest or lockfile, these directories do, so depcurfew configures each as a project of its own and the bots from the root (projects-listed)\n  fix: Edit projects in depcurfew.json if that is not right\n',
     );
     expect(result.stdout).toContain('Detected tools: Dependabot, uv (backend), npm (frontend).\n');
     const written = parsePolicy(read('depcurfew.json'));
@@ -386,7 +386,7 @@ describe('init with projects', () => {
   it('keeps the longest delay a project already sets', async () => {
     writeFileSync(join(directory, 'frontend', '.npmrc'), 'min-release-age=10\n');
     const result = await exec('init', directory);
-    expect(result.stdout).toContain('cooldown.minimum is 10d instead of 3d, to keep the longest release-age delay already set: min-release-age=10 in frontend/.npmrc (line 1).\n');
+    expect(result.stdout).toContain('note: cooldown.minimum is 10d instead of 3d, to keep the longest release-age delay already set: min-release-age=10 in frontend/.npmrc (line 1) (cooldown-kept)\n');
     expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { cooldown: { minimum: { text: '10d' } } } });
   });
 
@@ -396,9 +396,10 @@ describe('init with projects', () => {
     writeFileSync(join(directory, 'deck', 'depcurfew.json'), '{ "version": 1 }\n');
     const result = await exec('init', directory);
     expect(result.code).toBe(EXIT_OK);
-    expect(result.stdout).toContain('projects lists backend and frontend:');
+    expect(result.stdout).toContain('note: projects lists backend and frontend:');
     expect(result.stdout).toContain(
-      'warning: deck is not in projects: deck/depcurfew.json is a policy of its own, and two policies for the same files are refused; run depcurfew in deck on its own, or move what deck/depcurfew.json sets into depcurfew.json, remove it and add "deck" to projects.\n',
+      'warning: deck is not in projects: deck/depcurfew.json is a policy of its own, and two policies for the same files are refused (project-left-out)\n' +
+        '  fix: Run depcurfew in deck on its own, or move what deck/depcurfew.json sets into depcurfew.json, remove it and add "deck" to projects\n',
     );
     expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { projects: ['backend', 'frontend'] } });
     const apply = await exec('apply', '--dry-run', directory);

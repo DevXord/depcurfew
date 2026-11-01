@@ -32,20 +32,26 @@ export interface Annotations {
   omitted: number;
 }
 
-/** Annotation commands for the findings, errors first, within the number GitHub shows in one step. */
+/**
+ * Annotation commands for the findings, errors first, within the number GitHub shows in one step; `reserved` is how
+ * many annotations of each level the step adds besides (a note of the action about its own run, decision D-122).
+ */
 export function annotationCommands(
   report: DoctorReport,
   rules: readonly Rule[],
   format: AnnotationsKnowledge | undefined = values(environment.githubActions.annotations)[0],
   limits: AnnotationLimitsKnowledge | undefined = values(environment.githubActions.annotationLimits)[0],
+  reserved: Partial<Record<Level, number>> = {},
 ): Annotations {
   if (format === undefined || limits === undefined) return { lines: [], omitted: report.findings.length };
   const data = (text: string) => escaped(text, format.escape);
   const property = (text: string) => escaped(escaped(text, format.escape), format.escapeProperty);
   const lines: string[] = [];
+  const others = LEVELS.reduce((sum, level) => sum + (reserved[level] ?? 0), 0);
   for (const level of LEVELS) {
     const findings = report.findings.filter((finding) => finding.level === level);
-    for (const finding of findings.slice(0, Math.min(limits.perLevelPerStep, limits.perJob - lines.length))) {
+    const room = Math.max(0, Math.min(limits.perLevelPerStep - (reserved[level] ?? 0), limits.perJob - others - lines.length));
+    for (const finding of findings.slice(0, room)) {
       const properties = [
         [format.properties.file, printable(finding.location.file)],
         [format.properties.line, finding.location.line === undefined ? undefined : String(finding.location.line)],
@@ -57,6 +63,23 @@ export function annotationCommands(
     }
   }
   return { lines, omitted: report.findings.length - lines.length };
+}
+
+/**
+ * A message of the action about its own run (decision D-122): the line for the log with the level word
+ * ("depcurfew: note: ..."), and the annotation of the same level (notice for a note), so that the run shows it as the
+ * log words it. Control characters are shown as text in both, so text from the repository cannot start a command.
+ */
+export function runMessage(
+  level: Level,
+  message: string,
+  format: AnnotationsKnowledge | undefined = values(environment.githubActions.annotations)[0],
+): { line: string; annotation: string | undefined } {
+  const text = printable(message);
+  const line = `depcurfew: ${level}: ${text}\n`;
+  if (format === undefined) return { line, annotation: undefined };
+  const property = escaped(escaped('depcurfew', format.escape), format.escapeProperty);
+  return { line, annotation: `::${format.commands[level]} ${format.properties.title}=${property}::${escaped(text, format.escape)}\n` };
 }
 
 /** An annotation of the depcurfew doctor check run, as the Checks API takes it. */

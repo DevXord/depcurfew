@@ -164,8 +164,10 @@ describe('git submodules are no projects (B3)', () => {
     });
     const result = await exec('init', directory);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('projects lists frontend:');
-    expect(result.stdout).toContain('warning: vendor is not in projects: it is a separate git repository (it has a .git of its own, as a git submodule does), whose files belong to that repository; run depcurfew init in vendor for it.\n');
+    expect(result.stdout).toContain('note: projects lists frontend:');
+    expect(result.stdout).toContain(
+      'warning: vendor is not in projects: it is a separate git repository (it has a .git of its own, as a git submodule does), whose files belong to that repository (project-left-out)\n  fix: Run depcurfew init in vendor for it\n',
+    );
   });
 
   it('apply and doctor refuse a listed project that is a repository of its own, at the line of its entry', async () => {
@@ -440,7 +442,8 @@ describe('a directory listed in projects given on the command line or to the Act
     const directory = repo();
     let log = '';
     const outputs = runAction({ GITHUB_WORKSPACE: directory, INPUT_DIRECTORY: 'frontend', INPUT_JOB_SUMMARY: 'false' }, { log: (text) => (log += text), summary: () => undefined });
-    expect(log).toContain('depcurfew: frontend is listed in projects in depcurfew.json, so depcurfew doctor checks the repository root with its projects\n');
+    // A note, with its level word (decision D-122).
+    expect(log).toContain('depcurfew: note: frontend is listed in projects in depcurfew.json, so depcurfew doctor checks the repository root with its projects\n');
     expect(outputs.errors).toBe(runDoctor(directory).findings.filter((finding) => finding.level === 'error').length);
     expect(outputs.errors).toBeGreaterThan(0);
   });

@@ -16,8 +16,8 @@ import { plannedApply } from '../plan.ts';
 import { yamlSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 
-/** The most findings of one file; the last one says how many places differ besides. */
-const MAX_DIFFERENCES = 5;
+/** The most findings of one file; the last one says how many places differ besides (doctor --user too, D-122). */
+export const MAX_DIFFERENCES = 5;
 
 function clean(line: string): string {
   return line.replace(/[\r\u0000]/gu, '').trim();
@@ -275,11 +275,7 @@ export const configDrift: Rule = {
         });
         continue;
       }
-      const [first, ...later] = differences(change.before, change.after);
-      // The lines the first finding names as commented out further down are not reported again.
-      const named = new Set(first?.commentedLater ?? []);
-      const repeats = (item: Difference) => item.added.some((text) => named.has(text)) && item.removed.every((text) => [...named].some((line) => line.endsWith(text)));
-      const all = [first, ...later.filter((item) => !repeats(item))].filter((item): item is Difference => item !== undefined);
+      const all = reportedDifferences(change.before, change.after);
       // A file with hundreds of differences (500 Dependabot entries) gives MAX_DIFFERENCES findings, the last with the count.
       const shown = all.slice(0, MAX_DIFFERENCES);
       const rest = all.length - shown.length;
@@ -297,11 +293,20 @@ export const configDrift: Rule = {
 };
 
 /**
- * The first difference of a planned change as config-drift words it, with its line: for doctor --user, whose user
- * files drift the same way (decision D-116).
+ * The differences config-drift reports for a planned change, in order: every block of `differences` but those whose
+ * lines the first one already names as commented out further down.
  */
-export function driftDescription(file: string, before: string, after: string): { line: number; text: string } {
-  // differences always returns at least one block; the first is the one config-drift words first.
-  const [difference = { line: 1, removed: [], added: [], commentedLater: [] }] = differences(before, after);
-  return { line: findingLine(file, difference, before), text: describe(file, difference, before, after) };
+function reportedDifferences(before: string, after: string): Difference[] {
+  const [first, ...later] = differences(before, after);
+  const named = new Set(first?.commentedLater ?? []);
+  const repeats = (item: Difference) => item.added.some((text) => named.has(text)) && item.removed.every((text) => [...named].some((line) => line.endsWith(text)));
+  return [first, ...later.filter((item) => !repeats(item))].filter((item): item is Difference => item !== undefined);
+}
+
+/**
+ * Every place of a planned change that config-drift reports, as it words them, each with its line: for doctor --user,
+ * whose user files drift the same way (decisions D-116 and D-122). At least one place.
+ */
+export function driftPlaces(file: string, before: string, after: string): { line: number; text: string }[] {
+  return reportedDifferences(before, after).map((difference) => ({ line: findingLine(file, difference, before), text: describe(file, difference, before, after) }));
 }

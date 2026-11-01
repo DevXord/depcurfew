@@ -168,7 +168,8 @@ function writeError(error: ApplyWriteError, json: boolean, notices: readonly { m
     `error: ${printable(error.message)} ${colors.dim(`(${error.code})`)}\n`,
     `  ${colors.green('fix:')} ${printable(error.fix)}\n`,
   ];
-  lines.push(error.unrestored.length === 0 ? 'depcurfew: nothing written because of the errors above.\n' : 'depcurfew: some files were changed; see the error above.\n');
+  // A note, as the other notes of apply (decision D-122): the errors above say what is wrong and what to do.
+  lines.push(error.unrestored.length === 0 ? 'note: nothing written because of the errors above\n' : 'note: some files were changed; see the error above\n');
   io.stderr(lines.join(''));
   return EXIT_FAILURE;
 }
@@ -266,7 +267,7 @@ function printReport(report: ApplyReport, errors: JsonError[], options: { dryRun
   }
   io.stderr(diagnostics(report, errors, paint(io.colors?.stderr)));
   if (errors.length > 0) {
-    io.stderr(dryRun ? 'depcurfew: apply would write nothing because of the errors above.\n' : 'depcurfew: nothing written because of the errors above.\n');
+    io.stderr(dryRun ? 'note: apply would write nothing because of the errors above\n' : 'note: nothing written because of the errors above\n');
     return EXIT_FAILURE;
   }
   if (dryRun) io.stderr(report.changes.length === 0 ? 'Dry run: nothing to change.\n' : `Dry run: ${count(report.changes.length)} would change; nothing written.\n`);

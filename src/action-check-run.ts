@@ -2,11 +2,13 @@
 // on the files, in the Checks tab of a pull request next to the code scanning entry, whose text GitHub writes itself and
 // which lists alerts only. Created with the workflow token over the GitHub API that the runner names; an earlier run of
 // the action on the same commit with the same name is updated instead, so push and pull_request give one entry. Without
-// the checks: write permission the API refuses, and the step only says so in the log. Nothing here fails the step.
+// the checks: write permission the API refuses, and the step only says so, as a warning in the log and an annotation
+// (decision D-122). Nothing here fails the step.
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { values } from './apply/facts.ts';
-import type { CheckRunAnnotation } from './doctor/github.ts';
+import { runMessage, type CheckRunAnnotation } from './doctor/github.ts';
+import { printable } from './printable.ts';
 import { environment } from './knowledge/environment.ts';
 import type { CheckRunsKnowledge } from './knowledge/types.ts';
 
@@ -112,23 +114,30 @@ function existingRun(answer: unknown, name: string): ExistingRun | undefined {
 
 /**
  * Creates the check run, or updates the one an earlier run of the action left on the same commit with the same name;
- * returns one line for the log. The token goes only to the API URL the runner sets, in a header, and is never printed.
+ * returns the line for the log. The token goes only to the API URL the runner sets, in a header, and is never printed.
  * Looking for the earlier entry and creating one is not atomic: two jobs that run at the same time can still add one
- * entry each. Any failure of the lookup or the update falls back to creating the entry.
+ * entry each. Any failure of the lookup or the update falls back to creating the entry. What did not work is a warning
+ * (decision D-122): the line has the level word and is followed by a warning annotation of the same text, unless
+ * `annotate` is false (the input annotations).
  */
-export async function createCheckRun(env: NodeJS.ProcessEnv, token: string, content: CheckRunContent, fetchImpl: CheckRunFetch): Promise<string> {
+export async function createCheckRun(env: NodeJS.ProcessEnv, token: string, content: CheckRunContent, fetchImpl: CheckRunFetch, options: { annotate?: boolean } = {}): Promise<string> {
+  const warning = (message: string): string => {
+    const { line, annotation } = runMessage('warning', message);
+    return options.annotate === false || annotation === undefined ? line : `${line}${annotation}`;
+  };
+  const notAdded = (why: string): string => warning(`the depcurfew doctor check was not added: ${why}`);
   const facts = values(environment.githubActions.checkRuns)[0];
-  if (facts === undefined) return 'depcurfew: the depcurfew doctor check was not added: depcurfew knows no check run API\n';
+  if (facts === undefined) return notAdded('depcurfew knows no check run API');
   const apiUrl = env[facts.variables.apiUrl];
   const repository = env[facts.variables.repository];
   const sha = checkRunSha(env, facts);
   // A URL that is set but not https is named, not taken for a missing one: the token is never sent over plain HTTP.
   if (apiUrl !== undefined && apiUrl !== '' && !/^https:\/\//u.test(apiUrl)) {
     const name = facts.variables.apiUrl;
-    return `depcurfew: the depcurfew doctor check was not added: ${name} is not an https URL, and depcurfew sends the token only over https; set ${name} to the https address of the GitHub API, or leave it to the runner, which sets it\n`;
+    return notAdded(`${name} is not an https URL, and depcurfew sends the token only over https; set ${name} to the https address of the GitHub API, or leave it to the runner, which sets it`);
   }
   if (apiUrl === undefined || !/^https:\/\//u.test(apiUrl) || repository === undefined || !/^[\w.-]+\/[\w.-]+$/u.test(repository) || sha === undefined) {
-    return `depcurfew: the depcurfew doctor check was not added: ${facts.variables.apiUrl}, ${facts.variables.repository} or the commit is not set, as outside GitHub Actions\n`;
+    return notAdded(`${facts.variables.apiUrl}, ${facts.variables.repository} or the commit is not set, as outside GitHub Actions`);
   }
   const permission = Object.entries(facts.permission)
     .map(([name, level]) => `${name}: ${level}`)
@@ -203,12 +212,14 @@ export async function createCheckRun(env: NodeJS.ProcessEnv, token: string, cont
     try {
       response = await request('POST', url(facts.endpoints.create), { name: content.name, head_sha: sha, ...result, output: output(batches[0]) });
     } catch (error) {
-      return `depcurfew: the depcurfew doctor check was not added: ${reason(error)}\n`;
+      return notAdded(reason(error));
     }
     if (response.status === 403 || response.status === 404) {
-      return `depcurfew: the depcurfew doctor check was not added: the workflow token may not create checks (HTTP ${response.status}). Add "${permission}" to the permissions of the job, or set the input check-run to false. A pull request from a fork gets a read-only token.\n`;
+      return notAdded(
+        `the workflow token may not create checks (HTTP ${response.status}). Add "${permission}" to the permissions of the job, or set the input check-run to false. A pull request from a fork gets a read-only token.`,
+      );
     }
-    if (response.status !== 201) return `depcurfew: the depcurfew doctor check was not added: the GitHub API answered HTTP ${response.status}\n`;
+    if (response.status !== 201) return notAdded(`the GitHub API answered HTTP ${response.status}`);
     pending = batches.slice(1);
     if (pending.length > 0) {
       try {
@@ -242,6 +253,7 @@ export async function createCheckRun(env: NodeJS.ProcessEnv, token: string, cont
   }
   // The earlier entry keeps its annotations, but no longer its result: it points to the new one.
   let replacement = '';
+  let replacementFailed = false;
   if (replaced !== undefined && !updated) {
     const supersede = {
       conclusion: 'neutral',
@@ -254,16 +266,21 @@ export async function createCheckRun(env: NodeJS.ProcessEnv, token: string, cont
     };
     try {
       const response = await request('PATCH', url(facts.endpoints.update, replaced), supersede);
+      replacementFailed = response.status !== 200;
       replacement = response.status === 200 ? '; the earlier one, whose annotations are out of date, now says it is replaced' : `; the earlier one, whose annotations are out of date, could not be marked as replaced: the GitHub API answered HTTP ${response.status}`;
     } catch (error) {
+      replacementFailed = true;
       replacement = `; the earlier one, whose annotations are out of date, could not be marked as replaced: ${reason(error)}`;
     }
   }
   const commit = sha.slice(0, 12);
   const withAnnotations = added === 0 ? '' : ` and ${plural(added, 'annotation')}`;
   const line = updated
-    ? `depcurfew: updated the check "${content.name}" on the commit ${commit} with the result of this run${withAnnotations}, instead of adding a second one${kept ? '; it keeps the annotations it has' : ''}`
-    : `depcurfew: added the check "${content.name}" with the result${withAnnotations} to the commit ${commit}${replaced === undefined ? '' : ', next to an earlier one with other annotations'}`;
+    ? `updated the check "${content.name}" on the commit ${commit} with the result of this run${withAnnotations}, instead of adding a second one${kept ? '; it keeps the annotations it has' : ''}`
+    : `added the check "${content.name}" with the result${withAnnotations} to the commit ${commit}${replaced === undefined ? '' : ', next to an earlier one with other annotations'}`;
   const missing = (kept ? 0 : annotations.length) - added;
-  return `${line}${failure === undefined || missing === 0 ? '' : `; ${plural(missing, 'more annotation')} could not be added: ${failure}`}${replacement}\n`;
+  const lost = failure !== undefined && missing !== 0;
+  const text = `${line}${lost ? `; ${plural(missing, 'more annotation')} could not be added: ${failure}` : ''}${replacement}`;
+  // The name of the check holds the directory, which may come from the repository: its control characters as text.
+  return lost || replacementFailed ? warning(text) : `depcurfew: ${printable(text)}\n`;
 }

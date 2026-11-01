@@ -82,7 +82,7 @@ describe('apply --user when one user file cannot be written', () => {
     expect(result.stdout).toBe('');
     expect(result.stderr).toContain(`error: cannot write ${shown}: permission denied (cannot-write)\n`);
     if (!windows) expect(result.stderr).toContain(`  fix: Make ${shown} and its directory writable for the user that runs depcurfew, then run depcurfew apply --user again\n`);
-    expect(result.stderr).toContain('depcurfew: nothing written because of the errors above.\n');
+    expect(result.stderr).toContain('note: nothing written because of the errors above\n');
     expect(snapshot(environment.home)).toEqual(before);
     expect(existsSync(userFileOf('uv', environment))).toBe(false);
   });

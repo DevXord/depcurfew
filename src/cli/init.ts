@@ -1,3 +1,8 @@
+// `depcurfew init [directory] [--force] [--json]` and `depcurfew init --user`. What init says besides the file it
+// writes (the projects it lists, the delay it keeps, what the default policy blocks) is a list of warnings and notes
+// with a code (src/cli/init-codes.ts): one source for the text on stdout, where each has its level word, code and fix,
+// and for the JSON document of --json (decision D-122). Errors are those of the other commands: on stderr, or with
+// --json in the document on stdout, with the same exit codes.
 import { lstatSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homeProblem, ownerOfNewUnderHome } from '../user/home.ts';
@@ -7,19 +12,111 @@ import { describeDelay, longestDelay, policyDuration, type ConfiguredDelay } fro
 import { longestUserDelay } from '../user/delays.ts';
 import { fileSystemReason, writeChanges } from '../apply/workspace.ts';
 import { detectProject } from '../detect/index.ts';
+import type { Detection } from '../detect/types.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
 import { parseDuration } from '../policy/duration.ts';
 import type { ApplyErrorCode } from '../apply/warnings.ts';
 import { autoTargets } from '../apply/targets.ts';
 import { listing } from '../apply/requirements.ts';
 import { inProject } from '../apply/projects.ts';
-import { detectedNames, toolName } from './describe.ts';
+import { paint, type Paint } from '../color.ts';
+import { jsonSetting } from '../doctor/settings.ts';
+import { safeJson } from '../json-safe.ts';
+import type { ToolId } from '../knowledge/types.ts';
+import { printable } from '../printable.ts';
+import { toolName } from './describe.ts';
+import type { InitMessage } from './init-codes.ts';
 import { proposedProjects } from './init-projects.ts';
 import { hasBuildRecords } from '../doctor/python-lockfiles.ts';
-import { reportInputError, resolveDirectory } from './directory.ts';
+import { checkDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
+
+export interface InitOptions {
+  force: boolean;
+  /** --json: one JSON document on stdout, nothing on stderr (decision D-122). */
+  json: boolean;
+}
+
+/** A tool init detected, for the line "Detected tools" and the JSON document. */
+interface DetectedTool {
+  tool: ToolId;
+  name: string;
+  /** "." for the directory init works on, else the entry of projects. */
+  directory: string;
+  supported: boolean;
+}
+
+/** The JSON document of init --json; schemaVersion 1, and fields are only added within it. */
+interface InitDocument {
+  schemaVersion: 1;
+  /** The policy file init writes, as the text names it; null when the directory does not exist or HOME is unusable. */
+  policy: string | null;
+  written: boolean;
+  action: 'create' | 'overwrite' | null;
+  projects: string[];
+  /** null for init --user, which detects no tools. */
+  tools: DetectedTool[] | null;
+  warnings: InitMessage[];
+  notices: InitMessage[];
+  errors: InputError[];
+}
+
+/** What init has to say, in the order of the text: the line "Detected tools" stands between `before` and `after`. */
+interface InitReport {
+  policy: string;
+  action: 'create' | 'overwrite';
+  projects: string[];
+  tools: DetectedTool[] | null;
+  before: InitMessage[];
+  after: InitMessage[];
+  /** What to run next, for the text only. */
+  next?: string;
+}
+
+function document(fields: Omit<InitDocument, 'schemaVersion' | 'warnings' | 'notices' | 'errors'>, messages: readonly InitMessage[], errors: InputError[]): string {
+  const result: InitDocument = {
+    schemaVersion: 1,
+    ...fields,
+    warnings: messages.filter((entry) => entry.level === 'warning'),
+    notices: messages.filter((entry) => entry.level === 'note'),
+    errors,
+  };
+  return `${safeJson(result, 2)}\n`;
+}
+
+/** A warning or note as the text shows it: level word, message, code, and what to do on the next line. */
+function messageText(entry: InitMessage, colors: Paint): string {
+  const level = entry.level === 'warning' ? colors.yellow('warning:') : colors.cyan('note:');
+  return `${level} ${printable(entry.message)} ${colors.dim(`(${entry.code})`)}\n  ${colors.green('fix:')} ${printable(entry.fix)}\n`;
+}
+
+/** The result of init: the JSON document, or the text on stdout. */
+function printReport(report: InitReport, options: InitOptions, io: CliIo): number {
+  const messages = [...report.before, ...report.after];
+  if (options.json) {
+    io.stdout(document({ policy: report.policy, written: true, action: report.action, projects: report.projects, tools: report.tools }, messages, []));
+    return EXIT_OK;
+  }
+  const colors = paint(io.colors?.stdout);
+  const lines = [`${report.action === 'create' ? 'Created' : 'Overwrote'} ${printable(report.policy)} with the default policy.\n`, ...report.before.map((entry) => messageText(entry, colors))];
+  if (report.tools !== null) {
+    const names = report.tools.map((entry) => `${entry.name}${entry.supported ? '' : ' (not supported)'}${entry.directory === '.' ? '' : ` (${entry.directory})`}`);
+    lines.push(`Detected tools: ${names.length === 0 ? 'none' : printable(names.join(', '))}.\n`);
+  }
+  lines.push(...report.after.map((entry) => messageText(entry, colors)));
+  if (report.next !== undefined) lines.push(`${report.next}\n`);
+  io.stdout(lines.join(''));
+  return EXIT_OK;
+}
+
+/** An error that keeps init from writing: on stderr, or with --json as the document on stdout. */
+function printError(error: InputError, exitCode: number, fields: { policy: string | null; tools: DetectedTool[] | null }, options: InitOptions, io: CliIo): number {
+  if (options.json) io.stdout(document({ policy: fields.policy, written: false, action: null, projects: [], tools: fields.tools }, [], [error]));
+  else reportInputError(error, io);
+  return exitCode;
+}
 
 /** Whether a tool installs PyPI packages, by its ecosystem in the knowledge base. */
 function isPythonTool(id: string): boolean {
@@ -57,9 +154,25 @@ function keepLongest(longest: (minutes: number) => ConfiguredDelay | undefined):
   return { kept, minimum, text: renderPolicy({ ...DEFAULT_POLICY, cooldown: { ...DEFAULT_POLICY.cooldown, minimum } }) };
 }
 
-/** Where the delay that init keeps is set: setting, value, file and line. */
-const keptMessage = (kept: ConfiguredDelay, minimum: string): string =>
-  `cooldown.minimum is ${minimum} instead of ${DEFAULT_POLICY.cooldown.minimum}, to keep the longest release-age delay already set: ${describeDelay(kept)}.\n`;
+/**
+ * The note that cooldown.minimum keeps a longer delay, at the place of that delay (setting, value, file and line).
+ * `policy` is the policy file as the fix names it, `apply` the command that writes the delay.
+ */
+function keptNote(kept: ConfiguredDelay, minimum: string, policy: string, apply: string): InitMessage {
+  return {
+    code: 'cooldown-kept',
+    level: 'note',
+    location: { file: kept.location.file, line: kept.location.line },
+    message: `cooldown.minimum is ${minimum} instead of ${DEFAULT_POLICY.cooldown.minimum}, to keep the longest release-age delay already set: ${describeDelay(kept)}`,
+    fix: `Leave cooldown.minimum as it is to keep that delay, or lower it in ${policy} before you run ${apply}`,
+  };
+}
+
+/** A setting of the policy init writes, as a location: depcurfew.json and the line of the setting. */
+function policyLocation(text: string, path: readonly string[]): { file: string; line?: number } {
+  const found = jsonSetting(text, path);
+  return found === undefined ? { file: POLICY_FILE } : { file: POLICY_FILE, line: found.line };
+}
 
 /**
  * init --user: the default policy as the user policy, in a directory that is created when missing; not without a home
@@ -67,18 +180,13 @@ const keptMessage = (kept: ConfiguredDelay, minimum: string): string =>
  * becomes cooldown.minimum (decision D-101). Run by root in the home directory of another user, what it creates there
  * belongs to that user (decision D-093).
  */
-export function initUser(force: boolean, environment: UserEnvironment, io: CliIo): number {
+export function initUser(options: InitOptions, environment: UserEnvironment, io: CliIo): number {
   const home = homeProblem(environment, 'init');
-  if (home !== undefined) {
-    reportInputError({ ...home, level: 'error' }, io);
-    return EXIT_FAILURE;
-  }
+  if (home !== undefined) return printError({ ...home, level: 'error' }, EXIT_FAILURE, { policy: null, tools: null }, options, io);
   const target = userPolicyPath(environment);
   const shown = shownPath(target, environment);
-  const fail = (code: ApplyErrorCode, message: string, fix: string): number => {
-    reportInputError({ code, level: 'error', location: { file: shown }, message, fix }, io);
-    return EXIT_FAILURE;
-  };
+  const fail = (code: ApplyErrorCode, message: string, fix: string): number =>
+    printError({ code, level: 'error', location: { file: shown }, message, fix }, EXIT_FAILURE, { policy: shown, tools: null }, options, io);
   const blocked = (): number | undefined => {
     const file = blockingFile(target);
     if (file === undefined) return undefined;
@@ -98,7 +206,7 @@ export function initUser(force: boolean, environment: UserEnvironment, io: CliIo
   const blocker = existing === undefined ? blocked() : undefined;
   if (blocker !== undefined) return blocker;
   if (existing?.isDirectory() === true) return fail('cannot-write', `${shown} is a directory, not a file`, `Remove or rename the directory ${shown}, then run depcurfew init --user again`);
-  if (existing !== undefined && !force) return fail('policy-exists', `${shown} already exists`, 'Pass --force to overwrite it with the default policy, or edit it by hand');
+  if (existing !== undefined && !options.force) return fail('policy-exists', `${shown} already exists`, 'Pass --force to overwrite it with the default policy, or edit it by hand');
   if (existing?.isSymbolicLink() === true) return fail('cannot-write', `${shown} is a symlink; depcurfew does not write through symlinks`, 'Replace the symlink with a regular file');
   if (existing !== undefined && !existing.isFile()) return fail('cannot-write', `${shown} is not a regular file`, `Remove ${shown}, then run depcurfew init --user again`);
   const ownerOfNew = ownerOfNewUnderHome(environment);
@@ -110,26 +218,44 @@ export function initUser(force: boolean, environment: UserEnvironment, io: CliIo
   } catch (error) {
     return fail('cannot-write', `cannot write ${shown}: ${errorMessage(error)}`, 'Make sure you can write to the directory, then run depcurfew init --user again');
   }
-  io.stdout(`${existing === undefined ? 'Created' : 'Overwrote'} ${shown} with the default policy.\n`);
-  if (kept !== undefined) io.stdout(keptMessage(kept, minimum));
-  io.stdout('Run depcurfew apply --user --dry-run to see what it writes into the user-level configuration of your tools.\n');
-  return EXIT_OK;
+  return printReport(
+    {
+      policy: shown,
+      action: existing === undefined ? 'create' : 'overwrite',
+      projects: [],
+      tools: null,
+      before: kept === undefined ? [] : [keptNote(kept, minimum, shown, 'depcurfew apply --user')],
+      after: [],
+      next: 'Run depcurfew apply --user --dry-run to see what it writes into the user-level configuration of your tools.',
+    },
+    options,
+    io,
+  );
+}
+
+/** The tools of a detection for the report, without the ones `skipped` names (seen only in a CI setup step). */
+function detectedTools(detection: Detection, directory: string, skipped: ReadonlySet<string> = new Set()): DetectedTool[] {
+  return [
+    ...detection.packageManagers
+      .filter((manager) => !skipped.has(manager.id))
+      .map((manager) => ({ tool: manager.id, name: manager.variant === 'classic' ? 'Yarn Classic' : toolName(manager.id), directory, supported: manager.supported })),
+    ...detection.bots.map((bot) => ({ tool: bot.id, name: toolName(bot.id), directory, supported: true })),
+  ];
 }
 
 /**
  * Writes the default policy to depcurfew.json in `directory` (default: the current directory). A longer release-age
  * delay the repository already sets becomes cooldown.minimum, so that apply does not shorten it (decision D-075).
  */
-export function init(directory: string | undefined, force: boolean, io: CliIo): number {
-  const absolute = resolveDirectory(directory, io);
-  if (absolute === undefined) return EXIT_USAGE;
+export function init(directory: string | undefined, options: InitOptions, io: CliIo): number {
+  const checked = checkDirectory(directory);
+  if (!checked.ok) return printError(checked.error, EXIT_USAGE, { policy: null, tools: [] }, options, io);
+  const absolute = checked.directory;
 
   const target = join(absolute, POLICY_FILE);
   const shownTarget = directory === undefined ? POLICY_FILE : join(directory, POLICY_FILE);
-  const fail = (code: ApplyErrorCode, message: string, fix: string): number => {
-    reportInputError({ code, level: 'error', location: { file: shownTarget }, message, fix }, io);
-    return EXIT_FAILURE;
-  };
+  const fail = (code: ApplyErrorCode, message: string, fix: string): number =>
+    printError({ code, level: 'error', location: { file: shownTarget }, message, fix }, EXIT_FAILURE, { policy: shownTarget, tools: [] }, options, io);
   const existing = lstatSync(target, { throwIfNoEntry: false });
   if (existing?.isDirectory() === true) {
     return fail('cannot-write', `${shownTarget} is a directory, not a file`, `Remove or rename the directory ${shownTarget}, then run depcurfew init again`);
@@ -152,7 +278,7 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
     ...(projects.length === 0 ? {} : { projects: projects.map((entry) => entry.project) }),
   });
   try {
-    if (existing === undefined || !force) {
+    if (existing === undefined || !options.force) {
       // 'wx' fails if the file appeared in the meantime, so nothing is overwritten without --force.
       writeFileSync(target, text, { flag: 'wx' });
     } else if (existing.isSymbolicLink()) {
@@ -176,18 +302,22 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
   }
   // As apply sees it under targets "auto": a tool seen only in a CI setup step is not configured (decision D-075).
   const { ciOnly } = autoTargets(absolute, detection);
-  const ciNames = new Set(ciOnly.map((entry) => toolName(entry.id)));
-  const projectTools = projects.flatMap((entry) => detectedNames(entry.detection).map((name) => `${name} (${entry.project})`));
-  const detected = [...detectedNames(detection).filter((name) => !ciNames.has(name)), ...projectTools];
-  io.stdout(`${existing === undefined ? 'Created' : 'Overwrote'} ${shownTarget} with the default policy.\n`);
+  const tools = [...detectedTools(detection, '.', new Set(ciOnly.map((entry) => entry.id))), ...projects.flatMap((entry) => detectedTools(entry.detection, entry.project))];
+  const before: InitMessage[] = [];
   if (projects.length > 0) {
-    io.stdout(
-      `projects lists ${listing(projects.map((entry) => entry.project))}: the root has no manifest or lockfile, these directories do, so depcurfew configures each as a project of its own and the bots from the root; edit projects in ${POLICY_FILE} if that is not right.\n`,
-    );
+    before.push({
+      code: 'projects-listed',
+      level: 'note',
+      location: policyLocation(text, ['projects']),
+      message: `projects lists ${listing(projects.map((entry) => entry.project))}: the root has no manifest or lockfile, these directories do, so depcurfew configures each as a project of its own and the bots from the root`,
+      fix: `Edit projects in ${POLICY_FILE} if that is not right`,
+    });
   }
-  for (const entry of proposed.leftOut) io.stdout(`warning: ${entry.project} is not in projects: ${entry.reason}.\n`);
-  if (kept !== undefined) io.stdout(keptMessage(kept, minimum));
-  io.stdout(`Detected tools: ${detected.length === 0 ? 'none' : detected.join(', ')}.\n`);
+  for (const entry of proposed.leftOut) {
+    before.push({ code: 'project-left-out', level: 'warning', location: { file: entry.file }, message: `${entry.project} is not in projects: ${entry.reason}`, fix: entry.fix });
+  }
+  if (kept !== undefined) before.push(keptNote(kept, minimum, POLICY_FILE, 'depcurfew apply'));
+  const after: InitMessage[] = [];
   // Building from source runs the package's own build code, so the default deny blocks it (decision D-065); a package
   // without wheels then stops installing, which a team should see before apply (user feedback before 1.3.0).
   // doctor sees which locked packages have no wheels only in a lockfile that lists their files (uv.lock, poetry.lock,
@@ -200,17 +330,29 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
     const how = [
       ...(locked ? ['run depcurfew doctor before depcurfew apply to see the locked packages that have none'] : []),
       ...(unlocked ? [`run depcurfew check pypi:<name> for each package ${locked ? 'of the projects without such a lockfile' : 'the project installs'} to see whether it has wheels (doctor can tell only from a uv.lock, poetry.lock, pdm.lock or pylock.toml)`] : []),
-    ];
-    io.stdout(
-      `note: installScripts.default "deny" also blocks building Python packages from source, so a package without wheels for your platform stops installing; ${how.join(', and ')}, and add the ones you trust to installScripts.allow as pypi:<name>.\n`,
-    );
+    ].join(', and ');
+    after.push({
+      code: 'python-builds-denied',
+      level: 'note',
+      location: policyLocation(text, ['installScripts', 'default']),
+      message: 'installScripts.default "deny" also blocks building Python packages from source, so a package without wheels for your platform stops installing',
+      fix: `${how.charAt(0).toUpperCase()}${how.slice(1)}, and add the ones you trust to installScripts.allow as pypi:<name>`,
+    });
   }
   // In a repository of projects the workflows of the root set up the projects' tools, as apply knows (decision D-100).
   const inProjects = new Set(projects.flatMap((entry) => entry.detection.packageManagers.map((manager) => manager.id)));
   for (const entry of ciOnly.filter((item) => !inProjects.has(item.id as never))) {
-    io.stdout(
-      `note: ${toolName(entry.id)} is seen only in a CI setup step (${listing(entry.workflows)}), so depcurfew apply does not configure it; add "${entry.id}" to targets in ${POLICY_FILE} if it installs packages for this project.\n`,
-    );
+    after.push({
+      code: 'tool-only-in-ci',
+      level: 'note',
+      location: { file: entry.workflows[0] ?? POLICY_FILE },
+      message: `${toolName(entry.id)} is seen only in a CI setup step (${listing(entry.workflows)}), so depcurfew apply does not configure it`,
+      fix: `Add "${entry.id}" to targets in ${POLICY_FILE} if it installs packages for this project`,
+    });
   }
-  return EXIT_OK;
+  return printReport(
+    { policy: shownTarget, action: existing === undefined ? 'create' : 'overwrite', projects: projects.map((entry) => entry.project), tools, before, after },
+    options,
+    io,
+  );
 }

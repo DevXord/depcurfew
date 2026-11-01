@@ -118,7 +118,8 @@ describe('depcurfew check', () => {
     writeFileSync(join(directory, 'depcurfew.json'), '{"version": 2}');
     const result = await exec(['check', '--dir', directory, 'lodash']);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toContain('depcurfew.json is invalid');
+    // With the line, as the location in the JSON document (decision D-122).
+    expect(result.stderr).toContain('error: depcurfew.json (line 1) is invalid (policy-invalid)');
   });
 
   it('prints an invalid policy as JSON, checks no package and writes nothing on stderr', async () => {

@@ -181,9 +181,9 @@ describe('createCheckRun', () => {
   it('says so on the same line when the earlier entry cannot be marked as replaced', async () => {
     const fake = api({ runs: [{ id: 5, name: 'depcurfew doctor', external_id: 'depcurfew', output: { annotations_count: 1 } }], update: [403] });
     const line = await createCheckRun(runner(), 't', CONTENT, fake.fetch);
-    expect(line).toBe(
-      `depcurfew: added the check "depcurfew doctor" with the result to the commit ${MERGE.slice(0, 12)}, next to an earlier one with other annotations; the earlier one, whose annotations are out of date, could not be marked as replaced: the GitHub API answered HTTP 403\n`,
-    );
+    // Part of it did not work: a warning, with the warning annotation of the same text (decision D-122).
+    const text = `added the check "depcurfew doctor" with the result to the commit ${MERGE.slice(0, 12)}, next to an earlier one with other annotations; the earlier one, whose annotations are out of date, could not be marked as replaced: the GitHub API answered HTTP 403`;
+    expect(line).toBe(`depcurfew: warning: ${text}\n::warning title=depcurfew::${text}\n`);
   });
 
   it('adds a new entry when there is no earlier one of its own, or the lookup or the update fails', async () => {
@@ -214,9 +214,15 @@ describe('createCheckRun', () => {
   it('says how many annotations are missing when an update fails, on the same line', async () => {
     const fake = api({ update: [200, 422] });
     const line = await createCheckRun(runner(), 't', { ...CONTENT, annotations: annotations(120) }, fake.fetch);
-    expect(line).toBe(
-      `depcurfew: added the check "depcurfew doctor" with the result and 100 annotations to the commit ${MERGE.slice(0, 12)}; 20 more annotations could not be added: the GitHub API answered HTTP 422\n`,
-    );
+    const text = `added the check "depcurfew doctor" with the result and 100 annotations to the commit ${MERGE.slice(0, 12)}; 20 more annotations could not be added: the GitHub API answered HTTP 422`;
+    expect(line).toBe(`depcurfew: warning: ${text}\n::warning title=depcurfew::${text}\n`);
+    // With the input annotations set to false, the log line alone.
+    expect(await createCheckRun(runner(), 't', { ...CONTENT, annotations: annotations(120) }, api({ update: [200, 422] }).fetch, { annotate: false })).toBe(`depcurfew: warning: ${text}\n`);
+  });
+
+  it('shows control characters of the name of the check as text, so that a directory name cannot add a workflow command', async () => {
+    const line = await createCheckRun(runner(), 't', { ...CONTENT, name: 'depcurfew doctor (a\n::error::x)' }, api().fetch);
+    expect(line).toBe(`depcurfew: added the check "depcurfew doctor (a\\x0a::error::x)" with the result to the commit ${MERGE.slice(0, 12)}\n`);
   });
 
   it('says how to allow it when the token may not create checks, and never prints the token', async () => {
@@ -232,9 +238,10 @@ describe('createCheckRun', () => {
     // A URL that is set but not https is named as such, with what to do (decision D-116), and nothing is sent.
     const plain = recorder(201);
     const line = await createCheckRun(runner({ GITHUB_API_URL: 'http://user:secret@plain.example' }), 't', CONTENT, plain.fetch);
-    expect(line).toBe(
-      'depcurfew: the depcurfew doctor check was not added: GITHUB_API_URL is not an https URL, and depcurfew sends the token only over https; set GITHUB_API_URL to the https address of the GitHub API, or leave it to the runner, which sets it\n',
-    );
+    // A warning in the log and as an annotation (decision D-122).
+    const text =
+      'the depcurfew doctor check was not added: GITHUB_API_URL is not an https URL, and depcurfew sends the token only over https; set GITHUB_API_URL to the https address of the GitHub API, or leave it to the runner, which sets it';
+    expect(line).toBe(`depcurfew: warning: ${text}\n::warning title=depcurfew::${text}\n`);
     expect(line).not.toContain('secret');
     expect(plain.calls).toEqual([]);
   });

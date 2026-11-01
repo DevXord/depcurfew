@@ -25,13 +25,13 @@ inputs:
     description: Deprecated, use fail-on. false keeps the step from failing on findings at all, whatever fail-on says, and makes the depcurfew doctor check neutral instead of failed.
     default: 'true'
   annotations:
-    description: Show the findings as annotations on the files, each with how to fix it, or one notice when there are none, which lists every check and its result. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them.
+    description: Show the findings as annotations on the files, each with how to fix it, or one notice when there are none, which lists every check and its result. The notes and warnings of the action about the run itself (a directory checked with the root that lists it under projects, a depcurfew doctor check that could not be added) are annotations too, of the same level as in the log. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them.
     default: 'true'
   job-summary:
     description: Add a table of the findings, each with how to fix it, and what was checked (tools, files read, every check with its result) to the job summary.
     default: 'true'
   check-run:
-    description: Add a check named "depcurfew doctor" to the commit, with the result, every check and the findings as annotations on the files (at most 100, errors first), shown next to the code scanning entry in the Checks tab of a pull request. A later run on the same commit, such as push and pull_request of one commit, updates it instead of adding a second one. The job needs the checks write permission; without it the step only says so in the log.
+    description: Add a check named "depcurfew doctor" to the commit, with the result, every check and the findings as annotations on the files (at most 100, errors first), shown next to the code scanning entry in the Checks tab of a pull request. A later run on the same commit, such as push and pull_request of one commit, updates it instead of adding a second one. The job needs the checks write permission; without it the step only says so, as a warning in the log.
     default: 'true'
   github-token:
     description: Token for the depcurfew doctor check; the workflow token by default.

@@ -6,14 +6,14 @@ import { appendFileSync, lstatSync, mkdirSync, realpathSync, statSync } from 'no
 import { basename, dirname, posix, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { values } from './apply/facts.ts';
-import { loadPolicyIfPresent, PolicyError } from './apply/index.ts';
+import { loadPolicyIfPresent, PolicyError, policyErrorFix } from './apply/index.ts';
 import { listedAsProject } from './apply/projects.ts';
 import { fileSystemReason, writeChanges } from './apply/workspace.ts';
 import { checkRunName, createCheckRun, fitSummary, type CheckRunContent, type CheckRunFetch } from './action-check-run.ts';
 import { annotationCommands, cleanNotice, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
 import { fails, policyFailOn, resolveFailOn, type FailOn, type FailOnSetting } from './doctor/fail-on.ts';
 import { resultCounts } from './doctor/render.ts';
-import { checkRunAnnotationNote, checkRunAnnotations, problemSummary } from './doctor/github.ts';
+import { checkRunAnnotationNote, checkRunAnnotations, problemSummary, runMessage } from './doctor/github.ts';
 import { lineReader } from './doctor/sarif.ts';
 import { POLICY_FILE } from './policy/defaults.ts';
 import { environment } from './knowledge/environment.ts';
@@ -149,9 +149,12 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   const checkRun = enabled(env, 'check-run') ? io.checkRun : undefined;
   const failedCheck = (message: string, directory: string) =>
     checkRun?.({ name: checkRunName(directory), title: 'depcurfew could not check the repository', summary: failureSummary(message), conclusion: 'failure' });
+  // The lines of the action about its own run have a level word (decision D-122); action.yml turns the failure output
+  // into an error annotation, and notes and warnings get theirs below.
+  const annotate = enabled(env, 'annotations');
   const fail = (message: string): ActionOutputs => {
     outputs.failure = message;
-    io.log(untrusted(`depcurfew: ${printable(message)}\n`));
+    io.log(untrusted(runMessage('error', message).line));
     if (summary) io.summary(failureSummary(message));
     failedCheck(message, '');
     return outputs;
@@ -169,10 +172,12 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   // in the workspace, as depcurfew doctor does from there (decision D-115).
   const directory = policyDirectory(realpathSync(workspace), given);
   const prefix = relative(realpathSync(workspace), directory).split(sep).join('/');
-  if (directory !== given) {
-    const file = prefix === '' ? POLICY_FILE : posix.join(prefix, POLICY_FILE);
-    io.log(untrusted(`depcurfew: ${printable(input(env, 'directory', '.'))} is listed in projects in ${printable(file)}, so depcurfew doctor checks ${prefix === '' ? 'the repository root' : printable(prefix)} with its projects\n`));
-  }
+  const file = prefix === '' ? POLICY_FILE : posix.join(prefix, POLICY_FILE);
+  const listed =
+    directory === given
+      ? undefined
+      : runMessage('note', `${input(env, 'directory', '.')} is listed in projects in ${file}, so depcurfew doctor checks ${prefix === '' ? 'the repository root' : prefix} with its projects`);
+  if (listed !== undefined) io.log(untrusted(listed.line));
 
   let report: DoctorReport;
   let failOn: FailOnSetting | undefined;
@@ -186,7 +191,9 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     outputs.failure = [error.message, ...error.issues].join('; ');
-    io.log(untrusted(`depcurfew: ${printable(error.text)}\n${error.issues.map((issue) => `  ${printable(issue)}\n`).join('')}`));
+    // As the CLI says it: the message, the problems, then what to do.
+    const issues = error.issues.map((issue) => `  ${printable(issue)}\n`).join('');
+    io.log(untrusted(`${runMessage('error', error.message).line}${issues}  fix: ${printable(policyErrorFix(error))}\n`));
     if (summary) io.summary(failureSummary(outputs.failure));
     failedCheck(outputs.failure, prefix);
     return outputs;
@@ -197,13 +204,16 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   Object.assign(outputs, { errors: counts.error, warnings: counts.warning, notes: counts.note, 'fail-reason': failReason(counts, failOn) });
 
   const moved = relativeToWorkspace(report, prefix);
-  if (enabled(env, 'annotations')) {
-    const annotations = annotationCommands(moved, RULES);
+  if (annotate) {
+    // The notice of the note above takes one of the notices GitHub shows in the step.
+    const notice = listed?.annotation;
+    if (notice !== undefined) io.log(notice);
+    const annotations = annotationCommands(moved, RULES, undefined, undefined, { note: notice === undefined ? 0 : 1 });
     if (annotations.lines.length > 0) io.log(`${annotations.lines.join('\n')}\n`);
     const clean = cleanNotice(moved);
     if (clean !== undefined) io.log(`${clean}\n`);
     if (annotations.omitted > 0) {
-      io.log(`GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? 'finding is' : 'findings are'} in the report above.\n`);
+      io.log(runMessage('note', `GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? 'finding is' : 'findings are'} in the report above.`).line);
     }
   }
   if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
@@ -212,7 +222,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
     try {
       checkRun(checkRunContent(workspace, moved, prefix, outputs, counts));
     } catch (error) {
-      io.log(`depcurfew: the depcurfew doctor check was not added: ${checkRunFailure(error)}\n`);
+      io.log(warningLines(`the depcurfew doctor check was not added: ${checkRunFailure(error)}`, annotate));
     }
   }
   const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
@@ -220,7 +230,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   // doctor did run, so a SARIF file that cannot be written is a failure below the findings, not instead of them.
   const sarifFailure = (reason: string): ActionOutputs => {
     outputs.failure = `cannot write the SARIF file ${sarifInput}: ${reason}`;
-    io.log(untrusted(`depcurfew: ${printable(outputs.failure)}\n`));
+    io.log(untrusted(runMessage('error', outputs.failure).line));
     if (summary) io.summary(problemSummary(outputs.failure));
     return outputs;
   };
@@ -265,6 +275,12 @@ function checkRunContent(workspace: string, moved: DoctorReport, prefix: string,
     conclusion: outputs['fail-reason'] !== '' ? 'failure' : counts.error > 0 || counts.warning > 0 ? 'neutral' : 'success',
     annotations: annotated.annotations,
   };
+}
+
+/** A warning of the action about its own run: the line with the level word and, unless annotations are off, its annotation. */
+function warningLines(message: string, annotate: boolean): string {
+  const { line, annotation } = runMessage('warning', message);
+  return annotate && annotation !== undefined ? `${line}${annotation}` : line;
 }
 
 /** Why the check could not be prepared or sent, in plain words: never the message, which may name runner paths. */
@@ -314,11 +330,12 @@ export async function main(env: NodeJS.ProcessEnv = process.env, fetchImpl: Chec
   // After the outputs, so that a slow API cannot keep them from the next steps.
   if (checkRun !== undefined) {
     const token = input(env, 'github-token', '');
+    const annotate = enabled(env, 'annotations');
     let line: string;
     try {
-      line = token === '' ? 'depcurfew: the depcurfew doctor check was not added: the input github-token is empty\n' : await createCheckRun(env, token, checkRun, fetchImpl);
+      line = token === '' ? warningLines('the depcurfew doctor check was not added: the input github-token is empty', annotate) : await createCheckRun(env, token, checkRun, fetchImpl, { annotate });
     } catch (error) {
-      line = `depcurfew: the depcurfew doctor check was not added: ${checkRunFailure(error)}\n`;
+      line = warningLines(`the depcurfew doctor check was not added: ${checkRunFailure(error)}`, annotate);
     }
     process.stdout.write(line);
   }

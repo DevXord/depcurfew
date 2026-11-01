@@ -5,6 +5,7 @@
 import { parse as parseYaml } from 'yaml';
 import { isRecord, values } from '../apply/facts.ts';
 import { APPLY_ERRORS, APPLY_WARNINGS } from '../apply/warnings.ts';
+import { INIT_NOTES, INIT_WARNINGS } from '../cli/init-codes.ts';
 import { RULES } from '../doctor/index.ts';
 import type { Rule } from '../doctor/types.ts';
 import { USER_RULES } from '../user/doctor.ts';
@@ -141,9 +142,17 @@ function rulesList(rules: readonly Rule[] = RULES): string {
   ).join('\n\n');
 }
 
+function codeList(codes: Readonly<Record<string, string>>): string[] {
+  return Object.entries(codes).map(([code, summary]) => `- \`${code}\`: ${summary}`);
+}
+
 function applyCodes(): string {
-  const list = (codes: Readonly<Record<string, string>>) => Object.entries(codes).map(([code, summary]) => `- \`${code}\`: ${summary}`);
-  return ['Warnings:', '', ...list(APPLY_WARNINGS), '', 'Errors (nothing is written):', '', ...list(APPLY_ERRORS)].join('\n');
+  return ['Warnings:', '', ...codeList(APPLY_WARNINGS), '', 'Errors (nothing is written):', '', ...codeList(APPLY_ERRORS)].join('\n');
+}
+
+/** The warnings and notes of init (decision D-122); its errors are those of apply. */
+function initCodes(): string {
+  return ['Warnings:', '', ...codeList(INIT_WARNINGS), '', 'Notes:', '', ...codeList(INIT_NOTES)].join('\n');
 }
 
 function actionTables(action: string): string {
@@ -413,6 +422,7 @@ export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
     tools: toolsTable(inputs.tools),
     rules: rulesList(),
     'apply-codes': applyCodes(),
+    'init-codes': initCodes(),
     'action-reference': actionTables(inputs.action),
     'action-workflow': exampleWorkflow(inputs.environment, inputs.workflow),
     'claude-code-hook': claudeCodeHook(inputs.environment, inputs.tools),

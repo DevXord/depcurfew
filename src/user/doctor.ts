@@ -9,7 +9,7 @@ import { compareVersions, formatVersion, parseVersion, type Version } from '../a
 import type { ApplyWarning } from '../apply/warnings.ts';
 import { YAML_MARKER } from '../apply/yaml-edit.ts';
 import { ruleResults } from '../doctor/render.ts';
-import { driftDescription } from '../doctor/rules/config-drift.ts';
+import { driftPlaces, MAX_DIFFERENCES } from '../doctor/rules/config-drift.ts';
 import { iniLines } from '../doctor/settings.ts';
 import { makeNotice, type Checked, type DoctorReport, type Finding, type Notice, type Rule } from '../doctor/types.ts';
 import { parseToml, TomlDateTime, type TomlDocument, type TomlTable } from '../detect/toml.ts';
@@ -94,6 +94,33 @@ export const USER_RULES: readonly Rule[] = [
 
 /** The checks of the user files and variables of installed tools: not applicable when no tool is in PATH. */
 const INSTALLED_TOOL_RULES: ReadonlySet<string> = new Set(['user-config-drift', 'user-config-weakens', 'user-environment-overrides']);
+
+const DRIFT_FIX = 'Run depcurfew apply --user --dry-run to see the difference, then depcurfew apply --user';
+
+/**
+ * The user-config-drift findings of a user file that apply --user would change, as config-drift reports a project
+ * file: one for each place that differs, with its line and what should be there (decisions D-116 and D-122), at most
+ * MAX_DIFFERENCES, the last with how many more places differ; a file that does not exist is one finding.
+ */
+export function userDriftFindings(change: { file: string; before: string | null; after: string }, policyFile: string): Finding[] {
+  if (change.before === null) {
+    return [{ rule: 'user-config-drift', level: 'warning', location: { file: change.file }, message: `${change.file} does not exist, so the user policy is not applied there`, fix: DRIFT_FIX }];
+  }
+  const places = driftPlaces(change.file, change.before, change.after);
+  const shown = places.slice(0, MAX_DIFFERENCES);
+  const rest = places.length - shown.length;
+  return shown.map((place, index): Finding => {
+    const more = index === shown.length - 1 && rest > 0 ? `; ${rest} more ${rest === 1 ? 'place' : 'places'} in ${change.file} ${rest === 1 ? 'differs' : 'differ'} too (depcurfew apply --user --dry-run shows them)` : '';
+    return {
+      rule: 'user-config-drift',
+      level: 'warning',
+      location: { file: change.file, line: place.line },
+      // config-drift speaks of a project: here it is the user policy, written by apply --user.
+      message: `${change.file} does not match the user policy (${policyFile}): ${place.text.replaceAll('depcurfew apply ', 'depcurfew apply --user ').replaceAll(POLICY_FILE, 'the user policy')}${more}`,
+      fix: DRIFT_FIX,
+    };
+  });
+}
 
 const MAX_FILE = 1024 * 1024;
 
@@ -463,19 +490,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     }
     for (const change of plan.report.changes) {
       if (!failedPaths.has(change.path)) planned.set(change.path, change.after);
-      // As config-drift in a project: the line of the first difference and what should be there (decision D-116).
-      const drift = change.before === null ? undefined : driftDescription(change.file, change.before, change.after);
-      findings.push({
-        rule: 'user-config-drift',
-        level: 'warning',
-        location: { file: change.file, ...(drift === undefined ? {} : { line: drift.line }) },
-        message:
-          drift === undefined
-            ? `${change.file} does not exist, so the user policy is not applied there`
-            : // config-drift speaks of a project: here it is the user policy, written by apply --user.
-              `${change.file} does not match the user policy (${policyFile}): ${drift.text.replaceAll('depcurfew apply ', 'depcurfew apply --user ').replaceAll(POLICY_FILE, 'the user policy')}`,
-        fix: 'Run depcurfew apply --user --dry-run to see the difference, then depcurfew apply --user',
-      });
+      findings.push(...userDriftFindings(change, policyFile));
     }
     const targets = policy.targets;
     for (const tool of installed) {

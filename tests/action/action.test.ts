@@ -1,10 +1,11 @@
 // The action entry point: SARIF paths relative to the workspace, step outputs and failures, without GitHub.
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, describe, expect, it } from 'vitest';
-import { formatOutputs, runAction } from '../../src/action.ts';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+import { formatOutputs, main, runAction } from '../../src/action.ts';
+import { annotationCommands, RULES } from '../../src/doctor/index.ts';
 import { canSymlink, windows } from '../support/platform.ts';
 
 const DOCTOR = fileURLToPath(new URL('../fixtures/doctor/', import.meta.url));
@@ -108,7 +109,8 @@ describe('GitHub Action entry point', () => {
     const { outputs, log } = run({ GITHUB_WORKSPACE: root });
     expect(outputs['sarif-file']).toBe('');
     expect(outputs.failure).toMatch(/^depcurfew\.json is invalid; /u);
-    expect(log).toMatch(/^::stop-commands::[0-9a-f-]{36}\ndepcurfew: depcurfew\.json is invalid\n/u);
+    // The level word, the problems and what to do, as the CLI says it (decision D-122).
+    expect(log).toMatch(/^::stop-commands::[0-9a-f-]{36}\ndepcurfew: error: depcurfew\.json is invalid\n {2}version: must be 1, got 2\n {2}fix: Fix these problems in depcurfew\.json; /u);
   });
 
   it.skipIf(!canSymlink())('keeps the counts and adds one line to the job summary when the SARIF file cannot be written', () => {
@@ -118,7 +120,7 @@ describe('GitHub Action entry point', () => {
     const { outputs, log, summary } = run({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: 'report.sarif' });
     const failure = 'cannot write the SARIF file report.sarif: report.sarif is a symlink; depcurfew does not write through symlinks';
     expect(outputs).toEqual({ 'sarif-file': '', errors: 1, warnings: 0, notes: 0, failure, 'fail-reason': 'depcurfew doctor reported 1 error; the job summary and the log of the Run depcurfew doctor step say how to fix each one' });
-    expect(log).toContain(`\ndepcurfew: ${failure}\n`);
+    expect(log).toContain(`\ndepcurfew: error: ${failure}\n`);
     expect(summary.match(/^## depcurfew doctor$/gmu)).toHaveLength(1);
     expect(summary).not.toContain('could not check the repository');
     expect(summary).toMatch(/^\| \*\*error\*\* \| `\.github\/dependabot\.yml:\d+` \|/mu);
@@ -185,7 +187,7 @@ describe('GitHub Action entry point', () => {
       const { outputs, log, summary } = run({ GITHUB_WORKSPACE: root, INPUT_FAIL_ON: 'warnings' });
       const failure = 'the input fail-on is "warnings"; set it to error (errors fail the step) or warning (warnings fail it too), or leave it empty to follow doctor.failOn in depcurfew.json (errors only without it)';
       expect(outputs).toEqual({ 'sarif-file': '', errors: 0, warnings: 0, notes: 0, failure, 'fail-reason': '' });
-      expect(log).toContain(`depcurfew: ${failure}\n`);
+      expect(log).toContain(`depcurfew: error: ${failure}\n`);
       expect(summary).toContain('depcurfew could not check the repository: the input fail-on is "warnings"');
     });
   });
@@ -194,5 +196,77 @@ describe('GitHub Action entry point', () => {
     expect(formatOutputs({ 'sarif-file': 'a.sarif', errors: 2, warnings: 0, notes: 1, failure: 'one\ntwo\u001b[2K', 'fail-reason': '' })).toBe(
       'sarif-file=a.sarif\nerrors=2\nwarnings=0\nnotes=1\nfailure=one two\\x1b[2K\nfail-reason=\n',
     );
+  });
+});
+
+describe('the lines of the action about its own run (decision D-122)', () => {
+  /** A workspace whose depcurfew.json lists the given directories under projects, each an npm project. */
+  const projects = (names: readonly string[]): string => {
+    const root = mkdtempSync(join(tmpdir(), 'depcurfew-action-'));
+    temporary.push(root);
+    writeFileSync(join(root, 'depcurfew.json'), `${JSON.stringify({ version: 1, cooldown: { minimum: '3d' }, projects: names })}\n`);
+    for (const name of names) {
+      mkdirSync(join(root, name));
+      writeFileSync(join(root, name, 'package.json'), '{ "name": "app", "packageManager": "npm@12.2.1" }\n');
+    }
+    return root;
+  };
+  const LISTED = 'app is listed in projects in depcurfew.json, so depcurfew doctor checks the repository root with its projects';
+
+  it('says as a note, with a notice annotation, that a directory listed in projects is checked with its root', () => {
+    const { log } = run({ GITHUB_WORKSPACE: projects(['app']), INPUT_DIRECTORY: 'app' });
+    expect(log).toContain(`\ndepcurfew: note: ${LISTED}\n`);
+    expect(log.split('\n')).toContain(`::notice title=depcurfew::${LISTED}`);
+    // The annotation is not inside a block with workflow commands turned off.
+    const before = log.slice(0, log.indexOf(`::notice title=depcurfew::${LISTED}`));
+    expect(before.match(/^::stop-commands::/gmu)?.length).toBe(before.match(/^::[0-9a-f-]{36}::$/gmu)?.length);
+    // Without annotations the note stays in the log.
+    const quiet = run({ GITHUB_WORKSPACE: projects(['app']), INPUT_DIRECTORY: 'app', INPUT_ANNOTATIONS: 'false' }).log;
+    expect(quiet).toContain(`\ndepcurfew: note: ${LISTED}\n`);
+    expect(quiet).not.toMatch(/^::notice /mu);
+  });
+
+  it('keeps a notice for that note within the number GitHub shows, and says as a note when findings are left out', () => {
+    const notes = Array.from({ length: 12 }, (_, index) => ({ rule: 'broad-exclusion', level: 'note' as const, location: { file: `f${index}` }, message: 'm' }));
+    const shown = annotationCommands({ schemaVersion: 1, policy: 'valid', findings: notes, notices: [] }, RULES, undefined, { perLevelPerStep: 10, perJob: 50 }, { note: 1 });
+    expect(shown.lines).toHaveLength(9);
+    expect(shown.omitted).toBe(3);
+    // Eleven projects without .npmrc: more errors than GitHub shows in one step.
+    const { log } = run({ GITHUB_WORKSPACE: projects(Array.from({ length: 11 }, (_, index) => `p${index}`)) });
+    expect(log).toMatch(/^depcurfew: note: GitHub shows a limited number of annotations per step; \d+ more findings? (?:is|are) in the report above\.$/mu);
+  });
+
+  it('says as a warning, with a warning annotation, that the check could not be added', () => {
+    const root = workspace('bot-cooldown-mismatch/passes-consistent');
+    let log = '';
+    const failing = (): void => {
+      throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+    };
+    runAction({ GITHUB_WORKSPACE: root }, { log: (text) => (log += text), summary: () => undefined, checkRun: failing });
+    expect(log).toMatch(/^depcurfew: warning: the depcurfew doctor check was not added: a file could not be looked at \(.+\)$/mu);
+    expect(log).toMatch(/^::warning title=depcurfew::the depcurfew doctor check was not added: a file could not be looked at \(.+\)$/mu);
+  });
+
+  it('says so too when main has no token for the check', async () => {
+    const root = workspace('bot-cooldown-mismatch/passes-consistent');
+    const written: string[] = [];
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      written.push(String(chunk));
+      return true;
+    });
+    try {
+      await main({ GITHUB_WORKSPACE: root, INPUT_GITHUB_TOKEN: '' }, () => Promise.reject(new Error('no network in tests')));
+    } finally {
+      write.mockRestore();
+    }
+    const log = written.join('');
+    expect(log).toContain('\ndepcurfew: warning: the depcurfew doctor check was not added: the input github-token is empty\n');
+    expect(log).toContain('\n::warning title=depcurfew::the depcurfew doctor check was not added: the input github-token is empty\n');
+  });
+
+  it('gives an error that keeps doctor from running the level word, and action.yml the error annotation', () => {
+    const { log } = run({ GITHUB_WORKSPACE: workspace('bot-cooldown-mismatch/passes-consistent'), INPUT_DIRECTORY: '../elsewhere' });
+    expect(log).toContain('\ndepcurfew: error: directory "../elsewhere" is not a directory inside the workspace\n');
+    expect(readFileSync(fileURLToPath(new URL('../../action.yml', import.meta.url)), 'utf8')).toContain('echo "::error title=depcurfew::$FAILURE"');
   });
 });

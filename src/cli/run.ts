@@ -102,7 +102,7 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
   const options = end === -1 ? argv : argv.slice(0, end);
   const given = (name: string) => options.some((argument) => argument === `--${name}` || argument.startsWith(`--${name}=`));
   const jsonGiven = given('json');
-  // Only for a command that prints JSON: the stdout of mcp is its protocol, and init has no --json.
+  // Only for a command that prints JSON: the stdout of mcp is its protocol.
   const named = findCommand(argv.find((argument) => !argument.startsWith('-')) ?? '');
   const sarifGiven = given('sarif');
   const usage = usageReporter(
@@ -179,9 +179,9 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
       if (rest.length > 0) {
         return usage('--user takes no directory; it writes the user policy', "Run 'depcurfew init --help' for usage.");
       }
-      return initUser(values['force'] === true, dependencies.userEnvironment?.() ?? currentEnvironment(), io);
+      return initUser({ force: values['force'] === true, json: values['json'] === true }, dependencies.userEnvironment?.() ?? currentEnvironment(), io);
     }
-    return init(rest[0], values['force'] === true, io);
+    return init(rest[0], { force: values['force'] === true, json: values['json'] === true }, io);
   }
   if (command.name === 'explain') return explain(rest[0], values['json'] === true, io);
   if (command.name === 'apply') {

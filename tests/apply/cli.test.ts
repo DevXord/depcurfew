@@ -178,7 +178,7 @@ describe('depcurfew apply', () => {
     const directory = scratch('npm-basic', '{ "version": 1, "cooldown": { "minimum": "soon" } }');
     const result = await exec('apply', directory);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toMatch(/^error: depcurfew\.json is invalid \(policy-invalid\)\n {2}\S.*\n {2}fix: Fix these problems in depcurfew\.json/u);
+    expect(result.stderr).toMatch(/^error: depcurfew\.json \(line 1\) is invalid \(policy-invalid\)\n {2}\S.*\n {2}fix: Fix these problems in depcurfew\.json/u);
     expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
   });
 
@@ -195,7 +195,7 @@ describe('depcurfew apply', () => {
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
     expect(result.stderr).toMatch(/^error: npm: cannot edit package\.json: .* \(cannot-edit\)\n {2}fix: Fix what the message describes, then run depcurfew apply again; or add the settings by hand$/mu);
-    expect(result.stderr.endsWith('depcurfew: nothing written because of the errors above.\n')).toBe(true);
+    expect(result.stderr.endsWith('note: nothing written because of the errors above\n')).toBe(true);
     expect(snapshot(directory)['.npmrc']).toBe('save-exact=true\n');
   });
 
@@ -206,7 +206,7 @@ describe('depcurfew apply', () => {
     expect(result.code).toBe(EXIT_FAILURE);
     expect(result.stdout).toBe('');
     expect(result.stderr).toContain('error: Renovate: cannot edit renovate.json');
-    expect(result.stderr).toContain('depcurfew: apply would write nothing because of the errors above.\n');
+    expect(result.stderr).toContain('note: apply would write nothing because of the errors above\n');
   });
 
   it.skipIf(!canSymlink())('does not write through a symlink', async () => {

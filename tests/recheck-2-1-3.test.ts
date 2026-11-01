@@ -220,7 +220,8 @@ describe('an invalid depcurfew.json in explain, as apply says it (item D)', () =
     const explained = await exec('explain', directory);
     expect(explained.code).toBe(1);
     const block = applied.stderr.split('\n').filter((line) => line !== '').map((line) => `  ${line}`);
-    expect(block[0]).toBe('  error: depcurfew.json is invalid (policy-invalid)');
+    // With the line of the entry, as the location in the JSON document (decision D-122).
+    expect(block[0]).toBe('  error: depcurfew.json (line 1) is invalid (policy-invalid)');
     expect(explained.stdout).toContain(`Policy (depcurfew.json): invalid\n${block.join('\n')}\n`);
   });
 });

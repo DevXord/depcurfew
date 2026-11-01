@@ -119,7 +119,7 @@ describe('apply --user reports a user file it cannot read instead of skipping it
     expect(result.stderr).toContain(
       `error: pip: cannot edit ${shown}: ${shown} is not valid UTF-8, so depcurfew does not edit it; save it as UTF-8 (cannot-edit)\n  fix: Save ${shown} as UTF-8, then run depcurfew apply --user again\n`,
     );
-    expect(result.stderr).toContain('depcurfew: nothing written because of the errors above.\n');
+    expect(result.stderr).toContain('note: nothing written because of the errors above\n');
     expect(existsSync(join(environment.home, '.npmrc'))).toBe(false);
   });
 });

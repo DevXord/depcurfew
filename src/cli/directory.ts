@@ -87,12 +87,24 @@ export function policyInputError(error: PolicyError, file: string): InputError {
 }
 
 /**
+ * The message of an input error with the line of its location, as the JSON document has it (decision D-122): after the
+ * file when the message starts with it ("depcurfew.json (line 6) is invalid"), else before the message, as apply names
+ * the line of an entry of projects ("app/depcurfew.json (line 6): depcurfew.json is invalid"). A message that names
+ * the line itself, and a location without one, leave the message as it is.
+ */
+function withLine(error: InputError): string {
+  const { file, line } = error.location;
+  if (line === undefined || new RegExp(`\\bline ${line}\\b`, 'u').test(error.message)) return error.message;
+  return error.message.startsWith(`${file} `) ? `${file} (line ${line})${error.message.slice(file.length)}` : `${file} (line ${line}): ${error.message}`;
+}
+
+/**
  * An input error as lines, like an error of apply: the level and the message with its code, the issues, then what to
  * do. One source for stderr and for explain, which shows an unusable depcurfew.json in its report (decision D-111).
  */
 export function inputErrorLines(error: InputError, colors: Paint = PLAIN): string[] {
   return [
-    `error: ${printable(error.message)} ${colors.dim(`(${error.code})`)}`,
+    `error: ${printable(withLine(error))} ${colors.dim(`(${error.code})`)}`,
     ...(error.issues ?? []).map((issue) => `  ${printable(issue)}`),
     `  ${colors.green('fix:')} ${printable(error.fix)}`,
   ];
