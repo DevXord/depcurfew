@@ -180,6 +180,21 @@ describe('depcurfew check --hook claude-code', () => {
     expect((await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', elsewhere), root)).stdout).toBe('');
   });
 
+  it('names the nearer policy when it is invalid, and shows each finding once with the file whose policy it breaks', async () => {
+    const root = project({ installScripts: { default: 'deny' } });
+    mkdirSync(join(root, '.git'));
+    const vendored = join(root, 'vendor', 'lib');
+    mkdirSync(join(vendored, '.git'), { recursive: true });
+    writeFileSync(join(vendored, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '0d' } }));
+    const invalid = decision((await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', vendored), root)).stdout);
+    expect(invalid.permissionDecision).toBe('ask');
+    expect(invalid.permissionDecisionReason).toContain('vendor/lib/depcurfew.json is invalid');
+    writeFileSync(join(vendored, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '3000d' }, installScripts: { default: 'deny' } }));
+    const both = decision((await exec(['check', '--hook', 'claude-code'], event('npm install esbuild lodash@4.17.21', vendored), root)).stdout).permissionDecisionReason;
+    expect(both.match(/runs install scripts/gu)).toHaveLength(1);
+    expect(both).toContain('vendor/lib/depcurfew.json requires 3000 days');
+  });
+
   it('keeps a stricter policy of a nested repository when the project has none of its own', async () => {
     const root = project();
     mkdirSync(join(root, '.git'));
@@ -189,6 +204,7 @@ describe('depcurfew check --hook claude-code', () => {
     const result = await exec(['check', '--hook', 'claude-code'], event('npm install lodash@4.17.21', nested), root);
     expect(decision(result.stdout).permissionDecision).toBe('deny');
     expect(decision(result.stdout).permissionDecisionReason).toContain('3000 days');
+    expect(decision(result.stdout).permissionDecisionReason).toContain('Besides the default policy (the project has no depcurfew.json), sub/depcurfew.json also applies here');
   });
 
   it.skipIf(process.platform === 'win32')('compares the project and the working directory by their real paths, so a symlinked project directory changes nothing', async () => {

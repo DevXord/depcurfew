@@ -250,7 +250,18 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     const loaded = load(root.start, dependencies.home?.() ?? homedir());
     const registry = registryOf(flags.registry, loaded.registries);
     // Registries always come from the project's files; only the policy of a nearer depcurfew.json is applied too.
-    const nearer = root.also === undefined ? undefined : load(root.also, dependencies.home?.() ?? homedir()).policy;
+    const nearerFile = root.also === undefined ? undefined : relative(root.start, join(root.also, POLICY_FILE)).split(sep).join('/');
+    let nearer: ResolvedPolicy | undefined;
+    if (root.also !== undefined) {
+      try {
+        nearer = load(root.also, dependencies.home?.() ?? homedir()).policy;
+      } catch (error) {
+        // Name the file, so that the user is not pointed at the project's policy, which is fine (decision D-110).
+        if (!(error instanceof PolicyError)) throw error;
+        io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(error.issues.length > 0 ? `${nearerFile ?? POLICY_FILE} is invalid: ${error.issues.join('; ')}` : `${nearerFile ?? POLICY_FILE}: ${messageOf(error)}`)}` }) ?? '');
+        return EXIT_OK;
+      }
+    }
     const policies = nearer === undefined ? [loaded.policy] : [loaded.policy, nearer];
     const options = (policy: ResolvedPolicy) => ({
       policy,
@@ -264,7 +275,16 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       ...(loaded.registries.tag === undefined ? {} : { defaultTag: loaded.registries.tag.value }),
       scriptBodies: false,
     });
-    const reports = (await Promise.all(policies.map((policy) => checkSpecs(specs, options(policy))))).flat();
+    const [own = [], other] = await Promise.all(policies.map((policy) => checkSpecs(specs, options(policy))));
+    // A finding the nearer policy shares with the project's (the same code for the same package) is shown once; the
+    // others name the file whose policy they break, as the project's depcurfew.json does not say so.
+    const extra = (other ?? []).map((report, index) => ({
+      ...report,
+      findings: report.findings
+        .filter((finding) => !(own[index]?.findings ?? []).some((mine) => mine.code === finding.code))
+        .map((finding) => ({ ...finding, message: finding.message.split(POLICY_FILE).join(nearerFile ?? POLICY_FILE) })),
+    }));
+    const reports = [...own, ...extra.filter((report) => report.findings.length > 0)];
     // Say which registry answered when it is not the public one, if an npm package was looked up there.
     const scopeOf = (name: string) => (name.startsWith('@') ? name.slice(0, name.indexOf('/')) : '');
     const lookedUp = reports.some((report) => report.kind === 'registry' && !isPythonSpec(report.spec) && report.name !== undefined && !loaded.registries.scopes.has(scopeOf(report.name)));
@@ -273,7 +293,9 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       ...(note === undefined ? [] : [`${note}.`]),
       ...(root.also === undefined
         ? []
-        : [`Besides the policy of the project (${projectDirVariable()}), ${reasonText(relative(root.start, join(root.also, POLICY_FILE)).split(sep).join('/'))} also applies here; the stricter answer counts.`]),
+        : [
+            `Besides ${loaded.file === undefined ? `the default policy (the project has no ${POLICY_FILE})` : `the policy of the project (${projectDirVariable()})`}, ${reasonText(nearerFile ?? POLICY_FILE)} also applies here; the stricter answer counts.`,
+          ]),
     ];
     io.stdout(formatDecision(decide(reports, unreadable, notes)) ?? '');
   } catch (error) {
