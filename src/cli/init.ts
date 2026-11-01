@@ -14,6 +14,14 @@ import { listing } from '../apply/requirements.ts';
 import { detectedNames, toolName } from './describe.ts';
 import { reportInputError, resolveDirectory } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
+import { knowledgeBase } from '../knowledge/index.ts';
+import { ecosystemOfTool } from '../policy/ecosystem.ts';
+
+/** Whether a tool installs PyPI packages, by its ecosystem in the knowledge base. */
+function isPythonTool(id: string): boolean {
+  const tool = knowledgeBase.find((entry) => entry.id === id);
+  return tool !== undefined && ecosystemOfTool(tool) === 'pypi';
+}
 
 /** A file system error without the path, e.g. "EACCES: permission denied". */
 function errorMessage(error: unknown): string {
@@ -143,6 +151,13 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
     io.stdout(`cooldown.minimum is ${minimum} instead of ${DEFAULT_POLICY.cooldown.minimum}, to keep the longest release-age delay already set: ${describeDelay(kept)}.\n`);
   }
   io.stdout(`Detected tools: ${detected.length === 0 ? 'none' : detected.join(', ')}.\n`);
+  // Building from source runs the package's own build code, so the default deny blocks it (decision D-065); a package
+  // without wheels then stops installing, which a team should see before apply (user feedback before 1.3.0).
+  if (DEFAULT_POLICY.installScripts.default === 'deny' && detection.packageManagers.some((manager) => manager.supported && isPythonTool(manager.id))) {
+    io.stdout(
+      'note: installScripts.default "deny" also blocks building Python packages from source, so a package without wheels for your platform stops installing; run depcurfew doctor before depcurfew apply to see the locked packages that have none, and add the ones you trust to installScripts.allow as pypi:<name>.\n',
+    );
+  }
   for (const entry of ciOnly) {
     io.stdout(
       `${toolName(entry.id)} is seen only in a CI setup step (${listing(entry.workflows)}), so depcurfew apply does not configure it; add "${entry.id}" to targets in ${POLICY_FILE} if it installs packages for this project.\n`,

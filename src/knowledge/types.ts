@@ -614,6 +614,21 @@ export interface ClaudeCodeHooksKnowledge {
   settings: { hooks: string; matcher: string; handlers: string; type: string; commandType: string; command: string; args: string };
 }
 
+/** The SessionStart hook that can install the project, and what happens to a guard whose script is missing. */
+export interface ClaudeCodeSessionStartKnowledge {
+  event: string;
+  /** The matchers for a new and a resumed session. */
+  matchers: readonly string[];
+  /** The variable a shell-form hook command reads for the project root. */
+  projectDirVariable: string;
+  /** Whether Claude's first response waits for SessionStart hooks to finish. */
+  firstResponseWaits: boolean;
+  /** What a PreToolUse hook with onFailure "block" does when its script is missing. */
+  missingScriptWithBlock: 'blocks';
+  /** Whether a cloud environment's setup script runs before Claude Code starts. */
+  cloudSetupScriptRunsBeforeClaudeCode: boolean;
+}
+
 /** A Claude Code tool that runs shell commands, by the name a matcher and the event use, and the shell it runs them in. */
 export interface ClaudeCodeShellTool {
   tool: string;
@@ -740,6 +755,7 @@ export interface EnvironmentKnowledge {
     hooks: Fact<ClaudeCodeHooksKnowledge>;
     /** The tools whose PreToolUse events carry a shell command in the hooks fact's input.command. */
     shellTools: Fact<readonly ClaudeCodeShellTool[]>;
+    sessionStart: Fact<ClaudeCodeSessionStartKnowledge>;
   };
   git: {
     /** Where git reads the patterns of files it does not pick up, and the index that lists the tracked files. */

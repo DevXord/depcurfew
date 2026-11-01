@@ -52,9 +52,11 @@ depcurfew needs Node.js 22 or later and has a single runtime dependency, [`yaml`
 Add it to the project as a development dependency, so the team, CI and coding agents all run the version pinned in the lockfile. Once `apply` has written the project's release-age delay, later updates of depcurfew go through that delay as well:
 
 ```bash
-npm install --save-dev depcurfew
+npm install --save-dev --save-exact depcurfew
 npx dcf doctor
 ```
+
+Pin the exact version (`--save-exact`, or `save-exact=true` in `.npmrc`) and update it on purpose: depcurfew is a young project with frequent releases, and a range would let a new release in without review.
 
 Who needs it installed:
 
@@ -495,6 +497,10 @@ depcurfew:
 
 `depcurfew doctor --json` and `--sarif` write the findings for other tools; set `FORCE_COLOR=1` if the CI log shows colors.
 
+## What depcurfew does not do
+
+depcurfew makes the package managers' own protections work and checks a package's age, name, install scripts and source before it is installed. It does not know which packages are malicious: it has no malware database and does not scan package contents, so a malicious version older than the cooldown passes. Use it together with a tool that blocks known malware at install time, and keep `npm audit` or an equivalent for known vulnerabilities. It also does not run or sandbox anything: the protection comes from the configuration the package managers read.
+
 ## Guarding installs
 
 The configuration `apply` writes is what really protects a project: the package managers themselves wait out the release-age delay and refuse install scripts and sources the policy denies. `depcurfew check` adds a check before something is installed, which matters most for AI coding agents that add packages on their own:
@@ -564,6 +570,33 @@ In `.claude/settings.json` of the project:
 The matcher `Bash|PowerShell|Monitor` covers every tool that runs shell commands. On Windows, PowerShell is the main shell wherever the PowerShell tool is on, and without Git Bash there is no Bash tool, so a hook on `Bash` alone never runs there; Monitor runs a command in the background. `command` is `node` itself, which also starts on Windows, where Claude Code runs it without a shell.
 
 `onFailure: "block"` needs Claude Code 2.1.295 or later; without it, a hook that fails to start, crashes or times out lets the command through.
+
+**Before depcurfew is installed.** The hook runs the copy in `node_modules`. When that file is missing (a fresh clone before `npm ci`, a repository without `package.json` in its root, a new cloud session), Claude Code cannot start the hook, and with `onFailure: "block"` it then blocks every command of these tools, including the `npm ci` that would install depcurfew; without it, every command runs unchecked. So install depcurfew before the hook is needed:
+
+- **On your machine:** run `npm ci` once after cloning, in a terminal, before you start Claude Code.
+- **In every session:** a `SessionStart` hook installs the locked copy when it is missing (with pnpm, Yarn or Bun, use their install from the lockfile instead of `npm ci`). It runs when a session starts or resumes, and Claude's first response waits for it, so the guard is in place before the first command. `--ignore-scripts` keeps the install from running dependency scripts before the guard is there. Add it next to `PreToolUse` in the same `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && { test -f node_modules/depcurfew/dist/cli.js || npm ci --ignore-scripts; }"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+- **A repository without `package.json` in its root** (several projects side by side): keep depcurfew in a small tools directory, for example `.claude/depcurfew/package.json` with depcurfew pinned exactly and its `package-lock.json` committed, install it there (`cd .claude/depcurfew && npm ci --ignore-scripts`, also in the `SessionStart` hook), and point the hook at `${CLAUDE_PROJECT_DIR}/.claude/depcurfew/node_modules/depcurfew/dist/cli.js`.
+- **Cloud sessions (Claude Code on the web):** the repository's `.claude/settings.json` hooks run there, user-level ones do not. The environment's setup script runs before Claude Code starts, so it can install depcurfew too; the `SessionStart` hook above covers a cached environment as well.
+- **Locked out already:** install depcurfew from a terminal outside Claude Code, or remove the hook from `.claude/settings.json` there; Claude cannot do it for you while the hook blocks its commands, which is the point of `block`.
 
 Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; Python commands are matched word for word, and `python -m pip` counts as `pip`):
 

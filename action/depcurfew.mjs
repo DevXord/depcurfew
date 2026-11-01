@@ -4191,6 +4191,7 @@ const checked$2 = verifiedOn("2026-10-29");
 const python = verifiedOn("2026-10-30");
 const gitFacts = verifiedOn("2026-10-30");
 const audited = verifiedOn("2026-10-31");
+const release13 = verifiedOn("2026-11-01");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
 const NPM_PACKAGE_JSON = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
@@ -4520,6 +4521,14 @@ const environment = {
 				args: "args"
 			}
 		}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. A matcher of names separated by | matches each of them exactly. With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules."),
+		sessionStart: release13.verified({
+			event: "SessionStart",
+			matchers: ["startup", "resume"],
+			projectDirVariable: "CLAUDE_PROJECT_DIR",
+			firstResponseWaits: true,
+			missingScriptWithBlock: "blocks",
+			cloudSetupScriptRunsBeforeClaudeCode: true
+		}, "https://code.claude.com/docs/en/hooks#sessionstart", "SessionStart runs when a session starts or resumes; its matcher startup fires for a new session (also resume, clear, compact and fork). Hooks run in the background, but \"Claude's first response still waits for the hooks to finish\", and a prompt sent meanwhile does not reach Claude until they finish. A command hook may be shell form (command with $CLAUDE_PROJECT_DIR, the repository root). With onFailure set to \"block\" (#block-the-action-when-a-hook-fails), a PreToolUse hook whose script is missing blocks the call (\"failed; blocking because onFailure is \"block\"\" followed by node's error output); without it, the same missing script is a non-blocking error and the command runs. In cloud sessions (https://code.claude.com/docs/en/cloud-environments#setup-scripts) a setup script is a Bash script that runs as root before Claude Code launches and is skipped when a cached environment exists; SessionStart hooks of the repository's .claude/settings.json run in local and cloud sessions (in a session with one repository, outside a project thread), user-level ~/.claude/settings.json hooks do not reach the cloud. The docs recommend a SessionStart hook for project setup such as npm install."),
 		shellTools: audited.verified([
 			{
 				tool: "Bash",
@@ -19766,13 +19775,16 @@ function checkedLines(checked) {
 		...checked.rules.map((result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === "skipped" ? ` (needs ${checked.policyFile})` : ""} [${result.rule}]`)
 	];
 }
-function renderText(report, rules, colors = PLAIN) {
+/** The line --strict adds when warnings make doctor fail. */
+const STRICT_NOTE = "--strict: warnings count as failures, so depcurfew doctor exits with 1";
+function renderText(report, rules, colors = PLAIN, options = {}) {
 	const counts = countLevels(report.findings);
 	const lines = [];
 	if (report.findings.length === 0) lines.push(colors.green("No problems found."));
 	else {
 		const count = (level) => counts[level] === 0 ? plural$1(0, level) : levelColor(level, colors)(plural$1(counts[level], level));
 		lines.push(`${count("error")}, ${count("warning")}, ${count("note")}`);
+		if (options.strict === true && counts.warning > 0) lines.push(STRICT_NOTE);
 		let file;
 		for (const finding of report.findings) {
 			if (finding.location.file !== file) {

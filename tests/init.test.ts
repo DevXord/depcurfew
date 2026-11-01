@@ -117,6 +117,18 @@ describe('depcurfew init', () => {
     expect(result.stdout).toBe(`Created ${policyFile} with the default policy.\nDetected tools: pnpm, Dependabot.\n`);
   });
 
+  it('warns that the default policy blocks Python builds from source, and says to run doctor before apply', async () => {
+    cpSync(fileURLToPath(new URL('fixtures/repos/pip-requirements', import.meta.url)), directory, { recursive: true });
+    const result = await exec('init', directory);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toContain(
+      'note: installScripts.default "deny" also blocks building Python packages from source, so a package without wheels for your platform stops installing; run depcurfew doctor before depcurfew apply to see the locked packages that have none, and add the ones you trust to installScripts.allow as pypi:<name>.\n',
+    );
+    // Not for a project without Python tools.
+    cpSync(fileURLToPath(new URL('fixtures/repos/pnpm11-dependabot', import.meta.url)), join(directory, 'js'), { recursive: true });
+    expect((await exec('init', join(directory, 'js'))).stdout).not.toContain('Python');
+  });
+
   it('lists a tool seen only in a CI setup step apart, as apply does not configure it', async () => {
     cpSync(fileURLToPath(new URL('fixtures/repos/deno-ci-bun', import.meta.url)), directory, { recursive: true });
     const result = await exec('init', directory);

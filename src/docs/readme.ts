@@ -196,6 +196,46 @@ function commandList(entries: readonly (readonly string[])[]): string {
   return entries.map((entry) => `\`${entry.join(' ')}\``).join(', ');
 }
 
+/**
+ * What the hook does before depcurfew is installed, and how to install it first: with onFailure "block" a missing
+ * cli.js blocks every shell command, including the install that would bring it (user feedback before 1.3.0).
+ */
+function bootstrap(environment: EnvironmentKnowledge): string[] {
+  const hooks = values(environment.claudeCode.hooks)[0];
+  const start = values(environment.claudeCode.sessionStart)[0];
+  if (hooks === undefined || start === undefined) throw new Error('README: missing the Claude Code hooks or SessionStart fact');
+  const keys = hooks.settings;
+  const cli = 'node_modules/depcurfew/dist/cli.js';
+  const variable = `$${start.projectDirVariable}`;
+  const sessionStart = {
+    [keys.hooks]: {
+      [start.event]: [
+        {
+          [keys.matcher]: start.matchers.join(hooks.matcherSeparator),
+          [keys.handlers]: [{ [keys.type]: keys.commandType, [keys.command]: `cd "${variable}" && { test -f ${cli} || npm ci --ignore-scripts; }` }],
+        },
+      ],
+    },
+  };
+  return [
+    '**Before depcurfew is installed.** The hook runs the copy in `node_modules`. When that file is missing (a fresh clone before `npm ci`, a repository without `package.json` in its root, a new cloud session), Claude Code cannot start the hook, and with `' +
+      `${hooks.onFailure.field}: "${hooks.onFailure.value}"\` it then blocks every command of these tools, including the \`npm ci\` that would install depcurfew; without it, every command runs unchecked. So install depcurfew before the hook is needed:`,
+    '',
+    `- **On your machine:** run \`npm ci\` once after cloning, in a terminal, before you start Claude Code.`,
+    `- **In every session:** a \`${start.event}\` hook installs the locked copy when it is missing (with pnpm, Yarn or Bun, use their install from the lockfile instead of \`npm ci\`). It runs when a session starts or resumes, and ${start.firstResponseWaits ? "Claude's first response waits for it" : 'it may still run when Claude answers'}, so the guard is in place before the first command. \`--ignore-scripts\` keeps the install from running dependency scripts before the guard is there. Add it next to \`${hooks.event}\` in the same \`${hooks.settingsFile}\`:`,
+    '',
+    '```json',
+    JSON.stringify(sessionStart, null, 2),
+    '```',
+    '',
+    `- **A repository without \`package.json\` in its root** (several projects side by side): keep depcurfew in a small tools directory, for example \`.claude/depcurfew/package.json\` with depcurfew pinned exactly and its \`package-lock.json\` committed, install it there (\`cd .claude/depcurfew && npm ci --ignore-scripts\`, also in the \`${start.event}\` hook), and point the hook at \`${hooks.projectDir}/.claude/depcurfew/${cli}\`.`,
+    start.cloudSetupScriptRunsBeforeClaudeCode
+      ? `- **Cloud sessions (Claude Code on the web):** the repository's \`${hooks.settingsFile}\` hooks run there, user-level ones do not. The environment's setup script runs before Claude Code starts, so it can install depcurfew too; the \`${start.event}\` hook above covers a cached environment as well.`
+      : '',
+    `- **Locked out already:** install depcurfew from a terminal outside Claude Code, or remove the hook from \`${hooks.settingsFile}\` there; Claude cannot do it for you while the hook blocks its commands, which is the point of \`${hooks.onFailure.value}\`.`,
+  ].filter((line, index, all) => line !== '' || all[index - 1] !== '');
+}
+
 /** The Claude Code hook settings and the install commands the guard reads, from the knowledge base. */
 function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolKnowledge[]): string {
   const hooks = values(environment.claudeCode.hooks)[0];
@@ -245,6 +285,8 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     `The matcher \`${matcher}\` covers every tool that runs shell commands. On Windows, PowerShell is the main shell wherever the PowerShell tool is on, and without Git Bash there is no Bash tool, so a hook on \`Bash\` alone never runs there; Monitor runs a command in the background. \`${hooks.settings.command}\` is \`node\` itself, which also starts on Windows, where Claude Code runs it without a shell.`,
     '',
     `\`${hooks.onFailure.field}: "${hooks.onFailure.value}"\` needs Claude Code ${hooks.onFailure.since} or later; without it, a hook that fails to start, crashes or times out lets the command through.`,
+    '',
+    ...bootstrap(environment),
     '',
     'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
     '',
