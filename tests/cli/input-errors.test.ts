@@ -158,7 +158,7 @@ describe('a directory that does not exist or is a file', () => {
   it('doctor --json prints a document with the error, counted in the summary', async () => {
     const result = await exec('doctor', '--json', missing);
     expect([result.code, result.stderr]).toEqual([EXIT_USAGE, '']);
-    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, policy: null, findings: [], notices: [], errors: [notFound], summary: { error: 1, warning: 0, note: 0 } });
+    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, policy: null, findings: [], notices: [], strict: false, errors: [notFound], summary: { error: 1, warning: 0, note: 0 } });
   });
 
   it('doctor --sarif prints a run that did not succeed, with the error as a notification', async () => {

@@ -23,6 +23,22 @@ function quietWhenClosed(stream: NodeJS.WriteStream): (text: string) => void {
   };
 }
 
+/**
+ * Node 22.15 and later warn on stderr while loading node:util (which parseArgs needs) when FORCE_COLOR and NO_COLOR
+ * are both set: "The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set". depcurfew decides about colors
+ * itself, the same way (colorsFor: FORCE_COLOR wins), and stderr must stay empty with --json. Node emits warnings on
+ * the next tick, after the imports above ran, so this one is dropped here; every other warning is printed as before.
+ */
+function dropColorWarning(): void {
+  const printers = process.listeners('warning');
+  process.removeAllListeners('warning');
+  process.on('warning', (warning) => {
+    if (warning.name === 'Warning' && warning.message.includes("'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env")) return;
+    for (const print of printers) print(warning);
+  });
+}
+
+dropColorWarning();
 run(process.argv.slice(2), {
   stdout: quietWhenClosed(process.stdout),
   stderr: quietWhenClosed(process.stderr),

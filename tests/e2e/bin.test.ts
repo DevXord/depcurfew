@@ -61,6 +61,15 @@ describe('built depcurfew executable', () => {
     expect(depcurfewWith({ FORCE_COLOR: '1' }, 'frobnicate').stderr).toMatch(/^\u001b\[31m\u001b\[1mdepcurfew:/u);
   });
 
+  it('keeps stderr empty with FORCE_COLOR and NO_COLOR both set, where Node warns that it ignores NO_COLOR', () => {
+    // Node 22.15+ warns while loading node:util when both are set; depcurfew decides about colors itself (FORCE_COLOR
+    // wins), and with --json stderr must stay empty for programs.
+    const directory = fileURLToPath(new URL('tests/fixtures/doctor/config-drift/fires-hand-edited/repo', root));
+    const result = depcurfewWith({ FORCE_COLOR: '1', NO_COLOR: '1' }, 'doctor', '--json', directory);
+    expect(result.stderr).toBe('');
+    expect(JSON.parse(result.stdout).schemaVersion).toBe(1);
+  });
+
   it('--version prints the package version', () => {
     const result = depcurfew('--version');
     expect(result.status).toBe(0);

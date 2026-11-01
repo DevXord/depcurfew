@@ -1360,3 +1360,12 @@ Tag `v1.0.0` trafił na `main` (03bdb75), zanim PR #6 przeniósł tam `faza-7`. 
 - **Bezpieczeństwo i sieć.** Token (wejście `github-token`, domyślnie `${{ github.token }}`) idzie tylko w nagłówku do `GITHUB_API_URL` (https), nigdy do logu. Odmowa (403/404: brak `checks: write`, token tylko do odczytu w PR z forka), brak odpowiedzi w 15 s czy brak zmiennych runnera dają jedną linię w logu i nie zatrzymują kroku. Wejścia kroku są zapisane przed wywołaniem API. Testy używają podstawionego `fetch`, bez sieci.
 - **Repozytorium.** Zadanie „depcurfew on itself” ma `checks: write`; zadania z fiksturami mają `check-run: false`, żeby nie dodawać kilku wpisów o tej samej nazwie (a celowo zepsuta fikstura nie dawała czerwonego wpisu w PR). Przykład workflow w README nadaje `checks: write`.
 
+
+## D-097 · `doctor --strict` i ostrzeżenie Node o `NO_COLOR` (2026-11-01)
+
+- **Problem.** D-034: „ostrzeżenia nie powodują porażki; `--strict` można dodać później”. Zespół, który chce mieć repozytorium bez ostrzeżeń, nie miał jak tego wymusić w CI.
+- **Decyzja.** `doctor --strict` (także z `--user`, `--json` i `--sarif`) kończy się kodem 1 także przy znalezisku `warning`. Noty (`note`, np. preset Renovate, którego nie da się przeczytać bez sieci) nigdy nie dają porażki, bo mówią, czego doctor nie umiał sprawdzić. Bez `--strict` znaczenie kodów wyjścia się nie zmienia.
+  - Tekst przy ostrzeżeniach dopisuje pod licznikami linię `--strict: warnings count as failures, so depcurfew doctor exits with 1`, żeby kod wyjścia nie był zagadką. JSON ma nowe pole `strict` (`true`/`false`); `schemaVersion` zostaje 1. SARIF bez zmian.
+  - `renderText` dostaje opcjonalny czwarty parametr `{ strict }` (zgodne wstecz).
+  - Kody wyjścia opisuje `doctor --help` i README.
+- **Ostrzeżenie Node przy `FORCE_COLOR` i `NO_COLOR` naraz (sprawdzone, występowało).** Node 22.15+ przy ładowaniu `node:util` (potrzebnego dla `parseArgs`) wypisuje na stderr „The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set”, więc `--json` nie miało pustego stderr. depcurfew decyduje o kolorach sam, tak samo (`colorsFor`: `FORCE_COLOR` wygrywa). Node emituje ostrzeżenia w następnym ticku, po importach, więc `src/cli.ts` odfiltrowuje tylko to jedno ostrzeżenie; inne są wypisywane jak dotąd. Test e2e w `tests/e2e/bin.test.ts`.

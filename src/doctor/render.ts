@@ -76,7 +76,10 @@ export function checkedLines(checked: Checked): string[] {
   ];
 }
 
-export function renderText(report: DoctorReport, rules: readonly Rule[], colors: Paint = PLAIN): string {
+/** The line --strict adds when warnings make doctor fail. */
+export const STRICT_NOTE = '--strict: warnings count as failures, so depcurfew doctor exits with 1';
+
+export function renderText(report: DoctorReport, rules: readonly Rule[], colors: Paint = PLAIN, options: { strict?: boolean } = {}): string {
   const counts = countLevels(report.findings);
   const lines: string[] = [];
   if (report.findings.length === 0) {
@@ -84,6 +87,8 @@ export function renderText(report: DoctorReport, rules: readonly Rule[], colors:
   } else {
     const count = (level: Level) => (counts[level] === 0 ? plural(0, level) : levelColor(level, colors)(plural(counts[level], level)));
     lines.push(`${count('error')}, ${count('warning')}, ${count('note')}`);
+    // With --strict a warning alone makes doctor fail; say so next to the counts.
+    if (options.strict === true && counts.warning > 0) lines.push(STRICT_NOTE);
     let file: string | undefined;
     for (const finding of report.findings) {
       if (finding.location.file !== file) {

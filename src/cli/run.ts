@@ -152,7 +152,7 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
   if (command.name === 'doctor') {
     const user = userOptions(values, rest, command.name, io, dependencies);
     if (user === 'usage') return EXIT_USAGE;
-    return doctor(rest[0], { json: values['json'] === true, sarif: values['sarif'] === true, ...(user === undefined ? {} : { user }) }, io);
+    return doctor(rest[0], { json: values['json'] === true, sarif: values['sarif'] === true, strict: values['strict'] === true, ...(user === undefined ? {} : { user }) }, io);
   }
   if (command.name === 'check') {
     return check(rest, { json: values['json'] === true, dir: text('dir'), registry: text('registry'), index: text('index'), hook: text('hook') }, io, dependencies);
