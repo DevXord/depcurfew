@@ -125,8 +125,19 @@ describe('apply with projects', () => {
     ]);
     expect(read('.github/dependabot.yml')).toBe(before);
     const text = await exec('apply', directory);
-    expect(text.stderr).toContain('error: the project directory shared listed in projects does not exist (project-not-found)\n  fix: Create shared,');
+    expect(text.stderr).toContain('error: depcurfew.json (line 25): the project directory shared listed in projects does not exist (project-not-found)\n  fix: Create shared,');
     expect(text.stderr).toContain('depcurfew: nothing written because of the errors above.\n');
+  });
+
+  it('gives the line of the entry in projects, not of the same name elsewhere in depcurfew.json', async () => {
+    writeFileSync(
+      join(directory, 'depcurfew.json'),
+      '{\n  "version": 1,\n  "cooldown": { "minimum": "3d", "exclude": ["shared"] },\n  "projects": [\n    "frontend",\n    "shared"\n  ]\n}\n',
+    );
+    const report = planRepository(directory, policyOf(read('depcurfew.json')));
+    expect(report.problems?.map((problem) => [problem.code, problem.location])).toEqual([['project-not-found', { file: 'depcurfew.json', line: 6 }]]);
+    const text = await exec('apply', directory);
+    expect(text.stderr).toContain('error: depcurfew.json (line 6): the project directory shared listed in projects does not exist (project-not-found)\n  fix: Create shared,');
   });
 
   it.skipIf(windows)('refuses a project reached through a symlink, also one that leads out of the repository', () => {
@@ -181,9 +192,22 @@ describe('apply with projects', () => {
     expect(report.warningDetails.find((warning) => warning.code === 'nothing-to-configure')).toEqual({
       code: 'nothing-to-configure',
       project: 'docs',
-      message: 'docs: no tools to configure in docs: depcurfew found no supported package manager there',
+      message: 'docs: no tools to configure: depcurfew found no supported package manager there',
       fix: 'Check that "docs" in projects in depcurfew.json is the directory of the project, with its manifest and lockfile; depcurfew explain shows what it detects',
     });
+  });
+
+  it('says that targets leaves out the package manager of a project, naming the project once', () => {
+    writePolicy({ targets: ['uv', 'dependabot'] });
+    const report = planRepository(directory, policyOf(read('depcurfew.json')));
+    expect(report.warningDetails.filter((warning) => warning.code === 'nothing-to-configure')).toEqual([
+      {
+        code: 'nothing-to-configure',
+        project: 'frontend',
+        message: 'frontend: no tools to configure: targets in depcurfew.json leaves out npm, found in frontend',
+        fix: 'Add "npm" to targets in depcurfew.json to configure frontend, or remove "frontend" from projects if depcurfew should leave it alone',
+      },
+    ]);
   });
 });
 
@@ -270,15 +294,49 @@ describe('explain with projects', () => {
     expect(text.stdout).toContain('  targets: uv (detected)\n');
   });
 
-  it('shows a listed directory that cannot be used', async () => {
+  it('shows a listed directory that cannot be used, as an error with exit code 1 like apply', async () => {
     writePolicy({ projects: ['frontend', 'shared'] });
     const result = await exec('explain', '--json', directory);
-    const document = JSON.parse(result.stdout) as { projects: unknown[] };
+    expect(result.code).toBe(EXIT_FAILURE);
+    expect(result.stderr).toBe('');
+    const document = JSON.parse(result.stdout) as { projects: unknown[]; errors: unknown[] };
     expect(document.projects[1]).toEqual({
       directory: 'shared',
       project: null,
       error: { code: 'project-not-found', message: 'the project directory shared listed in projects does not exist', fix: 'Create shared, or correct or remove "shared" from projects in depcurfew.json' },
     });
+    expect(document.errors).toEqual([
+      {
+        code: 'project-not-found',
+        level: 'error',
+        location: { file: 'depcurfew.json', line: 24 },
+        message: 'the project directory shared listed in projects does not exist',
+        fix: 'Create shared, or correct or remove "shared" from projects in depcurfew.json',
+      },
+    ]);
+    const text = await exec('explain', directory);
+    expect(text.code).toBe(EXIT_FAILURE);
+    expect(text.stdout).toContain('Project shared: cannot be used\n');
+  });
+
+  it('gives no nothing-detected warning for a root that holds only the projects it lists', async () => {
+    writePolicy();
+    const result = await exec('explain', '--json', directory);
+    const document = JSON.parse(result.stdout) as { project: { warnings: { code: string }[] } };
+    expect(document.project.warnings.map((warning) => warning.code)).toEqual([]);
+    expect((await exec('explain', directory)).stdout).toMatch(/^Warnings: none$/mu);
+    // Without projects the warning stays, with what to do.
+    rmSync(join(directory, 'depcurfew.json'));
+    const plain = JSON.parse((await exec('explain', '--json', directory)).stdout) as { project: { warnings: unknown[] } };
+    expect(plain.project.warnings).toEqual([
+      {
+        code: 'nothing-detected',
+        level: 'warning',
+        message: 'no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found',
+        files: [],
+        fix: 'Run depcurfew explain in the directory of the project, or list the directories of the projects under projects in depcurfew.json',
+      },
+    ]);
   });
 
   it('has an empty projects list without projects', async () => {
@@ -309,6 +367,21 @@ describe('init with projects', () => {
     const result = await exec('init', directory);
     expect(result.stdout).toContain('cooldown.minimum is 10d instead of 3d, to keep the longest release-age delay already set: min-release-age: 10 in frontend/.npmrc (line 1).\n');
     expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { cooldown: { minimum: { text: '10d' } } } });
+  });
+
+  it('leaves out a directory with its own depcurfew.json, which apply would refuse, and says why', async () => {
+    mkdirSync(join(directory, 'deck'));
+    writeFileSync(join(directory, 'deck', 'package.json'), '{ "name": "deck", "private": true }\n');
+    writeFileSync(join(directory, 'deck', 'depcurfew.json'), '{ "version": 1 }\n');
+    const result = await exec('init', directory);
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.stdout).toContain('projects lists backend and frontend:');
+    expect(result.stdout).toContain(
+      'deck is not in projects: deck/depcurfew.json is a policy of its own, and two policies for the same files are refused; run depcurfew in deck on its own, or move what deck/depcurfew.json sets into depcurfew.json, remove it and add "deck" to projects.\n',
+    );
+    expect(parsePolicy(read('depcurfew.json'))).toMatchObject({ ok: true, policy: { projects: ['backend', 'frontend'] } });
+    const apply = await exec('apply', '--dry-run', directory);
+    expect(apply.code).toBe(EXIT_OK);
   });
 
   it('adds no projects when the root has a manifest', async () => {

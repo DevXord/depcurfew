@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 2
+    },
+    "message": ".github/dependabot.yml has no updates entry with package-ecosystem: npm for api, which projects in depcurfew.json lists, so Dependabot does not update the npm dependencies of api, while it updates web",
+    "fix": "If Dependabot should update api, add an updates entry with package-ecosystem: npm and directory: /api to .github/dependabot.yml, then run depcurfew apply to give it the cooldown"
+  }
+]

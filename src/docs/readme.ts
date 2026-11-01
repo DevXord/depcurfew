@@ -218,8 +218,8 @@ function bootstrap(environment: EnvironmentKnowledge): string[] {
     },
   };
   return [
-    '**Before depcurfew is installed.** The hook runs the copy in `node_modules`. When that file is missing (a fresh clone before `npm ci`, a repository without `package.json` in its root, a new cloud session), Claude Code cannot start the hook, and with `' +
-      `${hooks.onFailure.field}: "${hooks.onFailure.value}"\` it then blocks every command of these tools, including the \`npm ci\` that would install depcurfew; without it, every command runs unchecked. So install depcurfew before the hook is needed:`,
+    '**Before depcurfew is installed.** The hook runs the copy in `node_modules`. When that file is missing (a fresh clone before `npm ci`, a repository without `package.json` in its root, a new cloud session), node still starts, cannot load it and exits with code 1 and a stack trace, and with `' +
+      `${hooks.onFailure.field}: "${hooks.onFailure.value}"\` that failure blocks every command of these tools, including the \`npm ci\` that would install depcurfew; without it, every command runs unchecked. The blocked call shows the hook command, \`${start.blockedNotice}\` and node's \`Error: Cannot find module '…/${cli}'\`: run the install (\`npm ci --ignore-scripts\` in the project, or in \`.claude/depcurfew\` for the tools directory below) from a terminal, then try again. So install depcurfew before the hook is needed:`,
     '',
     `- **On your machine:** run \`npm ci\` once after cloning, in a terminal, before you start Claude Code.`,
     `- **In every session:** a \`${start.event}\` hook installs the locked copy when it is missing (with pnpm, Yarn or Bun, use their install from the lockfile instead of \`npm ci\`). It runs when a session starts or resumes, and ${start.firstResponseWaits ? "Claude's first response waits for it" : 'it may still run when Claude answers'}, so the guard is in place before the first command. \`--ignore-scripts\` keeps the install from running dependency scripts before the guard is there. Add it next to \`${hooks.event}\` in the same \`${hooks.settingsFile}\`:`,

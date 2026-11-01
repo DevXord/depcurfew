@@ -1,0 +1,18 @@
+[
+  {
+    "level": "note",
+    "location": {
+      "file": "web/.github/dependabot.yml"
+    },
+    "message": "Dependabot reads its configuration only from the repository root, on the default branch, so it does not read web/.github/dependabot.yml in the project web; depcurfew apply configures Dependabot only at the repository root, and its delay there covers web too",
+    "fix": "Move the updates entries of web/.github/dependabot.yml into the Dependabot configuration in the .github directory at the repository root, with directory: /web, then remove web/.github/dependabot.yml"
+  },
+  {
+    "level": "note",
+    "location": {
+      "file": "web/renovate.json"
+    },
+    "message": "Renovate reads its configuration only from the repository root, on the default branch, so it does not read web/renovate.json in the project web; depcurfew apply configures Renovate only at the repository root, and its delay there covers web too",
+    "fix": "Move what web/renovate.json sets into the Renovate configuration file at the repository root, then remove web/renovate.json"
+  }
+]

@@ -19,7 +19,7 @@
 import { createRequire } from "node:module";
 import { appendFileSync, closeSync, constants, fchmodSync, fchownSync, fstatSync, lchownSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import nodePath, { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 // \0rolldown/runtime.js
 var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod, mod.exports), cb = null), mod.exports);
@@ -481,6 +481,7 @@ const deno$1 = {
 const { verified: verified$10, uncertain: uncertain$9, disputed: disputed$4, evidence: evidence$4 } = verifiedOn("2026-10-28");
 const python$2 = verifiedOn("2026-10-30");
 const review = verifiedOn("2026-10-31");
+const projects$1 = verifiedOn("2026-11-01");
 const OPTIONS$1 = "https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference";
 const COOLDOWN_GA = "https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/";
 const DEFAULT_COOLDOWN = "https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/";
@@ -518,6 +519,15 @@ const dependabot$1 = {
 		disableAll: uncertain$9(null, `${OPTIONS$1}#insecure-external-code-execution`, "Nothing to configure for JavaScript ecosystems: scripts are always disabled (source code). For bundler, mix and pip, external code execution is disabled automatically when registries are configured.")
 	},
 	extra: {
+		configLocation: projects$1.verified({
+			from: "repository-root",
+			branch: "default"
+		}, "https://docs.github.com/en/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file", "\"You must store this file in the .github directory of your repository in the default branch (typically main), at .github/dependabot.yml or .github/dependabot.yaml\" (github/docs, content/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file.md, read 2026-11-01), so a .github/dependabot.yml in a subdirectory is not read."),
+		directories: projects$1.verified({
+			keys: ["directory", "directories"],
+			relativeTo: "repository-root",
+			globsIn: "directories"
+		}, "https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#directories-or-directory", "Required in each updates entry: directory for one directory of manifests, directories for a list; \"Define directories relative to the root of the repository for most package managers\"; \"The directories key supports globbing and the wildcard character *. These features are not supported by the directory key.\" How a glob matches is not described further (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, read 2026-11-01)."),
 		yamlMergeKeys: review.uncertain(false, "https://github.com/dependabot/dependabot-core/pull/9653", "Not known. The options reference does not mention YAML anchors or merge keys, GitHub parses dependabot.yml in its own service, and the dependabot-core pull request that would allow aliases (\"we can't use the YAML anchor (aliases) feature in dependabot.yml file\") is still open and marked stale (read 2026-10-31). depcurfew reads dependabot.yml without merge keys: a cooldown that an entry would get only through <<: *defaults counts as missing, which bot-cooldown reports, and depcurfew apply writes the cooldown into the entry itself, which wins over merged keys where they apply."),
 		cooldownKeys: verified$10({
 			days: "default-days",
@@ -3318,6 +3328,7 @@ const { verified: verified$3, uncertain: uncertain$2, disputed: disputed$1, evid
 const python$1 = verifiedOn("2026-10-30");
 const reviewed = verifiedOn("2026-10-30");
 const rules = verifiedOn("2026-10-30");
+const projects = verifiedOn("2026-11-01");
 const AT = "https://github.com/renovatebot/renovate/blob/44.198.2";
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
 const MINIMUM_RELEASE_AGE = "https://docs.renovatebot.com/key-concepts/minimum-release-age/";
@@ -3366,6 +3377,10 @@ const renovate$1 = {
 		disableAll: verified$3("ignoreScripts: true", `${OPTIONS}#ignorescripts`, "The default; the self-hosted global allowScripts also defaults to false.")
 	},
 	extra: {
+		configLocation: projects.verified({
+			from: "repository-root",
+			branch: "default"
+		}, `${AT}/lib/workers/repository/init/merge.ts`, "detectConfigFile looks for each name in configFiles (lib/config/app-strings.ts) in the file list of the repository, whose paths start at the repository root, so a renovate.json in a subdirectory is never read. The configuration options page (docs/usage/configuration-options.md at 44.198.2): \"Any config you define applies to the whole repository (e.g. if you have a monorepo)\" and \"Renovate always uses the config from the repository's default branch\"."),
 		durationStrings: verified$3({
 			since: null,
 			syntax: "words"
@@ -5118,8 +5133,9 @@ const environment = {
 			projectDirVariable: "CLAUDE_PROJECT_DIR",
 			firstResponseWaits: true,
 			missingScriptWithBlock: "blocks",
+			blockedNotice: "failed; blocking because onFailure is \"block\"",
 			cloudSetupScriptRunsBeforeClaudeCode: true
-		}, "https://code.claude.com/docs/en/hooks#sessionstart", "SessionStart runs when a session starts or resumes; its matcher startup fires for a new session (also resume, clear, compact and fork). Hooks run in the background, but \"Claude's first response still waits for the hooks to finish\", and a prompt sent meanwhile does not reach Claude until they finish. A command hook may be shell form (command with $CLAUDE_PROJECT_DIR, the repository root). With onFailure set to \"block\" (#block-the-action-when-a-hook-fails), a PreToolUse hook whose script is missing blocks the call (\"failed; blocking because onFailure is \"block\"\" followed by node's error output); without it, the same missing script is a non-blocking error and the command runs. In cloud sessions (https://code.claude.com/docs/en/cloud-environments#setup-scripts) a setup script is a Bash script that runs as root before Claude Code launches and is skipped when a cached environment exists; SessionStart hooks of the repository's .claude/settings.json run in local and cloud sessions (in a session with one repository, outside a project thread), user-level ~/.claude/settings.json hooks do not reach the cloud. The docs recommend a SessionStart hook for project setup such as npm install."),
+		}, "https://code.claude.com/docs/en/hooks#sessionstart", "SessionStart runs when a session starts or resumes; its matcher startup fires for a new session (also resume, clear, compact and fork). Hooks run in the background, but \"Claude's first response still waits for the hooks to finish\", and a prompt sent meanwhile does not reach Claude until they finish. A command hook may be shell form (command with $CLAUDE_PROJECT_DIR, the repository root). With onFailure set to \"block\" (#block-the-action-when-a-hook-fails), a PreToolUse hook whose script is missing blocks the call (\"failed; blocking because onFailure is \"block\"\" followed by node's error output, in the example \"PreToolUse:Bash hook error: [node ${CLAUDE_PROJECT_DIR}/.claude/hooks/check-command.js]: failed; blocking because onFailure is \"block\"\" and \"Error: Cannot find module '/path/to/project/.claude/hooks/check-command.js'\", re-read 2026-11-01): node starts, cannot load the script and exits with 1, which counts as a failure; without it, the same missing script is a non-blocking error and the command runs. In cloud sessions (https://code.claude.com/docs/en/cloud-environments#setup-scripts) a setup script is a Bash script that runs as root before Claude Code launches and is skipped when a cached environment exists; SessionStart hooks of the repository's .claude/settings.json run in local and cloud sessions (in a session with one repository, outside a project thread), user-level ~/.claude/settings.json hooks do not reach the cloud. The docs recommend a SessionStart hook for project setup such as npm install."),
 		shellTools: audited.verified([
 			{
 				tool: "Bash",
@@ -14717,9 +14733,97 @@ function describeRequirements(requirements) {
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
 }
 
+// src/policy/package-pattern.ts
+const NAME$1 = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
+const PYTHON_NAME$1 = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
+const PYPI_PREFIX = "pypi:";
+/** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
+const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME$1}|(?!\\*+$)(@${NAME$1}/)?${NAME$1})$`;
+const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
+function validatePythonPattern(pattern) {
+	const name = pattern.slice(5);
+	if (name === "") return `write a Python package name after ${PYPI_PREFIX}, e.g. "${PYPI_PREFIX}requests"`;
+	const versionAt = name.search(/[@=<>!~;[ ]/u);
+	if (versionAt > 0 && !name.startsWith("@")) return `versions are not supported; write "${PYPI_PREFIX}${name.slice(0, versionAt)}"`;
+	if (/^\*+$/u.test(name)) return "it matches every package; list packages explicitly";
+	const example = `e.g. "${PYPI_PREFIX}requests" or "${PYPI_PREFIX}acme-*"`;
+	if (name.startsWith("@")) return `Python package names have no scope; expected a name or a name pattern with *, ${example}`;
+	if (!GRAMMAR.test(pattern)) return `expected a Python package name or a name pattern with *, ${example}`;
+}
+/** Returns why the pattern is invalid, or undefined when it is valid. */
+function validatePackagePattern(pattern) {
+	if (pattern === "") return "must not be empty";
+	if (/\s/u.test(pattern)) return "must not contain spaces";
+	if (pattern.startsWith("pypi:")) return validatePythonPattern(pattern);
+	const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(pattern);
+	if (prefix !== null) {
+		const rest = pattern.slice(prefix[0].length);
+		return prefix[1]?.toLowerCase() === "pypi" ? `the only ecosystem prefix is ${PYPI_PREFIX}; write Python packages as "${PYPI_PREFIX}${rest}"` : `the only ecosystem prefix is ${PYPI_PREFIX}; write npm packages without a prefix, e.g. "${rest}"`;
+	}
+	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
+	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
+	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
+	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
+	if (!GRAMMAR.test(pattern)) return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
+}
+/** The ecosystem a policy pattern belongs to. */
+function ecosystemOf(pattern) {
+	return pattern.startsWith("pypi:") ? "pypi" : "npm";
+}
+/** The patterns of one ecosystem, without the pypi: prefix. */
+function patternsFor(patterns, ecosystem) {
+	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => ecosystem === "pypi" ? pattern.slice(5) : pattern);
+}
+
+// src/policy/ecosystem.ts
+function ecosystemOfTool(tool) {
+	return tool.ecosystem ?? "npm";
+}
+/** The policy with cooldown.exclude, installScripts.allow and installScripts.deny reduced to the patterns of one ecosystem. */
+function policyFor(policy, ecosystem) {
+	return {
+		...policy,
+		...policy.cooldown === void 0 ? {} : { cooldown: {
+			...policy.cooldown,
+			exclude: patternsFor(policy.cooldown.exclude, ecosystem)
+		} },
+		...policy.installScripts === void 0 ? {} : { installScripts: {
+			...policy.installScripts,
+			allow: patternsFor(policy.installScripts.allow, ecosystem),
+			deny: patternsFor(policy.installScripts.deny, ecosystem)
+		} }
+	};
+}
+
 // src/doctor/python-lockfiles.ts
 const WHEEL = evidenceOf(environment.python.wheelExtension)[0]?.value ?? ".whl";
 const SDISTS = evidenceOf(environment.python.sourceDistributionExtensions)[0]?.value ?? [];
+/**
+* Whether a Python lockfile shows which packages are built from source because it lists the files of each package
+* (wheels and source distributions): uv.lock, poetry.lock and pdm.lock (extra.lockfileFormat with wheels or files), and
+* pylock.toml (pip's format, also when another tool wrote it). Pipfile.lock and pip requirements files list hashes only,
+* so they cannot tell a package without wheels from one with them (decision D-107).
+*/
+function showsBuilds(tool, file, tools) {
+	const pip = tools.find((entry) => entry.id === "pip");
+	const names = pip?.project?.lockfiles === void 0 ? [] : values$1(pip.project.lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
+	const pattern = pip?.extra?.["lockfilePattern"] === void 0 ? void 0 : values$1(pip.extra["lockfilePattern"])[0];
+	const pylock = names.includes(file) || typeof pattern === "string" && new RegExp(pattern, "u").test(file);
+	if (!pylock && tool.id === "pip") return false;
+	const fact = (pylock ? pip : tool)?.extra?.["lockfileFormat"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(format) && (typeof format["wheels"] === "string" || typeof format["files"] === "string");
+}
+/** Whether a package manager of the project has a lockfile that showsBuilds, or records install scripts (the npm ecosystem). */
+function hasBuildRecords(managers, tools, ecosystem = "any") {
+	return managers.some((manager) => {
+		const tool = tools.find((entry) => entry.id === manager.id);
+		if (!manager.supported || tool === void 0) return false;
+		const python = ecosystemOfTool(tool) === "pypi";
+		if (ecosystem === "pypi" && !python) return false;
+		return manager.evidence.some((evidence) => evidence.kind === "lockfile" && (!python || showsBuilds(tool, evidence.file, tools)));
+	});
+}
 function text$1(value) {
 	return typeof value === "string" ? value : void 0;
 }
@@ -14911,7 +15015,7 @@ function requirementsLines(input, format) {
 	}
 	return result;
 }
-const PYTHON_NAME$1 = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? "^[A-Za-z0-9][A-Za-z0-9._-]*$", "iu");
+const PYTHON_NAME = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? "^[A-Za-z0-9][A-Za-z0-9._-]*$", "iu");
 /** The facts about pip requirements files in one record: syntax, includes (-r, -c) and how pip tells paths and URLs. */
 function requirementsFormatOf(tool) {
 	const record = (key) => {
@@ -14969,7 +15073,7 @@ function requirementSource(requirement, format, editable) {
 	const located = (source, location, builds) => ({
 		source,
 		target: location,
-		...name !== void 0 && PYTHON_NAME$1.test(name) ? { name } : {},
+		...name !== void 0 && PYTHON_NAME.test(name) ? { name } : {},
 		builds
 	});
 	if (gitPrefixes.some((prefix) => target.startsWith(prefix))) return located("git", target, true);
@@ -16543,68 +16647,6 @@ function parseDuration(input) {
 	const [first] = tokens;
 	const suggestion = tokens.length === 1 && first !== void 0 ? `${BigInt(first.number)}${units[0]}` : formatDuration(Number(minutes));
 	return failure(`${/\s/u.test(input) ? "spaces are not allowed" : tokens.some((token) => token.unit !== token.unit.toLowerCase()) ? "units are lowercase" : tokens.some((token) => token.unit.length > 1) ? "use the short unit" : tokens.length > 1 ? "use a single unit" : "leading zeros are not allowed"}; write "${suggestion}"`);
-}
-
-// src/policy/package-pattern.ts
-const NAME$1 = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
-const PYTHON_NAME = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
-const PYPI_PREFIX = "pypi:";
-/** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
-const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME}|(?!\\*+$)(@${NAME$1}/)?${NAME$1})$`;
-const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
-function validatePythonPattern(pattern) {
-	const name = pattern.slice(5);
-	if (name === "") return `write a Python package name after ${PYPI_PREFIX}, e.g. "${PYPI_PREFIX}requests"`;
-	const versionAt = name.search(/[@=<>!~;[ ]/u);
-	if (versionAt > 0 && !name.startsWith("@")) return `versions are not supported; write "${PYPI_PREFIX}${name.slice(0, versionAt)}"`;
-	if (/^\*+$/u.test(name)) return "it matches every package; list packages explicitly";
-	const example = `e.g. "${PYPI_PREFIX}requests" or "${PYPI_PREFIX}acme-*"`;
-	if (name.startsWith("@")) return `Python package names have no scope; expected a name or a name pattern with *, ${example}`;
-	if (!GRAMMAR.test(pattern)) return `expected a Python package name or a name pattern with *, ${example}`;
-}
-/** Returns why the pattern is invalid, or undefined when it is valid. */
-function validatePackagePattern(pattern) {
-	if (pattern === "") return "must not be empty";
-	if (/\s/u.test(pattern)) return "must not contain spaces";
-	if (pattern.startsWith("pypi:")) return validatePythonPattern(pattern);
-	const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(pattern);
-	if (prefix !== null) {
-		const rest = pattern.slice(prefix[0].length);
-		return prefix[1]?.toLowerCase() === "pypi" ? `the only ecosystem prefix is ${PYPI_PREFIX}; write Python packages as "${PYPI_PREFIX}${rest}"` : `the only ecosystem prefix is ${PYPI_PREFIX}; write npm packages without a prefix, e.g. "${rest}"`;
-	}
-	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
-	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
-	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
-	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
-	if (!GRAMMAR.test(pattern)) return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
-}
-/** The ecosystem a policy pattern belongs to. */
-function ecosystemOf(pattern) {
-	return pattern.startsWith("pypi:") ? "pypi" : "npm";
-}
-/** The patterns of one ecosystem, without the pypi: prefix. */
-function patternsFor(patterns, ecosystem) {
-	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => ecosystem === "pypi" ? pattern.slice(5) : pattern);
-}
-
-// src/policy/ecosystem.ts
-function ecosystemOfTool(tool) {
-	return tool.ecosystem ?? "npm";
-}
-/** The policy with cooldown.exclude, installScripts.allow and installScripts.deny reduced to the patterns of one ecosystem. */
-function policyFor(policy, ecosystem) {
-	return {
-		...policy,
-		...policy.cooldown === void 0 ? {} : { cooldown: {
-			...policy.cooldown,
-			exclude: patternsFor(policy.cooldown.exclude, ecosystem)
-		} },
-		...policy.installScripts === void 0 ? {} : { installScripts: {
-			...policy.installScripts,
-			allow: patternsFor(policy.installScripts.allow, ecosystem),
-			deny: patternsFor(policy.installScripts.deny, ecosystem)
-		} }
-	};
 }
 
 // src/version.ts
@@ -20662,6 +20704,12 @@ function withMixedEndings(body, style, original) {
 }
 
 // src/apply/workspace.ts
+/**
+* The codes of the errors writeChanges throws itself, when a directory on the way to a file leads out of the root (a
+* symlink put in place after apply looked at it) or is no longer the directory the file was staged in.
+*/
+const OUTSIDE = "DEPCURFEW_OUTSIDE_ROOT";
+const CHANGED = "DEPCURFEW_DIRECTORY_CHANGED";
 /** Why a file system call failed, in plain words; the error code when there are none. */
 function fileSystemReason(error) {
 	const code = error.code;
@@ -20675,7 +20723,9 @@ function fileSystemReason(error) {
 		ENOTDIR: "a part of its path is not a directory",
 		EEXIST: "a file of the same name is in the way",
 		EBUSY: "the file is busy",
-		ENAMETOOLONG: "its name is too long"
+		ENAMETOOLONG: "its name is too long",
+		[OUTSIDE]: "a directory on its path is a symlink that leads outside the directory depcurfew writes to",
+		[CHANGED]: "a directory on its path changed while depcurfew was writing"
 	};
 	if (code !== void 0 && reasons[code] !== void 0) return reasons[code];
 	return code ?? (error instanceof Error ? error.message : String(error));
@@ -20949,6 +20999,38 @@ function missingTop(directory) {
 	}
 	return top;
 }
+function writeError(code, path) {
+	return Object.assign(/* @__PURE__ */ new Error(`${code}: ${path}`), {
+		code,
+		path
+	});
+}
+/**
+* The real path of `directory`, which must lie inside `realRoot` (the real path of the root): a directory on the way
+* that became a symlink after apply looked at it (the directory of a project swapped for a link out of the
+* repository) would otherwise take the file outside. Throws an error with the code OUTSIDE.
+*/
+function realInside(realRoot, directory) {
+	const real = realpathSync(directory);
+	if (!isInside(realRoot, real)) throw writeError(OUTSIDE, directory);
+	return real;
+}
+/**
+* Whether the directory of a staged file is still the one it was staged in; throws an error with the code OUTSIDE
+* when it now leads out of the root, or CHANGED when it leads elsewhere inside it. Checked right before each rename.
+*/
+function checkUnchanged(realRoot, entry) {
+	if (realInside(realRoot, dirname(entry.path)) !== entry.directory) throw writeError(CHANGED, dirname(entry.path));
+}
+/** Whether checkUnchanged passes, for putting a file back: one whose directory changed is left alone. */
+function unchanged(realRoot, entry) {
+	try {
+		checkUnchanged(realRoot, entry);
+		return true;
+	} catch {
+		return false;
+	}
+}
 /**
 * Creates `directory` and the directories above it that are missing, one level at a time, and gives each one it
 * creates to the owner `ownerOfNew` names for its real path, so that a directory a symlink led elsewhere (out of the
@@ -21034,23 +21116,38 @@ function writeChangeSets(sets, options = {}) {
 		...options.platform === void 0 ? {} : { platform: options.platform },
 		leftovers
 	});
+	const realRoots = /* @__PURE__ */ new Map();
+	const realRoot = (root) => {
+		let real = realRoots.get(root);
+		if (real === void 0) {
+			const top = missingTop(root);
+			real = top === void 0 ? realpathSync(root) : join(realpathSync(dirname(top)), relative(dirname(top), root));
+			realRoots.set(root, real);
+		}
+		return real;
+	};
 	let current = items[0]?.name ?? "";
 	try {
 		for (const item of items) {
 			current = item.name;
 			const top = missingTop(dirname(item.path));
+			const existing = top === void 0 ? dirname(item.path) : dirname(top);
+			if (isInside(item.root, existing)) realInside(realRoot(item.root), existing);
 			if (top !== void 0) created.push(top);
 			makeDirectories(dirname(item.path), options.ownerOfNew);
+			const directory = realInside(realRoot(item.root), dirname(item.path));
 			const stats = item.change.before === null ? void 0 : statSync(item.path);
 			const mode = stats === void 0 ? void 0 : stats.mode & 4095;
 			const owner = stats === void 0 ? newOwner(item.path, options.ownerOfNew) : ownerToKeep(item.path);
 			staged.push({
 				...item,
 				temporary: stage(item.path, item.change.after, mode, owner),
+				directory,
 				mode,
 				owner
 			});
 		}
+		options.staged?.();
 	} catch (error) {
 		for (const entry of staged) remove(entry);
 		removeDirectories(created, paths);
@@ -21060,6 +21157,7 @@ function writeChangeSets(sets, options = {}) {
 	try {
 		for (const entry of staged) {
 			current = entry.name;
+			checkUnchanged(realRoot(entry.root), entry);
 			retried(() => renameSync(entry.temporary, entry.path), options);
 			renamed.push(entry);
 		}
@@ -21068,6 +21166,10 @@ function writeChangeSets(sets, options = {}) {
 		const unrestored = [];
 		const backups = {};
 		for (const entry of renamed.reverse()) {
+			if (!unchanged(realRoot(entry.root), entry)) {
+				unrestored.push(entry.name);
+				continue;
+			}
 			if (entry.change.before === null) {
 				try {
 					retried(() => rmSync(entry.path, { force: true }), options);
@@ -21181,6 +21283,26 @@ function relocateText(text, project, files) {
 	const pattern = new RegExp(`(?<![\\w./\\\\-])(?:${names.map(escapeRegExp).join("|")})(?![\\w/\\\\-]|\\.\\w)`, "gu");
 	return text.replace(pattern, (file) => inProject(project, file));
 }
+/**
+* The line of each entry of projects in the text of depcurfew.json, from the positions of the elements of that array
+* (the same name may also stand elsewhere, e.g. in cooldown.exclude); the first occurrence of the quoted name when
+* the text cannot be parsed.
+*/
+function projectLines(text) {
+	let listed;
+	let offsets;
+	try {
+		listed = jsonGet(text, ["projects"]);
+		offsets = jsonElementOffsets(text, ["projects"]);
+	} catch {
+		listed = void 0;
+	}
+	return (project) => {
+		const index = Array.isArray(listed) ? listed.indexOf(project) : -1;
+		const offset = index === -1 ? void 0 : offsets?.[index];
+		return offset === void 0 ? lineOf$1(text, JSON.stringify(project)) : text.slice(0, offset).split("\n").length;
+	};
+}
 /** Whether two directories of the repository are the same or one lies inside the other. */
 function overlaps(a, b) {
 	return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
@@ -21197,8 +21319,9 @@ function projectProblems(root, projects, rootDetection) {
 	const text = policy.status === "ok" ? policy.text : "";
 	const real = realpathSync(root);
 	const problems = [];
+	const entryLine = projectLines(text);
 	for (const project of projects) {
-		const line = lineOf$1(text, JSON.stringify(project));
+		const line = entryLine(project);
 		const location = {
 			file: POLICY_FILE,
 			...line === void 0 ? {} : { line }
@@ -21479,12 +21602,19 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 			fix: warning.code === "invalid-file" ? `Fix the syntax error${file === void 0 ? "" : ` in ${file}`}, then run depcurfew apply again` : `${fix}, then run depcurfew apply again`
 		});
 	}
-	if (targets.size === 0 && options.project !== void 0) warnings.push({
-		code: "nothing-to-configure",
-		message: `no tools to configure in ${options.project}: depcurfew found no supported package manager there`,
-		fix: `Check that "${options.project}" in projects in ${POLICY_FILE} is the directory of the project, with its manifest and lockfile; depcurfew explain shows what it detects`
-	});
-	else if (targets.size === 0 && options.projects === void 0) warnings.push({
+	if (targets.size === 0 && options.project !== void 0) {
+		const excluded = policy.targets === "auto" ? [] : detection.packageManagers.filter((manager) => manager.supported && !policy.targets.includes(manager.id)).map((manager) => manager.id);
+		const names = excluded.map((id) => tools.find((tool) => tool.id === id)?.name ?? id);
+		warnings.push(excluded.length > 0 ? {
+			code: "nothing-to-configure",
+			message: `no tools to configure: targets in ${POLICY_FILE} leaves out ${listing$1(names)}, found in ${options.project}`,
+			fix: `Add ${listing$1(excluded.map((id) => `"${id}"`))} to targets in ${POLICY_FILE} to configure ${options.project}, or remove "${options.project}" from projects if depcurfew should leave it alone`
+		} : {
+			code: "nothing-to-configure",
+			message: "no tools to configure: depcurfew found no supported package manager there",
+			fix: `Check that "${options.project}" in projects in ${POLICY_FILE} is the directory of the project, with its manifest and lockfile; depcurfew explain shows what it detects`
+		});
+	} else if (targets.size === 0 && options.projects === void 0) warnings.push({
 		code: "nothing-to-configure",
 		message: "no tools to configure: depcurfew found no supported package manager or bot here",
 		fix: "Run depcurfew explain to see what depcurfew detects"
@@ -21621,8 +21751,18 @@ function loadPolicyIfPresent(root) {
 
 // src/action-check-run.ts
 const CHECK_RUN_NAME = "depcurfew doctor";
-/** Set on the check runs depcurfew creates, so that a later run on the same commit finds its own entry and no other. */
+/**
+* Set on the check runs depcurfew creates, so that a later run on the same commit finds its own entry and no other;
+* followed by a colon and the fingerprint of the annotations of the entry (checkRunExternalId).
+*/
 const CHECK_RUN_EXTERNAL_ID = "depcurfew";
+/**
+* The external_id of an entry with these annotations: "depcurfew:" and the SHA-256 of the annotations, so that a later
+* run on the same commit can tell whether the annotations the entry has are the ones it would add (decision D-107).
+*/
+function checkRunExternalId(annotations) {
+	return `${CHECK_RUN_EXTERNAL_ID}:${createHash("sha256").update(JSON.stringify(annotations)).digest("hex")}`;
+}
 /** The name of the check: with the directory when it is not the workspace root. */
 function checkRunName(directory) {
 	return directory === "" ? CHECK_RUN_NAME : `${CHECK_RUN_NAME} (${directory})`;
@@ -21657,12 +21797,15 @@ function existingRun(answer, name) {
 	for (const run of runs) {
 		if (typeof run !== "object" || run === null) continue;
 		const entry = run;
-		if (entry["name"] !== name || entry["external_id"] !== "depcurfew" || typeof entry["id"] !== "number" || !Number.isSafeInteger(entry["id"])) continue;
+		const externalId = entry["external_id"];
+		if (entry["name"] !== name || typeof externalId !== "string" || !(externalId === "depcurfew" || externalId.startsWith(`${"depcurfew"}:`))) continue;
+		if (typeof entry["id"] !== "number" || !Number.isSafeInteger(entry["id"])) continue;
 		const output = entry["output"];
 		const count = typeof output === "object" && output !== null ? output["annotations_count"] : void 0;
 		return {
 			id: entry["id"],
-			annotations: typeof count === "number" ? count : 0
+			annotations: typeof count === "number" ? count : 0,
+			externalId
 		};
 	}
 }
@@ -21702,10 +21845,11 @@ async function createCheckRun(env, token, content, fetchImpl) {
 		summary: fitSummary(content.summary, facts.summaryMaxLength),
 		...batch.length === 0 ? {} : { annotations: batch }
 	});
+	const externalId = checkRunExternalId(annotations);
 	const result = {
 		status: "completed",
 		conclusion: content.conclusion,
-		external_id: CHECK_RUN_EXTERNAL_ID
+		external_id: externalId
 	};
 	let existing;
 	try {
@@ -21717,18 +21861,23 @@ async function createCheckRun(env, token, content, fetchImpl) {
 	let updated = false;
 	let pending = batches;
 	let kept = false;
-	if (existing !== void 0) try {
-		const keep = existing.annotations > 0;
-		if ((await request("PATCH", url(facts.endpoints.update, existing.id), {
-			...result,
-			output: output(keep ? [] : batches[0])
-		})).status === 200) {
-			({id} = existing);
-			updated = true;
-			kept = keep;
-			pending = keep ? [] : batches.slice(1);
-		}
-	} catch {}
+	let replaced;
+	if (existing !== void 0) {
+		const same = existing.externalId === externalId && existing.annotations === annotations.length;
+		if (existing.annotations > 0 && !same) replaced = existing.id;
+		else try {
+			const keep = existing.annotations > 0;
+			if ((await request("PATCH", url(facts.endpoints.update, existing.id), {
+				...result,
+				output: output(keep ? [] : batches[0])
+			})).status === 200) {
+				({id} = existing);
+				updated = true;
+				kept = keep;
+				pending = keep ? [] : batches.slice(1);
+			}
+		} catch {}
+	}
 	if (!updated) {
 		let response;
 		try {
@@ -21769,11 +21918,28 @@ async function createCheckRun(env, token, content, fetchImpl) {
 		}
 		added += batch.length;
 	}
+	let replacement = "";
+	if (replaced !== void 0 && !updated) {
+		const supersede = {
+			conclusion: "neutral",
+			external_id: `${CHECK_RUN_EXTERNAL_ID}:replaced`,
+			output: {
+				title: "Replaced by a later run of depcurfew doctor on this commit",
+				summary: `A later run of depcurfew doctor on this commit found other problems, and annotations cannot be removed from a check, so its result is in a new "${content.name}" entry. The annotations of this entry are from the earlier run.\n`
+			}
+		};
+		try {
+			const response = await request("PATCH", url(facts.endpoints.update, replaced), supersede);
+			replacement = response.status === 200 ? "; the earlier one, whose annotations are out of date, now says it is replaced" : `; the earlier one, whose annotations are out of date, could not be marked as replaced: the GitHub API answered HTTP ${response.status}`;
+		} catch (error) {
+			replacement = `; the earlier one, whose annotations are out of date, could not be marked as replaced: ${reason(error)}`;
+		}
+	}
 	const commit = sha.slice(0, 12);
 	const withAnnotations = added === 0 ? "" : ` and ${plural$2(added, "annotation")}`;
-	const line = updated ? `depcurfew: updated the check "${content.name}" on the commit ${commit} with the result of this run${withAnnotations}, instead of adding a second one${kept ? "; it keeps the annotations it has" : ""}` : `depcurfew: added the check "${content.name}" with the result${withAnnotations} to the commit ${commit}`;
+	const line = updated ? `depcurfew: updated the check "${content.name}" on the commit ${commit} with the result of this run${withAnnotations}, instead of adding a second one${kept ? "; it keeps the annotations it has" : ""}` : `depcurfew: added the check "${content.name}" with the result${withAnnotations} to the commit ${commit}${replaced === void 0 ? "" : ", next to an earlier one with other annotations"}`;
 	const missing = (kept ? 0 : annotations.length) - added;
-	return `${line}${failure === void 0 || missing === 0 ? "" : `; ${plural$2(missing, "more annotation")} could not be added: ${failure}`}\n`;
+	return `${line}${failure === void 0 || missing === 0 ? "" : `; ${plural$2(missing, "more annotation")} could not be added: ${failure}`}${replacement}\n`;
 }
 
 // src/doctor/plan.ts
@@ -22293,16 +22459,105 @@ function exemptsSecurityFixes(bot, manager, file) {
 	const fact = bot.extra?.["pnpmSecurityExclusions"] === void 0 ? void 0 : extraOf(bot, "pnpmSecurityExclusions", isRecord);
 	return fact !== void 0 && Array.isArray(fact["managers"]) && fact["managers"].includes(manager) && fact["file"] === file;
 }
+const isConfigLocation = (value) => isRecord(value) && typeof value["from"] === "string";
+const isDirectories = (value) => isRecord(value) && Array.isArray(value["keys"]) && value["keys"].every((key) => typeof key === "string") && typeof value["globsIn"] === "string";
+/**
+* A bot configuration file inside a directory listed in projects: the bot reads its configuration only from the
+* repository root (extra.configLocation), and depcurfew apply configures bots only there (decision D-100), so what the
+* file says is never used. A note at the file instead of the findings its delay would give, reported by the root run,
+* which names the files from the root.
+*/
+function projectBotNotes(context, views) {
+	for (const view of views) for (const detected of view.detection.bots) {
+		const bot = context.tools.find((entry) => entry.id === detected.id);
+		if (bot === void 0) continue;
+		const fact = bot.extra?.["configLocation"];
+		const location = fact === void 0 ? void 0 : values$1(fact)[0];
+		const fromRoot = isConfigLocation(location) && location.from === "repository-root";
+		for (const own of detected.configFiles) {
+			const file = inProject(view.directory, own);
+			const where = fromRoot ? `${bot.name} reads its configuration only from the repository root${isConfigLocation(location) && location.branch === "default" ? ", on the default branch" : ""}, so it does not read ${file} in the project ${view.directory}` : `${file} is the ${bot.name} configuration of the project ${view.directory}`;
+			context.report({
+				level: "note",
+				location: { file },
+				message: `${where}; depcurfew apply configures ${bot.name} only at the repository root, and its delay there covers ${view.directory} too`,
+				fix: detected.id === "dependabot" ? `Move the updates entries of ${file} into the Dependabot configuration in the .github directory at the repository root, with directory: /${view.directory}, then remove ${file}` : `Move what ${file} sets into the Renovate configuration file at the repository root, then remove ${file}`
+			});
+		}
+	}
+}
+/** Whether a directory of a Dependabot updates entry names the project: the same path, or a glob of directories that matches it. */
+function namesDirectory(entry, project, globs) {
+	const trimmed = entry.replace(/^\/+/u, "").replace(/\/+$/u, "");
+	if (!globs || !trimmed.includes("*")) return trimmed === project;
+	const pattern = trimmed.split("**").map((part) => part.split("*").map((piece) => piece.replace(/[.+?^${}()|[\]\\]/gu, "\\$&")).join("[^/]*")).join(".*");
+	return new RegExp(`^${pattern}$`, "u").test(project);
+}
+/**
+* A project of a repository whose root Dependabot configuration has updates entries for other projects, but none for
+* this one and its ecosystem: Dependabot does not update it, and so does not wait for it either. Run at the root.
+*/
+function missingDependabotEntries(context, views) {
+	const detected = context.detection.bots.find((bot) => bot.id === "dependabot");
+	const bot = context.tools.find((entry) => entry.id === "dependabot");
+	const file = detected?.configFiles[0];
+	if (bot === void 0 || file === void 0 || views.length < 2) return;
+	const text = context.repository.readText(file);
+	if (text === void 0) return;
+	const updates = yamlSetting(text, ["updates"]);
+	if (updates === void 0 || !Array.isArray(updates.value)) return;
+	const ecosystems = extraOf(bot, "ecosystems", isEcosystems);
+	const keys = extraOf(bot, "directories", isDirectories);
+	const entries = updates.value.flatMap((entry) => {
+		if (!isRecord(entry) || typeof entry["package-ecosystem"] !== "string") return [];
+		const directories = keys.keys.flatMap((key) => {
+			const value = entry[key];
+			return (typeof value === "string" ? [value] : Array.isArray(value) ? value.filter((item) => typeof item === "string") : []).map((directory) => ({
+				directory,
+				globs: key === keys.globsIn
+			}));
+		});
+		return [{
+			ecosystem: entry["package-ecosystem"],
+			directories
+		}];
+	});
+	const needed = views.map((view) => ({
+		view,
+		ecosystems: [...new Set(view.detection.packageManagers.filter((manager) => manager.supported).flatMap((manager) => Object.keys(ecosystems).filter((name) => ecosystems[name]?.includes(manager.id) === true)))]
+	}));
+	const covers = (ecosystem, project) => entries.some((entry) => entry.ecosystem === ecosystem && entry.directories.some((item) => namesDirectory(item.directory, project, item.globs)));
+	const missing = needed.flatMap(({ view, ecosystems: names }) => names.filter((name) => !covers(name, view.directory)).map((ecosystem) => ({
+		view,
+		ecosystem
+	})));
+	const updated = needed.filter(({ view, ecosystems: names }) => names.some((name) => covers(name, view.directory))).map(({ view }) => view.directory);
+	if (updated.length === 0) return;
+	for (const { view, ecosystem } of missing) context.report({
+		level: "warning",
+		location: {
+			file,
+			line: updates.line
+		},
+		message: `${file} has no updates entry with package-ecosystem: ${ecosystem} for ${view.directory}, which projects in ${POLICY_FILE} lists, so Dependabot does not update the ${ecosystem} dependencies of ${view.directory}, while it updates ${listing$1(updated)}`,
+		fix: `If Dependabot should update ${view.directory}, add an updates entry with package-ecosystem: ${ecosystem} and directory: /${view.directory} to ${file}, then run depcurfew apply to give it the cooldown`
+	});
+}
 const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	checks: "Update bots wait at least as long as the package manager before proposing a new version",
 	summary: "An update bot waits less than the package manager before proposing a new version.",
-	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type.",
+	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type. With projects in depcurfew.json, a bot configuration file inside a project gets a note, because the bot reads its configuration only from the repository root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.",
 	help: "Give the bot a delay at least as long as the package manager's (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
 	applies: (scope) => usesBot(scope) && usesManager(scope),
 	check(context) {
+		if (context.project !== void 0) return;
+		if (context.projects !== void 0) {
+			projectBotNotes(context, context.projects);
+			missingDependabotEntries(context, context.projects);
+		}
 		const sources = managerSources(context);
 		if (sources.every((source) => source.managers.length === 0)) return;
 		const delays = [];
@@ -22538,7 +22793,7 @@ const broadExclusion = {
 		checkPolicy(context);
 		checkManagers(context);
 		checkYarnScopes(context);
-		for (const bot of context.detection.bots) for (const file of bot.configFiles) {
+		for (const bot of context.project === void 0 ? context.detection.bots : []) for (const file of bot.configFiles) {
 			if (bot.id === "dependabot") checkDependabot(context, file);
 			if (bot.id === "renovate") checkRenovate(context, file);
 		}
@@ -23147,11 +23402,11 @@ const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
 	checks: "The lockfile has no install scripts or source builds that depcurfew.json does not allow",
 	summary: "The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.",
-	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.",
+	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index (depcurfew check pypi:<name> shows whether one has wheels), only to requirements from a repository, a URL or a local path.",
 	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).",
 	level: "error",
 	requiresPolicy: true,
-	applies: hasLockfile,
+	applies: (scope) => hasBuildRecords(scope.detection.packageManagers, scope.tools),
 	check(context) {
 		const policy = context.policy;
 		if (policy?.installScripts?.default !== "deny") return;
@@ -23161,6 +23416,7 @@ const lockfileInstallScripts = {
 			const deny = view?.deny ?? [];
 			if (ecosystemOfTool(tool) === "pypi") {
 				reportPythonBuilds(context, lockfile, tool, allow, deny);
+				if (!showsBuilds(tool, lockfile.file, context.tools) && lockfile.entries.some((entry) => entry.source === "registry" && entry.installScript === void 0)) context.notice(`lockfile-install-scripts cannot tell from ${lockfile.file} which packages from the index are built from source: it lists no wheels or source distributions; depcurfew check pypi:<name> shows whether a package has wheels`, lockfile.file);
 				return;
 			}
 			if (!lockfile.recordsScripts) {
@@ -25343,20 +25599,10 @@ function runAction(env, io) {
 		if (annotations.omitted > 0) io.log(`GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? "finding is" : "findings are"} in the report above.\n`);
 	}
 	if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
-	if (checkRun !== void 0) {
-		const annotated = checkRunAnnotations(moved, RULES, (file) => {
-			const path = resolve(workspace, file);
-			return isInside(workspace, path) && statSync(path, { throwIfNoEntry: false })?.isFile() === true;
-		});
-		const note = checkRunAnnotationNote(annotated.omitted);
-		const limit = values$1(environment.githubActions.checkRuns)[0]?.summaryMaxLength ?? Number.MAX_SAFE_INTEGER;
-		checkRun({
-			name: checkRunName(prefix),
-			title: checkRunTitle(moved),
-			summary: `${fitSummary(jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER), limit - note.length)}${note}`,
-			conclusion: outputs["fail-reason"] !== "" ? "failure" : counts.error > 0 || counts.warning > 0 ? "neutral" : "success",
-			annotations: annotated.annotations
-		});
+	if (checkRun !== void 0) try {
+		checkRun(checkRunContent(workspace, moved, prefix, outputs, counts));
+	} catch (error) {
+		io.log(`depcurfew: the depcurfew doctor check was not added: ${checkRunFailure(error)}\n`);
 	}
 	const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
 	const shownSarif = isInside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join("/") : sarifFile;
@@ -25383,6 +25629,36 @@ function runAction(env, io) {
 		...outputs,
 		"sarif-file": shownSarif
 	};
+}
+/**
+* Whether a finding's file can carry an annotation: a regular file in the workspace, looked at with lstat, so that a
+* symlink (also one that loops) is no file to annotate, and a file that cannot be looked at (EACCES, ELOOP on the way)
+* has none either; the finding stays in the summary and the log.
+*/
+function annotatable(workspace, file) {
+	try {
+		const path = resolve(workspace, file);
+		return isInside(workspace, path) && lstatSync(path, { throwIfNoEntry: false })?.isFile() === true;
+	} catch {
+		return false;
+	}
+}
+/** The content of the depcurfew doctor check run. */
+function checkRunContent(workspace, moved, prefix, outputs, counts) {
+	const annotated = checkRunAnnotations(moved, RULES, (file) => annotatable(workspace, file));
+	const note = checkRunAnnotationNote(annotated.omitted);
+	const limit = values$1(environment.githubActions.checkRuns)[0]?.summaryMaxLength ?? Number.MAX_SAFE_INTEGER;
+	return {
+		name: checkRunName(prefix),
+		title: checkRunTitle(moved),
+		summary: `${fitSummary(jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER), limit - note.length)}${note}`,
+		conclusion: outputs["fail-reason"] !== "" ? "failure" : counts.error > 0 || counts.warning > 0 ? "neutral" : "success",
+		annotations: annotated.annotations
+	};
+}
+/** Why the check could not be prepared or sent, in plain words: never the message, which may name runner paths. */
+function checkRunFailure(error) {
+	return typeof error?.code === "string" ? `a file could not be looked at (${fileSystemReason(error)})` : "an unexpected error occurred while preparing it";
 }
 /** The title of the check run: the result and the count of checks, e.g. "No problems found (14 checks: 9 passed, 5 not applicable)". */
 function checkRunTitle(report) {
@@ -25418,7 +25694,13 @@ async function main(env = process.env, fetchImpl = (url, init) => fetch(url, ini
 	if (file !== void 0 && file !== "") appendFileSync(file, formatOutputs(outputs));
 	if (checkRun !== void 0) {
 		const token = input(env, "github-token", "");
-		process.stdout.write(token === "" ? "depcurfew: the depcurfew doctor check was not added: the input github-token is empty\n" : await createCheckRun(env, token, checkRun, fetchImpl));
+		let line;
+		try {
+			line = token === "" ? "depcurfew: the depcurfew doctor check was not added: the input github-token is empty\n" : await createCheckRun(env, token, checkRun, fetchImpl);
+		} catch (error) {
+			line = `depcurfew: the depcurfew doctor check was not added: ${checkRunFailure(error)}\n`;
+		}
+		process.stdout.write(line);
 	}
 }
 

@@ -7,7 +7,7 @@ import { basename, dirname, posix, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { values } from './apply/facts.ts';
 import { PolicyError } from './apply/index.ts';
-import { writeChanges } from './apply/workspace.ts';
+import { fileSystemReason, writeChanges } from './apply/workspace.ts';
 import { checkRunName, createCheckRun, fitSummary, type CheckRunContent, type CheckRunFetch } from './action-check-run.ts';
 import { annotationCommands, cleanNotice, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
 import { resultCounts } from './doctor/render.ts';
@@ -176,22 +176,12 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   }
   if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
   if (checkRun !== undefined) {
-    // Annotations only on files in the workspace that exist: a finding about a missing file stays in the summary.
-    const annotated = checkRunAnnotations(moved, RULES, (file) => {
-      const path = resolve(workspace, file);
-      return isInside(workspace, path) && statSync(path, { throwIfNoEntry: false })?.isFile() === true;
-    });
-    const note = checkRunAnnotationNote(annotated.omitted);
-    const limit = values(environment.githubActions.checkRuns)[0]?.summaryMaxLength ?? Number.MAX_SAFE_INTEGER;
-    checkRun({
-      name: checkRunName(prefix),
-      title: checkRunTitle(moved),
-      // fitSummary cuts it to the limit of the API, keeping the note; the job summary has its own, smaller limit.
-      summary: `${fitSummary(jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER), limit - note.length)}${note}`,
-      // The findings that fail the step fail the check; others make it neutral.
-      conclusion: outputs['fail-reason'] !== '' ? 'failure' : counts.error > 0 || counts.warning > 0 ? 'neutral' : 'success',
-      annotations: annotated.annotations,
-    });
+    // Nothing about the check fails the step (the result is in the log and the job summary already): one line instead.
+    try {
+      checkRun(checkRunContent(workspace, moved, prefix, outputs, counts));
+    } catch (error) {
+      io.log(`depcurfew: the depcurfew doctor check was not added: ${checkRunFailure(error)}\n`);
+    }
   }
   const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
   const shownSarif = isInside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join('/') : sarifFile;
@@ -212,6 +202,43 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
     return sarifFailure(error instanceof Error ? error.message : String(error));
   }
   return { ...outputs, 'sarif-file': shownSarif };
+}
+
+/**
+ * Whether a finding's file can carry an annotation: a regular file in the workspace, looked at with lstat, so that a
+ * symlink (also one that loops) is no file to annotate, and a file that cannot be looked at (EACCES, ELOOP on the way)
+ * has none either; the finding stays in the summary and the log.
+ */
+function annotatable(workspace: string, file: string): boolean {
+  try {
+    const path = resolve(workspace, file);
+    return isInside(workspace, path) && lstatSync(path, { throwIfNoEntry: false })?.isFile() === true;
+  } catch {
+    return false;
+  }
+}
+
+/** The content of the depcurfew doctor check run. */
+function checkRunContent(workspace: string, moved: DoctorReport, prefix: string, outputs: ActionOutputs, counts: ReturnType<typeof countLevels>): CheckRunContent {
+  // Annotations only on files in the workspace that exist: a finding about a missing file stays in the summary.
+  const annotated = checkRunAnnotations(moved, RULES, (file) => annotatable(workspace, file));
+  const note = checkRunAnnotationNote(annotated.omitted);
+  const limit = values(environment.githubActions.checkRuns)[0]?.summaryMaxLength ?? Number.MAX_SAFE_INTEGER;
+  return {
+    name: checkRunName(prefix),
+    title: checkRunTitle(moved),
+    // fitSummary cuts it to the limit of the API, keeping the note; the job summary has its own, smaller limit.
+    summary: `${fitSummary(jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER), limit - note.length)}${note}`,
+    // The findings that fail the step fail the check; others make it neutral.
+    conclusion: outputs['fail-reason'] !== '' ? 'failure' : counts.error > 0 || counts.warning > 0 ? 'neutral' : 'success',
+    annotations: annotated.annotations,
+  };
+}
+
+/** Why the check could not be prepared or sent, in plain words: never the message, which may name runner paths. */
+function checkRunFailure(error: unknown): string {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return typeof code === 'string' ? `a file could not be looked at (${fileSystemReason(error)})` : 'an unexpected error occurred while preparing it';
 }
 
 /** The title of the check run: the result and the count of checks, e.g. "No problems found (14 checks: 9 passed, 5 not applicable)". */
@@ -255,6 +282,12 @@ export async function main(env: NodeJS.ProcessEnv = process.env, fetchImpl: Chec
   // After the outputs, so that a slow API cannot keep them from the next steps.
   if (checkRun !== undefined) {
     const token = input(env, 'github-token', '');
-    process.stdout.write(token === '' ? 'depcurfew: the depcurfew doctor check was not added: the input github-token is empty\n' : await createCheckRun(env, token, checkRun, fetchImpl));
+    let line: string;
+    try {
+      line = token === '' ? 'depcurfew: the depcurfew doctor check was not added: the input github-token is empty\n' : await createCheckRun(env, token, checkRun, fetchImpl);
+    } catch (error) {
+      line = `depcurfew: the depcurfew doctor check was not added: ${checkRunFailure(error)}\n`;
+    }
+    process.stdout.write(line);
   }
 }

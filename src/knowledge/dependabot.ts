@@ -4,6 +4,7 @@ import type { ToolKnowledge } from './types.ts';
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const python = verifiedOn('2026-10-30');
 const review = verifiedOn('2026-10-31');
+const projects = verifiedOn('2026-11-01');
 
 const OPTIONS = 'https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference';
 const COOLDOWN_GA = 'https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/';
@@ -74,6 +75,16 @@ export const dependabot: ToolKnowledge = {
     ),
   },
   extra: {
+    configLocation: projects.verified(
+      { from: 'repository-root', branch: 'default' },
+      'https://docs.github.com/en/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file',
+      '"You must store this file in the .github directory of your repository in the default branch (typically main), at .github/dependabot.yml or .github/dependabot.yaml" (github/docs, content/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file.md, read 2026-11-01), so a .github/dependabot.yml in a subdirectory is not read.',
+    ),
+    directories: projects.verified(
+      { keys: ['directory', 'directories'], relativeTo: 'repository-root', globsIn: 'directories' },
+      'https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#directories-or-directory',
+      'Required in each updates entry: directory for one directory of manifests, directories for a list; "Define directories relative to the root of the repository for most package managers"; "The directories key supports globbing and the wildcard character *. These features are not supported by the directory key." How a glob matches is not described further (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, read 2026-11-01).',
+    ),
     yamlMergeKeys: review.uncertain(
       false,
       'https://github.com/dependabot/dependabot-core/pull/9653',

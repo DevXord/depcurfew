@@ -15,6 +15,7 @@ import { listing } from '../apply/requirements.ts';
 import { inProject } from '../apply/projects.ts';
 import { detectedNames, toolName } from './describe.ts';
 import { proposedProjects } from './init-projects.ts';
+import { hasBuildRecords } from '../doctor/python-lockfiles.ts';
 import { reportInputError, resolveDirectory } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -135,7 +136,8 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
   }
   const detection = detectProject(absolute);
   // No manifest in the root, but in direct subdirectories: independent projects (decision D-100).
-  const projects = proposedProjects(absolute).map((project) => ({ project, detection: detectProject(join(absolute, project)) }));
+  const proposed = proposedProjects(absolute);
+  const projects = proposed.projects.map((project) => ({ project, detection: detectProject(join(absolute, project)) }));
   const defaultMinimum = parseDuration(DEFAULT_POLICY.cooldown.minimum);
   // The longest delay of the root and of every project, which apply would otherwise shorten (decision D-075).
   let kept = defaultMinimum.ok ? longestDelay(absolute, detection, defaultMinimum.duration.minutes) : undefined;
@@ -183,13 +185,24 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
       `projects lists ${listing(projects.map((entry) => entry.project))}: the root has no manifest or lockfile, these directories do, so depcurfew configures each as a project of its own and the bots from the root; edit projects in ${POLICY_FILE} if that is not right.\n`,
     );
   }
+  for (const entry of proposed.leftOut) io.stdout(`${entry.project} is not in projects: ${entry.reason}.\n`);
   if (kept !== undefined) io.stdout(keptMessage(kept, minimum));
   io.stdout(`Detected tools: ${detected.length === 0 ? 'none' : detected.join(', ')}.\n`);
   // Building from source runs the package's own build code, so the default deny blocks it (decision D-065); a package
   // without wheels then stops installing, which a team should see before apply (user feedback before 1.3.0).
-  if (DEFAULT_POLICY.installScripts.default === 'deny' && [detection, ...projects.map((entry) => entry.detection)].some((found) => found.packageManagers.some((manager) => manager.supported && isPythonTool(manager.id)))) {
+  // doctor sees which locked packages have no wheels only in a lockfile that lists their files (uv.lock, poetry.lock,
+  // pdm.lock, pylock.toml); a requirements file or Pipfile.lock lists hashes only, so check asks the index (D-107).
+  const found = [detection, ...projects.map((entry) => entry.detection)];
+  const python = found.filter((item) => item.packageManagers.some((manager) => manager.supported && isPythonTool(manager.id)));
+  if (DEFAULT_POLICY.installScripts.default === 'deny' && python.length > 0) {
+    const locked = python.some((item) => hasBuildRecords(item.packageManagers, knowledgeBase, 'pypi'));
+    const unlocked = python.some((item) => !hasBuildRecords(item.packageManagers, knowledgeBase, 'pypi'));
+    const how = [
+      ...(locked ? ['run depcurfew doctor before depcurfew apply to see the locked packages that have none'] : []),
+      ...(unlocked ? [`run depcurfew check pypi:<name> for each package ${locked ? 'of the projects without such a lockfile' : 'the project installs'} to see whether it has wheels (doctor can tell only from a uv.lock, poetry.lock, pdm.lock or pylock.toml)`] : []),
+    ];
     io.stdout(
-      'note: installScripts.default "deny" also blocks building Python packages from source, so a package without wheels for your platform stops installing; run depcurfew doctor before depcurfew apply to see the locked packages that have none, and add the ones you trust to installScripts.allow as pypi:<name>.\n',
+      `note: installScripts.default "deny" also blocks building Python packages from source, so a package without wheels for your platform stops installing; ${how.join(', and ')}, and add the ones you trust to installScripts.allow as pypi:<name>.\n`,
     );
   }
   // In a repository of projects the workflows of the root set up the projects' tools, as apply knows (decision D-100).

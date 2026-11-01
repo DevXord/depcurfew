@@ -155,10 +155,22 @@ describe('depcurfew explain --json', () => {
       [
         'Warnings:',
         '  multiple-lockfiles: lockfiles of several package managers: package-lock.json, yarn.lock',
+        '    fix: Remove the lockfiles of the package managers the project does not use',
         '  package-manager-mismatch: packageManager names pnpm, but no pnpm lockfile exists',
+        '    fix: Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager',
         '  yarn-classic-unsupported: Yarn Classic (1.x) is not supported; depcurfew configures Yarn 2 and later',
+        '    fix: Move to Yarn 2 or later, or to another package manager depcurfew configures',
       ].join('\n'),
     );
+    const json = JSON.parse((await exec('explain', '--json', repo('conflicting-lockfiles'))).stdout) as { project: { warnings: unknown[] } };
+    expect(json.project.warnings[0]).toEqual({
+      code: 'multiple-lockfiles',
+      level: 'warning',
+      location: { file: 'package-lock.json' },
+      message: 'lockfiles of several package managers: package-lock.json, yarn.lock',
+      files: ['package-lock.json', 'yarn.lock'],
+      fix: 'Remove the lockfiles of the package managers the project does not use',
+    });
     expect(result.stdout).toContain('  Yarn Classic (not supported)\n');
     expect(result.stdout).toContain('Policy: no depcurfew.json\n');
   });

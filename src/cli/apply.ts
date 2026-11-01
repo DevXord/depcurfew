@@ -83,7 +83,10 @@ function diagnostics(report: ApplyReport, errors: readonly JsonError[], colors: 
     lines.push(colors.bold(`${toolName(snippet.tool)}: add this to ${printable(snippet.file)} by hand:`), indent(printable(snippet.text, { lines: true })));
   }
   for (const error of errors) {
-    lines.push(`error: ${printable(error.message)} ${colors.dim(`(${error.code})`)}`);
+    // A directory listed in projects is an entry of depcurfew.json: the text names it and the line, as the JSON does.
+    const { file, line } = error.location;
+    const where = error.code.startsWith('project-') && !error.message.includes(file) ? `${file}${line === undefined ? '' : ` (line ${line})`}: ` : '';
+    lines.push(`error: ${printable(`${where}${error.message}`)} ${colors.dim(`(${error.code})`)}`);
     if (error.fix !== undefined) lines.push(`  ${colors.green('fix:')} ${printable(error.fix)}`);
   }
   return lines.length === 0 ? '' : `${lines.join('\n')}\n`;

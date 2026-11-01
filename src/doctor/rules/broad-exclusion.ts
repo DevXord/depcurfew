@@ -207,7 +207,8 @@ export const broadExclusion: Rule = {
     checkPolicy(context);
     checkManagers(context);
     checkYarnScopes(context);
-    for (const bot of context.detection.bots) {
+    // A project's own bot files are never read by the bot; bot-cooldown-mismatch gives a note at each (decision D-107).
+    for (const bot of context.project === undefined ? context.detection.bots : []) {
       for (const file of bot.configFiles) {
         if (bot.id === 'dependabot') checkDependabot(context, file);
         if (bot.id === 'renovate') checkRenovate(context, file);

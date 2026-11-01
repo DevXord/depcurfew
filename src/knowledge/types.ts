@@ -661,6 +661,8 @@ export interface ClaudeCodeSessionStartKnowledge {
   firstResponseWaits: boolean;
   /** What a PreToolUse hook with onFailure "block" does when its script is missing. */
   missingScriptWithBlock: 'blocks';
+  /** The part of the error Claude Code shows then, before the output of the command that failed. */
+  blockedNotice: string;
   /** Whether a cloud environment's setup script runs before Claude Code starts. */
   cloudSetupScriptRunsBeforeClaudeCode: boolean;
 }

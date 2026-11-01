@@ -9,6 +9,7 @@ import type { Detection, VersionDeclaration } from '../detect/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { readPolicyFile } from '../policy/file.ts';
 import { lineOf } from '../doctor/settings.ts';
+import { jsonElementOffsets, jsonGet } from './json-edit.ts';
 import { isInside } from '../paths.ts';
 import type { ApplyErrorCode } from './warnings.ts';
 
@@ -85,6 +86,27 @@ export interface ProjectProblem {
   fix: string;
 }
 
+/**
+ * The line of each entry of projects in the text of depcurfew.json, from the positions of the elements of that array
+ * (the same name may also stand elsewhere, e.g. in cooldown.exclude); the first occurrence of the quoted name when
+ * the text cannot be parsed.
+ */
+function projectLines(text: string): (project: string) => number | undefined {
+  let listed: unknown;
+  let offsets: number[] | undefined;
+  try {
+    listed = jsonGet(text, ['projects']);
+    offsets = jsonElementOffsets(text, ['projects']);
+  } catch {
+    listed = undefined;
+  }
+  return (project) => {
+    const index = Array.isArray(listed) ? listed.indexOf(project) : -1;
+    const offset = index === -1 ? undefined : offsets?.[index];
+    return offset === undefined ? lineOf(text, JSON.stringify(project)) : text.slice(0, offset).split('\n').length;
+  };
+}
+
 /** Whether two directories of the repository are the same or one lies inside the other. */
 function overlaps(a: string, b: string): boolean {
   return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
@@ -102,8 +124,9 @@ export function projectProblems(root: string, projects: readonly string[], rootD
   const text = policy.status === 'ok' ? policy.text : '';
   const real = realpathSync(root);
   const problems: ProjectProblem[] = [];
+  const entryLine = projectLines(text);
   for (const project of projects) {
-    const line = lineOf(text, JSON.stringify(project));
+    const line = entryLine(project);
     const location = { file: POLICY_FILE, ...(line === undefined ? {} : { line }) };
     const remove = `remove "${project}" from projects in ${POLICY_FILE}`;
     const problem = (code: ProjectProblem['code'], message: string, fix: string, at = location) => problems.push({ code, project, location: at, message, fix });

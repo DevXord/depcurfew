@@ -90,10 +90,39 @@ describe('rules that do not concern the project', () => {
       .filter((entry) => entry.isDirectory() && entry.name.startsWith('fires'))
       .map((entry) => [rule, entry.name] as const),
   );
+  // Pip requirements files and Pipfile.lock list hashes only, so from detection lockfile-install-scripts does not concern
+  // them (D-107); only a requirement from a repository, a URL or a local path does, which the check finds and which then
+  // counts as problems. These fixtures hold such requirements.
+  const contentOnly = new Set([
+    'lockfile-install-scripts/fires-pipenv-denied-but-built',
+    'lockfile-install-scripts/fires-pipenv-local-and-git',
+    'lockfile-install-scripts/fires-requirements-include',
+    'lockfile-install-scripts/fires-requirements-unnamed',
+  ]);
   it.each(fires.map(([rule, name]) => [rule.id, name, rule] as const))('%s applies to %s', (_id, name, rule) => {
     const silent: Rule = { ...rule, check: () => undefined };
     const report = runDoctor(join(DOCTOR, rule.id, name, 'repo'), { rules: [silent], invalidPolicy: 'report' });
+    if (contentOnly.has(`${rule.id}/${name}`)) {
+      expect(report.checked?.rules[0]?.result).toBe('not-applicable');
+      expect(runDoctor(join(DOCTOR, rule.id, name, 'repo'), { rules: [rule], invalidPolicy: 'report' }).checked?.rules[0]?.result).toBe('problems');
+      return;
+    }
     expect(report.checked?.rules[0]?.result).not.toBe('not-applicable');
+  });
+
+  it('call lockfile-install-scripts not applicable to requirements of index packages, and say why in a notice', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'depcurfew-requirements-'));
+    temporary.push(directory);
+    writeFileSync(join(directory, 'requirements.txt'), 'idna==3.20 \\\n    --hash=sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44\n');
+    writeFileSync(join(directory, 'depcurfew.json'), renderPolicy(DEFAULT_POLICY));
+    const report = runDoctor(directory);
+    expect(results(report)['lockfile-install-scripts']).toBe('not-applicable');
+    expect(results(report)['lockfile-forbidden-source']).toBe('passed');
+    expect(report.notices).toContainEqual({
+      message:
+        'lockfile-install-scripts cannot tell from requirements.txt which packages from the index are built from source: it lists no wheels or source distributions; depcurfew check pypi:<name> shows whether a package has wheels',
+      file: 'requirements.txt',
+    });
   });
 
   it('count as problems when they report a finding anyway, so findings never depend on applies', () => {

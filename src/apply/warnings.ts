@@ -62,6 +62,7 @@ export const APPLY_ERRORS = {
   'policy-exists': 'depcurfew init found a depcurfew.json and writes it only with --force.',
   'directory-not-found': 'The directory given on the command line does not exist or cannot be opened.',
   'not-a-directory': 'The path given on the command line is a file, not a directory.',
+  usage: 'The command line is not valid: an unknown command or option, a missing or extra argument, or options that cannot go together (exit code 2); with --json the document holds only schemaVersion and this error.',
   'project-not-found': 'A directory listed in projects in depcurfew.json does not exist, so nothing is written.',
   'project-not-a-directory': 'A path listed in projects in depcurfew.json is a file, not a directory, so nothing is written.',
   'project-symlink': 'A directory listed in projects in depcurfew.json is a symlink or lies under one, which may lead out of the repository, so nothing is written.',

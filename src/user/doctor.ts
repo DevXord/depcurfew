@@ -5,7 +5,7 @@
 import { LineCounter, isMap, isScalar, type Node } from 'yaml';
 import { PolicyError } from '../apply/index.ts';
 import { BLOCK_END, isBlockStart } from '../apply/block.ts';
-import { formatVersion, parseVersion, type Version } from '../apply/version.ts';
+import { compareVersions, formatVersion, parseVersion, type Version } from '../apply/version.ts';
 import type { ApplyWarning } from '../apply/warnings.ts';
 import { YAML_MARKER } from '../apply/yaml-edit.ts';
 import { ruleResults } from '../doctor/render.ts';
@@ -13,6 +13,7 @@ import { iniLines } from '../doctor/settings.ts';
 import type { Checked, DoctorReport, Finding, Notice, Rule } from '../doctor/types.ts';
 import { parseToml, TomlDateTime, type TomlDocument, type TomlTable } from '../detect/toml.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
+import { values } from '../apply/facts.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId, ToolKnowledge, UserFile, UserWeakening } from '../knowledge/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
@@ -329,6 +330,50 @@ export interface UserDoctorOptions {
 
 const SKIPPED = new Set<ApplyWarning['code']>(['version-unknown', 'no-user-config']);
 
+/** The warnings of apply --user that say the installed version cannot take a setting the user policy needs. */
+const TOO_OLD = new Set<ApplyWarning['code']>(['version-too-old', 'scripts-not-enforceable']);
+
+/** "min-release-age (since 11.10.0)" from "npm 10.9.9 does not support min-release-age (since 11.10.0); not written". */
+function unsupported(warning: ApplyWarning): string {
+  if (warning.code === 'scripts-not-enforceable') return 'an allow-list for install scripts';
+  const setting = /\bdoes not support (.+?)(?:; not written)?$/u.exec(warning.message)?.[1];
+  return setting === undefined ? warning.message : setting.replace(/\(since ([^)]+)\)$/u, '(added in $1)');
+}
+
+/**
+ * An installed tool too old for settings the user policy needs (decision D-107): apply --user leaves them out, so the
+ * policy does not protect the tool there. A warning of user-config-drift that says what stays unprotected, with the
+ * lowest version that has all of them; doctor --user is not clean while it lasts (and --strict fails).
+ */
+function tooOldFinding(tool: ToolKnowledge, version: Version | undefined, warnings: readonly ApplyWarning[], shown: string, writesSome: boolean): Finding {
+  const name = version === undefined ? tool.name : `${tool.name} ${formatVersion(version)}`;
+  const delay = values(tool.cooldown.setting)[0];
+  const open = [
+    ...(warnings.some((warning) => warning.code === 'scripts-not-enforceable') ? ['the install scripts of dependencies still run'] : []),
+    ...(warnings.some((warning) => warning.code === 'version-too-old' && typeof delay === 'string' && warning.message.includes(` ${delay} `)) ? ['new versions install without the release-age delay'] : []),
+    ...warnings
+      .filter((warning) => warning.code === 'version-too-old' && !(typeof delay === 'string' && warning.message.includes(` ${delay} `)))
+      .map((warning) => `${unsupported(warning).replace(/ \(added in .+\)$/u, '')} is not set`),
+  ];
+  // The lowest version that has every setting: the highest of the versions the fixes name.
+  const needed = warnings
+    .map((warning) => parseVersion(/\bUpdate \S+ to (\d+\.\d+\.\d+) or later\b/u.exec(warning.fix ?? '')?.[1] ?? ''))
+    .filter((entry): entry is Version => entry !== undefined)
+    .sort(compareVersions)
+    .at(-1);
+  const update = needed === undefined ? `Update ${tool.name}` : `Update ${tool.name} to ${formatVersion(needed)} or later${tool.id === 'npm' ? ` (npm install -g npm@${formatVersion(needed)})` : ''}`;
+  const settings = listing(warnings.map(unsupported));
+  return {
+    rule: 'user-config-drift',
+    level: 'warning',
+    location: { file: shown },
+    message: writesSome
+      ? `${name} is too old for part of the user policy: it lacks ${settings}, so depcurfew apply --user leaves ${warnings.length === 1 ? 'that' : 'those'} out of ${shown} and the user policy does not fully protect ${tool.name}: ${listing(open)}`
+      : `${name} is too old for the user policy: it lacks ${settings}, so depcurfew apply --user writes nothing to ${shown} and the user policy does not protect ${tool.name}: ${listing(open)}`,
+    fix: `${update}, then run depcurfew apply --user; or pass the installed version with --for ${tool.id}@<version>${version === undefined ? '' : ` if ${formatVersion(version)} is not it`}`,
+  };
+}
+
 export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { policyFile: string } {
   const { environment } = options;
   const tools = options.tools ?? knowledgeBase;
@@ -439,7 +484,19 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
         notice(warning.message);
       }
     }
-    tooOld = plan.report.warningDetails.filter((warning) => warning.code === 'version-too-old');
+    tooOld = plan.report.warningDetails.filter((warning) => TOO_OLD.has(warning.code));
+    for (const tool of installed) {
+      if ((targets !== 'auto' && !targets.includes(tool.id)) || skipped.has(tool.id)) continue;
+      const own = tooOld.filter((warning) => warning.tool === tool.id);
+      if (own.length === 0) continue;
+      const path = pathOf(tool);
+      // Whether apply --user writes anything for the tool: its file, as planned, has a block or marker of depcurfew.
+      const change = path === undefined ? undefined : plan.report.changes.find((entry) => entry.path === path);
+      const text = change?.after ?? (path === undefined ? undefined : readLimited(path, MAX_FILE));
+      const body = typeof text === 'string' ? text : text?.ok === true ? text.bytes.toString('utf8') : '';
+      const writesSome = body.split(/\r?\n/u).some((line) => isBlockStart(line) || line.trim() === YAML_MARKER);
+      findings.push(tooOldFinding(tool, versions.get(tool.id), own, path === undefined ? 'its user file' : shownPath(path, environment), writesSome));
+    }
   }
 
   // A version given with --for for a tool that is not checked, as apply --user warns (version-not-used); a tool that
@@ -593,15 +650,6 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
           );
         }
       }
-    }
-    for (const warning of tooOld.filter((candidate) => candidate.tool === tool.id)) {
-      const file = installedUserFile(tool, version, environment);
-      const path = file === null ? undefined : userFilePath(file, environment);
-      const where = path === undefined ? 'its user file' : shownPath(path, environment);
-      const shownVersion = version === undefined ? '' : ` ${formatVersion(version)}`;
-      notice(
-        `${warning.message.replace(/; not written$/u, '')}, so depcurfew apply --user does not write it to ${where} and the user policy does not protect ${tool.name} there; update ${tool.name}, or pass the installed version with --for ${tool.id}@<version> if${shownVersion} is not it (${tool.id} --version shows it)`,
-      );
     }
   }
 

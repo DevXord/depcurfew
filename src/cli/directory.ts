@@ -15,7 +15,7 @@ import type { CliIo } from './io.ts';
 export interface InputError {
   code: ApplyErrorCode;
   level: 'error';
-  location: { file: string };
+  location: { file: string; line?: number };
   message: string;
   fix: string;
   issues?: string[];

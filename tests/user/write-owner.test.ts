@@ -1,10 +1,10 @@
 // sudo depcurfew apply --user (or init --user) with HOME kept: files and directories it creates under the home
 // directory belong to the owner of the home directory, not to root, so that the user can still change them (and run
 // depcurfew init --user --force) afterwards. Only root can give files away, so the tests run only as root.
-import { chownSync, lstatSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chownSync, existsSync, lstatSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { writeChangeSets } from '../../src/apply/workspace.ts';
+import { WriteFailed, writeChangeSets } from '../../src/apply/workspace.ts';
 import { isInside } from '../../src/paths.ts';
 import type { CheckDependencies } from '../../src/cli/check.ts';
 import { EXIT_OK, run } from '../../src/cli/run.ts';
@@ -90,16 +90,15 @@ describe.skipIf(!asRoot)('writeChangeSets with an owner for new files', () => {
     expect(owner(join(machine.home, 'a', 'b', 'c.txt'))).toEqual([NOBODY, NOBODY]);
   });
 
-  it('asks for the owner by the real path, so that what a symlink leads out of the home directory stays root\'s', () => {
+  it('writes nothing through a symlink that leads out of the home directory, so nothing there is given away (D-107)', () => {
     const machine = fakeMachine({}, temporary);
     const elsewhere = join(machine.root, 'elsewhere');
     mkdirSync(elsewhere);
     symlinkSync(elsewhere, join(machine.home, 'link'));
     const ownerOfNew = (path: string) => (isInside(machine.home, path) ? { uid: NOBODY, gid: NOBODY } : undefined);
-    writeChangeSets([{ root: machine.home, changes: [{ file: 'link/new/x.txt', before: null, after: 'x\n' }] }], { ownerOfNew });
+    expect(() => writeChangeSets([{ root: machine.home, changes: [{ file: 'link/new/x.txt', before: null, after: 'x\n' }] }], { ownerOfNew })).toThrow(WriteFailed);
     expect(owner(elsewhere)).toEqual([0, 0]);
     expect(owner(join(machine.home, 'link'))).toEqual([0, 0]);
-    expect(owner(join(elsewhere, 'new'))).toEqual([0, 0]);
-    expect(owner(join(elsewhere, 'new', 'x.txt'))).toEqual([0, 0]);
+    expect(existsSync(join(elsewhere, 'new'))).toBe(false);
   });
 });

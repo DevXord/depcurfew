@@ -5,6 +5,7 @@ const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const python = verifiedOn('2026-10-30');
 const reviewed = verifiedOn('2026-10-30');
 const rules = verifiedOn('2026-10-30');
+const projects = verifiedOn('2026-11-01');
 
 const AT = 'https://github.com/renovatebot/renovate/blob/44.198.2';
 
@@ -100,6 +101,11 @@ export const renovate: ToolKnowledge = {
     ),
   },
   extra: {
+    configLocation: projects.verified(
+      { from: 'repository-root', branch: 'default' },
+      `${AT}/lib/workers/repository/init/merge.ts`,
+      'detectConfigFile looks for each name in configFiles (lib/config/app-strings.ts) in the file list of the repository, whose paths start at the repository root, so a renovate.json in a subdirectory is never read. The configuration options page (docs/usage/configuration-options.md at 44.198.2): "Any config you define applies to the whole repository (e.g. if you have a monorepo)" and "Renovate always uses the config from the repository\'s default branch".',
+    ),
     durationStrings: verified(
       { since: null, syntax: 'words' },
       'https://github.com/renovatebot/renovate/blob/main/docs/usage/key-concepts/minimum-release-age.md',

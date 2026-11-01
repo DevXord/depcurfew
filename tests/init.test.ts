@@ -118,11 +118,16 @@ describe('depcurfew init', () => {
   });
 
   it('warns that the default policy blocks Python builds from source, and says to run doctor before apply', async () => {
-    cpSync(fileURLToPath(new URL('fixtures/repos/pip-requirements', import.meta.url)), directory, { recursive: true });
+    cpSync(fileURLToPath(new URL('fixtures/repos/uv-basic', import.meta.url)), directory, { recursive: true });
     const result = await exec('init', directory);
     expect(result.code).toBe(EXIT_OK);
     expect(result.stdout).toContain(
       'note: installScripts.default "deny" also blocks building Python packages from source, so a package without wheels for your platform stops installing; run depcurfew doctor before depcurfew apply to see the locked packages that have none, and add the ones you trust to installScripts.allow as pypi:<name>.\n',
+    );
+    // A requirements file lists no wheels, so doctor cannot tell; check asks the index (D-107).
+    cpSync(fileURLToPath(new URL('fixtures/repos/pip-requirements', import.meta.url)), join(directory, 'pip'), { recursive: true });
+    expect((await exec('init', join(directory, 'pip'))).stdout).toContain(
+      'note: installScripts.default "deny" also blocks building Python packages from source, so a package without wheels for your platform stops installing; run depcurfew check pypi:<name> for each package the project installs to see whether it has wheels (doctor can tell only from a uv.lock, poetry.lock, pdm.lock or pylock.toml), and add the ones you trust to installScripts.allow as pypi:<name>.\n',
     );
     // Not for a project without Python tools.
     cpSync(fileURLToPath(new URL('fixtures/repos/pnpm11-dependabot', import.meta.url)), join(directory, 'js'), { recursive: true });

@@ -15,6 +15,7 @@ import { requirementsFormatOf } from '../python-lockfiles.ts';
 import { readPythonSetting, requirementsOptions } from '../python.ts';
 import { iniValue, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
+import { hasBuildRecords, showsBuilds } from '../python-lockfiles.ts';
 import { hasLockfile } from '../applies.ts';
 
 const LABELS = {
@@ -220,11 +221,12 @@ export const lockfileInstallScripts: Rule = {
   checks: 'The lockfile has no install scripts or source builds that depcurfew.json does not allow',
   summary: 'The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.',
   description:
-    'Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.',
+    'Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index (depcurfew check pypi:<name> shows whether one has wheels), only to requirements from a repository, a URL or a local path.',
   help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).',
   level: 'error',
   requiresPolicy: true,
-  applies: hasLockfile,
+  // pip requirements files and Pipfile.lock list hashes only, so they cannot show a package without wheels (D-107).
+  applies: (scope) => hasBuildRecords(scope.detection.packageManagers, scope.tools),
   check(context) {
     const policy = context.policy;
     if (policy?.installScripts?.default !== 'deny') return;
@@ -234,6 +236,12 @@ export const lockfileInstallScripts: Rule = {
       const deny = view?.deny ?? [];
       if (ecosystemOfTool(tool) === 'pypi') {
         reportPythonBuilds(context, lockfile, tool, allow, deny);
+        if (!showsBuilds(tool, lockfile.file, context.tools) && lockfile.entries.some((entry) => entry.source === 'registry' && entry.installScript === undefined)) {
+          context.notice(
+            `lockfile-install-scripts cannot tell from ${lockfile.file} which packages from the index are built from source: it lists no wheels or source distributions; depcurfew check pypi:<name> shows whether a package has wheels`,
+            lockfile.file,
+          );
+        }
         return;
       }
       if (!lockfile.recordsScripts) {

@@ -40,7 +40,7 @@ import { listing } from './requirements.ts';
 import { directoryTargets } from './targets.ts';
 import { parseVersion, pinnedVersion, type Version } from './version.ts';
 import { warningText, type ApplyErrorCode, type ApplyWarning } from './warnings.ts';
-import { WriteFailed, writeChanges, type FileChange } from './workspace.ts';
+import { CHANGED, OUTSIDE, WriteFailed, writeChanges, type FileChange } from './workspace.ts';
 
 export type { FileChange } from './workspace.ts';
 export type { ProjectProblem } from './projects.ts';
@@ -273,11 +273,22 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   }
   // The root of a repository with projects may hold nothing but the projects.
   if (targets.size === 0 && options.project !== undefined) {
-    warnings.push({
-      code: 'nothing-to-configure',
-      message: `no tools to configure in ${options.project}: depcurfew found no supported package manager there`,
-      fix: `Check that "${options.project}" in projects in ${POLICY_FILE} is the directory of the project, with its manifest and lockfile; depcurfew explain shows what it detects`,
-    });
+    // relocateReport puts the name of the project in front of a message without a file.
+    const excluded = policy.targets === 'auto' ? [] : detection.packageManagers.filter((manager) => manager.supported && !policy.targets.includes(manager.id)).map((manager) => manager.id);
+    const names = excluded.map((id) => tools.find((tool) => tool.id === id)?.name ?? id);
+    warnings.push(
+      excluded.length > 0
+        ? {
+            code: 'nothing-to-configure',
+            message: `no tools to configure: targets in ${POLICY_FILE} leaves out ${listing(names)}, found in ${options.project}`,
+            fix: `Add ${listing(excluded.map((id) => `"${id}"`))} to targets in ${POLICY_FILE} to configure ${options.project}, or remove "${options.project}" from projects if depcurfew should leave it alone`,
+          }
+        : {
+            code: 'nothing-to-configure',
+            message: 'no tools to configure: depcurfew found no supported package manager there',
+            fix: `Check that "${options.project}" in projects in ${POLICY_FILE} is the directory of the project, with its manifest and lockfile; depcurfew explain shows what it detects`,
+          },
+    );
   } else if (targets.size === 0 && options.projects === undefined) {
     warnings.push({
       code: 'nothing-to-configure',
@@ -526,6 +537,8 @@ export class ApplyWriteError extends Error {
       ENOSPC: `Free some disk space, then run ${command} again`,
       EDQUOT: `Free some disk space, then run ${command} again`,
       EISDIR: `Move the directory ${failure.file} out of the way, then run ${command} again`,
+      [OUTSIDE]: `Make every directory on the way to ${failure.file} a real directory inside ${versionControl ? 'the repository' : 'your home directory'} rather than a symlink, then run ${command} again`,
+      [CHANGED]: `Make sure no other program moves the directories on the way to ${failure.file}, then run ${command} again`,
     };
     const quoted = /\s/u.test(failure.file) ? `"${failure.file}"` : failure.file;
     const busy = !failure.busy
@@ -550,9 +563,11 @@ export class ApplyWriteError extends Error {
  * could not be edited, nothing is written, so a run either applies the whole policy or leaves the repository as it was.
  * A file that cannot be written throws ApplyWriteError after the files already written are put back.
  */
-export function applyProject(root: string, options: { write?: boolean } = {}): ApplyReport {
+export function applyProject(root: string, options: { write?: boolean; beforeWrite?: () => void } = {}): ApplyReport {
   const report = planRepository(root, loadPolicy(root));
   if (options.write !== false && report.errors.length === 0) {
+    // Tests change the file system between the plan and the write here.
+    options.beforeWrite?.();
     try {
       writeChanges(root, report.changes);
     } catch (error) {

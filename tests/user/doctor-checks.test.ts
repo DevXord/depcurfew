@@ -227,12 +227,14 @@ describe('places that override the user file', () => {
 });
 
 describe('tools that get nothing written', () => {
-  it('notes a version too old for the settings of the user policy, worded for doctor', () => {
+  it('warns about a version too old for the settings of the user policy, worded for doctor (D-107)', () => {
     const environment = machine({ npm: { pnpm: '11.28.10' } });
     const report = runUserDoctor({ environment, versions: { pnpm: [0, 34, 0] } });
-    const notes = report.notices.map((notice) => notice.message).join('\n');
-    expect(notes).toContain('pnpm 0.34.0');
-    expect(notes).not.toContain('; not written');
+    const drift = report.findings.filter((finding) => finding.rule === 'user-config-drift' && finding.message.startsWith('pnpm 0.34.0 is too old for the user policy'));
+    expect(drift).toHaveLength(1);
+    expect(drift[0]?.level).toBe('warning');
+    expect(drift[0]?.message).not.toContain('; not written');
+    expect(report.notices.map((notice) => notice.message).join('\n')).not.toContain('pnpm 0.34.0');
   });
 });
 

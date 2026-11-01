@@ -1,5 +1,6 @@
 import { detectProject } from '../detect/index.ts';
-import type { Detection, DockerStage, ToolCommand, VersionDeclaration } from '../detect/types.ts';
+import type { Detection, DetectionWarning, DockerStage, ToolCommand, VersionDeclaration } from '../detect/types.ts';
+import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId } from '../knowledge/types.ts';
 import { convertCooldown } from '../policy/convert.ts';
@@ -29,19 +30,66 @@ export type PolicyReport =
     }
   | { file: string; valid: false; issues: string[] };
 
+/**
+ * A warning of detection as explain reports it: with a level, the file it concerns and what to do, like the warnings of
+ * the other commands (decision D-107; new fields, the code, message and files stay).
+ */
+export interface ExplainWarning extends DetectionWarning {
+  level: 'warning';
+  location?: { file: string };
+  fix: string;
+}
+
+/** What detection found, with the warnings as explain reports them. */
+export type ExplainDetection = Omit<Detection, 'warnings'> & { warnings: ExplainWarning[] };
+
 /** A directory listed in projects in depcurfew.json (decision D-100), with its files named relative to the root. */
 export type ProjectReport =
-  | { directory: string; project: Detection; targets: { mode: 'auto' | 'listed'; tools: ToolId[] } }
+  | { directory: string; project: ExplainDetection; targets: { mode: 'auto' | 'listed'; tools: ToolId[] } }
   | { directory: string; project: null; error: { code: string; message: string; fix: string } };
 
 export interface ExplainReport {
   schemaVersion: 1;
-  project: Detection;
+  project: ExplainDetection;
   policy: PolicyReport | null;
   /** The directories listed in projects; empty without them or without a usable policy. */
   projects: ProjectReport[];
   /** A depcurfew.json that cannot be used, in the shape of the errors of apply --json and check --json. */
   errors: InputError[];
+}
+
+/** What to do about each warning of detection; the fixes of unreadable-config for files that could not be read. */
+const WARNING_FIXES: Readonly<Record<string, string>> = {
+  ...UNREADABLE_WARNINGS,
+  'nothing-detected': `Run depcurfew explain in the directory of the project, or list the directories of the projects under projects in ${POLICY_FILE}`,
+  'invalid-package-manager': 'Write packageManager in package.json as name@version, with a package manager depcurfew knows',
+  'package-manager-assumed': 'Commit the lockfile, or name the package manager and its version in packageManager in package.json',
+  'yarn-classic-unsupported': 'Move to Yarn 2 or later, or to another package manager depcurfew configures',
+  'renovate-config-in-package-json': 'Move the renovate key of package.json to renovate.json',
+  'multiple-lockfiles': 'Remove the lockfiles of the package managers the project does not use',
+  'package-manager-mismatch': 'Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager',
+  'python-tool-unknown': `Commit the lockfile of the tool that installs the project, or name the tool in targets in ${POLICY_FILE}`,
+};
+
+function explainedWarning(warning: DetectionWarning): ExplainWarning {
+  const file = warning.files[0];
+  return {
+    code: warning.code,
+    level: 'warning',
+    ...(file === undefined ? {} : { location: { file } }),
+    message: warning.message,
+    files: warning.files,
+    fix: WARNING_FIXES[warning.code] ?? 'Run depcurfew doctor, which says what to do about it',
+  };
+}
+
+/**
+ * The detection with its warnings as explain reports them. A root that holds nothing but the directories listed in
+ * projects has no nothing-detected warning: the projects are what it holds.
+ */
+function explained(detection: Detection, withProjects = false): ExplainDetection {
+  const warnings = detection.warnings.filter((warning) => !(withProjects && warning.code === 'nothing-detected'));
+  return { ...detection, warnings: warnings.map(explainedWarning) };
 }
 
 function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[]): { minimum: string; tools: CooldownEntry[] } | null {
@@ -65,16 +113,16 @@ function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[]): { min
  * error. With projects, the targets are the ones apply configures in each directory, and the cooldown is converted for
  * every tool of the root and of the projects.
  */
-function policyReport(directory: string, detection: Detection): { policy: PolicyReport | null; projects: ProjectReport[]; errors: InputError[] } {
+function policyReport(directory: string, detection: Detection): { policy: PolicyReport | null; projects: ProjectReport[]; errors: InputError[]; withProjects: boolean } {
   let policy: ResolvedPolicy | undefined;
   try {
     policy = loadPolicyIfPresent(directory);
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     const issues = error.issues.length > 0 ? error.issues : [error.message];
-    return { policy: { file: POLICY_FILE, valid: false, issues }, projects: [], errors: [policyInputError(error, POLICY_FILE)] };
+    return { policy: { file: POLICY_FILE, valid: false, issues }, projects: [], errors: [policyInputError(error, POLICY_FILE)], withProjects: false };
   }
-  if (policy === undefined) return { policy: null, projects: [], errors: [] };
+  if (policy === undefined) return { policy: null, projects: [], errors: [], withProjects: false };
   const mode = policy.targets === 'auto' ? ('auto' as const) : ('listed' as const);
   const withProjects = policy.projects.length > 0;
   const problems = projectProblems(directory, policy.projects, detection);
@@ -84,17 +132,20 @@ function policyReport(directory: string, detection: Detection): { policy: Policy
     const root = join(directory, entry);
     const found = detectProject(root);
     const { targets } = directoryTargets(root, policy, found, knowledgeBase, { project: entry, withProjects });
-    return { directory: entry, project: relocateDetection(entry, found), targets: { mode, tools: [...targets] } };
+    return { directory: entry, project: explained(relocateDetection(entry, found)), targets: { mode, tools: [...targets] } };
   });
   const tools = withProjects ? [...directoryTargets(directory, policy, detection, knowledgeBase, { withProjects }).targets] : policy.targets === 'auto' ? autoTargets(directory, detection).targets : [...policy.targets];
   const every = [...new Set([...tools, ...projects.flatMap((entry) => ('targets' in entry ? entry.targets.tools : []))])];
   const ordered = knowledgeBase.map((tool) => tool.id).filter((id) => every.includes(id));
-  return { policy: { file: POLICY_FILE, valid: true, targets: { mode, tools }, cooldown: cooldownReport(policy, withProjects ? ordered : tools) }, projects, errors: [] };
+  // A directory that cannot be used is an error, as in apply, with the line of its entry in depcurfew.json.
+  const errors = problems.map((problem): InputError => ({ code: problem.code, level: 'error', location: problem.location, message: problem.message, fix: problem.fix }));
+  return { policy: { file: POLICY_FILE, valid: true, targets: { mode, tools }, cooldown: cooldownReport(policy, withProjects ? ordered : tools) }, projects, errors, withProjects };
 }
 
 export function buildReport(directory: string): ExplainReport {
-  const project = detectProject(directory);
-  return { schemaVersion: 1, project, ...policyReport(directory, project) };
+  const detection = detectProject(directory);
+  const { withProjects, ...rest } = policyReport(directory, detection);
+  return { schemaVersion: 1, project: explained(detection, withProjects), ...rest };
 }
 
 // Readable output
@@ -133,7 +184,7 @@ function amount(value: number | string, unit: string): string {
   return `${value} ${value === 1 ? unit.replace(/s$/u, '') : unit}`;
 }
 
-function projectLines(project: Detection): string[] {
+function projectLines(project: ExplainDetection): string[] {
   const lines = [project.packageManagers.length === 0 ? 'Package managers: none' : 'Package managers:'];
   for (const manager of project.packageManagers) {
     lines.push(`  ${managerName(manager)}`);
@@ -159,7 +210,7 @@ function projectLines(project: Detection): string[] {
   if (project.dockerfiles.length === 0) lines.push('Dockerfiles: none');
   else lines.push('Dockerfiles:', ...project.dockerfiles.flatMap((file) => [`  ${file.file}`, ...file.stages.map((stage, index) => `    ${stageText(stage, index, file.stages)}`)]));
   if (project.warnings.length === 0) lines.push('Warnings: none');
-  else lines.push('Warnings:', ...project.warnings.map((warning) => `  ${warning.code}: ${warning.message}`));
+  else lines.push('Warnings:', ...project.warnings.flatMap((warning) => [`  ${warning.code}: ${warning.message}`, `    fix: ${warning.fix}`]));
   return lines;
 }
 
@@ -226,5 +277,5 @@ export function explain(directory: string | undefined, json: boolean, io: CliIo)
     for (const notice of notices) io.stderr(`note: ${notice.message}\n`);
     io.stdout(renderReport(report, paint(io.colors?.stdout)));
   }
-  return report.policy !== null && !report.policy.valid ? EXIT_FAILURE : EXIT_OK;
+  return report.errors.length > 0 ? EXIT_FAILURE : EXIT_OK;
 }

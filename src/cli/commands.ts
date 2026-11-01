@@ -151,7 +151,7 @@ export const COMMANDS: readonly CommandInfo[] = [
     examples: ['depcurfew explain', 'depcurfew explain --json'],
     exitCodes: [
       [0, 'the repository was described'],
-      [1, 'depcurfew.json is invalid or unreadable'],
+      [1, 'depcurfew.json is invalid or unreadable, or a directory listed in its projects cannot be used'],
       [2, 'a usage error, such as an unknown option or a missing directory'],
     ],
   },

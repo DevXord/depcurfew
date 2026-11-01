@@ -1,16 +1,17 @@
 // The "depcurfew doctor" check run (D-095, D-104): created with the workflow token over the API the runner names, on the
 // head commit of a pull request, updated instead of added again on the same commit, with the findings as annotations,
 // and never a reason for the step to fail. The API is a fake here; nothing goes on the network.
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { checkRunName, checkRunSha, createCheckRun, fitSummary, type CheckRunAnnotation, type CheckRunContent, type CheckRunFetch } from '../../src/action-check-run.ts';
+import { checkRunExternalId, checkRunName, checkRunSha, createCheckRun, fitSummary, type CheckRunAnnotation, type CheckRunContent, type CheckRunFetch } from '../../src/action-check-run.ts';
 import { runAction } from '../../src/action.ts';
 import { RULES } from '../../src/doctor/index.ts';
 import { checkRunAnnotationNote, checkRunAnnotations } from '../../src/doctor/github.ts';
 import { values } from '../../src/apply/facts.ts';
 import { environment } from '../../src/knowledge/environment.ts';
+import { windows } from '../support/platform.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -99,9 +100,10 @@ describe('createCheckRun', () => {
       head_sha: HEAD,
       status: 'completed',
       conclusion: 'success',
-      external_id: 'depcurfew',
+      external_id: checkRunExternalId([]),
       output: { title: CONTENT.title, summary: CONTENT.summary },
     });
+    expect(checkRunExternalId([])).toMatch(/^depcurfew:[0-9a-f]{64}$/u);
     expect(JSON.stringify(fake.calls.map((call) => [call.url, call.body]))).not.toContain('secret-token');
   });
 
@@ -119,17 +121,53 @@ describe('createCheckRun', () => {
     expect(patches(fake.calls)[0]?.body).toEqual({
       status: 'completed',
       conclusion: 'success',
-      external_id: 'depcurfew',
+      external_id: checkRunExternalId(annotations(2)),
       output: { title: CONTENT.title, summary: CONTENT.summary, annotations: annotations(2) },
     });
   });
 
-  it('keeps the annotations of an entry that has some, since updates only append', async () => {
-    const fake = api({ runs: [{ id: 5, name: 'depcurfew doctor', external_id: 'depcurfew', output: { annotations_count: 2 } }] });
+  it('keeps the annotations of an entry that has exactly those of this run, since updates only append', async () => {
+    const fake = api({ runs: [{ id: 5, name: 'depcurfew doctor', external_id: checkRunExternalId(annotations(2)), output: { annotations_count: 2 } }] });
     const line = await createCheckRun(runner(), 't', { ...CONTENT, annotations: annotations(2) }, fake.fetch);
     expect(line).toContain('with the result of this run, instead of adding a second one; it keeps the annotations it has\n');
+    expect(posts(fake.calls)).toEqual([]);
     expect(patches(fake.calls)).toHaveLength(1);
     expect((patches(fake.calls)[0]?.body?.['output'] as Record<string, unknown>)['annotations']).toBeUndefined();
+  });
+
+  it('adds a new entry instead of leaving other annotations under this result, and marks the earlier one as replaced', async () => {
+    // An earlier run on the commit had errors (push), this one is clean (pull_request); or an earlier version of the
+    // action, without the fingerprint; or the same findings, of which only some were added.
+    for (const run of [
+      { external_id: checkRunExternalId(annotations(2)), annotations_count: 2, now: [] as CheckRunAnnotation[] },
+      { external_id: 'depcurfew', annotations_count: 2, now: annotations(2) },
+      { external_id: checkRunExternalId(annotations(60)), annotations_count: 50, now: annotations(60) },
+    ]) {
+      const fake = api({ runs: [{ id: 5, name: 'depcurfew doctor', external_id: run.external_id, output: { annotations_count: run.annotations_count } }] });
+      const line = await createCheckRun(runner(), 't', { ...CONTENT, annotations: run.now }, fake.fetch);
+      expect(posts(fake.calls)).toHaveLength(1);
+      expect(posts(fake.calls)[0]?.body).toMatchObject({ external_id: checkRunExternalId(run.now), conclusion: 'success' });
+      const replaced = patches(fake.calls).filter((call) => call.url.endsWith('/check-runs/5'));
+      expect(replaced).toHaveLength(1);
+      expect(replaced[0]?.body).toEqual({
+        conclusion: 'neutral',
+        external_id: 'depcurfew:replaced',
+        output: {
+          title: 'Replaced by a later run of depcurfew doctor on this commit',
+          summary:
+            'A later run of depcurfew doctor on this commit found other problems, and annotations cannot be removed from a check, so its result is in a new "depcurfew doctor" entry. The annotations of this entry are from the earlier run.\n',
+        },
+      });
+      expect(line).toMatch(/to the commit [0-9a-f]{12}, next to an earlier one with other annotations(?:; .+)?; the earlier one, whose annotations are out of date, now says it is replaced\n$/u);
+    }
+  });
+
+  it('says so on the same line when the earlier entry cannot be marked as replaced', async () => {
+    const fake = api({ runs: [{ id: 5, name: 'depcurfew doctor', external_id: 'depcurfew', output: { annotations_count: 1 } }], update: [403] });
+    const line = await createCheckRun(runner(), 't', CONTENT, fake.fetch);
+    expect(line).toBe(
+      `depcurfew: added the check "depcurfew doctor" with the result to the commit ${MERGE.slice(0, 12)}, next to an earlier one with other annotations; the earlier one, whose annotations are out of date, could not be marked as replaced: the GitHub API answered HTTP 403\n`,
+    );
   });
 
   it('adds a new entry when there is no earlier one of its own, or the lookup or the update fails', async () => {
@@ -137,7 +175,7 @@ describe('createCheckRun', () => {
       { runs: [{ id: 3, name: 'depcurfew doctor (other)', external_id: 'depcurfew' }, { id: 4, name: 'depcurfew doctor', external_id: null }] },
       { list: 403 },
       { list: new Error('timed out') },
-      { runs: [{ id: 5, name: 'depcurfew doctor', external_id: 'depcurfew', output: { annotations_count: 3 } }], update: [404] },
+      { runs: [{ id: 5, name: 'depcurfew doctor', external_id: 'depcurfew', output: { annotations_count: 0 } }], update: [404] },
     ]) {
       const fake = api(options);
       const line = await createCheckRun(runner(), 't', { ...CONTENT, annotations: annotations(1) }, fake.fetch);

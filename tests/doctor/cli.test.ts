@@ -101,7 +101,9 @@ describe('depcurfew doctor', () => {
   it('rejects --json together with --sarif', async () => {
     const result = await exec('doctor', '--json', '--sarif', CLEAN);
     expect(result.code).toBe(EXIT_USAGE);
-    expect(result.stderr).toContain("'--json' and '--sarif' cannot be used together");
+    // With --json the error is a JSON document on stdout (D-107).
+    expect(result.stderr).toBe('');
+    expect(JSON.parse(result.stdout)).toMatchObject({ errors: [{ code: 'usage', message: "'--json' and '--sarif' cannot be used together; pick one" }] });
   });
 
   describe('with an invalid policy file', () => {
