@@ -7,12 +7,14 @@
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { UserEnvironment } from '../user/locate.ts';
+import type { McpProcess } from './mcp.ts';
 import { join, relative, resolve, sep } from 'node:path';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type PackageReport } from '../check/index.ts';
 import { isPythonSpec } from '../check/python.ts';
 import { blockingExitCode, decide, formatDecision, readHookEvent, reasonText, requestedSpecs } from '../check/hook.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal } from '../check/registry.ts';
+import { defaultIndex } from '../check/pypi.ts';
 import { PopularNames } from '../check/similar.ts';
 import { Repository } from '../detect/repository.ts';
 import { iniEntries } from '../doctor/settings.ts';
@@ -43,6 +45,8 @@ export interface CheckDependencies {
   home?: () => string;
   /** --user: platform, home directory and environment variables (tests replace them). */
   userEnvironment?: () => UserEnvironment;
+  /** depcurfew mcp: the streams the server talks over, its environment and signals (tests replace them). */
+  mcpProcess?: () => McpProcess;
 }
 
 export interface CheckFlags {
@@ -110,11 +114,11 @@ function npmrcRegistries(directory: string, home: string): Registries {
 }
 
 /** The npm registry to ask and where it comes from; `where` is undefined for the public registry. */
-function registryOf(flags: CheckFlags, registries: Registries): { url: string; where: string | undefined } {
-  const url = flags.registry === undefined ? (registries.registry?.value ?? defaultRegistry()) : withoutCredentials(flags.registry);
+function registryOf(given: string | undefined, registries: Registries): { url: string; where: string | undefined } {
+  const url = given === undefined ? (registries.registry?.value ?? defaultRegistry()) : withoutCredentials(given);
   const normalized = (text: string) => text.replace(/\/+$/u, '').toLowerCase();
   if (normalized(url) === normalized(defaultRegistry())) return { url, where: undefined };
-  return { url, where: flags.registry === undefined ? (registries.registry?.where ?? 'the configuration') : '--registry' };
+  return { url, where: given === undefined ? (registries.registry?.where ?? 'the configuration') : '--registry' };
 }
 
 /** What to say about a registry other than the public one: a malicious .npmrc could name any. */
@@ -193,7 +197,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     const { specs, unreadable } = requestedSpecs(event.command, event.shell);
     if (specs.length === 0 && unreadable === undefined) return EXIT_OK;
     const loaded = load(flags.dir ?? event.cwd ?? process.cwd(), dependencies.home?.() ?? homedir());
-    const registry = registryOf(flags, loaded.registries);
+    const registry = registryOf(flags.registry, loaded.registries);
     const reports = await checkSpecs(specs, {
       policy: loaded.policy,
       fetch: dependencies.fetch,
@@ -233,45 +237,153 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     io.stderr("depcurfew: 'check' needs at least one package, e.g. depcurfew check lodash@4\nRun 'depcurfew check --help' for usage.\n");
     return EXIT_USAGE;
   }
-  // The same error shape as apply --json; nothing is checked without a directory or with a policy that cannot be used.
-  const failed = (policy: string | null, error: InputError, code: number): number => {
-    if (flags.json) io.stdout(`${safeJson({ schemaVersion: 1, policy, packages: [], notices: [], errors: [error] }, 2)}\n`);
-    else reportInputError(error, io);
+  const outcome = await checkDocument(specs, {
+    dir: flags.dir,
+    registry: flags.registry,
+    index: flags.index,
+    home: dependencies.home?.() ?? homedir(),
+    fetch: dependencies.fetch,
+    now: dependencies.now(),
+  });
+  const { document } = outcome;
+  const code = outcome.status === 'directory-error' ? EXIT_USAGE : outcome.status === 'policy-error' || failedCheck(document) ? EXIT_FAILURE : EXIT_OK;
+  if (flags.json) {
+    io.stdout(`${safeJson(document, 2)}\n`);
     return code;
-  };
-  const target = checkDirectory(flags.dir);
-  if (!target.ok) return failed(null, target.error, EXIT_USAGE);
-  const start = target.directory;
+  }
+  // Nothing is checked without a directory or with a policy that cannot be used.
+  for (const error of document.errors) reportInputError(error, io);
+  if (outcome.status !== 'checked') return code;
+  for (const notice of document.notices) io.stderr(`note: ${printable(notice.message)}\n`);
+  io.stdout(render(document.packages, paint(io.colors?.stdout)));
+  return code;
+}
+
+/** The document of check --json (and of the check_packages tool of depcurfew mcp). */
+export interface CheckDocument {
+  schemaVersion: 1;
+  /** The depcurfew.json used, relative to the directory checked; null for the default policy. */
+  policy: string | null;
+  packages: PackageReport[];
+  notices: { message: string }[];
+  /** Why nothing was checked, in the shape of the errors of apply --json. */
+  errors: InputError[];
+}
+
+export interface CheckSettings {
+  /** The directory as given (--dir); undefined for `cwd`. */
+  dir: string | undefined;
+  /** What a relative `dir` resolves against; the current directory when left out. */
+  cwd?: string;
+  /** The npm registry given on the command line (--registry); else .npmrc, else the public registry. */
+  registry: string | undefined;
+  /** The Python package index (--index); else PyPI. */
+  index?: string | undefined;
+  /** The user's home directory, with the user's .npmrc. */
+  home: string;
+  fetch: FetchLike;
+  now: Date;
+  /** Stops the lookups (a cancelled call of depcurfew mcp); the promise then rejects. */
+  signal?: AbortSignal;
+  /** Whether findings quote install scripts (check) or only name them (agents, as in the hook). */
+  scriptBodies?: boolean;
+}
+
+/**
+ * `checked`, or why nothing was checked: the directory does not exist (a usage error on the command line) or its
+ * depcurfew.json cannot be used. The document is the same in each case.
+ */
+export interface CheckOutcome {
+  status: 'checked' | 'directory-error' | 'policy-error';
+  document: CheckDocument;
+}
+
+/** Whether a package of the document breaks the policy or could not be checked. */
+export function failedCheck(document: CheckDocument): boolean {
+  return document.packages.some((report) => report.findings.some((finding) => finding.level === 'error'));
+}
+
+/** The policy that applies to a directory: its depcurfew.json (null when there is none, which means the default policy). */
+export interface AppliedPolicy {
+  policy: ResolvedPolicy;
+  /** The depcurfew.json used, relative to `start`; null for the default policy of depcurfew init. */
+  file: string | null;
+  /** The npm registry packages are looked up in, and where it comes from (undefined for the public registry). */
+  registry: { url: string; where: string | undefined };
+  /** The Python package index pypi: packages are looked up in. */
+  index: string;
+  /** Registries .npmrc assigns to scopes, whose packages are not looked up. */
+  scopes: ReadonlyMap<string, string>;
+  /** The dist-tag .npmrc makes npm prefer. */
+  tag: { value: string; where: string } | undefined;
+}
+
+export type AppliedPolicyResult = { ok: true; applied: AppliedPolicy } | { ok: false; file: string; error: InputError };
+
+/** The policy, registry and index check uses for packages installed in `start`, an existing directory. */
+export function appliedPolicy(start: string, settings: Pick<CheckSettings, 'registry' | 'index' | 'home'>): AppliedPolicyResult {
   let loaded: ReturnType<typeof load>;
   try {
-    loaded = load(start, dependencies.home?.() ?? homedir());
+    loaded = load(start, settings.home);
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     const directory = findPolicyDirectory(start);
     const file = directory === undefined ? POLICY_FILE : shownPath(start, join(directory, POLICY_FILE));
-    return failed(file, policyInputError(error, file), EXIT_FAILURE);
+    return { ok: false, file, error: policyInputError(error, file) };
   }
-  const registry = registryOf(flags, loaded.registries);
-  const tag = loaded.registries.tag;
-  const notices = [
-    ...(loaded.file === undefined ? [{ message: `no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)` }] : []),
-    ...(specs.some((spec) => !isPythonSpec(spec)) && registryNote(registry) !== undefined ? [{ message: registryNote(registry) as string }] : []),
-    ...(tag === undefined || !specs.some((spec) => !isPythonSpec(spec)) ? [] : [{ message: `npm prefers the dist-tag "${tag.value}" (${tag.where}) for packages named without a version or with a range` }]),
+  return {
+    ok: true,
+    applied: {
+      policy: loaded.policy,
+      file: loaded.file === undefined ? null : shownPath(start, loaded.file),
+      registry: registryOf(settings.registry, loaded.registries),
+      index: settings.index === undefined ? defaultIndex() : withoutCredentials(settings.index),
+      scopes: loaded.registries.scopes,
+      tag: loaded.registries.tag,
+    },
+  };
+}
+
+/**
+ * What to say about the policy and the registry: the default policy is used, npm packages are looked up in a registry
+ * other than the public one, npm prefers another dist-tag. The last two only when `npm` packages are checked.
+ */
+export function policyNotices(applied: AppliedPolicy, npm: boolean): { message: string }[] {
+  const note = registryNote(applied.registry);
+  const tag = applied.tag;
+  return [
+    ...(applied.file === null ? [{ message: `no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)` }] : []),
+    ...(npm && note !== undefined ? [{ message: note }] : []),
+    ...(tag === undefined || !npm ? [] : [{ message: `npm prefers the dist-tag "${tag.value}" (${tag.where}) for packages named without a version or with a range` }]),
   ];
-  // With --json the notes go into the document, so that stderr stays empty for programs.
-  if (!flags.json) for (const notice of notices) io.stderr(`note: ${printable(notice.message)}\n`);
+}
+
+/** Checks the packages as depcurfew check does and returns the document of check --json. */
+export async function checkDocument(specs: readonly string[], settings: CheckSettings): Promise<CheckOutcome> {
+  // The same error shape as apply --json; nothing is checked without a directory or with a policy that cannot be used.
+  const failed = (status: 'directory-error' | 'policy-error', policy: string | null, error: InputError): CheckOutcome => ({
+    status,
+    document: { schemaVersion: 1, policy, packages: [], notices: [], errors: [error] },
+  });
+  const target = checkDirectory(settings.dir, settings.cwd);
+  if (!target.ok) return failed('directory-error', null, target.error);
+  const result = appliedPolicy(target.directory, settings);
+  if (!result.ok) return failed('policy-error', result.file, result.error);
+  const { applied } = result;
+  const { registry, tag } = applied;
+  const notices = policyNotices(applied, specs.some((spec) => !isPythonSpec(spec)));
   const reports = await checkSpecs(specs, {
-    policy: loaded.policy,
-    fetch: dependencies.fetch,
-    now: dependencies.now(),
+    policy: applied.policy,
+    fetch: settings.fetch,
+    now: settings.now,
     registry: registry.url,
     popular: new PopularNames(values(popularPackages)[0] ?? []),
     popularPython: popularPython(),
-    scopeRegistries: loaded.registries.scopes,
-    ...(flags.index === undefined ? {} : { index: withoutCredentials(flags.index) }),
+    scopeRegistries: applied.scopes,
+    ...(settings.index === undefined ? {} : { index: applied.index }),
     ...(tag === undefined ? {} : { defaultTag: tag.value }),
+    ...(settings.scriptBodies === undefined ? {} : { scriptBodies: settings.scriptBodies }),
+    ...(settings.signal === undefined ? {} : { signal: settings.signal }),
   });
-  const policy = loaded.file === undefined ? null : shownPath(start, loaded.file);
-  io.stdout(flags.json ? `${safeJson({ schemaVersion: 1, policy, packages: reports, notices, errors: [] }, 2)}\n` : render(reports, paint(io.colors?.stdout)));
-  return reports.some((report) => report.findings.some((finding) => finding.level === 'error')) ? EXIT_FAILURE : EXIT_OK;
+  return { status: 'checked', document: { schemaVersion: 1, policy: applied.file, packages: reports, notices, errors: [] } };
 }

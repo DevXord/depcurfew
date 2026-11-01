@@ -8,6 +8,7 @@ import { doctor } from './doctor.ts';
 import { commandHelpText, helpText } from './help.ts';
 import { explain } from './explain.ts';
 import { init, initUser } from './init.ts';
+import { mcp } from './mcp.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 import { readStdin } from './stdin.ts';
 import { parseVersion, type Version } from '../apply/version.ts';
@@ -156,6 +157,18 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
   }
   if (command.name === 'check') {
     return check(rest, { json: values['json'] === true, dir: text('dir'), registry: text('registry'), index: text('index'), hook: text('hook') }, io, dependencies);
+  }
+  if (command.name === 'mcp') {
+    if (rest.length > 0) {
+      io.stderr("depcurfew: 'mcp' takes no arguments; pass the project directory with --dir\nRun 'depcurfew mcp --help' for usage.\n");
+      return EXIT_USAGE;
+    }
+    return mcp({ dir: text('dir'), registry: text('registry'), index: text('index') }, io, {
+      fetch: dependencies.fetch,
+      now: dependencies.now,
+      ...(dependencies.home === undefined ? {} : { home: dependencies.home }),
+      ...(dependencies.mcpProcess === undefined ? {} : { process: dependencies.mcpProcess }),
+    });
   }
 
   io.stderr(`depcurfew: '${command.name}' is not implemented yet.\n`);

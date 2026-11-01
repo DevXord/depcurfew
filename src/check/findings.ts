@@ -79,6 +79,8 @@ export interface CheckOptions {
    * written by the package's publisher and should not reach the model as part of depcurfew's reason.
    */
   scriptBodies?: boolean;
+  /** Stops the lookups: checkSpecs then rejects with the signal's reason (a cancelled call of depcurfew mcp). */
+  signal?: AbortSignal;
 }
 
 /** This machine (a local registry such as Verdaccio): plain HTTP to it does not leave the machine. */

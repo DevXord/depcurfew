@@ -91,12 +91,24 @@ function label(report: PackageReport): string {
   return notes.length === 0 ? report.spec : `${report.spec} (${notes.join(', ')})`;
 }
 
+/** What an agent is told instead of a fix that changes depcurfew.json (the hook's reason and depcurfew mcp). */
+export const POLICY_IS_THE_USERS = 'Choose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.';
+
+/**
+ * A fix as an agent may get it: undefined for a fix that changes depcurfew.json, because the policy is the user's to
+ * change and an agent should not get around the guard by editing it.
+ */
+export function agentFix(fix: string): string | undefined {
+  return fix.includes('depcurfew.json') ? undefined : fix;
+}
+
 /**
  * One finding for the agent. Fixes that change depcurfew.json are left out: the policy is the user's to change, and the
  * reason says to ask them.
  */
 function line(report: PackageReport, finding: CheckFinding): string {
-  return `- ${reasonText(label(report))}: ${reasonText(finding.message)}${finding.fix.includes('depcurfew.json') ? '' : `. Fix: ${reasonText(finding.fix)}`}`;
+  const fix = agentFix(finding.fix);
+  return `- ${reasonText(label(report))}: ${reasonText(finding.message)}${fix === undefined ? '' : `. Fix: ${reasonText(fix)}`}`;
 }
 
 /** The decision for the checked packages of one command; `notes` (such as the registry that was asked) end the reason. */
@@ -105,7 +117,7 @@ export function decide(reports: readonly PackageReport[], unreadable: string | u
   const denied = errors.filter(({ finding }) => DENY.has(finding.code));
   const shownNotes = notes.map(reasonText);
   if (denied.length > 0) {
-    const advice = '\nChoose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.';
+    const advice = `\n${POLICY_IS_THE_USERS}`;
     return {
       decision: 'deny',
       reason: limited(

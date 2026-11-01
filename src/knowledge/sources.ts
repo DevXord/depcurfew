@@ -34,7 +34,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
 };
 
-/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git and the Windows shells. */
+/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git, the Windows shells, the Model Context Protocol and VS Code. */
 export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'nodejs.org' },
   { host: 'github.com', pathPrefix: '/nodejs/' },
@@ -64,6 +64,13 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   // PowerShell and cmd.exe: learn.microsoft.com is built from MicrosoftDocs repositories such as PowerShell-Docs.
   { host: 'learn.microsoft.com' },
   { host: 'github.com', pathPrefix: '/microsoftdocs/' },
+  // Model Context Protocol (depcurfew mcp): modelcontextprotocol.io is built from docs/ in
+  // modelcontextprotocol/modelcontextprotocol, which also holds the schema of every revision.
+  { host: 'modelcontextprotocol.io' },
+  { host: 'github.com', pathPrefix: '/modelcontextprotocol/' },
+  // VS Code as an MCP client: code.visualstudio.com/docs is built from microsoft/vscode-docs.
+  { host: 'code.visualstudio.com' },
+  { host: 'github.com', pathPrefix: '/microsoft/vscode-docs/' },
 ];
 
 export function isOfficialSource(url: URL, rules: readonly SourceRule[]): boolean {

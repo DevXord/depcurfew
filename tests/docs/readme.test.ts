@@ -74,7 +74,7 @@ describe('README.md', () => {
   });
 
   it('keeps the generated sections between markers', () => {
-    for (const name of ['default-policy', 'policy-fields', 'tools', 'rules', 'action-workflow', 'action-reference', 'claude-code-hook', 'user-config', 'user-rules']) {
+    for (const name of ['default-policy', 'policy-fields', 'tools', 'rules', 'action-workflow', 'action-reference', 'claude-code-hook', 'mcp-clients', 'user-config', 'user-rules']) {
       expect(readme).toContain(`<!-- BEGIN GENERATED: ${name} -->`);
       expect(readme).toContain(`<!-- END GENERATED: ${name} -->`);
     }

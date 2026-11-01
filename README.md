@@ -112,6 +112,7 @@ The package installs two names for the same command: `depcurfew` and the short `
 | `depcurfew doctor [directory] [--json \| --sarif] [--strict]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning, and `--strict` makes warnings fail too. |
 | `depcurfew check <package...> [--json] [--dir <directory>] [--registry <url>] [--index <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
 | `depcurfew check --hook claude-code` | The same check as a Claude Code hook that blocks install commands breaking the policy. |
+| `depcurfew mcp [--dir <directory>] [--registry <url>] [--index <url>]` | The same check as tools of a Model Context Protocol server, for AI agents in Claude Desktop, VS Code and other clients: see [MCP server](#mcp-server). |
 | `depcurfew init --user [--force]` | Writes the user policy, which `--user` uses: see [Protecting the whole machine](#protecting-the-whole-machine). |
 | `depcurfew apply --user [--dry-run] [--json] [--for <tool@version>]` | Writes the user policy into the user-level configuration of the installed package managers. |
 | `depcurfew doctor --user [--json \| --sarif] [--strict] [--for <tool@version>]` | Checks that configuration against the user policy, and the environment variables that override it. |
@@ -617,9 +618,90 @@ Commands the guard reads (an add subcommand of any npm package manager, such as 
 
 The hook reads commands the way a shell splits them, but it is a safety net, not a sandbox: a command can install packages in ways it does not recognize (a script, another tool). Keep the package manager configuration from `depcurfew apply` in place; it is what enforces the policy for every install.
 
+### MCP server
+
+`depcurfew mcp` runs the same check as a [Model Context Protocol](https://modelcontextprotocol.io) server over stdio, so that an AI agent in Claude Desktop, VS Code or any other client that starts a local stdio server can ask before it installs a package. It offers two read-only tools:
+
+- `check_packages` takes `packages`, a list of 1 to 50 specs as `depcurfew check` takes them (`zod@4`, `pypi:requests`), and an optional `directory`. It returns the document of `check --json` (`schemaVersion`, `policy`, `packages` with their findings, `notices`, `errors`) as structured content and as JSON text. A package that breaks the policy is a successful check with error findings; the call itself is an error (`isError`) only when nothing could be checked, such as a `depcurfew.json` that cannot be used, a directory that does not exist or a wrong argument, with a message that says what to do.
+- `explain_policy` takes an optional `directory` and returns which `depcurfew.json` applies (`null` and the default policy of `depcurfew init` when there is none), the release-age delay and its exceptions, the install-script lists, the allowed sources, and the registry and index `check_packages` asks. It reads local files only.
+
+What the agent gets is the same as in the hook: install scripts are named without their content, text from a registry or the repository is shown as visible text and cut to 400 characters, and a fix that would change `depcurfew.json` says to ask the user instead, because only the user changes the policy. The registry and the index are options of the server (`--registry`, `--index`, and `.npmrc` as for `check`), never arguments of a call, so an agent cannot point the check at a registry that vouches for anything; a `directory` must be inside the project directory. The project directory is `--dir`, else `CLAUDE_PROJECT_DIR`, else the directory the client starts the server in. The server ends when the client closes its stdin or sends SIGINT or SIGTERM, and writes nothing but protocol messages to stdout.
+
+Install depcurfew as a development dependency of the project, then add the server. Each configuration starts `node` itself with the path of the installed script, which works without a shell on Windows too:
+
+<!-- BEGIN GENERATED: mcp-clients -->
+The server speaks the `initialize` handshake of the protocol revisions 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05 and the stateless revision 2026-07-28, without the handshake, for clients that use it.
+
+**Claude Code.** Add the server to `.mcp.json` of the project, which everyone working on it shares (Claude Code asks before it starts a server from that file):
+
+```bash
+claude mcp add --scope project --transport stdio depcurfew -- node '${CLAUDE_PROJECT_DIR:-.}/node_modules/depcurfew/dist/cli.js' mcp
+```
+
+or write `.mcp.json` yourself:
+
+```json
+{
+  "mcpServers": {
+    "depcurfew": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PROJECT_DIR:-.}/node_modules/depcurfew/dist/cli.js",
+        "mcp"
+      ]
+    }
+  }
+}
+```
+
+Claude Code sets `CLAUDE_PROJECT_DIR` to the project root for the server, and `depcurfew mcp` takes it as the project directory. Claude Code itself does not have the variable, so in `args` it needs the default `${CLAUDE_PROJECT_DIR:-.}` (in cmd.exe, leave out the single quotes).
+
+**Claude Desktop.** In `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`, Windows: `%APPDATA%\Claude\claude_desktop_config.json`, Linux: `~/.config/Claude/claude_desktop_config.json`), with absolute paths and `--dir`, because Claude Desktop starts servers in no particular directory:
+
+```json
+{
+  "mcpServers": {
+    "depcurfew": {
+      "command": "node",
+      "args": [
+        "/path/to/project/node_modules/depcurfew/dist/cli.js",
+        "mcp",
+        "--dir",
+        "/path/to/project"
+      ]
+    }
+  }
+}
+```
+
+**VS Code.** In `.vscode/mcp.json` of the workspace:
+
+```json
+{
+  "servers": {
+    "depcurfew": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${workspaceFolder}/node_modules/depcurfew/dist/cli.js",
+        "mcp"
+      ],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}
+```
+
+`code --add-mcp '{"name":"depcurfew","type":"stdio","command":"node","args":["/path/to/project/node_modules/depcurfew/dist/cli.js","mcp","--dir","/path/to/project"]}'` adds the server for one project to your user profile instead.
+<!-- END GENERATED: mcp-clients -->
+
+Other clients that start a stdio server take the same command and arguments; give them absolute paths and `--dir` when they do not start the server in the project directory.
+
+The server is advice to an agent that asks, not a guard: an agent can install packages without calling it. The package manager configuration from `depcurfew apply` is what enforces the policy; in Claude Code the hook above also checks every install command.
+
 ## Network and privacy
 
-Only `check` and the Claude Code hook use the network. For each package they request one URL with the package name in it: from the public npm registry (`registry.npmjs.org`) or PyPI (`pypi.org`), or from the registry that the project's or your `.npmrc` sets, `--registry` or `--index`. They send no credentials (tokens in `.npmrc` are not read, and a user name and password written into a registry URL are removed before the request and in every message) and nothing else about the project, and depcurfew has no telemetry. A private package whose scope has no registry in `.npmrc` is looked up in the public registry, so its name reaches that registry; set `@scope:registry` in `.npmrc` or pass `--registry` first. `init`, `explain`, `apply` and `doctor` work without network access. The GitHub Action checks the repository without it too; afterwards it sends the result (the counts, the table of checks and findings, the files read) to the GitHub API of the run (`GITHUB_API_URL`) with the workflow token to create the depcurfew doctor check (input `check-run`), and the SARIF upload to code scanning is a separate step that runs GitHub's own action. An editor that reads the `$schema` of `depcurfew.json` may download the schema from unpkg.com.
+Only `check`, the Claude Code hook and the `check_packages` tool of `depcurfew mcp` use the network. For each package they request one URL with the package name in it: from the public npm registry (`registry.npmjs.org`) or PyPI (`pypi.org`), or from the registry that the project's or your `.npmrc` sets, `--registry` or `--index`. They send no credentials (tokens in `.npmrc` are not read, and a user name and password written into a registry URL are removed before the request and in every message) and nothing else about the project, and depcurfew has no telemetry. A private package whose scope has no registry in `.npmrc` is looked up in the public registry, so its name reaches that registry; set `@scope:registry` in `.npmrc` or pass `--registry` first. `init`, `explain`, `apply` and `doctor` work without network access. The GitHub Action checks the repository without it too; afterwards it sends the result (the counts, the table of checks and findings, the files read) to the GitHub API of the run (`GITHUB_API_URL`) with the workflow token to create the depcurfew doctor check (input `check-run`), and the SARIF upload to code scanning is a separate step that runs GitHub's own action. An editor that reads the `$schema` of `depcurfew.json` may download the schema from unpkg.com.
 
 ## Library
 

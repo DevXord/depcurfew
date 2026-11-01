@@ -9,6 +9,7 @@ const python = verifiedOn('2026-10-30');
 const gitFacts = verifiedOn('2026-10-30');
 const audited = verifiedOn('2026-10-31');
 const release13 = verifiedOn('2026-11-01');
+const mcpFacts = verifiedOn('2026-11-01');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -16,6 +17,11 @@ const NPM_PACKAGE_JSON = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/conte
 // docs.pypi.org is built from docs/user in the warehouse repository; the specifications from pypa/packaging.python.org.
 const PYPI_INDEX_API = 'https://github.com/pypi/warehouse/blob/c137701f3afcd80c346c574c31c9b46eeb738664/docs/user/api/index-api.md';
 const SPECIFICATIONS = 'https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications';
+// modelcontextprotocol.io is built from docs/ in the specification repository; schema/ holds the TypeScript schema of
+// each revision.
+const MCP = 'https://github.com/modelcontextprotocol/modelcontextprotocol/blob/d0e246ea3c69eafaa2806bc4cd28025703ba2c2b';
+// code.visualstudio.com/docs is built from docs/ in microsoft/vscode-docs.
+const VSCODE_MCP = 'https://github.com/microsoft/vscode-docs/blob/5a54a294d553935c53374f43c668e37d08f0118e/docs/agents/reference/mcp-configuration.md';
 
 export const environment: EnvironmentKnowledge = {
   corepack: {
@@ -307,6 +313,103 @@ export const environment: EnvironmentKnowledge = {
       'https://code.claude.com/docs/en/tools-reference',
       'Tool names are the exact strings of hook matchers. Bash executes shell commands. PowerShell executes PowerShell commands natively; hooks get its command in tool_input.command with the same fields as Bash, and the docs say to match Bash|PowerShell in hooks that inspect shell commands: on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash it is enabled automatically and the Bash tool is not registered at all (also https://code.claude.com/docs/en/hooks#powershell). On Windows with Git Bash it is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1. Monitor runs a command in the background and feeds its output lines back to Claude, with the same permission rules as Bash; on Windows it is available only with Git Bash; a WebSocket watch takes a ws input in place of command.',
     ),
+  },
+  mcp: {
+    revisions: mcpFacts.verified(
+      { legacy: ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'], modern: ['2026-07-28'] },
+      `${MCP}/docs/specification/2026-07-28/basic/versioning.mdx`,
+      'Modern: revisions that carry version, identity and capabilities on every request (2026-07-28 and later); legacy: revisions that open a session with the initialize handshake (2025-11-25 and earlier). A dual-era server may serve both on one stdio process: a request with the modern per-request _meta is served statelessly, an initialize request selects legacy semantics for the process. docs/docs.json lists 2026-07-28 (latest), 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05; schema/2026-07-28/schema.ts and schema/draft/schema.ts both say LATEST_PROTOCOL_VERSION = "2026-07-28".',
+    ),
+    lifecycle: mcpFacts.verified(
+      {
+        initialize: 'initialize',
+        initialized: 'notifications/initialized',
+        ping: 'ping',
+        request: { protocolVersion: 'protocolVersion', capabilities: 'capabilities', clientInfo: 'clientInfo' },
+        result: { protocolVersion: 'protocolVersion', capabilities: 'capabilities', serverInfo: 'serverInfo', instructions: 'instructions' },
+      },
+      `${MCP}/docs/specification/2025-11-25/basic/lifecycle.mdx`,
+      'If the server supports the requested protocolVersion it must answer with the same one, otherwise with another version it supports, which should be its latest; a client that cannot use it disconnects (the same wording in 2024-11-05). After the result the client sends notifications/initialized. The initialize request must not be cancelled and, in 2025-03-26, must not be part of a batch. ping (basic/utilities/ping.mdx) is answered promptly with an empty result and may be sent before initialization. 2026-07-28 removes initialize, notifications/initialized and ping (docs/specification/2026-07-28/changelog.mdx).',
+    ),
+    stateless: mcpFacts.verified(
+      {
+        metaField: '_meta',
+        protocolVersion: 'io.modelcontextprotocol/protocolVersion',
+        clientCapabilities: 'io.modelcontextprotocol/clientCapabilities',
+        clientInfo: 'io.modelcontextprotocol/clientInfo',
+        serverInfo: 'io.modelcontextprotocol/serverInfo',
+        discover: 'server/discover',
+        discoverResult: { supportedVersions: 'supportedVersions', capabilities: 'capabilities', instructions: 'instructions' },
+        resultType: { field: 'resultType', complete: 'complete' },
+        caching: { ttl: 'ttlMs', scope: 'cacheScope', publicScope: 'public' },
+        unsupportedVersionData: { supported: 'supported', requested: 'requested' },
+      },
+      `${MCP}/docs/specification/2026-07-28/basic/index.mdx`,
+      'Every 2026-07-28 request carries params._meta with io.modelcontextprotocol/protocolVersion and io.modelcontextprotocol/clientCapabilities (required; a request missing either is rejected with -32602) and optionally io.modelcontextprotocol/clientInfo; servers should put io.modelcontextprotocol/serverInfo in the _meta of every result, and every result must carry resultType ("complete" for a finished one; clients read an absent one as complete). Servers must implement server/discover (server/discover.mdx: supportedVersions, capabilities, instructions, serverInfo in _meta). server/utilities/caching.mdx: results of server/discover and tools/list must carry ttlMs (>= 0) and cacheScope ("public" suits lists of tools that are the same for all users). An unsupported version gets -32022 with data { supported, requested } (basic/versioning.mdx). Self-reported identity must not change behavior.',
+    ),
+    tools: mcpFacts.verified(
+      { list: 'tools/list', call: 'tools/call', capability: 'tools', fieldsSince: { annotations: '2025-03-26', title: '2025-06-18', structuredContent: '2025-06-18' } },
+      `${MCP}/docs/specification/2026-07-28/server/tools.mdx`,
+      'A server with tools declares the tools capability and answers tools/list (tools in a deterministic order that does not vary per connection) and tools/call ({ name, arguments }; result content, optional structuredContent and isError). Errors of the tool itself, including input values the model can correct, belong in the result with isError: true; an unknown tool or a request that does not fit the schema is a protocol error (-32602). A tool that returns structuredContent should also return the same JSON in a text block. Tool names should be 1 to 128 characters of letters, digits, _, - and . . Annotations (readOnlyHint, openWorldHint and others) are hints that clients must treat as untrusted. Annotations arrived in 2025-03-26 (changelog.mdx), title and structured output in 2025-06-18 (changelog.mdx); in 2025-11-25 and earlier structuredContent is an object.',
+    ),
+    cancellation: mcpFacts.verified(
+      { method: 'notifications/cancelled', requestId: 'requestId' },
+      `${MCP}/docs/specification/2026-07-28/basic/patterns/cancellation.mdx`,
+      'The client cancels an in-flight request with the notification notifications/cancelled and params { requestId, reason? }; the server should stop the work as soon as practical and must not send any further message for that request, and may ignore an unknown or finished request (also basic/transports/stdio.mdx). The same notification exists in the legacy revisions (2025-11-25/basic/utilities/cancellation.mdx).',
+    ),
+    errorCodes: mcpFacts.verified(
+      { parseError: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internalError: -32603, unsupportedProtocolVersion: -32022 },
+      `${MCP}/schema/2026-07-28/schema.ts`,
+      'PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR and UNSUPPORTED_PROTOCOL_VERSION. -32601 is for a method the server does not implement. basic/index.mdx: request ids are strings or integers and never null; notifications have no id and get no response; an error response has the id of its request except when it could not be read, and the 2025-11-25 and 2026-07-28 schemas make id optional in an error response; codes from -32000 to -32019 are legacy and other codes from -32020 to -32099 that the specification does not define must not be used.',
+    ),
+    stdio: mcpFacts.verified(
+      { delimiter: '\n', batchRevisions: ['2025-03-26'] },
+      `${MCP}/docs/specification/2026-07-28/basic/transports/stdio.mdx`,
+      'The server reads JSON-RPC messages from stdin and writes them to stdout, delimited by newlines and without embedded newlines; it must not write anything to stdout that is not a valid MCP message, may log UTF-8 to stderr and should exit promptly when stdin is closed. Batches: 2025-03-26 (basic/index.mdx) says implementations must support receiving JSON-RPC batches; 2025-06-18 removed batching (changelog.mdx), and later revisions have no batch message.',
+    ),
+    clients: {
+      claudeCode: mcpFacts.verified(
+        {
+          addCommand: ['claude', 'mcp', 'add'],
+          separator: '--',
+          scopeOption: '--scope',
+          projectScope: 'project',
+          transportOption: '--transport',
+          stdioTransport: 'stdio',
+          projectFile: '.mcp.json',
+          serversKey: 'mcpServers',
+          projectDirVariable: 'CLAUDE_PROJECT_DIR',
+          projectDirReference: '${CLAUDE_PROJECT_DIR:-.}',
+        },
+        'https://code.claude.com/docs/en/mcp',
+        'claude mcp add [options] <name> -- <command> [args...]: everything after -- goes to the server untouched. Scopes: local (the default, ~/.claude.json), project (.mcp.json in the project root, shared through the repository; Claude Code asks before using its servers) and user. .mcp.json has a top-level mcpServers object of entries with command, args and env; an entry without type is a stdio server. Claude Code sets CLAUDE_PROJECT_DIR to the project root in the environment of the server, not in its own, so ${VAR} expansion in command or args of .mcp.json needs a default such as ${CLAUDE_PROJECT_DIR:-.}. To stop a stdio server it sends SIGINT, then SIGTERM after 100 ms and SIGKILL after a further 400 ms (macOS, Linux); on Windows it closes stdin and ends the process tree after 300 ms.',
+      ),
+      claudeDesktop: mcpFacts.verified(
+        {
+          configFiles: {
+            darwin: '~/Library/Application Support/Claude/claude_desktop_config.json',
+            win32: '%APPDATA%\\Claude\\claude_desktop_config.json',
+            linux: '~/.config/Claude/claude_desktop_config.json',
+          },
+          serversKey: 'mcpServers',
+        },
+        `${MCP}/docs/docs/2026-07-28/develop/connect-local-servers.mdx`,
+        'The page "Connect to local MCP servers" of modelcontextprotocol.io: Claude Desktop reads mcpServers (entries with command, args and env) from claude_desktop_config.json. It documents no working directory and no variables, and its troubleshooting asks for absolute paths. The stderr of a server goes to mcp-server-<name>.log in ~/Library/Logs/Claude (macOS) or %APPDATA%\\Claude\\logs (Windows).',
+      ),
+      vscode: mcpFacts.verified(
+        {
+          file: '.vscode/mcp.json',
+          serversKey: 'servers',
+          typeField: 'type',
+          stdioType: 'stdio',
+          cwdField: 'cwd',
+          workspaceFolder: '${workspaceFolder}',
+          addOption: '--add-mcp',
+        },
+        VSCODE_MCP,
+        'The source of code.visualstudio.com/docs/agents/reference/mcp-configuration. .vscode/mcp.json (in the workspace or the user profile) has a top-level servers object; a stdio server needs type "stdio" and command, and takes args, cwd (defaults to the workspace folder when run in a workspace), env and envFile; predefined variables such as ${workspaceFolder} work in the configuration. VS Code also reads the portable .mcp.json with mcpServers at the workspace root, without cwd. code --add-mcp with a JSON object of a name and the server configuration adds the server to the user profile.',
+      ),
+    },
   },
   git: {
     ignore: gitFacts.verified(

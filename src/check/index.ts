@@ -101,7 +101,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
 
   const insecure = insecureFinding(options.registry, 'registry');
   if (insecure !== undefined) add(insecure);
-  const lookup = await fetchPackument(name, { registry: options.registry, fetch: options.fetch });
+  const lookup = await fetchPackument(name, { registry: options.registry, fetch: options.fetch, signal: options.signal });
   if (lookup.status === 'not-found') {
     if (scope !== undefined) {
       // A scope may belong to a private registry that no .npmrc depcurfew reads names, so a person decides.
@@ -232,16 +232,20 @@ export async function checkSpec(request: string | CheckRequest, options: CheckOp
 /** How many packages are looked up at once. */
 const CONCURRENCY = 6;
 
-/** Checks the specs a few at a time; the reports keep the order of the specs. */
+/**
+ * Checks the specs a few at a time; the reports keep the order of the specs. When `options.signal` aborts, no further
+ * spec is looked up and the promise rejects with the signal's reason.
+ */
 export async function checkSpecs(specs: readonly (string | CheckRequest)[], options: CheckOptions): Promise<PackageReport[]> {
   const reports: PackageReport[] = [];
   let next = 0;
   const worker = async (): Promise<void> => {
-    while (next < specs.length) {
+    while (next < specs.length && options.signal?.aborted !== true) {
       const index = next++;
       reports[index] = await checkSpec(specs[index] as string | CheckRequest, options);
     }
   };
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, specs.length) }, worker));
+  options.signal?.throwIfAborted();
   return reports;
 }

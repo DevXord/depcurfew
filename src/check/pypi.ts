@@ -7,7 +7,7 @@ import { environment } from '../knowledge/environment.ts';
 import type { PypiIndexKnowledge } from '../knowledge/types.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { compareVersions, parseVersion } from './pep440.ts';
-import { fetchSameOrigin, MAX_DOCUMENT_SIZE, readLimited, TIMEOUT_MS, type FetchLike } from './registry.ts';
+import { fetchSameOrigin, MAX_DOCUMENT_SIZE, readLimited, requestSignal, type FetchLike } from './registry.ts';
 
 export interface PypiFile {
   filename: string;
@@ -114,13 +114,13 @@ function toProject(document: unknown, requested: string): PypiProject | undefine
   return { name, status: value ?? 'active', ...(reason === undefined ? {} : { statusReason: reason }), releases };
 }
 
-export async function fetchProject(name: string, options: { index: string; fetch: FetchLike; timeoutMs?: number; maxBytes?: number }): Promise<PypiLookup> {
+export async function fetchProject(name: string, options: { index: string; fetch: FetchLike; timeoutMs?: number; maxBytes?: number; signal?: AbortSignal | undefined }): Promise<PypiLookup> {
   const fields = api();
   let response: Response;
   try {
     const fetched = await fetchSameOrigin(
       projectUrl(options.index, name),
-      { headers: { accept: fields.accept }, signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS) },
+      { headers: { accept: fields.accept }, signal: requestSignal(options.timeoutMs, options.signal) },
       options.fetch,
       'index',
     );

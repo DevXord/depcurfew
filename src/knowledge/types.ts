@@ -635,6 +635,113 @@ export interface ClaudeCodeShellTool {
   shell: 'bash' | 'powershell';
 }
 
+/** Model Context Protocol revisions: the legacy ones open a session with initialize, the modern ones carry the version on every request. */
+export interface McpRevisionsKnowledge {
+  /** Newest first. */
+  legacy: readonly string[];
+  /** Newest first. */
+  modern: readonly string[];
+}
+
+/** The initialize handshake of the legacy revisions. */
+export interface McpLifecycleKnowledge {
+  initialize: string;
+  initialized: string;
+  ping: string;
+  /** Fields of the initialize request and result. */
+  request: { protocolVersion: string; capabilities: string; clientInfo: string };
+  result: { protocolVersion: string; capabilities: string; serverInfo: string; instructions: string };
+}
+
+/** What a modern (stateless) request and result carry in `_meta`, and the discovery method. */
+export interface McpStatelessKnowledge {
+  metaField: string;
+  protocolVersion: string;
+  clientCapabilities: string;
+  clientInfo: string;
+  serverInfo: string;
+  discover: string;
+  /** The fields of a discovery result. */
+  discoverResult: { supportedVersions: string; capabilities: string; instructions: string };
+  /** Every modern result has this field, with `complete` for a finished result. */
+  resultType: { field: string; complete: string };
+  /** Caching hints that discovery and tools/list results must carry. */
+  caching: { ttl: string; scope: string; publicScope: string };
+  /** The data of an unsupported-version error. */
+  unsupportedVersionData: { supported: string; requested: string };
+}
+
+/** Tools: the methods and the fields of a tool and of a call result. */
+export interface McpToolsKnowledge {
+  list: string;
+  call: string;
+  capability: string;
+  /** The revision that added each optional field of a tool or a result; older clients do not know them. */
+  fieldsSince: { annotations: string; title: string; structuredContent: string };
+}
+
+export interface McpCancellationKnowledge {
+  method: string;
+  requestId: string;
+}
+
+/** The JSON-RPC error codes the server uses. */
+export interface McpErrorCodesKnowledge {
+  parseError: number;
+  invalidRequest: number;
+  methodNotFound: number;
+  invalidParams: number;
+  internalError: number;
+  unsupportedProtocolVersion: number;
+}
+
+/** stdio: messages are UTF-8 JSON-RPC, one per line, without embedded newlines; stderr is free for logs. */
+export interface McpStdioKnowledge {
+  delimiter: string;
+  /** Revisions whose servers must accept JSON-RPC batches (arrays). */
+  batchRevisions: readonly string[];
+}
+
+/** How Claude Code is told about a stdio server: `claude mcp add` and the project file. */
+export interface McpClaudeCodeKnowledge {
+  /** claude mcp add [options] <name> -- <command> [args...] */
+  addCommand: readonly string[];
+  separator: string;
+  scopeOption: string;
+  projectScope: string;
+  transportOption: string;
+  stdioTransport: string;
+  projectFile: string;
+  serversKey: string;
+  /** Set in the server's environment to the project root; in command and args it needs a default. */
+  projectDirVariable: string;
+  projectDirReference: string;
+}
+
+/** Where Claude Desktop keeps its configuration, per platform, and the key of its servers. */
+export interface McpClaudeDesktopKnowledge {
+  configFiles: { darwin: string; win32: string; linux: string };
+  serversKey: string;
+}
+
+/** VS Code's own format (.vscode/mcp.json) and its command line. */
+export interface McpVsCodeKnowledge {
+  file: string;
+  serversKey: string;
+  typeField: string;
+  stdioType: string;
+  cwdField: string;
+  workspaceFolder: string;
+  /** code --add-mcp '{"name": …, …}' adds a server to the user profile. */
+  addOption: string;
+}
+
+export interface McpClientsKnowledge {
+  claudeCode: Fact<McpClaudeCodeKnowledge>;
+  claudeDesktop: Fact<McpClaudeDesktopKnowledge>;
+  vscode: Fact<McpVsCodeKnowledge>;
+}
+
 /**
  * Annotation workflow commands: `::{command} {property}={value},…::{message}` on a line of its own. Values are
  * escaped by replacing each character listed in `escape` (in order), properties also with `escapeProperty`.
@@ -756,6 +863,17 @@ export interface EnvironmentKnowledge {
     /** The tools whose PreToolUse events carry a shell command in the hooks fact's input.command. */
     shellTools: Fact<readonly ClaudeCodeShellTool[]>;
     sessionStart: Fact<ClaudeCodeSessionStartKnowledge>;
+  };
+  /** The Model Context Protocol, for depcurfew mcp, and how its clients start a stdio server. */
+  mcp: {
+    revisions: Fact<McpRevisionsKnowledge>;
+    lifecycle: Fact<McpLifecycleKnowledge>;
+    stateless: Fact<McpStatelessKnowledge>;
+    tools: Fact<McpToolsKnowledge>;
+    cancellation: Fact<McpCancellationKnowledge>;
+    errorCodes: Fact<McpErrorCodesKnowledge>;
+    stdio: Fact<McpStdioKnowledge>;
+    clients: McpClientsKnowledge;
   };
   git: {
     /** Where git reads the patterns of files it does not pick up, and the index that lists the tracked files. */

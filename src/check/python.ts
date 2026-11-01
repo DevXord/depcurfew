@@ -110,7 +110,7 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
     });
   }
 
-  const lookup = await fetchProject(name, { index, fetch: options.fetch });
+  const lookup = await fetchProject(name, { index, fetch: options.fetch, signal: options.signal });
   if (lookup.status === 'not-found') {
     add({
       level: 'error',

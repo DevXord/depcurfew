@@ -31,6 +31,12 @@ export const MAX_DOCUMENT_SIZE = 64 * 1024 * 1024;
 export const MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
+/** The signal of one lookup: the time limit, and the caller's signal when it gives one (depcurfew mcp cancels calls). */
+export function requestSignal(timeoutMs: number | undefined, signal: AbortSignal | undefined): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs ?? TIMEOUT_MS);
+  return signal === undefined ? timeout : AbortSignal.any([timeout, signal]);
+}
+
 /** Whether a host is a link-local address written out (169.254.0.0/16, fe80::/10), where cloud metadata services answer. */
 export function isLinkLocal(host: string): boolean {
   const bare = host.replace(/^\[|\]$/gu, '').toLowerCase();
@@ -135,13 +141,13 @@ function toPackument(document: unknown, name: string): Packument | undefined {
   return { name: typeof document['name'] === 'string' ? document['name'] : name, distTags: strings(document[fields.distTagsField]), time: strings(document[fields.timeField]), versions };
 }
 
-export async function fetchPackument(name: string, options: { registry: string; fetch: FetchLike; timeoutMs?: number; maxBytes?: number }): Promise<Lookup> {
+export async function fetchPackument(name: string, options: { registry: string; fetch: FetchLike; timeoutMs?: number; maxBytes?: number; signal?: AbortSignal | undefined }): Promise<Lookup> {
   const notFound = values(environment.npmRegistry.notFoundStatus)[0];
   let response: Response;
   try {
     const fetched = await fetchSameOrigin(
       packumentUrl(options.registry, name),
-      { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS) },
+      { headers: { accept: 'application/json' }, signal: requestSignal(options.timeoutMs, options.signal) },
       options.fetch,
       'registry',
     );

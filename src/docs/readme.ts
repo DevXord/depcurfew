@@ -296,6 +296,53 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
   ].join('\n');
 }
 
+/** How the MCP clients start depcurfew mcp, from the knowledge base (environment.mcp.clients). */
+function mcpClients(environment: EnvironmentKnowledge): string {
+  const claudeCode = values(environment.mcp.clients.claudeCode)[0];
+  const desktop = values(environment.mcp.clients.claudeDesktop)[0];
+  const vscode = values(environment.mcp.clients.vscode)[0];
+  if (claudeCode === undefined || desktop === undefined || vscode === undefined) throw new Error('README: missing the MCP client facts');
+  const script = 'node_modules/depcurfew/dist/cli.js';
+  const projectScript = `${claudeCode.projectDirReference}/${script}`;
+  const json = (value: unknown) => ['```json', JSON.stringify(value, null, 2), '```'];
+  const absolute = '/path/to/project';
+  const desktopServer = { command: 'node', args: [`${absolute}/${script}`, 'mcp', '--dir', absolute] };
+  const vscodeServer = {
+    [vscode.typeField]: vscode.stdioType,
+    command: 'node',
+    args: [`${vscode.workspaceFolder}/${script}`, 'mcp'],
+    [vscode.cwdField]: vscode.workspaceFolder,
+  };
+  const revisions = values(environment.mcp.revisions)[0];
+  const lifecycle = values(environment.mcp.lifecycle)[0];
+  if (revisions === undefined || lifecycle === undefined) throw new Error('README: missing the MCP protocol facts');
+  return [
+    `The server speaks the \`${lifecycle.initialize}\` handshake of the protocol revisions ${revisions.legacy.join(', ')} and the stateless revision${revisions.modern.length === 1 ? '' : 's'} ${revisions.modern.join(', ')}, without the handshake, for clients that use ${revisions.modern.length === 1 ? 'it' : 'them'}.`,
+    '',
+    `**Claude Code.** Add the server to \`${claudeCode.projectFile}\` of the project, which everyone working on it shares (Claude Code asks before it starts a server from that file):`,
+    '',
+    '```bash',
+    `${[...claudeCode.addCommand, claudeCode.scopeOption, claudeCode.projectScope, claudeCode.transportOption, claudeCode.stdioTransport, 'depcurfew', claudeCode.separator, 'node', `'${projectScript}'`, 'mcp'].join(' ')}`,
+    '```',
+    '',
+    `or write \`${claudeCode.projectFile}\` yourself:`,
+    '',
+    ...json({ [claudeCode.serversKey]: { depcurfew: { command: 'node', args: [projectScript, 'mcp'] } } }),
+    '',
+    `Claude Code sets \`${claudeCode.projectDirVariable}\` to the project root for the server, and \`depcurfew mcp\` takes it as the project directory. Claude Code itself does not have the variable, so in \`args\` it needs the default \`${claudeCode.projectDirReference}\` (in cmd.exe, leave out the single quotes).`,
+    '',
+    `**Claude Desktop.** In \`claude_desktop_config.json\` (macOS: \`${desktop.configFiles.darwin}\`, Windows: \`${desktop.configFiles.win32}\`, Linux: \`${desktop.configFiles.linux}\`), with absolute paths and \`--dir\`, because Claude Desktop starts servers in no particular directory:`,
+    '',
+    ...json({ [desktop.serversKey]: { depcurfew: desktopServer } }),
+    '',
+    `**VS Code.** In \`${vscode.file}\` of the workspace:`,
+    '',
+    ...json({ [vscode.serversKey]: { depcurfew: vscodeServer } }),
+    '',
+    `\`code ${vscode.addOption} '${JSON.stringify({ name: 'depcurfew', [vscode.typeField]: vscode.stdioType, ...desktopServer })}'\` adds the server for one project to your user profile instead.`,
+  ].join('\n');
+}
+
 const PLATFORM_NAMES: Readonly<Record<UserPlatform, string>> = { linux: 'Linux', darwin: 'macOS', win32: 'Windows' };
 
 function directoryText(directory: UserDirectory, platform: UserPlatform): string {
@@ -351,6 +398,7 @@ export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
     'action-reference': actionTables(inputs.action),
     'action-workflow': exampleWorkflow(inputs.environment, inputs.workflow),
     'claude-code-hook': claudeCodeHook(inputs.environment, inputs.tools),
+    'mcp-clients': mcpClients(inputs.environment),
   };
 }
 

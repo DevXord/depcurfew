@@ -1,3 +1,6 @@
+import { values } from '../apply/facts.ts';
+import { environment } from '../knowledge/environment.ts';
+
 export interface OptionInfo {
   name: string;
   summary: string;
@@ -27,6 +30,16 @@ export interface CommandInfo {
 /** Where apply, doctor and explain work without a directory (projectDirectory in directory.ts). */
 const NEAREST_POLICY =
   'Without a directory, the command works on the nearest directory with depcurfew.json, from the current one up to the root of the repository (the directory with .git), and says so when that is a parent; a directory given on the command line is used as it is.';
+
+/** The protocol revisions depcurfew mcp speaks, from the knowledge base. */
+function mcpRevisions(): string {
+  const revisions = values(environment.mcp.revisions)[0];
+  const lifecycle = values(environment.mcp.lifecycle)[0];
+  if (revisions === undefined || lifecycle === undefined) return '';
+  return `It speaks the ${lifecycle.initialize} handshake of the protocol revisions ${revisions.legacy.join(', ')} and, without it, the revision ${revisions.modern.join(', ')}.`;
+}
+
+const MCP_REVISIONS = mcpRevisions();
 
 export const COMMANDS: readonly CommandInfo[] = [
   {
@@ -108,6 +121,23 @@ export const COMMANDS: readonly CommandInfo[] = [
       [0, 'every package checks out (warnings included)'],
       [1, 'a package breaks the policy or cannot be checked, or depcurfew.json is invalid or unreadable'],
       [2, 'a usage error, such as an unknown option or a missing directory'],
+    ],
+  },
+  {
+    name: 'mcp',
+    summary: 'Serve check and the policy to AI agents as a Model Context Protocol server over stdio',
+    implemented: true,
+    options: [
+      { name: 'dir', value: 'directory', summary: 'The project directory (default: $CLAUDE_PROJECT_DIR, else the current directory)' },
+      { name: 'registry', value: 'url', summary: 'Look packages up in this registry (default: the registry of .npmrc, else the public npm registry)' },
+      { name: 'index', value: 'url', summary: 'Look pypi: packages up in this Python package index (default: PyPI)' },
+    ],
+    details:
+      `Runs a Model Context Protocol server that an AI agent's client (Claude Desktop, VS Code, Claude Code or any client that starts a stdio server) starts and talks to over stdin and stdout. It offers two read-only tools: check_packages, the check of depcurfew check --json for up to 50 packages, and explain_policy, the policy that applies to the project. The registry and the index are options of the server, never arguments of a call, so an agent cannot name one that vouches for any package; a directory in a call must be inside the project directory. ${MCP_REVISIONS} It stops when stdin closes, on SIGINT and on SIGTERM. stdout carries only protocol messages; problems go to stderr. The server gives advice: the package manager configuration that depcurfew apply writes is what enforces the policy.`,
+    examples: ['depcurfew mcp', 'depcurfew mcp --dir /path/to/project', 'node node_modules/depcurfew/dist/cli.js mcp --registry https://npm.internal.example/'],
+    exitCodes: [
+      [0, 'the server stopped: stdin or stdout closed, or SIGINT or SIGTERM'],
+      [2, 'a usage error, such as an unknown option or a project directory that does not exist'],
     ],
   },
   {
