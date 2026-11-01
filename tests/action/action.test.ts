@@ -71,7 +71,7 @@ describe('GitHub Action entry point', () => {
   it('says in the job summary when doctor could not run', () => {
     const root = workspace('bot-cooldown-mismatch/passes-consistent');
     writeFileSync(join(root, 'depcurfew.json'), '{ "version": 2 }');
-    expect(run({ GITHUB_WORKSPACE: root }).summary).toMatch(/^## depcurfew doctor\n\ndepcurfew could not check the repository: depcurfew\.json is invalid; /u);
+    expect(run({ GITHUB_WORKSPACE: root }).summary).toMatch(/^## depcurfew doctor\n\ndepcurfew could not check the repository: depcurfew\.json \(line 1\) is invalid; /u);
   });
 
   it('makes paths relative to the workspace when checking a subdirectory', () => {
@@ -108,9 +108,9 @@ describe('GitHub Action entry point', () => {
     writeFileSync(join(root, 'depcurfew.json'), '{ "version": 2 }');
     const { outputs, log } = run({ GITHUB_WORKSPACE: root });
     expect(outputs['sarif-file']).toBe('');
-    expect(outputs.failure).toMatch(/^depcurfew\.json is invalid; /u);
-    // The level word, the problems and what to do, as the CLI says it (decision D-122).
-    expect(log).toMatch(/^::stop-commands::[0-9a-f-]{36}\ndepcurfew: error: depcurfew\.json is invalid\n {2}version: must be 1, got 2\n {2}fix: Fix these problems in depcurfew\.json; /u);
+    expect(outputs.failure).toMatch(/^depcurfew\.json \(line 1\) is invalid; /u);
+    // The level word, the line, the problems and what to do, as the CLI says it (decisions D-122 and D-124).
+    expect(log).toMatch(/^::stop-commands::[0-9a-f-]{36}\ndepcurfew: error: depcurfew\.json \(line 1\) is invalid\n {2}version: must be 1, got 2\n {2}fix: Fix these problems in depcurfew\.json; /u);
   });
 
   it.skipIf(!canSymlink())('keeps the counts and adds one line to the job summary when the SARIF file cannot be written', () => {

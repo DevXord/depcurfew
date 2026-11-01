@@ -70,6 +70,11 @@ export interface CheckRequest {
   prereleases?: 'allow' | 'deny';
   /** Python: the package is built from source even when it has wheels (true), or only wheels are used (false). */
   buildFromSource?: boolean;
+  /**
+   * npm: the command line has an option that may set workspaces (--no-workspaces, --workspaces=false), with which npm
+   * reads the .npmrc of a workspace package as its project configuration (decision D-124).
+   */
+  workspacesOption?: boolean;
 }
 
 export interface CheckOptions {
@@ -99,7 +104,7 @@ export interface CheckOptions {
    * npm packages not to look up: their scope's registry is set in a file depcurfew does not take (decision D-113), so
    * the name may be private and the public registry may hold a look-alike. The package is reported as unverified.
    */
-  skipLookup?: (name: string, tool: ToolId | undefined) => boolean;
+  skipLookup?: (name: string, tool: ToolId | undefined, request?: Omit<CheckRequest, 'spec'>) => boolean;
 }
 
 /** This machine (a local registry such as Verdaccio): plain HTTP to it does not leave the machine. */

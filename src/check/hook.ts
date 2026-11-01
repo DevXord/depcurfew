@@ -11,6 +11,7 @@ import { printable, withoutCredentials } from '../printable.ts';
 import type { ClaudeCodeHookContextKnowledge, ClaudeCodeHooksKnowledge, ClaudeCodeShellTool } from '../knowledge/types.ts';
 import { scanCommandLine, TOO_MANY, unreadableFix, type CommandDirectory, type Override, type ScanOptions } from './command.ts';
 import type { CheckFinding, CheckRequest, FindingCode, PackageReport } from './findings.ts';
+import { mayTurnWorkspacesOff } from './registry-settings.ts';
 import { REGISTRY_RETRY_FIX } from './index.ts';
 import { INDEX_RETRY_FIX } from './python.ts';
 
@@ -284,6 +285,7 @@ export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'pos
       ...(tool === 'npm' ? {} : { ignoresConfigTag: true }),
       ...(prereleases === undefined ? {} : { prereleases }),
       ...(buildFromSource === undefined ? {} : { buildFromSource }),
+      ...(tool === 'npm' && mayTurnWorkspacesOff(written) ? { workspacesOption: true } : {}),
     };
     const key = JSON.stringify([request, directory ?? null]);
     if (!unique.has(key)) unique.set(key, { request, ...(directory === undefined ? {} : { directory }), command: written });

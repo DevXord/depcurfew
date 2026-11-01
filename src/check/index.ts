@@ -76,7 +76,8 @@ function oldEnough(packument: Packument, selector: string, cutoff: number): stri
   return maxSatisfying(versions, range);
 }
 
-async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions, preferred: string, tool: CheckRequest['tool']): Promise<void> {
+async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions, preferred: string, request: Omit<CheckRequest, 'spec'>): Promise<void> {
+  const { tool } = request;
   // check looks up npm packages, so only the policy's npm names apply.
   const policy = policyFor(options.policy, 'npm');
   const add = (finding: CheckFinding) => report.findings.push(finding);
@@ -103,7 +104,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   }
 
   // The caller reports why (an unread scope registry): the name is not sent to a registry the install does not use.
-  if (options.skipLookup?.(name, tool) === true) return;
+  if (options.skipLookup?.(name, tool, request) === true) return;
   const insecure = insecureFinding(options.registry, 'registry');
   if (insecure !== undefined) add(insecure);
   const lookup = await cachedLookup(options.lookups, `npm\0${options.registry}\0${name}`, () => fetchPackument(name, { registry: options.registry, fetch: options.fetch, signal: options.signal }));
@@ -234,7 +235,7 @@ export async function checkSpec(request: string | CheckRequest, options: CheckOp
     report.name = spec.name;
     const preferred = chosen.tag ?? (chosen.ignoresConfigTag === true ? undefined : options.defaultTag) ?? defaultTag();
     if (preferred !== defaultTag()) report.tag = preferred;
-    await checkRegistryPackage(report, spec.name, spec.selector ?? '', options, preferred, chosen.tool);
+    await checkRegistryPackage(report, spec.name, spec.selector ?? '', options, preferred, chosen);
   }
   return report;
 }

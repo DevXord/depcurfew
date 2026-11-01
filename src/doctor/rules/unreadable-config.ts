@@ -6,8 +6,8 @@ import { parseJsonc } from '../../detect/jsonc.ts';
 import type { Repository } from '../../detect/repository.ts';
 import type { Detection, DetectionWarning } from '../../detect/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
-import { readYamlDocument } from '../../yaml-parse.ts';
-import { readTomlDocument } from '../python.ts';
+import { parseYaml } from '../../yaml-parse.ts';
+import { parseToml } from '../../detect/toml.ts';
 import { UNREADABLE_WARNINGS } from '../unreadable-warnings.ts';
 import { plannedApply } from '../plan.ts';
 import { positionInMessage } from '../positions.ts';
@@ -15,23 +15,50 @@ import type { Rule } from '../types.ts';
 
 export { UNREADABLE_WARNINGS } from '../unreadable-warnings.ts';
 
-/** YAML as the rules read it (readYamlDocument, shared with them), with or without merge keys; throws its first error. */
+/**
+ * YAML as detection and apply read it (parseYaml: the document shared with the rules, then its values), with or without
+ * merge keys; throws its first error. Building the values applies the limit of the yaml package on aliases (100 per
+ * anchor), so a file whose aliases expand without end is an error here as it is in apply, also without a policy
+ * (decision D-124).
+ */
 const yamlParsers = [false, true].map((merge) => (text: string) => {
-  const { document } = readYamlDocument(text, { merge });
-  if (document.errors.length > 0) throw document.errors[0] as Error;
+  parseYaml(text, { merge });
   return true;
 });
 
+/** The parser detection and apply read a configuration file with, by its name; undefined for other files (.npmrc, JSON5). */
+function configParser(file: string): ((text: string) => unknown) | undefined {
+  const name = file.split('/').at(-1) ?? file;
+  if (/\.toml$/u.test(name) || name === 'Pipfile') return parseToml;
+  if (/\.ya?ml$/u.test(name)) return yamlParsers[yamlOptionsFor(file).merge === true ? 1 : 0];
+  if (/\.jsonc?$/u.test(name) || name === '.renovaterc') return parseJsonc;
+  return undefined;
+}
+
 /**
- * Reads a configuration file of a tool found the way the rules read it, so that a syntax error is a warning of the
- * repository: TOML (also Pipfile), YAML, and JSON with comments (also .renovaterc). Other files (.npmrc, JSON5) are not
- * parsed here.
+ * Reads a configuration file of a tool found the way detection and apply read it, so that a syntax error is a warning
+ * of the repository: TOML (also Pipfile), YAML, and JSON with comments (also .renovaterc). Other files (.npmrc, JSON5)
+ * are not parsed here.
  */
 function parseConfig(repository: Repository, file: string): void {
-  const name = file.split('/').at(-1) ?? file;
-  if (/\.toml$/u.test(name) || name === 'Pipfile') readTomlDocument(repository, file);
-  else if (/\.ya?ml$/u.test(name)) repository.parseOnce(file, yamlParsers[yamlOptionsFor(file).merge === true ? 1 : 0] as (text: string) => boolean);
-  else if (/\.jsonc?$/u.test(name) || name === '.renovaterc') repository.parseOnce(file, parseJsonc);
+  const parser = configParser(file);
+  if (parser !== undefined) repository.parseOnce(file, parser);
+}
+
+/**
+ * Whether the text of a configuration file parses as detection and apply read it, without a warning of the repository:
+ * a rule that cannot use a file that does not parse says so (decision D-124), while unreadable-config reports the file
+ * with the message of apply's plan, when there is one.
+ */
+export function configParses(file: string, text: string): boolean {
+  const parser = configParser(file);
+  if (parser === undefined) return true;
+  try {
+    parser(text);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The configuration files of the package managers and bots detection found. */

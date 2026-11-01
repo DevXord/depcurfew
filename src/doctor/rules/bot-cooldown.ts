@@ -18,6 +18,7 @@ import { POLICY_FILE } from '../../policy/defaults.ts';
 import { managerSources } from '../projects.ts';
 import type { ProjectView, Rule, RuleContext } from '../types.ts';
 import { usesBot, usesManager } from '../applies.ts';
+import { configParses } from './unreadable-config.ts';
 
 interface BotDelay extends Delay {
   bot: ToolKnowledge;
@@ -34,6 +35,11 @@ interface BotDelay extends Delay {
   unreadablePreset?: string;
   /** The configuration file is in a format depcurfew does not read (Renovate's JSON5), so the delay is not known. */
   unreadableFile?: string;
+  /**
+   * Why: the file could not be read (too large, a symlink out of the repository, no permission) or parsed; left out for
+   * a format depcurfew does not read. unreadable-config reports the file (decision D-124).
+   */
+  unreadableReason?: 'read' | 'parse';
   /** A fix for this delay in place of the general one. */
   fix?: string;
 }
@@ -170,6 +176,19 @@ function exemptsSecurityFixes(bot: ToolKnowledge, manager: string, file: string 
   return fact !== undefined && Array.isArray(fact['managers']) && fact['managers'].includes(manager) && fact['file'] === file;
 }
 
+/**
+ * A bot configuration file that depcurfew cannot read or parse, the way detection and apply read it: its delay is not
+ * known, so the rule gives a note at the file for every package manager that waits, instead of a delay the file may not
+ * have (decision D-124). unreadable-config reports the file itself.
+ */
+function unreadableBotFile(context: RuleContext, bot: ToolKnowledge, file: string): BotDelay[] | undefined {
+  const text = context.repository.readText(file);
+  const reason = text === undefined ? 'read' : configParses(file, text) ? undefined : 'parse';
+  if (reason === undefined) return undefined;
+  const managers = context.tools.filter((tool) => tool.kind === 'package-manager').map((tool) => tool.id as PackageManagerId);
+  return [{ bot, managers, minutes: 0, origin: file, location: { file, line: 1 }, securityBypass: false, scope: 'updates', applies: false, unreadableFile: file, unreadableReason: reason }];
+}
+
 const isConfigLocation = (value: unknown): value is { from: string; branch: string } => isRecord(value) && typeof value['from'] === 'string';
 const isDirectories = (value: unknown): value is { keys: string[]; globsIn: string } =>
   isRecord(value) && Array.isArray(value['keys']) && value['keys'].every((key) => typeof key === 'string') && typeof value['globsIn'] === 'string';
@@ -283,7 +302,7 @@ export const botCooldownMismatch: Rule = {
   checks: 'Update bots wait at least as long as the package manager before proposing a new version',
   summary: 'An update bot waits less than the package manager before proposing a new version.',
   description:
-    'The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type. With projects in depcurfew.json, a bot configuration file inside a project gets a note, because the bot reads its configuration only from the repository root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.',
+    'The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type. A bot configuration file that depcurfew cannot read or parse, or a Renovate file in JSON5, gets a note for each package manager that waits, instead of a delay the file may not have. With projects in depcurfew.json, a bot configuration file inside a project gets a note, because the bot reads its configuration only from the repository root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.',
   help: 'Give the bot a delay at least as long as the package manager\'s (depcurfew apply does this).',
   level: 'error',
   requiresPolicy: false,
@@ -303,7 +322,7 @@ export const botCooldownMismatch: Rule = {
       const bot = context.tools.find((entry) => entry.id === detected.id);
       const file = detected.configFiles[0];
       if (bot === undefined || file === undefined) continue;
-      delays.push(...(detected.id === 'dependabot' ? dependabotDelays(context, bot, file) : renovateDelays(context, bot, file)));
+      delays.push(...(unreadableBotFile(context, bot, file) ?? (detected.id === 'dependabot' ? dependabotDelays(context, bot, file) : renovateDelays(context, bot, file))));
     }
     for (const delay of delays) {
       for (const { manager, source } of sources.flatMap((item) => item.managers.filter((entry) => delay.managers.includes(entry.id)).map((manager) => ({ manager, source: item })))) {
@@ -316,11 +335,19 @@ export const botCooldownMismatch: Rule = {
         const own = { ...found, origin: source.relocate(found.origin) };
         if (delay.unreadableFile !== undefined) {
           if (own.minutes > 0) {
+            const file = delay.unreadableFile;
+            const reason = delay.unreadableReason;
+            const cannot = reason === 'parse' ? 'cannot parse' : reason === 'read' ? 'cannot read' : 'cannot read (it reads only JSON and JSONC Renovate files)';
             context.report({
               level: 'note',
               location: delay.location,
-              message: `${delay.bot.name} reads ${delay.unreadableFile}, which depcurfew cannot read (it reads only JSON and JSONC Renovate files), so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe(own.minutes)}, ${own.origin})`,
-              fix: `Make sure minimumReleaseAge in ${delay.unreadableFile} is at least ${describe(own.minutes)}, or move the configuration to renovate.json, which depcurfew reads`,
+              message: `${delay.bot.name} reads ${file}, which depcurfew ${cannot}, so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe(own.minutes)}, ${own.origin})`,
+              fix:
+                reason === 'parse'
+                  ? `Fix the syntax error in ${file} (unreadable-config says what it is), then run depcurfew doctor again`
+                  : reason === 'read'
+                    ? `Make ${file} a file depcurfew can read (unreadable-config says what is wrong), then run depcurfew doctor again`
+                    : `Make sure minimumReleaseAge in ${file} is at least ${describe(own.minutes)}, or move the configuration to renovate.json, which depcurfew reads`,
             });
           }
           continue;

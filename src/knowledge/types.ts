@@ -570,6 +570,11 @@ export interface NpmLocalPrefixKnowledge {
   workspacesObjectKey: string;
   /** The option that sets the local prefix on the command line. */
   prefixOption: string;
+  /**
+   * The option that, set to false on the command line (--no-workspaces), keeps the first directory as the local prefix,
+   * so npm reads the .npmrc of a workspace package; its value elsewhere (.npmrc, npm_config_) does not count.
+   */
+  workspacesOption: string;
   /** The project configuration file, read from the local prefix. */
   projectFile: string;
 }

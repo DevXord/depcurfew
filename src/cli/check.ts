@@ -322,9 +322,18 @@ function scopeOf(name: string): string {
   return name.startsWith('@') ? name.slice(0, name.indexOf('/')) : '';
 }
 
+/**
+ * Whether the install of a request reads a setting: the .npmrc of a workspace package that npm skips counts for npm
+ * (and for check and depcurfew mcp, which name no tool) only when the command line may turn workspaces off (decision
+ * D-124); pnpm and Bun read .npmrc by rules of their own.
+ */
+function readsSetting(setting: UnreadSetting, request: Omit<CheckRequest, 'spec'>): boolean {
+  return setting.skippedByNpm !== true || (request.tool ?? 'npm') !== 'npm' || request.workspacesOption === true;
+}
+
 /** Whether a registry setting the install would use, but depcurfew did not take, applies to this package. */
 function appliesTo(setting: UnreadSetting, report: PackageReport, request: CheckRequest): boolean {
-  if (report.kind !== 'registry' || report.name === undefined) return false;
+  if (report.kind !== 'registry' || report.name === undefined || !readsSetting(setting, request)) return false;
   const python = isPythonSpec(report.spec);
   // .npmrc counts for every tool of the npm ecosystem (pnpm and Bun read it too); a tool's own file for that tool only.
   if (setting.tool === 'npm' ? python : setting.tool !== request.tool) return false;
@@ -469,12 +478,13 @@ export async function checkApplied(requests: readonly CheckRequest[], applied: A
     scopeRegistries: applied.scopes,
     lookups,
     // A scope whose registry is set elsewhere, to another registry than depcurfew would ask, is not looked up.
-    skipLookup: (name: string, tool: ToolId | undefined) =>
+    skipLookup: (name: string, tool: ToolId | undefined, request?: Omit<CheckRequest, 'spec'>) =>
       unread.some(
         (setting) =>
           setting.applies === 'scope' &&
           setting.scope === scopeOf(name) &&
           (setting.tool === 'npm' || setting.tool === tool) &&
+          readsSetting(setting, request ?? { ...(tool === undefined ? {} : { tool }) }) &&
           changesTheCheck(setting, applied.scopes.get(setting.scope) ?? applied.registry.url),
       ),
     ...(settings.index === undefined ? {} : { index: applied.index }),

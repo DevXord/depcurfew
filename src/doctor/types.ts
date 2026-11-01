@@ -38,25 +38,26 @@ export interface Notice {
   message: string;
   /** The file it concerns, the same as location.file; kept for programs that read it before location was added. */
   file?: string;
-  location?: { file: string };
+  /** The line, when the notice is about one (a CI run step or RUN instruction depcurfew did not follow, decision D-124). */
+  location?: { file: string; line?: number };
   fix?: string;
 }
 
-/** A notice with its fields in the order of a finding; `file` and `fix` only when they are known. */
-export function makeNotice(code: string, message: string, file?: string, fix?: string): Notice {
+/** A notice with its fields in the order of a finding; `file`, `line` and `fix` only when they are known. */
+export function makeNotice(code: string, message: string, file?: string, fix?: string, line?: number): Notice {
   return {
     level: 'note',
     code,
-    ...(file === undefined ? {} : { location: { file } }),
+    ...(file === undefined ? {} : { location: { file, ...(line === undefined ? {} : { line }) } }),
     message,
     ...(file === undefined ? {} : { file }),
     ...(fix === undefined ? {} : { fix }),
   };
 }
 
-/** The same notice for another file (a project's file named from the root), or without one. */
+/** The same notice for another file (a project's file named from the root, at the same line), or without one. */
 export function relocatedNotice(notice: Notice, message: string, file: string | undefined): Notice {
-  return makeNotice(notice.code, message, file, notice.fix);
+  return makeNotice(notice.code, message, file, notice.fix, file === undefined ? undefined : notice.location?.line);
 }
 
 export interface RuleContext {

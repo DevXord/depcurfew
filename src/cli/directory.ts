@@ -16,7 +16,8 @@ import type { CliIo } from './io.ts';
 export interface InputError {
   code: ApplyErrorCode;
   level: 'error';
-  location: { file: string; line?: number };
+  /** `variable` with file "environment": the environment variable that is wrong (HOME, decision D-124). */
+  location: { file: string; line?: number; variable?: string };
   message: string;
   fix: string;
   issues?: string[];
@@ -81,7 +82,7 @@ export function policyInputError(error: PolicyError, file: string): InputError {
     level: 'error',
     location: { file, ...(error.line === undefined ? {} : { line: error.line }) },
     message: error.message,
-    fix: policyErrorFix(error),
+    fix: policyErrorFix(error, file),
     ...(error.issues.length === 0 ? {} : { issues: error.issues }),
   };
 }
@@ -90,12 +91,16 @@ export function policyInputError(error: PolicyError, file: string): InputError {
  * The message of an input error with the line of its location, as the JSON document has it (decision D-122): after the
  * file when the message starts with it ("depcurfew.json (line 6) is invalid"), else before the message, as apply names
  * the line of an entry of projects ("app/depcurfew.json (line 6): depcurfew.json is invalid"). A message that names
- * the line itself, and a location without one, leave the message as it is.
+ * the line itself, and a location without one, leave the message as it is. The Action says an invalid policy the same
+ * way (decision D-124).
  */
+export function messageAtLine(message: string, file: string, line: number | undefined): string {
+  if (line === undefined || new RegExp(`\\bline ${line}\\b`, 'u').test(message)) return message;
+  return message.startsWith(`${file} `) ? `${file} (line ${line})${message.slice(file.length)}` : `${file} (line ${line}): ${message}`;
+}
+
 function withLine(error: InputError): string {
-  const { file, line } = error.location;
-  if (line === undefined || new RegExp(`\\bline ${line}\\b`, 'u').test(error.message)) return error.message;
-  return error.message.startsWith(`${file} `) ? `${file} (line ${line})${error.message.slice(file.length)}` : `${file} (line ${line}): ${error.message}`;
+  return messageAtLine(error.message, error.location.file, error.location.line);
 }
 
 /**

@@ -397,7 +397,7 @@ export function detectProject(
     if (text === undefined) return [];
     const reading = readDockerStages(file, text, facts.docker);
     for (const { tool, declaration } of reading.versions) collector.addVersion(tool, declaration);
-    for (const message of reading.notices) repository.warn('script-not-followed', message, [file]);
+    for (const { message, line } of reading.notices) repository.warn('script-not-followed', message, [file], line);
     return [reading.info];
   });
 

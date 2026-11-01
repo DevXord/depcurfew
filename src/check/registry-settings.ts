@@ -15,7 +15,7 @@
 // Every file is read as a regular file of at most 1 MiB: a FIFO, a device or a huge file in its place is skipped with
 // a note, so that it can neither hang depcurfew nor exhaust its memory. Workspace patterns are matched with a limit on
 // their number, their length and the steps matching takes, so that a package.json cannot make it take minutes.
-import { realpathSync, statSync } from 'node:fs';
+import { readdirSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { extraOf, isRecord, values } from '../apply/facts.ts';
 import { tomlValueAt, parseToml, type TomlDocument, type TomlValue } from '../detect/toml.ts';
@@ -23,6 +23,7 @@ import { matchSegment, OutOfSteps, spendSteps, type StepBudget } from '../detect
 import { iniEntries } from '../doctor/settings.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type {
+  CommandLineParsing,
   IndexEntriesKnowledge,
   IndexEntryEffect,
   NpmLocalPrefixKnowledge,
@@ -82,6 +83,12 @@ export interface UnreadSetting {
   effect: 'replaces' | 'adds';
   /** The URL (without credentials) or dist-tag it sets; undefined when depcurfew cannot read it (a variable, another type). */
   value?: string;
+  /**
+   * The .npmrc of a workspace package that npm skips, as depcurfew matched the workspace exactly as npm does (decision
+   * D-124): it counts for pnpm and Bun, which read .npmrc by rules of their own, and for npm only when its command line
+   * may turn workspaces off (CheckRequest.workspacesOption).
+   */
+  skippedByNpm?: true;
 }
 
 /**
@@ -163,6 +170,27 @@ function npmFacts(): { config: RegistryConfigKnowledge; prefix: NpmLocalPrefixKn
   return { config, prefix, tagKey: selection?.tagKey };
 }
 
+/**
+ * Whether an npm command, as the scan gives it (its words after quotes, escapes and aliases), may set workspaces on its
+ * command line, the only place npm reads that setting from for its local prefix (extra.localPrefix of npm, decision
+ * D-124): a word that starts with a dash and, without its dashes, any no- in front and a value, is a prefix of the
+ * option's name (npm 11 expands abbreviations; also w, which is --workspace), starts with it, or is one of its
+ * shorthands (ws, extra.parsing). With workspaces false, npm keeps a workspace package as its local prefix and reads its
+ * .npmrc. It errs towards yes.
+ */
+export function mayTurnWorkspacesOff(command: string): boolean {
+  const { prefix } = npmFacts();
+  const name = prefix.workspacesOption.replace(/^-+/u, '');
+  const npm = knowledgeBase.find((tool) => tool.id === 'npm');
+  const parsing = npm?.extra?.['parsing'] === undefined ? undefined : (values(npm.extra['parsing'])[0] as CommandLineParsing | undefined);
+  const shorthands = Object.entries(parsing?.shorthands ?? {}).filter(([, expansion]) => expansion[0] === prefix.workspacesOption).map(([short]) => short.toLowerCase());
+  return command.split(/\s+/u).some((word) => {
+    if (!word.startsWith('-')) return false;
+    const bare = (word.replace(/^-+/u, '').replace(/^(?:no-)+/iu, '').split('=')[0] ?? '').toLowerCase();
+    return bare !== '' && (name.startsWith(bare) || bare.startsWith(name) || shorthands.includes(bare));
+  });
+}
+
 /** The real path of a path, or the resolved path when it does not exist. */
 export function realPath(path: string): string {
   try {
@@ -216,12 +244,65 @@ function matchesWorkspace(directory: readonly string[], pattern: readonly string
 }
 
 /**
+ * The parts of a workspace pattern (without its leading !) when depcurfew reads it exactly as npm 12.2.1 does
+ * (@npmcli/map-workspaces 6.0.0 with glob 13 and minimatch 10, extra.localPrefix of npm, decision D-124): npm strips
+ * one leading ./ or the leading slashes, and each part is ** (any depth) or literal characters with * (any run within
+ * one directory). Characters glob gives another meaning (? [ ] { } ( ) ! \ #), a trailing slash, an empty part, . and
+ * .. give undefined: depcurfew's matcher may read them otherwise.
+ */
+function exactPattern(pattern: string): string[] | undefined {
+  const parts = pattern.replace(/^\.?\/+/u, '').split('/');
+  return parts.every((part) => part !== '' && part !== '.' && part !== '..' && !/[?[\]{}()!\\#]/u.test(part)) ? parts : undefined;
+}
+
+/**
+ * Whether @npmcli/package-json reads the package.json of a workspace root without an error, as npm does before it
+ * looks at the workspaces: a bin list with something other than names, or a directories.bin that npm expands, may
+ * throw there, and npm then passes over that root (decision D-124).
+ */
+function normalizesAsRoot(manifest: Record<string, unknown>): boolean {
+  const directories = manifest['directories'];
+  const binDirectory = isRecord(directories) ? directories['bin'] : undefined;
+  const bin = manifest['bin'];
+  if (Boolean(binDirectory) && !Boolean(bin)) return false;
+  return !Array.isArray(bin) || bin.every((entry) => typeof entry === 'string');
+}
+
+/**
+ * Whether each of `parts` below `root` is a directory listed under that exact name (no symlink, the same case) and
+ * none starts with a dot, which glob's * and ** do not match: the path npm's glob finds is then the one depcurfew
+ * compares (decision D-124).
+ */
+function listedPath(root: string, parts: readonly string[]): boolean {
+  let parent = root;
+  for (const part of parts) {
+    if (part.startsWith('.')) return false;
+    try {
+      if (!readdirSync(parent, { withFileTypes: true }).some((entry) => entry.name === part && entry.isDirectory())) return false;
+    } catch {
+      return false;
+    }
+    parent = join(parent, part);
+  }
+  return true;
+}
+
+/** A workspace root lists the directory (exact: npm is sure to take it so, decision D-124), does not, or depcurfew cannot tell. */
+type WorkspaceListing = false | { exact: boolean } | { unsure: string };
+
+/**
  * Whether the package.json of `root` lists `directory` as a workspace: an array of patterns or an object with them,
  * ! excluding, node_modules never (@npmcli/map-workspaces). Patterns depcurfew cannot read do not match, so a doubt
  * keeps the nearer directory as the prefix, whose .npmrc is then reported if it sets a registry. More patterns, longer
  * ones or more matching steps than depcurfew allows give `unsure` with the reason (decision D-120).
+ *
+ * `exact` when npm is sure to match the directory too (decision D-124): on a POSIX system, a root package.json that npm
+ * reads without an error, patterns that are all text and exclusions that are literal paths (map-workspaces drops a
+ * pattern that a negated glob matches as text, so a negated glob may exclude more than depcurfew reads), a pattern
+ * that matches the directory and that depcurfew reads exactly as npm (exactPattern), and a path glob walks under the
+ * same names (listedPath).
  */
-function listsWorkspace(root: string, directory: string, fact: NpmLocalPrefixKnowledge): boolean | { unsure: string } {
+function listsWorkspace(root: string, directory: string, fact: NpmLocalPrefixKnowledge): WorkspaceListing {
   const read = readConfig(join(root, fact.markers.file));
   if (read === undefined || !('text' in read)) return false;
   let manifest: unknown;
@@ -238,21 +319,30 @@ function listsWorkspace(root: string, directory: string, fact: NpmLocalPrefixKno
   if (list.some((entry) => typeof entry === 'string' && entry.length > MAX_WORKSPACE_PATTERN_LENGTH)) return { unsure: `a pattern in it is longer than ${MAX_WORKSPACE_PATTERN_LENGTH} characters` };
   const budget: StepBudget = { left: MAX_WORKSPACE_STEPS };
   let included = false;
+  // Whether npm reads the root and the patterns as depcurfew does, and whether a pattern it reads so matches.
+  let exact = process.platform !== 'win32' && isRecord(manifest) && normalizesAsRoot(manifest);
+  let exactMatch = false;
   try {
     for (const entry of list) {
-      if (typeof entry !== 'string') continue;
+      if (typeof entry !== 'string') {
+        exact = false;
+        continue;
+      }
       const bangs = /^!*/u.exec(entry)?.[0].length ?? 0;
+      const exactParts = exactPattern(entry.slice(bangs));
+      if (bangs % 2 === 1 && (exactParts === undefined || exactParts.some((part) => part.includes('*')))) exact = false;
       const pattern = entry.slice(bangs).replace(/^\.\//u, '').replace(/\/+$/u, '').split('/').filter((part) => part !== '' && part !== '.');
       if (pattern.length === 0 || pattern.includes('..') || !matchesWorkspace(parts, pattern, budget)) continue;
       // An odd number of ! excludes, whatever the order of the patterns.
       if (bangs % 2 === 1) return false;
       included = true;
+      if (exactParts !== undefined) exactMatch = true;
     }
   } catch (error) {
     if (error instanceof OutOfSteps) return { unsure: `its patterns take more than ${MAX_WORKSPACE_STEPS} steps to match` };
     throw error;
   }
-  return included;
+  return included ? { exact: exact && exactMatch && listedPath(root, parts) } : false;
 }
 
 /** A directory whose package.json may list npm's local prefix as a workspace, which depcurfew could not tell. */
@@ -264,9 +354,11 @@ export interface WorkspaceDoubt {
 /**
  * npm's local prefix for a command run in `start`: the nearest directory with package.json or node_modules, or the
  * workspace root that lists it (then `workspace` is that nearer directory), else `start` (extra.localPrefix of npm).
- * `unsure` lists the directories on the way whose workspaces depcurfew did not match (decision D-120).
+ * `exact`: npm is sure to take `workspace` for a workspace of that root, so it skips the .npmrc there unless its command
+ * line turns workspaces off (decision D-124). `unsure` lists the directories on the way whose workspaces depcurfew did
+ * not match (decision D-120).
  */
-export function npmLocalPrefix(start: string): { prefix: string; workspace?: string; unsure?: WorkspaceDoubt[] } {
+export function npmLocalPrefix(start: string): { prefix: string; workspace?: string; exact?: true; unsure?: WorkspaceDoubt[] } {
   const { prefix: fact } = npmFacts();
   const first = realPath(start);
   let found: string | undefined;
@@ -278,7 +370,7 @@ export function npmLocalPrefix(start: string): { prefix: string; workspace?: str
       if (manifest || isDirectory(join(directory, fact.markers.directory))) found = directory;
     } else if (fact.workspaceRoot && manifest && isFile(join(found, fact.markers.file))) {
       const listed = listsWorkspace(directory, found, fact);
-      if (listed === true) return { prefix: directory, workspace: found, ...doubts() };
+      if (listed !== false && 'exact' in listed) return { prefix: directory, workspace: found, ...(listed.exact ? { exact: true as const } : {}), ...doubts() };
       if (listed !== false) unsure.push({ root: directory, reason: listed.unsure });
     }
     if (dirname(directory) === directory) break;
@@ -328,8 +420,8 @@ export function npmrcSettings(start: string, options: NpmrcOptions): NpmrcSettin
   const trusted = new Set(options.trusted.map(realPath));
   const realUser = realPath(userPath);
   // npm --prefix names the local prefix itself (extra.localPrefix of npm, decision D-118).
-  const { prefix, workspace, unsure = [] } = options.prefix === undefined ? npmLocalPrefix(start) : { prefix: realPath(options.prefix), workspace: undefined };
-  const unread = (directory: string) => {
+  const { prefix, workspace, exact, unsure = [] } = options.prefix === undefined ? npmLocalPrefix(start) : { prefix: realPath(options.prefix), workspace: undefined, exact: undefined };
+  const unread = (directory: string, skippedByNpm = false) => {
     const path = join(directory, config.file);
     // npm does not read the user file a second time as the project's.
     if (realPath(path) === realUser) return;
@@ -340,13 +432,14 @@ export function npmrcSettings(start: string, options: NpmrcOptions): NpmrcSettin
       result.skipped.push({ file, reason: read.skipped });
       return;
     }
+    const skipped = skippedByNpm ? { skippedByNpm: true as const } : {};
     for (const { key, value, line } of iniEntries(read.text)) {
       const url = urlValue(value);
       const named = url === undefined ? {} : { value: url };
-      if (key === config.key) result.unread.push({ tool: 'npm', file, line, applies: 'all', effect: 'replaces', ...named });
-      else if (tagKey !== undefined && key === tagKey) result.unread.push({ tool: 'npm', file, line, applies: 'tag', effect: 'replaces', ...(value.includes('$') ? {} : { value: value.trim() }) });
+      if (key === config.key) result.unread.push({ tool: 'npm', file, line, applies: 'all', effect: 'replaces', ...named, ...skipped });
+      else if (tagKey !== undefined && key === tagKey) result.unread.push({ tool: 'npm', file, line, applies: 'tag', effect: 'replaces', ...(value.includes('$') ? {} : { value: value.trim() }), ...skipped });
       else if (key.startsWith('@') && key.endsWith(config.scopeKeySuffix)) {
-        result.unread.push({ tool: 'npm', file, line, applies: 'scope', scope: key.slice(0, -config.scopeKeySuffix.length), effect: 'replaces', ...named });
+        result.unread.push({ tool: 'npm', file, line, applies: 'scope', scope: key.slice(0, -config.scopeKeySuffix.length), effect: 'replaces', ...named, ...skipped });
       }
     }
   };
@@ -362,7 +455,8 @@ export function npmrcSettings(start: string, options: NpmrcOptions): NpmrcSettin
     unread(prefix);
   }
   // npm skips the .npmrc of a workspace; if depcurfew took a directory for a workspace that is none, its settings count.
-  if (workspace !== undefined && !trusted.has(workspace)) unread(workspace);
+  // Where depcurfew matched the workspace exactly as npm does, they count only where npm may read them (decision D-124).
+  if (workspace !== undefined && !trusted.has(workspace)) unread(workspace, exact === true);
   // A package.json whose workspaces depcurfew did not match may make its directory npm's local prefix (decision
   // D-120): said in a notice, and a registry the .npmrc there sets counts as one depcurfew did not check.
   for (const doubt of unsure) {

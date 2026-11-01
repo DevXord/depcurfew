@@ -547,12 +547,15 @@ export class PolicyError extends Error {
   }
 }
 
-/** What to do about a policy that cannot be used, the same in doctor and in the JSON of apply and check. */
-export function policyErrorFix(error: PolicyError): string {
+/**
+ * What to do about a policy that cannot be used, the same in doctor and in the JSON of apply and check; `file` names it
+ * as the error does (../depcurfew.json from a directory below it, decision D-124).
+ */
+export function policyErrorFix(error: PolicyError, file: string = POLICY_FILE): string {
   if (error.fix !== undefined) return error.fix;
   return error.code === 'policy-unreadable'
-    ? `Make ${POLICY_FILE} a regular file inside the repository that the user running depcurfew can read`
-    : `Fix these problems in ${POLICY_FILE}; an editor that reads its $schema shows them as you type`;
+    ? `Make ${file} a regular file inside the repository that the user running depcurfew can read`
+    : `Fix these problems in ${file}; an editor that reads its $schema shows them as you type`;
 }
 
 /** The policy of the repository; undefined when it has no depcurfew.json. Throws PolicyError when it cannot be used. */

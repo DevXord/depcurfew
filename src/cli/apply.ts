@@ -102,7 +102,7 @@ interface JsonError {
   code: ApplyErrorCode;
   level: 'error';
   tool?: string;
-  location: { file: string; line?: number };
+  location: { file: string; line?: number; variable?: string };
   message: string;
   fix?: string;
   issues?: string[];

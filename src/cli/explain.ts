@@ -58,7 +58,8 @@ export type PolicyReport =
  */
 export interface ExplainWarning extends DetectionWarning {
   level: 'warning';
-  location?: { file: string };
+  /** With the line of the first file when the warning names one (script-not-followed, decision D-124). */
+  location?: { file: string; line?: number };
   fix: string;
 }
 
@@ -103,7 +104,7 @@ function explainedWarning(warning: DetectionWarning): ExplainWarning {
   return {
     code: warning.code,
     level: 'warning',
-    ...(file === undefined ? {} : { location: { file } }),
+    ...(file === undefined ? {} : { location: { file, ...(warning.line === undefined ? {} : { line: warning.line }) } }),
     message: warning.message,
     files: warning.files,
     fix: WARNING_FIXES[warning.code] ?? 'Run depcurfew doctor, which says what to do about it',

@@ -105,10 +105,10 @@ function runRules(
   const findings: Finding[] = [];
   const notices: Notice[] = [];
   const messages = new Set<string>();
-  const notice = (code: string, message: string, file?: string, fix?: string) => {
+  const notice = (code: string, message: string, file?: string, fix?: string, line?: number) => {
     if (messages.has(message)) return;
     messages.add(message);
-    notices.push(makeNotice(code, message, file, fix));
+    notices.push(makeNotice(code, message, file, fix, line));
   };
   for (const rule of rules) {
     if (rule.requiresPolicy && policy === undefined) continue;
@@ -131,7 +131,7 @@ function runRules(
   }
   // What detection could not follow, so the rules did not check it (decision D-121).
   for (const warning of detection.warnings) {
-    if (DETECTION_NOTICES.has(warning.code)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code]);
+    if (DETECTION_NOTICES.has(warning.code)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code], warning.line);
   }
   return { findings, notices, detection, repository };
 }

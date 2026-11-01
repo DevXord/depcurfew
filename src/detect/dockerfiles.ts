@@ -209,8 +209,8 @@ export interface DockerfileReading {
   info: DockerfileInfo;
   /** Node.js from FROM, npm, pip and Poetry from RUN (npm install -g npm@X, pip install pip==X, pipx install poetry==X). */
   versions: { tool: 'node' | 'npm' | 'pip' | 'poetry'; declaration: VersionDeclaration }[];
-  /** RUN instructions that went over a limit of the command reader, as the notices say it (decision D-121). */
-  notices: string[];
+  /** RUN instructions that went over a limit of the command reader, as the notices say it (decision D-121), with the line of the instruction (decision D-124). */
+  notices: { message: string; line: number }[];
 }
 
 /** Reads one Dockerfile. */
@@ -227,7 +227,7 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
   // that commands read are kept (decision D-121).
   const environments: Environment[] = [];
   const versions: DockerfileReading['versions'] = [];
-  const notices: string[] = [];
+  const notices: DockerfileReading['notices'] = [];
   for (const instruction of instructions) {
     if (instruction.keyword === facts.syntax.globalArgInstruction && stages.length === 0) {
       for (const [name, value] of argDeclarations(instruction.text)) {
@@ -293,7 +293,7 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
     if (instruction.keyword !== 'RUN' || stage === undefined) continue;
     const run = runCommands(instruction, facts, environment ?? new Map());
     if (run.pipConfig === true) stage.pipConfig = true;
-    notices.push(...overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`));
+    for (const message of overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`)) notices.push({ message, line: instruction.line });
     for (const command of run.commands) {
       stage.commands.push(command);
       if (command.kind === 'upgrade' && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip' || command.tool === 'poetry')) {

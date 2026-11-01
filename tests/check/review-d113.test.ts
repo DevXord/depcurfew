@@ -162,7 +162,8 @@ describe('the .npmrc npm reads: its local prefix (A3, P2)', () => {
   it('takes the .npmrc of the workspace root for a workspace package, as npm does', async () => {
     const root = repository({}, { '.npmrc': 'registry=https://npm.mirror.example/\n', 'packages/app/package.json': '{"name":"app"}' });
     writeFileSync(join(root, 'package.json'), '{"name":"root","private":true,"workspaces":["packages/*"]}');
-    expect(npmLocalPrefix(join(root, 'packages', 'app'))).toEqual({ prefix: expect.stringMatching(/depcurfew-d113-/u), workspace: expect.stringMatching(/app$/u) });
+    // depcurfew matches packages/* as npm does (decision D-124).
+    expect(npmLocalPrefix(join(root, 'packages', 'app'))).toEqual({ prefix: expect.stringMatching(/depcurfew-d113-/u), workspace: expect.stringMatching(/app$/u), ...(process.platform === 'win32' ? {} : { exact: true }) });
     const result = await exec(['check', '--dir', join(root, 'packages', 'app'), 'lodash']);
     expect(result.stderr).toContain('note: npm packages were looked up in https://npm.mirror.example/ (registry= in ../../.npmrc, line 1)');
     // Not a workspace: npm reads no .npmrc of the root there, so neither does depcurfew.

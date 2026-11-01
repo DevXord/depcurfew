@@ -105,7 +105,7 @@ describe('workspace patterns made to take long (H3)', () => {
     expect(found).toEqual({ prefix: expect.stringMatching(/[/\\]d$/u) });
     // The same pattern ending in the name of the directory still makes the root the prefix, as npm's glob does.
     writeFileSync(join(root, 'package.json'), JSON.stringify({ workspaces: [`${'**/'.repeat(18)}d`] }));
-    expect(npmLocalPrefix(deep)).toEqual({ prefix: expect.not.stringMatching(/[/\\]d$/u), workspace: expect.stringMatching(/[/\\]d$/u) });
+    expect(npmLocalPrefix(deep)).toEqual({ prefix: expect.not.stringMatching(/[/\\]d$/u), workspace: expect.stringMatching(/[/\\]d$/u), ...(process.platform === 'win32' ? {} : { exact: true }) });
     writeFileSync(join(root, 'package.json'), JSON.stringify({ workspaces: ['**/d/**/d/d', 'x/**'] }));
     expect(npmLocalPrefix(deep).workspace).toMatch(/[/\\]d$/u);
   });

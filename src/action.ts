@@ -7,6 +7,7 @@ import { basename, dirname, posix, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { values } from './apply/facts.ts';
 import { loadPolicyIfPresent, PolicyError, policyErrorFix } from './apply/index.ts';
+import { messageAtLine } from './cli/directory.ts';
 import { listedAsProject } from './apply/projects.ts';
 import { fileSystemReason, writeChanges } from './apply/workspace.ts';
 import { checkRunName, createCheckRun, fitSummary, type CheckRunContent, type CheckRunFetch } from './action-check-run.ts';
@@ -190,10 +191,11 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
     failOn = enabled(env, 'fail-on-error') ? resolveFailOn(option, { failOn: policyFailOn(policy), file: prefix === '' ? POLICY_FILE : posix.join(prefix, POLICY_FILE) }) : undefined;
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
-    outputs.failure = [error.message, ...error.issues].join('; ');
-    // As the CLI says it: the message, the problems, then what to do.
+    // As the CLI says it: the file and the line, the problems, then what to do (decision D-124).
+    const message = messageAtLine(error.message, file, error.line);
+    outputs.failure = [message, ...error.issues].join('; ');
     const issues = error.issues.map((issue) => `  ${printable(issue)}\n`).join('');
-    io.log(untrusted(`${runMessage('error', error.message).line}${issues}  fix: ${printable(policyErrorFix(error))}\n`));
+    io.log(untrusted(`${runMessage('error', message).line}${issues}  fix: ${printable(policyErrorFix(error, file))}\n`));
     if (summary) io.summary(failureSummary(outputs.failure));
     failedCheck(outputs.failure, prefix);
     return outputs;

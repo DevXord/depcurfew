@@ -220,7 +220,8 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
           const start = run.range[0];
           const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey)));
           const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
-          for (const message of overLimitMessages(found.overLimit, `the run step of job ${id} in ${file} (line ${lineCounter.linePos(start).line})`)) repository.warn('script-not-followed', message, [file]);
+          const runLine = lineCounter.linePos(start).line;
+          for (const message of overLimitMessages(found.overLimit, `the run step of job ${id} in ${file} (line ${runLine})`)) repository.warn('script-not-followed', message, [file], runLine);
           record.runsNode ||= found.runsNode;
           const configVariable = facts.commands.pip.delay?.configVariable;
           if (found.pipConfig === true || (configVariable !== undefined && (environment.get(configVariable) ?? '') !== '')) record.pipConfig = true;

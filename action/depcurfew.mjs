@@ -944,8 +944,9 @@ const npm$1 = {
 			workspacesField: "workspaces",
 			workspacesObjectKey: "packages",
 			prefixOption: "--prefix",
+			workspacesOption: "--workspaces",
 			projectFile: ".npmrc"
-		}, `${NPM_CONFIG_LIB}/index.js`, "loadLocalPrefix: --prefix on the command line is the local prefix. Otherwise npm walks up from the current directory (walk-up-path yields the directory and each parent up to the root, with no other stop; \"for (const p of walkUp(this.cwd))\") and takes the first directory with a package.json file or a node_modules directory (\"hasPackageJson || await dirExists(p, 'node_modules')\"). Unless workspaces are turned off or npm runs in global mode it walks on: a higher directory with a package.json whose workspaces include that directory becomes the prefix, and a .npmrc of the workspace is skipped (\"ignoring workspace config at ${this.localPrefix}/.npmrc\"). Without a match the prefix is the current directory (\"this.localPrefix = this.cwd\"). loadProjectConfig reads \"resolve(this.localPrefix, '.npmrc')\" as the project configuration, except in global mode and when that path is the userconfig file. Workspaces (@npmcli/map-workspaces, lib/index.js on main): an array of patterns or an object with a packages array, patterns starting with ! exclude, the globs match directories (whose package.json is then read) and skip node_modules. No .git or home directory stops the walk."),
+		}, `${NPM_CONFIG_LIB}/index.js`, "loadLocalPrefix: --prefix on the command line is the local prefix. Otherwise npm walks up from the current directory (walk-up-path yields the directory and each parent up to the root, with no other stop; \"for (const p of walkUp(this.cwd))\") and takes the first directory with a package.json file or a node_modules directory (\"hasPackageJson || await dirExists(p, 'node_modules')\"). Unless workspaces are set to false on the command line (\"this.#get('workspaces', 'cli')\", so --no-workspaces or --workspaces=false; .npmrc and npm_config_workspaces do not count) or npm runs in global mode, it walks on: each higher directory with a package.json is read with @npmcli/package-json normalize, and one that cannot be read or normalized (\".catch(() => ({ content: {} }))\") or has no workspaces is passed over; the first whose mapped workspaces include that directory (\"w === this.localPrefix\", the same path) becomes the prefix, and a .npmrc of the workspace is skipped (\"ignoring workspace config at ${this.localPrefix}/.npmrc\"). Without a match the prefix is the current directory (\"this.localPrefix = this.cwd\"). loadProjectConfig reads \"resolve(this.localPrefix, '.npmrc')\" as the project configuration, except in global mode and when that path is the userconfig file. Workspaces (@npmcli/map-workspaces 6.0.0, the version npm 12.2.1 locks, with glob 13.0.6 and minimatch 10.2.5, https://github.com/npm/map-workspaces/blob/v6.0.0/lib/index.js): an array of patterns or an object with a packages array, else EWORKSPACESCONFIG, and an entry that is not text throws too; the leading ! are removed and an odd number of them negates, then a leading ./ or leading slashes (\"pattern.replace(/^\\.?\\/+/, '')\"); a pattern drops the earlier negated patterns it matches as text, and each negated pattern drops the patterns it matches as text and is given to glob as ignore, with **/node_modules/**; glob gets every pattern with a trailing / (directories only) and its defaults: * and ** do not match a name that starts with a dot, ** does not follow symlinked directories, and matching ignores case on macOS and Windows; a match without package.json (ENOENT, ENOTDIR) is no workspace, another error and two workspaces of one name throw, and npm stops. normalize (https://github.com/npm/package-json/blob/v8.0.0/lib/normalize.js, steps bin and binDir) throws for a bin list with an entry that is not text and for directories.bin that is not text when bin is not set. No .git or home directory stops the walk."),
 		childEnvironment: user$7.verified({
 			marker: "npm_execpath",
 			prefix: "npm_config_"
@@ -7386,14 +7387,15 @@ var Repository = class {
 	constructor(root) {
 		this.root = realpathSync(root);
 	}
-	warn(code, message, files) {
+	warn(code, message, files, line) {
 		const key = `${code}\0${message}`;
 		if (this.#warned.has(key)) return;
 		this.#warned.add(key);
 		this.warnings.push({
 			code,
 			message,
-			files: [...files]
+			files: [...files],
+			...line === void 0 ? {} : { line }
 		});
 	}
 	/** A file that exists but cannot be read, e.g. without read permission; unreadable-config reports it. */
@@ -16029,7 +16031,10 @@ function readDockerStages(file, text, facts) {
 		if (instruction.keyword !== "RUN" || stage === void 0) continue;
 		const run = runCommands(instruction, facts, environment ?? /* @__PURE__ */ new Map());
 		if (run.pipConfig === true) stage.pipConfig = true;
-		notices.push(...overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`));
+		for (const message of overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`)) notices.push({
+			message,
+			line: instruction.line
+		});
 		for (const command of run.commands) {
 			stage.commands.push(command);
 			if (command.kind === "upgrade" && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry")) versions.push({
@@ -16297,7 +16302,8 @@ function readWorkflows(repository, facts) {
 					const start = run.range[0];
 					const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey)));
 					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
-					for (const message of overLimitMessages(found.overLimit, `the run step of job ${id} in ${file} (line ${lineCounter.linePos(start).line})`)) repository.warn("script-not-followed", message, [file]);
+					const runLine = lineCounter.linePos(start).line;
+					for (const message of overLimitMessages(found.overLimit, `the run step of job ${id} in ${file} (line ${runLine})`)) repository.warn("script-not-followed", message, [file], runLine);
 					record.runsNode ||= found.runsNode;
 					const configVariable = facts.commands.pip.delay?.configVariable;
 					if (found.pipConfig === true || configVariable !== void 0 && (environment.get(configVariable) ?? "") !== "") record.pipConfig = true;
@@ -16808,7 +16814,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		if (text === void 0) return [];
 		const reading = readDockerStages(file, text, facts.docker);
 		for (const { tool, declaration } of reading.versions) collector.addVersion(tool, declaration);
-		for (const message of reading.notices) repository.warn("script-not-followed", message, [file]);
+		for (const { message, line } of reading.notices) repository.warn("script-not-followed", message, [file], line);
 		return [reading.info];
 	});
 	const hasEvidence = (ecosystem) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
@@ -26459,10 +26465,13 @@ var PolicyError = class extends Error {
 		return this.fix === void 0 ? this.message : `${this.message}; ${this.fix.charAt(0).toLowerCase()}${this.fix.slice(1)}`;
 	}
 };
-/** What to do about a policy that cannot be used, the same in doctor and in the JSON of apply and check. */
-function policyErrorFix(error) {
+/**
+* What to do about a policy that cannot be used, the same in doctor and in the JSON of apply and check; `file` names it
+* as the error does (../depcurfew.json from a directory below it, decision D-124).
+*/
+function policyErrorFix(error, file = POLICY_FILE) {
 	if (error.fix !== void 0) return error.fix;
-	return error.code === "policy-unreadable" ? `Make ${POLICY_FILE} a regular file inside the repository that the user running depcurfew can read` : `Fix these problems in ${POLICY_FILE}; an editor that reads its $schema shows them as you type`;
+	return error.code === "policy-unreadable" ? `Make ${file} a regular file inside the repository that the user running depcurfew can read` : `Fix these problems in ${file}; an editor that reads its $schema shows them as you type`;
 }
 /** The policy of the repository; undefined when it has no depcurfew.json. Throws PolicyError when it cannot be used. */
 function loadPolicyIfPresent(root) {
@@ -26501,6 +26510,19 @@ const COLORED = {
 	bold: style(CODES.bold),
 	dim: style(CODES.dim)
 };
+
+// src/cli/directory.ts
+/**
+* The message of an input error with the line of its location, as the JSON document has it (decision D-122): after the
+* file when the message starts with it ("depcurfew.json (line 6) is invalid"), else before the message, as apply names
+* the line of an entry of projects ("app/depcurfew.json (line 6): depcurfew.json is invalid"). A message that names
+* the line itself, and a location without one, leave the message as it is. The Action says an invalid policy the same
+* way (decision D-124).
+*/
+function messageAtLine(message, file, line) {
+	if (line === void 0 || new RegExp(`\\bline ${line}\\b`, "u").test(message)) return message;
+	return message.startsWith(`${file} `) ? `${file} (line ${line})${message.slice(file.length)}` : `${file} (line ${line}): ${message}`;
+}
 
 // src/doctor/fail-on.ts
 /** doctor.failOn of a valid policy; undefined without a policy, without the section or without the field in it (decision D-116). */
@@ -27142,6 +27164,98 @@ function hasLockfile(scope) {
 	return scope.detection.packageManagers.some((manager) => manager.supported && (manager.evidence.some((evidence) => evidence.kind === "lockfile") || manager.id === "pip" && manager.configFiles.length > 0));
 }
 
+// src/doctor/rules/unreadable-config.ts
+/**
+* YAML as detection and apply read it (parseYaml: the document shared with the rules, then its values), with or without
+* merge keys; throws its first error. Building the values applies the limit of the yaml package on aliases (100 per
+* anchor), so a file whose aliases expand without end is an error here as it is in apply, also without a policy
+* (decision D-124).
+*/
+const yamlParsers = [false, true].map((merge) => (text) => {
+	parseYaml(text, { merge });
+	return true;
+});
+/** The parser detection and apply read a configuration file with, by its name; undefined for other files (.npmrc, JSON5). */
+function configParser(file) {
+	const name = file.split("/").at(-1) ?? file;
+	if (/\.toml$/u.test(name) || name === "Pipfile") return parseToml;
+	if (/\.ya?ml$/u.test(name)) return yamlParsers[yamlOptionsFor(file).merge === true ? 1 : 0];
+	if (/\.jsonc?$/u.test(name) || name === ".renovaterc") return parseJsonc;
+}
+/**
+* Reads a configuration file of a tool found the way detection and apply read it, so that a syntax error is a warning
+* of the repository: TOML (also Pipfile), YAML, and JSON with comments (also .renovaterc). Other files (.npmrc, JSON5)
+* are not parsed here.
+*/
+function parseConfig(repository, file) {
+	const parser = configParser(file);
+	if (parser !== void 0) repository.parseOnce(file, parser);
+}
+/**
+* Whether the text of a configuration file parses as detection and apply read it, without a warning of the repository:
+* a rule that cannot use a file that does not parse says so (decision D-124), while unreadable-config reports the file
+* with the message of apply's plan, when there is one.
+*/
+function configParses(file, text) {
+	const parser = configParser(file);
+	if (parser === void 0) return true;
+	try {
+		parser(text);
+		return true;
+	} catch {
+		return false;
+	}
+}
+/** The configuration files of the package managers and bots detection found. */
+function configFilesOf(detection) {
+	return [.../* @__PURE__ */ new Set([...detection.packageManagers.flatMap((manager) => manager.configFiles), ...detection.bots.flatMap((bot) => bot.configFiles)])];
+}
+const unreadableConfig = {
+	id: "unreadable-config",
+	checks: "Every configuration file and lockfile can be read and parsed",
+	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.",
+	description: "A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.",
+	help: "Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
+	level: "error",
+	requiresPolicy: false,
+	check(context) {
+		const reported = /* @__PURE__ */ new Set();
+		const reportWarning = (warning) => {
+			const fix = UNREADABLE_WARNINGS[warning.code];
+			const file = warning.files[0] ?? "depcurfew.json";
+			if (fix === void 0 || reported.has(file)) return;
+			reported.add(file);
+			context.report({
+				location: {
+					file,
+					...warning.code === "invalid-file" ? positionInMessage(warning.message) : void 0
+				},
+				message: `${warning.message.replace(/:$/u, "")}; depcurfew cannot check it`,
+				fix
+			});
+		};
+		for (const warning of [...context.detection.warnings, ...context.repository.warnings]) reportWarning(warning);
+		for (const failure of plannedApply(context)?.failures ?? []) {
+			if (reported.has(failure.file)) continue;
+			reported.add(failure.file);
+			context.report({
+				location: {
+					file: failure.file,
+					...positionInMessage(failure.message)
+				},
+				message: `depcurfew apply cannot edit ${failure.file} for ${context.tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool} (${failure.message}), so it cannot be checked against ${POLICY_FILE}`,
+				fix: "Fix what the message describes, then run depcurfew apply; or add the settings by hand"
+			});
+		}
+		for (const file of configFilesOf(context.detection)) {
+			if (reported.has(file)) continue;
+			const known = context.repository.warnings.length;
+			parseConfig(context.repository, file);
+			for (const warning of context.repository.warnings.slice(known)) reportWarning(warning);
+		}
+	}
+};
+
 // src/doctor/rules/bot-cooldown.ts
 const isEcosystems = (value) => isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
 const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]);
@@ -27302,6 +27416,31 @@ function exemptsSecurityFixes(bot, manager, file) {
 	const fact = bot.extra?.["pnpmSecurityExclusions"] === void 0 ? void 0 : extraOf(bot, "pnpmSecurityExclusions", isRecord);
 	return fact !== void 0 && Array.isArray(fact["managers"]) && fact["managers"].includes(manager) && fact["file"] === file;
 }
+/**
+* A bot configuration file that depcurfew cannot read or parse, the way detection and apply read it: its delay is not
+* known, so the rule gives a note at the file for every package manager that waits, instead of a delay the file may not
+* have (decision D-124). unreadable-config reports the file itself.
+*/
+function unreadableBotFile(context, bot, file) {
+	const text = context.repository.readText(file);
+	const reason = text === void 0 ? "read" : configParses(file, text) ? void 0 : "parse";
+	if (reason === void 0) return void 0;
+	return [{
+		bot,
+		managers: context.tools.filter((tool) => tool.kind === "package-manager").map((tool) => tool.id),
+		minutes: 0,
+		origin: file,
+		location: {
+			file,
+			line: 1
+		},
+		securityBypass: false,
+		scope: "updates",
+		applies: false,
+		unreadableFile: file,
+		unreadableReason: reason
+	}];
+}
 const isConfigLocation = (value) => isRecord(value) && typeof value["from"] === "string";
 const isDirectories = (value) => isRecord(value) && Array.isArray(value["keys"]) && value["keys"].every((key) => typeof key === "string") && typeof value["globsIn"] === "string";
 /**
@@ -27400,7 +27539,7 @@ const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	checks: "Update bots wait at least as long as the package manager before proposing a new version",
 	summary: "An update bot waits less than the package manager before proposing a new version.",
-	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type. With projects in depcurfew.json, a bot configuration file inside a project gets a note, because the bot reads its configuration only from the repository root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.",
+	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type. A bot configuration file that depcurfew cannot read or parse, or a Renovate file in JSON5, gets a note for each package manager that waits, instead of a delay the file may not have. With projects in depcurfew.json, a bot configuration file inside a project gets a note, because the bot reads its configuration only from the repository root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.",
 	help: "Give the bot a delay at least as long as the package manager's (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
@@ -27418,7 +27557,7 @@ const botCooldownMismatch = {
 			const bot = context.tools.find((entry) => entry.id === detected.id);
 			const file = detected.configFiles[0];
 			if (bot === void 0 || file === void 0) continue;
-			delays.push(...detected.id === "dependabot" ? dependabotDelays(context, bot, file) : renovateDelays(context, bot, file));
+			delays.push(...unreadableBotFile(context, bot, file) ?? (detected.id === "dependabot" ? dependabotDelays(context, bot, file) : renovateDelays(context, bot, file)));
 		}
 		for (const delay of delays) for (const { manager, source } of sources.flatMap((item) => item.managers.filter((entry) => delay.managers.includes(entry.id)).map((manager) => ({
 			manager,
@@ -27437,12 +27576,17 @@ const botCooldownMismatch = {
 				origin: source.relocate(found.origin)
 			};
 			if (delay.unreadableFile !== void 0) {
-				if (own.minutes > 0) context.report({
-					level: "note",
-					location: delay.location,
-					message: `${delay.bot.name} reads ${delay.unreadableFile}, which depcurfew cannot read (it reads only JSON and JSONC Renovate files), so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
-					fix: `Make sure minimumReleaseAge in ${delay.unreadableFile} is at least ${describe$1(own.minutes)}, or move the configuration to renovate.json, which depcurfew reads`
-				});
+				if (own.minutes > 0) {
+					const file = delay.unreadableFile;
+					const reason = delay.unreadableReason;
+					const cannot = reason === "parse" ? "cannot parse" : reason === "read" ? "cannot read" : "cannot read (it reads only JSON and JSONC Renovate files)";
+					context.report({
+						level: "note",
+						location: delay.location,
+						message: `${delay.bot.name} reads ${file}, which depcurfew ${cannot}, so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
+						fix: reason === "parse" ? `Fix the syntax error in ${file} (unreadable-config says what it is), then run depcurfew doctor again` : reason === "read" ? `Make ${file} a file depcurfew can read (unreadable-config says what is wrong), then run depcurfew doctor again` : `Make sure minimumReleaseAge in ${file} is at least ${describe$1(own.minutes)}, or move the configuration to renovate.json, which depcurfew reads`
+					});
+				}
 				continue;
 			}
 			if (delay.unreadablePreset !== void 0) {
@@ -29499,74 +29643,6 @@ const runtimeEndOfLife = {
 	}
 };
 
-// src/doctor/rules/unreadable-config.ts
-/** YAML as the rules read it (readYamlDocument, shared with them), with or without merge keys; throws its first error. */
-const yamlParsers = [false, true].map((merge) => (text) => {
-	const { document } = readYamlDocument(text, { merge });
-	if (document.errors.length > 0) throw document.errors[0];
-	return true;
-});
-/**
-* Reads a configuration file of a tool found the way the rules read it, so that a syntax error is a warning of the
-* repository: TOML (also Pipfile), YAML, and JSON with comments (also .renovaterc). Other files (.npmrc, JSON5) are not
-* parsed here.
-*/
-function parseConfig(repository, file) {
-	const name = file.split("/").at(-1) ?? file;
-	if (/\.toml$/u.test(name) || name === "Pipfile") readTomlDocument(repository, file);
-	else if (/\.ya?ml$/u.test(name)) repository.parseOnce(file, yamlParsers[yamlOptionsFor(file).merge === true ? 1 : 0]);
-	else if (/\.jsonc?$/u.test(name) || name === ".renovaterc") repository.parseOnce(file, parseJsonc);
-}
-/** The configuration files of the package managers and bots detection found. */
-function configFilesOf(detection) {
-	return [.../* @__PURE__ */ new Set([...detection.packageManagers.flatMap((manager) => manager.configFiles), ...detection.bots.flatMap((bot) => bot.configFiles)])];
-}
-const unreadableConfig = {
-	id: "unreadable-config",
-	checks: "Every configuration file and lockfile can be read and parsed",
-	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.",
-	description: "A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.",
-	help: "Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
-	level: "error",
-	requiresPolicy: false,
-	check(context) {
-		const reported = /* @__PURE__ */ new Set();
-		const reportWarning = (warning) => {
-			const fix = UNREADABLE_WARNINGS[warning.code];
-			const file = warning.files[0] ?? "depcurfew.json";
-			if (fix === void 0 || reported.has(file)) return;
-			reported.add(file);
-			context.report({
-				location: {
-					file,
-					...warning.code === "invalid-file" ? positionInMessage(warning.message) : void 0
-				},
-				message: `${warning.message.replace(/:$/u, "")}; depcurfew cannot check it`,
-				fix
-			});
-		};
-		for (const warning of [...context.detection.warnings, ...context.repository.warnings]) reportWarning(warning);
-		for (const failure of plannedApply(context)?.failures ?? []) {
-			if (reported.has(failure.file)) continue;
-			reported.add(failure.file);
-			context.report({
-				location: {
-					file: failure.file,
-					...positionInMessage(failure.message)
-				},
-				message: `depcurfew apply cannot edit ${failure.file} for ${context.tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool} (${failure.message}), so it cannot be checked against ${POLICY_FILE}`,
-				fix: "Fix what the message describes, then run depcurfew apply; or add the settings by hand"
-			});
-		}
-		for (const file of configFilesOf(context.detection)) {
-			if (reported.has(file)) continue;
-			const known = context.repository.warnings.length;
-			parseConfig(context.repository, file);
-			for (const warning of context.repository.warnings.slice(known)) reportWarning(warning);
-		}
-	}
-};
-
 // src/doctor/rules/index.ts
 /** Every doctor rule, in the order they are documented. unreadable-config runs last, after every other rule has read its files. */
 const RULES = [
@@ -29589,20 +29665,23 @@ const RULES = [
 ];
 
 // src/doctor/types.ts
-/** A notice with its fields in the order of a finding; `file` and `fix` only when they are known. */
-function makeNotice(code, message, file, fix) {
+/** A notice with its fields in the order of a finding; `file`, `line` and `fix` only when they are known. */
+function makeNotice(code, message, file, fix, line) {
 	return {
 		level: "note",
 		code,
-		...file === void 0 ? {} : { location: { file } },
+		...file === void 0 ? {} : { location: {
+			file,
+			...line === void 0 ? {} : { line }
+		} },
 		message,
 		...file === void 0 ? {} : { file },
 		...fix === void 0 ? {} : { fix }
 	};
 }
-/** The same notice for another file (a project's file named from the root), or without one. */
+/** The same notice for another file (a project's file named from the root, at the same line), or without one. */
 function relocatedNotice(notice, message, file) {
-	return makeNotice(notice.code, message, file, notice.fix);
+	return makeNotice(notice.code, message, file, notice.fix, file === void 0 ? void 0 : notice.location?.line);
 }
 
 // src/doctor/sarif.ts
@@ -29680,7 +29759,7 @@ function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 				})), ...report.notices.map((notice) => ({
 					level: "note",
 					message: { text: notice.fix === void 0 ? notice.message : `${notice.message}. Fix: ${notice.fix}` },
-					...notice.file === void 0 ? {} : { locations: [location(notice.file, void 0)] },
+					...notice.file === void 0 ? {} : { locations: [location(notice.file, notice.location?.line)] },
 					descriptor: { id: notice.code }
 				}))]
 			}],
@@ -29766,10 +29845,10 @@ function runRules(root, policy, rules, tools, where = {}) {
 	const findings = [];
 	const notices = [];
 	const messages = /* @__PURE__ */ new Set();
-	const notice = (code, message, file, fix) => {
+	const notice = (code, message, file, fix, line) => {
 		if (messages.has(message)) return;
 		messages.add(message);
-		notices.push(makeNotice(code, message, file, fix));
+		notices.push(makeNotice(code, message, file, fix, line));
 	};
 	for (const rule of rules) {
 		if (rule.requiresPolicy && policy === void 0) continue;
@@ -29792,7 +29871,7 @@ function runRules(root, policy, rules, tools, where = {}) {
 	}
 	const reported = rules.includes(unreadableConfig);
 	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code]);
-	for (const warning of detection.warnings) if (DETECTION_NOTICES.has(warning.code)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code]);
+	for (const warning of detection.warnings) if (DETECTION_NOTICES.has(warning.code)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code], warning.line);
 	return {
 		findings,
 		notices,
@@ -30122,9 +30201,10 @@ function runAction(env, io) {
 		}) : void 0;
 	} catch (error) {
 		if (!(error instanceof PolicyError)) throw error;
-		outputs.failure = [error.message, ...error.issues].join("; ");
+		const message = messageAtLine(error.message, file, error.line);
+		outputs.failure = [message, ...error.issues].join("; ");
 		const issues = error.issues.map((issue) => `  ${printable(issue)}\n`).join("");
-		io.log(untrusted(`${runMessage("error", error.message).line}${issues}  fix: ${printable(policyErrorFix(error))}\n`));
+		io.log(untrusted(`${runMessage("error", message).line}${issues}  fix: ${printable(policyErrorFix(error, file))}\n`));
 		if (summary) io.summary(failureSummary(outputs.failure));
 		failedCheck(outputs.failure, prefix);
 		return outputs;

@@ -140,7 +140,7 @@ describe('the command reader follows a script up to its limits (M4)', () => {
       {
         level: 'note',
         code: 'script-not-followed',
-        location: { file: '.github/workflows/ci.yml' },
+        location: { file: '.github/workflows/ci.yml', line: 9 },
         message:
           'the run step of job test in .github/workflows/ci.yml (line 9) changes the directory more than 256 times, so depcurfew cannot tell which directory the installs after that run in and checks them with the settings of the repository root',
         file: '.github/workflows/ci.yml',
@@ -149,7 +149,7 @@ describe('the command reader follows a script up to its limits (M4)', () => {
       {
         level: 'note',
         code: 'script-not-followed',
-        location: { file: 'Dockerfile' },
+        location: { file: 'Dockerfile', line: 2 },
         message:
           'the RUN instruction in Dockerfile (line 2) sets more than 1024 variables, so depcurfew does not read the later ones: npm installs after that count as ones that run dependency install scripts, and the release-age delay of pip installs after that is not checked',
         file: 'Dockerfile',

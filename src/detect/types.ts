@@ -170,6 +170,8 @@ export interface DetectionWarning {
   code: string;
   message: string;
   files: string[];
+  /** The line in the first file the warning is about, when it names one (decision D-124). */
+  line?: number;
 }
 
 export interface Detection {

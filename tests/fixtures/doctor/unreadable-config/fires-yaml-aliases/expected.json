@@ -1,0 +1,10 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/dependabot.yml"
+    },
+    "message": "cannot parse .github/dependabot.yml: Excessive alias count indicates a resource exhaustion attack; depcurfew cannot check it",
+    "fix": "Fix the syntax error, so that depcurfew can check the file"
+  }
+]

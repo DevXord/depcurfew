@@ -1,0 +1,11 @@
+[
+  {
+    "level": "note",
+    "location": {
+      "file": ".renovaterc",
+      "line": 1
+    },
+    "message": "Renovate reads .renovaterc, which depcurfew cannot parse, so it cannot tell whether Renovate waits as long as npm (3 days, min-release-age: 3 in .npmrc)",
+    "fix": "Fix the syntax error in .renovaterc (unreadable-config says what it is), then run depcurfew doctor again"
+  }
+]

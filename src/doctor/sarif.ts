@@ -101,7 +101,7 @@ export function toSarif(report: DoctorReport, rules: readonly Rule[], version: s
               ...report.notices.map((notice) => ({
                 level: 'note',
                 message: { text: notice.fix === undefined ? notice.message : `${notice.message}. Fix: ${notice.fix}` },
-                ...(notice.file === undefined ? {} : { locations: [location(notice.file, undefined)] }),
+                ...(notice.file === undefined ? {} : { locations: [location(notice.file, notice.location?.line)] }),
                 descriptor: { id: notice.code },
               })),
             ],
