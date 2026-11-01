@@ -40,6 +40,18 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 - `init` warns when it finds Python tools that the default policy also blocks building packages from source, so a package without wheels stops installing; run `doctor` before `apply`.
 - The README recommends `--save-exact` and says what depcurfew does not do: it has no malware database, so use it together with a tool that blocks known malware.
 
+### Fixes from the review before the release
+
+- When npm is not pinned, `apply` now considers the npm that the declared Node.js versions and Dockerfiles bring: if one of them is npm 11.16 to 11.x and install scripts are denied, it writes `strict-allow-scripts=true` (warning `strict-allow-scripts-from-node`; with npm 12 an unreviewed script then fails the install instead of being skipped with a warning). `doctor` counts script blocking as the files stand, so the version it recommends really blocks them.
+- `npm install -g <another package>` in CI or a Dockerfile no longer counts as a project install (npm ignores the project `.npmrc` in global mode). pnpm, Yarn and Bun installs in CI jobs count for `runtime-end-of-life`. In a repository with `projects`, a root CI job that installs with `working-directory` in a project is checked with that project's settings.
+- Workflows and Dockerfiles from a pull request can no longer crash or stall `doctor` and the Action: large matrices are capped with a notice, the command and Dockerfile readers run in linear time, and `ARG` values are limited in size. A here-document marker inside quotes no longer swallows the rest of a Dockerfile.
+- `apply` checks again, right before writing, that no directory on the way to a file was replaced by a symlink that leads out of the repository.
+- The Claude Code hook takes its policy from the project (`CLAUDE_PROJECT_DIR`) when the working directory is inside it, so a `depcurfew.json` in a vendored repository or package folder cannot relax it. The MCP server's `directory` argument no longer changes the policy either. Warnings without a decision (a deprecated version) reach Claude as context, and registry text is quoted and marked as data, with invisible format characters shown escaped.
+- `check_packages` works on every Node.js that `engines` allows (it used `AbortSignal.any`, which needs Node.js 18.17 or 20.3).
+- With `--json`, a usage error (an unknown option, `check` without a package, `--json` with `--sarif`) is a JSON document with `errors` on stdout, exit code 2, and stderr stays empty. `explain --json` warnings have `level`, `location` and `fix`, and an invalid project makes `explain` exit with 1.
+- `doctor --user` warns when a tool in `PATH` is too old for the user policy instead of reporting no problems. In a project, bot files of a listed project are a note (bots read their configuration only from the repository root), and a project without a Dependabot entry for its directory is a warning.
+- The "depcurfew doctor" check no longer keeps annotations of an earlier run with different findings: it replaces that entry. A symlink loop in the repository no longer crashes the Action.
+
 ### Compatibility
 
 - depcurfew runs on Node.js 18.3.0 or later (it needed 22 before); CI runs every command on the oldest supported version. Node.js 18 and 20 no longer get security fixes from the Node.js project.
