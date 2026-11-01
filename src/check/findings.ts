@@ -31,6 +31,15 @@ export interface CheckFinding {
 
 export const CHECK_BY_HAND = 'Make sure you trust this source before installing it';
 
+/**
+ * Text a package's publisher wrote (a deprecation message, an install script, the reason of a project status) as it
+ * goes into a message: in double quotes, with backslashes and double quotes escaped, so that it reads as one quoted
+ * piece of data and cannot pass for depcurfew's own words. Control and invisible characters are left to printable.
+ */
+export function quoted(text: string): string {
+  return `"${text.replace(/[\\"]/gu, (character) => `\\${character}`)}"`;
+}
+
 export interface PackageReport {
   spec: string;
   kind: SpecKind | 'invalid';

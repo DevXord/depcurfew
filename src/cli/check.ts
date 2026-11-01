@@ -121,8 +121,11 @@ function registryOf(given: string | undefined, registries: Registries): { url: s
   return { url, where: given === undefined ? (registries.registry?.where ?? 'the configuration') : '--registry' };
 }
 
-/** What to say about a registry other than the public one: a malicious .npmrc could name any. */
-function registryNote(registry: { url: string; where: string | undefined }): string | undefined {
+/**
+ * What to say about a registry other than the public one: a malicious .npmrc could name any. After a check it says
+ * where packages were looked up; for explain_policy of depcurfew mcp, where check_packages looks them up.
+ */
+function registryNote(registry: { url: string; where: string | undefined }, when: 'checked' | 'explained' = 'checked'): string | undefined {
   if (registry.where === undefined) return undefined;
   let host = '';
   try {
@@ -131,6 +134,11 @@ function registryNote(registry: { url: string; where: string | undefined }): str
     // An invalid URL is reported by the lookup itself.
   }
   // A link-local registry is not asked at all (fetchSameOrigin), so the packages were not looked up there.
+  if (when === 'explained') {
+    return isLinkLocal(host)
+      ? `check_packages would look npm packages up in ${registry.url} (${registry.where}), which depcurfew does not ask`
+      : `check_packages looks npm packages up in ${registry.url} (${registry.where}), not in the public npm registry`;
+  }
   return isLinkLocal(host)
     ? `npm packages would be looked up in ${registry.url} (${registry.where}), which depcurfew does not ask`
     : `npm packages were looked up in ${registry.url} (${registry.where}), not in the public npm registry`;
@@ -183,13 +191,19 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** What to do about a hook event that cannot be read: what Claude Code sends, and how to run the hook. */
+const UNREADABLE_EVENT_FIX =
+  'Claude Code sends the PreToolUse event as one JSON object on stdin, at most 1 MiB: run depcurfew check --hook claude-code as a PreToolUse command hook (see the README), or pipe such an event into it to try it, e.g. {"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm install lodash"},"cwd":"."}';
+
 async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencies): Promise<number> {
   let event: ReturnType<typeof readHookEvent>;
   try {
     event = readHookEvent(await dependencies.stdin());
   } catch (error) {
     // Without the event depcurfew cannot tell what would run; this exit code blocks the call even without onFailure.
-    io.stderr(`depcurfew: cannot read the hook event: ${messageOf(error)}\n`);
+    // Claude sees stderr as the reason, so the parser's message (which may quote the input) is shown as visible text.
+    const colors = paint(io.colors?.stderr);
+    io.stderr(`${colors.bold(colors.red('error:'))} cannot read the hook event: ${reasonText(messageOf(error))}\n  ${colors.green('fix:')} ${UNREADABLE_EVENT_FIX}\n`);
     return blockingExitCode();
   }
   if (event === undefined) return EXIT_OK;
@@ -287,6 +301,8 @@ export interface CheckSettings {
   signal?: AbortSignal;
   /** Whether findings quote install scripts (check) or only name them (agents, as in the hook). */
   scriptBodies?: boolean;
+  /** 'agent' for depcurfew mcp: notices say what an agent can do, which is not to write depcurfew.json. */
+  audience?: 'person' | 'agent';
 }
 
 /**
@@ -318,41 +334,49 @@ export interface AppliedPolicy {
   tag: { value: string; where: string } | undefined;
 }
 
-export type AppliedPolicyResult = { ok: true; applied: AppliedPolicy } | { ok: false; file: string; error: InputError };
+/** Where packages are looked up, which does not depend on the policy: the registry, the index, scopes and the dist-tag. */
+export type Lookups = Pick<AppliedPolicy, 'registry' | 'index' | 'scopes' | 'tag'>;
+
+/** The policy that applies, or why it cannot be used; `lookups` either way, as .npmrc and the options set them. */
+export type AppliedPolicyResult = { ok: true; applied: AppliedPolicy } | { ok: false; file: string; error: InputError; lookups: Lookups };
 
 /** The policy, registry and index check uses for packages installed in `start`, an existing directory. */
 export function appliedPolicy(start: string, settings: Pick<CheckSettings, 'registry' | 'index' | 'home'>): AppliedPolicyResult {
-  let loaded: ReturnType<typeof load>;
+  const directory = findPolicyDirectory(start);
+  const registries = npmrcRegistries(directory ?? resolve(start), settings.home);
+  const lookups: Lookups = {
+    registry: registryOf(settings.registry, registries),
+    index: settings.index === undefined ? defaultIndex() : withoutCredentials(settings.index),
+    scopes: registries.scopes,
+    tag: registries.tag,
+  };
+  const file = directory === undefined ? undefined : shownPath(start, join(directory, POLICY_FILE));
+  let policy: ResolvedPolicy | undefined;
   try {
-    loaded = load(start, settings.home);
+    policy = directory === undefined ? undefined : loadPolicyIfPresent(directory);
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
-    const directory = findPolicyDirectory(start);
-    const file = directory === undefined ? POLICY_FILE : shownPath(start, join(directory, POLICY_FILE));
-    return { ok: false, file, error: policyInputError(error, file) };
+    const shown = file ?? POLICY_FILE;
+    return { ok: false, file: shown, error: policyInputError(error, shown), lookups };
   }
-  return {
-    ok: true,
-    applied: {
-      policy: loaded.policy,
-      file: loaded.file === undefined ? null : shownPath(start, loaded.file),
-      registry: registryOf(settings.registry, loaded.registries),
-      index: settings.index === undefined ? defaultIndex() : withoutCredentials(settings.index),
-      scopes: loaded.registries.scopes,
-      tag: loaded.registries.tag,
-    },
-  };
+  return { ok: true, applied: { policy: policy ?? defaultPolicy(), file: file ?? null, ...lookups } };
 }
 
 /**
  * What to say about the policy and the registry: the default policy is used, npm packages are looked up in a registry
- * other than the public one, npm prefers another dist-tag. The last two only when `npm` packages are checked.
+ * other than the public one, npm prefers another dist-tag. The last two only when `npm` packages are checked. For an
+ * agent, the default policy is not an invitation to write depcurfew.json; `explained` says where check_packages looks
+ * packages up, in the present tense (explain_policy), instead of where they were looked up.
  */
-export function policyNotices(applied: AppliedPolicy, npm: boolean): { message: string }[] {
-  const note = registryNote(applied.registry);
+export function policyNotices(applied: AppliedPolicy, npm: boolean, options: { audience?: 'person' | 'agent'; explained?: boolean } = {}): { message: string }[] {
+  const note = registryNote(applied.registry, options.explained === true ? 'explained' : 'checked');
   const tag = applied.tag;
+  const defaultPolicyNotice =
+    options.audience === 'agent'
+      ? `no ${POLICY_FILE} found, so the default policy of depcurfew init applies; tell the user if the project should have a policy of its own`
+      : `no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)`;
   return [
-    ...(applied.file === null ? [{ message: `no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)` }] : []),
+    ...(applied.file === null ? [{ message: defaultPolicyNotice }] : []),
     ...(npm && note !== undefined ? [{ message: note }] : []),
     ...(tag === undefined || !npm ? [] : [{ message: `npm prefers the dist-tag "${tag.value}" (${tag.where}) for packages named without a version or with a range` }]),
   ];
@@ -371,7 +395,7 @@ export async function checkDocument(specs: readonly string[], settings: CheckSet
   if (!result.ok) return failed('policy-error', result.file, result.error);
   const { applied } = result;
   const { registry, tag } = applied;
-  const notices = policyNotices(applied, specs.some((spec) => !isPythonSpec(spec)));
+  const notices = policyNotices(applied, specs.some((spec) => !isPythonSpec(spec)), settings.audience === undefined ? {} : { audience: settings.audience });
   const reports = await checkSpecs(specs, {
     policy: applied.policy,
     fetch: settings.fetch,

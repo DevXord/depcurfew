@@ -9,13 +9,16 @@ import { formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import { policyFor } from '../policy/ecosystem.ts';
-import { CHECK_BY_HAND, describeAge, insecureFinding, sourceFindings, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
+import { CHECK_BY_HAND, describeAge, insecureFinding, quoted, sourceFindings, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
 import { checkPythonSpec, isPythonSpec } from './python.ts';
 import { fetchPackument, type Packument } from './registry.ts';
 import { compareSemver, maxSatisfying, parseRange, parseSemver, satisfies } from './semver.ts';
 import { parseSpec } from './spec.ts';
 
 export { describeAge } from './findings.ts';
+
+/** What to do when the registry cannot be reached, for a person at the command line. */
+export const REGISTRY_RETRY_FIX = 'Run depcurfew check again when the registry is reachable, or pass --registry with a registry you can reach';
 export type { CheckFinding, CheckOptions, CheckRequest, FindingCode, PackageReport } from './findings.ts';
 
 function defaultTag(): string {
@@ -126,7 +129,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
       level: 'error',
       code: 'unverified',
       message: `it cannot be checked: ${lookup.reason}`,
-      fix: lookup.fix ?? 'Run depcurfew check again when the registry is reachable, or pass --registry with a registry you can reach',
+      fix: lookup.fix ?? REGISTRY_RETRY_FIX,
     });
     return;
   }
@@ -182,7 +185,8 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   const allowed = policy.installScripts?.allow.some((pattern) => matchesPattern(name, pattern)) ?? false;
   const denied = policy.installScripts?.deny.some((pattern) => matchesPattern(name, pattern)) ?? false;
   if (scripts.length > 0 && policy.installScripts?.default === 'deny' && !allowed && !denied) {
-    const listed = scripts.map((script) => (options.scriptBodies === false ? script : `${script}: ${String(document?.scripts?.[script])}`)).join('; ');
+    // The body of a script is the publisher's text, so it is quoted; the names come from the knowledge base.
+    const listed = scripts.map((script) => (options.scriptBodies === false ? script : `${script}: ${quoted(String(document?.scripts?.[script]))}`)).join('; ');
     add({
       level: 'error',
       code: 'install-scripts',
@@ -194,11 +198,15 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
     add({
       level: 'warning',
       code: 'deprecated',
-      message: `${name}@${version} is deprecated: ${document.deprecated}`,
-      fix: 'Pick a version or package that is not deprecated; the deprecation message often names one',
+      // The message is the publisher's: quoted, so that it reads as data, and a replacement it names is only a suggestion.
+      message: `${name}@${version} is deprecated, with the message ${quoted(document.deprecated)}`,
+      fix: DEPRECATED_FIX,
     });
   }
 }
+
+/** What to do about a deprecated version: a replacement the publisher names is checked like any other package. */
+export const DEPRECATED_FIX = 'Pick a version or package that is not deprecated; check a replacement the message suggests like any other package before installing it';
 
 export async function checkSpec(request: string | CheckRequest, options: CheckOptions): Promise<PackageReport> {
   const { spec: raw, ...chosen } = typeof request === 'string' ? { spec: request } : request;

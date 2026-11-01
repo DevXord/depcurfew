@@ -5107,6 +5107,11 @@ const environment = {
 				args: "args"
 			}
 		}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. A matcher of names separated by | matches each of them exactly. With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules."),
+		hookContext: mcpFacts.uncertain({
+			field: "additionalContext",
+			withoutDecision: true,
+			inlineLimit: 1e4
+		}, "https://code.claude.com/docs/en/hooks#pretooluse-decision-control", "The PreToolUse decision control table lists additionalContext in hookSpecificOutput as \"String added to Claude's context alongside the tool result. Ignored when permissionDecision is \"defer\"\", next to permissionDecision, permissionDecisionReason and updatedInput, and #add-context-for-claude says Claude Code wraps the string in a system reminder that Claude reads on the next model request, places it next to the tool result for PreToolUse, writes a value over 10,000 characters to a file and passes its path with a preview of 2,000 characters, and recommends factual statements over imperative instructions. Uncertain: the page does not say in so many words that additionalContext works without permissionDecision; the table ties it to no decision but defer, and an output without permissionDecision leaves the call to the normal permission flow."),
 		sessionStart: release13.verified({
 			event: "SessionStart",
 			matchers: ["startup", "resume"],
@@ -5204,6 +5209,7 @@ const environment = {
 			internalError: -32603,
 			unsupportedProtocolVersion: -32022
 		}, `${MCP}/schema/2026-07-28/schema.ts`, "PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR and UNSUPPORTED_PROTOCOL_VERSION. -32601 is for a method the server does not implement. basic/index.mdx: request ids are strings or integers and never null; notifications have no id and get no response; an error response has the id of its request except when it could not be read, and the 2025-11-25 and 2026-07-28 schemas make id optional in an error response; codes from -32000 to -32019 are legacy and other codes from -32020 to -32099 that the specification does not define must not be used."),
+		errorId: mcpFacts.verified({ optionalSince: "2025-11-25" }, `${MCP}/schema/2025-11-25/schema.ts`, "JSONRPCErrorResponse has id?: RequestId in the 2025-11-25 schema (also in schema/2026-07-28/schema.ts); the schemas of 2025-06-18 and 2024-11-05 have JSONRPCError with a required id: RequestId (string | number), and basic/index.mdx of 2025-06-18 says responses must include the same id as their request and request ids must not be null. Neither says what an error response for a request whose id cannot be read carries; JSON-RPC 2.0 uses null there (jsonrpc.org was not reachable to verify it)."),
 		stdio: mcpFacts.verified({
 			delimiter: "\n",
 			batchRevisions: ["2025-03-26"]
@@ -20435,15 +20441,27 @@ function readLimited(path, limit, options = {}) {
 /** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
 const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
 const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
-/** The Unicode bidirectional formatting characters: ALM, LRM, RLM, LRE to RLO, LRI to PDI. */
-const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
 /**
-* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`. Line breaks are control
-* characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
-* depcurfew lays out in lines itself, such as a snippet to add by hand. Apply it before adding colors.
+* Characters that change how text is shown or read without being seen: the format characters (\p{Cf}: the
+* bidirectional controls ALM, LRM, RLM, LRE to RLO and LRI to PDI, zero-width space, joiners, word joiner, invisible
+* operators, the byte order mark, the soft hyphen, the tag characters U+E0001 and U+E0020 to U+E007F), the rest of the
+* tag block (U+E0000 to U+E007F), whose characters spell hidden ASCII that a model may read, and the variation
+* selectors (U+FE00 to U+FE0F, U+E0100 to U+E01EF).
+*/
+const INVISIBLE = /[\p{Cf}\u{e0000}-\u{e007f}\ufe00-\ufe0f\u{e0100}-\u{e01ef}]/gu;
+/** A character of INVISIBLE as \uHHHH, or \u{HHHHH} beyond the BMP. */
+function visible(character) {
+	const code = character.codePointAt(0) ?? 0;
+	return code > 65535 ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, "0")}`;
+}
+/**
+* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`, and every invisible
+* character (INVISIBLE) as `\uHHHH` or `\u{HHHHH}`. Line breaks are control characters too, so a value from a file
+* cannot start a line of its own; `lines: true` keeps line feeds, for text depcurfew lays out in lines itself, such as
+* a snippet to add by hand. Apply it before adding colors.
 */
 function printable(text, options = {}) {
-	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(BIDI, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
+	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(INVISIBLE, visible);
 }
 
 // src/apply/diff.ts

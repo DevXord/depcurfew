@@ -16,6 +16,7 @@ import {
   describeAge,
   insecureFinding,
   PYTHON_SOURCE_LABELS,
+  quoted,
   sourceFindings,
   type CheckFinding,
   type CheckOptions,
@@ -25,6 +26,9 @@ import {
 import { matchesSpecifiers, pickVersion, pinsVersion, type Clause } from './pep440.ts';
 import { defaultIndex, fetchProject, type PypiFile, type PypiProject } from './pypi.ts';
 import { parsePythonSpec } from './python-spec.ts';
+
+/** What to do when the index cannot be reached, for a person at the command line. */
+export const INDEX_RETRY_FIX = 'Run depcurfew check again when the index is reachable';
 
 /** Whether a spec names a Python package: it starts with pypi:. */
 export function isPythonSpec(raw: string): boolean {
@@ -74,7 +78,8 @@ function oldEnough(project: PypiProject, clauses: readonly Clause[], cutoff: num
 }
 
 function statusFindings(project: PypiProject, label: string): CheckFinding[] {
-  const reason = project.statusReason === undefined || project.statusReason.trim() === '' ? '' : `: ${project.statusReason.trim()}`;
+  // The reason is the publisher's (or the index's) text: quoted, so that it reads as data.
+  const reason = project.statusReason === undefined || project.statusReason.trim() === '' ? '' : `, with the reason ${quoted(project.statusReason.trim())}`;
   if (statuses().blocked.includes(project.status)) {
     return [
       {
@@ -89,7 +94,7 @@ function statusFindings(project: PypiProject, label: string): CheckFinding[] {
   if (project.status === 'archived') {
     return [{ level: 'warning', code: 'archived', message: `${label} is archived and gets no more releases${reason}`, fix: 'Prefer a maintained package; an archived one gets no security fixes' }];
   }
-  return [{ level: 'warning', code: 'deprecated', message: `${label} is ${project.status}${reason}`, fix: 'Pick a package that is not deprecated; the reason often names one' }];
+  return [{ level: 'warning', code: 'deprecated', message: `${label} is ${project.status}${reason}`, fix: 'Pick a package that is not deprecated; check a replacement the reason suggests like any other package before installing it' }];
 }
 
 async function checkIndexPackage(report: PackageReport, name: string, clauses: readonly Clause[], selector: string, options: CheckOptions, chosen: Chosen): Promise<void> {
@@ -121,7 +126,7 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
     return;
   }
   if (lookup.status === 'error') {
-    add({ level: 'error', code: 'unverified', message: `it cannot be checked: ${lookup.reason}`, fix: lookup.fix ?? 'Run depcurfew check again when the index is reachable' });
+    add({ level: 'error', code: 'unverified', message: `it cannot be checked: ${lookup.reason}`, fix: lookup.fix ?? INDEX_RETRY_FIX });
     return;
   }
   const project = lookup.project;

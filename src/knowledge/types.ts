@@ -641,6 +641,15 @@ export interface ClaudeCodeHooksKnowledge {
   settings: { hooks: string; matcher: string; handlers: string; type: string; commandType: string; command: string; args: string };
 }
 
+/** additionalContext in hookSpecificOutput of a PreToolUse hook: text Claude reads next to the tool result. */
+export interface ClaudeCodeHookContextKnowledge {
+  field: string;
+  /** Whether the field works without a permission decision (which leaves the call to the normal permission flow). */
+  withoutDecision: boolean;
+  /** Longer text is written to a file and Claude gets its path with a preview. */
+  inlineLimit: number;
+}
+
 /** The SessionStart hook that can install the project, and what happens to a guard whose script is missing. */
 export interface ClaudeCodeSessionStartKnowledge {
   event: string;
@@ -720,6 +729,11 @@ export interface McpErrorCodesKnowledge {
   invalidParams: number;
   internalError: number;
   unsupportedProtocolVersion: number;
+}
+
+/** The id of an error response: required (a string or a number) in the schemas before `optionalSince`, optional from it. */
+export interface McpErrorIdKnowledge {
+  optionalSince: string;
 }
 
 /** stdio: messages are UTF-8 JSON-RPC, one per line, without embedded newlines; stderr is free for logs. */
@@ -1030,6 +1044,8 @@ export interface EnvironmentKnowledge {
     /** The tools whose PreToolUse events carry a shell command in the hooks fact's input.command. */
     shellTools: Fact<readonly ClaudeCodeShellTool[]>;
     sessionStart: Fact<ClaudeCodeSessionStartKnowledge>;
+    /** The field of a PreToolUse hook's output that adds text to Claude's context, with or without a decision. */
+    hookContext: Fact<ClaudeCodeHookContextKnowledge>;
   };
   /** The Model Context Protocol, for depcurfew mcp, and how its clients start a stdio server. */
   mcp: {
@@ -1039,6 +1055,7 @@ export interface EnvironmentKnowledge {
     tools: Fact<McpToolsKnowledge>;
     cancellation: Fact<McpCancellationKnowledge>;
     errorCodes: Fact<McpErrorCodesKnowledge>;
+    errorId: Fact<McpErrorIdKnowledge>;
     stdio: Fact<McpStdioKnowledge>;
     clients: McpClientsKnowledge;
   };

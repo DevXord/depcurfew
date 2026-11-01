@@ -31,10 +31,27 @@ export const MAX_DOCUMENT_SIZE = 64 * 1024 * 1024;
 export const MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
-/** The signal of one lookup: the time limit, and the caller's signal when it gives one (depcurfew mcp cancels calls). */
+/**
+ * The signal of one lookup: the time limit, and the caller's signal when it gives one (depcurfew mcp cancels calls).
+ * AbortSignal.any arrived in Node.js 18.17 and 20.3, and depcurfew runs from 18.3.0 (decision D-103), so without it
+ * the two are combined by hand: the first to abort aborts the lookup with its reason.
+ */
 export function requestSignal(timeoutMs: number | undefined, signal: AbortSignal | undefined): AbortSignal {
   const timeout = AbortSignal.timeout(timeoutMs ?? TIMEOUT_MS);
-  return signal === undefined ? timeout : AbortSignal.any([timeout, signal]);
+  if (signal === undefined) return timeout;
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([timeout, signal]);
+  const combined = new AbortController();
+  if (signal.aborted) {
+    combined.abort(signal.reason);
+    return combined.signal;
+  }
+  const sources = [timeout, signal];
+  const onAbort = (event: Event): void => {
+    for (const source of sources) source.removeEventListener('abort', onAbort);
+    combined.abort((event.target as AbortSignal).reason);
+  };
+  for (const source of sources) source.addEventListener('abort', onAbort);
+  return combined.signal;
 }
 
 /** Whether a host is a link-local address written out (169.254.0.0/16, fe80::/10), where cloud metadata services answer. */

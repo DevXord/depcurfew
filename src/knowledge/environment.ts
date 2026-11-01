@@ -487,6 +487,11 @@ export const environment: EnvironmentKnowledge = {
       'https://code.claude.com/docs/en/hooks',
       'A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. A matcher of names separated by | matches each of them exactly. With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.',
     ),
+    hookContext: mcpFacts.uncertain(
+      { field: 'additionalContext', withoutDecision: true, inlineLimit: 10_000 },
+      'https://code.claude.com/docs/en/hooks#pretooluse-decision-control',
+      'The PreToolUse decision control table lists additionalContext in hookSpecificOutput as "String added to Claude\'s context alongside the tool result. Ignored when permissionDecision is \"defer\"", next to permissionDecision, permissionDecisionReason and updatedInput, and #add-context-for-claude says Claude Code wraps the string in a system reminder that Claude reads on the next model request, places it next to the tool result for PreToolUse, writes a value over 10,000 characters to a file and passes its path with a preview of 2,000 characters, and recommends factual statements over imperative instructions. Uncertain: the page does not say in so many words that additionalContext works without permissionDecision; the table ties it to no decision but defer, and an output without permissionDecision leaves the call to the normal permission flow.',
+    ),
     sessionStart: release13.verified(
       {
         event: 'SessionStart',
@@ -556,6 +561,11 @@ export const environment: EnvironmentKnowledge = {
       { parseError: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internalError: -32603, unsupportedProtocolVersion: -32022 },
       `${MCP}/schema/2026-07-28/schema.ts`,
       'PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR and UNSUPPORTED_PROTOCOL_VERSION. -32601 is for a method the server does not implement. basic/index.mdx: request ids are strings or integers and never null; notifications have no id and get no response; an error response has the id of its request except when it could not be read, and the 2025-11-25 and 2026-07-28 schemas make id optional in an error response; codes from -32000 to -32019 are legacy and other codes from -32020 to -32099 that the specification does not define must not be used.',
+    ),
+    errorId: mcpFacts.verified(
+      { optionalSince: '2025-11-25' },
+      `${MCP}/schema/2025-11-25/schema.ts`,
+      'JSONRPCErrorResponse has id?: RequestId in the 2025-11-25 schema (also in schema/2026-07-28/schema.ts); the schemas of 2025-06-18 and 2024-11-05 have JSONRPCError with a required id: RequestId (string | number), and basic/index.mdx of 2025-06-18 says responses must include the same id as their request and request ids must not be null. Neither says what an error response for a request whose id cannot be read carries; JSON-RPC 2.0 uses null there (jsonrpc.org was not reachable to verify it).',
     ),
     stdio: mcpFacts.verified(
       { delimiter: '\n', batchRevisions: ['2025-03-26'] },

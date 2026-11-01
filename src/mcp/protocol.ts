@@ -7,6 +7,7 @@ import type {
   Fact,
   McpCancellationKnowledge,
   McpErrorCodesKnowledge,
+  McpErrorIdKnowledge,
   McpLifecycleKnowledge,
   McpRevisionsKnowledge,
   McpStatelessKnowledge,
@@ -29,6 +30,7 @@ export interface McpFacts {
   tools: McpToolsKnowledge;
   cancellation: McpCancellationKnowledge;
   codes: McpErrorCodesKnowledge;
+  errorId: McpErrorIdKnowledge;
   stdio: McpStdioKnowledge;
 }
 
@@ -44,6 +46,7 @@ export function mcpFacts(): McpFacts {
     tools: first(mcp.tools, 'tools'),
     cancellation: first(mcp.cancellation, 'cancellation'),
     codes: first(mcp.errorCodes, 'error codes'),
+    errorId: first(mcp.errorId, 'error id'),
     stdio: first(mcp.stdio, 'stdio'),
   };
   return cached;
@@ -82,8 +85,11 @@ export interface RpcError {
   data?: unknown;
 }
 
-/** A JSON-RPC error response; without an id when the id of the request could not be read (as the 2025-11-25 and later schemas allow). */
-export function errorResponse(id: RequestId | undefined, error: RpcError): Record<string, unknown> {
+/**
+ * A JSON-RPC error response. When the id of the request could not be read, `id` is null (revisions whose schemas
+ * require an id) or undefined, which leaves it out (as the 2025-11-25 and later schemas allow).
+ */
+export function errorResponse(id: RequestId | null | undefined, error: RpcError): Record<string, unknown> {
   return id === undefined ? { jsonrpc: '2.0', error } : { jsonrpc: '2.0', id, error };
 }
 

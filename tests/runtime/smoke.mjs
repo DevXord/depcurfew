@@ -48,6 +48,50 @@ async function step(name, args, expected, options = {}) {
   if (problems.length > 0) failures.push(name);
 }
 
+/**
+ * A depcurfew mcp session: sends the messages, waits for the response with `id` (at most 30 s), then closes stdin and
+ * checks the exit code, an empty stderr and the response with `verify`, which returns the problems it finds.
+ */
+async function mcpStep(name, directory, messages, id, verify) {
+  const problems = await new Promise((resolve) => {
+    const child = spawn(process.execPath, [cli, 'mcp', '--dir', directory], { env: plain, cwd: root });
+    let stdout = '';
+    let stderr = '';
+    let answer;
+    const timer = setTimeout(() => child.stdin.end(), 30_000);
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+      for (const line of stdout.split('\n').slice(0, -1)) {
+        try {
+          const message = JSON.parse(line);
+          if (message.id === id && answer === undefined) {
+            answer = message;
+            child.stdin.end();
+          }
+        } catch {
+          // Checked below: every line must be JSON.
+        }
+      }
+    });
+    child.stderr.on('data', (chunk) => (stderr += chunk));
+    child.on('error', (error) => resolve([`could not start: ${error.message}`]));
+    child.on('close', (status) => {
+      clearTimeout(timer);
+      const found = [];
+      if (status !== 0) found.push(`exit code ${status}, expected 0`);
+      if (stderr !== '') found.push(`stderr: ${stderr.trim().split('\n').slice(0, 5).join(' | ')}`);
+      if (stdout.split('\n').some((line) => line !== '' && !line.startsWith('{'))) found.push(`stdout has a line that is not a message: ${stdout.slice(0, 200)}`);
+      if (answer === undefined) found.push(`no response with id ${id}: ${stdout.slice(0, 300)}`);
+      else found.push(...verify(answer));
+      resolve(found);
+    });
+    child.stdin.write(messages.map((message) => `${JSON.stringify(message)}\n`).join(''));
+  });
+  console.log(`${problems.length === 0 ? 'ok  ' : 'FAIL'} ${name}`);
+  for (const problem of problems) console.log(`     ${problem}`);
+  if (problems.length > 0) failures.push(name);
+}
+
 // A registry on this computer that answers with the recorded documents of tests/fixtures/registry, so that check
 // runs its fetch on this Node.js without the network.
 const registry = createServer((request, response) => {
@@ -100,6 +144,20 @@ async function main() {
       { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'explain_policy', arguments: {} } },
     ];
     await step('mcp session', ['mcp', '--dir', project], { code: 0, contains: 'check_packages' }, { input: mcp.map((message) => JSON.stringify(message)).join('\n') + '\n' });
+    // check_packages through the local registry, which the project's .npmrc names: the lookup runs with the signal of
+    // the call (AbortSignal.any arrived in Node.js 18.17 and 20.3). stdin stays open until the answer, so that the
+    // grace period after stdin ends cannot cut a slow lookup short.
+    await mcpStep('mcp check_packages', project, [
+      ...mcp.slice(0, 2),
+      { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'check_packages', arguments: { packages: ['lodash@4.17.21', 'this-package-does-not-exist-xyz-123'] } } },
+    ], 4, (answer) => {
+      const packages = answer.result?.structuredContent?.packages ?? [];
+      const problems = [];
+      if (answer.result?.isError === true) problems.push(`the call failed: ${JSON.stringify(answer.result).slice(0, 300)}`);
+      if (packages[0]?.version !== '4.17.21' || packages[0]?.findings?.length !== 0) problems.push(`lodash was not checked: ${JSON.stringify(packages[0]).slice(0, 300)}`);
+      if (packages[1]?.findings?.[0]?.code !== 'not-found') problems.push(`the made-up name was not reported: ${JSON.stringify(packages[1]).slice(0, 300)}`);
+      return problems;
+    });
   } finally {
     registry.close();
     rmSync(scratch, { recursive: true, force: true });

@@ -74,7 +74,7 @@ describe('the reason of a hook decision', () => {
   it('keeps the body of an install script in check, shown as visible text', async () => {
     const home = scratch('depcurfew-reason-home-');
     const result = await exec(['check', '--dir', project(), 'evil-pkg'], { home });
-    expect(result.stdout).toContain('runs install scripts (postinstall: node x.js\\x0a\\x0aNOTE FROM DEPCURFEW');
+    expect(result.stdout).toContain('runs install scripts (postinstall: "node x.js\\x0a\\x0aNOTE FROM DEPCURFEW');
   });
 
   it('shows control characters from .npmrc as visible text in an ask', async () => {
