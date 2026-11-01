@@ -30,6 +30,8 @@ export interface CommandFacts {
     valueOptions: readonly string[];
     /** --uploaded-prior-to, PIP_UPLOADED_PRIOR_TO and PIP_CONFIG_FILE: where pip takes its release-age delay from. */
     delay?: { option: string; variable: string; configVariable: string };
+    /** pip config set, unset and edit, and the names of pip's configuration files (pip.conf, pip.ini). */
+    config?: { command: string; writes: readonly string[]; files: readonly string[] };
   };
   python: { executables: readonly string[]; moduleOption: string; commandOption: string; valueOptions: readonly string[] };
   corepack: { enableCommand: string };
@@ -403,11 +405,26 @@ function pipxCommand(args: readonly Word[], at: number, facts: CommandFacts): Fo
   return poetryVersions(args.slice(index + 1).filter((word) => !word.text.startsWith('-')), at, facts);
 }
 
+/**
+ * Whether a simple command may change pip's configuration: pip config set, unset or edit, or a word naming pip.conf or
+ * pip.ini (cp, tee, a redirection to it). Then the delay of later pip installs cannot be told (decision D-115).
+ */
+function changesPipConfig(words: readonly Word[], facts: CommandFacts): boolean {
+  const config = facts.pip.config;
+  if (config === undefined) return false;
+  if (words.some((word) => config.files.includes(programName(word.text.replace(/^\d*>+/u, ''))))) return true;
+  const pip = pipArguments(words, facts);
+  if (pip === undefined) return false;
+  const operands = pip.filter((word) => !word.text.startsWith('-'));
+  return operands[0]?.text === config.command && config.writes.includes(operands[1]?.text ?? '');
+}
+
 /** What one simple command does with npm or pip, if anything. */
-function readCommand(words: readonly Word[], facts: CommandFacts, depth: number, environment: Environment = new Map()): { found: Found[]; runsNode: boolean } {
+function readCommand(words: readonly Word[], facts: CommandFacts, depth: number, environment: Environment = new Map()): { found: Found[]; runsNode: boolean; pipConfig?: true } {
   const { command, assignments } = commandParts(words);
   const first = command[0];
   if (first === undefined) return { found: [], runsNode: false };
+  if (changesPipConfig(command, facts)) return { found: [], runsNode: false, pipConfig: true };
   const seen: Environment = assignments.length === 0 ? environment : new Map([...environment, ...assignments]);
   const name = programName(first.text);
   const args = command.slice(1);
@@ -416,7 +433,7 @@ function readCommand(words: readonly Word[], facts: CommandFacts, depth: number,
     const script = args.find((_word, index) => index > 0 && isCommandOption(args[index - 1]?.text ?? ''));
     if (script !== undefined) {
       const inner = findToolCommands(script.text, facts, depth + 1, seen);
-      return { found: inner.commands.map((item) => ({ ...item, offset: script.offset })), runsNode: inner.runsNode };
+      return { found: inner.commands.map((item) => ({ ...item, offset: script.offset })), runsNode: inner.runsNode, ...(inner.pipConfig === true ? { pipConfig: true as const } : {}) };
     }
   }
   const runsNode = NODE_EXECUTABLES.has(name);
@@ -461,9 +478,10 @@ function changeDirectory(current: string, target: string | undefined): string {
  * the later commands. A literal cd changes the directory of the later commands of the same shell (`cd`, relative to
  * where the script starts), not of those after the ( ) it is in (decision D-115).
  */
-export function findToolCommands(script: string, facts: CommandFacts, depth = 0, environment: Environment = new Map()): { commands: Found[]; runsNode: boolean } {
+export function findToolCommands(script: string, facts: CommandFacts, depth = 0, environment: Environment = new Map()): { commands: Found[]; runsNode: boolean; pipConfig?: true } {
   const commands: Found[] = [];
   let runsNode = false;
+  let pipConfig = false;
   const variables = new Map(environment);
   // The directory at each depth of ( ); a deeper command starts from the one around it.
   const directories: string[] = [''];
@@ -490,12 +508,13 @@ export function findToolCommands(script: string, facts: CommandFacts, depth = 0,
       commands.push(cd === '' ? (({ cd: _cd, ...rest }) => rest)(found) : { ...found, cd });
     }
     runsNode ||= result.runsNode;
+    pipConfig ||= result.pipConfig === true;
   }
-  return { commands, runsNode };
+  return { commands, runsNode, ...(pipConfig ? { pipConfig: true as const } : {}) };
 }
 
 /** The same for the words of an exec form (RUN ["npm", "ci"]), which no shell splits. */
-export function findExecCommands(words: readonly Word[], facts: CommandFacts, environment: Environment = new Map()): { commands: Found[]; runsNode: boolean } {
+export function findExecCommands(words: readonly Word[], facts: CommandFacts, environment: Environment = new Map()): { commands: Found[]; runsNode: boolean; pipConfig?: true } {
   const result = readCommand(words, facts, 0, environment);
-  return { commands: result.found, runsNode: result.runsNode };
+  return { commands: result.found, runsNode: result.runsNode, ...(result.pipConfig === true ? { pipConfig: true as const } : {}) };
 }

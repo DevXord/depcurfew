@@ -19,6 +19,7 @@ const PIPX = 'https://github.com/pypa/pipx/blob/1.18.10';
 const PYLOCK = 'https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst';
 const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
 const user = verifiedOn('2026-10-31');
+const finalReview = verifiedOn('2026-11-01');
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -219,6 +220,11 @@ export const pip: ToolKnowledge = {
     ),
   },
   extra: {
+    configCommand: finalReview.verified(
+      { command: 'config', writes: ['set', 'unset', 'edit'] },
+      `${PIP}/src/pip/_internal/commands/configuration.py`,
+      'pip config: "Manage local and global configuration"; "set: Set the command.option=value", "unset: Unset the value associated with command.option", "edit: Edit the configuration file in an editor". Without --user, --global or --site it changes the configuration file of the active virtual environment when that file exists, otherwise the user file. So a CI step or RUN with pip config set can give the later pip installs a release-age delay that no environment variable shows (decision D-115).',
+    ),
     configSections: user.verified(
       { global: 'global', commandsOverride: true },
       CONFIGURATION,

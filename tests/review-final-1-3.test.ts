@@ -473,7 +473,7 @@ describe('the release-age delay of pip in Dockerfiles (T4)', () => {
         'error',
         { file: 'Dockerfile', line: 4 },
         'the stage at line 1 in Dockerfile installs packages with pip on line 4 with the release-age delay P1D (1 day), shorter than the 3d of depcurfew.json (3 days for pip)',
-        'Set PIP_UPLOADED_PRIOR_TO=P3D instead, with ENV in the stage at line 1 before line 4 or as --uploaded-prior-to=P3D on that pip install',
+        'Set PIP_UPLOADED_PRIOR_TO=P3D instead, with ENV in the stage at line 1 before line 4, or as --uploaded-prior-to=P3D on that pip install',
       ],
     ]);
   });
@@ -499,5 +499,90 @@ describe('the release-age delay of pip in Dockerfiles (T4)', () => {
     ]) {
       expect(found(pipRepo(dockerfile, { 'pip.conf': '[global]\nuploaded-prior-to = P3D\n' })).filter((item) => (item[2] as string).includes('installs packages with pip')), dockerfile).toEqual([]);
     }
+  });
+
+  it('skips a stage that writes pip\'s configuration with pip config set', () => {
+    expect(found(pipRepo('FROM python:3.13\nRUN pip config set global.uploaded-prior-to P3D\nRUN pip install -r requirements.txt\n'))).toEqual([]);
+  });
+});
+
+describe('the release-age delay of pip in CI jobs (T4 follow-up)', () => {
+  const python = '      - uses: actions/setup-python@v5\n        with:\n          python-version: "3.13"\n';
+  const pipRepo = (steps: string, extra = '', files: Record<string, string> = {}) =>
+    repository({ 'depcurfew.json': policy(COOLDOWN), 'requirements.txt': 'idna==3.10\n', '.github/workflows/ci.yml': workflow(`${python}${steps}`, extra), ...files });
+  const found = (directory: string) => rule(runDoctor(directory), 'python-config-ignored').map((finding) => [finding.level, finding.location, finding.message, finding.fix]);
+
+  it('reports a pip install without PIP_UPLOADED_PRIOR_TO, also as python -m pip and pip3', () => {
+    for (const command of ['pip install -r requirements.txt', 'python -m pip install -r requirements.txt', 'pip3 install -r requirements.txt']) {
+      expect(found(pipRepo(`      - run: ${command}\n`)), command).toEqual([
+        [
+          'error',
+          { file: '.github/workflows/ci.yml', line: 9 },
+          'job test in .github/workflows/ci.yml installs packages with pip on line 9 without a release-age delay: pip reads no configuration from the project, and nothing sets PIP_UPLOADED_PRIOR_TO or --uploaded-prior-to there, so the 3d of depcurfew.json does not hold for it',
+          'Add PIP_UPLOADED_PRIOR_TO: P3D to the env of job test (or of that step), or pass --uploaded-prior-to=P3D to that pip install (pip 26.1.0 or later reads a number of days)',
+        ],
+      ]);
+    }
+  });
+
+  it('reports a shorter delay from the env, the step over the job over the workflow', () => {
+    const directory = pipRepo('      - run: pip install -r requirements.txt\n        env:\n          PIP_UPLOADED_PRIOR_TO: P1D\n', '    env:\n      PIP_UPLOADED_PRIOR_TO: P7D\n');
+    expect(found(directory).map((item) => item[2])).toEqual([
+      'job test in .github/workflows/ci.yml installs packages with pip on line 11 with the release-age delay P1D (1 day), shorter than the 3d of depcurfew.json (3 days for pip)',
+    ]);
+  });
+
+  it('passes with the delay in env or on the command, and skips a job that sets pip\'s configuration', () => {
+    for (const [steps, extra] of [
+      ['      - run: pip install -r requirements.txt\n', '    env:\n      PIP_UPLOADED_PRIOR_TO: P3D\n'],
+      ['      - run: pip install --uploaded-prior-to=P5D -r requirements.txt\n', ''],
+      ['      - run: export PIP_UPLOADED_PRIOR_TO=P3D && pip install -r requirements.txt\n', ''],
+      ['      - run: pip config set global.uploaded-prior-to P3D\n      - run: pip install -r requirements.txt\n', ''],
+      ['      - run: cp ci/pip.conf ~/.config/pip/pip.conf\n      - run: pip install -r requirements.txt\n', ''],
+      ['      - run: pip install -r requirements.txt\n', '    env:\n      PIP_CONFIG_FILE: ci/pip.conf\n'],
+    ] as const) {
+      expect(found(pipRepo(steps, extra)), steps).toEqual([]);
+    }
+  });
+
+  it('checks a root job that installs in a project with pip, and not a project without pip', () => {
+    const directory = repository({
+      'depcurfew.json': policy(COOLDOWN, { projects: ['backend', 'frontend'] }),
+      'backend/requirements.txt': 'idna==3.10\n',
+      'frontend/package.json': manifest(),
+      'frontend/package-lock.json': LOCK,
+      '.github/workflows/ci.yml': workflow(`${python}      - run: cd backend && pip install -r requirements.txt\n      - run: pip install -r requirements.txt\n        working-directory: frontend\n`),
+    });
+    expect(found(directory).map((item) => item[2])).toEqual([
+      'job test in .github/workflows/ci.yml installs packages with pip in backend on line 9 without a release-age delay: pip reads no configuration from the project, and nothing sets PIP_UPLOADED_PRIOR_TO or --uploaded-prior-to there, so the 3d of depcurfew.json does not hold for it',
+    ]);
+  });
+
+  it('says nothing without a cooldown in the policy or without pip', () => {
+    expect(found(repository({ 'depcurfew.json': policy({ version: 1, sources: { git: 'deny' }, targets: 'auto' }), 'requirements.txt': 'idna==3.10\n', '.github/workflows/ci.yml': workflow(`${python}      - run: pip install -r requirements.txt\n`) }))).toEqual([]);
+    expect(found(repository({ 'depcurfew.json': policy(COOLDOWN), 'package.json': manifest(), '.github/workflows/ci.yml': workflow(`${python}      - run: pip install pre-commit\n`) }))).toEqual([]);
+  });
+});
+
+describe('a Dockerfile image whose npm cannot be told (follow-up)', () => {
+  it('is a note with a fix in manager-version-too-old, as in runtime-end-of-life', () => {
+    const image = `node@sha256:${'0'.repeat(64)}`;
+    const directory = repository({ 'depcurfew.json': policy(DENY), 'package.json': manifest(), 'package-lock.json': LOCK, Dockerfile: `FROM ${image}\nRUN npm ci\n` });
+    const report = runDoctor(directory);
+    const reason = `the image is pinned by digest only (${image})`;
+    expect(rule(report, 'manager-version-too-old')).toEqual([
+      {
+        rule: 'manager-version-too-old',
+        level: 'note',
+        location: { file: 'Dockerfile', line: 1 },
+        message: `manager-version-too-old cannot tell which npm comes with Node.js (${image}) in Dockerfile: ${reason}`,
+        fix: 'Use a node image tag that names the Node.js version (such as node:24-alpine, with the digest after it: node:<tag>@sha256:…), or check by hand that the npm of that image supports blocking dependency install scripts without strict-allow-scripts (added in 12.0.0)',
+      },
+    ]);
+    expect(rule(report, 'runtime-end-of-life').map((finding) => [finding.level, finding.location])).toEqual([['note', { file: 'Dockerfile', line: 1 }]]);
+    expect(report.notices.map((notice) => notice.message).filter((message) => message.startsWith('manager-version-too-old'))).toEqual([]);
+    // Nothing to check there (npm ci with only a release-age delay): no note.
+    const cooldown = repository({ 'depcurfew.json': policy(COOLDOWN), 'package.json': manifest(), 'package-lock.json': LOCK, Dockerfile: `FROM ${image}\nRUN npm ci\n` });
+    expect(rule(runDoctor(cooldown), 'manager-version-too-old')).toEqual([]);
   });
 });

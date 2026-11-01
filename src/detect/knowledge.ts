@@ -193,6 +193,8 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
   const pipFlag = pip.cooldown.cliFlag === undefined ? undefined : first(pip.cooldown.cliFlag);
   const pipVariable = extraValue(pip, 'environmentVariable');
   const pipConfig = extraValue(pip, 'configFileVariable');
+  const pipConfigCommand = extraValue(pip, 'configCommand');
+  const pipConfigFiles = extraValue(pip, 'configFileNames');
   const poetryTool = tools.find((candidate) => candidate.id === 'poetry');
   const poetryPackage = poetryTool === undefined ? undefined : extraValue(poetryTool, 'installedPackage');
   const off = extraValue(npm, 'scriptsOff');
@@ -223,6 +225,9 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       installCommand: pipLine?.add[0]?.[1] ?? 'install',
       valueOptions: pipLine?.valueOptions ?? [],
       ...(typeof pipFlag === 'string' && typeof pipVariable === 'string' && typeof pipConfig === 'string' ? { delay: { option: pipFlag, variable: pipVariable, configVariable: pipConfig } } : {}),
+      ...(isRecord(pipConfigCommand) && typeof pipConfigCommand['command'] === 'string' && Array.isArray(pipConfigFiles)
+        ? { config: { command: pipConfigCommand['command'], writes: strings(pipConfigCommand['writes']), files: strings(pipConfigFiles) } }
+        : {}),
     },
     python: interpreter,
     corepack: { enableCommand: first(environment.corepack.enableNpm).command },

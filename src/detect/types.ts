@@ -98,6 +98,11 @@ export interface WorkflowJob {
   commands: ToolCommand[];
   /** A run step calls node, npm, npx, pnpm, yarn, bun or corepack, so the job uses the Node.js it sets up. */
   runsNode: boolean;
+  /**
+   * A run step may change pip's configuration (pip config set, a pip.conf it writes, PIP_CONFIG_FILE in env), so the
+   * release-age delay of its pip installs cannot be told (decision D-115).
+   */
+  pipConfig?: true;
 }
 
 /** The official runtime image a build stage starts from. */
@@ -123,6 +128,8 @@ export interface DockerStage {
   /** The official node or python image of this stage or of the stage it starts from. */
   runtime?: StageRuntime;
   commands: ToolCommand[];
+  /** A RUN may change pip's configuration (pip config set, a pip.conf it writes), as for jobs (decision D-115). */
+  pipConfig?: true;
   /**
    * The source paths of the stage's COPY and ADD instructions that copy from the build context (not --from), as
    * written; absent when there are none. A root Dockerfile whose stage copies only files of one directory listed in

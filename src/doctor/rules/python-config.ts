@@ -2,12 +2,13 @@
 // off, which look effective but are not: [tool.uv] next to a uv.toml, uv settings in workspace members, pip.conf in
 // the project, options pip rejects in requirements files, an exclude-newer date that never moves (uv, PDM), PDM's uv
 // mode, which installs without the build settings, and Pipenv's pure-Python resolver, which ignores cool-down-period.
-// And a pip install in a Dockerfile stage of the python image without the release-age delay the policy asks for:
-// pip takes it only from the environment or its command line there (decision D-115).
+// And a pip install in a Dockerfile stage of the python image or in a CI job without the release-age delay the policy
+// asks for: pip takes it only from the environment or its command line there (decision D-115).
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf } from '../../apply/facts.ts';
 import { convertCooldown } from '../../policy/convert.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { joinPath } from '../../detect/repository.ts';
+import type { ToolCommand } from '../../detect/types.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { requirementsFormatOf } from '../python-lockfiles.ts';
 import { readPythonSetting, requirementsLongOptions, requirementsOptions, tomlSettingAt } from '../python.ts';
@@ -146,65 +147,127 @@ function checkPip(context: RuleContext, tool: ToolKnowledge, configFiles: readon
   }
 }
 
+/** What the release-age delay of pip installs is checked against: the days of the policy and the names to give. */
+interface PipDelay {
+  days: number;
+  minimum: string;
+  variable: string;
+  option: string;
+  since: string | undefined;
+}
+
+function pipDelayOf(context: RuleContext, tool: ToolKnowledge): PipDelay | undefined {
+  const policy = context.policy;
+  if (policy?.cooldown === undefined) return undefined;
+  const converted = convertCooldown(tool, policy.cooldown.minimum);
+  if (!converted.ok || typeof converted.value !== 'number') return undefined;
+  return {
+    days: converted.value,
+    minimum: policy.cooldown.minimum.text,
+    variable: extraOf(tool, 'environmentVariable', (value): value is string => typeof value === 'string'),
+    option: `--${settingOf(tool.cooldown.setting) ?? ''}`,
+    since: sinceOf(tool.cooldown.availableSince),
+  };
+}
+
+/**
+ * The finding for the first pip install of a stage or a job whose release-age delay does not hold: none (error), fewer
+ * days than the policy (error) or a fixed date (warning). `where` names the place, `add` how to set it there. true when
+ * a finding was reported.
+ */
+function reportPipDelay(context: RuleContext, delay: PipDelay, command: ToolCommand, file: string, where: string, add: string, place: string): boolean {
+  const plural = (count: number) => `${count} ${count === 1 ? 'day' : 'days'}`;
+  const location = { file, line: command.line };
+  const instead = `Set ${delay.variable}=P${delay.days}D instead, ${place}, or as ${delay.option}=P${delay.days}D on that pip install`;
+  if (command.delay === undefined) {
+    context.report({
+      location,
+      message: `${where} without a release-age delay: pip reads no configuration from the project, and nothing sets ${delay.variable} or ${delay.option} there, so the ${delay.minimum} of ${POLICY_FILE} does not hold for it`,
+      fix: `${add}, or pass ${delay.option}=P${delay.days}D to that pip install (pip ${delay.since ?? 'a recent version'} or later reads a number of days)`,
+    });
+    return true;
+  }
+  const written = /^P(\d+)D$/u.exec(command.delay)?.[1];
+  if (written === undefined) {
+    if (!/^\d{4}-\d{2}-\d{2}/u.test(command.delay)) return false;
+    context.report({
+      level: 'warning',
+      location,
+      message: `${where} with the release-age delay ${command.delay}, a fixed date: it holds back every later upload instead of delaying each new version by the ${delay.minimum} of ${POLICY_FILE}`,
+      fix: instead,
+    });
+    return true;
+  }
+  if (Number(written) >= delay.days) return false;
+  context.report({
+    location,
+    message: `${where} with the release-age delay ${command.delay} (${plural(Number(written))}), shorter than the ${delay.minimum} of ${POLICY_FILE} (${plural(delay.days)} for pip)`,
+    fix: instead,
+  });
+  return true;
+}
+
+/** pip installs of a stage or job that depcurfew can judge: installs whose delay is not hidden in a configuration file. */
+const judged = (command: ToolCommand) => command.tool === 'pip' && command.kind === 'install' && command.delayUnknown !== true;
+
 /**
  * pip installs in Dockerfile stages of the official python image, which has no pip.conf: pip reads no configuration
  * from the project, so the release-age delay of the policy holds there only when the stage sets PIP_UPLOADED_PRIOR_TO
  * (ENV, also in a stage it starts from, or on the command) or passes --uploaded-prior-to, with at least as many days
- * (decision D-115). A stage that copies a pip.conf or pip.ini, or names one with PIP_CONFIG_FILE, is not checked.
+ * (decision D-115). A stage (or one it starts from) that copies a pip.conf or pip.ini, writes pip's configuration
+ * (pip config set) or names one with PIP_CONFIG_FILE is not checked.
  */
 function checkPipDockerfiles(context: RuleContext, tool: ToolKnowledge): void {
   const policy = context.policy;
-  if (policy?.cooldown === undefined || (policy.targets !== 'auto' && !policy.targets.includes('pip'))) return;
-  const converted = convertCooldown(tool, policy.cooldown.minimum);
-  if (!converted.ok || typeof converted.value !== 'number') return;
-  const days = converted.value;
-  const variable = extraOf(tool, 'environmentVariable', (value): value is string => typeof value === 'string');
-  const option = `--${settingOf(tool.cooldown.setting) ?? ''}`;
+  const delay = pipDelayOf(context, tool);
+  if (policy === undefined || delay === undefined || (policy.targets !== 'auto' && !policy.targets.includes('pip'))) return;
   const names = extraOf(tool, 'configFileNames', isStrings);
-  const since = sinceOf(tool.cooldown.availableSince);
-  const plural = (count: number) => `${count} ${count === 1 ? 'day' : 'days'}`;
   for (const file of context.detection.dockerfiles) {
-    const copiesConfig: boolean[] = [];
+    const configured: boolean[] = [];
     for (const [index, stage] of file.stages.entries()) {
-      const own = (stage.copies ?? []).some((source) => names.includes(source.split('/').at(-1) ?? ''));
-      copiesConfig.push(own || (stage.from !== undefined && stage.from < index && copiesConfig[stage.from] === true));
-      if (stage.runtime?.tool !== 'python' || copiesConfig[index] === true) continue;
+      const own = stage.pipConfig === true || (stage.copies ?? []).some((source) => names.includes(source.split('/').at(-1) ?? ''));
+      configured.push(own || (stage.from !== undefined && stage.from < index && configured[stage.from] === true));
+      if (stage.runtime?.tool !== 'python' || configured[index] === true) continue;
       const name = stage.name === undefined ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
-      for (const command of stage.commands) {
-        if (command.tool !== 'pip' || command.kind !== 'install' || command.delayUnknown === true) continue;
+      for (const command of stage.commands.filter(judged)) {
         const where = `${name} in ${file.file} installs packages with pip on line ${command.line}`;
-        const set = `ENV ${variable}=P${days}D to ${name} before line ${command.line}, or pass ${option}=P${days}D to that pip install (pip ${since ?? 'a recent version'} or later reads a number of days)`;
-        const instead = `Set ${variable}=P${days}D instead, with ENV in ${name} before line ${command.line} or as ${option}=P${days}D on that pip install`;
-        if (command.delay === undefined) {
-          context.report({
-            location: { file: file.file, line: command.line },
-            message: `${where} without a release-age delay: pip reads no configuration from the project, and nothing sets ${variable} or ${option} there, so the ${policy.cooldown.minimum.text} of ${POLICY_FILE} does not hold for it`,
-            fix: `Add ${set}`,
-          });
-          break;
-        }
-        const written = /^P(\d+)D$/u.exec(command.delay)?.[1];
-        if (written === undefined) {
-          if (/^\d{4}-\d{2}-\d{2}/u.test(command.delay)) {
-            context.report({
-              level: 'warning',
-              location: { file: file.file, line: command.line },
-              message: `${where} with the release-age delay ${command.delay}, a fixed date: it holds back every later upload instead of delaying each new version by the ${policy.cooldown.minimum.text} of ${POLICY_FILE}`,
-              fix: instead,
-            });
-            break;
-          }
-          continue;
-        }
-        if (Number(written) < days) {
-          context.report({
-            location: { file: file.file, line: command.line },
-            message: `${where} with the release-age delay ${command.delay} (${plural(Number(written))}), shorter than the ${policy.cooldown.minimum.text} of ${POLICY_FILE} (${plural(days)} for pip)`,
-            fix: instead,
-          });
-          break;
-        }
+        const add = `Add ENV ${delay.variable}=P${delay.days}D to ${name} before line ${command.line}`;
+        if (reportPipDelay(context, delay, command, file.file, where, add, `with ENV in ${name} before line ${command.line}`)) break;
       }
+    }
+  }
+}
+
+/** The directory listed in projects a command's working directory lies in; '' for the root. */
+function projectOfCommand(command: ToolCommand, projects: readonly string[]): string {
+  const directory = command.directory;
+  if (directory === undefined) return '';
+  return projects.find((project) => directory === project || directory.startsWith(`${project}/`)) ?? '';
+}
+
+/**
+ * pip installs in CI jobs, as in Dockerfile stages (decision D-115): pip takes the release-age delay only from
+ * PIP_UPLOADED_PRIOR_TO in the env of the workflow, the job or the step (or set on the command line, or exported before)
+ * or from --uploaded-prior-to. An install in the directory of a project (working-directory, cd) counts when that
+ * project uses pip, with the policy of the root it shares. A job that may change pip's configuration (pip config set,
+ * a pip.conf it writes, PIP_CONFIG_FILE) is not checked.
+ */
+function checkPipJobs(context: RuleContext, tool: ToolKnowledge): void {
+  const policy = context.policy;
+  const delay = pipDelayOf(context, tool);
+  if (policy === undefined || delay === undefined || (policy.targets !== 'auto' && !policy.targets.includes('pip'))) return;
+  const views = context.projects ?? [];
+  const projects = views.map((view) => view.directory);
+  const pipIn = (detection: RuleContext['detection']) => detection.packageManagers.some((manager) => manager.id === 'pip' && manager.supported);
+  const usesPip = new Map<string, boolean>([['', pipIn(context.detection)], ...views.map((view): [string, boolean] => [view.directory, pipIn(view.detection)])]);
+  for (const job of context.detection.jobs) {
+    if (job.pipConfig === true) continue;
+    for (const command of [...job.commands].sort((a, b) => a.line - b.line).filter(judged)) {
+      const project = projectOfCommand(command, projects);
+      if (usesPip.get(project) !== true) continue;
+      const where = `job ${job.id} in ${job.file} installs packages with pip${project === '' ? '' : ` in ${project}`} on line ${command.line}`;
+      const add = `Add ${delay.variable}: P${delay.days}D to the env of job ${job.id} (or of that step)`;
+      if (reportPipDelay(context, delay, command, job.file, where, add, `in the env of job ${job.id} or of that step`)) break;
     }
   }
 }
@@ -216,7 +279,7 @@ export const pythonConfigIgnored: Rule = {
   checks: 'Python tools read their settings where they are written',
   summary: 'A Python tool ignores a setting where it is written.',
   description:
-    'uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files, so a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = "pure-python" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.',
+    'uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = "pure-python" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.',
   help: 'Move the setting to the file the tool reads.',
   level: 'error',
   requiresPolicy: false,
@@ -234,5 +297,8 @@ export const pythonConfigIgnored: Rule = {
       if (tool.id === 'pdm') checkPdm(context, tool);
       if (tool.id === 'pipenv') checkPipenv(context, tool);
     }
+    // CI jobs of the root also install in projects, which may use pip when the root does not.
+    const pip = context.tools.find((entry) => entry.id === 'pip');
+    if (pip !== undefined) checkPipJobs(context, pip);
   },
 };

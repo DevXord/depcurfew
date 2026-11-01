@@ -986,7 +986,17 @@ function checkDockerfiles(context: RuleContext, helpers: BundledHelpers, checkFo
     const version = runtime.version;
     const subject = `${runtimeName}${version === undefined ? '' : ` ${version}`} (${image}) in ${file.file}`;
     if (version === undefined) {
-      unknown(context, subject, runtime.unknown ?? 'the tag names no version', file.file);
+      // A note with the place and a fix, as runtime-end-of-life gives for the same stage (decision D-115): a digest
+      // alone, a tag depcurfew does not know or an ARG without a value hides which npm or pip the image has.
+      const settings = placeFeatures(check.features, installs);
+      if (settings.length === 0) continue;
+      const list = describeRequirements(settings.map(({ setting, since }) => ({ setting, since })));
+      context.report({
+        level: 'note',
+        location: { file: file.file, line: root.line },
+        message: `${RULE} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? 'the tag names no version'}`,
+        fix: `Use a ${runtimeTool} image tag that names the ${runtimeName} version (such as ${runtimeTool}:${runtimeTool === 'node' ? '24-alpine' : '3.13-slim'}, with the digest after it: ${runtimeTool}:<tag>@sha256:…), or check by hand that the ${tool} of that image supports ${list}`,
+      });
       continue;
     }
     const resolution = runtimeTool === 'node' ? nodeBundledNpm(version, 'docker', facts) : pythonBundledPip(version, facts);

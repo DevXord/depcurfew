@@ -629,7 +629,7 @@ const checked$5 = verifiedOn("2026-10-29");
 const reviewed$2 = verifiedOn("2026-10-30");
 const rechecked$4 = verifiedOn("2026-10-31");
 const runtimes$2 = verifiedOn("2026-11-01");
-const finalReview$2 = verifiedOn("2026-11-01");
+const finalReview$3 = verifiedOn("2026-11-01");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -1615,19 +1615,19 @@ const npm$1 = {
 			value: "warning"
 		}], "https://github.com/npm/cli/blob/v10.9.9/workspaces/config/lib/index.js", "npm 10 loads every key of an .npmrc without checking whether it knows it (#loadObject only checks deprecated and exclusive keys), so a setting it does not have yet, such as min-release-age, is ignored without any message. checkUnknown first appears in v11.2.0 (workspaces/config/lib/index.js), which warns: Unknown project config \"<key>\". This will stop working in the next major version of npm. The 11.2.0 changelog does not name the change; the version comes from reading the code at the tags. npm 12 collects unknown keys to fail the command (v12.2.1), with the exact behavior not read."),
 		lockfileInstalls: uncertain$8("npm ci installs versions pinned in package-lock.json without applying min-release-age", "https://docs.npmjs.com/cli/v12/commands/npm-ci", "Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window."),
-		cleanInstall: finalReview$2.verified({
+		cleanInstall: finalReview$3.verified({
 			commands: "clean",
 			installsLockedVersions: true,
 			failsWhenOutOfSync: true,
 			writesLockfile: false
 		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-ci.md", "npm ci (the clean commands of installCommands): \"The project must have an existing package-lock.json\"; \"If dependencies in the package lock do not match those in package.json, npm ci will exit with an error, instead of updating the package lock\"; \"It will never write to package.json or package-lock.json: installs are essentially frozen.\" lib/commands/ci.js at v12.2.1 loads the lockfile (loadVirtual), builds the ideal tree, throws \"`npm ci` can only install packages when your package.json and package-lock.json are in sync\" when validateLockfile finds a difference, and reifies with packageLock: true and save: false. So npm ci installs exactly the versions package-lock.json records, and a release-age delay cannot change which versions it installs; the settings of its params (ignore-scripts, allow-scripts, strict-allow-scripts, allow-git, allow-remote, allow-file, allow-directory) still apply."),
-		scriptsOff: finalReview$2.verified({
+		scriptsOff: finalReview$3.verified({
 			option: "--ignore-scripts",
 			variable: "npm_config_ignore_scripts",
 			anyCase: true,
 			value: "true"
 		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/config.md", "ignore-scripts (Boolean, default false; definitions.js at v12.2.1: \"If true, npm does not run scripts specified in package.json files\") is one of the params of npm ci and npm install (lib/commands/ci.js). On the command line --ignore-scripts sets it; \"Any environment variables that start with npm_config_ will be interpreted as a configuration parameter\", with underscores for dashes, and \"Config values are case-insensitive, so NPM_CONFIG_FOO=bar will work the same\". depcurfew counts only the value true (and the flag without a value) as off: parseField turns only \"true\" into true, and loadEnv skips empty values (user.variables)."),
-		nodeEngines: finalReview$2.verified([{
+		nodeEngines: finalReview$3.verified([{
 			since: "11.0.0",
 			node: "^20.17.0 || >=22.9.0"
 		}, {
@@ -1654,6 +1654,7 @@ const PIPX = "https://github.com/pypa/pipx/blob/1.18.10";
 const PYLOCK = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst";
 const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
 const user$6 = verifiedOn("2026-10-31");
+const finalReview$2 = verifiedOn("2026-11-01");
 const noSetting$5 = (kind) => ({ setting: uncertain$7(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
 const pip$1 = {
 	id: "pip",
@@ -1885,6 +1886,14 @@ const pip$1 = {
 		], CONFIGURATION$4, "\"Note that if a file exists at the location that this is set to, the user config file will not be loaded.\" PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory (see files).")
 	},
 	extra: {
+		configCommand: finalReview$2.verified({
+			command: "config",
+			writes: [
+				"set",
+				"unset",
+				"edit"
+			]
+		}, `${PIP}/src/pip/_internal/commands/configuration.py`, "pip config: \"Manage local and global configuration\"; \"set: Set the command.option=value\", \"unset: Unset the value associated with command.option\", \"edit: Edit the configuration file in an editor\". Without --user, --global or --site it changes the configuration file of the active virtual environment when that file exists, otherwise the user file. So a CI step or RUN with pip config set can give the later pip installs a release-age delay that no environment variable shows (decision D-115)."),
 		configSections: user$6.verified({
 			global: "global",
 			commandsOverride: true
@@ -6998,6 +7007,8 @@ function detectionFacts(tools, environment) {
 	const pipFlag = pip.cooldown.cliFlag === void 0 ? void 0 : first$1(pip.cooldown.cliFlag);
 	const pipVariable = extraValue(pip, "environmentVariable");
 	const pipConfig = extraValue(pip, "configFileVariable");
+	const pipConfigCommand = extraValue(pip, "configCommand");
+	const pipConfigFiles = extraValue(pip, "configFileNames");
 	const poetryTool = tools.find((candidate) => candidate.id === "poetry");
 	const poetryPackage = poetryTool === void 0 ? void 0 : extraValue(poetryTool, "installedPackage");
 	const off = extraValue(npm, "scriptsOff");
@@ -7042,6 +7053,11 @@ function detectionFacts(tools, environment) {
 				option: pipFlag,
 				variable: pipVariable,
 				configVariable: pipConfig
+			} } : {},
+			...isRecord(pipConfigCommand) && typeof pipConfigCommand["command"] === "string" && Array.isArray(pipConfigFiles) ? { config: {
+				command: pipConfigCommand["command"],
+				writes: strings(pipConfigCommand["writes"]),
+				files: strings(pipConfigFiles)
 			} } : {}
 		},
 		python: interpreter,
@@ -14959,6 +14975,19 @@ function pipxCommand(args, at, facts) {
 	if (pipx === void 0 || args[index]?.text !== pipx[1]) return [];
 	return poetryVersions(args.slice(index + 1).filter((word) => !word.text.startsWith("-")), at, facts);
 }
+/**
+* Whether a simple command may change pip's configuration: pip config set, unset or edit, or a word naming pip.conf or
+* pip.ini (cp, tee, a redirection to it). Then the delay of later pip installs cannot be told (decision D-115).
+*/
+function changesPipConfig(words, facts) {
+	const config = facts.pip.config;
+	if (config === void 0) return false;
+	if (words.some((word) => config.files.includes(programName(word.text.replace(/^\d*>+/u, ""))))) return true;
+	const pip = pipArguments(words, facts);
+	if (pip === void 0) return false;
+	const operands = pip.filter((word) => !word.text.startsWith("-"));
+	return operands[0]?.text === config.command && config.writes.includes(operands[1]?.text ?? "");
+}
 /** What one simple command does with npm or pip, if anything. */
 function readCommand(words, facts, depth, environment = /* @__PURE__ */ new Map()) {
 	const { command, assignments } = commandParts(words);
@@ -14966,6 +14995,11 @@ function readCommand(words, facts, depth, environment = /* @__PURE__ */ new Map(
 	if (first === void 0) return {
 		found: [],
 		runsNode: false
+	};
+	if (changesPipConfig(command, facts)) return {
+		found: [],
+		runsNode: false,
+		pipConfig: true
 	};
 	const seen = assignments.length === 0 ? environment : new Map([...environment, ...assignments]);
 	const name = programName(first.text);
@@ -14979,7 +15013,8 @@ function readCommand(words, facts, depth, environment = /* @__PURE__ */ new Map(
 					...item,
 					offset: script.offset
 				})),
-				runsNode: inner.runsNode
+				runsNode: inner.runsNode,
+				...inner.pipConfig === true ? { pipConfig: true } : {}
 			};
 		}
 	}
@@ -15041,6 +15076,7 @@ function changeDirectory(current, target) {
 function findToolCommands(script, facts, depth = 0, environment = /* @__PURE__ */ new Map()) {
 	const commands = [];
 	let runsNode = false;
+	let pipConfig = false;
 	const variables = new Map(environment);
 	const directories = [""];
 	for (const { words, depth: level } of splitWithDepth(script)) {
@@ -15069,10 +15105,12 @@ function findToolCommands(script, facts, depth = 0, environment = /* @__PURE__ *
 			});
 		}
 		runsNode ||= result.runsNode;
+		pipConfig ||= result.pipConfig === true;
 	}
 	return {
 		commands,
-		runsNode
+		runsNode,
+		...pipConfig ? { pipConfig: true } : {}
 	};
 }
 /** The same for the words of an exec form (RUN ["npm", "ci"]), which no shell splits. */
@@ -15080,7 +15118,8 @@ function findExecCommands(words, facts, environment = /* @__PURE__ */ new Map())
 	const result = readCommand(words, facts, 0, environment);
 	return {
 		commands: result.found,
-		runsNode: result.runsNode
+		runsNode: result.runsNode,
+		...result.pipConfig === true ? { pipConfig: true } : {}
 	};
 }
 
@@ -15541,15 +15580,23 @@ function runCommands(instruction, facts, environment) {
 			text: word,
 			offset: 0
 		}));
-		for (const { offset: _offset, ...command } of findExecCommands(words, facts.commands, environment).commands) commands.push(located(command, instruction.line));
-		return { commands };
+		const found = findExecCommands(words, facts.commands, environment);
+		for (const { offset: _offset, ...command } of found.commands) commands.push(located(command, instruction.line));
+		return {
+			commands,
+			...found.pipConfig === true ? { pipConfig: true } : {}
+		};
 	}
-	for (const { offset: at, ...command } of findToolCommands(text, facts.commands, 0, environment).commands) commands.push(located(command, lineAt$2(instruction, offset + at)));
+	const found = findToolCommands(text, facts.commands, 0, environment);
+	let pipConfig = found.pipConfig === true;
+	for (const { offset: at, ...command } of found.commands) commands.push(located(command, lineAt$2(instruction, offset + at)));
 	for (const heredoc of instruction.heredocs) {
 		if (!isScript(heredoc.command)) continue;
 		const lineStarts = [0];
 		for (let index = heredoc.body.indexOf("\n"); index >= 0; index = heredoc.body.indexOf("\n", index + 1)) lineStarts.push(index + 1);
-		for (const { offset: at, ...command } of findToolCommands(heredoc.body, facts.commands, 0, environment).commands) {
+		const body = findToolCommands(heredoc.body, facts.commands, 0, environment);
+		pipConfig ||= body.pipConfig === true;
+		for (const { offset: at, ...command } of body.commands) {
 			let low = 0;
 			let high = lineStarts.length - 1;
 			while (low < high) {
@@ -15560,7 +15607,10 @@ function runCommands(instruction, facts, environment) {
 			commands.push(located(command, heredoc.line + low));
 		}
 	}
-	return { commands };
+	return {
+		commands,
+		...pipConfig ? { pipConfig: true } : {}
+	};
 }
 /** The most COPY and ADD sources kept for one stage. */
 const MAX_COPIES = 256;
@@ -15662,7 +15712,9 @@ function readDockerStages(file, text, facts) {
 			continue;
 		}
 		if (instruction.keyword !== "RUN" || stage === void 0) continue;
-		for (const command of runCommands(instruction, facts, environment ?? /* @__PURE__ */ new Map()).commands) {
+		const run = runCommands(instruction, facts, environment ?? /* @__PURE__ */ new Map());
+		if (run.pipConfig === true) stage.pipConfig = true;
+		for (const command of run.commands) {
 			stage.commands.push(command);
 			if (command.kind === "upgrade" && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry")) versions.push({
 				tool: command.tool,
@@ -15933,6 +15985,8 @@ function readWorkflows(repository, facts) {
 					const environment = new Map([...jobEnvironment, ...environmentOf(step.get(envKey))]);
 					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
 					record.runsNode ||= found.runsNode;
+					const configVariable = facts.commands.pip.delay?.configVariable;
+					if (found.pipConfig === true || configVariable !== void 0 && (environment.get(configVariable) ?? "") !== "") record.pipConfig = true;
 					const stepDirectory = step.has("working-directory") ? workingDirectory(step.get("working-directory", true)) : jobDirectory;
 					for (const { offset, cd, ...command } of found.commands) {
 						const line = lineCounter.linePos(start + offset).line;
@@ -20295,7 +20349,21 @@ function checkDockerfiles(context, helpers, checkFor, tool, facts) {
 		const version = runtime.version;
 		const subject = `${runtimeName}${version === void 0 ? "" : ` ${version}`} (${image}) in ${file.file}`;
 		if (version === void 0) {
-			unknown(context, subject, runtime.unknown ?? "the tag names no version", file.file);
+			const settings = placeFeatures(check.features, installs);
+			if (settings.length === 0) continue;
+			const list = describeRequirements(settings.map(({ setting, since }) => ({
+				setting,
+				since
+			})));
+			context.report({
+				level: "note",
+				location: {
+					file: file.file,
+					line: root.line
+				},
+				message: `${RULE$1} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
+				fix: `Use a ${runtimeTool} image tag that names the ${runtimeName} version (such as ${runtimeTool}:${runtimeTool === "node" ? "24-alpine" : "3.13-slim"}, with the digest after it: ${runtimeTool}:<tag>@sha256:…), or check by hand that the ${tool} of that image supports ${list}`
+			});
 			continue;
 		}
 		const resolution = runtimeTool === "node" ? nodeBundledNpm(version, "docker", facts) : pythonBundledPip(version, facts);
@@ -28560,74 +28628,116 @@ function checkPip(context, tool, configFiles) {
 		});
 	}
 }
+function pipDelayOf(context, tool) {
+	const policy = context.policy;
+	if (policy?.cooldown === void 0) return void 0;
+	const converted = convertCooldown(tool, policy.cooldown.minimum);
+	if (!converted.ok || typeof converted.value !== "number") return void 0;
+	return {
+		days: converted.value,
+		minimum: policy.cooldown.minimum.text,
+		variable: extraOf(tool, "environmentVariable", (value) => typeof value === "string"),
+		option: `--${settingOf(tool.cooldown.setting) ?? ""}`,
+		since: sinceOf(tool.cooldown.availableSince)
+	};
+}
+/**
+* The finding for the first pip install of a stage or a job whose release-age delay does not hold: none (error), fewer
+* days than the policy (error) or a fixed date (warning). `where` names the place, `add` how to set it there. true when
+* a finding was reported.
+*/
+function reportPipDelay(context, delay, command, file, where, add, place) {
+	const plural = (count) => `${count} ${count === 1 ? "day" : "days"}`;
+	const location = {
+		file,
+		line: command.line
+	};
+	const instead = `Set ${delay.variable}=P${delay.days}D instead, ${place}, or as ${delay.option}=P${delay.days}D on that pip install`;
+	if (command.delay === void 0) {
+		context.report({
+			location,
+			message: `${where} without a release-age delay: pip reads no configuration from the project, and nothing sets ${delay.variable} or ${delay.option} there, so the ${delay.minimum} of ${POLICY_FILE} does not hold for it`,
+			fix: `${add}, or pass ${delay.option}=P${delay.days}D to that pip install (pip ${delay.since ?? "a recent version"} or later reads a number of days)`
+		});
+		return true;
+	}
+	const written = /^P(\d+)D$/u.exec(command.delay)?.[1];
+	if (written === void 0) {
+		if (!/^\d{4}-\d{2}-\d{2}/u.test(command.delay)) return false;
+		context.report({
+			level: "warning",
+			location,
+			message: `${where} with the release-age delay ${command.delay}, a fixed date: it holds back every later upload instead of delaying each new version by the ${delay.minimum} of ${POLICY_FILE}`,
+			fix: instead
+		});
+		return true;
+	}
+	if (Number(written) >= delay.days) return false;
+	context.report({
+		location,
+		message: `${where} with the release-age delay ${command.delay} (${plural(Number(written))}), shorter than the ${delay.minimum} of ${POLICY_FILE} (${plural(delay.days)} for pip)`,
+		fix: instead
+	});
+	return true;
+}
+/** pip installs of a stage or job that depcurfew can judge: installs whose delay is not hidden in a configuration file. */
+const judged = (command) => command.tool === "pip" && command.kind === "install" && command.delayUnknown !== true;
 /**
 * pip installs in Dockerfile stages of the official python image, which has no pip.conf: pip reads no configuration
 * from the project, so the release-age delay of the policy holds there only when the stage sets PIP_UPLOADED_PRIOR_TO
 * (ENV, also in a stage it starts from, or on the command) or passes --uploaded-prior-to, with at least as many days
-* (decision D-115). A stage that copies a pip.conf or pip.ini, or names one with PIP_CONFIG_FILE, is not checked.
+* (decision D-115). A stage (or one it starts from) that copies a pip.conf or pip.ini, writes pip's configuration
+* (pip config set) or names one with PIP_CONFIG_FILE is not checked.
 */
 function checkPipDockerfiles(context, tool) {
 	const policy = context.policy;
-	if (policy?.cooldown === void 0 || policy.targets !== "auto" && !policy.targets.includes("pip")) return;
-	const converted = convertCooldown(tool, policy.cooldown.minimum);
-	if (!converted.ok || typeof converted.value !== "number") return;
-	const days = converted.value;
-	const variable = extraOf(tool, "environmentVariable", (value) => typeof value === "string");
-	const option = `--${settingOf(tool.cooldown.setting) ?? ""}`;
+	const delay = pipDelayOf(context, tool);
+	if (policy === void 0 || delay === void 0 || policy.targets !== "auto" && !policy.targets.includes("pip")) return;
 	const names = extraOf(tool, "configFileNames", isStrings);
-	const since = sinceOf(tool.cooldown.availableSince);
-	const plural = (count) => `${count} ${count === 1 ? "day" : "days"}`;
 	for (const file of context.detection.dockerfiles) {
-		const copiesConfig = [];
+		const configured = [];
 		for (const [index, stage] of file.stages.entries()) {
-			const own = (stage.copies ?? []).some((source) => names.includes(source.split("/").at(-1) ?? ""));
-			copiesConfig.push(own || stage.from !== void 0 && stage.from < index && copiesConfig[stage.from] === true);
-			if (stage.runtime?.tool !== "python" || copiesConfig[index] === true) continue;
+			const own = stage.pipConfig === true || (stage.copies ?? []).some((source) => names.includes(source.split("/").at(-1) ?? ""));
+			configured.push(own || stage.from !== void 0 && stage.from < index && configured[stage.from] === true);
+			if (stage.runtime?.tool !== "python" || configured[index] === true) continue;
 			const name = stage.name === void 0 ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
-			for (const command of stage.commands) {
-				if (command.tool !== "pip" || command.kind !== "install" || command.delayUnknown === true) continue;
+			for (const command of stage.commands.filter(judged)) {
 				const where = `${name} in ${file.file} installs packages with pip on line ${command.line}`;
-				const set = `ENV ${variable}=P${days}D to ${name} before line ${command.line}, or pass ${option}=P${days}D to that pip install (pip ${since ?? "a recent version"} or later reads a number of days)`;
-				const instead = `Set ${variable}=P${days}D instead, with ENV in ${name} before line ${command.line} or as ${option}=P${days}D on that pip install`;
-				if (command.delay === void 0) {
-					context.report({
-						location: {
-							file: file.file,
-							line: command.line
-						},
-						message: `${where} without a release-age delay: pip reads no configuration from the project, and nothing sets ${variable} or ${option} there, so the ${policy.cooldown.minimum.text} of ${POLICY_FILE} does not hold for it`,
-						fix: `Add ${set}`
-					});
-					break;
-				}
-				const written = /^P(\d+)D$/u.exec(command.delay)?.[1];
-				if (written === void 0) {
-					if (/^\d{4}-\d{2}-\d{2}/u.test(command.delay)) {
-						context.report({
-							level: "warning",
-							location: {
-								file: file.file,
-								line: command.line
-							},
-							message: `${where} with the release-age delay ${command.delay}, a fixed date: it holds back every later upload instead of delaying each new version by the ${policy.cooldown.minimum.text} of ${POLICY_FILE}`,
-							fix: instead
-						});
-						break;
-					}
-					continue;
-				}
-				if (Number(written) < days) {
-					context.report({
-						location: {
-							file: file.file,
-							line: command.line
-						},
-						message: `${where} with the release-age delay ${command.delay} (${plural(Number(written))}), shorter than the ${policy.cooldown.minimum.text} of ${POLICY_FILE} (${plural(days)} for pip)`,
-						fix: instead
-					});
-					break;
-				}
+				const add = `Add ENV ${delay.variable}=P${delay.days}D to ${name} before line ${command.line}`;
+				if (reportPipDelay(context, delay, command, file.file, where, add, `with ENV in ${name} before line ${command.line}`)) break;
 			}
+		}
+	}
+}
+/** The directory listed in projects a command's working directory lies in; '' for the root. */
+function projectOfCommand(command, projects) {
+	const directory = command.directory;
+	if (directory === void 0) return "";
+	return projects.find((project) => directory === project || directory.startsWith(`${project}/`)) ?? "";
+}
+/**
+* pip installs in CI jobs, as in Dockerfile stages (decision D-115): pip takes the release-age delay only from
+* PIP_UPLOADED_PRIOR_TO in the env of the workflow, the job or the step (or set on the command line, or exported before)
+* or from --uploaded-prior-to. An install in the directory of a project (working-directory, cd) counts when that
+* project uses pip, with the policy of the root it shares. A job that may change pip's configuration (pip config set,
+* a pip.conf it writes, PIP_CONFIG_FILE) is not checked.
+*/
+function checkPipJobs(context, tool) {
+	const policy = context.policy;
+	const delay = pipDelayOf(context, tool);
+	if (policy === void 0 || delay === void 0 || policy.targets !== "auto" && !policy.targets.includes("pip")) return;
+	const views = context.projects ?? [];
+	const projects = views.map((view) => view.directory);
+	const pipIn = (detection) => detection.packageManagers.some((manager) => manager.id === "pip" && manager.supported);
+	const usesPip = new Map([["", pipIn(context.detection)], ...views.map((view) => [view.directory, pipIn(view.detection)])]);
+	for (const job of context.detection.jobs) {
+		if (job.pipConfig === true) continue;
+		for (const command of [...job.commands].sort((a, b) => a.line - b.line).filter(judged)) {
+			const project = projectOfCommand(command, projects);
+			if (usesPip.get(project) !== true) continue;
+			const where = `job ${job.id} in ${job.file} installs packages with pip${project === "" ? "" : ` in ${project}`} on line ${command.line}`;
+			const add = `Add ${delay.variable}: P${delay.days}D to the env of job ${job.id} (or of that step)`;
+			if (reportPipDelay(context, delay, command, job.file, where, add, `in the env of job ${job.id} or of that step`)) break;
 		}
 	}
 }
@@ -28641,7 +28751,7 @@ const pythonConfigIgnored = {
 	id: "python-config-ignored",
 	checks: "Python tools read their settings where they are written",
 	summary: "A Python tool ignores a setting where it is written.",
-	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files, so a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
+	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
 	help: "Move the setting to the file the tool reads.",
 	level: "error",
 	requiresPolicy: false,
@@ -28658,6 +28768,8 @@ const pythonConfigIgnored = {
 			if (tool.id === "pdm") checkPdm(context, tool);
 			if (tool.id === "pipenv") checkPipenv(context, tool);
 		}
+		const pip = context.tools.find((entry) => entry.id === "pip");
+		if (pip !== void 0) checkPipJobs(context, pip);
 	}
 };
 

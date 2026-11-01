@@ -155,21 +155,26 @@ export function envDeclarations(text: string, spaceForm: boolean): [string, stri
   });
 }
 
-function runCommands(instruction: Instruction, facts: DockerFacts, environment: Environment): { commands: ToolCommand[] } {
+function runCommands(instruction: Instruction, facts: DockerFacts, environment: Environment): { commands: ToolCommand[]; pipConfig?: true } {
   const commands: ToolCommand[] = [];
   const { text, offset } = withoutOptions(instruction.text);
   const exec = execWords(text);
   if (exec !== undefined) {
     const words: Word[] = exec.map((word) => ({ text: word, offset: 0 }));
-    for (const { offset: _offset, ...command } of findExecCommands(words, facts.commands, environment).commands) commands.push(located(command, instruction.line));
-    return { commands };
+    const found = findExecCommands(words, facts.commands, environment);
+    for (const { offset: _offset, ...command } of found.commands) commands.push(located(command, instruction.line));
+    return { commands, ...(found.pipConfig === true ? { pipConfig: true as const } : {}) };
   }
-  for (const { offset: at, ...command } of findToolCommands(text, facts.commands, 0, environment).commands) commands.push(located(command, lineAt(instruction, offset + at)));
+  const found = findToolCommands(text, facts.commands, 0, environment);
+  let pipConfig = found.pipConfig === true;
+  for (const { offset: at, ...command } of found.commands) commands.push(located(command, lineAt(instruction, offset + at)));
   for (const heredoc of instruction.heredocs) {
     if (!isScript(heredoc.command)) continue;
     const lineStarts = [0];
     for (let index = heredoc.body.indexOf('\n'); index >= 0; index = heredoc.body.indexOf('\n', index + 1)) lineStarts.push(index + 1);
-    for (const { offset: at, ...command } of findToolCommands(heredoc.body, facts.commands, 0, environment).commands) {
+    const body = findToolCommands(heredoc.body, facts.commands, 0, environment);
+    pipConfig ||= body.pipConfig === true;
+    for (const { offset: at, ...command } of body.commands) {
       let low = 0;
       let high = lineStarts.length - 1;
       while (low < high) {
@@ -180,7 +185,7 @@ function runCommands(instruction: Instruction, facts: DockerFacts, environment: 
       commands.push(located(command, heredoc.line + low));
     }
   }
-  return { commands };
+  return { commands, ...(pipConfig ? { pipConfig: true as const } : {}) };
 }
 
 /** The most COPY and ADD sources kept for one stage. */
@@ -279,7 +284,9 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
       continue;
     }
     if (instruction.keyword !== 'RUN' || stage === undefined) continue;
-    for (const command of runCommands(instruction, facts, environment ?? new Map()).commands) {
+    const run = runCommands(instruction, facts, environment ?? new Map());
+    if (run.pipConfig === true) stage.pipConfig = true;
+    for (const command of run.commands) {
       stage.commands.push(command);
       if (command.kind === 'upgrade' && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip' || command.tool === 'poetry')) {
         versions.push({ tool: command.tool, declaration: { version: command.version, source: 'dockerfile', file, line: command.line, stage: stage.name ?? String(stages.length - 1) } });
