@@ -181,9 +181,21 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
   }
   if (command.name === 'doctor') {
     if (values['json'] === true && values['sarif'] === true) return usage("'--json' and '--sarif' cannot be used together; pick one", "Run 'depcurfew doctor --help' for usage.");
+    // --fail-on over doctor.failOn of the policy (decision D-112); --strict is --fail-on warning.
+    const failOn = text('fail-on');
+    if (failOn !== undefined && failOn !== 'error' && failOn !== 'warning') {
+      return usage(`--fail-on takes error (only errors fail) or warning (warnings fail too), not '${failOn}'`, "Run 'depcurfew doctor --help' for usage.");
+    }
+    if (failOn === 'error' && values['strict'] === true) {
+      return usage("'--strict' and '--fail-on error' cannot be used together: --strict means --fail-on warning, so pass only one of them", "Run 'depcurfew doctor --help' for usage.");
+    }
     const user = userOptions(values, rest, command.name, usage, dependencies);
     if (user === 'usage') return EXIT_USAGE;
-    return doctor(rest[0], { json: values['json'] === true, sarif: values['sarif'] === true, strict: values['strict'] === true, ...(user === undefined ? {} : { user }) }, io);
+    return doctor(
+      rest[0],
+      { json: values['json'] === true, sarif: values['sarif'] === true, strict: values['strict'] === true, ...(failOn === undefined ? {} : { failOn }), ...(user === undefined ? {} : { user }) },
+      io,
+    );
   }
   if (command.name === 'check') {
     // The usage errors of check, here so that --json gets them as a document.

@@ -19945,6 +19945,9 @@ const projectsShape = list(text({
 	unique: true,
 	description: "Directories of independent projects in this repository, each with its own manifest and lockfile (e.g. frontend and backend). depcurfew configures each one with this policy as a project of its own, and configures Renovate and Dependabot once, from the repository root, for all of them. The repository root is always configured as well. A project must not be inside another one, must not be a workspace package of the root and must not have a depcurfew.json of its own."
 });
+/** Which findings make depcurfew doctor exit with 1 (decision D-112). */
+const FAIL_ON_LEVELS = ["error", "warning"];
+const doctorShape = object({ failOn: withDefault(oneOfStrings(FAIL_ON_LEVELS, { description: "Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: \"error\" (only errors) or \"warning\" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it." }), "error") }, { description: "How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes \"failOn\": \"warning\"." });
 const policyShape = object({
 	$schema: optional(anyString({ description: "JSON Schema of this file, for editor support." })),
 	version: required(literal(1, { description: "Version of the policy format." })),
@@ -19952,7 +19955,8 @@ const policyShape = object({
 	installScripts: optional(installScriptsShape),
 	sources: optional(sourcesShape),
 	targets: withDefault(targetsShape, "auto"),
-	projects: withDefault(projectsShape, [])
+	projects: withDefault(projectsShape, []),
+	doctor: optional(doctorShape)
 }, { description: "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot." });
 
 // src/policy/validate.ts
@@ -24352,6 +24356,52 @@ const COLORED = {
 	dim: style(CODES.dim)
 };
 
+// src/doctor/fail-on.ts
+/** doctor.failOn of a valid policy; undefined without a policy or without the section. */
+function policyFailOn(policy) {
+	return policy?.doctor?.failOn;
+}
+/** The setting that applies: the option, else the policy's doctor.failOn, else "error". */
+function resolveFailOn(option, policy) {
+	if (option !== void 0) return {
+		failOn: option.failOn,
+		from: "option",
+		option: option.given
+	};
+	if (policy.failOn !== void 0) return {
+		failOn: policy.failOn,
+		from: "policy",
+		file: policy.file
+	};
+	return {
+		failOn: "error",
+		from: "default"
+	};
+}
+/** Whether findings with these counts fail doctor. */
+function fails(counts, failOn) {
+	return counts.error > 0 || failOn === "warning" && counts.warning > 0;
+}
+/**
+* The line under the counts when warnings make doctor fail, and how to fail on errors only; undefined when they do
+* not. One source for the text of the CLI.
+*/
+function failOnExplanation(setting, counts) {
+	if (setting.failOn !== "warning" || counts.warning === 0) return void 0;
+	if (setting.from === "policy") {
+		const file = setting.file ?? "depcurfew.json";
+		return {
+			message: `doctor.failOn is "warning" in ${file}, so warnings count as failures and depcurfew doctor exits with 1`,
+			fix: `Set doctor.failOn to "error" in ${file}, or pass --fail-on error, to fail on errors only`
+		};
+	}
+	const option = setting.option ?? "--fail-on warning";
+	return {
+		message: `${option}: warnings count as failures, so depcurfew doctor exits with 1`,
+		fix: `Pass --fail-on error instead of ${option} to fail on errors only`
+	};
+}
+
 // src/doctor/render.ts
 function countLevels(findings) {
 	const counts = {
@@ -24430,6 +24480,10 @@ function checkedLines(checked) {
 }
 /** The line --strict adds when warnings make doctor fail. */
 const STRICT_NOTE = "--strict: warnings count as failures, so depcurfew doctor exits with 1";
+/**
+* `failOn`: which findings fail doctor and where that was set (decision D-112); when warnings make it fail, a line under
+* the counts says why, with how to fail on errors only. `strict` alone (before D-112) adds STRICT_NOTE.
+*/
 function renderText(report, rules, colors = PLAIN, options = {}) {
 	const counts = countLevels(report.findings);
 	const lines = [];
@@ -24437,7 +24491,9 @@ function renderText(report, rules, colors = PLAIN, options = {}) {
 	else {
 		const count = (level) => counts[level] === 0 ? plural$1(0, level) : levelColor(level, colors)(plural$1(counts[level], level));
 		lines.push(`${count("error")}, ${count("warning")}, ${count("note")}`);
-		if (options.strict === true && counts.warning > 0) lines.push(STRICT_NOTE);
+		const explanation = options.failOn === void 0 ? void 0 : failOnExplanation(options.failOn, counts);
+		if (explanation !== void 0) lines.push(printable(explanation.message), `  ${colors.green("fix:")} ${printable(explanation.fix)}`);
+		else if (options.failOn === void 0 && options.strict === true && counts.warning > 0) lines.push(STRICT_NOTE);
 		let file;
 		for (const finding of report.findings) {
 			if (finding.location.file !== file) {
@@ -26968,12 +27024,15 @@ function enabled(env, name) {
 	return input(env, name, "true") !== "false";
 }
 const FAIL_ON = ["error", "warning"];
-/** Why the findings fail the step, or '' when they do not. */
-function failReason(counts, failOn) {
-	if (failOn === void 0) return "";
-	const failing = (failOn === "warning" ? ["error", "warning"] : ["error"]).filter((level) => counts[level] > 0);
-	if (failing.length === 0) return "";
-	return `depcurfew doctor reported ${failing.map((level) => `${counts[level]} ${counts[level] === 1 ? level : `${level}s`}`).join(" and ")}${failOn === "warning" ? " (fail-on: warning)" : ""}; the job summary and the log of the Run depcurfew doctor step say how to fix each one`;
+/**
+* Why the findings fail the step, or '' when they do not. `setting` is which findings fail and where that was set:
+* the input fail-on, doctor.failOn of the policy or neither (decision D-112); undefined with fail-on-error: false.
+*/
+function failReason(counts, setting) {
+	if (setting === void 0 || !fails(counts, setting.failOn)) return "";
+	const found = (setting.failOn === "warning" ? ["error", "warning"] : ["error"]).filter((level) => counts[level] > 0).map((level) => `${counts[level]} ${counts[level] === 1 ? level : `${level}s`}`).join(" and ");
+	const where = setting.from === "policy" ? ` (doctor.failOn is "warning" in ${setting.file ?? "depcurfew.json"})` : " (fail-on: warning)";
+	return `depcurfew doctor reported ${found}${setting.failOn === "warning" ? where : ""}; the job summary and the log of the Run depcurfew doctor step say how to fix each one`;
 }
 function summaryLimit() {
 	return values$1(environment.githubActions.stepSummary)[0]?.maxBytes ?? 0;
@@ -27065,15 +27124,24 @@ function runAction(env, io) {
 		failedCheck(message, "");
 		return outputs;
 	};
-	const failOnInput = input(env, "fail-on", "error");
-	if (!FAIL_ON.includes(failOnInput)) return fail(`the input fail-on is "${failOnInput}"; set it to error (the default: errors fail the step) or warning (warnings fail it too)`);
-	const failOn = enabled(env, "fail-on-error") ? failOnInput : void 0;
+	const failOnInput = input(env, "fail-on", "");
+	if (failOnInput !== "" && !FAIL_ON.includes(failOnInput)) return fail(`the input fail-on is "${failOnInput}"; set it to error (errors fail the step) or warning (warnings fail it too), or leave it empty to follow doctor.failOn in ${POLICY_FILE} (errors only without it)`);
 	const directory = scannedDirectory(workspace, input(env, "directory", "."));
 	if (directory === void 0) return fail(`directory "${input(env, "directory", ".")}" is not a directory inside the workspace`);
 	const prefix = relative(realpathSync(workspace), directory).split(sep).join("/");
 	let report;
+	let failOn;
 	try {
-		report = runDoctor(directory);
+		const policy = loadPolicyIfPresent(directory);
+		report = runDoctor(directory, { policy: policy ?? null });
+		const option = failOnInput === "" ? void 0 : {
+			failOn: failOnInput,
+			given: `fail-on: ${failOnInput}`
+		};
+		failOn = enabled(env, "fail-on-error") ? resolveFailOn(option, {
+			failOn: policyFailOn(policy),
+			file: prefix === "" ? POLICY_FILE : posix.join(prefix, POLICY_FILE)
+		}) : void 0;
 	} catch (error) {
 		if (!(error instanceof PolicyError)) throw error;
 		outputs.failure = [error.message, ...error.issues].join("; ");

@@ -125,6 +125,25 @@ export const projectsShape = list(
   },
 );
 
+/** Which findings make depcurfew doctor exit with 1 (decision D-112). */
+export const FAIL_ON_LEVELS = ['error', 'warning'] as const;
+
+export const doctorShape = object(
+  {
+    failOn: withDefault(
+      oneOfStrings(FAIL_ON_LEVELS, {
+        description:
+          'Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: "error" (only errors) or "warning" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it.',
+      }),
+      'error',
+    ),
+  },
+  {
+    description:
+      'How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes "failOn": "warning".',
+  },
+);
+
 export const policyShape = object(
   {
     $schema: optional(anyString({ description: 'JSON Schema of this file, for editor support.' })),
@@ -134,6 +153,7 @@ export const policyShape = object(
     sources: optional(sourcesShape),
     targets: withDefault(targetsShape, 'auto'),
     projects: withDefault(projectsShape, []),
+    doctor: optional(doctorShape),
   },
   { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot.' },
 );

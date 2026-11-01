@@ -6,13 +6,15 @@ import { appendFileSync, lstatSync, mkdirSync, realpathSync, statSync } from 'no
 import { basename, dirname, posix, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { values } from './apply/facts.ts';
-import { PolicyError } from './apply/index.ts';
+import { loadPolicyIfPresent, PolicyError } from './apply/index.ts';
 import { fileSystemReason, writeChanges } from './apply/workspace.ts';
 import { checkRunName, createCheckRun, fitSummary, type CheckRunContent, type CheckRunFetch } from './action-check-run.ts';
 import { annotationCommands, cleanNotice, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
+import { fails, policyFailOn, resolveFailOn, type FailOn, type FailOnSetting } from './doctor/fail-on.ts';
 import { resultCounts } from './doctor/render.ts';
 import { checkRunAnnotationNote, checkRunAnnotations, problemSummary } from './doctor/github.ts';
 import { lineReader } from './doctor/sarif.ts';
+import { POLICY_FILE } from './policy/defaults.ts';
 import { environment } from './knowledge/environment.ts';
 import { isInside } from './paths.ts';
 import { printable } from './printable.ts';
@@ -46,19 +48,20 @@ function enabled(env: NodeJS.ProcessEnv, name: string): boolean {
   return input(env, name, 'true') !== 'false';
 }
 
-/** The levels of the findings that fail the step: fail-on error (the default) or warning; fail-on-error: false, none. */
-export type FailOn = 'error' | 'warning';
+export type { FailOn } from './doctor/fail-on.ts';
 
 const FAIL_ON: readonly FailOn[] = ['error', 'warning'];
 
-/** Why the findings fail the step, or '' when they do not. */
-export function failReason(counts: Record<'error' | 'warning' | 'note', number>, failOn: FailOn | undefined): string {
-  if (failOn === undefined) return '';
-  const failing = (failOn === 'warning' ? (['error', 'warning'] as const) : (['error'] as const)).filter((level) => counts[level] > 0);
-  if (failing.length === 0) return '';
+/**
+ * Why the findings fail the step, or '' when they do not. `setting` is which findings fail and where that was set:
+ * the input fail-on, doctor.failOn of the policy or neither (decision D-112); undefined with fail-on-error: false.
+ */
+export function failReason(counts: Record<'error' | 'warning' | 'note', number>, setting: FailOnSetting | undefined): string {
+  if (setting === undefined || !fails(counts, setting.failOn)) return '';
+  const failing = (setting.failOn === 'warning' ? (['error', 'warning'] as const) : (['error'] as const)).filter((level) => counts[level] > 0);
   const found = failing.map((level) => `${counts[level]} ${counts[level] === 1 ? level : `${level}s`}`).join(' and ');
-  const setting = failOn === 'warning' ? ' (fail-on: warning)' : '';
-  return `depcurfew doctor reported ${found}${setting}; the job summary and the log of the Run depcurfew doctor step say how to fix each one`;
+  const where = setting.from === 'policy' ? ` (doctor.failOn is "warning" in ${setting.file ?? POLICY_FILE})` : ' (fail-on: warning)';
+  return `depcurfew doctor reported ${found}${setting.failOn === 'warning' ? where : ''}; the job summary and the log of the Run depcurfew doctor step say how to fix each one`;
 }
 
 function summaryLimit(): number {
@@ -138,19 +141,26 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
     failedCheck(message, '');
     return outputs;
   };
-  const failOnInput = input(env, 'fail-on', 'error');
-  if (!(FAIL_ON as readonly string[]).includes(failOnInput)) {
-    return fail(`the input fail-on is "${failOnInput}"; set it to error (the default: errors fail the step) or warning (warnings fail it too)`);
+  // Empty (the default): doctor.failOn of the policy decides, else "error" (decision D-112).
+  const failOnInput = input(env, 'fail-on', '');
+  if (failOnInput !== '' && !(FAIL_ON as readonly string[]).includes(failOnInput)) {
+    return fail(
+      `the input fail-on is "${failOnInput}"; set it to error (errors fail the step) or warning (warnings fail it too), or leave it empty to follow doctor.failOn in ${POLICY_FILE} (errors only without it)`,
+    );
   }
-  // fail-on-error: false keeps the step from failing on findings at all, whatever fail-on says (it came first).
-  const failOn = enabled(env, 'fail-on-error') ? (failOnInput as FailOn) : undefined;
   const directory = scannedDirectory(workspace, input(env, 'directory', '.'));
   if (directory === undefined) return fail(`directory "${input(env, 'directory', '.')}" is not a directory inside the workspace`);
   const prefix = relative(realpathSync(workspace), directory).split(sep).join('/');
 
   let report: DoctorReport;
+  let failOn: FailOnSetting | undefined;
   try {
-    report = runDoctor(directory);
+    // The policy is read once, for doctor.failOn and for the rules.
+    const policy = loadPolicyIfPresent(directory);
+    report = runDoctor(directory, { policy: policy ?? null });
+    const option = failOnInput === '' ? undefined : { failOn: failOnInput as FailOn, given: `fail-on: ${failOnInput}` };
+    // fail-on-error: false keeps the step from failing on findings at all, whatever fail-on says (it came first).
+    failOn = enabled(env, 'fail-on-error') ? resolveFailOn(option, { failOn: policyFailOn(policy), file: prefix === '' ? POLICY_FILE : posix.join(prefix, POLICY_FILE) }) : undefined;
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     outputs.failure = [error.message, ...error.issues].join('; ');

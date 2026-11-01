@@ -19,8 +19,8 @@ inputs:
     description: Code scanning category of the upload, to tell several depcurfew runs in one workflow apart.
     default: depcurfew
   fail-on:
-    description: Which findings fail the step and the depcurfew doctor check, error (the default) or warning, which makes warnings fail them too, as depcurfew doctor --strict does; notes never do. Any other value fails the step.
-    default: error
+    description: Which findings fail the step and the depcurfew doctor check. Empty (the default) follows doctor.failOn in depcurfew.json, which depcurfew init sets to warning, and fails on errors only without it; error or warning overrides the policy, and warning makes warnings fail them too, as depcurfew doctor --fail-on warning does. Notes never do. Any other value fails the step.
+    default: ''
   fail-on-error:
     description: Deprecated, use fail-on. false keeps the step from failing on findings at all, whatever fail-on says, and makes the depcurfew doctor check neutral instead of failed.
     default: 'true'
@@ -89,8 +89,8 @@ runs:
         sarif_file: ${{ steps.doctor.outputs.sarif-file }}
         category: ${{ inputs.category }}
 
-    # The doctor step decides from fail-on and fail-on-error and sets fail-reason; it never fails itself, so the SARIF
-    # upload above still runs.
+    # The doctor step decides from fail-on, doctor.failOn in depcurfew.json and fail-on-error and sets fail-reason; it
+    # never fails itself, so the SARIF upload above still runs.
     - name: Fail on findings
       if: steps.doctor.outputs.failure != '' || steps.doctor.outputs.fail-reason != ''
       shell: bash

@@ -14,7 +14,7 @@ depcurfew keeps one policy file, `depcurfew.json`, writes it into the configurat
 2. `npx depcurfew explain` shows what it detected and what the policy means for each tool.
 3. `npx depcurfew apply --dry-run` prints the changes as a diff, without writing anything.
 4. `npx depcurfew apply` writes them. Run it again whenever `depcurfew.json` changes; a second run with the same policy changes nothing.
-5. `npx depcurfew doctor` reports configuration that silently does not work and drift from the policy, and exits with 1 when it finds an error.
+5. `npx depcurfew doctor` reports configuration that silently does not work and drift from the policy, and exits with 1 when it finds an error or, with the `"doctor": { "failOn": "warning" }` that `init` writes, a warning.
 6. Add the [GitHub Action](#github-action) so that doctor runs on every push and reports to code scanning.
 
 The default policy:
@@ -40,7 +40,10 @@ The default policy:
     "file": "allow",
     "directory": "allow"
   },
-  "targets": "auto"
+  "targets": "auto",
+  "doctor": {
+    "failOn": "warning"
+  }
 }
 ```
 <!-- END GENERATED: default-policy -->
@@ -99,7 +102,11 @@ Every section is optional: a section that is absent means depcurfew does not man
 | `sources.directory` | `"allow"`, `"deny"` |  | Dependencies installed from local directories. |
 | `targets` |  | `"auto"` | Tools to configure: "auto" detects them in the repository, or list them explicitly. |
 | `projects` |  | `[]` | Directories of independent projects in this repository, each with its own manifest and lockfile (e.g. frontend and backend). depcurfew configures each one with this policy as a project of its own, and configures Renovate and Dependabot once, from the repository root, for all of them. The repository root is always configured as well. A project must not be inside another one, must not be a workspace package of the root and must not have a depcurfew.json of its own. |
+| `doctor` |  |  | How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes "failOn": "warning". |
+| `doctor.failOn` | `"error"`, `"warning"` | `"error"` | Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: "error" (only errors) or "warning" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it. |
 <!-- END GENERATED: policy-fields -->
+
+`doctor.failOn` decides which findings make `depcurfew doctor` exit with 1 and fail the GitHub Action: `"error"` only errors, `"warning"` warnings too; notes, which say what doctor could not check, never fail. `depcurfew init` writes `"warning"`, so a new repository stays free of warnings. A policy without the `doctor` section fails on errors only, as before, so an existing `depcurfew.json` keeps its exit codes. `doctor --fail-on error` or `--fail-on warning` and the input `fail-on` of the Action override it for one run; an invalid `depcurfew.json` counts as `"error"` (it fails doctor anyway, as `invalid-policy`). The user policy takes the same section for `doctor --user`.
 
 ### Several projects in one repository
 
@@ -129,17 +136,17 @@ The package installs two names for the same command: `depcurfew` and the short `
 | `depcurfew init [directory] [--force]` | Writes `depcurfew.json` with the default policy (keeping a longer release-age delay the repository already sets); `--force` overwrites an existing one. |
 | `depcurfew explain [directory] [--json]` | Describes the detected package managers, versions, bots and workspaces, and the policy values for each tool. |
 | `depcurfew apply [directory] [--dry-run] [--json]` | Writes the policy into the configuration of every target tool; `--dry-run` prints a unified diff instead, `--json` the result as JSON. |
-| `depcurfew doctor [directory] [--json \| --sarif] [--strict]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning, and `--strict` makes warnings fail too. |
+| `depcurfew doctor [directory] [--json \| --sarif] [--fail-on error\|warning]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning, and `--fail-on` overrides `doctor.failOn` of the policy (`--strict` is `--fail-on warning`). |
 | `depcurfew check <package...> [--json] [--dir <directory>] [--registry <url>] [--index <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
 | `depcurfew check --hook claude-code` | The same check as a Claude Code hook that blocks install commands breaking the policy. |
 | `depcurfew mcp [--dir <directory>] [--registry <url>] [--index <url>]` | The same check as tools of a Model Context Protocol server, for AI agents in Claude Desktop, VS Code and other clients: see [MCP server](#mcp-server). |
 | `depcurfew init --user [--force]` | Writes the user policy, which `--user` uses: see [Protecting the whole machine](#protecting-the-whole-machine). |
 | `depcurfew apply --user [--dry-run] [--json] [--for <tool@version>]` | Writes the user policy into the user-level configuration of the installed package managers. |
-| `depcurfew doctor --user [--json \| --sarif] [--strict] [--for <tool@version>]` | Checks that configuration against the user policy, and the environment variables that override it. |
+| `depcurfew doctor --user [--json \| --sarif] [--fail-on error\|warning] [--for <tool@version>]` | Checks that configuration against the user policy, and the environment variables that override it. |
 
 Without a directory, `explain`, `apply` and `doctor` work on the nearest directory with `depcurfew.json`, from the current directory up to the root of the repository (the directory with `.git`), and say so when that is a parent directory (outside a git repository only the current directory counts, and on Linux and macOS a parent directory counts only when it belongs to you and others cannot write to it, because a shared parent such as `/tmp` may hold someone else's `depcurfew.json`; directories inside `node_modules` are skipped), so `doctor` run in a subdirectory does not pass for a project without a policy. A directory given on the command line is used as it is. `check` looks for `depcurfew.json` the same way, starting in `--dir`.
 
-Exit codes: `0` success (warnings included), `1` an error (an invalid or unreadable policy, a directory in `projects` that cannot be used, a file that cannot be edited or written, a doctor finding with level error, or with `doctor --strict` also one with level warning; notes never fail), `2` a usage error (such as an unknown option or a directory that does not exist). `depcurfew <command> --help` describes a command with examples and its exit codes.
+Exit codes: `0` success (warnings included, except for `doctor` when warnings fail it), `1` an error (an invalid or unreadable policy, a directory in `projects` that cannot be used, a file that cannot be edited or written, a doctor finding with level error, or also one with level warning when `doctor.failOn` in `depcurfew.json` (with `--user` the user policy) or `--fail-on` is `warning`, which `--strict` means too; notes never fail), `2` a usage error (such as an unknown option or a directory that does not exist). `depcurfew <command> --help` describes a command with examples and its exit codes.
 
 Every finding and warning says what to do about it. When a command cannot start, it says why with a code (`directory-not-found`, `not-a-directory`, `policy-missing`, `policy-invalid`, `policy-unreadable`, and for `init` also `policy-exists` and `cannot-write`) and what to do; with `--json` that is a document with `errors` on stdout, and `doctor --sarif` prints a run marked as not successful. Text for people is colored on a terminal; `NO_COLOR=1` turns colors off and `FORCE_COLOR=1` turns them on, for example in a CI log that shows them. Control characters in names and values from the repository or a registry are shown as text (ESC as `\x1b`, or as `\u001b` inside a quoted value such as a package name in the problems of `depcurfew.json`), so a crafted package or file name cannot change the terminal. `--json`, `--sarif` and a diff written to a file stay plain, for programs and AI agents.
 
@@ -353,7 +360,7 @@ depcurfew configures uv, Poetry, PDM, Pipenv and pip from the same `depcurfew.js
 
 ## doctor rules
 
-Findings have a level: an **error** makes `depcurfew doctor` exit with 1, a **warning** or a **note** does not. Things doctor could not check (a binary lockfile, a lockfile format without install-script data, a missing policy) are listed as notes after the findings, not as findings. Below them, doctor says what it checked: the package managers and bots it found with the version it checked against, the files it read and every check with what it checks and its result, `passed`, the problems it found, `skipped` when it needs a policy, or `not applicable` when it does not concern the project, such as the Python checks without a Python tool or the bot checks without an update bot (`checked` in `--json`, where the result is `passed`, `problems`, `skipped` or `not-applicable`).
+Findings have a level: an **error** makes `depcurfew doctor` exit with 1, a **warning** does too when `doctor.failOn` in `depcurfew.json` or `--fail-on` is `warning` (the policy of `depcurfew init` sets it; without it a warning does not), and a **note** never does. When warnings make doctor fail, the line under the counts says where that was set, with how to fail on errors only, and `--json` has `failOn` (`error` or `warning`), `failOnFrom` (`option`, `policy` or `default`) and `strict` (`true` when warnings fail). Things doctor could not check (a binary lockfile, a lockfile format without install-script data, a missing policy) are listed as notes after the findings, not as findings. Below them, doctor says what it checked: the package managers and bots it found with the version it checked against, the files it read and every check with what it checks and its result, `passed`, the problems it found, `skipped` when it needs a policy, or `not applicable` when it does not concern the project, such as the Python checks without a Python tool or the bot checks without an update bot (`checked` in `--json`, where the result is `passed`, `problems`, `skipped` or `not-applicable`).
 
 <!-- BEGIN GENERATED: rules -->
 ### `invalid-policy`
@@ -479,7 +486,7 @@ Fix: Fix what the message describes: invalid syntax, missing read permission, a 
 
 ## GitHub Action
 
-The action runs `depcurfew doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error, or also a warning with `fail-on: warning` (as `depcurfew doctor --strict`). The log and the job summary also say what was checked: the tools found, the files read and every check with its result (passed, the problems it found, skipped because it needs `depcurfew.json`, or not applicable to the project). A clean run adds a notice with the same list ("No problems found in 7 files for npm 11.21.1 (package.json). 14 checks: 9 passed, 5 not applicable."), so it is not mistaken for one that did nothing. Code scanning lists only alerts, so its entry stays empty when there is nothing to report; next to it, in the Checks tab of a pull request, the action adds the check "depcurfew doctor" with the result, the table of checks and the findings as annotations on their lines (at most 100, errors first; a finding about a whole file is shown on its first line). It needs `checks: write`, which the example below grants; without it the step only says so in the log. A workflow that runs on both `push` and `pull_request` checks the same commit twice: the second run updates the entry of the first one instead of adding another, unless both run at the same moment, since GitHub has no way to look for an entry and add one in a single step. Annotations cannot be removed from an entry, so when the first entry has annotations other than the second run's findings, the second run adds a new entry and marks the first one as replaced (neutral, with a title that says so), rather than leave findings that no longer hold under the new result. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
+The action runs `depcurfew doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error, or also a warning when `doctor.failOn` in `depcurfew.json` is `warning` (the input `fail-on` is empty by default and follows it) or the input `fail-on` is `warning` (as `depcurfew doctor --fail-on warning`); `fail-on: error` fails on errors only, whatever the policy says, and the depcurfew doctor check fails or passes the same way. The log and the job summary also say what was checked: the tools found, the files read and every check with its result (passed, the problems it found, skipped because it needs `depcurfew.json`, or not applicable to the project). A clean run adds a notice with the same list ("No problems found in 7 files for npm 11.21.1 (package.json). 14 checks: 9 passed, 5 not applicable."), so it is not mistaken for one that did nothing. Code scanning lists only alerts, so its entry stays empty when there is nothing to report; next to it, in the Checks tab of a pull request, the action adds the check "depcurfew doctor" with the result, the table of checks and the findings as annotations on their lines (at most 100, errors first; a finding about a whole file is shown on its first line). It needs `checks: write`, which the example below grants; without it the step only says so in the log. A workflow that runs on both `push` and `pull_request` checks the same commit twice: the second run updates the entry of the first one instead of adding another, unless both run at the same moment, since GitHub has no way to look for an entry and add one in a single step. Annotations cannot be removed from an entry, so when the first entry has annotations other than the second run's findings, the second run adds a new entry and marks the first one as replaced (neutral, with a title that says so), rather than leave findings that no longer hold under the new result. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
 
 Pin it to a full commit SHA, like every action in your workflows; the example pins the commit of the latest release, and the comment names its tag. If the repository cannot use code scanning, set `upload-sarif: false`; the findings stay in the job log.
 
@@ -517,7 +524,7 @@ jobs:
 | `sarif-file` | `depcurfew.sarif` | Where to write the SARIF report, relative to the workspace; a path outside it works too. |
 | `upload-sarif` | `true` | Upload the SARIF report to GitHub code scanning. The job needs the security-events write permission. |
 | `category` | `depcurfew` | Code scanning category of the upload, to tell several depcurfew runs in one workflow apart. |
-| `fail-on` | `error` | Which findings fail the step and the depcurfew doctor check, error (the default) or warning, which makes warnings fail them too, as depcurfew doctor --strict does; notes never do. Any other value fails the step. |
+| `fail-on` | empty | Which findings fail the step and the depcurfew doctor check. Empty (the default) follows doctor.failOn in depcurfew.json, which depcurfew init sets to warning, and fails on errors only without it; error or warning overrides the policy, and warning makes warnings fail them too, as depcurfew doctor --fail-on warning does. Notes never do. Any other value fails the step. |
 | `fail-on-error` | `true` | Deprecated, use fail-on. false keeps the step from failing on findings at all, whatever fail-on says, and makes the depcurfew doctor check neutral instead of failed. |
 | `annotations` | `true` | Show the findings as annotations on the files, each with how to fix it, or one notice when there are none, which lists every check and its result. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them. |
 | `job-summary` | `true` | Add a table of the findings, each with how to fix it, and what was checked (tools, files read, every check with its result) to the job summary. |
@@ -534,7 +541,7 @@ jobs:
 
 ### Other CI systems
 
-The action works only on GitHub. On GitLab CI or any other CI, install the project's dependencies without running their install scripts, so nothing from the lockfile runs before doctor has checked it, then run the depcurfew version the lockfile pins; the job fails when doctor finds an error (exit code 1):
+The action works only on GitHub. On GitLab CI or any other CI, install the project's dependencies without running their install scripts, so nothing from the lockfile runs before doctor has checked it, then run the depcurfew version the lockfile pins; the job fails when doctor finds an error, or a warning when `doctor.failOn` is `warning` (exit code 1):
 
 ```yaml
 depcurfew:

@@ -96,6 +96,6 @@ describe('depcurfew doctor --strict', () => {
   it('describes the exit codes in the help', async () => {
     const help = (await exec(['doctor', '--help'])).stdout;
     expect(help).toContain('--strict');
-    expect(help).toMatch(/1 +at least one finding with level error, or with --strict level warning/u);
+    expect(help.replaceAll(/\s+/gu, ' ')).toMatch(/ 1 at least one finding with level error, or with level warning when doctor\.failOn in depcurfew\.json or --fail-on is warning \(--strict is --fail-on warning;/u);
   });
 });

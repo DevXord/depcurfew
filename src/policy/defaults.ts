@@ -13,6 +13,8 @@ export const DEFAULT_POLICY = {
   installScripts: { default: 'deny', allow: [], deny: [] },
   sources: { git: 'deny', remoteTarball: 'deny', file: 'allow', directory: 'allow' },
   targets: 'auto',
+  // New policies fail doctor on warnings too; a policy without the section keeps failing on errors only (D-112).
+  doctor: { failOn: 'warning' },
 } as const satisfies Policy;
 
 export function renderPolicy(policy: Policy): string {

@@ -2,6 +2,7 @@
 // repository, so control characters in them are shown as visible text (printable) before colors are added.
 import { PLAIN, type Paint } from '../color.ts';
 import { printable } from '../printable.ts';
+import { failOnExplanation, type FailOnSetting } from './fail-on.ts';
 import type { Checked, CheckedTool, DoctorReport, Finding, Level, Rule, RuleResult } from './types.ts';
 
 export function countLevels(findings: readonly Finding[]): Record<'error' | 'warning' | 'note', number> {
@@ -91,7 +92,16 @@ export function checkedLines(checked: Checked): string[] {
 /** The line --strict adds when warnings make doctor fail. */
 export const STRICT_NOTE = '--strict: warnings count as failures, so depcurfew doctor exits with 1';
 
-export function renderText(report: DoctorReport, rules: readonly Rule[], colors: Paint = PLAIN, options: { strict?: boolean } = {}): string {
+/**
+ * `failOn`: which findings fail doctor and where that was set (decision D-112); when warnings make it fail, a line under
+ * the counts says why, with how to fail on errors only. `strict` alone (before D-112) adds STRICT_NOTE.
+ */
+export function renderText(
+  report: DoctorReport,
+  rules: readonly Rule[],
+  colors: Paint = PLAIN,
+  options: { strict?: boolean; failOn?: FailOnSetting } = {},
+): string {
   const counts = countLevels(report.findings);
   const lines: string[] = [];
   if (report.findings.length === 0) {
@@ -99,8 +109,10 @@ export function renderText(report: DoctorReport, rules: readonly Rule[], colors:
   } else {
     const count = (level: Level) => (counts[level] === 0 ? plural(0, level) : levelColor(level, colors)(plural(counts[level], level)));
     lines.push(`${count('error')}, ${count('warning')}, ${count('note')}`);
-    // With --strict a warning alone makes doctor fail; say so next to the counts.
-    if (options.strict === true && counts.warning > 0) lines.push(STRICT_NOTE);
+    // When a warning alone makes doctor fail, say so next to the counts, with where that was set.
+    const explanation = options.failOn === undefined ? undefined : failOnExplanation(options.failOn, counts);
+    if (explanation !== undefined) lines.push(printable(explanation.message), `  ${colors.green('fix:')} ${printable(explanation.fix)}`);
+    else if (options.failOn === undefined && options.strict === true && counts.warning > 0) lines.push(STRICT_NOTE);
     let file: string | undefined;
     for (const finding of report.findings) {
       if (finding.location.file !== file) {

@@ -24,6 +24,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 ### doctor and the GitHub Action
 
 - `doctor --strict` (also with `--user`) exits with 1 for warnings too; notes never fail. The JSON has a new field `strict`.
+- New policy section `doctor` with `failOn: "error" | "warning"` (also in the user policy). `init` and `init --user` write `"warning"`, so new policies make `doctor` and the Action fail on warnings too; a policy without the section fails on errors only, as before, so existing policies keep their exit codes. `doctor --fail-on error|warning` overrides it (`--strict` is `--fail-on warning`), and so does the Action input `fail-on`, which is now empty by default and follows the policy. The JSON of `doctor` has the new fields `failOn` and `failOnFrom` (`option`, `policy` or `default`).
 - The rule list says "not applicable" for a check that does not concern the repository (Python rules in a JavaScript project, bot rules without a bot), instead of "passed".
 - Action: new input `fail-on: error | warning`; with `warning`, warnings fail the step and the "depcurfew doctor" check like errors. `fail-on-error` still works and is deprecated; `false` keeps the step from failing whatever `fail-on` says, and now every other value counts as on.
 - The "depcurfew doctor" check shows the findings as annotations on their lines (at most 100, errors first), and a workflow that runs on both `push` and `pull_request` updates the entry of the same commit instead of adding a second one.

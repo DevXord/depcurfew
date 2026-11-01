@@ -182,6 +182,22 @@
       },
       "uniqueItems": true,
       "default": []
+    },
+    "doctor": {
+      "description": "How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes \"failOn\": \"warning\".",
+      "type": "object",
+      "properties": {
+        "failOn": {
+          "description": "Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: \"error\" (only errors) or \"warning\" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it.",
+          "type": "string",
+          "enum": [
+            "error",
+            "warning"
+          ],
+          "default": "error"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": [

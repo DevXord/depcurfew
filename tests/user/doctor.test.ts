@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { CheckDependencies } from '../../src/cli/check.ts';
-import { EXIT_OK, run } from '../../src/cli/run.ts';
+import { EXIT_FAILURE, run } from '../../src/cli/run.ts';
 import { renderPolicy, DEFAULT_POLICY } from '../../src/policy/defaults.ts';
 import { planUserApply, writeUserChanges } from '../../src/user/apply.ts';
 import { runUserDoctor } from '../../src/user/doctor.ts';
@@ -110,8 +110,9 @@ describe.skipIf(!canSymlink())('doctor --user', () => {
     let stdout = '';
     const dependencies: CheckDependencies = { fetch: () => Promise.reject(new Error('offline')), now: () => new Date(), stdin: () => Promise.resolve(''), userEnvironment: () => environment };
     const code = await run(['doctor', '--user', '--json'], { stdout: (text) => (stdout += text), stderr: () => undefined }, dependencies);
-    expect(code).toBe(EXIT_OK);
-    expect(JSON.parse(stdout)).toMatchObject({ schemaVersion: 1, policy: 'valid', summary: { warning: 1, error: 0 } });
+    // The default policy of init --user has doctor.failOn "warning", so the warning fails doctor (decision D-112).
+    expect(code).toBe(EXIT_FAILURE);
+    expect(JSON.parse(stdout)).toMatchObject({ schemaVersion: 1, policy: 'valid', failOn: 'warning', failOnFrom: 'policy', summary: { warning: 1, error: 0 } });
     stdout = '';
     await run(['doctor', '--user', '--sarif'], { stdout: (text) => (stdout += text), stderr: () => undefined }, dependencies);
     const sarif = JSON.parse(stdout) as { runs: { tool: { driver: { rules: { id: string }[] } }; results: { ruleId: string }[] }[] };

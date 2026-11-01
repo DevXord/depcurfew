@@ -88,16 +88,24 @@ export const COMMANDS: readonly CommandInfo[] = [
     options: [
       { name: 'json', summary: 'Print the findings as JSON' },
       { name: 'sarif', summary: 'Print the findings as SARIF 2.1.0 for code scanning' },
-      { name: 'strict', summary: 'Exit with 1 for warnings too, not only for errors (notes never fail)' },
+      {
+        name: 'fail-on',
+        value: 'level',
+        summary: 'Which findings make doctor exit with 1: error (only errors, the default) or warning (warnings too; notes never fail); overrides doctor.failOn in depcurfew.json',
+      },
+      { name: 'strict', summary: 'The same as --fail-on warning: exit with 1 for warnings too, not only for errors (notes never fail)' },
       { name: 'user', summary: 'Check the user-level configuration of the installed tools against the user policy, and the environment' },
       { name: 'for', value: 'tool@version', multiple: true, summary: 'With --user: the version of a tool, when depcurfew cannot read it from its files' },
     ],
     details:
-      `Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depcurfew.json. Every finding says where it is and how to fix it. Only errors make it fail; with --strict warnings do too, so that CI can keep a repository free of them (notes, which say what doctor could not check, never fail). Without depcurfew.json, only the rules that do not need a policy run; an invalid depcurfew.json is reported as an error finding (invalid-policy), and the same rules run. ${NEAREST_POLICY} With --user it checks the user-level configuration of the installed package managers against the user policy, values there and in files read ahead of it that weaken every project, and environment variables that override it; an invalid or unreadable user policy (user-policy-invalid) and a user file it cannot read, parse or edit (user-config-unreadable) are error findings.`,
-    examples: ['depcurfew doctor', 'depcurfew doctor --json', 'depcurfew doctor --sarif > depcurfew.sarif', 'depcurfew doctor --strict', 'depcurfew doctor --user'],
+      `Checks the repository for configuration that silently does not work (a setting the pinned version ignores, a bot that waits less than the package manager, a lockfile with sources or install scripts the policy denies) and for files that no longer match depcurfew.json. Every finding says where it is and how to fix it. Errors make it fail; warnings do too when doctor.failOn in depcurfew.json is "warning", which depcurfew init writes, so that CI keeps a repository free of them (notes, which say what doctor could not check, never fail). Without doctor.failOn only errors fail. --fail-on error or --fail-on warning overrides the policy, and --strict is --fail-on warning; an invalid or missing depcurfew.json counts as "error" unless --fail-on says otherwise. Without depcurfew.json, only the rules that do not need a policy run; an invalid depcurfew.json is reported as an error finding (invalid-policy), and the same rules run. ${NEAREST_POLICY} With --user it checks the user-level configuration of the installed package managers against the user policy, values there and in files read ahead of it that weaken every project, and environment variables that override it; an invalid or unreadable user policy (user-policy-invalid) and a user file it cannot read, parse or edit (user-config-unreadable) are error findings, and doctor.failOn of the user policy decides whether warnings fail.`,
+    examples: ['depcurfew doctor', 'depcurfew doctor --json', 'depcurfew doctor --sarif > depcurfew.sarif', 'depcurfew doctor --fail-on warning', 'depcurfew doctor --fail-on error', 'depcurfew doctor --user'],
     exitCodes: [
-      [0, 'no finding with level error (without --strict, warnings and notes included; with --strict, notes only)'],
-      [1, 'at least one finding with level error, or with --strict level warning, or depcurfew.json (with --user the user policy) is invalid or unreadable'],
+      [0, 'no finding that fails: no error, and no warning when warnings fail (notes never fail)'],
+      [
+        1,
+        'at least one finding with level error, or with level warning when doctor.failOn in depcurfew.json or --fail-on is warning (--strict is --fail-on warning; with --user doctor.failOn of the user policy), or depcurfew.json (with --user the user policy) is invalid or unreadable',
+      ],
       [2, 'a usage error, such as an unknown option or a missing directory'],
     ],
   },

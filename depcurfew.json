@@ -17,5 +17,8 @@
     "file": "deny",
     "directory": "deny"
   },
-  "targets": "auto"
+  "targets": "auto",
+  "doctor": {
+    "failOn": "warning"
+  }
 }

@@ -158,10 +158,31 @@ describe('GitHub Action entry point', () => {
       expect(run({ GITHUB_WORKSPACE: workspace(WARNING_ONLY), INPUT_FAIL_ON: 'warning', INPUT_FAIL_ON_ERROR: 'false' }).outputs['fail-reason']).toBe('');
     });
 
+    it('follows doctor.failOn of depcurfew.json when the input is empty, and the input wins (decision D-112)', () => {
+      const policy = (root: string, subdirectory = '') => {
+        writeFileSync(join(root, subdirectory, 'depcurfew.json'), '{ "version": 1, "doctor": { "failOn": "warning" } }\n');
+        return root;
+      };
+      const reason = 'depcurfew doctor reported 1 warning (doctor.failOn is "warning" in depcurfew.json); the job summary and the log of the Run depcurfew doctor step say how to fix each one';
+      expect(run({ GITHUB_WORKSPACE: policy(workspace(WARNING_ONLY)) }).outputs).toMatchObject({ warnings: 1, failure: '', 'fail-reason': reason });
+      expect(run({ GITHUB_WORKSPACE: policy(workspace(WARNING_ONLY)), INPUT_FAIL_ON: '' }).outputs['fail-reason']).toBe(reason);
+      expect(run({ GITHUB_WORKSPACE: policy(workspace(WARNING_ONLY, 'app'), 'app'), INPUT_DIRECTORY: 'app' }).outputs['fail-reason']).toBe(reason.replace(' in depcurfew.json', ' in app/depcurfew.json'));
+      expect(run({ GITHUB_WORKSPACE: policy(workspace(WARNING_ONLY)), INPUT_FAIL_ON: 'error' }).outputs['fail-reason']).toBe('');
+      expect(run({ GITHUB_WORKSPACE: policy(workspace(WARNING_ONLY)), INPUT_FAIL_ON_ERROR: 'false' }).outputs['fail-reason']).toBe('');
+      expect(run({ GITHUB_WORKSPACE: workspace(WARNING_ONLY), INPUT_FAIL_ON: '' }).outputs['fail-reason']).toBe('');
+
+      const conclusions: string[] = [];
+      const check = (env: Record<string, string>) =>
+        runAction(env, { log: () => undefined, summary: () => undefined, checkRun: (content) => conclusions.push(content.conclusion) });
+      check({ GITHUB_WORKSPACE: policy(workspace(WARNING_ONLY)) });
+      check({ GITHUB_WORKSPACE: policy(workspace(WARNING_ONLY)), INPUT_FAIL_ON: 'error' });
+      expect(conclusions).toEqual(['failure', 'neutral']);
+    });
+
     it('fails the step with a clear message on any other value, before doctor runs', () => {
       const root = workspace(WARNING_ONLY);
       const { outputs, log, summary } = run({ GITHUB_WORKSPACE: root, INPUT_FAIL_ON: 'warnings' });
-      const failure = 'the input fail-on is "warnings"; set it to error (the default: errors fail the step) or warning (warnings fail it too)';
+      const failure = 'the input fail-on is "warnings"; set it to error (errors fail the step) or warning (warnings fail it too), or leave it empty to follow doctor.failOn in depcurfew.json (errors only without it)';
       expect(outputs).toEqual({ 'sarif-file': '', errors: 0, warnings: 0, notes: 0, failure, 'fail-reason': '' });
       expect(log).toContain(`depcurfew: ${failure}\n`);
       expect(summary).toContain('depcurfew could not check the repository: the input fail-on is "warnings"');

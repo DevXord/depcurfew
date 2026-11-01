@@ -152,7 +152,10 @@ function actionTables(action: string): string {
     const header = withDefault ? `| ${heading} | Default | Description |\n| --- | --- | --- |` : `| ${heading} | Description |\n| --- | --- |`;
     const rows = entries.map(([name, value]) => {
       const entry = isRecord(value) ? value : {};
-      const columns = withDefault ? [`\`${name}\``, `\`${String(entry['default'] ?? '')}\``, String(entry['description'] ?? '')] : [`\`${name}\``, String(entry['description'] ?? '')];
+      // An empty default (fail-on) is shown as "empty": an empty code span would show the backticks.
+      const fallback = String(entry['default'] ?? '');
+      const shown = fallback === '' ? 'empty' : `\`${fallback}\``;
+      const columns = withDefault ? [`\`${name}\``, shown, String(entry['description'] ?? '')] : [`\`${name}\``, String(entry['description'] ?? '')];
       return `| ${columns.map(cell).join(' | ')} |`;
     });
     return [header, ...rows].join('\n');
