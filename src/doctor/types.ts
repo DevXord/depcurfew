@@ -41,6 +41,9 @@ export interface RuleContext {
   notice(message: string, file?: string): void;
 }
 
+/** What a rule may look at to decide whether it concerns the project: the context without the reporting functions. */
+export type ProjectView = Omit<RuleContext, 'report' | 'notice'>;
+
 export interface Rule {
   /** Stable kebab-case identifier, used in SARIF and in the documentation. */
   id: string;
@@ -56,6 +59,12 @@ export interface Rule {
   level: Level;
   /** Rules that compare the repository with depcurfew.json do not run without one. */
   requiresPolicy: boolean;
+  /**
+   * Whether the rule concerns the project at all, from detection: the Python rules without a Python tool, the bot rules
+   * without a bot. false shows the rule as "not applicable" in the list of what doctor checked (decision D-098). It
+   * never changes findings: check still runs, and a rule that reports one has problems. Absent: it always applies.
+   */
+  applies?(scope: ProjectView): boolean;
   check(context: RuleContext): void;
 }
 
@@ -73,8 +82,11 @@ export interface RuleResult {
   rule: string;
   /** What the rule checks, in plain words (Rule.check). */
   check: string;
-  /** passed: it ran and found nothing; problems: it reported findings; skipped: it needs a policy that is missing or invalid. */
-  result: 'passed' | 'problems' | 'skipped';
+  /**
+   * passed: it ran and found nothing; problems: it reported findings; skipped: it needs a policy that is missing or
+   * invalid; not-applicable: it does not concern the project, e.g. a Python rule without a Python tool (decision D-098).
+   */
+  result: 'passed' | 'problems' | 'skipped' | 'not-applicable';
   errors: number;
   warnings: number;
   notes: number;

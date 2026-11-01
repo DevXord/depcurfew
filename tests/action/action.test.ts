@@ -32,7 +32,7 @@ describe('GitHub Action entry point', () => {
   it('prints the report, writes SARIF and counts the findings', () => {
     const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter');
     const { outputs, log } = run({ GITHUB_WORKSPACE: root });
-    expect(outputs).toEqual({ 'sarif-file': 'depcurfew.sarif', errors: 1, warnings: 0, notes: 0, failure: '' });
+    expect(outputs).toEqual({ 'sarif-file': 'depcurfew.sarif', errors: 1, warnings: 0, notes: 0, failure: '', 'fail-reason': 'depcurfew doctor reported 1 error; the job summary and the log of the Run depcurfew doctor step say how to fix each one' });
     expect(log).toContain('1 error, 0 warnings, 0 notes');
     const sarif = JSON.parse(readFileSync(join(root, 'depcurfew.sarif'), 'utf8')) as { runs: { results: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[] }[] };
     expect(sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('.github/dependabot.yml');
@@ -116,7 +116,7 @@ describe('GitHub Action entry point', () => {
     symlinkSync(join(root, 'elsewhere.txt'), join(root, 'report.sarif'));
     const { outputs, log, summary } = run({ GITHUB_WORKSPACE: root, INPUT_SARIF_FILE: 'report.sarif' });
     const failure = 'cannot write the SARIF file report.sarif: report.sarif is a symlink; depcurfew does not write through symlinks';
-    expect(outputs).toEqual({ 'sarif-file': '', errors: 1, warnings: 0, notes: 0, failure });
+    expect(outputs).toEqual({ 'sarif-file': '', errors: 1, warnings: 0, notes: 0, failure, 'fail-reason': 'depcurfew doctor reported 1 error; the job summary and the log of the Run depcurfew doctor step say how to fix each one' });
     expect(log).toContain(`\ndepcurfew: ${failure}\n`);
     expect(summary.match(/^## depcurfew doctor$/gmu)).toHaveLength(1);
     expect(summary).not.toContain('could not check the repository');
@@ -139,9 +139,38 @@ describe('GitHub Action entry point', () => {
     expect(sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('odd%20dir%0A%7C%20x%20%7C/.github/dependabot.yml');
   });
 
+  describe('fail-on', () => {
+    const WARNING_ONLY = 'bot-cooldown-mismatch/fires-security-recheck';
+    const ERROR = 'bot-cooldown-mismatch/fires-dependabot-shorter';
+
+    it('fails the step on errors only by default, and on warnings too with fail-on: warning', () => {
+      expect(run({ GITHUB_WORKSPACE: workspace(WARNING_ONLY) }).outputs).toMatchObject({ warnings: 1, 'fail-reason': '' });
+      expect(run({ GITHUB_WORKSPACE: workspace(WARNING_ONLY), INPUT_FAIL_ON: 'error' }).outputs['fail-reason']).toBe('');
+      expect(run({ GITHUB_WORKSPACE: workspace(WARNING_ONLY), INPUT_FAIL_ON: 'warning' }).outputs).toMatchObject({
+        failure: '',
+        'fail-reason': 'depcurfew doctor reported 1 warning (fail-on: warning); the job summary and the log of the Run depcurfew doctor step say how to fix each one',
+      });
+      expect(run({ GITHUB_WORKSPACE: workspace(ERROR), INPUT_FAIL_ON: 'warning' }).outputs['fail-reason']).toMatch(/^depcurfew doctor reported 1 error \(fail-on: warning\); /u);
+    });
+
+    it('never fails the step on findings with fail-on-error: false, whatever fail-on says', () => {
+      expect(run({ GITHUB_WORKSPACE: workspace(ERROR), INPUT_FAIL_ON_ERROR: 'false' }).outputs).toMatchObject({ errors: 1, 'fail-reason': '' });
+      expect(run({ GITHUB_WORKSPACE: workspace(WARNING_ONLY), INPUT_FAIL_ON: 'warning', INPUT_FAIL_ON_ERROR: 'false' }).outputs['fail-reason']).toBe('');
+    });
+
+    it('fails the step with a clear message on any other value, before doctor runs', () => {
+      const root = workspace(WARNING_ONLY);
+      const { outputs, log, summary } = run({ GITHUB_WORKSPACE: root, INPUT_FAIL_ON: 'warnings' });
+      const failure = 'the input fail-on is "warnings"; set it to error (the default: errors fail the step) or warning (warnings fail it too)';
+      expect(outputs).toEqual({ 'sarif-file': '', errors: 0, warnings: 0, notes: 0, failure, 'fail-reason': '' });
+      expect(log).toContain(`depcurfew: ${failure}\n`);
+      expect(summary).toContain('depcurfew could not check the repository: the input fail-on is "warnings"');
+    });
+  });
+
   it('formats outputs for GITHUB_OUTPUT on single lines', () => {
-    expect(formatOutputs({ 'sarif-file': 'a.sarif', errors: 2, warnings: 0, notes: 1, failure: 'one\ntwo\u001b[2K' })).toBe(
-      'sarif-file=a.sarif\nerrors=2\nwarnings=0\nnotes=1\nfailure=one two\\x1b[2K\n',
+    expect(formatOutputs({ 'sarif-file': 'a.sarif', errors: 2, warnings: 0, notes: 1, failure: 'one\ntwo\u001b[2K', 'fail-reason': '' })).toBe(
+      'sarif-file=a.sarif\nerrors=2\nwarnings=0\nnotes=1\nfailure=one two\\x1b[2K\nfail-reason=\n',
     );
   });
 });

@@ -762,13 +762,24 @@ export interface AnnotationLimitsKnowledge {
 /** The Markdown job summary of a step: the environment variable naming its file and its size limit. */
 /** Creating a check run with the workflow token, so that the result shows in the pull request's Checks tab. */
 export interface CheckRunsKnowledge {
-  /** POST endpoint, with {repository} as owner/name. */
-  endpoint: string;
+  /**
+   * Paths with {repository} as owner/name: create (POST), update (PATCH, {id} the check run), and list the check runs
+   * of a commit (GET, {ref} a SHA), which takes the query parameters checkName and filter (with the value latest).
+   */
+  endpoints: { create: string; update: string; list: string };
+  query: { checkName: string; filter: string; latest: string };
   apiVersion: string;
-  /** The workflow permission the token needs. */
+  /** The workflow permission the token needs; it covers the list endpoint too (write includes read). */
   permission: Record<string, string>;
   /** Limit of output.summary, in characters. */
   summaryMaxLength: number;
+  /** output.annotations: at most this many per request; further ones are appended by update requests. */
+  annotationsPerRequest: number;
+  /** annotation_level for each doctor level. */
+  annotationLevels: Record<'error' | 'warning' | 'note', string>;
+  /** Limits of an annotation: title in characters, message in bytes (64 KB, taken as 64000). */
+  annotationTitleMaxLength: number;
+  annotationMessageMaxBytes: number;
   /** Variables the runner sets: API URL, owner/name, commit and the event payload file. */
   variables: { apiUrl: string; repository: string; sha: string; eventPath: string };
   /** Path in the event payload of the commit a pull request check belongs to (GITHUB_SHA is the merge commit there). */

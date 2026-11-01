@@ -4193,6 +4193,7 @@ const gitFacts = verifiedOn("2026-10-30");
 const audited = verifiedOn("2026-10-31");
 const release13 = verifiedOn("2026-11-01");
 const mcpFacts = verifiedOn("2026-11-01");
+const actionChecks = verifiedOn("2026-11-01");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
 const NPM_PACKAGE_JSON = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
@@ -4422,11 +4423,28 @@ const environment = {
 			perLevelPerStep: 10,
 			perJob: 50
 		}, "https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations", "10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown."),
-		checkRuns: audited.verified({
-			endpoint: "/repos/{repository}/check-runs",
+		checkRuns: actionChecks.verified({
+			endpoints: {
+				create: "/repos/{repository}/check-runs",
+				update: "/repos/{repository}/check-runs/{id}",
+				list: "/repos/{repository}/commits/{ref}/check-runs"
+			},
+			query: {
+				checkName: "check_name",
+				filter: "filter",
+				latest: "latest"
+			},
 			apiVersion: "2022-11-28",
 			permission: { checks: "write" },
 			summaryMaxLength: 65535,
+			annotationsPerRequest: 50,
+			annotationLevels: {
+				error: "failure",
+				warning: "warning",
+				note: "notice"
+			},
+			annotationTitleMaxLength: 255,
+			annotationMessageMaxBytes: 64e3,
 			variables: {
 				apiUrl: "GITHUB_API_URL",
 				repository: "GITHUB_REPOSITORY",
@@ -4438,7 +4456,7 @@ const environment = {
 				"head",
 				"sha"
 			]
-		}, "https://docs.github.com/en/rest/checks/runs#create-a-check-run", "Read from the sources of this page, the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json) and github/docs. POST /repos/{owner}/{repo}/check-runs (\"Create a check run\") needs name and head_sha; status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write \"permits an action to create a check run\" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the \"Last merge commit on the GITHUB_REF branch\" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH)."),
+		}, "https://docs.github.com/en/rest/checks/runs", "Read from the sources of this page (#create-a-check-run, #update-a-check-run, #list-check-runs-for-a-git-reference), the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json, commit f9ed74230d54847b5ca00a1343e8e349e858b8fb) and github/docs (commit 33b1f4a6fec2d9b6fd3d374afa56bcd9f0875b57); content/rest/checks/runs.md is generated from the REST description. POST /repos/{owner}/{repo}/check-runs (\"Create a check run\") needs name and head_sha and takes external_id, \"A reference for the run on the integrator's system\"; PATCH /repos/{owner}/{repo}/check-runs/{check_run_id} (\"Update a check run\") takes the same fields but head_sha, with only summary required in output, and \"OAuth apps and personal access tokens (classic) cannot use this endpoint\"; GET /repos/{owner}/{repo}/commits/{ref}/check-runs (\"List check runs for a Git reference\", ref a SHA, heads/BRANCH or tags/TAG) takes check_name (\"Returns check runs with the specified name\"), filter (latest, the default, or all: \"latest returns the most recent check runs\"), per_page (at most 100) and app_id, and answers {total_count, check_runs}, each with id, name, external_id (nullable), app (with slug, not required) and output.annotations_count. Fine-grained permissions (src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json in github/docs): the list needs Checks read, update and create need Checks write; \"write includes read\" (github-token-scope-descriptions.md). output.annotations: \"maxItems\": 50 per request, \"To create more than 50 annotations, you have to make multiple requests to the Update a check run endpoint. Each time you update the check run, annotations are appended\"; each annotation requires path, start_line, end_line (lines start at 1), annotation_level (notice, warning or failure) and message (\"The maximum size is 64 KB\"), with an optional title (\"The maximum size is 255 characters\"). No total per check run is documented; the same description says \"GitHub Actions are limited to 10 warning annotations and 10 error annotations per step\" without saying whether that binds check runs created through the API (uncertain). Not documented either: whether only the app that created a run may update it, and the app slug of runs created with the workflow token. A check suite holds the runs of one GitHub App for one commit (using-the-rest-api-to-interact-with-checks.md), and GitHub keeps at most 1000 runs of the same name per suite. status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write \"permits an action to create a check run\" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the \"Last merge commit on the GITHUB_REF branch\" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH)."),
 		stepSummary: checked$2.verified({
 			variable: "GITHUB_STEP_SUMMARY",
 			maxBytes: 1048576
@@ -19730,6 +19748,8 @@ function loadPolicyIfPresent(root) {
 
 // src/action-check-run.ts
 const CHECK_RUN_NAME = "depcurfew doctor";
+/** Set on the check runs depcurfew creates, so that a later run on the same commit finds its own entry and no other. */
+const CHECK_RUN_EXTERNAL_ID = "depcurfew";
 /** The name of the check: with the directory when it is not the workspace root. */
 function checkRunName(directory) {
 	return directory === "" ? CHECK_RUN_NAME : `${CHECK_RUN_NAME} (${directory})`;
@@ -19752,9 +19772,32 @@ function fitSummary(markdown, limit) {
 	const cut = markdown.slice(0, limit - 73);
 	return `${cut.slice(0, Math.max(0, cut.lastIndexOf("\n")))}${note}`;
 }
+function plural$2(count, word) {
+	return `${count} ${count === 1 ? word : `${word}s`}`;
+}
+function reason(error) {
+	return `the GitHub API did not answer (${error instanceof Error ? error.message : String(error)})`;
+}
+function existingRun(answer, name) {
+	const runs = typeof answer === "object" && answer !== null ? answer["check_runs"] : void 0;
+	if (!Array.isArray(runs)) return void 0;
+	for (const run of runs) {
+		if (typeof run !== "object" || run === null) continue;
+		const entry = run;
+		if (entry["name"] !== name || entry["external_id"] !== "depcurfew" || typeof entry["id"] !== "number" || !Number.isSafeInteger(entry["id"])) continue;
+		const output = entry["output"];
+		const count = typeof output === "object" && output !== null ? output["annotations_count"] : void 0;
+		return {
+			id: entry["id"],
+			annotations: typeof count === "number" ? count : 0
+		};
+	}
+}
 /**
-* Creates the check run; returns a line for the log. The token goes only to the API URL the runner sets, in a header,
-* and is never printed.
+* Creates the check run, or updates the one an earlier run of the action left on the same commit with the same name;
+* returns one line for the log. The token goes only to the API URL the runner sets, in a header, and is never printed.
+* Looking for the earlier entry and creating one is not atomic: two jobs that run at the same time can still add one
+* entry each. Any failure of the lookup or the update falls back to creating the entry.
 */
 async function createCheckRun(env, token, content, fetchImpl) {
 	const facts = values$1(environment.githubActions.checkRuns)[0];
@@ -19764,35 +19807,100 @@ async function createCheckRun(env, token, content, fetchImpl) {
 	const sha = checkRunSha(env, facts);
 	if (apiUrl === void 0 || !/^https:\/\//u.test(apiUrl) || repository === void 0 || !/^[\w.-]+\/[\w.-]+$/u.test(repository) || sha === void 0) return `depcurfew: the depcurfew doctor check was not added: ${facts.variables.apiUrl}, ${facts.variables.repository} or the commit is not set, as outside GitHub Actions\n`;
 	const permission = Object.entries(facts.permission).map(([name, level]) => `${name}: ${level}`).join(", ");
-	let response;
+	const base = apiUrl.replace(/\/+$/u, "");
+	const url = (template, id) => `${base}${template.replace("{repository}", repository).replace("{ref}", sha).replace("{id}", id === void 0 ? "" : String(id))}`;
+	const request = (method, target, body) => fetchImpl(target, {
+		method,
+		headers: {
+			accept: "application/vnd.github+json",
+			authorization: `Bearer ${token}`,
+			...body === void 0 ? {} : { "content-type": "application/json" },
+			"user-agent": "depcurfew",
+			"x-github-api-version": facts.apiVersion
+		},
+		...body === void 0 ? {} : { body: JSON.stringify(body) },
+		signal: AbortSignal.timeout(15e3)
+	});
+	const batches = [];
+	const annotations = content.annotations ?? [];
+	for (let start = 0; start < annotations.length; start += facts.annotationsPerRequest) batches.push(annotations.slice(start, start + facts.annotationsPerRequest));
+	const output = (batch = []) => ({
+		title: content.title,
+		summary: fitSummary(content.summary, facts.summaryMaxLength),
+		...batch.length === 0 ? {} : { annotations: batch }
+	});
+	const result = {
+		status: "completed",
+		conclusion: content.conclusion,
+		external_id: CHECK_RUN_EXTERNAL_ID
+	};
+	let existing;
 	try {
-		response = await fetchImpl(`${apiUrl.replace(/\/+$/u, "")}${facts.endpoint.replace("{repository}", repository)}`, {
-			method: "POST",
-			headers: {
-				accept: "application/vnd.github+json",
-				authorization: `Bearer ${token}`,
-				"content-type": "application/json",
-				"user-agent": "depcurfew",
-				"x-github-api-version": facts.apiVersion
-			},
-			body: JSON.stringify({
+		const query = `${facts.query.checkName}=${encodeURIComponent(content.name)}&${facts.query.filter}=${facts.query.latest}`;
+		const response = await request("GET", `${url(facts.endpoints.list)}?${query}`);
+		if (response.status === 200) existing = existingRun(await response.json(), content.name);
+	} catch {}
+	let id;
+	let updated = false;
+	let pending = batches;
+	let kept = false;
+	if (existing !== void 0) try {
+		const keep = existing.annotations > 0;
+		if ((await request("PATCH", url(facts.endpoints.update, existing.id), {
+			...result,
+			output: output(keep ? [] : batches[0])
+		})).status === 200) {
+			({id} = existing);
+			updated = true;
+			kept = keep;
+			pending = keep ? [] : batches.slice(1);
+		}
+	} catch {}
+	if (!updated) {
+		let response;
+		try {
+			response = await request("POST", url(facts.endpoints.create), {
 				name: content.name,
 				head_sha: sha,
-				status: "completed",
-				conclusion: content.conclusion,
-				output: {
-					title: content.title,
-					summary: fitSummary(content.summary, facts.summaryMaxLength)
-				}
-			}),
-			signal: AbortSignal.timeout(15e3)
-		});
-	} catch (error) {
-		return `depcurfew: the depcurfew doctor check was not added: the GitHub API did not answer (${error instanceof Error ? error.message : String(error)})\n`;
+				...result,
+				output: output(batches[0])
+			});
+		} catch (error) {
+			return `depcurfew: the depcurfew doctor check was not added: ${reason(error)}\n`;
+		}
+		if (response.status === 403 || response.status === 404) return `depcurfew: the depcurfew doctor check was not added: the workflow token may not create checks (HTTP ${response.status}). Add "${permission}" to the permissions of the job, or set the input check-run to false. A pull request from a fork gets a read-only token.\n`;
+		if (response.status !== 201) return `depcurfew: the depcurfew doctor check was not added: the GitHub API answered HTTP ${response.status}\n`;
+		pending = batches.slice(1);
+		if (pending.length > 0) try {
+			const answer = await response.json();
+			const created = typeof answer === "object" && answer !== null ? answer["id"] : void 0;
+			if (typeof created === "number" && Number.isSafeInteger(created)) id = created;
+		} catch {}
 	}
-	if (response.status === 201) return `depcurfew: added the check "${content.name}" with the result to the commit ${sha.slice(0, 12)}\n`;
-	if (response.status === 403 || response.status === 404) return `depcurfew: the depcurfew doctor check was not added: the workflow token may not create checks (HTTP ${response.status}). Add "${permission}" to the permissions of the job, or set the input check-run to false. A pull request from a fork gets a read-only token.\n`;
-	return `depcurfew: the depcurfew doctor check was not added: the GitHub API answered HTTP ${response.status}\n`;
+	let added = kept ? 0 : batches[0]?.length ?? 0;
+	let failure;
+	for (const batch of pending) {
+		if (id === void 0) {
+			failure = "the GitHub API did not say which check it added";
+			break;
+		}
+		try {
+			const response = await request("PATCH", url(facts.endpoints.update, id), { output: output(batch) });
+			if (response.status !== 200) {
+				failure = `the GitHub API answered HTTP ${response.status}`;
+				break;
+			}
+		} catch (error) {
+			failure = reason(error);
+			break;
+		}
+		added += batch.length;
+	}
+	const commit = sha.slice(0, 12);
+	const withAnnotations = added === 0 ? "" : ` and ${plural$2(added, "annotation")}`;
+	const line = updated ? `depcurfew: updated the check "${content.name}" on the commit ${commit} with the result of this run${withAnnotations}, instead of adding a second one${kept ? "; it keeps the annotations it has" : ""}` : `depcurfew: added the check "${content.name}" with the result${withAnnotations} to the commit ${commit}`;
+	const missing = (kept ? 0 : annotations.length) - added;
+	return `${line}${failure === void 0 || missing === 0 ? "" : `; ${plural$2(missing, "more annotation")} could not be added: ${failure}`}\n`;
 }
 
 // src/color.ts
@@ -19845,12 +19953,16 @@ function checkedTool(tool) {
 	if (tool.version === void 0) return tool.name;
 	return `${tool.name} ${tool.version}${tool.versionFrom === void 0 ? "" : ` (${tool.versionFrom})`}`;
 }
-/** Each rule with what it checks and what came of it, from the findings of the run. */
-function ruleResults(rules, findings, skipped) {
+/**
+* Each rule with what it checks and what came of it, from the findings of the run. A rule with findings has problems
+* whatever `applies` says; one that does not apply is not applicable rather than skipped, since a policy would not
+* give it anything to check.
+*/
+function ruleResults(rules, findings, skipped, applies = () => true) {
 	return rules.map((rule) => {
 		const own = findings.filter((finding) => finding.rule === rule.id);
 		const count = (level) => own.filter((finding) => finding.level === level).length;
-		const result = skipped(rule) ? "skipped" : own.length > 0 ? "problems" : "passed";
+		const result = own.length > 0 ? "problems" : !applies(rule) ? "not-applicable" : skipped(rule) ? "skipped" : "passed";
 		return {
 			rule: rule.id,
 			check: rule.checks ?? rule.summary,
@@ -19861,8 +19973,9 @@ function ruleResults(rules, findings, skipped) {
 		};
 	});
 }
-/** The result of one check as a word or counts: passed, skipped, or "1 error, 2 warnings". */
+/** The result of one check as words or counts: passed, skipped, not applicable, or "1 error, 2 warnings". */
 function resultText(result) {
+	if (result.result === "not-applicable") return "not applicable";
 	if (result.result !== "problems") return result.result;
 	return [
 		[result.errors, "error"],
@@ -19875,6 +19988,7 @@ function resultCounts(results) {
 	const of = (kind) => results.filter((result) => result.result === kind).length;
 	const parts = [`${of("passed")} passed`];
 	if (of("problems") > 0) parts.push(`${of("problems")} found problems`);
+	if (of("not-applicable") > 0) parts.push(`${of("not-applicable")} not applicable`);
 	if (of("skipped") > 0) parts.push(`${of("skipped")} skipped`);
 	return `${results.length} ${results.length === 1 ? "check" : "checks"}: ${parts.join(", ")}`;
 }
@@ -20089,6 +20203,20 @@ function renovateDelay(bot, config, ecosystem) {
 	};
 }
 
+// src/doctor/applies.ts
+/** The project uses one of these package managers (any, when none is named) in a version the knowledge base covers. */
+function usesManager(scope, ids) {
+	return scope.detection.packageManagers.some((manager) => manager.supported && (ids === void 0 || ids.includes(manager.id)));
+}
+/** The project configures an update bot (any, when none is named). */
+function usesBot(scope, ids) {
+	return scope.detection.bots.some((bot) => ids === void 0 || ids.includes(bot.id));
+}
+/** A package manager has a lockfile, or for pip requirements files, which say where packages come from too. */
+function hasLockfile(scope) {
+	return scope.detection.packageManagers.some((manager) => manager.supported && (manager.evidence.some((evidence) => evidence.kind === "lockfile") || manager.id === "pip" && manager.configFiles.length > 0));
+}
+
 // src/doctor/rules/bot-cooldown.ts
 const isEcosystems = (value) => isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
 const isCooldownKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]);
@@ -20247,6 +20375,7 @@ const botCooldownMismatch = {
 	help: "Give the bot a delay at least as long as the package manager's (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => usesBot(scope) && usesManager(scope),
 	check(context) {
 		const managers = context.detection.packageManagers.filter((entry) => entry.supported);
 		if (managers.length === 0) return;
@@ -20466,6 +20595,7 @@ const broadExclusion = {
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => scope.policy !== void 0 || usesManager(scope) || usesBot(scope),
 	check(context) {
 		checkPolicy(context);
 		checkManagers(context);
@@ -20740,6 +20870,7 @@ const depcurfewOutdated = {
 	help: "Run the project's copy of depcurfew (install the project's dependencies first when only package-lock.json pins it), or update the one you run.",
 	level: "warning",
 	requiresPolicy: false,
+	applies: (scope) => projectCopy(scope.repository) !== void 0,
 	check(context) {
 		const copy = projectCopy(context.repository);
 		if (copy === void 0 || !isNewerThanRunning(copy)) return;
@@ -20855,6 +20986,7 @@ const settingIgnoredByVersion = {
 	help: "Move the setting to the place and form this version reads.",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => usesManager(scope),
 	check(context) {
 		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
@@ -20942,6 +21074,7 @@ const lockfileForbiddenSource = {
 	help: "Replace the dependency with a registry version, or allow that source in depcurfew.json.",
 	level: "error",
 	requiresPolicy: true,
+	applies: hasLockfile,
 	check(context) {
 		const sources = context.policy?.sources;
 		if (sources === void 0) return;
@@ -21079,6 +21212,7 @@ const lockfileInstallScripts = {
 	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).",
 	level: "error",
 	requiresPolicy: true,
+	applies: hasLockfile,
 	check(context) {
 		const policy = context.policy;
 		if (policy?.installScripts?.default !== "deny") return;
@@ -21407,6 +21541,7 @@ const managerVersionTooOld = {
 	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared.",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => scope.detection.packageManagers.length > 0,
 	check(context) {
 		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
@@ -21651,6 +21786,7 @@ const npmrcOverridesPolicy = {
 	help: "Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => usesManager(scope, ["npm", "pnpm"]),
 	check(context) {
 		checkNpmWorkspaces(context);
 		checkNpmSections(context);
@@ -21667,6 +21803,7 @@ const pnpmSharedWorkspaceLockfile = {
 	help: "Remove security settings from package .npmrc files, or keep the default shared lockfile.",
 	level: "warning",
 	requiresPolicy: false,
+	applies: (scope) => usesManager(scope, ["pnpm"]),
 	check(context) {
 		const pnpm = managerOf(context, "pnpm");
 		if (pnpm === void 0) return;
@@ -21826,6 +21963,12 @@ function checkPip(context, tool, configFiles) {
 		});
 	}
 }
+const PYTHON_TOOLS = /* @__PURE__ */ new Set([
+	"uv",
+	"pip",
+	"pdm",
+	"pipenv"
+]);
 const pythonConfigIgnored = {
 	id: "python-config-ignored",
 	checks: "Python tools read their settings where they are written",
@@ -21834,6 +21977,7 @@ const pythonConfigIgnored = {
 	help: "Move the setting to the file the tool reads.",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => scope.detection.packageManagers.some((manager) => PYTHON_TOOLS.has(manager.id)),
 	check(context) {
 		for (const manager of context.detection.packageManagers) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
@@ -22030,6 +22174,54 @@ function annotationCommands(report, rules, format = values$1(environment.githubA
 	};
 }
 /**
+* The most annotations the depcurfew doctor check gets: two requests of the API. Errors come first; the job log and the
+* summary list every finding, and the step annotations show the first ones on the files too.
+*/
+const CHECK_RUN_ANNOTATIONS = 100;
+/** Text cut to a number of UTF-8 bytes, with "..." when cut. */
+function cutBytes(text, maxBytes) {
+	if (Buffer.byteLength(text) <= maxBytes) return text;
+	return `${Buffer.from(text).subarray(0, Math.max(0, maxBytes - 3)).toString().replace(/�$/u, "")}...`;
+}
+/**
+* The findings as annotations of the depcurfew doctor check (decision D-104), errors first, at most `max`: on the line
+* of the finding, or on line 1 when it concerns the whole file. Only files `include` accepts (in the workspace and
+* there) get one, and no path with control characters, which could not name the file; those are counted in `omitted`.
+* Text from the repository is shown as text (printable), as in the other annotations.
+*/
+function checkRunAnnotations(report, rules, include, facts = values$1(environment.githubActions.checkRuns)[0], max = 100) {
+	if (facts === void 0) return {
+		annotations: [],
+		omitted: report.findings.length
+	};
+	const annotations = [];
+	for (const level of LEVELS) for (const finding of report.findings.filter((entry) => entry.level === level)) {
+		const path = finding.location.file;
+		if (annotations.length >= max) break;
+		if (path === "" || printable(path) !== path || path.startsWith("/") || path.split("/").includes("..") || !include(path)) continue;
+		const line = finding.location.line ?? 1;
+		const fix = fixOf(finding, rules);
+		const message = fix === void 0 ? printable(finding.message) : `${printable(finding.message)}\nFix: ${printable(fix)}`;
+		annotations.push({
+			path,
+			start_line: line,
+			end_line: line,
+			annotation_level: facts.annotationLevels[level],
+			message: cutBytes(message, facts.annotationMessageMaxBytes),
+			title: printable(`depcurfew: ${finding.rule}`).slice(0, facts.annotationTitleMaxLength)
+		});
+	}
+	return {
+		annotations,
+		omitted: report.findings.length - annotations.length
+	};
+}
+/** The line below the summary of the check when findings are not annotated there. */
+function checkRunAnnotationNote(omitted, max = 100) {
+	if (omitted === 0) return "";
+	return `\n${plural(omitted, "finding")} ${omitted === 1 ? "is" : "are"} not shown as annotations on the files: the check gets at most ${max}, errors first, and only on files in the workspace. The job log lists every finding.\n`;
+}
+/**
 * A notice annotation for a clean report, so that the run shows that doctor ran and what it checked: the tools, the
 * number of files read and every check with its result, one per line.
 */
@@ -22106,7 +22298,7 @@ function checkedSummary(report) {
 		"| Result | Check | Rule |",
 		"| --- | --- | --- |",
 		...checked.rules.map((result) => {
-			return `| ${result.result === "problems" ? `**${resultText(result)}**` : result.result === "skipped" ? `skipped (needs ${code(checked.policyFile)})` : "passed"} | ${markdown(result.check)} | ${code(result.rule)} |`;
+			return `| ${result.result === "problems" ? `**${resultText(result)}**` : result.result === "skipped" ? `skipped (needs ${code(checked.policyFile)})` : resultText(result)} | ${markdown(result.check)} | ${code(result.rule)} |`;
 		})
 	];
 }
@@ -22184,14 +22376,22 @@ function runDoctor(root, options = {}) {
 	const reported = rules.includes(unreadableConfig);
 	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
 	const sorted = findings.sort(byLocation);
+	const seen = checkedOf(detection, repository, tools, policy !== void 0 || invalid);
+	const scope = {
+		root,
+		repository,
+		detection,
+		policy,
+		tools
+	};
 	return {
 		schemaVersion: 1,
 		policy: invalid ? "invalid" : policy === void 0 ? "missing" : "valid",
 		findings: sorted,
 		notices,
 		checked: {
-			...checkedOf(detection, repository, tools, policy !== void 0 || invalid),
-			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && !invalid && (rule.requiresPolicy || rule.id === "invalid-policy")),
+			...seen,
+			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && !invalid && (rule.requiresPolicy || rule.id === "invalid-policy"), (rule) => rule.applies?.(scope) ?? true),
 			policyFile: POLICY_FILE
 		}
 	};
@@ -22239,6 +22439,14 @@ function input(env, name, fallback) {
 }
 function enabled(env, name) {
 	return input(env, name, "true") !== "false";
+}
+const FAIL_ON = ["error", "warning"];
+/** Why the findings fail the step, or '' when they do not. */
+function failReason(counts, failOn) {
+	if (failOn === void 0) return "";
+	const failing = (failOn === "warning" ? ["error", "warning"] : ["error"]).filter((level) => counts[level] > 0);
+	if (failing.length === 0) return "";
+	return `depcurfew doctor reported ${failing.map((level) => `${counts[level]} ${counts[level] === 1 ? level : `${level}s`}`).join(" and ")}${failOn === "warning" ? " (fail-on: warning)" : ""}; the job summary and the log of the Run depcurfew doctor step say how to fix each one`;
 }
 function summaryLimit() {
 	return values$1(environment.githubActions.stepSummary)[0]?.maxBytes ?? 0;
@@ -22312,7 +22520,8 @@ function runAction(env, io) {
 		errors: 0,
 		warnings: 0,
 		notes: 0,
-		failure: ""
+		failure: "",
+		"fail-reason": ""
 	};
 	const summary = enabled(env, "job-summary");
 	const checkRun = enabled(env, "check-run") ? io.checkRun : void 0;
@@ -22329,6 +22538,9 @@ function runAction(env, io) {
 		failedCheck(message, "");
 		return outputs;
 	};
+	const failOnInput = input(env, "fail-on", "error");
+	if (!FAIL_ON.includes(failOnInput)) return fail(`the input fail-on is "${failOnInput}"; set it to error (the default: errors fail the step) or warning (warnings fail it too)`);
+	const failOn = enabled(env, "fail-on-error") ? failOnInput : void 0;
 	const directory = scannedDirectory(workspace, input(env, "directory", "."));
 	if (directory === void 0) return fail(`directory "${input(env, "directory", ".")}" is not a directory inside the workspace`);
 	const prefix = relative(realpathSync(workspace), directory).split(sep).join("/");
@@ -22348,7 +22560,8 @@ function runAction(env, io) {
 	Object.assign(outputs, {
 		errors: counts.error,
 		warnings: counts.warning,
-		notes: counts.note
+		notes: counts.note,
+		"fail-reason": failReason(counts, failOn)
 	});
 	const moved = relativeToWorkspace(report, prefix);
 	if (enabled(env, "annotations")) {
@@ -22360,12 +22573,18 @@ function runAction(env, io) {
 	}
 	if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
 	if (checkRun !== void 0) {
-		const failOnError = enabled(env, "fail-on-error");
+		const annotated = checkRunAnnotations(moved, RULES, (file) => {
+			const path = resolve(workspace, file);
+			return isInside(workspace, path) && statSync(path, { throwIfNoEntry: false })?.isFile() === true;
+		});
+		const note = checkRunAnnotationNote(annotated.omitted);
+		const limit = values$1(environment.githubActions.checkRuns)[0]?.summaryMaxLength ?? Number.MAX_SAFE_INTEGER;
 		checkRun({
 			name: checkRunName(prefix),
 			title: checkRunTitle(moved),
-			summary: jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER),
-			conclusion: counts.error > 0 ? failOnError ? "failure" : "neutral" : counts.warning > 0 ? "neutral" : "success"
+			summary: `${fitSummary(jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER), limit - note.length)}${note}`,
+			conclusion: outputs["fail-reason"] !== "" ? "failure" : counts.error > 0 || counts.warning > 0 ? "neutral" : "success",
+			annotations: annotated.annotations
 		});
 	}
 	const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
@@ -22394,7 +22613,7 @@ function runAction(env, io) {
 		"sarif-file": shownSarif
 	};
 }
-/** The title of the check run: the result and the count of checks, e.g. "No problems found (13 checks: 13 passed)". */
+/** The title of the check run: the result and the count of checks, e.g. "No problems found (13 checks: 9 passed, 4 not applicable)". */
 function checkRunTitle(report) {
 	const counts = countLevels(report.findings);
 	const result = report.findings.length === 0 ? "No problems found" : [

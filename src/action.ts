@@ -8,10 +8,10 @@ import { randomUUID } from 'node:crypto';
 import { values } from './apply/facts.ts';
 import { PolicyError } from './apply/index.ts';
 import { writeChanges } from './apply/workspace.ts';
-import { checkRunName, createCheckRun, type CheckRunContent, type CheckRunFetch } from './action-check-run.ts';
+import { checkRunName, createCheckRun, fitSummary, type CheckRunContent, type CheckRunFetch } from './action-check-run.ts';
 import { annotationCommands, cleanNotice, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
 import { resultCounts } from './doctor/render.ts';
-import { problemSummary } from './doctor/github.ts';
+import { checkRunAnnotationNote, checkRunAnnotations, problemSummary } from './doctor/github.ts';
 import { lineReader } from './doctor/sarif.ts';
 import { environment } from './knowledge/environment.ts';
 import { isInside } from './paths.ts';
@@ -25,6 +25,8 @@ export interface ActionOutputs {
   notes: number;
   /** Set when doctor could not run, e.g. because depcurfew.json is invalid. */
   failure: string;
+  /** Set when the findings fail the step (inputs fail-on and fail-on-error): what the failing step of action.yml says. */
+  'fail-reason': string;
 }
 
 export interface ActionIo {
@@ -42,6 +44,21 @@ function input(env: NodeJS.ProcessEnv, name: string, fallback: string): string {
 
 function enabled(env: NodeJS.ProcessEnv, name: string): boolean {
   return input(env, name, 'true') !== 'false';
+}
+
+/** The levels of the findings that fail the step: fail-on error (the default) or warning; fail-on-error: false, none. */
+export type FailOn = 'error' | 'warning';
+
+const FAIL_ON: readonly FailOn[] = ['error', 'warning'];
+
+/** Why the findings fail the step, or '' when they do not. */
+export function failReason(counts: Record<'error' | 'warning' | 'note', number>, failOn: FailOn | undefined): string {
+  if (failOn === undefined) return '';
+  const failing = (failOn === 'warning' ? (['error', 'warning'] as const) : (['error'] as const)).filter((level) => counts[level] > 0);
+  if (failing.length === 0) return '';
+  const found = failing.map((level) => `${counts[level]} ${counts[level] === 1 ? level : `${level}s`}`).join(' and ');
+  const setting = failOn === 'warning' ? ' (fail-on: warning)' : '';
+  return `depcurfew doctor reported ${found}${setting}; the job summary and the log of the Run depcurfew doctor step say how to fix each one`;
 }
 
 function summaryLimit(): number {
@@ -108,7 +125,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   const workspace = resolve(env['GITHUB_WORKSPACE'] ?? process.cwd());
   const sarifInput = input(env, 'sarif-file', 'depcurfew.sarif');
   const sarifFile = resolve(workspace, sarifInput);
-  const outputs: ActionOutputs = { 'sarif-file': '', errors: 0, warnings: 0, notes: 0, failure: '' };
+  const outputs: ActionOutputs = { 'sarif-file': '', errors: 0, warnings: 0, notes: 0, failure: '', 'fail-reason': '' };
   const summary = enabled(env, 'job-summary');
   // Messages carry paths and text from the repository: control characters are shown as text in the log.
   const checkRun = enabled(env, 'check-run') ? io.checkRun : undefined;
@@ -121,6 +138,12 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
     failedCheck(message, '');
     return outputs;
   };
+  const failOnInput = input(env, 'fail-on', 'error');
+  if (!(FAIL_ON as readonly string[]).includes(failOnInput)) {
+    return fail(`the input fail-on is "${failOnInput}"; set it to error (the default: errors fail the step) or warning (warnings fail it too)`);
+  }
+  // fail-on-error: false keeps the step from failing on findings at all, whatever fail-on says (it came first).
+  const failOn = enabled(env, 'fail-on-error') ? (failOnInput as FailOn) : undefined;
   const directory = scannedDirectory(workspace, input(env, 'directory', '.'));
   if (directory === undefined) return fail(`directory "${input(env, 'directory', '.')}" is not a directory inside the workspace`);
   const prefix = relative(realpathSync(workspace), directory).split(sep).join('/');
@@ -139,7 +162,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   io.log(untrusted(renderText(report, RULES)));
   // The counts hold from here on, also when the SARIF file cannot be written.
   const counts = countLevels(report.findings);
-  Object.assign(outputs, { errors: counts.error, warnings: counts.warning, notes: counts.note });
+  Object.assign(outputs, { errors: counts.error, warnings: counts.warning, notes: counts.note, 'fail-reason': failReason(counts, failOn) });
 
   const moved = relativeToWorkspace(report, prefix);
   if (enabled(env, 'annotations')) {
@@ -153,13 +176,21 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   }
   if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
   if (checkRun !== undefined) {
-    const failOnError = enabled(env, 'fail-on-error');
+    // Annotations only on files in the workspace that exist: a finding about a missing file stays in the summary.
+    const annotated = checkRunAnnotations(moved, RULES, (file) => {
+      const path = resolve(workspace, file);
+      return isInside(workspace, path) && statSync(path, { throwIfNoEntry: false })?.isFile() === true;
+    });
+    const note = checkRunAnnotationNote(annotated.omitted);
+    const limit = values(environment.githubActions.checkRuns)[0]?.summaryMaxLength ?? Number.MAX_SAFE_INTEGER;
     checkRun({
       name: checkRunName(prefix),
       title: checkRunTitle(moved),
-      // fitSummary cuts it to the limit of the API; the job summary has its own, smaller one.
-      summary: jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER),
-      conclusion: counts.error > 0 ? (failOnError ? 'failure' : 'neutral') : counts.warning > 0 ? 'neutral' : 'success',
+      // fitSummary cuts it to the limit of the API, keeping the note; the job summary has its own, smaller limit.
+      summary: `${fitSummary(jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER), limit - note.length)}${note}`,
+      // The findings that fail the step fail the check; others make it neutral.
+      conclusion: outputs['fail-reason'] !== '' ? 'failure' : counts.error > 0 || counts.warning > 0 ? 'neutral' : 'success',
+      annotations: annotated.annotations,
     });
   }
   const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
@@ -183,7 +214,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   return { ...outputs, 'sarif-file': shownSarif };
 }
 
-/** The title of the check run: the result and the count of checks, e.g. "No problems found (13 checks: 13 passed)". */
+/** The title of the check run: the result and the count of checks, e.g. "No problems found (13 checks: 9 passed, 4 not applicable)". */
 function checkRunTitle(report: DoctorReport): string {
   const counts = countLevels(report.findings);
   const result =

@@ -55,9 +55,10 @@ describe('depcurfew doctor', () => {
     // This fixture has no depcurfew.json, so the rules that compare with one are named as not run.
     expect(result.stdout).toContain('\n\nWhat was checked:\n  Tools: ');
     expect(result.stdout).toMatch(/^  Files read: .*\.github\/dependabot\.yml/mu);
-    expect(result.stdout).toMatch(/^  \d+ checks: \d+ passed, \d+ skipped$/mu);
-    expect(result.stdout).toContain('    passed   Update bots wait at least as long as the package manager before proposing a new version [bot-cooldown-mismatch]\n');
-    expect(result.stdout).toContain('    skipped  Configuration files match what depcurfew apply writes for depcurfew.json (needs depcurfew.json) [config-drift]\n');
+    expect(result.stdout).toMatch(/^  \d+ checks: \d+ passed, \d+ not applicable, \d+ skipped$/mu);
+    expect(result.stdout).toContain('    passed          Update bots wait at least as long as the package manager before proposing a new version [bot-cooldown-mismatch]\n');
+    expect(result.stdout).toContain('    skipped         Configuration files match what depcurfew apply writes for depcurfew.json (needs depcurfew.json) [config-drift]\n');
+    expect(result.stdout).toContain('    not applicable  Python tools read their settings where they are written [python-config-ignored]\n');
     const json = JSON.parse((await exec('doctor', '--json', CLEAN)).stdout) as { checked: { files: string[]; rules: { rule: string; result: string; check: string }[]; policyFile: string } };
     expect(json.checked.files).toContain('.github/dependabot.yml');
     expect(json.checked.rules.find((entry) => entry.rule === 'config-drift')).toMatchObject({ result: 'skipped', check: 'Configuration files match what depcurfew apply writes for depcurfew.json' });

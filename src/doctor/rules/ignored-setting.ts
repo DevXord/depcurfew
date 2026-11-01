@@ -8,6 +8,7 @@ import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { latestVersion, versionedValue } from '../effective.ts';
 import { iniEntries, jsonSetting, npmrcKey, readSetting, yamlSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
+import { usesManager } from '../applies.ts';
 
 function atLeast(version: Version, since: unknown): boolean {
   const required = typeof since === 'string' ? parseVersion(since) : undefined;
@@ -107,6 +108,7 @@ export const settingIgnoredByVersion: Rule = {
   help: 'Move the setting to the place and form this version reads.',
   level: 'error',
   requiresPolicy: false,
+  applies: (scope) => usesManager(scope),
   check(context) {
     for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
       const tool = context.tools.find((entry) => entry.id === manager.id);

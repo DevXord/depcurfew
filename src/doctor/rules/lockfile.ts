@@ -15,6 +15,7 @@ import { requirementsFormatOf } from '../python-lockfiles.ts';
 import { readPythonSetting, requirementsOptions } from '../python.ts';
 import { iniValue, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
+import { hasLockfile } from '../applies.ts';
 
 const LABELS = {
   npm: { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' },
@@ -59,6 +60,7 @@ export const lockfileForbiddenSource: Rule = {
   help: 'Replace the dependency with a registry version, or allow that source in depcurfew.json.',
   level: 'error',
   requiresPolicy: true,
+  applies: hasLockfile,
   check(context) {
     const sources = context.policy?.sources;
     if (sources === undefined) return;
@@ -222,6 +224,7 @@ export const lockfileInstallScripts: Rule = {
   help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).',
   level: 'error',
   requiresPolicy: true,
+  applies: hasLockfile,
   check(context) {
     const policy = context.policy;
     if (policy?.installScripts?.default !== 'deny') return;

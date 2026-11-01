@@ -89,6 +89,9 @@ export const USER_RULES: readonly Rule[] = [
   },
 ];
 
+/** The checks of the user files and variables of installed tools: not applicable when no tool is in PATH. */
+const INSTALLED_TOOL_RULES: ReadonlySet<string> = new Set(['user-config-drift', 'user-config-weakens', 'user-environment-overrides']);
+
 const MAX_FILE = 1024 * 1024;
 
 /** A key of a user file with its value: INI keys by line (lists one value per line), TOML and YAML keys at any depth. */
@@ -640,7 +643,17 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       return { id: tool.id, name: tool.name, ...(version === undefined ? {} : { version: versionTexts.get(tool.id) ?? formatVersion(version), versionFrom: options.versions?.[tool.id] === undefined ? 'PATH' : '--for' }) };
     }),
     files: [...filesRead].sort(),
-    rules: ruleResults(USER_RULES, clean, (rule) => policy === undefined && (rule.requiresPolicy || (rule.id === 'user-policy-invalid' && status === 'missing'))),
+    rules: ruleResults(
+      USER_RULES,
+      clean,
+      (rule) => policy === undefined && (rule.requiresPolicy || (rule.id === 'user-policy-invalid' && status === 'missing')),
+      // The user files and the variables are those of the tools in PATH: without one, these checks concern nothing
+      // (D-098), except drift for a tool the targets of the user policy name.
+      (rule) =>
+        installed.length > 0 ||
+        !INSTALLED_TOOL_RULES.has(rule.id) ||
+        (rule.id === 'user-config-drift' && policy !== undefined && policy.targets !== 'auto' && policy.targets.some((id) => tools.find((tool) => tool.id === id)?.user !== undefined)),
+    ),
     policyFile,
   };
   return { schemaVersion: 1, policy: status, findings: clean, notices: notices.map((item) => ({ ...item, message: redactCredentials(item.message) })), checked, policyFile };

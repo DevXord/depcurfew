@@ -13,7 +13,7 @@ import { UNREADABLE_WARNINGS, unreadableConfig } from './rules/unreadable-config
 import type { Detection } from '../detect/types.ts';
 import type { Checked, DoctorReport, Finding, Notice, Rule } from './types.ts';
 
-export type { Checked, CheckedTool, DoctorReport, Finding, Level, Location, Notice, Rule, RuleResult } from './types.ts';
+export type { Checked, CheckedTool, DoctorReport, Finding, Level, Location, Notice, Rule, RuleResult, ProjectView } from './types.ts';
 export { RULES } from './rules/index.ts';
 export { countLevels, renderText, ruleResults } from './render.ts';
 export { toSarif } from './sarif.ts';
@@ -71,15 +71,23 @@ export function runDoctor(
     if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
   }
   const sorted = findings.sort(byLocation);
+  // The files read so far, before a rule's applies looks at anything (decision D-098).
+  const seen = checkedOf(detection, repository, tools, policy !== undefined || invalid);
+  const scope = { root, repository, detection, policy, tools };
   return {
     schemaVersion: 1,
     policy: invalid ? 'invalid' : policy === undefined ? 'missing' : 'valid',
     findings: sorted,
     notices,
     checked: {
-      ...checkedOf(detection, repository, tools, policy !== undefined || invalid),
-      // invalid-policy has nothing to check without a depcurfew.json, like the rules that compare with one.
-      rules: ruleResults(rules, sorted, (rule) => policy === undefined && !invalid && (rule.requiresPolicy || rule.id === 'invalid-policy')),
+      ...seen,
+      rules: ruleResults(
+        rules,
+        sorted,
+        // invalid-policy has nothing to check without a depcurfew.json, like the rules that compare with one.
+        (rule) => policy === undefined && !invalid && (rule.requiresPolicy || rule.id === 'invalid-policy'),
+        (rule) => rule.applies?.(scope) ?? true,
+      ),
       policyFile: POLICY_FILE,
     },
   };

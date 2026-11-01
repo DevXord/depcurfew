@@ -14,6 +14,7 @@ import { latestVersion, managerDelay, versionedValue, type Delay } from '../effe
 import { readRenovateConfig, renovateDelay } from '../renovate.ts';
 import { jsonSetting, yamlSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
+import { usesBot, usesManager } from '../applies.ts';
 
 interface BotDelay extends Delay {
   bot: ToolKnowledge;
@@ -172,6 +173,7 @@ export const botCooldownMismatch: Rule = {
   help: 'Give the bot a delay at least as long as the package manager\'s (depcurfew apply does this).',
   level: 'error',
   requiresPolicy: false,
+  applies: (scope) => usesBot(scope) && usesManager(scope),
   check(context) {
     const managers = context.detection.packageManagers.filter((entry) => entry.supported);
     if (managers.length === 0) return;

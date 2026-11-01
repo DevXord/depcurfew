@@ -142,6 +142,8 @@ function checkPip(context: RuleContext, tool: ToolKnowledge, configFiles: readon
   }
 }
 
+const PYTHON_TOOLS: ReadonlySet<string> = new Set(['uv', 'pip', 'pdm', 'pipenv']);
+
 export const pythonConfigIgnored: Rule = {
   id: 'python-config-ignored',
   checks: 'Python tools read their settings where they are written',
@@ -151,6 +153,8 @@ export const pythonConfigIgnored: Rule = {
   help: 'Move the setting to the file the tool reads.',
   level: 'error',
   requiresPolicy: false,
+  // The tools check looks at, whether or not the knowledge base covers their version.
+  applies: (scope) => scope.detection.packageManagers.some((manager) => PYTHON_TOOLS.has(manager.id)),
   check(context) {
     for (const manager of context.detection.packageManagers) {
       const tool = context.tools.find((entry) => entry.id === manager.id);

@@ -11,6 +11,7 @@ export const depcurfewOutdated: Rule = {
   help: "Run the project's copy of depcurfew (install the project's dependencies first when only package-lock.json pins it), or update the one you run.",
   level: 'warning',
   requiresPolicy: false,
+  applies: (scope) => projectCopy(scope.repository) !== undefined,
   check(context) {
     const copy = projectCopy(context.repository);
     if (copy === undefined || !isNewerThanRunning(copy)) return;

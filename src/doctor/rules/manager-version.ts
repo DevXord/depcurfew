@@ -151,6 +151,8 @@ export const managerVersionTooOld: Rule = {
   help: 'Raise the declared version to at least the version that introduced the setting, everywhere it is declared.',
   level: 'error',
   requiresPolicy: false,
+  // Any package manager: the rule also says that a policy does nothing for Yarn Classic, which is not supported.
+  applies: (scope) => scope.detection.packageManagers.length > 0,
   check(context) {
     for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
       const tool = context.tools.find((entry) => entry.id === manager.id);

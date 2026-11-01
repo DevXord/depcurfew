@@ -18,8 +18,11 @@ inputs:
   category:
     description: Code scanning category of the upload, to tell several depcurfew runs in one workflow apart.
     default: depcurfew
+  fail-on:
+    description: Which findings fail the step and the depcurfew doctor check, error (the default) or warning, which makes warnings fail them too, as depcurfew doctor --strict does; notes never do. Any other value fails the step.
+    default: error
   fail-on-error:
-    description: Fail the step when doctor reports an error.
+    description: Deprecated, use fail-on. false keeps the step from failing on findings at all, whatever fail-on says, and makes the depcurfew doctor check neutral instead of failed.
     default: 'true'
   annotations:
     description: Show the findings as annotations on the files, each with how to fix it, or one notice when there are none, which lists every check and its result. GitHub shows a limited number per step; the log lists every finding. Turn off when code scanning already shows them.
@@ -28,7 +31,7 @@ inputs:
     description: Add a table of the findings, each with how to fix it, and what was checked (tools, files read, every check with its result) to the job summary.
     default: 'true'
   check-run:
-    description: Add a check named "depcurfew doctor" to the commit, with the result and every check, shown next to the code scanning entry in the Checks tab of a pull request. The job needs the checks write permission; without it the step only says so in the log.
+    description: Add a check named "depcurfew doctor" to the commit, with the result, every check and the findings as annotations on the files (at most 100, errors first), shown next to the code scanning entry in the Checks tab of a pull request. A later run on the same commit, such as push and pull_request of one commit, updates it instead of adding a second one. The job needs the checks write permission; without it the step only says so in the log.
     default: 'true'
   github-token:
     description: Token for the depcurfew doctor check; the workflow token by default.
@@ -74,6 +77,7 @@ runs:
         INPUT_ANNOTATIONS: ${{ inputs.annotations }}
         INPUT_JOB_SUMMARY: ${{ inputs.job-summary }}
         INPUT_CHECK_RUN: ${{ inputs.check-run }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
         INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
       run: node "$GITHUB_ACTION_PATH/action/depcurfew.mjs"
@@ -85,16 +89,18 @@ runs:
         sarif_file: ${{ steps.doctor.outputs.sarif-file }}
         category: ${{ inputs.category }}
 
-    - name: Fail on errors
-      if: steps.doctor.outputs.failure != '' || (inputs.fail-on-error == 'true' && steps.doctor.outputs.errors != '0')
+    # The doctor step decides from fail-on and fail-on-error and sets fail-reason; it never fails itself, so the SARIF
+    # upload above still runs.
+    - name: Fail on findings
+      if: steps.doctor.outputs.failure != '' || steps.doctor.outputs.fail-reason != ''
       shell: bash
       env:
         FAILURE: ${{ steps.doctor.outputs.failure }}
-        ERRORS: ${{ steps.doctor.outputs.errors }}
+        REASON: ${{ steps.doctor.outputs.fail-reason }}
       run: |
         if [ -n "$FAILURE" ]; then
           echo "::error title=depcurfew::$FAILURE"
         else
-          echo "::error title=depcurfew::depcurfew doctor reported $ERRORS error(s); the job summary and the log of the Run depcurfew doctor step say how to fix each one"
+          echo "::error title=depcurfew::$REASON"
         fi
         exit 1

@@ -12,6 +12,7 @@ import { latestVersion } from '../effective.ts';
 import { matchesEveryName, readRenovateConfig, ruleScope, type RuleScope } from '../renovate.ts';
 import { lineOf, readSetting, yamlSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
+import { usesBot, usesManager } from '../applies.ts';
 
 /** Patterns that match every package (or every scoped package): *, **, @*\/*, npm:*, and regexes like /.*\/. */
 export const isBroad = matchesEveryName;
@@ -196,6 +197,8 @@ export const broadExclusion: Rule = {
   help: 'Replace the pattern with the packages or scopes that really need the exception.',
   level: 'error',
   requiresPolicy: false,
+  // The policy's own lists, the package managers' exception lists and the bots' rules.
+  applies: (scope) => scope.policy !== undefined || usesManager(scope) || usesBot(scope),
   check(context) {
     checkPolicy(context);
     checkManagers(context);

@@ -25,18 +25,28 @@ export function checkedTool(tool: CheckedTool): string {
   return `${tool.name} ${tool.version}${tool.versionFrom === undefined ? '' : ` (${tool.versionFrom})`}`;
 }
 
-/** Each rule with what it checks and what came of it, from the findings of the run. */
-export function ruleResults(rules: readonly Rule[], findings: readonly Finding[], skipped: (rule: Rule) => boolean): RuleResult[] {
+/**
+ * Each rule with what it checks and what came of it, from the findings of the run. A rule with findings has problems
+ * whatever `applies` says; one that does not apply is not applicable rather than skipped, since a policy would not
+ * give it anything to check.
+ */
+export function ruleResults(
+  rules: readonly Rule[],
+  findings: readonly Finding[],
+  skipped: (rule: Rule) => boolean,
+  applies: (rule: Rule) => boolean = () => true,
+): RuleResult[] {
   return rules.map((rule) => {
     const own = findings.filter((finding) => finding.rule === rule.id);
     const count = (level: Level) => own.filter((finding) => finding.level === level).length;
-    const result: RuleResult['result'] = skipped(rule) ? 'skipped' : own.length > 0 ? 'problems' : 'passed';
+    const result: RuleResult['result'] = own.length > 0 ? 'problems' : !applies(rule) ? 'not-applicable' : skipped(rule) ? 'skipped' : 'passed';
     return { rule: rule.id, check: rule.checks ?? rule.summary, result, errors: count('error'), warnings: count('warning'), notes: count('note') };
   });
 }
 
-/** The result of one check as a word or counts: passed, skipped, or "1 error, 2 warnings". */
+/** The result of one check as words or counts: passed, skipped, not applicable, or "1 error, 2 warnings". */
 export function resultText(result: RuleResult): string {
+  if (result.result === 'not-applicable') return 'not applicable';
   if (result.result !== 'problems') return result.result;
   return (
     [
@@ -55,6 +65,7 @@ export function resultCounts(results: readonly RuleResult[]): string {
   const of = (kind: RuleResult['result']) => results.filter((result) => result.result === kind).length;
   const parts = [`${of('passed')} passed`];
   if (of('problems') > 0) parts.push(`${of('problems')} found problems`);
+  if (of('not-applicable') > 0) parts.push(`${of('not-applicable')} not applicable`);
   if (of('skipped') > 0) parts.push(`${of('skipped')} skipped`);
   return `${results.length} ${results.length === 1 ? 'check' : 'checks'}: ${parts.join(', ')}`;
 }

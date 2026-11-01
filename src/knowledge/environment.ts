@@ -10,6 +10,7 @@ const gitFacts = verifiedOn('2026-10-30');
 const audited = verifiedOn('2026-10-31');
 const release13 = verifiedOn('2026-11-01');
 const mcpFacts = verifiedOn('2026-11-01');
+const actionChecks = verifiedOn('2026-11-01');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -206,17 +207,26 @@ export const environment: EnvironmentKnowledge = {
       'https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations',
       '10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown.',
     ),
-    checkRuns: audited.verified(
+    checkRuns: actionChecks.verified(
       {
-        endpoint: '/repos/{repository}/check-runs',
+        endpoints: {
+          create: '/repos/{repository}/check-runs',
+          update: '/repos/{repository}/check-runs/{id}',
+          list: '/repos/{repository}/commits/{ref}/check-runs',
+        },
+        query: { checkName: 'check_name', filter: 'filter', latest: 'latest' },
         apiVersion: '2022-11-28',
         permission: { checks: 'write' },
         summaryMaxLength: 65535,
+        annotationsPerRequest: 50,
+        annotationLevels: { error: 'failure', warning: 'warning', note: 'notice' },
+        annotationTitleMaxLength: 255,
+        annotationMessageMaxBytes: 64_000,
         variables: { apiUrl: 'GITHUB_API_URL', repository: 'GITHUB_REPOSITORY', sha: 'GITHUB_SHA', eventPath: 'GITHUB_EVENT_PATH' },
         pullRequestHeadSha: ['pull_request', 'head', 'sha'],
       },
-      'https://docs.github.com/en/rest/checks/runs#create-a-check-run',
-      'Read from the sources of this page, the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json) and github/docs. POST /repos/{owner}/{repo}/check-runs ("Create a check run") needs name and head_sha; status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write "permits an action to create a check run" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the "Last merge commit on the GITHUB_REF branch" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH).',
+      'https://docs.github.com/en/rest/checks/runs',
+      'Read from the sources of this page (#create-a-check-run, #update-a-check-run, #list-check-runs-for-a-git-reference), the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json, commit f9ed74230d54847b5ca00a1343e8e349e858b8fb) and github/docs (commit 33b1f4a6fec2d9b6fd3d374afa56bcd9f0875b57); content/rest/checks/runs.md is generated from the REST description. POST /repos/{owner}/{repo}/check-runs ("Create a check run") needs name and head_sha and takes external_id, "A reference for the run on the integrator\'s system"; PATCH /repos/{owner}/{repo}/check-runs/{check_run_id} ("Update a check run") takes the same fields but head_sha, with only summary required in output, and "OAuth apps and personal access tokens (classic) cannot use this endpoint"; GET /repos/{owner}/{repo}/commits/{ref}/check-runs ("List check runs for a Git reference", ref a SHA, heads/BRANCH or tags/TAG) takes check_name ("Returns check runs with the specified name"), filter (latest, the default, or all: "latest returns the most recent check runs"), per_page (at most 100) and app_id, and answers {total_count, check_runs}, each with id, name, external_id (nullable), app (with slug, not required) and output.annotations_count. Fine-grained permissions (src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json in github/docs): the list needs Checks read, update and create need Checks write; "write includes read" (github-token-scope-descriptions.md). output.annotations: "maxItems": 50 per request, "To create more than 50 annotations, you have to make multiple requests to the Update a check run endpoint. Each time you update the check run, annotations are appended"; each annotation requires path, start_line, end_line (lines start at 1), annotation_level (notice, warning or failure) and message ("The maximum size is 64 KB"), with an optional title ("The maximum size is 255 characters"). No total per check run is documented; the same description says "GitHub Actions are limited to 10 warning annotations and 10 error annotations per step" without saying whether that binds check runs created through the API (uncertain). Not documented either: whether only the app that created a run may update it, and the app slug of runs created with the workflow token. A check suite holds the runs of one GitHub App for one commit (using-the-rest-api-to-interact-with-checks.md), and GitHub keeps at most 1000 runs of the same name per suite. status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write "permits an action to create a check run" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the "Last merge commit on the GITHUB_REF branch" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH).',
     ),
     stepSummary: checked.verified(
       { variable: 'GITHUB_STEP_SUMMARY', maxBytes: 1024 * 1024 },

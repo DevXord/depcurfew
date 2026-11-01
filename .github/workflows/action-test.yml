@@ -87,6 +87,32 @@ jobs:
           test "$ERRORS" = 1
           grep -q '"uri": "tests/fixtures/doctor/bot-cooldown-mismatch/fires-dependabot-shorter/repo/.github/dependabot.yml"' "$SARIF"
 
+  warning-fixture:
+    name: Warning fixture with fail-on warning, without upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        id: depcurfew
+        continue-on-error: true
+        with:
+          directory: tests/fixtures/doctor/bot-cooldown-mismatch/fires-security-recheck/repo
+          upload-sarif: 'false'
+          check-run: 'false'
+          fail-on: warning
+      - name: The step failed with one warning and no error
+        env:
+          OUTCOME: ${{ steps.depcurfew.outcome }}
+          ERRORS: ${{ steps.depcurfew.outputs.errors }}
+          WARNINGS: ${{ steps.depcurfew.outputs.warnings }}
+        run: |
+          test "$OUTCOME" = failure
+          test "$ERRORS" = 0
+          test "$WARNINGS" = 1
+
   old-node:
     name: Sets up Node.js 22 on a runner with Node.js 20
     runs-on: ubuntu-latest
