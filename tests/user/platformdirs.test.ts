@@ -59,10 +59,12 @@ describe('the macOS user file of Poetry and PDM by platformdirs version', () => 
 });
 
 /** A macOS machine (paths are POSIX, so not on Windows) with the tool and, when given, platformdirs in its environment. */
+/** Variables whose values start with <root> point into the machine's temporary directory, so nothing is written elsewhere. */
 function mac(tool: 'poetry' | 'pdm', platformdirs: string | undefined, env: Record<string, string> = {}): UserEnvironment & { root: string } {
   const python: Record<string, string> = { [tool]: tool === 'poetry' ? '2.5.1' : '2.29.5', ...(platformdirs === undefined ? {} : { platformdirs }) };
   const machine = fakeMachine({ python }, temporary);
-  const environment = { ...machine, platform: 'darwin' as const, env: { ...machine.env, ...env } };
+  const inside = Object.fromEntries(Object.entries(env).map(([name, value]) => [name, value.replace(/^<root>/u, machine.root)]));
+  const environment = { ...machine, platform: 'darwin' as const, env: { ...machine.env, ...inside } };
   const policy = userPolicyPath(environment);
   mkdirSync(dirname(policy), { recursive: true });
   writeFileSync(policy, renderPolicy(DEFAULT_POLICY));
@@ -82,14 +84,14 @@ describe.skipIf(process.platform === 'win32')('apply --user and doctor --user fo
   });
 
   it('writes Application Support for platformdirs 4.5.1, with no warning', () => {
-    const environment = mac('pdm', '4.5.1', { XDG_CONFIG_HOME: '/elsewhere' });
+    const environment = mac('pdm', '4.5.1', { XDG_CONFIG_HOME: '<root>/elsewhere' });
     const report = plan(environment);
     expect(report.changes.map((change) => change.file)).toEqual(['~/Library/Application Support/pdm/config.toml']);
     expect(report.warningDetails.map((warning) => warning.code)).not.toContain('user-file-uncertain');
   });
 
   it('without platformdirs in Poetry\'s environment writes where the docs say and names the other file, how to tell and what to unset', () => {
-    const environment = mac('poetry', undefined, { XDG_CONFIG_HOME: '/cfg' });
+    const environment = mac('poetry', undefined, { XDG_CONFIG_HOME: '<root>/cfg' });
     const report = plan(environment);
     expect(report.changes.map((change) => change.file)).toEqual(['~/Library/Application Support/pypoetry/config.toml']);
     const warning = report.warningDetails.find((entry) => entry.code === 'user-file-uncertain');
@@ -98,7 +100,7 @@ describe.skipIf(process.platform === 'win32')('apply --user and doctor --user fo
       tool: 'poetry',
       location: { file: '~/Library/Application Support/pypoetry/config.toml' },
       message:
-        "Poetry: depcurfew cannot read the version of platformdirs in Poetry's environment, which decides where Poetry reads its user file here: ~/Library/Application Support/pypoetry/config.toml (platformdirs before 4.6.0), or /cfg/pypoetry/config.toml (platformdirs 4.6.0 and later); depcurfew apply --user writes ~/Library/Application Support/pypoetry/config.toml, where the Poetry docs put it",
+        `Poetry: depcurfew cannot read the version of platformdirs in Poetry's environment, which decides where Poetry reads its user file here: ~/Library/Application Support/pypoetry/config.toml (platformdirs before 4.6.0), or ${environment.root}/cfg/pypoetry/config.toml (platformdirs 4.6.0 and later); depcurfew apply --user writes ~/Library/Application Support/pypoetry/config.toml, where the Poetry docs put it`,
       fix: "Look for the platformdirs-<version>.dist-info folder next to Poetry's own in the site-packages folder of Poetry's environment to see which file Poetry reads, or unset XDG_CONFIG_HOME so that every platformdirs version reads ~/Library/Application Support/pypoetry/config.toml, then run depcurfew apply --user again",
     });
   });
