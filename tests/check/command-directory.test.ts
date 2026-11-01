@@ -3,14 +3,16 @@
 // options and variables of package managers that move one command (npm --prefix, pnpm --dir, yarn --cwd, bun --cwd,
 // uv --directory and --project, poetry -C and -P, pdm -p).
 import { describe, expect, it } from 'vitest';
-import { scanCommandLine, unreadableFix, unknownDirectory, type CommandDirectory, type ScanOptions } from '../../src/check/command.ts';
+import { scanCommandLine, unreadableFix, unknownDirectory, type CommandDirectory, type KnownDirectory, type ScanOptions } from '../../src/check/command.ts';
 
 /** Each request as tool:spec with its directory (undefined: the directory the command starts in). */
 const where = (line: string, options?: ScanOptions) => scanCommandLine(line, options).requests.map((request) => [`${request.tool}:${request.spec}`, request.directory]);
 const steps = (...list: string[]): CommandDirectory => ({ steps: list });
 /** Directories the shell changes to, which the hook checks exist (decision D-119). */
-const entered = (...list: string[]): CommandDirectory => ({ steps: list, entered: list.map((_, index) => index) });
+const entered = (...list: string[]): KnownDirectory => ({ steps: list, entered: list.map((_, index) => index) });
 const unknown = (text: string) => ({ unknown: expect.stringContaining(text) as string });
+/** Back where it started, after leaving these directories, which must have been entered (decision D-123). */
+const back = (...left: KnownDirectory[]): CommandDirectory => ({ steps: [], assumes: left });
 
 describe('the scanner follows cd, pushd and popd', () => {
   it.each([
@@ -23,10 +25,10 @@ describe('the scanner follows cd, pushd and popd', () => {
     ['cd -- a && npm i x', [['npm:x', entered('a')]]],
     ['command cd a && npm i x', [['npm:x', entered('a')]]],
     ['pushd a && npm i x', [['npm:x', entered('a')]]],
-    ['pushd a >/dev/null; popd; npm i x', [['npm:x', undefined]]],
-    ['cd a && cd - && npm i x', [['npm:x', undefined]]],
-    ['cd a && cd b && cd - && npm i x', [['npm:x', entered('a')]]],
-    ['pushd a && pushd b && popd && npm i x', [['npm:x', entered('a')]]],
+    ['pushd a >/dev/null; popd; npm i x', [['npm:x', back(entered('a'))]]],
+    ['cd a && cd - && npm i x', [['npm:x', back(entered('a'))]]],
+    ['cd a && cd b && cd - && npm i x', [['npm:x', { ...entered('a'), assumes: [entered('a', 'b')] }]]],
+    ['pushd a && pushd b && popd && npm i x', [['npm:x', { ...entered('a'), assumes: [entered('a', 'b')] }]]],
     ['cd a && npm i x && cd ../b && npm i y', [['npm:x', entered('a')], ['npm:y', entered('a', '../b')]]],
     ['{ cd a; } && npm i x', [['npm:x', entered('a')]]],
     ["eval 'cd a' && npm i x", [['npm:x', entered('a')]]],
@@ -76,7 +78,7 @@ describe('the scanner follows cd, pushd and popd', () => {
     ['cd pkg* && npm i x', 'the shell expands the directory of "cd pkg*"'],
     ['cd - && npm i x', 'goes back to a directory from before this command'],
     ['popd && npm i x', 'goes back to a directory from before this command'],
-    ['pushd && npm i x', 'depcurfew does not read'],
+    ['pushd && npm i x', 'swaps with a directory from before this command'],
     ['cd a b && npm i x', 'depcurfew does not read'],
     ['cd -x a && npm i x', 'depcurfew does not read'],
     ['cd a | cat; npm i x', 'runs in a pipeline'],
@@ -168,9 +170,9 @@ describe('PowerShell and cmd change directories too', () => {
     ['set-location -path:a -PassThru; npm i x', [['npm:x', entered('a')]]],
     ['cd a && npm i x', [['npm:x', entered('a')]]],
     ['cd..; npm i x', [['npm:x', entered('..')]]],
-    ['Push-Location a; npm i x; Pop-Location; npm i y', [['npm:x', entered('a')], ['npm:y', undefined]]],
-    ['pushd a; popd; npm i y', [['npm:y', undefined]]],
-    ['Push-Location; cd a; popd; npm i y', [['npm:y', undefined]]],
+    ['Push-Location a; npm i x; Pop-Location; npm i y', [['npm:x', entered('a')], ['npm:y', back(entered('a'))]]],
+    ['pushd a; popd; npm i y', [['npm:y', back(entered('a'))]]],
+    ['Push-Location; cd a; popd; npm i y', [['npm:y', back(entered('a'))]]],
   ])('%s', (line, expected) => {
     expect(where(line, powerShell)).toEqual(expected);
   });

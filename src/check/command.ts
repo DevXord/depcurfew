@@ -44,9 +44,11 @@ import { PYPI_PREFIX } from '../policy/package-pattern.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import {
+  builtName,
   createdDirectories,
   directoryChange,
   DirectoryWalk,
+  dynamicAssignment,
   HERE,
   isHere,
   shellVariables,
@@ -100,7 +102,7 @@ export interface InstallRequest {
   directory?: CommandDirectory;
 }
 
-export type { CommandDirectory } from './directories.ts';
+export type { CommandDirectory, KnownDirectory } from './directories.ts';
 
 /** An option or variable of a command that weakens the release-age delay or the rule on install scripts (installOverrides). */
 export interface Override {
@@ -244,6 +246,25 @@ function ansiC(body: string): string | undefined {
   return text;
 }
 
+/** A text for messages, cut short when it is long. */
+function shownText(text: string): string {
+  return text.length > 120 ? `${text.slice(0, 120)}…` : text;
+}
+
+/**
+ * Whether the inside of ${…} may assign a variable whose name the shell builds (decision D-123): a subscript or a
+ * substring offset with an expansion (both are arithmetic, ${a[$X]}, ${s:$X}), or ${!X:=…}, which assigns the variable
+ * that X names.
+ */
+function assignsBuiltName(inside: string): boolean {
+  if (/^![A-Za-z_][A-Za-z0-9_]*:?=/u.test(inside)) return true;
+  if (!/[$`]/u.test(inside)) return false;
+  return /^[#!]?[A-Za-z_][A-Za-z0-9_]*\[[^\]]*[$`]/u.test(inside) || /^[#!]?(?:[A-Za-z_][A-Za-z0-9_]*|[0-9@*])(?:\[[^\]]*\])?:(?![-=+?])/u.test(inside);
+}
+
+/** An assignment to an element of an array whose subscript the shell expands (a[$X]=1), which is arithmetic (decision D-123). */
+const BUILT_SUBSCRIPT = /^[A-Za-z_][A-Za-z0-9_]*\[[^\]]*[$`]/u;
+
 /**
  * Splits a command line into words and separators from `start`, as a POSIX shell does before expanding anything. With
  * `stop`, it reads the inside of $(...) or ${...} and ends at the bracket that closes it.
@@ -290,8 +311,10 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
     // The shell refuses a line with an open bracket, but depcurfew cannot tell where the command would have ended.
     if (!inner.closed) throw new Unreadable(`${line.slice(from, inside)} is not closed`);
     // ${...} is a parameter, whose default value may hold command substitutions; the others are command lines.
-    if (close === '}') substitutions.push(...inner.substitutions.map((entry) => ({ line: entry.line, at: items.length })));
-    else substitutions.push({ line: line.slice(inside, inner.end - 1), at: items.length });
+    if (close === '}') {
+      substitutions.push(...inner.substitutions.map((entry) => ({ line: entry.line, at: items.length })));
+      if (assignsBuiltName(line.slice(inside, inner.end - 1))) noteBuiltName(builtName(shownText(line.slice(from, inner.end))));
+    } else substitutions.push({ line: line.slice(inside, inner.end - 1), at: items.length });
     text += line.slice(from, inner.end);
     return inner.end;
   };
@@ -306,6 +329,8 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
     if (end >= line.length) throw new Unreadable(`${line.slice(from, from + 2)} is not closed`);
     // Its words are not commands, but command substitutions in it run; bash may also read $((a) (b)) as $( (a) (b) ).
     const inside = line.slice(from + 2, end - 1);
+    // Arithmetic evaluates what an expansion gives, which may assign any variable: (( $X )) with X=OLDPWD=1 (D-123).
+    if (/[$`]/u.test(inside)) noteBuiltName(builtName(shownText(line.slice(from, end + 1))));
     substitutions.push(...[...bodySubstitutions(inside, level), inside].map((entry) => ({ line: entry, at: items.length })));
     dynamic = true;
     started = true;
@@ -859,7 +884,7 @@ interface Wrapper {
 }
 
 /** What a wrapper runs: the remaining words or a command line, and the directory it runs them in. */
-type Unwrapped = ({ words: Word[] } | { line: string }) & { directory?: CommandDirectory };
+type Unwrapped = ({ words: Word[] } | { line: string }) & { directory?: CommandDirectory; assigned?: Word[] };
 
 /** Commands that run the rest of the line as a command. */
 const WRAPPERS: ReadonlyMap<string, Wrapper> = new Map<string, Wrapper>([
@@ -977,7 +1002,9 @@ function isProcessSubstitution(word: Word): boolean {
 
 /** The name of the program a word runs, lowercased: Windows and macOS find NPM.CMD and npm alike. */
 function basename(text: string): string {
-  return (text.split(/[/\\]/u).at(-1) ?? text).replace(/\.(?:cmd|exe|ps1|bat)$/iu, '').toLowerCase();
+  const slash = Math.max(text.lastIndexOf('/'), text.lastIndexOf('\\'));
+  const name = (slash === -1 ? text : text.slice(slash + 1)).toLowerCase();
+  return name.length > 4 && name[name.length - 4] === '.' && /\.(?:cmd|exe|ps1|bat)$/u.test(name) ? name.slice(0, -4) : name;
 }
 
 function createPackage(argument: string, rule: CommandLineKnowledge['createNames'] = 'prefix'): string {
@@ -1054,6 +1081,9 @@ const OVERRIDE_UNREAD = `is set in a way depcurfew does not read, which may weak
 export const TOO_MANY = 'depcurfew checks at most';
 /** How the reason starts for an install whose directory cannot be told (decision D-118). */
 const UNKNOWN_DIRECTORY = 'depcurfew cannot tell which directory';
+/** A file run in this shell, and a trap that runs between later commands, make every later directory unknown (decision D-123). */
+const SOURCED = 'runs a file in this shell';
+const TRAP_BETWEEN = 'runs before or between later commands';
 
 function anotherRegistry(name: string): string {
   return `${name} ${ANOTHER_REGISTRY}`;
@@ -1063,6 +1093,9 @@ function anotherRegistry(name: string): string {
 export function unreadableFix(reason: string): string {
   if (reason.startsWith(UNKNOWN_DIRECTORY) && reason.includes(NOT_A_DIRECTORY)) {
     return 'Change only to a directory that exists (or create it with mkdir earlier in the same command), so depcurfew checks the install with the policy that applies there';
+  }
+  if (reason.startsWith(UNKNOWN_DIRECTORY) && (reason.includes(SOURCED) || reason.includes(TRAP_BETWEEN))) {
+    return 'Run the install as a command of its own, without . or source of a file or a trap that changes directory before it, so depcurfew checks it with the policy of the directory it runs in';
   }
   if (reason.startsWith(UNKNOWN_DIRECTORY)) {
     return 'Run the install from that directory, or change to it with a path written out (cd path/to/project && …), so depcurfew checks it with the policy that applies there';
@@ -1207,7 +1240,25 @@ function sameCommand(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((part, index) => part === b[index]);
 }
 
+/** The contexts made so far, by tool and command: every install of a long command line needs one (decision D-123). */
+const CONTEXTS = new WeakMap<ToolCommands, Map<string, CommandContext>>();
+
 function contextOf(tool: ToolCommands, command: readonly string[] | undefined): CommandContext {
+  let made = CONTEXTS.get(tool);
+  if (made === undefined) {
+    made = new Map();
+    CONTEXTS.set(tool, made);
+  }
+  const key = command === undefined ? '' : `\0${command.join('\0')}`;
+  let context = made.get(key);
+  if (context === undefined) {
+    context = newContext(tool, command);
+    made.set(key, context);
+  }
+  return context;
+}
+
+function newContext(tool: ToolCommands, command: readonly string[] | undefined): CommandContext {
   const own = command === undefined ? undefined : tool.facts.commandOptions?.find((entry) => sameCommand(entry.command, command));
   const selection = tool.selection;
   const special = command === undefined ? undefined : selection?.commands?.find((entry) => sameCommand(entry.command, command));
@@ -1668,29 +1719,57 @@ function scanShell(words: readonly Word[], command: SimpleCommand, depth: number
 function scanSource(words: readonly Word[], command: SimpleCommand, depth: number): CommandScan | undefined {
   const file = words[1];
   if (file === undefined) return NOTHING;
-  if (isProcessSubstitution(file)) return unreadable(`${shown(joined(words))}: ${FROM_PROCESS}`);
+  if (isProcessSubstitution(file)) return { ...unreadable(`${shown(joined(words))}: ${FROM_PROCESS}`), moves: [sourced(words)] };
   const manager = file.dynamic ? undefined : scriptManager(file.text);
   if (manager !== undefined) return scanCommand({ ...command, words: [{ text: manager, dynamic: false }, ...words.slice(2)] }, depth);
   // . "$X" i x: a file the shell expands, found on PATH and given an install word, may be a package manager (D-119).
   const next = words.slice(2).find((word) => !isOption(word.text));
   if (file.dynamic && next !== undefined && !next.dynamic && commands().installWords.has(next.text)) {
-    return unreadable(`${shown(joined(words))}: ${expanded(file, 'the file ')} ${MAY_BE_MANAGER}`);
+    return { ...unreadable(`${shown(joined(words))}: ${expanded(file, 'the file ')} ${MAY_BE_MANAGER}`), moves: [sourced(words)] };
   }
-  return file.dynamic || !STDIN_FILES.has(file.text) ? NOTHING : undefined;
+  // A file depcurfew does not read may change directory, set a trap or define a function named like any command.
+  return file.dynamic || !STDIN_FILES.has(file.text) ? { requests: [], unreadable: undefined, moves: [sourced(words)] } : undefined;
 }
 
-/** trap action signal…: the action is a command line the shell runs on those signals (EXIT, DEBUG, ERR…); - and a number reset them. */
+/** . file and source file: the directory of every later command is unknown (decision D-123). */
+function sourced(words: readonly Word[]): Move {
+  return { kind: 'unknown', reason: `"${shown(joined(words))}" ${SOURCED}, which depcurfew does not read and which may change directory`, lasting: true };
+}
+
+/** source /dev/stdin with a here-document or here-string: its commands run in this shell, so their changes of directory count. */
+function scanSourcedInput(words: readonly Word[], command: SimpleCommand, depth: number): CommandScan {
+  if (command.input.length === 0 || command.redirected) return { ...unreadable(`${shown(joined(words))}: ${FROM_INPUT}`), moves: [sourced(words)] };
+  const scan: CommandScan = { requests: [], unreadable: undefined };
+  const moves: Move[] = [];
+  for (const input of command.input) {
+    const found = scanLine(input, depth + 1);
+    merge(scan, found);
+    if (found.moves !== undefined) moves.push(...found.moves);
+  }
+  return moves.length === 0 ? scan : { ...scan, moves };
+}
+
+/** Signal names of trap for the end of the shell, which runs the action after every later command. */
+const EXIT_SIGNALS = /^(?:(?:SIG)?EXIT|0)$/iu;
+
+/**
+ * trap action signal…: the action is a command line the shell runs on those signals (EXIT, DEBUG, ERR…); - and a number
+ * reset them. A trap on DEBUG, ERR, RETURN or a signal runs before or between later commands: when its action changes
+ * directory, or cannot be read, the directory of every later command is unknown (decision D-123).
+ */
 function scanTrap(words: readonly Word[], depth: number): CommandScan {
   let index = 1;
   while (index < words.length && /^-[lpP]+$/u.test((words[index] as Word).text)) index += 1;
   if (words[index]?.text === '--') index += 1;
   const action = words[index];
   if (action === undefined || (!action.dynamic && (action.text === '-' || /^\d+$/u.test(action.text)))) return NOTHING;
-  if (action.input === true) return unreadable(`${shown(joined(words))}: ${expanded(action)}`);
-  const scan = scanLine(action.text, depth + 1);
+  const scan = action.input === true ? unreadable(`${shown(joined(words))}: ${expanded(action)}`) : scanLine(action.text, depth + 1);
   // The action runs later, where the shell is by then: a change of directory after the trap makes that unknown.
   for (const entry of [...scan.requests, ...(scan.overrides ?? [])]) TRAPPED.add(entry);
-  return scan;
+  const between = words.slice(index + 1).some((signal) => signal.dynamic || !EXIT_SIGNALS.test(signal.text));
+  if (!between || (scan.moves === undefined && scan.unreadable === undefined)) return inChild(scan);
+  const what = scan.moves === undefined ? 'may change directory with an action depcurfew cannot read' : 'changes directory';
+  return { ...inChild(scan), moves: [{ kind: 'unknown', reason: `the trap "${shown(joined(words))}" ${TRAP_BETWEEN} and ${what}`, lasting: true }] };
 }
 
 /** The aliases defined so far in the command line being scanned, by name, with their values. */
@@ -1739,16 +1818,34 @@ let variables: ShellVariables = shellVariables('');
 /** The command line names TEXTDOMAIN or TEXTDOMAINDIR, so $"…" may be translated with a message catalog it brings. */
 let translated = false;
 
-/** What a line read by the scanner sets; a line inside another counts for the rest of the command (decision D-119). */
+/**
+ * What a line read by the scanner sets; a line inside another counts for the rest of the command (decision D-119). The
+ * names count as written and as the shell reads the words, after quotes, escapes and $'…' (export OLD\PWD=…; D-123).
+ */
 function noteLine(line: string): void {
-  const found = shellVariables(line);
+  noteNames(line);
+  translated ||= /\bTEXTDOMAIN(?:DIR)?\b/u.test(line);
+}
+
+/** The words of a line as the shell reads them, for the names of noteLine (decision D-123). */
+function noteWords(items: readonly Item[]): void {
+  noteNames(items.flatMap((item) => (item.kind === 'word' ? [item.word.text] : [])).join('\n'));
+}
+
+function noteNames(text: string): void {
+  const found = shellVariables(text);
   variables = {
+    ...variables,
     cdPath: variables.cdPath || found.cdPath,
     oldPwd: variables.oldPwd || found.oldPwd,
     pwd: variables.pwd || found.pwd,
     dirStack: variables.dirStack || found.dirStack,
   };
-  translated ||= /\bTEXTDOMAIN(?:DIR)?\b/u.test(line);
+}
+
+/** A command may set a variable whose name the shell builds, which may be OLDPWD, PWD, CDPATH or DIRSTACK (decision D-123). */
+function noteBuiltName(reason: string): void {
+  if (variables.dynamic === undefined) variables = { ...variables, dynamic: reason };
 }
 
 /**
@@ -1791,9 +1888,12 @@ function aliasWords(value: string): Word[] | undefined {
   }
 }
 
+/** A word of env -S with ${NAME} in it, as the shell would read it back (decision D-123). */
+const SHELL_TEXT = new WeakMap<Word, string>();
+
 /** A word as the shell would read it back: in single quotes unless the shell expands it. */
 function requoted(word: Word): string {
-  return word.dynamic ? word.text : `'${word.text.replaceAll("'", "'\\''")}'`;
+  return SHELL_TEXT.get(word) ?? (word.dynamic ? word.text : `'${word.text.replaceAll("'", "'\\''")}'`);
 }
 
 /** PowerShell parameters with a separate value, by name and alias; any other parameter is a switch. */
@@ -1902,42 +2002,181 @@ function wrapperDirectory(words: readonly Word[], value: Word | undefined): Comm
   return { steps: [value.text] };
 }
 
-/** What a wrapper runs: the remaining words, or a command line to read, with the directory it runs them in. */
+/** How many -S strings of env one command may have: GNU env reads each one again as arguments (decision D-123). */
+const MAX_SPLITS = 16;
+
+/** The escapes of a -S string of GNU env that stand for one character (build_argv in src/env.c). */
+const SPLIT_ESCAPES: Readonly<Record<string, string>> = { f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', '"': '"', '#': '#', $: '$', "'": "'", '\\': '\\' };
+const SPLIT_BLANKS = new Set([' ', '\t', '\n', '\v', '\f', '\r']);
+const SPLIT_VARIABLE = /\$\{[A-Za-z_][A-Za-z0-9_]*\}/uy;
+
+/**
+ * The arguments GNU env makes of a -S string (build_argv in src/env.c, decision D-123): blanks separate them outside
+ * quotes; '…' keeps everything but \\ and \'; "…" keeps blanks and reads the escapes; \_ separates (a space inside
+ * "…"); \f \n \r \t \v are those characters and \" \# \$ \' \\ themselves; \c ends the string (an error inside "…"); #
+ * at the start of an argument ends the string; ${NAME} is the value of the variable, as part of the argument (a word
+ * depcurfew cannot know). undefined when env stops with an error: another escape, a $ without {NAME}, a quote left
+ * open. A word the shell expands first is split at blanks, its expansions kept as they are: what they give may be any
+ * text.
+ */
+function envSplit(word: Word): Word[] | undefined {
+  const text = word.text;
+  if (word.dynamic) {
+    return text
+      .split(/[ \t\n\v\f\r]+/u)
+      .filter((part) => part !== '')
+      .map((part) => (/[$`*?[{]/u.test(part) ? { text: part, dynamic: true, splits: true as const } : { text: part, dynamic: false }));
+  }
+  const found: Word[] = [];
+  let current = '';
+  let started = false;
+  let dynamic = false;
+  /** The word as the shell would read it back: the literal parts in single quotes, ${NAME} in double quotes. */
+  let shellText = '';
+  let literal = '';
+  let single = false;
+  let double = false;
+  const end = () => {
+    if (started) {
+      const entry: Word = { text: current, dynamic };
+      if (dynamic) SHELL_TEXT.set(entry, `${shellText}${requoted({ text: literal, dynamic: false })}`);
+      found.push(entry);
+    }
+    current = '';
+    started = false;
+    dynamic = false;
+    shellText = '';
+    literal = '';
+  };
+  const add = (text: string) => {
+    current += text;
+    literal += text;
+    started = true;
+  };
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index] as string;
+    if (single) {
+      if (char === "'") single = false;
+      else if (char === '\\' && (text[index + 1] === '\\' || text[index + 1] === "'")) add(text[++index] as string);
+      else add(char);
+      continue;
+    }
+    if (char === "'" && !double) {
+      single = true;
+      started = true;
+    } else if (char === '"') {
+      double = !double;
+      started = true;
+    } else if (!double && SPLIT_BLANKS.has(char)) {
+      end();
+    } else if (char === '#' && !double && !started) {
+      // A comment ends the whole string.
+      return found;
+    } else if (char === '\\') {
+      const next = text[++index];
+      if (next === undefined) return undefined;
+      if (next === '_') {
+        if (double) add(' ');
+        else end();
+      } else if (next === 'c') {
+        if (double) return undefined;
+        end();
+        return found;
+      } else if (Object.hasOwn(SPLIT_ESCAPES, next)) {
+        add(SPLIT_ESCAPES[next] as string);
+      } else {
+        return undefined;
+      }
+    } else if (char === '$') {
+      SPLIT_VARIABLE.lastIndex = index;
+      const variable = SPLIT_VARIABLE.exec(text);
+      if (variable === null) return undefined;
+      // The variable's value, from the environment env runs in.
+      shellText += `${requoted({ text: literal, dynamic: false })}"${variable[0]}"`;
+      literal = '';
+      current += variable[0];
+      started = true;
+      dynamic = true;
+      index += variable[0].length - 1;
+    } else {
+      add(char);
+    }
+  }
+  if (single || double) return undefined;
+  end();
+  return found;
+}
+
+/**
+ * What a wrapper runs: the remaining words, or a command line to read, with the directory it runs them in and the
+ * variables it sets for them (env UV_PROJECT=sub uv add x).
+ */
 function unwrap(words: readonly Word[], wrapper: Wrapper): Unwrapped | { unreadable: string } {
   if (wrapper.anywhere === true) return unwrapAnywhere(words, wrapper);
+  /** The arguments as the wrapper reads them: env -S puts the words of its string in place of the option. */
+  let list: readonly Word[] = words;
   let index = 1;
   let replace: string | undefined;
   let shell = false;
   let directory: CommandDirectory | undefined;
+  const assigned: Word[] = [];
+  let splits = 0;
+  // GNU env changes to one directory: a later -C replaces an earlier one (newdir = optarg in src/env.c).
   const moveTo = (value: Word | undefined) => {
     const found = wrapperDirectory(words, value);
-    if (found !== undefined) directory = within(directory ?? HERE, found);
+    if (found !== undefined) directory = found;
   };
-  const done = (result: Unwrapped | { unreadable: string }): Unwrapped | { unreadable: string } => (directory === undefined || 'unreadable' in result ? result : { ...result, directory });
-  while (index < words.length) {
-    const word = words[index] as Word;
+  /** A word the shell expands where an option may stand may be -C dir (env "$OPTS" npm i x; decision D-123). */
+  const doubt = () => {
+    if (wrapper.chdir !== undefined) directory = { unknown: `the shell expands an option of "${shown(joined(words))}", which may name the directory it runs the command in` };
+  };
+  const done = (result: Unwrapped | { unreadable: string }): Unwrapped | { unreadable: string } => {
+    if ('unreadable' in result) return result;
+    // After env -S the command is read as a line, with the variables env sets before it.
+    const own = splits > 0 && 'words' in result ? { line: [...assigned, ...result.words].map((entry) => (/^[\w@%+=:,./-]+$/u.test(entry.text) ? entry.text : requoted(entry))).join(' ') } : result;
+    return { ...own, ...(directory === undefined ? {} : { directory }), ...(splits === 0 && assigned.length > 0 ? { assigned } : {}) };
+  };
+  /** env -S and --split-string: the words of the string are read again as arguments, options included (src/env.c). */
+  const split = (value: Word | undefined, next: number): Unwrapped | { unreadable: string } | undefined => {
+    if (++splits > MAX_SPLITS) return { unreadable: `${TOO_MUCH} ${MAX_SPLITS} -S strings of env in one command` };
+    // env -S without a string stops with an error, and so does a string it cannot split.
+    const found = value === undefined ? undefined : envSplit(value);
+    if (found === undefined) return { words: [] };
+    if (value?.dynamic === true) doubt();
+    list = [list[0] as Word, ...found, ...list.slice(next)];
+    index = 1;
+    return undefined;
+  };
+  while (index < list.length) {
+    const word = list[index] as Word;
     const text = word.text;
     if (ASSIGNMENT.test(text)) {
+      assigned.push(word);
       index += 1;
       continue;
     }
-    if (!isOption(text)) break;
+    if (!isOption(text)) {
+      if (word.dynamic && /^[$`]/u.test(text)) doubt();
+      break;
+    }
     if (text === '--') {
       index += 1;
       break;
     }
+    if (word.dynamic) doubt();
     const [name, attached] = splitOption(text);
     // getopt_long takes an unambiguous prefix of a long option: env --split='npm i x'.
     if (longOption(name, wrapper.split)) {
-      const value = attached ?? words[index + 1]?.text ?? '';
-      return done({ line: [value, ...words.slice(index + (attached === undefined ? 2 : 1)).map((entry) => entry.text)].join(' ') });
+      const stop = split(attached === undefined ? list[index + 1] : { text: attached, dynamic: word.dynamic }, index + (attached === undefined ? 2 : 1));
+      if (stop !== undefined) return done(stop);
+      continue;
     }
     if (longOption(name, wrapper.chdir)) {
-      moveTo(attached === undefined ? words[index + 1] : { text: attached, dynamic: word.dynamic });
+      moveTo(attached === undefined ? list[index + 1] : { text: attached, dynamic: word.dynamic });
       index += attached === undefined ? 2 : 1;
       continue;
     }
-    if (wrapper.lineOptions?.includes(name)) return done(lineOf(attached, words[index + 1]));
+    if (wrapper.lineOptions?.includes(name)) return done(lineOf(attached, list[index + 1]));
     if (wrapper.shellOptions?.includes(name)) {
       shell = true;
       index += 1;
@@ -1947,21 +2186,26 @@ function unwrap(words: readonly Word[], wrapper: Wrapper): Unwrapped | { unreada
     if (inputOption !== undefined) {
       // xargs -I{} or --replace={}: the string is replaced with input; -i alone means {}.
       const inline = attached ?? (name.length > inputOption.length ? name.slice(inputOption.length) : undefined);
-      replace = inline ?? (inputOption === '-i' ? '{}' : words[index + 1]?.text);
+      replace = inline ?? (inputOption === '-i' ? '{}' : list[index + 1]?.text);
       index += inline === undefined && inputOption !== '-i' ? 2 : 1;
       continue;
     }
     if (/^-[^-]./u.test(text)) {
-      const grouped = groupedOptions(words, index, wrapper);
-      if (!('next' in grouped)) return done(grouped);
+      const grouped = groupedOptions(list, index, wrapper);
+      if ('line' in grouped || 'unreadable' in grouped) return done(grouped);
       shell ||= grouped.shell;
       if (grouped.chdir !== undefined) moveTo(grouped.chdir);
+      if (grouped.split !== undefined) {
+        const stop = split(grouped.split.value, grouped.split.next);
+        if (stop !== undefined) return done(stop);
+        continue;
+      }
       index = grouped.next;
       continue;
     }
     index += attached === undefined && wrapper.values?.includes(name) === true ? 2 : 1;
   }
-  const rest = words.slice(index + (wrapper.operands ?? 0));
+  const rest = list.slice(index + (wrapper.operands ?? 0));
   if (shell) {
     if (rest.length === 0) return done({ words: [] });
     const filled = rest.find((entry) => entry.input === true);
@@ -1983,9 +2227,14 @@ function unwrap(words: readonly Word[], wrapper: Wrapper): Unwrapped | { unreada
 /**
  * One-letter options of a wrapper grouped in one word, as getopt reads them (env -iS'npm i x', env -vS 'npm i x',
  * sudo -Es): flags, then perhaps an option whose value is the rest of the word or the next word. The = of -u=x is part
- * of the value, so the word is read as written. `chdir`: the directory of env -iC dir or env -Cdir.
+ * of the value, so the word is read as written. `chdir`: the directory of env -iC dir or env -Cdir; `split`: the string
+ * of env -iS, and where the arguments after it start.
  */
-function groupedOptions(words: readonly Word[], index: number, wrapper: Wrapper): { next: number; shell: boolean; chdir?: Word | undefined } | { line: string } | { unreadable: string } {
+function groupedOptions(
+  words: readonly Word[],
+  index: number,
+  wrapper: Wrapper,
+): { next: number; shell: boolean; chdir?: Word | undefined; split?: { value: Word | undefined; next: number } } | { line: string } | { unreadable: string } {
   const word = words[index] as Word;
   const text = word.text;
   let shell = false;
@@ -1993,8 +2242,8 @@ function groupedOptions(words: readonly Word[], index: number, wrapper: Wrapper)
     const option = `-${text[position] as string}`;
     const rest = text.slice(position + 1);
     if (wrapper.split?.includes(option)) {
-      const value = rest === '' ? (words[index + 1]?.text ?? '') : rest;
-      return { line: [value, ...words.slice(index + (rest === '' ? 2 : 1)).map((entry) => entry.text)].join(' ') };
+      const value = rest === '' ? words[index + 1] : { text: rest, dynamic: word.dynamic };
+      return { next: index + 1, shell, split: { value, next: index + (rest === '' ? 2 : 1) } };
     }
     if (wrapper.lineOptions?.includes(option)) return lineOf(rest === '' ? undefined : rest, words[index + 1]);
     if (wrapper.shellOptions?.includes(option)) shell = true;
@@ -2048,10 +2297,11 @@ function unwrapAnywhere(words: readonly Word[], wrapper: Wrapper): { words: Word
 
 /** The executable a word runs: its base name, without @version (npx@10), ==version (pip==25) or a version suffix such as pip3.12 or python3.12. */
 function executableOf(text: string): string {
-  const name = basename(text).replace(/@[^/]*$/u, '').replace(/==.*$/u, '');
+  const base = basename(text);
+  const name = base.includes('@') || base.includes('==') ? base.replace(/@[^/]*$/u, '').replace(/==.*$/u, '') : base;
   const { executables } = commands();
   if (executables.has(name)) return name;
-  const unversioned = name.replace(/[0-9][0-9.]*$/u, '');
+  const unversioned = /[0-9.]$/u.test(name) ? name.replace(/[0-9][0-9.]*$/u, '') : name;
   return unversioned !== name && (executables.has(unversioned) || interpreter()?.executables.includes(unversioned) === true) ? unversioned : name;
 }
 
@@ -2282,6 +2532,8 @@ function scanWords(command: SimpleCommand, depth: number, put: string[]): Comman
   for (;;) {
     const head = words[0];
     if (head === undefined) return NOTHING;
+    // a[$X]=1: the subscript is arithmetic, which may assign any variable (decision D-123).
+    if (head.dynamic && BUILT_SUBSCRIPT.test(head.text)) noteBuiltName(builtName(shown(joined(words))));
     // A command found further along other words starts with its executable (pipx run pip==25.0), not an assignment.
     if (ASSIGNMENT.test(head.text) && !(command.later === true && words === command.words)) {
       assigned.push(head);
@@ -2293,12 +2545,12 @@ function scanWords(command: SimpleCommand, depth: number, put: string[]): Comman
     } else if (!head.dynamic && aliases.has(head.text) && !expanding.has(head.text)) {
       // Checked after wrappers too, as an alias whose value ends in a blank (alias s='sudo ') makes bash do. bash
       // does not expand an alias again while its text is read (alias ls='ls -F', alias a='a; a').
-      const value = aliases.get(head.text) as string;
-      expanding.add(head.text);
-      put.push(head.text);
-      const own = aliasWords(value);
-      if (own === undefined) return moved(work.left() ? scanLine([value, ...words.slice(1).map(requoted)].join(' '), depth + 1) : work.spent(value));
-      words = [...own, ...words.slice(1)];
+      const expansion = aliasText(words, put);
+      if (expansion === undefined) return work.spent(joined(words));
+      const rest = words.slice(expansion.used);
+      const own = aliasWords(expansion.text);
+      if (own === undefined) return moved(work.left() ? scanLine([expansion.text, ...rest.map(requoted)].join(' '), depth + 1) : work.spent(expansion.text));
+      words = [...own, ...rest];
     } else if (!head.dynamic && head.text === 'function') {
       words = words.slice(2);
     } else if (!head.dynamic && WRAPPERS.has(basename(head.text))) {
@@ -2306,8 +2558,15 @@ function scanWords(command: SimpleCommand, depth: number, put: string[]): Comman
       const unwrapped = unwrap(words, WRAPPERS.get(wrapper) as Wrapper);
       if ('unreadable' in unwrapped) return unreadable(`${shown(joined(words))}: ${unwrapped.unreadable}`);
       if (unwrapped.directory !== undefined) directory = within(directory ?? HERE, unwrapped.directory);
-      // eval runs the line in the shell itself, so a cd in it changes the directory; the others start a process.
-      if ('line' in unwrapped) return wrapper === 'eval' ? moved(scanLine(unwrapped.line, depth + 1)) : moved(inChild(scanLine(unwrapped.line, depth + 1)));
+      // env and sudo set the variables before the command for it alone (env UV_PROJECT=sub uv add x).
+      if (unwrapped.assigned !== undefined) assigned.push(...unwrapped.assigned);
+      if (wrapper === 'eval') {
+        // eval of words the shell expands may assign any variable (eval "$X=…"; decision D-123).
+        if (builtin && words.slice(1).some((word) => word.dynamic)) noteBuiltName(builtName(shown(joined(words))));
+        // eval runs the line in the shell itself, so a cd in it changes the directory; the others start a process.
+        if ('line' in unwrapped) return moved(scanLine(unwrapped.line, depth + 1));
+      }
+      if ('line' in unwrapped) return moved(inChild(scanLine(unwrapped.line, depth + 1)));
       // command, builtin and bash's reserved word time run a builtin in the shell itself.
       if (wrapper !== 'command' && wrapper !== 'builtin' && wrapper !== 'time') builtin = false;
       words = unwrapped.words;
@@ -2315,7 +2574,42 @@ function scanWords(command: SimpleCommand, depth: number, put: string[]): Comman
       break;
     }
   }
+  // declare "${X}PWD=…", printf -v "$N", read "$N": a variable whose name the shell builds (decision D-123).
+  if (builtin) {
+    const reason = dynamicAssignment(words);
+    if (reason !== undefined) noteBuiltName(reason);
+  }
   return moved(scanSimple(command, words, assigned, builtin, depth));
+}
+
+/**
+ * The text an alias at the start of `words` stands for, with the words after it that bash expands too: when the value
+ * of an alias ends in a blank, the next word is checked for an alias as well, and so on (bash manual "Aliases";
+ * decision D-123). That alias is no longer read when the next word is, so the next word may be the same alias. `used`:
+ * how many of the words the text stands for; undefined when the scan has read as much as it reads in one command.
+ */
+function aliasText(words: readonly Word[], put: string[]): { text: string; used: number } | undefined {
+  const first = (words[0] as Word).text;
+  let value = aliases.get(first) as string;
+  expanding.add(first);
+  put.push(first);
+  let text = value;
+  let used = 1;
+  while (/[ \t]$/u.test(value)) {
+    const next = words[used];
+    if (next === undefined || next.dynamic || !aliases.has(next.text)) break;
+    // An alias of an outer reading is still being read.
+    if (expanding.has(next.text) && !put.includes(next.text)) break;
+    value = aliases.get(next.text) as string;
+    if (!work.take(value)) return undefined;
+    if (!expanding.has(next.text)) {
+      expanding.add(next.text);
+      put.push(next.text);
+    }
+    text += value;
+    used += 1;
+  }
+  return { text, used };
 }
 
 /** A command without the words before it: the executable and its arguments. */
@@ -2344,8 +2638,9 @@ function scanSimple(command: SimpleCommand, words: readonly Word[], assigned: re
   if (SHELLS.has(executable)) return inChild(scanShell(words, command, depth));
   if (!first.dynamic && POWERSHELLS.has(executable)) return inChild(scanPowerShell(words, command, depth, executable === 'powershell'));
   if (!first.dynamic && CMD.has(executable)) return inChild(scanCmd(words, command, depth));
-  if (!first.dynamic && SOURCES.has(executable)) return inChild(scanSource(words, command, depth) ?? scanInput(words, command, depth));
-  if (!first.dynamic && executable === 'trap') return inChild(scanTrap(words, depth));
+  // . and source run a file in this shell, and a trap may run its action before later commands (decision D-123).
+  if (!first.dynamic && SOURCES.has(executable)) return scanSource(words, command, depth) ?? scanSourcedInput(words, command, depth);
+  if (!first.dynamic && executable === 'trap') return scanTrap(words, depth);
   if (!first.dynamic && executable === 'alias') return scanAlias(words, depth);
   if (!first.dynamic && EXPRESSION_RUNNERS.has(executable)) return scanInvokeExpression(words, command, depth);
   if (!first.dynamic && interpreter()?.executables.includes(executable) === true) return scanInterpreter(words, command, depth);
@@ -2373,7 +2668,25 @@ function scanSimple(command: SimpleCommand, words: readonly Word[], assigned: re
  * A command name as the tool resolves it (npm's deref, commandNames): camelCase as kebab-case, an exact command, an
  * alias, or a unique prefix of a command or an alias, whose alias is followed (npm conf is config, npm pk is pkg).
  */
+/** The command names resolved so far, by the names of a tool (decision D-123: a long command line resolves many). */
+const RESOLVED = new WeakMap<CommandNamesKnowledge, Map<string, string>>();
+
 function commandName(names: CommandNamesKnowledge, word: string): string {
+  let resolved = RESOLVED.get(names);
+  if (resolved === undefined) {
+    resolved = new Map();
+    RESOLVED.set(names, resolved);
+  }
+  let name = resolved.get(word);
+  if (name === undefined) {
+    name = resolveCommandName(names, word);
+    // Words of a command line are as many as its length allows; keep the map from growing with them.
+    if (resolved.size < 4096) resolved.set(word, name);
+  }
+  return name;
+}
+
+function resolveCommandName(names: CommandNamesKnowledge, word: string): string {
   const name = /[A-Z]/u.test(word) ? word.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`) : word;
   if (names.commands.includes(name)) return name;
   const alias = (key: string) => (Object.hasOwn(names.aliases, key) ? names.aliases[key] : undefined);
@@ -2394,6 +2707,8 @@ function commandName(names: CommandNamesKnowledge, word: string): string {
  * stand counts as one.
  */
 function configChange(executable: string, rest: readonly Word[]): 'configuration' | 'manifest' | undefined {
+  configExecutables ??= new Set(commands().tools.flatMap((tool) => tool.configCommands.map((entry) => entry.command[0] ?? '')));
+  if (!configExecutables.has(executable)) return undefined;
   for (const tool of commands().tools) {
     for (const entry of tool.configCommands) {
       if (entry.command[0] !== executable) continue;
@@ -2433,16 +2748,32 @@ function configChange(executable: string, rest: readonly Word[]): 'configuration
  * to (decision D-118); undefined when no package manager owns the executable.
  */
 function scanPackageManager(command: SimpleCommand, first: Word, executable: string, rest: readonly Word[], line: string, depth: number, assigned: readonly Word[] = []): CommandScan | undefined {
+  // Most commands of a long line are no package manager's (decision D-123: every 1 MiB line is read in time).
+  if (!commands().executables.has(executable)) return undefined;
   for (const tool of commands().tools) {
-    const { facts } = tool;
-    const owns = [...facts.add, ...facts.run.map((entry) => entry.command), ...facts.create.map((entry) => entry.command)].some((entry) => entry[0] === executable);
-    if (!owns) continue;
+    if (!ownedBy(tool).has(executable)) continue;
     const moved = toolDirectory(tool, executable, rest, assigned);
     const scan = scanToolCommand(tool, command, first, executable, moved.words, line, depth);
     if (scan !== undefined) return placed(scan, moved.directory);
   }
   return undefined;
 }
+
+/** The executables a tool's add, run and create commands start with. */
+const OWNED = new WeakMap<ToolCommands, ReadonlySet<string>>();
+
+function ownedBy(tool: ToolCommands): ReadonlySet<string> {
+  let owned = OWNED.get(tool);
+  if (owned === undefined) {
+    const { facts } = tool;
+    owned = new Set([...facts.add, ...facts.run.map((entry) => entry.command), ...facts.create.map((entry) => entry.command)].map((entry) => entry[0] ?? ''));
+    OWNED.set(tool, owned);
+  }
+  return owned;
+}
+
+/** The executables of the commands that change a tool's configuration or package.json (configCommands). */
+let configExecutables: ReadonlySet<string> | undefined;
 
 /** Installs and overrides of a command that runs in `directory`, relative to the shell; their own directories are relative to it. */
 function placed(scan: CommandScan, directory: CommandDirectory | undefined): CommandScan {
@@ -2532,8 +2863,21 @@ function toolDirectory(tool: ToolCommands, executable: string, words: readonly W
   if (chosen.length === 0) return { directory: undefined, words: rest };
   const unread = chosen.find((entry) => entry.value.dynamic);
   if (unread !== undefined) return { directory: { unknown: `the shell expands ${unread.option.name}, which names the directory "${shown(executable)}" runs in` }, words: rest };
+  // PIPENV_PIPFILE names the Pipfile: the project is its directory (decision D-123).
+  const files = chosen.find((entry) => entry.option.file !== undefined && entry.value.text.split(/[\\/]/u).at(-1) !== entry.option.file);
+  if (files !== undefined) {
+    return { directory: { unknown: `${files.option.name} names "${shown(files.value.text)}" as the ${files.option.file as string} of "${shown(executable)}", a file depcurfew does not read` }, words: rest };
+  }
+  const steps = chosen.map((entry) => (entry.option.file === undefined ? entry.value.text : directoryOfFile(entry.value.text)));
   const local = chosen.some((entry) => entry.option.localPrefix === true) ? { localPrefix: true as const } : {};
-  return { directory: { steps: chosen.map((entry) => entry.value.text), ...local }, words: rest };
+  return { directory: { steps, ...local }, words: rest };
+}
+
+/** The directory of a file named by a path: '.' for a file named alone, '/' for one in the root. */
+function directoryOfFile(path: string): string {
+  const cut = path.replace(/[^\\/]*$/u, '');
+  if (cut === '') return '.';
+  return cut.replace(/(?<=.)[\\/]+$/u, '');
 }
 
 /** A command of one package manager: the packages it installs or runs; undefined when the tool does not own the executable. */
@@ -2726,6 +3070,7 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     if (error instanceof Unreadable || error instanceof NestingTooDeep) return unreadable(`${shown(line)}: ${error.message}`);
     throw error;
   }
+  noteWords(reading.items);
   const scan: CommandScan = { requests: [], unreadable: reading.unreadable };
   // Each install runs in the directory the shell is in when its command runs (decision D-118).
   const walk = new DirectoryWalk(shell);
@@ -2735,6 +3080,7 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     const requests = scan.requests.length;
     const overrides = scan.overrides?.length ?? 0;
     merge(scan, found);
+    if (found.requests.length === 0 && (found.overrides?.length ?? 0) === 0) return;
     walk.placed([...scan.requests.slice(requests), ...(scan.overrides ?? []).slice(overrides)], (entry) => TRAPPED.has(entry));
   };
   // In the order of the items they are in (a here-document's body comes after the words of its line).
@@ -2753,7 +3099,8 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     walk.begin(command.words, bounds);
     // The command lines in its words (and before them) run first, where the command runs.
     while (next < pending.length && (pending[next]?.at ?? Infinity) < (command.to ?? 0)) nested(pending[next++] as LineReading['nested'][number]);
-    for (const word of command.words) placeOf.set(word, walk.place);
+    // Only assignments are looked up (overrideAssignments).
+    for (const word of command.words) if (word.text.includes('=')) placeOf.set(word, walk.place);
     // mkdir: a cd into the directory it creates later on the line need not find it (decision D-119).
     const start = command.words.findIndex((word) => word.dynamic || (!ASSIGNMENT.test(word.text) && !KEYWORDS.has(word.text)));
     const created = start === -1 ? undefined : createdDirectories(command.words.slice(start), shell);
@@ -2864,26 +3211,34 @@ export function missingDirectory(step: string): string {
  * a release-age delay shorter than the longest cooldown, or that cannot be compared with it, and install scripts
  * turned on where a policy restricts them; undefined when none does.
  */
-export function overrideDoubt(overrides: readonly Override[] | undefined, policies: readonly ResolvedPolicy[]): string | undefined {
-  const required = Math.max(0, ...policies.map((policy) => policy.cooldown?.minimum.minutes ?? 0));
+export function overrideDoubt(overrides: readonly Override[] | undefined, policies: readonly ResolvedPolicy[], files: readonly (string | null | undefined)[] = []): string | undefined {
+  const minutes = policies.map((policy) => policy.cooldown?.minimum.minutes ?? 0);
+  const required = Math.max(0, ...minutes);
+  // The file that sets it, as the hook names it relative to the project (decision D-123); null is the default policy.
+  const fileOf = (index: number) => {
+    const file = files[index];
+    return file === null ? 'the default policy' : (file ?? 'depcurfew.json');
+  };
+  const delayFile = fileOf(minutes.indexOf(required));
   // A deny list counts only with the default deny (validation), so the default decides whether scripts are restricted.
-  const scripts = policies.some((policy) => policy.installScripts?.default === 'deny');
+  const denying = policies.findIndex((policy) => policy.installScripts?.default === 'deny');
+  const scriptsFile = fileOf(denying);
   for (const override of overrides ?? []) {
     const where = `${shown(override.command)}: ${override.written}`;
     if (override.weakens === 'scripts') {
-      if (!scripts) continue;
-      if (override.expanded === true) return `${where} is set to a value the shell expands, which may turn on dependency install scripts that depcurfew.json restricts, and may weaken ${WEAKENS}`;
-      return `${where} lets dependency install scripts run that depcurfew.json restricts, and weakens ${WEAKENS}`;
+      if (denying === -1) continue;
+      if (override.expanded === true) return `${where} is set to a value the shell expands, which may turn on dependency install scripts that ${scriptsFile} restricts, and may weaken ${WEAKENS}`;
+      return `${where} lets dependency install scripts run that ${scriptsFile} restricts, and weakens ${WEAKENS}`;
     }
     if (required <= 0) continue;
     const policy = formatMinutes(required);
-    if (override.expanded === true) return `${where} is set to a value the shell expands, so its release-age delay cannot be compared with the ${policy} in depcurfew.json, and may weaken ${WEAKENS}`;
-    if (override.delay === undefined) return `${where} changes the release-age delay of ${policy} that depcurfew.json requires, and weakens ${WEAKENS}`;
+    if (override.expanded === true) return `${where} is set to a value the shell expands, so its release-age delay cannot be compared with the ${policy} in ${delayFile}, and may weaken ${WEAKENS}`;
+    if (override.delay === undefined) return `${where} changes the release-age delay of ${policy} that ${delayFile} requires, and weakens ${WEAKENS}`;
     const tool = knowledgeBase.find((entry) => entry.id === override.tool);
     const delay = tool === undefined ? undefined : delayMinutes(tool, override.delay, undefined);
     if (delay?.ok === true && delay.minutes >= required) continue;
-    if (delay?.ok === true) return `${where} sets the release-age delay to ${formatMinutes(delay.minutes)}, shorter than the ${policy} in depcurfew.json, and weakens ${WEAKENS}`;
-    return `${where} sets the release-age delay to a value depcurfew does not compare with the ${policy} in depcurfew.json (a date, false or another form), and may weaken ${WEAKENS}`;
+    if (delay?.ok === true) return `${where} sets the release-age delay to ${formatMinutes(delay.minutes)}, shorter than the ${policy} in ${delayFile}, and weakens ${WEAKENS}`;
+    return `${where} sets the release-age delay to a value depcurfew does not compare with the ${policy} in ${delayFile} (a date, false or another form), and may weaken ${WEAKENS}`;
   }
   return undefined;
 }

@@ -275,6 +275,21 @@ export interface PlacedRequest {
 export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'posix'): { specs: PlacedRequest[]; unreadable: string | undefined; overrides: readonly Override[] } {
   const scan = scanCommandLine(command, { shell });
   const unique = new Map<string, PlacedRequest>();
+  // Installs placed in one directory share its object: it is written out once, and stands in the key by a number, so
+  // that a directory with long paths is not hashed for every install (decision D-123).
+  const ids = new Map<CommandDirectory, number>();
+  const written = new Map<string, number>();
+  const keyOf = (directory: CommandDirectory | undefined) => {
+    if (directory === undefined) return 0;
+    let id = ids.get(directory);
+    if (id === undefined) {
+      const text = JSON.stringify(directory);
+      id = written.get(text) ?? written.size + 1;
+      written.set(text, id);
+      ids.set(directory, id);
+    }
+    return id;
+  };
   for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written } of scan.requests) {
     const request: CheckRequest = {
       spec,
@@ -287,7 +302,7 @@ export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'pos
       ...(buildFromSource === undefined ? {} : { buildFromSource }),
       ...(tool === 'npm' && mayTurnWorkspacesOff(written) ? { workspacesOption: true } : {}),
     };
-    const key = JSON.stringify([request, directory ?? null]);
+    const key = `${JSON.stringify(request)}\n${keyOf(directory)}`;
     if (!unique.has(key)) unique.set(key, { request, ...(directory === undefined ? {} : { directory }), command: written });
   }
   const specs = [...unique.values()];

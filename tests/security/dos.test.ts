@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { scanCommandLine } from '../../src/check/command.ts';
+import { requestedSpecs } from '../../src/check/hook.ts';
 import { detectProject } from '../../src/detect/index.ts';
 import { wildcardMatch } from '../../src/detect/wildcard.ts';
 import { matchesPattern } from '../../src/doctor/allow-lists.ts';
@@ -97,6 +98,42 @@ describe('the directories of a hook event (decision D-118)', () => {
     ['many changes of location in PowerShell', 'Set-Location a; npm i y; Push-Location b; '.repeat(30_000), 'powershell'],
   ] as const)('reads %s quickly', (_label, line, shell) => {
     expect(elapsed(() => scanCommandLine(line, { shell }))).toBeLessThan(5000);
+  });
+});
+
+describe('the stack of pushd, traps, env -S and names the shell builds (decision D-123)', () => {
+  const MiB = 1024 * 1024;
+  /** `part` repeated up to 1 MiB, the most the hook reads, with `tail` at the end. */
+  const filled = (part: string, tail = '') => part.repeat(Math.floor((MiB - tail.length) / part.length)) + tail;
+  it.each([
+    // The verifier's inputs: every ( ) subshell used to copy the stack of pushd (36.7 s and 27.7 s).
+    ['many pushd, then many subshells', `${'pushd a;'.repeat(62_000)}${'(:);'.repeat(120_000)}npm i fresh-pkg@1.1.0`],
+    ['pushd and a subshell, many times', 'pushd a; (:); '.repeat(70_000)],
+    ['pushd of an absolute path and a subshell', filled('pushd /a; (:); ', 'npm i x')],
+    ['cd and cd -, many times', filled('cd a; cd -; ', 'npm i x')],
+    ['cd to absolute paths between installs', filled('cd /a; npm i x; cd /b; npm i y; ')],
+    ['installs after long paths', `${`cd ${'a'.repeat(1000)}; `.repeat(64)}${'npm i x;'.repeat(120_000)}`],
+    ['pushd and pushd +1', filled('pushd a; pushd +1; ', 'npm i x')],
+    ['pushd, popd and an install', filled('pushd a; popd; npm i x; ')],
+    ['dirs -c between pushd and popd', filled('pushd a; dirs -c; popd; ', 'npm i x')],
+    ['pushd -n', filled('pushd -n a; ', 'popd; npm i x')],
+    ['nested env -S', filled("env -S'-S\"-i\"' ", 'npm i x')],
+    ['many -S strings', `env ${'-S -i '.repeat(150_000)}npm i x`],
+    ['an alias that ends in a blank, many times', `alias n='n '; ${'n '.repeat(400_000)}`],
+    ['a long alias that ends in a blank', `alias n='${'x'.repeat(1000)} '; ${'n '.repeat(400_000)}`],
+    ['traps that change directory', filled("trap 'cd a' DEBUG; npm i x; ")],
+    ['files run with .', filled('. ./x.sh; npm i x; ')],
+    ['declare with a name the shell builds', filled('declare "$X=1"; cd -; npm i x; ')],
+    ['arithmetic and subscripts', filled('(( $X )); echo ${a[$i]}; ')],
+    ['functions that change directory', filled('f() { cd a; }; npm i x; ')],
+    ['many commands that do nothing', filled(':;')],
+  ])('reads %s in under 2 seconds', (_label, line) => {
+    expect(elapsed(() => scanCommandLine(line))).toBeLessThan(2000);
+  });
+
+  it('removes repeated installs in a directory with long paths quickly in the hook (it took 18 s)', () => {
+    const line = `${`cd ${'a'.repeat(1000)}; `.repeat(64)}${'npm i x;'.repeat(120_000)}`;
+    expect(elapsed(() => expect(requestedSpecs(line).specs).toHaveLength(1))).toBeLessThan(2000);
   });
 });
 

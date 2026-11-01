@@ -601,6 +601,11 @@ function physicalPath(from: string, step: string): string {
  * shell makes to a directory that does not exist, or is a file, fails and leaves the shell where it was (decision D-119).
  */
 function installDirectory(cwd: string, directory: Exclude<CommandDirectory, { unknown: string }>): { path: string } | { unknown: string } {
+  // The directories the shell left on the way must have been entered, or OLDPWD and the stack differ (decision D-123).
+  for (const assumed of directory.assumes ?? []) {
+    const found = installDirectory(cwd, assumed);
+    if ('unknown' in found) return found;
+  }
   let current = resolve(cwd);
   for (const [index, step] of directory.steps.entries()) {
     const physical = directory.physical?.includes(index) === true;
@@ -657,11 +662,21 @@ function hookGroups(cwd: string, specs: readonly PlacedRequest[], overrides: rea
   const here = realPathOfAny(cwd);
   let directories = 0;
   let dropped = 0;
+  // Installs and overrides placed in one directory share its object, which is looked at on disk once (decision D-123).
+  const looked = new Map<CommandDirectory, ReturnType<typeof installDirectory>>();
+  const lookAt = (directory: Exclude<CommandDirectory, { unknown: string }>) => {
+    let found = looked.get(directory);
+    if (found === undefined) {
+      found = installDirectory(cwd, directory);
+      looked.set(directory, found);
+    }
+    return found;
+  };
   /** The group of a directory, and why depcurfew cannot tell the directory when the scan could but the hook cannot. */
   const groupOf = (directory: CommandDirectory | undefined, overridden: boolean): { group: HookGroup; unknown?: string } | undefined => {
     let key = 'here';
     let entry: Omit<HookGroup, 'requests' | 'overrides'> = { kind: 'here', directory: undefined, localPrefix: false };
-    const found = directory === undefined || 'unknown' in directory ? directory : installDirectory(cwd, directory);
+    const found = directory === undefined || 'unknown' in directory ? directory : lookAt(directory);
     /** Why the hook cannot tell a directory that the scan gave (decision D-119). */
     const unknown = found !== undefined && 'unknown' in found && directory !== undefined && !('unknown' in directory) ? found.unknown : undefined;
     if (found !== undefined && 'unknown' in found) {
@@ -753,7 +768,10 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       if (!result.ok) return cannotCheck(result);
       const { applied } = result;
       const working = group.kind === 'here' ? undefined : workingPolicies(applied, hereApplied);
-      const policies = [applied, ...(working === undefined ? [] : [working.applied])].flatMap((entry) => (entry.nearer === undefined ? [entry.policy] : [entry.policy, entry.nearer.policy]));
+      const sources = [applied, ...(working === undefined ? [] : [working.applied])].flatMap((entry) =>
+        entry.nearer === undefined ? [{ policy: entry.policy, file: entry.file }] : [{ policy: entry.policy, file: entry.file }, { policy: entry.nearer.policy, file: entry.nearer.file }],
+      );
+      const policies = sources.map((source) => source.policy);
       if (group.kind === 'here' || group.requests.length > 0) {
         const requests = group.requests.map((entry) => entry.request);
         const settings: RunSettings = { fetch: dependencies.fetch, now: dependencies.now(), scriptBodies: false, index: flags.index, lookups };
@@ -774,7 +792,8 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       if (working !== undefined) notes.push(workingNotice(working.files, group.kind === 'unknown' ? undefined : where));
       const unplaced = group.kind === 'unknown' ? group.requests.find((entry) => entry.directory !== undefined && 'unknown' in entry.directory) : undefined;
       if (unplaced?.directory !== undefined && 'unknown' in unplaced.directory) doubt ??= unknownDirectory(unplaced.command, unplaced.directory.unknown);
-      doubt ??= overrideDoubt(group.overrides, policies);
+      // The message names the file that sets the delay or the rule, relative to the project (decision D-123).
+      doubt ??= overrideDoubt(group.overrides, policies, sources.map((source) => source.file));
     }
     io.stdout(formatDecision(decide(reports, unreadable ?? doubt, [...new Set(notes)], skipped.map(skippedNotice))) ?? '');
   } catch (error) {

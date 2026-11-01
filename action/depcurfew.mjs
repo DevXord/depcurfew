@@ -2899,6 +2899,14 @@ const pipenv$1 = {
 			configOptions: ["--extra-pip-args"],
 			configVariables: ["PIPENV_DOTENV_LOCATION"]
 		}, CONFIGURATION$3, "--index names a package index by URL or by a source name of the Pipfile; --pypi-mirror and PIPENV_PYPI_MIRROR replace PyPI. --extra-pip-args hands arguments to pip, which may name another index, and Pipenv loads PIP_* variables from the .env file that PIPENV_DOTENV_LOCATION names (options.py)."),
+		directoryOptions: final$1.verified({
+			options: [],
+			variables: [{
+				name: "PIPENV_PIPFILE",
+				moves: "project",
+				file: "Pipfile"
+			}]
+		}, `${PIPENV}/pipenv/utils/pipfile.py`, "Pipfile.location returns project.s.PIPENV_PIPFILE when it is set, and only otherwise searches the working directory and its parents (find_pipfile, PIPENV_MAX_DEPTH); project_directory is str(Path(self.location).parent.absolute()), and Project.__init__ (pipenv/project.py) changes to it for every command but run. pipenv/environments.py: \"If set, this specifies a custom Pipfile location. When running pipenv from a location other than the same directory where the Pipfile is located, instruct pipenv to find the Pipfile in the location specified by this environment variable\"; the path is taken relative to the working directory and made absolute. pipenv/cli/options.py has no option that moves the project (--where only prints it)."),
 		registrySettings: final$1.verified([{
 			file: "Pipfile",
 			path: ["source"],

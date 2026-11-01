@@ -199,7 +199,8 @@ describe('the hook checks an install with the policy of the directory it runs in
     const root = repository();
     expect(await hook('npm ci --min-release-age=1', root, root)).toEqual({});
     expect((await hook('cd pkgs/strict && npm ci --min-release-age=1', root, root)).permissionDecisionReason).toContain(
-      'sets the release-age delay to 1 day, shorter than the 90 days in depcurfew.json',
+      // The file that sets the delay, relative to the project (decision D-123).
+      'sets the release-age delay to 1 day, shorter than the 90 days in pkgs/strict/depcurfew.json',
     );
   });
 

@@ -3,14 +3,14 @@
 // aliases that expand themselves, $'…' and $"…" read as bash reads them, a command built at run time inside a command
 // line, nopt's --no- with an abbreviation, env -C, find -execdir, traps that run later, and PowerShell paths with \.
 import { describe, expect, it } from 'vitest';
-import { overrideDoubt, scanCommandLine, unreadableFix, type CommandDirectory, type ScanOptions } from '../../src/check/command.ts';
+import { overrideDoubt, scanCommandLine, unreadableFix, type CommandDirectory, type KnownDirectory, type ScanOptions } from '../../src/check/command.ts';
 import { policy } from './support.ts';
 
 const specs = (line: string, options?: ScanOptions) => scanCommandLine(line, options).requests.map((request) => `${request.tool}:${request.spec}`);
 /** Each request as tool:spec with its directory (undefined: the directory the command starts in). */
 const where = (line: string, options?: ScanOptions) => scanCommandLine(line, options).requests.map((request) => [`${request.tool}:${request.spec}`, request.directory]);
 /** Directories the shell changes to, each of which the hook checks exists. */
-const entered = (...list: string[]): CommandDirectory => ({ steps: list, entered: list.map((_, index) => index) });
+const entered = (...list: string[]): KnownDirectory => ({ steps: list, entered: list.map((_, index) => index) });
 const unknown = (text: string) => ({ unknown: expect.stringContaining(text) as string });
 const SCRIPTS = policy({ installScripts: { default: 'deny' } });
 
@@ -38,7 +38,7 @@ describe('changes of directory the hook must check (H1)', () => {
     ['(set -P); cd a && npm i x', [['npm:x', entered('a')]]],
     ['set -euo pipefail; cd a && npm i x', [['npm:x', entered('a')]]],
     // Reading PWD or OLDPWD changes nothing.
-    ['echo "$PWD $OLDPWD"; cd a && cd - && npm i x', [['npm:x', undefined]]],
+    ['echo "$PWD $OLDPWD"; cd a && cd - && npm i x', [['npm:x', { steps: [], assumes: [entered('a')] }]]],
     ['PWD=/srv cd /abs && npm i x', [['npm:x', entered('/abs')]]],
   ])('%s', (line, expected) => {
     expect(where(line)).toEqual(expected);

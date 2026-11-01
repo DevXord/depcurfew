@@ -503,6 +503,11 @@ export interface DirectoryOption {
   ignoredBy?: readonly (readonly string[])[];
   /** npm: the directory is the local prefix as given; npm reads its .npmrc without looking for a package.json above it. */
   localPrefix?: boolean;
+  /**
+   * The value names this file of the project (Pipenv's PIPENV_PIPFILE names the Pipfile), and the project is its
+   * directory; a file of another name is one the install guard does not read, so the directory counts as unknown.
+   */
+  file?: string;
 }
 
 export interface DirectoryOptionsKnowledge {
