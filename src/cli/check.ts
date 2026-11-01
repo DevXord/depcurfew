@@ -4,7 +4,7 @@
 // user's .npmrc sets, else the public npm registry; pypi: packages in the index given with --index, else PyPI. Exit code
 // 1 when any package breaks the policy or cannot be checked, 2 for a usage error such as a --dir that does not exist;
 // in hook mode the decision goes to stdout as JSON and the exit code is 0.
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { UserEnvironment } from '../user/locate.ts';
 import type { McpProcess } from './mcp.ts';
@@ -205,17 +205,29 @@ function projectDirVariable(): string {
 }
 
 /**
- * Where the hook looks for depcurfew.json (decision D-108). Claude's working directory can be anywhere in the project,
- * also in a vendored clone with its own .git or in a package folder that ships a depcurfew.json allowing everything;
- * so when the project root lies in a git repository and the working directory is inside it, the policy is the
- * project's, and a policy deeper inside is named as not used. A project root outside any repository (a folder that
- * holds several repositories) keeps the lookup from the working directory.
+ * Where the hook looks for depcurfew.json (decisions D-108, D-109). Claude's working directory can be anywhere in the
+ * project, also in a vendored clone with its own .git or a package folder that ships a depcurfew.json allowing
+ * everything, or in a nested repository with a stricter policy of its own. When the project root (by its real path)
+ * lies in a git repository and the working directory is inside it, the project's policy applies, and a different
+ * policy nearer the working directory is applied too (`also`): the stricter answer counts, so a planted policy cannot
+ * relax the check and a nested one still tightens it. A project root outside any repository (a folder that holds
+ * several repositories) keeps the lookup from the working directory.
  */
-export function hookPolicyStart(cwd: string, projectDir: string | undefined): { start: string; ignored?: string } {
-  if (projectDir === undefined || projectDir === '' || !isAbsolute(projectDir) || !isInside(projectDir, cwd) || !insideRepository(projectDir)) return { start: cwd };
-  const nearest = findPolicyDirectory(cwd);
-  const project = findPolicyDirectory(projectDir);
-  return nearest === undefined || nearest === project ? { start: projectDir } : { start: projectDir, ignored: nearest };
+export function hookPolicyStart(cwd: string, projectDir: string | undefined): { start: string; also?: string } {
+  if (projectDir === undefined || projectDir === '' || !isAbsolute(projectDir)) return { start: cwd };
+  const real = (path: string) => {
+    try {
+      return realpathSync(path);
+    } catch {
+      return resolve(path);
+    }
+  };
+  const project = real(projectDir);
+  const here = real(cwd);
+  if (!isInside(project, here) || !insideRepository(project)) return { start: cwd };
+  const nearest = findPolicyDirectory(here);
+  const own = findPolicyDirectory(project);
+  return nearest === undefined || nearest === own ? { start: project } : { start: project, also: nearest };
 }
 
 async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencies): Promise<number> {
@@ -237,8 +249,11 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     const root = flags.dir === undefined ? hookPolicyStart(resolve(cwd), (dependencies.projectDir ?? (() => process.env[projectDirVariable()]))()) : { start: cwd };
     const loaded = load(root.start, dependencies.home?.() ?? homedir());
     const registry = registryOf(flags.registry, loaded.registries);
-    const reports = await checkSpecs(specs, {
-      policy: loaded.policy,
+    // Registries always come from the project's files; only the policy of a nearer depcurfew.json is applied too.
+    const nearer = root.also === undefined ? undefined : load(root.also, dependencies.home?.() ?? homedir()).policy;
+    const policies = nearer === undefined ? [loaded.policy] : [loaded.policy, nearer];
+    const options = (policy: ResolvedPolicy) => ({
+      policy,
       fetch: dependencies.fetch,
       now: dependencies.now(),
       registry: registry.url,
@@ -249,15 +264,16 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       ...(loaded.registries.tag === undefined ? {} : { defaultTag: loaded.registries.tag.value }),
       scriptBodies: false,
     });
+    const reports = (await Promise.all(policies.map((policy) => checkSpecs(specs, options(policy))))).flat();
     // Say which registry answered when it is not the public one, if an npm package was looked up there.
     const scopeOf = (name: string) => (name.startsWith('@') ? name.slice(0, name.indexOf('/')) : '');
     const lookedUp = reports.some((report) => report.kind === 'registry' && !isPythonSpec(report.spec) && report.name !== undefined && !loaded.registries.scopes.has(scopeOf(report.name)));
     const note = lookedUp ? registryNote(registry) : undefined;
     const notes = [
       ...(note === undefined ? [] : [`${note}.`]),
-      ...(root.ignored === undefined
+      ...(root.also === undefined
         ? []
-        : [`${reasonText(relative(root.start, join(root.ignored, POLICY_FILE)).split(sep).join('/'))} is not used: the hook applies the policy of the project (${projectDirVariable()}), whatever directory a command runs in.`]),
+        : [`Besides the policy of the project (${projectDirVariable()}), ${reasonText(relative(root.start, join(root.also, POLICY_FILE)).split(sep).join('/'))} also applies here; the stricter answer counts.`]),
     ];
     io.stdout(formatDecision(decide(reports, unreadable, notes)) ?? '');
   } catch (error) {

@@ -155,11 +155,27 @@ describe('createCheckRun', () => {
         output: {
           title: 'Replaced by a later run of depcurfew doctor on this commit',
           summary:
-            'A later run of depcurfew doctor on this commit found other problems, and annotations cannot be removed from a check, so its result is in a new "depcurfew doctor" entry. The annotations of this entry are from the earlier run.\n',
+            'A later run of depcurfew doctor on this commit had a different result, and annotations cannot be removed from a check, so its result is in a new "depcurfew doctor" entry. The annotations of this entry are from the earlier run.\n',
         },
       });
       expect(line).toMatch(/to the commit [0-9a-f]{12}, next to an earlier one with other annotations(?:; .+)?; the earlier one, whose annotations are out of date, now says it is replaced\n$/u);
     }
+  });
+
+  it('never takes an entry it marked as replaced for the current one, in whatever order the API lists them', async () => {
+    const replaced = { id: 5, name: 'depcurfew doctor', external_id: 'depcurfew:replaced', output: { annotations_count: 2 } };
+    const current = { id: 6, name: 'depcurfew doctor', external_id: checkRunExternalId([]), output: { annotations_count: 0 } };
+    for (const runs of [[replaced, current], [current, replaced]]) {
+      const fake = api({ runs });
+      await createCheckRun(runner(), 't', CONTENT, fake.fetch);
+      expect(posts(fake.calls)).toEqual([]);
+      expect(patches(fake.calls).map((call) => call.url)).toEqual(['https://api.github.com/repos/owner/repo/check-runs/6']);
+    }
+    // Only a replaced entry: a new one, and the replaced one is left as it is.
+    const fake = api({ runs: [replaced] });
+    await createCheckRun(runner(), 't', CONTENT, fake.fetch);
+    expect(posts(fake.calls)).toHaveLength(1);
+    expect(patches(fake.calls)).toEqual([]);
   });
 
   it('says so on the same line when the earlier entry cannot be marked as replaced', async () => {

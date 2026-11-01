@@ -23415,6 +23415,8 @@ function plural$2(count, word) {
 function reason(error) {
 	return `the GitHub API did not answer (${error instanceof Error ? error.message : String(error)})`;
 }
+/** The external id of an entry a later run replaced. */
+const REPLACED_EXTERNAL_ID = `${CHECK_RUN_EXTERNAL_ID}:replaced`;
 function existingRun(answer, name) {
 	const runs = typeof answer === "object" && answer !== null ? answer["check_runs"] : void 0;
 	if (!Array.isArray(runs)) return void 0;
@@ -23423,6 +23425,7 @@ function existingRun(answer, name) {
 		const entry = run;
 		const externalId = entry["external_id"];
 		if (entry["name"] !== name || typeof externalId !== "string" || !(externalId === "depcurfew" || externalId.startsWith(`${"depcurfew"}:`))) continue;
+		if (externalId === REPLACED_EXTERNAL_ID) continue;
 		if (typeof entry["id"] !== "number" || !Number.isSafeInteger(entry["id"])) continue;
 		const output = entry["output"];
 		const count = typeof output === "object" && output !== null ? output["annotations_count"] : void 0;
@@ -23546,10 +23549,10 @@ async function createCheckRun(env, token, content, fetchImpl) {
 	if (replaced !== void 0 && !updated) {
 		const supersede = {
 			conclusion: "neutral",
-			external_id: `${CHECK_RUN_EXTERNAL_ID}:replaced`,
+			external_id: REPLACED_EXTERNAL_ID,
 			output: {
 				title: "Replaced by a later run of depcurfew doctor on this commit",
-				summary: `A later run of depcurfew doctor on this commit found other problems, and annotations cannot be removed from a check, so its result is in a new "${content.name}" entry. The annotations of this entry are from the earlier run.\n`
+				summary: `A later run of depcurfew doctor on this commit had a different result, and annotations cannot be removed from a check, so its result is in a new "${content.name}" entry. The annotations of this entry are from the earlier run.\n`
 			}
 		};
 		try {

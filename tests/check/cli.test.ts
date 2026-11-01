@@ -1,7 +1,7 @@
 // depcurfew check through the CLI and as a Claude Code PreToolUse hook, on recorded registry responses.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CheckDependencies } from '../../src/cli/check.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../../src/cli/run.ts';
@@ -172,12 +172,36 @@ describe('depcurfew check --hook claude-code', () => {
     writeFileSync(join(vendored, 'depcurfew.json'), JSON.stringify({ version: 1, installScripts: { default: 'allow' } }));
     const inside = await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', vendored), root);
     expect(decision(inside.stdout).permissionDecision).toBe('deny');
-    expect(decision(inside.stdout).permissionDecisionReason).toContain('vendor/lib/depcurfew.json is not used');
+    expect(decision(inside.stdout).permissionDecisionReason).toContain('vendor/lib/depcurfew.json also applies here; the stricter answer counts');
     // Without CLAUDE_PROJECT_DIR, or with a working directory outside the project, the nearest policy applies as before.
     expect((await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', vendored))).stdout).toBe('');
     const elsewhere = project({ installScripts: { default: 'allow' } });
     mkdirSync(join(elsewhere, '.git'));
     expect((await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', elsewhere), root)).stdout).toBe('');
+  });
+
+  it('keeps a stricter policy of a nested repository when the project has none of its own', async () => {
+    const root = project();
+    mkdirSync(join(root, '.git'));
+    const nested = join(root, 'sub');
+    mkdirSync(join(nested, '.git'), { recursive: true });
+    writeFileSync(join(nested, 'depcurfew.json'), JSON.stringify({ version: 1, cooldown: { minimum: '3000d' } }));
+    const result = await exec(['check', '--hook', 'claude-code'], event('npm install lodash@4.17.21', nested), root);
+    expect(decision(result.stdout).permissionDecision).toBe('deny');
+    expect(decision(result.stdout).permissionDecisionReason).toContain('3000 days');
+  });
+
+  it.skipIf(process.platform === 'win32')('compares the project and the working directory by their real paths, so a symlinked project directory changes nothing', async () => {
+    const root = project({ installScripts: { default: 'deny' } });
+    mkdirSync(join(root, '.git'));
+    const vendored = join(root, 'vendor', 'lib');
+    mkdirSync(join(vendored, '.git'), { recursive: true });
+    writeFileSync(join(vendored, 'depcurfew.json'), JSON.stringify({ version: 1, installScripts: { default: 'allow' } }));
+    const link = join(mkdtempSync(join(tmpdir(), 'depcurfew-link-')), 'project');
+    temporary.push(dirname(link));
+    symlinkSync(root, link);
+    expect(decision((await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', vendored), link)).stdout).permissionDecision).toBe('deny');
+    expect(decision((await exec(['check', '--hook', 'claude-code'], event('npm install esbuild', join(link, 'vendor', 'lib')), root)).stdout).permissionDecision).toBe('deny');
   });
 
   it('keeps the policy of the working directory when the project directory is not in a git repository (a folder of repositories)', async () => {

@@ -89,6 +89,9 @@ interface ExistingRun {
   externalId: string;
 }
 
+/** The external id of an entry a later run replaced. */
+const REPLACED_EXTERNAL_ID = `${CHECK_RUN_EXTERNAL_ID}:replaced`;
+
 function existingRun(answer: unknown, name: string): ExistingRun | undefined {
   const runs = typeof answer === 'object' && answer !== null ? (answer as Record<string, unknown>)['check_runs'] : undefined;
   if (!Array.isArray(runs)) return undefined;
@@ -97,6 +100,8 @@ function existingRun(answer: unknown, name: string): ExistingRun | undefined {
     const entry = run as Record<string, unknown>;
     const externalId = entry['external_id'];
     if (entry['name'] !== name || typeof externalId !== 'string' || !(externalId === CHECK_RUN_EXTERNAL_ID || externalId.startsWith(`${CHECK_RUN_EXTERNAL_ID}:`))) continue;
+    // An entry this action marked as replaced is never the current one again, whatever order the API lists them in.
+    if (externalId === REPLACED_EXTERNAL_ID) continue;
     if (typeof entry['id'] !== 'number' || !Number.isSafeInteger(entry['id'])) continue;
     const output = entry['output'];
     const count = typeof output === 'object' && output !== null ? (output as Record<string, unknown>)['annotations_count'] : undefined;
@@ -236,10 +241,10 @@ export async function createCheckRun(env: NodeJS.ProcessEnv, token: string, cont
     const supersede = {
       conclusion: 'neutral',
       // Kept, so that a later run finds the new entry (the latest of this name) and never this one again.
-      external_id: `${CHECK_RUN_EXTERNAL_ID}:replaced`,
+      external_id: REPLACED_EXTERNAL_ID,
       output: {
         title: 'Replaced by a later run of depcurfew doctor on this commit',
-        summary: `A later run of depcurfew doctor on this commit found other problems, and annotations cannot be removed from a check, so its result is in a new "${content.name}" entry. The annotations of this entry are from the earlier run.\n`,
+        summary: `A later run of depcurfew doctor on this commit had a different result, and annotations cannot be removed from a check, so its result is in a new "${content.name}" entry. The annotations of this entry are from the earlier run.\n`,
       },
     };
     try {
