@@ -2,6 +2,49 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
+## 1.3.0
+
+### An MCP server for other coding agents
+
+- `depcurfew mcp` is a Model Context Protocol server over stdio, so that Claude Desktop, VS Code, Cursor and other agents can ask before they install a package. It has two tools: `check_packages` (the same checks and the same document as `depcurfew check --json`) and `explain_policy` (which `depcurfew.json` applies and what it allows). It speaks both the `initialize` handshake (protocol revisions 2024-11-05 to 2025-11-25) and the stateless revision 2026-07-28 with `server/discover`.
+- The registry and the Python index come only from the server's own options and `.npmrc`, never from a tool call, so an agent cannot point the check at a registry that approves anything. A `directory` argument must stay inside the project. Fixes that would change `depcurfew.json` are not offered to the agent.
+- It limits what a client can send (1 MiB per line, nesting depth 64, 4 calls at once), stops on a cancelled request, and ends quietly when stdin or stdout closes or on SIGINT and SIGTERM. The README has configurations for Claude Code (`claude mcp add`, `.mcp.json`), Claude Desktop and VS Code. The server only advises; the configuration `apply` writes is what enforces.
+
+### Several projects in one repository
+
+- The new policy field `projects` lists directories that are independent projects, such as `frontend` and `backend`, each with its own manifest and lockfile. `apply`, `doctor` and `explain` in the root handle every project with the root's policy, and configure the update bots once, from the root, with a delay that covers every project's package managers. `init` in a root without a manifest proposes the directories that have one.
+- A listed directory that is missing, is not a directory, is reached through a symlink, has its own `depcurfew.json` or is a workspace package of the root is an error (new `apply` codes `project-not-found`, `project-not-a-directory`, `project-symlink`, `project-has-policy`, `project-in-workspace`, and the `doctor` rule `invalid-project`); nothing is written. A target that no directory uses gets `target-not-found`. The user policy cannot list projects. Policies without the field are unchanged.
+
+### The npm and pip that come with Node.js and Python
+
+- `doctor` now knows which npm each Node.js release brings and which pip each Python release brings. Node.js 22, still supported until 2027-04-30, comes with npm 10, which has no release-age delay and ignores settings it does not know without a word; Node.js 24 brings npm 11.10 or later only from 24.14.1. `manager-version-too-old` reports a CI job that installs with npm after setting up such a Node.js, a Dockerfile stage that runs `npm ci` or `pip install` on such an image, and the version files developers use, with the npm or pip version to install or the Node.js or Python release to move to.
+- It reads Node.js versions from `.nvmrc`, `.node-version`, `engines.node` of a private package, the files setup-node's `node-version-file` names, the values of `${{ matrix.<key> }}`, and Dockerfiles (`Dockerfile`, `*.Dockerfile`, `Dockerfile.<name>`, `Containerfile`): `FROM node:<tag>` and `FROM python:<tag>` with `ARG` substitution and stages, and `npm install -g npm@…` or `pip install pip==…` before the install. A setup step only counts for the installs that follow it, before the next setup step. `explain` shows the jobs and Dockerfiles it read.
+- New rule `runtime-end-of-life` (warning): a declared Node.js version that only allows release lines past their end of life, where they install packages or run code.
+
+### doctor and the GitHub Action
+
+- `doctor --strict` (also with `--user`) exits with 1 for warnings too; notes never fail. The JSON has a new field `strict`.
+- The rule list says "not applicable" for a check that does not concern the repository (Python rules in a JavaScript project, bot rules without a bot), instead of "passed".
+- Action: new input `fail-on: error | warning`; with `warning`, warnings fail the step and the "depcurfew doctor" check like errors. `fail-on-error` still works and is deprecated; `false` keeps the step from failing whatever `fail-on` says, and now every other value counts as on.
+- The "depcurfew doctor" check shows the findings as annotations on their lines (at most 100, errors first), and a workflow that runs on both `push` and `pull_request` updates the entry of the same commit instead of adding a second one.
+
+### Protecting the whole machine
+
+- `init --user` keeps the longest release-age delay already set in the user files of the installed tools, as `init` does in a project.
+- Yarn's version is read from more places without running it: a global install of `@yarnpkg/cli-dist`, Corepack's `lastKnownGood.json`, and a `yarnPath` in `~/.yarnrc.yml` that names `yarn-<version>.cjs`. Bun from its official installer still needs `--for`.
+- Poetry and PDM on macOS: the file they read depends on the platformdirs version installed next to them, which depcurfew now reads; when it cannot, `apply --user` writes where the documentation says and warns with both paths (`user-file-uncertain`).
+
+### Claude Code hook and installation
+
+- The README says what the hook does before depcurfew is installed: with `onFailure: "block"` a missing `node_modules/depcurfew` blocks every shell command, including the install that would bring it. It shows a `SessionStart` hook that installs the locked copy first, a layout for repositories without `package.json` in the root, and what to do in cloud sessions or when already locked out.
+- `init` warns when it finds Python tools that the default policy also blocks building packages from source, so a package without wheels stops installing; run `doctor` before `apply`.
+- The README recommends `--save-exact` and says what depcurfew does not do: it has no malware database, so use it together with a tool that blocks known malware.
+
+### Compatibility
+
+- depcurfew runs on Node.js 18.3.0 or later (it needed 22 before); CI runs every command on the oldest supported version. Node.js 18 and 20 no longer get security fixes from the Node.js project.
+- With `FORCE_COLOR` and `NO_COLOR` both set, and on Node.js 18 before 18.17 for `check`, Node.js no longer prints its own warnings to stderr, which stays empty with `--json`.
+
 ## 1.2.0
 
 ### Protecting the whole machine

@@ -2,6 +2,15 @@
 
 Krótkie podsumowanie po każdej fazie planu. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-01 · 1.3.0: MCP, `doctor --strict`, `projects`, npm z wersji Node i Dockerfile, resztki 1.2.0 (D-096–D-104)
+
+- Wnioski z oceny depcurfew 1.2.0 przez inną sesję Claude Code (zespół z kilkoma niezależnymi katalogami, npm 10 w obrazach, backend w Pythonie) weszły do zakresu: `projects` (D-100), npm i pip z wersji Node i Pythona, pliki wersji Node i Dockerfile (D-099), README o hooku przed instalacją depcurfew, przypięciu wersji i granicach narzędzia, uwaga o budowaniu Pythona w `init` (D-102), najniższy Node dla CLI (D-103).
+- Badanie u źródeł w trzech wątkach (MCP i klienci; Node, npm i obrazy Docker; resztki 1.2.0, Checks API i hooki Claude Code), kluczowe fakty sprawdzone ponownie przed decyzjami.
+- Implementacja w pięciu worktree, każdy z własną decyzją: D-096 (serwer MCP), D-098 i D-104 (not applicable; Action `fail-on`, adnotacje, jeden wpis na commit), D-099, D-100, D-101 (`init --user`, wersje Yarn z plików, Poetry i PDM na macOS według platformdirs, jednostka Deno). D-097 (`doctor --strict`, ostrzeżenie Node o NO_COLOR), D-102 i D-103 zrobione bezpośrednio.
+- Przy scalaniu: kolizja nazw typu `ProjectView` (zakres reguły to teraz `RuleScope`), `applies` dla `invalid-project` i `runtime-end-of-life`, `usesManager` w korzeniu widzi menedżery projektów, `relocateDetection` przenosi `jobs` i `dockerfiles`, deklaracje z CI mają `step`, więc instalacja liczy się tylko po swoim kroku `setup-node` (zadanie `runtime` buduje na Node 24, a uruchamia na starym Node); CI repozytorium instaluje npm z `packageManager` przed `npm ci`.
+- CI na gałęzi pokazało dwa błędy niewidoczne lokalnie: na Node 24 i 26 ostrzeżenie NO_COLOR przychodzi przed wykonaniem modułu (polecenia ładowane dynamicznie po filtrze), a na Node 18 przed 18.17 `fetch` ostrzega jako eksperymentalny (filtr). Najniższy Node ustalony w CI: 18.3.0.
+- Weryfikacja: `npm test` (3349 testów), `npm run typecheck`, `npm run check:pkg`; `depcurfew doctor .` bez uwag, `apply --dry-run .` bez zmian; scenariusz z oceny (frontend z `Dockerfile.ssr` na `node:20-alpine`, backend z `python:3.12-slim`) odtworzony ręcznie.
+
 ## 2026-10-31 · Po wydaniu 1.2.0: przykład Action z SHA wydania
 
 - `depcurfew@1.2.0` opublikowana 21:06 UTC z tagu `v1.2.0` (commit 25fb616, scalenie PR #22) przez trusted publishing, z proweniencją SLSA; pliki w rejestrze są bajt w bajt takie same jak kompilacja z tego tagu.
