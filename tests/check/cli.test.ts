@@ -54,7 +54,9 @@ describe('depcurfew check', () => {
   it('uses the default policy without depcurfew.json and fails on install scripts', async () => {
     const result = await exec(['check', '--dir', project(), 'esbuild', 'request']);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stderr).toBe('note: no depcurfew.json found; checking against the default policy of depcurfew init (depcurfew init writes it)\n');
+    expect(result.stderr).toBe(
+      'note: no depcurfew.json found; checking against the default policy of depcurfew init (depcurfew init writes it) (policy-missing)\n  fix: Run depcurfew init to write depcurfew.json with this policy, then change it as the project needs\n',
+    );
     expect(result.stdout).toContain(
       'esbuild@0.28.2:\n  error: esbuild@0.28.2 runs install scripts (postinstall: "node install.js") that depcurfew.json does not allow\n    fix: Pick a package without install scripts, or add esbuild to installScripts.allow in depcurfew.json if you trust them\n',
     );
@@ -147,7 +149,15 @@ describe('depcurfew check', () => {
     expect([result.code, result.stderr]).toEqual([EXIT_OK, '']);
     const report = JSON.parse(result.stdout) as { policy: unknown; notices: unknown[]; errors: unknown[] };
     expect(report).toMatchObject({ policy: null, errors: [] });
-    expect(report.notices).toEqual([{ message: 'no depcurfew.json found; checking against the default policy of depcurfew init (depcurfew init writes it)' }]);
+    // The fields of a notice of doctor (decision D-116): level, code, message and fix (decision D-118).
+    expect(report.notices).toEqual([
+      {
+        level: 'note',
+        code: 'policy-missing',
+        message: 'no depcurfew.json found; checking against the default policy of depcurfew init (depcurfew init writes it)',
+        fix: 'Run depcurfew init to write depcurfew.json with this policy, then change it as the project needs',
+      },
+    ]);
   });
 });
 
@@ -517,7 +527,14 @@ describe('depcurfew check and the hook against bypasses', () => {
     const result = await exec(['check', '--json', '--dir', directory, 'cross-env']);
     const report = JSON.parse(result.stdout) as { packages: { version: string; tag: string }[]; notices: { message: string }[] };
     expect(report.packages[0]).toMatchObject({ version: '5.0.0-beta.0', tag: 'beta' });
-    expect(report.notices).toEqual([{ message: 'npm prefers the dist-tag "beta" (tag= in .npmrc, line 2) for packages named without a version or with a range' }]);
+    expect(report.notices).toEqual([
+      {
+        level: 'note',
+        code: 'npm-dist-tag',
+        location: { file: '.npmrc', line: 2 },
+        message: 'npm prefers the dist-tag "beta" (tag= in .npmrc, line 2) for packages named without a version or with a range',
+      },
+    ]);
   });
 
   it('applies tag= from .npmrc to npm only: pnpm, Yarn, Bun and Deno pick the default tag', async () => {
@@ -543,10 +560,11 @@ describe('depcurfew check and the hook against bypasses', () => {
       return { code, stdout, stderr };
     };
     const text = await run2(['check', '--dir', directory, 'lodash']);
-    expect(text.stderr).toBe('note: npm packages were looked up in http://npm.internal.example/ (registry= in .npmrc, line 1), not in the public npm registry\n');
+    expect(text.stderr).toBe('note: npm packages were looked up in http://npm.internal.example/ (registry= in .npmrc, line 1), not in the public npm registry (registry-not-public)\n');
     expect(text.stdout).toContain('warning: the registry http://npm.internal.example/ is reached over plain HTTP');
     const json = JSON.parse((await run2(['check', '--json', '--dir', directory, 'lodash'])).stdout) as { notices: { message: string }[]; packages: { findings: { code: string }[] }[] };
     expect(json.notices[0]?.message).toContain('looked up in http://npm.internal.example/ (registry= in .npmrc, line 1)');
+    expect(json.notices[0]).toMatchObject({ level: 'note', code: 'registry-not-public', location: { file: '.npmrc', line: 1 } });
     expect(json.packages[0]?.findings.map((finding) => finding.code)).toEqual(['insecure-registry']);
     const hook = await run2(['check', '--hook', 'claude-code'], event('npm i this-package-does-not-exist-xyz-123', directory));
     expect(decision(hook.stdout).permissionDecisionReason).toContain('\nnpm packages were looked up in http://npm.internal.example/ (registry= in .npmrc, line 1), not in the public npm registry.');
@@ -558,6 +576,37 @@ describe('depcurfew check and the hook against bypasses', () => {
     const result = await exec(['check', '--hook', 'claude-code'], event('npm i lodash', directory));
     expect(decision(result.stdout).permissionDecision).toBe('ask');
     expect(decision(result.stdout).permissionDecisionReason).toContain('http://169.254.169.254 is a link-local address');
+  });
+
+  it('gives each notice of check --json a level, a code, the file it concerns and what to do (decision D-118)', async () => {
+    const directory = project({});
+    writeFileSync(join(directory, '.npmrc'), '# metadata service\nregistry=http://169.254.169.254/latest/\n');
+    const linkLocal = JSON.parse((await exec(['check', '--json', '--dir', directory, 'lodash'])).stdout) as { notices: unknown[] };
+    expect(linkLocal.notices).toEqual([
+      {
+        level: 'note',
+        code: 'registry-link-local',
+        location: { file: '.npmrc', line: 2 },
+        message: 'npm packages would be looked up in http://169.254.169.254/latest/ (registry= in .npmrc, line 2), which depcurfew does not ask',
+        fix: 'Set a registry that is not at a link-local address, or pass --registry with the registry depcurfew should ask',
+      },
+    ]);
+    // A configuration file that is not a regular file is named, with what to do; the text says the same.
+    const skipped = project({});
+    mkdirSync(join(skipped, '.npmrc'));
+    const json = JSON.parse((await exec(['check', '--json', '--dir', skipped, 'lodash'])).stdout) as { notices: unknown[] };
+    expect(json.notices).toEqual([
+      {
+        level: 'note',
+        code: 'config-not-read',
+        location: { file: '.npmrc' },
+        message: '.npmrc was not read: it is not a regular file; its registry settings, if any, were not used',
+        fix: 'Make .npmrc a regular file of at most 1 MiB that depcurfew can read, or remove it',
+      },
+    ]);
+    expect((await exec(['check', '--dir', skipped, 'lodash'])).stderr).toBe(
+      'note: .npmrc was not read: it is not a regular file; its registry settings, if any, were not used (config-not-read)\n  fix: Make .npmrc a regular file of at most 1 MiB that depcurfew can read, or remove it\n',
+    );
   });
 
   it('checks at most 50 packages of one command and asks about the rest', async () => {

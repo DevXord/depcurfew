@@ -33,6 +33,9 @@ export const MAX_CONFIG_SIZE = 1024 * 1024;
 export interface WrittenSetting {
   value: string;
   where: string;
+  /** The file and line, as messages show them (decision D-118: the location of a notice). */
+  file?: string;
+  line?: number;
 }
 
 /** A registry setting that the install would use but depcurfew does not take, so the packages it applies to are not vouched for. */
@@ -222,6 +225,8 @@ export interface NpmrcOptions {
   home: string;
   /** The directory paths in messages are relative to. */
   base: string;
+  /** The local prefix given with npm --prefix, which npm takes as it is instead of looking for package.json. */
+  prefix?: string | undefined;
 }
 
 /**
@@ -236,8 +241,8 @@ export function npmrcSettings(start: string, options: NpmrcOptions): NpmrcSettin
     for (const { key, value, line } of iniEntries(text)) {
       const where = `${key}= in ${file}, line ${line}`;
       // A user name and password in a registry URL are neither sent (fetch refuses them anyway) nor shown.
-      if (key === config.key) result.registry = { value: withoutCredentials(value), where };
-      else if (tagKey !== undefined && key === tagKey) result.tag = { value, where };
+      if (key === config.key) result.registry = { value: withoutCredentials(value), where, file, line };
+      else if (tagKey !== undefined && key === tagKey) result.tag = { value, where, file, line };
       else if (key.startsWith('@') && key.endsWith(config.scopeKeySuffix)) result.scopes.set(key.slice(0, -config.scopeKeySuffix.length), withoutCredentials(value));
     }
   };
@@ -249,7 +254,8 @@ export function npmrcSettings(start: string, options: NpmrcOptions): NpmrcSettin
   const base = realPath(options.base);
   const trusted = new Set(options.trusted.map(realPath));
   const realUser = realPath(userPath);
-  const { prefix, workspace } = npmLocalPrefix(start);
+  // npm --prefix names the local prefix itself (extra.localPrefix of npm, decision D-118).
+  const { prefix, workspace } = options.prefix === undefined ? npmLocalPrefix(start) : { prefix: realPath(options.prefix), workspace: undefined };
   const unread = (directory: string) => {
     const path = join(directory, config.file);
     // npm does not read the user file a second time as the project's.

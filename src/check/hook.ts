@@ -9,7 +9,7 @@ import { safeJson } from '../json-safe.ts';
 import { environment } from '../knowledge/environment.ts';
 import { printable, withoutCredentials } from '../printable.ts';
 import type { ClaudeCodeHookContextKnowledge, ClaudeCodeHooksKnowledge, ClaudeCodeShellTool } from '../knowledge/types.ts';
-import { scanCommandLine, TOO_MANY, unreadableFix, type Override, type ScanOptions } from './command.ts';
+import { scanCommandLine, TOO_MANY, unreadableFix, type CommandDirectory, type Override, type ScanOptions } from './command.ts';
 import type { CheckFinding, CheckRequest, FindingCode, PackageReport } from './findings.ts';
 import { REGISTRY_RETRY_FIX } from './index.ts';
 import { INDEX_RETRY_FIX } from './python.ts';
@@ -257,14 +257,24 @@ export function formatDecision(decision: HookDecision): string | undefined {
 /** How many specs of one command are checked: more would mean as many requests to the registry. */
 export const MAX_CHECKED = 50;
 
+/** A package to check for a command, with the directory its install runs in (decision D-118). */
+export interface PlacedRequest {
+  request: CheckRequest;
+  /** Relative to the hook's working directory; left out for that directory. */
+  directory?: CommandDirectory;
+  /** The command that installs it, for messages. */
+  command: string;
+}
+
 /**
- * Specs to check for a command, without repeats and at most MAX_CHECKED, why part of it could not be read, and the
- * options and variables that weaken the delay or the rule on install scripts (compared with the policy by overrideDoubt).
+ * Specs to check for a command, without repeats and at most MAX_CHECKED, with the directory each install runs in; why
+ * part of it could not be read; and the options and variables that weaken the delay or the rule on install scripts
+ * (compared with the policy by overrideDoubt).
  */
-export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'posix'): { specs: CheckRequest[]; unreadable: string | undefined; overrides: readonly Override[] } {
+export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'posix'): { specs: PlacedRequest[]; unreadable: string | undefined; overrides: readonly Override[] } {
   const scan = scanCommandLine(command, { shell });
-  const unique = new Map<string, CheckRequest>();
-  for (const { tool, spec, tag, prereleases, buildFromSource } of scan.requests) {
+  const unique = new Map<string, PlacedRequest>();
+  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written } of scan.requests) {
     const request: CheckRequest = {
       spec,
       // The tool decides which of its own registry settings apply (decision D-113).
@@ -275,7 +285,8 @@ export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'pos
       ...(prereleases === undefined ? {} : { prereleases }),
       ...(buildFromSource === undefined ? {} : { buildFromSource }),
     };
-    unique.set(JSON.stringify(request), request);
+    const key = JSON.stringify([request, directory ?? null]);
+    if (!unique.has(key)) unique.set(key, { request, ...(directory === undefined ? {} : { directory }), command: written });
   }
   const specs = [...unique.values()];
   const overrides = scan.overrides ?? [];

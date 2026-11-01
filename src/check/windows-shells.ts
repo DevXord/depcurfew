@@ -29,8 +29,8 @@ export interface PowerShellStatement {
 
 export interface PowerShellReading {
   items: Item[];
-  /** Command lines inside brackets: (…), $(…), @(…), {…} and @{…}, also inside "…". */
-  nested: string[];
+  /** Command lines inside brackets: (…), $(…), @(…), {…} and @{…}, also inside "…"; `at` is the index in `items` of the word they are in. */
+  nested: { line: string; at: number }[];
   statements: PowerShellStatement[];
   /** The line without comments and without the names of the $env: assignments that were read. */
   named: string;
@@ -135,7 +135,7 @@ function closing(line: string, open: number, level = 0): number {
 /** Splits a PowerShell command line into words, separators and redirections; see the comment at the top. */
 export function readPowerShell(line: string): PowerShellReading {
   const items: Item[] = [];
-  const nested: string[] = [];
+  const nested: { line: string; at: number }[] = [];
   const statements: PowerShellStatement[] = [];
   const blanked = [...line];
   const blank = (from: number, to: number) => {
@@ -187,7 +187,7 @@ export function readPowerShell(line: string): PowerShellReading {
   const bracket = (from: number, open: number): number => {
     const end = closing(line, open);
     const stop = end === -1 ? line.length : end;
-    nested.push(line.slice(open + 1, end === -1 ? line.length : end - 1));
+    nested.push({ line: line.slice(open + 1, end === -1 ? line.length : end - 1), at: items.length });
     constructs.push(end === -1 ? `${quote(line.slice(from, stop))} (not closed)` : quote(line.slice(from, stop)));
     text += line.slice(from, stop);
     started = true;
@@ -246,7 +246,7 @@ export function readPowerShell(line: string): PowerShellReading {
     }
     if (char === '\n' || char === '\r') {
       endStatement(index, index + 1);
-      items.push({ kind: 'separator' });
+      items.push({ kind: 'separator', operator: '\n' });
       index += 1;
       continue;
     }
@@ -284,18 +284,18 @@ export function readPowerShell(line: string): PowerShellReading {
     }
     if (char === ';') {
       endStatement(index, index + 1);
-      items.push({ kind: 'separator' });
+      items.push({ kind: 'separator', operator: ';' });
       index += 1;
       continue;
     }
     if (char === '|') {
       if (next === '|') {
         endStatement(index, index + 2);
-        items.push({ kind: 'separator' });
+        items.push({ kind: 'separator', operator: '||' });
         index += 2;
       } else {
         finish();
-        items.push({ kind: 'separator', pipe: true });
+        items.push({ kind: 'separator', pipe: true, operator: '|' });
         commandPending = true;
         index += 1;
       }
@@ -304,7 +304,7 @@ export function readPowerShell(line: string): PowerShellReading {
     if (char === '&') {
       if (next === '&') {
         endStatement(index, index + 2);
-        items.push({ kind: 'separator' });
+        items.push({ kind: 'separator', operator: '&&' });
         index += 2;
       } else if (!started && commandPending) {
         // The call operator: the next word is the command.
@@ -312,7 +312,7 @@ export function readPowerShell(line: string): PowerShellReading {
       } else {
         // The background operator ends the statement.
         endStatement(index, index + 1);
-        items.push({ kind: 'separator' });
+        items.push({ kind: 'separator', operator: '&' });
         index += 1;
       }
       continue;
@@ -480,9 +480,10 @@ export function readCmd(line: string): Item[] {
     started = false;
     dynamic = false;
   };
-  const separator = (pipe = false) => {
+  const separator = (pipe = false, operator?: string) => {
     finish();
-    items.push(pipe ? { kind: 'separator', pipe: true } : { kind: 'separator' });
+    const shown = operator === undefined ? {} : { operator };
+    items.push(pipe ? { kind: 'separator', pipe: true, ...shown } : { kind: 'separator', ...shown });
     commandPending = true;
   };
   const expansion = (at: number): string | undefined => {
@@ -531,24 +532,24 @@ export function readCmd(line: string): Item[] {
       continue;
     }
     if (char === '\n' || char === '\r') {
-      separator();
+      separator(false, '\n');
       index += 1;
       continue;
     }
     if (char === '&' || char === '|') {
       const double = next === char;
-      separator(char === '|' && !double);
+      separator(char === '|' && !double, double ? `${char}${char}` : char);
       index += double ? 2 : 1;
       continue;
     }
     if (char === '(' && !started && commandPending) {
-      separator();
+      separator(false, '(');
       parentheses += 1;
       index += 1;
       continue;
     }
     if (char === ')' && parentheses > 0) {
-      separator();
+      separator(false, ')');
       parentheses -= 1;
       index += 1;
       continue;

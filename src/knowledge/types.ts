@@ -478,6 +478,34 @@ export interface InstallOverridesKnowledge {
   variables: readonly OverrideSwitch[];
 }
 
+/**
+ * An option or environment variable that makes one command of a tool run in another directory, or find its project
+ * there (decision D-118): the install guard then checks the install with the policy of that directory.
+ */
+export interface DirectoryOption {
+  /** The option as the scanner resolves it (--prefix; a short form the tool's parsing expands is left out) or the variable. */
+  name: string;
+  /**
+   * directory: the command runs as if started there; project: only its project (and so its configuration files) is
+   * found from there, while other relative paths stay relative to the working directory. A project option is relative
+   * to the directory a directory option gives, when both are used.
+   */
+  moves: 'directory' | 'project';
+  /** Where the option counts: anywhere among the tool's options (left out), only as the first argument, or as the last two words of `command`. */
+  position?: 'first' | 'last';
+  /** With position last: the command it counts in, e.g. ["yarn", "add"]. */
+  command?: readonly string[];
+  /** Commands of the tool on which it has no effect (uv pip with --project). */
+  ignoredBy?: readonly (readonly string[])[];
+  /** npm: the directory is the local prefix as given; npm reads its .npmrc without looking for a package.json above it. */
+  localPrefix?: boolean;
+}
+
+export interface DirectoryOptionsKnowledge {
+  options: readonly DirectoryOption[];
+  variables: readonly DirectoryOption[];
+}
+
 /** A command that changes the tool's configuration, which an install later in the same command line reads. */
 export interface ConfigCommand {
   /** The executable and its subcommand, e.g. ["npm", "config"]. */

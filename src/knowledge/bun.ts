@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
+import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -245,6 +245,11 @@ export const bun: ToolKnowledge = {
       `${INSTALL}#minimum-release-age`,
     ),
     bunxCooldown: verified('bunx applies --minimum-release-age only since 1.4.4', 'https://bun.com/blog/bun-v1.4.4'),
+    directoryOptions: runtimes.verified<DirectoryOptionsKnowledge>(
+      { options: [{ name: '--cwd', moves: 'directory' }], variables: [] },
+      `${BUN_V1_4_4}/docs/snippets/cli/add.mdx`,
+      'bun add: <ParamField path="--cwd" type="string"> "Set a specific current working directory" (Global Configuration & Context); bun install has the same option, "Set a specific cwd" (docs/snippets/cli/install.mdx at the same tag, General Configuration).',
+    ),
     installOverrides: runtimes.verified(
       {
         options: [

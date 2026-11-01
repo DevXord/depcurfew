@@ -273,6 +273,13 @@ const bun$1 = {
 		trustedDependenciesReplacesDefaults: checked$7.verified("Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts", `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`, "So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild's postinstall (esbuild is on the built-in list); with \"trustedDependencies\": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29."),
 		lockedVersionsNotRechecked: verified$12("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$1}#minimum-release-age`),
 		bunxCooldown: verified$12("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4"),
+		directoryOptions: runtimes$3.verified({
+			options: [{
+				name: "--cwd",
+				moves: "directory"
+			}],
+			variables: []
+		}, `${BUN_V1_4_4}/docs/snippets/cli/add.mdx`, "bun add: <ParamField path=\"--cwd\" type=\"string\"> \"Set a specific current working directory\" (Global Configuration & Context); bun install has the same option, \"Set a specific cwd\" (docs/snippets/cli/install.mdx at the same tag, General Configuration)."),
 		installOverrides: runtimes$3.verified({
 			options: [{
 				name: "--minimum-release-age",
@@ -1581,6 +1588,14 @@ const npm$1 = {
 				}
 			]
 		}, NPM_DEFINITIONS, "Settings that a single npm command can change on its command line or in its environment: \"Putting --foo bar on the command line sets the foo configuration parameter\", \"--flag without specifying any value will set the value to true\", \"Any environment variables that start with npm_config_ will be interpreted as a configuration parameter\", case-insensitive, and an environment configuration without a value is true (docs/lib/content/using-npm/config.md at v12.2.1). Types in definitions.js at v12.2.1: ignore-scripts Boolean, default false (\"If true, npm does not run scripts specified in package.json files\"); min-release-age null or Number of days; before null or Date; min-release-age-exclude a list exempt from min-release-age and before; dangerously-allow-all-scripts Boolean, which bypasses the allowScripts policy; allow-scripts a list of packages whose install scripts may run. A value other than true for ignore-scripts, any true value of dangerously-allow-all-scripts (the false values as in user.variables), any allow-scripts, before or min-release-age-exclude, and a min-release-age shorter than the policy weaken what depcurfew apply wrote."),
+		directoryOptions: runtimes$2.verified({
+			options: [{
+				name: "--prefix",
+				moves: "directory",
+				localPrefix: true
+			}],
+			variables: []
+		}, NPM_DEFINITIONS, "prefix (short C, so -C dir is --prefix dir): \"The location to install global items. If set on the command line, then it forces non-global commands to run in the specified folder.\" loadLocalPrefix in workspaces/config/lib/index.js (v12.2.1) reads it only from the command line (\"this.#get('prefix', 'cli')\"), takes it as the local prefix as given and does not walk up, so npm_config_prefix and .npmrc do not move a command; the project .npmrc is the one in that folder."),
 		booleanWords: runtimes$2.verified(true, "https://github.com/npm/nopt/blob/v10.0.1/lib/nopt-lib.js", "nopt, which parses the npm command line, also supports \"--bool true or --bool false\": a Boolean option followed by the word true or false takes it as its value and skips it, and a --no- prefix inverts the value (parse in lib/nopt-lib.js at v10.0.1, used by npm 12.2.1, and the same code at v9.0.0, used by npm 11.21.1)."),
 		installCommands: runtimes$2.verified({
 			install: INSTALL_ALIASES,
@@ -2588,6 +2603,19 @@ const pdm$1 = {
 			file: "pdm.toml",
 			key: "use_uv"
 		}, `${PDM}/docs/usage/uv.md`, "Experimental since 2.19.0: PDM resolves and installs with uv. It passes the cutoff and the build settings to uv lock, but runs uv sync --frozen without the build settings (src/pdm/installers/uv.py), and pdm.lock then lists source distributions even with only-binary."),
+		directoryOptions: leftovers$3.verified({
+			options: [{
+				name: "-p",
+				moves: "project"
+			}, {
+				name: "--project",
+				moves: "project"
+			}],
+			variables: [{
+				name: "PDM_PROJECT",
+				moves: "project"
+			}]
+		}, `${PDM}/src/pdm/cli/options.py`, "project_option: \"-p\", \"--project\", dest=\"project_path\", help \"Specify another path as the project root, which changes the base of pyproject.toml and __pypackages__ [env var: PDM_PROJECT]\", default=os.getenv(\"PDM_PROJECT\")."),
 		commandLine: verified$7({
 			add: [["pdm", "add"]],
 			run: [],
@@ -3312,6 +3340,13 @@ const pnpm$1 = {
 			}
 		}, `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`, "pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag. Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y."),
 		booleanWords: runtimes$1.verified(true, "https://github.com/pnpm/nopt/blob/main/lib/nopt.js", "The nopt fork pnpm imports (@pnpm/nopt, imported by pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1) reads a Boolean option followed by the word true or false as that value and skips the word, inverted after --no- (parse in lib/nopt.js)."),
+		directoryOptions: runtimes$1.verified({
+			options: [{
+				name: "--dir",
+				moves: "directory"
+			}],
+			variables: []
+		}, "https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/pnpm-cli.md", "-C <path>, --dir <path>: \"Run as if pnpm was started in <path> instead of the current working directory.\" -C is the shorthand of --dir (parsing.shorthands). pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1 takes dir from the options nopt parsed from the whole command line (\"let dir = parsedOpts['dir']\") and looks for the workspace from it (\"findWorkspaceDir((dir ?? process.cwd()) as string)\"). -w, --workspace-root (\"Run as if pnpm was started in the root of the workspace\") is not listed: it names no directory."),
 		configCommands: runtimes$1.verified([
 			{
 				command: ["pnpm", "config"],
@@ -3871,6 +3906,27 @@ const poetry$1 = {
 			}
 		}, CONFIGURATION$2, "installer.no-binary (POETRY_INSTALLER_NO_BINARY) disallows wheels for :all: or true, none for :none: or false, or the named packages separated by commas; installer.only-binary (POETRY_INSTALLER_ONLY_BINARY, since 2.0.0) takes the same values; explicit package names win over :all:. poetry add --allow-prereleases accepts pre-releases (src/poetry/console/commands/add.py)."),
 		latestVersion: verified$4("2.5.1", CHANGELOG, "Released on 2026-09-20."),
+		directoryOptions: leftovers$2.verified({
+			options: [
+				{
+					name: "-C",
+					moves: "directory"
+				},
+				{
+					name: "--directory",
+					moves: "directory"
+				},
+				{
+					name: "-P",
+					moves: "project"
+				},
+				{
+					name: "--project",
+					moves: "project"
+				}
+			],
+			variables: []
+		}, `${POETRY}/docs/cli.md`, "Global options: --directory=DIRECTORY (-C) \"The working directory for the Poetry command (defaults to the current working directory). All command-line arguments will be resolved relative to the given directory.\"; --project=PROJECT (-P) \"Specify another path as the project root. All command-line arguments will be resolved relative to the current working directory or directory specified using --directory option if used.\" The page names no environment variable for either."),
 		configCommands: leftovers$2.verified([{
 			command: ["poetry", "config"],
 			operands: 2,
@@ -4797,6 +4853,31 @@ const uv$1 = {
 			}]
 		}, CLI, "VersionSelectionArgs: --prerelease takes disallow, allow, if-necessary, explicit or if-necessary-or-explicit (UV_PRERELEASE); allow considers pre-releases of every package and disallow none (docs/concepts/resolution.md); --prerelease-package takes PACKAGE=MODE; the hidden --pre means allow. BuildOptionsArgs of uv add, uv run, uv tool install and uv tool run (uvx): --no-binary (UV_NO_BINARY, a boolean) installs every package from source, --binary turns it off, --no-binary-package names one package (UV_NO_BINARY_PACKAGE, separated by spaces). uv pip install takes --no-binary and --only-binary as lists separated by commas with :all: and :none:, as pip does (PipInstallArgs)."),
 		latestVersion: verified$2("0.13.6", `${UV}/CHANGELOG.md`, "Released on 2026-10-26."),
+		directoryOptions: guard.verified({
+			options: [{
+				name: "--directory",
+				moves: "directory"
+			}, {
+				name: "--project",
+				moves: "project",
+				ignoredBy: [["uv", "pip"]]
+			}],
+			variables: [
+				{
+					name: "UV_WORKING_DIR",
+					moves: "directory"
+				},
+				{
+					name: "UV_WORKING_DIRECTORY",
+					moves: "directory"
+				},
+				{
+					name: "UV_PROJECT",
+					moves: "project",
+					ignoredBy: [["uv", "pip"]]
+				}
+			]
+		}, CLI, "GlobalArgs (global = true, so before or after the subcommand): --directory \"Change to the given directory prior to running the command. Relative paths are resolved with the given directory as the base\", env UV_WORKING_DIR; --project \"Discover a project in the given directory. All pyproject.toml, uv.toml, and .python-version files will be discovered by walking up the directory tree from the project root … Other command-line arguments (such as relative paths) will be resolved relative to the current working directory … This setting has no effect when used in the uv pip interface\", env UV_PROJECT. crates/uv-static/src/env_vars.rs: UV_WORKING_DIR is \"Equivalent to the --directory command-line argument. UV_WORKING_DIRECTORY (added in v0.9.1) is also supported for backwards compatibility\", UV_PROJECT \"Equivalent to the --project command-line argument\"."),
 		installOverrides: guard.verified({
 			options: [{
 				name: "--exclude-newer",
@@ -5115,6 +5196,19 @@ const yarn$1 = {
 		classicLockfileHeader: verified$1("# yarn lockfile v1", "https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js", "Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js)."),
 		latestVersion: verified$1("4.18.1", release$1("4.18.1"), "Yarn 6 is still in preview."),
 		bypassFlag: verified$1("--no-time-gate on yarn add and yarn up (4.15.0+)", "https://yarnpkg.com/cli/add"),
+		directoryOptions: leftovers$1.verified({
+			options: [{
+				name: "--cwd",
+				moves: "directory",
+				position: "first"
+			}, {
+				name: "--cwd",
+				moves: "directory",
+				position: "last",
+				command: ["yarn", "add"]
+			}],
+			variables: []
+		}, `${BERRY}/packages/yarnpkg-cli/sources/lib.ts`, "checkCwd takes --cwd <dir> or --cwd=<dir> only as the first argument (\"argv[0] === `--cwd`\", \"argv[0].startsWith(`--cwd=`)\"), and for yarn add also as the last two words (\"argv[0] === `add` && argv[argv.length - 2] === `--cwd`\"; \"CRA adds `--cwd` at the end of the command\"), removes them and runs the command with cli.defaultContext.cwd = ppath.resolve(cwd). Yarn finds the project and its .yarnrc.yml files from that directory."),
 		configCommands: leftovers$1.verified([{
 			command: ["yarn", "config"],
 			writes: ["set", "unset"]

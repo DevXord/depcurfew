@@ -5,21 +5,21 @@
 // public npm registry; pypi: packages in the index given with --index, else PyPI. Exit code 1 when any package breaks
 // the policy or cannot be checked, 2 for a usage error such as a --dir that does not exist; in hook mode the decision
 // goes to stdout as JSON and the exit code is 0.
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { UserEnvironment } from '../user/locate.ts';
 import type { McpProcess } from './mcp.ts';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type CheckFinding, type CheckRequest, type PackageReport } from '../check/index.ts';
 import { parseRange, parseSemver } from '../check/semver.ts';
 import { parseSpec } from '../check/spec.ts';
 import { isPythonSpec } from '../check/python.ts';
-import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEvent, reasonText, requestedSpecs, UNREAD_REGISTRY_FIX_START } from '../check/hook.ts';
-import { overrideDoubt } from '../check/command.ts';
+import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEvent, reasonText, requestedSpecs, UNREAD_REGISTRY_FIX_START, type PlacedRequest } from '../check/hook.ts';
+import { overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal, type LookupCache } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
-import { hasRegistrySettings, npmrcSettings, sameRegistry, toolRegistrySettings, type NpmrcSettings, type SkippedFile, type UnreadSetting } from '../check/registry-settings.ts';
+import { hasRegistrySettings, MAX_CONFIG_SIZE, npmrcSettings, sameRegistry, toolRegistrySettings, type NpmrcSettings, type SkippedFile, type UnreadSetting, type WrittenSetting } from '../check/registry-settings.ts';
 import { quoted } from '../check/findings.ts';
 import { PopularNames } from '../check/similar.ts';
 import { values } from '../apply/facts.ts';
@@ -71,33 +71,49 @@ function defaultPolicy(): ResolvedPolicy {
   return result.policy;
 }
 
+/** The npm registry packages are looked up in, where it comes from (undefined for the public registry), and the file and line that set it. */
+interface UsedRegistry {
+  url: string;
+  where: string | undefined;
+  file?: string;
+  line?: number;
+}
+
 /** The npm registry to ask and where it comes from; `where` is undefined for the public registry. */
-function registryOf(given: string | undefined, registries: Pick<NpmrcSettings, 'registry'>): { url: string; where: string | undefined } {
+function registryOf(given: string | undefined, registries: Pick<NpmrcSettings, 'registry'>): UsedRegistry {
   const url = given === undefined ? (registries.registry?.value ?? defaultRegistry()) : withoutCredentials(given);
   const normalized = (text: string) => text.replace(/\/+$/u, '').toLowerCase();
   if (normalized(url) === normalized(defaultRegistry())) return { url, where: undefined };
-  return { url, where: given === undefined ? (registries.registry?.where ?? 'the configuration') : '--registry' };
+  if (given !== undefined) return { url, where: '--registry' };
+  const setting = registries.registry;
+  const location = setting?.file === undefined ? {} : { file: setting.file, ...(setting.line === undefined ? {} : { line: setting.line }) };
+  return { url, where: setting?.where ?? 'the configuration', ...location };
+}
+
+/** Whether a registry is at a link-local address, which depcurfew never asks (fetchSameOrigin). */
+function linkLocalRegistry(registry: UsedRegistry): boolean {
+  try {
+    return isLinkLocal(new URL(registry.url).hostname);
+  } catch {
+    // An invalid URL is reported by the lookup itself.
+    return false;
+  }
 }
 
 /**
  * What to say about a registry other than the public one: a malicious .npmrc could name any. After a check it says
  * where packages were looked up; for explain_policy of depcurfew mcp, where check_packages looks them up.
  */
-function registryNote(registry: { url: string; where: string | undefined }, when: 'checked' | 'explained' = 'checked'): string | undefined {
+function registryNote(registry: UsedRegistry, when: 'checked' | 'explained' = 'checked'): string | undefined {
   if (registry.where === undefined) return undefined;
-  let host = '';
-  try {
-    host = new URL(registry.url).hostname;
-  } catch {
-    // An invalid URL is reported by the lookup itself.
-  }
   // A link-local registry is not asked at all (fetchSameOrigin), so the packages were not looked up there.
+  const linkLocal = linkLocalRegistry(registry);
   if (when === 'explained') {
-    return isLinkLocal(host)
+    return linkLocal
       ? `check_packages would look npm packages up in ${registry.url} (${registry.where}), which depcurfew does not ask`
       : `check_packages looks npm packages up in ${registry.url} (${registry.where}), not in the public npm registry`;
   }
-  return isLinkLocal(host)
+  return linkLocal
     ? `npm packages would be looked up in ${registry.url} (${registry.where}), which depcurfew does not ask`
     : `npm packages were looked up in ${registry.url} (${registry.where}), not in the public npm registry`;
 }
@@ -189,13 +205,13 @@ export interface AppliedPolicy {
   /** A different depcurfew.json nearer the directory, applied too: the stricter answer counts. */
   nearer?: { policy: ResolvedPolicy; file: string };
   /** The npm registry packages are looked up in, and where it comes from (undefined for the public registry). */
-  registry: { url: string; where: string | undefined };
+  registry: UsedRegistry;
   /** The Python package index pypi: packages are looked up in. */
   index: string;
   /** Registries .npmrc assigns to scopes, whose packages are not looked up. */
   scopes: ReadonlyMap<string, string>;
   /** The dist-tag .npmrc makes npm prefer. */
-  tag: { value: string; where: string } | undefined;
+  tag: WrittenSetting | undefined;
   /** Registry settings npm reads there that depcurfew does not take: the packages they apply to are not vouched for. */
   unread: readonly UnreadSetting[];
   /** Configuration files that were not read. */
@@ -219,6 +235,13 @@ export interface PolicySettings {
   project?: string | undefined;
   /** The directory the paths of the result are relative to; `start` when left out. */
   base?: string;
+  /**
+   * The hook, for an install in another directory than its working directory (decision D-118): where the policies come
+   * from, in place of hookPolicyStart, while .npmrc and the other configuration files are those of `start`.
+   */
+  root?: { start: string; also?: string; project?: string } | undefined;
+  /** npm --prefix: npm's local prefix as given, whose .npmrc npm reads (decision D-118). */
+  npmPrefix?: string | undefined;
 }
 
 /**
@@ -228,7 +251,7 @@ export interface PolicySettings {
  * else `start`); see src/check/registry-settings.ts.
  */
 export function appliedPolicy(start: string, settings: PolicySettings): AppliedPolicyResult {
-  const root = settings.project === undefined ? { start } : hookPolicyStart(start, settings.project);
+  const root = settings.root ?? (settings.project === undefined ? { start } : hookPolicyStart(start, settings.project));
   const base = settings.base ?? start;
   const directory = findPolicyDirectory(root.start);
   const file = directory === undefined ? undefined : shownPath(base, join(directory, POLICY_FILE));
@@ -243,7 +266,7 @@ export function appliedPolicy(start: string, settings: PolicySettings): AppliedP
   const anchor = root.project ?? resolve(start);
   const trusted = directory === undefined ? [anchor] : [directory, ...(policy?.projects ?? []).map((project) => join(directory, project))];
   const top = root.project ?? directory ?? resolve(start);
-  const npmrc = npmrcSettings(start, { trusted, home: settings.home, base });
+  const npmrc = npmrcSettings(start, { trusted, home: settings.home, base, prefix: settings.npmPrefix });
   const lookups: Lookups = {
     registry: registryOf(settings.registry, npmrc),
     index: settings.index === undefined ? defaultIndex() : withoutCredentials(settings.index),
@@ -387,6 +410,8 @@ export interface RunSettings {
   scriptBodies?: boolean;
   /** Whether the index was given (--index); without it PyPI. */
   index?: string | undefined;
+  /** Lookups shared with other checks of the same command (the hook's installs in several directories). */
+  lookups?: LookupCache;
 }
 
 /**
@@ -395,7 +420,7 @@ export interface RunSettings {
  * lists the configuration files that were not read.
  */
 export async function checkApplied(requests: readonly CheckRequest[], applied: AppliedPolicy, settings: RunSettings): Promise<{ reports: PackageReport[]; skipped: SkippedFile[] }> {
-  const lookups: LookupCache = new Map();
+  const lookups: LookupCache = settings.lookups ?? new Map();
   const tools = toolSettings(requests, applied);
   const unread = [...applied.unread, ...tools.unread];
   const options = (policy: ResolvedPolicy) => ({
@@ -439,10 +464,93 @@ function skippedNotice(skipped: SkippedFile): string {
   return `${skipped.file} was not read: ${skipped.reason}; ${what}`;
 }
 
-/** The notice that a nearer depcurfew.json applies besides the main one. */
-function nearerNotice(applied: AppliedPolicy, mainName: string): string | undefined {
+/** The notice that a nearer depcurfew.json applies besides the main one; `where`: the directory of the installs, when not the working directory. */
+function nearerNotice(applied: AppliedPolicy, mainName: string, where?: string): string | undefined {
   if (applied.nearer === undefined) return undefined;
-  return `Besides ${mainName}, ${applied.nearer.file} also applies here; the stricter answer counts`;
+  return `Besides ${mainName}, ${applied.nearer.file} also applies ${where === undefined ? 'here' : `to what the command installs in ${where}`}; the stricter answer counts`;
+}
+
+/** The real path of a directory that may not exist yet (mkdir app && cd app && npm i x): of its nearest existing parent. */
+function realPathOfAny(path: string): string {
+  const absolute = resolve(path);
+  const rest: string[] = [];
+  for (let directory = absolute; ; directory = dirname(directory)) {
+    try {
+      return join(realpathSync(directory), ...rest);
+    } catch {
+      if (dirname(directory) === directory) return absolute;
+      rest.unshift(basename(directory));
+    }
+  }
+}
+
+/** The root of the git repository a directory is in (the first with .git), or undefined. */
+function repositoryRoot(start: string): string | undefined {
+  for (let directory = resolve(start); ; directory = dirname(directory)) {
+    if (existsSync(join(directory, '.git'))) return directory;
+    if (dirname(directory) === directory) return undefined;
+  }
+}
+
+/** How many directories of one command the hook reads policies and configuration files for; more asks. */
+const MAX_DIRECTORIES = 20;
+
+/** The installs and overrides of a command that run in one directory, and the policies, registries and files for them. */
+interface HookGroup {
+  /** here: the working directory; inside or outside the project; unknown: a directory depcurfew cannot tell. */
+  kind: 'here' | 'inside' | 'outside' | 'unknown';
+  /** The directory, real and absolute; undefined for unknown. */
+  directory: string | undefined;
+  /** npm --prefix gave it: npm's local prefix as it is. */
+  localPrefix: boolean;
+  requests: PlacedRequest[];
+  overrides: Override[];
+}
+
+/**
+ * The installs and overrides of a command by the directory they run in (decision D-118), so that each set of policies
+ * and configuration files is read once. An override in a directory depcurfew cannot tell keeps the working directory,
+ * as before; an install there is checked with the project's policy and asks.
+ */
+function hookGroups(cwd: string, specs: readonly PlacedRequest[], overrides: readonly Override[], project: string): { groups: HookGroup[]; tooMany?: string } {
+  const groups = new Map<string, HookGroup>();
+  const here = realPathOfAny(cwd);
+  let directories = 0;
+  let dropped = 0;
+  const groupOf = (directory: CommandDirectory | undefined, overridden: boolean): HookGroup | undefined => {
+    let key = 'here';
+    let entry: Omit<HookGroup, 'requests' | 'overrides'> = { kind: 'here', directory: undefined, localPrefix: false };
+    if (directory !== undefined && 'unknown' in directory) {
+      if (!overridden) {
+        key = 'unknown';
+        entry = { kind: 'unknown', directory: undefined, localPrefix: false };
+      }
+    } else if (directory !== undefined) {
+      const real = realPathOfAny(resolve(cwd, ...directory.steps));
+      const localPrefix = directory.localPrefix === true;
+      if (real !== here || localPrefix) {
+        key = `${localPrefix ? 'prefix' : 'directory'}:${real}`;
+        entry = { kind: isInside(project, real) ? 'inside' : 'outside', directory: real, localPrefix };
+      }
+    }
+    let group = groups.get(key);
+    if (group === undefined) {
+      // Each directory costs reading its policies and configuration files.
+      if (entry.directory !== undefined && ++directories > MAX_DIRECTORIES) {
+        dropped += 1;
+        return undefined;
+      }
+      group = { ...entry, requests: [], overrides: [] };
+      groups.set(key, group);
+    }
+    return group;
+  };
+  for (const spec of specs) groupOf(spec.directory, false)?.requests.push(spec);
+  for (const override of overrides) groupOf(override.directory, true)?.overrides.push(override);
+  // A command that only could not be read is still answered with the policies of the working directory.
+  if (groups.size === 0) groupOf(undefined, false);
+  const tooMany = dropped === 0 ? {} : { tooMany: `the command installs in more than ${MAX_DIRECTORIES} directories, and ${TOO_MANY} ${MAX_DIRECTORIES} directories in one command` };
+  return { groups: [...groups.values()], ...tooMany };
 }
 
 async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencies): Promise<number> {
@@ -463,28 +571,57 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     const cwd = resolve(flags.dir ?? event.cwd ?? process.cwd());
     const projectDir = flags.dir === undefined ? (dependencies.projectDir ?? (() => process.env[projectDirVariable()]))() : undefined;
     const root = hookPolicyStart(cwd, projectDir);
-    const result = appliedPolicy(cwd, {
-      registry: flags.registry,
-      index: flags.index,
-      home: dependencies.home?.() ?? homedir(),
-      ...(projectDir === undefined ? {} : { project: projectDir }),
-      base: root.project ?? root.start,
-    });
-    if (!result.ok) {
-      // A nearer policy is named, so that the user is not pointed at the project's policy, which is fine (decision D-110).
-      const { cause } = result;
-      const text = result.nearer ? (cause.issues.length > 0 ? `${result.file} is invalid: ${cause.issues.join('; ')}` : `${result.file}: ${messageOf(cause)}`) : messageOf(cause);
-      io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(text)}` }) ?? '');
-      return EXIT_OK;
+    const base = root.project ?? root.start;
+    // The project an install directory is judged against (decision D-118): CLAUDE_PROJECT_DIR when the working
+    // directory lies in it, else the directory of the policy that applies there, its repository or itself.
+    const project = root.project ?? realPathOfAny(findPolicyDirectory(cwd) ?? repositoryRoot(cwd) ?? cwd);
+    const common = { registry: flags.registry, index: flags.index, home: dependencies.home?.() ?? homedir(), base };
+    // Outside the project, and where depcurfew cannot tell, only the project's policy applies (or the nearest one from
+    // the working directory when the project has none): never one found from a directory the command names.
+    const projectOnly = { start: root.start, project };
+    const lookups: LookupCache = new Map();
+    const reports: PackageReport[] = [];
+    const notes: string[] = [];
+    const skipped: SkippedFile[] = [];
+    const placed = hookGroups(cwd, specs, overrides, project);
+    let doubt: string | undefined = placed.tooMany;
+    for (const group of placed.groups) {
+      const directory = group.directory ?? cwd;
+      const result =
+        group.kind === 'here'
+          ? appliedPolicy(cwd, { ...common, ...(projectDir === undefined ? {} : { project: projectDir }) })
+          : appliedPolicy(directory, { ...common, ...(group.kind === 'inside' ? { project } : { root: projectOnly }), ...(group.localPrefix ? { npmPrefix: directory } : {}) });
+      if (!result.ok) {
+        // A nearer policy is named, so that the user is not pointed at the project's policy, which is fine (decision D-110).
+        const { cause } = result;
+        const text = result.nearer ? (cause.issues.length > 0 ? `${result.file} is invalid: ${cause.issues.join('; ')}` : `${result.file}: ${messageOf(cause)}`) : messageOf(cause);
+        io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(text)}` }) ?? '');
+        return EXIT_OK;
+      }
+      const { applied } = result;
+      const policies = applied.nearer === undefined ? [applied.policy] : [applied.policy, applied.nearer.policy];
+      if (group.kind === 'here' || group.requests.length > 0) {
+        const checked = await checkApplied(
+          group.requests.map((entry) => entry.request),
+          applied,
+          { fetch: dependencies.fetch, now: dependencies.now(), scriptBodies: false, index: flags.index, lookups },
+        );
+        reports.push(...checked.reports);
+        for (const file of checked.skipped) if (!skipped.some((known) => known.file === file.file && known.reason === file.reason)) skipped.push(file);
+        // Say which registry answered when it is not the public one, if an npm package was looked up there.
+        const lookedUp = checked.reports.some((report) => report.kind === 'registry' && !isPythonSpec(report.spec) && report.name !== undefined && !applied.scopes.has(scopeOf(report.name)));
+        const note = lookedUp ? registryNote(applied.registry) : undefined;
+        if (note !== undefined) notes.push(`${note}.`);
+      }
+      const where = group.kind === 'here' ? undefined : shownPath(base, directory) || '.';
+      const main = group.kind === 'here' || root.project !== undefined ? `the policy of the project (${projectDirVariable()})` : (applied.file ?? 'the default policy');
+      const besides = nearerNotice(applied, main, where);
+      if (besides !== undefined) notes.push(`${besides}.`);
+      const unplaced = group.kind === 'unknown' ? group.requests.find((entry) => entry.directory !== undefined && 'unknown' in entry.directory) : undefined;
+      if (unplaced?.directory !== undefined && 'unknown' in unplaced.directory) doubt ??= unknownDirectory(unplaced.command, unplaced.directory.unknown);
+      doubt ??= overrideDoubt(group.overrides, policies);
     }
-    const { applied } = result;
-    const { reports, skipped } = await checkApplied(specs, applied, { fetch: dependencies.fetch, now: dependencies.now(), scriptBodies: false, index: flags.index });
-    // Say which registry answered when it is not the public one, if an npm package was looked up there.
-    const lookedUp = reports.some((report) => report.kind === 'registry' && !isPythonSpec(report.spec) && report.name !== undefined && !applied.scopes.has(scopeOf(report.name)));
-    const note = lookedUp ? registryNote(applied.registry) : undefined;
-    const besides = nearerNotice(applied, `the policy of the project (${projectDirVariable()})`);
-    const notes = [...(note === undefined ? [] : [`${note}.`]), ...(besides === undefined ? [] : [`${besides}.`])];
-    io.stdout(formatDecision(decide(reports, unreadable ?? overrideDoubt(overrides, applied.nearer === undefined ? [applied.policy] : [applied.policy, applied.nearer.policy]), notes, skipped.map(skippedNotice))) ?? '');
+    io.stdout(formatDecision(decide(reports, unreadable ?? doubt, [...new Set(notes)], skipped.map(skippedNotice))) ?? '');
   } catch (error) {
     io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(messageOf(error))}` }) ?? '');
   }
@@ -513,7 +650,12 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
   // Nothing is checked without a directory or with a policy that cannot be used.
   for (const error of document.errors) reportInputError(error, io);
   if (outcome.status !== 'checked') return code;
-  for (const notice of document.notices) io.stderr(`note: ${printable(notice.message)}\n`);
+  // Each notice starts with its level and ends with its code, as in doctor; what to do follows on its own line.
+  const colors = paint(io.colors?.stderr);
+  for (const notice of document.notices) {
+    io.stderr(`${colors.cyan('note:')} ${printable(notice.message)} ${colors.dim(`(${notice.code})`)}\n`);
+    if (notice.fix !== undefined) io.stderr(`  ${colors.green('fix:')} ${printable(notice.fix)}\n`);
+  }
   io.stdout(render(document.packages, paint(io.colors?.stdout)));
   return code;
 }
@@ -524,7 +666,7 @@ export interface CheckDocument {
   /** The depcurfew.json used, relative to the directory checked; null for the default policy. */
   policy: string | null;
   packages: PackageReport[];
-  notices: { message: string }[];
+  notices: CheckNotice[];
   /** Why nothing was checked, in the shape of the errors of apply --json. */
   errors: InputError[];
 }
@@ -570,26 +712,78 @@ export function failedCheck(document: CheckDocument): boolean {
 }
 
 /**
- * What to say about the policy and the registry: the default policy is used, a nearer policy applies too, npm packages
- * are looked up in a registry other than the public one, npm prefers another dist-tag, a configuration file was not
- * read. The registry and the dist-tag only when `npm` packages are checked. For an agent, the default policy is not an
- * invitation to write depcurfew.json; `explained` says where check_packages looks packages up, in the present tense
- * (explain_policy), instead of where they were looked up.
+ * A notice of check --json and of check_packages and explain_policy of depcurfew mcp, with the fields of a notice of
+ * doctor (decision D-116): the level, always note; a code; the file (and line) it concerns, when one does; the message;
+ * and what to do, when there is something to do (decision D-118).
  */
-export function policyNotices(applied: AppliedPolicy, npm: boolean, options: { audience?: 'person' | 'agent'; explained?: boolean; skipped?: readonly SkippedFile[] } = {}): { message: string }[] {
+export interface CheckNotice {
+  level: 'note';
+  code: string;
+  location?: { file: string; line?: number };
+  message: string;
+  fix?: string;
+}
+
+/** A notice with its fields in the order of a finding; `location` and `fix` only when they are known. */
+function notice(code: string, message: string, location?: { file: string; line?: number | undefined }, fix?: string): CheckNotice {
+  const where = location === undefined ? {} : { location: { file: location.file, ...(location.line === undefined ? {} : { line: location.line }) } };
+  return { level: 'note', code, ...where, message, ...(fix === undefined ? {} : { fix }) };
+}
+
+/**
+ * What to say about the policy and the registry: the default policy is used (policy-missing), a nearer policy applies
+ * too (nearer-policy), npm packages are looked up in a registry other than the public one (registry-not-public, or
+ * registry-link-local for one depcurfew does not ask), npm prefers another dist-tag (npm-dist-tag), a configuration
+ * file was not read (config-not-read). The registry and the dist-tag only when `npm` packages are checked. For an
+ * agent, the default policy is not an invitation to write depcurfew.json, and a file it should not change is the
+ * user's; `explained` says where check_packages looks packages up, in the present tense (explain_policy), instead of
+ * where they were looked up.
+ */
+export function policyNotices(applied: AppliedPolicy, npm: boolean, options: { audience?: 'person' | 'agent'; explained?: boolean; skipped?: readonly SkippedFile[] } = {}): CheckNotice[] {
+  const agent = options.audience === 'agent';
   const note = registryNote(applied.registry, options.explained === true ? 'explained' : 'checked');
   const tag = applied.tag;
-  const defaultPolicyNotice =
-    options.audience === 'agent'
-      ? `no ${POLICY_FILE} found, so the default policy of depcurfew init applies; tell the user if the project should have a policy of its own`
-      : `no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)`;
+  const defaultPolicy = agent
+    ? notice(
+        'policy-missing',
+        `no ${POLICY_FILE} found, so the default policy of depcurfew init applies; tell the user if the project should have a policy of its own`,
+        undefined,
+        "Tell the user that the project has no policy of its own; only the user writes one",
+      )
+    : notice(
+        'policy-missing',
+        `no ${POLICY_FILE} found; checking against the default policy of depcurfew init (depcurfew init writes it)`,
+        undefined,
+        `Run depcurfew init to write ${POLICY_FILE} with this policy, then change it as the project needs`,
+      );
   const besides = nearerNotice(applied, applied.file === null ? 'the default policy' : applied.file);
+  const registry = applied.registry;
+  const registryFile = registry.file === undefined ? undefined : { file: registry.file, line: registry.line };
+  const linkLocal = linkLocalRegistry(registry);
+  const linkLocalFix = agent
+    ? "Tell the user: the registry is the user's setting"
+    : 'Set a registry that is not at a link-local address, or pass --registry with the registry depcurfew should ask';
   return [
-    ...(applied.file === null ? [{ message: defaultPolicyNotice }] : []),
-    ...(besides === undefined ? [] : [{ message: besides }]),
-    ...(npm && note !== undefined ? [{ message: note }] : []),
-    ...(tag === undefined || !npm ? [] : [{ message: `npm prefers the dist-tag "${tag.value}" (${tag.where}) for packages named without a version or with a range` }]),
-    ...(options.skipped ?? applied.skipped).map((skipped) => ({ message: skippedNotice(skipped) })),
+    ...(applied.file === null ? [defaultPolicy] : []),
+    ...(besides === undefined || applied.nearer === undefined ? [] : [notice('nearer-policy', besides, { file: applied.nearer.file })]),
+    ...(npm && note !== undefined ? [linkLocal ? notice('registry-link-local', note, registryFile, linkLocalFix) : notice('registry-not-public', note, registryFile)] : []),
+    ...(tag === undefined || !npm
+      ? []
+      : [
+          notice(
+            'npm-dist-tag',
+            `npm prefers the dist-tag "${tag.value}" (${tag.where}) for packages named without a version or with a range`,
+            tag.file === undefined ? undefined : { file: tag.file, line: tag.line },
+          ),
+        ]),
+    ...(options.skipped ?? applied.skipped).map((skipped) =>
+      notice(
+        'config-not-read',
+        skippedNotice(skipped),
+        { file: skipped.file },
+        agent ? `Tell the user that ${skipped.file} was not read; do not change it yourself` : `Make ${skipped.file} a regular file of at most ${MAX_CONFIG_SIZE / (1024 * 1024)} MiB that depcurfew can read, or remove it`,
+      ),
+    ),
   ];
 }
 

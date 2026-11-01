@@ -1,6 +1,6 @@
 import { verifiedOn } from './define.ts';
 import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './platformdirs.ts';
-import type { SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
+import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
@@ -215,6 +215,17 @@ export const pdm: ToolKnowledge = {
       { file: 'pdm.toml', key: 'use_uv' },
       `${PDM}/docs/usage/uv.md`,
       'Experimental since 2.19.0: PDM resolves and installs with uv. It passes the cutoff and the build settings to uv lock, but runs uv sync --frozen without the build settings (src/pdm/installers/uv.py), and pdm.lock then lists source distributions even with only-binary.',
+    ),
+    directoryOptions: leftovers.verified<DirectoryOptionsKnowledge>(
+      {
+        options: [
+          { name: '-p', moves: 'project' },
+          { name: '--project', moves: 'project' },
+        ],
+        variables: [{ name: 'PDM_PROJECT', moves: 'project' }],
+      },
+      `${PDM}/src/pdm/cli/options.py`,
+      'project_option: "-p", "--project", dest="project_path", help "Specify another path as the project root, which changes the base of pyproject.toml and __pypackages__ [env var: PDM_PROJECT]", default=os.getenv("PDM_PROJECT").',
     ),
     commandLine: verified(
       {

@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -497,6 +497,11 @@ export const npm: ToolKnowledge = {
       },
       NPM_DEFINITIONS,
       'Settings that a single npm command can change on its command line or in its environment: "Putting --foo bar on the command line sets the foo configuration parameter", "--flag without specifying any value will set the value to true", "Any environment variables that start with npm_config_ will be interpreted as a configuration parameter", case-insensitive, and an environment configuration without a value is true (docs/lib/content/using-npm/config.md at v12.2.1). Types in definitions.js at v12.2.1: ignore-scripts Boolean, default false ("If true, npm does not run scripts specified in package.json files"); min-release-age null or Number of days; before null or Date; min-release-age-exclude a list exempt from min-release-age and before; dangerously-allow-all-scripts Boolean, which bypasses the allowScripts policy; allow-scripts a list of packages whose install scripts may run. A value other than true for ignore-scripts, any true value of dangerously-allow-all-scripts (the false values as in user.variables), any allow-scripts, before or min-release-age-exclude, and a min-release-age shorter than the policy weaken what depcurfew apply wrote.',
+    ),
+    directoryOptions: runtimes.verified<DirectoryOptionsKnowledge>(
+      { options: [{ name: '--prefix', moves: 'directory', localPrefix: true }], variables: [] },
+      NPM_DEFINITIONS,
+      'prefix (short C, so -C dir is --prefix dir): "The location to install global items. If set on the command line, then it forces non-global commands to run in the specified folder." loadLocalPrefix in workspaces/config/lib/index.js (v12.2.1) reads it only from the command line ("this.#get(\'prefix\', \'cli\')"), takes it as the local prefix as given and does not walk up, so npm_config_prefix and .npmrc do not move a command; the project .npmrc is the one in that folder.',
     ),
     booleanWords: runtimes.verified(
       true,

@@ -18,7 +18,7 @@ import { realpathSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { agentFix, POLICY_IS_THE_USERS, reasonText } from '../check/hook.ts';
 import type { FetchLike } from '../check/registry.ts';
-import { appliedPolicy, checkDocument, policyNotices, type CheckDocument, type Lookups } from '../cli/check.ts';
+import { appliedPolicy, checkDocument, policyNotices, type CheckDocument, type CheckNotice, type Lookups } from '../cli/check.ts';
 import { checkDirectory, type InputError } from '../cli/directory.ts';
 import { safeJson } from '../json-safe.ts';
 import { isInside } from '../paths.ts';
@@ -216,7 +216,7 @@ interface PolicyDocument {
   };
   /** Where check_packages looks packages up; packages of the scopes .npmrc assigns a registry are not looked up. */
   lookups: { npmRegistry: string; pythonIndex: string; scopes: { scope: string; registry: string }[] };
-  notices: { message: string }[];
+  notices: CheckNotice[];
   errors: InputError[];
 }
 

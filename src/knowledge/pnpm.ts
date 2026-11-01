@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
+import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -321,6 +321,11 @@ export const pnpm: ToolKnowledge = {
       true,
       'https://github.com/pnpm/nopt/blob/main/lib/nopt.js',
       'The nopt fork pnpm imports (@pnpm/nopt, imported by pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1) reads a Boolean option followed by the word true or false as that value and skips the word, inverted after --no- (parse in lib/nopt.js).',
+    ),
+    directoryOptions: runtimes.verified<DirectoryOptionsKnowledge>(
+      { options: [{ name: '--dir', moves: 'directory' }], variables: [] },
+      'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/pnpm-cli.md',
+      '-C <path>, --dir <path>: "Run as if pnpm was started in <path> instead of the current working directory." -C is the shorthand of --dir (parsing.shorthands). pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1 takes dir from the options nopt parsed from the whole command line ("let dir = parsedOpts[\'dir\']") and looks for the workspace from it ("findWorkspaceDir((dir ?? process.cwd()) as string)"). -w, --workspace-root ("Run as if pnpm was started in the root of the workspace") is not listed: it names no directory.',
     ),
     configCommands: runtimes.verified(
       [

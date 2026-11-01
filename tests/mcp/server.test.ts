@@ -295,12 +295,19 @@ describe('depcurfew mcp: check_packages', () => {
       const notices = structured(answer)['notices'] as { message: string }[];
       // The nearer policy applies too, as in the hook (decision D-113): the stricter answer counts.
       if (unused === undefined) expect(notices).toEqual([]);
-      else expect(notices).toEqual([{ message: `Besides depcurfew.json, ${unused} also applies here; the stricter answer counts` }]);
+      else expect(notices).toEqual([{ level: 'note', code: 'nearer-policy', location: { file: unused }, message: `Besides depcurfew.json, ${unused} also applies here; the stricter answer counts` }]);
     }
     client.send(call(9, 'explain_policy', { directory: '.venv/lib/python3.12/site-packages/evil' }));
     const explained = structured(await client.next());
     expect(explained).toMatchObject({ policy: 'depcurfew.json', values: { installScripts: { default: 'deny' } } });
-    expect(explained['notices']).toEqual([{ message: 'Besides depcurfew.json, .venv/lib/python3.12/site-packages/evil/depcurfew.json also applies here; the stricter answer counts' }]);
+    expect(explained['notices']).toEqual([
+      {
+        level: 'note',
+        code: 'nearer-policy',
+        location: { file: '.venv/lib/python3.12/site-packages/evil/depcurfew.json' },
+        message: 'Besides depcurfew.json, .venv/lib/python3.12/site-packages/evil/depcurfew.json also applies here; the stricter answer counts',
+      },
+    ]);
     await client.close();
   });
 
@@ -352,7 +359,16 @@ describe('depcurfew mcp: check_packages', () => {
     execFileSync('mkfifo', [join(root, '.npmrc')]);
     const client = await initialized(root);
     client.send(call(1, 'explain_policy', {}));
-    expect(structured(await client.next())['notices']).toEqual([{ message: '~/.npmrc was not read: it is not a regular file; its registry settings, if any, were not used' }]);
+    // The agent is told to leave the file to the user (decision D-118).
+    expect(structured(await client.next())['notices']).toEqual([
+      {
+        level: 'note',
+        code: 'config-not-read',
+        location: { file: '~/.npmrc' },
+        message: '~/.npmrc was not read: it is not a regular file; its registry settings, if any, were not used',
+        fix: 'Tell the user that ~/.npmrc was not read; do not change it yourself',
+      },
+    ]);
     client.send(call(2, 'check_packages', { packages: ['lodash'] }));
     expect(structured(await client.next())).toMatchObject({ errors: [], notices: [{ message: expect.stringContaining('~/.npmrc was not read') }] });
     await client.close();
@@ -390,7 +406,12 @@ describe('depcurfew mcp: check_packages', () => {
     const client = await initialized(project());
     client.send(call(1, 'check_packages', { packages: ['lodash'] }));
     expect(structured(await client.next())['notices']).toEqual([
-      { message: 'no depcurfew.json found, so the default policy of depcurfew init applies; tell the user if the project should have a policy of its own' },
+      {
+        level: 'note',
+        code: 'policy-missing',
+        message: 'no depcurfew.json found, so the default policy of depcurfew init applies; tell the user if the project should have a policy of its own',
+        fix: 'Tell the user that the project has no policy of its own; only the user writes one',
+      },
     ]);
     await client.close();
   });
@@ -447,7 +468,7 @@ describe('depcurfew mcp: check_packages', () => {
     client.send(call(1, 'check_packages', { packages: ['left-pad'] }));
     const answer = await client.next();
     expect(asked).toEqual(['https://npm.internal.example']);
-    expect(structured(answer)['notices']).toEqual([{ message: 'npm packages were looked up in https://npm.internal.example/ (--registry), not in the public npm registry' }]);
+    expect(structured(answer)['notices']).toEqual([{ level: 'note', code: 'registry-not-public', message: 'npm packages were looked up in https://npm.internal.example/ (--registry), not in the public npm registry' }]);
     await client.close();
   });
 
@@ -496,7 +517,7 @@ describe('depcurfew mcp: explain_policy', () => {
     client.send(call(1, 'explain_policy', {}));
     const document = structured(await client.next());
     expect(document).toMatchObject({ policy: null, values: { cooldown: { minimum: '3d' } }, lookups: { scopes: [{ scope: '@corp', registry: 'https://corp.example/' }] } });
-    expect(document['notices']).toEqual([{ message: expect.stringContaining('no depcurfew.json found') }]);
+    expect(document['notices']).toEqual([expect.objectContaining({ level: 'note', code: 'policy-missing', message: expect.stringContaining('no depcurfew.json found') })]);
     await client.close();
   });
 
@@ -507,7 +528,7 @@ describe('depcurfew mcp: explain_policy', () => {
     const client = await initialized(directory, '2025-11-25', { argv: ['mcp', '--dir', directory, '--registry', 'https://npm.internal.example/'] });
     client.send(call(1, 'explain_policy'));
     const document = structured(await client.next());
-    expect(document['notices']).toEqual([{ message: 'check_packages looks npm packages up in https://npm.internal.example/ (--registry), not in the public npm registry' }]);
+    expect(document['notices']).toEqual([{ level: 'note', code: 'registry-not-public', message: 'check_packages looks npm packages up in https://npm.internal.example/ (--registry), not in the public npm registry' }]);
     const scopes = (document['lookups'] as { scopes: { scope: string; registry: string }[] }).scopes;
     expect(scopes[0]).toEqual({ scope: '@corp', registry: 'https://corp.example/' });
     expect(scopes[1]?.registry).toBe('https://evil.example/');

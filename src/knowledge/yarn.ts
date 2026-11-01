@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
+import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -313,6 +313,17 @@ export const yarn: ToolKnowledge = {
     ),
     latestVersion: verified('4.18.1', release('4.18.1'), 'Yarn 6 is still in preview.'),
     bypassFlag: verified('--no-time-gate on yarn add and yarn up (4.15.0+)', 'https://yarnpkg.com/cli/add'),
+    directoryOptions: leftovers.verified<DirectoryOptionsKnowledge>(
+      {
+        options: [
+          { name: '--cwd', moves: 'directory', position: 'first' },
+          { name: '--cwd', moves: 'directory', position: 'last', command: ['yarn', 'add'] },
+        ],
+        variables: [],
+      },
+      `${BERRY}/packages/yarnpkg-cli/sources/lib.ts`,
+      'checkCwd takes --cwd <dir> or --cwd=<dir> only as the first argument ("argv[0] === `--cwd`", "argv[0].startsWith(`--cwd=`)"), and for yarn add also as the last two words ("argv[0] === `add` && argv[argv.length - 2] === `--cwd`"; "CRA adds `--cwd` at the end of the command"), removes them and runs the command with cli.defaultContext.cwd = ppath.resolve(cwd). Yarn finds the project and its .yarnrc.yml files from that directory.',
+    ),
     configCommands: leftovers.verified(
       [{ command: ['yarn', 'config'], writes: ['set', 'unset'] }],
       `${BERRY}/packages/plugin-essentials/sources/index.ts`,

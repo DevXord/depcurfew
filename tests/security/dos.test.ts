@@ -86,3 +86,16 @@ describe('PowerShell and cmd command lines of a hook event', () => {
     expect(elapsed(() => scanCommandLine(line, { shell }))).toBeLessThan(5000);
   });
 });
+
+describe('the directories of a hook event (decision D-118)', () => {
+  it.each([
+    ['many loops that change directory', 'while x; do cd a && npm i y; '.repeat(30_000), 'posix'],
+    ['many changes of directory', 'cd a && npm i y && pushd b && '.repeat(30_000), 'posix'],
+    ['many open subshells', `${'( cd a && '.repeat(80_000)}npm i y`, 'posix'],
+    ['many command substitutions with changes', 'echo $(cd a && npm i y) '.repeat(40_000), 'posix'],
+    ['deeply nested branches', `${'if x; then cd a; '.repeat(60_000)}npm i y`, 'posix'],
+    ['many changes of location in PowerShell', 'Set-Location a; npm i y; Push-Location b; '.repeat(30_000), 'powershell'],
+  ] as const)('reads %s quickly', (_label, line, shell) => {
+    expect(elapsed(() => scanCommandLine(line, { shell }))).toBeLessThan(5000);
+  });
+});

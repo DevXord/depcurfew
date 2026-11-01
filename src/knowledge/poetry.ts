@@ -1,6 +1,6 @@
 import { verifiedOn } from './define.ts';
 import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './platformdirs.ts';
-import type { SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
+import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-30');
 const user = verifiedOn('2026-10-31');
@@ -281,6 +281,19 @@ export const poetry: ToolKnowledge = {
       'installer.no-binary (POETRY_INSTALLER_NO_BINARY) disallows wheels for :all: or true, none for :none: or false, or the named packages separated by commas; installer.only-binary (POETRY_INSTALLER_ONLY_BINARY, since 2.0.0) takes the same values; explicit package names win over :all:. poetry add --allow-prereleases accepts pre-releases (src/poetry/console/commands/add.py).',
     ),
     latestVersion: verified('2.5.1', CHANGELOG, 'Released on 2026-09-20.'),
+    directoryOptions: leftovers.verified<DirectoryOptionsKnowledge>(
+      {
+        options: [
+          { name: '-C', moves: 'directory' },
+          { name: '--directory', moves: 'directory' },
+          { name: '-P', moves: 'project' },
+          { name: '--project', moves: 'project' },
+        ],
+        variables: [],
+      },
+      `${POETRY}/docs/cli.md`,
+      'Global options: --directory=DIRECTORY (-C) "The working directory for the Poetry command (defaults to the current working directory). All command-line arguments will be resolved relative to the given directory."; --project=PROJECT (-P) "Specify another path as the project root. All command-line arguments will be resolved relative to the current working directory or directory specified using --directory option if used." The page names no environment variable for either.',
+    ),
     configCommands: leftovers.verified(
       [{ command: ['poetry', 'config'], operands: 2, options: ['--unset', '--migrate'] }],
       'https://github.com/python-poetry/poetry/blob/main/docs/cli.md',

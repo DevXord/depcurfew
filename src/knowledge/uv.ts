@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const guard = verifiedOn('2026-11-01');
@@ -392,6 +392,21 @@ export const uv: ToolKnowledge = {
       'VersionSelectionArgs: --prerelease takes disallow, allow, if-necessary, explicit or if-necessary-or-explicit (UV_PRERELEASE); allow considers pre-releases of every package and disallow none (docs/concepts/resolution.md); --prerelease-package takes PACKAGE=MODE; the hidden --pre means allow. BuildOptionsArgs of uv add, uv run, uv tool install and uv tool run (uvx): --no-binary (UV_NO_BINARY, a boolean) installs every package from source, --binary turns it off, --no-binary-package names one package (UV_NO_BINARY_PACKAGE, separated by spaces). uv pip install takes --no-binary and --only-binary as lists separated by commas with :all: and :none:, as pip does (PipInstallArgs).',
     ),
     latestVersion: verified('0.13.6', `${UV}/CHANGELOG.md`, 'Released on 2026-10-26.'),
+    directoryOptions: guard.verified<DirectoryOptionsKnowledge>(
+      {
+        options: [
+          { name: '--directory', moves: 'directory' },
+          { name: '--project', moves: 'project', ignoredBy: [['uv', 'pip']] },
+        ],
+        variables: [
+          { name: 'UV_WORKING_DIR', moves: 'directory' },
+          { name: 'UV_WORKING_DIRECTORY', moves: 'directory' },
+          { name: 'UV_PROJECT', moves: 'project', ignoredBy: [['uv', 'pip']] },
+        ],
+      },
+      CLI,
+      'GlobalArgs (global = true, so before or after the subcommand): --directory "Change to the given directory prior to running the command. Relative paths are resolved with the given directory as the base", env UV_WORKING_DIR; --project "Discover a project in the given directory. All pyproject.toml, uv.toml, and .python-version files will be discovered by walking up the directory tree from the project root … Other command-line arguments (such as relative paths) will be resolved relative to the current working directory … This setting has no effect when used in the uv pip interface", env UV_PROJECT. crates/uv-static/src/env_vars.rs: UV_WORKING_DIR is "Equivalent to the --directory command-line argument. UV_WORKING_DIRECTORY (added in v0.9.1) is also supported for backwards compatibility", UV_PROJECT "Equivalent to the --project command-line argument".',
+    ),
     installOverrides: guard.verified(
       {
         options: [
