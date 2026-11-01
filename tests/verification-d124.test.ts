@@ -255,6 +255,13 @@ describe('the .npmrc of a workspace package, which npm does not read (N15)', () 
     for (const workspaces of [['packages/*'], ['packages/**'], { packages: ['./packages/app'] }, ['packages/*', '!packages/legacy'], ['/packages/a*']]) {
       const root = monorepo(workspaces);
       const app = join(root, 'packages', 'app');
+      if (process.platform === 'win32') {
+        // On Windows depcurfew never claims npm's exact match (path case and separators), so the .npmrc still counts.
+        expect(npmLocalPrefix(app), JSON.stringify(workspaces)).toMatchObject({ workspace: expect.stringMatching(/app$/u) });
+        expect(npmLocalPrefix(app).exact, JSON.stringify(workspaces)).not.toBe(true);
+        expect((await hook('npm install lodash', app, root)).permissionDecisionReason, JSON.stringify(workspaces)).toContain('- lodash: the install would use the registry https://evil.example/ from packages/app/.npmrc (line 1)');
+        continue;
+      }
       expect(npmLocalPrefix(app), JSON.stringify(workspaces)).toMatchObject({ workspace: expect.stringMatching(/app$/u), exact: true });
       const result = await checked(app);
       expect(result.stdout, JSON.stringify(workspaces)).not.toContain('evil.example');
