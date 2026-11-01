@@ -34,6 +34,17 @@ describe('CI workflow', () => {
   });
 });
 
+describe('runtime smoke test job', () => {
+  const runtime = read('ci.yml').jobs['runtime'] as Job & { strategy: { matrix: { node: string[] } } };
+
+  it('builds once, then runs the smoke test of the built CLI on each Node.js version', () => {
+    expect(runtime.strategy['fail-fast']).toBe(false);
+    expect(runtime.strategy.matrix.node.length).toBeGreaterThan(0);
+    const runs = runtime.steps.map((step) => step.run).filter((run) => run !== undefined);
+    expect(runs).toEqual(['npm ci', 'npm run build', 'node tests/runtime/smoke.mjs']);
+  });
+});
+
 describe('workflows that run on every push', () => {
   it.each(['ci.yml', 'action-test.yml'])('%s limits how long every job may run', (name) => {
     for (const [id, job] of Object.entries(read(name).jobs)) expect(job['timeout-minutes'], `${name}: ${id}`).toBeGreaterThan(0);
