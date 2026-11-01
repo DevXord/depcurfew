@@ -390,7 +390,7 @@ export const npm: ToolKnowledge = {
       NPM_DEFINITIONS,
       'npm options whose type includes Boolean, which may stand alone: the definitions of 12.2.1 and of 11.21.1 (where shrinkwrap is one too; 12.2.1 adds ignore-existing, ignore-extension, ignore-patch-failures, allow-unused-patches, keep-edit-dir and strict-npmrc). With valueOptions they are every npm option, so an abbreviated option can be resolved as npm resolves it.',
     ),
-    parsing: reviewed.verified(
+    parsing: runtimes.verified(
       {
         abbreviations: true,
         anyDashes: true,
@@ -407,7 +407,7 @@ export const npm: ToolKnowledge = {
         },
       },
       NPM_SHORTHANDS,
-      'The shorthands npm passes to nopt: the list in definitions/index.js and the short names of the definitions (the same in 11.21.1). nopt (node_modules/nopt/lib/nopt-lib.js, versions 8.1.0 in npm 10.9.4, 9.0.0 in 11.21.1 and 10.0.1 in 12.2.1, same parse and resolveShort) strips every leading dash, so -reg, --reg and -registry work; takes an exact option first, then an exact shorthand, then a word of one-letter shorthands (-gD), then an unambiguous prefix of an option name (abbrev), then a prefix of a shorthand; and reads --no-<name> as a negated flag that takes no value. npm 10 expands abbreviations silently, npm 11 warns "Expanding --regis to --registry. This will stop working in the next major version of npm." and npm 12 refuses them with EUNKNOWNCONFIG (abbrevHandler in workspaces/config/lib/index.js of 11.21.1 and 12.2.1). Shorthands are expanded only on the command line, not in .npmrc or npm_config_ variables. npx turns -p into --package and expands exact shorthands itself before npm exec reads the rest (bin/npx-cli.js).',
+      'The shorthands npm passes to nopt: the list in definitions/index.js and the short names of the definitions (the same in 11.21.1). nopt (node_modules/nopt/lib/nopt-lib.js, versions 8.1.0 in npm 10.9.4, 9.0.0 in 11.21.1 and 10.0.1 in 12.2.1, same parse and resolveShort) strips every leading dash, so -reg, --reg and -registry work; takes an exact option first, then an exact shorthand, then a word of one-letter shorthands (-gD), then an unambiguous prefix of an option name (abbrev), then a prefix of a shorthand; and reads --no-<name> as a negated flag that takes no value. After the shorthands (resolveShort) nopt strips every leading no- in any case, each one inverting the flag, and then takes <name> as an exact option or an unambiguous prefix (abbrevs), so --no-ign is --no-ignore-scripts where no other option starts with ign (npm 11; npm 12 has ignore-existing too) and --no-no-ignore-scripts sets ignore-scripts to true; a negated flag takes a following true or false, inverted (definitions/index.js and definitions.js at v12.2.1 and lib/nopt-lib.js of nopt 10.0.1, read again 2026-11-01). npm 10 expands abbreviations silently, npm 11 warns "Expanding --regis to --registry. This will stop working in the next major version of npm." and npm 12 refuses them with EUNKNOWNCONFIG (abbrevHandler in workspaces/config/lib/index.js of 11.21.1 and 12.2.1). Shorthands are expanded only on the command line, not in .npmrc or npm_config_ variables. npx turns -p into --package and expands exact shorthands itself before npm exec reads the rest (bin/npx-cli.js).',
     ),
     versionSelection: reviewed.verified(
       { tagOption: '--tag', tagVariable: 'npm_config_tag', tagKey: 'tag', bareRange: '*' },

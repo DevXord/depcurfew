@@ -1,9 +1,10 @@
 // Finds the packages a shell command line installs or downloads to run, for the install guard. It reads the line the
 // way a POSIX shell splits it (quotes, escapes, &&, ||, ;, |, subshells, redirections, here-documents, reserved words)
 // without running anything, and follows the command lines inside it: command substitutions, sh -c, eval, npx -c,
-// a shell fed by a here-document and wrappers such as sudo, env, timeout or xargs. Words the shell would expand ($VAR,
-// $(...), backticks, globs, $'...', {a,b}) cannot be known in advance; when such a word is part of an install command,
-// the result says the command cannot be read, so the caller asks a person instead of guessing. So does an install
+// a shell fed by a here-document and wrappers such as sudo, env, timeout or xargs. $'...' is decoded as bash decodes
+// it. Words the shell would expand ($VAR, $(...), backticks, globs, {a,b}) cannot be known in advance; when such a word
+// is part of an install command, the result says the command cannot be read, so the caller asks a person instead of
+// guessing. So does an install
 // next to a setting that points the package manager at another registry or configuration file, and a script piped
 // into a shell or an interpreter. Options and variables that change the version the package manager picks (npm's
 // --tag, pip's --pre) or make it build from source (--no-binary) go with each request. It is a guard against mistakes
@@ -42,7 +43,19 @@ import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { PYPI_PREFIX } from '../policy/package-pattern.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
-import { directoryChange, DirectoryWalk, HERE, isHere, within, type CommandBounds, type CommandDirectory, type Move } from './directories.ts';
+import {
+  createdDirectories,
+  directoryChange,
+  DirectoryWalk,
+  HERE,
+  isHere,
+  shellVariables,
+  within,
+  type CommandBounds,
+  type CommandDirectory,
+  type Move,
+  type ShellVariables,
+} from './directories.ts';
 import { parsePythonSpec } from './python-spec.ts';
 import { NestingTooDeep, readCmd, readPowerShell } from './windows-shells.ts';
 
@@ -50,6 +63,11 @@ export interface Word {
   text: string;
   /** The shell would expand part of it. */
   dynamic: boolean;
+  /**
+   * What the shell makes of it may be several words or any text: an expansion outside double quotes, which the shell
+   * splits, brace expansion, or $'…' that depcurfew cannot decode (decision D-119).
+   */
+  splits?: true;
   /** xargs (or find) fills it from its input. */
   input?: boolean;
   /** Who fills it, when that is not xargs. */
@@ -165,6 +183,67 @@ function bodySubstitutions(body: string, level: number): string[] {
   return found;
 }
 
+/** The escapes of $'…' that stand for one character (bash's ANSI-C quoting). */
+const ANSI_C_ESCAPES: Readonly<Record<string, string>> = {
+  a: '\u0007', b: '\b', e: '\u001b', E: '\u001b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', '\\': '\\', "'": "'", '"': '"', '?': '?',
+};
+
+/**
+ * The text of $'…' (`body`, between the quotes) as bash decodes it (decision D-119): \a \b \e \E \f \n \r \t \v \\ \'
+ * \" \?, \nnn (one to three octal digits), \xHH (one or two hex digits), \uHHHH and \UHHHHHHHH (up to four and eight),
+ * \cx (control-x, \c? is DEL, \c\\ is control-backslash); another escape keeps its backslash, and a NUL ends the text.
+ * Checked on GNU bash 5.2. undefined for what depcurfew cannot tell: a byte that is not ASCII (its character depends on
+ * the locale) or \c before something else.
+ */
+function ansiC(body: string): string | undefined {
+  let text = '';
+  for (let index = 0; index < body.length; index++) {
+    const char = body[index] as string;
+    if (char !== '\\') {
+      text += char;
+      continue;
+    }
+    const next = body[index + 1];
+    if (next === undefined) return undefined;
+    index += 1;
+    if (Object.hasOwn(ANSI_C_ESCAPES, next)) {
+      text += ANSI_C_ESCAPES[next];
+      continue;
+    }
+    let code: number | undefined;
+    const digits = (pattern: RegExp, from: number, most: number, base: number): number | undefined => {
+      const found = pattern.exec(body.slice(from, from + most))?.[0] ?? '';
+      if (found === '') return undefined;
+      index = from + found.length - 1;
+      return Number.parseInt(found, base);
+    };
+    if (/[0-7]/u.test(next)) code = digits(/^[0-7]+/u, index, 3, 8);
+    else if (next === 'x') code = digits(/^[0-9A-Fa-f]+/u, index + 1, 2, 16);
+    else if (next === 'u') code = digits(/^[0-9A-Fa-f]+/u, index + 1, 4, 16);
+    else if (next === 'U') code = digits(/^[0-9A-Fa-f]+/u, index + 1, 8, 16);
+    else if (next === 'c') {
+      const control = body[index + 1];
+      if (control === undefined || !/[\x3f-\x7e]/u.test(control) || (control === '\\' && body[index + 2] !== '\\')) return undefined;
+      index += control === '\\' ? 2 : 1;
+      code = control === '?' ? 0x7f : control.toUpperCase().charCodeAt(0) & 0x1f;
+    } else {
+      text += `\\${next}`;
+      continue;
+    }
+    // \x, \u and \U without a digit stay as they are.
+    if (code === undefined) {
+      text += `\\${next}`;
+      continue;
+    }
+    if (code === 0) return text;
+    // Unicode escapes give the character; other bytes above ASCII depend on the locale.
+    const unicode = next === 'u' || next === 'U';
+    if (code > 0x7f && (!unicode || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff))) return undefined;
+    text += String.fromCodePoint(code);
+  }
+  return text;
+}
+
 /**
  * Splits a command line into words and separators from `start`, as a POSIX shell does before expanding anything. With
  * `stop`, it reads the inside of $(...) or ${...} and ends at the bracket that closes it.
@@ -178,6 +257,9 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
   let bare = '';
   let started = false;
   let dynamic = false;
+  /** The word may become several words or any text (Word.splits); `inQuotes`: inside "...", where nothing is split. */
+  let splits = false;
+  let inQuotes = false;
   let quoted = false;
   let depth = 0;
   /** Open case statements, whose patterns end with a ) that does not close $(...). */
@@ -187,8 +269,9 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
       // A glob after name@ (lodash@4.*, @demo/api@workspace:*) would have to match a file named like a package with
       // its version; only globs in the rest count.
       const versionAt = bare.indexOf('@', bare.startsWith('@') ? 1 : 0);
-      const expands = dynamic || BRACES.test(bare) || GLOB.test(versionAt > 0 ? bare.slice(0, versionAt) : bare);
-      items.push({ kind: 'word', word: { text, dynamic: expands } });
+      const braces = BRACES.test(bare);
+      const expands = dynamic || braces || GLOB.test(versionAt > 0 ? bare.slice(0, versionAt) : bare);
+      items.push({ kind: 'word', word: { text, dynamic: expands, ...(splits || braces ? { splits: true as const } : {}) } });
       if (!quoted && !expands && text === 'case') cases += 1;
       if (!quoted && !expands && text === 'esac' && cases > 0) cases -= 1;
     }
@@ -196,6 +279,7 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
     bare = '';
     started = false;
     dynamic = false;
+    splits = false;
     quoted = false;
   };
   /** $(...), ${...}, <(...) or >(...) from `from`, whose inside starts at `inside`; returns the index after it. */
@@ -230,6 +314,7 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
   const backtick = (from: number): number => {
     dynamic = true;
     started = true;
+    if (!inQuotes) splits = true;
     let end = from + 1;
     while (end < line.length && line[end] !== '`') end += line[end] === '\\' ? 2 : 1;
     substitutions.push({ line: line.slice(from + 1, Math.min(end, line.length)).replaceAll(/\\([`\\$])/gu, '$1'), at: items.length });
@@ -244,9 +329,11 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
       text += line.slice(from, end);
       return end;
     }
+    if (!/[({A-Za-z_0-9@*#?$!-]/u.test(next)) return undefined;
+    // Outside double quotes the shell splits what an expansion gives into words.
+    if (!inQuotes) splits = true;
     if (next === '(') return nested(from, from + 2, ')');
     if (next === '{') return nested(from, from + 2, '}');
-    if (!/[A-Za-z_0-9@*#?$!-]/u.test(next)) return undefined;
     dynamic = true;
     started = true;
     const end = from + 1 + (/^[A-Za-z_][A-Za-z0-9_]*|^./u.exec(line.slice(from + 1))?.[0].length ?? 0);
@@ -333,24 +420,43 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
       continue;
     }
     if (char === '$' && line[index + 1] === "'") {
-      // ANSI-C quoting: the shell decodes escapes such as \x69, so the text is not known as written.
-      dynamic = true;
+      // ANSI-C quoting: the text with its escapes decoded as bash decodes them (decision D-119). What depcurfew cannot
+      // decode, or a $' that is not closed, may be any text.
       started = true;
+      quoted = true;
       let end = index + 2;
       while (end < line.length && line[end] !== "'") end += line[end] === '\\' ? 2 : 1;
-      text += line.slice(index, Math.min(end + 1, line.length));
+      const decoded = end < line.length ? ansiC(line.slice(index + 2, end)) : undefined;
+      if (decoded === undefined) {
+        dynamic = true;
+        splits = true;
+        text += line.slice(index, Math.min(end + 1, line.length));
+      } else {
+        text += decoded;
+      }
       index = end + 1;
       continue;
     }
     if (char === '$' && line[index + 1] === '"') {
-      // $"..." is translated by the shell; the quoted text follows.
-      dynamic = true;
+      // $"..." is translated with the message catalog of TEXTDOMAIN; without one it is "...". A command line that
+      // names TEXTDOMAIN may bring a catalog, so the text may be any text.
+      if (translated) {
+        let end = index + 2;
+        while (end < line.length && line[end] !== '"') end += line[end] === '\\' ? 2 : 1;
+        dynamic = true;
+        splits = true;
+        started = true;
+        text += line.slice(index, Math.min(end + 1, line.length));
+        index = end + 1;
+        continue;
+      }
       index += 1;
       continue;
     }
     if (char === '"') {
       started = true;
       quoted = true;
+      inQuotes = true;
       index += 1;
       while (index < line.length && line[index] !== '"') {
         if (line[index] === '\\' && '"\\$`\n'.includes(line[index + 1] ?? '')) {
@@ -365,6 +471,7 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
           index += 1;
         }
       }
+      inQuotes = false;
       index += 1;
       continue;
     }
@@ -747,7 +854,12 @@ interface Wrapper {
   commandAfter?: readonly string[];
   /** Flags that make it run the remaining words through a shell as one command line (sudo -s, sudo -i). */
   shellOptions?: readonly string[];
+  /** Options whose value is the directory the command runs in (env -C, sudo -D; decision D-119). */
+  chdir?: readonly string[];
 }
+
+/** What a wrapper runs: the remaining words or a command line, and the directory it runs them in. */
+type Unwrapped = ({ words: Word[] } | { line: string }) & { directory?: CommandDirectory };
 
 /** Commands that run the rest of the line as a command. */
 const WRAPPERS: ReadonlyMap<string, Wrapper> = new Map<string, Wrapper>([
@@ -762,6 +874,8 @@ const WRAPPERS: ReadonlyMap<string, Wrapper> = new Map<string, Wrapper>([
       // sudo -s and -i run the command through a shell: its words are read as one command line, which also covers a
       // command line given as one word (sudo -s 'npm i x'), whatever escaping the sudo version applies.
       shellOptions: ['-s', '--shell', '-i', '--login'],
+      // sudo -D and --chdir: "Run the command in the specified directory instead of the current working directory".
+      chdir: ['-D', '--chdir'],
     },
   ],
   ['doas', { values: ['-u', '-C'] }],
@@ -792,7 +906,8 @@ const WRAPPERS: ReadonlyMap<string, Wrapper> = new Map<string, Wrapper>([
   ],
   // flock [options] file command…, or flock [options] file -c command.
   ['flock', { values: ['-w', '--timeout', '--wait', '-E', '--conflict-exit-code'], operands: 1, lineOptions: ['-c', '--command'] }],
-  ['env', { values: ['-u', '--unset', '-C', '--chdir', '-a', '--argv0'], split: ['-S', '--split-string'] }],
+  // GNU env -C DIR, --chdir=DIR: "change working directory to DIR" before it runs the command (src/env.c of coreutils).
+  ['env', { values: ['-u', '--unset', '-C', '--chdir', '-a', '--argv0'], split: ['-S', '--split-string'], chdir: ['-C', '--chdir'] }],
   ['command', {}],
   ['builtin', {}],
   ['exec', { values: ['-a'] }],
@@ -924,6 +1039,11 @@ const POWERSHELL_UNREAD = 'in PowerShell, and the statement names';
 const CMD_READS_AGAIN = 'has & | < > " or a line break, which cmd.exe may read as another command';
 const MAY_BE_SHELL = 'and may be a shell that runs the command line it is given';
 const MAY_BE_MANAGER = 'and may be a package manager';
+const MAY_BE_ANY = 'and may stand for any command, also an install';
+/** The command line expands to more than the scanner reads (decision D-119). */
+const TOO_MUCH = 'depcurfew stops reading after';
+/** A change of directory to a directory the hook does not find (decision D-119). */
+const NOT_A_DIRECTORY = 'which is not an existing directory';
 const CONFIG_CHANGE =
   "changes the package manager's configuration, which the install or other package manager command in the same command would use, while depcurfew checks it with the configuration from before the change";
 const MANIFEST_CHANGE =
@@ -941,6 +1061,9 @@ function anotherRegistry(name: string): string {
 
 /** What to do about a command that cannot be read, by why it cannot be read. */
 export function unreadableFix(reason: string): string {
+  if (reason.startsWith(UNKNOWN_DIRECTORY) && reason.includes(NOT_A_DIRECTORY)) {
+    return 'Change only to a directory that exists (or create it with mkdir earlier in the same command), so depcurfew checks the install with the policy that applies there';
+  }
   if (reason.startsWith(UNKNOWN_DIRECTORY)) {
     return 'Run the install from that directory, or change to it with a path written out (cd path/to/project && …), so depcurfew checks it with the policy that applies there';
   }
@@ -959,6 +1082,8 @@ export function unreadableFix(reason: string): string {
   }
   if (reason.includes(MAY_BE_SHELL)) return 'Name the shell (bash -c, sh -c) or run the command itself, so depcurfew can check it';
   if (reason.includes(MAY_BE_MANAGER)) return 'Run the package manager by its name (npm, pnpm, yarn, bun, pip, uv) with the package names written out, so depcurfew can check the command';
+  if (reason.includes(MAY_BE_ANY)) return 'Write the command out as plain text, without building it from variables or other commands, so depcurfew can check it';
+  if (reason.includes(TOO_MUCH)) return 'Run the commands one by one, without aliases or eval that repeat them, so depcurfew can read each of them';
   if (reason.includes(CONFIG_CHANGE)) {
     return "Run the install as a command of its own, so depcurfew checks it with the configuration it will use; a change to the package manager's configuration is for the user to decide";
   }
@@ -1196,8 +1321,24 @@ function abbreviated(tool: ToolCommands, name: string): string | undefined {
   return matches.length === 1 ? matches[0] : undefined;
 }
 
-/** The option a word names under nopt's rules (npm, pnpm), without its dashes; `fixed` when it takes no further word. */
-function noptOption(tool: ToolCommands, bare: string): { name: string; fixed: boolean; value?: string } {
+/**
+ * A prefix of an option that weakens the delay or the rule on install scripts (installOverrides), when no other such
+ * option starts with it (--ignoreScripts and --ignore-scripts are one): the tool takes it for that option in some of its
+ * versions or with some of its options (npm 11 has no other option starting with --ign, npm 12 has), so the scan does
+ * too, which fails closed (decision D-119).
+ */
+function overrideAbbreviation(tool: ToolCommands, name: string): string | undefined {
+  const matches = (tool.overrides?.options ?? []).map((option) => option.name).filter((option) => option.startsWith(name));
+  const kinds = new Set(matches.map((option) => option.replaceAll('-', '').toLowerCase()));
+  return kinds.size === 1 ? matches[0] : undefined;
+}
+
+/**
+ * The option a word names under nopt's rules (npm, pnpm), without its dashes; `fixed` when it takes no further word
+ * but true or false (`booleanWord`, a negated flag). nopt strips every leading no- in any case, each one inverting the
+ * flag, and then resolves the rest as any option: an exact name or an unambiguous prefix (--no-ign is --no-ignore-scripts).
+ */
+function noptOption(tool: ToolCommands, bare: string): { name: string; fixed: boolean; value?: string; booleanWord?: true } {
   const { parsing, known } = tool;
   if (known.has(`--${bare}`)) return { name: `--${bare}`, fixed: false };
   if (known.has(`-${bare}`)) return { name: `-${bare}`, fixed: false };
@@ -1216,12 +1357,25 @@ function noptOption(tool: ToolCommands, bare: string): { name: string; fixed: bo
     // -gD: one-letter shorthands together; the last may take the next word.
     return expand(shorthands[letters.at(-1) as string] ?? []);
   }
-  if (parsing.negation !== undefined && `--${bare}`.startsWith(parsing.negation)) return { name: `--${bare}`, fixed: true };
+  const negation = parsing.negation?.replace(/^-+/u, '');
+  if (negation !== undefined && bare.toLowerCase().startsWith(negation)) {
+    let rest = bare;
+    let negated = false;
+    while (rest.toLowerCase().startsWith(negation)) {
+      negated = !negated;
+      rest = rest.slice(negation.length);
+    }
+    const option = known.has(`--${rest}`) ? `--${rest}` : parsing.abbreviations === true ? (abbreviated(tool, `--${rest}`) ?? overrideAbbreviation(tool, `--${rest}`)) : undefined;
+    const name = option ?? `--${rest}`;
+    return { name: negated ? `--${negation}${name.replace(/^-+/u, '')}` : name, fixed: true, booleanWord: true };
+  }
   if (parsing.abbreviations === true) {
     const option = abbreviated(tool, `--${bare}`);
     if (option !== undefined) return { name: option, fixed: false };
     const keys = tool.complete ? Object.keys(shorthands).filter((key) => key.startsWith(bare)) : [];
     if (keys.length === 1) return expand(shorthands[keys[0] as string] ?? []);
+    const override = overrideAbbreviation(tool, `--${bare}`);
+    if (override !== undefined) return { name: override, fixed: false };
   }
   return { name: `--${bare}`, fixed: false };
 }
@@ -1242,8 +1396,7 @@ function readOption(words: readonly Word[], index: number, tool: ToolCommands, t
   if (parsing.anyDashes === true) {
     const option = noptOption(tool, name.replace(/^-+/u, ''));
     if (option.fixed) {
-      const negated = parsing.negation !== undefined && option.name.startsWith(parsing.negation) && option.value === undefined;
-      if (negated && booleanWord !== undefined) return { name: option.name, value: booleanWord.text, next: booleanWord };
+      if (option.booleanWord === true && booleanWord !== undefined) return { name: option.name, value: booleanWord.text, next: booleanWord };
       return { name: option.name, value: attached ?? option.value, next: undefined };
     }
     name = option.name;
@@ -1259,7 +1412,7 @@ function readOption(words: readonly Word[], index: number, tool: ToolCommands, t
     }
     return { name: text, value: undefined, next: undefined };
   } else if (parsing.abbreviations === true && name.startsWith('--') && !tool.longOptions.includes(name)) {
-    name = abbreviated(tool, name) ?? name;
+    name = abbreviated(tool, name) ?? overrideAbbreviation(tool, name) ?? name;
   }
   if (attached !== undefined || !takes(name)) return { name, value: attached, next: undefined };
   return { name, value: words[index + 1]?.text, next: words[index + 1] };
@@ -1436,13 +1589,20 @@ function laterCommand(words: readonly Word[], depth: number): CommandScan {
   const index = words.findIndex((word) => !word.dynamic && runners.has(executableOf(word.text)));
   if (index === -1) return NOTHING;
   let later = words.slice(index);
-  if (words.slice(0, index).some((word) => !word.dynamic && FIND_EXEC.has(word.text))) {
+  const action = words.slice(0, index).findLast((word) => !word.dynamic && FIND_EXEC.has(word.text));
+  if (action !== undefined) {
     // find … -exec command … ; (or +): the command ends there, and find puts the file names it finds in place of {}.
     const end = later.findIndex((word, position) => position > 0 && !word.dynamic && (word.text === ';' || word.text === '+'));
     if (end !== -1) later = later.slice(0, end);
     later = later.map((word) => (word.text.includes('{}') ? { text: word.text, dynamic: true, input: true, filler: 'find puts file names in place of {}' } : word));
   }
-  return inChild(scanCommand({ words: later, input: [], redirected: false, later: true }, depth));
+  const scan = inChild(scanCommand({ words: later, input: [], redirected: false, later: true }, depth));
+  // -execdir and -okdir run the command in the directory of each file found, -exec and -ok where find runs (D-119).
+  if (action?.text === '-execdir' || action?.text === '-okdir') {
+    const reason = `find ${action.text} runs "${shown(joined(later))}" in the directory of each file it finds`;
+    for (const entry of [...scan.requests, ...(scan.overrides ?? [])]) entry.directory = { unknown: reason };
+  }
+  return scan;
 }
 
 /** The commands in the input of a command that runs it as commands: a here-document or here-string is known, a pipe or a file is not. */
@@ -1511,6 +1671,11 @@ function scanSource(words: readonly Word[], command: SimpleCommand, depth: numbe
   if (isProcessSubstitution(file)) return unreadable(`${shown(joined(words))}: ${FROM_PROCESS}`);
   const manager = file.dynamic ? undefined : scriptManager(file.text);
   if (manager !== undefined) return scanCommand({ ...command, words: [{ text: manager, dynamic: false }, ...words.slice(2)] }, depth);
+  // . "$X" i x: a file the shell expands, found on PATH and given an install word, may be a package manager (D-119).
+  const next = words.slice(2).find((word) => !isOption(word.text));
+  if (file.dynamic && next !== undefined && !next.dynamic && commands().installWords.has(next.text)) {
+    return unreadable(`${shown(joined(words))}: ${expanded(file, 'the file ')} ${MAY_BE_MANAGER}`);
+  }
   return file.dynamic || !STDIN_FILES.has(file.text) ? NOTHING : undefined;
 }
 
@@ -1522,11 +1687,69 @@ function scanTrap(words: readonly Word[], depth: number): CommandScan {
   const action = words[index];
   if (action === undefined || (!action.dynamic && (action.text === '-' || /^\d+$/u.test(action.text)))) return NOTHING;
   if (action.input === true) return unreadable(`${shown(joined(words))}: ${expanded(action)}`);
-  return scanLine(action.text, depth + 1);
+  const scan = scanLine(action.text, depth + 1);
+  // The action runs later, where the shell is by then: a change of directory after the trap makes that unknown.
+  for (const entry of [...scan.requests, ...(scan.overrides ?? [])]) TRAPPED.add(entry);
+  return scan;
 }
 
 /** The aliases defined so far in the command line being scanned, by name, with their values. */
 let aliases = new Map<string, string>();
+
+/**
+ * The aliases whose text is being read: bash does not expand such an alias again until its text has been read, so
+ * alias a='a; a' runs the command a twice and expands nothing more (checked on GNU bash 5.2; decision D-119).
+ */
+let expanding = new Set<string>();
+
+/**
+ * How much one scan reads beyond the command line itself (which the hook limits to 1 MiB): each alias put in place and
+ * each command line inside another costs its length, LINE_COST, and COMMAND_COST for each of its commands, every time
+ * it is read.
+ */
+const WORK_LIMIT = 2_000_000;
+const LINE_COST = 64;
+const COMMAND_COST = 32;
+
+/** What is left to read of WORK_LIMIT in the command line being scanned; beyond it, the scan asks (decision D-119). */
+class Work {
+  private remaining = WORK_LIMIT;
+
+  /** Takes the cost of reading `text` with its `commands`; false when the scan has read as much as it reads in one command. */
+  take(text: string, commands = 0): boolean {
+    this.remaining -= text.length + LINE_COST + commands * COMMAND_COST;
+    return this.remaining >= 0;
+  }
+
+  left(): boolean {
+    return this.remaining >= 0;
+  }
+
+  spent(line: string): CommandScan {
+    return unreadable(`${shown(line)}: ${TOO_MUCH} ${WORK_LIMIT / 1_000_000} million characters of command lines in one command (aliases and the command lines inside it count each time they are read)`);
+  }
+}
+let work = new Work();
+
+/** Installs and overrides in the action of a trap, which runs when the shell exits or gets a signal (decision D-119). */
+const TRAPPED = new WeakSet<object>();
+
+/** What the command line being scanned sets of CDPATH, OLDPWD, PWD and DIRSTACK, which change where cd goes. */
+let variables: ShellVariables = shellVariables('');
+/** The command line names TEXTDOMAIN or TEXTDOMAINDIR, so $"…" may be translated with a message catalog it brings. */
+let translated = false;
+
+/** What a line read by the scanner sets; a line inside another counts for the rest of the command (decision D-119). */
+function noteLine(line: string): void {
+  const found = shellVariables(line);
+  variables = {
+    cdPath: variables.cdPath || found.cdPath,
+    oldPwd: variables.oldPwd || found.oldPwd,
+    pwd: variables.pwd || found.pwd,
+    dirStack: variables.dirStack || found.dirStack,
+  };
+  translated ||= /\bTEXTDOMAIN(?:DIR)?\b/u.test(line);
+}
 
 /**
  * alias name=value: the value is read as a command line, and a later command that starts with the name is read with
@@ -1539,14 +1762,26 @@ function scanAlias(words: readonly Word[], depth: number): CommandScan {
     const equals = word.text.indexOf('=');
     if (isOption(word.text) || equals <= 0) continue;
     const value = word.text.slice(equals + 1);
-    aliases.set(word.text.slice(0, equals), value);
-    merge(scan, scanLine(value, depth + 1));
+    const name = word.text.slice(0, equals);
+    aliases.set(name, value);
+    // The value is read as if the alias were put in place, so it does not expand itself.
+    const own = !expanding.has(name);
+    if (own) expanding.add(name);
+    try {
+      merge(scan, scanLine(value, depth + 1));
+    } finally {
+      if (own) expanding.delete(name);
+    }
   }
   return scan;
 }
 
-/** The words an alias stands for, or undefined when its value is more than one simple command (it is then read as a line). */
+/**
+ * The words an alias stands for, or undefined when its value is more than one simple command (it is then read as a
+ * line) or when the scan has read as much as it reads in one command.
+ */
 function aliasWords(value: string): Word[] | undefined {
+  if (!work.take(value)) return undefined;
   try {
     const reading = read(value, 0, undefined, 0);
     return reading.items.every((item) => item.kind === 'word') ? reading.items.map((item) => (item as { word: Word }).word) : undefined;
@@ -1655,14 +1890,33 @@ function scanInvokeExpression(words: readonly Word[], command: SimpleCommand, de
   return scanLine(code.text, depth + 1, 'powershell');
 }
 
-/** What a wrapper runs: the remaining words, or a command line to read. */
-function unwrap(words: readonly Word[], wrapper: Wrapper): { words: Word[] } | { line: string } | { unreadable: string } {
+/** A long option of a wrapper as getopt_long takes it: the option or an unambiguous prefix of it (env --ch=x is --chdir). */
+function longOption(name: string, options: readonly string[] | undefined): boolean {
+  return options?.some((option) => option === name || (name.startsWith('--') && name.length > 2 && option.startsWith(name))) === true;
+}
+
+/** The directory a wrapper's option names, relative to where the wrapper runs; unknown when the shell expands it. */
+function wrapperDirectory(words: readonly Word[], value: Word | undefined): CommandDirectory | undefined {
+  if (value === undefined) return undefined;
+  if (value.dynamic) return { unknown: `the shell expands the directory of "${shown(joined(words))}"` };
+  return { steps: [value.text] };
+}
+
+/** What a wrapper runs: the remaining words, or a command line to read, with the directory it runs them in. */
+function unwrap(words: readonly Word[], wrapper: Wrapper): Unwrapped | { unreadable: string } {
   if (wrapper.anywhere === true) return unwrapAnywhere(words, wrapper);
   let index = 1;
   let replace: string | undefined;
   let shell = false;
+  let directory: CommandDirectory | undefined;
+  const moveTo = (value: Word | undefined) => {
+    const found = wrapperDirectory(words, value);
+    if (found !== undefined) directory = within(directory ?? HERE, found);
+  };
+  const done = (result: Unwrapped | { unreadable: string }): Unwrapped | { unreadable: string } => (directory === undefined || 'unreadable' in result ? result : { ...result, directory });
   while (index < words.length) {
-    const text = (words[index] as Word).text;
+    const word = words[index] as Word;
+    const text = word.text;
     if (ASSIGNMENT.test(text)) {
       index += 1;
       continue;
@@ -1674,11 +1928,16 @@ function unwrap(words: readonly Word[], wrapper: Wrapper): { words: Word[] } | {
     }
     const [name, attached] = splitOption(text);
     // getopt_long takes an unambiguous prefix of a long option: env --split='npm i x'.
-    if (wrapper.split?.some((option) => option === name || (name.startsWith('--') && name.length > 2 && option.startsWith(name))) === true) {
+    if (longOption(name, wrapper.split)) {
       const value = attached ?? words[index + 1]?.text ?? '';
-      return { line: [value, ...words.slice(index + (attached === undefined ? 2 : 1)).map((word) => word.text)].join(' ') };
+      return done({ line: [value, ...words.slice(index + (attached === undefined ? 2 : 1)).map((entry) => entry.text)].join(' ') });
     }
-    if (wrapper.lineOptions?.includes(name)) return lineOf(attached, words[index + 1]);
+    if (longOption(name, wrapper.chdir)) {
+      moveTo(attached === undefined ? words[index + 1] : { text: attached, dynamic: word.dynamic });
+      index += attached === undefined ? 2 : 1;
+      continue;
+    }
+    if (wrapper.lineOptions?.includes(name)) return done(lineOf(attached, words[index + 1]));
     if (wrapper.shellOptions?.includes(name)) {
       shell = true;
       index += 1;
@@ -1694,8 +1953,9 @@ function unwrap(words: readonly Word[], wrapper: Wrapper): { words: Word[] } | {
     }
     if (/^-[^-]./u.test(text)) {
       const grouped = groupedOptions(words, index, wrapper);
-      if (!('next' in grouped)) return grouped;
+      if (!('next' in grouped)) return done(grouped);
       shell ||= grouped.shell;
+      if (grouped.chdir !== undefined) moveTo(grouped.chdir);
       index = grouped.next;
       continue;
     }
@@ -1703,40 +1963,42 @@ function unwrap(words: readonly Word[], wrapper: Wrapper): { words: Word[] } | {
   }
   const rest = words.slice(index + (wrapper.operands ?? 0));
   if (shell) {
-    if (rest.length === 0) return { words: [] };
-    const filled = rest.find((word) => word.input === true);
-    return filled === undefined ? { line: joined(rest) } : { unreadable: expanded(filled) };
+    if (rest.length === 0) return done({ words: [] });
+    const filled = rest.find((entry) => entry.input === true);
+    return done(filled === undefined ? { line: joined(rest) } : { unreadable: expanded(filled) });
   }
   // flock file -c command: a line option may follow the operands.
   const [after, value] = splitOption(rest[0]?.text ?? '');
-  if (wrapper.operands !== undefined && wrapper.lineOptions?.includes(after) === true) return lineOf(value, rest[1]);
+  if (wrapper.operands !== undefined && wrapper.lineOptions?.includes(after) === true) return done(lineOf(value, rest[1]));
   if (wrapper.line === true) {
-    const filled = rest.find((word) => word.input === true);
-    return filled === undefined ? { line: joined(rest) } : { unreadable: expanded(filled) };
+    const filled = rest.find((entry) => entry.input === true);
+    return done(filled === undefined ? { line: joined(rest) } : { unreadable: expanded(filled) });
   }
-  if (wrapper.input === undefined || rest.length === 0) return { words: rest };
-  if (replace === undefined) return { words: [...rest, XARGS_INPUT] };
+  if (wrapper.input === undefined || rest.length === 0) return done({ words: rest });
+  if (replace === undefined) return done({ words: [...rest, XARGS_INPUT] });
   const marker = replace;
-  return { words: rest.map((word) => (word.text.includes(marker) ? { text: word.text, dynamic: true, input: true } : word)) };
+  return done({ words: rest.map((entry) => (entry.text.includes(marker) ? { text: entry.text, dynamic: true, input: true } : entry)) });
 }
 
 /**
  * One-letter options of a wrapper grouped in one word, as getopt reads them (env -iS'npm i x', env -vS 'npm i x',
  * sudo -Es): flags, then perhaps an option whose value is the rest of the word or the next word. The = of -u=x is part
- * of the value, so the word is read as written.
+ * of the value, so the word is read as written. `chdir`: the directory of env -iC dir or env -Cdir.
  */
-function groupedOptions(words: readonly Word[], index: number, wrapper: Wrapper): { next: number; shell: boolean } | { line: string } | { unreadable: string } {
-  const text = (words[index] as Word).text;
+function groupedOptions(words: readonly Word[], index: number, wrapper: Wrapper): { next: number; shell: boolean; chdir?: Word | undefined } | { line: string } | { unreadable: string } {
+  const word = words[index] as Word;
+  const text = word.text;
   let shell = false;
   for (let position = 1; position < text.length; position++) {
     const option = `-${text[position] as string}`;
     const rest = text.slice(position + 1);
     if (wrapper.split?.includes(option)) {
       const value = rest === '' ? (words[index + 1]?.text ?? '') : rest;
-      return { line: [value, ...words.slice(index + (rest === '' ? 2 : 1)).map((word) => word.text)].join(' ') };
+      return { line: [value, ...words.slice(index + (rest === '' ? 2 : 1)).map((entry) => entry.text)].join(' ') };
     }
     if (wrapper.lineOptions?.includes(option)) return lineOf(rest === '' ? undefined : rest, words[index + 1]);
     if (wrapper.shellOptions?.includes(option)) shell = true;
+    if (wrapper.chdir?.includes(option)) return { next: index + (rest === '' ? 2 : 1), shell, chdir: rest === '' ? words[index + 1] : { text: rest, dynamic: word.dynamic } };
     if (wrapper.values?.includes(option)) return { next: index + (rest === '' ? 2 : 1), shell };
   }
   return { next: index + 1, shell };
@@ -1998,15 +2260,25 @@ function batchArgument(first: Word, executable: string, rest: readonly Word[], s
 }
 
 function scanCommand(command: SimpleCommand, depth: number): CommandScan {
-  const { installWords } = commands();
+  /** Aliases this command puts in place, which are not expanded again while their text is read (decision D-119). */
+  const put: string[] = [];
+  try {
+    return scanWords(command, depth, put);
+  } finally {
+    for (const name of put) expanding.delete(name);
+  }
+}
+
+/** The words before the command itself: assignments, reserved words, aliases and wrappers such as sudo or env. */
+function scanWords(command: SimpleCommand, depth: number, put: string[]): CommandScan {
   let words = command.words;
-  /** Aliases already put in place, which bash does not expand a second time (alias ls='ls -F'). */
-  const replaced = new Set<string>();
   /** Variables set for the command alone (UV_PROJECT=sub uv add x). */
   const assigned: Word[] = [];
   /** No wrapper such as sudo or env runs it, so a builtin of the shell (cd) runs in the shell itself. */
   let builtin = true;
-  // Assignments, reserved words, aliases and wrappers such as sudo or env come before the command itself.
+  /** Where a wrapper runs the command (env -C, sudo -D; decision D-119), relative to the shell. */
+  let directory: CommandDirectory | undefined;
+  const moved = (scan: CommandScan) => (directory === undefined ? scan : placed(scan, directory));
   for (;;) {
     const head = words[0];
     if (head === undefined) return NOTHING;
@@ -2018,12 +2290,14 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
       // coproc runs the command in a subshell of its own.
       if (head.text === 'coproc') builtin = false;
       words = words.slice(1);
-    } else if (!head.dynamic && aliases.has(head.text) && !replaced.has(head.text)) {
-      // Checked after wrappers too, as an alias whose value ends in a blank (alias s='sudo ') makes bash do.
+    } else if (!head.dynamic && aliases.has(head.text) && !expanding.has(head.text)) {
+      // Checked after wrappers too, as an alias whose value ends in a blank (alias s='sudo ') makes bash do. bash
+      // does not expand an alias again while its text is read (alias ls='ls -F', alias a='a; a').
       const value = aliases.get(head.text) as string;
-      replaced.add(head.text);
+      expanding.add(head.text);
+      put.push(head.text);
       const own = aliasWords(value);
-      if (own === undefined) return scanLine([value, ...words.slice(1).map(requoted)].join(' '), depth + 1);
+      if (own === undefined) return moved(work.left() ? scanLine([value, ...words.slice(1).map(requoted)].join(' '), depth + 1) : work.spent(value));
       words = [...own, ...words.slice(1)];
     } else if (!head.dynamic && head.text === 'function') {
       words = words.slice(2);
@@ -2031,8 +2305,9 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
       const wrapper = basename(head.text);
       const unwrapped = unwrap(words, WRAPPERS.get(wrapper) as Wrapper);
       if ('unreadable' in unwrapped) return unreadable(`${shown(joined(words))}: ${unwrapped.unreadable}`);
+      if (unwrapped.directory !== undefined) directory = within(directory ?? HERE, unwrapped.directory);
       // eval runs the line in the shell itself, so a cd in it changes the directory; the others start a process.
-      if ('line' in unwrapped) return wrapper === 'eval' ? scanLine(unwrapped.line, depth + 1) : inChild(scanLine(unwrapped.line, depth + 1));
+      if ('line' in unwrapped) return wrapper === 'eval' ? moved(scanLine(unwrapped.line, depth + 1)) : moved(inChild(scanLine(unwrapped.line, depth + 1)));
       // command, builtin and bash's reserved word time run a builtin in the shell itself.
       if (wrapper !== 'command' && wrapper !== 'builtin' && wrapper !== 'time') builtin = false;
       words = unwrapped.words;
@@ -2040,14 +2315,25 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
       break;
     }
   }
+  return moved(scanSimple(command, words, assigned, builtin, depth));
+}
+
+/** A command without the words before it: the executable and its arguments. */
+function scanSimple(command: SimpleCommand, words: readonly Word[], assigned: readonly Word[], builtin: boolean, depth: number): CommandScan {
+  const { installWords } = commands();
   const first = words[0] as Word;
   const line = joined(words);
   // cd, pushd, Set-Location: where the commands after it run (decision D-118).
-  const moves = directoryChange(words, command.shell ?? 'posix', builtin, cdPathSet);
+  const moves = directoryChange(words, command.shell ?? 'posix', builtin, variables);
   if (moves !== undefined) return { requests: [], unreadable: undefined, ...(moves.length === 0 ? {} : { moves }) };
   // A command line built at run time (eval "$CMD", sh -c "$X") cannot be known in advance. In PowerShell a variable
   // on its own is a value, not a command: only & or . would run it, and then its arguments decide.
   if (depth > 0 && command.shell !== 'powershell' && WHOLE_EXPANSION.test(first.text)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
+  // eval 'x$A', sh -c "${A}x": the shell splits the expansion into words, which may be any command; so may $'…' that
+  // depcurfew cannot decode. Brace expansion makes several words of one anywhere ({npm,install,x}). (Decision D-119.)
+  if (first.splits === true && command.shell !== 'powershell' && (depth > 0 || BRACES.test(first.text))) {
+    return unreadable(`${shown(line)}: ${expanded(first, 'the command ')} ${MAY_BE_ANY}`);
+  }
   // $SHELL -c '…', $(which bash) <<< '…', echo '…' | $SHELL: a shell named by an expansion runs a command line.
   if (first.dynamic && command.shell !== 'powershell' && commandLineGiven(words.slice(1), command)) {
     return unreadable(`${shown(line)}: ${expanded(first, 'the command ')} ${MAY_BE_SHELL}`);
@@ -2076,6 +2362,8 @@ function scanCommand(command: SimpleCommand, depth: number): CommandScan {
   }
   const subcommand = rest.find((word) => !isOption(word.text));
   if (first.dynamic && subcommand !== undefined && installWords.has(subcommand.text)) return unreadable(`${shown(line)}: ${expanded(first, 'the command ')}`);
+  // Inside a command line, a command and a subcommand both built at run time may be an install (sh -c '/bin/np? $(echo i) x').
+  if (first.dynamic && depth > 0 && subcommand?.dynamic === true && command.shell !== 'powershell') return unreadable(`${shown(line)}: ${expanded(first, 'the command ')} ${MAY_BE_ANY}`);
   // echo npm install lodash prints the words; it runs nothing.
   if (!first.dynamic && PRINTERS.has(executable)) return NOTHING;
   return laterCommand(rest, depth);
@@ -2428,6 +2716,9 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     if (shell === 'powershell' && namedRunner(line) === undefined) return NOTHING;
     return unreadable(`${shown(line)}: command lines are nested more than ${MAX_DEPTH} levels deep`);
   }
+  // Aliases and command lines inside others are read each time they run, which has to end somewhere (decision D-119).
+  if (depth > 0 && !work.left()) return work.spent(line);
+  noteLine(line);
   let reading: LineReading;
   try {
     reading = readLine(line, shell);
@@ -2444,7 +2735,7 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     const requests = scan.requests.length;
     const overrides = scan.overrides?.length ?? 0;
     merge(scan, found);
-    walk.placed([...scan.requests.slice(requests), ...(scan.overrides ?? []).slice(overrides)]);
+    walk.placed([...scan.requests.slice(requests), ...(scan.overrides ?? []).slice(overrides)], (entry) => TRAPPED.has(entry));
   };
   // In the order of the items they are in (a here-document's body comes after the words of its line).
   const pending = [...reading.nested].sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity));
@@ -2456,12 +2747,17 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     if (shell === 'powershell' && found.moves !== undefined) walk.nestedChange(inner.line);
   };
   const commandList = simpleCommands(reading.items, shell);
+  if (depth > 0 && !work.take(line, commandList.length)) return work.spent(line);
   for (const command of commandList) {
     const bounds: CommandBounds = command.bounds ?? { before: [], after: undefined };
     walk.begin(command.words, bounds);
     // The command lines in its words (and before them) run first, where the command runs.
     while (next < pending.length && (pending[next]?.at ?? Infinity) < (command.to ?? 0)) nested(pending[next++] as LineReading['nested'][number]);
     for (const word of command.words) placeOf.set(word, walk.place);
+    // mkdir: a cd into the directory it creates later on the line need not find it (decision D-119).
+    const start = command.words.findIndex((word) => word.dynamic || (!ASSIGNMENT.test(word.text) && !KEYWORDS.has(word.text)));
+    const created = start === -1 ? undefined : createdDirectories(command.words.slice(start), shell);
+    if (created !== undefined) walk.create(created.paths, created.parents);
     const found = scanCommand(command, depth);
     add(found);
     if (found.moves !== undefined) walk.changes(found.moves, command.words, bounds);
@@ -2471,10 +2767,10 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
   if (scan.requests.length > 0) {
     const setting = registryAssignment(reading.items) ?? (reading.named === undefined ? undefined : namedSetting(reading.named));
     if (setting !== undefined) scan.unreadable ??= `${shown(line)}: ${setting}`;
-    const variables = selectionAssignments(reading.items);
-    if ('unreadable' in variables) scan.unreadable ??= `${shown(line)}: ${variables.unreadable}`;
+    const selection = selectionAssignments(reading.items);
+    if ('unreadable' in selection) scan.unreadable ??= `${shown(line)}: ${selection.unreadable}`;
     // Variables set on this line count before those of the lines inside it, which come in first.
-    else for (const request of scan.requests) PENDING.get(request)?.variables.unshift(...variables.set);
+    else for (const request of scan.requests) PENDING.get(request)?.variables.unshift(...selection.set);
   }
   if (scan.requests.length > 0 || scan.manager === true) {
     // npm_config_ignore_scripts=false npm ci weakens that install as much as npm i lodash.
@@ -2534,15 +2830,14 @@ export interface ScanOptions {
   shell?: 'posix' | 'powershell';
 }
 
-/** Whether the command line being scanned sets CDPATH, which changes where cd goes. */
-let cdPathSet = false;
-
 /** The packages a command line installs or downloads to run with npm, pnpm, Yarn, Bun, Deno, pip, uv, Poetry, PDM, Pipenv or pipx. */
 export function scanCommandLine(line: string, options: ScanOptions = {}): CommandScan {
-  const previous = aliases;
-  const cdPath = cdPathSet;
+  const previous = { aliases, expanding, work, variables, translated };
   aliases = new Map();
-  cdPathSet = /\bCDPATH\b/u.test(line);
+  expanding = new Set();
+  work = new Work();
+  variables = shellVariables('');
+  translated = false;
   try {
     const scan = scanLine(line, 0, options.shell ?? 'posix');
     // A change of the configuration matters to the installs next to it, also those without names (npm config set … && npm ci).
@@ -2550,14 +2845,18 @@ export function scanCommandLine(line: string, options: ScanOptions = {}): Comman
     const overrides = scan.overrides?.map(({ directory, ...override }) => ({ ...override, ...shownDirectory(directory) }));
     return { requests: scan.requests.map(settle), unreadable, ...(overrides === undefined ? {} : { overrides }) };
   } finally {
-    aliases = previous;
-    cdPathSet = cdPath;
+    ({ aliases, expanding, work, variables, translated } = previous);
   }
 }
 
 /** Why an install cannot be placed in a directory (decision D-118), as the hook says it. */
 export function unknownDirectory(command: string, reason: string): string {
   return `${UNKNOWN_DIRECTORY} "${shown(command)}" runs in: ${reason}`;
+}
+
+/** Why the hook cannot place an install after a change to a directory that it does not find (decision D-119). */
+export function missingDirectory(step: string): string {
+  return `the command changes to "${shown(step)}", ${NOT_A_DIRECTORY}, so the shell may stay where it was`;
 }
 
 /**

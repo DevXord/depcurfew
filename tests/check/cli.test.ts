@@ -445,7 +445,7 @@ describe('depcurfew check --hook claude-code', () => {
     });
     expect(code).toBe(2);
     expect(stderr).toBe(
-      'error: cannot read the hook event: the input is larger than 1 MiB\n  fix: Claude Code sends the PreToolUse event as one JSON object on stdin, at most 1 MiB, with hook_event_name, tool_name, tool_input.command and cwd: run depcurfew check --hook claude-code as a PreToolUse command hook (see the README), or pipe such an event into it to try it, e.g. {"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm install lodash"},"cwd":"."}\n',
+      'error: cannot read the hook event: the input is larger than 1 MiB (hook-event-unreadable)\n  fix: Claude Code sends the PreToolUse event as one JSON object on stdin, at most 1 MiB, with hook_event_name, tool_name, tool_input.command and cwd: run depcurfew check --hook claude-code as a PreToolUse command hook (see the README), or pipe such an event into it to try it, e.g. {"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm install lodash"},"cwd":"."}\n',
     );
   });
 

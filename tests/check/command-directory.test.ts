@@ -8,29 +8,31 @@ import { scanCommandLine, unreadableFix, unknownDirectory, type CommandDirectory
 /** Each request as tool:spec with its directory (undefined: the directory the command starts in). */
 const where = (line: string, options?: ScanOptions) => scanCommandLine(line, options).requests.map((request) => [`${request.tool}:${request.spec}`, request.directory]);
 const steps = (...list: string[]): CommandDirectory => ({ steps: list });
+/** Directories the shell changes to, which the hook checks exist (decision D-119). */
+const entered = (...list: string[]): CommandDirectory => ({ steps: list, entered: list.map((_, index) => index) });
 const unknown = (text: string) => ({ unknown: expect.stringContaining(text) as string });
 
 describe('the scanner follows cd, pushd and popd', () => {
   it.each([
-    ['cd pkgs/strict && npm install @types/node@26.6.6', [['npm:@types/node@26.6.6', steps('pkgs/strict')]]],
-    ['cd "pkgs/strict"; npm i x', [['npm:x', steps('pkgs/strict')]]],
-    ["cd 'my dir' || exit 1\nnpm i x", [['npm:x', steps('my dir')]]],
-    ['cd /srv/app\nnpm i x', [['npm:x', steps('/srv/app')]]],
-    ['cd a && cd b && npm i x', [['npm:x', steps('a', 'b')]]],
-    ['cd -L a && npm i x', [['npm:x', steps('a')]]],
-    ['cd -- a && npm i x', [['npm:x', steps('a')]]],
-    ['command cd a && npm i x', [['npm:x', steps('a')]]],
-    ['pushd a && npm i x', [['npm:x', steps('a')]]],
+    ['cd pkgs/strict && npm install @types/node@26.6.6', [['npm:@types/node@26.6.6', entered('pkgs/strict')]]],
+    ['cd "pkgs/strict"; npm i x', [['npm:x', entered('pkgs/strict')]]],
+    ["cd 'my dir' || exit 1\nnpm i x", [['npm:x', entered('my dir')]]],
+    ['cd /srv/app\nnpm i x', [['npm:x', entered('/srv/app')]]],
+    ['cd a && cd b && npm i x', [['npm:x', entered('a', 'b')]]],
+    ['cd -L a && npm i x', [['npm:x', entered('a')]]],
+    ['cd -- a && npm i x', [['npm:x', entered('a')]]],
+    ['command cd a && npm i x', [['npm:x', entered('a')]]],
+    ['pushd a && npm i x', [['npm:x', entered('a')]]],
     ['pushd a >/dev/null; popd; npm i x', [['npm:x', undefined]]],
     ['cd a && cd - && npm i x', [['npm:x', undefined]]],
-    ['cd a && cd b && cd - && npm i x', [['npm:x', steps('a')]]],
-    ['pushd a && pushd b && popd && npm i x', [['npm:x', steps('a')]]],
-    ['cd a && npm i x && cd ../b && npm i y', [['npm:x', steps('a')], ['npm:y', steps('a', '../b')]]],
-    ['{ cd a; } && npm i x', [['npm:x', steps('a')]]],
-    ["eval 'cd a' && npm i x", [['npm:x', steps('a')]]],
-    ["alias go='cd app && npm'\ngo i x", [['npm:x', steps('app')]]],
-    ['if true; then cd a && npm i x; fi', [['npm:x', steps('a')]]],
-    ['cd a && bash -c "cd b && npm i x"', [['npm:x', steps('a', 'b')]]],
+    ['cd a && cd b && cd - && npm i x', [['npm:x', entered('a')]]],
+    ['pushd a && pushd b && popd && npm i x', [['npm:x', entered('a')]]],
+    ['cd a && npm i x && cd ../b && npm i y', [['npm:x', entered('a')], ['npm:y', entered('a', '../b')]]],
+    ['{ cd a; } && npm i x', [['npm:x', entered('a')]]],
+    ["eval 'cd a' && npm i x", [['npm:x', entered('a')]]],
+    ["alias go='cd app && npm'\ngo i x", [['npm:x', entered('app')]]],
+    ['if true; then cd a && npm i x; fi', [['npm:x', entered('a')]]],
+    ['cd a && bash -c "cd b && npm i x"', [['npm:x', entered('a', 'b')]]],
   ])('%s', (line, expected) => {
     expect(where(line)).toEqual(expected);
     expect(scanCommandLine(line).unreadable).toBeUndefined();
@@ -38,16 +40,16 @@ describe('the scanner follows cd, pushd and popd', () => {
 
   it('ends the scope of a cd with its subshell, its command substitution and its sh -c string', () => {
     expect(where('(cd web && pnpm add react) && yarn add vue')).toEqual([
-      ['pnpm:react', steps('web')],
+      ['pnpm:react', entered('web')],
       ['yarn:vue', undefined],
     ]);
     expect(where('echo $(cd a) && npm i y')).toEqual([['npm:y', undefined]]);
     expect(where('x=$(cd a && npm i b) && npm i y')).toEqual([
-      ['npm:b', steps('a')],
+      ['npm:b', entered('a')],
       ['npm:y', undefined],
     ]);
     expect(where("sh -c 'cd a && npm i x' && npm i y")).toEqual([
-      ['npm:x', steps('a')],
+      ['npm:x', entered('a')],
       ['npm:y', undefined],
     ]);
     expect(where('bash -c "cd a"; npm i y')).toEqual([['npm:y', undefined]]);
@@ -57,10 +59,10 @@ describe('the scanner follows cd, pushd and popd', () => {
     expect(where('sudo cd a; npm i y')).toEqual([['npm:y', undefined]]);
     expect(where('coproc cd a; npm i y')).toEqual([['npm:y', undefined]]);
     // bash's reserved word time runs it in the shell itself.
-    expect(where('time cd a; npm i y')).toEqual([['npm:y', steps('a')]]);
+    expect(where('time cd a; npm i y')).toEqual([['npm:y', entered('a')]]);
     // A { … } group in a pipeline runs in a subshell: the change holds inside it only.
     expect(where('{ cd a && npm i x; } | tee log; npm i y')).toEqual([
-      ['npm:x', steps('a')],
+      ['npm:x', entered('a')],
       ['npm:y', undefined],
     ]);
   });
@@ -108,7 +110,7 @@ describe('the scanner follows cd, pushd and popd', () => {
 
   it('gives overrides the directory of their command', () => {
     expect(scanCommandLine('cd a && npm ci --ignore-scripts=false').overrides).toEqual([
-      expect.objectContaining({ written: '--ignore-scripts=false', directory: steps('a') }),
+      expect.objectContaining({ written: '--ignore-scripts=false', directory: entered('a') }),
     ]);
     expect(scanCommandLine('npm ci --ignore-scripts=false').overrides?.[0]?.directory).toBeUndefined();
   });
@@ -119,7 +121,7 @@ describe('the scanner follows the options that move one command', () => {
     ['npm --prefix sub install x', [['npm:x', { steps: ['sub'], localPrefix: true }]]],
     ['npm -C sub i x', [['npm:x', { steps: ['sub'], localPrefix: true }]]],
     ['npm i x --prefix=sub', [['npm:x', { steps: ['sub'], localPrefix: true }]]],
-    ['cd a && npm --prefix b i x', [['npm:x', { steps: ['a', 'b'], localPrefix: true }]]],
+    ['cd a && npm --prefix b i x', [['npm:x', { steps: ['a', 'b'], localPrefix: true, entered: [0] }]]],
     ['pnpm -C sub add x', [['pnpm:x', steps('sub')]]],
     ['pnpm --dir sub add x', [['pnpm:x', steps('sub')]]],
     ['pnpm add x --dir=sub', [['pnpm:x', steps('sub')]]],
@@ -158,15 +160,15 @@ describe('PowerShell and cmd change directories too', () => {
   const powerShell: ScanOptions = { shell: 'powershell' };
 
   it.each([
-    ['cd pkgs/strict; npm i x', [['npm:x', steps('pkgs/strict')]]],
-    ['Set-Location -Path pkgs/strict; npm i x', [['npm:x', steps('pkgs/strict')]]],
-    ["Set-Location -LiteralPath 'a[1]'; npm i x", [['npm:x', steps('a[1]')]]],
-    ['sl a; npm i x', [['npm:x', steps('a')]]],
-    ['chdir a; npm i x', [['npm:x', steps('a')]]],
-    ['set-location -path:a -PassThru; npm i x', [['npm:x', steps('a')]]],
-    ['cd a && npm i x', [['npm:x', steps('a')]]],
-    ['cd..; npm i x', [['npm:x', steps('..')]]],
-    ['Push-Location a; npm i x; Pop-Location; npm i y', [['npm:x', steps('a')], ['npm:y', undefined]]],
+    ['cd pkgs/strict; npm i x', [['npm:x', entered('pkgs/strict')]]],
+    ['Set-Location -Path pkgs/strict; npm i x', [['npm:x', entered('pkgs/strict')]]],
+    ["Set-Location -LiteralPath 'a[1]'; npm i x", [['npm:x', entered('a[1]')]]],
+    ['sl a; npm i x', [['npm:x', entered('a')]]],
+    ['chdir a; npm i x', [['npm:x', entered('a')]]],
+    ['set-location -path:a -PassThru; npm i x', [['npm:x', entered('a')]]],
+    ['cd a && npm i x', [['npm:x', entered('a')]]],
+    ['cd..; npm i x', [['npm:x', entered('..')]]],
+    ['Push-Location a; npm i x; Pop-Location; npm i y', [['npm:x', entered('a')], ['npm:y', undefined]]],
     ['pushd a; popd; npm i y', [['npm:y', undefined]]],
     ['Push-Location; cd a; popd; npm i y', [['npm:y', undefined]]],
   ])('%s', (line, expected) => {
@@ -187,8 +189,8 @@ describe('PowerShell and cmd change directories too', () => {
   });
 
   it('reads cd in cmd /c, where & runs the next command in the same shell', () => {
-    expect(where('cmd /c "cd /d sub && npm i x"')).toEqual([['npm:x', steps('sub')]]);
-    expect(where('cmd /c "cd sub & npm i x"')).toEqual([['npm:x', steps('sub')]]);
+    expect(where('cmd /c "cd /d sub && npm i x"')).toEqual([['npm:x', entered('sub')]]);
+    expect(where('cmd /c "cd sub & npm i x"')).toEqual([['npm:x', entered('sub')]]);
     expect(where('cmd /c "cd & npm i x"')).toEqual([['npm:x', undefined]]);
   });
 });

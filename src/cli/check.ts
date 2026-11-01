@@ -5,18 +5,18 @@
 // public npm registry; pypi: packages in the index given with --index, else PyPI. Exit code 1 when any package breaks
 // the policy or cannot be checked, 2 for a usage error such as a --dir that does not exist; in hook mode the decision
 // goes to stdout as JSON and the exit code is 0.
-import { existsSync, realpathSync } from 'node:fs';
+import { accessSync, constants, existsSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { UserEnvironment } from '../user/locate.ts';
 import type { McpProcess } from './mcp.ts';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { checkSpecs, type CheckFinding, type CheckRequest, type PackageReport } from '../check/index.ts';
 import { parseRange, parseSemver } from '../check/semver.ts';
 import { parseSpec } from '../check/spec.ts';
 import { isPythonSpec } from '../check/python.ts';
 import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEvent, reasonText, requestedSpecs, UNREAD_REGISTRY_FIX_START, type PlacedRequest } from '../check/hook.ts';
-import { overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
+import { missingDirectory, overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal, type LookupCache } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
 import { hasRegistrySettings, MAX_CONFIG_SIZE, npmrcSettings, sameRegistry, toolRegistrySettings, type NpmrcSettings, type SkippedFile, type UnreadSetting, type WrittenSetting } from '../check/registry-settings.ts';
@@ -155,6 +155,9 @@ function messageOf(error: unknown): string {
   if (error instanceof PolicyError) return [error.text, ...error.issues].join('; ');
   return error instanceof Error ? error.message : String(error);
 }
+
+/** The code of the error for a hook event that cannot be read (decision D-119). */
+const HOOK_EVENT_UNREADABLE = 'hook-event-unreadable';
 
 /**
  * What to do about a hook event that cannot be read: what Claude Code sends, and how to run the hook. The field names
@@ -515,6 +518,88 @@ function nearerNotice(applied: AppliedPolicy, mainName: string, where?: string):
   return `Besides ${mainName}, ${applied.nearer.file} also applies ${where === undefined ? 'here' : `to what the command installs in ${where}`}; the stricter answer counts`;
 }
 
+/**
+ * The policies of the working directory for an install in another directory, when they add to that directory's own
+ * (decision D-119): with the configuration files of the install's directory, so that only the policy changes; `files`
+ * names the policies that are added (null for the default policy).
+ */
+function workingPolicies(applied: AppliedPolicy, here: AppliedPolicy): { applied: AppliedPolicy; files: (string | null)[] } | undefined {
+  const own = new Set([applied.file, applied.nearer?.file]);
+  const files = [here.file, ...(here.nearer === undefined ? [] : [here.nearer.file])].filter((file) => !own.has(file));
+  if (files.length === 0) return undefined;
+  const { nearer: _nearer, ...lookups } = applied;
+  return { applied: { ...lookups, policy: here.policy, file: here.file, ...(here.nearer === undefined ? {} : { nearer: here.nearer }) }, files };
+}
+
+/** The note that the policies of the working directory apply to an install elsewhere; `where` undefined: a directory depcurfew cannot tell. */
+function workingNotice(files: readonly (string | null)[], where: string | undefined): string {
+  const names = files.map((file) => file ?? 'the default policy').join(' and ');
+  return `The policy of the working directory (${names}) also applies to what the command installs in ${where ?? 'a directory depcurfew cannot tell'}, so that changing directory never relaxes the check; the stricter answer counts.`;
+}
+
+/** Whether the shell can change to a path: it is a directory (also through a symlink) that may be searched. */
+function enterable(path: string): boolean {
+  try {
+    if (!statSync(path).isDirectory()) return false;
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The separators of paths on this system. */
+const SEPARATORS = sep === '\\' ? /[\\/]/u : /\//u;
+
+/**
+ * Whether a change of directory from `from` to `step` succeeds, as bash's cd checks it (decision D-119): logically,
+ * each directory before a .. and the last one must exist (cd nope/../app fails); physically (cd -P), as the system
+ * resolves the path through symlinks.
+ */
+function enters(from: string, step: string, physical: boolean): boolean {
+  if (physical) return enterable(isAbsolute(step) ? step : `${from}${sep}${step}`);
+  const root = parse(step).root;
+  let path = root === '' ? from : resolve(root);
+  for (const part of step.slice(root.length).split(SEPARATORS)) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') {
+      if (!enterable(path)) return false;
+      path = dirname(path);
+    } else {
+      path = join(path, part);
+    }
+  }
+  return enterable(path);
+}
+
+/** A change of directory with cd -P or after set -P: the real path of the part that exists, then the rest (decision D-119). */
+function physicalPath(from: string, step: string): string {
+  const raw = isAbsolute(step) ? step : `${from}${sep}${step}`;
+  const parts = raw.split(SEPARATORS);
+  for (let length = parts.length; length > 0; length--) {
+    try {
+      return resolve(realpathSync.native(parts.slice(0, length).join(sep) || sep), ...parts.slice(length));
+    } catch {
+      // A shorter part of the path may exist.
+    }
+  }
+  return resolve(raw);
+}
+
+/**
+ * Where an install runs, real and absolute (decision D-118), or why depcurfew cannot tell: a change of directory the
+ * shell makes to a directory that does not exist, or is a file, fails and leaves the shell where it was (decision D-119).
+ */
+function installDirectory(cwd: string, directory: Exclude<CommandDirectory, { unknown: string }>): { path: string } | { unknown: string } {
+  let current = resolve(cwd);
+  for (const [index, step] of directory.steps.entries()) {
+    const physical = directory.physical?.includes(index) === true;
+    if (directory.entered?.includes(index) === true && !enters(current, step, physical)) return { unknown: missingDirectory(step) };
+    current = physical ? physicalPath(current, step) : resolve(current, step);
+  }
+  return { path: realPathOfAny(current) };
+}
+
 /** The real path of a directory that may not exist yet (mkdir app && cd app && npm i x): of its nearest existing parent. */
 function realPathOfAny(path: string): string {
   const absolute = resolve(path);
@@ -562,17 +647,21 @@ function hookGroups(cwd: string, specs: readonly PlacedRequest[], overrides: rea
   const here = realPathOfAny(cwd);
   let directories = 0;
   let dropped = 0;
-  const groupOf = (directory: CommandDirectory | undefined, overridden: boolean): HookGroup | undefined => {
+  /** The group of a directory, and why depcurfew cannot tell the directory when the scan could but the hook cannot. */
+  const groupOf = (directory: CommandDirectory | undefined, overridden: boolean): { group: HookGroup; unknown?: string } | undefined => {
     let key = 'here';
     let entry: Omit<HookGroup, 'requests' | 'overrides'> = { kind: 'here', directory: undefined, localPrefix: false };
-    if (directory !== undefined && 'unknown' in directory) {
+    const found = directory === undefined || 'unknown' in directory ? directory : installDirectory(cwd, directory);
+    /** Why the hook cannot tell a directory that the scan gave (decision D-119). */
+    const unknown = found !== undefined && 'unknown' in found && directory !== undefined && !('unknown' in directory) ? found.unknown : undefined;
+    if (found !== undefined && 'unknown' in found) {
       if (!overridden) {
         key = 'unknown';
         entry = { kind: 'unknown', directory: undefined, localPrefix: false };
       }
-    } else if (directory !== undefined) {
-      const real = realPathOfAny(resolve(cwd, ...directory.steps));
-      const localPrefix = directory.localPrefix === true;
+    } else if (found !== undefined) {
+      const real = found.path;
+      const localPrefix = directory !== undefined && !('unknown' in directory) && directory.localPrefix === true;
       if (real !== here || localPrefix) {
         key = `${localPrefix ? 'prefix' : 'directory'}:${real}`;
         entry = { kind: isInside(project, real) ? 'inside' : 'outside', directory: real, localPrefix };
@@ -588,10 +677,13 @@ function hookGroups(cwd: string, specs: readonly PlacedRequest[], overrides: rea
       group = { ...entry, requests: [], overrides: [] };
       groups.set(key, group);
     }
-    return group;
+    return { group, ...(unknown === undefined ? {} : { unknown }) };
   };
-  for (const spec of specs) groupOf(spec.directory, false)?.requests.push(spec);
-  for (const override of overrides) groupOf(override.directory, true)?.overrides.push(override);
+  for (const spec of specs) {
+    const placed = groupOf(spec.directory, false);
+    placed?.group.requests.push(placed.unknown === undefined ? spec : { ...spec, directory: { unknown: placed.unknown } });
+  }
+  for (const override of overrides) groupOf(override.directory, true)?.group.overrides.push(override);
   // A command that only could not be read is still answered with the policies of the working directory.
   if (groups.size === 0) groupOf(undefined, false);
   const tooMany = dropped === 0 ? {} : { tooMany: `the command installs in more than ${MAX_DIRECTORIES} directories, and ${TOO_MANY} ${MAX_DIRECTORIES} directories in one command` };
@@ -606,7 +698,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     // Without the event depcurfew cannot tell what would run; this exit code blocks the call even without onFailure.
     // Claude sees stderr as the reason, so the parser's message (which may quote the input) is shown as visible text.
     const colors = paint(io.colors?.stderr);
-    io.stderr(`${colors.bold(colors.red('error:'))} cannot read the hook event: ${reasonText(messageOf(error))}\n  ${colors.green('fix:')} ${unreadableEventFix()}\n`);
+    io.stderr(`${colors.bold(colors.red('error:'))} cannot read the hook event: ${reasonText(messageOf(error))} ${colors.dim(`(${HOOK_EVENT_UNREADABLE})`)}\n  ${colors.green('fix:')} ${unreadableEventFix()}\n`);
     return blockingExitCode();
   }
   if (event === undefined) return EXIT_OK;
@@ -630,29 +722,36 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
     const skipped: SkippedFile[] = [];
     const placed = hookGroups(cwd, specs, overrides, project);
     let doubt: string | undefined = placed.tooMany;
+    const cannotCheck = (result: Extract<AppliedPolicyResult, { ok: false }>) => {
+      // A nearer policy is named, so that the user is not pointed at the project's policy, which is fine (decision D-110).
+      const { cause } = result;
+      const text = result.nearer ? (cause.issues.length > 0 ? `${result.file} is invalid: ${cause.issues.join('; ')}` : `${result.file}: ${messageOf(cause)}`) : messageOf(cause);
+      io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(text)}` }) ?? '');
+      return EXIT_OK;
+    };
+    // The policies of the working directory apply to every install of the command, wherever it runs, so a change of
+    // directory (that may not happen, or that depcurfew reads differently from the shell) only tightens the check.
+    const hereResult = appliedPolicy(cwd, { ...common, ...(projectDir === undefined ? {} : { project: projectDir }) });
+    if (!hereResult.ok) return cannotCheck(hereResult);
+    const hereApplied = hereResult.applied;
     for (const group of placed.groups) {
       const directory = group.directory ?? cwd;
       const result =
         group.kind === 'here'
-          ? appliedPolicy(cwd, { ...common, ...(projectDir === undefined ? {} : { project: projectDir }) })
+          ? hereResult
           : appliedPolicy(directory, { ...common, ...(group.kind === 'inside' ? { project } : { root: projectOnly }), ...(group.localPrefix ? { npmPrefix: directory } : {}) });
-      if (!result.ok) {
-        // A nearer policy is named, so that the user is not pointed at the project's policy, which is fine (decision D-110).
-        const { cause } = result;
-        const text = result.nearer ? (cause.issues.length > 0 ? `${result.file} is invalid: ${cause.issues.join('; ')}` : `${result.file}: ${messageOf(cause)}`) : messageOf(cause);
-        io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(text)}` }) ?? '');
-        return EXIT_OK;
-      }
+      if (!result.ok) return cannotCheck(result);
       const { applied } = result;
-      const policies = applied.nearer === undefined ? [applied.policy] : [applied.policy, applied.nearer.policy];
+      const working = group.kind === 'here' ? undefined : workingPolicies(applied, hereApplied);
+      const policies = [applied, ...(working === undefined ? [] : [working.applied])].flatMap((entry) => (entry.nearer === undefined ? [entry.policy] : [entry.policy, entry.nearer.policy]));
       if (group.kind === 'here' || group.requests.length > 0) {
-        const checked = await checkApplied(
-          group.requests.map((entry) => entry.request),
-          applied,
-          { fetch: dependencies.fetch, now: dependencies.now(), scriptBodies: false, index: flags.index, lookups },
-        );
-        reports.push(...checked.reports);
-        for (const file of checked.skipped) if (!skipped.some((known) => known.file === file.file && known.reason === file.reason)) skipped.push(file);
+        const requests = group.requests.map((entry) => entry.request);
+        const settings: RunSettings = { fetch: dependencies.fetch, now: dependencies.now(), scriptBodies: false, index: flags.index, lookups };
+        const checked = await checkApplied(requests, applied, settings);
+        // The lookups are shared, so the packages are looked up once; the stricter answer counts.
+        const also = working === undefined ? undefined : await checkApplied(requests, working.applied, settings);
+        reports.push(...(also === undefined ? checked.reports : mergedReports(checked.reports, also.reports, POLICY_FILE)));
+        for (const file of [...checked.skipped, ...(also?.skipped ?? [])]) if (!skipped.some((known) => known.file === file.file && known.reason === file.reason)) skipped.push(file);
         // Say which registry answered when it is not the public one, if an npm package was looked up there.
         const lookedUp = checked.reports.some((report) => report.kind === 'registry' && !isPythonSpec(report.spec) && report.name !== undefined && !applied.scopes.has(scopeOf(report.name)));
         const note = lookedUp ? registryNote(applied.registry) : undefined;
@@ -662,6 +761,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       const main = group.kind === 'here' || root.project !== undefined ? `the policy of the project (${projectDirVariable()})` : (applied.file ?? 'the default policy');
       const besides = nearerNotice(applied, main, where);
       if (besides !== undefined) notes.push(`${besides}.`);
+      if (working !== undefined) notes.push(workingNotice(working.files, group.kind === 'unknown' ? undefined : where));
       const unplaced = group.kind === 'unknown' ? group.requests.find((entry) => entry.directory !== undefined && 'unknown' in entry.directory) : undefined;
       if (unplaced?.directory !== undefined && 'unknown' in unplaced.directory) doubt ??= unknownDirectory(unplaced.command, unplaced.directory.unknown);
       doubt ??= overrideDoubt(group.overrides, policies);

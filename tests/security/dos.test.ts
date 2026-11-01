@@ -99,3 +99,17 @@ describe('the directories of a hook event (decision D-118)', () => {
     expect(elapsed(() => scanCommandLine(line, { shell }))).toBeLessThan(5000);
   });
 });
+
+describe('aliases that expand themselves (decision D-119)', () => {
+  it.each([
+    ['an alias of 30 copies of itself', `alias a='${'a;'.repeat(30)}'; a`],
+    ['an alias of 40 copies of itself', `alias a='${'a;'.repeat(40)}'; a`],
+    ['an alias that installs and expands itself', `alias a='npm i x; ${'a; '.repeat(40)}'; a; a; a`],
+    ['two aliases that expand each other', `alias a='${'b;'.repeat(40)}' b='${'a;'.repeat(40)}'; a; b`],
+    ['a chain of aliases', `alias d='${'true;'.repeat(40)}'; alias c='${'d;'.repeat(40)}'; alias b='${'c;'.repeat(40)}'; alias a='${'b;'.repeat(40)}'; a; a`],
+    ['an alias through eval', `alias a='eval "${'a;'.repeat(40)}"'; a`],
+    ['many uses of a long alias', `alias a='${'true; '.repeat(20_000)}'; ${'a;'.repeat(20_000)}`],
+  ])('reads %s in under a second', (_label, line) => {
+    expect(elapsed(() => scanCommandLine(line))).toBeLessThan(1000);
+  });
+});

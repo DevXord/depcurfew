@@ -324,7 +324,11 @@ export interface CommandLineParsing {
   groupedShortOptions?: boolean;
   /** Any number of leading dashes names the same option: -registry, --registry and ---registry (nopt). */
   anyDashes?: boolean;
-  /** An option starting with this prefix is a negated flag and never takes a value (nopt: --no-save). */
+  /**
+   * An option starting with this prefix is a negated flag and takes no value but true or false (nopt: --no-save). The
+   * prefix counts in any case and more than once, each time inverting the flag, and the rest is read like any option
+   * name, abbreviations included (nopt: --no-ign is --no-ignore-scripts, --no-no-save is --save).
+   */
   negation?: string;
   /**
    * Words that stand for other options, without their dashes (nopt shorthands): reg is --registry. A word made only
