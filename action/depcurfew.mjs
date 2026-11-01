@@ -6902,6 +6902,23 @@ const environment = {
 			pyprojectTable: "tool.hatch",
 			configFile: "hatch.toml"
 		}, "https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md", "Hatch reads its project configuration from [tool.hatch] of pyproject.toml or from hatch.toml. It has no setting of its own for a release-age delay, building from source or dependency sources; its environments install with uv (installer = \"uv\", the default of its internal environments) or pip (docs/how-to/environment/select-installer.md), and uv reads [tool.uv] of the project under Hatch too (tested on 2026-10-30 with Hatch 1.18.2 and uv 0.13.6)."),
+		virtualEnvironment: finalReview.verified({
+			marker: "pyvenv.cfg",
+			scripts: [{
+				platform: "posix",
+				directory: "bin",
+				names: [
+					"activate",
+					"activate.fish",
+					"activate.csh",
+					"Activate.ps1"
+				]
+			}, {
+				platform: "windows",
+				directory: "Scripts",
+				names: ["activate.bat", "Activate.ps1"]
+			}]
+		}, "https://github.com/python/cpython/blob/v3.14.0/Doc/library/venv.rst", "Creating virtual environments: venv \"places a pyvenv.cfg file in it with a home key\" (in the target directory) and \"also creates a bin (or Scripts on Windows) subdirectory\". How venvs work: \"A virtual environment may be \"activated\" using a script in its binary directory (bin on POSIX; Scripts on Windows)\"; the table of activation commands: POSIX bash/zsh source <venv>/bin/activate, fish source <venv>/bin/activate.fish, csh/tcsh source <venv>/bin/activate.csh, pwsh <venv>/bin/Activate.ps1; Windows cmd.exe <venv>\\Scripts\\activate.bat, PowerShell <venv>\\Scripts\\Activate.ps1. Activation prepends the binary directory to PATH and sets VIRTUAL_ENV. Lib/venv/__init__.py at v3.14.0 writes pyvenv.cfg as os.path.join(context.env_dir, \"pyvenv.cfg\") and installs the scripts of the common directory and of os.name."),
 		interpreter: audited.verified({
 			executables: [
 				"python",

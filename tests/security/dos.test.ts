@@ -123,6 +123,7 @@ describe('the stack of pushd, traps, env -S and names the shell builds (decision
     ['a long alias that ends in a blank', `alias n='${'x'.repeat(1000)} '; ${'n '.repeat(400_000)}`],
     ['traps that change directory', filled("trap 'cd a' DEBUG; npm i x; ")],
     ['files run with .', filled('. ./x.sh; npm i x; ')],
+    ['activation scripts of virtual environments', filled('source .venv/bin/activate; pip install x; . v/bin/activate; ')],
     ['declare with a name the shell builds', filled('declare "$X=1"; cd -; npm i x; ')],
     ['arithmetic and subscripts', filled('(( $X )); echo ${a[$i]}; ')],
     ['functions that change directory', filled('f() { cd a; }; npm i x; ')],

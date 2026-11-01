@@ -51,6 +51,11 @@ export interface KnownDirectory {
   entered?: readonly number[];
   physical?: readonly number[];
   assumes?: readonly KnownDirectory[];
+  /**
+   * In `assumes`: a Python virtual environment whose activation script the command runs with . or source, which the
+   * hook trusts not to change directory only when this directory holds pyvenv.cfg (decision D-123).
+   */
+  venv?: true;
 }
 
 /** A directory as KnownDirectory gives it, or why it cannot be told. */
@@ -78,7 +83,9 @@ export interface RelativeDoubt {
  * +N or -N (`count`); dirs -c (`clear`); set -P or set +P (`mode`), which make later changes resolve the path physically
  * or not. `physical`: cd -P or cd -L chose. `stack`: the stack of pushd is unknown too. `lasting`: the directory of every
  * later command is unknown, whatever changes it later. `doubt`: the variables of the line, for a directory pushd -n put
- * on the stack, which the shell finds relative to where it is when it gets to it.
+ * on the stack, which the shell finds relative to where it is when it gets to it. `activate`: . or source of the
+ * activation script of the virtual environment in `root`, which changes no directory when `root` holds pyvenv.cfg;
+ * `reason` is why the directory is unknown when it cannot be trusted (decision D-123).
  */
 export type Move =
   | { kind: 'cd'; path: string; physical?: boolean }
@@ -89,7 +96,8 @@ export type Move =
   | { kind: 'pop'; command: string; count?: number; fromRight?: boolean; keep?: boolean; doubt?: RelativeDoubt }
   | { kind: 'clear' }
   | { kind: 'mode'; physical: boolean }
-  | { kind: 'unknown'; reason: string; stack?: true; lasting?: true };
+  | { kind: 'unknown'; reason: string; stack?: true; lasting?: true }
+  | { kind: 'activate'; root: string; reason: string };
 
 /** Indexes of steps after `offset` more steps, from `from` on. */
 function shifted(indexes: readonly number[] | undefined, offset: number, from = 0): number[] {
@@ -133,7 +141,7 @@ export function within(outer: CommandDirectory, inner: CommandDirectory): Comman
   for (const assumed of inner.assumes ?? []) {
     const placed = within(base, assumed);
     if ('unknown' in placed) return placed;
-    assumes.push(placed);
+    assumes.push(assumed.venv === true ? { ...placed, venv: true } : placed);
   }
   if (restart !== -1) return directoryOf(inner.steps.slice(restart), shifted(inner.entered, -restart, restart), shifted(inner.physical, -restart, restart), local, assumes);
   if ('unknown' in outer) return outer;
@@ -154,7 +162,9 @@ const RESERVED = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'until', 
 const GOES_BACK = 'goes back to a directory from before this command, which depcurfew cannot see';
 const EXPANDS = 'the shell expands the directory of';
 const STACK_FULL = `depcurfew follows at most ${MAX_STACK} directories on the stack of pushd`;
-const TOO_MANY_LEFT = `the command leaves more than ${MAX_ASSUMED} directories with cd -, popd or cd /path, and depcurfew checks at most ${MAX_ASSUMED} of them`;
+const TOO_MANY_LEFT = `the command leaves more than ${MAX_ASSUMED} directories with cd -, popd or cd /path (or activates virtual environments), and depcurfew checks at most ${MAX_ASSUMED} of them`;
+/** Why an activation script that runs after a command that may write it cannot be trusted (decision D-123). */
+const WRITTEN_FIRST = 'runs a file in this shell after a command on the line that may write it, and the file may change directory';
 
 /** A command for messages, cut short when it is long. */
 function shown(words: readonly Word[]): string {
@@ -217,7 +227,8 @@ type Assumed = { readonly directory: KnownDirectory; readonly key: string; reado
 
 /** Whether `assumed` is checked anyway as part of `directory`: the same steps from the start, entered and resolved alike. */
 function covered(directory: KnownDirectory, assumed: KnownDirectory): boolean {
-  if (assumed.steps.length > directory.steps.length) return false;
+  // A virtual environment is checked for its pyvenv.cfg, which no path checks.
+  if (assumed.venv === true || assumed.steps.length > directory.steps.length) return false;
   for (let index = 0; index < assumed.steps.length; index++) if (assumed.steps[index] !== directory.steps[index]) return false;
   const prefix = (indexes: readonly number[] | undefined) => (indexes ?? []).filter((index) => index < assumed.steps.length).join(',');
   return (assumed.entered ?? []).every((index) => directory.entered?.includes(index) === true) && prefix(assumed.physical) === prefix(directory.physical);
@@ -264,6 +275,11 @@ export class ShellDirectories {
   /** The shell leaves `directory` other than by a path from it: for OLDPWD and the stack to be as followed, it must have been entered. */
   private leave(directory: CommandDirectory): void {
     if ('unknown' in directory || (directory.entered?.length ?? 0) === 0) return;
+    this.assume(directory);
+  }
+
+  /** A directory every later install's directory assumes: entered, or a virtual environment (`venv`). */
+  private assume(directory: KnownDirectory): void {
     const { assumes: _assumes, ...own } = directory;
     const key = JSON.stringify(own);
     for (let node = this.assumed; node !== undefined; node = node.next) if (node.key === key) return;
@@ -334,6 +350,17 @@ export class ShellDirectories {
         return this.rotate(from, move);
       case 'pop':
         return this.pop(from, move);
+      case 'activate': {
+        // The activation script of a virtual environment changes no directory; the hook checks it is one (decision D-123).
+        const root = within(withoutAssumes(from), { steps: [move.root] });
+        if ('unknown' in root) {
+          this.place = { unknown: move.reason };
+          this.lasting = move.reason;
+          return;
+        }
+        this.assume({ ...root, venv: true });
+        return;
+      }
       case 'unknown':
         // A cd that depcurfew cannot read may also fail, which leaves OLDPWD as it was: cd - goes where it cannot tell.
         this.place = { unknown: move.reason };
@@ -1078,10 +1105,25 @@ export class DirectoryWalk {
     }
   }
 
+  /**
+   * A command on the line that may write files ran: an activation script run after it may not be the one venv wrote
+   * (decision D-123). Commands that write no file are told by the caller.
+   */
+  private wrote = false;
+
+  /** The command just read writes no file (`harmless`), or may write one. */
+  ran(harmless: boolean): void {
+    if (!harmless) this.wrote = true;
+  }
+
   /** Where an install or override relative to the command runs, relative to the start of the line. */
   private where(directory: CommandDirectory | undefined): CommandDirectory {
     if (this.overflow > 0) return { unknown: TOO_DEEP };
     if (this.state.lasting !== undefined) return { unknown: this.state.lasting };
+    // An install of a command line inside this one (eval) after an activation script it runs, after a write here.
+    if (this.wrote && directory !== undefined && !('unknown' in directory) && directory.assumes?.some((entry) => entry.venv === true) === true) {
+      return { unknown: `the command ${WRITTEN_FIRST}` };
+    }
     const assumed = this.assumptions();
     if ('unknown' in assumed) return assumed;
     const place = within(this.state.place, directory ?? HERE);
@@ -1103,12 +1145,21 @@ export class DirectoryWalk {
   }
 
   /** The changes a command makes, applied where they reach: not from the background, not in loops, functions or pipelines. */
-  changes(moves: readonly Move[], words: readonly Word[], bounds: CommandBounds): void {
+  changes(all: readonly Move[], words: readonly Word[], bounds: CommandBounds): void {
+    // POSIX shells and PowerShell run a command in the background in a subshell or a job of its own; cmd's & does not.
+    const background = bounds.after === '&' && this.shell !== 'cmd';
+    // An activation script changes no directory, wherever it runs, unless a command before it may have written it.
+    const moves = all.filter((move) => move.kind !== 'activate');
+    for (const move of all) {
+      if (move.kind !== 'activate' || background) continue;
+      const own: Move = this.wrote ? { kind: 'unknown', reason: `"${shown(words)}" ${WRITTEN_FIRST}`, lasting: true } : move;
+      this.state.apply(own);
+      if (this.scopes.length === 0) this.moves.push(own);
+    }
     if (moves.length === 0) return;
     this.changed = true;
     const command = shown(words);
-    // POSIX shells and PowerShell run a command in the background in a subshell or a job of its own; cmd's & does not.
-    if (bounds.after === '&' && this.shell !== 'cmd') return;
+    if (background) return;
     this.later();
     // A trap that changes directory before later commands, or a file run in this shell: wherever it stands (decision D-123).
     const lasting = moves.find((move) => move.kind === 'unknown' && move.lasting === true);
@@ -1117,7 +1168,7 @@ export class DirectoryWalk {
       if (this.scopes.length === 0) this.moves.push(lasting);
       return;
     }
-    const piped =bounds.after === '|' || bounds.after === '|&' || bounds.before.includes('|') || bounds.before.includes('|&');
+    const piped = bounds.after === '|' || bounds.after === '|&' || bounds.before.includes('|') || bounds.before.includes('|&');
     if (piped) return this.unknown(`"${command}" runs in a pipeline, where it may or may not change the directory of the shell`);
     if (this.overflow > 0) return this.unknown(TOO_DEEP);
     const repeated = this.frames.findLast((frame) => frame.kind === 'loop' || frame.kind === 'function');

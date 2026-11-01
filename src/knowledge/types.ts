@@ -716,6 +716,15 @@ export interface NpmRegistryKnowledge {
 }
 
 /** How the Python interpreter runs a module (python -m pip) or a command string. */
+/**
+ * A Python virtual environment as venv creates it: `marker` is the file in the environment's directory, and the
+ * activation scripts sit in a binary directory right under it, per platform (bin on POSIX, Scripts on Windows).
+ */
+export interface VirtualEnvironmentKnowledge {
+  marker: string;
+  scripts: readonly { platform: 'posix' | 'windows'; directory: string; names: readonly string[] }[];
+}
+
 export interface PythonInterpreterKnowledge {
   /** Executable names; versioned names such as python3.12 are the same. */
   executables: readonly string[];
@@ -1268,6 +1277,8 @@ export interface EnvironmentKnowledge {
     /** File extensions of source distributions on an index, which are built when installed. */
     sourceDistributionExtensions: Fact<readonly string[]>;
     interpreter: Fact<PythonInterpreterKnowledge>;
+    /** A virtual environment made by venv: the file in its directory that marks it, and its activation scripts. */
+    virtualEnvironment: Fact<VirtualEnvironmentKnowledge>;
     /** The pip each CPython release bundles in ensurepip, per release line. */
     bundledPip: Fact<readonly BundledVersionsLine[]>;
     /** Hatch, which has no supply-chain settings of its own: how a project shows it uses Hatch. */

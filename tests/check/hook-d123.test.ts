@@ -53,9 +53,9 @@ function repository(options: { relaxed?: boolean; files?: Record<string, string>
 
 type Output = { permissionDecision?: string; permissionDecisionReason?: string; additionalContext?: string };
 
-async function hook(command: string, cwd: string, projectDir: string | undefined): Promise<Output> {
+async function hook(command: string, cwd: string, projectDir: string | undefined, tool = 'Bash'): Promise<Output> {
   let stdout = '';
-  const stdin = JSON.stringify({ session_id: 'test', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, cwd });
+  const stdin = JSON.stringify({ session_id: 'test', hook_event_name: 'PreToolUse', tool_name: tool, tool_input: { command }, cwd });
   const code = await run(['check', '--hook', 'claude-code'], { stdout: (text) => (stdout += text), stderr: () => undefined }, {
     fetch: recordedFetch,
     now: () => NOW,
@@ -143,6 +143,61 @@ describe('a trap, an alias and a file that change where the install runs (N4, N5
     const answer = await hook(`shopt -s expand_aliases\nalias n='npm '\nalias x='install ${PACKAGE}'\nn x`, root, root);
     expect(answer.permissionDecision).toBe('deny');
     expect(answer.permissionDecisionReason).toContain(PACKAGE);
+  });
+});
+
+describe('the activation script of a Python virtual environment keeps the directory known', () => {
+  /** A virtual environment as venv makes it: pyvenv.cfg in its directory, the activation scripts under bin and Scripts. */
+  const venv = (directory: string, marker = true): Record<string, string> => ({
+    ...(marker ? { [`${directory}/pyvenv.cfg`]: 'home = /usr/bin\ninclude-system-site-packages = false\nversion = 3.14.0\n' } : {}),
+    [`${directory}/bin/activate`]: '# This file must be used with "source bin/activate"\n',
+    [`${directory}/bin/activate.fish`]: '# fish\n',
+    [`${directory}/Scripts/Activate.ps1`]: '# PowerShell\n',
+  });
+
+  it.each([
+    ['source .venv/bin/activate && pip install requests'],
+    ['. .venv/bin/activate && pip install requests'],
+    ['source .venv/bin/activate.fish; pip install requests'],
+    ['cd pkgs/other && source ../../.venv/bin/activate && pip install requests'],
+    ['source .venv/bin/activate && pytest'],
+  ])('%s is checked as if nothing were sourced', async (command) => {
+    const root = repository({ files: venv('.venv') });
+    expect(await hook(command, root, root)).toEqual({});
+  });
+
+  it('reads the activation scripts of PowerShell', async () => {
+    const root = repository({ files: venv('.venv') });
+    for (const command of ['. .venv\\Scripts\\Activate.ps1; pip install requests', '& .venv/Scripts/Activate.ps1; pip install requests']) {
+      expect(await hook(command, root, root, 'PowerShell'), command).toEqual({});
+    }
+  });
+
+  it('still checks the install in the directory it runs in', async () => {
+    const root = repository({ relaxed: true, files: venv('pkgs/strict/.venv') });
+    const answer = await hook(`cd pkgs/strict && source .venv/bin/activate && npm install ${PACKAGE}`, root, root);
+    expect(answer.permissionDecision).toBe('deny');
+    expect(answer.permissionDecisionReason).toContain(STRICT);
+  });
+
+  it('asks when the directory holds no pyvenv.cfg', async () => {
+    const root = repository({ files: venv('.venv', false) });
+    const answer = await hook('source .venv/bin/activate && pip install requests', root, root);
+    expect(answer.permissionDecision).toBe('ask');
+    expect(answer.permissionDecisionReason).toContain('as the activation script of a virtual environment in ".venv", which holds no pyvenv.cfg');
+  });
+
+  it.each([
+    [`echo 'cd pkgs/strict' > .venv/bin/activate; source .venv/bin/activate && npm install ${PACKAGE}`],
+    [`cat > .venv/bin/activate <<EOF\ncd pkgs/strict\nEOF\nsource .venv/bin/activate && npm install ${PACKAGE}`],
+    [`echo 'cd pkgs/strict' | tee .venv/bin/activate >/dev/null; source .venv/bin/activate && npm install ${PACKAGE}`],
+    [`cp pkgs/evil.sh .venv/bin/activate && source .venv/bin/activate && npm install ${PACKAGE}`],
+    [`ln -sf ../../pkgs/evil.sh .venv/bin/activate && source .venv/bin/activate && npm install ${PACKAGE}`],
+  ])('asks about %s, which writes the script first', async (command) => {
+    const root = repository({ relaxed: true, files: { ...venv('.venv'), 'pkgs/evil.sh': 'cd pkgs/strict\n' } });
+    const answer = await hook(command, root, root);
+    expect(answer.permissionDecision).toBe('ask');
+    expect(answer.permissionDecisionReason).toContain('after a command on the line that may write it');
   });
 });
 

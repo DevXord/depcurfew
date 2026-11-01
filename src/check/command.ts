@@ -609,6 +609,8 @@ interface SimpleCommand {
   later?: boolean;
   /** Its standard input comes from a pipe, or from a file or command named after <. */
   stdin?: 'pipe' | 'file';
+  /** It redirects its output to a file (not /dev/null or another descriptor). */
+  writes?: boolean;
   /** The operators around it, and the items of its line it is made of (from, up to to): for the directory it runs in. */
   bounds?: CommandBounds;
   from?: number;
@@ -645,6 +647,8 @@ function simpleCommands(items: readonly Item[], shell: Shell = 'posix'): SimpleC
     } else if (next === 'skip' || next === 'source') {
       // < <(curl …) feeds the command what another command prints, as a pipe does.
       if (next === 'source' && item.word.dynamic && item.word.text.startsWith('<(')) current.stdin = 'pipe';
+      // > file writes a file; >/dev/null, 2>&1 and >&- do not (decision D-123).
+      if (next === 'skip' && (item.word.dynamic || !(item.word.text === '/dev/null' || /^(?:\d+|-)$/u.test(item.word.text)))) current.writes = true;
       next = 'word';
     } else if (next === 'input') {
       current.input.push(item.word.text);
@@ -1722,6 +1726,9 @@ function scanSource(words: readonly Word[], command: SimpleCommand, depth: numbe
   if (isProcessSubstitution(file)) return { ...unreadable(`${shown(joined(words))}: ${FROM_PROCESS}`), moves: [sourced(words)] };
   const manager = file.dynamic ? undefined : scriptManager(file.text);
   if (manager !== undefined) return scanCommand({ ...command, words: [{ text: manager, dynamic: false }, ...words.slice(2)] }, depth);
+  // source .venv/bin/activate: the activation script of a virtual environment, which the hook checks (decision D-123).
+  const root = file.dynamic ? undefined : activationRoot(file.text, command.shell ?? 'posix');
+  if (root !== undefined) return { requests: [], unreadable: undefined, moves: [{ kind: 'activate', root, reason: sourced(words).reason }] };
   // . "$X" i x: a file the shell expands, found on PATH and given an install word, may be a package manager (D-119).
   const next = words.slice(2).find((word) => !isOption(word.text));
   if (file.dynamic && next !== undefined && !next.dynamic && commands().installWords.has(next.text)) {
@@ -1732,8 +1739,40 @@ function scanSource(words: readonly Word[], command: SimpleCommand, depth: numbe
 }
 
 /** . file and source file: the directory of every later command is unknown (decision D-123). */
-function sourced(words: readonly Word[]): Move {
+function sourced(words: readonly Word[]): Extract<Move, { kind: 'unknown' }> {
   return { kind: 'unknown', reason: `"${shown(joined(words))}" ${SOURCED}, which depcurfew does not read and which may change directory`, lasting: true };
+}
+
+/**
+ * The directory of the virtual environment whose activation script a path names, as written (decision D-123): one of
+ * the scripts of environment.python.virtualEnvironment in its binary directory (bin/activate, bin/activate.fish,
+ * Scripts\Activate.ps1), whose parent is the environment; '.' when the path starts at the binary directory. PowerShell
+ * and cmd take \ as a separator, and Windows finds Scripts and its files in any case. undefined for another path, or
+ * one relative to a home directory.
+ */
+function activationRoot(text: string, shell: Shell): string | undefined {
+  const fact = values(environment.python.virtualEnvironment)[0];
+  const path = shell === 'posix' ? text : text.replaceAll('\\', '/');
+  if (fact === undefined || path.startsWith('~')) return undefined;
+  const parts = path.split('/');
+  if (parts.length < 2) return undefined;
+  const name = parts.at(-1) as string;
+  const directory = parts.at(-2) as string;
+  const script = fact.scripts.some((entry) =>
+    entry.platform === 'windows'
+      ? entry.directory.toLowerCase() === directory.toLowerCase() && entry.names.some((known) => known.toLowerCase() === name.toLowerCase())
+      : entry.directory === directory && entry.names.includes(name),
+  );
+  if (!script) return undefined;
+  const root = parts.slice(0, -2).join('/');
+  if (root !== '') return root;
+  return path.startsWith('/') ? '/' : '.';
+}
+
+/** Why a sourced activation script cannot be trusted: its directory holds no pyvenv.cfg (decision D-123), as the hook says it. */
+export function notVirtualEnvironment(directory: string): string {
+  const marker = values(environment.python.virtualEnvironment)[0]?.marker ?? 'pyvenv.cfg';
+  return `the command ${SOURCED} as the activation script of a virtual environment in "${shown(directory)}", which holds no ${marker}, so the file may change directory`;
 }
 
 /** source /dev/stdin with a here-document or here-string: its commands run in this shell, so their changes of directory count. */
@@ -3000,6 +3039,27 @@ function overrideAssignments(items: readonly Item[], line: string, placeOf: Read
   return found;
 }
 
+/**
+ * Commands that write no file unless their output is redirected, so that an activation script run after them is the
+ * one on disk (decision D-123): changes of directory, setting variables and options, printing and reading, tests, and
+ * the reserved words that end a compound command. Anything else (tee, cp, mv, ln, python -m venv, a function or an
+ * alias) may write it.
+ */
+const WRITES_NOTHING = new Set([
+  'cd', 'chdir', 'pushd', 'popd', 'dirs', 'set', 'shopt', 'export', 'unset', 'true', 'false', ':', 'echo', 'printf', 'test', '[', '[[',
+  'pwd', 'ls', 'cat', 'which', 'type', 'hash', 'fi', 'done', 'esac', '}', 'then', 'else', 'elif', 'do',
+  'set-location', 'sl', 'push-location', 'pop-location', 'get-location', 'write-host', 'write-output',
+]);
+
+/** Whether a simple command writes no file (WRITES_NOTHING, without an output redirection). */
+function writesNothing(command: SimpleCommand): boolean {
+  if (command.writes === true) return false;
+  const head = command.words.find((word) => word.dynamic || (!ASSIGNMENT.test(word.text) && !KEYWORDS.has(word.text)));
+  if (head === undefined) return true;
+  if (head.dynamic || aliases.has(head.text)) return false;
+  return WRITES_NOTHING.has(head.text.toLowerCase());
+}
+
 /** Commands that set a variable for the commands after them (export UV_PROJECT=sub; cmd's set NAME=value). */
 const SETTERS = new Set(['export', 'declare', 'typeset', 'readonly', 'local', 'set']);
 
@@ -3088,6 +3148,8 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
   let next = 0;
   const nested = (inner: LineReading['nested'][number]) => {
     const found = scanLine(inner.line, depth + 1, inner.shell);
+    // What a command substitution runs may write files.
+    walk.ran(false);
     add(found);
     // A command substitution runs in a subshell; in PowerShell the location belongs to the whole session.
     if (shell === 'powershell' && found.moves !== undefined) walk.nestedChange(inner.line);
@@ -3108,6 +3170,8 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     const found = scanCommand(command, depth);
     add(found);
     if (found.moves !== undefined) walk.changes(found.moves, command.words, bounds);
+    // An activation script run after a command that may write files is not trusted (decision D-123).
+    walk.ran(writesNothing(command));
   }
   while (next < pending.length) nested(pending[next++] as LineReading['nested'][number]);
   walk.finish();

@@ -16,7 +16,7 @@ import { parseRange, parseSemver } from '../check/semver.ts';
 import { parseSpec } from '../check/spec.ts';
 import { isPythonSpec } from '../check/python.ts';
 import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEvent, reasonText, requestedSpecs, UNREAD_REGISTRY_FIX_START, type PlacedRequest } from '../check/hook.ts';
-import { missingDirectory, overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
+import { missingDirectory, notVirtualEnvironment, overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal, type LookupCache } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
 import { hasRegistrySettings, MAX_CONFIG_SIZE, npmrcSettings, sameRegistry, toolRegistrySettings, type NpmrcSettings, type SkippedFile, type UnreadSetting, type WrittenSetting } from '../check/registry-settings.ts';
@@ -547,6 +547,17 @@ function workingNotice(files: readonly (string | null)[], where: string | undefi
   return `The policy of the working directory (${names}) also applies to what the command installs in ${where ?? 'a directory depcurfew cannot tell'}, so that changing directory never relaxes the check; the stricter answer counts.`;
 }
 
+/** The file that marks the directory of a Python virtual environment. */
+const VENV_MARKER = values(environment.python.virtualEnvironment)[0]?.marker ?? 'pyvenv.cfg';
+
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
 /** Whether the shell can change to a path: it is a directory (also through a symlink) that may be searched. */
 function enterable(path: string): boolean {
   try {
@@ -605,6 +616,8 @@ function installDirectory(cwd: string, directory: Exclude<CommandDirectory, { un
   for (const assumed of directory.assumes ?? []) {
     const found = installDirectory(cwd, assumed);
     if ('unknown' in found) return found;
+    // A sourced activation script is trusted only in a directory that holds pyvenv.cfg (decision D-123).
+    if (assumed.venv === true && !isFile(join(found.path, VENV_MARKER))) return { unknown: notVirtualEnvironment(assumed.steps.join('/')) };
   }
   let current = resolve(cwd);
   for (const [index, step] of directory.steps.entries()) {

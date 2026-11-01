@@ -300,6 +300,58 @@ describe('a file run with . or source, and a function that changes directory (N8
   });
 });
 
+describe('the activation script of a Python virtual environment (follow-up to N8)', () => {
+  const venv = (...list: string[]): KnownDirectory => ({ steps: list, venv: true });
+
+  it.each([
+    ['source .venv/bin/activate && pip install requests', { steps: [], assumes: [venv('.venv')] }],
+    ['. venv/bin/activate && pip install requests', { steps: [], assumes: [venv('venv')] }],
+    ['source env/bin/activate.fish; pip install requests', { steps: [], assumes: [venv('env')] }],
+    ['source env/bin/activate.csh; pip install requests', { steps: [], assumes: [venv('env')] }],
+    ['source bin/activate && pip install requests', { steps: [], assumes: [venv('.')] }],
+    ['source /opt/venv/bin/activate && pip install requests', { steps: [], assumes: [venv('/opt/venv')] }],
+    ['cd backend && source .venv/bin/activate && pip install requests', { steps: ['backend'], entered: [0], assumes: [{ steps: ['backend', '.venv'], entered: [0], venv: true }] }],
+    ['source .venv/bin/activate 2>/dev/null && echo ok >/dev/null && pip install requests', { steps: [], assumes: [venv('.venv')] }],
+    ["eval 'source .venv/bin/activate; pip install requests'", { steps: [], assumes: [venv('.venv')] }],
+  ])('%s: the hook checks the virtual environment', (line, directory) => {
+    expect(where(line)).toEqual([['pip:pypi:requests', directory]]);
+  });
+
+  it('reads the Windows layout in PowerShell, with \\ and in any case', () => {
+    const powerShell = (line: string) => scanCommandLine(line, { shell: 'powershell' }).requests.map((request) => request.directory);
+    expect(powerShell('. .venv\\Scripts\\Activate.ps1; pip install requests')).toEqual([{ steps: [], assumes: [venv('.venv')] }]);
+    expect(powerShell('. .venv/scripts/activate.ps1; pip install requests')).toEqual([{ steps: [], assumes: [venv('.venv')] }]);
+    expect(powerShell('. .venv/bin/Activate.ps1; pip install requests')).toEqual([{ steps: [], assumes: [venv('.venv')] }]);
+    // The script run with & changes nothing that depcurfew follows, as before.
+    expect(powerShell('& .venv/Scripts/Activate.ps1; pip install requests')).toEqual([undefined]);
+  });
+
+  it.each([
+    ["echo 'cd pkgs/strict' > .venv/bin/activate; source .venv/bin/activate && pip install requests"],
+    ['cat > .venv/bin/activate <<EOF\ncd pkgs/strict\nEOF\nsource .venv/bin/activate && pip install requests'],
+    ['echo cd pkgs/strict | tee .venv/bin/activate; source .venv/bin/activate && pip install requests'],
+    ['cp evil.sh .venv/bin/activate && source .venv/bin/activate && pip install requests'],
+    ['mv evil.sh .venv/bin/activate && source .venv/bin/activate && pip install requests'],
+    ['ln -sf ../../evil.sh .venv/bin/activate && source .venv/bin/activate && pip install requests'],
+    ['python -m venv .venv && source .venv/bin/activate && pip install requests'],
+    ['echo "$(cp evil.sh .venv/bin/activate)"; source .venv/bin/activate && pip install requests'],
+    ["alias cd='cp evil.sh .venv/bin/activate'; cd .; source .venv/bin/activate && pip install requests"],
+    ["echo x > f; eval 'source .venv/bin/activate; pip install requests'"],
+  ])('%s: a command before it may write the script, so the directory is unknown', (line) => {
+    expect(where(line)).toEqual([['pip:pypi:requests', unknown('after a command on the line that may write it')]]);
+  });
+
+  it.each([
+    ['source .venv/bin/activate.sh && pip install requests'],
+    ['source .venv/lib/activate && pip install requests'],
+    ['source activate && pip install requests'],
+    ['source ~/.venvs/app/bin/activate && pip install requests'],
+    ['source "$VENV/bin/activate" && pip install requests'],
+  ])('%s: any other file still makes the directory unknown', (line) => {
+    expect(where(line)).toEqual([['pip:pypi:requests', unknown('runs a file in this shell')]]);
+  });
+});
+
 describe('the message of an override names the policy file that sets the delay (N10)', () => {
   it('names the file the hook gives', () => {
     const overrides = scanCommandLine('cd pkgs/strict && npm install old-pkg@1.0.0 --min-release-age=30').overrides;
