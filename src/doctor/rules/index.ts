@@ -7,6 +7,7 @@ import { settingIgnoredByVersion } from './ignored-setting.ts';
 import { invalidPolicy } from './invalid-policy.ts';
 import { invalidProject } from './invalid-project.ts';
 import { lockfileForbiddenSource, lockfileInstallScripts } from './lockfile.ts';
+import { lockfileOutOfDate } from './lockfile-out-of-date.ts';
 import { managerVersionTooOld } from './manager-version.ts';
 import { npmrcOverridesPolicy, pnpmSharedWorkspaceLockfile } from './npmrc.ts';
 import { pythonConfigIgnored } from './python-config.ts';
@@ -29,5 +30,6 @@ export const RULES: readonly Rule[] = [
   broadExclusion,
   lockfileForbiddenSource,
   lockfileInstallScripts,
+  lockfileOutOfDate,
   unreadableConfig,
 ];

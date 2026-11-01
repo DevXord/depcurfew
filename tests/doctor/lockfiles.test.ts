@@ -62,10 +62,9 @@ describe('lockfiles', () => {
       'package-lock.json': '{ "name": "x", "lockfileVersion": 1, "dependencies": {} }\n',
       'depcurfew.json': POLICY,
     });
-    expect(runDoctor(directory).notices).toContainEqual({
-      message: 'lockfile-forbidden-source could not check package-lock.json: it has no "packages" section (lockfileVersion 1 is not read)',
-      file: 'package-lock.json',
-    });
+    expect(runDoctor(directory).notices).toContainEqual(
+      expect.objectContaining({ level: 'note', code: 'lockfile-forbidden-source', message: 'lockfile-forbidden-source could not check package-lock.json: it has no "packages" section (lockfileVersion 1 is not read)', file: 'package-lock.json' }),
+    );
   });
 
   it('reports an old pnpm lockfile version as not checked', () => {
@@ -74,10 +73,9 @@ describe('lockfiles', () => {
       'pnpm-lock.yaml': "lockfileVersion: '6.0'\n",
       'depcurfew.json': POLICY,
     });
-    expect(runDoctor(directory).notices).toContainEqual({
-      message: 'lockfile-forbidden-source could not check pnpm-lock.yaml: its lockfileVersion 6.0 is not read; depcurfew reads 9.0',
-      file: 'pnpm-lock.yaml',
-    });
+    expect(runDoctor(directory).notices).toContainEqual(
+      expect.objectContaining({ level: 'note', code: 'lockfile-forbidden-source', message: 'lockfile-forbidden-source could not check pnpm-lock.yaml: its lockfileVersion 6.0 is not read; depcurfew reads 9.0', file: 'pnpm-lock.yaml' }),
+    );
   });
 
   it('reports a lockfile that does not parse as an error of unreadable-config', () => {

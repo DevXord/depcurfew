@@ -2,6 +2,7 @@
 import { PolicyError } from '../apply/index.ts';
 import { readLimited } from '../read-limited.ts';
 import { formatIssue, parsePolicy } from '../policy/validate.ts';
+import { policyIssueLine } from '../doctor/policy-lines.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { shownPath, type UserEnvironment } from './locate.ts';
 import { userPolicyPath } from './policy-path.ts';
@@ -38,7 +39,7 @@ export function loadUserPolicy(environment: UserEnvironment): UserPolicy {
   }
   const result = parsePolicy(read.bytes.toString('utf8'));
   const fix = `Fix these problems in ${shown}; an editor that reads its $schema shows them as you type`;
-  if (!result.ok) throw new PolicyError(`${shown} is invalid`, result.issues.map(formatIssue), 'policy-invalid', fix);
+  if (!result.ok) throw new PolicyError(`${shown} is invalid`, result.issues.map(formatIssue), 'policy-invalid', fix, policyIssueLine(read.bytes.toString('utf8'), result.issues));
   // The user policy configures the tools of this machine, not the directories of a repository (decision D-100).
   if (result.policy.projects.length > 0) {
     throw new PolicyError(`${shown} is invalid`, ['projects: has no meaning in the user policy, which configures the tools of this machine, not a repository; remove it and list projects in the depcurfew.json of the repository'], 'policy-invalid', fix);

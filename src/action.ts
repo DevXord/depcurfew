@@ -75,7 +75,9 @@ function relativeToWorkspace(report: DoctorReport, prefix: string): DoctorReport
   return {
     ...report,
     findings: report.findings.map((finding) => ({ ...finding, location: { ...finding.location, file: move(finding.location.file) } })),
-    notices: report.notices.map((notice) => (notice.file === undefined ? notice : { ...notice, file: move(notice.file) })),
+    notices: report.notices.map((notice) =>
+      notice.file === undefined ? notice : { ...notice, file: move(notice.file), ...(notice.location === undefined ? {} : { location: { ...notice.location, file: move(notice.location.file) } }) },
+    ),
     ...(report.checked === undefined
       ? {}
       : {

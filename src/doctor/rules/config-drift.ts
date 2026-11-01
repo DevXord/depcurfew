@@ -295,3 +295,12 @@ export const configDrift: Rule = {
     checkAllowLists(context, plan);
   },
 };
+
+/**
+ * The first difference of a planned change as config-drift words it, with its line: for doctor --user, whose user
+ * files drift the same way (decision D-116).
+ */
+export function driftDescription(file: string, before: string, after: string): { line: number; text: string } {
+  const difference = firstDifference(before, after);
+  return { line: findingLine(file, difference, before), text: describe(file, difference, before, after) };
+}

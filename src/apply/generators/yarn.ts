@@ -1,5 +1,7 @@
 // Yarn (Berry): settings in .yarnrc.yml, always written explicitly so that Yarn's upgrade migration does not
 // write weaker values; the per-package allow-list is dependenciesMeta in the root package.json.
+import { yamlSetting } from '../../doctor/settings.ts';
+import { POLICY_FILE } from '../../policy/defaults.ts';
 import { extraOf, firstFile, isRecord, settingOf, sinceOf } from '../facts.ts';
 import { allowedNames, cooldownValue, eachSource, exclusions, sameList, writeDenyList } from './common.ts';
 import type { ManagerGenerator } from './context.ts';
@@ -36,6 +38,17 @@ export const yarn: ManagerGenerator = (context) => {
   if (policy.installScripts !== undefined) {
     const scripts = extraOf(tool, 'scriptsSwitch', isScriptsSwitch);
     const deny = policy.installScripts.default === 'deny';
+    // The switch that allows every install script is turned off with the same warning as pnpm's and Deno's (D-116).
+    const current = yaml.get([scripts.setting]);
+    if (deny && current === scripts.allow) {
+      const found = context.exists(file) ? yamlSetting(context.read(file), [scripts.setting]) : undefined;
+      context.warn({
+        code: 'allow-all-replaced',
+        ...(found === undefined ? {} : { location: { file, line: found.line } }),
+        message: `${context.name}: ${scripts.setting}: ${JSON.stringify(current)} in ${file}${found === undefined ? '' : ` (line ${found.line})`} allowed every install script; set to ${JSON.stringify(scripts.deny)} because the policy denies install scripts`,
+        fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`,
+      });
+    }
     yaml.set([scripts.setting], deny ? scripts.deny : scripts.allow);
     context.writes('installScripts', scripts.setting, file);
     const template = settingOf(tool.installScripts.allowList.setting);

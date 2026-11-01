@@ -4,7 +4,7 @@
 // output format, and counts as "error" unless the option says otherwise. A directory that does not exist is a usage
 // error (exit code 2), also reported as a JSON document or a SARIF run that did not succeed.
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
-import { countLevels, renderText, RULES, runDoctor, toSarif, type DoctorReport } from '../doctor/index.ts';
+import { countLevels, makeNotice, renderText, RULES, runDoctor, toSarif, type DoctorReport } from '../doctor/index.ts';
 import { fails, policyFailOn, resolveFailOn, type FailOn, type FailOnSetting } from '../doctor/fail-on.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
@@ -106,7 +106,8 @@ export function doctor(
   // An invalid policy is read again by runDoctor, which reports it; it counts as failOn "error" unless the option says otherwise.
   const policy = projectPolicy(target.directory);
   const found = policy === 'invalid' ? runDoctor(target.directory, { invalidPolicy: 'report' }) : runDoctor(target.directory, { policy: policy ?? null });
-  const report: DoctorReport = target.notice === undefined ? found : { ...found, notices: [{ message: target.notice }, ...found.notices] };
+  // The directory came from the nearest depcurfew.json in a parent directory: said first, as a note (decision D-116).
+  const report: DoctorReport = target.notice === undefined ? found : { ...found, notices: [makeNotice('policy-from-parent', target.notice, POLICY_FILE), ...found.notices] };
   const setting = resolveFailOn(option, { failOn: policy === 'invalid' ? undefined : policyFailOn(policy), file: POLICY_FILE });
   if (format.sarif) {
     io.stdout(`${safeJson(toSarif(report, RULES, getVersion(), lineReader(target.directory)), 2)}\n`);

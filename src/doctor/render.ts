@@ -103,11 +103,14 @@ export function renderText(
   options: { strict?: boolean; failOn?: FailOnSetting } = {},
 ): string {
   const counts = countLevels(report.findings);
+  // The line of counts covers what the text shows: the notes below count as notes too (decision D-116). Which findings
+  // fail doctor is decided from the findings alone, and notes never do.
+  const shown = { ...counts, note: counts.note + report.notices.length };
   const lines: string[] = [];
   if (report.findings.length === 0) {
     lines.push(colors.green('No problems found.'));
   } else {
-    const count = (level: Level) => (counts[level] === 0 ? plural(0, level) : levelColor(level, colors)(plural(counts[level], level)));
+    const count = (level: Level) => (shown[level] === 0 ? plural(0, level) : levelColor(level, colors)(plural(shown[level], level)));
     lines.push(`${count('error')}, ${count('warning')}, ${count('note')}`);
     // When a warning alone makes doctor fail, say so next to the counts, with where that was set.
     const explanation = options.failOn === undefined ? undefined : failOnExplanation(options.failOn, counts);
@@ -126,7 +129,12 @@ export function renderText(
     }
   }
   if (report.notices.length > 0) {
-    lines.push('', colors.bold('Notes:'), ...report.notices.map((notice) => `  ${printable(notice.message)}`));
+    // Each with its level as a word, its code and what to do, as findings have them (decision D-116).
+    lines.push('', colors.bold('Notes:'));
+    for (const notice of report.notices) {
+      lines.push(`  ${levelColor('note', colors)('note')} ${printable(notice.message)} ${colors.dim(`(${printable(notice.code)})`)}`);
+      if (notice.fix !== undefined) lines.push(`    ${colors.green('fix:')} ${printable(notice.fix)}`);
+    }
   }
   if (report.checked !== undefined) lines.push('', ...checkedLines(report.checked).map((line, index) => (index === 0 ? colors.bold(printable(line)) : printable(line))));
   return `${lines.join('\n')}\n`;

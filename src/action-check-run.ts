@@ -122,6 +122,11 @@ export async function createCheckRun(env: NodeJS.ProcessEnv, token: string, cont
   const apiUrl = env[facts.variables.apiUrl];
   const repository = env[facts.variables.repository];
   const sha = checkRunSha(env, facts);
+  // A URL that is set but not https is named, not taken for a missing one: the token is never sent over plain HTTP.
+  if (apiUrl !== undefined && apiUrl !== '' && !/^https:\/\//u.test(apiUrl)) {
+    const name = facts.variables.apiUrl;
+    return `depcurfew: the depcurfew doctor check was not added: ${name} is not an https URL, and depcurfew sends the token only over https; set ${name} to the https address of the GitHub API, or leave it to the runner, which sets it\n`;
+  }
   if (apiUrl === undefined || !/^https:\/\//u.test(apiUrl) || repository === undefined || !/^[\w.-]+\/[\w.-]+$/u.test(repository) || sha === undefined) {
     return `depcurfew: the depcurfew doctor check was not added: ${facts.variables.apiUrl}, ${facts.variables.repository} or the commit is not set, as outside GitHub Actions\n`;
   }

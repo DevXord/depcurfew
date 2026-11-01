@@ -51,7 +51,14 @@ describe('runDoctor with an invalid depcurfew.json', () => {
     expect(() => runDoctor(repo)).toThrow(PolicyError);
     const report = runDoctor(repo, { invalidPolicy: 'report' });
     expect(report.policy).toBe('invalid');
-    expect(report.notices).toContainEqual({ message: 'depcurfew.json is invalid: only the rules that do not need a policy ran' });
+    expect(report.notices).toContainEqual({
+      level: 'note',
+      code: 'policy-invalid',
+      location: { file: 'depcurfew.json' },
+      message: 'depcurfew.json is invalid: only the rules that do not need a policy ran',
+      file: 'depcurfew.json',
+      fix: 'Fix what the invalid-policy finding lists, then run depcurfew doctor again',
+    });
   });
 });
 

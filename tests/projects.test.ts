@@ -244,6 +244,13 @@ describe('doctor with projects', () => {
     expect(sarif).toContain('"uri":"frontend/package.json"');
 
     await exec('apply', directory);
+    // apply changed exclude-newer, which uv.lock records, so uv.lock has to be locked again (decision D-116).
+    const relock = await exec('doctor', directory);
+    expect(relock.code).toBe(EXIT_OK);
+    expect(relock.stdout).toMatch(/^0 errors, 1 warning, 0 notes\n\nbackend\/uv\.lock\n {2}warning backend\/uv\.lock was locked without exclude-newer, but .+ \(lockfile-out-of-date\)\n/u);
+    // What uv lock writes for "36 hours".
+    const lock = join(directory, 'backend', 'uv.lock');
+    writeFileSync(lock, readFileSync(lock, 'utf8').replace(/\n\n\[\[package\]\]/u, '\n\n[options]\nexclude-newer = "0001-01-01T00:00:00Z"\nexclude-newer-span = "PT36H"\n\n[[package]]'));
     const clean = await exec('doctor', directory);
     expect(clean.code).toBe(EXIT_OK);
     expect(clean.stdout).toMatch(/^No problems found\.\n/u);

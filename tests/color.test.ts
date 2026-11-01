@@ -46,7 +46,7 @@ describe('colored output', () => {
       { rule: 'config-drift', level: 'error', location: { file: '.npmrc', line: 2 }, message: 'drift', fix: 'Run depcurfew apply' },
       { rule: 'broad-exclusion', level: 'warning', location: { file: 'depcurfew.json' }, message: 'broad' },
     ],
-    notices: [{ message: 'a notice' }],
+    notices: [{ level: 'note', code: 'lockfile-install-scripts', message: 'a notice', fix: 'Do this' }],
   };
 
   it('prints the same words with and without colors', () => {

@@ -1,0 +1,43 @@
+[project]
+name = "démo"
+version = "0.1.0"
+description = "Zażółć \"gęślą\" jaźń"
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.32",
+    'idna==3.10; python_version < "3.13"',
+]
+
+[project.optional-dependencies]
+Socks = ["PySocks>=1.7"]
+cli = ["click>=8", "rich"]
+"žurnal" = ["Babel"]
+
+[dependency-groups]
+Dev_Tools = ["pytest>=8", { include-group = "lint" }]
+lint = ["ruff"]
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.dev-dependencies]
+dev-tools = ["coverage"]
+Docs = ["mkdocs\ttab"]
+
+[[tool.pdm.source]]
+name = "private 😀"
+url = "https://pypi.example.com/simple"
+verify_ssl = true
+
+[tool.pdm.resolution]
+# Wheels first for the slow builds.
+prefer-binary = "idna"
+excludes = ["pywin32"]
+
+# >>> depcurfew managed block [tool.pdm.resolution]: edit depcurfew.json and run depcurfew apply instead
+exclude-newer = "1w"
+only-binary = ":all:"
+# <<< depcurfew managed block
+
+[tool.pdm.resolution.overrides]
+urllib3 = ">=2"

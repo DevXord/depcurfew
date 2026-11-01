@@ -1,0 +1,11 @@
+[
+  {
+    "level": "note",
+    "location": {
+      "file": ".github/renovate.json5",
+      "line": 1
+    },
+    "message": "Renovate reads .github/renovate.json5, which depcurfew cannot read (it reads only JSON and JSONC Renovate files), so it cannot tell whether Renovate waits as long as npm (3 days, min-release-age: 3 in .npmrc)",
+    "fix": "Make sure minimumReleaseAge in .github/renovate.json5 is at least 3 days, or move the configuration to renovate.json, which depcurfew reads"
+  }
+]

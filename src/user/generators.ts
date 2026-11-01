@@ -20,6 +20,7 @@ import { YAML_MARKER } from '../apply/yaml-edit.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import type { ToolId, UserSetting, UserSettingPurpose } from '../knowledge/types.ts';
 import { compareVersions, parseVersion } from '../apply/version.ts';
+import { YARN_CLASSIC } from './versions.ts';
 
 export interface UserTarget {
   context: Context;
@@ -461,7 +462,7 @@ function yarn([target]: readonly UserTarget[]): void {
     context.warn({
       code: 'tool-not-supported',
       location: { file: target.shown },
-      message: `Yarn Classic ${context.versionLabel} reads ${classic.file}, not ${target.shown}, and is not supported; nothing written for it`,
+      message: `${YARN_CLASSIC} ${context.versionLabel} reads ${classic.file}, not ${target.shown}, and is not supported; nothing written for it`,
       fix: `Move to ${context.name}${since === undefined ? '' : ` ${since} or later`}, or to another package manager depcurfew configures`,
     });
     return;

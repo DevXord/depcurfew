@@ -6,11 +6,22 @@ import { getVersion } from './version.ts';
 
 const NAME = 'depcurfew';
 
+/**
+ * The tools directory the README recommends for a repository without package.json in its root: depcurfew pinned in
+ * its own package.json and package-lock.json there (decision D-116).
+ */
+export const TOOLS_DIRECTORY = '.claude/depcurfew';
+
+/** The project's copy as the hook of the README runs it, relative to its directory. */
+export const INSTALLED_CLI = `node_modules/${NAME}/dist/cli.js`;
+
 export interface ProjectCopy {
   version: string;
   /** Where the version was read, relative to the project root. */
   file: string;
   line?: number;
+  /** The directory it is installed or pinned in: the project itself (absent), or TOOLS_DIRECTORY. */
+  directory?: string;
 }
 
 function lineOf(text: string, needle: string): number | undefined {
@@ -32,22 +43,39 @@ function versionIn(text: string, read: (document: unknown) => unknown): string |
 const field = (value: unknown, key: string): unknown =>
   typeof value === 'object' && value !== null && Object.hasOwn(value, key) ? (value as Record<string, unknown>)[key] : undefined;
 
-/** The installed copy in node_modules, else the version package-lock.json records; undefined when neither has one. */
-export function projectCopy(repository: Repository): ProjectCopy | undefined {
-  const manifest = `node_modules/${NAME}/package.json`;
+/** The copy of one directory: installed in node_modules, else the version package-lock.json records. */
+function copyIn(repository: Repository, directory: string | undefined): ProjectCopy | undefined {
+  const prefix = directory === undefined ? '' : `${directory}/`;
+  const at = directory === undefined ? {} : { directory };
+  const manifest = `${prefix}node_modules/${NAME}/package.json`;
   const installedText = repository.isFile(manifest) ? repository.readText(manifest) : undefined;
   if (installedText !== undefined) {
     const version = versionIn(installedText, (document) => field(document, 'version'));
-    if (version !== undefined) return { version, file: manifest, ...lineAt(installedText, '"version"') };
+    if (version !== undefined) return { version, file: manifest, ...lineAt(installedText, '"version"'), ...at };
   }
-  const lockfile = 'package-lock.json';
+  const lockfile = `${prefix}package-lock.json`;
   const lockText = repository.isFile(lockfile) ? repository.readText(lockfile) : undefined;
   if (lockText !== undefined) {
     const key = `node_modules/${NAME}`;
     const version = versionIn(lockText, (document) => field(field(field(document, 'packages'), key), 'version'));
-    if (version !== undefined) return { version, file: lockfile, ...lineAt(lockText, `"${key}"`) };
+    if (version !== undefined) return { version, file: lockfile, ...lineAt(lockText, `"${key}"`), ...at };
   }
   return undefined;
+}
+
+/**
+ * The newest copy of depcurfew the repository installs or pins: in the project (node_modules, else package-lock.json)
+ * or in the tools directory of the README (TOOLS_DIRECTORY, decision D-116); undefined when neither has one.
+ */
+export function projectCopy(repository: Repository): ProjectCopy | undefined {
+  const copies = [copyIn(repository, undefined), copyIn(repository, TOOLS_DIRECTORY)].filter((copy): copy is ProjectCopy => copy !== undefined);
+  return copies.reduce<ProjectCopy | undefined>((newest, copy) => (newest === undefined || isNewer(copy.version, newest.version) ? copy : newest), undefined);
+}
+
+function isNewer(version: string, than: string): boolean {
+  const a = parseVersion(version);
+  const b = parseVersion(than);
+  return a !== undefined && b !== undefined && compareVersions(a, b) > 0;
 }
 
 function lineAt(text: string, needle: string): { line?: number } {
@@ -62,15 +90,25 @@ function lineAt(text: string, needle: string): { line?: number } {
  */
 export function outdatedText(copy: ProjectCopy, command: 'apply' | 'doctor', line = false): { message: string; fix: string } {
   const at = line && copy.line !== undefined ? `, line ${copy.line}` : '';
-  const pinned = copy.file === 'package-lock.json';
-  const where = pinned ? `is pinned in ${copy.file}${line && copy.line !== undefined ? ` (line ${copy.line})` : ''}` : `is installed in the project (${copy.file}${at})`;
+  const pinned = copy.file.endsWith('package-lock.json');
+  const where = pinned
+    ? `is pinned in ${copy.file}${line && copy.line !== undefined ? ` (line ${copy.line})` : ''}`
+    : `is installed in ${copy.directory ?? 'the project'} (${copy.file}${at})`;
   const knows = command === 'apply' ? 'settings that version writes' : 'settings that version writes or checks';
   const runner = command === 'apply' ? 'apply' : 'this check';
+  const update = `update the depcurfew you run to ${copy.version} or later`;
+  // The tools directory has no npx of its own: its copy runs by path, as the hook of the README runs it.
+  const tools = copy.directory === undefined ? undefined : `node ${copy.directory}/${INSTALLED_CLI} ${command}`;
   return {
     message: `depcurfew ${copy.version} ${where}, but the depcurfew running ${runner} is older, so it may not know ${knows}`,
-    fix: pinned
-      ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or update the depcurfew you run to ${copy.version} or later`
-      : `Run the project's copy (npx depcurfew ${command}), or update the depcurfew you run to ${copy.version} or later`,
+    fix:
+      tools !== undefined
+        ? pinned
+          ? `Install it in ${copy.directory} (cd ${copy.directory} && npm ci --ignore-scripts), then run that copy (${tools}), or ${update}`
+          : `Run that copy (${tools}), or ${update}`
+        : pinned
+          ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or ${update}`
+          : `Run the project's copy (npx depcurfew ${command}), or ${update}`,
   };
 }
 

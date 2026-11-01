@@ -17,7 +17,7 @@ export interface FailOnSetting {
   file?: string;
 }
 
-/** doctor.failOn of a valid policy; undefined without a policy or without the section. */
+/** doctor.failOn of a valid policy; undefined without a policy, without the section or without the field in it (decision D-116). */
 export function policyFailOn(policy: ResolvedPolicy | undefined): FailOn | undefined {
   return policy?.doctor?.failOn;
 }

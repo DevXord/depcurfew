@@ -5,6 +5,7 @@ import type { DetectionWarning } from '../../detect/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { UNREADABLE_WARNINGS } from '../unreadable-warnings.ts';
 import { plannedApply } from '../plan.ts';
+import { positionInMessage } from '../positions.ts';
 import type { Rule } from '../types.ts';
 
 export { UNREADABLE_WARNINGS } from '../unreadable-warnings.ts';
@@ -27,13 +28,13 @@ export const unreadableConfig: Rule = {
       const file = warning.files[0] ?? POLICY_FILE;
       if (fix === undefined || reported.has(file)) continue;
       reported.add(file);
-      context.report({ location: { file }, message: `${warning.message.replace(/:$/u, '')}; depcurfew cannot check it`, fix });
+      context.report({ location: { file, ...(warning.code === 'invalid-file' ? positionInMessage(warning.message) : undefined) }, message: `${warning.message.replace(/:$/u, '')}; depcurfew cannot check it`, fix });
     }
     for (const failure of plannedApply(context)?.failures ?? []) {
       if (reported.has(failure.file)) continue;
       reported.add(failure.file);
       context.report({
-        location: { file: failure.file },
+        location: { file: failure.file, ...positionInMessage(failure.message) },
         message: `depcurfew apply cannot edit ${failure.file} for ${context.tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool} (${failure.message}), so it cannot be checked against ${POLICY_FILE}`,
         fix: 'Fix what the message describes, then run depcurfew apply; or add the settings by hand',
       });

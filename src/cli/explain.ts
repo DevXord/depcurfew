@@ -1,6 +1,6 @@
 import { detectProject } from '../detect/index.ts';
 import type { Detection, DetectionWarning, DockerStage, ToolCommand, VersionDeclaration } from '../detect/types.ts';
-import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
+import { WARNING_FIXES } from '../doctor/unreadable-warnings.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId } from '../knowledge/types.ts';
 import { convertCooldown } from '../policy/convert.ts';
@@ -96,19 +96,6 @@ export interface ExplainReport {
   /** A depcurfew.json that cannot be used, in the shape of the errors of apply --json and check --json. */
   errors: InputError[];
 }
-
-/** What to do about each warning of detection; the fixes of unreadable-config for files that could not be read. */
-const WARNING_FIXES: Readonly<Record<string, string>> = {
-  ...UNREADABLE_WARNINGS,
-  'nothing-detected': `Run depcurfew explain in the directory of the project, or list the directories of the projects under projects in ${POLICY_FILE}`,
-  'invalid-package-manager': 'Write packageManager in package.json as name@version, with a package manager depcurfew knows',
-  'package-manager-assumed': 'Commit the lockfile, or name the package manager and its version in packageManager in package.json',
-  'yarn-classic-unsupported': 'Move to Yarn 2 or later, or to another package manager depcurfew configures',
-  'renovate-config-in-package-json': 'Move the renovate key of package.json to renovate.json',
-  'multiple-lockfiles': 'Remove the lockfiles of the package managers the project does not use',
-  'package-manager-mismatch': 'Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager',
-  'python-tool-unknown': `Commit the lockfile of the tool that installs the project, or name the tool in targets in ${POLICY_FILE}`,
-};
 
 function explainedWarning(warning: DetectionWarning): ExplainWarning {
   const file = warning.files[0];

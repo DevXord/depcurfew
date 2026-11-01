@@ -12,6 +12,8 @@ export interface Location {
   file: string;
   /** 1-based; absent when the finding concerns the whole file. */
   line?: number;
+  /** 1-based column on `line`, when the problem has one (a syntax error); absent otherwise (decision D-116). */
+  column?: number;
   /** doctor --user: the environment variable, as it is set, of a finding whose file is "environment". */
   variable?: string;
 }
@@ -25,10 +27,36 @@ export interface Finding {
   fix?: string;
 }
 
-/** Something doctor could not check, such as an unreadable file. Not a problem in the repository itself. */
+/**
+ * Something doctor could not check, such as an unreadable file. Not a problem in the repository itself, so it never
+ * fails doctor. It has the fields of a finding (decision D-116): the level, always note; a code, the rule that could not
+ * check something or the code of the warning or state that gave it; where it is; the message; and what to do.
+ */
 export interface Notice {
+  level: 'note';
+  code: string;
   message: string;
+  /** The file it concerns, the same as location.file; kept for programs that read it before location was added. */
   file?: string;
+  location?: { file: string };
+  fix?: string;
+}
+
+/** A notice with its fields in the order of a finding; `file` and `fix` only when they are known. */
+export function makeNotice(code: string, message: string, file?: string, fix?: string): Notice {
+  return {
+    level: 'note',
+    code,
+    ...(file === undefined ? {} : { location: { file } }),
+    message,
+    ...(file === undefined ? {} : { file }),
+    ...(fix === undefined ? {} : { fix }),
+  };
+}
+
+/** The same notice for another file (a project's file named from the root), or without one. */
+export function relocatedNotice(notice: Notice, message: string, file: string | undefined): Notice {
+  return makeNotice(notice.code, message, file, notice.fix);
 }
 
 export interface RuleContext {
@@ -39,7 +67,8 @@ export interface RuleContext {
   policy: ResolvedPolicy | undefined;
   tools: readonly ToolKnowledge[];
   report(finding: Omit<Finding, 'rule' | 'level'> & { level?: Level }): void;
-  notice(message: string, file?: string): void;
+  /** Something the rule could not check; its code is the rule's id (decision D-116). */
+  notice(message: string, file?: string, fix?: string): void;
   /**
    * Set when the rules run on a directory listed in projects in depcurfew.json (decision D-100): its path relative to
    * the repository root. `root`, `repository` and `detection` are then the project's, and file names relative to it.

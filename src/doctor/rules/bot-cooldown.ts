@@ -32,6 +32,8 @@ interface BotDelay extends Delay {
   rule?: number;
   /** A preset depcurfew cannot read may set the delay; the repository itself sets none (Renovate). */
   unreadablePreset?: string;
+  /** The configuration file is in a format depcurfew does not read (Renovate's JSON5), so the delay is not known. */
+  unreadableFile?: string;
   /** A fix for this delay in place of the general one. */
   fix?: string;
 }
@@ -98,14 +100,15 @@ function dependabotDelays(context: RuleContext, bot: ToolKnowledge, file: string
 }
 
 function renovateDelays(context: RuleContext, bot: ToolKnowledge, file: string): BotDelay[] {
+  const managersOf = (ecosystem: Ecosystem): PackageManagerId[] =>
+    context.tools.filter((tool) => tool.kind === 'package-manager' && ecosystemOfTool(tool) === ecosystem).map((tool) => tool.id as PackageManagerId);
+  // A file in a format depcurfew does not read gives a note at the file for each manager that waits, as a preset it
+  // cannot read does, so the check does not pass as if the delay were known (decision D-116).
   if (!/\.jsonc?$/u.test(file) && !/\.renovaterc$/u.test(file)) {
-    context.notice(`bot-cooldown-mismatch cannot read ${file}; only JSON and JSONC Renovate files are read`, file);
-    return [];
+    return (['npm', 'pypi'] as const).map((ecosystem) => ({ bot, managers: managersOf(ecosystem), minutes: 0, origin: file, location: { file, line: 1 }, securityBypass: false, scope: 'updates', applies: false, unreadableFile: file }));
   }
   const text = context.repository.readText(file);
   if (text === undefined) return [];
-  const managersOf = (ecosystem: Ecosystem): PackageManagerId[] =>
-    context.tools.filter((tool) => tool.kind === 'package-manager' && ecosystemOfTool(tool) === ecosystem).map((tool) => tool.id as PackageManagerId);
   // The deprecated configuration in package.json sits under its own key.
   const packageJson = extraOf(bot, 'packageJsonConfig', isPackageJsonConfig);
   const base = file === packageJson.file ? [packageJson.key] : [];
@@ -311,6 +314,17 @@ export const botCooldownMismatch: Rule = {
         // A project's manager is named with its directory, and the file of its delay relative to the root.
         const tool = source.project === undefined ? knowledge : { ...knowledge, name: `${knowledge.name} in ${source.project}` };
         const own = { ...found, origin: source.relocate(found.origin) };
+        if (delay.unreadableFile !== undefined) {
+          if (own.minutes > 0) {
+            context.report({
+              level: 'note',
+              location: delay.location,
+              message: `${delay.bot.name} reads ${delay.unreadableFile}, which depcurfew cannot read (it reads only JSON and JSONC Renovate files), so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe(own.minutes)}, ${own.origin})`,
+              fix: `Make sure minimumReleaseAge in ${delay.unreadableFile} is at least ${describe(own.minutes)}, or move the configuration to renovate.json, which depcurfew reads`,
+            });
+          }
+          continue;
+        }
         if (delay.unreadablePreset !== undefined) {
           if (own.minutes > 0) {
             context.report({

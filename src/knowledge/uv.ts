@@ -17,6 +17,7 @@ const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor: string, version: string) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll('.', '')}`;
 const user = verifiedOn('2026-10-31');
 const release13 = verifiedOn('2026-11-01');
+const final = verifiedOn('2026-11-01');
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = ['1', 'true', 't', 'yes', 'y', 'on'];
 
@@ -291,6 +292,35 @@ export const uv: ToolKnowledge = {
       { settings: ['exclude-newer', 'exclude-newer-package'], lock: 'uv lock', failing: ['uv sync --locked', 'uv lock --check'] },
       SERIALIZE,
       'uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again ("Resolving despite existing lockfile due to addition of global exclude newer", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded.',
+    ),
+    lockOptions: final.verified(
+      { table: 'options', timestamp: 'exclude-newer', span: 'exclude-newer-span', packages: 'exclude-newer-package', packageTimestamp: 'timestamp', packageSpan: 'span', placeholder: '0001-01-01T00:00:00Z' },
+      SERIALIZE,
+      'write_options writes [options] when exclude-newer is set: an absolute value as exclude-newer = "<timestamp>"; a relative one as exclude-newer = the placeholder "0001-01-01T00:00:00Z" (with the comment "This has no effect and is included for backwards compatibility when using relative exclude-newer values") and exclude-newer-span = the span as jiff prints it, ISO 8601 (P3D, P1W); since 0.11.8 exclude-newer may be missing next to exclude-newer-span. [options.exclude-newer-package] holds name = "<timestamp>", name = { timestamp = <placeholder>, span = "P3D" } or name = false. The placeholder is ExcludeNewerValue::PLACEHOLDER in crates/uv-distribution-types/src/exclude_newer.rs.',
+    ),
+    lockComparison: final.verified(
+      { spans: 'fieldwise', absolute: 'earlier', packages: 'locked-or-recorded', dateOnly: 'next-day-system-time-zone' },
+      `${UV}/crates/uv-configuration/src/exclude_newer.rs`,
+      'ExcludeNewer::compare (lock against the settings, in crates/uv-lock-operations/src/validated_lock.rs after lock.filter_exclude_newer) resolves again on an added or removed global value, a span that differs (ExcludeNewerSpan compares self.0.fieldwise() == other.0.fieldwise() in crates/uv-distribution-types/src/exclude_newer.rs, so "7 days" and P1W differ), a span added to or removed from an absolute value, and an absolute timestamp that is earlier than the locked one (a later one does not count); only a new timestamp of the same span is ignored. Per package (only names of locked packages and names the lock already records, filter_exclude_newer in crates/uv-lock/src/lock/mod.rs): a cutoff removed, a disabled one enabled, an enabled one added, or a changed value; an enabled one that is now disabled does not count. A date without a time (2026-01-01) is the start of the next day in the system time zone, so the timestamp it gives depends on the machine. Messages such as "Resolving despite existing lockfile due to change of exclude newer span from `P3D` to `P1W`" come from the Display of ExcludeNewerValueChange.',
+    ),
+    spanSyntax: final.verified(
+      {
+        friendlyUnits: {
+          years: ['years', 'year', 'yrs', 'yr', 'y'],
+          months: ['months', 'month', 'mos', 'mo'],
+          weeks: ['weeks', 'week', 'wks', 'wk', 'w'],
+          days: ['days', 'day', 'd'],
+          hours: ['hours', 'hour', 'hrs', 'hr', 'h'],
+          minutes: ['minutes', 'minute', 'mins', 'min', 'm'],
+          seconds: ['seconds', 'second', 'secs', 'sec', 's'],
+          milliseconds: ['milliseconds', 'millisecond', 'millis', 'milli', 'msecs', 'msec', 'ms'],
+          microseconds: ['microseconds', 'microsecond', 'micros', 'micro', 'usecs', 'usec', 'us'],
+          nanoseconds: ['nanoseconds', 'nanosecond', 'nanos', 'nano', 'nsecs', 'nsec', 'ns'],
+        },
+        rejectedUnits: ['years', 'months'],
+      },
+      'https://github.com/BurntSushi/jiff/blob/0.2.37/crates/jiff/src/fmt/friendly/mod.rs',
+      'jiff 0.2.37 is the version in Cargo.lock of uv 0.13.6. uv parses a relative exclude-newer with jiff\'s Span (FromStr of ExcludeNewerValue tries a timestamp, then a date, then a span), which reads the friendly format ("3 days", "1w", "2 weeks, 3 days", with each unit at most once, larger units first, a leading sign or a trailing "ago") and ISO 8601 (P3D, PT36H). Span prints as ISO 8601 by default, which is what uv.lock records. uv rejects years and months ("use days instead", crates/uv-distribution-types/src/exclude_newer.rs). The friendly format also has HH:MM:SS and fractions of hours and smaller units, which depcurfew does not read.',
     ),
     commandLine: verified(
       {

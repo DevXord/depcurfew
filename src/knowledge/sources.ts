@@ -16,7 +16,8 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   yarn: [{ host: 'yarnpkg.com' }, { host: 'github.com', pathPrefix: '/yarnpkg/' }],
   bun: [{ host: 'bun.com' }, { host: 'bun.sh' }, { host: 'github.com', pathPrefix: '/oven-sh/' }],
   deno: [{ host: 'docs.deno.com' }, { host: 'deno.com' }, { host: 'github.com', pathPrefix: '/denoland/' }],
-  uv: [{ host: 'docs.astral.sh' }, { host: 'github.com', pathPrefix: '/astral-sh/' }],
+  // jiff (BurntSushi) is the library uv reads and prints exclude-newer spans with (extra.spanSyntax).
+  uv: [{ host: 'docs.astral.sh' }, { host: 'github.com', pathPrefix: '/astral-sh/' }, { host: 'github.com', pathPrefix: '/burntsushi/jiff/' }],
   pip: [
     { host: 'pip.pypa.io' },
     { host: 'github.com', pathPrefix: '/pypa/' },

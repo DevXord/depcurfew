@@ -188,13 +188,12 @@
       "type": "object",
       "properties": {
         "failOn": {
-          "description": "Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: \"error\" (only errors) or \"warning\" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it.",
+          "description": "Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: \"error\" (only errors, also when left out) or \"warning\" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it.",
           "type": "string",
           "enum": [
             "error",
             "warning"
-          ],
-          "default": "error"
+          ]
         }
       },
       "additionalProperties": false

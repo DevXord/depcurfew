@@ -9,13 +9,15 @@ import { compareVersions, formatVersion, parseVersion, type Version } from '../a
 import type { ApplyWarning } from '../apply/warnings.ts';
 import { YAML_MARKER } from '../apply/yaml-edit.ts';
 import { ruleResults } from '../doctor/render.ts';
+import { driftDescription } from '../doctor/rules/config-drift.ts';
 import { iniLines } from '../doctor/settings.ts';
-import type { Checked, DoctorReport, Finding, Notice, Rule } from '../doctor/types.ts';
+import { makeNotice, type Checked, type DoctorReport, type Finding, type Notice, type Rule } from '../doctor/types.ts';
 import { parseToml, TomlDateTime, type TomlDocument, type TomlTable } from '../detect/toml.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { values } from '../apply/facts.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId, ToolKnowledge, UserFile, UserWeakening } from '../knowledge/types.ts';
+import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { listing } from '../apply/requirements.ts';
 import { redactCredentials } from '../printable.ts';
@@ -28,7 +30,7 @@ import { userPolicyPath } from './policy-path.ts';
 import { loadUserPolicy, userPolicyFix } from './policy.ts';
 import { environmentOverrides } from './variables.ts';
 import { installedUserFile, possibleUserFiles } from './user-file.ts';
-import { findExecutable, toolVersion, type InstalledVersion } from './versions.ts';
+import { findExecutable, installedToolName, toolVersion, type InstalledVersion } from './versions.ts';
 
 const noCheck = (): void => undefined;
 
@@ -383,8 +385,8 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   const tools = options.tools ?? knowledgeBase;
   const findings: Finding[] = [];
   const notices: Notice[] = [];
-  const notice = (message: string) => {
-    if (!notices.some((known) => known.message === message)) notices.push({ message });
+  const notice = (code: string, message: string, fix?: string) => {
+    if (!notices.some((known) => known.message === message)) notices.push(makeNotice(code, message, undefined, fix));
   };
   let policy: ResolvedPolicy | undefined;
   let status: DoctorReport['policy'] = 'valid';
@@ -404,16 +406,17 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     if (!(error instanceof PolicyError)) throw error;
     if (error.code === 'policy-missing') {
       status = 'missing';
-      notice(`${error.message}: only the checks that do not need a user policy ran`);
+      // Without a home directory init --user writes nothing, so the fix is the one of the home directory finding.
+      notice('policy-missing', `${error.message}: only the checks that do not need a user policy ran`, home === undefined ? 'Run depcurfew init --user to write it, so that the checks that compare the user configuration with it run too' : home.fix);
     } else {
       status = 'invalid';
-      notice(`${policyFile} cannot be used: only the checks that do not need a user policy ran`);
-      // A JSON syntax error says where it is ("invalid JSON at line 2, column 16").
-      const line = /\binvalid JSON at line (\d+)\b/u.exec(error.issues.join('\n'))?.[1];
+      notice('policy-invalid', `${policyFile} cannot be used: only the checks that do not need a user policy ran`, 'Fix what the user-policy-invalid finding lists, then run depcurfew doctor --user again');
+      // The line of the field the first problem names, or of a JSON syntax error (decision D-116).
+      const line = error.line;
       findings.push({
         rule: 'user-policy-invalid',
         level: 'error',
-        location: { file: policyFile, ...(line === undefined ? {} : { line: Number(line) }) },
+        location: { file: policyFile, ...(line === undefined ? {} : { line }) },
         message: error.issues.length === 0 ? error.message : `${error.message}: ${error.issues.join('; ')}`,
         fix: userPolicyFix(error, policyFile),
       });
@@ -460,11 +463,17 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     }
     for (const change of plan.report.changes) {
       if (!failedPaths.has(change.path)) planned.set(change.path, change.after);
+      // As config-drift in a project: the line of the first difference and what should be there (decision D-116).
+      const drift = change.before === null ? undefined : driftDescription(change.file, change.before, change.after);
       findings.push({
         rule: 'user-config-drift',
         level: 'warning',
-        location: { file: change.file },
-        message: change.before === null ? `${change.file} does not exist, so the user policy is not applied there` : `${change.file} does not match the user policy (${policyFile})`,
+        location: { file: change.file, ...(drift === undefined ? {} : { line: drift.line }) },
+        message:
+          drift === undefined
+            ? `${change.file} does not exist, so the user policy is not applied there`
+            : // config-drift speaks of a project: here it is the user policy, written by apply --user.
+              `${change.file} does not match the user policy (${policyFile}): ${drift.text.replaceAll('depcurfew apply ', 'depcurfew apply --user ').replaceAll(POLICY_FILE, 'the user policy')}`,
         fix: 'Run depcurfew apply --user --dry-run to see the difference, then depcurfew apply --user',
       });
     }
@@ -482,10 +491,12 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
         const path = file === null ? undefined : userFilePath(file, environment);
         const where = path === undefined ? 'its user file' : shownPath(path, environment);
         notice(
+          warning.code,
           `${tool.name}: depcurfew cannot read the installed version from its files, so depcurfew apply --user leaves ${where} alone (${tool.name} stops every command on a value its version does not understand) and doctor --user does not compare it with the user policy; pass the version with --for ${tool.id}@<version> (${tool.id} --version shows it)`,
+          `Run depcurfew doctor --user --for ${tool.id}@<version> with the version ${tool.id} --version shows`,
         );
       } else if (warning.code === 'no-user-config' || warning.code === 'nothing-to-configure' || warning.code === 'user-file-uncertain') {
-        notice(warning.message);
+        notice(warning.code, warning.message, warning.fix);
       }
     }
     tooOld = plan.report.warningDetails.filter((warning) => TOO_OLD.has(warning.code));
@@ -511,7 +522,9 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     if (tool?.user !== undefined && policy !== undefined && policy.targets !== 'auto' && policy.targets.includes(id)) continue;
     const toolName = tool?.name ?? id;
     notice(
+      'version-not-used',
       `${toolName}: --for ${id}@${formatVersion(version)} is not used, because ${tool?.user === undefined ? `depcurfew knows no user-level configuration of ${toolName}` : `${toolName} is not in PATH, so doctor --user does not check it`}`,
+      tool?.user === undefined ? `Leave out --for ${id}@${formatVersion(version)}` : `Leave out --for ${id}@${formatVersion(version)}, or add "${id}" to targets in ${policyFile} to check ${toolName} without it in PATH`,
     );
   }
 
@@ -695,7 +708,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     tools: installed.map((tool) => {
       const version = versions.get(tool.id);
       const found = read.get(tool.id);
-      return { id: tool.id, name: tool.name, ...(version === undefined ? {} : { version: found?.text ?? formatVersion(version), versionFrom: options.versions?.[tool.id] === undefined ? (found?.from ?? 'PATH') : '--for' }) };
+      return { id: tool.id, name: installedToolName(tool, version), ...(version === undefined ? {} : { version: found?.text ?? formatVersion(version), versionFrom: options.versions?.[tool.id] === undefined ? (found?.from ?? 'PATH') : '--for' }) };
     }),
     files: [...filesRead].sort(),
     rules: ruleResults(

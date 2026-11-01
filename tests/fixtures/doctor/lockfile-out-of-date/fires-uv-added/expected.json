@@ -1,0 +1,10 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "uv.lock"
+    },
+    "message": "uv.lock was locked without exclude-newer, but exclude-newer in pyproject.toml (line 9) is \"3 days\" now, so uv sync --locked and uv lock --check fail until uv lock runs again",
+    "fix": "Run uv lock and commit uv.lock, or set exclude-newer back in pyproject.toml if the change was not intended"
+  }
+]

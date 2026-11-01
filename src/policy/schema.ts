@@ -130,12 +130,13 @@ export const FAIL_ON_LEVELS = ['error', 'warning'] as const;
 
 export const doctorShape = object(
   {
-    failOn: withDefault(
+    // No default here: a section without failOn leaves the choice to doctor, which then fails on errors only and says
+    // that the default decided (decision D-116).
+    failOn: optional(
       oneOfStrings(FAIL_ON_LEVELS, {
         description:
-          'Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: "error" (only errors) or "warning" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it.',
+          'Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: "error" (only errors, also when left out) or "warning" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it.',
       }),
-      'error',
     ),
   },
   {

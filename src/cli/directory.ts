@@ -79,7 +79,7 @@ export function policyInputError(error: PolicyError, file: string): InputError {
   return {
     code: error.code,
     level: 'error',
-    location: { file },
+    location: { file, ...(error.line === undefined ? {} : { line: error.line }) },
     message: error.message,
     fix: policyErrorFix(error),
     ...(error.issues.length === 0 ? {} : { issues: error.issues }),

@@ -43,6 +43,7 @@ import { directoryTargets } from './targets.ts';
 import { parseVersion, pinnedVersion, type Version } from './version.ts';
 import { warningText, type ApplyErrorCode, type ApplyWarning } from './warnings.ts';
 import { CHANGED, OUTSIDE, WriteFailed, writeChanges, type FileChange } from './workspace.ts';
+import { policyIssueLine } from '../doctor/policy-lines.ts';
 
 export type { FileChange } from './workspace.ts';
 export type { ProjectProblem } from './projects.ts';
@@ -529,12 +530,15 @@ export class PolicyError extends Error {
   readonly code: ApplyErrorCode;
   /** What to do, when the message does not say it. */
   readonly fix: string | undefined;
+  /** The line of the policy file the first problem concerns, when it can be found (decision D-116). */
+  readonly line: number | undefined;
 
-  constructor(message: string, issues: string[] = [], code: ApplyErrorCode = 'policy-invalid', fix?: string) {
+  constructor(message: string, issues: string[] = [], code: ApplyErrorCode = 'policy-invalid', fix?: string, line?: number) {
     super(message);
     this.issues = issues;
     this.code = code;
     this.fix = fix;
+    this.line = line;
   }
 
   /** The message and what to do, as one line of text. */
@@ -557,7 +561,7 @@ export function loadPolicyIfPresent(root: string): ResolvedPolicy | undefined {
   if (file.status === 'missing') return undefined;
   if (file.status === 'unreadable') throw new PolicyError(file.reason, [], 'policy-unreadable');
   const result = parsePolicy(file.text);
-  if (!result.ok) throw new PolicyError(`${POLICY_FILE} is invalid`, result.issues.map(formatIssue));
+  if (!result.ok) throw new PolicyError(`${POLICY_FILE} is invalid`, result.issues.map(formatIssue), 'policy-invalid', undefined, policyIssueLine(file.text, result.issues));
   return result.policy;
 }
 

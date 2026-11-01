@@ -31,9 +31,11 @@ export function homeProblem(environment: UserEnvironment, command: keyof typeof 
   const { home } = environment;
   const module = environment.platform === 'win32' ? win32 : posix;
   const variable = environment.platform === 'win32' ? 'USERPROFILE' : 'HOME';
-  const fix = `Set ${variable} to an existing directory, or run depcurfew ${command} --user as a user who has a home directory`;
-  const problem = (message: string): HomeProblem => ({ code: 'home-missing', location: { file: home }, message, fix });
-  if (!module.isAbsolute(home)) return problem(`the home directory ${JSON.stringify(home)} is not an absolute path, so depcurfew ${command} --user cannot tell where the user configuration is`);
+  const fixFor = (what: string) => `Set ${variable} to ${what}, or run depcurfew ${command} --user as a user who has a home directory`;
+  const problem = (message: string, fix = fixFor('an existing directory')): HomeProblem => ({ code: 'home-missing', location: { file: home }, message, fix });
+  if (!module.isAbsolute(home)) {
+    return problem(`the home directory ${JSON.stringify(home)} is not an absolute path, so depcurfew ${command} --user cannot tell where the user configuration is`, fixFor('the absolute path of an existing directory'));
+  }
   let stats;
   try {
     stats = statSync(home, { throwIfNoEntry: false });

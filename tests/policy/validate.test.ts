@@ -115,10 +115,13 @@ describe('doctor section (decision D-112)', () => {
     expect(result.ok && result.policy.doctor).toBeUndefined();
   });
 
-  it('takes failOn "error" or "warning", "error" when the field is left out', () => {
+  it('takes failOn "error" or "warning", and leaves it out when the field is left out (decision D-116)', () => {
     expect(validatePolicy({ version: 1, doctor: { failOn: 'warning' } })).toMatchObject({ ok: true, policy: { doctor: { failOn: 'warning' } } });
     expect(validatePolicy({ version: 1, doctor: { failOn: 'error' } })).toMatchObject({ ok: true, policy: { doctor: { failOn: 'error' } } });
-    expect(validatePolicy({ version: 1, doctor: {} })).toMatchObject({ ok: true, policy: { doctor: { failOn: 'error' } } });
+    // Nothing is set, so doctor falls back to its default ("error") and says it came from the default, not the policy.
+    const empty = validatePolicy({ version: 1, doctor: {} });
+    expect(empty).toMatchObject({ ok: true, policy: { doctor: {} } });
+    expect(empty.ok && empty.policy.doctor?.failOn).toBeUndefined();
   });
 
   it('says which values failOn takes, and suggests the likely one', () => {
@@ -135,7 +138,7 @@ describe('doctor section (decision D-112)', () => {
 
   it('is part of the default policy of init, which fails on warnings', () => {
     expect(DEFAULT_POLICY.doctor).toEqual({ failOn: 'warning' });
-    expectTypeOf<NonNullable<ResolvedPolicy['doctor']>['failOn']>().toEqualTypeOf<'error' | 'warning'>();
+    expectTypeOf<NonNullable<ResolvedPolicy['doctor']>['failOn']>().toEqualTypeOf<'error' | 'warning' | undefined>();
   });
 });
 

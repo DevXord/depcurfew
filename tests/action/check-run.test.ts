@@ -229,7 +229,14 @@ describe('createCheckRun', () => {
     const failing: CheckRunFetch = () => Promise.reject(new Error('timed out'));
     expect(await createCheckRun(runner(), 't', CONTENT, failing)).toContain('the GitHub API did not answer (timed out)');
     expect(await createCheckRun({}, 't', CONTENT, recorder(201).fetch)).toContain('GITHUB_API_URL, GITHUB_REPOSITORY or the commit is not set');
-    expect(await createCheckRun(runner({ GITHUB_API_URL: 'http://plain.example' }), 't', CONTENT, recorder(201).fetch)).toContain('is not set');
+    // A URL that is set but not https is named as such, with what to do (decision D-116), and nothing is sent.
+    const plain = recorder(201);
+    const line = await createCheckRun(runner({ GITHUB_API_URL: 'http://user:secret@plain.example' }), 't', CONTENT, plain.fetch);
+    expect(line).toBe(
+      'depcurfew: the depcurfew doctor check was not added: GITHUB_API_URL is not an https URL, and depcurfew sends the token only over https; set GITHUB_API_URL to the https address of the GitHub API, or leave it to the runner, which sets it\n',
+    );
+    expect(line).not.toContain('secret');
+    expect(plain.calls).toEqual([]);
   });
 });
 
@@ -312,7 +319,7 @@ describe('the Action and the check', () => {
   it('passes a clean result with every check in the summary, and counts the checks that do not apply', () => {
     const [content] = collect({ FIXTURE: 'bot-cooldown-mismatch/passes-consistent' });
     expect(content).toMatchObject({ name: 'depcurfew doctor', conclusion: 'success', annotations: [] });
-    expect(content?.title).toBe('No problems found (15 checks: 7 passed, 4 not applicable, 4 skipped)');
+    expect(content?.title).toBe('No problems found (16 checks: 7 passed, 5 not applicable, 4 skipped)');
     expect(content?.summary).toContain('| Result | Check | Rule |');
     expect(content?.summary).toContain('| not applicable | Python tools read their settings where they are written | `python-config-ignored` |');
   });

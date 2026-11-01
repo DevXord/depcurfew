@@ -13,6 +13,7 @@ import { SOURCE_KINDS } from '../knowledge/schema.ts';
 import type { CommandLineKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
 import { DEFAULT_POLICY, renderPolicy } from '../policy/defaults.ts';
 import { policyJsonSchema } from '../policy/json-schema.ts';
+import { INSTALLED_CLI, TOOLS_DIRECTORY } from '../self-version.ts';
 
 export interface ReadmeInputs {
   tools: readonly ToolKnowledge[];
@@ -208,7 +209,7 @@ function bootstrap(environment: EnvironmentKnowledge): string[] {
   const start = values(environment.claudeCode.sessionStart)[0];
   if (hooks === undefined || start === undefined) throw new Error('README: missing the Claude Code hooks or SessionStart fact');
   const keys = hooks.settings;
-  const cli = 'node_modules/depcurfew/dist/cli.js';
+  const cli = INSTALLED_CLI;
   const variable = `$${start.projectDirVariable}`;
   const sessionStart = {
     [keys.hooks]: {
@@ -222,7 +223,7 @@ function bootstrap(environment: EnvironmentKnowledge): string[] {
   };
   return [
     '**Before depcurfew is installed.** The hook runs the copy in `node_modules`. When that file is missing (a fresh clone before `npm ci`, a repository without `package.json` in its root, a new cloud session), node still starts, cannot load it and exits with code 1 and a stack trace, and with `' +
-      `${hooks.onFailure.field}: "${hooks.onFailure.value}"\` that failure blocks every command of these tools, including the \`npm ci\` that would install depcurfew; without it, every command runs unchecked. The blocked call shows the hook command, \`${start.blockedNotice}\` and node's \`Error: Cannot find module '…/${cli}'\`: run the install (\`npm ci --ignore-scripts\` in the project, or in \`.claude/depcurfew\` for the tools directory below) from a terminal, then try again. So install depcurfew before the hook is needed:`,
+      `${hooks.onFailure.field}: "${hooks.onFailure.value}"\` that failure blocks every command of these tools, including the \`npm ci\` that would install depcurfew; without it, every command runs unchecked. The blocked call shows the hook command, \`${start.blockedNotice}\` and node's \`Error: Cannot find module '…/${cli}'\`: run the install (\`npm ci --ignore-scripts\` in the project, or in \`${TOOLS_DIRECTORY}\` for the tools directory below) from a terminal, then try again. So install depcurfew before the hook is needed:`,
     '',
     `- **On your machine:** run \`npm ci\` once after cloning, in a terminal, before you start Claude Code.`,
     `- **In every session:** a \`${start.event}\` hook installs the locked copy when it is missing (with pnpm, Yarn or Bun, use their install from the lockfile instead of \`npm ci\`). It runs when a session starts or resumes, and ${start.firstResponseWaits ? "Claude's first response waits for it" : 'it may still run when Claude answers'}, so the guard is in place before the first command. \`--ignore-scripts\` keeps the install from running dependency scripts before the guard is there. Add it next to \`${hooks.event}\` in the same \`${hooks.settingsFile}\`:`,
@@ -231,7 +232,7 @@ function bootstrap(environment: EnvironmentKnowledge): string[] {
     JSON.stringify(sessionStart, null, 2),
     '```',
     '',
-    `- **A repository without \`package.json\` in its root** (several projects side by side): keep depcurfew in a small tools directory, for example \`.claude/depcurfew/package.json\` with depcurfew pinned exactly and its \`package-lock.json\` committed, install it there (\`cd .claude/depcurfew && npm ci --ignore-scripts\`, also in the \`${start.event}\` hook), and point the hook at \`${hooks.projectDir}/.claude/depcurfew/${cli}\`.`,
+    `- **A repository without \`package.json\` in its root** (several projects side by side): keep depcurfew in a small tools directory, for example \`${TOOLS_DIRECTORY}/package.json\` with depcurfew pinned exactly and its \`package-lock.json\` committed, install it there (\`cd ${TOOLS_DIRECTORY} && npm ci --ignore-scripts\`, also in the \`${start.event}\` hook), and point the hook at \`${hooks.projectDir}/${TOOLS_DIRECTORY}/${cli}\`.`,
     start.cloudSetupScriptRunsBeforeClaudeCode
       ? `- **Cloud sessions (Claude Code on the web):** the repository's \`${hooks.settingsFile}\` hooks run there, user-level ones do not. The environment's setup script runs before Claude Code starts, so it can install depcurfew too; the \`${start.event}\` hook above covers a cached environment as well.`
       : '',

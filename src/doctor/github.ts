@@ -171,7 +171,9 @@ function code(text: string): string {
  * longer than `maxBytes` are left out and counted instead, so the summary upload does not fail.
  */
 export function jobSummary(report: DoctorReport, rules: readonly Rule[], directory: string, maxBytes: number): string {
-  const counts = countLevels(report.findings);
+  // The notes below count as notes too, as in the text (decision D-116).
+  const found = countLevels(report.findings);
+  const counts = { ...found, note: found.note + report.notices.length };
   const where = directory === '' ? '' : ` in ${code(directory)}`;
   const head = ['## depcurfew doctor', ''];
   if (report.findings.length === 0) {
@@ -181,7 +183,9 @@ export function jobSummary(report: DoctorReport, rules: readonly Rule[], directo
     head.push(`${count('error')}, ${count('warning')}, ${count('note')}${where}.`, '', '| Level | Where | Problem | How to fix |', '| --- | --- | --- | --- |');
   }
   const notes =
-    report.notices.length === 0 ? [] : ['', '### Notes', '', ...report.notices.map((notice) => `- ${markdown(notice.message)}`)];
+    report.notices.length === 0
+      ? []
+      : ['', '### Notes', '', ...report.notices.map((notice) => `- note: ${markdown(notice.message)} (${code(notice.code)})${notice.fix === undefined ? '' : ` Fix: ${markdown(notice.fix)}`}`)];
   const tail = [...notes, ...checkedSummary(report), ''];
   let size = Buffer.byteLength([...head, ...tail].join('\n')) + 200;
   const rows: string[] = [];

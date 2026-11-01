@@ -51,6 +51,7 @@ export const APPLY_WARNINGS = {
   'bot-config-missing': 'A bot has no configuration file, and depcurfew does not create one.',
   'bot-config-not-edited': 'A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.',
   'bot-entries-missing': 'The Dependabot configuration has no entries for the package managers in use.',
+  'bot-rule-shortens-delay': "A Renovate packageRules entry apply does not manage gives every package of a registry, or some update types, a shorter release-age delay than the one apply writes; Renovate uses it, and apply does not change it.",
   'security-delay-unsupported': 'Dependabot cannot delay security updates, so securityUpdates "delay" is not applied.',
 } as const satisfies Record<string, string>;
 

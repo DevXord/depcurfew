@@ -191,6 +191,26 @@ export const pdm: ToolKnowledge = {
       `${PDM}/src/pdm/project/project_file.py`,
       'pdm.lock keeps a content_hash of the whole [tool.pdm.resolution] table (PyProject.content_hash), or with canonical lock inputs (lock_inputs = true, since 2.28.1) the table itself (src/pdm/project/lockfile/freshness.py), so a change to any key in it, exclude-newer and only-binary included, makes the lockfile out of date. pdm lock --check and pdm install --check then exit with 1 ("Lockfile doesn\'t satisfy the project requirements"), pdm install without --check locks again first and pdm sync only warns (check_lockfile in src/pdm/cli/actions.py) until pdm lock runs again; with exclude-newer set, pdm lock resolves every package again (src/pdm/cli/commands/lock.py).',
     ),
+    lockHash: leftovers.verified(
+      {
+        key: ['metadata', 'content_hash'],
+        separator: ':',
+        inputs: ['metadata', 'lock_inputs'],
+        inputsSetting: ['tool', 'pdm', 'resolution', 'lock_inputs'],
+        workspace: ['tool', 'pdm', 'workspace'],
+        project: ['project'],
+        fields: [
+          { name: 'sources', path: ['tool', 'pdm', 'source'], missing: [] },
+          { name: 'dependencies', path: ['project', 'dependencies'], missing: [] },
+          { name: 'optional-dependencies', path: ['project', 'optional-dependencies'], missing: {} },
+          { name: 'requires-python', path: ['project', 'requires-python'], missing: '' },
+          { name: 'resolution', path: ['tool', 'pdm', 'resolution'], missing: {} },
+        ],
+        groups: { name: 'dev-dependencies', tables: [['dependency-groups'], ['tool', 'pdm', 'dev-dependencies']], separators: '[^A-Za-z0-9]+' },
+      },
+      `${PDM}/src/pdm/project/project_file.py`,
+      'PyProject.content_hash: json.dumps(dump_data, sort_keys=True) of sources (tool.pdm.source, default []), dependencies, dev-dependencies, optional-dependencies (default {}), requires-python (default "") and resolution (tool.pdm.resolution, default {}), encoded as UTF-8 and hashed with hashlib (sha256). dev-dependencies are the [dependency-groups] tables, each name normalized (normalize_name in src/pdm/utils.py: re.sub(r"[^A-Za-z0-9]+", "-", name).lower(); a name twice is an error), then the lists of tool.pdm.dev-dependencies appended under their normalized names. pdm.lock keeps it as [metadata] content_hash = "sha256:<hex>" (src/pdm/project/lockfile/pdmlock.py). Project.is_lockfile_fresh (src/pdm/project/core.py) compares it only while pdm.lock has no metadata.lock_inputs and resolution.lock_inputs is not true; a workspace root (tool.pdm.workspace set, WorkspaceManager.is_root in src/pdm/project/workspace.py) hashes the members too. PDM reads pyproject.toml with tomllib (src/pdm/project/toml_file.py), and without a [project] table it converts a Poetry or Flit project first (_convert_pyproject).',
+    ),
     uvMode: uncertain(
       { file: 'pdm.toml', key: 'use_uv' },
       `${PDM}/docs/usage/uv.md`,

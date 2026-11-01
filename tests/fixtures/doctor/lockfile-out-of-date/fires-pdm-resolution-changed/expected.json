@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "pdm.lock",
+      "line": 9
+    },
+    "message": "pdm.lock does not match pyproject.toml: its content_hash is not the one PDM computes from the dependencies, sources and [tool.pdm.resolution] settings of pyproject.toml now, so pdm lock --check and pdm install --check fail until pdm lock runs again",
+    "fix": "Run pdm lock and commit pdm.lock, or undo the change to pyproject.toml if it was not intended"
+  }
+]

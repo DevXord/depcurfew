@@ -79,7 +79,7 @@ describe('SARIF output', () => {
 
   it('percent-encodes each segment of a path as a URI reference and keeps the slashes', () => {
     const file = 'sub dir/zażółć 100%\n#?:x.json';
-    const report: DoctorReport = { schemaVersion: 1, policy: 'valid', findings: [{ rule: 'config-drift', level: 'error', location: { file, line: 1 }, message: 'm' }], notices: [{ message: 'n', file }] };
+    const report: DoctorReport = { schemaVersion: 1, policy: 'valid', findings: [{ rule: 'config-drift', level: 'error', location: { file, line: 1 }, message: 'm' }], notices: [{ level: 'note', code: 'unreadable-file', message: 'n', file, location: { file } }] };
     const sarif = toSarif(report, RULES, '0.0.0') as { runs: { results: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[]; invocations: { toolExecutionNotifications: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[] }[] }[] };
     const uri = 'sub%20dir/za%C5%BC%C3%B3%C5%82%C4%87%20100%25%0A%23%3F%3Ax.json';
     expect(sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe(uri);

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "uv.lock",
+      "line": 10
+    },
+    "message": "uv.lock was locked with exclude-newer-package idna = false, but pyproject.toml does not set exclude-newer-package for idna now, so uv sync --locked and uv lock --check fail until uv lock runs again",
+    "fix": "Run uv lock and commit uv.lock, or set exclude-newer-package back in pyproject.toml if the change was not intended"
+  }
+]

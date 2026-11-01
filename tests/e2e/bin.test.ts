@@ -150,7 +150,7 @@ describe('built depcurfew executable', () => {
       const doctor = depcurfewIn(deep, 'doctor');
       expect(doctor.status).toBe(1);
       expect(doctor.stdout).toContain('package-lock.json\n  20: error package-lock.json installs ghshort from a git repository');
-      expect(doctor.stdout).toContain(`\nNotes:\n  ${note('doctor')}\n`);
+      expect(doctor.stdout).toContain(`\nNotes:\n  note ${note('doctor')} (policy-from-parent)\n`);
       expect(JSON.parse(depcurfewIn(deep, 'doctor', '--json').stdout)).toMatchObject({ policy: 'valid', notices: [{ message: note('doctor') }] });
 
       const explain = depcurfewIn(deep, 'explain');

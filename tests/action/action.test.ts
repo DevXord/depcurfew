@@ -33,7 +33,8 @@ describe('GitHub Action entry point', () => {
     const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter');
     const { outputs, log } = run({ GITHUB_WORKSPACE: root });
     expect(outputs).toEqual({ 'sarif-file': 'depcurfew.sarif', errors: 1, warnings: 0, notes: 0, failure: '', 'fail-reason': 'depcurfew doctor reported 1 error; the job summary and the log of the Run depcurfew doctor step say how to fix each one' });
-    expect(log).toContain('1 error, 0 warnings, 0 notes');
+    // The outputs count findings; the line of counts in the log also counts the note about the missing policy (D-116).
+    expect(log).toContain('1 error, 0 warnings, 1 note');
     const sarif = JSON.parse(readFileSync(join(root, 'depcurfew.sarif'), 'utf8')) as { runs: { results: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[] }[] };
     expect(sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('.github/dependabot.yml');
   });
@@ -60,7 +61,7 @@ describe('GitHub Action entry point', () => {
   it('writes a job summary with a row and the fix for every finding, unless turned off', () => {
     const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter', 'packages/app');
     const { summary } = run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'packages/app' });
-    expect(summary).toMatch(/^## depcurfew doctor\n\n\*\*1 error\*\*, 0 warnings, 0 notes in `packages\/app`\.\n/u);
+    expect(summary).toMatch(/^## depcurfew doctor\n\n\*\*1 error\*\*, 0 warnings, \*\*1 note\*\* in `packages\/app`\.\n/u);
     expect(summary).toContain('| Level | Where | Problem | How to fix |');
     expect(summary).toMatch(/^\| \*\*error\*\* \| `packages\/app\/\.github\/dependabot\.yml:\d+` \| .+ \(`bot-cooldown-mismatch`\) \| .+ \|$/mu);
     expect(run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: 'packages/app', INPUT_JOB_SUMMARY: 'false' }).summary).toBe('');
@@ -130,7 +131,7 @@ describe('GitHub Action entry point', () => {
     const directory = 'odd dir\n| x |';
     const root = workspace('bot-cooldown-mismatch/fires-dependabot-shorter', directory);
     const { summary } = run({ GITHUB_WORKSPACE: root, INPUT_DIRECTORY: directory });
-    expect(summary).toContain('**1 error**, 0 warnings, 0 notes in `odd dir\\x0a\\| x \\|`.\n');
+    expect(summary).toContain('**1 error**, 0 warnings, **1 note** in `odd dir\\x0a\\| x \\|`.\n');
     // The table of findings; the table of checks follows under "What was checked".
     const rows = (summary.split('### What was checked')[0] ?? '').split('\n').filter((line) => line.startsWith('| '));
     expect(rows).toHaveLength(3);

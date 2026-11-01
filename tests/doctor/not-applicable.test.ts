@@ -42,9 +42,10 @@ describe('rules that do not concern the project', () => {
       'broad-exclusion': 'passed',
       'lockfile-forbidden-source': 'skipped',
       'lockfile-install-scripts': 'skipped',
+      'lockfile-out-of-date': 'not-applicable',
       'unreadable-config': 'passed',
     });
-    expect(resultCounts(report.checked?.rules ?? [])).toBe('15 checks: 7 passed, 4 not applicable, 4 skipped');
+    expect(resultCounts(report.checked?.rules ?? [])).toBe('16 checks: 7 passed, 5 not applicable, 4 skipped');
   });
 
   it('are not applicable in a PDM project without bots: the npm, pnpm and bot rules', () => {
@@ -75,6 +76,7 @@ describe('rules that do not concern the project', () => {
       'broad-exclusion': 'not-applicable',
       'lockfile-forbidden-source': 'not-applicable',
       'lockfile-install-scripts': 'not-applicable',
+      'lockfile-out-of-date': 'not-applicable',
       'unreadable-config': 'passed',
     });
   });
@@ -119,6 +121,9 @@ describe('rules that do not concern the project', () => {
     expect(results(report)['lockfile-install-scripts']).toBe('not-applicable');
     expect(results(report)['lockfile-forbidden-source']).toBe('passed');
     expect(report.notices).toContainEqual({
+      level: 'note',
+      code: 'lockfile-install-scripts',
+      location: { file: 'requirements.txt' },
       message:
         'lockfile-install-scripts cannot tell from requirements.txt which packages from the index are built from source: it lists no wheels or source distributions; depcurfew check pypi:<name> shows whether a package has wheels',
       file: 'requirements.txt',

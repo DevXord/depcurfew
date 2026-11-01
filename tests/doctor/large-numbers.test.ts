@@ -31,6 +31,9 @@ describe('a delay too large for a number', () => {
     writeFileSync(join(root, '.github', 'dependabot.yml'), 'version: 2\nupdates:\n  - package-ecosystem: "pip"\n    directory: "/"\n    schedule:\n      interval: "weekly"\n');
     const report = runDoctor(root);
     expect(report.notices).toContainEqual({
+      level: 'note',
+      code: 'bot-cooldown-mismatch',
+      location: { file: 'poetry.toml' },
       message: 'Poetry: cannot read solver.min-release-age in poetry.toml: 99999999999999999999 is too large to be a delay',
       file: 'poetry.toml',
     });

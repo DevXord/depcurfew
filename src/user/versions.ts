@@ -241,6 +241,19 @@ const isYarnPath = (value: unknown): value is YarnPathFact =>
   isRecord(value) && typeof value['key'] === 'string' && typeof value['releaseFile'] === 'string' && Array.isArray(value['variables']);
 const isClassic = (value: unknown): value is { until: string } => isRecord(value) && typeof value['until'] === 'string';
 
+/** What Yarn 1.x is called in messages: depcurfew configures only the later Yarn (extra.classicUserFile). */
+export const YARN_CLASSIC = 'Yarn Classic';
+
+/**
+ * The name of a tool at an installed version, for the list of what doctor --user checked: Yarn before the version of
+ * extra.classicUserFile is Yarn Classic, not the Yarn depcurfew configures (decision D-116).
+ */
+export function installedToolName(tool: ToolKnowledge, version: Version | undefined): string {
+  if (version === undefined || tool.extra?.['classicUserFile'] === undefined) return tool.name;
+  const until = parseVersion(extraOf(tool, 'classicUserFile', isClassic).until);
+  return until !== undefined && compareVersions(version, until) < 0 ? YARN_CLASSIC : tool.name;
+}
+
 const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 
 /**

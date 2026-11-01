@@ -14,10 +14,12 @@ import { plannedFor } from './plan.ts';
 import { ruleResults } from './render.ts';
 import { RULES } from './rules/index.ts';
 import { UNREADABLE_WARNINGS, unreadableConfig } from './rules/unreadable-config.ts';
+import { WARNING_FIXES } from './unreadable-warnings.ts';
 import type { Detection } from '../detect/types.ts';
-import type { Checked, DoctorReport, Finding, Notice, ProjectView, Rule } from './types.ts';
+import { makeNotice, relocatedNotice, type Checked, type DoctorReport, type Finding, type Notice, type ProjectView, type Rule } from './types.ts';
 
 export type { Checked, CheckedTool, DoctorReport, Finding, Level, Location, Notice, ProjectView, Rule, RuleResult, RuleScope } from './types.ts';
+export { makeNotice } from './types.ts';
 export { RULES } from './rules/index.ts';
 export { countLevels, renderText, ruleResults } from './render.ts';
 export { toSarif } from './sarif.ts';
@@ -102,8 +104,8 @@ function runRules(
   const repository = where.repository ?? new Repository(root);
   const findings: Finding[] = [];
   const notices: Notice[] = [];
-  const notice = (message: string, file?: string) => {
-    if (!notices.some((item) => item.message === message)) notices.push(file === undefined ? { message } : { message, file });
+  const notice = (code: string, message: string, file?: string, fix?: string) => {
+    if (!notices.some((item) => item.message === message)) notices.push(makeNotice(code, message, file, fix));
   };
   for (const rule of rules) {
     if (rule.requiresPolicy && policy === undefined) continue;
@@ -117,12 +119,12 @@ function runRules(
       ...(where.projects === undefined ? {} : { projects: where.projects }),
       ...(where.plan === undefined ? {} : { plan: where.plan }),
       report: ({ level, ...finding }) => findings.push({ rule: rule.id, level: level ?? rule.level, ...finding }),
-      notice,
+      notice: (message, file, fix) => notice(rule.id, message, file, fix),
     });
   }
   const reported = rules.includes(unreadableConfig);
   for (const warning of repository.warnings) {
-    if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
+    if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code]);
   }
   return { findings, notices, detection, repository };
 }
@@ -143,7 +145,7 @@ function relocateRun(project: string, run: DirectoryRun, plan: ApplyReport | und
       ...(finding.fix === undefined ? {} : { fix: text(finding.fix) }),
     })),
     notices: run.notices.map((notice) =>
-      notice.file === undefined ? { message: `${project}: ${text(notice.message)}` } : { message: text(notice.message), file: inProject(project, notice.file) },
+      notice.file === undefined ? relocatedNotice(notice, `${project}: ${text(notice.message)}`, undefined) : relocatedNotice(notice, text(notice.message), inProject(project, notice.file)),
     ),
   };
 }
@@ -200,8 +202,9 @@ export function runDoctor(
   const addNotice = (item: Notice) => {
     if (!notices.some((known) => known.message === item.message)) notices.push(item);
   };
-  if (invalid) addNotice({ message: `${POLICY_FILE} is invalid: only the rules that do not need a policy ran` });
-  else if (policy === undefined) addNotice({ message: `no ${POLICY_FILE}: only the rules that do not need a policy ran` });
+  // The policy's state, with the codes of apply's errors for it; the invalid-policy finding says how to fix an invalid one.
+  if (invalid) addNotice(makeNotice('policy-invalid', `${POLICY_FILE} is invalid: only the rules that do not need a policy ran`, POLICY_FILE, 'Fix what the invalid-policy finding lists, then run depcurfew doctor again'));
+  else if (policy === undefined) addNotice(makeNotice('policy-missing', `no ${POLICY_FILE}: only the rules that do not need a policy ran`, undefined, `Run depcurfew init to write ${POLICY_FILE}, so that the rules that compare the repository with it run too`));
   const findings = [...rootRun.findings];
   for (const item of rootRun.notices) addNotice(item);
   for (const { view, run } of projectRuns) {

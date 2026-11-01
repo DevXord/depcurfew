@@ -195,7 +195,7 @@ export function writeTomlBlock(body: string, table: string, entries: readonly st
     }
     index = end;
   }
-  if (entries.length === 0) return joinLines(lines);
+  if (entries.length === 0) return joinLines(withoutCreatedTable(lines, table, removed));
 
   if (topLevel) {
     const firstTable = boundaries[0] ?? lines.length;
@@ -222,6 +222,29 @@ export function writeTomlBlock(body: string, table: string, entries: readonly st
   if (end === -1) end = lines.length;
   while (end > headerIndex + 1 && lines[end - 1]?.trim() === '') end -= 1;
   return joinLines(insertBlock(lines, end, entries, undefined, marker));
+}
+
+/**
+ * The table apply created for its block goes away with the block when nothing else is in it (decision D-116). apply
+ * writes such a table as its header with the block right below it, and the blank line before the header; a block it
+ * added to a table that was there follows a blank line after the header, which removeBlockAt reports as `separated`.
+ * So a table with anything else in it, with a comment on its header line, or with the block apart from the header, is
+ * the user's and stays, also when it is empty.
+ */
+function withoutCreatedTable(lines: string[], table: string, removed: RemovedBlock): string[] {
+  const at = removed.at;
+  if (table === '' || at === undefined || removed.separated || at === 0) return lines;
+  const header = at - 1;
+  if (lines[header]?.trim() !== `[${table}]`) return lines;
+  let end = at;
+  while (end < lines.length && !HEADER.test(lines[end] ?? '')) {
+    if ((lines[end] ?? '').trim() !== '') return lines;
+    end += 1;
+  }
+  const rest = [...lines.slice(0, header), ...lines.slice(at)];
+  // The blank line apply wrote before the header goes too, unless it now separates the content before from a header.
+  if (header > 0 && rest[header - 1]?.trim() === '' && (header === rest.length || rest[header]?.trim() === '')) rest.splice(header - 1, 1);
+  return rest;
 }
 
 /**

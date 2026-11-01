@@ -2,7 +2,9 @@
   {
     "level": "error",
     "location": {
-      "file": ".github/dependabot.yml"
+      "file": ".github/dependabot.yml",
+      "line": 6,
+      "column": 1
     },
     "message": "depcurfew apply cannot edit .github/dependabot.yml for Dependabot (Flow map in block collection must be sufficiently indented and end with a } at line 6, column 1), so it cannot be checked against depcurfew.json",
     "fix": "Fix what the message describes, then run depcurfew apply; or add the settings by hand"
@@ -10,7 +12,9 @@
   {
     "level": "error",
     "location": {
-      "file": ".github/workflows/ci.yml"
+      "file": ".github/workflows/ci.yml",
+      "line": 3,
+      "column": 1
     },
     "message": "cannot parse .github/workflows/ci.yml: Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1; depcurfew cannot check it",
     "fix": "Fix the syntax error, so that depcurfew can check the file"

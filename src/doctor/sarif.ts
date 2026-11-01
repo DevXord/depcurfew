@@ -55,13 +55,15 @@ export interface SarifError {
 
 export function toSarif(report: DoctorReport, rules: readonly Rule[], version: string, readLine: LineReader = () => undefined, errors: readonly SarifError[] = []): object {
   // GitHub code scanning marks startColumn, endLine and endColumn as required; the region spans the whole line.
-  const location = (file: string, line: number | undefined) => {
+  // A column that is known (a syntax error) starts the region; it still ends at the end of the line (decision D-116).
+  const location = (file: string, line: number | undefined, column?: number) => {
     const startLine = line ?? 1;
     const text = readLine(file, startLine) ?? '';
+    const startColumn = line === undefined ? 1 : (column ?? 1);
     return {
       physicalLocation: {
         artifactLocation: { uri: pathUri(file), uriBaseId: '%SRCROOT%' },
-        region: { startLine, startColumn: 1, endLine: startLine, endColumn: Math.max(text.length, 1) + 1 },
+        region: { startLine, startColumn, endLine: startLine, endColumn: Math.max(text.length + 1, startColumn + 1, 2) },
       },
     };
   };
@@ -98,8 +100,9 @@ export function toSarif(report: DoctorReport, rules: readonly Rule[], version: s
               })),
               ...report.notices.map((notice) => ({
                 level: 'note',
-                message: { text: notice.message },
+                message: { text: notice.fix === undefined ? notice.message : `${notice.message}. Fix: ${notice.fix}` },
                 ...(notice.file === undefined ? {} : { locations: [location(notice.file, undefined)] }),
+                descriptor: { id: notice.code },
               })),
             ],
           },
@@ -109,7 +112,7 @@ export function toSarif(report: DoctorReport, rules: readonly Rule[], version: s
           ...(index.has(finding.rule) ? { ruleIndex: index.get(finding.rule) } : {}),
           level: finding.level,
           message: { text: finding.fix === undefined ? finding.message : `${finding.message}. Fix: ${finding.fix}` },
-          locations: [location(finding.location.file, finding.location.line)],
+          locations: [location(finding.location.file, finding.location.line, finding.location.column)],
         })),
       },
     ],

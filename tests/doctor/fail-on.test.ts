@@ -73,7 +73,8 @@ describe('doctor.failOn in depcurfew.json', () => {
   it('"error", an empty section or no section keep failing on errors only', async () => {
     for (const [policy, from] of [
       [{ version: 1, doctor: { failOn: 'error' } }, 'policy'],
-      [{ version: 1, doctor: {} }, 'policy'],
+      // Nothing set in the section: the default decides (decision D-116).
+      [{ version: 1, doctor: {} }, 'default'],
       [{ version: 1 }, 'default'],
       [undefined, 'default'],
     ] as const) {

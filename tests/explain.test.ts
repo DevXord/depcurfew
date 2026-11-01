@@ -112,7 +112,8 @@ describe('depcurfew explain --json', () => {
         {
           code: 'policy-invalid',
           level: 'error',
-          location: { file: 'depcurfew.json' },
+          // The line of the field the problem names (decision D-116).
+          location: { file: 'depcurfew.json', line: 1 },
           message: 'depcurfew.json is invalid',
           fix: 'Fix these problems in depcurfew.json; an editor that reads its $schema shows them as you type',
           issues: ['cooldown.minimum: invalid duration "3 days": spaces are not allowed; write "3d"'],

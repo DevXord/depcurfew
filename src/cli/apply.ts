@@ -13,6 +13,7 @@ import type { Version } from '../apply/version.ts';
 import { WriteFailed } from '../apply/workspace.ts';
 import type { ToolId } from '../knowledge/types.ts';
 import { planUserApply, writeUserChanges } from '../user/apply.ts';
+import { homeProblem } from '../user/home.ts';
 import { shownPath, type UserEnvironment } from '../user/locate.ts';
 import { userPolicyPath } from '../user/policy-path.ts';
 import { loadUserPolicy } from '../user/policy.ts';
@@ -22,7 +23,7 @@ import { safeJson } from '../json-safe.ts';
 import { printable } from '../printable.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { toolName } from './describe.ts';
-import { policyInputError, projectDirectory, reportInputError } from './directory.ts';
+import { policyInputError, projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
 function indent(text: string): string {
@@ -190,9 +191,15 @@ function applyUser(options: ApplyOptions & { user: NonNullable<ApplyOptions['use
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     const file = shownPath(userPolicyPath(options.user.environment), options.user.environment);
-    const failure = policyInputError(error, file);
-    if (options.json) io.stdout(jsonReport(dryRun, error.code === 'policy-missing' ? 'missing' : 'invalid', undefined, [failure], []));
-    else reportInputError(failure, io);
+    // Without a home directory, init --user cannot write the user policy either, so that comes first (decision D-116):
+    // a missing policy is then no error of its own, whose fix (init --user) would only be refused.
+    const home = homeProblem(options.user.environment, 'apply');
+    const failures: InputError[] = [
+      ...(home === undefined ? [] : [{ code: home.code, level: 'error' as const, location: home.location, message: home.message, fix: home.fix }]),
+      ...(home !== undefined && error.code === 'policy-missing' ? [] : [policyInputError(error, file)]),
+    ];
+    if (options.json) io.stdout(jsonReport(dryRun, error.code === 'policy-missing' ? 'missing' : 'invalid', undefined, failures, []));
+    else for (const failure of failures) reportInputError(failure, io);
     return EXIT_FAILURE;
   }
   const planned = planUserApply(loaded.policy, { environment: options.user.environment, versions: options.user.versions });

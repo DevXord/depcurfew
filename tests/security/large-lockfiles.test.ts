@@ -90,7 +90,7 @@ describe('large YAML lockfiles', () => {
     const root = repository({ 'package.json': '{ "name": "x", "packageManager": "pnpm@10.26.0" }', 'pnpm-lock.yaml': lock, 'depcurfew.json': POLICY });
     const findings = runDoctor(root).findings.filter((finding) => finding.rule === 'unreadable-config');
     expect(findings).toEqual([
-      expect.objectContaining({ location: { file: 'pnpm-lock.yaml' }, message: `cannot parse pnpm-lock.yaml: Map keys must be unique at line ${line}, column 3; depcurfew cannot check it` }),
+      expect.objectContaining({ location: { file: 'pnpm-lock.yaml', line, column: 3 }, message: `cannot parse pnpm-lock.yaml: Map keys must be unique at line ${line}, column 3; depcurfew cannot check it` }),
     ]);
   });
 

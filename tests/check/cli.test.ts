@@ -133,7 +133,7 @@ describe('depcurfew check', () => {
         {
           code: 'policy-invalid',
           level: 'error',
-          location: { file: 'depcurfew.json' },
+          location: { file: 'depcurfew.json', line: 1 },
           message: 'depcurfew.json is invalid',
           fix: 'Fix these problems in depcurfew.json; an editor that reads its $schema shows them as you type',
           issues: ['version: must be 1, got 2'],
