@@ -17,8 +17,7 @@ import { iniValue, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { hasBuildRecords, showsBuilds } from '../python-lockfiles.ts';
 import { hasLockfile } from '../applies.ts';
-import { npmInUse, repositoryPin } from './bundled-versions.ts';
-import { SOURCE_LABEL } from './manager-version.ts';
+import { npmInUseText, npmPlaces, repositoryPin, type NpmInUse } from './bundled-versions.ts';
 
 const LABELS = {
   npm: { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' },
@@ -99,37 +98,35 @@ function shownSpec(spec: string): string {
   return /^(?:file|portal|link):/u.test(text) && hash !== -1 ? text.slice(0, hash) : text;
 }
 
-/** Whether the version in use runs dependency install scripts without an allow-list, under any official reading. */
 /**
- * The versions of the tool the repository runs: the one it pins, or for npm without a pin the npm that the declared
- * Node.js versions come with and that CI jobs and Dockerfiles install (npmInUse, decision D-105); the latest known
- * version when none is declared.
+ * The versions of the tool the directory runs, each with where it comes from: for npm every place npm runs, as apply
+ * sees them (npmPlaces, decisions D-105 and D-109); for the other tools the version they pin. The latest known version
+ * when none is declared.
  */
-function versionsInUse(context: RuleContext, tool: ToolKnowledge): (Version | undefined)[] {
+function versionsInUse(context: RuleContext, tool: ToolKnowledge): { version: Version | undefined; place?: NpmInUse }[] {
   const manager = context.detection.packageManagers.find((entry) => entry.id === tool.id);
-  if (manager === undefined) return [latestVersion(tool)];
-  const pin = repositoryPin(manager);
-  if (pin !== undefined || tool.id !== 'npm') return [pin ?? pinnedVersion(manager) ?? latestVersion(tool)];
-  const manifest = context.repository.parseOnce('package.json', (text) => JSON.parse(text) as unknown);
-  const ci = context.plan?.ci;
-  const inUse = npmInUse(context.detection, manifest, (declaration) => SOURCE_LABEL[declaration.source], {
-    projects: (context.projects ?? []).map((view) => view.directory),
-    ...(ci === undefined ? {} : { extra: ci }),
-  }).flatMap((entry) => entry.versions);
-  return inUse.length > 0 ? inUse : [pinnedVersion(manager) ?? latestVersion(tool)];
+  if (manager === undefined) return [{ version: latestVersion(tool) }];
+  if (tool.id !== 'npm') return [{ version: repositoryPin(manager) ?? pinnedVersion(manager) ?? latestVersion(tool) }];
+  const places = npmPlaces(context).flatMap((place) => place.versions.map((version) => ({ version, place })));
+  return places.length > 0 ? places : [{ version: pinnedVersion(manager) ?? latestVersion(tool) }];
 }
 
 /**
- * Whether some version in use runs dependency install scripts that no list covers: every version that runs them all,
- * and, unless strict-allow-scripts is set (`strict`), the versions that run them with a notice.
+ * The first npm in use (or the version of another tool) that runs dependency install scripts no list covers: one that
+ * runs them all, or, unless strict-allow-scripts is set (`strict`), one that runs them with a notice. `text` names the
+ * versions of that place that run them ("npm 11.16.0 (with Node.js 24.18.0 in Dockerfile)"), absent without a place.
  */
-function runsScripts(context: RuleContext, tool: ToolKnowledge, strict: boolean): boolean {
-  return versionsInUse(context, tool).some((version) =>
+function runsScripts(context: RuleContext, tool: ToolKnowledge, strict: boolean): { text?: string; several?: boolean } | undefined {
+  const runs = (version: Version | undefined) =>
     evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
       const policy: ScriptPolicy | undefined = versionedValue(evidence.value, version);
       return policy === 'run' || (policy === 'run-with-warning' && !strict);
-    }),
-  );
+    });
+  const found = versionsInUse(context, tool).find((entry) => runs(entry.version));
+  if (found === undefined) return undefined;
+  const place = found.place;
+  const versions = place?.versions.filter(runs) ?? [];
+  return place === undefined ? {} : { text: npmInUseText(place, versions), several: versions.length > 1 };
 }
 
 /**
@@ -279,7 +276,10 @@ export const lockfileInstallScripts: Rule = {
       }
       const disabledBy = scriptsDisabledBy(context, tool);
       // strict-allow-scripts does nothing in an npm that does not know it, so such an npm in use still runs them.
-      const running = disabledBy?.all !== true && runsScripts(context, tool, disabledBy !== undefined);
+      const runner = disabledBy?.all === true ? undefined : runsScripts(context, tool, disabledBy !== undefined);
+      const running = runner !== undefined;
+      // "npm 11.16.0 (with Node.js 24.18.0 in Dockerfile) runs them": the npm in use that does (decision D-109).
+      const runs = runner?.text === undefined ? `${tool.name} runs them by default` : `${runner.text} ${runner.several === true ? 'run' : 'runs'} them`;
       const lists = ownLists(context, tool);
       for (const entry of flagged) {
         if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
@@ -305,7 +305,7 @@ export const lockfileInstallScripts: Rule = {
           context.report({
             level: 'error',
             location: location(lockfile, entry),
-            message: `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} denies them`,
+            message: `${entry.name} has install scripts and ${runs}, but ${POLICY_FILE} denies them`,
             fix: `Make ${tool.name} stop running dependency install scripts (run depcurfew apply and follow its warnings), or replace the package`,
           });
           continue;
@@ -314,7 +314,7 @@ export const lockfileInstallScripts: Rule = {
           level: running ? 'error' : 'warning',
           location: location(lockfile, entry),
           message: running
-            ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it`
+            ? `${entry.name} has install scripts and ${runs}, but ${POLICY_FILE} does not allow it`
             : disabledBy === undefined
               ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them`
               : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy.reason}; the package may need them`,

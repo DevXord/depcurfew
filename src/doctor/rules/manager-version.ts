@@ -15,7 +15,7 @@ import { readPythonSetting } from '../python.ts';
 import { lineOf, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { belowVersion, formatBound, lowestVersion } from '../version-range.ts';
-import { checkBundledVersions } from './bundled-versions.ts';
+import { checkBundledVersions, SOURCE_LABEL, strictAdvice, type StrictAdvice } from './bundled-versions.ts';
 
 export interface Feature {
   setting: string;
@@ -27,16 +27,36 @@ export interface Feature {
 
 /**
  * When a missing feature can also be had with a setting from an earlier version (decision D-105): that version, the
- * newest of it and the other missing features, and how to say it in a fix ("npm 11.16.0 or later with
- * strict-allow-scripts=true in .npmrc, which depcurfew apply writes for it").
+ * newest of it and the other missing features, and how to say it in a fix. The fix promises that depcurfew apply writes
+ * the setting only where it does (decision D-109): "which depcurfew apply writes for this repository" when apply writes it
+ * now; after a change of the repository that apply sees (a pinned version, a CI step, a Dockerfile, a version file),
+ * "which depcurfew apply then writes"; otherwise (npm installed on a machine, npm not in targets) "by hand".
  */
-export function alternativeOf(missing: readonly { setting: string; since: string; instead?: Feature['instead'] }[], name: string): { version: Version; suffix: string; set: string; text: string } | undefined {
+export function alternativeOf(
+  missing: readonly { setting: string; since: string; instead?: Feature['instead'] }[],
+  name: string,
+  advice: StrictAdvice,
+): { version: Version; suffix: (change: 'repository' | 'machine') => string; set: string; text: string } | undefined {
   const instead = missing.find((item) => item.instead !== undefined)?.instead;
   if (instead === undefined) return undefined;
   const versions = [instead.since, ...missing.filter((item) => item.instead === undefined).map((item) => item.since)].map((since) => parseVersion(since) as Version);
   const version = versions.reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b));
-  const suffix = `with ${instead.setting} in ${instead.file}, which depcurfew apply writes for it`;
-  return { version, suffix, set: `set ${instead.setting} in ${instead.file}, which depcurfew apply writes for it`, text: `${name} ${formatVersion(version)} or later ${suffix}` };
+  const { setting, file } = instead;
+  const now = advice.now && advice.targeted;
+  const suffix = (change: 'repository' | 'machine') =>
+    now
+      ? `with ${setting} in ${file}, which depcurfew apply writes for this repository`
+      : change === 'machine'
+        ? `and add ${setting} to ${file} by hand`
+        : advice.targeted
+          ? `with ${setting} in ${file}, which depcurfew apply then writes`
+          : `with ${setting} added to ${file} by hand`;
+  return {
+    version,
+    suffix,
+    set: now ? `set ${setting} in ${file}, which depcurfew apply writes for this repository` : `add ${setting} to ${file} by hand`,
+    text: `${name} ${formatVersion(version)} or later ${suffix('repository')}`,
+  };
 }
 
 function feature(setting: string | null, since: Fact<string | null> | string | undefined): Feature | undefined {
@@ -102,18 +122,7 @@ function configuredFeatures(context: RuleContext, tool: ToolKnowledge): Feature[
     .filter((item): item is Feature => item !== undefined);
 }
 
-export const SOURCE_LABEL: Record<VersionDeclaration['source'], string> = {
-  packageManager: 'packageManager',
-  'tool-config': 'the required version',
-  devEngines: 'devEngines',
-  volta: 'Volta',
-  'tool-versions': '.tool-versions',
-  nvmrc: '.nvmrc',
-  'node-version': '.node-version',
-  engines: 'engines',
-  'github-actions': 'GitHub Actions',
-  dockerfile: 'Dockerfile',
-};
+export { SOURCE_LABEL } from './bundled-versions.ts';
 
 /** Where a version is declared, for messages; a tool's own required version is named by its key. */
 function sourceLabel(tool: ToolKnowledge, declaration: VersionDeclaration): string {
@@ -170,6 +179,7 @@ export function missingFeatures<T extends { setting: string; since: string }>(fe
 
 function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: ToolKnowledge, features: readonly Feature[]): void {
   if (features.length === 0) return;
+  const advice = features.some((item) => item.instead !== undefined) ? strictAdvice(context, tool) : { now: false, targeted: false };
   for (const declaration of manager.versions) {
     if (!('version' in declaration)) continue;
     const lowest = lowestVersion(declaration.version);
@@ -188,14 +198,14 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
       lowest.kind === 'exact'
         ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}`
         : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
-    const alternative = alternativeOf(missing, tool.name);
+    const alternative = alternativeOf(missing, tool.name, advice);
     context.report({
       level: lowest.kind === 'exact' ? 'error' : 'warning',
       location: line === undefined ? { file: declaration.file } : { file: declaration.file, line },
       message: subject,
       fix:
         alternative !== undefined && lowest.kind === 'exact' && compareVersions(lowest.version, alternative.version) >= 0
-          ? `Set${alternative.set.slice(3)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}`
+          ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}`
           : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === undefined ? '' : `, or ${alternative.text}`}`,
     });
   }
@@ -220,7 +230,7 @@ export const managerVersionTooOld: Rule = {
     // The npm that comes with the declared Node.js, and the pip of a python image, where nothing replaces them.
     checkBundledVersions(context, {
       features: (tool, where) => featuresOf(where, tool),
-      alternative: (missing, name) => alternativeOf(missing, name),
+      alternative: (missing, name, advice) => alternativeOf(missing, name, advice),
       missing: missingFeatures,
       line: (declaration) => declarationLine(context, declaration),
       label: (declaration) => SOURCE_LABEL[declaration.source],

@@ -35,7 +35,8 @@ function setupNodeSteps(count: number, version: string): string {
   return Array.from({ length: count }, () => `      - uses: actions/setup-node@v4\n        with:\n          node-version: ${version}\n      - run: npm ci\n`).join('');
 }
 
-describe('runtime-end-of-life notices', () => {
+describe('runtime-end-of-life notes', () => {
+  // Notes with the file, line and fix since D-109 (notices in D-105).
   it('says which versions it cannot read instead of passing them in silence', () => {
     const directory = repository({
       'package.json': PACKAGE,
@@ -44,13 +45,10 @@ describe('runtime-end-of-life notices', () => {
       Dockerfile: 'FROM node:something-new\nRUN npm ci\n',
     });
     const report = runDoctor(directory, { policy: null });
-    expect(report.findings.filter((finding) => finding.rule === 'runtime-end-of-life')).toEqual([]);
-    expect(report.notices).toEqual(
-      expect.arrayContaining([
-        { message: 'runtime-end-of-life cannot tell whether Node.js lts/-9 in .nvmrc is past its end of life: it is not a version or a range depcurfew can read', file: '.nvmrc' },
-        { message: 'runtime-end-of-life cannot tell whether Node.js (node:something-new) in Dockerfile is past its end of life: depcurfew does not know the tag something-new', file: 'Dockerfile' },
-      ]),
-    );
+    expect(report.findings.filter((finding) => finding.rule === 'runtime-end-of-life').map((finding) => [finding.level, finding.location, finding.message])).toEqual([
+      ['note', { file: '.nvmrc', line: 1 }, 'runtime-end-of-life cannot tell whether Node.js lts/-9 in .nvmrc is past its end of life: it is not a version or a range depcurfew can read'],
+      ['note', { file: 'Dockerfile', line: 1 }, 'runtime-end-of-life cannot tell whether Node.js (node:something-new) in Dockerfile is past its end of life: depcurfew does not know the tag something-new'],
+    ]);
   });
 });
 
@@ -64,11 +62,12 @@ describe('large matrices', () => {
     expect(performance.now() - start).toBeLessThan(20_000);
     const reason = 'the matrix lists more than 256 values for node, which depcurfew does not check';
     expect(report.notices.map((notice) => notice.message)).toEqual(
-      expect.arrayContaining([
-        `manager-version-too-old cannot tell which npm or pip comes with Node.js \${{ matrix.node }} (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test): ${reason}`,
-        `runtime-end-of-life cannot tell whether Node.js \${{ matrix.node }} (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test) is past its end of life: ${reason}`,
-      ]),
+      expect.arrayContaining([`manager-version-too-old cannot tell which npm or pip comes with Node.js \${{ matrix.node }} (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test): ${reason}`]),
     );
+    // A note at each of the 150 setup steps that use the matrix, with the same message (decision D-109).
+    expect([...new Set(report.findings.filter((finding) => finding.rule === 'runtime-end-of-life').map((finding) => finding.message))]).toEqual([
+      `runtime-end-of-life cannot tell whether Node.js \${{ matrix.node }} (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test) is past its end of life: ${reason}`,
+    ]);
   });
 
   it('checks 200 values x 200 setup steps in bounded time', () => {
@@ -94,7 +93,7 @@ describe('the npm the declared Node.js brings, after following doctor and apply 
     const after = runDoctor(directory);
     expect(after.findings.map((finding) => [finding.rule, finding.location.file, finding.message])).toEqual([
       ['manager-version-too-old', 'frontend/Dockerfile', 'npm 11.15.0 in frontend/Dockerfile (frontend/Dockerfile) does not support strict-allow-scripts (since 11.16.0)'],
-      ['lockfile-install-scripts', 'frontend/package-lock.json', 'core-js has install scripts and npm runs them by default, but depcurfew.json does not allow it'],
+      ['lockfile-install-scripts', 'frontend/package-lock.json', 'core-js has install scripts and npm 11.15.0 (installed in frontend/Dockerfile, line 3) runs them, but depcurfew.json does not allow it'],
     ]);
     // Following the fix: npm 11.16.0 in the Dockerfile reads strict-allow-scripts, so the script no longer runs.
     const dockerfile = join(directory, 'frontend/Dockerfile');

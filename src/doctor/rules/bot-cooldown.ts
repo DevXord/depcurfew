@@ -185,11 +185,25 @@ function projectBotNotes(context: RuleContext, views: readonly ProjectView[]): v
       const fact = bot.extra?.['configLocation'];
       const location = fact === undefined ? undefined : values(fact)[0];
       const fromRoot = isConfigLocation(location) && location.from === 'repository-root';
+      const atRoot = context.detection.bots.some((entry) => entry.id === detected.id && entry.configFiles.length > 0);
       for (const own of detected.configFiles) {
         const file = inProject(view.directory, own);
         const where = fromRoot
           ? `${bot.name} reads its configuration only from the repository root${isConfigLocation(location) && location.branch === 'default' ? ', on the default branch' : ''}, so it does not read ${file} in the project ${view.directory}`
           : `${file} is the ${bot.name} configuration of the project ${view.directory}`;
+        // Without a configuration at the root, the bot reads none at all, and apply has nothing to give a delay to (D-109).
+        if (!atRoot) {
+          context.report({
+            level: 'note',
+            location: { file },
+            message: `${where}, and the repository root has no ${bot.name} configuration`,
+            fix:
+              detected.id === 'dependabot'
+                ? `Move ${file} to the .github directory at the repository root, with directory: /${view.directory} in its updates entries, then run depcurfew apply`
+                : `Move ${file} to the repository root, then run depcurfew apply`,
+          });
+          continue;
+        }
         context.report({
           level: 'note',
           location: { file },

@@ -50,6 +50,9 @@
               "tool": "pip",
               "line": 3
             }
+          ],
+          "copies": [
+            "requirements.txt"
           ]
         },
         {

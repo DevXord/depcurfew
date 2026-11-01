@@ -100,6 +100,8 @@ export interface CheckedTool {
   version?: string;
   /** Where the version comes from: a repository file, or PATH for doctor --user. */
   versionFrom?: string;
+  /** A bot configuration in a directory listed in projects, which the bot does not read (it reads the root's, decision D-109). */
+  unread?: true;
 }
 
 /** One check of the list of what doctor checked: a rule and what came of it. */

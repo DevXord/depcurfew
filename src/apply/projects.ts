@@ -72,7 +72,8 @@ function escapeRegExp(text: string): string {
 export function relocateText(text: string, project: string, files: Iterable<string>): string {
   const names = [...new Set(files)].filter((file) => file !== '' && file !== POLICY_FILE).sort((a, b) => b.length - a.length);
   if (names.length === 0 || text === '') return text;
-  const pattern = new RegExp(`(?<![\\w./\\\\-])(?:${names.map(escapeRegExp).join('|')})(?![\\w/\\\\-]|\\.\\w)`, 'gu');
+  // A file of the root that a project uses (decision D-109) is named "Dockerfile at the repository root" and stays as it is.
+  const pattern = new RegExp(`(?<![\\w./\\\\-])(?:${names.map(escapeRegExp).join('|')})(?![\\w/\\\\-]|\\.\\w| at the repository root)`, 'gu');
   return text.replace(pattern, (file) => inProject(project, file));
 }
 

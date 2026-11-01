@@ -9,6 +9,7 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
+import { values } from '../apply/facts.ts';
 import { plannedFor } from './plan.ts';
 import { ruleResults } from './render.ts';
 import { RULES } from './rules/index.ts';
@@ -27,6 +28,48 @@ const LEVEL_ORDER = { error: 0, warning: 1, note: 2 } as const;
 function byLocation(a: Finding, b: Finding): number {
   if (a.location.file !== b.location.file) return a.location.file < b.location.file ? -1 : 1;
   return (a.location.line ?? 0) - (b.location.line ?? 0) || LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0);
+}
+
+/** The most findings of one rule shown at one place that differ only in numbers (decision D-109). */
+const MAX_SIMILAR = 10;
+
+/**
+ * The findings once each (decision D-109): a finding with the same rule, level, place, message and fix as an earlier
+ * one is left out (each setup step with the same matrix value gave the same finding again). At one place, findings of
+ * one rule and level that differ only in numbers (the install line of each of 200 setup steps) are shown up to
+ * MAX_SIMILAR times, and one more finding of the same level says how many are left out, so the counts and the exit
+ * code keep their meaning. Linear in the number of findings.
+ */
+export function condensed(findings: readonly Finding[]): Finding[] {
+  const seen = new Set<string>();
+  const similar = new Map<string, { shown: number; hidden: number; first: Finding }>();
+  const kept: Finding[] = [];
+  for (const finding of findings) {
+    const place = `${finding.rule}\u0000${finding.level}\u0000${finding.location.file}\u0000${finding.location.line ?? ''}\u0000${finding.location.variable ?? ''}`;
+    const key = `${place}\u0000${finding.message}\u0000${finding.fix ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const shape = `${place}\u0000${finding.message.replace(/\d+/gu, '#')}\u0000${(finding.fix ?? '').replace(/\d+/gu, '#')}`;
+    const group = similar.get(shape) ?? { shown: 0, hidden: 0, first: finding };
+    similar.set(shape, group);
+    if (group.shown < MAX_SIMILAR) {
+      group.shown += 1;
+      kept.push(finding);
+    } else {
+      group.hidden += 1;
+    }
+  }
+  for (const { hidden, first } of similar.values()) {
+    if (hidden === 0) continue;
+    kept.push({
+      rule: first.rule,
+      level: first.level,
+      location: first.location,
+      message: `${hidden} more ${first.rule} ${hidden === 1 ? 'finding' : 'findings'} at this place ${hidden === 1 ? 'differs' : 'differ'} from the ones above only in numbers (line numbers or versions) and ${hidden === 1 ? 'is' : 'are'} not shown`,
+      ...(first.fix === undefined ? {} : { fix: `Fix the ones above the same way, then run depcurfew doctor again to see the rest` }),
+    });
+  }
+  return kept;
 }
 
 /** What the rules found in one directory: the root or a project. */
@@ -131,7 +174,7 @@ export function runDoctor(
       return { directory: project, root: directory, repository: new Repository(directory), detection: detectProject(directory, tools) };
     });
   // The bots of the root wait as long as the package managers of every project (planRepository plans the same way).
-  const plans = policy === undefined ? [] : views.map((view) => planDetails(plannedFor(view.root, policy, view.detection, tools, projectPlanOptions(detection, view.directory))));
+  const plans = policy === undefined ? [] : views.map((view) => planDetails(plannedFor(view.root, policy, view.detection, tools, projectPlanOptions(detection, view.directory, view.detection))));
   const rootPlan: PlanOptions | undefined =
     views.length === 0
       ? undefined
@@ -139,7 +182,7 @@ export function runDoctor(
 
   const projectRuns = views.map((view) => ({
     view,
-    run: runRules(view.root, policy, rules, tools, { detection: view.detection, repository: view.repository, project: view.directory, plan: projectPlanOptions(detection, view.directory) }),
+    run: runRules(view.root, policy, rules, tools, { detection: view.detection, repository: view.repository, project: view.directory, plan: projectPlanOptions(detection, view.directory, view.detection) }),
   }));
   const rootRun = runRules(root, policy, rules, tools, { detection, ...(views.length === 0 ? {} : { projects: views }), ...(rootPlan === undefined ? {} : { plan: rootPlan }) });
 
@@ -152,16 +195,22 @@ export function runDoctor(
   const findings = [...rootRun.findings];
   for (const item of rootRun.notices) addNotice(item);
   for (const { view, run } of projectRuns) {
-    const relocated = relocateRun(view.directory, run, policy === undefined ? undefined : plannedFor(view.root, policy, view.detection, tools, projectPlanOptions(detection, view.directory)));
+    const relocated = relocateRun(view.directory, run, policy === undefined ? undefined : plannedFor(view.root, policy, view.detection, tools, projectPlanOptions(detection, view.directory, view.detection)));
     findings.push(...relocated.findings);
     for (const item of relocated.notices) addNotice(item);
   }
-  const sorted = findings.sort(byLocation);
+  const sorted = condensed(findings).sort(byLocation);
   const rootChecked = checkedOf(detection, rootRun.repository, tools, policy !== undefined || invalid);
   const projectChecked = projectRuns.map(({ view, run }) => {
     const checked = checkedOf(run.detection, run.repository, tools, false);
     return {
-      tools: checked.tools.map((tool) => ({ ...tool, project: view.directory, ...(tool.versionFrom === undefined ? {} : { versionFrom: inProject(view.directory, tool.versionFrom) }) })),
+      tools: checked.tools.map((tool) => ({
+        ...tool,
+        project: view.directory,
+        ...(tool.versionFrom === undefined ? {} : { versionFrom: inProject(view.directory, tool.versionFrom) }),
+        // A bot reads its configuration only from the repository root (extra.configLocation).
+        ...(readFromRoot(tools, tool.id) ? { unread: true as const } : {}),
+      })),
       files: checked.files.map((file) => inProject(view.directory, file)),
     };
   });
@@ -188,6 +237,15 @@ export function runDoctor(
       policyFile: POLICY_FILE,
     },
   };
+}
+
+/** Whether a bot reads its configuration only from the repository root, so that a project's file of it is not read. */
+function readFromRoot(tools: readonly ToolKnowledge[], id: string): boolean {
+  const tool = tools.find((entry) => entry.id === id);
+  if (tool?.kind !== 'update-bot') return false;
+  const fact = tool.extra?.['configLocation'];
+  const value = fact === undefined ? undefined : values(fact)[0];
+  return typeof value === 'object' && value !== null && (value as Record<string, unknown>)['from'] === 'repository-root';
 }
 
 /** The tools found and the files read by detection and the rules, for the log of what doctor checked. */

@@ -337,7 +337,7 @@ const TOO_OLD = new Set<ApplyWarning['code']>(['version-too-old', 'scripts-not-e
 function unsupported(warning: ApplyWarning): string {
   if (warning.code === 'scripts-not-enforceable') return 'an allow-list for install scripts';
   const setting = /\bdoes not support (.+?)(?:; not written)?$/u.exec(warning.message)?.[1];
-  return setting === undefined ? warning.message : setting.replace(/\(since ([^)]+)\)$/u, '(added in $1)');
+  return setting === undefined ? warning.message : setting.replace(/\(since ([^)]+)\)/gu, '(added in $1)');
 }
 
 /**
@@ -351,9 +351,14 @@ function tooOldFinding(tool: ToolKnowledge, version: Version | undefined, warnin
   const open = [
     ...(warnings.some((warning) => warning.code === 'scripts-not-enforceable') ? ['the install scripts of dependencies still run'] : []),
     ...(warnings.some((warning) => warning.code === 'version-too-old' && typeof delay === 'string' && warning.message.includes(` ${delay} `)) ? ['new versions install without the release-age delay'] : []),
+    // "allow-remote, allow-file and allow-directory are not set": the other settings, without the versions that added them.
     ...warnings
-      .filter((warning) => warning.code === 'version-too-old' && !(typeof delay === 'string' && warning.message.includes(` ${delay} `)))
-      .map((warning) => `${unsupported(warning).replace(/ \(added in .+\)$/u, '')} is not set`),
+      .filter((warning) => warning.code === 'version-too-old')
+      .flatMap((warning) => {
+        const text = unsupported(warning).replace(/; where official sources disagree.*$/u, '').replace(/ \(added in [^)]+\)/gu, '');
+        const settings = text.split(/, | and /u).filter((setting) => setting !== '' && setting !== delay);
+        return settings.length === 0 ? [] : [`${listing(settings)} ${settings.length === 1 ? 'is' : 'are'} not set`];
+      }),
   ];
   // The lowest version that has every setting: the highest of the versions the fixes name.
   const needed = warnings

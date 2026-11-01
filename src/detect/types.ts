@@ -104,6 +104,12 @@ export interface DockerStage {
   /** The official node or python image of this stage or of the stage it starts from. */
   runtime?: StageRuntime;
   commands: ToolCommand[];
+  /**
+   * The source paths of the stage's COPY and ADD instructions that copy from the build context (not --from), as
+   * written; absent when there are none. A root Dockerfile whose stage copies only files of one directory listed in
+   * projects builds that project (decision D-109). At most 256.
+   */
+  copies?: string[];
 }
 
 export interface DockerfileInfo {

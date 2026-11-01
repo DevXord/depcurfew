@@ -982,6 +982,8 @@ export interface EnvironmentKnowledge {
     nodeVersionFile: Fact<{ file: string }>;
     /** engines.node in package.json: the Node.js versions a package works with, advisory. */
     engines: Fact<{ key: string; runtimeKey: string }>;
+    /** The Node.js version files that version managers also use in subdirectories of their directory. */
+    inheritedVersionFiles: Fact<readonly string[]>;
   };
   docker: {
     imageReference: Fact<ImageReferenceKnowledge>;

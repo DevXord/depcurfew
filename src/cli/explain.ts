@@ -46,7 +46,7 @@ export type ExplainDetection = Omit<Detection, 'warnings'> & { warnings: Explain
 /** A directory listed in projects in depcurfew.json (decision D-100), with its files named relative to the root. */
 export type ProjectReport =
   | { directory: string; project: ExplainDetection; targets: { mode: 'auto' | 'listed'; tools: ToolId[] } }
-  | { directory: string; project: null; error: { code: string; message: string; fix: string } };
+  | { directory: string; project: null; error: { code: string; level: 'error'; location: { file: string; line?: number }; message: string; fix: string } };
 
 export interface ExplainReport {
   schemaVersion: 1;
@@ -128,7 +128,7 @@ function policyReport(directory: string, detection: Detection): { policy: Policy
   const problems = projectProblems(directory, policy.projects, detection);
   const projects = policy.projects.map((entry): ProjectReport => {
     const problem = problems.find((item) => item.project === entry);
-    if (problem !== undefined) return { directory: entry, project: null, error: { code: problem.code, message: problem.message, fix: problem.fix } };
+    if (problem !== undefined) return { directory: entry, project: null, error: { code: problem.code, level: 'error', location: problem.location, message: problem.message, fix: problem.fix } };
     const root = join(directory, entry);
     const found = detectProject(root);
     const { targets } = directoryTargets(root, policy, found, knowledgeBase, { project: entry, withProjects });
@@ -245,7 +245,12 @@ function paintReport(lines: readonly string[], colors: Paint): string[] {
 
 /** A directory listed in projects: what was found there and what apply configures, or why it cannot be used. */
 function listedProjectLines(entry: ProjectReport): string[] {
-  if (entry.project === null) return [`Project ${entry.directory}: cannot be used`, `  ${entry.error.message} (${entry.error.code})`, `  fix: ${entry.error.fix}`];
+  if (entry.project === null) {
+    // As apply says it: the level, then the entry of depcurfew.json, unless the message names the file itself.
+    const { file, line } = entry.error.location;
+    const where = entry.error.message.includes(file) ? '' : `${file}${line === undefined ? '' : ` (line ${line})`}: `;
+    return [`Project ${entry.directory}: cannot be used`, `  error: ${where}${entry.error.message} (${entry.error.code})`, `  fix: ${entry.error.fix}`];
+  }
   const names = entry.targets.tools.map(toolName);
   return [
     `Project ${entry.directory}:`,

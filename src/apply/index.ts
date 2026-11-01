@@ -7,7 +7,7 @@ import { Repository } from '../detect/repository.ts';
 import { denyConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
 import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
 import type { Detection, VersionDeclaration, WorkflowJob } from '../detect/types.ts';
-import { jobsInProject, npmInUse, repositoryPin, type NpmInUse } from '../doctor/rules/bundled-versions.ts';
+import { jobsInProject, npmInUse, rootPlaces, type NpmInUse, type RootPlaces } from '../doctor/rules/bundled-versions.ts';
 import { SOURCE_LABEL } from '../doctor/rules/manager-version.ts';
 import { environment as environmentKnowledge } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -86,6 +86,11 @@ export interface PlanOptions {
    * steps, for the npm the project runs (decision D-105); jobsInProject gives them.
    */
   ci?: { jobs: readonly WorkflowJob[]; versions: readonly VersionDeclaration[] };
+  /**
+   * What the project takes from the repository root (decision D-109): the root's Node.js version files when it has none
+   * of its own, and the stages of root Dockerfiles that build it; rootPlaces gives them.
+   */
+  root?: RootPlaces;
 }
 
 /** What a plan configured, for the plan of the root in a repository with projects (and doctor's). */
@@ -287,7 +292,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       excluded.length > 0
         ? {
             code: 'nothing-to-configure',
-            message: `no tools to configure: targets in ${POLICY_FILE} leaves out ${listing(names)}, found in ${options.project}`,
+            message: `no tools to configure: ${options.project} uses ${listing(names)}, but targets in ${POLICY_FILE} does not list ${names.length === 1 ? 'it' : 'them'}`,
             fix: `Add ${listing(excluded.map((id) => `"${id}"`))} to targets in ${POLICY_FILE} to configure ${options.project}, or remove "${options.project}" from projects if depcurfew should leave it alone`,
           }
         : {
@@ -365,7 +370,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
         const minutes = generator(context);
         if (minutes !== undefined) managerMinutes.push(minutes);
       },
-      tool.id === 'npm' && manager !== undefined ? npmVersionsInUse(root, detection, manager, policy, options) : undefined,
+      tool.id === 'npm' && manager !== undefined ? npmVersionsInUse(root, detection, policy, options) : undefined,
     );
   }
 
@@ -388,24 +393,28 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
 }
 
 /**
- * The npm versions a directory runs when nothing pins npm for the whole repository (packageManager, devEngines,
- * Volta, .tool-versions): the npm of the declared Node.js versions and the npm CI jobs and Dockerfiles install
- * (decision D-105). Empty with such a pin. At the root of a repository with projects, CI installs in a project's
- * directory belong to that project; a project gets them through options.ci.
+ * The npm versions a directory runs (decisions D-105 and D-109): the versions declared for npm (the pin for the whole
+ * repository among them), the npm of the declared Node.js versions and the npm CI jobs and Dockerfiles install. At the
+ * root of a repository with projects, CI installs in a project's directory and root Dockerfile stages that build a
+ * project belong to that project; a project gets them, and the root's version files, through options.ci and options.root.
  */
-function npmVersionsInUse(root: string, detection: Detection, manager: Detection['packageManagers'][number], policy: ResolvedPolicy, options: PlanOptions): NpmInUse[] {
-  if (repositoryPin(manager) !== undefined) return [];
+function npmVersionsInUse(root: string, detection: Detection, policy: ResolvedPolicy, options: PlanOptions): NpmInUse[] {
   const manifest = new Repository(root).parseOnce('package.json', (text) => JSON.parse(text) as unknown);
   return npmInUse(detection, manifest, (declaration) => SOURCE_LABEL[declaration.source], {
     projects: options.project === undefined ? policy.projects : [],
     ...(options.ci === undefined ? {} : { extra: options.ci }),
+    ...(options.root === undefined ? {} : { root: options.root }),
   });
 }
 
-/** The plan options of a directory listed in projects: its name, and the installs root CI jobs run in it. */
-export function projectPlanOptions(rootDetection: Detection, project: string): PlanOptions {
+/**
+ * The plan options of a directory listed in projects: its name, the installs root CI jobs run in it, and what it takes
+ * from the root (its version files and Dockerfile stages, rootPlaces); `detection` is the project's.
+ */
+export function projectPlanOptions(rootDetection: Detection, project: string, detection?: Detection): PlanOptions {
   const ci = jobsInProject(rootDetection, project);
-  return { project, ...(ci.jobs.length === 0 ? {} : { ci }) };
+  const root = rootPlaces(rootDetection, project, detection);
+  return { project, ...(ci.jobs.length === 0 ? {} : { ci }), ...(root.versions.length === 0 && root.dockerfiles.length === 0 ? {} : { root }) };
 }
 
 /** The files a message about a project may name, relative to the project: what detection found and what the plan touched. */
@@ -477,7 +486,7 @@ export function planRepository(root: string, policy: ResolvedPolicy, tools: read
     .map((project) => {
       const directory = join(root, project);
       const detection = detectProject(directory, tools);
-      const report = planApply(directory, policy, detection, tools, projectPlanOptions(rootDetection, project));
+      const report = planApply(directory, policy, detection, tools, projectPlanOptions(rootDetection, project, detection));
       return { project, detection, report, details: planDetails(report) };
     });
   const projectTargets = new Set(projects.flatMap((entry) => [...(entry.details?.targets ?? [])]));

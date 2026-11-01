@@ -5,7 +5,7 @@
       "file": "package-lock.json",
       "line": 14
     },
-    "message": "core-js has install scripts and npm runs them by default, but depcurfew.json does not allow it",
+    "message": "core-js has install scripts and npm 11.15.0 (installed in Dockerfile, line 3) runs them, but depcurfew.json does not allow it",
     "fix": "Review its scripts and add core-js to installScripts.allow in depcurfew.json, or replace the package"
   }
 ]

@@ -132,6 +132,20 @@ function runCommands(instruction: Instruction, facts: DockerFacts): { commands: 
   return { commands };
 }
 
+/** The most COPY and ADD sources kept for one stage. */
+const MAX_COPIES = 256;
+
+/**
+ * The sources of a COPY or ADD instruction from the build context: every word but the last (the destination), without
+ * options and here-documents, in shell or exec form. Nothing for --from (another stage or image).
+ */
+function copySources(text: string): string[] {
+  const { text: rest, offset } = withoutOptions(text.trim());
+  if (/(?:^|\s)--from\b/iu.test(text.trim().slice(0, offset))) return [];
+  const words = execWords(rest.trim()) ?? rest.trim().split(/\s+/u).filter(Boolean);
+  return words.slice(0, -1).filter((word) => !word.startsWith('<<')).slice(0, MAX_COPIES);
+}
+
 export interface DockerfileReading {
   info: DockerfileInfo;
   /** Node.js from FROM, npm and pip from RUN (npm install -g npm@X, pip install pip==X). */
@@ -199,6 +213,11 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
       continue;
     }
     const stage = stages.at(-1);
+    if ((instruction.keyword === 'COPY' || instruction.keyword === 'ADD') && stage !== undefined) {
+      const sources = copySources(instruction.text);
+      if (sources.length > 0) stage.copies = [...(stage.copies ?? []), ...sources].slice(0, MAX_COPIES);
+      continue;
+    }
     if (instruction.keyword !== 'RUN' || stage === undefined) continue;
     for (const command of runCommands(instruction, facts).commands) {
       stage.commands.push(command);

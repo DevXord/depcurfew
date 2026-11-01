@@ -92,6 +92,10 @@
               "tool": "npm",
               "line": 6
             }
+          ],
+          "copies": [
+            "package.json",
+            "package-lock.json"
           ]
         },
         {

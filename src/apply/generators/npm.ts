@@ -2,31 +2,29 @@
 import { versionedValue } from '../../doctor/effective.ts';
 import { iniEntries } from '../../doctor/settings.ts';
 import type { ScriptPolicy } from '../../knowledge/types.ts';
+import { npmInUseText } from '../../doctor/rules/bundled-versions.ts';
+import { POLICY_FILE } from '../../policy/defaults.ts';
 import { hasManagedLines } from '../block.ts';
+import { listing } from '../requirements.ts';
 import { extraOf, firstFile, isRecord, isSwitch, settingOf, sinceOf, values } from '../facts.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
 import { allowedNames, cooldownValue, eachSource, exclusions, scriptsDefault, writeDenyList } from './common.ts';
 import type { Context, ManagerGenerator } from './context.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
+/** The most places a warning names; a matrix of many Node.js versions would otherwise make one sentence of hundreds. */
+const MAX_PLACES = 6;
 const isBefore = (value: unknown): value is { setting: string; exclusive: { since: string; until: string }; beforeWinsSince: string } =>
   isRecord(value) && typeof value['setting'] === 'string' && isRecord(value['exclusive']) && typeof value['beforeWinsSince'] === 'string';
 const isEffects = (value: unknown): value is { since: string; value: string }[] =>
   Array.isArray(value) && value.every((entry) => isRecord(entry) && typeof entry['since'] === 'string' && typeof entry['value'] === 'string');
 
-/** "npm 10.9.9, which Node.js 22 in .nvmrc comes with", "npm 11.3.0 to 11.15.0, which ... can come with". */
-function inUseText(versions: readonly Version[], from: string): string {
-  const sorted = [...versions].sort(compareVersions);
-  const low = formatVersion(sorted[0] as Version);
-  const high = formatVersion(sorted.at(-1) as Version);
-  return `npm ${low === high ? low : `${low} to ${high}`} (which ${from})`;
-}
-
 /**
- * installScripts "deny" when npm is not pinned for the repository (decision D-105): what the npm versions it runs need.
- * Any of 11.16 to 11.x runs scripts allowScripts does not cover with a notice unless strict-allow-scripts is set, so it is
- * written; npm 12 reads it too and stops the install at such a script, which a warning says. An npm before 11.16 cannot
- * block them at all, which scripts-not-enforceable says with where that npm comes from.
+ * installScripts "deny" (decisions D-105 and D-109): what the npm versions the directory runs need, from every place
+ * npm runs (the pin among them). Any of 11.16 to 11.x runs scripts allowScripts does not cover with a notice unless
+ * strict-allow-scripts is set, so it is written; npm 12 reads it too and stops the install at such a script, which a
+ * warning says unless the pin is such an npm and no place runs npm 12. An npm before 11.16 cannot block them at all,
+ * which scripts-not-enforceable says with where that npm comes from.
  */
 function scriptsForVersionsInUse(context: Context, entries: string[], managed: string[]): void {
   const { tool } = context;
@@ -36,33 +34,54 @@ function scriptsForVersionsInUse(context: Context, entries: string[], managed: s
   const of = (policy: ScriptPolicy) =>
     context.inUse.flatMap((entry) => {
       const versions = entry.versions.filter((version) => versionedValue(defaults, version) === policy);
-      return versions.length === 0 ? [] : [{ text: inUseText(versions, entry.from), location: entry.location }];
+      return versions.length === 0 ? [] : [{ text: npmInUseText(entry, versions), several: versions.length > 1, entry }];
     });
   // The first place that declares such an npm, for the warning's location.
   const where = (found: ReturnType<typeof of>) => {
-    const location = found.find((item) => item.location !== undefined)?.location;
+    const location = found.find((item) => item.entry.location !== undefined)?.entry.location;
     return location === undefined ? {} : { location };
   };
+  // One list, "npm 11.19.1 (installed in job test of ci.yml, line 9) and npm 11.16.0 (…)", of at most MAX_PLACES places.
+  const places = (found: ReturnType<typeof of>) => {
+    const texts = found.map((item) => item.text);
+    return texts.length <= MAX_PLACES ? listing(texts) : `${texts.slice(0, MAX_PLACES - 1).join(', ')} and ${texts.length - MAX_PLACES + 1} more places`;
+  };
+  // "runs" for one version of one place, "run" for more.
+  const plural = (found: ReturnType<typeof of>) => found.length > 1 || found[0]?.several === true;
   const notices = of('run-with-warning');
   if (notices.length > 0) {
     entries.push(`${strict.setting}=${String(strict.value)}`);
     managed.push(strict.setting);
-    const later = effects.at(-1);
-    context.warn({
-      code: 'strict-allow-scripts-from-node',
-      ...where(notices),
-      message: `npm is not pinned for the repository, and ${notices.map((item) => item.text).join(', and ')} ${notices.length === 1 ? 'runs' : 'run'} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${later === undefined ? '' : `; with it, in npm ${later.since} and later ${later.value}`}`,
-      fix: `Pin one npm version (packageManager or devEngines) to configure for it alone; with ${strict.setting}, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in depcurfew.json`,
-    });
+    const blocking = of('deny-except-allowlist');
+    const pin = context.inUse.find((entry) => entry.pin === true);
+    const pinNeedsIt = pin !== undefined && notices.some((item) => item.entry === pin);
+    // A pinned npm 11.16 to 11.x needs the setting itself (decision D-060); the warning is for what else it does.
+    if (!pinNeedsIt || blocking.length > 0) {
+      const later = effects.at(-1);
+      const since = values(tool.installScripts.defaultPolicy)[0]?.find((entry) => entry.value === 'deny-except-allowlist')?.since ?? later?.since ?? '';
+      const target = pin !== undefined && versionedValue(defaults, pin.versions[0] as Version) === 'deny-except-allowlist' ? formatVersion(pin.versions[0] as Version) : since;
+      const effect = later === undefined ? '' : `; with it, in npm ${later.since} and later ${later.value}${blocking.length === 0 ? '' : `, which applies to ${places(blocking)}`}`;
+      context.warn({
+        code: 'strict-allow-scripts-for-npm-in-use',
+        ...where(notices),
+        message: `${pin === undefined ? 'npm is not pinned for the repository, and ' : ''}${places(notices)} ${plural(notices) ? 'run' : 'runs'} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${effect}`,
+        fix: `Make every place listed here run npm ${since} or later (npm install -g npm@${target} before it installs packages), and depcurfew apply leaves ${strict.setting} out; pinning npm in packageManager or devEngines does not change the npm they run. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in ${POLICY_FILE}`,
+      });
+    }
   }
   const running = of('run');
   if (running.length > 0) {
     const since = sinceOf(tool.installScripts.allowList.availableSince) ?? '';
+    const several = plural(running);
+    const pinRuns = running.find((item) => item.entry.pin === true)?.entry;
     context.warn({
       code: 'scripts-not-enforceable',
       ...where(running),
-      message: `${running.map((item) => item.text).join(', and ')} ${running.length === 1 ? 'runs' : 'run'} every dependency install script and ${running.length === 1 ? 'has' : 'have'} no allow-list, so "deny" cannot be enforced there`,
-      fix: `Install npm ${since} or later before packages are installed there (npm install -g npm@${since}), or move to a Node.js release that comes with it; npm 12 blocks dependency scripts by default`,
+      message: `${places(running)} ${several ? 'run' : 'runs'} every dependency install script and ${several ? 'have' : 'has'} no allow-list, so "deny" cannot be enforced there`,
+      // The pinned version is raised where it is pinned; the other places install a newer npm or choose a newer Node.js.
+      fix: pinRuns !== undefined && running.length === 1
+        ? `Require npm ${since} or later in ${pinRuns.where} (npm 12 blocks dependency scripts by default)`
+        : `Install npm ${since} or later before packages are installed there (npm install -g npm@${since}), or move to a Node.js release that comes with it${pinRuns === undefined ? '' : `, and require it in ${pinRuns.where}`}; npm 12 blocks dependency scripts by default`,
     });
   }
 }
@@ -71,7 +90,10 @@ function scriptsForVersionsInUse(context: Context, entries: string[], managed: s
 function someSupports(context: Context, since: string | undefined, setting: string): boolean {
   if (context.inUse.length === 0) return context.supports(since, setting);
   const required = since === undefined ? undefined : parseVersion(since);
-  return required === undefined || context.inUse.some((entry) => entry.versions.some((version) => compareVersions(version, required) >= 0));
+  if (required === undefined || context.inUse.some((entry) => entry.versions.some((version) => compareVersions(version, required) >= 0))) return true;
+  // No npm in use has it: a pinned version too old for it says so in version-too-old, as without other places.
+  context.supports(since, setting);
+  return false;
 }
 
 export const npm: ManagerGenerator = (context) => {

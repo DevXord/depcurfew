@@ -21,7 +21,7 @@ function levelColor(level: Level, colors: Paint): (text: string) => string {
 
 /** A tool as the log of what was checked names it: npm 11.21.1 (package.json), and in a project npm 11.21.1 (frontend/package.json) in frontend. */
 export function checkedTool(tool: CheckedTool): string {
-  const where = tool.project === undefined ? '' : ` in ${tool.project}`;
+  const where = `${tool.project === undefined ? '' : ` in ${tool.project}`}${tool.unread === true ? ` (not read by ${tool.name})` : ''}`;
   if (tool.version === undefined) return `${tool.name}${where}`;
   return `${tool.name} ${tool.version}${tool.versionFrom === undefined ? '' : ` (${tool.versionFrom})`}${where}`;
 }

@@ -6,11 +6,14 @@
 import { describeRequirements, type Requirement } from '../../apply/requirements.ts';
 import { compareVersions, formatVersion, parseVersion, pinnedVersion, type Version } from '../../apply/version.ts';
 import { values } from '../../apply/facts.ts';
+import type { PlanOptions } from '../../apply/index.ts';
+import { versionedValue } from '../effective.ts';
 import type { Detection, DockerfileInfo, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration, WorkflowJob } from '../../detect/types.ts';
 import { environment } from '../../knowledge/environment.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { managerSources } from '../projects.ts';
 import type { Level, RuleContext } from '../types.ts';
+import { formatBound, lowestVersion } from '../version-range.ts';
 import {
   firstReleasesWith,
   namingOf,
@@ -35,10 +38,31 @@ export interface BundledHelpers {
   features: (tool: ToolKnowledge, context: RuleContext) => readonly Needed[];
   missing: (features: readonly Needed[], below: (since: Version) => boolean) => Needed[];
   /** The earlier version that is enough with the other way of a missing setting (alternativeOf in manager-version.ts). */
-  alternative: (missing: readonly Needed[], name: string) => { version: Version; suffix: string; set: string } | undefined;
+  alternative: (missing: readonly Needed[], name: string, advice: StrictAdvice) => { version: Version; suffix: (change: 'repository' | 'machine') => string; set: string } | undefined;
   line: (declaration: VersionDeclaration) => number | undefined;
   label: (declaration: VersionDeclaration) => string;
 }
+
+/** What depcurfew apply does about strict-allow-scripts in a directory (strictAdvice). */
+export interface StrictAdvice {
+  /** It writes it for the repository as it is. */
+  now: boolean;
+  /** It configures npm there, so a change of the repository that brings an npm 11.16 to 11.x makes it write it. */
+  targeted: boolean;
+}
+
+export const SOURCE_LABEL: Record<VersionDeclaration['source'], string> = {
+  packageManager: 'packageManager',
+  'tool-config': 'the required version',
+  devEngines: 'devEngines',
+  volta: 'Volta',
+  'tool-versions': '.tool-versions',
+  nvmrc: '.nvmrc',
+  'node-version': '.node-version',
+  engines: 'engines',
+  'github-actions': 'GitHub Actions',
+  dockerfile: 'Dockerfile',
+};
 
 const RULE = 'manager-version-too-old';
 /** Where developers choose their Node.js; anyone can install another npm, so these give warnings. */
@@ -250,38 +274,41 @@ function jobPlaces(detection: Detection, projects: readonly string[]): JobPlace[
 /** A Dockerfile stage that installs with the tool of its official image. */
 interface DockerPlace {
   file: DockerfileInfo;
+  /** The number of the stage, from 0. */
+  index: number;
   stage: DockerStage & { runtime: NonNullable<DockerStage['runtime']> };
   root: DockerStage;
   install: number;
 }
 
-function dockerPlaces(detection: Detection, tool: 'npm' | 'pip'): DockerPlace[] {
+/** The stages that install with the tool of their image; `keep` chooses the stages (a project's, or the root's). */
+function dockerPlaces(dockerfiles: readonly DockerfileInfo[], tool: 'npm' | 'pip', keep: (file: DockerfileInfo, index: number) => boolean = () => true): DockerPlace[] {
   const runtimeTool = tool === 'npm' ? 'node' : 'python';
   const places: DockerPlace[] = [];
-  for (const file of detection.dockerfiles) {
+  for (const file of dockerfiles) {
     const reported = new Set<DockerStage>();
     const lineage = ancestries(file, tool);
     for (const [index, stage] of file.stages.entries()) {
-      if (stage.runtime?.tool !== runtimeTool) continue;
+      if (stage.runtime?.tool !== runtimeTool || !keep(file, index)) continue;
       const { root, replaced } = lineage[index] ?? { root: stage, replaced: false };
       const install = firstPlainInstall(stage.commands, tool, replaced);
       if (install === undefined || reported.has(root)) continue;
       reported.add(root);
-      places.push({ file, stage: stage as DockerPlace['stage'], root, install });
+      places.push({ file, index, stage: stage as DockerPlace['stage'], root, install });
     }
   }
   return places;
 }
 
-/** The developer files that choose the Node.js npm comes with. */
-function developerPlaces(detection: Detection, manager: PackageManagerInfo | undefined, manifest: unknown): (VersionDeclaration & { version: string })[] {
+/** The developer files that choose the Node.js npm comes with; `fromRoot`: the project uses version files of the root. */
+function developerPlaces(detection: Detection, manager: PackageManagerInfo | undefined, manifest: unknown, fromRoot = false): (VersionDeclaration & { version: string })[] {
   const declarations = detection.node.versions.filter((entry) => DEVELOPER_SOURCES.has(entry.source));
   // Volta installs its own npm when package.json pins one.
   const voltaNpm = manager?.versions.some((entry) => entry.source === 'volta') === true;
   // engines.node says which Node.js versions a package works on; it chooses the Node.js of a project only when the
   // project is not published (private) and nothing more specific names one.
   const isPrivate = typeof manifest === 'object' && manifest !== null && (manifest as Record<string, unknown>)['private'] === true;
-  const others = declarations.some((entry) => entry.source !== 'engines');
+  const others = fromRoot || declarations.some((entry) => entry.source !== 'engines');
   return declarations.filter((declaration): declaration is VersionDeclaration & { version: string } => {
     if (!('version' in declaration)) return false;
     if (declaration.source === 'volta' && voltaNpm) return false;
@@ -289,67 +316,216 @@ function developerPlaces(detection: Detection, manager: PackageManagerInfo | und
   });
 }
 
-/** One npm version in use, or a range of them, and where it comes from, for apply's messages. */
+/** One npm version in use, or a range of them, and where it comes from, for apply's and doctor's messages. */
 export interface NpmInUse {
   /** The npm versions, lowest first. */
   versions: Version[];
-  /** Where it comes from, to follow "npm 10.9.9, which": "Node.js 22 in .nvmrc comes with", "Dockerfile installs on line 3". */
-  from: string;
-  /** The file and line that declare it; absent for a root CI job counted for a project (its file is not the project's). */
+  /**
+   * Where it comes from, for "npm 10.9.9 (with Node.js 22 in .nvmrc)": "with Node.js 22 in .nvmrc", "installed in
+   * Dockerfile, line 3", "packageManager in package.json", "the lowest version devEngines in package.json allows".
+   */
+  where: string;
+  /** The file and line that declare it; absent for what the repository root declares for a project (its file is not the project's). */
   location?: { file: string; line?: number };
+  /** The exact version the repository pins for everyone (repositoryPin). */
+  pin?: true;
+}
+
+/** What a directory listed in projects takes from the repository root besides its CI installs (decision D-109). */
+export interface RootPlaces {
+  /** The root's Node.js version files (.nvmrc, .node-version, .tool-versions), when the project has none of its own. */
+  versions: readonly VersionDeclaration[];
+  /** Root Dockerfiles with the stages that build the project (they copy only its files). */
+  dockerfiles: readonly { file: DockerfileInfo; stages: readonly number[] }[];
+}
+
+/** What makes a project choose its Node.js itself: a version file or a key of its package.json that names one. */
+const OWN_SOURCES = new Set<VersionDeclaration['source']>(['nvmrc', 'node-version', 'tool-versions', 'volta', 'devEngines']);
+
+/** The sources of the version files that version managers also use in subdirectories (environment.node.inheritedVersionFiles). */
+function inheritedSources(): Set<VersionDeclaration['source']> {
+  const files: readonly string[] = values(environment.node.inheritedVersionFiles)[0] ?? [];
+  const sources: Record<string, VersionDeclaration['source']> = { '.nvmrc': 'nvmrc', '.node-version': 'node-version', '.tool-versions': 'tool-versions' };
+  return new Set(files.flatMap((file) => (sources[file] === undefined ? [] : [sources[file]])));
+}
+
+/** "frontend/x" and "./frontend" lie in frontend; "." and "../frontend" do not. */
+function copiedProject(source: string, projects: readonly string[]): string | undefined {
+  let path = source;
+  while (path.startsWith('./')) path = path.slice(2);
+  path = path.replace(/^\/+/u, '').replace(/\/+\.?$/u, '');
+  return projects.find((project) => path === project || path.startsWith(`${project}/`));
 }
 
 /**
- * The npm versions a repository runs without a pinned npm (decision D-105): the npm CI jobs and Dockerfiles install
- * (npm install -g npm@<exact version>), and the npm that comes with the Node.js of every place manager-version-too-old
- * checks (CI jobs and Dockerfile stages that install with it, developer version files). Versions that cannot be read
- * are left out. `projects` leaves out root CI installs in those directories; `extra` adds root jobs that install in this
- * project (jobsInProject).
+ * For every stage of a root Dockerfile: the project it builds, when it and the stages it starts from copy files from
+ * the build context and every such file lies in that one project (COPY frontend/package.json ./). COPY . . or files of
+ * several directories are not clearly a build of one project, so such a stage stays the root's (decision D-109).
+ */
+export function stageProjects(file: DockerfileInfo, projects: readonly string[]): (string | undefined)[] {
+  const found: { project: string | undefined; any: boolean; mixed: boolean }[] = [];
+  for (const [index, stage] of file.stages.entries()) {
+    const above = stage.from !== undefined && stage.from < index ? found[stage.from] : undefined;
+    let project = above?.project;
+    let any = above?.any ?? false;
+    let mixed = above?.mixed ?? false;
+    for (const source of stage.copies ?? []) {
+      const own = copiedProject(source, projects);
+      if (own === undefined || (any && own !== project)) mixed = true;
+      project ??= own;
+      any = true;
+    }
+    found.push({ project, any, mixed });
+  }
+  return found.map((entry) => (entry.any && !entry.mixed ? entry.project : undefined));
+}
+
+/**
+ * What a project takes from the root (decision D-109): the root's .nvmrc, .node-version and .tool-versions, which nvm,
+ * nodenv and asdf also use in its directory, when the project chooses no Node.js of its own (Volta, devEngines and
+ * engines of the root package.json do not reach a project with a package.json of its own); and the stages of root
+ * Dockerfiles that build it.
+ */
+export function rootPlaces(rootDetection: Detection, project: string, projectDetection: Detection | undefined): RootPlaces {
+  const own = projectDetection?.node.versions.some((declaration) => OWN_SOURCES.has(declaration.source)) ?? false;
+  const inherited = inheritedSources();
+  const versions = own ? [] : rootDetection.node.versions.filter((declaration) => inherited.has(declaration.source));
+  const dockerfiles = rootDetection.dockerfiles
+    .map((file) => ({ file, stages: stageProjects(file, [project]).flatMap((built, index) => (built === project ? [index] : [])) }))
+    .filter((entry) => entry.stages.length > 0);
+  return { versions, dockerfiles };
+}
+
+/** Whether a stage of a root Dockerfile builds one of the projects, so that it is not the root's. */
+export function builtByProject(projects: readonly string[]): (file: DockerfileInfo, index: number) => string | undefined {
+  const known = new Map<DockerfileInfo, (string | undefined)[]>();
+  return (file, index) => {
+    if (projects.length === 0) return undefined;
+    let built = known.get(file);
+    if (built === undefined) {
+      built = stageProjects(file, projects);
+      known.set(file, built);
+    }
+    return built[index];
+  };
+}
+
+const AT_ROOT = ' at the repository root';
+
+/**
+ * The npm versions a directory runs (decisions D-105 and D-109): the versions declared for npm itself (the pin for the
+ * repository, other declarations, the lowest version of a range, npm install -g npm@<version> in CI jobs and
+ * Dockerfiles), and the npm that comes with the Node.js of every place manager-version-too-old checks (CI jobs and
+ * Dockerfile stages that install with it, developer version files). Versions that cannot be read are left out.
+ * `projects` leaves out root CI installs in those directories and root Dockerfile stages that build them; `extra` adds
+ * root jobs that install in this project (jobsInProject), `root` the root's version files and Dockerfile stages
+ * (rootPlaces). apply writes strict-allow-scripts from this list, and doctor promises it from the same list.
  */
 export function npmInUse(
   detection: Detection,
   manifest: unknown,
   label: (declaration: VersionDeclaration) => string,
-  options: { projects?: readonly string[]; extra?: { jobs: readonly WorkflowJob[]; versions: readonly VersionDeclaration[] } } = {},
+  options: { projects?: readonly string[]; extra?: { jobs: readonly WorkflowJob[]; versions: readonly VersionDeclaration[] }; root?: RootPlaces } = {},
 ): NpmInUse[] {
   const facts = runtimeFacts(environment);
   const resolve = resolver(facts);
   const found: NpmInUse[] = [];
-  const add = (resolution: Resolved, subject: string, location: NpmInUse['location']) => {
-    if (resolution.kind !== 'unknown') found.push({ versions: resolution.bundled, from: `${subject} ${resolution.kind === 'exact' ? 'comes' : 'can come'} with`, ...(location === undefined ? {} : { location }) });
+  const keys = new Set<string>();
+  const push = (entry: NpmInUse) => {
+    const key = `${entry.where}\u0000${entry.versions.map(formatVersion).join(' ')}`;
+    if (keys.has(key)) return;
+    keys.add(key);
+    found.push(entry);
+  };
+  const add = (resolution: Resolved, where: string, location: NpmInUse['location']) => {
+    if (resolution.kind !== 'unknown') push({ versions: [...resolution.bundled], where: `with ${where}`, ...(location === undefined ? {} : { location }) });
   };
   const at = (file: string, line: number | undefined) => ({ file, ...(line === undefined ? {} : { line }) });
+  const projects = options.projects ?? [];
+  const built = builtByProject(projects);
   const manager = detection.packageManagers.find((entry) => entry.id === 'npm');
+  // npm itself; the pin is the first exact version of packageManager, devEngines, Volta or .tool-versions.
+  const pin = manager === undefined ? undefined : repositoryPin(manager);
+  let pinned = false;
+  for (const declaration of manager?.versions ?? []) {
+    if (!('version' in declaration)) continue;
+    const exact = parseVersion(declaration.version);
+    if (declaration.source === 'github-actions' || declaration.source === 'dockerfile') {
+      if (exact === undefined) continue;
+      if (declaration.source === 'dockerfile') {
+        const file = detection.dockerfiles.find((entry) => entry.file === declaration.file);
+        const index = file === undefined ? -1 : file.stages.findIndex((stage, position) => (stage.name ?? String(position)) === declaration.stage);
+        if (file !== undefined && index >= 0 && built(file, index) !== undefined) continue;
+      }
+      const job = declaration.job === undefined ? '' : ` job ${declaration.job} of`;
+      push({ versions: [exact], where: `installed in${job} ${declaration.file}${declaration.line === undefined ? '' : `, line ${declaration.line}`}`, location: at(declaration.file, declaration.line) });
+      continue;
+    }
+    if (exact !== undefined) {
+      const isPin: boolean = !pinned && pin !== undefined && compareVersions(exact, pin) === 0;
+      pinned ||= isPin;
+      push({ versions: [exact], where: `${label(declaration)} in ${declaration.file}`, location: at(declaration.file, declaration.line), ...(isPin ? { pin: true as const } : {}) });
+      continue;
+    }
+    const lowest = lowestVersion(declaration.version);
+    const version = lowest.kind === 'unknown' ? undefined : parseVersion(formatBound(lowest));
+    if (version !== undefined) push({ versions: [version], where: `the lowest version ${label(declaration)} in ${declaration.file} allows`, location: at(declaration.file, declaration.line) });
+  }
   const views: Detection[] = [detection];
   if (options.extra !== undefined && options.extra.jobs.length > 0) {
     views.push({ ...detection, jobs: [...options.extra.jobs], node: { versions: [...options.extra.versions] }, dockerfiles: [] });
   }
-  const projects = options.projects ?? [];
   for (const [index, view] of views.entries()) {
     for (const place of jobPlaces(view, index === 0 ? projects : [])) {
-      if (place.project !== '' || !('version' in place.declaration) || place.declaration.unknown !== undefined) continue;
-      add(resolve(place.declaration.version, 'setup-node'), nodeSubject(place.declaration, label(place.declaration)), index === 0 ? at(place.declaration.file, place.declaration.line) : undefined);
+      const declaration = place.declaration;
+      if (place.project !== '' || !('version' in declaration) || declaration.unknown !== undefined) continue;
+      const matrix = declaration.matrix === undefined ? '' : ` (matrix.${declaration.matrix})`;
+      const from = declaration.versionFile === undefined ? '' : ` from ${declaration.versionFile}`;
+      const where = `Node.js ${declaration.version}${matrix}${from} in job ${place.job.id} of ${declaration.file}${index === 0 ? '' : AT_ROOT}`;
+      add(resolve(declaration.version, 'setup-node'), where, index === 0 ? at(declaration.file, declaration.line) : undefined);
     }
   }
-  for (const place of dockerPlaces(detection, 'npm')) {
+  const subject = (place: DockerPlace) => `Node.js ${place.stage.runtime.version ?? ''} of ${place.root.image ?? 'node'} in ${place.file.file}`;
+  for (const place of dockerPlaces(detection.dockerfiles, 'npm', (file, index) => built(file, index) === undefined)) {
     const version = place.stage.runtime.version;
-    if (version !== undefined) add(resolve(version, 'docker'), `Node.js ${version} (${place.root.image ?? 'node'}) in ${place.file.file}`, at(place.file.file, place.root.line));
+    if (version !== undefined) add(resolve(version, 'docker'), subject(place), at(place.file.file, place.root.line));
   }
-  for (const declaration of developerPlaces(detection, manager, manifest)) add(resolve(declaration.version, namingOf(declaration.source)), nodeSubject(declaration, label(declaration)), at(declaration.file, declaration.line));
-  const installs = (file: string, job: string | undefined, line: number | undefined) => `${file} installs${job === undefined ? '' : ` in job ${job}`}${line === undefined ? '' : ` on line ${line}`}`;
-  for (const declaration of manager?.versions ?? []) {
-    if (declaration.source !== 'github-actions' && declaration.source !== 'dockerfile') continue;
-    const version = 'version' in declaration ? parseVersion(declaration.version) : undefined;
-    if (version !== undefined) found.push({ versions: [version], from: installs(declaration.file, declaration.job, declaration.line), location: at(declaration.file, declaration.line) });
+  for (const declaration of developerPlaces(detection, manager, manifest, (options.root?.versions.length ?? 0) > 0)) {
+    const where = declaration.file === label(declaration) ? declaration.file : `${label(declaration)} in ${declaration.file}`;
+    add(resolve(declaration.version, namingOf(declaration.source)), `Node.js ${declaration.version} in ${where}`, at(declaration.file, declaration.line));
+  }
+  // The root's version files and the stages of root Dockerfiles that build this project.
+  for (const declaration of options.root?.versions ?? []) {
+    if ('version' in declaration) add(resolve(declaration.version, namingOf(declaration.source)), `Node.js ${declaration.version} in ${declaration.file}${AT_ROOT}`, undefined);
+  }
+  for (const { file, stages } of options.root?.dockerfiles ?? []) {
+    const keep = new Set(stages);
+    for (const place of dockerPlaces([file], 'npm', (_file, index) => keep.has(index))) {
+      if (place.stage.runtime.version !== undefined) add(resolve(place.stage.runtime.version, 'docker'), `${subject(place)}${AT_ROOT}`, undefined);
+    }
+    for (const index of stages) {
+      for (const command of file.stages[index]?.commands ?? []) {
+        const version = command.tool === 'npm' && command.kind === 'upgrade' && command.version !== undefined ? parseVersion(command.version) : undefined;
+        if (version !== undefined) push({ versions: [version], where: `installed in ${file.file}${AT_ROOT}, line ${command.line}` });
+      }
+    }
   }
   // The root jobs counted for a project replace npm with npm install -g npm@<version> in their own commands.
   for (const job of options.extra?.jobs ?? []) {
     for (const command of job.commands) {
       const version = command.tool === 'npm' && command.kind === 'upgrade' && command.version !== undefined ? parseVersion(command.version) : undefined;
-      if (version !== undefined) found.push({ versions: [version], from: installs(job.file, job.id, command.line) });
+      if (version !== undefined) push({ versions: [version], where: `installed in job ${job.id} of ${job.file}${AT_ROOT}, line ${command.line}` });
     }
   }
   return found;
+}
+
+/** "npm 11.16.0 (with Node.js 24.18.0 in .nvmrc)", "npm 11.3.0 to 11.19.1 (…)": the versions of an entry, or some of them. */
+export function npmInUseText(entry: NpmInUse, versions: readonly Version[] = entry.versions): string {
+  const sorted = [...versions].sort(compareVersions);
+  const low = formatVersion(sorted[0] as Version);
+  const high = formatVersion(sorted.at(-1) as Version);
+  return `npm ${low === high ? low : `${low} to ${high}`} (${entry.where})`;
 }
 
 interface Place {
@@ -363,6 +539,11 @@ interface Place {
   installs?: string;
   /** How to install the tool before the installs, and how to choose a newer runtime, in this place. */
   install: (version: string) => string;
+  /**
+   * Whether that install is a change of the repository that depcurfew apply sees (a RUN or a CI step), or one on a
+   * developer's machine, which it cannot see (decision D-109).
+   */
+  installSeen: boolean;
   /** "24.14.1 or a later 24.x; 26.0.0 or later", the first of those releases, and the version they bring at least. */
   runtime: (releases: string, first: string, bundled: string) => string;
 }
@@ -374,6 +555,8 @@ interface Check {
   pinned: Version | undefined;
   /** npm: the release since which an unknown .npmrc key gives a warning. */
   warnsSince?: Version;
+  /** What depcurfew apply does about strict-allow-scripts in this directory, for the fixes that offer it. */
+  advice: StrictAdvice;
 }
 
 function report(context: RuleContext, helpers: BundledHelpers, check: Check, place: Place, resolution: Resolution, facts: RuntimeFacts): void {
@@ -405,8 +588,9 @@ function report(context: RuleContext, helpers: BundledHelpers, check: Check, pla
     return releases.length === 0 ? undefined : place.runtime(releasesPhrase(releases, newestLine), formatVersion(releases[0]?.release as Version), formatVersion(version));
   };
   const runtime = better.length === 0 ? undefined : runtimeFor(needed);
-  // npm 12 blocks dependency scripts by default; npm 11.16 and later do it with strict-allow-scripts (decision D-105).
-  const other = helpers.alternative(missing, name);
+  // npm 12 blocks dependency scripts by default; npm 11.16 and later do it with strict-allow-scripts (decision D-105),
+  // which the fix promises from depcurfew apply only where apply writes it (decision D-109).
+  const other = helpers.alternative(missing, name, check.advice);
   // Every version it brings is new enough for the other way: only the setting is missing.
   const enough = other !== undefined && compareVersions(low, other.version) >= 0;
   const otherRuntime = other === undefined || enough ? undefined : runtimeFor(other.version);
@@ -415,7 +599,9 @@ function report(context: RuleContext, helpers: BundledHelpers, check: Check, pla
     ...(enough ? [other.set] : []),
     place.install(formatVersion(target)),
     ...(runtime === undefined ? [] : [runtime]),
-    ...(other === undefined || enough ? [] : [`${place.install(formatVersion(other.version))} ${other.suffix}`, ...(otherRuntime === undefined ? [] : [`${otherRuntime} ${other.suffix}`])]),
+    ...(other === undefined || enough
+      ? []
+      : [`${place.install(formatVersion(other.version))} ${other.suffix(place.installSeen ? 'repository' : 'machine')}`, ...(otherRuntime === undefined ? [] : [`${otherRuntime} ${other.suffix('repository')}`])]),
   ];
   const fix = alternatives.join(', or ');
   const level: Level = place.enforced && none.length > 0 ? 'error' : 'warning';
@@ -463,15 +649,20 @@ function checkJobs(context: RuleContext, helpers: BundledHelpers, checkFor: (pro
       enforced: true,
       installs: `job ${job.id} installs packages with it${where} on line ${install}`,
       install: (version) => `run npm install -g npm@${version} in job ${job.id} before it installs packages`,
+      installSeen: true,
       runtime: (releases, _first, bundled) => `set up a Node.js release that comes with npm ${bundled} or later (${releases})`,
     }, resolution, facts);
   }
 }
 
-function checkDockerfiles(context: RuleContext, helpers: BundledHelpers, check: Check, facts: RuntimeFacts): void {
-  const tool = check.tool.id === 'npm' ? 'npm' : 'pip';
+/** Dockerfile stages that install with the tool of their image; a root stage that builds a project is checked for it. */
+function checkDockerfiles(context: RuleContext, helpers: BundledHelpers, checkFor: (project: string) => Check | undefined, tool: 'npm' | 'pip', facts: RuntimeFacts): void {
   const runtimeTool = tool === 'npm' ? 'node' : 'python';
-  for (const { file, stage, root, install } of dockerPlaces(context.detection, tool)) {
+  const built = tool === 'npm' ? builtByProject((context.projects ?? []).map((view) => view.directory)) : () => undefined;
+  for (const { file, index, stage, root, install } of dockerPlaces(context.detection.dockerfiles, tool)) {
+    const project = built(file, index) ?? '';
+    const check = checkFor(project);
+    if (check === undefined) continue;
     const image = root.image ?? (runtimeTool === 'node' ? 'node' : 'python');
     const name = stage.name === undefined ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
     const runtimeName = runtimeTool === 'node' ? 'Node.js' : 'Python';
@@ -492,16 +683,27 @@ function checkDockerfiles(context: RuleContext, helpers: BundledHelpers, check: 
       file: file.file,
       line: root.line,
       enforced: true,
-      installs: `${name} installs packages with it on line ${install}`,
+      installs: `${name} installs packages with it${project === '' ? '' : ` for ${project}`} on line ${install}`,
       install: (target) => `add RUN ${upgrade(target)} to ${name} before it installs packages`,
+      installSeen: true,
       runtime: (releases, first, bundled) => `start from a ${runtimeTool} image whose ${runtimeName} release comes with ${tool} ${bundled} or later (${releases}), such as ${runtimeTool}:${first}`,
     }, resolution, facts);
   }
 }
 
-function checkDeveloperFiles(context: RuleContext, helpers: BundledHelpers, check: Check, manager: PackageManagerInfo, facts: RuntimeFacts): void {
-  const manifest = context.repository.parseOnce('package.json', (text) => JSON.parse(text) as unknown);
-  for (const declaration of developerPlaces(context.detection, manager, manifest)) {
+/**
+ * The version files developers use. `project`: the root's files, checked for a project that has none of its own and
+ * uses them (decision D-109).
+ */
+function checkDeveloperFiles(
+  context: RuleContext,
+  helpers: BundledHelpers,
+  check: Check,
+  declarations: readonly (VersionDeclaration & { version: string })[],
+  facts: RuntimeFacts,
+  project?: string,
+): void {
+  for (const declaration of declarations) {
     const subject = nodeSubject(declaration, helpers.label(declaration));
     const resolution = nodeBundledNpm(declaration.version, namingOf(declaration.source), facts);
     if (resolution.kind === 'unknown') {
@@ -514,7 +716,9 @@ function checkDeveloperFiles(context: RuleContext, helpers: BundledHelpers, chec
       file: declaration.file,
       ...(line === undefined ? {} : { line }),
       enforced: false,
+      ...(project === undefined ? {} : { installs: `${project} has no Node.js version file of its own, so it uses this one` }),
       install: (version) => `install npm ${version} where this Node.js is used (npm install -g npm@${version})`,
+      installSeen: false,
       runtime: (releases, _first, bundled) => `require a Node.js release that comes with npm ${bundled} or later in ${helpers.label(declaration)} (${releases})`,
     }, resolution, facts);
   }
@@ -525,17 +729,47 @@ export function repositoryPin(manager: PackageManagerInfo): Version | undefined 
   return pinnedVersion({ ...manager, versions: manager.versions.filter((entry) => entry.source !== 'github-actions' && entry.source !== 'dockerfile') });
 }
 
+/** The options of npmInUse for a directory: the root (whose projects are left out) or a project (with what the root gives it). */
+export function npmInUseOptions(context: Pick<RuleContext, 'projects' | 'plan'>): Parameters<typeof npmInUse>[3] {
+  const ci = context.plan?.ci;
+  const root = context.plan?.root;
+  return { projects: (context.projects ?? []).map((view) => view.directory), ...(ci === undefined ? {} : { extra: ci }), ...(root === undefined ? {} : { root }) };
+}
+
+/** The npm versions a directory runs, as apply sees them (npmInUse). */
+export function npmPlaces(context: Pick<RuleContext, 'detection' | 'repository' | 'projects' | 'plan'>): NpmInUse[] {
+  const manifest = context.repository.parseOnce('package.json', (text) => JSON.parse(text) as unknown);
+  return npmInUse(context.detection, manifest, (declaration) => SOURCE_LABEL[declaration.source], npmInUseOptions(context));
+}
+
+/**
+ * What depcurfew apply does about strict-allow-scripts for npm in a directory (decision D-109): `now`, it writes it for
+ * the repository as it is, because some npm in use runs scripts allowScripts does not cover with a notice; `targeted`,
+ * it configures npm there at all, so a change of the repository that brings such an npm makes it write it.
+ */
+export function strictAdvice(context: Pick<RuleContext, 'detection' | 'repository' | 'projects' | 'plan' | 'policy'>, tool: ToolKnowledge): StrictAdvice {
+  const policy = context.policy;
+  const targeted = policy !== undefined && (policy.targets === 'auto' || policy.targets.includes(tool.id));
+  if (!targeted || tool.extra?.['strictAllowScripts'] === undefined) return { now: false, targeted };
+  const defaults = values(tool.installScripts.defaultPolicy)[0] ?? [];
+  const now = npmPlaces(context).some((entry) => entry.versions.some((version) => versionedValue(defaults, version) === 'run-with-warning'));
+  return { now, targeted };
+}
+
 /** The check of npm in one directory (the root or a project): its settings, its pin and when unknown keys warn. */
-function npmCheck(context: RuleContext, helpers: BundledHelpers, managers: readonly PackageManagerInfo[]): Check | undefined {
+function npmCheck(context: RuleContext, helpers: BundledHelpers, managers: readonly PackageManagerInfo[], project?: string): Check | undefined {
   const manager = managers.find((entry) => entry.id === 'npm' && entry.supported);
   const npm = context.tools.find((entry) => entry.id === 'npm');
   if (manager === undefined || npm === undefined) return undefined;
-  const features = helpers.features(npm, context);
+  // A check for a project made at the root names the project's .npmrc from the root.
+  const features = helpers
+    .features(npm, context)
+    .map((item) => (project === undefined || item.instead === undefined ? item : { ...item, instead: { ...item.instead, file: `${project}/${item.instead.file}` } }));
   if (features.length === 0) return undefined;
   const unknownKeys = npm.extra?.['unknownConfigKeys'] === undefined ? undefined : values(npm.extra['unknownConfigKeys'])[0];
   const warning = Array.isArray(unknownKeys) ? (unknownKeys as { since: string; value: string }[]).find((entry) => entry.value === 'warning')?.since : undefined;
   const warnsSince = warning === undefined ? undefined : parseVersion(warning);
-  return { tool: npm, features, pinned: repositoryPin(manager), ...(warnsSince === undefined ? {} : { warnsSince }) };
+  return { tool: npm, features, pinned: repositoryPin(manager), ...(warnsSince === undefined ? {} : { warnsSince }), advice: strictAdvice(context, npm) };
 }
 
 /** The npm and pip that come with the declared runtimes, checked against the settings the repository relies on. */
@@ -544,26 +778,42 @@ export function checkBundledVersions(context: RuleContext, helpers: BundledHelpe
   const managed = (id: string) => context.detection.packageManagers.find((entry) => entry.id === id && entry.supported);
   const npmManager = managed('npm');
   const rootCheck = npmCheck(context, helpers, context.detection.packageManagers);
-  // A project's npm reads the project's .npmrc; its settings are read with the project's context.
-  const sources = context.projects === undefined || context.projects.length === 0 ? [] : managerSources(context).filter((source) => source.project !== undefined);
+  // A project's npm reads the project's .npmrc; its settings are read with the project's context, and what apply
+  // does there with the plan options of the project (its CI installs and what it takes from the root).
+  const views = context.projects ?? [];
+  const sources = views.length === 0 ? [] : managerSources(context).filter((source) => source.project !== undefined);
   const checks = new Map<string, Check | undefined>();
+  const planOf = (project: string): PlanOptions => {
+    const ci = jobsInProject(context.detection, project);
+    return { project, ...(ci.jobs.length === 0 ? {} : { ci }), root: rootPlaces(context.detection, project, views.find((view) => view.directory === project)?.detection) };
+  };
   const checkFor = (project: string): Check | undefined => {
     if (project === '') return rootCheck;
     if (!checks.has(project)) {
       const source = sources.find((entry) => entry.project === project);
-      checks.set(project, source === undefined ? undefined : npmCheck(source.context, helpers, source.managers));
+      const plan = planOf(project);
+      checks.set(project, source === undefined ? undefined : npmCheck({ ...source.context, plan }, helpers, source.managers, project));
     }
     return checks.get(project);
   };
   checkJobs(context, helpers, checkFor, facts);
+  checkDockerfiles(context, helpers, checkFor, 'npm', facts);
   if (npmManager !== undefined && rootCheck !== undefined) {
-    checkDockerfiles(context, helpers, rootCheck, facts);
-    checkDeveloperFiles(context, helpers, rootCheck, npmManager, facts);
+    const manifest = context.repository.parseOnce('package.json', (text) => JSON.parse(text) as unknown);
+    checkDeveloperFiles(context, helpers, rootCheck, developerPlaces(context.detection, npmManager, manifest), facts);
+  }
+  // The root's version files, for each project that has none of its own.
+  for (const view of views) {
+    const inherited = planOf(view.directory).root?.versions ?? [];
+    const check = inherited.length === 0 ? undefined : checkFor(view.directory);
+    if (check === undefined) continue;
+    checkDeveloperFiles(context, helpers, check, inherited.filter((declaration): declaration is VersionDeclaration & { version: string } => 'version' in declaration), facts, view.directory);
   }
   const pipManager = managed('pip');
   const pip = context.tools.find((entry) => entry.id === 'pip');
   if (pipManager !== undefined && pip !== undefined) {
     const features = helpers.features(pip, context);
-    if (features.length > 0) checkDockerfiles(context, helpers, { tool: pip, features, pinned: repositoryPin(pipManager) }, facts);
+    const check: Check = { tool: pip, features, pinned: repositoryPin(pipManager), advice: { now: false, targeted: false } };
+    if (features.length > 0) checkDockerfiles(context, helpers, (project) => (project === '' ? check : undefined), 'pip', facts);
   }
 }

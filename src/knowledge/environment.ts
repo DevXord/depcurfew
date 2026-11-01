@@ -13,6 +13,7 @@ const mcpFacts = verifiedOn('2026-11-01');
 const actionChecks = verifiedOn('2026-11-01');
 const leftovers = verifiedOn('2026-11-01');
 const runtimes = verifiedOn('2026-11-01');
+const recheck = verifiedOn('2026-11-01');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -177,6 +178,11 @@ export const environment: EnvironmentKnowledge = {
       { key: 'engines', runtimeKey: 'node' },
       `${NPM_PACKAGE_JSON}#engines`,
       'engines.node is the range of Node.js versions the package works on. Unless engine-strict is set, it is advisory and only produces warnings when the package is installed as a dependency; it does not choose the Node.js that runs. setup-node reads it from package.json through node-version-file when volta.node and devEngines.runtime are missing, and picks the newest version that matches.',
+    ),
+    inheritedVersionFiles: recheck.verified(
+      ['.nvmrc', '.node-version', '.tool-versions'],
+      'https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md',
+      'nvm: "nvm use et. al. will traverse directory structure upwards from the current directory looking for the .nvmrc file". nodenv: find_local_version_file in libexec/nodenv-version-file checks the directory for .node-version and then each parent up to the root (https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/libexec/nodenv-version-file). asdf: the tool versions a .tool-versions file declares "will be used in that directory and any subdirectories" (https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md). Volta is not one of them: for_dir in crates/volta-core/src/project/mod.rs "will search ancestors to find a package.json and use that as the root of the project" and reads a parent package.json only through extends (https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/mod.rs), so the volta key of the root package.json does not reach a project with a package.json of its own.',
     ),
   },
   docker: {

@@ -204,7 +204,7 @@ describe('apply with projects', () => {
       {
         code: 'nothing-to-configure',
         project: 'frontend',
-        message: 'frontend: no tools to configure: targets in depcurfew.json leaves out npm, found in frontend',
+        message: 'frontend: no tools to configure: frontend uses npm, but targets in depcurfew.json does not list it',
         fix: 'Add "npm" to targets in depcurfew.json to configure frontend, or remove "frontend" from projects if depcurfew should leave it alone',
       },
     ]);
@@ -226,7 +226,7 @@ describe('doctor with projects', () => {
     expect(report.findings[2]?.message).toBe('frontend/.npmrc is missing; depcurfew apply would create it with the settings from depcurfew.json');
     expect(report.findings[4]).toMatchObject({
       message: 'npm 11.19.1 in packageManager (frontend/package.json) does not support blocking dependency install scripts without strict-allow-scripts (since 12.0.0)',
-      fix: 'Set strict-allow-scripts=true in frontend/.npmrc, which depcurfew apply writes for it, or require npm 12.0.0 or later in packageManager',
+      fix: 'Set strict-allow-scripts=true in frontend/.npmrc, which depcurfew apply writes for this repository, or require npm 12.0.0 or later in packageManager',
     });
     expect(report.checked?.tools).toEqual([
       { id: 'dependabot', name: 'Dependabot' },
@@ -309,7 +309,13 @@ describe('explain with projects', () => {
     expect(document.projects[1]).toEqual({
       directory: 'shared',
       project: null,
-      error: { code: 'project-not-found', message: 'the project directory shared listed in projects does not exist', fix: 'Create shared, or correct or remove "shared" from projects in depcurfew.json' },
+      error: {
+        code: 'project-not-found',
+        level: 'error',
+        location: { file: 'depcurfew.json', line: 24 },
+        message: 'the project directory shared listed in projects does not exist',
+        fix: 'Create shared, or correct or remove "shared" from projects in depcurfew.json',
+      },
     });
     expect(document.errors).toEqual([
       {
