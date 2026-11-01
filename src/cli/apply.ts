@@ -22,6 +22,7 @@ import { paint, type Paint } from '../color.ts';
 import { safeJson } from '../json-safe.ts';
 import { printable } from '../printable.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
+import { makeNotice } from '../doctor/types.ts';
 import { toolName } from './describe.ts';
 import { policyInputError, projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
@@ -226,8 +227,9 @@ export function apply(directory: string | undefined, options: ApplyOptions, io: 
     return EXIT_USAGE;
   }
   const absolute = target.directory;
-  const notices = target.notice === undefined ? [] : [{ message: target.notice }];
-  if (!options.json) for (const notice of notices) io.stderr(`note: ${notice.message}\n`);
+  // The same notice doctor gives when the directory is a project of a parent policy (decision D-115).
+  const notices = target.notice === undefined ? [] : [makeNotice('policy-from-parent', target.notice, POLICY_FILE)];
+  if (!options.json) for (const notice of notices) io.stderr(`note: ${notice.message} (${notice.code})\n`);
   let report: ApplyReport;
   try {
     report = applyProject(absolute, { write: !dryRun });

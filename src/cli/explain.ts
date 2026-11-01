@@ -5,6 +5,7 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId } from '../knowledge/types.ts';
 import { convertCooldown } from '../policy/convert.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
+import { makeNotice } from '../doctor/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
 import { join } from 'node:path';
@@ -394,12 +395,13 @@ export function explain(directory: string | undefined, json: boolean, io: CliIo)
     return EXIT_USAGE;
   }
   const report = buildReport(target.directory);
-  const notices = target.notice === undefined ? [] : [{ message: target.notice }];
+  // The same notice doctor gives when the directory is a project of a parent policy (decision D-115).
+  const notices = target.notice === undefined ? [] : [makeNotice('policy-from-parent', target.notice, POLICY_FILE)];
   if (json) {
     const { errors, ...rest } = report;
     io.stdout(`${safeJson({ ...rest, notices, errors }, 2)}\n`);
   } else {
-    for (const notice of notices) io.stderr(`note: ${notice.message}\n`);
+    for (const notice of notices) io.stderr(`note: ${notice.message} (${notice.code})\n`);
     io.stdout(renderReport(report, paint(io.colors?.stdout)));
   }
   return report.errors.length > 0 ? EXIT_FAILURE : EXIT_OK;

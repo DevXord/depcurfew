@@ -154,15 +154,15 @@ describe('built depcurfew executable', () => {
       expect(JSON.parse(depcurfewIn(deep, 'doctor', '--json').stdout)).toMatchObject({ policy: 'valid', notices: [{ message: note('doctor') }] });
 
       const explain = depcurfewIn(deep, 'explain');
-      expect([explain.status, explain.stderr]).toEqual([0, `note: ${note('explain')}\n`]);
+      expect([explain.status, explain.stderr]).toEqual([0, `note: ${note('explain')} (policy-from-parent)\n`]);
       expect(explain.stdout).toContain('Policy (depcurfew.json):\n');
-      expect(JSON.parse(depcurfewIn(deep, 'explain', '--json').stdout)).toMatchObject({ notices: [{ message: note('explain') }], errors: [] });
+      expect(JSON.parse(depcurfewIn(deep, 'explain', '--json').stdout)).toMatchObject({ notices: [{ level: 'note', code: 'policy-from-parent', location: { file: 'depcurfew.json' }, message: note('explain') }], errors: [] });
 
       const apply = depcurfewIn(deep, 'apply', '--dry-run');
       expect(apply.status).toBe(0);
-      expect(apply.stderr.startsWith(`note: ${note('apply')}\n`)).toBe(true);
+      expect(apply.stderr.startsWith(`note: ${note('apply')} (policy-from-parent)\n`)).toBe(true);
       expect(apply.stdout).toContain('+++ b/.npmrc\n');
-      expect(JSON.parse(depcurfewIn(deep, 'apply', '--dry-run', '--json').stdout)).toMatchObject({ notices: [{ message: note('apply') }] });
+      expect(JSON.parse(depcurfewIn(deep, 'apply', '--dry-run', '--json').stdout)).toMatchObject({ notices: [{ level: 'note', code: 'policy-from-parent', location: { file: 'depcurfew.json' }, message: note('apply') }] });
 
       // A directory given on the command line is taken as it is.
       expect(depcurfew('doctor', deep).stdout).toContain('no depcurfew.json: only the rules that do not need a policy ran');
