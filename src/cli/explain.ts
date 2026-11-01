@@ -236,7 +236,8 @@ function stageText(stage: DockerStage, index: number, stages: readonly DockerSta
   const base = stage.from === undefined ? (stage.image ?? 'an image from an ARG without a value') : `stage ${stages[stage.from]?.name ?? `#${stage.from}`}`;
   const runtime = stage.runtime === undefined ? '' : stage.runtime.version === undefined ? ` (${stage.runtime.tool}, version unknown)` : ` (${stage.runtime.tool === 'node' ? 'Node.js' : 'Python'} ${stage.runtime.version})`;
   const copies = stage.copies === undefined || stage.copies.length === 0 ? [] : [`copies ${listing(stage.copies)}`];
-  return [`${name}: ${base}${runtime}`, ...copies, ...stage.commands.map(commandText)].join(', ');
+  // One RUN can install many times (npm ci && npm ci …): each text once, so that a long RUN gives one short line.
+  return [`${name}: ${base}${runtime}`, ...copies, ...new Set(stage.commands.map(commandText))].join(', ');
 }
 
 function amount(value: number | string, unit: string): string {

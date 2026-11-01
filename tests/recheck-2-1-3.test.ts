@@ -191,6 +191,20 @@ describe('root Node.js version files per kind (item G)', () => {
   });
 });
 
+describe('explain lists each install of a Dockerfile stage once', () => {
+  it('names one RUN that installs many times on one line', async () => {
+    const directory = repository({
+      'depcurfew.json': policy({}),
+      'package.json': manifest(),
+      'package-lock.json': LOCK,
+      Dockerfile: `FROM node:24.18.0 AS web\nRUN ${Array.from({ length: 50 }, () => 'npm ci').join(' && ')}\n`,
+    });
+    const { stdout } = await exec('explain', directory);
+    expect(stdout).toContain('web: node:24.18.0 (Node.js 24.18.0), npm installs on line 2\n');
+    expect(stdout.split('npm installs on line 2').length).toBe(2);
+  });
+});
+
 describe('explain shows what a project takes from the root (item H)', () => {
   it('lists the inherited version files and the root Dockerfile stages that build the project, with their copies', async () => {
     const directory = repository({

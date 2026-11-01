@@ -126,7 +126,7 @@ describe('YAML aliases that expand without end, without a valid policy (N11)', (
       level: 'error',
       location: { file: '.github/dependabot.yml' },
       message: 'cannot parse .github/dependabot.yml: Excessive alias count indicates a resource exhaustion attack; depcurfew cannot check it',
-      fix: 'Fix the syntax error, so that depcurfew can check the file',
+      fix: 'Write the repeated values out instead of using so many YAML aliases (*name), so that depcurfew can check the file',
     };
     expect(unreadable(repository(files))).toEqual([expected]);
     expect(unreadable(repository({ ...files, 'depcurfew.json': '{ "version": 2 }\n' }))).toEqual([expected]);

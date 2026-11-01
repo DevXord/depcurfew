@@ -168,10 +168,17 @@ const WRITTEN_FIRST = 'runs a file in this shell after a command on the line tha
 
 /** A command for messages, cut short when it is long. */
 function shown(words: readonly Word[]): string {
-  // Reserved words before a command are not part of it: { cd a; } is cd a.
-  const start = words.findIndex((word) => word.dynamic || !RESERVED.has(word.text));
+  // Reserved words before a command are not part of it: { cd a; } is cd a, and function f { cd a; } is cd a too.
+  let start = 0;
+  while (start < words.length) {
+    const word = words[start] as Word;
+    if (word.dynamic) break;
+    if (word.text === 'function' && start + 1 < words.length) start += 2;
+    else if (RESERVED.has(word.text)) start += 1;
+    else break;
+  }
   const line = words
-    .slice(start === -1 ? words.length : start)
+    .slice(start)
     .map((word) => word.text)
     .join(' ');
   return line.length > 120 ? `${line.slice(0, 120)}…` : line;

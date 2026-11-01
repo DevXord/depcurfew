@@ -92,6 +92,16 @@ describe('the hook checks an install with the policy of the directory it runs in
     expect((await hook('cd pkgs/strict && npm install @types/node@26.6.6', root, undefined)).permissionDecisionReason).toContain(STRICT);
   });
 
+  it('says how long to wait by the longer delay when both policies deny the release', async () => {
+    // The root denies it too (1 day); the 90 days of pkgs/strict/depcurfew.json say how long to wait.
+    const root = repository({}, { cooldown: { minimum: '1d' } });
+    const answer = await hook('cd pkgs/strict && npm install @types/node@26.6.6', root, root);
+    expect(answer.permissionDecision).toBe('deny');
+    expect(answer.permissionDecisionReason).toContain(STRICT);
+    expect(answer.permissionDecisionReason).toContain('is 90 days old');
+    expect(answer.permissionDecisionReason).not.toContain('is 1 day old');
+  });
+
   it.each([
     ['cd pkgs/strict; npm i @types/node@26.6.6', 'Bash'],
     ['cd "pkgs/strict" || exit 1\nnpm i @types/node@26.6.6', 'Bash'],

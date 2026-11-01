@@ -86,6 +86,8 @@ describe('the scanner follows cd, pushd and popd', () => {
     ['for d in a b; do npm i x; cd a; done', 'runs in a loop'],
     ['while true; do cd a && npm i x; done', 'runs in a loop'],
     ['f() { cd a; }; f; npm i x', 'runs in a function'],
+    // The message quotes the command, not the function header before it.
+    ['function f { cd a; }; f; npm i x', '"cd a" runs in a function'],
     ['f() { npm i x; }; cd a; f', 'runs where the function is called'],
     ['if [ -d a ]; then cd a; fi; npm i x', 'runs only in one branch'],
     ['case "$1" in a) cd a;; esac; npm i x', 'runs only in one branch'],

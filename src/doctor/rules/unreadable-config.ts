@@ -66,6 +66,9 @@ function configFilesOf(detection: Detection): string[] {
   return [...new Set([...detection.packageManagers.flatMap((manager) => manager.configFiles), ...detection.bots.flatMap((bot) => bot.configFiles)])];
 }
 
+/** The fix for YAML whose aliases expand more than depcurfew reads (the yaml library's maxAliasCount). */
+const ALIAS_LIMIT_FIX = 'Write the repeated values out instead of using so many YAML aliases (*name), so that depcurfew can check the file';
+
 export const unreadableConfig: Rule = {
   id: 'unreadable-config',
   checks: 'Every configuration file and lockfile can be read and parsed',
@@ -79,7 +82,8 @@ export const unreadableConfig: Rule = {
     // One error per file: a file that cannot be read cannot be edited either.
     const reported = new Set<string>();
     const reportWarning = (warning: DetectionWarning) => {
-      const fix = UNREADABLE_WARNINGS[warning.code];
+      // YAML that parses but whose aliases expand past the limit (a billion laughs) is no syntax error to fix.
+      const fix = warning.code === 'invalid-file' && /excessive alias count/iu.test(warning.message) ? ALIAS_LIMIT_FIX : UNREADABLE_WARNINGS[warning.code];
       const file = warning.files[0] ?? POLICY_FILE;
       if (fix === undefined || reported.has(file)) return;
       reported.add(file);

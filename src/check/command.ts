@@ -83,7 +83,7 @@ interface HereDocument {
 export type Item =
   | { kind: 'word'; word: Word }
   | { kind: 'separator'; pipe?: boolean; operator?: string }
-  | { kind: 'redirect'; input: boolean }
+  | { kind: 'redirect'; input: boolean; readWrite?: boolean }
   | { kind: 'heredoc'; document: HereDocument }
   | { kind: 'herestring' };
 
@@ -561,9 +561,12 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
         started = false;
       }
       finish();
-      items.push({ kind: 'redirect', input: char === '<' });
-      index += 1;
-      while ('<>&|'.includes(line[index] ?? ' ') && line[index] !== undefined) index += 1;
+      let end = index + 1;
+      while ('<>&|'.includes(line[end] ?? ' ') && line[end] !== undefined) end += 1;
+      // <> opens its target for reading and writing, so 1<> file writes it as > file does (decision D-123).
+      const operator = line.slice(index, end);
+      items.push(operator.startsWith('<') && operator.includes('>') ? { kind: 'redirect', input: false, readWrite: true } : { kind: 'redirect', input: operator.startsWith('<') });
+      index = end;
       continue;
     }
     if (line.startsWith('((', index) && !started) {
@@ -625,7 +628,12 @@ function simpleCommands(items: readonly Item[], shell: Shell = 'posix'): SimpleC
   let operators: string[] = [];
   let start = 0;
   const end = (after: string | undefined, to: number) => {
-    if (current.words.length === 0) return;
+    if (current.words.length === 0) {
+      // A redirection after ( … ) belongs to the subshell, and one alone (> file) truncates its target: both write a
+      // file, which a later activation script may be (decision D-123). A : with the write keeps that in the order.
+      if (current.writes === true) commands.push({ ...current, words: [{ text: ':', dynamic: false }], bounds: { before: operators, after }, from: start, to });
+      return;
+    }
     commands.push({ ...current, bounds: { before: operators, after }, from: start, to });
     operators = [];
   };
@@ -638,7 +646,8 @@ function simpleCommands(items: readonly Item[], shell: Shell = 'posix'): SimpleC
       current = item.pipe === true ? { words: [], input: [], redirected: false, shell, stdin: 'pipe' } : { words: [], input: [], redirected: false, shell };
       next = 'word';
     } else if (item.kind === 'redirect') {
-      if (item.input) current.stdin = 'file';
+      // <> is input from its target too (bash 0<> script.sh reads the script).
+      if (item.input || item.readWrite === true) current.stdin = 'file';
       next = item.input ? 'source' : 'skip';
     } else if (item.kind === 'heredoc') {
       current.input.push(item.document.body);

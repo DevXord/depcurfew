@@ -337,6 +337,15 @@ describe('the activation script of a Python virtual environment (follow-up to N8
     ['echo "$(cp evil.sh .venv/bin/activate)"; source .venv/bin/activate && pip install requests'],
     ["alias cd='cp evil.sh .venv/bin/activate'; cd .; source .venv/bin/activate && pip install requests"],
     ["echo x > f; eval 'source .venv/bin/activate; pip install requests'"],
+    // <> opens the file for writing too, and a redirection after ( … ) belongs to the subshell.
+    ["echo 'cd pkgs/strict' 1<>.venv/bin/activate; source .venv/bin/activate; pip install requests"],
+    ["printf 'cd pkgs/strict' 1<> .venv/bin/activate; source .venv/bin/activate; pip install requests"],
+    ["cat <<< 'cd pkgs/strict' 1<>.venv/bin/activate; source .venv/bin/activate; pip install requests"],
+    ["echo 'cd pkgs/strict' 0<>.venv/bin/activate >&0; source .venv/bin/activate; pip install requests"],
+    ["(echo 'cd pkgs/strict') >> .venv/bin/activate; source .venv/bin/activate; pip install requests"],
+    ["(echo 'cd pkgs/strict'; true) > .venv/bin/activate && source .venv/bin/activate && pip install requests"],
+    ['> .venv/bin/activate; source .venv/bin/activate; pip install requests'],
+    ["eval \"echo 'cd pkgs/strict' 1<> .venv/bin/activate; source .venv/bin/activate; pip install requests\""],
   ])('%s: a command before it may write the script, so the directory is unknown', (line) => {
     expect(where(line)).toEqual([['pip:pypi:requests', unknown('after a command on the line that may write it')]]);
   });

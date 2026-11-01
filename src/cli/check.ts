@@ -299,19 +299,37 @@ function severity(finding: CheckFinding): number {
   return finding.level === 'error' ? 2 : 1;
 }
 
+/** The longest release-age delay of some policies, in minutes (0 without one). */
+function delayOf(policies: readonly ResolvedPolicy[]): number {
+  return Math.max(0, ...policies.map((policy) => policy.cooldown?.minimum.minutes ?? 0));
+}
+
+/** The policies an applied lookup checks with: its own and the nearer one. */
+function policiesOf(applied: AppliedPolicy): ResolvedPolicy[] {
+  return applied.nearer === undefined ? [applied.policy] : [applied.policy, applied.nearer.policy];
+}
+
 /**
  * The reports of the project's policy with the findings of the nearer policy that add something (decision D-113): a
  * nearer finding is left out only when the project's report of the same package has the same code at the same or a
- * more severe level, and a project finding gives way to a more severe nearer one of the same code. Nearer findings
- * name the file whose policy they break.
+ * more severe level, and a project finding gives way to a more severe nearer one of the same code. Of two release-age
+ * findings (too-young), the one of the longer delay stays, so that its fix says how long to wait. Nearer findings name
+ * the file whose policy they break.
  */
-function mergedReports(own: readonly PackageReport[], other: readonly PackageReport[] | undefined, nearerFile: string): PackageReport[] {
+function mergedReports(own: readonly PackageReport[], other: readonly PackageReport[] | undefined, nearerFile: string, delays: { own: number; other: number } = { own: 0, other: 0 }): PackageReport[] {
   if (other === undefined) return [...own];
+  // Of two release-age findings, the one of the longer delay says how long to wait (both policies apply).
+  const theirsWins = (finding: CheckFinding) => finding.code === 'too-young' && delays.other > delays.own;
   return own.map((report, index) => {
     const theirs = other[index]?.findings ?? [];
-    const mine = report.findings.filter((finding) => !theirs.some((candidate) => candidate.code === finding.code && severity(candidate) > severity(finding)));
+    const mine = report.findings.filter(
+      (finding) => !theirs.some((candidate) => candidate.code === finding.code && (severity(candidate) > severity(finding) || (severity(candidate) === severity(finding) && theirsWins(finding)))),
+    );
     const added = theirs
-      .filter((finding) => !report.findings.some((candidate) => candidate.code === finding.code && severity(candidate) >= severity(finding)))
+      .filter(
+        (finding) =>
+          !report.findings.some((candidate) => candidate.code === finding.code && (severity(candidate) > severity(finding) || (severity(candidate) === severity(finding) && !theirsWins(finding)))),
+      )
       .map((finding) => ({ ...finding, message: finding.message.split(POLICY_FILE).join(nearerFile) }));
     return { ...report, findings: [...mine, ...added] };
   });
@@ -494,7 +512,7 @@ export async function checkApplied(requests: readonly CheckRequest[], applied: A
   });
   const policies = applied.nearer === undefined ? [applied.policy] : [applied.policy, applied.nearer.policy];
   const [own = [], other] = await Promise.all(policies.map((policy) => checkSpecs(requests, options(policy))));
-  const reports = mergedReports(own, other, applied.nearer?.file ?? POLICY_FILE);
+  const reports = mergedReports(own, other, applied.nearer?.file ?? POLICY_FILE, { own: delayOf([applied.policy]), other: delayOf(applied.nearer === undefined ? [] : [applied.nearer.policy]) });
   for (const [index, report] of reports.entries()) {
     const request = requests[index] ?? { spec: report.spec };
     // One finding per package: the first setting that applies to it.
@@ -791,7 +809,8 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
         const checked = await checkApplied(requests, applied, settings);
         // The lookups are shared, so the packages are looked up once; the stricter answer counts.
         const also = working === undefined ? undefined : await checkApplied(requests, working.applied, settings);
-        reports.push(...(also === undefined ? checked.reports : mergedReports(checked.reports, also.reports, POLICY_FILE)));
+        const delays = working === undefined ? undefined : { own: delayOf(policiesOf(applied)), other: delayOf(policiesOf(working.applied)) };
+        reports.push(...(also === undefined ? checked.reports : mergedReports(checked.reports, also.reports, POLICY_FILE, delays)));
         for (const file of [...checked.skipped, ...(also?.skipped ?? [])]) if (!skipped.some((known) => known.file === file.file && known.reason === file.reason)) skipped.push(file);
         // Say which registry answered when it is not the public one, if an npm package was looked up there.
         const lookedUp = checked.reports.some((report) => report.kind === 'registry' && !isPythonSpec(report.spec) && report.name !== undefined && !applied.scopes.has(scopeOf(report.name)));
