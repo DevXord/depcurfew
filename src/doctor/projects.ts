@@ -34,7 +34,7 @@ export function managerSources(context: RuleContext): ManagerSource[] {
           detection: view.detection,
           project: view.directory,
           // What a project's file says that doctor cannot read is a notice of the root run, so the file is named from the root.
-          notice: (message, file) => context.notice(relocate(message), file === undefined ? undefined : inProject(view.directory, file)),
+          notice: (message, file, fix) => context.notice(relocate(message), file === undefined ? undefined : inProject(view.directory, file), fix === undefined ? undefined : relocate(fix)),
         },
         managers: view.detection.packageManagers.filter((entry) => entry.supported),
         relocate,

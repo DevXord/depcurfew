@@ -301,6 +301,7 @@ export const configDrift: Rule = {
  * files drift the same way (decision D-116).
  */
 export function driftDescription(file: string, before: string, after: string): { line: number; text: string } {
-  const difference = firstDifference(before, after);
+  // differences always returns at least one block; the first is the one config-drift words first.
+  const [difference = { line: 1, removed: [], added: [], commentedLater: [] }] = differences(before, after);
   return { line: findingLine(file, difference, before), text: describe(file, difference, before, after) };
 }

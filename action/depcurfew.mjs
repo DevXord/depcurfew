@@ -2514,6 +2514,67 @@ const pdm$1 = {
 			lock: "pdm lock",
 			failing: ["pdm lock --check", "pdm install --check"]
 		}, `${PDM}/src/pdm/project/project_file.py`, "pdm.lock keeps a content_hash of the whole [tool.pdm.resolution] table (PyProject.content_hash), or with canonical lock inputs (lock_inputs = true, since 2.28.1) the table itself (src/pdm/project/lockfile/freshness.py), so a change to any key in it, exclude-newer and only-binary included, makes the lockfile out of date. pdm lock --check and pdm install --check then exit with 1 (\"Lockfile doesn't satisfy the project requirements\"), pdm install without --check locks again first and pdm sync only warns (check_lockfile in src/pdm/cli/actions.py) until pdm lock runs again; with exclude-newer set, pdm lock resolves every package again (src/pdm/cli/commands/lock.py)."),
+		lockHash: leftovers$3.verified({
+			key: ["metadata", "content_hash"],
+			separator: ":",
+			inputs: ["metadata", "lock_inputs"],
+			inputsSetting: [
+				"tool",
+				"pdm",
+				"resolution",
+				"lock_inputs"
+			],
+			workspace: [
+				"tool",
+				"pdm",
+				"workspace"
+			],
+			project: ["project"],
+			fields: [
+				{
+					name: "sources",
+					path: [
+						"tool",
+						"pdm",
+						"source"
+					],
+					missing: []
+				},
+				{
+					name: "dependencies",
+					path: ["project", "dependencies"],
+					missing: []
+				},
+				{
+					name: "optional-dependencies",
+					path: ["project", "optional-dependencies"],
+					missing: {}
+				},
+				{
+					name: "requires-python",
+					path: ["project", "requires-python"],
+					missing: ""
+				},
+				{
+					name: "resolution",
+					path: [
+						"tool",
+						"pdm",
+						"resolution"
+					],
+					missing: {}
+				}
+			],
+			groups: {
+				name: "dev-dependencies",
+				tables: [["dependency-groups"], [
+					"tool",
+					"pdm",
+					"dev-dependencies"
+				]],
+				separators: "[^A-Za-z0-9]+"
+			}
+		}, `${PDM}/src/pdm/project/project_file.py`, "PyProject.content_hash: json.dumps(dump_data, sort_keys=True) of sources (tool.pdm.source, default []), dependencies, dev-dependencies, optional-dependencies (default {}), requires-python (default \"\") and resolution (tool.pdm.resolution, default {}), encoded as UTF-8 and hashed with hashlib (sha256). dev-dependencies are the [dependency-groups] tables, each name normalized (normalize_name in src/pdm/utils.py: re.sub(r\"[^A-Za-z0-9]+\", \"-\", name).lower(); a name twice is an error), then the lists of tool.pdm.dev-dependencies appended under their normalized names. pdm.lock keeps it as [metadata] content_hash = \"sha256:<hex>\" (src/pdm/project/lockfile/pdmlock.py). Project.is_lockfile_fresh (src/pdm/project/core.py) compares it only while pdm.lock has no metadata.lock_inputs and resolution.lock_inputs is not true; a workspace root (tool.pdm.workspace set, WorkspaceManager.is_root in src/pdm/project/workspace.py) hashes the members too. PDM reads pyproject.toml with tomllib (src/pdm/project/toml_file.py), and without a [project] table it converts a Poetry or Flit project first (_convert_pyproject)."),
 		uvMode: uncertain$6({
 			file: "pdm.toml",
 			key: "use_uv"
@@ -4017,6 +4078,7 @@ const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor, version) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll(".", "")}`;
 const user$1 = verifiedOn("2026-10-31");
 const release13$1 = verifiedOn("2026-11-01");
+const final = verifiedOn("2026-11-01");
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = [
 	"1",
@@ -4407,6 +4469,99 @@ const uv$1 = {
 			lock: "uv lock",
 			failing: ["uv sync --locked", "uv lock --check"]
 		}, SERIALIZE, "uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again (\"Resolving despite existing lockfile due to addition of global exclude newer\", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded."),
+		lockOptions: final.verified({
+			table: "options",
+			timestamp: "exclude-newer",
+			span: "exclude-newer-span",
+			packages: "exclude-newer-package",
+			packageTimestamp: "timestamp",
+			packageSpan: "span",
+			placeholder: "0001-01-01T00:00:00Z"
+		}, SERIALIZE, "write_options writes [options] when exclude-newer is set: an absolute value as exclude-newer = \"<timestamp>\"; a relative one as exclude-newer = the placeholder \"0001-01-01T00:00:00Z\" (with the comment \"This has no effect and is included for backwards compatibility when using relative exclude-newer values\") and exclude-newer-span = the span as jiff prints it, ISO 8601 (P3D, P1W); since 0.11.8 exclude-newer may be missing next to exclude-newer-span. [options.exclude-newer-package] holds name = \"<timestamp>\", name = { timestamp = <placeholder>, span = \"P3D\" } or name = false. The placeholder is ExcludeNewerValue::PLACEHOLDER in crates/uv-distribution-types/src/exclude_newer.rs."),
+		lockComparison: final.verified({
+			spans: "fieldwise",
+			absolute: "earlier",
+			packages: "locked-or-recorded",
+			dateOnly: "next-day-system-time-zone"
+		}, `${UV}/crates/uv-configuration/src/exclude_newer.rs`, "ExcludeNewer::compare (lock against the settings, in crates/uv-lock-operations/src/validated_lock.rs after lock.filter_exclude_newer) resolves again on an added or removed global value, a span that differs (ExcludeNewerSpan compares self.0.fieldwise() == other.0.fieldwise() in crates/uv-distribution-types/src/exclude_newer.rs, so \"7 days\" and P1W differ), a span added to or removed from an absolute value, and an absolute timestamp that is earlier than the locked one (a later one does not count); only a new timestamp of the same span is ignored. Per package (only names of locked packages and names the lock already records, filter_exclude_newer in crates/uv-lock/src/lock/mod.rs): a cutoff removed, a disabled one enabled, an enabled one added, or a changed value; an enabled one that is now disabled does not count. A date without a time (2026-01-01) is the start of the next day in the system time zone, so the timestamp it gives depends on the machine. Messages such as \"Resolving despite existing lockfile due to change of exclude newer span from `P3D` to `P1W`\" come from the Display of ExcludeNewerValueChange."),
+		spanSyntax: final.verified({
+			friendlyUnits: {
+				years: [
+					"years",
+					"year",
+					"yrs",
+					"yr",
+					"y"
+				],
+				months: [
+					"months",
+					"month",
+					"mos",
+					"mo"
+				],
+				weeks: [
+					"weeks",
+					"week",
+					"wks",
+					"wk",
+					"w"
+				],
+				days: [
+					"days",
+					"day",
+					"d"
+				],
+				hours: [
+					"hours",
+					"hour",
+					"hrs",
+					"hr",
+					"h"
+				],
+				minutes: [
+					"minutes",
+					"minute",
+					"mins",
+					"min",
+					"m"
+				],
+				seconds: [
+					"seconds",
+					"second",
+					"secs",
+					"sec",
+					"s"
+				],
+				milliseconds: [
+					"milliseconds",
+					"millisecond",
+					"millis",
+					"milli",
+					"msecs",
+					"msec",
+					"ms"
+				],
+				microseconds: [
+					"microseconds",
+					"microsecond",
+					"micros",
+					"micro",
+					"usecs",
+					"usec",
+					"us"
+				],
+				nanoseconds: [
+					"nanoseconds",
+					"nanosecond",
+					"nanos",
+					"nano",
+					"nsecs",
+					"nsec",
+					"ns"
+				]
+			},
+			rejectedUnits: ["years", "months"]
+		}, "https://github.com/BurntSushi/jiff/blob/0.2.37/crates/jiff/src/fmt/friendly/mod.rs", "jiff 0.2.37 is the version in Cargo.lock of uv 0.13.6. uv parses a relative exclude-newer with jiff's Span (FromStr of ExcludeNewerValue tries a timestamp, then a date, then a span), which reads the friendly format (\"3 days\", \"1w\", \"2 weeks, 3 days\", with each unit at most once, larger units first, a leading sign or a trailing \"ago\") and ISO 8601 (P3D, PT36H). Span prints as ISO 8601 by default, which is what uv.lock records. uv rejects years and months (\"use days instead\", crates/uv-distribution-types/src/exclude_newer.rs). The friendly format also has HH:MM:SS and fractions of hours and smaller units, which depcurfew does not read."),
 		commandLine: verified$2({
 			add: [
 				["uv", "add"],
@@ -18164,6 +18319,21 @@ const UNREADABLE_WARNINGS = {
 	"workspace-outside-repository": "Keep workspace packages inside the repository",
 	"unreadable-include": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them"
 };
+/**
+* What to do about each warning of detection, by its code: the fixes above for files that could not be read, and the
+* others. One source for the warnings of explain and the notices of doctor (decision D-116).
+*/
+const WARNING_FIXES = {
+	...UNREADABLE_WARNINGS,
+	"nothing-detected": `Run depcurfew explain in the directory of the project, or list the directories of the projects under projects in ${POLICY_FILE}`,
+	"invalid-package-manager": "Write packageManager in package.json as name@version, with a package manager depcurfew knows",
+	"package-manager-assumed": "Commit the lockfile, or name the package manager and its version in packageManager in package.json",
+	"yarn-classic-unsupported": "Move to Yarn 2 or later, or to another package manager depcurfew configures",
+	"renovate-config-in-package-json": "Move the renovate key of package.json to renovate.json",
+	"multiple-lockfiles": "Remove the lockfiles of the package managers the project does not use",
+	"package-manager-mismatch": "Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager",
+	"python-tool-unknown": `Commit the lockfile of the tool that installs the project, or name the tool in targets in ${POLICY_FILE}`
+};
 
 // src/check/semver.ts
 const VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
@@ -18895,7 +19065,7 @@ function managerSources$1(context) {
 				repository: view.repository,
 				detection: view.detection,
 				project: view.directory,
-				notice: (message, file) => context.notice(relocate(message), file === void 0 ? void 0 : inProject(view.directory, file))
+				notice: (message, file, fix) => context.notice(relocate(message), file === void 0 ? void 0 : inProject(view.directory, file), fix === void 0 ? void 0 : relocate(fix))
 			},
 			managers: view.detection.packageManagers.filter((entry) => entry.supported),
 			relocate
@@ -20680,6 +20850,13 @@ function getVersion() {
 
 // src/self-version.ts
 const NAME = "depcurfew";
+/**
+* The tools directory the README recommends for a repository without package.json in its root: depcurfew pinned in
+* its own package.json and package-lock.json there (decision D-116).
+*/
+const TOOLS_DIRECTORY = ".claude/depcurfew";
+/** The project's copy as the hook of the README runs it, relative to its directory. */
+const INSTALLED_CLI = `node_modules/${NAME}/dist/cli.js`;
 function lineOf(text, needle) {
 	const index = text.indexOf(needle);
 	return index < 0 ? void 0 : text.slice(0, index).split("\n").length;
@@ -20695,19 +20872,22 @@ function versionIn(text, read) {
 	return typeof version === "string" && parseVersion(version) !== void 0 ? version : void 0;
 }
 const field = (value, key) => typeof value === "object" && value !== null && Object.hasOwn(value, key) ? value[key] : void 0;
-/** The installed copy in node_modules, else the version package-lock.json records; undefined when neither has one. */
-function projectCopy(repository) {
-	const manifest = `node_modules/${NAME}/package.json`;
+/** The copy of one directory: installed in node_modules, else the version package-lock.json records. */
+function copyIn(repository, directory) {
+	const prefix = directory === void 0 ? "" : `${directory}/`;
+	const at = directory === void 0 ? {} : { directory };
+	const manifest = `${prefix}node_modules/${NAME}/package.json`;
 	const installedText = repository.isFile(manifest) ? repository.readText(manifest) : void 0;
 	if (installedText !== void 0) {
 		const version = versionIn(installedText, (document) => field(document, "version"));
 		if (version !== void 0) return {
 			version,
 			file: manifest,
-			...lineAt(installedText, "\"version\"")
+			...lineAt(installedText, "\"version\""),
+			...at
 		};
 	}
-	const lockfile = "package-lock.json";
+	const lockfile = `${prefix}package-lock.json`;
 	const lockText = repository.isFile(lockfile) ? repository.readText(lockfile) : void 0;
 	if (lockText !== void 0) {
 		const key = `node_modules/${NAME}`;
@@ -20715,9 +20895,22 @@ function projectCopy(repository) {
 		if (version !== void 0) return {
 			version,
 			file: lockfile,
-			...lineAt(lockText, `"${key}"`)
+			...lineAt(lockText, `"${key}"`),
+			...at
 		};
 	}
+}
+/**
+* The newest copy of depcurfew the repository installs or pins: in the project (node_modules, else package-lock.json)
+* or in the tools directory of the README (TOOLS_DIRECTORY, decision D-116); undefined when neither has one.
+*/
+function projectCopy(repository) {
+	return [copyIn(repository, void 0), copyIn(repository, TOOLS_DIRECTORY)].filter((copy) => copy !== void 0).reduce((newest, copy) => newest === void 0 || isNewer(copy.version, newest.version) ? copy : newest, void 0);
+}
+function isNewer(version, than) {
+	const a = parseVersion(version);
+	const b = parseVersion(than);
+	return a !== void 0 && b !== void 0 && compareVersions$1(a, b) > 0;
 }
 function lineAt(text, needle) {
 	const line = lineOf(text, needle);
@@ -20730,13 +20923,15 @@ function lineAt(text, needle) {
 */
 function outdatedText(copy, command, line = false) {
 	const at = line && copy.line !== void 0 ? `, line ${copy.line}` : "";
-	const pinned = copy.file === "package-lock.json";
-	const where = pinned ? `is pinned in ${copy.file}${line && copy.line !== void 0 ? ` (line ${copy.line})` : ""}` : `is installed in the project (${copy.file}${at})`;
+	const pinned = copy.file.endsWith("package-lock.json");
+	const where = pinned ? `is pinned in ${copy.file}${line && copy.line !== void 0 ? ` (line ${copy.line})` : ""}` : `is installed in ${copy.directory ?? "the project"} (${copy.file}${at})`;
 	const knows = command === "apply" ? "settings that version writes" : "settings that version writes or checks";
 	const runner = command === "apply" ? "apply" : "this check";
+	const update = `update the depcurfew you run to ${copy.version} or later`;
+	const tools = copy.directory === void 0 ? void 0 : `node ${copy.directory}/${INSTALLED_CLI} ${command}`;
 	return {
 		message: `depcurfew ${copy.version} ${where}, but the depcurfew running ${runner} is older, so it may not know ${knows}`,
-		fix: pinned ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or update the depcurfew you run to ${copy.version} or later` : `Run the project's copy (npx depcurfew ${command}), or update the depcurfew you run to ${copy.version} or later`
+		fix: tools !== void 0 ? pinned ? `Install it in ${copy.directory} (cd ${copy.directory} && npm ci --ignore-scripts), then run that copy (${tools}), or ${update}` : `Run that copy (${tools}), or ${update}` : pinned ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or ${update}` : `Run the project's copy (npx depcurfew ${command}), or ${update}`
 	};
 }
 /** Whether the project's copy is newer than the depcurfew that runs. */
@@ -21259,7 +21454,7 @@ const projectsShape = list(text({
 });
 /** Which findings make depcurfew doctor exit with 1 (decision D-112). */
 const FAIL_ON_LEVELS = ["error", "warning"];
-const doctorShape = object({ failOn: withDefault(oneOfStrings(FAIL_ON_LEVELS, { description: "Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: \"error\" (only errors) or \"warning\" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it." }), "error") }, { description: "How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes \"failOn\": \"warning\"." });
+const doctorShape = object({ failOn: optional(oneOfStrings(FAIL_ON_LEVELS, { description: "Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: \"error\" (only errors, also when left out) or \"warning\" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it." })) }, { description: "How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes \"failOn\": \"warning\"." });
 const policyShape = object({
 	$schema: optional(anyString({ description: "JSON Schema of this file, for editor support." })),
 	version: required(literal(1, { description: "Version of the policy format." })),
@@ -22920,7 +23115,7 @@ function writeTomlBlock(body, table, entries, managedKeys, label, scope = "proje
 		} else if (!topLevel && current === void 0 && (key === table || key.startsWith(`${table}.`) || table.startsWith(`${key}.`))) definedAtTop = true;
 		index = end;
 	}
-	if (entries.length === 0) return joinLines(lines);
+	if (entries.length === 0) return joinLines(withoutCreatedTable(lines, table, removed));
 	if (topLevel) {
 		const firstTable = boundaries[0] ?? lines.length;
 		if (removed.at !== void 0 && removed.at <= firstTable) return joinLines(topBlock(lines, removed.at, entries, removed.separated, marker));
@@ -22947,6 +23142,27 @@ function writeTomlBlock(body, table, entries, managedKeys, label, scope = "proje
 	if (end === -1) end = lines.length;
 	while (end > headerIndex + 1 && lines[end - 1]?.trim() === "") end -= 1;
 	return joinLines(insertBlock(lines, end, entries, void 0, marker));
+}
+/**
+* The table apply created for its block goes away with the block when nothing else is in it (decision D-116). apply
+* writes such a table as its header with the block right below it, and the blank line before the header; a block it
+* added to a table that was there follows a blank line after the header, which removeBlockAt reports as `separated`.
+* So a table with anything else in it, with a comment on its header line, or with the block apart from the header, is
+* the user's and stays, also when it is empty.
+*/
+function withoutCreatedTable(lines, table, removed) {
+	const at = removed.at;
+	if (table === "" || at === void 0 || removed.separated || at === 0) return lines;
+	const header = at - 1;
+	if (lines[header]?.trim() !== `[${table}]`) return lines;
+	let end = at;
+	while (end < lines.length && !HEADER.test(lines[end] ?? "")) {
+		if ((lines[end] ?? "").trim() !== "") return lines;
+		end += 1;
+	}
+	const rest = [...lines.slice(0, header), ...lines.slice(at)];
+	if (header > 0 && rest[header - 1]?.trim() === "" && (header === rest.length || rest[header]?.trim() === "")) rest.splice(header - 1, 1);
+	return rest;
 }
 /**
 * A top-level block, with a blank line before a table header that follows it right away. A key that follows it stays
@@ -23489,7 +23705,7 @@ function compactDuration(value) {
 	return `${count}${letter}`;
 }
 const isStringList = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-function isLockedSettings(value) {
+function isLockedSettings$1(value) {
 	return isRecord(value) && (value["settings"] === "table" || isStringList(value["settings"])) && typeof value["lock"] === "string" && isStringList(value["failing"]);
 }
 /** A TOML value for comparison: a date-time as written. */
@@ -23504,7 +23720,7 @@ function comparable(value) {
 function relockWarning(context, file, table, edit) {
 	const { tool } = context;
 	if (tool.extra?.["lockedSettings"] === void 0) return;
-	const locked = extraOf(tool, "lockedSettings", isLockedSettings);
+	const locked = extraOf(tool, "lockedSettings", isLockedSettings$1);
 	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.exists(name));
 	if (lockfile === void 0) return;
 	const body = context.exists(file) ? context.read(file) : "";
@@ -23993,12 +24209,182 @@ const poetry = (context) => {
 	return minutes;
 };
 
+// src/doctor/renovate.ts
+const isStrings$2 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$2(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
+const isPresetFact = (value) => isRecord(value) && isStrings$2(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
+const isInternal = (value) => isRecord(value) && isStrings$2(value["prefixes"]) && isStrings$2(value["settingDelay"]);
+function readRenovateConfig(text, file, base) {
+	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
+	const extendsList = jsonSetting(text, [...base, "extends"]);
+	const list = jsonSetting(text, [...base, "packageRules"]);
+	const lines = Array.isArray(list?.value) ? jsonElementLines(text, [...base, "packageRules"]) : void 0;
+	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
+		index,
+		rule,
+		line: lines?.[index] ?? list.line
+	}] : []) : [];
+	return {
+		file,
+		base,
+		top,
+		extends: {
+			presets: isStrings$2(extendsList?.value) ? extendsList.value : [],
+			line: extendsList?.line ?? 1
+		},
+		rules
+	};
+}
+/**
+* Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
+* case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
+*/
+function matchesPattern(input, pattern, negation) {
+	const negative = pattern.startsWith(negation);
+	const body = negative ? pattern.slice(negation.length) : pattern;
+	if (!negative && body === "*") return true;
+	const regex = /^\/(.+)\/(i?)$/u.exec(body);
+	if (regex !== null) {
+		let result;
+		try {
+			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
+		} catch {
+			return;
+		}
+		return negative ? !result : result;
+	}
+	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
+	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
+	return negative ? !result : result;
+}
+/** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
+function matchesList(input, patterns, negation) {
+	if (patterns.length === 0) return false;
+	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
+	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
+	const results = positive.map((pattern) => matchesPattern(input, pattern, negation));
+	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
+	const excluded = negative.map((pattern) => matchesPattern(input, pattern, negation));
+	if (excluded.includes(false)) return false;
+	return excluded.includes(void 0) ? void 0 : true;
+}
+/** Patterns that match every package name: *, **, @*\/*, npm:*, and regexes like /.*\/. */
+function matchesEveryName(pattern) {
+	const name = pattern.replace(/^(npm|jsr):/u, "");
+	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
+}
+/**
+* The update types for which a rule applies to every package of `ecosystem`, or undefined when it narrows the
+* packages (or depcurfew cannot tell).
+*/
+function ruleScope(bot, rule, ecosystem) {
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$2);
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
+	const known = /* @__PURE__ */ new Set([
+		...matching.packageMatchers,
+		matching.datasourceMatcher,
+		matching.updateTypeMatcher
+	]);
+	if (matchers.some((key) => !known.has(key))) return void 0;
+	let names = { kind: "all" };
+	for (const key of matching.packageMatchers) {
+		if (!(key in rule)) continue;
+		const patterns = rule[key];
+		if (!isStrings$2(patterns) || patterns.length === 0) return void 0;
+		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
+		const broad = positive.find(matchesEveryName);
+		if (positive.length > 0 && broad === void 0) return void 0;
+		if (broad !== void 0 && names.kind === "all") names = {
+			kind: "pattern",
+			pattern: broad
+		};
+		else if (positive.length === 0) names = {
+			kind: "except",
+			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
+		};
+	}
+	if (matching.datasourceMatcher in rule) {
+		const patterns = rule[matching.datasourceMatcher];
+		const datasource = datasources[ecosystem];
+		if (!isStrings$2(patterns) || typeof datasource !== "string" || matchesList(datasource, patterns, matching.negation) !== true) return void 0;
+	}
+	let types = updateTypes;
+	if (matching.updateTypeMatcher in rule) {
+		const patterns = rule[matching.updateTypeMatcher];
+		if (!isStrings$2(patterns)) return void 0;
+		types = updateTypes.filter((type) => matchesList(type, patterns, matching.negation) === true);
+	}
+	return types.length === 0 ? void 0 : {
+		updateTypes: types,
+		names,
+		matchers
+	};
+}
+function presetName(preset) {
+	return preset.replace(/\(.*\)$/u, "");
+}
+/**
+* The delay Renovate applies to every package of `ecosystem`, for each delayed update type. Without a top-level value
+* or a rule, an update type has no entry: Renovate does not wait.
+*/
+function renovateDelay(bot, config, ecosystem) {
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$2);
+	const internal = extraOf(bot, "internalPresets", isInternal);
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const byType = /* @__PURE__ */ new Map();
+	const set = (types, source) => {
+		for (const type of types) byType.set(type, source);
+	};
+	const path = [...config.base, "minimumReleaseAge"].join(".");
+	if (config.top !== void 0) set(updateTypes, {
+		value: config.top.value,
+		origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`,
+		line: config.top.line
+	});
+	for (const key of ["minimumReleaseAgePresets", "pypiPresets"]) {
+		const fact = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresetFact);
+		const preset = fact === void 0 ? void 0 : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
+		if (fact === void 0 || preset === void 0 || datasources[ecosystem] !== fact.datasource) continue;
+		set(updateTypes, {
+			value: fact.value,
+			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
+			line: config.extends.line
+		});
+	}
+	let repositorySets = config.top !== void 0;
+	for (const { index, line, rule } of config.rules) {
+		if (!("minimumReleaseAge" in rule)) continue;
+		const scope = ruleScope(bot, rule, ecosystem);
+		if (scope === void 0) continue;
+		repositorySets = true;
+		set(scope.updateTypes, {
+			value: rule["minimumReleaseAge"],
+			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
+			line,
+			rule: index
+		});
+	}
+	const unreadable = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
+	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
+	if (unreadable !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
+		known: false,
+		preset: unreadable,
+		line: config.extends.line
+	};
+	return {
+		known: true,
+		byType
+	};
+}
+
 // src/apply/generators/renovate.ts
 const RULE_DESCRIPTION = "depcurfew: packages excluded from minimumReleaseAge";
 const PYTHON_RULE_DESCRIPTION = "depcurfew: Python packages excluded from minimumReleaseAge";
 const isString = (value) => typeof value === "string";
 const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
-const isPath = (value) => Array.isArray(value) && value.every(isString);
+const isPath$1 = (value) => Array.isArray(value) && value.every(isString);
 const renovate = (context, duration) => {
 	const { tool, policy } = context;
 	if (policy.cooldown === void 0 || duration === void 0) return;
@@ -24014,7 +24400,7 @@ const renovate = (context, duration) => {
 	const setting = settingOf(tool.cooldown.setting) ?? "minimumReleaseAge";
 	const rule = extraOf(tool, "excludeRule", isRule);
 	const descriptionKey = extraOf(tool, "ruleDescription", isString);
-	const securityPath = extraOf(tool, "securityUpdatesSetting", isPath);
+	const securityPath = extraOf(tool, "securityUpdatesSetting", isPath$1);
 	const datasources = extraOf(tool, "datasources", isRecord);
 	const excluded = policy.cooldown.exclude;
 	const patterns = exclusions(context, patternsFor(excluded, "npm")) ?? [];
@@ -24074,6 +24460,7 @@ const renovate = (context, duration) => {
 		context.snippet(where, snippet());
 		return;
 	}
+	shorterRules(context, file, result.value, rule.list, descriptionKey);
 	const json = context.json(file);
 	json.set([setting], result.value);
 	for (const managed of managedRules) {
@@ -24088,6 +24475,66 @@ const renovate = (context, duration) => {
 	}
 	json.set(securityPath, security);
 };
+const ECOSYSTEM_LABELS = {
+	npm: "npm",
+	pypi: "Python"
+};
+/**
+* packageRules entries that apply does not manage and that give every package of a registry, or some update types, a
+* shorter delay than the one apply writes: Renovate uses them, and apply never changes entries it did not write, so it
+* warns (decision D-116). They are found as doctor's bot-cooldown-mismatch finds them (renovateDelay), on the file as
+* it is, with the top-level delay apply writes and without depcurfew's own exclusion rules.
+*/
+function shorterRules(context, file, written, list, descriptionKey) {
+	const { tool } = context;
+	const config = readRenovateConfig(context.read(file), file, []);
+	const own = /* @__PURE__ */ new Set([RULE_DESCRIPTION, PYTHON_RULE_DESCRIPTION]);
+	const planned = {
+		...config,
+		top: {
+			value: written,
+			line: config.top?.line ?? 1
+		},
+		rules: config.rules.filter((entry) => !own.has(entry.rule[descriptionKey]))
+	};
+	const wanted = delayMinutes(tool, written, latestVersion$1(tool));
+	if (!wanted.ok) return;
+	const ecosystems = ["npm", "pypi"].filter((ecosystem) => context.tools.some((entry) => entry.kind === "package-manager" && context.targets.has(entry.id) && ecosystemOfTool(entry) === ecosystem));
+	const found = /* @__PURE__ */ new Map();
+	for (const ecosystem of ecosystems) {
+		const delay = renovateDelay(tool, planned, ecosystem);
+		if (!delay.known) continue;
+		for (const [type, source] of delay.byType) {
+			if (source.rule === void 0) continue;
+			const minutes = delayMinutes(tool, source.value, latestVersion$1(tool));
+			if (!minutes.ok || minutes.minutes >= wanted.minutes) continue;
+			const entry = found.get(source.rule) ?? {
+				line: source.line,
+				value: source.value,
+				types: /* @__PURE__ */ new Set(),
+				ecosystems: /* @__PURE__ */ new Set()
+			};
+			entry.types.add(type);
+			entry.ecosystems.add(ecosystem);
+			found.set(source.rule, entry);
+		}
+	}
+	const updateTypes = extraOf(tool, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every(isString));
+	const describe = (minutes) => minutes === 0 ? "no delay" : formatMinutes(minutes);
+	for (const [index, entry] of [...found].sort(([a], [b]) => a - b)) {
+		const types = updateTypes.filter((type) => entry.types.has(type));
+		const scope = types.length === updateTypes.length ? "updates" : `${listing$1(types)} updates`;
+		context.warn({
+			code: "bot-rule-shortens-delay",
+			location: {
+				file,
+				line: entry.line
+			},
+			message: `${context.name}: ${list}[${index}] in ${file} (line ${entry.line}) sets minimumReleaseAge: ${JSON.stringify(entry.value)} for ${scope} of ${listing$1([...entry.ecosystems].map((ecosystem) => ECOSYSTEM_LABELS[ecosystem]))} packages, shorter than the ${describe(wanted.minutes)} depcurfew apply writes for ${context.name}; ${context.name} uses the rule, and depcurfew apply does not change entries it did not write`,
+			fix: `Make minimumReleaseAge in ${list}[${index}] of ${file} at least ${describe(wanted.minutes)}, or limit the rule to the packages that need a shorter delay`
+		});
+	}
+}
 
 // src/apply/generators/uv.ts
 const uv = (context) => {
@@ -24165,6 +24612,19 @@ const yarn = (context) => {
 	if (policy.installScripts !== void 0) {
 		const scripts = extraOf(tool, "scriptsSwitch", isScriptsSwitch);
 		const deny = policy.installScripts.default === "deny";
+		const current = yaml.get([scripts.setting]);
+		if (deny && current === scripts.allow) {
+			const found = context.exists(file) ? yamlSetting(context.read(file), [scripts.setting]) : void 0;
+			context.warn({
+				code: "allow-all-replaced",
+				...found === void 0 ? {} : { location: {
+					file,
+					line: found.line
+				} },
+				message: `${context.name}: ${scripts.setting}: ${JSON.stringify(current)} in ${file}${found === void 0 ? "" : ` (line ${found.line})`} allowed every install script; set to ${JSON.stringify(scripts.deny)} because the policy denies install scripts`,
+				fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
+			});
+		}
 		yaml.set([scripts.setting], deny ? scripts.deny : scripts.allow);
 		context.writes("installScripts", scripts.setting, file);
 		const template = settingOf(tool.installScripts.allowList.setting);
@@ -25108,6 +25568,58 @@ function warningText(warning) {
 	return warning.fix === void 0 ? warning.message : `${warning.message}. ${warning.fix}`;
 }
 
+// src/doctor/positions.ts
+/**
+* Where a parser says the error is, from its message: the yaml package and depcurfew's own checks write "at line 3,
+* column 1", the TOML reader "at line 4", V8's JSON.parse "(line 2 column 5)". The location gets it, so that SARIF and
+* the annotations point at the line (decision D-116); undefined when the message names none.
+*/
+function positionInMessage(message) {
+	const match = /\bat line (\d+)(?:, column (\d+))?/u.exec(message) ?? /\(line (\d+) column (\d+)\)/u.exec(message);
+	if (match === null) return void 0;
+	const line = Number(match[1]);
+	const column = match[2] === void 0 ? void 0 : Number(match[2]);
+	if (!Number.isSafeInteger(line) || line < 1) return void 0;
+	return column === void 0 || !Number.isSafeInteger(column) || column < 1 ? { line } : {
+		line,
+		column
+	};
+}
+
+// src/doctor/policy-lines.ts
+/** A path as formatPath writes it, as segments; undefined for "(root)" and anything it does not write. */
+function parseIssuePath(path) {
+	if (path === "(root)") return [];
+	const segments = [];
+	const pattern = /^(?:\.?([A-Za-z_$][\w$]*)|\[(\d+)\]|\[("(?:[^"\\]|\\.)*")\])/u;
+	let rest = path;
+	while (rest !== "") {
+		const match = pattern.exec(rest);
+		if (match === null) return void 0;
+		if (match[1] !== void 0) segments.push(match[1]);
+		else if (match[2] !== void 0) segments.push(Number(match[2]));
+		else segments.push(JSON.parse(match[3] ?? "\"\""));
+		rest = rest.slice(match[0].length);
+	}
+	return segments;
+}
+/** The line of the first issue that has one: the field it names, or the nearest field around it, or a syntax error's own. */
+function policyIssueLine(text, issues) {
+	for (const issue of issues) {
+		const segments = parseIssuePath(issue.path);
+		if (segments === void 0) continue;
+		if (segments.length === 0) {
+			const position = positionInMessage(issue.message);
+			if (position !== void 0) return position.line;
+			continue;
+		}
+		for (let length = segments.length; length > 0; length--) {
+			const found = jsonSetting(text, segments.slice(0, length));
+			if (found !== void 0) return found.line;
+		}
+	}
+}
+
 // src/apply/index.ts
 const DETAILS = /* @__PURE__ */ new WeakMap();
 /** What planApply configured for this report; undefined for a report it did not make. */
@@ -25465,11 +25977,14 @@ var PolicyError = class extends Error {
 	code;
 	/** What to do, when the message does not say it. */
 	fix;
-	constructor(message, issues = [], code = "policy-invalid", fix) {
+	/** The line of the policy file the first problem concerns, when it can be found (decision D-116). */
+	line;
+	constructor(message, issues = [], code = "policy-invalid", fix, line) {
 		super(message);
 		this.issues = issues;
 		this.code = code;
 		this.fix = fix;
+		this.line = line;
 	}
 	/** The message and what to do, as one line of text. */
 	get text() {
@@ -25487,7 +26002,7 @@ function loadPolicyIfPresent(root) {
 	if (file.status === "missing") return void 0;
 	if (file.status === "unreadable") throw new PolicyError(file.reason, [], "policy-unreadable");
 	const result = parsePolicy(file.text);
-	if (!result.ok) throw new PolicyError(`${POLICY_FILE} is invalid`, result.issues.map(formatIssue));
+	if (!result.ok) throw new PolicyError(`${POLICY_FILE} is invalid`, result.issues.map(formatIssue), "policy-invalid", void 0, policyIssueLine(file.text, result.issues));
 	return result.policy;
 }
 
@@ -25566,6 +26081,10 @@ async function createCheckRun(env, token, content, fetchImpl) {
 	const apiUrl = env[facts.variables.apiUrl];
 	const repository = env[facts.variables.repository];
 	const sha = checkRunSha(env, facts);
+	if (apiUrl !== void 0 && apiUrl !== "" && !/^https:\/\//u.test(apiUrl)) {
+		const name = facts.variables.apiUrl;
+		return `depcurfew: the depcurfew doctor check was not added: ${name} is not an https URL, and depcurfew sends the token only over https; set ${name} to the https address of the GitHub API, or leave it to the runner, which sets it\n`;
+	}
 	if (apiUrl === void 0 || !/^https:\/\//u.test(apiUrl) || repository === void 0 || !/^[\w.-]+\/[\w.-]+$/u.test(repository) || sha === void 0) return `depcurfew: the depcurfew doctor check was not added: ${facts.variables.apiUrl}, ${facts.variables.repository} or the commit is not set, as outside GitHub Actions\n`;
 	const permission = Object.entries(facts.permission).map(([name, level]) => `${name}: ${level}`).join(", ");
 	const base = apiUrl.replace(/\/+$/u, "");
@@ -25742,7 +26261,7 @@ const COLORED = {
 };
 
 // src/doctor/fail-on.ts
-/** doctor.failOn of a valid policy; undefined without a policy or without the section. */
+/** doctor.failOn of a valid policy; undefined without a policy, without the section or without the field in it (decision D-116). */
 function policyFailOn(policy) {
 	return policy?.doctor?.failOn;
 }
@@ -25871,10 +26390,14 @@ const STRICT_NOTE = "--strict: warnings count as failures, so depcurfew doctor e
 */
 function renderText(report, rules, colors = PLAIN, options = {}) {
 	const counts = countLevels(report.findings);
+	const shown = {
+		...counts,
+		note: counts.note + report.notices.length
+	};
 	const lines = [];
 	if (report.findings.length === 0) lines.push(colors.green("No problems found."));
 	else {
-		const count = (level) => counts[level] === 0 ? plural$1(0, level) : levelColor(level, colors)(plural$1(counts[level], level));
+		const count = (level) => shown[level] === 0 ? plural$1(0, level) : levelColor(level, colors)(plural$1(shown[level], level));
 		lines.push(`${count("error")}, ${count("warning")}, ${count("note")}`);
 		const explanation = options.failOn === void 0 ? void 0 : failOnExplanation(options.failOn, counts);
 		if (explanation !== void 0) lines.push(printable(explanation.message), `  ${colors.green("fix:")} ${printable(explanation.fix)}`);
@@ -25891,179 +26414,15 @@ function renderText(report, rules, colors = PLAIN, options = {}) {
 			if (help !== void 0) lines.push(`    ${colors.green("fix:")} ${printable(help)}`);
 		}
 	}
-	if (report.notices.length > 0) lines.push("", colors.bold("Notes:"), ...report.notices.map((notice) => `  ${printable(notice.message)}`));
+	if (report.notices.length > 0) {
+		lines.push("", colors.bold("Notes:"));
+		for (const notice of report.notices) {
+			lines.push(`  ${levelColor("note", colors)("note")} ${printable(notice.message)} ${colors.dim(`(${printable(notice.code)})`)}`);
+			if (notice.fix !== void 0) lines.push(`    ${colors.green("fix:")} ${printable(notice.fix)}`);
+		}
+	}
 	if (report.checked !== void 0) lines.push("", ...checkedLines(report.checked).map((line, index) => index === 0 ? colors.bold(printable(line)) : printable(line)));
 	return `${lines.join("\n")}\n`;
-}
-
-// src/doctor/renovate.ts
-const isStrings$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$1(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
-const isPresetFact = (value) => isRecord(value) && isStrings$1(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
-const isInternal = (value) => isRecord(value) && isStrings$1(value["prefixes"]) && isStrings$1(value["settingDelay"]);
-function readRenovateConfig(text, file, base) {
-	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
-	const extendsList = jsonSetting(text, [...base, "extends"]);
-	const list = jsonSetting(text, [...base, "packageRules"]);
-	const lines = Array.isArray(list?.value) ? jsonElementLines(text, [...base, "packageRules"]) : void 0;
-	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
-		index,
-		rule,
-		line: lines?.[index] ?? list.line
-	}] : []) : [];
-	return {
-		file,
-		base,
-		top,
-		extends: {
-			presets: isStrings$1(extendsList?.value) ? extendsList.value : [],
-			line: extendsList?.line ?? 1
-		},
-		rules
-	};
-}
-/**
-* Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
-* case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
-*/
-function matchesPattern(input, pattern, negation) {
-	const negative = pattern.startsWith(negation);
-	const body = negative ? pattern.slice(negation.length) : pattern;
-	if (!negative && body === "*") return true;
-	const regex = /^\/(.+)\/(i?)$/u.exec(body);
-	if (regex !== null) {
-		let result;
-		try {
-			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
-		} catch {
-			return;
-		}
-		return negative ? !result : result;
-	}
-	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
-	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
-	return negative ? !result : result;
-}
-/** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
-function matchesList(input, patterns, negation) {
-	if (patterns.length === 0) return false;
-	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
-	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
-	const results = positive.map((pattern) => matchesPattern(input, pattern, negation));
-	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
-	const excluded = negative.map((pattern) => matchesPattern(input, pattern, negation));
-	if (excluded.includes(false)) return false;
-	return excluded.includes(void 0) ? void 0 : true;
-}
-/** Patterns that match every package name: *, **, @*\/*, npm:*, and regexes like /.*\/. */
-function matchesEveryName(pattern) {
-	const name = pattern.replace(/^(npm|jsr):/u, "");
-	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
-}
-/**
-* The update types for which a rule applies to every package of `ecosystem`, or undefined when it narrows the
-* packages (or depcurfew cannot tell).
-*/
-function ruleScope(bot, rule, ecosystem) {
-	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$1);
-	const datasources = extraOf(bot, "datasources", isRecord);
-	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
-	const known = /* @__PURE__ */ new Set([
-		...matching.packageMatchers,
-		matching.datasourceMatcher,
-		matching.updateTypeMatcher
-	]);
-	if (matchers.some((key) => !known.has(key))) return void 0;
-	let names = { kind: "all" };
-	for (const key of matching.packageMatchers) {
-		if (!(key in rule)) continue;
-		const patterns = rule[key];
-		if (!isStrings$1(patterns) || patterns.length === 0) return void 0;
-		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
-		const broad = positive.find(matchesEveryName);
-		if (positive.length > 0 && broad === void 0) return void 0;
-		if (broad !== void 0 && names.kind === "all") names = {
-			kind: "pattern",
-			pattern: broad
-		};
-		else if (positive.length === 0) names = {
-			kind: "except",
-			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
-		};
-	}
-	if (matching.datasourceMatcher in rule) {
-		const patterns = rule[matching.datasourceMatcher];
-		const datasource = datasources[ecosystem];
-		if (!isStrings$1(patterns) || typeof datasource !== "string" || matchesList(datasource, patterns, matching.negation) !== true) return void 0;
-	}
-	let types = updateTypes;
-	if (matching.updateTypeMatcher in rule) {
-		const patterns = rule[matching.updateTypeMatcher];
-		if (!isStrings$1(patterns)) return void 0;
-		types = updateTypes.filter((type) => matchesList(type, patterns, matching.negation) === true);
-	}
-	return types.length === 0 ? void 0 : {
-		updateTypes: types,
-		names,
-		matchers
-	};
-}
-function presetName(preset) {
-	return preset.replace(/\(.*\)$/u, "");
-}
-/**
-* The delay Renovate applies to every package of `ecosystem`, for each delayed update type. Without a top-level value
-* or a rule, an update type has no entry: Renovate does not wait.
-*/
-function renovateDelay(bot, config, ecosystem) {
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$1);
-	const internal = extraOf(bot, "internalPresets", isInternal);
-	const datasources = extraOf(bot, "datasources", isRecord);
-	const byType = /* @__PURE__ */ new Map();
-	const set = (types, source) => {
-		for (const type of types) byType.set(type, source);
-	};
-	const path = [...config.base, "minimumReleaseAge"].join(".");
-	if (config.top !== void 0) set(updateTypes, {
-		value: config.top.value,
-		origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`,
-		line: config.top.line
-	});
-	for (const key of ["minimumReleaseAgePresets", "pypiPresets"]) {
-		const fact = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresetFact);
-		const preset = fact === void 0 ? void 0 : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
-		if (fact === void 0 || preset === void 0 || datasources[ecosystem] !== fact.datasource) continue;
-		set(updateTypes, {
-			value: fact.value,
-			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
-			line: config.extends.line
-		});
-	}
-	let repositorySets = config.top !== void 0;
-	for (const { index, line, rule } of config.rules) {
-		if (!("minimumReleaseAge" in rule)) continue;
-		const scope = ruleScope(bot, rule, ecosystem);
-		if (scope === void 0) continue;
-		repositorySets = true;
-		set(scope.updateTypes, {
-			value: rule["minimumReleaseAge"],
-			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
-			line,
-			rule: index
-		});
-	}
-	const unreadable = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
-	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
-	if (unreadable !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
-		known: false,
-		preset: unreadable,
-		line: config.extends.line
-	};
-	return {
-		known: true,
-		byType
-	};
 }
 
 // src/doctor/applies.ts
@@ -26152,13 +26511,23 @@ function dependabotDelays(context, bot, file) {
 	});
 }
 function renovateDelays(context, bot, file) {
-	if (!/\.jsonc?$/u.test(file) && !/\.renovaterc$/u.test(file)) {
-		context.notice(`bot-cooldown-mismatch cannot read ${file}; only JSON and JSONC Renovate files are read`, file);
-		return [];
-	}
+	const managersOf = (ecosystem) => context.tools.filter((tool) => tool.kind === "package-manager" && ecosystemOfTool(tool) === ecosystem).map((tool) => tool.id);
+	if (!/\.jsonc?$/u.test(file) && !/\.renovaterc$/u.test(file)) return ["npm", "pypi"].map((ecosystem) => ({
+		bot,
+		managers: managersOf(ecosystem),
+		minutes: 0,
+		origin: file,
+		location: {
+			file,
+			line: 1
+		},
+		securityBypass: false,
+		scope: "updates",
+		applies: false,
+		unreadableFile: file
+	}));
 	const text = context.repository.readText(file);
 	if (text === void 0) return [];
-	const managersOf = (ecosystem) => context.tools.filter((tool) => tool.kind === "package-manager" && ecosystemOfTool(tool) === ecosystem).map((tool) => tool.id);
 	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig$1);
 	const base = file === packageJson.file ? [packageJson.key] : [];
 	const security = jsonSetting(text, [
@@ -26364,6 +26733,15 @@ const botCooldownMismatch = {
 				...found,
 				origin: source.relocate(found.origin)
 			};
+			if (delay.unreadableFile !== void 0) {
+				if (own.minutes > 0) context.report({
+					level: "note",
+					location: delay.location,
+					message: `${delay.bot.name} reads ${delay.unreadableFile}, which depcurfew cannot read (it reads only JSON and JSONC Renovate files), so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
+					fix: `Make sure minimumReleaseAge in ${delay.unreadableFile} is at least ${describe$1(own.minutes)}, or move the configuration to renovate.json, which depcurfew reads`
+				});
+				continue;
+			}
 			if (delay.unreadablePreset !== void 0) {
 				if (own.minutes > 0) context.report({
 					level: "note",
@@ -26850,7 +27228,7 @@ const depcurfewOutdated = {
 	id: "depcurfew-outdated",
 	checks: "The depcurfew running is not older than the one the project installs",
 	summary: "The project installs a newer depcurfew than the one running.",
-	description: "A global install or an old cached copy may not know settings, rules or tool versions that the version pinned in the project knows, so it can miss problems or report fixed ones. The project copy is read from node_modules or package-lock.json.",
+	description: "A global install or an old cached copy may not know settings, rules or tool versions that the version pinned in the project knows, so it can miss problems or report fixed ones. The project copy is read from node_modules or package-lock.json, in the project and in the tools directory .claude/depcurfew that the README recommends for a repository without package.json in its root.",
 	help: "Run the project's copy of depcurfew (install the project's dependencies first when only package-lock.json pins it), or update the one you run.",
 	level: "warning",
 	requiresPolicy: false,
@@ -27001,7 +27379,10 @@ const invalidPolicy = {
 		} catch (error) {
 			if (!(error instanceof PolicyError)) throw error;
 			context.report({
-				location: { file: POLICY_FILE },
+				location: {
+					file: POLICY_FILE,
+					...error.line === void 0 ? {} : { line: error.line }
+				},
 				message: error.issues.length === 0 ? error.text : `${error.text}: ${error.issues.join("; ")}`,
 				fix: policyErrorFix(error)
 			});
@@ -27332,6 +27713,456 @@ function ownLists(context, tool) {
 		denied: reads(denialSince) ? denyEntries(context.repository, manager.id, manager.configFiles, options) : []
 	};
 }
+
+// src/doctor/locked-settings.ts
+const isStrings$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const SPAN_UNITS = [
+	"years",
+	"months",
+	"weeks",
+	"days",
+	"hours",
+	"minutes",
+	"seconds",
+	"milliseconds",
+	"microseconds",
+	"nanoseconds"
+];
+const isSpanSyntax = (value) => isRecord(value) && isRecord(value["friendlyUnits"]) && SPAN_UNITS.every((unit) => isStrings$1(value["friendlyUnits"][unit])) && isStrings$1(value["rejectedUnits"]);
+/** ISO 8601 durations as jiff prints and reads them: P1Y2M3W4DT5H6M7S, whole numbers only. */
+function isoSpan(text) {
+	const match = /^([+-]?)P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/iu.exec(text);
+	if (match === null || /^[+-]?P$/iu.test(text) || /T$/iu.test(text)) return void 0;
+	const units = {};
+	[
+		"years",
+		"months",
+		"weeks",
+		"days",
+		"hours",
+		"minutes",
+		"seconds"
+	].forEach((unit, index) => {
+		const value = match[index + 2];
+		if (value !== void 0) units[unit] = BigInt(value);
+	});
+	return {
+		negative: match[1] === "-",
+		units
+	};
+}
+/** jiff's friendly format with whole numbers ("3 days", "1w", "2 weeks, 3 days", "-1 day", "1 day ago"). */
+function friendlySpan(text, syntax) {
+	let rest = text.trim();
+	let negative = false;
+	if (/^[+-]/u.test(rest)) {
+		negative = rest.startsWith("-");
+		rest = rest.slice(1).trimStart();
+	} else if (/\sago$/u.test(rest)) {
+		negative = true;
+		rest = rest.slice(0, -3).trimEnd();
+	}
+	const units = {};
+	let last = -1;
+	while (rest !== "") {
+		const match = /^(\d+)[ \t\n\f\r]*([A-Za-z]+)[ \t\n\f\r]*(?:,[ \t\n\f\r]*)?/u.exec(rest);
+		if (match === null) return void 0;
+		const word = (match[2] ?? "").toLowerCase();
+		const index = SPAN_UNITS.findIndex((unit) => syntax.friendlyUnits[unit].includes(word));
+		if (index <= last) return void 0;
+		last = index;
+		units[SPAN_UNITS[index]] = BigInt(match[1] ?? "0");
+		rest = rest.slice(match[0].length);
+	}
+	return last === -1 ? void 0 : {
+		negative,
+		units
+	};
+}
+/** A span as uv reads it from a setting (friendly or ISO 8601), or undefined when depcurfew cannot read it as uv does. */
+function parseSpan(text, syntax) {
+	const span = isoSpan(text.trim()) ?? friendlySpan(text, syntax);
+	if (span === void 0 || syntax.rejectedUnits.some((unit) => (span.units[unit] ?? 0n) !== 0n)) return void 0;
+	return span;
+}
+/** Fieldwise equality, as ExcludeNewerSpan compares: the same number in every unit, and the same sign unless it is zero. */
+function sameSpan(a, b) {
+	const zero = (span) => SPAN_UNITS.every((unit) => (span.units[unit] ?? 0n) === 0n);
+	if (zero(a) || zero(b)) return zero(a) && zero(b);
+	return a.negative === b.negative && SPAN_UNITS.every((unit) => (a.units[unit] ?? 0n) === (b.units[unit] ?? 0n));
+}
+/** "7 days" and "1 week" cover the same time but are different spans to uv. */
+function sameLength(a, b) {
+	const nanos = {
+		years: -1n,
+		months: -1n,
+		weeks: 604800000000000n,
+		days: 86400000000000n,
+		hours: 3600000000000n,
+		minutes: 60000000000n,
+		seconds: 1000000000n,
+		milliseconds: 1000000n,
+		microseconds: 1000n,
+		nanoseconds: 1n
+	};
+	const total = (span) => SPAN_UNITS.reduce((sum, unit) => sum + (span.units[unit] ?? 0n) * nanos[unit], 0n) * (span.negative ? -1n : 1n);
+	return total(a) === total(b);
+}
+/** An RFC 3339 timestamp in nanoseconds since 1970, or undefined for anything else (a date alone included). */
+function parseTimestamp(text) {
+	const match = /^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(?:([Zz])|([+-])(\d{2}):(\d{2}))$/u.exec(text.trim());
+	if (match === null) return void 0;
+	const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
+	const milliseconds = Date.UTC(year, month - 1, day, hour, minute, second);
+	const check = new Date(milliseconds);
+	if (Number.isNaN(milliseconds) || check.getUTCDate() !== day || check.getUTCMonth() !== month - 1 || hour > 23 || minute > 59 || second > 60) return void 0;
+	const fraction = BigInt((match[7] ?? "").padEnd(9, "0") || "0");
+	const offset = match[8] !== void 0 ? 0 : (match[9] === "-" ? -1 : 1) * (Number(match[10]) * 60 + Number(match[11])) * 60;
+	return (BigInt(milliseconds / 1e3) - BigInt(offset)) * 1000000000n + fraction;
+}
+const isLockOptions = (value) => isRecord(value) && [
+	"table",
+	"timestamp",
+	"span",
+	"packages",
+	"packageTimestamp",
+	"packageSpan",
+	"placeholder"
+].every((key) => typeof value[key] === "string");
+/** A value of exclude-newer as uv reads it from a setting: a timestamp, then a date (unknown here), then a span. */
+function settingValue(value, syntax) {
+	const text = value instanceof TomlDateTime ? value.text : value;
+	if (typeof text !== "string") return { kind: "unknown" };
+	const at = parseTimestamp(text);
+	if (at !== void 0) return {
+		kind: "timestamp",
+		at,
+		text
+	};
+	if (/^\d{4}-\d{2}-\d{2}$/u.test(text.trim())) return { kind: "unknown" };
+	const span = parseSpan(text, syntax);
+	return span === void 0 ? { kind: "unknown" } : {
+		kind: "span",
+		span,
+		text
+	};
+}
+/** A value uv.lock records: a span next to a placeholder timestamp, or a timestamp. */
+function lockedValue(timestamp, span, options, syntax) {
+	if (typeof span === "string") {
+		const parsed = parseSpan(span, syntax);
+		return parsed === void 0 ? { kind: "unknown" } : {
+			kind: "span",
+			span: parsed,
+			text: span
+		};
+	}
+	const text = timestamp instanceof TomlDateTime ? timestamp.text : timestamp;
+	if (text === void 0) return void 0;
+	if (typeof text !== "string" || text === options.placeholder) return { kind: "unknown" };
+	const at = parseTimestamp(text);
+	return at === void 0 ? { kind: "unknown" } : {
+		kind: "timestamp",
+		at,
+		text
+	};
+}
+/** Whether uv locks again for this pair, as compare_exclude_newer_value decides: true, false, or undefined (cannot tell). */
+function valueChanged(locked, current) {
+	if (locked.kind === "unknown" || current.kind === "unknown") return void 0;
+	if (locked.kind !== current.kind) return true;
+	if (locked.kind === "span" && current.kind === "span") return !sameSpan(locked.span, current.span);
+	return locked.kind === "timestamp" && current.kind === "timestamp" ? current.at < locked.at : void 0;
+}
+/**
+* The first change of exclude-newer or exclude-newer-package between uv.lock and the settings, the way uv finds it
+* (extra.lockComparison); undefined when there is none, or when depcurfew cannot tell.
+*/
+function uvLockChange(tool, lock, lockedPackages, configFile, setting) {
+	if (tool.extra?.["lockOptions"] === void 0 || tool.extra["spanSyntax"] === void 0) return void 0;
+	const options = extraOf(tool, "lockOptions", isLockOptions);
+	const syntax = extraOf(tool, "spanSyntax", isSpanSyntax);
+	const table = tomlValueAt(lock, [options.table]);
+	const recorded = isRecord(table) ? table : {};
+	const lineOf = (...path) => lock.lineOf([options.table, ...path]);
+	const where = (found) => `${found.file} (line ${found.line})`;
+	const global = setting(options.timestamp);
+	const current = global === void 0 || global.value === false ? void 0 : settingValue(global.value, syntax);
+	const locked = lockedValue(recorded[options.timestamp], recorded[options.span], options, syntax);
+	const lockedText = typeof recorded[options.span] === "string" ? `${options.span} = ${JSON.stringify(recorded[options.span])}` : `${options.timestamp} = ${JSON.stringify(locked?.kind === "timestamp" ? locked.text : recorded[options.timestamp])}`;
+	const lockedLine = typeof recorded[options.span] === "string" ? lineOf(options.span) : lineOf(options.timestamp);
+	if (locked === void 0 && current !== void 0 && global !== void 0) return {
+		setting: options.timestamp,
+		locked: void 0,
+		current: `${options.timestamp} in ${where(global)} is ${JSON.stringify(global.value instanceof TomlDateTime ? global.value.text : global.value)}`,
+		line: void 0
+	};
+	if (locked !== void 0 && current === void 0) {
+		const file = global?.file;
+		return {
+			setting: options.timestamp,
+			locked: lockedText,
+			current: file === void 0 ? `${configFile} does not set ${options.timestamp}` : `${options.timestamp} is false in ${file}`,
+			line: lockedLine
+		};
+	}
+	if (locked !== void 0 && current !== void 0 && global !== void 0 && valueChanged(locked, current) === true) {
+		const note = locked.kind === "span" && current.kind === "span" && sameLength(locked.span, current.span) ? ` (uv compares the units as written, so ${spanWords(current.span)} is not ${spanWords(locked.span)})` : void 0;
+		return {
+			setting: options.timestamp,
+			locked: lockedText,
+			current: `${options.timestamp} in ${where(global)} is ${JSON.stringify(current.kind === "unknown" ? "" : current.text)}`,
+			line: lockedLine,
+			...note === void 0 ? {} : { note }
+		};
+	}
+	const packagesSetting = setting(options.packages);
+	const configured = /* @__PURE__ */ new Map();
+	if (packagesSetting !== void 0) {
+		if (!isRecord(packagesSetting.value)) return void 0;
+		for (const [name, value] of Object.entries(packagesSetting.value)) configured.set(normalizePythonName(name), value === false ? { kind: "disabled" } : {
+			kind: "enabled",
+			value: settingValue(value, syntax) ?? { kind: "unknown" },
+			text: JSON.stringify(value instanceof TomlDateTime ? value.text : value)
+		});
+	}
+	const lockedTable = recorded[options.packages];
+	const lockedOverrides = /* @__PURE__ */ new Map();
+	if (lockedTable !== void 0) {
+		if (!isRecord(lockedTable)) return void 0;
+		for (const [key, value] of Object.entries(lockedTable)) {
+			const override = value === false ? { kind: "disabled" } : isRecord(value) ? {
+				kind: "enabled",
+				value: lockedValue(value[options.packageTimestamp], value[options.packageSpan], options, syntax) ?? { kind: "unknown" },
+				text: tomlInline(value)
+			} : {
+				kind: "enabled",
+				value: lockedValue(value, void 0, options, syntax) ?? { kind: "unknown" },
+				text: JSON.stringify(value instanceof TomlDateTime ? value.text : value)
+			};
+			lockedOverrides.set(normalizePythonName(key), {
+				override,
+				key
+			});
+		}
+	}
+	const counted = /* @__PURE__ */ new Set([...lockedPackages.map(normalizePythonName), ...lockedOverrides.keys()]);
+	const packageWhere = packagesSetting === void 0 ? configFile : where(packagesSetting);
+	const lockedPackageText = (_name, entry) => `${options.packages} ${entry.key} = ${entry.override.kind === "disabled" ? "false" : entry.override.text}`;
+	for (const [name, entry] of lockedOverrides) {
+		const now = configured.get(name);
+		const line = lineOf(options.packages, entry.key);
+		if (now === void 0) return {
+			setting: options.packages,
+			locked: lockedPackageText(name, entry),
+			current: `${packagesSetting?.file ?? configFile} does not set ${options.packages} for ${name}`,
+			line
+		};
+		if (entry.override.kind === "disabled" && now.kind === "enabled") return {
+			setting: options.packages,
+			locked: lockedPackageText(name, entry),
+			current: `${options.packages} for ${name} in ${packageWhere} is ${now.text}`,
+			line
+		};
+		if (entry.override.kind === "enabled" && now.kind === "enabled" && valueChanged(entry.override.value, now.value) === true) return {
+			setting: options.packages,
+			locked: lockedPackageText(name, entry),
+			current: `${options.packages} for ${name} in ${packageWhere} is ${now.text}`,
+			line
+		};
+	}
+	for (const [name, now] of configured) {
+		if (!counted.has(name) || lockedOverrides.has(name) || now.kind !== "enabled") continue;
+		return {
+			setting: options.packages,
+			locked: void 0,
+			current: `${options.packages} for ${name} in ${packageWhere} is ${now.text}`,
+			line: void 0
+		};
+	}
+}
+function spanWords(span) {
+	const parts = SPAN_UNITS.filter((unit) => (span.units[unit] ?? 0n) !== 0n).map((unit) => {
+		const count = span.units[unit] ?? 0n;
+		return `${count} ${count === 1n ? unit.slice(0, -1) : unit}`;
+	});
+	return `${span.negative ? "-" : ""}${parts.join(" ") || "0 days"}`;
+}
+function tomlInline(value) {
+	return `{ ${Object.entries(value).map(([key, item]) => `${key} = ${JSON.stringify(item instanceof TomlDateTime ? item.text : item)}`).join(", ")} }`;
+}
+const isPath = (value) => isStrings$1(value);
+const isLockHash = (value) => isRecord(value) && isPath(value["key"]) && typeof value["separator"] === "string" && isPath(value["inputs"]) && isPath(value["inputsSetting"]) && isPath(value["workspace"]) && isPath(value["project"]) && Array.isArray(value["fields"]) && value["fields"].every((field) => isRecord(field) && typeof field["name"] === "string" && isPath(field["path"])) && isRecord(value["groups"]) && typeof value["groups"]["name"] === "string" && Array.isArray(value["groups"]["tables"]) && value["groups"]["tables"].every(isPath) && typeof value["groups"]["separators"] === "string";
+/** A JSON string as Python's json.dumps writes it (ensure_ascii): every character outside space..~ as \uXXXX. */
+function pythonString(text) {
+	const escapes = {
+		"\"": "\\\"",
+		"\\": "\\\\",
+		"\b": "\\b",
+		"\f": "\\f",
+		"\n": "\\n",
+		"\r": "\\r",
+		"	": "\\t"
+	};
+	let out = "\"";
+	for (let index = 0; index < text.length; index++) {
+		const char = text[index] ?? "";
+		const code = text.charCodeAt(index);
+		if (escapes[char] !== void 0) out += escapes[char];
+		else if (code >= 32 && code <= 126) out += char;
+		else out += `\\u${code.toString(16).padStart(4, "0")}`;
+	}
+	return `${out}"`;
+}
+/** Code-point order, as Python sorts str keys. */
+function byCodePoint(a, b) {
+	const left = [...a].map((char) => char.codePointAt(0) ?? 0);
+	const right = [...b].map((char) => char.codePointAt(0) ?? 0);
+	for (let index = 0; index < Math.min(left.length, right.length); index++) {
+		const difference = (left[index] ?? 0) - (right[index] ?? 0);
+		if (difference !== 0) return difference;
+	}
+	return left.length - right.length;
+}
+/**
+* json.dumps(value, sort_keys=True) as Python writes it; undefined for a value whose text depcurfew cannot be sure of:
+* numbers (the TOML reader does not keep 1.0 apart from 1, which Python writes differently), dates (which json.dumps
+* cannot write), and a string with a carriage return (a multi-line string, which TOML readers may write differently).
+*/
+function pythonJson(value) {
+	if (typeof value === "string") return value.includes("\r") ? void 0 : pythonString(value);
+	if (typeof value === "boolean") return value ? "true" : "false";
+	if (Array.isArray(value)) {
+		const items = value.map(pythonJson);
+		return items.some((item) => item === void 0) ? void 0 : `[${items.join(", ")}]`;
+	}
+	if (isRecord(value) && !(value instanceof TomlDateTime)) {
+		const keys = Object.keys(value).sort(byCodePoint);
+		const parts = [];
+		for (const key of keys) {
+			const item = pythonJson(value[key]);
+			if (item === void 0) return void 0;
+			parts.push(`${pythonString(key)}: ${item}`);
+		}
+		return `{${parts.join(", ")}}`;
+	}
+}
+/**
+* Compares the content_hash of pdm.lock with the one PDM computes from pyproject.toml now (extra.lockHash); undefined
+* when PDM does not use it (canonical lock inputs), computes it differently (a workspace root, no [project] table), or
+* depcurfew cannot compute it the same way.
+*/
+function pdmHash(tool, lock, pyproject) {
+	if (tool.extra?.["lockHash"] === void 0) return void 0;
+	const fact = extraOf(tool, "lockHash", isLockHash);
+	const recorded = tomlValueAt(lock, fact.key);
+	if (typeof recorded !== "string") return void 0;
+	const at = recorded.indexOf(fact.separator);
+	if (at <= 0) return void 0;
+	const algorithm = recorded.slice(0, at);
+	const expected = recorded.slice(at + fact.separator.length).toLowerCase();
+	if (tomlValueAt(lock, fact.inputs) !== void 0 || tomlValueAt(pyproject, fact.inputsSetting) === true) return void 0;
+	const workspace = tomlValueAt(pyproject, fact.workspace);
+	if (workspace !== void 0 && !(isRecord(workspace) && Object.keys(workspace).length === 0)) return void 0;
+	if (!isRecord(tomlValueAt(pyproject, fact.project))) return void 0;
+	const groups = {};
+	const separators = new RegExp(fact.groups.separators, "gu");
+	const [first, ...others] = fact.groups.tables;
+	for (const [index, path] of [first, ...others].entries()) {
+		if (path === void 0) continue;
+		const table = tomlValueAt(pyproject, path);
+		if (table === void 0) continue;
+		if (!isRecord(table)) return void 0;
+		for (const [name, list] of Object.entries(table)) {
+			if (!Array.isArray(list)) return void 0;
+			const group = name.replace(separators, "-").toLowerCase();
+			if (index === 0 && group in groups) return void 0;
+			groups[group] = [...groups[group] ?? [], ...list];
+		}
+	}
+	const dump = { [fact.groups.name]: groups };
+	for (const field of fact.fields) dump[field.name] = tomlValueAt(pyproject, field.path) ?? field.missing;
+	const text = pythonJson(dump);
+	if (text === void 0) return void 0;
+	let actual;
+	try {
+		actual = createHash(algorithm).update(text, "utf8").digest("hex");
+	} catch {
+		return;
+	}
+	return {
+		matches: actual === expected,
+		line: lock.lineOf(fact.key)
+	};
+}
+
+// src/doctor/rules/lockfile-out-of-date.ts
+const isLockedSettings = (value) => isRecord(value) && typeof value["lock"] === "string" && Array.isArray(value["failing"]) && value["failing"].every((item) => typeof item === "string");
+/** The lockfile of the tool the project has, from the knowledge base, with the commands that lock again and that fail. */
+function lockfileOf(context, tool) {
+	if (tool.extra?.["lockedSettings"] === void 0) return void 0;
+	const locked = extraOf(tool, "lockedSettings", isLockedSettings);
+	const file = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles).flatMap((versions) => versions.flatMap((entry) => [...entry.value]))).find((name) => context.repository.isFile(name));
+	return file === void 0 ? void 0 : {
+		file,
+		locked
+	};
+}
+function checkUv$1(context, tool) {
+	const found = lockfileOf(context, tool);
+	if (found === void 0) return;
+	const lock = readTomlDocument(context.repository, found.file);
+	if (lock === void 0) return;
+	const packages = tomlValueAt(lock, ["package"]);
+	const names = Array.isArray(packages) ? packages.flatMap((item) => isRecord(item) && typeof item["name"] === "string" ? [item["name"]] : []) : [];
+	const configFile = pythonSettingPaths(context.repository, tool, "exclude-newer")[0]?.file ?? "pyproject.toml";
+	const change = uvLockChange(tool, lock, names, configFile, (key) => readPythonSetting(context.repository, tool, key));
+	if (change === void 0) return;
+	context.report({
+		location: change.line === void 0 ? { file: found.file } : {
+			file: found.file,
+			line: change.line
+		},
+		message: `${found.file} was locked ${change.locked === void 0 ? `without ${change.setting}` : `with ${change.locked}`}, but ${change.current} now${change.note ?? ""}, so ${listing$1(found.locked.failing)} fail until ${found.locked.lock} runs again`,
+		fix: `Run ${found.locked.lock} and commit ${found.file}, or set ${change.setting} back in ${configFile} if the change was not intended`
+	});
+}
+function checkPdm$1(context, tool) {
+	const found = lockfileOf(context, tool);
+	if (found === void 0) return;
+	const lock = readTomlDocument(context.repository, found.file);
+	const pyproject = readTomlDocument(context.repository, "pyproject.toml");
+	if (lock === void 0 || pyproject === void 0) return;
+	const result = pdmHash(tool, lock, pyproject);
+	if (result === void 0 || result.matches) return;
+	context.report({
+		location: result.line === void 0 ? { file: found.file } : {
+			file: found.file,
+			line: result.line
+		},
+		message: `${found.file} does not match pyproject.toml: its content_hash is not the one ${tool.name} computes from the dependencies, sources and [tool.pdm.resolution] settings of pyproject.toml now, so ${listing$1(found.locked.failing)} fail until ${found.locked.lock} runs again`,
+		fix: `Run ${found.locked.lock} and commit ${found.file}, or undo the change to pyproject.toml if it was not intended`
+	});
+}
+const TOOLS = /* @__PURE__ */ new Set(["uv", "pdm"]);
+const lockfileOutOfDate = {
+	id: "lockfile-out-of-date",
+	checks: "uv.lock and pdm.lock were locked with the settings the project has now",
+	summary: "A uv.lock or pdm.lock was locked with other settings than the project has now.",
+	description: "uv records the release-age delay (exclude-newer and exclude-newer-package) in uv.lock, and PDM checks pdm.lock against a hash of the dependencies, the sources and the [tool.pdm.resolution] table, the delay and the build ban included. After a change, by depcurfew apply or by hand, uv sync --locked, uv lock --check, pdm lock --check and pdm install --check fail until the lockfile is locked again, and the lockfile still holds what was resolved under the old settings.",
+	help: "Lock again (uv lock or pdm lock) and commit the lockfile.",
+	level: "warning",
+	requiresPolicy: false,
+	applies: (scope) => scope.detection.packageManagers.some((manager) => manager.supported && TOOLS.has(manager.id) && manager.evidence.some((evidence) => evidence.kind === "lockfile")),
+	check(context) {
+		for (const manager of context.detection.packageManagers) {
+			const tool = context.tools.find((entry) => entry.id === manager.id);
+			if (tool === void 0 || !manager.supported) continue;
+			if (tool.id === "uv") checkUv$1(context, tool);
+			if (tool.id === "pdm") checkPdm$1(context, tool);
+		}
+	}
+};
 
 // src/doctor/rules/npmrc.ts
 function before(version, limit) {
@@ -27924,7 +28755,10 @@ const unreadableConfig = {
 			if (fix === void 0 || reported.has(file)) continue;
 			reported.add(file);
 			context.report({
-				location: { file },
+				location: {
+					file,
+					...warning.code === "invalid-file" ? positionInMessage(warning.message) : void 0
+				},
 				message: `${warning.message.replace(/:$/u, "")}; depcurfew cannot check it`,
 				fix
 			});
@@ -27933,7 +28767,10 @@ const unreadableConfig = {
 			if (reported.has(failure.file)) continue;
 			reported.add(failure.file);
 			context.report({
-				location: { file: failure.file },
+				location: {
+					file: failure.file,
+					...positionInMessage(failure.message)
+				},
 				message: `depcurfew apply cannot edit ${failure.file} for ${context.tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool} (${failure.message}), so it cannot be checked against ${POLICY_FILE}`,
 				fix: "Fix what the message describes, then run depcurfew apply; or add the settings by hand"
 			});
@@ -27958,8 +28795,26 @@ const RULES = [
 	broadExclusion,
 	lockfileForbiddenSource,
 	lockfileInstallScripts,
+	lockfileOutOfDate,
 	unreadableConfig
 ];
+
+// src/doctor/types.ts
+/** A notice with its fields in the order of a finding; `file` and `fix` only when they are known. */
+function makeNotice(code, message, file, fix) {
+	return {
+		level: "note",
+		code,
+		...file === void 0 ? {} : { location: { file } },
+		message,
+		...file === void 0 ? {} : { file },
+		...fix === void 0 ? {} : { fix }
+	};
+}
+/** The same notice for another file (a project's file named from the root), or without one. */
+function relocatedNotice(notice, message, file) {
+	return makeNotice(notice.code, message, file, notice.fix);
+}
 
 // src/doctor/sarif.ts
 const SARIF_SCHEMA = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
@@ -27991,9 +28846,10 @@ function lineReader(root) {
 	};
 }
 function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
-	const location = (file, line) => {
+	const location = (file, line, column) => {
 		const startLine = line ?? 1;
 		const text = readLine(file, startLine) ?? "";
+		const startColumn = line === void 0 ? 1 : column ?? 1;
 		return { physicalLocation: {
 			artifactLocation: {
 				uri: pathUri(file),
@@ -28001,9 +28857,9 @@ function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 			},
 			region: {
 				startLine,
-				startColumn: 1,
+				startColumn,
 				endLine: startLine,
-				endColumn: Math.max(text.length, 1) + 1
+				endColumn: Math.max(text.length + 1, startColumn + 1, 2)
 			}
 		} };
 	};
@@ -28034,8 +28890,9 @@ function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 					descriptor: { id: error.code }
 				})), ...report.notices.map((notice) => ({
 					level: "note",
-					message: { text: notice.message },
-					...notice.file === void 0 ? {} : { locations: [location(notice.file, void 0)] }
+					message: { text: notice.fix === void 0 ? notice.message : `${notice.message}. Fix: ${notice.fix}` },
+					...notice.file === void 0 ? {} : { locations: [location(notice.file, void 0)] },
+					descriptor: { id: notice.code }
 				}))]
 			}],
 			results: report.findings.map((finding) => ({
@@ -28043,7 +28900,7 @@ function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 				...index.has(finding.rule) ? { ruleIndex: index.get(finding.rule) } : {},
 				level: finding.level,
 				message: { text: finding.fix === void 0 ? finding.message : `${finding.message}. Fix: ${finding.fix}` },
-				locations: [location(finding.location.file, finding.location.line)]
+				locations: [location(finding.location.file, finding.location.line, finding.location.column)]
 			}))
 		}]
 	};
@@ -28165,7 +29022,11 @@ function code(text) {
 * longer than `maxBytes` are left out and counted instead, so the summary upload does not fail.
 */
 function jobSummary(report, rules, directory, maxBytes) {
-	const counts = countLevels(report.findings);
+	const found = countLevels(report.findings);
+	const counts = {
+		...found,
+		note: found.note + report.notices.length
+	};
 	const where = directory === "" ? "" : ` in ${code(directory)}`;
 	const head = ["## depcurfew doctor", ""];
 	if (report.findings.length === 0) head.push(`**No problems found**${where}.`);
@@ -28178,7 +29039,7 @@ function jobSummary(report, rules, directory, maxBytes) {
 			"",
 			"### Notes",
 			"",
-			...report.notices.map((notice) => `- ${markdown(notice.message)}`)
+			...report.notices.map((notice) => `- note: ${markdown(notice.message)} (${code(notice.code)})${notice.fix === void 0 ? "" : ` Fix: ${markdown(notice.fix)}`}`)
 		],
 		...checkedSummary(report),
 		""
@@ -28308,11 +29169,8 @@ function runRules(root, policy, rules, tools, where = {}) {
 	const repository = where.repository ?? new Repository(root);
 	const findings = [];
 	const notices = [];
-	const notice = (message, file) => {
-		if (!notices.some((item) => item.message === message)) notices.push(file === void 0 ? { message } : {
-			message,
-			file
-		});
+	const notice = (code, message, file, fix) => {
+		if (!notices.some((item) => item.message === message)) notices.push(makeNotice(code, message, file, fix));
 	};
 	for (const rule of rules) {
 		if (rule.requiresPolicy && policy === void 0) continue;
@@ -28330,11 +29188,11 @@ function runRules(root, policy, rules, tools, where = {}) {
 				level: level ?? rule.level,
 				...finding
 			}),
-			notice
+			notice: (message, file, fix) => notice(rule.id, message, file, fix)
 		});
 	}
 	const reported = rules.includes(unreadableConfig);
-	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
+	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code]);
 	return {
 		findings,
 		notices,
@@ -28359,10 +29217,7 @@ function relocateRun(project, run, plan) {
 			message: text(finding.message),
 			...finding.fix === void 0 ? {} : { fix: text(finding.fix) }
 		})),
-		notices: run.notices.map((notice) => notice.file === void 0 ? { message: `${project}: ${text(notice.message)}` } : {
-			message: text(notice.message),
-			file: inProject(project, notice.file)
-		})
+		notices: run.notices.map((notice) => notice.file === void 0 ? relocatedNotice(notice, `${project}: ${text(notice.message)}`, void 0) : relocatedNotice(notice, text(notice.message), inProject(project, notice.file)))
 	};
 }
 /**
@@ -28419,8 +29274,8 @@ function runDoctor(root, options = {}) {
 	const addNotice = (item) => {
 		if (!notices.some((known) => known.message === item.message)) notices.push(item);
 	};
-	if (invalid) addNotice({ message: `${POLICY_FILE} is invalid: only the rules that do not need a policy ran` });
-	else if (policy === void 0) addNotice({ message: `no ${POLICY_FILE}: only the rules that do not need a policy ran` });
+	if (invalid) addNotice(makeNotice("policy-invalid", `${POLICY_FILE} is invalid: only the rules that do not need a policy ran`, POLICY_FILE, "Fix what the invalid-policy finding lists, then run depcurfew doctor again"));
+	else if (policy === void 0) addNotice(makeNotice("policy-missing", `no ${POLICY_FILE}: only the rules that do not need a policy ran`, void 0, `Run depcurfew init to write ${POLICY_FILE}, so that the rules that compare the repository with it run too`));
 	const findings = [...rootRun.findings];
 	for (const item of rootRun.notices) addNotice(item);
 	for (const { view, run } of projectRuns) {
@@ -28551,7 +29406,11 @@ function relativeToWorkspace(report, prefix) {
 		})),
 		notices: report.notices.map((notice) => notice.file === void 0 ? notice : {
 			...notice,
-			file: move(notice.file)
+			file: move(notice.file),
+			...notice.location === void 0 ? {} : { location: {
+				...notice.location,
+				file: move(notice.location.file)
+			} }
 		}),
 		...report.checked === void 0 ? {} : { checked: {
 			...report.checked,
