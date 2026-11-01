@@ -102,6 +102,8 @@ describe('the directories of a hook event (decision D-118)', () => {
 });
 
 describe('the stack of pushd, traps, env -S and names the shell builds (decision D-123)', () => {
+  // A 1 MiB line takes about a second here; the limit is the one the blocks above use, which leaves room for slow CI
+  // machines (Windows runners took 2.5 s) and still catches the super-linear cases these inputs come from (14 s to 68 s).
   const MiB = 1024 * 1024;
   /** `part` repeated up to 1 MiB, the most the hook reads, with `tail` at the end. */
   const filled = (part: string, tail = '') => part.repeat(Math.floor((MiB - tail.length) / part.length)) + tail;
@@ -128,18 +130,18 @@ describe('the stack of pushd, traps, env -S and names the shell builds (decision
     ['arithmetic and subscripts', filled('(( $X )); echo ${a[$i]}; ')],
     ['functions that change directory', filled('f() { cd a; }; npm i x; ')],
     ['many commands that do nothing', filled(':;')],
-  ])('reads %s in under 2 seconds', (_label, line) => {
-    expect(elapsed(() => scanCommandLine(line))).toBeLessThan(2000);
+  ])('reads %s quickly', (_label, line) => {
+    expect(elapsed(() => scanCommandLine(line))).toBeLessThan(5000);
   });
 
   it('collects many options that weaken the policy quickly in the hook (it took 7.8 s)', () => {
     const line = 'npm ci --min-release-age=0;'.repeat(36_000);
-    expect(elapsed(() => expect(requestedSpecs(line).overrides).toHaveLength(36_000))).toBeLessThan(2000);
+    expect(elapsed(() => expect(requestedSpecs(line).overrides).toHaveLength(36_000))).toBeLessThan(5000);
   });
 
   it('removes repeated installs in a directory with long paths quickly in the hook (it took 18 s)', () => {
     const line = `${`cd ${'a'.repeat(1000)}; `.repeat(64)}${'npm i x;'.repeat(120_000)}`;
-    expect(elapsed(() => expect(requestedSpecs(line).specs).toHaveLength(1))).toBeLessThan(2000);
+    expect(elapsed(() => expect(requestedSpecs(line).specs).toHaveLength(1))).toBeLessThan(5000);
   });
 });
 
