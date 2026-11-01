@@ -335,10 +335,15 @@ describe('depcurfew mcp: check_packages', () => {
     expect(findings(await client.next()).at(-1)).toMatchObject({
       level: 'error',
       code: 'unverified',
-      message: 'the install would use the registry from sub/.npmrc (line 1); depcurfew checked https://registry.npmjs.org/',
+      message: 'the install would use the registry https://evil.example/ from sub/.npmrc (line 1); depcurfew checked https://registry.npmjs.org/',
       fix: expect.stringContaining("Where the install gets its packages from is the user's setting"),
     });
     await client.close();
+    // A server started with that registry checks there, so the setting changes nothing.
+    const trusted = await initialized(root, '2025-11-25', { argv: ['mcp', '--dir', root, '--registry', 'https://evil.example'] });
+    trusted.send(call(2, 'check_packages', { packages: ['lodash'], directory: 'sub' }));
+    expect(findings(await trusted.next())).toEqual([]);
+    await trusted.close();
   });
 
   it.skipIf(process.platform === 'win32')('skips a FIFO in place of ~/.npmrc instead of waiting on it (decision D-113)', async () => {

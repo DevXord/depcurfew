@@ -223,8 +223,8 @@ export const yarn: ToolKnowledge = {
   extra: {
     registrySettings: leftovers.verified(
       [
-        { file: '.yarnrc.yml', path: ['npmRegistryServer'], applies: 'all' },
-        { file: '.yarnrc.yml', path: ['npmScopes', '*', 'npmRegistryServer'], applies: 'scope' },
+        { file: '.yarnrc.yml', path: ['npmRegistryServer'], applies: 'all', effect: 'replaces' },
+        { file: '.yarnrc.yml', path: ['npmScopes', '*', 'npmRegistryServer'], applies: 'scope', effect: 'replaces' },
       ],
       YARNRC,
       'npmRegistryServer: "Define the registry to use when fetching packages"; npmScopes: "Per-scope registry configurations", whose entries take npmRegistryServer ("See npmRegistryServer"), keyed by the scope without @. "While Yarn will automatically find them in the parent directories, they should usually be kept at the root of your project". Yarn (Berry) does not read registry= from .npmrc.',

@@ -13,6 +13,8 @@ import { checkPythonSpec } from '../../src/check/python.ts';
 import { tooManyMembers, type FetchLike } from '../../src/check/registry.ts';
 import { PopularNames } from '../../src/check/similar.ts';
 import { npmLocalPrefix } from '../../src/check/registry-settings.ts';
+import { appliedPolicy, checkApplied } from '../../src/cli/check.ts';
+import type { CheckRequest } from '../../src/check/findings.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from '../../src/cli/run.ts';
 import { policy, recordedFetch } from './support.ts';
 
@@ -72,10 +74,19 @@ function event(command: string, cwd: string, tool = 'Bash'): string {
 type Output = { permissionDecision?: string; permissionDecisionReason?: string; additionalContext?: string };
 const output = (stdout: string): Output => (JSON.parse(stdout) as { hookSpecificOutput: Output }).hookSpecificOutput;
 
-async function hook(command: string, cwd: string, projectDir: string, options: { home?: string; fetch?: FetchLike } = {}): Promise<Output> {
-  const result = await exec(['check', '--hook', 'claude-code'], { stdin: event(command, cwd), projectDir, ...options });
+async function hook(command: string, cwd: string, projectDir: string, options: { home?: string; fetch?: FetchLike; args?: string[] } = {}): Promise<Output> {
+  const { args = [], ...rest } = options;
+  const result = await exec(['check', '--hook', 'claude-code', ...args], { stdin: event(command, cwd), projectDir, ...rest });
   expect(result.code).toBe(EXIT_OK);
   return result.stdout === '' ? {} : output(result.stdout);
+}
+
+/** The fix a person gets for the last finding of one request in `root`, checked as the hook checks it there. */
+async function fixFor(root: string, request: CheckRequest): Promise<string | undefined> {
+  const result = appliedPolicy(root, { registry: undefined, home: HOME, project: root });
+  if (!result.ok) throw new Error(result.error.message);
+  const { reports } = await checkApplied([request], result.applied, { fetch: recordedFetch, now: NOW });
+  return reports[0]?.findings.at(-1)?.fix;
 }
 
 describe('the .npmrc npm reads: its local prefix (A3, P2)', () => {
@@ -83,33 +94,56 @@ describe('the .npmrc npm reads: its local prefix (A3, P2)', () => {
     const root = repository({ cooldown: { minimum: '3d' } }, { 'sub/package.json': '{"name":"sub"}', 'sub/.npmrc': '# planted\nregistry=https://evil.example/\n' });
     const answer = await hook('npm install lodash', join(root, 'sub'), root);
     expect(answer.permissionDecision).toBe('ask');
-    expect(answer.permissionDecisionReason).toContain('- lodash: the install would use the registry from sub/.npmrc (line 2); depcurfew checked https://registry.npmjs.org/');
+    expect(answer.permissionDecisionReason).toContain('- lodash: the install would use the registry https://evil.example/ from sub/.npmrc (line 2); depcurfew checked https://registry.npmjs.org/');
     // The agent is told to leave the registry to the user, not to change a file.
     expect(answer.permissionDecisionReason).toContain("Where the install gets its packages from is the user's setting");
     // check --dir and its JSON say the same, as an error that fails the check; paths are relative to the directory checked.
     const checked = await exec(['check', '--json', '--dir', join(root, 'sub'), 'lodash']);
     expect(checked.code).toBe(EXIT_FAILURE);
     const finding = (JSON.parse(checked.stdout) as { packages: { findings: { code: string; message: string; fix: string }[] }[] }).packages[0]?.findings.at(-1);
+    // The fix for a person says how to make depcurfew check that registry, if they trust it.
     expect(finding).toEqual({
       level: 'error',
       code: 'unverified',
-      message: 'the install would use the registry from .npmrc (line 2); depcurfew checked https://registry.npmjs.org/',
-      fix: 'Before installing it, check the package in the registry that .npmrc names; depcurfew takes .npmrc only from the directory of depcurfew.json and the directories of its projects',
+      message: 'the install would use the registry https://evil.example/ from .npmrc (line 2); depcurfew checked https://registry.npmjs.org/',
+      fix: 'Before installing it, check the package in the registry that .npmrc names; if you trust that registry, pass --registry https://evil.example/ to depcurfew check in the hook command (.claude/settings.json), to depcurfew mcp, or on the command line',
     });
+  });
+
+  it('says nothing about such a setting when it names the registry depcurfew checked, but does about a variable', async () => {
+    const root = repository({ cooldown: { minimum: '3d' } }, { 'sub/package.json': '{}', 'sub/.npmrc': 'registry=https://user:token@NPM.Company.example/\n' });
+    // Scheme and host in any case, credentials and trailing slashes do not matter.
+    expect((await exec(['check', '--dir', join(root, 'sub'), '--registry', 'https://npm.company.example', 'lodash'])).code).toBe(EXIT_OK);
+    const answer = await exec(['check', '--hook', 'claude-code', '--registry', 'https://npm.company.example/'], { stdin: event('npm install lodash', join(root, 'sub')), projectDir: root });
+    expect(answer.stdout).not.toContain('the install would');
+    writeFileSync(join(root, 'sub', '.npmrc'), 'registry=${NPM_REGISTRY}\n');
+    const variable = (await hook('npm install lodash', join(root, 'sub'), root)).permissionDecisionReason;
+    expect(variable).toContain('- lodash: the install would use the registry set in sub/.npmrc (line 1), whose value depcurfew cannot read; depcurfew checked https://registry.npmjs.org/');
+    const json = JSON.parse((await exec(['check', '--json', '--dir', join(root, 'sub'), 'lodash'])).stdout) as { packages: { findings: { fix: string }[] }[] };
+    expect(json.packages[0]?.findings.at(-1)?.fix).toContain('pass --registry <its URL> to depcurfew check');
   });
 
   it('asks about a scope registry and a dist-tag of such an .npmrc only for the packages they apply to', async () => {
     const root = repository({ cooldown: { minimum: '3d' } }, { 'sub/package.json': '{}', 'sub/.npmrc': '@acme:registry=https://evil.example/\ntag=next\n' });
     const scoped = await hook('pnpm add @acme/ui lodash@4.17.21', join(root, 'sub'), root);
     expect(scoped.permissionDecision).toBe('ask');
-    expect(scoped.permissionDecisionReason).toContain('- @acme/ui: the install would use the registry for @acme from sub/.npmrc (line 1)');
+    expect(scoped.permissionDecisionReason).toContain('- @acme/ui: the install would use the registry for @acme https://evil.example/ from sub/.npmrc (line 1)');
     // The name of the scope is not sent to the public registry, which the install does not use for it.
     expect(scoped.permissionDecisionReason).not.toContain('is not in https://registry.npmjs.org/');
     expect(scoped.permissionDecisionReason).not.toContain('- lodash@4.17.21');
+    const fix = JSON.parse((await exec(['check', '--json', '--dir', join(root, 'sub'), '@acme/ui'])).stdout) as { packages: { findings: { fix: string }[] }[] };
+    expect(fix.packages[0]?.findings.at(-1)?.fix).toBe(
+      'Before installing it, check the package in the registry that .npmrc names; if you trust that registry, set @acme:registry=https://evil.example/ in the .npmrc next to depcurfew.json',
+    );
     const tagged = await hook('npm install lodash', join(root, 'sub'), root);
-    expect(tagged.permissionDecisionReason).toContain('- lodash: the install would pick the version by the dist-tag set in sub/.npmrc (line 2); depcurfew checked the version that latest names');
+    expect(tagged.permissionDecisionReason).toContain('- lodash: the install would pick the version by the dist-tag "next" set in sub/.npmrc (line 2); depcurfew checked the version that latest names');
     // pnpm does not take tag= from .npmrc, and an exact version needs no tag.
     expect(await hook('npm install lodash@4.17.21', join(root, 'sub'), root)).toEqual({});
+    // The dist-tag and the scope registry depcurfew used anyway change nothing.
+    writeFileSync(join(root, 'sub', '.npmrc'), '@acme:registry=https://registry.npmjs.org\ntag=latest\n');
+    const same = (await hook('npm install @acme/ui lodash', join(root, 'sub'), root)).permissionDecisionReason ?? '';
+    expect(same).not.toContain('the install would');
+    expect(same).toContain('@acme/ui is not in https://registry.npmjs.org/');
   });
 
   it("takes the .npmrc of a directory listed in projects, so that a project's private scope is not looked up in the public registry", async () => {
@@ -151,34 +185,80 @@ describe("the registry settings of Yarn, Bun and uv, which depcurfew does not re
     const root = repository({ cooldown: { minimum: '3d' } }, { '.yarnrc.yml': 'npmScopes:\n  acme:\n    npmRegistryServer: "https://npm.acme.example"\n' });
     const scoped = await hook('yarn add @acme/ui lodash', root, root);
     expect(scoped.permissionDecisionReason).toBe(
-      "depcurfew cannot vouch for what this command installs:\n- @acme/ui: the install would use the registry for @acme from .yarnrc.yml (line 3); depcurfew checked https://registry.npmjs.org/. Fix: Do not install it before it is checked. Where the install gets its packages from is the user's setting, not the agent's: tell the user, and do not change that file, .npmrc or depcurfew.json yourself",
+      "depcurfew cannot vouch for what this command installs:\n- @acme/ui: the install would use the registry for @acme https://npm.acme.example from .yarnrc.yml (line 3); depcurfew checked https://registry.npmjs.org/. Fix: Do not install it before it is checked. Where the install gets its packages from is the user's setting, not the agent's: tell the user, and do not change that file, .npmrc or depcurfew.json yourself",
+    );
+    expect(await fixFor(root, { spec: '@acme/ui', tool: 'yarn' })).toBe(
+      'Before installing it, check the package in the registry that .yarnrc.yml names; if you trust that registry, set @acme:registry=https://npm.acme.example in the .npmrc next to depcurfew.json',
     );
     writeFileSync(join(root, '.yarnrc.yml'), 'npmRegistryServer: "https://npm.corp.example"\n');
-    expect((await hook('yarn add lodash', join(root, 'src'), root)).permissionDecisionReason).toContain('- lodash: the install would use the registry from .yarnrc.yml (line 1); depcurfew checked https://registry.npmjs.org/');
+    expect((await hook('yarn add lodash', join(root, 'src'), root)).permissionDecisionReason).toContain(
+      '- lodash: the install would use the registry https://npm.corp.example from .yarnrc.yml (line 1); depcurfew checked https://registry.npmjs.org/',
+    );
+    expect(await fixFor(root, { spec: 'lodash', tool: 'yarn' })).toBe(
+      'Before installing it, check the package in the registry that .yarnrc.yml names; if you trust that registry, pass --registry https://npm.corp.example to depcurfew check in the hook command (.claude/settings.json), to depcurfew mcp, or on the command line',
+    );
+    // With that registry given to depcurfew, the company repository gets no question.
+    expect(await hook('yarn add lodash', root, root, { args: ['--registry', 'https://NPM.corp.example/'] })).toEqual({});
     // npm does not read .yarnrc.yml.
     expect(await hook('npm install lodash', root, root)).toEqual({});
+    writeFileSync(join(root, '.yarnrc.yml'), 'npmRegistryServer: "${NPM_REGISTRY}"\n');
+    expect((await hook('yarn add lodash', root, root, { args: ['--registry', 'https://npm.corp.example'] })).permissionDecisionReason).toContain(
+      'the install would use the registry set in .yarnrc.yml (line 1), whose value depcurfew cannot read',
+    );
   });
 
-  it('asks when bunfig.toml sets the registry or a scope registry, for packages Bun installs', async () => {
+  it('asks when bunfig.toml sets the registry or a scope registry, for packages Bun installs, unless it is the one depcurfew checked', async () => {
     const root = repository({ cooldown: { minimum: '3d' } }, { 'bunfig.toml': '[install]\nregistry = "https://npm.corp.example/"\n' });
-    expect((await hook('bun add lodash', root, root)).permissionDecisionReason).toContain('- lodash: the install would use the registry from bunfig.toml (line 2)');
+    expect((await hook('bun add lodash', root, root)).permissionDecisionReason).toContain('- lodash: the install would use the registry https://npm.corp.example/ from bunfig.toml (line 2)');
+    expect(await hook('bun add lodash', root, root, { args: ['--registry', 'https://npm.corp.example'] })).toEqual({});
+    // A table with the URL and a token compares by its URL; the token is not shown.
+    writeFileSync(join(root, 'bunfig.toml'), '[install]\nregistry = { url = "https://npm.corp.example/", token = "secret" }\n');
+    expect(await hook('bun add lodash', root, root, { args: ['--registry', 'https://npm.corp.example'] })).toEqual({});
+    expect((await hook('bun add lodash', root, root, { args: ['--registry', 'https://npm.other.example'] })).permissionDecisionReason).not.toContain('secret');
     writeFileSync(join(root, 'bunfig.toml'), '[install.scopes]\nacme = { url = "https://npm.acme.example/" }\n');
     const scoped = await hook('bun add @acme/ui lodash', root, root);
-    expect(scoped.permissionDecisionReason).toContain('- @acme/ui: the install would use the registry for @acme from bunfig.toml (line 2)');
+    expect(scoped.permissionDecisionReason).toContain('- @acme/ui: the install would use the registry for @acme https://npm.acme.example/ from bunfig.toml (line 2)');
     expect(scoped.permissionDecisionReason).not.toContain('- lodash:');
+    writeFileSync(join(root, 'bunfig.toml'), '[install]\nregistry = 42\n');
+    expect((await hook('bun add lodash', root, root)).permissionDecisionReason).toContain('whose value depcurfew cannot read');
   });
 
-  it('asks when uv takes another index from pyproject.toml or uv.toml, but not for an explicit index', async () => {
+  it('asks when uv takes another index from pyproject.toml or uv.toml, but not for an explicit index or the index depcurfew checked', async () => {
     const root = repository({ cooldown: { minimum: '3d' } }, { 'pyproject.toml': '[project]\nname = "app"\n\n[[tool.uv.index]]\nname = "corp"\nurl = "https://pypi.corp.example/simple"\n' });
-    const answer = await hook('uv add requests', root, root);
-    expect(answer.permissionDecision).toBe('ask');
-    expect(answer.permissionDecisionReason).toContain('- pypi:requests: the install would use the index from pyproject.toml (line 4); depcurfew checked https://pypi.org/simple/');
+    // An index without default = true is asked before PyPI: it adds a source, whatever --index says.
+    const added = await hook('uv add requests', root, root);
+    expect(added.permissionDecision).toBe('ask');
+    expect(added.permissionDecisionReason).toContain(
+      '- pypi:requests: the install may also take it from https://pypi.corp.example/simple that pyproject.toml (line 4) adds; depcurfew checked only https://pypi.org/simple/',
+    );
+    expect(await fixFor(root, { spec: 'pypi:requests', tool: 'uv' })).toBe(
+      'Before installing it, check the package in every index that pyproject.toml adds: depcurfew checks one index, so it cannot vouch for a package from the others',
+    );
+    // A default index replaces PyPI: the one depcurfew checked changes nothing, another one has a remedy.
+    writeFileSync(join(root, 'pyproject.toml'), '[project]\nname = "app"\n\n[[tool.uv.index]]\nname = "pypi"\nurl = "https://PyPI.org/simple"\ndefault = true\n');
+    expect((await hook('uv add requests', root, root)).permissionDecisionReason ?? '').not.toContain('the install');
+    writeFileSync(join(root, 'pyproject.toml'), '[project]\nname = "app"\n\n[[tool.uv.index]]\nname = "corp"\nurl = "https://pypi.corp.example/simple"\ndefault = true\n');
+    expect((await hook('uv add requests', root, root)).permissionDecisionReason).toContain(
+      '- pypi:requests: the install would use the index https://pypi.corp.example/simple from pyproject.toml (line 4); depcurfew checked https://pypi.org/simple/',
+    );
+    expect(await fixFor(root, { spec: 'pypi:requests', tool: 'uv' })).toBe(
+      'Before installing it, check the package in the index that pyproject.toml names; if you trust that index, pass --index https://pypi.corp.example/simple to depcurfew check in the hook command (.claude/settings.json), to depcurfew mcp, or on the command line',
+    );
+    expect((await hook('uv add requests', root, root, { args: ['--index', 'https://pypi.corp.example/simple/'] })).permissionDecisionReason ?? '').not.toContain('the install');
     writeFileSync(join(root, 'pyproject.toml'), '[project]\nname = "app"\n\n[[tool.uv.index]]\nname = "torch"\nurl = "https://download.pytorch.org/whl/cpu"\nexplicit = true\n');
-    expect((await hook('uv add requests', root, root)).permissionDecisionReason ?? '').not.toContain('the install would use the index');
+    expect((await hook('uv add requests', root, root)).permissionDecisionReason ?? '').not.toContain('the install');
     writeFileSync(join(root, 'uv.toml'), 'index-url = "https://pypi.corp.example/simple"\n');
     expect((await hook('uv pip install requests', root, root)).permissionDecisionReason).toContain('from uv.toml (line 1)');
+    writeFileSync(join(root, 'uv.toml'), 'index-url = "${CORP_INDEX}"\nextra-index-url = ["https://pypi.org/simple"]\n');
+    const reason = (await hook('uv pip install requests', root, root)).permissionDecisionReason ?? '';
+    expect(reason).toContain('the install would use the index set in uv.toml (line 1), whose value depcurfew cannot read');
     // pip does not read uv's files.
     expect((await hook('pip install requests', root, root)).permissionDecisionReason ?? '').not.toContain('uv.toml');
+  });
+
+  it('reports a list that adds indexes even when it holds the index depcurfew checked', async () => {
+    const root = repository({ cooldown: { minimum: '3d' } }, { 'uv.toml': 'extra-index-url = ["https://pypi.org/simple"]\n' });
+    expect((await hook('uv pip install requests', root, root)).permissionDecisionReason).toContain('the install may also take it from the places that uv.toml (line 1) adds');
   });
 });
 

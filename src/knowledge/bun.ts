@@ -174,8 +174,8 @@ export const bun: ToolKnowledge = {
   extra: {
     registrySettings: runtimes.verified(
       [
-        { file: 'bunfig.toml', path: ['install', 'registry'], applies: 'all' },
-        { file: 'bunfig.toml', path: ['install', 'scopes', '*'], applies: 'scope' },
+        { file: 'bunfig.toml', path: ['install', 'registry'], applies: 'all', effect: 'replaces', urlKey: 'url' },
+        { file: 'bunfig.toml', path: ['install', 'scopes', '*'], applies: 'scope', effect: 'replaces', urlKey: 'url' },
       ],
       `${BUN_V1_4_4}/docs/runtime/bunfig.mdx`,
       '"Put bunfig.toml in your project root, alongside your package.json"; the global $HOME/.bunfig.toml (or $XDG_CONFIG_HOME/.bunfig.toml) is loaded too, and local keys win. "The default registry is https://registry.npmjs.org/. To change it": [install] registry, a string or { url, token }. "To configure a registry for a particular scope (for example, @myorg/<package>), use install.scopes": a key per scope (myorg = "https://registry.myorg.com/" or a table with url).',

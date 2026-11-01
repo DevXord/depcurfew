@@ -541,8 +541,17 @@ export interface RegistrySettingKnowledge {
   path: readonly string[];
   /** all: every package the tool installs; scope: the packages of the scope that * names. */
   applies: 'all' | 'scope';
+  /**
+   * replaces: the value is the URL used instead of the default registry or index, so a value that names the one
+   * depcurfew checked changes nothing; adds: the value adds a place to install from next to it.
+   */
+  effect: 'replaces' | 'adds';
+  /** A value may be a table that holds the URL under this key (Bun's { url, token }, uv's [[index]] entries). */
+  urlKey?: string;
   /** For an array of tables: entries with this key set to true do not count (uv: an explicit index). */
   unlessTrue?: string;
+  /** For an array of tables with effect replaces: only an entry with this key set to true replaces; others add (uv: default). */
+  replacesWhen?: string;
 }
 
 // Facts about the environment around the package managers: version pinning (Corepack, Volta, asdf) and CI.

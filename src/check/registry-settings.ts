@@ -24,7 +24,7 @@ import { isInside } from '../paths.ts';
 import { withoutCredentials } from '../printable.ts';
 import { readLimited } from '../read-limited.ts';
 import { readYamlDocument } from '../yaml-parse.ts';
-import { isMap, type Node } from 'yaml';
+import { isMap, isScalar, type Node } from 'yaml';
 
 /** The largest configuration file depcurfew check reads. */
 export const MAX_CONFIG_SIZE = 1024 * 1024;
@@ -46,6 +46,39 @@ export interface UnreadSetting {
   applies: 'all' | 'scope' | 'tag';
   /** The scope with @. */
   scope?: string;
+  /** replaces: the registry, index or dist-tag used instead of the one depcurfew used; adds: another place to install from. */
+  effect: 'replaces' | 'adds';
+  /** The URL (without credentials) or dist-tag it sets; undefined when depcurfew cannot read it (a variable, another type). */
+  value?: string;
+}
+
+/**
+ * A registry URL as it is compared: scheme and host in lower case, without user name, password and trailing slashes.
+ * undefined for a value that is not an http:// or https:// URL, or that holds a variable ($NAME, ${NAME}), which the
+ * tool may expand to anything.
+ */
+export function registryKey(value: string): string | undefined {
+  const text = value.trim();
+  if (text.includes('$')) return undefined;
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+  return `${url.protocol}//${url.host.toLowerCase()}${url.pathname.replace(/\/+$/u, '')}${url.search}`;
+}
+
+/** Whether two registry URLs name the same registry (registryKey). */
+export function sameRegistry(a: string, b: string): boolean {
+  const left = registryKey(a);
+  return left !== undefined && left === registryKey(b);
+}
+
+/** The value of a setting as a URL without credentials, when it is one depcurfew can read. */
+function urlValue(value: string): string | undefined {
+  return registryKey(value) === undefined ? undefined : withoutCredentials(value.trim());
 }
 
 /** A configuration file that was not read, and why. */
@@ -228,10 +261,14 @@ export function npmrcSettings(start: string, options: NpmrcOptions): NpmrcSettin
       result.skipped.push({ file, reason: read.skipped });
       return;
     }
-    for (const { key, line } of iniEntries(read.text)) {
-      if (key === config.key) result.unread.push({ tool: 'npm', file, line, applies: 'all' });
-      else if (tagKey !== undefined && key === tagKey) result.unread.push({ tool: 'npm', file, line, applies: 'tag' });
-      else if (key.startsWith('@') && key.endsWith(config.scopeKeySuffix)) result.unread.push({ tool: 'npm', file, line, applies: 'scope', scope: key.slice(0, -config.scopeKeySuffix.length) });
+    for (const { key, value, line } of iniEntries(read.text)) {
+      const url = urlValue(value);
+      const named = url === undefined ? {} : { value: url };
+      if (key === config.key) result.unread.push({ tool: 'npm', file, line, applies: 'all', effect: 'replaces', ...named });
+      else if (tagKey !== undefined && key === tagKey) result.unread.push({ tool: 'npm', file, line, applies: 'tag', effect: 'replaces', ...(value.includes('$') ? {} : { value: value.trim() }) });
+      else if (key.startsWith('@') && key.endsWith(config.scopeKeySuffix)) {
+        result.unread.push({ tool: 'npm', file, line, applies: 'scope', scope: key.slice(0, -config.scopeKeySuffix.length), effect: 'replaces', ...named });
+      }
     }
   };
   if (trusted.has(prefix)) {
@@ -266,14 +303,32 @@ function scopeName(key: string): string {
   return key.startsWith('@') ? key : `@${key}`;
 }
 
-/** The places in a YAML file where `path` (with * for any key) is set, with the line of the last key. */
-function yamlPlaces(text: string, path: readonly string[]): { line: number; key?: string }[] {
+/** A place where a setting is written: its line, the key that * stood for, its value as a URL and what it does. */
+interface Place {
+  line: number;
+  key?: string;
+  value?: string;
+  effect: 'replaces' | 'adds';
+}
+
+/** The URL a setting's value names: a string, or a table with it under `urlKey`; undefined when it is neither. */
+function placeValue(value: unknown, urlKey: string | undefined): string | undefined {
+  if (typeof value === 'string') return urlValue(value);
+  if (urlKey !== undefined && isRecord(value) && typeof value[urlKey] === 'string') return urlValue(value[urlKey]);
+  return undefined;
+}
+
+/** The places in a YAML file where the setting's path (with * for any key) is set, with the line of the last key. */
+function yamlPlaces(text: string, setting: RegistrySettingKnowledge): Place[] {
+  const { path } = setting;
   const { document, lineCounter } = readYamlDocument(text);
   if (document.errors.length > 0) throw new Error('it is not valid YAML');
-  const places: { line: number; key?: string }[] = [];
+  const places: Place[] = [];
   const walk = (node: Node | null, index: number, key: string | undefined, offset: number) => {
     if (index === path.length) {
-      if (node !== null) places.push({ line: lineCounter.linePos(offset).line, ...(key === undefined ? {} : { key }) });
+      if (node === null) return;
+      const value = isScalar(node) ? placeValue(String(node.value), setting.urlKey) : undefined;
+      places.push({ line: lineCounter.linePos(offset).line, effect: setting.effect, ...(key === undefined ? {} : { key }), ...(value === undefined ? {} : { value }) });
       return;
     }
     if (node === null || !isMap(node)) return;
@@ -288,22 +343,30 @@ function yamlPlaces(text: string, path: readonly string[]): { line: number; key?
   return places;
 }
 
-/** The places in a TOML file where `path` (with * for any key) is set; an array of tables counts by entry. */
-function tomlPlaces(text: string, path: readonly string[], unlessTrue: string | undefined): { line: number; key?: string }[] {
+/** The places in a TOML file where the setting's path (with * for any key) is set; an array of tables counts by entry. */
+function tomlPlaces(text: string, setting: RegistrySettingKnowledge): Place[] {
+  const { path, unlessTrue, replacesWhen, urlKey } = setting;
   const document = parseToml(text);
-  const places: { line: number; key?: string }[] = [];
+  const places: Place[] = [];
+  const place = (line: number, key: string | undefined, raw: unknown, effect: Place['effect']): Place => {
+    const value = placeValue(raw, urlKey);
+    return { line, effect, ...(key === undefined ? {} : { key }), ...(value === undefined ? {} : { value }) };
+  };
   const walk = (prefix: (string | number)[], index: number, key: string | undefined) => {
     const value: TomlValue | undefined = prefix.length === 0 ? document.root : tomlValueAt(document, prefix as string[]);
     if (index === path.length) {
       if (value === undefined) return;
-      if (Array.isArray(value) && unlessTrue !== undefined) {
+      if (Array.isArray(value) && (unlessTrue !== undefined || replacesWhen !== undefined)) {
         value.forEach((entry, position) => {
-          if (isRecord(entry) && entry[unlessTrue] === true) return;
-          places.push({ line: document.lineOf([...prefix, position]) ?? document.lineOf(prefix) ?? 1, ...(key === undefined ? {} : { key }) });
+          if (unlessTrue !== undefined && isRecord(entry) && entry[unlessTrue] === true) return;
+          // Without replacesWhen set to true, an entry of an array that can replace the default only adds to it.
+          const effect = setting.effect === 'replaces' && (replacesWhen === undefined || (isRecord(entry) && entry[replacesWhen] === true)) ? 'replaces' : 'adds';
+          places.push(place(document.lineOf([...prefix, position]) ?? document.lineOf(prefix) ?? 1, key, entry, effect));
         });
         return;
       }
-      places.push({ line: document.lineOf(prefix) ?? 1, ...(key === undefined ? {} : { key }) });
+      // A list (extra-index-url, find-links) has no single URL to compare, so it counts as a value depcurfew cannot read.
+      places.push(place(document.lineOf(prefix) ?? 1, key, Array.isArray(value) ? undefined : value, setting.effect));
       return;
     }
     if (!isRecord(value)) return;
@@ -338,9 +401,17 @@ export function toolRegistrySettings(tool: ToolId, start: string, top: string): 
       }
       try {
         for (const setting of settings.filter((candidate) => candidate.file === name)) {
-          const places = name.endsWith('.toml') ? tomlPlaces(read.text, setting.path, setting.unlessTrue) : yamlPlaces(read.text, setting.path);
+          const places = name.endsWith('.toml') ? tomlPlaces(read.text, setting) : yamlPlaces(read.text, setting);
           for (const place of places) {
-            unread.push({ tool, file, line: place.line, applies: setting.applies, ...(setting.applies === 'scope' && place.key !== undefined ? { scope: scopeName(place.key) } : {}) });
+            unread.push({
+              tool,
+              file,
+              line: place.line,
+              applies: setting.applies,
+              effect: place.effect,
+              ...(setting.applies === 'scope' && place.key !== undefined ? { scope: scopeName(place.key) } : {}),
+              ...(place.value === undefined ? {} : { value: place.value }),
+            });
           }
         }
       } catch {

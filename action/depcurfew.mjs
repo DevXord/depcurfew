@@ -189,7 +189,9 @@ const bun$1 = {
 		registrySettings: runtimes$3.verified([{
 			file: "bunfig.toml",
 			path: ["install", "registry"],
-			applies: "all"
+			applies: "all",
+			effect: "replaces",
+			urlKey: "url"
 		}, {
 			file: "bunfig.toml",
 			path: [
@@ -197,7 +199,9 @@ const bun$1 = {
 				"scopes",
 				"*"
 			],
-			applies: "scope"
+			applies: "scope",
+			effect: "replaces",
+			urlKey: "url"
 		}], `${BUN_V1_4_4}/docs/runtime/bunfig.mdx`, "\"Put bunfig.toml in your project root, alongside your package.json\"; the global $HOME/.bunfig.toml (or $XDG_CONFIG_HOME/.bunfig.toml) is loaded too, and local keys win. \"The default registry is https://registry.npmjs.org/. To change it\": [install] registry, a string or { url, token }. \"To configure a registry for a particular scope (for example, @myorg/<package>), use install.scopes\": a key per scope (myorg = \"https://registry.myorg.com/\" or a table with url)."),
 		projectInstall: runtimes$3.verified({
 			commands: ["install"],
@@ -4054,7 +4058,10 @@ const uv$1 = {
 					"index"
 				],
 				applies: "all",
-				unlessTrue: "explicit"
+				effect: "replaces",
+				urlKey: "url",
+				unlessTrue: "explicit",
+				replacesWhen: "default"
 			},
 			{
 				file: "pyproject.toml",
@@ -4063,7 +4070,8 @@ const uv$1 = {
 					"uv",
 					"index-url"
 				],
-				applies: "all"
+				applies: "all",
+				effect: "replaces"
 			},
 			{
 				file: "pyproject.toml",
@@ -4072,7 +4080,8 @@ const uv$1 = {
 					"uv",
 					"extra-index-url"
 				],
-				applies: "all"
+				applies: "all",
+				effect: "adds"
 			},
 			{
 				file: "pyproject.toml",
@@ -4081,7 +4090,8 @@ const uv$1 = {
 					"uv",
 					"find-links"
 				],
-				applies: "all"
+				applies: "all",
+				effect: "adds"
 			},
 			{
 				file: "pyproject.toml",
@@ -4091,7 +4101,8 @@ const uv$1 = {
 					"pip",
 					"index-url"
 				],
-				applies: "all"
+				applies: "all",
+				effect: "replaces"
 			},
 			{
 				file: "pyproject.toml",
@@ -4101,7 +4112,8 @@ const uv$1 = {
 					"pip",
 					"extra-index-url"
 				],
-				applies: "all"
+				applies: "all",
+				effect: "adds"
 			},
 			{
 				file: "pyproject.toml",
@@ -4111,45 +4123,55 @@ const uv$1 = {
 					"pip",
 					"find-links"
 				],
-				applies: "all"
+				applies: "all",
+				effect: "adds"
 			},
 			{
 				file: "uv.toml",
 				path: ["index"],
 				applies: "all",
-				unlessTrue: "explicit"
+				effect: "replaces",
+				urlKey: "url",
+				unlessTrue: "explicit",
+				replacesWhen: "default"
 			},
 			{
 				file: "uv.toml",
 				path: ["index-url"],
-				applies: "all"
+				applies: "all",
+				effect: "replaces"
 			},
 			{
 				file: "uv.toml",
 				path: ["extra-index-url"],
-				applies: "all"
+				applies: "all",
+				effect: "adds"
 			},
 			{
 				file: "uv.toml",
 				path: ["find-links"],
-				applies: "all"
+				applies: "all",
+				effect: "adds"
 			},
 			{
 				file: "uv.toml",
 				path: ["pip", "index-url"],
-				applies: "all"
+				applies: "all",
+				effect: "replaces"
 			},
 			{
 				file: "uv.toml",
 				path: ["pip", "extra-index-url"],
-				applies: "all"
+				applies: "all",
+				effect: "adds"
 			},
 			{
 				file: "uv.toml",
 				path: ["pip", "find-links"],
-				applies: "all"
+				applies: "all",
+				effect: "adds"
 			}
-		], SETTINGS, "ResolverInstallerSchema: index (\"The package indexes to use when resolving dependencies\", [[tool.uv.index]] with name and url), index-url (\"The URL of the Python package index (by default: <https://pypi.org/simple>)\"), extra-index-url (\"Extra URLs of package indexes to use, in addition to --index-url\") and find-links (\"Locations to search for candidate distributions, in addition to those found in the registry indexes\"); PipOptions ([tool.uv.pip]) has index-url, extra-index-url and find-links too. uv.toml takes the same keys at its top level (extra.configTables). docs/concepts/indexes.md: \"Indexes are prioritized in the order in which they're defined\", the default index is \"always treated as lowest priority\", with the default first-index strategy uv \"will stop at the first index on which a given package is available\", default = true replaces PyPI, and an explicit = true index is used only for packages pinned to it in tool.uv.sources."),
+		], SETTINGS, "ResolverInstallerSchema: index (\"The package indexes to use when resolving dependencies\", [[tool.uv.index]] with name and url), index-url (\"The URL of the Python package index (by default: <https://pypi.org/simple>)\"), extra-index-url (\"Extra URLs of package indexes to use, in addition to --index-url\") and find-links (\"Locations to search for candidate distributions, in addition to those found in the registry indexes\"); PipOptions ([tool.uv.pip]) has index-url, extra-index-url and find-links too. uv.toml takes the same keys at its top level (extra.configTables). docs/concepts/indexes.md: \"Indexes are prioritized in the order in which they're defined\", the default index is \"always treated as lowest priority\", with the default first-index strategy uv \"will stop at the first index on which a given package is available\", default = true replaces PyPI (\"set default = true on another index entry\" to \"exclude PyPI from the list of indexes\"), so an entry without it adds an index that is asked before the default one, and an explicit = true index is used only for packages pinned to it in tool.uv.sources."),
 		pylockCreatedBy: verified$2("uv", `${UV}/crates/uv-lock/src/lock/export/pylock_toml.rs`, "uv export --format pylock.toml (and uv pip compile to pylock.toml) writes created-by = \"uv\". The project itself and workspace members are written as directory = { path = …, editable = true }, with the path relative to the lock file, \".\" for the project."),
 		configTables: verified$2({
 			"pyproject.toml": "tool.uv",
@@ -4664,7 +4686,8 @@ const yarn$1 = {
 		registrySettings: leftovers$1.verified([{
 			file: ".yarnrc.yml",
 			path: ["npmRegistryServer"],
-			applies: "all"
+			applies: "all",
+			effect: "replaces"
 		}, {
 			file: ".yarnrc.yml",
 			path: [
@@ -4672,7 +4695,8 @@ const yarn$1 = {
 				"*",
 				"npmRegistryServer"
 			],
-			applies: "scope"
+			applies: "scope",
+			effect: "replaces"
 		}], YARNRC, "npmRegistryServer: \"Define the registry to use when fetching packages\"; npmScopes: \"Per-scope registry configurations\", whose entries take npmRegistryServer (\"See npmRegistryServer\"), keyed by the scope without @. \"While Yarn will automatically find them in the parent directories, they should usually be kept at the root of your project\". Yarn (Berry) does not read registry= from .npmrc."),
 		yamlMergeKeys: user.verified(false, `${BERRY}/packages/yarnpkg-parsers/sources/syml.ts`, "parseSyml reads .yarnrc.yml with load of js-yaml and FAILSAFE_SCHEMA, which has no merge type (only strings, sequences and maps), so <<: *defaults is an ordinary key named <<: Configuration.use rejects it as an unrecognized setting in a project .yarnrc.yml (enableStrictSettings, default true) and sets it aside in the home file, so merged values never apply. Every scalar is a string to Yarn, which parses it per setting (parseValue in packages/yarnpkg-core/sources/Configuration.ts)."),
 		classicUserFile: user.verified({

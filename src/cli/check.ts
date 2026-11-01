@@ -19,7 +19,8 @@ import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEve
 import { overrideDoubt } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal, type LookupCache } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
-import { hasRegistrySettings, npmrcSettings, toolRegistrySettings, type NpmrcSettings, type SkippedFile, type UnreadSetting } from '../check/registry-settings.ts';
+import { hasRegistrySettings, npmrcSettings, sameRegistry, toolRegistrySettings, type NpmrcSettings, type SkippedFile, type UnreadSetting } from '../check/registry-settings.ts';
+import { quoted } from '../check/findings.ts';
 import { PopularNames } from '../check/similar.ts';
 import { values } from '../apply/facts.ts';
 import type { ToolId } from '../knowledge/types.ts';
@@ -309,28 +310,67 @@ function appliesTo(setting: UnreadSetting, report: PackageReport, request: Check
   return true;
 }
 
-/** The finding for a registry setting the install would use but depcurfew did not take (decision D-113). */
-function unreadFinding(setting: UnreadSetting, report: PackageReport, applied: Pick<AppliedPolicy, 'registry' | 'index'>): CheckFinding {
+/** The dist-tag the registry's API names as the default, which npm prefers when nothing else chooses one. */
+function registryDefaultTag(): string {
+  return values(environment.npmRegistry.api)[0]?.defaultTag ?? 'latest';
+}
+
+/** The registry, index or dist-tag depcurfew used for the packages a setting applies to. */
+function usedFor(setting: UnreadSetting, report: PackageReport, applied: Pick<AppliedPolicy, 'registry' | 'index' | 'scopes' | 'tag'>): string {
+  if (setting.applies === 'tag') return report.tag ?? applied.tag?.value ?? registryDefaultTag();
+  if (isPythonSpec(report.spec)) return applied.index;
+  return (setting.scope === undefined ? undefined : applied.scopes.get(setting.scope)) ?? applied.registry.url;
+}
+
+/**
+ * Whether a setting the install would use changes what depcurfew checked (decision D-113): one that replaces the
+ * registry, index or dist-tag with the one depcurfew used changes nothing; one that adds places to install from, or
+ * whose value depcurfew cannot read (a variable, another type), always counts.
+ */
+function changesTheCheck(setting: UnreadSetting, used: string): boolean {
+  if (setting.effect === 'adds' || setting.value === undefined) return true;
+  return setting.applies === 'tag' ? setting.value !== used : !sameRegistry(setting.value, used);
+}
+
+/** Where the hook command lives, for a fix that changes its options. */
+function hookSettingsFile(): string {
+  return values(environment.claudeCode.hooks)[0]?.settingsFile ?? '.claude/settings.json';
+}
+
+/**
+ * The finding for a registry setting the install would use but depcurfew did not take (decision D-113). The fix says
+ * how to make depcurfew check what the install uses, when the user trusts it: --registry or --index of the command
+ * (in the hook command, for depcurfew mcp or on the command line), a scope registry or dist-tag in the .npmrc next to
+ * depcurfew.json. agentFix turns it into telling the user.
+ */
+function unreadFinding(setting: UnreadSetting, report: PackageReport, applied: Pick<AppliedPolicy, 'registry' | 'index' | 'scopes' | 'tag'>): CheckFinding {
   const where = `${setting.file} (line ${setting.line})`;
-  const ownFile = setting.tool !== 'npm';
-  const lookups = ownFile ? `depcurfew does not read the registry settings of ${setting.file.split('/').at(-1) ?? setting.file}` : `depcurfew takes .npmrc only from the directory of ${POLICY_FILE} and the directories of its projects`;
+  const used = usedFor(setting, report, applied);
+  const value = setting.value;
+  const finding = (message: string, fix: string): CheckFinding => ({ level: 'error', code: 'unverified', message, fix: `${UNREAD_REGISTRY_FIX_START} ${fix}` });
+  const options = `to depcurfew check in the hook command (${hookSettingsFile()}), to depcurfew mcp, or on the command line`;
   if (setting.applies === 'tag') {
-    return {
-      level: 'error',
-      code: 'unverified',
-      message: `the install would pick the version by the dist-tag set in ${where}; depcurfew checked the version that ${report.tag ?? 'latest'} names`,
-      fix: `${UNREAD_REGISTRY_FIX_START} the version that dist-tag picks; ${lookups}`,
-    };
+    return finding(
+      `the install would pick the version by the dist-tag ${value === undefined ? '' : `${quoted(value)} `}set in ${where}; depcurfew checked the version that ${used} names`,
+      `the version that dist-tag picks; if the dist-tag is meant for the whole project, set ${value === undefined ? 'tag' : `tag=${value}`} in the .npmrc next to ${POLICY_FILE}`,
+    );
   }
   const python = isPythonSpec(report.spec);
   const what = python ? 'index' : 'registry';
-  const checked = python ? applied.index : applied.registry.url;
-  return {
-    level: 'error',
-    code: 'unverified',
-    message: `the install would use the ${what}${setting.applies === 'scope' ? ` for ${setting.scope ?? ''}` : ''} from ${where}; depcurfew checked ${checked}`,
-    fix: `${UNREAD_REGISTRY_FIX_START} the package in the ${what} that ${setting.file} names; ${lookups}`,
-  };
+  if (setting.effect === 'adds') {
+    return finding(
+      `the install may also take it from ${value ?? 'the places'} that ${where} adds; depcurfew checked only ${used}`,
+      `the package in every ${what} that ${setting.file} adds: depcurfew checks one ${what}, so it cannot vouch for a package from the others`,
+    );
+  }
+  const scope = setting.applies === 'scope' ? ` for ${setting.scope ?? ''}` : '';
+  const named = value === undefined ? `the ${what}${scope} set in ${where}, whose value depcurfew cannot read` : `the ${what}${scope} ${value} from ${where}`;
+  const url = value ?? '<its URL>';
+  const remedy =
+    setting.applies === 'scope'
+      ? `set ${setting.scope ?? '@scope'}:registry=${url} in the .npmrc next to ${POLICY_FILE}`
+      : `pass ${python ? '--index' : '--registry'} ${url} ${options}`;
+  return finding(`the install would use ${named}; depcurfew checked ${used}`, `the package in the ${what} that ${setting.file} names; if you trust that ${what}, ${remedy}`);
 }
 
 /** The settings of a tool's own configuration files for the requests of a command, read once per tool. */
@@ -367,7 +407,15 @@ export async function checkApplied(requests: readonly CheckRequest[], applied: A
     popularPython: popularPython(),
     scopeRegistries: applied.scopes,
     lookups,
-    skipLookup: (name: string, tool: ToolId | undefined) => unread.some((setting) => setting.applies === 'scope' && setting.scope === scopeOf(name) && (setting.tool === 'npm' || setting.tool === tool)),
+    // A scope whose registry is set elsewhere, to another registry than depcurfew would ask, is not looked up.
+    skipLookup: (name: string, tool: ToolId | undefined) =>
+      unread.some(
+        (setting) =>
+          setting.applies === 'scope' &&
+          setting.scope === scopeOf(name) &&
+          (setting.tool === 'npm' || setting.tool === tool) &&
+          changesTheCheck(setting, applied.scopes.get(setting.scope) ?? applied.registry.url),
+      ),
     ...(settings.index === undefined ? {} : { index: applied.index }),
     ...(applied.tag === undefined ? {} : { defaultTag: applied.tag.value }),
     ...(settings.scriptBodies === undefined ? {} : { scriptBodies: settings.scriptBodies }),
@@ -379,7 +427,7 @@ export async function checkApplied(requests: readonly CheckRequest[], applied: A
   for (const [index, report] of reports.entries()) {
     const request = requests[index] ?? { spec: report.spec };
     // One finding per package: the first setting that applies to it.
-    const setting = unread.find((candidate) => appliesTo(candidate, report, request));
+    const setting = unread.find((candidate) => appliesTo(candidate, report, request) && changesTheCheck(candidate, usedFor(candidate, report, applied)));
     if (setting !== undefined) report.findings.push(unreadFinding(setting, report, applied));
   }
   return { reports, skipped: [...applied.skipped, ...tools.skipped] };
