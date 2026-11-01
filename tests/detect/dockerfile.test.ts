@@ -52,8 +52,8 @@ describe('readDockerfile', () => {
 
   it('reads here-documents as part of their instruction, whatever their lines look like', () => {
     expect(read(['RUN <<EOF', 'FROM node:20', '# not a comment', 'npm ci', 'EOF', 'RUN <<-"END" bash', '\tnpm test', '\tEND', 'FROM after'])).toEqual([
-      { keyword: 'RUN', text: '<<EOF', line: 1, heredocs: [{ body: 'FROM node:20\n# not a comment\nnpm ci', line: 2, before: '' }] },
-      { keyword: 'RUN', text: '<<-"END" bash', line: 6, heredocs: [{ body: 'npm test', line: 7, before: '' }] },
+      { keyword: 'RUN', text: '<<EOF', line: 1, heredocs: [{ body: 'FROM node:20\n# not a comment\nnpm ci', line: 2, command: '' }] },
+      { keyword: 'RUN', text: '<<-"END" bash', line: 6, heredocs: [{ body: 'npm test', line: 7, command: 'bash' }] },
       { keyword: 'FROM', text: 'after', line: 9 },
     ]);
   });

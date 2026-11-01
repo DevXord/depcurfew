@@ -96,9 +96,12 @@ function withoutOptions(text: string): { text: string; offset: number } {
   }
 }
 
-/** A here-document body is a script when it is fed to a shell: RUN <<EOF, or RUN <<EOF bash, or RUN bash <<EOF. */
-function isScript(before: string): boolean {
-  return before === '' || /^(?:\S*\/)?(?:sh|bash|ash|dash|zsh)(?:\s+-\S+)*$/u.test(before);
+/**
+ * A here-document body is a script when it is fed to a shell: RUN <<EOF, or RUN <<EOF bash, or RUN bash -e <<EOF. The
+ * other words of its command are few (the reader keeps at most 16), so the test is short.
+ */
+function isScript(command: string | undefined): boolean {
+  return command !== undefined && (command === '' || /^(?:\S*\/)?(?:sh|bash|ash|dash|zsh)(?: -\S+)*$/u.test(command));
 }
 
 function runCommands(instruction: Instruction, facts: DockerFacts): { commands: ToolCommand[] } {
@@ -112,7 +115,7 @@ function runCommands(instruction: Instruction, facts: DockerFacts): { commands: 
   }
   for (const { offset: at, ...command } of findToolCommands(text, facts.commands).commands) commands.push({ ...command, line: lineAt(instruction, offset + at) });
   for (const heredoc of instruction.heredocs) {
-    if (!isScript(heredoc.before.replace(/<<-?["']?[A-Za-z_][A-Za-z0-9_.-]*["']?/gu, '').trim())) continue;
+    if (!isScript(heredoc.command)) continue;
     const lineStarts = [0];
     for (let index = heredoc.body.indexOf('\n'); index >= 0; index = heredoc.body.indexOf('\n', index + 1)) lineStarts.push(index + 1);
     for (const { offset: at, ...command } of findToolCommands(heredoc.body, facts.commands).commands) {
@@ -140,13 +143,20 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
   const instructions = readDockerfile(text, facts.syntax);
   const escape = facts.syntax.escapeCharacters[0] ?? '\\';
   const args = new Map<string, string | undefined>();
+  // ARGs whose value depcurfew does not read (too long after substitution), with the reason.
+  const unreadable = new Map<string, string>();
   const stages: DockerStage[] = [];
+  // The first stage of each name, for FROM <name>.
+  const named = new Map<string, number>();
   const versions: DockerfileReading['versions'] = [];
   for (const instruction of instructions) {
     if (instruction.keyword === facts.syntax.globalArgInstruction && stages.length === 0) {
       for (const [name, value] of argDeclarations(instruction.text)) {
-        const resolved = value === undefined ? undefined : substitute(value, args, escape);
+        const resolved = value === undefined ? undefined : substitute(value, args, escape, unreadable);
         args.set(name, resolved?.ok === true ? resolved.value : undefined);
+        const why = resolved?.ok === false ? resolved.reason : undefined;
+        if (why !== undefined) unreadable.set(name, why.startsWith('it ') ? `the ARG ${name} ${why.slice(3)}` : why);
+        else unreadable.delete(name);
       }
       continue;
     }
@@ -156,17 +166,19 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
       const written = words[position] ?? '';
       const alias = words[position + 1]?.toLowerCase() === 'as' ? words[position + 2]?.toLowerCase() : undefined;
       const stage: DockerStage = { line: instruction.line, ...(alias === undefined ? {} : { name: alias }), commands: [] };
-      const substituted = substitute(written, args, escape);
+      const substituted = substitute(written, args, escape, unreadable);
       if (!substituted.ok) {
         // The tag may come from an ARG without a value; the image name may still show the official image.
-        const named = written.split('@', 1)[0] ?? '';
-        const colon = named.lastIndexOf(':');
-        const name = colon > named.lastIndexOf('/') ? named.slice(0, colon) : named;
-        const runtime = name.includes('$') ? undefined : runtimeOf(name, facts);
-        if (runtime !== undefined) stage.runtime = { tool: runtime.tool, unknown: `the ARG ${substituted.variable} it uses has no value in the Dockerfile` };
+        const reference = written.split('@', 1)[0] ?? '';
+        const colon = reference.lastIndexOf(':');
+        const name = colon > reference.lastIndexOf('/') ? reference.slice(0, colon) : reference;
+        const runtime = name.includes('$') || name.length > 256 ? undefined : runtimeOf(name, facts);
+        const why = substituted.reason;
+        const reason = why === undefined ? `the ARG ${substituted.variable} it uses has no value in the Dockerfile` : why.startsWith('it ') ? `the image reference ${why.slice(3)}` : why;
+        if (runtime !== undefined) stage.runtime = { tool: runtime.tool, unknown: reason };
       } else {
         stage.image = substituted.value;
-        const earlier = stages.findIndex((other) => other.name !== undefined && other.name === substituted.value.toLowerCase());
+        const earlier = named.get(substituted.value.toLowerCase()) ?? -1;
         if (earlier >= 0) {
           stage.from = earlier;
           const inherited = stages[earlier]?.runtime;
@@ -182,6 +194,7 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
         }
       }
       const { commands: _commands, ...fields } = stage;
+      if (alias !== undefined && !named.has(alias)) named.set(alias, stages.length);
       stages.push({ ...fields, commands: [] });
       continue;
     }
@@ -189,7 +202,7 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
     if (instruction.keyword !== 'RUN' || stage === undefined) continue;
     for (const command of runCommands(instruction, facts).commands) {
       stage.commands.push(command);
-      if (command.kind === 'upgrade' && command.version !== undefined) {
+      if (command.kind === 'upgrade' && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip')) {
         versions.push({ tool: command.tool, declaration: { version: command.version, source: 'dockerfile', file, line: command.line, stage: stage.name ?? String(stages.length - 1) } });
       }
     }

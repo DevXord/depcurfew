@@ -73,7 +73,13 @@
       "file": ".github/workflows/ci.yml",
       "id": "test",
       "line": 4,
-      "commands": [],
+      "commands": [
+        {
+          "kind": "install",
+          "tool": "pnpm",
+          "line": 13
+        }
+      ],
       "runsNode": true
     }
   ],

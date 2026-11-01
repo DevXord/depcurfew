@@ -21,6 +21,22 @@ export interface Feature {
   setting: string;
   since: string;
   disputed: boolean;
+  /** Another way to have it from an earlier version: a setting in a file (strict-allow-scripts=true in .npmrc). */
+  instead?: { setting: string; file: string; since: string };
+}
+
+/**
+ * When a missing feature can also be had with a setting from an earlier version (decision D-105): that version, the
+ * newest of it and the other missing features, and how to say it in a fix ("npm 11.16.0 or later with
+ * strict-allow-scripts=true in .npmrc, which depcurfew apply writes for it").
+ */
+export function alternativeOf(missing: readonly { setting: string; since: string; instead?: Feature['instead'] }[], name: string): { version: Version; suffix: string; set: string; text: string } | undefined {
+  const instead = missing.find((item) => item.instead !== undefined)?.instead;
+  if (instead === undefined) return undefined;
+  const versions = [instead.since, ...missing.filter((item) => item.instead === undefined).map((item) => item.since)].map((since) => parseVersion(since) as Version);
+  const version = versions.reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b));
+  const suffix = `with ${instead.setting} in ${instead.file}, which depcurfew apply writes for it`;
+  return { version, suffix, set: `set ${instead.setting} in ${instead.file}, which depcurfew apply writes for it`, text: `${name} ${formatVersion(version)} or later ${suffix}` };
 }
 
 function feature(setting: string | null, since: Fact<string | null> | string | undefined): Feature | undefined {
@@ -116,10 +132,33 @@ export function declarationLine(context: RuleContext, declaration: VersionDeclar
   return key === undefined ? undefined : lineOf(text, key);
 }
 
+/**
+ * npm with installScripts "deny": what keeps dependency install scripts from running with the files as written
+ * (decision D-105). ignore-scripts=true turns them off in every version; strict-allow-scripts=true stops the install
+ * at a script allowScripts does not cover from 11.16.0; without either, only npm 12 blocks such scripts by default,
+ * and 11.16 to 11.x run them with a notice.
+ */
+function scriptFeatures(context: RuleContext, tool: ToolKnowledge, policy: ResolvedPolicy): Feature[] {
+  if (policy.installScripts?.default !== 'deny' || tool.extra?.['strictAllowScripts'] === undefined) return [];
+  const file = values(tool.cooldown.configFiles)[0]?.[0];
+  if (file === undefined) return [];
+  const disable = tool.installScripts.disableAll.status === 'verified' ? tool.installScripts.disableAll.value : undefined;
+  if (typeof disable === 'string' && /^[\w.-]+$/u.test(disable) && readSetting(context.repository, file, disable)?.value === true) return [];
+  const strict = extraOf(tool, 'strictAllowScripts', isSwitch);
+  if (readSetting(context.repository, file, strict.setting)?.value === strict.value) {
+    const found = feature(strict.setting, strict.since);
+    return found === undefined ? [] : [found];
+  }
+  const blocks = feature(`blocking dependency install scripts without ${strict.setting}`, (values(tool.installScripts.defaultPolicy)[0] ?? []).find((entry) => entry.value === 'deny-except-allowlist')?.since);
+  return blocks === undefined || strict.since === undefined ? [] : [{ ...blocks, instead: { setting: `${strict.setting}=${String(strict.value)}`, file, since: strict.since } }];
+}
+
 /** Every setting in use for a tool: the ones depcurfew.json needs and the ones already in its configuration. */
 export function featuresOf(context: RuleContext, tool: ToolKnowledge): Feature[] {
   const features = new Map<string, Feature>();
-  for (const item of [...(context.policy === undefined ? [] : policyFeatures(tool, policyFor(context.policy, ecosystemOfTool(tool)))), ...configuredFeatures(context, tool)]) features.set(item.setting, item);
+  const policy = context.policy === undefined ? undefined : policyFor(context.policy, ecosystemOfTool(tool));
+  const fromPolicy = policy === undefined ? [] : [...policyFeatures(tool, policy), ...scriptFeatures(context, tool, policy)];
+  for (const item of [...fromPolicy, ...configuredFeatures(context, tool)]) features.set(item.setting, item);
   return [...features.values()];
 }
 
@@ -149,11 +188,15 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
       lowest.kind === 'exact'
         ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}`
         : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
+    const alternative = alternativeOf(missing, tool.name);
     context.report({
       level: lowest.kind === 'exact' ? 'error' : 'warning',
       location: line === undefined ? { file: declaration.file } : { file: declaration.file, line },
       message: subject,
-      fix: `Require ${tool.name} ${formatVersion(needed)} or later in ${label}`,
+      fix:
+        alternative !== undefined && lowest.kind === 'exact' && compareVersions(lowest.version, alternative.version) >= 0
+          ? `Set${alternative.set.slice(3)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}`
+          : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === undefined ? '' : `, or ${alternative.text}`}`,
     });
   }
 }
@@ -176,7 +219,8 @@ export const managerVersionTooOld: Rule = {
     }
     // The npm that comes with the declared Node.js, and the pip of a python image, where nothing replaces them.
     checkBundledVersions(context, {
-      features: (tool) => featuresOf(context, tool),
+      features: (tool, where) => featuresOf(where, tool),
+      alternative: (missing, name) => alternativeOf(missing, name),
       missing: missingFeatures,
       line: (declaration) => declarationLine(context, declaration),
       label: (declaration) => SOURCE_LABEL[declaration.source],

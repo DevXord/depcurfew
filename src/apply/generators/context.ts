@@ -16,6 +16,7 @@ import { describeRequirements, type Requirement } from '../requirements.ts';
 import { writeTomlBlock } from '../toml.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
 import type { ApplyWarning } from '../warnings.ts';
+import type { NpmInUse } from '../../doctor/rules/bundled-versions.ts';
 import type { Workspace } from '../workspace.ts';
 import { yamlGet, yamlSet, yamlSetMany } from '../yaml-edit.ts';
 
@@ -42,6 +43,11 @@ export interface Context {
   policy: ResolvedPolicy;
   /** undefined: no exact version is pinned, so the latest known version is assumed. */
   version: Version | undefined;
+  /**
+   * npm without a pin for the whole repository: the npm versions the repository runs (the npm of the declared Node.js
+   * versions, npm installed in CI and Dockerfiles), for the install-script settings (decision D-105); empty otherwise.
+   */
+  inUse: readonly NpmInUse[];
   /** The version as messages show it: as the tool prints it when that is known (24.0), else as major.minor.patch. */
   versionLabel: string;
   /** apply --user: blocks name the user policy, and a version that is too old is updated where it is installed. */
@@ -96,6 +102,8 @@ export function createContext(options: {
   targets: ReadonlySet<ToolId>;
   policy: ResolvedPolicy;
   version: Version | undefined;
+  /** npm without a pin for the whole repository: the npm versions the repository runs. */
+  inUse?: readonly NpmInUse[];
   workspace: Workspace;
   warnings: ApplyWarning[];
   snippets: Snippet[];
@@ -135,6 +143,7 @@ export function createContext(options: {
     name: tool.name,
     policy: options.policy,
     version: options.version,
+    inUse: options.inUse ?? [],
     versionLabel,
     user,
     workspace,

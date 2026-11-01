@@ -185,12 +185,25 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
   const npmValues = extraValue(npm, 'valueOptions');
   const pipLine = extraValue(pip, 'commandLine') as CommandLineKnowledge | undefined;
   const interpreter = first(environment.python.interpreter);
+  const scope = extraValue(npm, 'npmrcScope');
+  const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
+  // pnpm, Yarn and Bun: the commands that install the project's dependencies and those that add packages.
+  const others = (['pnpm', 'yarn', 'bun'] as const).flatMap((id) => {
+    const entry = tools.find((candidate) => candidate.id === id);
+    const install = entry === undefined ? undefined : extraValue(entry, 'projectInstall');
+    const line = entry === undefined ? undefined : (extraValue(entry, 'commandLine') as CommandLineKnowledge | undefined);
+    if (!isRecord(install)) return [];
+    const add = (line?.add ?? []).filter((command) => command[0] === id && command.length === 2).map((command) => command[1] ?? '');
+    return [{ tool: id, install: strings(install['commands']), add, bare: install['bare'] === true, valueOptions: [...(line?.valueOptions ?? [])] }];
+  });
   const commands: CommandFacts = {
     npm: {
       installCommands,
-      globalOptions: Array.isArray(globalOptions) ? globalOptions.filter((item): item is string => typeof item === 'string') : [],
-      valueOptions: Array.isArray(npmValues) ? npmValues.filter((item): item is string => typeof item === 'string') : [],
+      globalOptions: strings(globalOptions),
+      valueOptions: strings(npmValues),
+      globalIgnoresProject: isRecord(scope) && scope['globalMode'] === 'ignored',
     },
+    others,
     pip: {
       executables: unique((pipLine?.add ?? []).map((command) => command[0] ?? '')),
       installCommand: pipLine?.add[0]?.[1] ?? 'install',

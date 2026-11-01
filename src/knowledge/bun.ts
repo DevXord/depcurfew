@@ -4,6 +4,7 @@ import type { SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const user = verifiedOn('2026-10-31');
+const runtimes = verifiedOn('2026-11-01');
 const BUN_V1_4_4 = 'https://github.com/oven-sh/bun/blob/bun-v1.4.4';
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 
@@ -171,6 +172,11 @@ export const bun: ToolKnowledge = {
     ),
   },
   extra: {
+    projectInstall: runtimes.verified(
+      { commands: ['install'], bare: false },
+      'https://github.com/oven-sh/bun/blob/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/pm/cli/install.mdx',
+      '"if your project has a package.json, you can use bun install"; the page names no alias, so none is listed. bun add (commandLine.add) adds packages.',
+    ),
     commandLine: checked.verified(
       {
         add: [['bun', 'add']],

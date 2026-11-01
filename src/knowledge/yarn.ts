@@ -241,6 +241,11 @@ export const yarn: ToolKnowledge = {
       'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-pnp/sources/jsInstallUtils.ts',
       'With built: false in the root package.json, Yarn reports that the build "has been explicitly disabled through configuration" as an info message instead of the warning that all build scripts are disabled; built: false also wins over enableScripts: true. Only the top-level manifest counts (CHANGELOG 2.0.0).',
     ),
+    projectInstall: leftovers.verified(
+      { commands: ['install'], bare: true },
+      `${BERRY}/packages/plugin-essentials/sources/commands/install.ts`,
+      'The install command ("install the project dependencies") has the paths [`install`] and Command.Default, so yarn without a command installs too. yarn add (commandLine.add) adds packages.',
+    ),
     commandLine: checked.verified(
       {
         add: [['yarn', 'add']],

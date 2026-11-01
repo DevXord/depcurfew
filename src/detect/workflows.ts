@@ -19,6 +19,8 @@ export interface WorkflowFindings {
 }
 
 const MATRIX_VALUE = /^\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}$/u;
+/** At most this many values of one matrix key are checked; a longer list is reported as not checked (a notice). */
+export const MAX_MATRIX_VALUES = 256;
 
 function scalarText(node: unknown): string | undefined {
   if (!isScalar(node) || node.value === null || node.value === undefined) return undefined;
@@ -30,17 +32,28 @@ function findAction(actions: readonly SetupActionKnowledge[], uses: string): Set
   return actions.find((action) => action.action.toLowerCase() === name);
 }
 
-/** The values of a matrix key: its list, and the values include entries give it; undefined when they cannot be listed. */
-function matrixValues(job: YAMLMap, key: string): Node[] | undefined {
+/**
+ * The values of a matrix key: its list and the values include entries give it, each value once (at its first line),
+ * without the values an exclude entry with only this key removes (an entry with more keys removes some combinations
+ * only, so the value stays). undefined when they cannot be listed, `too-many` past MAX_MATRIX_VALUES.
+ */
+function matrixValues(job: YAMLMap, key: string): Node[] | 'too-many' | undefined {
   const strategy = job.get('strategy');
   const matrix = isMap(strategy) ? strategy.get('matrix') : undefined;
   if (!isMap(matrix)) return undefined;
-  const values: Node[] = [];
+  const values = new Map<string, Node>();
+  const add = (item: Node): boolean => {
+    const text = scalarText(item);
+    if (text === undefined || values.has(text)) return true;
+    if (values.size >= MAX_MATRIX_VALUES) return false;
+    values.set(text, item);
+    return true;
+  };
   const list = matrix.get(key, true);
   if (isSeq(list)) {
     for (const item of list.items) {
       if (!isScalar(item)) return undefined;
-      values.push(item);
+      if (!add(item)) return 'too-many';
     }
   } else if (list !== undefined) {
     return undefined;
@@ -49,10 +62,38 @@ function matrixValues(job: YAMLMap, key: string): Node[] | undefined {
   if (isSeq(include)) {
     for (const entry of include.items) {
       const value = isMap(entry) ? entry.get(key, true) : undefined;
-      if (isScalar(value)) values.push(value);
+      if (isScalar(value) && !add(value)) return 'too-many';
     }
   }
-  return values.length === 0 ? undefined : values;
+  const exclude = matrix.get('exclude');
+  if (isSeq(exclude) && isSeq(list)) {
+    const included = new Set(isSeq(include) ? include.items.map((item) => (isMap(item) ? scalarText(item.get(key, true)) : undefined)) : []);
+    for (const entry of exclude.items) {
+      if (!isMap(entry) || entry.items.length !== 1) continue;
+      const value = entry.get(key, true);
+      const text = isScalar(value) ? scalarText(value) : undefined;
+      // Only a value of the key's own list is excluded; GitHub adds include entries after exclude.
+      if (text !== undefined && !included.has(text)) values.delete(text);
+    }
+  }
+  return values.size === 0 ? undefined : [...values.values()];
+}
+
+/** A working directory as written, without ./ and a trailing /; undefined for the root. */
+function workingDirectory(node: unknown): string | undefined {
+  const text = scalarText(node)?.trim();
+  if (text === undefined) return undefined;
+  let value = text.replace(/\\/gu, '/');
+  while (value.startsWith('./')) value = value.slice(2);
+  while (value.endsWith('/')) value = value.slice(0, -1);
+  return value === '' || value === '.' ? undefined : value;
+}
+
+/** defaults.run.working-directory of a workflow or a job. */
+function defaultDirectory(node: unknown): string | undefined {
+  const defaults = isMap(node) ? node.get('defaults') : undefined;
+  const run = isMap(defaults) ? defaults.get('run') : undefined;
+  return isMap(run) ? workingDirectory(run.get('working-directory', true)) : undefined;
 }
 
 export function readWorkflows(repository: Repository, facts: DetectionFacts): WorkflowFindings {
@@ -77,6 +118,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
 
     const jobs = document.get('jobs');
     if (!isMap(jobs)) continue;
+    const workflowDirectory = defaultDirectory(document.contents);
     for (const pair of jobs.items) {
       const id = scalarText(pair.key);
       const job = pair.value;
@@ -84,7 +126,13 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
       const declare = (tool: RuntimeOrTool, value: { version: string } | { versionFile: string }, node: Node, step: number | undefined) => {
         const matrix = 'version' in value ? MATRIX_VALUE.exec(value.version)?.[1] : undefined;
         const expanded = matrix === undefined ? undefined : matrixValues(job, matrix);
-        if (matrix !== undefined && expanded !== undefined) {
+        if (matrix !== undefined && expanded === 'too-many') {
+          const line = lineOf(node);
+          const unknown = `the matrix lists more than ${MAX_MATRIX_VALUES} values for ${matrix}, which depcurfew does not check`;
+          findings.versions.push({ tool, declaration: { ...value, source: 'github-actions', file, ...(line === undefined ? {} : { line }), job: id, ...(step === undefined ? {} : { step }), matrix, unknown } });
+          return;
+        }
+        if (matrix !== undefined && Array.isArray(expanded)) {
           for (const item of expanded) {
             const version = scalarText(item);
             const line = lineOf(item);
@@ -98,6 +146,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
       const keyLine = isScalar(pair.key) ? lineOf(pair.key) : undefined;
       const record: WorkflowJob = { file, id, line: keyLine ?? 1, commands: [], runsNode: false };
       findings.jobs.push(record);
+      const jobDirectory = defaultDirectory(job) ?? workflowDirectory;
       const steps = job.get('steps');
       if (!isSeq(steps)) continue;
       for (const step of steps.items) {
@@ -130,9 +179,10 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
           const start = run.range[0];
           const found = findToolCommands(text.slice(start, run.range[1]), facts.commands);
           record.runsNode ||= found.runsNode;
+          const stepDirectory = step.has('working-directory') ? workingDirectory(step.get('working-directory', true)) : jobDirectory;
           for (const { offset, ...command } of found.commands) {
             const line = lineCounter.linePos(start + offset).line;
-            record.commands.push({ ...command, line });
+            record.commands.push({ ...command, line, ...(stepDirectory === undefined ? {} : { directory: stepDirectory }) });
             if (command.tool === 'npm' && command.kind === 'upgrade' && command.version !== undefined) {
               findings.versions.push({ tool: 'npm', declaration: { version: command.version, source: 'github-actions', file, line, job: id } });
             }

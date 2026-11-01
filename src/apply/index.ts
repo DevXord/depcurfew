@@ -6,7 +6,9 @@ import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { denyConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
 import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
-import type { Detection } from '../detect/types.ts';
+import type { Detection, VersionDeclaration, WorkflowJob } from '../detect/types.ts';
+import { jobsInProject, npmInUse, repositoryPin, type NpmInUse } from '../doctor/rules/bundled-versions.ts';
+import { SOURCE_LABEL } from '../doctor/rules/manager-version.ts';
 import { environment as environmentKnowledge } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { Fact, ToolId, ToolKnowledge } from '../knowledge/types.ts';
@@ -79,6 +81,11 @@ export interface PlanOptions {
   project?: string;
   /** The directory is the root of a repository with projects: what the projects configure, which bots serve too. */
   projects?: { managerMinutes: readonly number[]; targets: ReadonlySet<ToolId> };
+  /**
+   * The project's installs in CI jobs of the repository root (working-directory: frontend), with their Node.js setup
+   * steps, for the npm the project runs (decision D-105); jobsInProject gives them.
+   */
+  ci?: { jobs: readonly WorkflowJob[]; versions: readonly VersionDeclaration[] };
 }
 
 /** What a plan configured, for the plan of the root in a repository with projects (and doctor's). */
@@ -300,9 +307,20 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   // Package managers see the policy of their registry; bots serve both and get all of it, and the package managers of
   // every project too.
   const botTargets = new Set<ToolId>([...targets, ...(options.projects?.targets ?? [])]);
-  const run = (tool: ToolKnowledge, version: Version | undefined, action: (context: ReturnType<typeof createContext>) => void) => {
+  const run = (tool: ToolKnowledge, version: Version | undefined, action: (context: ReturnType<typeof createContext>) => void, inUse?: readonly NpmInUse[]) => {
     const view = tool.kind === 'package-manager' ? policyFor(policy, ecosystemOfTool(tool)) : policy;
-    const context = createContext({ tool, tools, targets: tool.kind === 'package-manager' ? targets : botTargets, policy: view, version, workspace, warnings, snippets, failures });
+    const context = createContext({
+      tool,
+      tools,
+      targets: tool.kind === 'package-manager' ? targets : botTargets,
+      policy: view,
+      version,
+      workspace,
+      warnings,
+      snippets,
+      failures,
+      ...(inUse === undefined ? {} : { inUse }),
+    });
     workspace.startTool(tool.id);
     try {
       action(context);
@@ -340,10 +358,15 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
         fix: pinFix(tool),
       });
     }
-    run(tool, version, (context) => {
-      const minutes = generator(context);
-      if (minutes !== undefined) managerMinutes.push(minutes);
-    });
+    run(
+      tool,
+      version,
+      (context) => {
+        const minutes = generator(context);
+        if (minutes !== undefined) managerMinutes.push(minutes);
+      },
+      tool.id === 'npm' && manager !== undefined ? npmVersionsInUse(root, detection, manager, policy, options) : undefined,
+    );
   }
 
   const duration = policy.cooldown === undefined ? undefined : botDuration(policy.cooldown.minimum, [...managerMinutes, ...(options.projects?.managerMinutes ?? [])]);
@@ -364,9 +387,37 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   return report;
 }
 
+/**
+ * The npm versions a directory runs when nothing pins npm for the whole repository (packageManager, devEngines,
+ * Volta, .tool-versions): the npm of the declared Node.js versions and the npm CI jobs and Dockerfiles install
+ * (decision D-105). Empty with such a pin. At the root of a repository with projects, CI installs in a project's
+ * directory belong to that project; a project gets them through options.ci.
+ */
+function npmVersionsInUse(root: string, detection: Detection, manager: Detection['packageManagers'][number], policy: ResolvedPolicy, options: PlanOptions): NpmInUse[] {
+  if (repositoryPin(manager) !== undefined) return [];
+  const manifest = new Repository(root).parseOnce('package.json', (text) => JSON.parse(text) as unknown);
+  return npmInUse(detection, manifest, (declaration) => SOURCE_LABEL[declaration.source], {
+    projects: options.project === undefined ? policy.projects : [],
+    ...(options.ci === undefined ? {} : { extra: options.ci }),
+  });
+}
+
+/** The plan options of a directory listed in projects: its name, and the installs root CI jobs run in it. */
+export function projectPlanOptions(rootDetection: Detection, project: string): PlanOptions {
+  const ci = jobsInProject(rootDetection, project);
+  return { project, ...(ci.jobs.length === 0 ? {} : { ci }) };
+}
+
 /** The files a message about a project may name, relative to the project: what detection found and what the plan touched. */
 export function projectFiles(detection: Detection, report?: ApplyReport): Set<string> {
-  const files = new Set<string>([...detection.npmrcFiles, ...detection.workflows, ...detection.warnings.flatMap((warning) => warning.files)]);
+  const files = new Set<string>([
+    ...detection.npmrcFiles,
+    ...detection.workflows,
+    ...detection.warnings.flatMap((warning) => warning.files),
+    // Node.js version files and Dockerfiles, which the messages about the npm a project runs name (decision D-105).
+    ...detection.node.versions.map((declaration) => declaration.file),
+    ...detection.dockerfiles.map((dockerfile) => dockerfile.file),
+  ]);
   for (const manager of detection.packageManagers) {
     for (const file of [...manager.evidence.map((item) => item.file), ...manager.configFiles, ...manager.versions.map((item) => item.file)]) files.add(file);
   }
@@ -426,7 +477,7 @@ export function planRepository(root: string, policy: ResolvedPolicy, tools: read
     .map((project) => {
       const directory = join(root, project);
       const detection = detectProject(directory, tools);
-      const report = planApply(directory, policy, detection, tools, { project });
+      const report = planApply(directory, policy, detection, tools, projectPlanOptions(rootDetection, project));
       return { project, detection, report, details: planDetails(report) };
     });
   const projectTargets = new Set(projects.flatMap((entry) => [...(entry.details?.targets ?? [])]));

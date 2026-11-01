@@ -1,5 +1,5 @@
-// Finds the commands of a shell script (a CI run step, a Dockerfile RUN instruction) that install packages with npm or
-// pip, or that replace npm or pip itself (npm install -g npm@11, pip install --upgrade pip, corepack enable npm). It
+// Finds the commands of a shell script (a CI run step, a Dockerfile RUN instruction) that install packages with npm,
+// pip, pnpm, Yarn or Bun, or that replace npm or pip itself (npm install -g npm@11, pip install --upgrade pip, corepack enable npm). It
 // splits the script into simple commands the way a shell roughly would (quotes, ;, &&, ||, |, &, brackets, line
 // continuations, # comments) in one pass, without expanding anything: it tells detection where a package manager is
 // used, it is not a guard (the install guard in src/check/command.ts reads command lines far more strictly).
@@ -14,7 +14,11 @@ export interface CommandFacts {
     globalOptions: readonly string[];
     /** npm options followed by a separate value. */
     valueOptions: readonly string[];
+    /** npm does not read the project .npmrc in global mode, so npm install -g <package> is no install into the project. */
+    globalIgnoresProject: boolean;
   };
+  /** pnpm, Yarn and Bun: install commands (pnpm install, pnpm i), add commands, and whether the bare tool installs (yarn). */
+  others: readonly { tool: 'pnpm' | 'yarn' | 'bun'; install: readonly string[]; add: readonly string[]; bare: boolean; valueOptions: readonly string[] }[];
   pip: {
     /** Executables whose install command installs packages: pip, pip3. */
     executables: readonly string[];
@@ -165,9 +169,33 @@ function operands(args: readonly Word[], valueOptions: ReadonlySet<string>): Wor
   return found;
 }
 
-/** A name that is the executable with a version appended (python3.12, pip3.13) stands for the executable. */
-function matchesExecutable(name: string, executables: readonly string[]): boolean {
-  return executables.includes(name) || executables.includes(name.replace(/[0-9][0-9.]*$/u, ''));
+/** Longer words are no program name depcurfew knows, so they are not looked at further. */
+const MAX_NAME = 64;
+
+/**
+ * A name that is the executable with a version appended (python3.12, pip3.13) stands for the executable. The suffix is
+ * cut by a loop from the end, so a long word of digits takes linear time.
+ */
+export function matchesExecutable(name: string, executables: readonly string[]): boolean {
+  if (name.length > MAX_NAME) return false;
+  if (executables.includes(name)) return true;
+  let end = name.length;
+  while (end > 0 && /[0-9.]/u.test(name[end - 1] ?? '')) end -= 1;
+  // The suffix starts with a digit: python3.12 is python, python.12 is not.
+  while (end < name.length && name[end] === '.') end += 1;
+  return end < name.length && end > 0 && executables.includes(name.slice(0, end));
+}
+
+/** -c, or grouped short options that include c (-ec, -xc): a shell reads its script from the next argument. */
+export function isCommandOption(text: string): boolean {
+  if (text.length < 2 || text.length > MAX_NAME || text[0] !== '-' || text[1] === '-') return false;
+  let command = false;
+  for (let index = 1; index < text.length; index++) {
+    const char = text[index] ?? '';
+    if (!/\w/u.test(char)) return false;
+    if (char === 'c') command = true;
+  }
+  return command;
 }
 
 type Found = Omit<ToolCommand, 'line'> & { offset: number };
@@ -181,7 +209,17 @@ function npmCommand(args: readonly Word[], at: number, facts: CommandFacts): Fou
   const global = rest.some((word) => facts.npm.globalOptions.includes(word.text));
   const self = operands(rest, values).find((word) => /^npm(?:@|$)/u.test(word.text));
   if (global && self !== undefined) return { kind: 'upgrade', tool: 'npm', version: self.text.includes('@') ? self.text.slice(4) || 'latest' : 'latest', offset: at };
+  // npm install -g typescript installs a program for the machine; npm does not read the project .npmrc then.
+  if (global && facts.npm.globalIgnoresProject) return undefined;
   return { kind: 'install', tool: 'npm', offset: at };
+}
+
+/** pnpm install, pnpm i, pnpm add, yarn, yarn install, yarn add, bun install, bun add. */
+function otherCommand(tool: CommandFacts['others'][number], args: readonly Word[], at: number): Found | undefined {
+  const index = firstOperand(args, new Set(tool.valueOptions));
+  const command = args[index]?.text;
+  if (command === undefined ? tool.bare : tool.install.includes(command) || tool.add.includes(command)) return { kind: 'install', tool: tool.tool, offset: at };
+  return undefined;
 }
 
 function corepackCommand(args: readonly Word[], at: number, facts: CommandFacts): Found | undefined {
@@ -257,7 +295,7 @@ function readCommand(words: readonly Word[], facts: CommandFacts, depth: number)
   const args = command.slice(1);
   // sh -c '...' runs its argument as a script.
   if (SHELLS.has(name) && depth < 2) {
-    const script = args.find((word, index) => index > 0 && /^-\w*c\w*$/u.test(args[index - 1]?.text ?? ''));
+    const script = args.find((_word, index) => index > 0 && isCommandOption(args[index - 1]?.text ?? ''));
     if (script !== undefined) {
       const inner = findToolCommands(script.text, facts, depth + 1);
       return { found: inner.commands.map((item) => ({ ...item, offset: script.offset })), runsNode: inner.runsNode };
@@ -266,6 +304,8 @@ function readCommand(words: readonly Word[], facts: CommandFacts, depth: number)
   const runsNode = NODE_EXECUTABLES.has(name);
   if (name === 'npm') return { found: [npmCommand(args, first.offset, facts)].filter((item) => item !== undefined), runsNode };
   if (name === 'corepack') return { found: [corepackCommand(args, first.offset, facts)].filter((item) => item !== undefined), runsNode };
+  const other = facts.others.find((entry) => entry.tool === name);
+  if (other !== undefined) return { found: [otherCommand(other, args, first.offset)].filter((item) => item !== undefined), runsNode };
   const pip = pipArguments(command, facts);
   if (pip !== undefined) return { found: [pipCommand(pip, first.offset, facts)].filter((item) => item !== undefined), runsNode };
   return { found: [], runsNode };

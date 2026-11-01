@@ -43,21 +43,30 @@ export type VersionDeclaration = ({ version: string; versionFile?: string } | { 
   step?: number;
   /** github-actions: the version is one value of this matrix key, from ${{ matrix.<key> }}; the line is the value's. */
   matrix?: string;
+  /** Why depcurfew does not read the version written (a matrix with too many values); the version is then as written. */
+  unknown?: string;
   /** dockerfile: the build stage, by its name or its number from 0. */
   stage?: string;
 };
 
 /**
  * A command in a CI run step or a Dockerfile RUN instruction. install: installs packages with the tool (npm ci,
- * npm install, pip install -r requirements.txt); upgrade: replaces the tool itself (npm install -g npm@11.17.0,
- * pip install --upgrade pip, corepack enable npm).
+ * npm install, pip install -r requirements.txt, pnpm install, yarn, bun add); upgrade: replaces the tool itself
+ * (npm install -g npm@11.17.0, pip install --upgrade pip, corepack enable npm). npm install -g with another package is
+ * neither: npm does not read the project .npmrc in global mode.
  */
 export interface ToolCommand {
   kind: 'install' | 'upgrade';
-  tool: 'npm' | 'pip';
+  /** pnpm, Yarn and Bun only install (their versions come from packageManager and the setup actions). */
+  tool: 'npm' | 'pip' | 'pnpm' | 'yarn' | 'bun';
   /** upgrade: the version asked for as written, latest when none is; absent when the command does not say (corepack enable npm). */
   version?: string;
   line: number;
+  /**
+   * github-actions: the working directory of the run step as written (working-directory of the step, or
+   * defaults.run.working-directory of the job or the workflow), without ./ and a trailing /; absent for the root.
+   */
+  directory?: string;
 }
 
 /** A GitHub Actions job, with what its run steps do with npm and pip. */

@@ -1,7 +1,7 @@
 // Lockfile rules. lockfile-forbidden-source: a package from a source depcurfew.json denies. lockfile-install-scripts:
 // a package with install scripts that depcurfew.json does not allow, where the lockfile records scripts.
 import { extraOf, isRecord, isSwitch, sinceOf, values } from '../../apply/facts.ts';
-import { compareVersions, parseVersion, pinnedVersion } from '../../apply/version.ts';
+import { compareVersions, parseVersion, pinnedVersion, type Version } from '../../apply/version.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
@@ -17,6 +17,8 @@ import { iniValue, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { hasBuildRecords, showsBuilds } from '../python-lockfiles.ts';
 import { hasLockfile } from '../applies.ts';
+import { npmInUse, repositoryPin } from './bundled-versions.ts';
+import { SOURCE_LABEL } from './manager-version.ts';
 
 const LABELS = {
   npm: { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' },
@@ -98,13 +100,36 @@ function shownSpec(spec: string): string {
 }
 
 /** Whether the version in use runs dependency install scripts without an allow-list, under any official reading. */
-function runsScripts(context: RuleContext, tool: ToolKnowledge): boolean {
+/**
+ * The versions of the tool the repository runs: the one it pins, or for npm without a pin the npm that the declared
+ * Node.js versions come with and that CI jobs and Dockerfiles install (npmInUse, decision D-105); the latest known
+ * version when none is declared.
+ */
+function versionsInUse(context: RuleContext, tool: ToolKnowledge): (Version | undefined)[] {
   const manager = context.detection.packageManagers.find((entry) => entry.id === tool.id);
-  const version = (manager === undefined ? undefined : pinnedVersion(manager)) ?? latestVersion(tool);
-  return evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
-    const policy: ScriptPolicy | undefined = versionedValue(evidence.value, version);
-    return policy === 'run' || policy === 'run-with-warning';
-  });
+  if (manager === undefined) return [latestVersion(tool)];
+  const pin = repositoryPin(manager);
+  if (pin !== undefined || tool.id !== 'npm') return [pin ?? pinnedVersion(manager) ?? latestVersion(tool)];
+  const manifest = context.repository.parseOnce('package.json', (text) => JSON.parse(text) as unknown);
+  const ci = context.plan?.ci;
+  const inUse = npmInUse(context.detection, manifest, (declaration) => SOURCE_LABEL[declaration.source], {
+    projects: (context.projects ?? []).map((view) => view.directory),
+    ...(ci === undefined ? {} : { extra: ci }),
+  }).flatMap((entry) => entry.versions);
+  return inUse.length > 0 ? inUse : [pinnedVersion(manager) ?? latestVersion(tool)];
+}
+
+/**
+ * Whether some version in use runs dependency install scripts that no list covers: every version that runs them all,
+ * and, unless strict-allow-scripts is set (`strict`), the versions that run them with a notice.
+ */
+function runsScripts(context: RuleContext, tool: ToolKnowledge, strict: boolean): boolean {
+  return versionsInUse(context, tool).some((version) =>
+    evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
+      const policy: ScriptPolicy | undefined = versionedValue(evidence.value, version);
+      return policy === 'run' || (policy === 'run-with-warning' && !strict);
+    }),
+  );
 }
 
 /**
@@ -253,7 +278,8 @@ export const lockfileInstallScripts: Rule = {
         context.notice(`${lockfile.file} marks no package with install scripts; Bun records them only since 1.4.4, so an older lockfile may hide some`, lockfile.file);
       }
       const disabledBy = scriptsDisabledBy(context, tool);
-      const running = disabledBy === undefined && runsScripts(context, tool);
+      // strict-allow-scripts does nothing in an npm that does not know it, so such an npm in use still runs them.
+      const running = disabledBy?.all !== true && runsScripts(context, tool, disabledBy !== undefined);
       const lists = ownLists(context, tool);
       for (const entry of flagged) {
         if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;

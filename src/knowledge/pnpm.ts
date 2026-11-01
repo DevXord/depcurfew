@@ -6,6 +6,7 @@ const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
+const runtimes = verifiedOn('2026-11-01');
 const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
 const PNPM_V11_CODE = 'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src';
 
@@ -252,6 +253,11 @@ export const pnpm: ToolKnowledge = {
       { file: 'pnpm-workspace.yaml', setting: 'allowBuilds', value: false, since: '10.26.0' },
       'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/building/policy/src/index.ts',
       'allowBuilds: { pkg: false } records a denial: the build is decided, not reported as unreviewed and does not fail strictDepBuilds ("A recorded build the policy denies was decided on purpose"). pnpm 10.26 maps false to ignoredBuiltDependencies, which only silences the report. Under dangerouslyAllowAllBuilds a denied package still builds before pnpm 12.12.0.',
+    ),
+    projectInstall: runtimes.verified(
+      { commands: ['install', 'i'], bare: false },
+      'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli/install.md',
+      'Commands that install the dependencies of the project: "pnpm install is used to install all dependencies for a project", "Aliases: i". pnpm add (commandLine.add) adds packages. pnpm without a command does not install.',
     ),
     commandLine: rechecked.verified(
       {

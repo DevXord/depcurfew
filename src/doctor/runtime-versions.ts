@@ -181,7 +181,9 @@ export function pythonBundledPip(written: string, facts: RuntimeFacts): Resolved
 export function nodeLines(written: string, naming: Naming, facts: RuntimeFacts): ReleaseLineSchedule[] | undefined {
   const text = written.trim();
   const named = nodeName(text, naming, facts);
-  const range = named ?? text;
+  // A prerelease (16.20.0-rc.1) belongs to its line: a range would not match it, so its release stands for it.
+  const exact = named === undefined ? parseVersion(text) : undefined;
+  const range = exact !== undefined && exact[3] !== undefined ? formatVersion(release(exact)) : (named ?? text);
   const sets = range.split('||');
   const found: ReleaseLineSchedule[] = [];
   for (const line of facts.schedule) {

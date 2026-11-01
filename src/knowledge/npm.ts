@@ -309,6 +309,14 @@ export const npm: ToolKnowledge = {
       NPM_DEFINITIONS_V11_16,
       'strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it.',
     ),
+    strictAllowScriptsEffect: runtimes.verified(
+      [
+        { since: '11.16.0', value: 'the install fails instead of running the script with a notice' },
+        { since: '12.0.0', value: 'the install fails instead of blocking the script with a warning' },
+      ],
+      NPM_DEFINITIONS,
+      'npm 12.2.1 still defines strict-allow-scripts (default false): "If true, turn the install-script policy from a warning into a hard error: any dependency with install scripts that is not covered by allowScripts will fail the install instead of being blocked with a warning." Dependencies denied with false are still skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it. So the same .npmrc line keeps npm 11.16 to 11.x from running such scripts and makes npm 12 stop the install at them. The 11.16.0 effect is the one in strictAllowScripts (definitions.js at v11.16.0).',
+    ),
     unknownNpmrcKeys: rechecked.verified(
       'unknown keys in .npmrc files only warn unless strict-npmrc is set; unknown command-line flags throw since npm 12',
       `${NPM_GITHUB_V12}/CHANGELOG.md`,

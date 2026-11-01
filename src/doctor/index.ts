@@ -1,7 +1,7 @@
 // `depcurfew doctor`: finds configuration that does not do what it seems to, and drift from depcurfew.json. Every rule
 // reads the repository through the same read-only Repository as detection; nothing is written or executed.
 import { join } from 'node:path';
-import { loadPolicyIfPresent, planDetails, PolicyError, projectFiles, type ApplyReport, type PlanOptions } from '../apply/index.ts';
+import { loadPolicyIfPresent, planDetails, PolicyError, projectFiles, projectPlanOptions, type ApplyReport, type PlanOptions } from '../apply/index.ts';
 import { inProject, projectProblems, relocateText } from '../apply/projects.ts';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
@@ -131,7 +131,7 @@ export function runDoctor(
       return { directory: project, root: directory, repository: new Repository(directory), detection: detectProject(directory, tools) };
     });
   // The bots of the root wait as long as the package managers of every project (planRepository plans the same way).
-  const plans = policy === undefined ? [] : views.map((view) => planDetails(plannedFor(view.root, policy, view.detection, tools, { project: view.directory })));
+  const plans = policy === undefined ? [] : views.map((view) => planDetails(plannedFor(view.root, policy, view.detection, tools, projectPlanOptions(detection, view.directory))));
   const rootPlan: PlanOptions | undefined =
     views.length === 0
       ? undefined
@@ -139,7 +139,7 @@ export function runDoctor(
 
   const projectRuns = views.map((view) => ({
     view,
-    run: runRules(view.root, policy, rules, tools, { detection: view.detection, repository: view.repository, project: view.directory, plan: { project: view.directory } }),
+    run: runRules(view.root, policy, rules, tools, { detection: view.detection, repository: view.repository, project: view.directory, plan: projectPlanOptions(detection, view.directory) }),
   }));
   const rootRun = runRules(root, policy, rules, tools, { detection, ...(views.length === 0 ? {} : { projects: views }), ...(rootPlan === undefined ? {} : { plan: rootPlan }) });
 
@@ -152,7 +152,7 @@ export function runDoctor(
   const findings = [...rootRun.findings];
   for (const item of rootRun.notices) addNotice(item);
   for (const { view, run } of projectRuns) {
-    const relocated = relocateRun(view.directory, run, policy === undefined ? undefined : plannedFor(view.root, policy, view.detection, tools, { project: view.directory }));
+    const relocated = relocateRun(view.directory, run, policy === undefined ? undefined : plannedFor(view.root, policy, view.detection, tools, projectPlanOptions(detection, view.directory)));
     findings.push(...relocated.findings);
     for (const item of relocated.notices) addNotice(item);
   }

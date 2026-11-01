@@ -5,6 +5,26 @@
   ],
   "warnings": [
     {
+      "code": "strict-allow-scripts-from-node",
+      "tool": "npm",
+      "location": {
+        "file": ".nvmrc",
+        "line": 2
+      },
+      "message": "npm is not pinned for the repository, and npm 11.16.0 to 11.19.1 (which Node.js 24 in .nvmrc can come with), and npm 11.17.0 (which Dockerfile installs on line 9) run dependency install scripts that allowScripts does not cover unless strict-allow-scripts is set, so depcurfew apply writes strict-allow-scripts=true; with it, in npm 12.0.0 and later the install fails instead of blocking the script with a warning",
+      "fix": "Pin one npm version (packageManager or devEngines) to configure for it alone; with strict-allow-scripts, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in depcurfew.json"
+    },
+    {
+      "code": "scripts-not-enforceable",
+      "tool": "npm",
+      "location": {
+        "file": "Dockerfile",
+        "line": 3
+      },
+      "message": "npm 10.5.1 to 10.9.9 (which Node.js 22 (node:22-alpine) in Dockerfile can come with), and npm 11.3.0 to 11.13.0 (which Node.js 24 in .nvmrc can come with), and npm 10.9.0 (which Node.js v22.11.0 in .node-version comes with) run every dependency install script and have no allow-list, so \"deny\" cannot be enforced there",
+      "fix": "Install npm 11.16.0 or later before packages are installed there (npm install -g npm@11.16.0), or move to a Node.js release that comes with it; npm 12 blocks dependency scripts by default"
+    },
+    {
       "code": "allow-pattern-unsupported",
       "tool": "npm",
       "message": "npm: allowScripts takes package names only; \"@scope/*\" not written",

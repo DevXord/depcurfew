@@ -220,8 +220,14 @@ describe('doctor with projects', () => {
       ['config-drift', 'backend/pyproject.toml'],
       ['config-drift', 'depcurfew.json'],
       ['config-drift', 'frontend/package.json'],
+      // Without frontend/.npmrc nothing makes npm 11.19.1 block dependency install scripts (decision D-105).
+      ['manager-version-too-old', 'frontend/package.json'],
     ]);
     expect(report.findings[2]?.message).toBe('frontend/.npmrc is missing; depcurfew apply would create it with the settings from depcurfew.json');
+    expect(report.findings[4]).toMatchObject({
+      message: 'npm 11.19.1 in packageManager (frontend/package.json) does not support blocking dependency install scripts without strict-allow-scripts (since 12.0.0)',
+      fix: 'Set strict-allow-scripts=true in frontend/.npmrc, which depcurfew apply writes for it, or require npm 12.0.0 or later in packageManager',
+    });
     expect(report.checked?.tools).toEqual([
       { id: 'dependabot', name: 'Dependabot' },
       { id: 'npm', name: 'npm', version: '11.19.1', versionFrom: 'frontend/package.json', project: 'frontend' },

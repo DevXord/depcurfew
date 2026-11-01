@@ -55,7 +55,13 @@
       "file": ".github/workflows/ci.yml",
       "id": "test",
       "line": 4,
-      "commands": [],
+      "commands": [
+        {
+          "kind": "install",
+          "tool": "bun",
+          "line": 11
+        }
+      ],
       "runsNode": true
     }
   ],
