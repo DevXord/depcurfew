@@ -312,7 +312,7 @@ What depcurfew configures and checks for each tool, from its [knowledge base](ht
 <!-- BEGIN GENERATED: tools -->
 | Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source) | Dependency sources | Verified |
 | --- | --- | --- | --- | --- | --- |
-| npm | `min-release-age` in `.npmrc` (days), since 11.10.0 | `min-release-age-exclude`, since 11.17.0 | `allowScripts` in `package.json` | git: `allow-git`<br>remote tarball: `allow-remote`<br>local tarball: `allow-file`<br>local directory: `allow-directory` | 2026-10-28 – 2026-10-31 |
+| npm | `min-release-age` in `.npmrc` (days), since 11.10.0 | `min-release-age-exclude`, since 11.17.0 | `allowScripts` in `package.json` | git: `allow-git`<br>remote tarball: `allow-remote`<br>local tarball: `allow-file`<br>local directory: `allow-directory` | 2026-10-28 – 2026-11-01 |
 | pnpm | `minimumReleaseAge` in `pnpm-workspace.yaml` (minutes), since 10.16.0 | `minimumReleaseAgeExclude`, since 10.16.0 | `allowBuilds` in `pnpm-workspace.yaml` | git: `blockExoticSubdeps`<br>remote tarball: `blockExoticSubdeps` | 2026-10-28 – 2026-10-31 |
 | Yarn (Berry) | `npmMinimalAgeGate` in `.yarnrc.yml` (minutes), since 4.10.2 | `npmPreapprovedPackages`, since 4.10.0 | `dependenciesMeta.<package>.built` in `package.json` | git: `approvedGitRepositories` | 2026-10-28 – 2026-11-01 |
 | Bun | `install.minimumReleaseAge` in `bunfig.toml` (seconds), since 1.3.0 | `install.minimumReleaseAgeExcludes`, since 1.3.0 | `trustedDependencies` in `package.json` | none | 2026-10-28 – 2026-10-31 |
@@ -329,6 +329,8 @@ What depcurfew configures and checks for each tool, from its [knowledge base](ht
 <!-- END GENERATED: tools -->
 
 Yarn Classic (1.x) is detected but not supported.
+
+**Where Node.js and Python come from.** `doctor` also reads the files that choose the runtime: `.nvmrc`, `.node-version`, `engines.node`, Volta, `.tool-versions`, `devEngines.runtime`, `actions/setup-node` in workflows (with `node-version-file` and matrix values), and Dockerfiles (`Dockerfile`, `*.Dockerfile`, `Dockerfile.<name>` and `Containerfile` in the root, in direct subdirectories without a manifest of their own and in workspace packages, with `FROM node:<tag>` or `FROM python:<tag>`). An unpinned npm is the one that comes with that Node.js: Node.js 22 comes with npm 10, which ignores the release-age setting without a warning. `manager-version-too-old` reports such a runtime where its npm (or the pip of the official `python` image) lacks a setting in use, unless the CI job or the build stage installs another one first (`npm install -g npm@<version>`, `pip install pip==<version>`), and `runtime-end-of-life` reports Node.js lines past their end of life. `depcurfew explain` lists what it found.
 
 ### Python projects
 
@@ -374,11 +376,19 @@ Fix: Run the project's copy of depcurfew (install the project's dependencies fir
 
 ### `manager-version-too-old`
 
-**error** · A declared package manager version is older than a setting the repository relies on.
+**error** · A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.
 
-Package managers ignore settings they do not know yet. When packageManager, devEngines, Volta, .tool-versions or a CI step pins an older version, the setting is silently not applied there.
+Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age.
 
-Fix: Raise the declared version to at least the version that introduced the setting, everywhere it is declared.
+Fix: Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.
+
+### `runtime-end-of-life`
+
+**warning** · A declared Node.js version is past its end of life.
+
+After its end of life a Node.js release line gets no more releases, security fixes included. A version file, CI step or Dockerfile that only allows such lines keeps running an unpatched Node.js, and an older npm with it.
+
+Fix: Move to a Node.js line that is still supported, in every place that declares the version.
 
 ### `setting-ignored-by-version`
 

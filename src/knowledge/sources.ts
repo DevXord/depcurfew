@@ -35,7 +35,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
 };
 
-/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git, the Windows shells, the Model Context Protocol and VS Code. */
+/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git, the Windows shells, Docker and the Node.js version managers. */
 export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'nodejs.org' },
   { host: 'github.com', pathPrefix: '/nodejs/' },
@@ -72,6 +72,18 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   // VS Code as an MCP client: code.visualstudio.com/docs is built from microsoft/vscode-docs.
   { host: 'code.visualstudio.com' },
   { host: 'github.com', pathPrefix: '/microsoft/vscode-docs/' },
+  // Official Docker images: docker-library/official-images publishes the tags, docker-library/python builds the python image.
+  { host: 'github.com', pathPrefix: '/docker-library/' },
+  // The Dockerfile reference on docs.docker.com is vendored from moby/buildkit; moby/moby vendors the image reference rules.
+  { host: 'github.com', pathPrefix: '/moby/' },
+  // docs.docker.com is built from docker/docs; docker/cli and docker/buildx hold the command references.
+  { host: 'github.com', pathPrefix: '/docker/' },
+  // Buildah and Podman, the tools that read Containerfile.
+  { host: 'github.com', pathPrefix: '/containers/' },
+  // Node.js version managers and their version files: nvm (.nvmrc), nodenv (.node-version) and fnm (Schniz/fnm).
+  { host: 'github.com', pathPrefix: '/nvm-sh/' },
+  { host: 'github.com', pathPrefix: '/nodenv/' },
+  { host: 'github.com', pathPrefix: '/schniz/' },
 ];
 
 export function isOfficialSource(url: URL, rules: readonly SourceRule[]): boolean {

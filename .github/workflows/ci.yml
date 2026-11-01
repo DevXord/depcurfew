@@ -30,6 +30,10 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
+      # Node.js 22 comes with npm 10, which ignores min-release-age and the allow-* settings of .npmrc without a
+      # warning, and older 24.x and 26.x releases come with npm 11 releases that lack some of them: install the npm
+      # of packageManager in package.json first (depcurfew doctor checks this, decision D-099).
+      - run: npm install -g npm@11.19.1
       # The project .npmrc sets ignore-scripts, so no dependency script runs.
       - run: npm ci
       - run: npm test
@@ -62,6 +66,8 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
+      # The npm of packageManager, which knows the settings of .npmrc (decision D-099).
+      - run: npm install -g npm@11.19.1
       # The project .npmrc sets ignore-scripts, so no dependency script runs.
       - run: npm ci
       - run: npm run build

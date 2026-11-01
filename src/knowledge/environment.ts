@@ -12,6 +12,7 @@ const release13 = verifiedOn('2026-11-01');
 const mcpFacts = verifiedOn('2026-11-01');
 const actionChecks = verifiedOn('2026-11-01');
 const leftovers = verifiedOn('2026-11-01');
+const runtimes = verifiedOn('2026-11-01');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -31,6 +32,15 @@ const SPECIFICATIONS = 'https://github.com/pypa/packaging.python.org/blob/6fa479
 const MCP = 'https://github.com/modelcontextprotocol/modelcontextprotocol/blob/d0e246ea3c69eafaa2806bc4cd28025703ba2c2b';
 // code.visualstudio.com/docs is built from docs/ in microsoft/vscode-docs.
 const VSCODE_MCP = 'https://github.com/microsoft/vscode-docs/blob/5a54a294d553935c53374f43c668e37d08f0118e/docs/agents/reference/mcp-configuration.md';
+// Pinned on 2026-11-01 (decision D-099).
+const NODE_RELEASE = 'https://github.com/nodejs/Release/blob/c3e8696312969c95643cb52f05f124c161db87b2';
+const DOCKER_NODE = 'https://github.com/nodejs/docker-node/blob/14b1d124e21d312c46b30db98985ab7e58a89594';
+const DOCKER_PYTHON = 'https://github.com/docker-library/python/blob/f4c67ece208dead594e43628d22e3c6027dd97ab';
+const OFFICIAL_IMAGES = 'https://github.com/docker-library/official-images/blob/ed47b185c4a0fec32cb51279211416a2d28c4f00/library';
+// docs.docker.com/reference/dockerfile/ is vendored from this file of moby/buildkit.
+const DOCKERFILE_REFERENCE = 'https://github.com/moby/buildkit/blob/c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5/frontend/dockerfile/docs/reference.md';
+const DOCKER_DOCS = 'https://github.com/docker/docs/blob/53581df94e05ad4116a8d31e47ea098289fa5498';
+const SETUP_NODE = 'https://github.com/actions/setup-node/blob/949feb2413d6458794dcd2491c4babbbce0c15c1';
 
 export const environment: EnvironmentKnowledge = {
   corepack: {
@@ -101,6 +111,120 @@ export const environment: EnvironmentKnowledge = {
         '"COREPACK_HOME can be set in order to define where Corepack should install the package managers. By default it is set to %LOCALAPPDATA%\\node\\corepack on Windows, and to $HOME/.cache/node/corepack everywhere else."',
       ),
     ),
+    enableNpm: runtimes.verified(
+      { command: 'enable', npmOnlyWhenNamed: true },
+      COREPACK_README,
+      'corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: "Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm.',
+    ),
+  },
+  node: {
+    bundledNpm: runtimes.verified(
+      [
+        { line: '18', latest: '18.20.8', bundles: [['18.0.0', '8.6.0'], ['18.1.0', '8.8.0'], ['18.2.0', '8.9.0'], ['18.3.0', '8.11.0'], ['18.4.0', '8.12.1'], ['18.6.0', '8.13.2'], ['18.7.0', '8.15.0'], ['18.8.0', '8.18.0'], ['18.9.0', '8.19.1'], ['18.10.0', '8.19.2'], ['18.13.0', '8.19.3'], ['18.14.0', '9.3.1'], ['18.14.2', '9.5.0'], ['18.16.0', '9.5.1'], ['18.17.0', '9.6.7'], ['18.18.0', '9.8.1'], ['18.19.0', '10.2.3'], ['18.19.1', '10.2.4'], ['18.20.0', '10.5.0'], ['18.20.3', '10.7.0'], ['18.20.5', '10.8.2']] },
+        { line: '19', latest: '19.9.0', bundles: [['19.0.0', '8.19.2'], ['19.1.0', '8.19.3'], ['19.3.0', '9.2.0'], ['19.5.0', '9.3.1'], ['19.6.0', '9.4.0'], ['19.7.0', '9.5.0'], ['19.8.0', '9.5.1'], ['19.9.0', '9.6.3']] },
+        { line: '20', latest: '20.20.2', bundles: [['20.0.0', '9.6.4'], ['20.2.0', '9.6.6'], ['20.3.0', '9.6.7'], ['20.4.0', '9.7.2'], ['20.5.0', '9.8.0'], ['20.6.0', '9.8.1'], ['20.7.0', '10.1.0'], ['20.10.0', '10.2.3'], ['20.11.0', '10.2.4'], ['20.12.0', '10.5.0'], ['20.13.0', '10.5.2'], ['20.14.0', '10.7.0'], ['20.16.0', '10.8.1'], ['20.17.0', '10.8.2']] },
+        { line: '21', latest: '21.7.3', bundles: [['21.0.0', '10.2.0'], ['21.2.0', '10.2.3'], ['21.3.0', '10.2.4'], ['21.7.0', '10.5.0']] },
+        { line: '22', latest: '22.23.4', bundles: [['22.0.0', '10.5.1'], ['22.1.0', '10.7.0'], ['22.3.0', '10.8.1'], ['22.5.0', '10.8.2'], ['22.9.0', '10.8.3'], ['22.10.0', '10.9.0'], ['22.13.0', '10.9.2'], ['22.18.0', '10.9.3'], ['22.21.0', '10.9.4'], ['22.22.2', '10.9.7'], ['22.22.3', '10.9.8'], ['22.23.3', '10.9.9']] },
+        { line: '23', latest: '23.11.1', bundles: [['23.0.0', '10.9.0'], ['23.4.0', '10.9.2']] },
+        { line: '24', latest: '24.22.2', bundles: [['24.0.0', '11.3.0'], ['24.3.0', '11.4.2'], ['24.5.0', '11.5.1'], ['24.8.0', '11.6.0'], ['24.10.0', '11.6.1'], ['24.11.1', '11.6.2'], ['24.13.1', '11.8.0'], ['24.14.0', '11.9.0'], ['24.14.1', '11.11.0'], ['24.15.0', '11.12.1'], ['24.16.0', '11.13.0'], ['24.18.0', '11.16.0'], ['24.19.0', '11.17.0'], ['24.20.0', '11.19.0'], ['24.22.0', '11.19.1']] },
+        { line: '25', latest: '25.9.0', bundles: [['25.0.0', '11.6.2'], ['25.4.0', '11.7.0'], ['25.5.0', '11.8.0'], ['25.6.1', '11.9.0'], ['25.7.0', '11.10.1'], ['25.8.0', '11.11.0'], ['25.8.2', '11.11.1'], ['25.9.0', '11.12.1']] },
+        { line: '26', latest: '26.13.0', bundles: [['26.0.0', '11.12.1'], ['26.1.0', '11.13.0'], ['26.3.0', '11.16.0'], ['26.4.0', '11.17.0'], ['26.6.0', '11.18.0'], ['26.7.0', '11.19.0'], ['26.8.2', '11.19.1'], ['26.11.0', '11.20.0']] },
+      ],
+      'https://nodejs.org/dist/index.json',
+      'The npm field of every release from 18.0.0 on (index.json fetched on 2026-11-01, sha256 6b27fe5766e87929d16ccdde05c516cbdd12200eab62b28d4b2f31d34e21481a), as the first release of each line that bundles each npm version; latest is the newest release of the line that day. The bundled npm never goes down within a line. 27.0.0-alpha.0.0.0 (npm 12.1.0) is a prerelease and left out: no release bundles npm 12 yet, Node.js 22 stays on npm 10.9.x, 24 reaches npm 11.10 or later only from 24.14.1 (npm 11.10.x was skipped) and 25 ends at npm 11.12.1.',
+    ),
+    releaseSchedule: runtimes.verified(
+      [
+        { line: 4, start: '2015-09-08', lts: '2015-10-12', end: '2018-04-30', codename: 'argon' },
+        { line: 5, start: '2015-10-29', end: '2016-06-30' },
+        { line: 6, start: '2016-04-26', lts: '2016-10-18', end: '2019-04-30', codename: 'boron' },
+        { line: 7, start: '2016-10-25', end: '2017-06-30' },
+        { line: 8, start: '2017-05-30', lts: '2017-10-31', end: '2019-12-31', codename: 'carbon' },
+        { line: 9, start: '2017-10-01', end: '2018-06-30' },
+        { line: 10, start: '2018-04-24', lts: '2018-10-30', end: '2021-04-30', codename: 'dubnium' },
+        { line: 11, start: '2018-10-23', end: '2019-06-01' },
+        { line: 12, start: '2019-04-23', lts: '2019-10-21', end: '2022-04-30', codename: 'erbium' },
+        { line: 13, start: '2019-10-22', end: '2020-06-01' },
+        { line: 14, start: '2020-04-21', lts: '2020-10-27', end: '2023-04-30', codename: 'fermium' },
+        { line: 15, start: '2020-10-20', end: '2021-06-01' },
+        { line: 16, start: '2021-04-20', lts: '2021-10-26', end: '2023-09-11', codename: 'gallium' },
+        { line: 17, start: '2021-10-19', end: '2022-06-01' },
+        { line: 18, start: '2022-04-19', lts: '2022-10-25', end: '2025-04-30', codename: 'hydrogen' },
+        { line: 19, start: '2022-10-18', end: '2023-06-01' },
+        { line: 20, start: '2023-04-18', lts: '2023-10-24', end: '2026-04-30', codename: 'iron' },
+        { line: 21, start: '2023-10-17', end: '2024-06-01' },
+        { line: 22, start: '2024-04-24', lts: '2024-10-29', end: '2027-04-30', codename: 'jod' },
+        { line: 23, start: '2024-10-16', end: '2025-06-01' },
+        { line: 24, start: '2025-05-06', lts: '2025-10-28', end: '2028-04-30', codename: 'krypton' },
+        { line: 25, start: '2025-10-15', end: '2026-06-01' },
+        { line: 26, start: '2026-05-05', lts: '2026-10-28', end: '2029-04-30', codename: 'lithium' },
+        { line: 27, start: '2027-04-22', lts: '2027-10-20', end: '2030-04-30' },
+      ],
+      `${NODE_RELEASE}/schedule.json`,
+      'start, lts and end of each line from 4 on, codenames in lower case as nvm and the node image tags write them. After end a line gets no more releases, security fixes included; the README says "Production applications should only use Active LTS or Maintenance LTS releases". From Node.js 27 every line first goes through an alpha phase (27 has "alpha": "2026-10-28" and no codename yet) and every line becomes LTS.',
+    ),
+    nvmrc: runtimes.verified(
+      { file: '.nvmrc', comment: '#', newest: ['node', 'stable'], newestLts: 'lts/*', ltsPrefix: 'lts/' },
+      'https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md',
+      'The file must contain precisely one version followed by a newline; # starts a comment, and comments, blank lines and leading and trailing white space are ignored. node is the latest version and stable an alias for it; lts/* is the latest LTS and lts/<codename> the LTS releases of that line. nvm use looks for the file from the current directory upwards.',
+    ),
+    nodeVersionFile: runtimes.verified(
+      { file: '.node-version' },
+      'https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/README.md',
+      'nodenv uses the version in .node-version of the project directory. fnm reads .node-version and .nvmrc and writes the file with node --version, so a leading v occurs (github.com/Schniz/fnm/blob/07f13237ae208f531f8ea88d4cfde3160c22f99a/README.md); setup-node reads it through node-version-file.',
+    ),
+    engines: runtimes.verified(
+      { key: 'engines', runtimeKey: 'node' },
+      `${NPM_PACKAGE_JSON}#engines`,
+      'engines.node is the range of Node.js versions the package works on. Unless engine-strict is set, it is advisory and only produces warnings when the package is installed as a dependency; it does not choose the Node.js that runs. setup-node reads it from package.json through node-version-file when volta.node and devEngines.runtime are missing, and picks the newest version that matches.',
+    ),
+  },
+  docker: {
+    imageReference: runtimes.verified(
+      { defaultHost: 'docker.io', hosts: ['docker.io', 'index.docker.io'], officialNamespace: 'library', defaultTag: 'latest' },
+      'https://github.com/moby/moby/blob/9aa9edfa787e08bb2da31694cd8a402876f32232/vendor/github.com/distribution/reference/normalize.go',
+      'splitDockerDomain canonicalizes ubuntu and docker.io/ubuntu as docker.io/library/ubuntu, and the legacy domain index.docker.io as docker.io. A reference without a tag means latest (docs/reference/commandline/image_tag.md in github.com/docker/cli at 8c8a77521af82b08bf3499cafb4c0e2e7b024936: "If the namespace is omitted, Docker defaults to library, the namespace reserved for Docker Official Images").',
+    ),
+    syntax: runtimes.verified(
+      { comment: '#', escapeDirective: 'escape', escapeCharacters: ['\\', '`'], globalArgInstruction: 'ARG' },
+      DOCKERFILE_REFERENCE,
+      'Instructions are not case-sensitive. A line that begins with # is a comment unless it is a parser directive; comment lines are removed also inside a continued instruction. Parser directives (syntax, escape, check; keys not case-sensitive) must come first: after a comment, an empty line or an instruction none is read. The escape character (\\ by default, or `) at the end of a line continues the instruction; escaping is not performed in RUN except at the end of a line. ARG is the only instruction allowed before FROM, and FROM reads ARGs declared before the first FROM ($VAR, ${VAR}, ${VAR:-word}, ${VAR-word}, ${VAR:+word}, ${VAR+word}); --build-arg can change them. FROM [--platform=<platform>] <image>[:<tag>][@<digest>] [AS <name>]; a later FROM <name> starts from that stage. A here-document (RUN <<EOF) makes the following lines part of the instruction, up to the line with only the delimiter.',
+    ),
+    dockerfileNames: runtimes.verified(
+      { defaultName: 'Dockerfile', suffix: '.Dockerfile' },
+      `${DOCKER_DOCS}/content/manuals/build/concepts/dockerfile.md`,
+      '"The default filename to use for a Dockerfile is Dockerfile, without a file extension." "A common convention is to name these <something>.Dockerfile", passed with --file.',
+    ),
+    dockerfilePrefix: runtimes.uncertain(
+      'Dockerfile.',
+      `${DOCKER_DOCS}/content/manuals/build/concepts/dockerfile.md`,
+      'Dockerfile.<name> (Dockerfile.dev) is a common practice, but no Docker documentation that was read mentions it; depcurfew reads such files too, because they are Dockerfiles passed with --file.',
+    ),
+    containerfile: runtimes.verified(
+      'Containerfile',
+      'https://github.com/containers/buildah/blob/14d624b398e05a07deecf29d50a44a149785cc20/docs/buildah-build.1.md',
+      '"A Containerfile uses the same syntax as a Dockerfile internally"; Buildah and Podman read Containerfile or Dockerfile. Docker does not read Containerfile by default.',
+    ),
+    nodeImage: runtimes.verified(
+      { image: 'node', bundles: 'npm', variants: ['alpine', 'slim', 'alpine3.23', 'alpine3.24', 'bookworm', 'bookworm-slim', 'trixie', 'trixie-slim'] },
+      `${DOCKER_NODE}/Dockerfile-debian.template`,
+      'The image downloads the official tarball of the release and extracts it unchanged; its only npm command is npm --version, and docs/BestPractices.md tells users to add RUN npm install --global npm@<version> to change npm. So node:<version> has exactly the npm that release bundles. The Alpine images extract the -musl tarball or build from source. Tags (stackbrew.js): X.Y.Z, X.Y, X and <codename>, each also with -<variant>, and -alpine and -slim for the default variants; the variants are those of versions.json, plus alpine and slim. Yarn 1 is in the images up to Node.js 25.',
+    ),
+    nodeImageTags: runtimes.uncertain(
+      { tags: { latest: '26', current: '26', lts: '26' } },
+      `${OFFICIAL_IMAGES}/node`,
+      'Moving tags on 2026-10-28, when library/node was last generated: lts, lts-<codename>, current, latest and a variant alone (alpine, slim, bookworm) all mean 26.13.0. They move to another line without notice: after 26 became LTS no line is current, and how current and latest resolve once 27 is released is not documented. Tags of lines no longer built (20, iron, 18) are gone from library/node and are not updated any more.',
+    ),
+    pythonImage: runtimes.verified(
+      { image: 'python', bundles: 'pip', variants: ['alpine', 'slim', 'trixie', 'slim-trixie', 'bookworm', 'slim-bookworm', 'alpine3.23', 'alpine3.24'] },
+      `${DOCKER_PYTHON}/versions.sh`,
+      '"our policy is now to use the pip version that is installed during the Python build (which is the version bundled in ensurepip), and to not support overriding it": Dockerfile-linux.template configures CPython --with-ensurepip and installs no other pip (only setuptools and wheel for 3.11). So python:<version> has the pip that CPython release bundles. Images built before 2024-09-07 installed pip with get-pip.py, at the version ensurepip had. Tags (generate-stackbrew-library.sh): X.Y.Z and X.Y, each with -<variant>; -slim and -alpine mean the default suite.',
+    ),
+    pythonImageTags: runtimes.uncertain(
+      { tags: { latest: '3.15', '3': '3.15' } },
+      `${OFFICIAL_IMAGES}/python`,
+      "On 2026-11-01 latest, 3 and a variant alone (slim, alpine, trixie) mean 3.15.2 (aliases [3.15]='3 latest' in generate-stackbrew-library.sh); they move when a new line is released. X.Y-rc tags are prereleases.",
+    ),
   },
   devEngines: verified(
     { key: 'devEngines', packageManagerKey: 'packageManager', runtimeKey: 'runtime' },
@@ -144,6 +268,16 @@ export const environment: EnvironmentKnowledge = {
       },
       'https://github.com/actions/setup-node/blob/main/action.yml',
       'Current major v7. node-version-file reads package.json, .nvmrc, .node-version, .tool-versions or mise.toml; node-version wins when both are set.',
+    ),
+    setupNodeVersions: runtimes.verified(
+      { newest: ['latest', 'current', 'node', '*'], newestLts: 'lts/*', ltsPrefix: 'lts/', previousLtsPrefix: 'lts/-' },
+      `${SETUP_NODE}/README.md`,
+      "Tag v7.1.0. node-version takes semver (22, 24.8.0, >=10.15.0, 12.x), the NVM LTS syntax (lts/jod, lts/*, lts/-n) and latest, current, node or * for the latest release. A matching version in the runner's tool cache is used first, so a major version such as 24 may give an older release of the line unless check-latest is set.",
+    ),
+    setupNodeVersionFile: runtimes.verified(
+      { packageJson: 'package.json', packageJsonOrder: ['volta.node', 'devEngines.runtime', 'engines.node'], textPattern: '^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$' },
+      `${SETUP_NODE}/docs/advanced-usage.md`,
+      'node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE. In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile in src/util.ts tries JSON, then TOML tools.node, then the first line that matches the pattern, then the whole text trimmed.',
     ),
     pnpmActionSetup: verified(
       { action: 'pnpm/action-setup', installs: ['pnpm'], inputs: [{ name: 'version', kind: 'version', tool: 'pnpm' }] },
@@ -521,6 +655,19 @@ export const environment: EnvironmentKnowledge = {
       ['.tar.gz', '.zip', '.tar.bz2', '.tbz', '.tgz', '.tar', '.tar.xz', '.txz', '.tlz', '.tar.lz', '.tar.lzma'],
       'https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py',
       'ARCHIVE_EXTENSIONS of pip without .whl: the archives pip accepts from an index besides wheels (index/package_finder.py rejects any other extension), all of them built when installed. A standard sdist is named {name}-{version}.tar.gz with the name normalized (PEP 625, source-distribution-format.rst); older uploads use the other extensions and names that are not normalized.',
+    ),
+    bundledPip: runtimes.verified(
+      [
+        { line: '3.9', latest: '3.9.25', bundles: [['3.9.0', '20.2.3'], ['3.9.5', '21.1.1'], ['3.9.6', '21.1.3'], ['3.9.7', '21.2.3'], ['3.9.8', '21.2.4'], ['3.9.11', '22.0.4'], ['3.9.17', '23.0.1']] },
+        { line: '3.10', latest: '3.10.22', bundles: [['3.10.0', '21.2.3'], ['3.10.1', '21.2.4'], ['3.10.3', '22.0.4'], ['3.10.6', '22.2.1'], ['3.10.7', '22.2.2'], ['3.10.9', '22.3.1'], ['3.10.11', '23.0.1']] },
+        { line: '3.11', latest: '3.11.18', bundles: [['3.11.0', '22.3.0'], ['3.11.1', '22.3.1'], ['3.11.4', '23.1.2'], ['3.11.5', '23.2.1'], ['3.11.8', '24.0.0']] },
+        { line: '3.12', latest: '3.12.16', bundles: [['3.12.0', '23.2.1'], ['3.12.2', '24.0.0'], ['3.12.5', '24.2.0'], ['3.12.8', '24.3.1'], ['3.12.10', '25.0.1']] },
+        { line: '3.13', latest: '3.13.18', bundles: [['3.13.0', '24.2.0'], ['3.13.1', '24.3.1'], ['3.13.3', '25.0.1'], ['3.13.4', '25.1.1'], ['3.13.6', '25.2.0'], ['3.13.10', '25.3.0'], ['3.13.13', '26.0.1'], ['3.13.14', '26.1.2'], ['3.13.15', '26.2.1'], ['3.13.17', '26.2.2']] },
+        { line: '3.14', latest: '3.14.10', bundles: [['3.14.0', '25.2.0'], ['3.14.1', '25.3.0'], ['3.14.4', '26.0.1'], ['3.14.5', '26.1.1'], ['3.14.6', '26.1.2'], ['3.14.7', '26.2.1'], ['3.14.9', '26.2.2']] },
+        { line: '3.15', latest: '3.15.2', bundles: [['3.15.0', '26.2.1'], ['3.15.1', '26.2.2']] },
+      ],
+      'https://github.com/python/cpython/blob/v3.15.2/Lib/ensurepip/__init__.py',
+      '_PIP_VERSION in Lib/ensurepip/__init__.py at every final tag from v3.9.0 to v3.15.2 (github.com/python/cpython/blob/v<X.Y.Z>/...; the latest tags are v3.9.25 0bbaf5de, v3.10.22 acb4dc12, v3.11.18 26badd80, v3.12.16 2c2462af, v3.13.18 0d4bd512, v3.14.10 b703b2c5 and v3.15.2 5e58eaad), as the first release of each line that bundles each pip version. Two-part values such as 24.0 are written 24.0.0. 3.12 and older never bundle pip 26; pip 26.1 or later comes with 3.13.14, 3.14.5 and 3.15.0.',
     ),
     hatch: python.verified(
       { pyprojectTable: 'tool.hatch', configFile: 'hatch.toml' },

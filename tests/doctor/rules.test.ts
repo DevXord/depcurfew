@@ -1,9 +1,10 @@
 // Every rule has fixtures in tests/fixtures/doctor/<rule>/: directories named fires-* must produce exactly the
-// findings in their expected.json, directories named passes-* must produce none for that rule.
+// findings in their expected.json, directories named passes-* must produce none for that rule. The date is fixed, because
+// runtime-end-of-life and the fixes of manager-version-too-old depend on which Node.js lines are supported that day.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RULES, runDoctor } from '../../src/doctor/index.ts';
 import { PolicyError } from '../../src/apply/index.ts';
 
@@ -14,6 +15,13 @@ function directories(path: string): string[] {
 }
 
 describe('doctor rules', () => {
+  beforeAll(() => {
+    vi.useFakeTimers({ now: new Date('2026-11-01T12:00:00Z'), toFake: ['Date'] });
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   it('every rule has fixtures that fire and fixtures that pass', () => {
     for (const rule of RULES) {
       const cases = directories(join(ROOT, rule.id));

@@ -1,0 +1,82 @@
+{
+  "packageManagers": [
+    {
+      "id": "pip",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "config",
+          "file": "requirements.txt"
+        }
+      ],
+      "versions": [
+        {
+          "version": "26.2.2",
+          "source": "dockerfile",
+          "file": "Dockerfile",
+          "line": 6,
+          "stage": "tools"
+        }
+      ],
+      "configFiles": [
+        "requirements.txt"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [
+    {
+      "file": "Dockerfile",
+      "stages": [
+        {
+          "line": 1,
+          "name": "app",
+          "image": "python:3.12-slim",
+          "runtime": {
+            "tool": "python",
+            "tag": "3.12-slim",
+            "version": "3.12"
+          },
+          "commands": [
+            {
+              "kind": "install",
+              "tool": "pip",
+              "line": 3
+            }
+          ]
+        },
+        {
+          "line": 5,
+          "name": "tools",
+          "image": "python:3.13.14-alpine3.24",
+          "runtime": {
+            "tool": "python",
+            "tag": "3.13.14-alpine3.24",
+            "version": "3.13.14"
+          },
+          "commands": [
+            {
+              "kind": "upgrade",
+              "tool": "pip",
+              "version": "26.2.2",
+              "line": 6
+            },
+            {
+              "kind": "install",
+              "tool": "pip",
+              "line": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

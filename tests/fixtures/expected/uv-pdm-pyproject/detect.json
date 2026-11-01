@@ -44,6 +44,8 @@
   "workspaces": null,
   "npmrcFiles": [],
   "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
   "warnings": [
     {
       "code": "multiple-lockfiles",

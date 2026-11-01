@@ -5,6 +5,7 @@ const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
+const runtimes = verifiedOn('2026-11-01');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -426,6 +427,28 @@ export const npm: ToolKnowledge = {
       },
       NPM_DEFINITIONS,
       'registry is a URL; userconfig and globalconfig are the user and global configuration files. Putting --foo bar on the command line sets the foo configuration parameter, and environment variables that start with npm_config_ are configuration parameters too, without regard to case (docs/lib/content/using-npm/config.md); @scope:registry is the key of a scope\'s registry (https://docs.npmjs.com/cli/v12/using-npm/scope).',
+    ),
+    installCommands: runtimes.verified(
+      {
+        install: INSTALL_ALIASES,
+        clean: ['ci', 'clean-install', 'ic', 'install-clean', 'isntall-clean', 'install-ci-test', 'cit', 'clean-install-test', 'sit'],
+        update: ['update', 'up', 'upgrade', 'udpate'],
+      },
+      CMD_LIST,
+      'Commands that install packages into the project and their aliases: install (add, i, typo aliases, install-test and it), ci (clean-install, ic, install-clean, isntall-clean) with install-ci-test (cit, clean-install-test, sit), and update (up, upgrade, udpate; u only from npm 12, so left out). The same in v10.9.9 (lib/utils/cmd-list.js). npm also accepts unique abbreviations of command names, which are not listed.',
+    ),
+    globalOption: runtimes.verified(
+      ['--global', '-g', '--location=global'],
+      NPM_DEFINITIONS,
+      'global (short g) "Operates in global mode, so that packages are installed into the prefix folder instead of the current working directory" and sets location to global; npm install -g npm@<version> replaces the npm that runs (docs/lib/content/commands/npm-install.md: "In global mode (ie, with -g or --global appended to the command)").',
+    ),
+    unknownConfigKeys: runtimes.verified(
+      [
+        { since: '0.0.0', value: 'ignored' },
+        { since: '11.2.0', value: 'warning' },
+      ],
+      'https://github.com/npm/cli/blob/v10.9.9/workspaces/config/lib/index.js',
+      'npm 10 loads every key of an .npmrc without checking whether it knows it (#loadObject only checks deprecated and exclusive keys), so a setting it does not have yet, such as min-release-age, is ignored without any message. checkUnknown first appears in v11.2.0 (workspaces/config/lib/index.js), which warns: Unknown project config "<key>". This will stop working in the next major version of npm. The 11.2.0 changelog does not name the change; the version comes from reading the code at the tags. npm 12 collects unknown keys to fail the command (v12.2.1), with the exact behavior not read.',
     ),
     lockfileInstalls: uncertain(
       'npm ci installs versions pinned in package-lock.json without applying min-release-age',

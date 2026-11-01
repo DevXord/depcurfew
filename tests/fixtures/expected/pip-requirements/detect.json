@@ -3,15 +3,51 @@
     {
       "id": "pip",
       "supported": true,
-      "evidence": [{ "kind": "config", "file": "requirements.txt" }],
-      "versions": [{ "version": "26.2.2", "source": "github-actions", "file": ".github/workflows/ci.yml", "line": 11 }],
-      "configFiles": ["requirements.txt"]
+      "evidence": [
+        {
+          "kind": "config",
+          "file": "requirements.txt"
+        }
+      ],
+      "versions": [
+        {
+          "version": "26.2.2",
+          "source": "github-actions",
+          "file": ".github/workflows/ci.yml",
+          "line": 11,
+          "job": "test",
+          "step": 8
+        }
+      ],
+      "configFiles": [
+        "requirements.txt"
+      ]
     }
   ],
-  "node": { "versions": [] },
+  "node": {
+    "versions": []
+  },
   "bots": [],
   "workspaces": null,
   "npmrcFiles": [],
-  "workflows": [".github/workflows/ci.yml"],
+  "workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "jobs": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "id": "test",
+      "line": 4,
+      "commands": [
+        {
+          "kind": "install",
+          "tool": "pip",
+          "line": 12
+        }
+      ],
+      "runsNode": false
+    }
+  ],
+  "dockerfiles": [],
   "warnings": []
 }

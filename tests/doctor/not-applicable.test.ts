@@ -36,6 +36,7 @@ describe('rules that do not concern the project', () => {
       'npmrc-overrides-policy': 'passed',
       'pnpm-shared-workspace-lockfile': 'passed',
       'python-config-ignored': 'not-applicable',
+      'runtime-end-of-life': 'not-applicable',
       'config-drift': 'skipped',
       'bot-cooldown-mismatch': 'passed',
       'broad-exclusion': 'passed',
@@ -43,7 +44,7 @@ describe('rules that do not concern the project', () => {
       'lockfile-install-scripts': 'skipped',
       'unreadable-config': 'passed',
     });
-    expect(resultCounts(report.checked?.rules ?? [])).toBe('14 checks: 7 passed, 3 not applicable, 4 skipped');
+    expect(resultCounts(report.checked?.rules ?? [])).toBe('15 checks: 7 passed, 4 not applicable, 4 skipped');
   });
 
   it('are not applicable in a PDM project without bots: the npm, pnpm and bot rules', () => {
@@ -68,6 +69,7 @@ describe('rules that do not concern the project', () => {
       'npmrc-overrides-policy': 'not-applicable',
       'pnpm-shared-workspace-lockfile': 'not-applicable',
       'python-config-ignored': 'not-applicable',
+      'runtime-end-of-life': 'not-applicable',
       'config-drift': 'skipped',
       'bot-cooldown-mismatch': 'not-applicable',
       'broad-exclusion': 'not-applicable',

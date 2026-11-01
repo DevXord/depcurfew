@@ -3,16 +3,20 @@
 import { isRecord } from '../apply/facts.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import type {
+  CommandLineKnowledge,
   Ecosystem,
   EnvironmentKnowledge,
   Fact,
   RuntimeOrTool,
   SetupActionKnowledge,
+  SetupNodeVersionFileKnowledge,
   ToolId,
   ToolKnowledge,
   Versioned,
   WorkspaceDeclaration,
 } from '../knowledge/types.ts';
+import type { CommandFacts } from './commands.ts';
+import type { DockerFacts } from './dockerfiles.ts';
 import type { BotId, PackageManagerId } from './types.ts';
 
 /** Where a tool's own configuration requires a version of the tool: a key path in a TOML file. */
@@ -63,6 +67,13 @@ export interface DetectionFacts {
   toolVersions: { file: string; plugins: Readonly<Record<string, RuntimeOrTool>> };
   workflows: { directory: string; extensions: readonly string[] };
   setupActions: SetupActionKnowledge[];
+  /** The action whose version inputs set up Node.js, and how it reads node-version-file. */
+  setupNode: { action: string; versionFile: SetupNodeVersionFileKnowledge };
+  /** .nvmrc and its comment character, .node-version, and engines.node in package.json. */
+  nodeFiles: { nvmrc: string; comment: string; nodeVersion: string; engines: { key: string; runtimeKey: string } };
+  docker: DockerFacts;
+  /** What the commands of run steps and RUN instructions do with npm and pip. */
+  commands: CommandFacts;
 }
 
 const PACKAGE_MANAGERS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'pip', 'poetry', 'pdm', 'pipenv'];
@@ -166,6 +177,31 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
 
   const yarn = tool(tools, 'yarn');
   const actions = environment.githubActions;
+  const npm = tool(tools, 'npm');
+  const pip = tool(tools, 'pip');
+  const installs = extraValue(npm, 'installCommands');
+  const installCommands = isRecord(installs) ? Object.values(installs).flatMap((list) => (Array.isArray(list) ? list.filter((item): item is string => typeof item === 'string') : [])) : [];
+  const globalOptions = extraValue(npm, 'globalOption');
+  const npmValues = extraValue(npm, 'valueOptions');
+  const pipLine = extraValue(pip, 'commandLine') as CommandLineKnowledge | undefined;
+  const interpreter = first(environment.python.interpreter);
+  const commands: CommandFacts = {
+    npm: {
+      installCommands,
+      globalOptions: Array.isArray(globalOptions) ? globalOptions.filter((item): item is string => typeof item === 'string') : [],
+      valueOptions: Array.isArray(npmValues) ? npmValues.filter((item): item is string => typeof item === 'string') : [],
+    },
+    pip: {
+      executables: unique((pipLine?.add ?? []).map((command) => command[0] ?? '')),
+      installCommand: pipLine?.add[0]?.[1] ?? 'install',
+      valueOptions: pipLine?.valueOptions ?? [],
+    },
+    python: interpreter,
+    corepack: { enableCommand: first(environment.corepack.enableNpm).command },
+  };
+  const docker = environment.docker;
+  const names = first(docker.dockerfileNames);
+  const nvmrc = first(environment.node.nvmrc);
   return {
     managers,
     pythonProject,
@@ -188,5 +224,19 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       actions.installPoetry,
       actions.actionsPoetry,
     ].map(first),
+    setupNode: { action: first(actions.setupNode).action, versionFile: first(actions.setupNodeVersionFile) },
+    nodeFiles: { nvmrc: nvmrc.file, comment: nvmrc.comment, nodeVersion: first(environment.node.nodeVersionFile).file, engines: first(environment.node.engines) },
+    docker: {
+      syntax: first(docker.syntax),
+      reference: first(docker.imageReference),
+      names: { exact: [names.defaultName, first(docker.containerfile)], suffix: names.suffix, prefix: first(docker.dockerfilePrefix) },
+      node: first(docker.nodeImage),
+      python: first(docker.pythonImage),
+      nodeTags: first(docker.nodeImageTags).tags,
+      pythonTags: first(docker.pythonImageTags).tags,
+      codenames: first(environment.node.releaseSchedule).flatMap((line) => (line.codename === undefined ? [] : [line.codename])),
+      commands,
+    },
+    commands,
   };
 }

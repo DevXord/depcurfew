@@ -49,5 +49,7 @@
   },
   "npmrcFiles": [],
   "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
   "warnings": []
 }

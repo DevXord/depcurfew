@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 1
+    },
+    "message": "Python 3.12 (python:3.12-slim) in Dockerfile can come with pip 23.2.1 to 25.0.1, none of which supports uploaded-prior-to (since 26.1.0), and stage app installs packages with it on line 3",
+    "fix": "Add RUN pip install pip==26.1.0 to stage app before it installs packages, or start from a python image whose Python release comes with pip 26.1.0 or later (3.13.14 or a later 3.13.x; 3.14.5 or a later 3.14.x; 3.15.0 or later), such as python:3.13.14"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "Dockerfile",
+      "line": 5
+    },
+    "message": "Python 3.13 (python:3.13-slim) in Dockerfile can come with pip 24.2.0 to 26.2.2, not all of which support uploaded-prior-to (since 26.1.0), and stage worker installs packages with it on line 6",
+    "fix": "Add RUN pip install pip==26.1.0 to stage worker before it installs packages, or start from a python image whose Python release comes with pip 26.1.0 or later (3.13.14 or a later 3.13.x; 3.14.5 or a later 3.14.x; 3.15.0 or later), such as python:3.13.14"
+  }
+]

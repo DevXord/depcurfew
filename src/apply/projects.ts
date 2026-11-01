@@ -42,6 +42,8 @@ export function relocateDetection(project: string, detection: Detection): Detect
           },
     npmrcFiles: detection.npmrcFiles.map(at),
     workflows: detection.workflows.map(at),
+    jobs: detection.jobs.map((job) => ({ ...job, file: at(job.file) })),
+    dockerfiles: detection.dockerfiles.map((dockerfile) => ({ ...dockerfile, file: at(dockerfile.file) })),
     warnings: [],
   };
   relocated.warnings = detection.warnings.map((warning) => ({

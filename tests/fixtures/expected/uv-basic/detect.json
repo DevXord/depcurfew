@@ -4,21 +4,65 @@
       "id": "uv",
       "supported": true,
       "evidence": [
-        { "kind": "lockfile", "file": "uv.lock" },
-        { "kind": "config", "file": "pyproject.toml" },
-        { "kind": "ci", "file": ".github/workflows/ci.yml" }
+        {
+          "kind": "lockfile",
+          "file": "uv.lock"
+        },
+        {
+          "kind": "config",
+          "file": "pyproject.toml"
+        },
+        {
+          "kind": "ci",
+          "file": ".github/workflows/ci.yml"
+        }
       ],
       "versions": [
-        { "version": "0.13.6", "source": "tool-config", "file": "pyproject.toml", "line": 15 },
-        { "version": "0.13.6", "source": "github-actions", "file": ".github/workflows/ci.yml", "line": 10 }
+        {
+          "version": "0.13.6",
+          "source": "tool-config",
+          "file": "pyproject.toml",
+          "line": 15
+        },
+        {
+          "version": "0.13.6",
+          "source": "github-actions",
+          "file": ".github/workflows/ci.yml",
+          "line": 10,
+          "job": "test",
+          "step": 8
+        }
       ],
-      "configFiles": ["pyproject.toml"]
+      "configFiles": [
+        "pyproject.toml"
+      ]
     }
   ],
-  "node": { "versions": [] },
-  "bots": [{ "id": "dependabot", "configFiles": [".github/dependabot.yml"] }],
+  "node": {
+    "versions": []
+  },
+  "bots": [
+    {
+      "id": "dependabot",
+      "configFiles": [
+        ".github/dependabot.yml"
+      ]
+    }
+  ],
   "workspaces": null,
   "npmrcFiles": [],
-  "workflows": [".github/workflows/ci.yml"],
+  "workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "jobs": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "id": "test",
+      "line": 4,
+      "commands": [],
+      "runsNode": false
+    }
+  ],
+  "dockerfiles": [],
   "warnings": []
 }

@@ -28,6 +28,9 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
+      # The npm of packageManager in package.json: an older 24.x comes with an npm that lacks settings of .npmrc
+      # (depcurfew doctor checks this, decision D-099).
+      - run: npm install -g npm@11.19.1
       - name: npm supports staged publishing with trusted publishing
         run: |
           node -e '

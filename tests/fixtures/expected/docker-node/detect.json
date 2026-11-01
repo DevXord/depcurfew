@@ -1,0 +1,171 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "package-lock.json"
+        }
+      ],
+      "versions": [
+        {
+          "version": "11.17.0",
+          "source": "dockerfile",
+          "file": "Dockerfile",
+          "line": 9,
+          "stage": "build"
+        }
+      ],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": [
+      {
+        "version": "24",
+        "source": "nvmrc",
+        "file": ".nvmrc",
+        "line": 2
+      },
+      {
+        "version": "v22.11.0",
+        "source": "node-version",
+        "file": ".node-version",
+        "line": 1
+      },
+      {
+        "version": ">=22",
+        "source": "engines",
+        "file": "package.json"
+      },
+      {
+        "version": "22",
+        "source": "dockerfile",
+        "file": "Dockerfile",
+        "line": 3,
+        "stage": "deps"
+      },
+      {
+        "version": "jod",
+        "source": "dockerfile",
+        "file": "docker/Dockerfile.dev",
+        "line": 1,
+        "stage": "0"
+      }
+    ]
+  },
+  "bots": [],
+  "workspaces": {
+    "declarations": [
+      {
+        "file": "package.json",
+        "patterns": [
+          "apps/*"
+        ]
+      }
+    ],
+    "packages": [
+      "apps/web"
+    ]
+  },
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [
+    {
+      "file": "Dockerfile",
+      "stages": [
+        {
+          "line": 3,
+          "name": "deps",
+          "image": "node:22-alpine",
+          "runtime": {
+            "tool": "node",
+            "tag": "22-alpine",
+            "version": "22"
+          },
+          "commands": [
+            {
+              "kind": "install",
+              "tool": "npm",
+              "line": 6
+            }
+          ]
+        },
+        {
+          "line": 8,
+          "name": "build",
+          "image": "deps",
+          "from": 0,
+          "runtime": {
+            "tool": "node",
+            "tag": "22-alpine",
+            "version": "22"
+          },
+          "commands": [
+            {
+              "kind": "upgrade",
+              "tool": "npm",
+              "version": "11.17.0",
+              "line": 9
+            }
+          ]
+        },
+        {
+          "line": 12,
+          "image": "gcr.io/distroless/nodejs22-debian12",
+          "commands": []
+        }
+      ]
+    },
+    {
+      "file": "apps/web/Containerfile",
+      "stages": [
+        {
+          "line": 1,
+          "image": "node@sha256:4f1d2b5c0a9e8f7d6c5b4a3928170615f4e3d2c1b0a9f8e7d6c5b4a392817061",
+          "runtime": {
+            "tool": "node",
+            "unknown": "the image is pinned by digest only (node@sha256:4f1d2b5c0a9e8f7d6c5b4a3928170615f4e3d2c1b0a9f8e7d6c5b4a392817061)"
+          },
+          "commands": [
+            {
+              "kind": "install",
+              "tool": "npm",
+              "line": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "docker/Dockerfile.dev",
+      "stages": [
+        {
+          "line": 1,
+          "image": "docker.io/library/node:lts-jod",
+          "runtime": {
+            "tool": "node",
+            "tag": "lts-jod",
+            "version": "jod"
+          },
+          "commands": [
+            {
+              "kind": "upgrade",
+              "tool": "npm",
+              "line": 2
+            },
+            {
+              "kind": "install",
+              "tool": "npm",
+              "line": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

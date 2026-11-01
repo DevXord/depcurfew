@@ -856,6 +856,92 @@ export interface CorepackDefaultsKnowledge {
   locations: readonly UserLocation[];
 }
 
+/** The version of a tool each release of a runtime bundles, for one release line (Node.js 22, CPython 3.12). */
+export interface BundledVersionsLine {
+  /** The release line: 22 for Node.js, 3.12 for CPython. */
+  line: string;
+  /** The newest release of the line on the day the fact was verified. */
+  latest: string;
+  /** [first release, bundled version]: the first release of the line that bundles each version, oldest first. */
+  bundles: readonly (readonly [string, string])[];
+}
+
+/** One Node.js release line in the release schedule. */
+export interface ReleaseLineSchedule {
+  line: number;
+  /** The first release (YYYY-MM-DD). */
+  start: string;
+  /** When the line became LTS; absent for lines that never do. */
+  lts?: string;
+  /** End of life: no more releases, security fixes included. */
+  end: string;
+  /** The LTS codename in lower case, as nvm, setup-node and the node image tags write it. */
+  codename?: string;
+}
+
+/** Names of moving Node.js versions in a version file or a setup-node input. */
+export interface NodeVersionNamesKnowledge {
+  /** Names of the newest release. */
+  newest: readonly string[];
+  /** The name of the newest LTS line. */
+  newestLts: string;
+  /** Followed by a codename: that LTS line (lts/jod). */
+  ltsPrefix: string;
+  /** Followed by a number n: the n-th LTS line before the newest one (lts/-1); absent when not supported. */
+  previousLtsPrefix?: string;
+}
+
+export interface NvmrcKnowledge extends NodeVersionNamesKnowledge {
+  file: string;
+  /** Starts a comment that runs to the end of the line. */
+  comment: string;
+}
+
+/** How setup-node reads the file named by node-version-file. */
+export interface SetupNodeVersionFileKnowledge {
+  /** A JSON manifest whose keys are read in order: dotted paths, devEngines.runtime means its entry named node. */
+  packageJson: string;
+  packageJsonOrder: readonly string[];
+  /** Any other file: the first line that matches (multiline), group "version"; otherwise the whole text, trimmed. */
+  textPattern: string;
+}
+
+/** How an image reference names the registry, the namespace and the tag when they are left out. */
+export interface ImageReferenceKnowledge {
+  defaultHost: string;
+  /** Hosts that mean the default registry. */
+  hosts: readonly string[];
+  /** The namespace of the official images, implied when a Docker Hub name has no namespace. */
+  officialNamespace: string;
+  defaultTag: string;
+}
+
+/** The Dockerfile syntax the reader relies on. */
+export interface DockerfileSyntaxKnowledge {
+  /** Starts a comment line, and a parser directive at the top of the file. */
+  comment: string;
+  /** The parser directive that sets the escape character, and the characters it accepts (the default first). */
+  escapeDirective: string;
+  escapeCharacters: readonly string[];
+  /** The only instruction allowed before the first FROM. */
+  globalArgInstruction: string;
+}
+
+/** An official runtime image: which tool version it ships and how its tags are built. */
+export interface RuntimeImageKnowledge {
+  /** The repository name on Docker Hub, in the official namespace. */
+  image: string;
+  /** The tool the image ships as the runtime release bundles it, unchanged. */
+  bundles: 'npm' | 'pip';
+  /** Variant names a tag may carry after the version (22-alpine, 3.12-slim-bookworm), or on its own. */
+  variants: readonly string[];
+}
+
+/** Tags of an official image that move to another release line: tag (without variant) to release line. */
+export interface MovingTagsKnowledge {
+  tags: Readonly<Record<string, string>>;
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
@@ -868,6 +954,32 @@ export interface EnvironmentKnowledge {
     toolPackages: Fact<Readonly<Partial<Record<ToolId, readonly string[]>>>>;
     /** lastKnownGood.json: the version of each package manager Corepack runs outside a project. */
     defaults: Fact<CorepackDefaultsKnowledge>;
+    /** corepack enable installs an npm shim only when npm is named. */
+    enableNpm: Fact<{ command: string; npmOnlyWhenNamed: boolean }>;
+  };
+  node: {
+    /** The npm each Node.js release bundles, per release line. */
+    bundledNpm: Fact<readonly BundledVersionsLine[]>;
+    releaseSchedule: Fact<readonly ReleaseLineSchedule[]>;
+    nvmrc: Fact<NvmrcKnowledge>;
+    /** The version file of nodenv, also read by fnm and setup-node. */
+    nodeVersionFile: Fact<{ file: string }>;
+    /** engines.node in package.json: the Node.js versions a package works with, advisory. */
+    engines: Fact<{ key: string; runtimeKey: string }>;
+  };
+  docker: {
+    imageReference: Fact<ImageReferenceKnowledge>;
+    syntax: Fact<DockerfileSyntaxKnowledge>;
+    /** The default file name, and the suffix of other Dockerfiles (build.Dockerfile). */
+    dockerfileNames: Fact<{ defaultName: string; suffix: string }>;
+    /** Dockerfile.<name>: a common convention without an official source. */
+    dockerfilePrefix: Fact<string>;
+    /** The file name Buildah and Podman read by default. */
+    containerfile: Fact<string>;
+    nodeImage: Fact<RuntimeImageKnowledge>;
+    nodeImageTags: Fact<MovingTagsKnowledge>;
+    pythonImage: Fact<RuntimeImageKnowledge>;
+    pythonImageTags: Fact<MovingTagsKnowledge>;
   };
   devEngines: Fact<DevEnginesKnowledge>;
   devEnginesSince: Fact<string>;
@@ -884,6 +996,9 @@ export interface EnvironmentKnowledge {
   githubActions: {
     workflows: Fact<WorkflowsKnowledge>;
     setupNode: Fact<SetupActionKnowledge>;
+    /** The versions node-version accepts besides semver ranges. */
+    setupNodeVersions: Fact<NodeVersionNamesKnowledge>;
+    setupNodeVersionFile: Fact<SetupNodeVersionFileKnowledge>;
     pnpmActionSetup: Fact<SetupActionKnowledge>;
     pnpmSetup: Fact<SetupActionKnowledge>;
     setupBun: Fact<SetupActionKnowledge>;
@@ -949,6 +1064,8 @@ export interface EnvironmentKnowledge {
     /** File extensions of source distributions on an index, which are built when installed. */
     sourceDistributionExtensions: Fact<readonly string[]>;
     interpreter: Fact<PythonInterpreterKnowledge>;
+    /** The pip each CPython release bundles in ensurepip, per release line. */
+    bundledPip: Fact<readonly BundledVersionsLine[]>;
     /** Hatch, which has no supply-chain settings of its own: how a project shows it uses Hatch. */
     hatch: Fact<{ pyprojectTable: string; configFile: string }>;
   };

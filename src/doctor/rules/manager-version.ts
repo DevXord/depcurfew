@@ -1,6 +1,7 @@
 // manager-version-too-old: a setting only works from some version on. Every version the repository declares for a
-// package manager (packageManager, devEngines, Volta, .tool-versions, CI) must have every setting in use: the ones
-// depcurfew.json needs and the ones already written in the manager's configuration.
+// package manager (packageManager, devEngines, Volta, .tool-versions, CI, Dockerfiles) must have every setting in use:
+// the ones depcurfew.json needs and the ones already written in the manager's configuration. So must the npm that
+// comes with a declared Node.js and the pip of a python image, where nothing replaces them (bundled-versions.ts).
 import { compareVersions, formatVersion, parseVersion, type Version } from '../../apply/version.ts';
 import { extraOf, isRecord, isSwitch, settingOf, sinceOf, values } from '../../apply/facts.ts';
 import { describeRequirements } from '../../apply/requirements.ts';
@@ -14,8 +15,9 @@ import { readPythonSetting } from '../python.ts';
 import { lineOf, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { belowVersion, formatBound, lowestVersion } from '../version-range.ts';
+import { checkBundledVersions } from './bundled-versions.ts';
 
-interface Feature {
+export interface Feature {
   setting: string;
   since: string;
   disputed: boolean;
@@ -84,13 +86,17 @@ function configuredFeatures(context: RuleContext, tool: ToolKnowledge): Feature[
     .filter((item): item is Feature => item !== undefined);
 }
 
-const SOURCE_LABEL: Record<VersionDeclaration['source'], string> = {
+export const SOURCE_LABEL: Record<VersionDeclaration['source'], string> = {
   packageManager: 'packageManager',
   'tool-config': 'the required version',
   devEngines: 'devEngines',
   volta: 'Volta',
   'tool-versions': '.tool-versions',
+  nvmrc: '.nvmrc',
+  'node-version': '.node-version',
+  engines: 'engines',
   'github-actions': 'GitHub Actions',
+  dockerfile: 'Dockerfile',
 };
 
 /** Where a version is declared, for messages; a tool's own required version is named by its key. */
@@ -101,18 +107,30 @@ function sourceLabel(tool: ToolKnowledge, declaration: VersionDeclaration): stri
   return declaration.file.endsWith('pyproject.toml') && typeof required['table'] === 'string' ? `${required['key']} in [${required['table']}]` : required['key'];
 }
 
-function declarationLine(context: RuleContext, declaration: VersionDeclaration): number | undefined {
+export function declarationLine(context: RuleContext, declaration: VersionDeclaration): number | undefined {
   if (declaration.line !== undefined) return declaration.line;
   const text = context.repository.readText(declaration.file);
   if (text === undefined) return undefined;
-  const key = declaration.source === 'packageManager' ? '"packageManager"' : declaration.source === 'devEngines' ? '"devEngines"' : declaration.source === 'volta' ? '"volta"' : undefined;
+  const keys: Partial<Record<VersionDeclaration['source'], string>> = { packageManager: '"packageManager"', devEngines: '"devEngines"', volta: '"volta"', engines: '"engines"' };
+  const key = keys[declaration.source];
   return key === undefined ? undefined : lineOf(text, key);
 }
 
-function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: ToolKnowledge): void {
+/** Every setting in use for a tool: the ones depcurfew.json needs and the ones already in its configuration. */
+export function featuresOf(context: RuleContext, tool: ToolKnowledge): Feature[] {
   const features = new Map<string, Feature>();
   for (const item of [...(context.policy === undefined ? [] : policyFeatures(tool, policyFor(context.policy, ecosystemOfTool(tool)))), ...configuredFeatures(context, tool)]) features.set(item.setting, item);
-  if (features.size === 0) return;
+  return [...features.values()];
+}
+
+/** Features a version lacks, without "minimumReleaseAge for packages requested by exact version" when minimumReleaseAge itself is missing. */
+export function missingFeatures<T extends { setting: string; since: string }>(features: readonly T[], below: (since: Version) => boolean): T[] {
+  const missing = features.filter((item) => below(parseVersion(item.since) as Version));
+  return missing.filter((item) => !missing.some((other) => other !== item && item.setting.startsWith(`${other.setting} for `)));
+}
+
+function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: ToolKnowledge, features: readonly Feature[]): void {
+  if (features.length === 0) return;
   for (const declaration of manager.versions) {
     if (!('version' in declaration)) continue;
     const lowest = lowestVersion(declaration.version);
@@ -122,9 +140,7 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
       context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
       continue;
     }
-    const below = [...features.values()].filter((item) => belowVersion(lowest, parseVersion(item.since) as Version));
-    // "minimumReleaseAge for packages requested by exact version" says nothing new when minimumReleaseAge itself is missing.
-    const missing = below.filter((item) => !below.some((other) => other !== item && item.setting.startsWith(`${other.setting} for `)));
+    const missing = missingFeatures(features, (since) => belowVersion(lowest, since));
     if (missing.length === 0) continue;
     const needed = missing.map((item) => parseVersion(item.since) as Version).reduce((a, b) => (compareVersions(a, b) >= 0 ? a : b));
     const list = describeRequirements(missing);
@@ -144,11 +160,11 @@ function checkManager(context: RuleContext, manager: PackageManagerInfo, tool: T
 
 export const managerVersionTooOld: Rule = {
   id: 'manager-version-too-old',
-  checks: 'The declared package manager versions support the settings the repository relies on',
-  summary: 'A declared package manager version is older than a setting the repository relies on.',
+  checks: 'The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on',
+  summary: 'A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.',
   description:
-    'Package managers ignore settings they do not know yet. When packageManager, devEngines, Volta, .tool-versions or a CI step pins an older version, the setting is silently not applied there.',
-  help: 'Raise the declared version to at least the version that introduced the setting, everywhere it is declared.',
+    'Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age.',
+  help: 'Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.',
   level: 'error',
   requiresPolicy: false,
   // Any package manager: the rule also says that a policy does nothing for Yarn Classic, which is not supported.
@@ -156,8 +172,15 @@ export const managerVersionTooOld: Rule = {
   check(context) {
     for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
       const tool = context.tools.find((entry) => entry.id === manager.id);
-      if (tool !== undefined) checkManager(context, manager, tool);
+      if (tool !== undefined) checkManager(context, manager, tool, featuresOf(context, tool));
     }
+    // The npm that comes with the declared Node.js, and the pip of a python image, where nothing replaces them.
+    checkBundledVersions(context, {
+      features: (tool) => featuresOf(context, tool),
+      missing: missingFeatures,
+      line: (declaration) => declarationLine(context, declaration),
+      label: (declaration) => SOURCE_LABEL[declaration.source],
+    });
     // Yarn Classic has none of the settings, so a policy silently does nothing for it.
     for (const manager of context.detection.packageManagers.filter((entry) => !entry.supported && entry.variant === 'classic')) {
       const berry = context.tools.find((entry) => entry.id === manager.id);

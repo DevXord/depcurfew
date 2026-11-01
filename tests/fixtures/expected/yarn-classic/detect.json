@@ -21,6 +21,8 @@
   "workspaces": null,
   "npmrcFiles": [],
   "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
   "warnings": [
     {
       "code": "yarn-classic-unsupported",

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "Dockerfile",
+      "line": 1
+    },
+    "message": "Node.js 20 (node:20-alpine) in Dockerfile can come with npm 9.6.4 to 10.8.2, none of which supports min-release-age (since 11.10.0), and the stage at line 1 installs packages with it on line 4; npm before 11.2.0 ignores settings it does not know without a warning",
+    "fix": "Add RUN npm install -g npm@11.10.0 to the stage at line 1 before it installs packages, or start from a node image whose Node.js release comes with npm 11.10.0 or later (24.14.1 or a later 24.x; 26.0.0 or later), such as node:24.14.1"
+  }
+]

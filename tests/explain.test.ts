@@ -135,6 +135,7 @@ describe('depcurfew explain --json', () => {
           'Workspaces: none',
           '.npmrc files: none',
           'GitHub Actions workflows: none',
+          'Dockerfiles: none',
           'Warnings: none',
           '',
           'Policy (depcurfew.json):',

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 10
+    },
+    "message": "Node.js 24 in GitHub Actions (.github/workflows/ci.yml, job test) can come with npm 11.3.0 to 11.19.1, not all of which support min-release-age (since 11.10.0), and job test installs packages with it on line 11",
+    "fix": "Run npm install -g npm@11.10.0 in job test before it installs packages, or set up a Node.js release that comes with npm 11.10.0 or later (24.14.1 or a later 24.x; 26.0.0 or later)"
+  }
+]

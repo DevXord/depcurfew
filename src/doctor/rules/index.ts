@@ -10,6 +10,7 @@ import { lockfileForbiddenSource, lockfileInstallScripts } from './lockfile.ts';
 import { managerVersionTooOld } from './manager-version.ts';
 import { npmrcOverridesPolicy, pnpmSharedWorkspaceLockfile } from './npmrc.ts';
 import { pythonConfigIgnored } from './python-config.ts';
+import { runtimeEndOfLife } from './runtime-end-of-life.ts';
 import { unreadableConfig } from './unreadable-config.ts';
 
 /** Every doctor rule, in the order they are documented. unreadable-config runs last, after every other rule has read its files. */
@@ -18,6 +19,7 @@ export const RULES: readonly Rule[] = [
   invalidProject,
   depcurfewOutdated,
   managerVersionTooOld,
+  runtimeEndOfLife,
   settingIgnoredByVersion,
   npmrcOverridesPolicy,
   pnpmSharedWorkspaceLockfile,

@@ -45,5 +45,7 @@
     ".npmrc"
   ],
   "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
   "warnings": []
 }

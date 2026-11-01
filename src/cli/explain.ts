@@ -1,5 +1,5 @@
 import { detectProject } from '../detect/index.ts';
-import type { Detection, VersionDeclaration } from '../detect/types.ts';
+import type { Detection, DockerStage, ToolCommand, VersionDeclaration } from '../detect/types.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId } from '../knowledge/types.ts';
 import { convertCooldown } from '../policy/convert.ts';
@@ -101,8 +101,31 @@ export function buildReport(directory: string): ExplainReport {
 
 function where(declaration: VersionDeclaration): string {
   const location = declaration.line === undefined ? declaration.file : `${declaration.file}:${declaration.line}`;
-  const value = 'version' in declaration ? declaration.version : `from ${declaration.versionFile}`;
-  return `${value} (${location}, ${declaration.source})`;
+  const value =
+    'version' in declaration
+      ? declaration.versionFile === undefined
+        ? declaration.version
+        : `${declaration.version} from ${declaration.versionFile}`
+      : `from ${declaration.versionFile}`;
+  const scope = [
+    ...(declaration.job === undefined ? [] : [`job ${declaration.job}`]),
+    ...(declaration.matrix === undefined ? [] : [`matrix.${declaration.matrix}`]),
+    ...(declaration.stage === undefined ? [] : [`stage ${declaration.stage}`]),
+  ];
+  return `${value} (${[location, declaration.source, ...scope].join(', ')})`;
+}
+
+function commandText(command: ToolCommand): string {
+  const what = command.kind === 'install' ? `${command.tool} installs` : `${command.tool} replaced${command.version === undefined ? '' : ` by ${command.version}`}`;
+  return `${what} on line ${command.line}`;
+}
+
+/** "deps: node:22-alpine (Node.js 22), npm installs on line 6". */
+function stageText(stage: DockerStage, index: number, stages: readonly DockerStage[]): string {
+  const name = stage.name ?? `#${index}`;
+  const base = stage.from === undefined ? (stage.image ?? 'an image from an ARG without a value') : `stage ${stages[stage.from]?.name ?? `#${stage.from}`}`;
+  const runtime = stage.runtime === undefined ? '' : stage.runtime.version === undefined ? ` (${stage.runtime.tool}, version unknown)` : ` (${stage.runtime.tool === 'node' ? 'Node.js' : 'Python'} ${stage.runtime.version})`;
+  return [`${name}: ${base}${runtime}`, ...stage.commands.map(commandText)].join(', ');
 }
 
 function amount(value: number | string, unit: string): string {
@@ -133,6 +156,8 @@ function projectLines(project: Detection): string[] {
   const npmrc = [...project.npmrcFiles, ...special.map((file) => `${file} (not a regular file, not read)`)];
   lines.push(`.npmrc files: ${npmrc.length === 0 ? 'none' : npmrc.join(', ')}`);
   lines.push(`GitHub Actions workflows: ${project.workflows.length === 0 ? 'none' : project.workflows.join(', ')}`);
+  if (project.dockerfiles.length === 0) lines.push('Dockerfiles: none');
+  else lines.push('Dockerfiles:', ...project.dockerfiles.flatMap((file) => [`  ${file.file}`, ...file.stages.map((stage, index) => `    ${stageText(stage, index, file.stages)}`)]));
   if (project.warnings.length === 0) lines.push('Warnings: none');
   else lines.push('Warnings:', ...project.warnings.map((warning) => `  ${warning.code}: ${warning.message}`));
   return lines;

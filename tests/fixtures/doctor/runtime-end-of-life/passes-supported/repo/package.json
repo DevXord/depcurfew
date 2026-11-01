@@ -1,0 +1,5 @@
+{
+  "name": "supported",
+  "private": true,
+  "engines": { "node": ">=18" }
+}

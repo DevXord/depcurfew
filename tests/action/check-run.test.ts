@@ -258,7 +258,7 @@ describe('the Action and the check', () => {
   it('passes a clean result with every check in the summary, and counts the checks that do not apply', () => {
     const [content] = collect({ FIXTURE: 'bot-cooldown-mismatch/passes-consistent' });
     expect(content).toMatchObject({ name: 'depcurfew doctor', conclusion: 'success', annotations: [] });
-    expect(content?.title).toBe('No problems found (14 checks: 7 passed, 3 not applicable, 4 skipped)');
+    expect(content?.title).toBe('No problems found (15 checks: 7 passed, 4 not applicable, 4 skipped)');
     expect(content?.summary).toContain('| Result | Check | Rule |');
     expect(content?.summary).toContain('| not applicable | Python tools read their settings where they are written | `python-config-ignored` |');
   });

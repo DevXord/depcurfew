@@ -282,7 +282,7 @@ const SUPPLY_CHAIN = "https://docs.deno.com/runtime/packages/supply_chain/#minim
 const SCHEMA$1 = "https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json";
 const INSTALL = "https://docs.deno.com/runtime/reference/cli/install/";
 const NOT_SUPPORTED = "https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported";
-const release$4 = (version) => `https://github.com/denoland/deno/releases/tag/v${version}`;
+const release$5 = (version) => `https://github.com/denoland/deno/releases/tag/v${version}`;
 const unsupported = (note) => ({ setting: verified$11(null, NOT_SUPPORTED, note) });
 const WORKSPACES$1 = "https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md";
 const deno$1 = {
@@ -294,7 +294,7 @@ const deno$1 = {
 		configFiles: verified$11(["deno.json", ".npmrc"], SUPPLY_CHAIN, "min-release-age in .npmrc since 2.8; also NPM_CONFIG_MIN_RELEASE_AGE. This page does not state precedence; denoland/deno#35458 gives CLI flag, deno.json, .npmrc, environment, built-in default."),
 		cliFlag: verified$11("--minimum-dependency-age", DENO_JSON, "Alias --min-dep-age since 2.9.3. deno install honors it since 2.5.5; deno add, deno remove and deno x since 2.9.4."),
 		unit: verified$11("minutes", SCHEMA$1, "Numbers are minutes; strings may be an ISO-8601 duration (P3D, PT72H), an absolute date or an RFC3339 timestamp; 0 turns it off. The .npmrc format differs (see npmrcFormat)."),
-		availableSince: disputed$5("The 2.5.5 release notes ship the flag, the deno.json key and exclude as unstable; the release blog says the feature was introduced in 2.6.", evidence$5("2.5.5", release$4("2.5.5")), evidence$5("2.6.0", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
+		availableSince: disputed$5("The 2.5.5 release notes ship the flag, the deno.json key and exclude as unstable; the release blog says the feature was introduced in 2.6.", evidence$5("2.5.5", release$5("2.5.5")), evidence$5("2.6.0", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
 		default: verified$11([{
 			since: "0.0.0",
 			value: null
@@ -304,7 +304,7 @@ const deno$1 = {
 		}], DENO_JSON, "Since 2.9 a 24-hour minimum applies when nothing is configured; set 0 to turn it off. Whether the default covers JSR is not stated."),
 		exclude: {
 			setting: verified$11("minimumDependencyAge.exclude", SCHEMA$1),
-			availableSince: verified$11("2.5.5", release$4("2.5.5")),
+			availableSince: verified$11("2.5.5", release$5("2.5.5")),
 			patternSyntax: verified$11("Specifiers prefixed npm: or jsr:; a trailing * matches by prefix (npm:@scope/*) since 2.9.2", SCHEMA$1, "Before 2.9.2 wildcard entries were stored literally and never matched. No CLI flag or .npmrc key for exclusions.")
 		},
 		securityUpdates: uncertain$10("applies", SUPPLY_CHAIN, "No security bypass is documented; only per-package exclude or an age of 0.")
@@ -469,10 +469,10 @@ const deno$1 = {
 			since: "2.6.0",
 			value: true
 		}, SCHEMA$1, "allowScripts: true allows every npm lifecycle script. Only the JSON value true does: to_allow_scripts_config (libs/config/deno_json/mod.rs at v2.9.8) gives every package for true, none for false and null, and stops with \"expected string array, boolean, or object\" for a string or a number, so \"true\" or 1 cannot turn it on silently."),
-		latestVersion: verified$11("2.9.8", release$4("2.9.8")),
+		latestVersion: verified$11("2.9.8", release$5("2.9.8")),
 		npmrcFormat: disputed$5("The safe choice is an integer number of days, which also matches npm.", evidence$5("whole days only, e.g. min-release-age=3", SUPPLY_CHAIN), evidence$5("a duration with a unit, e.g. min-release-age=72h", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
 		fileLinkSkipped: disputed$5("Official pages disagree on whether the project's own file: and link: dependencies are skipped, or only those in published packages' metadata.", evidence$5("file: and link: dependencies in the project package.json are silently skipped", NOT_SUPPORTED), evidence$5("file: and link: specifiers in registry metadata of npm packages are skipped", "https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages")),
-		denoXCooldown: verified$11("deno x honors minimumDependencyAge only since 2.9.4", release$4("2.9.4")),
+		denoXCooldown: verified$11("deno x honors minimumDependencyAge only since 2.9.4", release$5("2.9.4")),
 		dxRunsScripts: verified$11("dx defaults to --allow-all and runs lifecycle scripts once the download prompt is accepted", "https://deno.com/blog/v2.6")
 	}
 };
@@ -564,13 +564,14 @@ const { verified: verified$9, uncertain: uncertain$8, disputed: disputed$3, evid
 const checked$5 = verifiedOn("2026-10-29");
 const reviewed$2 = verifiedOn("2026-10-30");
 const rechecked$4 = verifiedOn("2026-10-31");
+const runtimes$1 = verifiedOn("2026-11-01");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
-const release$3 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
+const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
 const INSTALL_TIME_CONTROLS = "https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/";
 const SOURCE_FLAGS_SINCE_NOTE = "The 11.14.0 release notes add the flag; the GitHub changelog dates it to 11.15.0, which also moved enforcement into the resolver. Treat 11.15.0 as the safe minimum.";
 const VALUES_NOTE = "The 2026-05-22 GitHub changelog mentions only all and none; the config reference also lists root.";
-const sourceFlagSince = () => disputed$3(SOURCE_FLAGS_SINCE_NOTE, evidence$3("11.14.0", release$3("11.14.0")), evidence$3("11.15.0", INSTALL_TIME_CONTROLS));
+const sourceFlagSince = () => disputed$3(SOURCE_FLAGS_SINCE_NOTE, evidence$3("11.14.0", release$4("11.14.0")), evidence$3("11.15.0", INSTALL_TIME_CONTROLS));
 const LOCKFILE_V12 = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md";
 const PACKAGE_JSON$1 = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
 const NPM_DEFINITIONS = "https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js";
@@ -605,14 +606,14 @@ const npm$1 = {
 		configFiles: verified$9([".npmrc"], NPMRC$1, "Any npm config layer works: project .npmrc (read only at the project root and not for global installs), ~/.npmrc, the global npmrc, npm_config_min_release_age or the CLI. package.json cannot set it."),
 		cliFlag: verified$9("--min-release-age=<days>", "https://docs.npmjs.com/cli/v12/commands/npm-install#min-release-age"),
 		unit: verified$9("days", `${CONFIG$2}#min-release-age`, "Type is null or Number; 0 turns the delay off. Fractional days are not documented."),
-		availableSince: verified$9("11.10.0", release$3("11.10.0")),
+		availableSince: verified$9("11.10.0", release$4("11.10.0")),
 		default: verified$9([{
 			since: "11.10.0",
 			value: null
 		}], `${CONFIG$2}#min-release-age`, "Unchanged in npm 12."),
 		exclude: {
 			setting: verified$9("min-release-age-exclude", `${CONFIG$2}#min-release-age-exclude`),
-			availableSince: verified$9("11.17.0", release$3("11.17.0")),
+			availableSince: verified$9("11.17.0", release$4("11.17.0")),
 			patternSyntax: verified$9("Package names or minimatch globs matched against the name, e.g. @myorg/*; only the named package is exempt, not its dependencies; also exempts from before", `${CONFIG$2}#min-release-age-exclude`)
 		},
 		securityUpdates: verified$9("applies", `${CONFIG$2}#min-release-age`, "npm audit fix keeps the vulnerable version, warns that the fix was blocked (since 11.18.0) and exits non-zero. Add the package to min-release-age-exclude or relax the delay.")
@@ -635,7 +636,7 @@ const npm$1 = {
 		allowList: {
 			setting: verified$9("allowScripts", "https://docs.npmjs.com/cli/v12/commands/npm-install-scripts"),
 			file: verified$9("package.json", "https://docs.npmjs.com/cli/v12/commands/npm-install-scripts", "Only the root package.json counts; allowScripts in dependencies is ignored. npx, npm exec and global installs use the allow-scripts config instead."),
-			availableSince: verified$9("11.16.0", release$3("11.16.0")),
+			availableSince: verified$9("11.16.0", release$4("11.16.0")),
 			format: uncertain$8("Object keyed by name, name@version or name@v1 || v2 with true (allow) or false (deny); npm install-scripts approve writes pinned name@version entries", "https://github.com/npm/rfcs/blob/main/accepted/0054-make-scripts-install-opt-in.md", "The exact entry grammar (no semver ranges) is stated in accepted RFC 0054; the shipped docs describe entries only in prose.")
 		},
 		disableAll: verified$9("ignore-scripts", `${CONFIG$2}#ignore-scripts`, "Default false. Overrides allowScripts and dangerously-allow-all-scripts. npm run/test/start still run the named script, but not its pre/post scripts.")
@@ -648,7 +649,7 @@ const npm$1 = {
 				"none",
 				"root"
 			], `${CONFIG$2}#allow-git`, "root allows only git dependencies listed in the project package.json."),
-			availableSince: disputed$3("The release notes add --allow-git in 11.9.0; the GitHub changelog says it was introduced in 11.10.0.", evidence$3("11.9.0", release$3("11.9.0")), evidence$3("11.10.0", INSTALL_TIME_CONTROLS)),
+			availableSince: disputed$3("The release notes add --allow-git in 11.9.0; the GitHub changelog says it was introduced in 11.10.0.", evidence$3("11.9.0", release$4("11.9.0")), evidence$3("11.10.0", INSTALL_TIME_CONTROLS)),
 			default: verified$9([{
 				since: "11.9.0",
 				value: "all"
@@ -671,7 +672,7 @@ const npm$1 = {
 			}, {
 				since: "12.0.0",
 				value: "none"
-			}], release$3("12.0.0"))
+			}], release$4("12.0.0"))
 		},
 		file: {
 			setting: verified$9("allow-file", `${CONFIG$2}#allow-file`),
@@ -934,7 +935,7 @@ const npm$1 = {
 			since: "11.17.0",
 			trailingOnly: false
 		}, NPM_DEFINITIONS, "min-release-age-exclude takes package names or minimatch globs from its first version."),
-		latestVersion: verified$9("12.2.1", release$3("12.2.1"), "Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1)."),
+		latestVersion: verified$9("12.2.1", release$4("12.2.1"), "Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1)."),
 		beforeInteraction: reviewed$2.verified({
 			setting: "before",
 			exclusive: {
@@ -1267,6 +1268,38 @@ const npm$1 = {
 			configOptions: ["--userconfig", "--globalconfig"],
 			configVariables: ["npm_config_userconfig", "npm_config_globalconfig"]
 		}, NPM_DEFINITIONS, "registry is a URL; userconfig and globalconfig are the user and global configuration files. Putting --foo bar on the command line sets the foo configuration parameter, and environment variables that start with npm_config_ are configuration parameters too, without regard to case (docs/lib/content/using-npm/config.md); @scope:registry is the key of a scope's registry (https://docs.npmjs.com/cli/v12/using-npm/scope)."),
+		installCommands: runtimes$1.verified({
+			install: INSTALL_ALIASES,
+			clean: [
+				"ci",
+				"clean-install",
+				"ic",
+				"install-clean",
+				"isntall-clean",
+				"install-ci-test",
+				"cit",
+				"clean-install-test",
+				"sit"
+			],
+			update: [
+				"update",
+				"up",
+				"upgrade",
+				"udpate"
+			]
+		}, CMD_LIST, "Commands that install packages into the project and their aliases: install (add, i, typo aliases, install-test and it), ci (clean-install, ic, install-clean, isntall-clean) with install-ci-test (cit, clean-install-test, sit), and update (up, upgrade, udpate; u only from npm 12, so left out). The same in v10.9.9 (lib/utils/cmd-list.js). npm also accepts unique abbreviations of command names, which are not listed."),
+		globalOption: runtimes$1.verified([
+			"--global",
+			"-g",
+			"--location=global"
+		], NPM_DEFINITIONS, "global (short g) \"Operates in global mode, so that packages are installed into the prefix folder instead of the current working directory\" and sets location to global; npm install -g npm@<version> replaces the npm that runs (docs/lib/content/commands/npm-install.md: \"In global mode (ie, with -g or --global appended to the command)\")."),
+		unknownConfigKeys: runtimes$1.verified([{
+			since: "0.0.0",
+			value: "ignored"
+		}, {
+			since: "11.2.0",
+			value: "warning"
+		}], "https://github.com/npm/cli/blob/v10.9.9/workspaces/config/lib/index.js", "npm 10 loads every key of an .npmrc without checking whether it knows it (#loadObject only checks deprecated and exclusive keys), so a setting it does not have yet, such as min-release-age, is ignored without any message. checkUnknown first appears in v11.2.0 (workspaces/config/lib/index.js), which warns: Unknown project config \"<key>\". This will stop working in the next major version of npm. The 11.2.0 changelog does not name the change; the version comes from reading the code at the tags. npm 12 collects unknown keys to fail the command (v12.2.1), with the exact behavior not read."),
 		lockfileInstalls: uncertain$8("npm ci installs versions pinned in package-lock.json without applying min-release-age", "https://docs.npmjs.com/cli/v12/commands/npm-ci", "Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window.")
 	}
 };
@@ -2446,7 +2479,7 @@ const SETTINGS_V10 = "https://pnpm.io/10.x/settings";
 const BUILD = "https://pnpm.io/settings/build";
 const RESOLUTION_V11 = "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/dependency-resolution.md";
 const BUILD_V11 = "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md";
-const release$2 = (version) => `https://github.com/pnpm/pnpm/releases/tag/v${version}`;
+const release$3 = (version) => `https://github.com/pnpm/pnpm/releases/tag/v${version}`;
 const exoticSubdeps = {
 	setting: verified$5("blockExoticSubdeps", SETTINGS_V10, "Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies."),
 	values: verified$5(["true", "false"], RESOLUTION$1),
@@ -2457,7 +2490,7 @@ const exoticSubdeps = {
 	}, {
 		since: "11.0.0",
 		value: "true"
-	}], release$2("11.0.0"))
+	}], release$3("11.0.0"))
 };
 const localPaths = { setting: uncertain$4(null, "https://pnpm.io/settings", "No setting restricts file: or link: dependencies (concluded from the full settings list); blockExoticSubdeps treats local paths and workspace links as trusted.") };
 const WORKSPACE_YAML_V10 = "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md";
@@ -2467,10 +2500,10 @@ const pnpm$1 = {
 	kind: "package-manager",
 	cooldown: {
 		setting: verified$5("minimumReleaseAge", "https://pnpm.io/blog/releases/10.16"),
-		configFiles: rechecked$1.verified(["pnpm-workspace.yaml"], release$2("11.0.0"), "pnpm-workspace.yaml works in every version that has the setting. The global config.yaml exists only from 11.0.0 (\"the new global config.yaml\"); pnpm 10 reads user-level settings from ~/.npmrc and <configDir>/rc instead (see user.files). pnpm 10 also reads minimum-release-age from .npmrc; pnpm 11+ reads only auth and registry settings from .npmrc and ignores the package.json \"pnpm\" field."),
+		configFiles: rechecked$1.verified(["pnpm-workspace.yaml"], release$3("11.0.0"), "pnpm-workspace.yaml works in every version that has the setting. The global config.yaml exists only from 11.0.0 (\"the new global config.yaml\"); pnpm 10 reads user-level settings from ~/.npmrc and <configDir>/rc instead (see user.files). pnpm 10 also reads minimum-release-age from .npmrc; pnpm 11+ reads only auth and registry settings from .npmrc and ignores the package.json \"pnpm\" field."),
 		cliFlag: uncertain$4(null, "https://pnpm.io/cli/install", "No dedicated flag is documented for install or add; release notes mention \"a CLI flag\" without syntax. Environment variable: PNPM_CONFIG_MINIMUM_RELEASE_AGE (pnpm 11+), npm_config_minimum_release_age (pnpm 10)."),
 		unit: verified$5("minutes", RESOLUTION$1, "Integer number of minutes, e.g. 1440 = 1 day; no duration strings."),
-		availableSince: verified$5("10.16.0", release$2("10.16.0")),
+		availableSince: verified$5("10.16.0", release$3("10.16.0")),
 		default: verified$5([{
 			since: "10.16.0",
 			value: 0
@@ -2480,7 +2513,7 @@ const pnpm$1 = {
 		}], RESOLUTION_V11, "The built-in 1440 is non-strict: pnpm adds immature versions to minimumReleaseAgeExclude instead of failing (see strictMode)."),
 		exclude: {
 			setting: verified$5("minimumReleaseAgeExclude", SETTINGS_V10),
-			availableSince: verified$5("10.16.0", release$2("10.16.0")),
+			availableSince: verified$5("10.16.0", release$3("10.16.0")),
 			patternSyntax: verified$5("Package names (all versions); globs such as @myorg/* since 10.17.0; exact versions name@1.2.3 or name@1.2.3 || 1.2.4 since 10.19.0; ranges are not documented", SETTINGS_V10)
 		},
 		securityUpdates: verified$5("applies", "https://pnpm.io/cli/audit", "No setting bypasses the delay. Since 11.0.0, pnpm audit --fix adds the minimum patched version of each advisory to minimumReleaseAgeExclude (since 11.22.0 only while it is still inside the window).")
@@ -2492,7 +2525,7 @@ const pnpm$1 = {
 		}, {
 			since: "10.0.0",
 			value: "deny-except-allowlist"
-		}], release$2("10.0.0"), "Unreviewed builds only warn in pnpm 10; strictDepBuilds is true by default since 11.0.0, so they fail the install. Prepare scripts of git-hosted dependencies are blocked since 10.26.0."),
+		}], release$3("10.0.0"), "Unreviewed builds only warn in pnpm 10; strictDepBuilds is true by default since 11.0.0, so they fail the install. Prepare scripts of git-hosted dependencies are blocked since 10.26.0."),
 		allowList: {
 			setting: verified$5("allowBuilds", BUILD, "Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds (extra.buildPermissions)."),
 			file: verified$5("pnpm-workspace.yaml", BUILD),
@@ -2847,7 +2880,7 @@ const pnpm$1 = {
 			value: true,
 			since: "11.0.0"
 		}, RESOLUTION$1, "When false, pnpm falls back to a version that does not meet minimumReleaseAge; when true, resolution fails. It defaults to true when minimumReleaseAge is set explicitly, except in 11.0.0-11.0.3 and 12.0.0-12.2.x (see strictMode): pnpm 11.0.0 and 12.0.0 installed a version 4 hours old with minimumReleaseAge: 4320 on 2026-10-29, and 12.0.0 added it to minimumReleaseAgeExclude."),
-		cooldownExactVersions: checked$4.verified("10.17.0", release$2("10.17.0"), "pnpm 10.17.0: \"Don't ignore the minimumReleaseAge check, when the package is requested by exact version\". pnpm 10.16.0 installed typescript@7.1.0-dev.20261029.1, 4 hours old, with minimumReleaseAge: 4320 on 2026-10-29."),
+		cooldownExactVersions: checked$4.verified("10.17.0", release$3("10.17.0"), "pnpm 10.17.0: \"Don't ignore the minimumReleaseAge check, when the package is requested by exact version\". pnpm 10.16.0 installed typescript@7.1.0-dev.20261029.1, 4 hours old, with minimumReleaseAge: 4320 on 2026-10-29."),
 		lockfileDocuments: checked$4.verified({
 			bootMarker: "---",
 			graph: "last"
@@ -2885,14 +2918,14 @@ const pnpm$1 = {
 			since: "11.0.0",
 			npmrc: "auth and registry settings",
 			packageJsonField: "pnpm"
-		}, release$2("11.0.0"), "Structured form of npmrcIgnored: from 11.0.0 on, other .npmrc settings and the package.json \"pnpm\" field have no effect."),
+		}, release$3("11.0.0"), "Structured form of npmrcIgnored: from 11.0.0 on, other .npmrc settings and the package.json \"pnpm\" field have no effect."),
 		lockfileRecheck: uncertain$4([{
 			since: "10.16.0",
 			value: false
 		}, {
 			since: "11.1.3",
 			value: true
-		}], release$2("11.1.3"), "Structured form of lockfileVerification: whether a frozen-lockfile install re-checks the age of versions already in the lockfile. trustLockfile: true (11.3.0) turns the check off."),
+		}], release$3("11.1.3"), "Structured form of lockfileVerification: whether a frozen-lockfile install re-checks the age of versions already in the lockfile. trustLockfile: true (11.3.0) turns the check off."),
 		allowAllBuilds: rechecked$1.verified({
 			setting: "dangerouslyAllowAllBuilds",
 			since: "10.9.0",
@@ -2948,8 +2981,8 @@ const pnpm$1 = {
 			}]
 		}, "https://github.com/pnpm/pnpm/blob/v10.28.0/config/config/src/dependencyBuildOptions.ts", "pnpm 10 reads dangerously-allow-all-builds from the project .npmrc as from every .npmrc, with parseField of @pnpm/npm-conf, so every value but false, null and undefined is on (user.weakening). From 10.13.0 config/config/src/index.ts takes the build settings of all .npmrc files and npm_config_* variables aside (extractAndRemoveDependencyBuildOptions) and applies them only when pnpm-workspace.yaml and the \"pnpm\" field of package.json (from which getOptionsFromRootManifest takes onlyBuiltDependencies, onlyBuiltDependenciesFile and neverBuiltDependencies) set none of projectKeys (hasDependencyBuildOptions: a key that is not null or undefined); the list gained allowBuilds in 10.26.0 (dependencyBuildOptions.ts at 10.13.0, 10.25.0, 10.26.0 and 10.28.0; the file does not exist in 10.12.1). Before 10.13.0 the .npmrc value applies unless pnpm-workspace.yaml sets dangerouslyAllowAllBuilds itself (npmrcPrecedence). pnpm 11 reads only auth and registry settings from .npmrc (ignoredSince)."),
 		yamlMergeKeys: rechecked$1.verified(true, "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/workspace/workspace-manifest-reader/src/index.ts", "pnpm-workspace.yaml and the global config.yaml (readWorkspaceManifest with cfgFileName) are read with read-yaml-file, which calls load of js-yaml with its default schema, and that schema has the merge type: read-yaml-file 3.0.0 with @zkochan/js-yaml 0.0.11 in 11.28.10, read-yaml-file 2.1.0 with @zkochan/js-yaml 0.0.9 in 10.28.0 and 0.0.11 in 10.34.9 (workspace/read-manifest/src/index.ts and pnpm-lock.yaml at those tags; lib/schema/default.js of the packages). pnpm 12 reads both files with serde_saphyr::from_str (pnpm/crates/config/src/workspace_yaml/parse_settings.rs at 12.16.1), whose default MergeKeyPolicy is Merge (serde-saphyr 0.0.29). So <<: *defaults brings the keys of the anchored map into the map, and settings set that way apply (a review run with pnpm 10.28.0: pnpm config get dangerouslyAllowAllBuilds gave true and installs ran scripts). A key written in the map itself wins over a merged one whatever their order (mergeMappings of js-yaml adds only missing keys; serde-saphyr adds merged entries whose key is not seen), and earlier maps of <<: [*a, *b] win over later ones; a quoted \"<<\" is an ordinary key."),
-		latestVersion: verified$5("12.16.1", release$2("12.16.1"), "pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches."),
-		npmrcIgnored: verified$5("pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json \"pnpm\" field and no longer reads npm_config_* variables", release$2("11.0.0")),
+		latestVersion: verified$5("12.16.1", release$3("12.16.1"), "pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches."),
+		npmrcIgnored: verified$5("pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json \"pnpm\" field and no longer reads npm_config_* variables", release$3("11.0.0")),
 		buildPermissions: rechecked$1.verified({
 			setting: "permissions",
 			capability: "build",
@@ -2977,7 +3010,7 @@ const pnpm$1 = {
 		}, {
 			since: "11.0.0",
 			value: "true"
-		}], release$2("11.0.0"), "When true, an unreviewed dependency build script fails the install."),
+		}], release$3("11.0.0"), "When true, an unreviewed dependency build script fails the install."),
 		strictMode: verified$5([
 			{
 				since: "11.0.0",
@@ -2995,7 +3028,7 @@ const pnpm$1 = {
 				since: "12.3.0",
 				value: "strict whenever minimumReleaseAge is set explicitly"
 			}
-		], release$2("12.3.0"), "In non-strict mode pnpm silently writes immature picks into minimumReleaseAgeExclude. Strict mode fails CI installs with ERR_PNPM_NO_MATURE_MATCHING_VERSION."),
+		], release$3("12.3.0"), "In non-strict mode pnpm silently writes immature picks into minimumReleaseAgeExclude. Strict mode fails CI installs with ERR_PNPM_NO_MATURE_MATCHING_VERSION."),
 		ignoreMissingTime: verified$5("minimumReleaseAgeIgnoreMissingTime defaults to true: packages whose registry metadata has no publish time skip the age check", RESOLUTION$1),
 		lockfileVerification: uncertain$4([{
 			since: "10.16.0",
@@ -3003,7 +3036,7 @@ const pnpm$1 = {
 		}, {
 			since: "11.1.3",
 			value: "lockfile entries are re-checked; trustLockfile: true (11.3.0) turns this off"
-		}], release$2("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
+		}], release$3("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
 		unknownWorkspaceKeys: verified$5("pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns", "https://pnpm.io/blog/releases/12.0")
 	}
 };
@@ -3288,7 +3321,7 @@ const rules = verifiedOn("2026-10-30");
 const AT = "https://github.com/renovatebot/renovate/blob/44.198.2";
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
 const MINIMUM_RELEASE_AGE = "https://docs.renovatebot.com/key-concepts/minimum-release-age/";
-const release$1 = (version) => `https://github.com/renovatebot/renovate/releases/tag/${version}`;
+const release$2 = (version) => `https://github.com/renovatebot/renovate/releases/tag/${version}`;
 const renovate$1 = {
 	id: "renovate",
 	name: "Renovate",
@@ -3312,14 +3345,14 @@ const renovate$1 = {
 		], OPTIONS, "Searched in this order. The \"renovate\" key in package.json still works but is deprecated. Shared presets (extends) can also set it."),
 		cliFlag: verified$3("--minimum-release-age", `${OPTIONS}#minimumreleaseage`, "Self-hosted CLI only; environment variable RENOVATE_MINIMUM_RELEASE_AGE."),
 		unit: verified$3("duration-string", MINIMUM_RELEASE_AGE, "For example \"3 days\" or \"14 days\". Since 42.19.5 \"0 days\" is treated like null."),
-		availableSince: verified$3("35.46.0", release$1("35.46.0"), "Earlier versions had the same feature as stabilityDays (first version not tracked)."),
+		availableSince: verified$3("35.46.0", release$2("35.46.0"), "Earlier versions had the same feature as stabilityDays (first version not tracked)."),
 		default: verified$3([{
 			since: "0.0.0",
 			value: null
 		}], "https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts", "Off unless configured; the docs table shows no default. config:best-practices adds \"3 days\" for npm (see presets). Since 44.96.0 minimumReleaseAgeBuffer adds 30 minutes once a delay is set."),
 		exclude: {
 			setting: verified$3("packageRules: matchPackageNames + minimumReleaseAge: null", `${MINIMUM_RELEASE_AGE}#how-do-i-opt-out-dependencies-from-minimum-release-age-checks`, "No dedicated exclusion list."),
-			availableSince: uncertain$2("35.46.0", release$1("35.46.0"), "Assumed to work since the option exists with packageRule scope; not stated by a release note."),
+			availableSince: uncertain$2("35.46.0", release$2("35.46.0"), "Assumed to work since the option exists with packageRule scope; not stated by a release note."),
 			patternSyntax: verified$3("matchPackageNames: exact names, globs such as @org/** (with ! negation) or /regex/; case-insensitive", `${OPTIONS}#matchpackagenames`, "Glob and regex patterns since 38.0.0.")
 		},
 		securityUpdates: verified$3("bypass", `${MINIMUM_RELEASE_AGE}#what-happens-to-security-updates`, "The vulnerabilityAlerts defaults set minimumReleaseAge to null; a delay can still be set inside vulnerabilityAlerts.")
@@ -3442,8 +3475,8 @@ const renovate$1 = {
 		}, {
 			since: "42.0.0",
 			value: "minimumReleaseAgeBehaviour timestamp-required: such updates are held"
-		}], release$1("42.0.0"), "minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open."),
-		internalChecksFilter: verified$3("Defaults to \"strict\" since 33.0.0; with \"none\" or \"flexible\" branches and PRs are created before the delay ends and only automerge waits", release$1("33.0.0")),
+		}], release$2("42.0.0"), "minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open."),
+		internalChecksFilter: verified$3("Defaults to \"strict\" since 33.0.0; with \"none\" or \"flexible\" branches and PRs are created before the delay ends and only automerge waits", release$2("33.0.0")),
 		independentOfPackageManager: verified$3("minimumReleaseAge is set independently of the package manager's own release-age configuration", MINIMUM_RELEASE_AGE, "Source code passes --before to npm only; pnpm, Yarn and Bun gates are not read."),
 		digestBypassFixed: disputed$1("Digest updates could bypass minimumReleaseAge; the advisory and a maintainer comment give different fixed versions. Rebase requests could bypass strict checks before 44.61.3 (GHSA-2frq-pm48-6j4h).", evidence$1("44.3.1", "https://github.com/renovatebot/renovate/security/advisories/GHSA-g4qr-hw2h-687r"), evidence$1("44.10.0", "https://github.com/renovatebot/renovate/discussions/42260"))
 	}
@@ -3988,7 +4021,7 @@ const SCALAR_VARIABLES = [{
 const YARNRC = "https://yarnpkg.com/configuration/yarnrc";
 const MANIFEST = "https://yarnpkg.com/configuration/manifest";
 const SCHEMA = "https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json";
-const release = (version) => `https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F${version}`;
+const release$1 = (version) => `https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F${version}`;
 const noSetting = (source, note) => ({ setting: uncertain(null, source, note) });
 const yarn$1 = {
 	id: "yarn",
@@ -3999,14 +4032,14 @@ const yarn$1 = {
 		configFiles: verified$1([".yarnrc.yml"], YARNRC, "Also YARN_NPM_MINIMAL_AGE_GATE (general YARN_ env rule) and, since 4.17.0, npmScopes.<scope>.npmMinimalAgeGate. package.json cannot set it."),
 		cliFlag: uncertain(null, "https://yarnpkg.com/cli/install", "No flag sets the gate. --no-time-gate on yarn add and yarn up (4.15.0+) disables it for one command; yarn install has no such flag."),
 		unit: verified$1("minutes", "https://github.com/yarnpkg/berry/pull/6942", "Bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect."),
-		availableSince: checked$3.verified("4.10.2", release("4.10.2"), "The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: \"Bust the metadata cache\" (#6908) and \"support registries without publish times using minimalAgeGate\" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old (\"No candidates found\"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depcurfew writes the setting from 4.10.2 on."),
+		availableSince: checked$3.verified("4.10.2", release$1("4.10.2"), "The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: \"Bust the metadata cache\" (#6908) and \"support registries without publish times using minimalAgeGate\" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old (\"No candidates found\"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depcurfew writes the setting from 4.10.2 on."),
 		default: disputed("The code is unambiguous: off until 4.14.x, 1d from 4.15.0. The published settings schema claimed 3d for 4.11.0-4.14.x and 0m in 4.16.0; the live yarnrc page shows \"1w\", which is an example value. Upgraded projects with an old lockfile get npmMinimalAgeGate: 0 written to .yarnrc.yml (see upgradeMigration).", evidence([{
 			since: "4.10.0",
 			value: 0
 		}, {
 			since: "4.15.0",
 			value: "1d"
-		}], release("4.15.0")), evidence([
+		}], release$1("4.15.0")), evidence([
 			{
 				since: "4.10.0",
 				value: 0
@@ -4022,7 +4055,7 @@ const yarn$1 = {
 		], "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.11.0/packages/docusaurus/static/configuration/yarnrc.json")),
 		exclude: {
 			setting: verified$1("npmPreapprovedPackages", `${YARNRC}#npmPreapprovedPackages`),
-			availableSince: verified$1("4.10.0", release("4.10.0")),
+			availableSince: verified$1("4.10.0", release$1("4.10.0")),
 			patternSyntax: verified$1("Package descriptors or name globs, optionally with a semver range: @scope/*, package, package*, package@^1.0.0; global only, not per npmScopes", `${YARNRC}#npmPreapprovedPackages`)
 		},
 		securityUpdates: uncertain("applies", "https://yarnpkg.com/cli/npm/audit", "No automatic bypass is documented and yarn npm audit only reports. Options: --no-time-gate on yarn add/up, a pinned npmPreapprovedPackages entry, or a per-scope gate of 0.")
@@ -4034,7 +4067,7 @@ const yarn$1 = {
 		}, {
 			since: "4.14.0",
 			value: "deny-except-allowlist"
-		}], release("4.14.0"), "Workspace scripts still run. Upgraded projects with an old lockfile get enableScripts: true written to .yarnrc.yml. Yarn 1 runs scripts unless --ignore-scripts is passed."),
+		}], release$1("4.14.0"), "Workspace scripts still run. Upgraded projects with an old lockfile get enableScripts: true written to .yarnrc.yml. Yarn 1 runs scripts unless --ignore-scripts is passed."),
 		allowList: {
 			setting: verified$1("dependenciesMeta.<package>.built", `${MANIFEST}#dependenciesMeta.built`),
 			file: verified$1("package.json", `${MANIFEST}#dependenciesMeta`, "Root package.json only; ignored inside workspaces."),
@@ -4047,7 +4080,7 @@ const yarn$1 = {
 		git: {
 			setting: verified$1("approvedGitRepositories", `${YARNRC}#approvedGitRepositories`),
 			values: verified$1(["repository URL glob patterns, e.g. https://github.com/org/*"], `${YARNRC}#approvedGitRepositories`),
-			availableSince: verified$1("4.14.0", release("4.14.0")),
+			availableSince: verified$1("4.14.0", release$1("4.14.0")),
 			default: verified$1([{
 				since: "4.14.0",
 				value: "[] (every git dependency is blocked)"
@@ -4235,7 +4268,7 @@ const yarn$1 = {
 		}, `${YARNRC}#npmPreapprovedPackages`, "Name globs such as @scope/* or package* in npmPreapprovedPackages."),
 		berryLockfileMarker: uncertain("__metadata", "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Project.ts", "Read from code: Yarn 2+ writes a __metadata key into yarn.lock and treats a lockfile without it but with \"yarn lockfile v1\" as Yarn Classic."),
 		classicLockfileHeader: verified$1("# yarn lockfile v1", "https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js", "Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js)."),
-		latestVersion: verified$1("4.18.1", release("4.18.1"), "Yarn 6 is still in preview."),
+		latestVersion: verified$1("4.18.1", release$1("4.18.1"), "Yarn 6 is still in preview."),
 		bypassFlag: verified$1("--no-time-gate on yarn add and yarn up (4.15.0+)", "https://yarnpkg.com/cli/add"),
 		perScopeGate: rechecked.verified({
 			scopes: "npmScopes",
@@ -4259,6 +4292,7 @@ const release13 = verifiedOn("2026-11-01");
 const mcpFacts = verifiedOn("2026-11-01");
 const actionChecks = verifiedOn("2026-11-01");
 const leftovers = verifiedOn("2026-11-01");
+const runtimes = verifiedOn("2026-11-01");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
 const COREPACK_V0_36_0 = "https://github.com/nodejs/corepack/blob/v0.36.0";
@@ -4290,6 +4324,13 @@ const NPM_PACKAGE_JSON = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/conte
 const SPECIFICATIONS = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications";
 const MCP = "https://github.com/modelcontextprotocol/modelcontextprotocol/blob/d0e246ea3c69eafaa2806bc4cd28025703ba2c2b";
 const VSCODE_MCP = "https://github.com/microsoft/vscode-docs/blob/5a54a294d553935c53374f43c668e37d08f0118e/docs/agents/reference/mcp-configuration.md";
+const NODE_RELEASE = "https://github.com/nodejs/Release/blob/c3e8696312969c95643cb52f05f124c161db87b2";
+const DOCKER_NODE = "https://github.com/nodejs/docker-node/blob/14b1d124e21d312c46b30db98985ab7e58a89594";
+const DOCKER_PYTHON = "https://github.com/docker-library/python/blob/f4c67ece208dead594e43628d22e3c6027dd97ab";
+const OFFICIAL_IMAGES = "https://github.com/docker-library/official-images/blob/ed47b185c4a0fec32cb51279211416a2d28c4f00/library";
+const DOCKERFILE_REFERENCE = "https://github.com/moby/buildkit/blob/c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5/frontend/dockerfile/docs/reference.md";
+const DOCKER_DOCS = "https://github.com/docker/docs/blob/53581df94e05ad4116a8d31e47ea098289fa5498";
+const SETUP_NODE = "https://github.com/actions/setup-node/blob/949feb2413d6458794dcd2491c4babbbce0c15c1";
 const environment = {
 	corepack: {
 		packageManagerField: verified({
@@ -4362,7 +4403,374 @@ const environment = {
 				}],
 				file: "lastKnownGood.json"
 			}]
-		}, `${COREPACK_V0_36_0}/README.md`, "\"COREPACK_HOME can be set in order to define where Corepack should install the package managers. By default it is set to %LOCALAPPDATA%\\node\\corepack on Windows, and to $HOME/.cache/node/corepack everywhere else.\""))
+		}, `${COREPACK_V0_36_0}/README.md`, "\"COREPACK_HOME can be set in order to define where Corepack should install the package managers. By default it is set to %LOCALAPPDATA%\\node\\corepack on Windows, and to $HOME/.cache/node/corepack everywhere else.\"")),
+		enableNpm: runtimes.verified({
+			command: "enable",
+			npmOnlyWhenNamed: true
+		}, COREPACK_README, "corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: \"Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means\". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm.")
+	},
+	node: {
+		bundledNpm: runtimes.verified([
+			{
+				line: "18",
+				latest: "18.20.8",
+				bundles: [
+					["18.0.0", "8.6.0"],
+					["18.1.0", "8.8.0"],
+					["18.2.0", "8.9.0"],
+					["18.3.0", "8.11.0"],
+					["18.4.0", "8.12.1"],
+					["18.6.0", "8.13.2"],
+					["18.7.0", "8.15.0"],
+					["18.8.0", "8.18.0"],
+					["18.9.0", "8.19.1"],
+					["18.10.0", "8.19.2"],
+					["18.13.0", "8.19.3"],
+					["18.14.0", "9.3.1"],
+					["18.14.2", "9.5.0"],
+					["18.16.0", "9.5.1"],
+					["18.17.0", "9.6.7"],
+					["18.18.0", "9.8.1"],
+					["18.19.0", "10.2.3"],
+					["18.19.1", "10.2.4"],
+					["18.20.0", "10.5.0"],
+					["18.20.3", "10.7.0"],
+					["18.20.5", "10.8.2"]
+				]
+			},
+			{
+				line: "19",
+				latest: "19.9.0",
+				bundles: [
+					["19.0.0", "8.19.2"],
+					["19.1.0", "8.19.3"],
+					["19.3.0", "9.2.0"],
+					["19.5.0", "9.3.1"],
+					["19.6.0", "9.4.0"],
+					["19.7.0", "9.5.0"],
+					["19.8.0", "9.5.1"],
+					["19.9.0", "9.6.3"]
+				]
+			},
+			{
+				line: "20",
+				latest: "20.20.2",
+				bundles: [
+					["20.0.0", "9.6.4"],
+					["20.2.0", "9.6.6"],
+					["20.3.0", "9.6.7"],
+					["20.4.0", "9.7.2"],
+					["20.5.0", "9.8.0"],
+					["20.6.0", "9.8.1"],
+					["20.7.0", "10.1.0"],
+					["20.10.0", "10.2.3"],
+					["20.11.0", "10.2.4"],
+					["20.12.0", "10.5.0"],
+					["20.13.0", "10.5.2"],
+					["20.14.0", "10.7.0"],
+					["20.16.0", "10.8.1"],
+					["20.17.0", "10.8.2"]
+				]
+			},
+			{
+				line: "21",
+				latest: "21.7.3",
+				bundles: [
+					["21.0.0", "10.2.0"],
+					["21.2.0", "10.2.3"],
+					["21.3.0", "10.2.4"],
+					["21.7.0", "10.5.0"]
+				]
+			},
+			{
+				line: "22",
+				latest: "22.23.4",
+				bundles: [
+					["22.0.0", "10.5.1"],
+					["22.1.0", "10.7.0"],
+					["22.3.0", "10.8.1"],
+					["22.5.0", "10.8.2"],
+					["22.9.0", "10.8.3"],
+					["22.10.0", "10.9.0"],
+					["22.13.0", "10.9.2"],
+					["22.18.0", "10.9.3"],
+					["22.21.0", "10.9.4"],
+					["22.22.2", "10.9.7"],
+					["22.22.3", "10.9.8"],
+					["22.23.3", "10.9.9"]
+				]
+			},
+			{
+				line: "23",
+				latest: "23.11.1",
+				bundles: [["23.0.0", "10.9.0"], ["23.4.0", "10.9.2"]]
+			},
+			{
+				line: "24",
+				latest: "24.22.2",
+				bundles: [
+					["24.0.0", "11.3.0"],
+					["24.3.0", "11.4.2"],
+					["24.5.0", "11.5.1"],
+					["24.8.0", "11.6.0"],
+					["24.10.0", "11.6.1"],
+					["24.11.1", "11.6.2"],
+					["24.13.1", "11.8.0"],
+					["24.14.0", "11.9.0"],
+					["24.14.1", "11.11.0"],
+					["24.15.0", "11.12.1"],
+					["24.16.0", "11.13.0"],
+					["24.18.0", "11.16.0"],
+					["24.19.0", "11.17.0"],
+					["24.20.0", "11.19.0"],
+					["24.22.0", "11.19.1"]
+				]
+			},
+			{
+				line: "25",
+				latest: "25.9.0",
+				bundles: [
+					["25.0.0", "11.6.2"],
+					["25.4.0", "11.7.0"],
+					["25.5.0", "11.8.0"],
+					["25.6.1", "11.9.0"],
+					["25.7.0", "11.10.1"],
+					["25.8.0", "11.11.0"],
+					["25.8.2", "11.11.1"],
+					["25.9.0", "11.12.1"]
+				]
+			},
+			{
+				line: "26",
+				latest: "26.13.0",
+				bundles: [
+					["26.0.0", "11.12.1"],
+					["26.1.0", "11.13.0"],
+					["26.3.0", "11.16.0"],
+					["26.4.0", "11.17.0"],
+					["26.6.0", "11.18.0"],
+					["26.7.0", "11.19.0"],
+					["26.8.2", "11.19.1"],
+					["26.11.0", "11.20.0"]
+				]
+			}
+		], "https://nodejs.org/dist/index.json", "The npm field of every release from 18.0.0 on (index.json fetched on 2026-11-01, sha256 6b27fe5766e87929d16ccdde05c516cbdd12200eab62b28d4b2f31d34e21481a), as the first release of each line that bundles each npm version; latest is the newest release of the line that day. The bundled npm never goes down within a line. 27.0.0-alpha.0.0.0 (npm 12.1.0) is a prerelease and left out: no release bundles npm 12 yet, Node.js 22 stays on npm 10.9.x, 24 reaches npm 11.10 or later only from 24.14.1 (npm 11.10.x was skipped) and 25 ends at npm 11.12.1."),
+		releaseSchedule: runtimes.verified([
+			{
+				line: 4,
+				start: "2015-09-08",
+				lts: "2015-10-12",
+				end: "2018-04-30",
+				codename: "argon"
+			},
+			{
+				line: 5,
+				start: "2015-10-29",
+				end: "2016-06-30"
+			},
+			{
+				line: 6,
+				start: "2016-04-26",
+				lts: "2016-10-18",
+				end: "2019-04-30",
+				codename: "boron"
+			},
+			{
+				line: 7,
+				start: "2016-10-25",
+				end: "2017-06-30"
+			},
+			{
+				line: 8,
+				start: "2017-05-30",
+				lts: "2017-10-31",
+				end: "2019-12-31",
+				codename: "carbon"
+			},
+			{
+				line: 9,
+				start: "2017-10-01",
+				end: "2018-06-30"
+			},
+			{
+				line: 10,
+				start: "2018-04-24",
+				lts: "2018-10-30",
+				end: "2021-04-30",
+				codename: "dubnium"
+			},
+			{
+				line: 11,
+				start: "2018-10-23",
+				end: "2019-06-01"
+			},
+			{
+				line: 12,
+				start: "2019-04-23",
+				lts: "2019-10-21",
+				end: "2022-04-30",
+				codename: "erbium"
+			},
+			{
+				line: 13,
+				start: "2019-10-22",
+				end: "2020-06-01"
+			},
+			{
+				line: 14,
+				start: "2020-04-21",
+				lts: "2020-10-27",
+				end: "2023-04-30",
+				codename: "fermium"
+			},
+			{
+				line: 15,
+				start: "2020-10-20",
+				end: "2021-06-01"
+			},
+			{
+				line: 16,
+				start: "2021-04-20",
+				lts: "2021-10-26",
+				end: "2023-09-11",
+				codename: "gallium"
+			},
+			{
+				line: 17,
+				start: "2021-10-19",
+				end: "2022-06-01"
+			},
+			{
+				line: 18,
+				start: "2022-04-19",
+				lts: "2022-10-25",
+				end: "2025-04-30",
+				codename: "hydrogen"
+			},
+			{
+				line: 19,
+				start: "2022-10-18",
+				end: "2023-06-01"
+			},
+			{
+				line: 20,
+				start: "2023-04-18",
+				lts: "2023-10-24",
+				end: "2026-04-30",
+				codename: "iron"
+			},
+			{
+				line: 21,
+				start: "2023-10-17",
+				end: "2024-06-01"
+			},
+			{
+				line: 22,
+				start: "2024-04-24",
+				lts: "2024-10-29",
+				end: "2027-04-30",
+				codename: "jod"
+			},
+			{
+				line: 23,
+				start: "2024-10-16",
+				end: "2025-06-01"
+			},
+			{
+				line: 24,
+				start: "2025-05-06",
+				lts: "2025-10-28",
+				end: "2028-04-30",
+				codename: "krypton"
+			},
+			{
+				line: 25,
+				start: "2025-10-15",
+				end: "2026-06-01"
+			},
+			{
+				line: 26,
+				start: "2026-05-05",
+				lts: "2026-10-28",
+				end: "2029-04-30",
+				codename: "lithium"
+			},
+			{
+				line: 27,
+				start: "2027-04-22",
+				lts: "2027-10-20",
+				end: "2030-04-30"
+			}
+		], `${NODE_RELEASE}/schedule.json`, "start, lts and end of each line from 4 on, codenames in lower case as nvm and the node image tags write them. After end a line gets no more releases, security fixes included; the README says \"Production applications should only use Active LTS or Maintenance LTS releases\". From Node.js 27 every line first goes through an alpha phase (27 has \"alpha\": \"2026-10-28\" and no codename yet) and every line becomes LTS."),
+		nvmrc: runtimes.verified({
+			file: ".nvmrc",
+			comment: "#",
+			newest: ["node", "stable"],
+			newestLts: "lts/*",
+			ltsPrefix: "lts/"
+		}, "https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md", "The file must contain precisely one version followed by a newline; # starts a comment, and comments, blank lines and leading and trailing white space are ignored. node is the latest version and stable an alias for it; lts/* is the latest LTS and lts/<codename> the LTS releases of that line. nvm use looks for the file from the current directory upwards."),
+		nodeVersionFile: runtimes.verified({ file: ".node-version" }, "https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/README.md", "nodenv uses the version in .node-version of the project directory. fnm reads .node-version and .nvmrc and writes the file with node --version, so a leading v occurs (github.com/Schniz/fnm/blob/07f13237ae208f531f8ea88d4cfde3160c22f99a/README.md); setup-node reads it through node-version-file."),
+		engines: runtimes.verified({
+			key: "engines",
+			runtimeKey: "node"
+		}, `${NPM_PACKAGE_JSON}#engines`, "engines.node is the range of Node.js versions the package works on. Unless engine-strict is set, it is advisory and only produces warnings when the package is installed as a dependency; it does not choose the Node.js that runs. setup-node reads it from package.json through node-version-file when volta.node and devEngines.runtime are missing, and picks the newest version that matches.")
+	},
+	docker: {
+		imageReference: runtimes.verified({
+			defaultHost: "docker.io",
+			hosts: ["docker.io", "index.docker.io"],
+			officialNamespace: "library",
+			defaultTag: "latest"
+		}, "https://github.com/moby/moby/blob/9aa9edfa787e08bb2da31694cd8a402876f32232/vendor/github.com/distribution/reference/normalize.go", "splitDockerDomain canonicalizes ubuntu and docker.io/ubuntu as docker.io/library/ubuntu, and the legacy domain index.docker.io as docker.io. A reference without a tag means latest (docs/reference/commandline/image_tag.md in github.com/docker/cli at 8c8a77521af82b08bf3499cafb4c0e2e7b024936: \"If the namespace is omitted, Docker defaults to library, the namespace reserved for Docker Official Images\")."),
+		syntax: runtimes.verified({
+			comment: "#",
+			escapeDirective: "escape",
+			escapeCharacters: ["\\", "`"],
+			globalArgInstruction: "ARG"
+		}, DOCKERFILE_REFERENCE, "Instructions are not case-sensitive. A line that begins with # is a comment unless it is a parser directive; comment lines are removed also inside a continued instruction. Parser directives (syntax, escape, check; keys not case-sensitive) must come first: after a comment, an empty line or an instruction none is read. The escape character (\\ by default, or `) at the end of a line continues the instruction; escaping is not performed in RUN except at the end of a line. ARG is the only instruction allowed before FROM, and FROM reads ARGs declared before the first FROM ($VAR, ${VAR}, ${VAR:-word}, ${VAR-word}, ${VAR:+word}, ${VAR+word}); --build-arg can change them. FROM [--platform=<platform>] <image>[:<tag>][@<digest>] [AS <name>]; a later FROM <name> starts from that stage. A here-document (RUN <<EOF) makes the following lines part of the instruction, up to the line with only the delimiter."),
+		dockerfileNames: runtimes.verified({
+			defaultName: "Dockerfile",
+			suffix: ".Dockerfile"
+		}, `${DOCKER_DOCS}/content/manuals/build/concepts/dockerfile.md`, "\"The default filename to use for a Dockerfile is Dockerfile, without a file extension.\" \"A common convention is to name these <something>.Dockerfile\", passed with --file."),
+		dockerfilePrefix: runtimes.uncertain("Dockerfile.", `${DOCKER_DOCS}/content/manuals/build/concepts/dockerfile.md`, "Dockerfile.<name> (Dockerfile.dev) is a common practice, but no Docker documentation that was read mentions it; depcurfew reads such files too, because they are Dockerfiles passed with --file."),
+		containerfile: runtimes.verified("Containerfile", "https://github.com/containers/buildah/blob/14d624b398e05a07deecf29d50a44a149785cc20/docs/buildah-build.1.md", "\"A Containerfile uses the same syntax as a Dockerfile internally\"; Buildah and Podman read Containerfile or Dockerfile. Docker does not read Containerfile by default."),
+		nodeImage: runtimes.verified({
+			image: "node",
+			bundles: "npm",
+			variants: [
+				"alpine",
+				"slim",
+				"alpine3.23",
+				"alpine3.24",
+				"bookworm",
+				"bookworm-slim",
+				"trixie",
+				"trixie-slim"
+			]
+		}, `${DOCKER_NODE}/Dockerfile-debian.template`, "The image downloads the official tarball of the release and extracts it unchanged; its only npm command is npm --version, and docs/BestPractices.md tells users to add RUN npm install --global npm@<version> to change npm. So node:<version> has exactly the npm that release bundles. The Alpine images extract the -musl tarball or build from source. Tags (stackbrew.js): X.Y.Z, X.Y, X and <codename>, each also with -<variant>, and -alpine and -slim for the default variants; the variants are those of versions.json, plus alpine and slim. Yarn 1 is in the images up to Node.js 25."),
+		nodeImageTags: runtimes.uncertain({ tags: {
+			latest: "26",
+			current: "26",
+			lts: "26"
+		} }, `${OFFICIAL_IMAGES}/node`, "Moving tags on 2026-10-28, when library/node was last generated: lts, lts-<codename>, current, latest and a variant alone (alpine, slim, bookworm) all mean 26.13.0. They move to another line without notice: after 26 became LTS no line is current, and how current and latest resolve once 27 is released is not documented. Tags of lines no longer built (20, iron, 18) are gone from library/node and are not updated any more."),
+		pythonImage: runtimes.verified({
+			image: "python",
+			bundles: "pip",
+			variants: [
+				"alpine",
+				"slim",
+				"trixie",
+				"slim-trixie",
+				"bookworm",
+				"slim-bookworm",
+				"alpine3.23",
+				"alpine3.24"
+			]
+		}, `${DOCKER_PYTHON}/versions.sh`, "\"our policy is now to use the pip version that is installed during the Python build (which is the version bundled in ensurepip), and to not support overriding it\": Dockerfile-linux.template configures CPython --with-ensurepip and installs no other pip (only setuptools and wheel for 3.11). So python:<version> has the pip that CPython release bundles. Images built before 2024-09-07 installed pip with get-pip.py, at the version ensurepip had. Tags (generate-stackbrew-library.sh): X.Y.Z and X.Y, each with -<variant>; -slim and -alpine mean the default suite."),
+		pythonImageTags: runtimes.uncertain({ tags: {
+			latest: "3.15",
+			"3": "3.15"
+		} }, `${OFFICIAL_IMAGES}/python`, "On 2026-11-01 latest, 3 and a variant alone (slim, alpine, trixie) mean 3.15.2 (aliases [3.15]='3 latest' in generate-stackbrew-library.sh); they move when a new line is released. X.Y-rc tags are prereleases.")
 	},
 	devEngines: verified({
 		key: "devEngines",
@@ -4413,6 +4821,26 @@ const environment = {
 				tool: "node"
 			}]
 		}, "https://github.com/actions/setup-node/blob/main/action.yml", "Current major v7. node-version-file reads package.json, .nvmrc, .node-version, .tool-versions or mise.toml; node-version wins when both are set."),
+		setupNodeVersions: runtimes.verified({
+			newest: [
+				"latest",
+				"current",
+				"node",
+				"*"
+			],
+			newestLts: "lts/*",
+			ltsPrefix: "lts/",
+			previousLtsPrefix: "lts/-"
+		}, `${SETUP_NODE}/README.md`, "Tag v7.1.0. node-version takes semver (22, 24.8.0, >=10.15.0, 12.x), the NVM LTS syntax (lts/jod, lts/*, lts/-n) and latest, current, node or * for the latest release. A matching version in the runner's tool cache is used first, so a major version such as 24 may give an older release of the line unless check-latest is set."),
+		setupNodeVersionFile: runtimes.verified({
+			packageJson: "package.json",
+			packageJsonOrder: [
+				"volta.node",
+				"devEngines.runtime",
+				"engines.node"
+			],
+			textPattern: "^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$"
+		}, `${SETUP_NODE}/docs/advanced-usage.md`, "node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE. In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile in src/util.ts tries JSON, then TOML tools.node, then the first line that matches the pattern, then the whole text trimmed."),
 		pnpmActionSetup: verified({
 			action: "pnpm/action-setup",
 			installs: ["pnpm"],
@@ -4864,6 +5292,90 @@ const environment = {
 			".tar.lz",
 			".tar.lzma"
 		], "https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py", "ARCHIVE_EXTENSIONS of pip without .whl: the archives pip accepts from an index besides wheels (index/package_finder.py rejects any other extension), all of them built when installed. A standard sdist is named {name}-{version}.tar.gz with the name normalized (PEP 625, source-distribution-format.rst); older uploads use the other extensions and names that are not normalized."),
+		bundledPip: runtimes.verified([
+			{
+				line: "3.9",
+				latest: "3.9.25",
+				bundles: [
+					["3.9.0", "20.2.3"],
+					["3.9.5", "21.1.1"],
+					["3.9.6", "21.1.3"],
+					["3.9.7", "21.2.3"],
+					["3.9.8", "21.2.4"],
+					["3.9.11", "22.0.4"],
+					["3.9.17", "23.0.1"]
+				]
+			},
+			{
+				line: "3.10",
+				latest: "3.10.22",
+				bundles: [
+					["3.10.0", "21.2.3"],
+					["3.10.1", "21.2.4"],
+					["3.10.3", "22.0.4"],
+					["3.10.6", "22.2.1"],
+					["3.10.7", "22.2.2"],
+					["3.10.9", "22.3.1"],
+					["3.10.11", "23.0.1"]
+				]
+			},
+			{
+				line: "3.11",
+				latest: "3.11.18",
+				bundles: [
+					["3.11.0", "22.3.0"],
+					["3.11.1", "22.3.1"],
+					["3.11.4", "23.1.2"],
+					["3.11.5", "23.2.1"],
+					["3.11.8", "24.0.0"]
+				]
+			},
+			{
+				line: "3.12",
+				latest: "3.12.16",
+				bundles: [
+					["3.12.0", "23.2.1"],
+					["3.12.2", "24.0.0"],
+					["3.12.5", "24.2.0"],
+					["3.12.8", "24.3.1"],
+					["3.12.10", "25.0.1"]
+				]
+			},
+			{
+				line: "3.13",
+				latest: "3.13.18",
+				bundles: [
+					["3.13.0", "24.2.0"],
+					["3.13.1", "24.3.1"],
+					["3.13.3", "25.0.1"],
+					["3.13.4", "25.1.1"],
+					["3.13.6", "25.2.0"],
+					["3.13.10", "25.3.0"],
+					["3.13.13", "26.0.1"],
+					["3.13.14", "26.1.2"],
+					["3.13.15", "26.2.1"],
+					["3.13.17", "26.2.2"]
+				]
+			},
+			{
+				line: "3.14",
+				latest: "3.14.10",
+				bundles: [
+					["3.14.0", "25.2.0"],
+					["3.14.1", "25.3.0"],
+					["3.14.4", "26.0.1"],
+					["3.14.5", "26.1.1"],
+					["3.14.6", "26.1.2"],
+					["3.14.7", "26.2.1"],
+					["3.14.9", "26.2.2"]
+				]
+			},
+			{
+				line: "3.15",
+				latest: "3.15.2",
+				bundles: [["3.15.0", "26.2.1"], ["3.15.1", "26.2.2"]]
+			}
+		], "https://github.com/python/cpython/blob/v3.15.2/Lib/ensurepip/__init__.py", "_PIP_VERSION in Lib/ensurepip/__init__.py at every final tag from v3.9.0 to v3.15.2 (github.com/python/cpython/blob/v<X.Y.Z>/...; the latest tags are v3.9.25 0bbaf5de, v3.10.22 acb4dc12, v3.11.18 26badd80, v3.12.16 2c2462af, v3.13.18 0d4bd512, v3.14.10 b703b2c5 and v3.15.2 5e58eaad), as the first release of each line that bundles each pip version. Two-part values such as 24.0 are written 24.0.0. 3.12 and older never bundle pip 26; pip 26.1 or later comes with 3.13.14, 3.14.5 and 3.15.0."),
 		hatch: python.verified({
 			pyprojectTable: "tool.hatch",
 			configFile: "hatch.toml"
@@ -5096,7 +5608,7 @@ function values(fact) {
 	return evidenceOf(fact).map((evidence) => evidence.value);
 }
 /** The value of a fact; for a disputed fact the first variant, which must agree with the others in shape. */
-function first(fact) {
+function first$1(fact) {
 	const [value] = values(fact);
 	return value;
 }
@@ -5108,13 +5620,13 @@ function allVersions(versioned) {
 }
 function extraString(tool, key) {
 	const fact = tool.extra?.[key];
-	const value = fact === void 0 ? void 0 : first(fact);
+	const value = fact === void 0 ? void 0 : first$1(fact);
 	if (typeof value !== "string") throw new Error(`knowledge base: ${tool.id} extra.${key} must be a string`);
 	return value;
 }
 function extraValue(tool, key) {
 	const fact = tool.extra?.[key];
-	return fact === void 0 ? void 0 : first(fact);
+	return fact === void 0 ? void 0 : first$1(fact);
 }
 /** required-version in [tool.uv] of pyproject.toml and at the top of uv.toml; requires-poetry in [tool.poetry]. */
 function requiredVersions(tool, pythonProject) {
@@ -5139,7 +5651,7 @@ function tool$1(tools, id) {
 	return found;
 }
 function detectionFacts(tools, environment) {
-	const pythonProject = first(environment.python.projectFile);
+	const pythonProject = first$1(environment.python.projectFile);
 	const shared = /* @__PURE__ */ new Set([...SHARED_FILES, pythonProject]);
 	const managers = PACKAGE_MANAGERS.map((id) => {
 		const entry = tool$1(tools, id);
@@ -5159,7 +5671,7 @@ function detectionFacts(tools, environment) {
 			lockfiles: unique(values(project.lockfiles).flatMap(allVersions)),
 			manifests,
 			configFiles: unique([...ownConfig, ...manifests]).filter((file) => !shared.has(file)),
-			workspaces: workspaceFacts(first(project.workspaces), first(project.workspacesObjectKey)),
+			workspaces: workspaceFacts(first$1(project.workspaces), first$1(project.workspacesObjectKey)),
 			pyprojectTable: typeof pyprojectTable === "string" ? pyprojectTable : null,
 			requiredVersions: requiredVersions(entry, pythonProject),
 			configFileOrder: Array.isArray(order) && order.every((file) => typeof file === "string") ? order : null,
@@ -5171,7 +5683,7 @@ function detectionFacts(tools, environment) {
 	const bots = BOTS$1.map((id) => {
 		const entry = tool$1(tools, id);
 		const packageJson = entry.extra?.["packageJsonConfig"];
-		const key = packageJson === void 0 ? null : first(packageJson).key;
+		const key = packageJson === void 0 ? null : first$1(packageJson).key;
 		return {
 			id,
 			configFiles: unique(values(entry.cooldown.configFiles).flat()),
@@ -5180,23 +5692,48 @@ function detectionFacts(tools, environment) {
 	});
 	const yarn = tool$1(tools, "yarn");
 	const actions = environment.githubActions;
+	const npm = tool$1(tools, "npm");
+	const pip = tool$1(tools, "pip");
+	const installs = extraValue(npm, "installCommands");
+	const installCommands = isRecord(installs) ? Object.values(installs).flatMap((list) => Array.isArray(list) ? list.filter((item) => typeof item === "string") : []) : [];
+	const globalOptions = extraValue(npm, "globalOption");
+	const npmValues = extraValue(npm, "valueOptions");
+	const pipLine = extraValue(pip, "commandLine");
+	const interpreter = first$1(environment.python.interpreter);
+	const commands = {
+		npm: {
+			installCommands,
+			globalOptions: Array.isArray(globalOptions) ? globalOptions.filter((item) => typeof item === "string") : [],
+			valueOptions: Array.isArray(npmValues) ? npmValues.filter((item) => typeof item === "string") : []
+		},
+		pip: {
+			executables: unique((pipLine?.add ?? []).map((command) => command[0] ?? "")),
+			installCommand: pipLine?.add[0]?.[1] ?? "install",
+			valueOptions: pipLine?.valueOptions ?? []
+		},
+		python: interpreter,
+		corepack: { enableCommand: first$1(environment.corepack.enableNpm).command }
+	};
+	const docker = environment.docker;
+	const names = first$1(docker.dockerfileNames);
+	const nvmrc = first$1(environment.node.nvmrc);
 	return {
 		managers,
 		pythonProject,
-		hatch: first(environment.python.hatch),
+		hatch: first$1(environment.python.hatch),
 		bots,
 		yarn: {
 			berryMarker: extraString(yarn, "berryLockfileMarker"),
 			classicHeader: extraString(yarn, "classicLockfileHeader")
 		},
-		packageManagerKey: first(environment.corepack.packageManagerField).key,
-		devEngines: first(environment.devEngines),
-		volta: first(environment.volta.manifest),
+		packageManagerKey: first$1(environment.corepack.packageManagerField).key,
+		devEngines: first$1(environment.devEngines),
+		volta: first$1(environment.volta.manifest),
 		toolVersions: {
-			file: first(environment.asdf.toolVersionsFile),
-			plugins: first(environment.asdf.plugins)
+			file: first$1(environment.asdf.toolVersionsFile),
+			plugins: first$1(environment.asdf.plugins)
 		},
-		workflows: first(actions.workflows),
+		workflows: first$1(actions.workflows),
 		setupActions: [
 			actions.setupNode,
 			actions.pnpmActionSetup,
@@ -5207,7 +5744,33 @@ function detectionFacts(tools, environment) {
 			actions.setupUv,
 			actions.installPoetry,
 			actions.actionsPoetry
-		].map(first)
+		].map(first$1),
+		setupNode: {
+			action: first$1(actions.setupNode).action,
+			versionFile: first$1(actions.setupNodeVersionFile)
+		},
+		nodeFiles: {
+			nvmrc: nvmrc.file,
+			comment: nvmrc.comment,
+			nodeVersion: first$1(environment.node.nodeVersionFile).file,
+			engines: first$1(environment.node.engines)
+		},
+		docker: {
+			syntax: first$1(docker.syntax),
+			reference: first$1(docker.imageReference),
+			names: {
+				exact: [names.defaultName, first$1(docker.containerfile)],
+				suffix: names.suffix,
+				prefix: first$1(docker.dockerfilePrefix)
+			},
+			node: first$1(docker.nodeImage),
+			python: first$1(docker.pythonImage),
+			nodeTags: first$1(docker.nodeImageTags).tags,
+			pythonTags: first$1(docker.pythonImageTags).tags,
+			codenames: first$1(environment.node.releaseSchedule).flatMap((line) => line.codename === void 0 ? [] : [line.codename]),
+			commands
+		},
+		commands
 	};
 }
 
@@ -12680,8 +13243,334 @@ function parseYaml(text, options = {}) {
 	return document.toJS();
 }
 
+// src/detect/commands.ts
+/** Programs that run the rest of their arguments as a command. */
+const WRAPPERS = /* @__PURE__ */ new Set([
+	"sudo",
+	"env",
+	"time",
+	"exec",
+	"command",
+	"nohup",
+	"nice"
+]);
+/** Executables that show a job uses Node.js. */
+const NODE_EXECUTABLES = /* @__PURE__ */ new Set([
+	"node",
+	"npm",
+	"npx",
+	"pnpm",
+	"pnpx",
+	"yarn",
+	"yarnpkg",
+	"bun",
+	"bunx",
+	"corepack"
+]);
+const SHELLS = /* @__PURE__ */ new Set([
+	"sh",
+	"bash",
+	"ash",
+	"dash",
+	"zsh"
+]);
+/** Reserved words of the shell that may come before a command. */
+const RESERVED = /* @__PURE__ */ new Set([
+	"if",
+	"then",
+	"else",
+	"elif",
+	"do",
+	"while",
+	"until",
+	"!",
+	"{",
+	"}"
+]);
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
+/**
+* Splits a script into simple commands of words, in one pass over the text. Quotes are removed, a backslash before a
+* line break joins the lines, and `#` at the start of a word starts a comment.
+*/
+function splitCommands(script) {
+	const commands = [];
+	let words = [];
+	let text = "";
+	let start = -1;
+	const endWord = () => {
+		if (start >= 0) words.push({
+			text,
+			offset: start
+		});
+		text = "";
+		start = -1;
+	};
+	const endCommand = () => {
+		endWord();
+		if (words.length > 0) commands.push(words);
+		words = [];
+	};
+	const begin = (index) => {
+		if (start < 0) start = index;
+	};
+	for (let index = 0; index < script.length; index++) {
+		const char = script[index] ?? "";
+		if (char === "\\") {
+			const next = script[index + 1];
+			if (next === "\n") {
+				index += 1;
+				continue;
+			}
+			if (next === "\r" && script[index + 2] === "\n") {
+				index += 2;
+				continue;
+			}
+			begin(index);
+			if (next !== void 0) text += next;
+			index += 1;
+		} else if (char === "'") {
+			begin(index);
+			const end = script.indexOf("'", index + 1);
+			const close = end < 0 ? script.length : end;
+			text += script.slice(index + 1, close);
+			index = close;
+		} else if (char === "\"") {
+			begin(index);
+			let cursor = index + 1;
+			while (cursor < script.length && script[cursor] !== "\"") {
+				if (script[cursor] === "\\" && cursor + 1 < script.length) cursor += 1;
+				text += script[cursor] ?? "";
+				cursor += 1;
+			}
+			index = cursor;
+		} else if (char === "$" && script[index + 1] === "{") {
+			begin(index);
+			const end = script.indexOf("}", index + 2);
+			const close = end < 0 ? script.length - 1 : end;
+			text += script.slice(index, close + 1);
+			index = close;
+		} else if (char === "#" && start < 0) {
+			const end = script.indexOf("\n", index);
+			endCommand();
+			index = end < 0 ? script.length : end;
+		} else if (char === " " || char === "	" || char === "\r") endWord();
+		else if (char === "\n" || char === ";" || char === "&" || char === "|" || char === "(" || char === ")" || char === "`") {
+			if (char === "(" && text === "$" && start >= 0 && script[index - 1] === "$") {
+				text = "";
+				start = -1;
+			}
+			endCommand();
+		} else {
+			begin(index);
+			text += char;
+		}
+	}
+	endCommand();
+	return commands;
+}
+/** The program name of a word: without its directory, in lower case, without .exe, .cmd, .bat or .ps1. */
+function programName(word) {
+	return word.slice(Math.max(word.lastIndexOf("/"), word.lastIndexOf("\\")) + 1).toLowerCase().replace(/\.(?:exe|cmd|bat|ps1)$/u, "");
+}
+/** The words after assignments and wrappers such as sudo or env: the program and its arguments. */
+function commandWords(words) {
+	let index = 0;
+	while (index < words.length) {
+		const text = words[index]?.text ?? "";
+		if (ASSIGNMENT.test(text) || RESERVED.has(text)) index += 1;
+		else if (WRAPPERS.has(programName(text))) {
+			index += 1;
+			while (index < words.length && /^-/u.test(words[index]?.text ?? "")) index += 1;
+		} else break;
+	}
+	return words.slice(index);
+}
+/** The first argument that is not an option, skipping the values of options that take one. */
+function firstOperand(args, valueOptions) {
+	for (let index = 0; index < args.length; index++) {
+		const text = args[index]?.text ?? "";
+		if (!text.startsWith("-")) return index;
+		if (!text.includes("=") && valueOptions.has(text)) index += 1;
+	}
+	return -1;
+}
+function operands(args, valueOptions) {
+	const found = [];
+	for (let index = 0; index < args.length; index++) {
+		const word = args[index];
+		if (word === void 0) continue;
+		if (!word.text.startsWith("-")) found.push(word);
+		else if (!word.text.includes("=") && valueOptions.has(word.text)) index += 1;
+	}
+	return found;
+}
+/** A name that is the executable with a version appended (python3.12, pip3.13) stands for the executable. */
+function matchesExecutable(name, executables) {
+	return executables.includes(name) || executables.includes(name.replace(/[0-9][0-9.]*$/u, ""));
+}
+function npmCommand(args, at, facts) {
+	const values = new Set(facts.npm.valueOptions);
+	const index = firstOperand(args, values);
+	const command = args[index]?.text;
+	if (command === void 0 || !facts.npm.installCommands.includes(command)) return void 0;
+	const rest = args.filter((_, position) => position !== index);
+	const global = rest.some((word) => facts.npm.globalOptions.includes(word.text));
+	const self = operands(rest, values).find((word) => /^npm(?:@|$)/u.test(word.text));
+	if (global && self !== void 0) return {
+		kind: "upgrade",
+		tool: "npm",
+		version: self.text.includes("@") ? self.text.slice(4) || "latest" : "latest",
+		offset: at
+	};
+	return {
+		kind: "install",
+		tool: "npm",
+		offset: at
+	};
+}
+function corepackCommand(args, at, facts) {
+	const command = args.find((word) => !word.text.startsWith("-"));
+	if (command === void 0) return void 0;
+	const names = args.filter((word) => word !== command && !word.text.startsWith("-"));
+	if (command.text === facts.corepack.enableCommand && names.some((word) => word.text === "npm")) return {
+		kind: "upgrade",
+		tool: "npm",
+		offset: at
+	};
+	const spec = names.find((word) => word.text.startsWith("npm@"));
+	const global = args.some((word) => word.text === "-g" || word.text === "--global");
+	const activate = args.some((word) => word.text === "--activate");
+	if (spec !== void 0 && (command.text === "install" && global || command.text === "prepare" && activate)) return {
+		kind: "upgrade",
+		tool: "npm",
+		version: spec.text.slice(4) || "latest",
+		offset: at
+	};
+}
+/** The arguments of pip when the words run it: pip install ..., or python -m pip install ... */
+function pipArguments(words, facts) {
+	const name = programName(words[0]?.text ?? "");
+	if (matchesExecutable(name, facts.pip.executables)) return words.slice(1);
+	if (!matchesExecutable(name, facts.python.executables)) return void 0;
+	const { moduleOption, commandOption } = facts.python;
+	const values = new Set(facts.python.valueOptions);
+	const letter = moduleOption.slice(1);
+	for (let index = 1; index < words.length; index++) {
+		const text = words[index]?.text ?? "";
+		if (!text.startsWith("-") || text === commandOption) return void 0;
+		const grouped = /^-([A-Za-z]*)$/u.exec(text)?.[1];
+		if (text === moduleOption || grouped !== void 0 && grouped.endsWith(letter) && !grouped.slice(0, -1).includes(commandOption.slice(1))) return words[index + 1]?.text === "pip" ? words.slice(index + 2) : void 0;
+		if (text.startsWith(moduleOption) && text.length > moduleOption.length) return text.slice(moduleOption.length) === "pip" ? words.slice(index + 1) : void 0;
+		if (values.has(text)) index += 1;
+	}
+}
+/** pip==26.1 or pip>=26.1 as a version: an exact one with three parts (pip pins 26.1 as 26.1.0), a range as written. */
+function pipVersion(spec) {
+	const exact = /^===?\s*(\d+(?:\.\d+)*)$/u.exec(spec.trim());
+	if (exact?.[1] !== void 0) {
+		const parts = exact[1].split(".");
+		while (parts.length < 3) parts.push("0");
+		return parts.join(".");
+	}
+	return spec.trim();
+}
+function pipCommand(args, at, facts) {
+	const values = new Set(facts.pip.valueOptions);
+	const index = firstOperand(args, values);
+	if (args[index]?.text !== facts.pip.installCommand) return void 0;
+	const rest = args.slice(index + 1);
+	const upgrade = rest.some((word) => word.text === "-U" || word.text === "--upgrade");
+	for (const word of operands(rest, values)) {
+		const match = /^pip(?=$|[=<>~!\s[;])(?:\[[^\]]*\])?\s*(.*)$/iu.exec(word.text);
+		if (match === null) continue;
+		const spec = match[1] ?? "";
+		if (spec !== "") return {
+			kind: "upgrade",
+			tool: "pip",
+			version: pipVersion(spec),
+			offset: at
+		};
+		if (upgrade) return {
+			kind: "upgrade",
+			tool: "pip",
+			version: "latest",
+			offset: at
+		};
+		return;
+	}
+	return {
+		kind: "install",
+		tool: "pip",
+		offset: at
+	};
+}
+/** What one simple command does with npm or pip, if anything. */
+function readCommand(words, facts, depth) {
+	const command = commandWords(words);
+	const first = command[0];
+	if (first === void 0) return {
+		found: [],
+		runsNode: false
+	};
+	const name = programName(first.text);
+	const args = command.slice(1);
+	if (SHELLS.has(name) && depth < 2) {
+		const script = args.find((word, index) => index > 0 && /^-\w*c\w*$/u.test(args[index - 1]?.text ?? ""));
+		if (script !== void 0) {
+			const inner = findToolCommands(script.text, facts, depth + 1);
+			return {
+				found: inner.commands.map((item) => ({
+					...item,
+					offset: script.offset
+				})),
+				runsNode: inner.runsNode
+			};
+		}
+	}
+	const runsNode = NODE_EXECUTABLES.has(name);
+	if (name === "npm") return {
+		found: [npmCommand(args, first.offset, facts)].filter((item) => item !== void 0),
+		runsNode
+	};
+	if (name === "corepack") return {
+		found: [corepackCommand(args, first.offset, facts)].filter((item) => item !== void 0),
+		runsNode
+	};
+	const pip = pipArguments(command, facts);
+	if (pip !== void 0) return {
+		found: [pipCommand(pip, first.offset, facts)].filter((item) => item !== void 0),
+		runsNode
+	};
+	return {
+		found: [],
+		runsNode
+	};
+}
+/** The install and upgrade commands of a script, with the offset of each in the script, and whether it runs Node.js. */
+function findToolCommands(script, facts, depth = 0) {
+	const commands = [];
+	let runsNode = false;
+	for (const words of splitCommands(script)) {
+		const result = readCommand(words, facts, depth);
+		commands.push(...result.found);
+		runsNode ||= result.runsNode;
+	}
+	return {
+		commands,
+		runsNode
+	};
+}
+/** The same for the words of an exec form (RUN ["npm", "ci"]), which no shell splits. */
+function findExecCommands(words, facts) {
+	const result = readCommand(words, facts, 0);
+	return {
+		commands: result.found,
+		runsNode: result.runsNode
+	};
+}
+
 // src/detect/workflows.ts
-const NPM_GLOBAL_UPGRADE = /\bnpm\s+(?:install|i)\s+(?:-g|--global)\s+npm@([^\s'"`;&|]+)/gu;
+const MATRIX_VALUE = /^\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}$/u;
 function scalarText(node) {
 	if (!(0, import_dist.isScalar)(node) || node.value === null || node.value === void 0) return void 0;
 	return String(node.value);
@@ -12690,13 +13579,33 @@ function findAction(actions, uses) {
 	const name = uses.split("@", 1)[0]?.toLowerCase();
 	return actions.find((action) => action.action.toLowerCase() === name);
 }
+/** The values of a matrix key: its list, and the values include entries give it; undefined when they cannot be listed. */
+function matrixValues(job, key) {
+	const strategy = job.get("strategy");
+	const matrix = (0, import_dist.isMap)(strategy) ? strategy.get("matrix") : void 0;
+	if (!(0, import_dist.isMap)(matrix)) return void 0;
+	const values = [];
+	const list = matrix.get(key, true);
+	if ((0, import_dist.isSeq)(list)) for (const item of list.items) {
+		if (!(0, import_dist.isScalar)(item)) return void 0;
+		values.push(item);
+	}
+	else if (list !== void 0) return;
+	const include = matrix.get("include");
+	if ((0, import_dist.isSeq)(include)) for (const entry of include.items) {
+		const value = (0, import_dist.isMap)(entry) ? entry.get(key, true) : void 0;
+		if ((0, import_dist.isScalar)(value)) values.push(value);
+	}
+	return values.length === 0 ? void 0 : values;
+}
 function readWorkflows(repository, facts) {
 	const { directory, extensions } = facts.workflows;
 	const files = repository.listFiles(directory).filter((name) => extensions.some((extension) => name.endsWith(extension))).map((name) => joinPath(directory, name));
 	const findings = {
 		files,
 		versions: [],
-		installs: []
+		installs: [],
+		jobs: []
 	};
 	for (const file of files) {
 		const text = repository.readText(file);
@@ -12709,28 +13618,63 @@ function readWorkflows(repository, facts) {
 			continue;
 		}
 		const lineOf = (node) => node.range === void 0 || node.range === null ? void 0 : lineCounter.linePos(node.range[0]).line;
-		const declare = (tool, value, node) => {
-			const line = lineOf(node);
-			findings.versions.push({
-				tool,
-				declaration: {
-					...value,
-					source: "github-actions",
-					file,
-					...line === void 0 ? {} : { line }
-				}
-			});
-		};
 		const jobs = document.get("jobs");
 		if (!(0, import_dist.isMap)(jobs)) continue;
-		for (const job of jobs.items) {
-			const steps = (0, import_dist.isMap)(job.value) ? job.value.get("steps") : void 0;
+		for (const pair of jobs.items) {
+			const id = scalarText(pair.key);
+			const job = pair.value;
+			if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
+			const declare = (tool, value, node, step) => {
+				const matrix = "version" in value ? MATRIX_VALUE.exec(value.version)?.[1] : void 0;
+				const expanded = matrix === void 0 ? void 0 : matrixValues(job, matrix);
+				if (matrix !== void 0 && expanded !== void 0) {
+					for (const item of expanded) {
+						const version = scalarText(item);
+						const line = lineOf(item);
+						if (version !== void 0) findings.versions.push({
+							tool,
+							declaration: {
+								version,
+								source: "github-actions",
+								file,
+								...line === void 0 ? {} : { line },
+								job: id,
+								...step === void 0 ? {} : { step },
+								matrix
+							}
+						});
+					}
+					return;
+				}
+				const line = lineOf(node);
+				findings.versions.push({
+					tool,
+					declaration: {
+						...value,
+						source: "github-actions",
+						file,
+						...line === void 0 ? {} : { line },
+						job: id,
+						...step === void 0 ? {} : { step }
+					}
+				});
+			};
+			const record = {
+				file,
+				id,
+				line: ((0, import_dist.isScalar)(pair.key) ? lineOf(pair.key) : void 0) ?? 1,
+				commands: [],
+				runsNode: false
+			};
+			findings.jobs.push(record);
+			const steps = job.get("steps");
 			if (!(0, import_dist.isSeq)(steps)) continue;
 			for (const step of steps.items) {
 				if (!(0, import_dist.isMap)(step)) continue;
 				const uses = scalarText(step.get("uses", true));
 				const action = uses === void 0 ? void 0 : findAction(facts.setupActions, uses);
 				if (action !== void 0) {
+					const stepLine = lineOf(step);
 					for (const tool of action.installs) findings.installs.push({
 						tool,
 						file
@@ -12740,26 +13684,33 @@ function readWorkflows(repository, facts) {
 						const node = inputs.get(input.name, true);
 						const value = scalarText(node);
 						if (value === void 0 || !(0, import_dist.isScalar)(node)) continue;
-						if (input.kind === "version" && input.tool !== void 0) declare(input.tool, { version: value }, node);
-						if (input.kind === "version-file" && input.tool !== void 0) declare(input.tool, { versionFile: value }, node);
+						if (input.kind === "version" && input.tool !== void 0) declare(input.tool, { version: value }, node, stepLine);
+						if (input.kind === "version-file" && input.tool !== void 0) declare(input.tool, { versionFile: value }, node, stepLine);
 						if (input.kind === "runtime") {
 							const [name, version] = value.split("@");
-							if ((name === "node" || name === "bun" || name === "deno") && version !== void 0 && version !== "") declare(name, { version }, node);
+							if ((name === "node" || name === "bun" || name === "deno") && version !== void 0 && version !== "") declare(name, { version }, node, stepLine);
 						}
 					}
 				}
 				const run = step.get("run", true);
 				if ((0, import_dist.isScalar)(run) && typeof run.value === "string" && run.range !== void 0 && run.range !== null) {
-					const source = text.slice(run.range[0], run.range[1]);
-					for (const match of source.matchAll(NPM_GLOBAL_UPGRADE)) {
-						const line = lineCounter.linePos(run.range[0] + match.index).line;
-						findings.versions.push({
+					const start = run.range[0];
+					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands);
+					record.runsNode ||= found.runsNode;
+					for (const { offset, ...command } of found.commands) {
+						const line = lineCounter.linePos(start + offset).line;
+						record.commands.push({
+							...command,
+							line
+						});
+						if (command.tool === "npm" && command.kind === "upgrade" && command.version !== void 0) findings.versions.push({
 							tool: "npm",
 							declaration: {
-								version: match[1] ?? "",
+								version: command.version,
 								source: "github-actions",
 								file,
-								line
+								line,
+								job: id
 							}
 						});
 					}
@@ -12768,6 +13719,433 @@ function readWorkflows(repository, facts) {
 		}
 	}
 	return findings;
+}
+
+// src/detect/dockerfile.ts
+const DIRECTIVE = /^#[ \t]*([A-Za-z][A-Za-z0-9_-]*)[ \t]*=(.*)$/u;
+const KNOWN_DIRECTIVES = /* @__PURE__ */ new Set([
+	"syntax",
+	"escape",
+	"check"
+]);
+const HEREDOC = /<<(-?)(["']?)([A-Za-z_][A-Za-z0-9_.-]*)\2/gu;
+/** Instructions whose here-documents belong to them. */
+const HEREDOC_INSTRUCTIONS = /* @__PURE__ */ new Set([
+	"RUN",
+	"COPY",
+	"ADD"
+]);
+/** The escape character the parser directives at the top of the file set. */
+function escapeOf(lines, syntax) {
+	let escape = syntax.escapeCharacters[0] ?? "\\";
+	const seen = /* @__PURE__ */ new Set();
+	let index = 0;
+	for (; index < lines.length; index++) {
+		const match = DIRECTIVE.exec((lines[index] ?? "").trimStart());
+		if (match === null) break;
+		const key = (match[1] ?? "").toLowerCase();
+		if (!KNOWN_DIRECTIVES.has(key) || seen.has(key)) break;
+		seen.add(key);
+		const value = (match[2] ?? "").trim();
+		if (key === syntax.escapeDirective && syntax.escapeCharacters.includes(value)) escape = value;
+	}
+	return {
+		escape,
+		start: index
+	};
+}
+/** The here-document markers of an instruction's text, in order. */
+function heredocMarkers(text) {
+	const markers = [];
+	for (const match of text.matchAll(HEREDOC)) markers.push({
+		strip: match[1] === "-",
+		delimiter: match[3] ?? "",
+		index: match.index
+	});
+	return markers;
+}
+/** Reads the instructions of a Dockerfile. Every line is looked at once, so the time grows with the size of the file. */
+function readDockerfile(source, syntax) {
+	const lines = source.split(/\r?\n/u);
+	const { escape, start } = escapeOf(lines, syntax);
+	const instructions = [];
+	let index = start;
+	while (index < lines.length) {
+		const first = (lines[index] ?? "").trimStart();
+		if (first === "" || first.startsWith(syntax.comment)) {
+			index += 1;
+			continue;
+		}
+		const line = index + 1;
+		const parts = [];
+		const segments = [];
+		let length = 0;
+		let current = first;
+		let currentLine = line;
+		for (;;) {
+			const trimmed = current.trimEnd();
+			const continues = trimmed.endsWith(escape);
+			const content = continues ? trimmed.slice(0, -escape.length) : current;
+			segments.push({
+				offset: length,
+				line: currentLine
+			});
+			parts.push(content);
+			length += content.length;
+			index += 1;
+			if (!continues) break;
+			while (index < lines.length) {
+				const next = (lines[index] ?? "").trimStart();
+				if (next !== "" && !next.startsWith(syntax.comment)) break;
+				index += 1;
+			}
+			if (index >= lines.length) break;
+			current = lines[index] ?? "";
+			currentLine = index + 1;
+		}
+		const whole = parts.join("");
+		const keyword = /^\S+/u.exec(whole)?.[0] ?? "";
+		const text = whole.slice(keyword.length).trimStart();
+		const shift = whole.length - text.length;
+		const instruction = {
+			keyword: keyword.toUpperCase(),
+			text,
+			line,
+			segments: segments.map((segment) => ({
+				offset: Math.max(0, segment.offset - shift),
+				line: segment.line
+			})),
+			heredocs: []
+		};
+		if (HEREDOC_INSTRUCTIONS.has(instruction.keyword) && !text.startsWith("[")) for (const marker of heredocMarkers(text)) {
+			const body = [];
+			const bodyLine = index + 1;
+			while (index < lines.length) {
+				const raw = lines[index] ?? "";
+				index += 1;
+				const candidate = marker.strip ? raw.replace(/^\t+/u, "") : raw;
+				if (candidate === marker.delimiter) break;
+				body.push(candidate);
+			}
+			instruction.heredocs.push({
+				body: body.join("\n"),
+				line: bodyLine,
+				before: text.slice(0, marker.index).trim()
+			});
+		}
+		instructions.push(instruction);
+	}
+	return instructions;
+}
+/** The line of an offset in an instruction's text. */
+function lineAt$2(instruction, offset) {
+	let line = instruction.line;
+	for (const segment of instruction.segments) {
+		if (segment.offset > offset) break;
+		line = segment.line;
+	}
+	return line;
+}
+/** ARG NAME=value ARG2: the names with their defaults (undefined when there is none), quotes removed. */
+function argDeclarations(text) {
+	const declarations = [];
+	for (const match of text.matchAll(/([A-Za-z_][A-Za-z0-9_]*)(?:=("[^"]*"|'[^']*'|\S*))?/gu)) {
+		const value = match[2];
+		declarations.push([match[1] ?? "", value === void 0 ? void 0 : /^(["']).*\1$/su.test(value) ? value.slice(1, -1) : value]);
+	}
+	return declarations;
+}
+/**
+* Replaces $VAR, ${VAR}, ${VAR:-word}, ${VAR-word}, ${VAR:+word} and ${VAR+word} with the ARGs declared before the
+* first FROM. A variable without a value (declared without a default, or not declared) can only come from
+* --build-arg, so the result is unknown, unless a modifier gives the value for an unset variable.
+*/
+function substitute(text, args, escape) {
+	let result = "";
+	for (let index = 0; index < text.length; index++) {
+		const char = text[index] ?? "";
+		if (char === escape && text[index + 1] === "$") {
+			result += "$";
+			index += 1;
+			continue;
+		}
+		if (char !== "$") {
+			result += char;
+			continue;
+		}
+		let name;
+		let modifier = "";
+		let word = "";
+		if (text[index + 1] === "{") {
+			const end = text.indexOf("}", index + 2);
+			if (end < 0) return {
+				ok: false,
+				variable: text.slice(index + 2)
+			};
+			const inner = /^([A-Za-z_][A-Za-z0-9_]*)(?:(:?[-+])(.*))?$/su.exec(text.slice(index + 2, end));
+			if (inner === null) return {
+				ok: false,
+				variable: text.slice(index + 2, end)
+			};
+			name = inner[1] ?? "";
+			modifier = inner[2] ?? "";
+			word = inner[3] ?? "";
+			index = end;
+		} else {
+			const plain = /^[A-Za-z_][A-Za-z0-9_]*/u.exec(text.slice(index + 1, index + 257))?.[0];
+			if (plain === void 0) {
+				result += char;
+				continue;
+			}
+			name = plain;
+			index += plain.length;
+		}
+		const value = args.get(name);
+		const set = value !== void 0;
+		const empty = value === void 0 || value === "";
+		if (modifier === ":-" || modifier === "-") {
+			if (modifier === ":-" && empty || modifier === "-" && !set) result += word;
+			else result += value ?? "";
+		} else if (modifier === ":+" || modifier === "+") {
+			if (modifier === ":+" && !empty || modifier === "+" && set) result += word;
+		} else if (set) result += value;
+		else return {
+			ok: false,
+			variable: name
+		};
+	}
+	return {
+		ok: true,
+		value: result
+	};
+}
+
+// src/detect/dockerfiles.ts
+const IGNORE_FILE = ".dockerignore";
+function isDockerfileName(name, facts) {
+	if (name.endsWith(IGNORE_FILE)) return false;
+	return facts.names.exact.includes(name) || name.endsWith(facts.names.suffix) && name.length > facts.names.suffix.length || name.startsWith(facts.names.prefix) && name.length > facts.names.prefix.length;
+}
+/** An image reference split into the repository on Docker Hub (when it is there), the tag and the digest. */
+function splitReference(reference, facts) {
+	const [named = "", digest] = reference.split("@", 2);
+	const slash = named.lastIndexOf("/");
+	const colon = named.lastIndexOf(":");
+	const tag = colon > slash ? named.slice(colon + 1) : void 0;
+	const parts = (colon > slash ? named.slice(0, colon) : named).split("/");
+	const host = parts.length > 1 && /[.:]|^localhost$/u.test(parts[0] ?? "") ? parts[0] : void 0;
+	const path = host === void 0 ? parts : parts.slice(1);
+	const hub = host === void 0 || facts.reference.hosts.includes(host.toLowerCase());
+	const namespace = facts.reference.officialNamespace;
+	return {
+		repository: hub && path.length === 2 && path[0] === namespace ? path[1] ?? "" : path.join("/"),
+		hub,
+		...tag === void 0 ? {} : { tag },
+		...digest === void 0 ? {} : { digest }
+	};
+}
+/** The version a node tag names: 22-alpine is 22, lts-jod is jod, alpine alone is the current line. */
+function nodeTagVersion(tag, facts) {
+	const numbered = /^(\d+(?:\.\d+){0,2})(?:-.+)?$/u.exec(tag);
+	if (numbered !== null) return numbered[1];
+	const [head = "", ...rest] = tag.split("-");
+	if (head === "lts" && rest[0] !== void 0 && facts.codenames.includes(rest[0])) return rest[0];
+	if (Object.hasOwn(facts.nodeTags, head) || facts.codenames.includes(head)) return head;
+	return facts.node.variants.includes(tag) || facts.node.variants.includes(head) ? "current" : void 0;
+}
+/** The version a python tag names: 3.12-slim is 3.12, slim alone is latest; release candidates are not versions. */
+function pythonTagVersion(tag, facts) {
+	const numbered = /^(\d+(?:\.\d+){0,2})(?:-(.+))?$/u.exec(tag);
+	if (numbered !== null) return numbered[2]?.split("-").includes("rc") === true ? void 0 : numbered[1];
+	if (Object.hasOwn(facts.pythonTags, tag)) return tag;
+	return facts.python.variants.includes(tag) || facts.python.variants.some((variant) => tag.startsWith(`${variant}-`)) ? "latest" : void 0;
+}
+function runtimeOf(reference, facts) {
+	const { repository, hub, tag, digest } = splitReference(reference, facts);
+	if (!hub) return void 0;
+	const tool = repository === facts.node.image ? "node" : repository === facts.python.image ? "python" : void 0;
+	if (tool === void 0) return void 0;
+	if (tag === void 0 && digest !== void 0) return {
+		tool,
+		unknown: `the image is pinned by digest only (${reference})`
+	};
+	const used = tag ?? facts.reference.defaultTag;
+	const version = tool === "node" ? nodeTagVersion(used, facts) : pythonTagVersion(used, facts);
+	return version === void 0 ? {
+		tool,
+		...tag === void 0 ? {} : { tag },
+		unknown: `depcurfew does not know the tag ${used}`
+	} : {
+		tool,
+		...tag === void 0 ? {} : { tag },
+		version
+	};
+}
+/** Words of a RUN instruction in exec form (RUN ["npm", "ci"]), or undefined for the shell form. */
+function execWords(text) {
+	if (!text.startsWith("[")) return void 0;
+	try {
+		const parsed = JSON.parse(text);
+		return Array.isArray(parsed) && parsed.every((item) => typeof item === "string") ? parsed : void 0;
+	} catch {
+		return;
+	}
+}
+/** The text of a RUN instruction without its options (--mount=..., --network=...). */
+function withoutOptions(text) {
+	let offset = 0;
+	for (;;) {
+		const option = /^--\S*\s*/u.exec(text.slice(offset));
+		if (option === null) return {
+			text: text.slice(offset),
+			offset
+		};
+		offset += option[0].length;
+	}
+}
+/** A here-document body is a script when it is fed to a shell: RUN <<EOF, or RUN <<EOF bash, or RUN bash <<EOF. */
+function isScript(before) {
+	return before === "" || /^(?:\S*\/)?(?:sh|bash|ash|dash|zsh)(?:\s+-\S+)*$/u.test(before);
+}
+function runCommands(instruction, facts) {
+	const commands = [];
+	const { text, offset } = withoutOptions(instruction.text);
+	const exec = execWords(text);
+	if (exec !== void 0) {
+		const words = exec.map((word) => ({
+			text: word,
+			offset: 0
+		}));
+		for (const { offset: _offset, ...command } of findExecCommands(words, facts.commands).commands) commands.push({
+			...command,
+			line: instruction.line
+		});
+		return { commands };
+	}
+	for (const { offset: at, ...command } of findToolCommands(text, facts.commands).commands) commands.push({
+		...command,
+		line: lineAt$2(instruction, offset + at)
+	});
+	for (const heredoc of instruction.heredocs) {
+		if (!isScript(heredoc.before.replace(/<<-?["']?[A-Za-z_][A-Za-z0-9_.-]*["']?/gu, "").trim())) continue;
+		const lineStarts = [0];
+		for (let index = heredoc.body.indexOf("\n"); index >= 0; index = heredoc.body.indexOf("\n", index + 1)) lineStarts.push(index + 1);
+		for (const { offset: at, ...command } of findToolCommands(heredoc.body, facts.commands).commands) {
+			let low = 0;
+			let high = lineStarts.length - 1;
+			while (low < high) {
+				const middle = Math.ceil((low + high) / 2);
+				if ((lineStarts[middle] ?? 0) <= at) low = middle;
+				else high = middle - 1;
+			}
+			commands.push({
+				...command,
+				line: heredoc.line + low
+			});
+		}
+	}
+	return { commands };
+}
+/** Reads one Dockerfile. */
+function readDockerStages(file, text, facts) {
+	const instructions = readDockerfile(text, facts.syntax);
+	const escape = facts.syntax.escapeCharacters[0] ?? "\\";
+	const args = /* @__PURE__ */ new Map();
+	const stages = [];
+	const versions = [];
+	for (const instruction of instructions) {
+		if (instruction.keyword === facts.syntax.globalArgInstruction && stages.length === 0) {
+			for (const [name, value] of argDeclarations(instruction.text)) {
+				const resolved = value === void 0 ? void 0 : substitute(value, args, escape);
+				args.set(name, resolved?.ok === true ? resolved.value : void 0);
+			}
+			continue;
+		}
+		if (instruction.keyword === "FROM") {
+			const words = instruction.text.split(/\s+/u).filter(Boolean);
+			const position = words.findIndex((word) => !word.startsWith("--"));
+			const written = words[position] ?? "";
+			const alias = words[position + 1]?.toLowerCase() === "as" ? words[position + 2]?.toLowerCase() : void 0;
+			const stage = {
+				line: instruction.line,
+				...alias === void 0 ? {} : { name: alias },
+				commands: []
+			};
+			const substituted = substitute(written, args, escape);
+			if (!substituted.ok) {
+				const named = written.split("@", 1)[0] ?? "";
+				const colon = named.lastIndexOf(":");
+				const name = colon > named.lastIndexOf("/") ? named.slice(0, colon) : named;
+				const runtime = name.includes("$") ? void 0 : runtimeOf(name, facts);
+				if (runtime !== void 0) stage.runtime = {
+					tool: runtime.tool,
+					unknown: `the ARG ${substituted.variable} it uses has no value in the Dockerfile`
+				};
+			} else {
+				stage.image = substituted.value;
+				const earlier = stages.findIndex((other) => other.name !== void 0 && other.name === substituted.value.toLowerCase());
+				if (earlier >= 0) {
+					stage.from = earlier;
+					const inherited = stages[earlier]?.runtime;
+					if (inherited !== void 0) stage.runtime = inherited;
+				} else {
+					const runtime = runtimeOf(substituted.value, facts);
+					if (runtime !== void 0) {
+						stage.runtime = runtime;
+						if (runtime.tool === "node" && runtime.version !== void 0) versions.push({
+							tool: "node",
+							declaration: {
+								version: runtime.version,
+								source: "dockerfile",
+								file,
+								line: instruction.line,
+								stage: alias ?? String(stages.length)
+							}
+						});
+					}
+				}
+			}
+			const { commands: _commands, ...fields } = stage;
+			stages.push({
+				...fields,
+				commands: []
+			});
+			continue;
+		}
+		const stage = stages.at(-1);
+		if (instruction.keyword !== "RUN" || stage === void 0) continue;
+		for (const command of runCommands(instruction, facts).commands) {
+			stage.commands.push(command);
+			if (command.kind === "upgrade" && command.version !== void 0) versions.push({
+				tool: command.tool,
+				declaration: {
+					version: command.version,
+					source: "dockerfile",
+					file,
+					line: command.line,
+					stage: stage.name ?? String(stages.length - 1)
+				}
+			});
+		}
+	}
+	return {
+		info: {
+			file,
+			stages
+		},
+		versions
+	};
+}
+/**
+* The Dockerfiles of the root, of its direct subdirectories that have no manifest of their own (docker/, .devcontainer/),
+* and of workspace packages, sorted by path.
+*/
+function dockerfileCandidates(repository, facts, manifests, packages) {
+	const directories = /* @__PURE__ */ new Set([".", ...packages]);
+	for (const name of repository.listDirectories(".")) if (!manifests.some((manifest) => repository.isFile(joinPath(name, manifest)))) directories.add(name);
+	const files = [];
+	for (const directory of directories) for (const name of repository.listFiles(directory)) if (isDockerfileName(name, facts)) files.push(joinPath(directory, name));
+	return [...new Set(files)].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
 }
 
 // src/detect/wildcard.ts
@@ -12800,7 +14178,7 @@ function wildcardMatch(text, pattern) {
 }
 
 // src/detect/workspaces.ts
-function segmentsOf(pattern) {
+function segmentsOf$1(pattern) {
 	const segments = [];
 	for (const segment of pattern.split("/")) {
 		if (segment === "" || segment === ".") continue;
@@ -12844,7 +14222,7 @@ function expandWorkspaces(repository, patterns, manifests, declaredIn) {
 			repository.warn("workspace-outside-repository", `workspace pattern "${raw}" points outside the repository`, [declaredIn]);
 			continue;
 		}
-		matchDirectories(repository, segmentsOf(pattern), 0, ".", negated ? excluded : included, /* @__PURE__ */ new Set());
+		matchDirectories(repository, segmentsOf$1(pattern), 0, ".", negated ? excluded : included, /* @__PURE__ */ new Set());
 	}
 	return [...included].filter((directory) => directory !== "." && !excluded.has(directory)).filter((directory) => manifests.some((manifest) => repository.isFile(joinPath(directory, manifest)))).sort();
 }
@@ -12873,7 +14251,11 @@ const SOURCE_ORDER = [
 	"devEngines",
 	"volta",
 	"tool-versions",
-	"github-actions"
+	"nvmrc",
+	"node-version",
+	"engines",
+	"github-actions",
+	"dockerfile"
 ];
 function isObject$2(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -13022,6 +14404,69 @@ function readToolVersions(repository, facts, collector) {
 		});
 	});
 }
+/**
+* .nvmrc and .node-version in the root: the first line that is not empty, without a # comment in .nvmrc. engines.node
+* of package.json is a range of the Node.js versions the package works on, kept as written.
+*/
+function readNodeFiles(repository, facts, manifest, collector) {
+	const files = [[
+		facts.nodeFiles.nvmrc,
+		"nvmrc",
+		facts.nodeFiles.comment
+	], [
+		facts.nodeFiles.nodeVersion,
+		"node-version",
+		void 0
+	]];
+	for (const [file, source, comment] of files) {
+		const text = repository.isFile(file) ? repository.readText(file) : void 0;
+		if (text === void 0) continue;
+		for (const [index, raw] of text.split(/\r?\n/u).entries()) {
+			const version = (comment === void 0 ? raw : raw.split(comment, 1)[0] ?? "").trim();
+			if (version === "") continue;
+			collector.addVersion("node", {
+				version,
+				source,
+				file,
+				line: index + 1
+			});
+			break;
+		}
+	}
+	const engines = manifest?.[facts.nodeFiles.engines.key];
+	const range = isObject$2(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : void 0;
+	if (typeof range === "string") collector.addVersion("node", {
+		version: range,
+		source: "engines",
+		file: "package.json"
+	});
+}
+/** The version setup-node reads from the file node-version-file names, when depcurfew can read it the same way. */
+function versionFromFile(repository, facts, path, manifest) {
+	const file = path.trim().replace(/^(?:\.\/)+/u, "");
+	const { versionFile } = facts.setupNode;
+	if (file === "" || !repository.isFile(file)) return void 0;
+	if (file.endsWith(".json")) {
+		const json = file === versionFile.packageJson ? manifest : repository.parse(file, (text) => JSON.parse(text));
+		if (!isObject$2(json)) return void 0;
+		for (const key of versionFile.packageJsonOrder) {
+			if (key === `${facts.devEngines.key}.${facts.devEngines.runtimeKey}`) {
+				const devEngines = json[facts.devEngines.key];
+				const entry = (isObject$2(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : []).find((item) => item.name.toLowerCase() === "node" && item.version !== void 0);
+				if (entry?.version !== void 0) return entry.version;
+				continue;
+			}
+			const value = key.split(".").reduce((node, part) => isObject$2(node) ? node[part] : void 0, json);
+			if (typeof value === "string") return value;
+		}
+		return;
+	}
+	if (file.endsWith(".toml")) return void 0;
+	const text = repository.readText(file);
+	if (text === void 0) return void 0;
+	const version = new RegExp(versionFile.textPattern, "mu").exec(text)?.groups?.["version"] ?? text.trim();
+	return version === "" ? void 0 : version;
+}
 function yarnVariant(repository, facts, collector) {
 	if (repository.isFile("yarn.lock")) {
 		const head = repository.readHead("yarn.lock") ?? "";
@@ -13134,6 +14579,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		readVolta(facts, manifest, collector);
 	}
 	readToolVersions(repository, facts, collector);
+	readNodeFiles(repository, facts, manifest, collector);
 	readPythonConfig(repository, facts, collector);
 	const owners = /* @__PURE__ */ new Map();
 	for (const manager of facts.managers) {
@@ -13153,9 +14599,23 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	}
 	const workflows = readWorkflows(repository, facts);
 	for (const { tool, file } of workflows.installs) if (managerIds.has(tool)) collector.addEvidence(tool, "ci", file);
-	for (const { tool, declaration } of workflows.versions) collector.addVersion(tool, declaration);
+	for (const { tool, declaration } of workflows.versions) {
+		const version = tool === "node" && !("version" in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : void 0;
+		collector.addVersion(tool, version === void 0 ? declaration : {
+			version,
+			...declaration
+		});
+	}
 	const workspaces = readWorkspaces(repository, facts, manifest);
 	const directories = [".", ...workspaces?.packages ?? []];
+	const manifests = [...new Set(facts.managers.flatMap((manager) => manager.manifests))];
+	const dockerfiles = dockerfileCandidates(repository, facts.docker, manifests, workspaces?.packages ?? []).flatMap((file) => {
+		const text = repository.readText(file);
+		if (text === void 0) return [];
+		const reading = readDockerStages(file, text, facts.docker);
+		for (const { tool, declaration } of reading.versions) collector.addVersion(tool, declaration);
+		return [reading.info];
+	});
 	const hasEvidence = (ecosystem) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
 	if (manifest !== void 0 && !hasEvidence("npm")) {
 		collector.addEvidence("npm", "default", "package.json");
@@ -13212,6 +14672,8 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		workspaces,
 		npmrcFiles: npmrcFiles(repository, directories),
 		workflows: workflows.files,
+		jobs: workflows.jobs,
+		dockerfiles,
 		warnings: [...repository.warnings].sort((a, b) => byPath(a.code, b.code) || byPath(a.files.join(), b.files.join()))
 	};
 }
@@ -13221,7 +14683,7 @@ const POLICY_FILE = "depcurfew.json";
 
 // src/apply/requirements.ts
 /** "a", "a and b", "a, b and c". */
-function listing(items) {
+function listing$1(items) {
 	if (items.length <= 1) return items[0] ?? "";
 	return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
 }
@@ -13245,7 +14707,7 @@ function describeRequirements(requirements) {
 		0,
 		0
 	]);
-	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since})`).join(", ");
+	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$1(group.settings)} (since ${since})`).join(", ");
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
 }
 
@@ -13880,7 +15342,7 @@ function requirementsTrees(repository, roots, format) {
 				if (reason === void 0) queue.push(target);
 				else unreadable.push(`${path} (line ${line}, ${reason})`);
 			}
-			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing(unreadable)}`, [file]);
+			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing$1(unreadable)}`, [file]);
 		}
 		for (const file of tree) trees.set(file, [.../* @__PURE__ */ new Set([...trees.get(file) ?? [], ...tree])]);
 	}
@@ -15493,7 +16955,7 @@ function didYouMean(value, candidates) {
 	const match = suggest(value, candidates);
 	return match === void 0 ? "" : `; did you mean ${JSON.stringify(match)}?`;
 }
-function report(issues, path, message) {
+function report$1(issues, path, message) {
 	issues.push({
 		path: formatPath(path),
 		message
@@ -15501,7 +16963,7 @@ function report(issues, path, message) {
 	return { ok: false };
 }
 function mismatch(issues, path, label, value, candidates) {
-	return report(issues, path, `must be ${label}, got ${describeValue(value)}${didYouMean(value, candidates)}`);
+	return report$1(issues, path, `must be ${label}, got ${describeValue(value)}${didYouMean(value, candidates)}`);
 }
 function withDescription(schema, description) {
 	return description === void 0 ? schema : {
@@ -15551,7 +17013,7 @@ function text(options) {
 		parse(input, path, issues) {
 			if (typeof input !== "string") return mismatch(issues, path, options.label, input);
 			const result = options.parse(input);
-			return result.ok ? result : report(issues, path, `${options.kind} ${JSON.stringify(input)}: ${result.message}`);
+			return result.ok ? result : report$1(issues, path, `${options.kind} ${JSON.stringify(input)}: ${result.message}`);
 		},
 		toJsonSchema: () => withDescription({
 			type: "string",
@@ -15578,7 +17040,7 @@ function list(item, options = {}) {
 		jsonTypes: ["array"],
 		parse(input, path, issues) {
 			if (!Array.isArray(input)) return mismatch(issues, path, label, input);
-			if (options.nonEmpty !== void 0 && input.length === 0) return report(issues, path, `must not be an empty list; ${options.nonEmpty}`);
+			if (options.nonEmpty !== void 0 && input.length === 0) return report$1(issues, path, `must not be an empty list; ${options.nonEmpty}`);
 			const values = [];
 			const firstIndex = /* @__PURE__ */ new Map();
 			let ok = true;
@@ -15593,7 +17055,7 @@ function list(item, options = {}) {
 					const first = firstIndex.get(key);
 					if (first !== void 0) {
 						ok = false;
-						report(issues, [...path, index], `duplicate entry ${describeValue(element)} (first at index ${first})`);
+						report$1(issues, [...path, index], `duplicate entry ${describeValue(element)} (first at index ${first})`);
 						return;
 					}
 					firstIndex.set(key, index);
@@ -15670,14 +17132,14 @@ function object(fields, options = {}) {
 			let ok = true;
 			for (const key of Object.keys(input)) if (!Object.hasOwn(fields, key)) {
 				ok = false;
-				report(issues, path, `unknown field ${JSON.stringify(key)}${didYouMean(key, names)}`);
+				report$1(issues, path, `unknown field ${JSON.stringify(key)}${didYouMean(key, names)}`);
 			}
 			const output = {};
 			for (const [key, field] of Object.entries(fields)) {
 				if (!Object.hasOwn(input, key)) {
 					if (field.kind === "required") {
 						ok = false;
-						report(issues, path, `missing required field ${JSON.stringify(key)}`);
+						report$1(issues, path, `missing required field ${JSON.stringify(key)}`);
 					} else if (field.kind === "default") {
 						const result = field.shape.parse(field.default, [...path, key], issues);
 						if (result.ok) output[key] = result.value;
@@ -18145,7 +19607,7 @@ function forcedBuildWarning(context, setting, names, policyFile = POLICY_FILE) {
 	context.warn({
 		code: "forced-source-build",
 		message: `${context.name}: ${setting} lets ${names.join(", ")} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? "it" : "them"} from source, even where a wheel exists, because it has no setting that only allows building`,
-		fix: names.length === 1 ? `If ${policyNames.join("")} has a wheel and needs no build, remove it from installScripts.allow in ${policyFile}` : `Remove those of ${listing(policyNames)} that have a wheel and need no build from installScripts.allow in ${policyFile}`
+		fix: names.length === 1 ? `If ${policyNames.join("")} has a wheel and needs no build, remove it from installScripts.allow in ${policyFile}` : `Remove those of ${listing$1(policyNames)} that have a wheel and need no build from installScripts.allow in ${policyFile}`
 	});
 }
 /** Says when the tool's switch does not stop git, local and URL dependencies from being built. */
@@ -18211,8 +19673,8 @@ function relockWarning(context, file, table, edit) {
 	context.warn({
 		code: "lockfile-out-of-date",
 		location: { file: lockfile },
-		message: locked.settings === "table" ? `${context.name}: ${lockfile} is checked against the whole [${table}] table, and this change alters ${listing(changed)}, so ${lockfile} is out of date` : `${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change`,
-		fix: `Run ${locked.lock} and commit ${lockfile}; until then ${listing(locked.failing)} fail`
+		message: locked.settings === "table" ? `${context.name}: ${lockfile} is checked against the whole [${table}] table, and this change alters ${listing$1(changed)}, so ${lockfile} is out of date` : `${context.name}: ${lockfile} records ${listing$1(changed)}, so it is out of date after this change`,
+		fix: `Run ${locked.lock} and commit ${lockfile}; until then ${listing$1(locked.failing)} fail`
 	});
 }
 
@@ -19643,7 +21105,7 @@ function settingsIn(file, text) {
 		else if (line !== "" && !line.startsWith("#") && line.includes("=")) byTable.set(table, [...byTable.get(table) ?? [], line.slice(0, line.indexOf("=")).trim()]);
 	}
 	return {
-		settings: [...byTable].map(([name, keys]) => name === "" ? listing(keys) : `${listing(keys)} in [${name}]`),
+		settings: [...byTable].map(([name, keys]) => name === "" ? listing$1(keys) : `${listing$1(keys)} in [${name}]`),
 		count: [...byTable.values()].reduce((sum, keys) => sum + keys.length, 0)
 	};
 }
@@ -19972,7 +21434,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 			code: "tool-only-in-ci",
 			tool: entry.id,
 			location: { file: entry.workflows[0] ?? "" },
-			message: `${name} appears only in a CI setup step (${listing(entry.workflows)}); the repository has no ${listing(entry.manifests)}, lockfile or ${name} configuration, so nothing is written for it`,
+			message: `${name} appears only in a CI setup step (${listing$1(entry.workflows)}); the repository has no ${listing$1(entry.manifests)}, lockfile or ${name} configuration, so nothing is written for it`,
 			fix: `If ${name} installs packages for this project, add "${entry.id}" to targets in ${POLICY_FILE} and run depcurfew apply again`
 		});
 	}
@@ -20031,7 +21493,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 		}
 		context.finish();
 		for (const skipped of workspace.skipped()) {
-			const settings = skipped.settings.length === 0 ? `${tool.name}'s settings` : listing(skipped.settings);
+			const settings = skipped.settings.length === 0 ? `${tool.name}'s settings` : listing$1(skipped.settings);
 			warnings.push({
 				code: "manifest-missing",
 				tool: tool.id,
@@ -20721,7 +22183,7 @@ function dependabotDelays(context, bot, file) {
 				bot,
 				managers,
 				minutes: 0,
-				origin: `cooldown.${include.key} in ${file} names only ${listing(patterns)}`,
+				origin: `cooldown.${include.key} in ${file} names only ${listing$1(patterns)}`,
 				location: {
 					file,
 					line: at
@@ -20793,7 +22255,7 @@ function renovateDelays(context, bot, file) {
 				line: source?.line ?? 1
 			},
 			securityBypass,
-			scope: types.length === updateTypes.length ? "updates" : `${listing(types)} updates`,
+			scope: types.length === updateTypes.length ? "updates" : `${listing$1(types)} updates`,
 			applies,
 			...source?.rule === void 0 ? {} : { rule: source.rule }
 		}];
@@ -21003,7 +22465,7 @@ const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] =
 const isMatching = (value) => isRecord(value) && typeof value["negation"] === "string" && typeof value["datasourceMatcher"] === "string" && typeof value["updateTypeMatcher"] === "string";
 /** What a packageRules entry covers, for the message: its update types, names and datasources. */
 function covers(scope, datasources, matching) {
-	return `${scope.matchers.includes(matching.updateTypeMatcher) ? `${listing(scope.updateTypes)} updates of ` : ""}${scope.names.kind === "except" ? `every package except ${listing(scope.names.patterns.map((pattern) => pattern.slice(matching.negation.length)))}` : "every package"}${scope.matchers.includes(matching.datasourceMatcher) ? ` from the ${listing(datasources)} datasource${datasources.length === 1 ? "" : "s"}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
+	return `${scope.matchers.includes(matching.updateTypeMatcher) ? `${listing$1(scope.updateTypes)} updates of ` : ""}${scope.names.kind === "except" ? `every package except ${listing$1(scope.names.patterns.map((pattern) => pattern.slice(matching.negation.length)))}` : "every package"}${scope.matchers.includes(matching.datasourceMatcher) ? ` from the ${listing$1(datasources)} datasource${datasources.length === 1 ? "" : "s"}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
 }
 /** packageRules entries that turn minimumReleaseAge off for every package of a registry (extra.packageRuleMatching). */
 function checkRenovate(context, file) {
@@ -21754,11 +23216,11 @@ function ownLists(context, tool) {
 }
 
 // src/doctor/version-range.ts
-const PARTIAL = /^v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+const PARTIAL$1 = /^v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
 /** Comparator operators; a space between an operator and its version is allowed, as in semver. */
 const OPERATOR = /(\^|~>?|>=|<=|>|<|=)\s+/gu;
-function partial(text) {
-	const match = PARTIAL.exec(text);
+function partial$1(text) {
+	const match = PARTIAL$1.exec(text);
 	if (match === null) return void 0;
 	const number = (part) => part === void 0 || /^[xX*]$/u.test(part) ? void 0 : Number(part);
 	const major = Number(match[1]);
@@ -21807,7 +23269,7 @@ function formatBound(bound) {
 function setLowerBound(set) {
 	const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(set);
 	if (hyphen !== null) {
-		const from = partial(hyphen[1] ?? "");
+		const from = partial$1(hyphen[1] ?? "");
 		return from === void 0 ? void 0 : {
 			bound: from.bound,
 			exact: false
@@ -21832,7 +23294,7 @@ function setLowerBound(set) {
 		const match = /^(\^|~>?|>=|<=|>|<|=)?(.+)$/u.exec(comparator);
 		if (match === null) return void 0;
 		const operator = match[1] ?? "";
-		const value = partial(match[2] ?? "");
+		const value = partial$1(match[2] ?? "");
 		if (value === void 0) return void 0;
 		if (operator === "<" || operator === "<=") {
 			exact = false;
@@ -21885,6 +23347,667 @@ function lowestVersion(text) {
 		kind: result.exact && sets === 1 ? "exact" : "range",
 		...result.bound
 	};
+}
+
+// src/check/semver.ts
+const VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+function parseSemver(text) {
+	const match = VERSION.exec(text.trim());
+	if (match === null) return void 0;
+	const prerelease = match[4] === void 0 ? [] : match[4].split(".").map((part) => /^\d+$/u.test(part) ? Number(part) : part);
+	return {
+		major: Number(match[1]),
+		minor: Number(match[2]),
+		patch: Number(match[3]),
+		prerelease
+	};
+}
+function compareSemver(a, b) {
+	const main = a.major - b.major || a.minor - b.minor || a.patch - b.patch;
+	if (main !== 0) return main;
+	if (a.prerelease.length === 0 || b.prerelease.length === 0) return b.prerelease.length - a.prerelease.length;
+	for (let index = 0; index < Math.max(a.prerelease.length, b.prerelease.length); index++) {
+		const left = a.prerelease[index];
+		const right = b.prerelease[index];
+		if (left === void 0) return -1;
+		if (right === void 0) return 1;
+		if (left === right) continue;
+		if (typeof left === "number" && typeof right === "number") return left - right;
+		if (typeof left === "number") return -1;
+		if (typeof right === "number") return 1;
+		return left < right ? -1 : 1;
+	}
+	return 0;
+}
+const PARTIAL = /^v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+function partial(text) {
+	if (text === "" || text === "*" || text === "x" || text === "X") return {
+		major: void 0,
+		minor: void 0,
+		patch: void 0,
+		prerelease: []
+	};
+	const match = PARTIAL.exec(text);
+	if (match === null) return void 0;
+	const number = (part) => part === void 0 || /^[xX*]$/u.test(part) ? void 0 : Number(part);
+	const major = number(match[1]);
+	const minor = major === void 0 ? void 0 : number(match[2]);
+	const patch = minor === void 0 ? void 0 : number(match[3]);
+	return {
+		major,
+		minor,
+		patch,
+		prerelease: patch === void 0 || match[4] === void 0 ? [] : match[4].split(".").map((part) => /^\d+$/u.test(part) ? Number(part) : part)
+	};
+}
+const version = (major, minor, patch, prerelease = []) => ({
+	major,
+	minor,
+	patch,
+	prerelease
+});
+/** The lowest version of a release line, below its prereleases: x.y.z-0. */
+const floor = (major, minor, patch) => version(major, minor, patch, [0]);
+function full(value) {
+	return version(value.major ?? 0, value.minor ?? 0, value.patch ?? 0, value.prerelease);
+}
+/** Comparators of one operator and partial version, as npm desugars them. */
+function desugar(operator, value) {
+	const { major, minor, patch } = value;
+	if (major === void 0) return operator === "<" || operator === ">" ? [{
+		operator: "<",
+		version: floor(0, 0, 0)
+	}] : [];
+	switch (operator) {
+		case "":
+		case "=":
+			if (minor === void 0) return [{
+				operator: ">=",
+				version: version(major, 0, 0)
+			}, {
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			if (patch === void 0) return [{
+				operator: ">=",
+				version: version(major, minor, 0)
+			}, {
+				operator: "<",
+				version: floor(major, minor + 1, 0)
+			}];
+			return [{
+				operator: "=",
+				version: full(value)
+			}];
+		case "~":
+		case "~>":
+			if (minor === void 0) return [{
+				operator: ">=",
+				version: version(major, 0, 0)
+			}, {
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			return [{
+				operator: ">=",
+				version: full(value)
+			}, {
+				operator: "<",
+				version: floor(major, minor + 1, 0)
+			}];
+		case "^": {
+			const lower = {
+				operator: ">=",
+				version: full(value)
+			};
+			if (major > 0 || minor === void 0) return [lower, {
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			if (minor > 0 || patch === void 0) return [lower, {
+				operator: "<",
+				version: floor(0, minor + 1, 0)
+			}];
+			return [lower, {
+				operator: "<",
+				version: floor(0, 0, patch + 1)
+			}];
+		}
+		case ">":
+			if (minor === void 0) return [{
+				operator: ">=",
+				version: version(major + 1, 0, 0)
+			}];
+			if (patch === void 0) return [{
+				operator: ">=",
+				version: version(major, minor + 1, 0)
+			}];
+			return [{
+				operator: ">",
+				version: full(value)
+			}];
+		case ">=": return [{
+			operator: ">=",
+			version: full(value)
+		}];
+		case "<": return [{
+			operator: "<",
+			version: patch === void 0 ? floor(major, minor ?? 0, 0) : full(value)
+		}];
+		case "<=":
+			if (minor === void 0) return [{
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			if (patch === void 0) return [{
+				operator: "<",
+				version: floor(major, minor + 1, 0)
+			}];
+			return [{
+				operator: "<=",
+				version: full(value)
+			}];
+		default: return;
+	}
+}
+/** Comparator sets joined by ||; undefined when the text is not a range (for example a dist-tag). */
+function parseRange(text) {
+	const sets = [];
+	for (const raw of text.split("||")) {
+		const set = raw.trim().replaceAll(/(\^|~>?|>=|<=|>|<|=)\s+/gu, "$1");
+		const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(set);
+		if (hyphen !== null) {
+			const from = partial(hyphen[1] ?? "");
+			const to = partial(hyphen[2] ?? "");
+			if (from === void 0 || to === void 0) return void 0;
+			const lower = desugar(">=", from) ?? [];
+			const upper = to.major === void 0 ? [] : desugar("<=", to) ?? [];
+			sets.push([...lower, ...upper]);
+			continue;
+		}
+		const comparators = [];
+		for (const part of set === "" ? [""] : set.split(/\s+/u)) {
+			const match = /^(\^|~>?|>=|<=|>|<|=)?(.*)$/u.exec(part);
+			const value = partial(match?.[2] ?? "");
+			if (match === null || value === void 0) return void 0;
+			const desugared = desugar(match[1] ?? "", value);
+			if (desugared === void 0) return void 0;
+			comparators.push(...desugared);
+		}
+		sets.push(comparators);
+	}
+	return sets;
+}
+function holds(comparator, candidate) {
+	const order = compareSemver(candidate, comparator.version);
+	switch (comparator.operator) {
+		case "<": return order < 0;
+		case "<=": return order <= 0;
+		case ">": return order > 0;
+		case ">=": return order >= 0;
+		case "=": return order === 0;
+	}
+}
+function satisfiesSet(candidate, set) {
+	if (!set.every((comparator) => holds(comparator, candidate))) return false;
+	if (candidate.prerelease.length === 0) return true;
+	return set.some((comparator) => comparator.version.prerelease.length > 0 && !(comparator.version.prerelease.length === 1 && comparator.version.prerelease[0] === 0 && comparator.operator === "<") && comparator.version.major === candidate.major && comparator.version.minor === candidate.minor && comparator.version.patch === candidate.patch);
+}
+function satisfies(candidate, range) {
+	const parsed = parseSemver(candidate);
+	const sets = parseRange(range);
+	return parsed !== void 0 && sets !== void 0 && sets.some((set) => satisfiesSet(parsed, set));
+}
+
+// src/doctor/runtime-versions.ts
+function first(fact) {
+	return evidenceOf(fact)[0]?.value;
+}
+/** The names a declaration may use: setup-node in CI, image tags in a Dockerfile, nvm names in .nvmrc and .node-version. */
+function namingOf(source) {
+	if (source === "github-actions") return "setup-node";
+	if (source === "dockerfile") return "docker";
+	if (source === "nvmrc" || source === "node-version") return "nvm";
+	return "semver";
+}
+function segmentsOf(lines) {
+	return lines.flatMap((entry) => {
+		const latest = parseVersion(entry.latest);
+		if (latest === void 0) return [];
+		return entry.bundles.flatMap(([release, tool], index) => {
+			const from = parseVersion(release);
+			const bundled = parseVersion(tool);
+			const next = entry.bundles[index + 1]?.[0];
+			const until = next === void 0 ? void 0 : parseVersion(next);
+			if (from === void 0 || bundled === void 0) return [];
+			return [{
+				line: entry.line,
+				from,
+				...until === void 0 ? {} : { until },
+				latest,
+				bundled
+			}];
+		});
+	});
+}
+function max(a, b) {
+	return compareVersions$1(a, b) >= 0 ? a : b;
+}
+function release(version) {
+	return [
+		version[0],
+		version[1],
+		version[2]
+	];
+}
+/** Every segment some release of which satisfies the range; undefined when the text is not a range. */
+function matching(text, segments) {
+	const found = /* @__PURE__ */ new Set();
+	for (const set of text.split("||")) {
+		const lowest = lowestVersion(set);
+		if (lowest.kind === "unknown") return void 0;
+		for (const segment of segments) {
+			const candidate = max(segment.from, release(lowest.version));
+			if ((segment.until === void 0 ? compareVersions$1(candidate, segment.latest) <= 0 : compareVersions$1(candidate, segment.until) < 0) && satisfies(formatVersion(candidate), set.trim() === "" ? "*" : set)) found.add(segment);
+		}
+	}
+	return segments.filter((segment) => found.has(segment));
+}
+function sortedUnique(versions) {
+	const sorted = [...versions].sort(compareVersions$1);
+	return sorted.filter((version, index) => index === 0 || compareVersions$1(version, sorted[index - 1]) !== 0);
+}
+function runtimeFacts(environment) {
+	const schedule = environment.node.releaseSchedule;
+	return {
+		node: segmentsOf(first(environment.node.bundledNpm)),
+		python: segmentsOf(first(environment.python.bundledPip)),
+		schedule: first(schedule),
+		scheduleDate: evidenceOf(schedule)[0]?.verifiedAt ?? "",
+		setupNode: first(environment.githubActions.setupNodeVersions),
+		nvm: first(environment.node.nvmrc),
+		nodeTags: first(environment.docker.nodeImageTags).tags,
+		pythonTags: first(environment.docker.pythonImageTags).tags
+	};
+}
+/** LTS lines on the day the schedule was read, newest first. */
+function ltsLines(facts) {
+	return facts.schedule.filter((line) => line.lts !== void 0 && line.lts <= facts.scheduleDate).sort((a, b) => b.line - a.line);
+}
+/** A name of a moving Node.js version as the release line it means; undefined for anything else. */
+function nodeName(text, naming, facts) {
+	const name = text.toLowerCase();
+	const newestLine = facts.node.reduce((newest, segment) => Number(segment.line) > Number(newest) ? segment.line : newest, "0");
+	const codename = (word) => facts.schedule.find((line) => line.codename === word)?.line;
+	if (naming === "docker") {
+		if (Object.hasOwn(facts.nodeTags, name)) return facts.nodeTags[name];
+		const line = codename(name);
+		return line === void 0 ? void 0 : String(line);
+	}
+	if (naming !== "setup-node" && naming !== "nvm") return void 0;
+	const names = naming === "setup-node" ? facts.setupNode : facts.nvm;
+	if (names.newest.includes(name)) return newestLine;
+	if (name === names.newestLts) return String(ltsLines(facts)[0]?.line ?? newestLine);
+	if (names.previousLtsPrefix !== void 0 && name.startsWith(names.previousLtsPrefix)) {
+		const back = Number(name.slice(names.previousLtsPrefix.length));
+		const line = Number.isInteger(back) ? ltsLines(facts)[back]?.line : void 0;
+		return line === void 0 ? void 0 : String(line);
+	}
+	if (name.startsWith(names.ltsPrefix)) {
+		const line = codename(name.slice(names.ltsPrefix.length));
+		return line === void 0 ? void 0 : String(line);
+	}
+}
+function resolveIn(text, segments, lineOf) {
+	const lowest = lowestVersion(text);
+	if (lowest.kind === "unknown") return {
+		kind: "unknown",
+		reason: "it is not a version or a range depcurfew can read"
+	};
+	if (lowest.kind === "exact") {
+		const version = release(lowest.version);
+		const line = lineOf(version);
+		const ofLine = segments.filter((segment) => segment.line === line);
+		const latest = ofLine[0]?.latest;
+		if (latest === void 0) return {
+			kind: "unknown",
+			reason: `depcurfew does not know which version its line ${line} bundles`
+		};
+		if (compareVersions$1(version, latest) > 0) return {
+			kind: "unknown",
+			reason: `it is newer than the releases depcurfew knows (${line} up to ${formatVersion(latest)})`
+		};
+		const segment = ofLine.findLast((entry) => compareVersions$1(entry.from, version) <= 0) ?? ofLine[0];
+		return segment === void 0 ? {
+			kind: "unknown",
+			reason: "no release of it is known"
+		} : {
+			kind: "exact",
+			bundled: [segment.bundled],
+			lines: [line]
+		};
+	}
+	const found = matching(text, segments);
+	if (found === void 0) return {
+		kind: "unknown",
+		reason: "it is not a version or a range depcurfew can read"
+	};
+	if (found.length === 0) return {
+		kind: "unknown",
+		reason: "it matches no release depcurfew knows"
+	};
+	return {
+		kind: "range",
+		bundled: sortedUnique(found.map((segment) => segment.bundled)),
+		lines: [...new Set(found.map((segment) => segment.line))]
+	};
+}
+/** The npm versions the Node.js releases a declaration allows come with. */
+function nodeBundledNpm(written, naming, facts) {
+	const text = written.trim();
+	return resolveIn(nodeName(text, naming, facts) ?? text, facts.node, (version) => String(version[0]));
+}
+/** The pip versions the CPython releases of a python image tag version (3.12, 3.12.4, latest) come with. */
+function pythonBundledPip(written, facts) {
+	const text = written.trim().toLowerCase();
+	return resolveIn((Object.hasOwn(facts.pythonTags, text) ? facts.pythonTags[text] : void 0) ?? text, facts.python, (version) => `${version[0]}.${version[1]}`);
+}
+/** The Node.js release lines a declaration allows, from the schedule (so also lines older than the bundled-npm data). */
+function nodeLines(written, naming, facts) {
+	const text = written.trim();
+	const sets = (nodeName(text, naming, facts) ?? text).split("||");
+	const found = [];
+	for (const line of facts.schedule) {
+		const start = [
+			line.line,
+			0,
+			0
+		];
+		const next = [
+			line.line + 1,
+			0,
+			0
+		];
+		let allowed = false;
+		for (const set of sets) {
+			const lowest = lowestVersion(set);
+			if (lowest.kind === "unknown") return void 0;
+			const candidate = max(start, release(lowest.version));
+			if (compareVersions$1(candidate, next) < 0 && satisfies(formatVersion(candidate), set.trim() === "" ? "*" : set)) allowed = true;
+		}
+		if (allowed) found.push(line);
+	}
+	return found;
+}
+/** The lines that are LTS and not past their end of life on the given day (YYYY-MM-DD), oldest first. */
+function supportedLtsLines(facts, today) {
+	return facts.schedule.filter((line) => line.lts !== void 0 && line.lts <= today && line.end > today).sort((a, b) => a.line - b.line);
+}
+/**
+* Per release line, the first release that bundles `needed` or later, lowest line first; only the given lines (the
+* supported Node.js LTS lines) when they are given.
+*/
+function firstReleasesWith(needed, segments, lines) {
+	const found = /* @__PURE__ */ new Map();
+	for (const segment of segments) {
+		if (lines !== void 0 && !lines.includes(segment.line)) continue;
+		if (compareVersions$1(segment.bundled, needed) < 0) continue;
+		const known = found.get(segment.line);
+		if (known === void 0 || compareVersions$1(segment.from, known) < 0) found.set(segment.line, segment.from);
+	}
+	return [...found].map(([line, release]) => ({
+		line,
+		release
+	})).sort((a, b) => compareVersions$1(a.release, b.release));
+}
+/** "24.14.1 or a later 24.x; 26.0.0 or later": a later release of a line keeps the bundled version, a later line may not. */
+function releasesPhrase(found, newestLine) {
+	return found.map(({ line, release }) => line === newestLine ? `${formatVersion(release)} or later` : `${formatVersion(release)} or a later ${line}.x`).join("; ");
+}
+/** The newest line of the data. */
+function newestLineOf(segments) {
+	return segments.reduce((newest, segment) => compareVersions$1(segment.from, newest.from) > 0 ? segment : newest, segments[0]).line;
+}
+/** Today as YYYY-MM-DD in UTC. */
+function today() {
+	return new Date(Date.now()).toISOString().slice(0, 10);
+}
+
+// src/doctor/rules/bundled-versions.ts
+const RULE = "manager-version-too-old";
+/** Where developers choose their Node.js; anyone can install another npm, so these give warnings. */
+const DEVELOPER_SOURCES = /* @__PURE__ */ new Set([
+	"nvmrc",
+	"node-version",
+	"volta",
+	"tool-versions",
+	"devEngines",
+	"engines"
+]);
+function newest(versions) {
+	return versions.reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
+}
+function bundledText(tool, bundled) {
+	const low = bundled[0];
+	const high = bundled.at(-1);
+	return compareVersions$1(low, high) === 0 ? `${tool} ${formatVersion(low)}` : `${tool} ${formatVersion(low)} to ${formatVersion(high)}`;
+}
+function report(context, helpers, check, place, resolution, facts) {
+	const name = check.tool.name;
+	const low = resolution.bundled[0];
+	const high = newest(resolution.bundled);
+	const missing = helpers.missing(check.features, (since) => compareVersions$1(low, since) < 0);
+	if (missing.length === 0) return;
+	const none = missing.filter((item) => compareVersions$1(high, parseVersion(item.since)) < 0);
+	const some = missing.filter((item) => !none.includes(item));
+	const single = compareVersions$1(low, high) === 0;
+	const describe = (items) => describeRequirements(items.map(({ setting, since }) => ({
+		setting,
+		since
+	})));
+	const clauses = single ? [`which does not support ${describe(missing)}`] : [...none.length > 0 ? [`none of which supports ${describe(none)}`] : [], ...some.length > 0 ? [`not all of which support ${describe(some)}`] : []];
+	const disputed = missing.some((item) => item.disputed === true) ? "; where official sources disagree on the version, depcurfew assumes the later one" : "";
+	const silent = check.warnsSince !== void 0 && compareVersions$1(low, check.warnsSince) < 0 ? `; ${name} before ${formatVersion(check.warnsSince)} ignores settings it does not know without a warning` : "";
+	const verb = resolution.kind === "exact" || single ? "comes with" : "can come with";
+	const message = `${place.subject} ${verb} ${bundledText(name, resolution.bundled)}, ${clauses.join(", and ")}${place.installs === void 0 ? "" : `, and ${place.installs}`}${silent}${disputed}`;
+	const needed = newest(missing.map((item) => parseVersion(item.since)));
+	const target = check.pinned !== void 0 && compareVersions$1(check.pinned, needed) >= 0 ? check.pinned : needed;
+	const segments = check.tool.id === "npm" ? facts.node : facts.python;
+	const lines = check.tool.id === "npm" ? supportedLtsLines(facts, today()).map((line) => String(line.line)) : void 0;
+	const better = firstReleasesWith(needed, segments, lines);
+	const newestLine = lines === void 0 ? newestLineOf(segments) : lines.at(-1) ?? "";
+	const fix = [place.install(formatVersion(target)), ...better.length === 0 ? [] : [place.runtime(releasesPhrase(better, newestLine), formatVersion(better[0]?.release), formatVersion(needed))]].join(", or ");
+	const level = place.enforced && none.length > 0 ? "error" : "warning";
+	context.report({
+		level,
+		location: place.line === void 0 ? { file: place.file } : {
+			file: place.file,
+			line: place.line
+		},
+		message,
+		fix: `${fix.charAt(0).toUpperCase()}${fix.slice(1)}${better.length === 0 && check.tool.id === "npm" ? ` (no supported Node.js release comes with ${name} ${formatVersion(needed)} yet)` : ""}`
+	});
+}
+function unknown(context, subject, reason, file) {
+	context.notice(`${RULE} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
+}
+/** The first install with the tool in a job that nothing before it replaced; undefined when the tool is replaced first or not used. */
+function firstPlainInstall(commands, tool, replaced) {
+	let changed = replaced;
+	for (const command of commands) {
+		if (command.tool !== tool) continue;
+		if (command.kind === "upgrade") changed = true;
+		else if (!changed) return command.line;
+	}
+}
+/** "Node.js 22 (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test)", "Node.js 22 in .nvmrc". */
+function nodeSubject(declaration, label) {
+	const matrix = declaration.matrix === void 0 ? "" : ` (matrix.${declaration.matrix})`;
+	const where = declaration.source === "github-actions" && declaration.job !== void 0 ? `${declaration.file}, job ${declaration.job}` : declaration.file;
+	const from = declaration.versionFile === void 0 ? "" : ` from ${declaration.versionFile}`;
+	return `Node.js ${declaration.version}${matrix}${from} in ${label === where ? label : `${label} (${where})`}`;
+}
+/**
+* The commands of a job that use the Node.js a setup step declares: after that step and before the next step that
+* sets up Node.js again (a job can build on one version and then test on another). Without a step line, all of them.
+*/
+function commandsAfterStep(job, declaration, all) {
+	const step = declaration.step;
+	if (step === void 0) return job.commands;
+	const next = all.map((entry) => entry.step).filter((line) => line !== void 0 && line > step);
+	const end = next.length === 0 ? Number.POSITIVE_INFINITY : Math.min(...next);
+	return job.commands.filter((command) => command.line > step && command.line < end);
+}
+function checkJobs(context, helpers, check, facts) {
+	for (const job of context.detection.jobs) {
+		const declarations = context.detection.node.versions.filter((entry) => entry.source === "github-actions" && entry.file === job.file && entry.job === job.id);
+		for (const declaration of declarations) {
+			const install = firstPlainInstall(commandsAfterStep(job, declaration, declarations), "npm", false);
+			if (install === void 0) continue;
+			if (!("version" in declaration)) {
+				unknown(context, `the Node.js of ${declaration.versionFile} in ${declaration.file}`, "depcurfew cannot read the version from that file", declaration.file);
+				continue;
+			}
+			const subject = nodeSubject(declaration, helpers.label(declaration));
+			const resolution = nodeBundledNpm(declaration.version, "setup-node", facts);
+			if (resolution.kind === "unknown") {
+				unknown(context, subject, resolution.reason, declaration.file);
+				continue;
+			}
+			report(context, helpers, check, {
+				subject,
+				file: declaration.file,
+				...declaration.line === void 0 ? {} : { line: declaration.line },
+				enforced: true,
+				installs: `job ${job.id} installs packages with it on line ${install}`,
+				install: (version) => `run npm install -g npm@${version} in job ${job.id} before it installs packages`,
+				runtime: (releases, _first, bundled) => `set up a Node.js release that comes with npm ${bundled} or later (${releases})`
+			}, resolution, facts);
+		}
+	}
+}
+/** The stage a stage starts from, up to the one with an image, and whether the tool was replaced on the way. */
+function ancestry(file, stage, tool) {
+	let root = stage;
+	let replaced = false;
+	const seen = /* @__PURE__ */ new Set();
+	while (root.from !== void 0 && !seen.has(root)) {
+		seen.add(root);
+		const parent = file.stages[root.from];
+		if (parent === void 0) break;
+		if (parent.commands.some((command) => command.tool === tool && command.kind === "upgrade")) replaced = true;
+		root = parent;
+	}
+	return {
+		root,
+		replaced
+	};
+}
+function checkDockerfiles(context, helpers, check, facts) {
+	const tool = check.tool.id === "npm" ? "npm" : "pip";
+	const runtimeTool = tool === "npm" ? "node" : "python";
+	for (const file of context.detection.dockerfiles) {
+		const reported = /* @__PURE__ */ new Set();
+		for (const stage of file.stages) {
+			if (stage.runtime?.tool !== runtimeTool) continue;
+			const { root, replaced } = ancestry(file, stage, tool);
+			const install = firstPlainInstall(stage.commands, tool, replaced);
+			if (install === void 0 || reported.has(root)) continue;
+			reported.add(root);
+			const image = root.image ?? (runtimeTool === "node" ? "node" : "python");
+			const name = stage.name === void 0 ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
+			const runtimeName = runtimeTool === "node" ? "Node.js" : "Python";
+			const version = stage.runtime.version;
+			const subject = `${runtimeName}${version === void 0 ? "" : ` ${version}`} (${image}) in ${file.file}`;
+			if (version === void 0) {
+				unknown(context, subject, stage.runtime.unknown ?? "the tag names no version", file.file);
+				continue;
+			}
+			const resolution = runtimeTool === "node" ? nodeBundledNpm(version, "docker", facts) : pythonBundledPip(version, facts);
+			if (resolution.kind === "unknown") {
+				unknown(context, subject, resolution.reason, file.file);
+				continue;
+			}
+			const upgrade = tool === "npm" ? (target) => `npm install -g npm@${target}` : (target) => `pip install pip==${target}`;
+			report(context, helpers, check, {
+				subject,
+				file: file.file,
+				line: root.line,
+				enforced: true,
+				installs: `${name} installs packages with it on line ${install}`,
+				install: (target) => `add RUN ${upgrade(target)} to ${name} before it installs packages`,
+				runtime: (releases, first, bundled) => `start from a ${runtimeTool} image whose ${runtimeName} release comes with ${tool} ${bundled} or later (${releases}), such as ${runtimeTool}:${first}`
+			}, resolution, facts);
+		}
+	}
+}
+function checkDeveloperFiles(context, helpers, check, manager, facts) {
+	const declarations = context.detection.node.versions.filter((entry) => DEVELOPER_SOURCES.has(entry.source));
+	const voltaNpm = manager.versions.some((entry) => entry.source === "volta");
+	const manifest = context.repository.parseOnce("package.json", (text) => JSON.parse(text));
+	const isPrivate = typeof manifest === "object" && manifest !== null && manifest["private"] === true;
+	const others = declarations.some((entry) => entry.source !== "engines");
+	for (const declaration of declarations) {
+		if (!("version" in declaration)) continue;
+		if (declaration.source === "volta" && voltaNpm) continue;
+		if (declaration.source === "engines" && (!isPrivate || others)) continue;
+		const subject = nodeSubject(declaration, helpers.label(declaration));
+		const resolution = nodeBundledNpm(declaration.version, namingOf(declaration.source), facts);
+		if (resolution.kind === "unknown") {
+			unknown(context, subject, resolution.reason, declaration.file);
+			continue;
+		}
+		const line = helpers.line(declaration);
+		report(context, helpers, check, {
+			subject,
+			file: declaration.file,
+			...line === void 0 ? {} : { line },
+			enforced: false,
+			install: (version) => `install npm ${version} where this Node.js is used (npm install -g npm@${version})`,
+			runtime: (releases, _first, bundled) => `require a Node.js release that comes with npm ${bundled} or later in ${helpers.label(declaration)} (${releases})`
+		}, resolution, facts);
+	}
+}
+/** The exact version the repository pins for everyone (packageManager, devEngines, Volta, .tool-versions, the tool's own configuration). */
+function repositoryPin(manager) {
+	return pinnedVersion({
+		...manager,
+		versions: manager.versions.filter((entry) => entry.source !== "github-actions" && entry.source !== "dockerfile")
+	});
+}
+/** The npm and pip that come with the declared runtimes, checked against the settings the repository relies on. */
+function checkBundledVersions(context, helpers) {
+	const facts = runtimeFacts(environment);
+	const managed = (id) => context.detection.packageManagers.find((entry) => entry.id === id && entry.supported);
+	const npmManager = managed("npm");
+	const npm = context.tools.find((entry) => entry.id === "npm");
+	if (npmManager !== void 0 && npm !== void 0) {
+		const features = helpers.features(npm);
+		if (features.length > 0) {
+			const unknownKeys = npm.extra?.["unknownConfigKeys"] === void 0 ? void 0 : values$1(npm.extra["unknownConfigKeys"])[0];
+			const warning = Array.isArray(unknownKeys) ? unknownKeys.find((entry) => entry.value === "warning")?.since : void 0;
+			const warnsSince = warning === void 0 ? void 0 : parseVersion(warning);
+			const check = {
+				tool: npm,
+				features,
+				pinned: repositoryPin(npmManager),
+				...warnsSince === void 0 ? {} : { warnsSince }
+			};
+			checkJobs(context, helpers, check, facts);
+			checkDockerfiles(context, helpers, check, facts);
+			checkDeveloperFiles(context, helpers, check, npmManager, facts);
+		}
+	}
+	const pipManager = managed("pip");
+	const pip = context.tools.find((entry) => entry.id === "pip");
+	if (pipManager !== void 0 && pip !== void 0) {
+		const features = helpers.features(pip);
+		if (features.length > 0) checkDockerfiles(context, helpers, {
+			tool: pip,
+			features,
+			pinned: repositoryPin(pipManager)
+		}, facts);
+	}
 }
 
 // src/doctor/rules/manager-version.ts
@@ -21945,7 +24068,11 @@ const SOURCE_LABEL = {
 	devEngines: "devEngines",
 	volta: "Volta",
 	"tool-versions": ".tool-versions",
-	"github-actions": "GitHub Actions"
+	nvmrc: ".nvmrc",
+	"node-version": ".node-version",
+	engines: "engines",
+	"github-actions": "GitHub Actions",
+	dockerfile: "Dockerfile"
 };
 /** Where a version is declared, for messages; a tool's own required version is named by its key. */
 function sourceLabel(tool, declaration) {
@@ -21958,13 +24085,27 @@ function declarationLine(context, declaration) {
 	if (declaration.line !== void 0) return declaration.line;
 	const text = context.repository.readText(declaration.file);
 	if (text === void 0) return void 0;
-	const key = declaration.source === "packageManager" ? "\"packageManager\"" : declaration.source === "devEngines" ? "\"devEngines\"" : declaration.source === "volta" ? "\"volta\"" : void 0;
+	const key = {
+		packageManager: "\"packageManager\"",
+		devEngines: "\"devEngines\"",
+		volta: "\"volta\"",
+		engines: "\"engines\""
+	}[declaration.source];
 	return key === void 0 ? void 0 : lineOf$1(text, key);
 }
-function checkManager(context, manager, tool) {
+/** Every setting in use for a tool: the ones depcurfew.json needs and the ones already in its configuration. */
+function featuresOf(context, tool) {
 	const features = /* @__PURE__ */ new Map();
 	for (const item of [...context.policy === void 0 ? [] : policyFeatures(tool, policyFor(context.policy, ecosystemOfTool(tool))), ...configuredFeatures(context, tool)]) features.set(item.setting, item);
-	if (features.size === 0) return;
+	return [...features.values()];
+}
+/** Features a version lacks, without "minimumReleaseAge for packages requested by exact version" when minimumReleaseAge itself is missing. */
+function missingFeatures(features, below) {
+	const missing = features.filter((item) => below(parseVersion(item.since)));
+	return missing.filter((item) => !missing.some((other) => other !== item && item.setting.startsWith(`${other.setting} for `)));
+}
+function checkManager(context, manager, tool, features) {
+	if (features.length === 0) return;
 	for (const declaration of manager.versions) {
 		if (!("version" in declaration)) continue;
 		const lowest = lowestVersion(declaration.version);
@@ -21974,8 +24115,7 @@ function checkManager(context, manager, tool) {
 			context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
 			continue;
 		}
-		const below = [...features.values()].filter((item) => belowVersion(lowest, parseVersion(item.since)));
-		const missing = below.filter((item) => !below.some((other) => other !== item && item.setting.startsWith(`${other.setting} for `)));
+		const missing = missingFeatures(features, (since) => belowVersion(lowest, since));
 		if (missing.length === 0) continue;
 		const needed = missing.map((item) => parseVersion(item.since)).reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
 		const list = describeRequirements(missing);
@@ -21994,18 +24134,24 @@ function checkManager(context, manager, tool) {
 }
 const managerVersionTooOld = {
 	id: "manager-version-too-old",
-	checks: "The declared package manager versions support the settings the repository relies on",
-	summary: "A declared package manager version is older than a setting the repository relies on.",
-	description: "Package managers ignore settings they do not know yet. When packageManager, devEngines, Volta, .tool-versions or a CI step pins an older version, the setting is silently not applied there.",
-	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared.",
+	checks: "The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on",
+	summary: "A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.",
+	description: "Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age.",
+	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.",
 	level: "error",
 	requiresPolicy: false,
 	applies: (scope) => scope.detection.packageManagers.length > 0,
 	check(context) {
 		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
-			if (tool !== void 0) checkManager(context, manager, tool);
+			if (tool !== void 0) checkManager(context, manager, tool, featuresOf(context, tool));
 		}
+		checkBundledVersions(context, {
+			features: (tool) => featuresOf(context, tool),
+			missing: missingFeatures,
+			line: (declaration) => declarationLine(context, declaration),
+			label: (declaration) => SOURCE_LABEL[declaration.source]
+		});
 		for (const manager of context.detection.packageManagers.filter((entry) => !entry.supported && entry.variant === "classic")) {
 			const berry = context.tools.find((entry) => entry.id === manager.id);
 			if (context.policy === void 0 || berry === void 0) continue;
@@ -22449,6 +24595,50 @@ const pythonConfigIgnored = {
 	}
 };
 
+// src/doctor/rules/runtime-end-of-life.ts
+function listing(items) {
+	return items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} or ${items.at(-1) ?? ""}`;
+}
+const runtimeEndOfLife = {
+	id: "runtime-end-of-life",
+	checks: "No declared Node.js version is past its end of life",
+	summary: "A declared Node.js version is past its end of life.",
+	description: "After its end of life a Node.js release line gets no more releases, security fixes included. A version file, CI step or Dockerfile that only allows such lines keeps running an unpatched Node.js, and an older npm with it.",
+	help: "Move to a Node.js line that is still supported, in every place that declares the version.",
+	level: "warning",
+	requiresPolicy: false,
+	applies: (scope) => [scope.detection, ...(scope.projects ?? []).map((project) => project.detection)].some((detection) => detection.node.versions.length > 0),
+	check(context) {
+		const facts = runtimeFacts(environment);
+		const now = today();
+		const supported = supportedLtsLines(facts, now).map((line) => `${line.line} (until ${line.end})`);
+		for (const declaration of context.detection.node.versions) {
+			if (!("version" in declaration)) continue;
+			if (declaration.source === "github-actions") {
+				const job = context.detection.jobs.find((entry) => entry.file === declaration.file && entry.id === declaration.job);
+				if (job !== void 0 && !job.runsNode) continue;
+				const siblings = context.detection.node.versions.filter((entry) => entry.source === "github-actions" && entry.file === declaration.file && entry.job === declaration.job);
+				if (job !== void 0 && declaration.step !== void 0 && !commandsAfterStep(job, declaration, siblings).some((command) => command.kind === "install")) continue;
+			}
+			const lines = nodeLines(declaration.version, namingOf(declaration.source), facts);
+			if (lines === void 0 || lines.length === 0 || lines.some((line) => line.end > now)) continue;
+			const label = SOURCE_LABEL[declaration.source];
+			const subject = nodeSubject(declaration, label);
+			const last = lines.reduce((newest, line) => line.line > newest.line ? line : newest);
+			const message = lines.length === 1 ? `${subject} is past its end of life (Node.js ${last.line} ended on ${last.end}) and gets no more releases, security fixes included` : `${subject} only allows Node.js lines past their end of life (the newest, ${last.line}, ended on ${last.end}), which get no security fixes`;
+			const line = declarationLine(context, declaration);
+			context.report({
+				location: line === void 0 ? { file: declaration.file } : {
+					file: declaration.file,
+					line
+				},
+				message,
+				fix: supported.length === 0 ? `Move to a Node.js line that is still supported, in ${label}` : `Move to a supported Node.js LTS line in ${label}: ${listing(supported)}`
+			});
+		}
+	}
+};
+
 // src/doctor/rules/unreadable-config.ts
 const unreadableConfig = {
 	id: "unreadable-config",
@@ -22491,6 +24681,7 @@ const RULES = [
 	invalidProject,
 	depcurfewOutdated,
 	managerVersionTooOld,
+	runtimeEndOfLife,
 	settingIgnoredByVersion,
 	npmrcOverridesPolicy,
 	pnpmSharedWorkspaceLockfile,
@@ -22985,6 +25176,7 @@ function checkedOf(detection, repository, tools, policyRead) {
 		...detection.npmrcFiles,
 		...detection.workflows
 	]) files.add(file);
+	for (const file of [...detection.node.versions.map((declaration) => declaration.file), ...detection.dockerfiles.map((dockerfile) => dockerfile.file)]) files.add(file);
 	for (const declaration of detection.workspaces?.declarations ?? []) files.add(declaration.file);
 	if (policyRead) files.add(POLICY_FILE);
 	return {

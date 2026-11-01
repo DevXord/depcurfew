@@ -211,6 +211,7 @@ function checkedOf(detection: Detection, repository: Repository, tools: readonly
     for (const file of [...manager.evidence.map((evidence) => evidence.file), ...manager.configFiles, ...manager.versions.map((declaration) => declaration.file)]) files.add(file);
   }
   for (const file of [...detection.bots.flatMap((bot) => bot.configFiles), ...detection.npmrcFiles, ...detection.workflows]) files.add(file);
+  for (const file of [...detection.node.versions.map((declaration) => declaration.file), ...detection.dockerfiles.map((dockerfile) => dockerfile.file)]) files.add(file);
   for (const declaration of detection.workspaces?.declarations ?? []) files.add(declaration.file);
   if (policyRead) files.add(POLICY_FILE);
   return { tools: found, files: [...files].filter((file) => file !== '' && repository.isFile(file)).sort() };
