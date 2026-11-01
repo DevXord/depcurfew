@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { colorsFor } from './color.ts';
-import { EXIT_FAILURE, run } from './cli/run.ts';
+import { EXIT_FAILURE } from './cli/io.ts';
 
 /**
  * Output to a stream whose reader has gone (depcurfew doctor --sarif | head -1) fails with EPIPE, which Node reports
@@ -27,7 +27,8 @@ function quietWhenClosed(stream: NodeJS.WriteStream): (text: string) => void {
  * Node 22.15 and later warn on stderr while loading node:util (which parseArgs needs) when FORCE_COLOR and NO_COLOR
  * are both set: "The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set". depcurfew decides about colors
  * itself, the same way (colorsFor: FORCE_COLOR wins), and stderr must stay empty with --json. Node emits warnings on
- * the next tick, after the imports above ran, so this one is dropped here; every other warning is printed as before.
+ * the next tick, which on Node.js 24 and later comes before this module runs when node:util is a static import, so the
+ * filter is installed first and the commands are loaded afterwards; every other warning is printed as before.
  */
 function dropColorWarning(): void {
   const printers = process.listeners('warning');
@@ -39,18 +40,22 @@ function dropColorWarning(): void {
 }
 
 dropColorWarning();
-run(process.argv.slice(2), {
-  stdout: quietWhenClosed(process.stdout),
-  stderr: quietWhenClosed(process.stderr),
-  colors: { stdout: colorsFor(process.stdout, process.env), stderr: colorsFor(process.stderr, process.env) },
-  terminal: { stdout: process.stdout.isTTY === true, stderr: process.stderr.isTTY === true },
-}).then(
-  (code) => {
-    // An output error after the command ended keeps its exit code; one before it set EXIT_FAILURE already.
-    if (process.exitCode === undefined || process.exitCode === 0) process.exitCode = code;
-  },
-  (error: unknown) => {
-    process.stderr.write(`depcurfew: unexpected error: ${error instanceof Error ? error.stack : String(error)}\n`);
-    process.exitCode = EXIT_FAILURE;
-  },
-);
+import('./cli/run.ts')
+  .then(({ run }) =>
+    run(process.argv.slice(2), {
+      stdout: quietWhenClosed(process.stdout),
+      stderr: quietWhenClosed(process.stderr),
+      colors: { stdout: colorsFor(process.stdout, process.env), stderr: colorsFor(process.stderr, process.env) },
+      terminal: { stdout: process.stdout.isTTY === true, stderr: process.stderr.isTTY === true },
+    }),
+  )
+  .then(
+    (code) => {
+      // An output error after the command ended keeps its exit code; one before it set EXIT_FAILURE already.
+      if (process.exitCode === undefined || process.exitCode === 0) process.exitCode = code;
+    },
+    (error: unknown) => {
+      process.stderr.write(`depcurfew: unexpected error: ${error instanceof Error ? error.stack : String(error)}\n`);
+      process.exitCode = EXIT_FAILURE;
+    },
+  );
