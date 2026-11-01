@@ -546,6 +546,11 @@ export const environment: EnvironmentKnowledge = {
       'https://code.claude.com/docs/en/tools-reference',
       'Tool names are the exact strings of hook matchers. Bash executes shell commands. PowerShell executes PowerShell commands natively; hooks get its command in tool_input.command with the same fields as Bash, and the docs say to match Bash|PowerShell in hooks that inspect shell commands: on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash it is enabled automatically and the Bash tool is not registered at all (also https://code.claude.com/docs/en/hooks#powershell). On Windows with Git Bash it is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1. Monitor runs a command in the background and feeds its output lines back to Claude, with the same permission rules as Bash; on Windows it is available only with Git Bash; a WebSocket watch takes a ws input in place of command.',
     ),
+    commandlessInputs: release13.verified(
+      [{ tool: 'Monitor', input: 'tool_input.ws' }],
+      'https://code.claude.com/docs/en/tools-reference#websocket-source',
+      '"A WebSocket watch takes a `ws` input in place of `command`, and a single Monitor call can\'t combine the two"; ws has url (a ws:// or wss:// URL) and optional protocols. Opening a WebSocket has its own approval prompt.',
+    ),
   },
   mcp: {
     revisions: mcpFacts.verified(

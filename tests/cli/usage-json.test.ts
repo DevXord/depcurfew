@@ -1,6 +1,6 @@
 // A usage error with --json (D-107): stdout holds the JSON document with the error (code usage, message and fix), as for
 // other errors that keep a command from starting, stderr stays empty and the exit code is 2. Without --json the text
-// on stderr stays as it was.
+// on stderr has the same form as those errors (D-113).
 import { describe, expect, it } from 'vitest';
 import { EXIT_USAGE, run } from '../../src/cli/run.ts';
 
@@ -37,6 +37,7 @@ describe('usage errors with --json', () => {
     const result = await exec('check');
     expect(result.code).toBe(EXIT_USAGE);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toBe("depcurfew: 'check' needs at least one package, e.g. depcurfew check lodash@4\nRun 'depcurfew check --help' for usage.\n");
+    // The text form of every error that keeps a command from starting (decision D-113).
+    expect(result.stderr).toBe("error: 'check' needs at least one package, e.g. depcurfew check lodash@4 (usage)\n  fix: Run 'depcurfew check --help' for usage\n");
   });
 });

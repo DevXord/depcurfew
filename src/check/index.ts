@@ -11,7 +11,7 @@ import { knowledgeBase } from '../knowledge/index.ts';
 import { policyFor } from '../policy/ecosystem.ts';
 import { CHECK_BY_HAND, describeAge, insecureFinding, quoted, sourceFindings, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
 import { checkPythonSpec, isPythonSpec } from './python.ts';
-import { fetchPackument, type Packument } from './registry.ts';
+import { cachedLookup, fetchPackument, type Packument } from './registry.ts';
 import { compareSemver, maxSatisfying, parseRange, parseSemver, satisfies } from './semver.ts';
 import { parseSpec } from './spec.ts';
 
@@ -76,7 +76,7 @@ function oldEnough(packument: Packument, selector: string, cutoff: number): stri
   return maxSatisfying(versions, range);
 }
 
-async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions, preferred: string): Promise<void> {
+async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions, preferred: string, tool: CheckRequest['tool']): Promise<void> {
   // check looks up npm packages, so only the policy's npm names apply.
   const policy = policyFor(options.policy, 'npm');
   const add = (finding: CheckFinding) => report.findings.push(finding);
@@ -102,16 +102,18 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
     });
   }
 
+  // The caller reports why (an unread scope registry): the name is not sent to a registry the install does not use.
+  if (options.skipLookup?.(name, tool) === true) return;
   const insecure = insecureFinding(options.registry, 'registry');
   if (insecure !== undefined) add(insecure);
-  const lookup = await fetchPackument(name, { registry: options.registry, fetch: options.fetch, signal: options.signal });
+  const lookup = await cachedLookup(options.lookups, `npm\0${options.registry}\0${name}`, () => fetchPackument(name, { registry: options.registry, fetch: options.fetch, signal: options.signal }));
   if (lookup.status === 'not-found') {
     if (scope !== undefined) {
       // A scope may belong to a private registry that no .npmrc depcurfew reads names, so a person decides.
       add({
         level: 'error',
         code: 'unverified',
-        message: `${name} is not in ${options.registry}; if ${scope} packages come from another registry, set ${scope}:registry in .npmrc, otherwise the name may be mistyped or made up`,
+        message: `${name} is not in ${options.registry}; either ${scope} packages come from another registry, which ${scope}:registry in .npmrc names, or the name is mistyped or made up`,
         fix: `Set ${scope}:registry in .npmrc if ${scope} packages come from another registry; otherwise check the spelling of the name`,
       });
       return;
@@ -232,7 +234,7 @@ export async function checkSpec(request: string | CheckRequest, options: CheckOp
     report.name = spec.name;
     const preferred = chosen.tag ?? (chosen.ignoresConfigTag === true ? undefined : options.defaultTag) ?? defaultTag();
     if (preferred !== defaultTag()) report.tag = preferred;
-    await checkRegistryPackage(report, spec.name, spec.selector ?? '', options, preferred);
+    await checkRegistryPackage(report, spec.name, spec.selector ?? '', options, preferred, chosen.tool);
   }
   return report;
 }

@@ -147,11 +147,11 @@ describe('doctor --fail-on', () => {
     expect(conflict).toEqual({
       code: EXIT_USAGE,
       stdout: '',
-      stderr: "depcurfew: '--strict' and '--fail-on error' cannot be used together: --strict means --fail-on warning, so pass only one of them\nRun 'depcurfew doctor --help' for usage.\n",
+      stderr: "error: '--strict' and '--fail-on error' cannot be used together: --strict means --fail-on warning, so pass only one of them (usage)\n  fix: Run 'depcurfew doctor --help' for usage\n",
     });
     const value = await exec(['doctor', '--fail-on', 'warnings', root]);
     expect(value.code).toBe(EXIT_USAGE);
-    expect(value.stderr).toBe("depcurfew: --fail-on takes error (only errors fail) or warning (warnings fail too), not 'warnings'\nRun 'depcurfew doctor --help' for usage.\n");
+    expect(value.stderr).toBe("error: --fail-on takes error (only errors fail) or warning (warnings fail too), not 'warnings' (usage)\n  fix: Run 'depcurfew doctor --help' for usage\n");
     const json = await exec(['doctor', '--json', '--fail-on', 'never', root]);
     expect(json.code).toBe(EXIT_USAGE);
     expect(json.stderr).toBe('');

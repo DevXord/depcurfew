@@ -1,6 +1,7 @@
 // Smoke test of the built CLI on the Node.js that runs this file, without network: CI runs it on old Node.js versions
 // to find the lowest one depcurfew works on (decision D-103), and tests/runtime/smoke.test.ts on the current one.
-// Plain JavaScript, because Node.js before 22.18 cannot run .ts files. Usage: node tests/runtime/smoke.mjs
+// Plain JavaScript, because Node.js before 22.18 cannot run .ts files, and only APIs Node.js 18.3.0 has. Usage: node
+// tests/runtime/smoke.mjs
 import { spawn } from 'node:child_process';
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -12,7 +13,21 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const cli = join(root, 'dist', 'cli.js');
 const fixture = (path) => join(root, 'tests', 'fixtures', path);
 const scratch = mkdtempSync(join(tmpdir(), 'depcurfew-smoke-'));
-const { FORCE_COLOR: _force, NO_COLOR: _no, ...plain } = process.env;
+// The commands run with a scratch home directory and nothing of the real environment (decision D-113): the user's
+// .npmrc, CLAUDE_PROJECT_DIR, NPM_CONFIG_USERCONFIG, PIP_CONFIG_FILE or a color setting would change what they do.
+// The scratch directory, and the home directory in it, are removed at the end.
+const home = join(scratch, 'home');
+mkdirSync(home, { recursive: true });
+const kept = ['SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP', 'TMPDIR'].filter((name) => process.env[name] !== undefined);
+const plain = {
+  ...Object.fromEntries(kept.map((name) => [name, process.env[name]])),
+  HOME: home,
+  USERPROFILE: home,
+  XDG_CONFIG_HOME: join(home, '.config'),
+  APPDATA: join(home, 'AppData', 'Roaming'),
+  LOCALAPPDATA: join(home, 'AppData', 'Local'),
+  PATH: join(scratch, 'empty-bin'),
+};
 const failures = [];
 
 /** Runs the CLI without blocking, so the local registry below can answer it. */
@@ -126,11 +141,8 @@ async function main() {
     const event = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git status' }, cwd: project });
     await step('check --hook without an install', ['check', '--hook', 'claude-code'], { code: 0 }, { input: event });
     await step('check --hook with an unreadable event', ['check', '--hook', 'claude-code'], { code: 2, stderr: false }, { input: '{' });
-    const home = join(scratch, 'home');
-    mkdirSync(home, { recursive: true });
-    const userEnv = { HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, '.config'), APPDATA: join(home, 'AppData', 'Roaming'), PATH: join(scratch, 'empty-bin') };
-    await step('init --user', ['init', '--user'], { code: 0 }, { env: userEnv });
-    await step('doctor --user --json', ['doctor', '--user', '--json'], { code: 0, json: true }, { env: userEnv });
+    await step('init --user', ['init', '--user'], { code: 0 });
+    await step('doctor --user --json', ['doctor', '--user', '--json'], { code: 0, json: true });
     await step('check --json against a local registry', ['check', '--json', '--registry', registryUrl, 'lodash@4.17.21'], { code: 0, json: true });
     await step('check of a name the registry does not know', ['check', '--json', '--registry', registryUrl, 'this-package-does-not-exist-xyz-123'], { code: 1, json: true });
     // The hook asks about a registry named in the command, so the project's .npmrc names this one.

@@ -25,6 +25,7 @@ import {
 } from './findings.ts';
 import { matchesSpecifiers, pickVersion, pinsVersion, type Clause } from './pep440.ts';
 import { defaultIndex, fetchProject, type PypiFile, type PypiProject } from './pypi.ts';
+import { cachedLookup } from './registry.ts';
 import { parsePythonSpec } from './python-spec.ts';
 
 /** What to do when the index cannot be reached, for a person at the command line. */
@@ -115,7 +116,7 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
     });
   }
 
-  const lookup = await fetchProject(name, { index, fetch: options.fetch, signal: options.signal });
+  const lookup = await cachedLookup(options.lookups, `pypi\0${index}\0${name}`, () => fetchProject(name, { index, fetch: options.fetch, signal: options.signal }));
   if (lookup.status === 'not-found') {
     add({
       level: 'error',
@@ -161,7 +162,8 @@ async function checkIndexPackage(report: PackageReport, name: string, clauses: r
     add({
       level: 'warning',
       code: 'yanked',
-      message: `${versionLabel} is yanked${yanked.yanked.trim() === '' ? '' : `: ${yanked.yanked.trim()}`}`,
+      // The reason is the publisher's text: quoted, so that it reads as data (decision D-113).
+      message: `${versionLabel} is yanked${yanked.yanked.trim() === '' ? '' : `, with the reason ${quoted(yanked.yanked.trim())}`}`,
       fix: `Pick a version of ${label} that is not yanked${latest === undefined ? '' : `, such as ${label}==${latest}`}`,
     });
   }

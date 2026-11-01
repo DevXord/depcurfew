@@ -27,6 +27,13 @@ export type Lookup = { status: 'found'; packument: Packument } | { status: 'not-
 
 export const TIMEOUT_MS = 15_000;
 export const MAX_DOCUMENT_SIZE = 64 * 1024 * 1024;
+/**
+ * The most versions (and publish times) of one package document depcurfew reads (decision D-113). A real package
+ * document under MAX_DOCUMENT_SIZE has far fewer: each version object of the full document carries its package.json
+ * and dist fields, so 64 MiB hold some tens of thousands. A document with more is made to cost time, and the package
+ * is reported as not checked.
+ */
+export const MAX_VERSIONS = 100_000;
 /** Redirects followed within the same origin before giving up. */
 export const MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
@@ -141,6 +148,75 @@ function strings(value: unknown): Record<string, string> {
   return isRecord(value) ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')) : {};
 }
 
+/**
+ * The first of `limits` (top-level field of a JSON object, most members of the object or array it holds) that the
+ * document text goes over, found in one pass over the text before it is parsed (decision D-113): parsing a document
+ * with millions of keys alone takes seconds. Text that is not a JSON object passes, and JSON.parse reports it. A key
+ * written with escapes is read as JSON reads it.
+ */
+export function tooManyMembers(text: string, limits: Readonly<Record<string, number>>): string | undefined {
+  let depth = 0;
+  let expectingKey = false;
+  let key = '';
+  let limit: number | undefined;
+  let members = 0;
+  let empty = true;
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index);
+    if (code === 0x22) {
+      // A string: find its end, skipping escaped quotes.
+      let end = index + 1;
+      for (;;) {
+        end = text.indexOf('"', end);
+        if (end === -1) return undefined;
+        let backslashes = 0;
+        while (text.charCodeAt(end - 1 - backslashes) === 0x5c) backslashes++;
+        if (backslashes % 2 === 0) break;
+        end++;
+      }
+      if (depth === 1 && expectingKey) {
+        try {
+          key = JSON.parse(text.slice(index, end + 1)) as string;
+        } catch {
+          return undefined;
+        }
+        expectingKey = false;
+      } else if (depth === 2) empty = false;
+      index = end;
+      continue;
+    }
+    if (code === 0x7b || code === 0x5b) {
+      depth++;
+      if (depth === 1) {
+        if (code !== 0x7b) return undefined;
+        expectingKey = true;
+      } else if (depth === 2) {
+        limit = Object.hasOwn(limits, key) ? limits[key] : undefined;
+        members = 0;
+        empty = true;
+      } else if (depth === 3) empty = false;
+    } else if (code === 0x7d || code === 0x5d) {
+      if (depth === 2 && limit !== undefined && (empty ? 0 : members + 1) > limit) return key;
+      depth--;
+    } else if (code === 0x2c) {
+      if (depth === 1) expectingKey = true;
+      else if (depth === 2 && limit !== undefined && ++members + 1 > limit) return key;
+    } else if (depth === 2 && code > 0x20) {
+      empty = false;
+    }
+  }
+  return undefined;
+}
+
+/** The lookup of a document with more than MAX_VERSIONS versions: not checked, with what to do. */
+export function tooManyVersions(name: string, what: 'registry' | 'index', listed = `${MAX_VERSIONS} versions`): { status: 'error'; reason: string; fix: string } {
+  return {
+    status: 'error',
+    reason: `the ${what} lists more than ${listed} of ${name}, more than depcurfew reads of one package, so its versions were not checked`,
+    fix: `Check ${name} by hand before installing it: a real package has far fewer versions, so the ${what} may be answering with something made to slow checks down`,
+  };
+}
+
 function toPackument(document: unknown, name: string): Packument | undefined {
   if (!isRecord(document)) return undefined;
   const fields = api();
@@ -156,6 +232,22 @@ function toPackument(document: unknown, name: string): Packument | undefined {
     };
   }
   return { name: typeof document['name'] === 'string' ? document['name'] : name, distTags: strings(document[fields.distTagsField]), time: strings(document[fields.timeField]), versions };
+}
+
+/**
+ * Lookups shared by the checks of one run, by registry or index and name: a command checked against two policies
+ * fetches and reads each document once (decision D-113).
+ */
+export type LookupCache = Map<string, Promise<unknown>>;
+
+/** The lookup for `key` from the cache, or a new one that the cache keeps. */
+export function cachedLookup<T>(cache: LookupCache | undefined, key: string, lookup: () => Promise<T>): Promise<T> {
+  if (cache === undefined) return lookup();
+  const known = cache.get(key) as Promise<T> | undefined;
+  if (known !== undefined) return known;
+  const started = lookup();
+  cache.set(key, started);
+  return started;
 }
 
 export async function fetchPackument(name: string, options: { registry: string; fetch: FetchLike; timeoutMs?: number; maxBytes?: number; signal?: AbortSignal | undefined }): Promise<Lookup> {
@@ -177,7 +269,11 @@ export async function fetchPackument(name: string, options: { registry: string; 
   if (response.status === notFound) return { status: 'not-found' };
   if (!response.ok) return { status: 'error', reason: `the registry answered HTTP ${response.status}` };
   try {
-    const packument = toPackument(JSON.parse(await readLimited(response, options.maxBytes ?? MAX_DOCUMENT_SIZE)) as unknown, name);
+    const text = await readLimited(response, options.maxBytes ?? MAX_DOCUMENT_SIZE);
+    const fields = api();
+    // Counted before the document is parsed (decision D-113); time also has created and modified.
+    if (tooManyMembers(text, { [fields.versionsField]: MAX_VERSIONS, [fields.timeField]: MAX_VERSIONS + 2 }) !== undefined) return tooManyVersions(name, 'registry');
+    const packument = toPackument(JSON.parse(text) as unknown, name);
     return packument === undefined ? { status: 'error', reason: 'the registry answered something that is not a package document' } : { status: 'found', packument };
   } catch (error) {
     return { status: 'error', reason: error instanceof Error ? error.message : String(error) };

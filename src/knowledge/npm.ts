@@ -226,6 +226,11 @@ export const npm: ToolKnowledge = {
     ),
   },
   extra: {
+    localPrefix: runtimes.verified(
+      { markers: { file: 'package.json', directory: 'node_modules' }, workspaceRoot: true, workspacesField: 'workspaces', workspacesObjectKey: 'packages', prefixOption: '--prefix', projectFile: '.npmrc' },
+      `${NPM_CONFIG_LIB}/index.js`,
+      'loadLocalPrefix: --prefix on the command line is the local prefix. Otherwise npm walks up from the current directory (walk-up-path yields the directory and each parent up to the root, with no other stop; "for (const p of walkUp(this.cwd))") and takes the first directory with a package.json file or a node_modules directory ("hasPackageJson || await dirExists(p, \'node_modules\')"). Unless workspaces are turned off or npm runs in global mode it walks on: a higher directory with a package.json whose workspaces include that directory becomes the prefix, and a .npmrc of the workspace is skipped ("ignoring workspace config at ${this.localPrefix}/.npmrc"). Without a match the prefix is the current directory ("this.localPrefix = this.cwd"). loadProjectConfig reads "resolve(this.localPrefix, \'.npmrc\')" as the project configuration, except in global mode and when that path is the userconfig file. Workspaces (@npmcli/map-workspaces, lib/index.js on main): an array of patterns or an object with a packages array, patterns starting with ! exclude, the globs match directories (whose package.json is then read) and skip node_modules. No .git or home directory stops the walk.',
+    ),
     childEnvironment: user.verified(
       { marker: 'npm_execpath', prefix: 'npm_config_' },
       'https://github.com/npm/cli/blob/v11.21.1/workspaces/config/lib/set-envs.js',

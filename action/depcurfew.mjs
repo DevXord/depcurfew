@@ -186,6 +186,19 @@ const bun$1 = {
 		variables: user$9.uncertain([], `${BUN_V1_4_4}/docs/pm/cli/install.mdx`, "No environment variable sets minimumReleaseAge or its exclusions: concluded from the install page, which lists registry, token, lockfile and retry variables only. NPM_CONFIG_IGNORE_SCRIPTS only turns scripts off. XDG_CONFIG_HOME moves the user file (user.files).")
 	},
 	extra: {
+		registrySettings: runtimes$3.verified([{
+			file: "bunfig.toml",
+			path: ["install", "registry"],
+			applies: "all"
+		}, {
+			file: "bunfig.toml",
+			path: [
+				"install",
+				"scopes",
+				"*"
+			],
+			applies: "scope"
+		}], `${BUN_V1_4_4}/docs/runtime/bunfig.mdx`, "\"Put bunfig.toml in your project root, alongside your package.json\"; the global $HOME/.bunfig.toml (or $XDG_CONFIG_HOME/.bunfig.toml) is loaded too, and local keys win. \"The default registry is https://registry.npmjs.org/. To change it\": [install] registry, a string or { url, token }. \"To configure a registry for a particular scope (for example, @myorg/<package>), use install.scopes\": a key per scope (myorg = \"https://registry.myorg.com/\" or a table with url)."),
 		projectInstall: runtimes$3.verified({
 			commands: ["install"],
 			bare: false
@@ -906,6 +919,17 @@ const npm$1 = {
 		], `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`, "Environment variables starting with npm_config_ are interpreted as configuration parameters; config values are case-insensitive, so NPM_CONFIG_FOO=bar works the same. loadEnv in workspaces/config/lib/index.js (11.21.1 and 12.2.1) skips variables whose value is empty and reads them in the order of the environment, so of two spellings the later one wins. userconfig defaults to ~/.npmrc (definitions.js), and npm exports the resolved path as npm_config_userconfig to every command it runs (see extra.childEnvironment), so that value names the default file.")
 	},
 	extra: {
+		localPrefix: runtimes$2.verified({
+			markers: {
+				file: "package.json",
+				directory: "node_modules"
+			},
+			workspaceRoot: true,
+			workspacesField: "workspaces",
+			workspacesObjectKey: "packages",
+			prefixOption: "--prefix",
+			projectFile: ".npmrc"
+		}, `${NPM_CONFIG_LIB}/index.js`, "loadLocalPrefix: --prefix on the command line is the local prefix. Otherwise npm walks up from the current directory (walk-up-path yields the directory and each parent up to the root, with no other stop; \"for (const p of walkUp(this.cwd))\") and takes the first directory with a package.json file or a node_modules directory (\"hasPackageJson || await dirExists(p, 'node_modules')\"). Unless workspaces are turned off or npm runs in global mode it walks on: a higher directory with a package.json whose workspaces include that directory becomes the prefix, and a .npmrc of the workspace is skipped (\"ignoring workspace config at ${this.localPrefix}/.npmrc\"). Without a match the prefix is the current directory (\"this.localPrefix = this.cwd\"). loadProjectConfig reads \"resolve(this.localPrefix, '.npmrc')\" as the project configuration, except in global mode and when that path is the userconfig file. Workspaces (@npmcli/map-workspaces, lib/index.js on main): an array of patterns or an object with a packages array, patterns starting with ! exclude, the globs match directories (whose package.json is then read) and skip node_modules. No .git or home directory stops the walk."),
 		childEnvironment: user$7.verified({
 			marker: "npm_execpath",
 			prefix: "npm_config_"
@@ -3815,6 +3839,7 @@ const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
 const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor, version) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll(".", "")}`;
 const user$1 = verifiedOn("2026-10-31");
+const release13$1 = verifiedOn("2026-11-01");
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = [
 	"1",
@@ -4020,6 +4045,111 @@ const uv$1 = {
 		], `${UV}/crates/uv-static/src/env_vars.rs`, "\"Settings provided via environment variables take precedence over persistent configuration, and settings provided via the command line take precedence over both\" (docs/concepts/configuration-files.md). UV_NO_BUILD_PACKAGE since 0.6.5, UV_NO_BINARY and UV_NO_BINARY_PACKAGE since 0.5.30 (lists separated by spaces), UV_NO_CONFIG since 0.2.30, UV_CONFIG_FILE since 0.1.34. UV_NO_BUILD, UV_NO_BINARY and UV_NO_CONFIG are flags parsed with the BoolishValueParser of clap (crates/uv-cli/src/lib.rs), whose true values are y, yes, t, true, on and 1 and false values n, no, f, false, off and 0, in any case (https://github.com/clap-rs/clap/blob/v4.6.7/clap_builder/src/util/str_to_bool.rs, the clap_builder version in the Cargo.lock of uv); a false value leaves the flag unset (flag() in crates/uv-cli/src/options.rs gives None), so the files decide (with UV_NO_BUILD=0 uv 0.11.32 still refused to build in a review test on 2026-10-31). XDG_CONFIG_HOME and APPDATA move the user directory (see files).")
 	},
 	extra: {
+		registrySettings: release13$1.verified([
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"index"
+				],
+				applies: "all",
+				unlessTrue: "explicit"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"index-url"
+				],
+				applies: "all"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"extra-index-url"
+				],
+				applies: "all"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"find-links"
+				],
+				applies: "all"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"pip",
+					"index-url"
+				],
+				applies: "all"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"pip",
+					"extra-index-url"
+				],
+				applies: "all"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"pip",
+					"find-links"
+				],
+				applies: "all"
+			},
+			{
+				file: "uv.toml",
+				path: ["index"],
+				applies: "all",
+				unlessTrue: "explicit"
+			},
+			{
+				file: "uv.toml",
+				path: ["index-url"],
+				applies: "all"
+			},
+			{
+				file: "uv.toml",
+				path: ["extra-index-url"],
+				applies: "all"
+			},
+			{
+				file: "uv.toml",
+				path: ["find-links"],
+				applies: "all"
+			},
+			{
+				file: "uv.toml",
+				path: ["pip", "index-url"],
+				applies: "all"
+			},
+			{
+				file: "uv.toml",
+				path: ["pip", "extra-index-url"],
+				applies: "all"
+			},
+			{
+				file: "uv.toml",
+				path: ["pip", "find-links"],
+				applies: "all"
+			}
+		], SETTINGS, "ResolverInstallerSchema: index (\"The package indexes to use when resolving dependencies\", [[tool.uv.index]] with name and url), index-url (\"The URL of the Python package index (by default: <https://pypi.org/simple>)\"), extra-index-url (\"Extra URLs of package indexes to use, in addition to --index-url\") and find-links (\"Locations to search for candidate distributions, in addition to those found in the registry indexes\"); PipOptions ([tool.uv.pip]) has index-url, extra-index-url and find-links too. uv.toml takes the same keys at its top level (extra.configTables). docs/concepts/indexes.md: \"Indexes are prioritized in the order in which they're defined\", the default index is \"always treated as lowest priority\", with the default first-index strategy uv \"will stop at the first index on which a given package is available\", default = true replaces PyPI, and an explicit = true index is used only for packages pinned to it in tool.uv.sources."),
 		pylockCreatedBy: verified$2("uv", `${UV}/crates/uv-lock/src/lock/export/pylock_toml.rs`, "uv export --format pylock.toml (and uv pip compile to pylock.toml) writes created-by = \"uv\". The project itself and workspace members are written as directory = { path = …, editable = true }, with the path relative to the lock file, \".\" for the project."),
 		configTables: verified$2({
 			"pyproject.toml": "tool.uv",
@@ -4531,6 +4661,19 @@ const yarn$1 = {
 		], CONFIGURATION, "A variable starting with yarn_ in any case sets the camel-cased setting before the rc files are read, and they cannot change it (Configuration.find and use; YARN_IGNORE_SCRIPTS is ignored); a list setting takes a comma-separated string (parseValue); enableScripts accepts true or 1 (parseBoolean), false or 0 turn it off, and any other value stops Yarn, so every value but false and 0 counts as on."), user.evidence(SCALAR_VARIABLES, `${BERRY}/packages/docusaurus/static/configuration/yarnrc.json`, "Most settings \"can also be defined through environment variables (at least for the simpler ones; arrays and objects aren't supported yet)\", and such values \"will overwrite any that might have been defined in the RC files\"."))
 	},
 	extra: {
+		registrySettings: leftovers$1.verified([{
+			file: ".yarnrc.yml",
+			path: ["npmRegistryServer"],
+			applies: "all"
+		}, {
+			file: ".yarnrc.yml",
+			path: [
+				"npmScopes",
+				"*",
+				"npmRegistryServer"
+			],
+			applies: "scope"
+		}], YARNRC, "npmRegistryServer: \"Define the registry to use when fetching packages\"; npmScopes: \"Per-scope registry configurations\", whose entries take npmRegistryServer (\"See npmRegistryServer\"), keyed by the scope without @. \"While Yarn will automatically find them in the parent directories, they should usually be kept at the root of your project\". Yarn (Berry) does not read registry= from .npmrc."),
 		yamlMergeKeys: user.verified(false, `${BERRY}/packages/yarnpkg-parsers/sources/syml.ts`, "parseSyml reads .yarnrc.yml with load of js-yaml and FAILSAFE_SCHEMA, which has no merge type (only strings, sequences and maps), so <<: *defaults is an ordinary key named <<: Configuration.use rejects it as an unrecognized setting in a project .yarnrc.yml (enableStrictSettings, default true) and sets it aside in the home file, so merged values never apply. Every scalar is a string to Yarn, which parses it per setting (parseValue in packages/yarnpkg-core/sources/Configuration.ts)."),
 		classicUserFile: user.verified({
 			until: "2.0.0",
@@ -5897,7 +6040,11 @@ const environment = {
 				tool: "Monitor",
 				shell: "bash"
 			}
-		], "https://code.claude.com/docs/en/tools-reference", "Tool names are the exact strings of hook matchers. Bash executes shell commands. PowerShell executes PowerShell commands natively; hooks get its command in tool_input.command with the same fields as Bash, and the docs say to match Bash|PowerShell in hooks that inspect shell commands: on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash it is enabled automatically and the Bash tool is not registered at all (also https://code.claude.com/docs/en/hooks#powershell). On Windows with Git Bash it is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1. Monitor runs a command in the background and feeds its output lines back to Claude, with the same permission rules as Bash; on Windows it is available only with Git Bash; a WebSocket watch takes a ws input in place of command.")
+		], "https://code.claude.com/docs/en/tools-reference", "Tool names are the exact strings of hook matchers. Bash executes shell commands. PowerShell executes PowerShell commands natively; hooks get its command in tool_input.command with the same fields as Bash, and the docs say to match Bash|PowerShell in hooks that inspect shell commands: on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash it is enabled automatically and the Bash tool is not registered at all (also https://code.claude.com/docs/en/hooks#powershell). On Windows with Git Bash it is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1. Monitor runs a command in the background and feeds its output lines back to Claude, with the same permission rules as Bash; on Windows it is available only with Git Bash; a WebSocket watch takes a ws input in place of command."),
+		commandlessInputs: release13.verified([{
+			tool: "Monitor",
+			input: "tool_input.ws"
+		}], "https://code.claude.com/docs/en/tools-reference#websocket-source", "\"A WebSocket watch takes a `ws` input in place of `command`, and a single Monitor call can't combine the two\"; ws has url (a ws:// or wss:// URL) and optional protocols. Opening a WebSocket has its own approval prompt.")
 	},
 	mcp: {
 		revisions: mcpFacts.verified({
@@ -23339,10 +23486,13 @@ const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
 * Characters that change how text is shown or read without being seen: the format characters (\p{Cf}: the
 * bidirectional controls ALM, LRM, RLM, LRE to RLO and LRI to PDI, zero-width space, joiners, word joiner, invisible
 * operators, the byte order mark, the soft hyphen, the tag characters U+E0001 and U+E0020 to U+E007F), the rest of the
-* tag block (U+E0000 to U+E007F), whose characters spell hidden ASCII that a model may read, and the variation
-* selectors (U+FE00 to U+FE0F, U+E0100 to U+E01EF).
+* tag block (U+E0000 to U+E007F), whose characters spell hidden ASCII that a model may read, the variation selectors
+* (U+FE00 to U+FE0F, U+E0100 to U+E01EF), and letters that show as blank space: the Hangul fillers U+115F, U+1160,
+* U+3164 and U+FFA0 and the blank braille pattern U+2800, which can hide a word or pass for a space.
 */
-const INVISIBLE = /[\p{Cf}\u{e0000}-\u{e007f}\ufe00-\ufe0f\u{e0100}-\u{e01ef}]/gu;
+const INVISIBLE = /[\p{Cf}\u{e0000}-\u{e007f}\ufe00-\ufe0f\u{e0100}-\u{e01ef}\u115f\u1160\u3164\uffa0\u2800]/gu;
+/** The line and paragraph separators, which some viewers and parsers take as a line break. */
+const LINE_SEPARATORS = /[\u2028\u2029]/gu;
 /** A character of INVISIBLE as \uHHHH, or \u{HHHHH} beyond the BMP. */
 function visible(character) {
 	const code = character.codePointAt(0) ?? 0;
@@ -23350,12 +23500,12 @@ function visible(character) {
 }
 /**
 * The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`, and every invisible
-* character (INVISIBLE) as `\uHHHH` or `\u{HHHHH}`. Line breaks are control characters too, so a value from a file
-* cannot start a line of its own; `lines: true` keeps line feeds, for text depcurfew lays out in lines itself, such as
-* a snippet to add by hand. Apply it before adding colors.
+* character (INVISIBLE) and the line and paragraph separators as `\uHHHH` or `\u{HHHHH}`. Line breaks are control
+* characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
+* depcurfew lays out in lines itself, such as a snippet to add by hand. Apply it before adding colors.
 */
 function printable(text, options = {}) {
-	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(INVISIBLE, visible);
+	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(INVISIBLE, visible).replace(LINE_SEPARATORS, visible);
 }
 
 // src/apply/diff.ts

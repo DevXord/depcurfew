@@ -2,8 +2,8 @@
 // model cannot be tricked by. JSON.stringify escapes C0 controls, but keeps C1 controls (U+0080 to U+009F, which some
 // terminals take as the start of an escape sequence), the line and paragraph separators and the invisible characters
 // of printable (src/printable.ts): bidirectional controls (U+202E and the like, which show text in another order than
-// it has), zero-width characters, tag characters and variation selectors, which hide text from a person that a model
-// still reads. Names and values from a repository or a registry can carry them, so they are written as \uHHHH escapes
+// it has), zero-width characters, tag characters, variation selectors and letters that show as blank space (Hangul
+// fillers, the blank braille pattern), which hide text from a person that a model still reads. Names and values from a repository or a registry can carry them, so they are written as \uHHHH escapes
 // too (a surrogate pair beyond the BMP), which every JSON parser reads back unchanged.
 import { INVISIBLE } from './printable.ts';
 

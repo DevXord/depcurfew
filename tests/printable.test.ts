@@ -30,6 +30,15 @@ describe('printable', () => {
     expect(printable('x\ufe00y\ufe0fz\u{e0100}w\u{e01ef}')).toBe('x\\ufe00y\\ufe0fz\\u{e0100}w\\u{e01ef}');
   });
 
+  it('writes the line and paragraph separators and letters that show as blank space as \\uHHHH (decision D-113)', () => {
+    expect(printable('a\u2028b\u2029c')).toBe('a\\u2028b\\u2029c');
+    expect(printable('a\u2028b', { lines: true })).toBe('a\\u2028b');
+    // Hangul fillers and the blank braille pattern look like spaces or nothing at all.
+    expect(printable('x\u3164y\u115fz\u1160w\uffa0v\u2800u')).toBe('x\\u3164y\\u115fz\\u1160w\\uffa0v\\u2800u');
+    // Ordinary letters and spaces stay, also Hangul syllables and other braille patterns.
+    expect(printable('한국어 a b\u2801')).toBe('한국어 a b\u2801');
+  });
+
   it('keeps line feeds only when asked to', () => {
     expect(printable('one\ntwo\r\n\u001b', { lines: true })).toBe('one\ntwo\\x0d\n\\x1b');
   });
@@ -42,6 +51,13 @@ describe('safeJson', () => {
     expect(text).toBe('{"name":"a\\u200bb\\u2060\\ufeff\\u00ad\\udb40\\udc41\\ufe0f\\udb40\\udd00\\u202e\\u0085\\u2028"}');
     expect(JSON.parse(text)).toEqual(value);
     expect(text).toMatch(/^[\u0020-\u007e]*$/u);
+  });
+
+  it('escapes the Hangul fillers and the blank braille pattern, and keeps other letters (decision D-113)', () => {
+    const value = { name: 'x\u3164\u115f\u1160\uffa0\u2800 한 \u2801' };
+    const text = safeJson(value);
+    expect(text).toBe('{"name":"x\\u3164\\u115f\\u1160\\uffa0\\u2800 한 \u2801"}');
+    expect(JSON.parse(text)).toEqual(value);
   });
 });
 

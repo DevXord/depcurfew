@@ -58,7 +58,8 @@ describe('built depcurfew executable', () => {
     expect(depcurfewWith({ FORCE_COLOR: '1' }, 'doctor', '--json', directory).stdout).not.toMatch(ansi);
     expect(depcurfewWith({ FORCE_COLOR: '1' }, 'doctor', '--sarif', directory).stdout).not.toMatch(ansi);
     expect(depcurfewWith({ NO_COLOR: '1' }, 'doctor', directory).stdout).not.toMatch(ansi);
-    expect(depcurfewWith({ FORCE_COLOR: '1' }, 'frobnicate').stderr).toMatch(/^\u001b\[31m\u001b\[1mdepcurfew:/u);
+    // A usage error is written like any other error (decision D-113): the level in color, the code dimmed.
+    expect(depcurfewWith({ FORCE_COLOR: '1' }, 'frobnicate').stderr).toMatch(/^\u001b\[31m\u001b\[1merror:\u001b\[22m\u001b\[39m unknown command 'frobnicate' \u001b\[2m\(usage\)/u);
   });
 
   it('keeps stderr empty with FORCE_COLOR and NO_COLOR both set, where Node warns that it ignores NO_COLOR', () => {

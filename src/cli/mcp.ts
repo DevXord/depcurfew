@@ -62,9 +62,21 @@ export async function mcp(flags: McpFlags, io: CliIo, dependencies: McpDependenc
   const given = flags.dir ?? (fromEnvironment === undefined || fromEnvironment === '' ? undefined : fromEnvironment);
   const target = checkDirectory(given, host.cwd);
   if (!target.ok) {
-    if (flags.dir === undefined && given !== undefined) io.stderr(`depcurfew: ${variable ?? 'the environment'} names the project directory, which cannot be used:\n`);
-    reportInputError(target.error, io);
-    io.stderr("Run 'depcurfew mcp --help' for usage.\n");
+    // Say where the directory came from and which option or variable to change (decision D-113).
+    const name = variable ?? 'CLAUDE_PROJECT_DIR';
+    const fromVariable = flags.dir === undefined && given !== undefined;
+    reportInputError(
+      {
+        ...target.error,
+        message: fromVariable ? `${name} names the project directory, which cannot be used: ${target.error.message}` : target.error.message,
+        fix: fromVariable
+          ? `Set ${name} to the project directory, or pass --dir with the path of the project directory (--dir wins over ${name})`
+          : flags.dir === undefined
+            ? 'Start depcurfew mcp in the project directory, or pass --dir with the path of the project directory'
+            : 'Pass --dir with the path of the project directory, an existing directory',
+      },
+      io,
+    );
     return EXIT_USAGE;
   }
   const server = startMcpServer({

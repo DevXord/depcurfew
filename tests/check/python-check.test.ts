@@ -156,7 +156,7 @@ describe('depcurfew check on pypi: packages', () => {
   it('warns about a pinned yanked version, and leaves yanked versions out otherwise', async () => {
     const pinned = await checkSpec('pypi:requests==2.32.0', options());
     expect(codes(pinned.findings)).toEqual(['warning:yanked']);
-    expect(pinned.findings[0]?.message).toBe('pypi:requests 2.32.0 is yanked: Yanked due to conflicts with CVE-2024-35195 mitigation');
+    expect(pinned.findings[0]?.message).toBe('pypi:requests 2.32.0 is yanked, with the reason "Yanked due to conflicts with CVE-2024-35195 mitigation"');
     const range = await checkSpec('pypi:requests>=2.32.0,<2.32.2', options());
     expect(codes(range.findings)).toEqual(['error:no-version']);
     expect(range.findings[0]?.message).toBe('no version of pypi:requests matches ">=2.32.0,<2.32.2" (only yanked versions do)');

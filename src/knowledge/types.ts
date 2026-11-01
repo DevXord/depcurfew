@@ -515,6 +515,36 @@ export interface RegistryConfigKnowledge {
   scopeKeySuffix: string;
 }
 
+/** Where npm reads the project .npmrc from: the local prefix of the directory it runs in. */
+export interface NpmLocalPrefixKnowledge {
+  /** The first directory from the current one up that has this file or this directory is the local prefix. */
+  markers: { file: string; directory: string };
+  /** A higher directory whose package.json lists the prefix as a workspace becomes the prefix. */
+  workspaceRoot: boolean;
+  /** The field of package.json with the workspace patterns (an array, or an object with this key). */
+  workspacesField: string;
+  workspacesObjectKey: string;
+  /** The option that sets the local prefix on the command line. */
+  prefixOption: string;
+  /** The project configuration file, read from the local prefix. */
+  projectFile: string;
+}
+
+/**
+ * A setting of a package manager's own configuration file that chooses where its packages come from, which depcurfew
+ * check does not read: the registry of all packages, or of the packages of one scope.
+ */
+export interface RegistrySettingKnowledge {
+  /** The configuration file, by name; it is looked for in the directory the command runs in and its parents. */
+  file: string;
+  /** Keys from the top of the file; * stands for any key, the scope (with or without @). */
+  path: readonly string[];
+  /** all: every package the tool installs; scope: the packages of the scope that * names. */
+  applies: 'all' | 'scope';
+  /** For an array of tables: entries with this key set to true do not count (uv: an explicit index). */
+  unlessTrue?: string;
+}
+
 // Facts about the environment around the package managers: version pinning (Corepack, Volta, asdf) and CI.
 
 /** A tool that environment facts refer to: Node.js, Python or a package manager. */
@@ -710,6 +740,13 @@ export interface ClaudeCodeSessionStartKnowledge {
 export interface ClaudeCodeShellTool {
   tool: string;
   shell: 'bash' | 'powershell';
+}
+
+/** A shell tool call that carries another input in place of the command (a Monitor WebSocket watch). */
+export interface ClaudeCodeCommandlessInputKnowledge {
+  tool: string;
+  /** The field of the event, next to the command field, that takes the place of the command. */
+  input: string;
 }
 
 /** Model Context Protocol revisions: the legacy ones open a session with initialize, the modern ones carry the version on every request. */
@@ -1091,6 +1128,8 @@ export interface EnvironmentKnowledge {
     sessionStart: Fact<ClaudeCodeSessionStartKnowledge>;
     /** The field of a PreToolUse hook's output that adds text to Claude's context, with or without a decision. */
     hookContext: Fact<ClaudeCodeHookContextKnowledge>;
+    /** Shell tool calls without a command: a Monitor WebSocket watch. */
+    commandlessInputs: Fact<readonly ClaudeCodeCommandlessInputKnowledge[]>;
   };
   /** The Model Context Protocol, for depcurfew mcp, and how its clients start a stdio server. */
   mcp: {

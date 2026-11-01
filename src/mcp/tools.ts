@@ -6,20 +6,22 @@
 // visible text and cut short, and a fix the agent cannot follow (changing depcurfew.json, choosing another registry)
 // says what it can do instead, as in the Claude Code hook.
 //
-// The policy is always the one of the project directory (its depcurfew.json, or the nearest one up to the root of the
-// repository), whatever `directory` says: a directory inside the project can carry a depcurfew.json of its own that
-// the user did not write (a package in .venv/…/site-packages, a vendored clone with its own .git, a file the agent
-// wrote), and the policy and the registries must not depend on what the agent passes.
+// The policies are those the Claude Code hook applies (hookPolicyStart in src/cli/check.ts, decision D-113): when the
+// project directory has a depcurfew.json (its own, or the nearest one up to the root of the repository), that policy
+// applies, and a different depcurfew.json nearer `directory` applies too, the stricter answer counting, so that a
+// directory inside the project with a policy of its own that the user did not write (a package in
+// .venv/…/site-packages, a vendored clone, a file the agent wrote) cannot relax the check. Without a policy in the
+// project directory, the nearest one from `directory` applies, as check --dir does. The registries come from the
+// .npmrc npm reads there only when it belongs to the policy; any other .npmrc that sets a registry makes the packages
+// it applies to unverified.
 import { realpathSync, statSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 import { agentFix, POLICY_IS_THE_USERS, reasonText } from '../check/hook.ts';
 import type { FetchLike } from '../check/registry.ts';
 import { appliedPolicy, checkDocument, policyNotices, type CheckDocument, type Lookups } from '../cli/check.ts';
 import { checkDirectory, type InputError } from '../cli/directory.ts';
 import { safeJson } from '../json-safe.ts';
 import { isInside } from '../paths.ts';
-import { POLICY_FILE } from '../policy/defaults.ts';
-import { findPolicyDirectory } from '../policy/file.ts';
 import { printable } from '../printable.ts';
 import { hasSince, isRecord, mcpFacts } from './protocol.ts';
 
@@ -58,7 +60,7 @@ const DIRECTORY_PROPERTY = {
   type: 'string',
   minLength: 1,
   description:
-    "A directory inside the project directory where the packages would be installed; a relative path starts at the project directory. It must exist, but it does not change the policy: that is always the project directory's depcurfew.json, and a directory with a depcurfew.json of its own gets a notice that it is not used. Default: the project directory.",
+    "A directory inside the project directory where the packages would be installed; a relative path starts at the project directory. It must exist. The project directory's depcurfew.json applies, and a depcurfew.json nearer the directory applies too (the stricter answer counts); without a policy in the project directory, the nearest one from the directory applies. Default: the project directory.",
 };
 
 /** The sentence that marks text from a registry or the repository as data for the model. */
@@ -141,31 +143,10 @@ function directoryArgument(value: unknown, context: ToolContext, tool: string): 
   return { ok: true, directory: value };
 }
 
-/** A path as a document shows it: relative to the project directory, with / separators. */
-function fromProject(context: ToolContext, path: string): string {
-  return relative(context.projectDir, path).split(sep).join('/');
-}
-
-/**
- * What the directory argument adds, given that the policy is the project directory's: an error when it does not
- * exist, and a notice when it has a depcurfew.json of its own (or one nearer than the project's), which is not used.
- */
-function directoryNotices(directory: string | undefined, context: ToolContext): { ok: true; notices: { message: string }[] } | { ok: false; error: InputError } {
-  if (directory === undefined) return { ok: true, notices: [] };
+/** Whether the directory argument names an existing directory (relative to the project directory); the error when not. */
+function existingDirectory(directory: string | undefined, context: ToolContext): { ok: true; directory: string } | { ok: false; error: InputError } {
   const target = checkDirectory(directory, context.projectDir);
-  if (!target.ok) return target;
-  const own = findPolicyDirectory(target.directory);
-  const project = findPolicyDirectory(context.projectDir);
-  if (own === undefined || own === project) return { ok: true, notices: [] };
-  const applied = project === undefined ? 'the default policy of depcurfew init' : fromProject(context, join(project, POLICY_FILE));
-  return {
-    ok: true,
-    notices: [
-      {
-        message: `${fromProject(context, join(own, POLICY_FILE))} is not used: depcurfew mcp applies the policy of the project directory (${applied}) to every directory in it; tell the user if that directory should have a policy of its own`,
-      },
-    ],
-  };
+  return target.ok ? { ok: true, directory: target.directory } : target;
 }
 
 const checkPackages: ToolDefinition = {
@@ -204,12 +185,11 @@ const checkPackages: ToolDefinition = {
     }
     const directory = directoryArgument(args['directory'], context, 'check_packages');
     if (!directory.ok) return directory.result;
-    const added = directoryNotices(directory.directory, context);
-    if (!added.ok) return documentResult({ schemaVersion: 1, policy: null, packages: [], notices: [], errors: [added.error] } satisfies CheckDocument, true);
-    // The project directory's policy and .npmrc, whatever the directory argument says.
+    // The policies of the hook for that directory: the project directory's, and a nearer one too.
     const outcome = await checkDocument(packages as string[], {
-      dir: undefined,
+      dir: directory.directory,
       cwd: context.projectDir,
+      project: context.projectDir,
       audience: 'agent',
       registry: context.registry,
       index: context.index,
@@ -220,8 +200,7 @@ const checkPackages: ToolDefinition = {
       // The body of an install script is written by the package's publisher; the model gets the names only.
       scriptBodies: false,
     });
-    const document: CheckDocument = { ...outcome.document, notices: [...added.notices, ...outcome.document.notices] };
-    return documentResult(document, outcome.status !== 'checked');
+    return documentResult(outcome.document satisfies CheckDocument, outcome.status !== 'checked');
   },
 };
 
@@ -254,13 +233,16 @@ const explainPolicy: ToolDefinition = {
     const directory = directoryArgument(args['directory'], context, 'explain_policy');
     if (!directory.ok) return directory.result;
     const empty = { cooldown: null, installScripts: null, sources: null };
-    // The project directory's policy and .npmrc, whatever the directory argument says; the lookups come from .npmrc
-    // and the server's options, so they are known even when depcurfew.json cannot be used.
-    const result = appliedPolicy(context.projectDir, { registry: context.registry, index: context.index, home: context.home });
-    const lookups = lookupsOf(result.ok ? result.applied : result.lookups);
-    const added = directoryNotices(directory.directory, context);
-    if (!added.ok) return documentResult({ schemaVersion: 1, policy: null, values: empty, lookups, notices: [], errors: [added.error] } satisfies PolicyDocument, true);
-    if (!result.ok) return documentResult({ schemaVersion: 1, policy: result.file, values: empty, lookups, notices: added.notices, errors: [result.error] } satisfies PolicyDocument, true);
+    const target = existingDirectory(directory.directory, context);
+    if (!target.ok) {
+      const lookups = lookupsOf(appliedLookups(appliedPolicy(context.projectDir, { registry: context.registry, index: context.index, home: context.home, project: context.projectDir, base: context.projectDir })));
+      return documentResult({ schemaVersion: 1, policy: null, values: empty, lookups, notices: [], errors: [target.error] } satisfies PolicyDocument, true);
+    }
+    // The policies of the hook for that directory; the lookups come from .npmrc and the server's options, so they are
+    // known even when depcurfew.json cannot be used.
+    const result = appliedPolicy(target.directory, { registry: context.registry, index: context.index, home: context.home, project: context.projectDir, base: context.projectDir });
+    const lookups = lookupsOf(appliedLookups(result));
+    if (!result.ok) return documentResult({ schemaVersion: 1, policy: result.file, values: empty, lookups, notices: [], errors: [result.error] } satisfies PolicyDocument, true);
     const { policy, file } = result.applied;
     const document: PolicyDocument = {
       schemaVersion: 1,
@@ -273,12 +255,17 @@ const explainPolicy: ToolDefinition = {
           policy.sources === undefined ? null : Object.fromEntries(Object.entries(policy.sources).filter((entry): entry is [string, 'allow' | 'deny'] => typeof entry[1] === 'string')),
       },
       lookups,
-      notices: [...added.notices, ...policyNotices(result.applied, true, { audience: 'agent', explained: true })],
+      notices: policyNotices(result.applied, true, { audience: 'agent', explained: true }),
       errors: [],
     };
     return documentResult(document, false);
   },
 };
+
+/** The lookups of a policy result, whether or not the policy can be used. */
+function appliedLookups(result: ReturnType<typeof appliedPolicy>): Lookups {
+  return result.ok ? result.applied : result.lookups;
+}
 
 /** Where check_packages looks packages up, as explain_policy gives it. */
 function lookupsOf(lookups: Lookups): PolicyDocument['lookups'] {

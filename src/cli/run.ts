@@ -2,7 +2,11 @@ import { parseArgs } from 'node:util';
 import { getVersion } from '../version.ts';
 import { apply } from './apply.ts';
 import { paint, paintDiagnostics } from '../color.ts';
-import { check, type CheckDependencies } from './check.ts';
+import { check, HOOKS, type CheckDependencies } from './check.ts';
+import { reportInputError } from './directory.ts';
+import { defaultRegistry } from '../check/registry.ts';
+import { defaultIndex } from '../check/pypi.ts';
+import { withoutCredentials } from '../printable.ts';
 import { COMMANDS, findCommand } from './commands.ts';
 import { doctor } from './doctor.ts';
 import { RULES, toSarif } from '../doctor/index.ts';
@@ -31,19 +35,19 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * Reports a usage error: on stderr as `depcurfew: <message>` and the hint, or with --json as the JSON document of an
- * error that keeps a command from starting (code usage, the message and the hint as the fix) on stdout, with nothing on
- * stderr (decision D-107). Returns exit code 2.
+ * Reports a usage error: on stderr like every other error that keeps a command from starting (`error: <message>
+ * (usage)` and the hint as `fix:`, decision D-113), or with --json as the JSON document of such an error (code usage,
+ * the message and the hint as the fix) on stdout, with nothing on stderr (decision D-107). Returns exit code 2.
  */
 type Usage = (message: string, hint: string) => number;
 
 function usageReporter(io: CliIo, json: () => boolean, sarif: () => boolean = () => false): Usage {
   return (message, hint) => {
-    const error = { code: 'usage', level: 'error' as const, location: { file: '' }, message, fix: hint.replace(/\.\n?$/u, '') };
+    const error = { code: 'usage' as const, level: 'error' as const, location: { file: '' }, message, fix: hint.replace(/\.\n?$/u, '') };
     if (json()) io.stdout(`${safeJson({ schemaVersion: 1, errors: [{ code: error.code, level: error.level, message, fix: error.fix }] }, 2)}\n`);
     // doctor --sarif alone: a run that did not succeed, so an upload to code scanning gets a document, not an empty file.
     else if (sarif()) io.stdout(`${safeJson(toSarif({ schemaVersion: 1, policy: 'missing', findings: [], notices: [] }, RULES, getVersion(), undefined, [error]), 2)}\n`);
-    else io.stderr(`depcurfew: ${message}\n${hint.endsWith('\n') ? hint : `${hint}\n`}`);
+    else reportInputError(error, io);
     return EXIT_USAGE;
   };
 }
@@ -128,7 +132,13 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
     // parseArgs explains how to pass a positional that starts with '-'; an unknown option is the usual case.
     const unknown = /Unknown option '([^']+)'/u.exec(errorMessage(error))?.[1];
     const valued = /Option '(--[^']+)' does not take an argument/u.exec(errorMessage(error))?.[1];
+    // Node's parseArgs writes "Option '--fail-on <value>' argument missing".
+    const missing = /Option '(?:-[^-][^,']*, )?(--[^' ]+)(?: <value>)?' argument missing/u.exec(errorMessage(error))?.[1];
     const hint = named === undefined ? USAGE_HINT : `Run 'depcurfew ${named.name} --help' for its options.\n`;
+    if (missing !== undefined) {
+      const value = COMMANDS.flatMap((command) => command.options ?? []).find((option) => `--${option.name}` === missing)?.value;
+      return usage(`option '${missing}' needs a value${value === undefined ? '' : `: ${missing} <${value}>`}`, hint);
+    }
     return usage(unknown !== undefined ? `unknown option '${unknown}'` : valued !== undefined ? `option '${valued}' takes no value` : errorMessage(error), hint);
   }
 
@@ -197,9 +207,27 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
       io,
     );
   }
+  // --registry and --index are URLs; anything else would only fail as a registry that cannot be reached (decision D-113).
+  for (const [name, what, example] of [
+    ['registry', 'an npm registry', defaultRegistry()],
+    ['index', 'a Python package index', defaultIndex()],
+  ] as const) {
+    const value = text(name);
+    if (value === undefined) continue;
+    let protocol = '';
+    try {
+      protocol = new URL(value).protocol;
+    } catch {
+      // Not a URL.
+    }
+    if (protocol !== 'https:' && protocol !== 'http:') {
+      return usage(`--${name} takes the http:// or https:// URL of ${what}, such as ${example}, not '${withoutCredentials(value)}'`, `Run 'depcurfew ${command.name} --help' for usage.`);
+    }
+  }
   if (command.name === 'check') {
     // The usage errors of check, here so that --json gets them as a document.
     const hook = text('hook');
+    if (hook !== undefined && !(HOOKS as readonly string[]).includes(hook)) return usage(`unknown hook '${hook}'; the hooks are ${HOOKS.join(', ')}`, "Run 'depcurfew check --help' for usage.");
     if (hook === undefined && rest.length === 0) return usage("'check' needs at least one package, e.g. depcurfew check lodash@4", "Run 'depcurfew check --help' for usage.");
     if (hook !== undefined && rest.length > 0) return usage("'--hook' reads the command from stdin and takes no packages", "Run 'depcurfew check --help' for usage.");
     return check(rest, { json: values['json'] === true, dir: text('dir'), registry: text('registry'), index: text('index'), hook: text('hook') }, io, dependencies);
@@ -216,6 +244,6 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
     });
   }
 
-  io.stderr(`depcurfew: '${command.name}' is not implemented yet.\n`);
+  io.stderr(`error: '${command.name}' is not implemented yet\n`);
   return EXIT_FAILURE;
 }

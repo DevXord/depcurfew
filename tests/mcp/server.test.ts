@@ -1,5 +1,6 @@
 // depcurfew mcp: the JSON-RPC session over stdio, both eras of the protocol, the tools and the frames a broken or
 // malicious client can send. Everything runs in-process over in-memory streams, without network access.
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
@@ -269,7 +270,7 @@ describe('depcurfew mcp: check_packages', () => {
     await client.close();
   });
 
-  it('takes the policy of the project directory, whatever depcurfew.json a directory inside it has', async () => {
+  it('takes the policy of the project directory and a nearer one too, whatever depcurfew.json a directory inside it has', async () => {
     const root = project({ cooldown: { minimum: '3d' }, installScripts: { default: 'deny' } });
     mkdirSync(join(root, '.git'));
     // A Python package in the virtual environment, a vendored clone with a .git of its own and no policy, and a
@@ -292,17 +293,63 @@ describe('depcurfew mcp: check_packages', () => {
       expect(structured(answer)).toMatchObject({ policy: 'depcurfew.json', errors: [] });
       expect(findings(answer).map((finding) => finding.code)).toEqual(['install-scripts']);
       const notices = structured(answer)['notices'] as { message: string }[];
+      // The nearer policy applies too, as in the hook (decision D-113): the stricter answer counts.
       if (unused === undefined) expect(notices).toEqual([]);
-      else {
-        expect(notices).toEqual([
-          { message: `${unused} is not used: depcurfew mcp applies the policy of the project directory (depcurfew.json) to every directory in it; tell the user if that directory should have a policy of its own` },
-        ]);
-      }
+      else expect(notices).toEqual([{ message: `Besides depcurfew.json, ${unused} also applies here; the stricter answer counts` }]);
     }
     client.send(call(9, 'explain_policy', { directory: '.venv/lib/python3.12/site-packages/evil' }));
     const explained = structured(await client.next());
     expect(explained).toMatchObject({ policy: 'depcurfew.json', values: { installScripts: { default: 'deny' } } });
-    expect(explained['notices']).toEqual([{ message: expect.stringContaining('.venv/lib/python3.12/site-packages/evil/depcurfew.json is not used') }]);
+    expect(explained['notices']).toEqual([{ message: 'Besides depcurfew.json, .venv/lib/python3.12/site-packages/evil/depcurfew.json also applies here; the stricter answer counts' }]);
+    await client.close();
+  });
+
+  it('applies a stricter nearer policy, and the policy of the directory alone when the project directory has none, as the hook does (decision D-113)', async () => {
+    const root = project({ installScripts: { default: 'allow' } });
+    const strict = join(root, 'strict');
+    mkdirSync(strict);
+    writeFileSync(join(strict, 'depcurfew.json'), JSON.stringify({ version: 1, installScripts: { default: 'deny' } }));
+    const client = await initialized(root);
+    client.send(call(1, 'check_packages', { packages: ['esbuild'], directory: 'strict' }));
+    expect(findings(await client.next()).map((finding) => finding.code)).toEqual(['install-scripts']);
+    await client.close();
+    const bare = project();
+    const frontend = join(bare, 'frontend');
+    mkdirSync(frontend);
+    writeFileSync(join(frontend, 'depcurfew.json'), JSON.stringify({ version: 1, installScripts: { default: 'deny', allow: ['esbuild'] } }));
+    const other = await initialized(bare);
+    other.send(call(2, 'check_packages', { packages: ['esbuild'], directory: 'frontend' }));
+    const answer = await other.next();
+    expect(structured(answer)).toMatchObject({ policy: 'frontend/depcurfew.json', errors: [] });
+    expect(findings(answer)).toEqual([]);
+    await other.close();
+  });
+
+  it('reports a registry of an .npmrc npm reads in the directory but depcurfew does not take (decision D-113)', async () => {
+    const root = project({ cooldown: { minimum: '3d' } });
+    mkdirSync(join(root, 'sub'));
+    writeFileSync(join(root, 'sub', 'package.json'), '{}');
+    writeFileSync(join(root, 'sub', '.npmrc'), 'registry=https://evil.example/\n');
+    const client = await initialized(root);
+    client.send(call(1, 'check_packages', { packages: ['lodash'], directory: 'sub' }));
+    expect(findings(await client.next()).at(-1)).toMatchObject({
+      level: 'error',
+      code: 'unverified',
+      message: 'the install would use the registry from sub/.npmrc (line 1); depcurfew checked https://registry.npmjs.org/',
+      fix: expect.stringContaining("Where the install gets its packages from is the user's setting"),
+    });
+    await client.close();
+  });
+
+  it.skipIf(process.platform === 'win32')('skips a FIFO in place of ~/.npmrc instead of waiting on it (decision D-113)', async () => {
+    const root = project({ cooldown: { minimum: '3d' } });
+    // The tests use the project directory as the home directory.
+    execFileSync('mkfifo', [join(root, '.npmrc')]);
+    const client = await initialized(root);
+    client.send(call(1, 'explain_policy', {}));
+    expect(structured(await client.next())['notices']).toEqual([{ message: '~/.npmrc was not read: it is not a regular file; its registry settings, if any, were not used' }]);
+    client.send(call(2, 'check_packages', { packages: ['lodash'] }));
+    expect(structured(await client.next())).toMatchObject({ errors: [], notices: [{ message: expect.stringContaining('~/.npmrc was not read') }] });
     await client.close();
   });
 
@@ -687,10 +734,14 @@ describe('depcurfew mcp: command line', () => {
     expect(end.stderr).toContain(message);
   });
 
-  it('names CLAUDE_PROJECT_DIR when it does not exist', async () => {
+  it('names CLAUDE_PROJECT_DIR when it does not exist, and the option and the variable to change (decision D-113)', async () => {
     const client = session(project({}), { argv: ['mcp'], env: { CLAUDE_PROJECT_DIR: '/nonexistent/depcurfew-mcp' } });
     const end = await client.exit;
     expect(end.code).toBe(EXIT_USAGE);
-    expect(end.stderr).toContain('CLAUDE_PROJECT_DIR');
+    expect(end.stderr).toBe(
+      'error: CLAUDE_PROJECT_DIR names the project directory, which cannot be used: directory not found: /nonexistent/depcurfew-mcp (directory-not-found)\n  fix: Set CLAUDE_PROJECT_DIR to the project directory, or pass --dir with the path of the project directory (--dir wins over CLAUDE_PROJECT_DIR)\n',
+    );
+    const given = await session(project({}), { argv: ['mcp', '--dir', '/nonexistent/depcurfew-mcp'] }).exit;
+    expect(given.stderr).toContain('fix: Pass --dir with the path of the project directory, an existing directory');
   });
 });
