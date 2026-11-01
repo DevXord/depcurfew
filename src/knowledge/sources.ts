@@ -23,8 +23,9 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
     { host: 'packaging.python.org' },
     { host: 'peps.python.org' },
   ],
-  poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }],
-  pdm: [{ host: 'pdm-project.org' }, { host: 'github.com', pathPrefix: '/pdm-project/' }],
+  // platformdirs (tox-dev) is the library both Poetry and PDM call for their user config directory, without an override.
+  poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }, { host: 'github.com', pathPrefix: '/tox-dev/' }],
+  pdm: [{ host: 'pdm-project.org' }, { host: 'github.com', pathPrefix: '/pdm-project/' }, { host: 'github.com', pathPrefix: '/tox-dev/' }],
   pipenv: [{ host: 'pipenv.pypa.io' }, { host: 'github.com', pathPrefix: '/pypa/' }],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   dependabot: [

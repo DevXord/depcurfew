@@ -5,7 +5,7 @@
 import { LineCounter, isMap, isScalar, type Node } from 'yaml';
 import { PolicyError } from '../apply/index.ts';
 import { BLOCK_END, isBlockStart } from '../apply/block.ts';
-import { formatVersion, type Version } from '../apply/version.ts';
+import { formatVersion, parseVersion, type Version } from '../apply/version.ts';
 import type { ApplyWarning } from '../apply/warnings.ts';
 import { YAML_MARKER } from '../apply/yaml-edit.ts';
 import { ruleResults } from '../doctor/render.ts';
@@ -15,7 +15,6 @@ import { parseToml, TomlDateTime, type TomlDocument, type TomlTable } from '../d
 import { evidenceOf } from '../knowledge/facts.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId, ToolKnowledge, UserFile, UserWeakening } from '../knowledge/types.ts';
-import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { listing } from '../apply/requirements.ts';
 import { redactCredentials } from '../printable.ts';
@@ -23,11 +22,12 @@ import { readLimited } from '../read-limited.ts';
 import { isMergePair, mergedPair, parseYamlDocument } from '../yaml-parse.ts';
 import { planUserApply } from './apply.ts';
 import { homeProblem, type HomeProblem } from './home.ts';
-import { locateUserFile, shownPath, userFileFor, userFilePath, type RelativeDirectory, type UserEnvironment } from './locate.ts';
+import { locateUserFile, shownPath, userFilePath, type RelativeDirectory, type UserEnvironment } from './locate.ts';
 import { userPolicyPath } from './policy-path.ts';
 import { loadUserPolicy, userPolicyFix } from './policy.ts';
 import { environmentOverrides } from './variables.ts';
-import { findExecutable, installedVersion } from './versions.ts';
+import { installedUserFile, possibleUserFiles } from './user-file.ts';
+import { findExecutable, toolVersion, type InstalledVersion } from './versions.ts';
 
 const noCheck = (): void => undefined;
 
@@ -95,7 +95,7 @@ const INSTALLED_TOOL_RULES: ReadonlySet<string> = new Set(['user-config-drift', 
 const MAX_FILE = 1024 * 1024;
 
 /** A key of a user file with its value: INI keys by line (lists one value per line), TOML and YAML keys at any depth. */
-interface Entry {
+export interface Entry {
   /** The key; dotted keys and nested tables as separate parts. */
   path: readonly string[];
   /** INI: the [section] the key is in; undefined above the first header. */
@@ -106,7 +106,7 @@ interface Entry {
   managed: boolean;
 }
 
-type Read = { ok: true; entries: Entry[] } | { ok: false; message: string; line?: number; fix: string };
+export type Read = { ok: true; entries: Entry[] } | { ok: false; message: string; line?: number; fix: string };
 
 /** The 1-based lines between the markers of depcurfew's managed blocks (INI and TOML). */
 function blockLines(lines: readonly string[]): Set<number> {
@@ -199,7 +199,8 @@ function yamlRead(text: string, merge = false): Read {
   return { ok: true, entries };
 }
 
-function parse(file: UserFile, text: string): Read {
+/** The keys of a user file as the tool reads them, or why it cannot be parsed; init --user reads delays with it too. */
+export function parseUserFile(file: UserFile, text: string): Read {
   if (file.format === 'yaml') return yamlRead(text, file.mergeKeys === true);
   if (file.format === 'ini') return { ok: true, entries: iniRead(text, file) };
   try {
@@ -280,7 +281,7 @@ function keyAndValue(entry: Entry): string {
 }
 
 /** Whether the tool reads keys of this INI section; every section counts when the knowledge base does not say. */
-function readsSection(file: UserFile, entry: Entry): boolean {
+export function readsSection(file: UserFile, entry: Entry): boolean {
   return file.format !== 'ini' || file.sections === undefined || file.sections.includes(entry.section ?? '');
 }
 
@@ -371,13 +372,9 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   }
 
   const installed = tools.filter((tool) => tool.kind === 'package-manager' && tool.user !== undefined && findExecutable(tool.id, environment) !== undefined);
-  /** Versions as the tools print them (pip 24.0), for the list of what was checked. */
-  const versionTexts = new Map<ToolId, string | undefined>(
-    installed.map((tool) => [tool.id, options.versions?.[tool.id] === undefined ? installedVersion(tool.id, ecosystemOfTool(tool), environment)?.text : undefined]),
-  );
-  const versions = new Map<ToolId, Version | undefined>(
-    installed.map((tool) => [tool.id, options.versions?.[tool.id] ?? installedVersion(tool.id, ecosystemOfTool(tool), environment)?.version]),
-  );
+  /** Versions read from files, with the text as the tools print it (pip 24.0) and where it came from, for the list of what was checked. */
+  const read = new Map<ToolId, InstalledVersion | undefined>(installed.map((tool) => [tool.id, options.versions?.[tool.id] === undefined ? toolVersion(tool, environment) : undefined]));
+  const versions = new Map<ToolId, Version | undefined>(installed.map((tool) => [tool.id, options.versions?.[tool.id] ?? read.get(tool.id)?.version]));
   const unreadable = new Set<string>();
   const reportUnreadable = (shown: string, problem: { message: string; fix: string; line?: number }) => {
     if (unreadable.has(shown)) return;
@@ -393,7 +390,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     for (const problem of plan.report.problems) reportProblem(problem);
     const skipped = new Set(plan.report.warningDetails.filter((warning) => SKIPPED.has(warning.code)).map((warning) => warning.tool));
     const pathOf = (tool: ToolKnowledge): string | undefined => {
-      const file = userFileFor(tool, versions.get(tool.id) ?? options.versions?.[tool.id]);
+      const file = installedUserFile(tool, versions.get(tool.id) ?? options.versions?.[tool.id], environment);
       return file === null ? undefined : userFilePath(file, environment);
     };
     // A file apply --user cannot edit is not planned for any tool (npm and Deno share ~/.npmrc).
@@ -432,13 +429,13 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     for (const warning of plan.report.warningDetails) {
       const tool = tools.find((candidate) => candidate.id === warning.tool);
       if (warning.code === 'version-unknown' && tool !== undefined) {
-        const file = userFileFor(tool, undefined);
+        const file = installedUserFile(tool, undefined, environment);
         const path = file === null ? undefined : userFilePath(file, environment);
         const where = path === undefined ? 'its user file' : shownPath(path, environment);
         notice(
           `${tool.name}: depcurfew cannot read the installed version from its files, so depcurfew apply --user leaves ${where} alone (${tool.name} stops every command on a value its version does not understand) and doctor --user does not compare it with the user policy; pass the version with --for ${tool.id}@<version> (${tool.id} --version shows it)`,
         );
-      } else if (warning.code === 'no-user-config' || warning.code === 'nothing-to-configure') {
+      } else if (warning.code === 'no-user-config' || warning.code === 'nothing-to-configure' || warning.code === 'user-file-uncertain') {
         notice(warning.message);
       }
     }
@@ -465,8 +462,13 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     const located = locateUserFile(file, environment);
     return located === undefined ? undefined : 'relative' in located ? located.relative.path : located.path;
   };
+  // Where a library decides the directories and its version is unknown, every file its versions give (D-101).
   const filesOf = (tool: ToolKnowledge, version: Version | undefined): (UserFile | null)[] =>
-    tool.user === undefined ? [] : version === undefined ? (evidenceOf(tool.user.files)[0]?.value ?? []).map((entry) => entry.value) : [userFileFor(tool, version)];
+    tool.user === undefined
+      ? []
+      : version === undefined
+        ? (evidenceOf(tool.user.files)[0]?.value ?? []).flatMap((entry) => (entry.value === null ? [null] : possibleUserFiles(tool, parseVersion(entry.since), environment)))
+        : possibleUserFiles(tool, version, environment);
   for (const tool of installed) {
     for (const file of filesOf(tool, versions.get(tool.id))) {
       const located = file === null ? undefined : locateUserFile(file, environment);
@@ -496,7 +498,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       if (problem !== undefined) reportUnreadable(shown, problem);
       else if (read.ok) {
         filesRead.add(shown);
-        result = parse(file, read.bytes.toString('utf8'));
+        result = parseUserFile(file, read.bytes.toString('utf8'));
         if (!result.ok) {
           reportUnreadable(shown, {
             message: `${shown} cannot be parsed (${result.message}), so depcurfew cannot check it`,
@@ -518,7 +520,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     if (!planned.has(path)) return undefined;
     const text = planned.get(path);
     if (text === undefined) return current;
-    const result = parse(file, text);
+    const result = parseUserFile(file, text);
     return result.ok ? result.entries : undefined;
   };
   const reported = new Set<string>();
@@ -593,7 +595,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       }
     }
     for (const warning of tooOld.filter((candidate) => candidate.tool === tool.id)) {
-      const file = userFileFor(tool, version);
+      const file = installedUserFile(tool, version, environment);
       const path = file === null ? undefined : userFilePath(file, environment);
       const where = path === undefined ? 'its user file' : shownPath(path, environment);
       const shownVersion = version === undefined ? '' : ` ${formatVersion(version)}`;
@@ -640,7 +642,8 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   const checked: Checked = {
     tools: installed.map((tool) => {
       const version = versions.get(tool.id);
-      return { id: tool.id, name: tool.name, ...(version === undefined ? {} : { version: versionTexts.get(tool.id) ?? formatVersion(version), versionFrom: options.versions?.[tool.id] === undefined ? 'PATH' : '--for' }) };
+      const found = read.get(tool.id);
+      return { id: tool.id, name: tool.name, ...(version === undefined ? {} : { version: found?.text ?? formatVersion(version), versionFrom: options.versions?.[tool.id] === undefined ? (found?.from ?? 'PATH') : '--for' }) };
     }),
     files: [...filesRead].sort(),
     rules: ruleResults(

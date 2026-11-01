@@ -361,6 +361,7 @@ function userFileText(file: UserFile): string {
       const where = location.directories
         .map((directory) => {
           const conditions = [
+            ...(directory.from !== 'home' && directory.from.absolute === true ? ['it is an absolute path'] : []),
             ...(directory.ifExists === true ? ['the folder exists'] : []),
             ...(directory.unlessEnv === undefined ? [] : [`${platform === 'win32' ? `%${directory.unlessEnv}%` : `$${directory.unlessEnv}`} is not set`]),
           ];
@@ -379,6 +380,19 @@ function userTable(tools: readonly ToolKnowledge[]): string {
     .map((tool) => {
       const user = tool.user as UserConfigKnowledge;
       const files = (values(user.files)[0] ?? []).map((entry) => (entry.value === null ? `${entry.since === '0.0.0' ? '' : `${entry.since}+: `}none` : `${entry.since === '0.0.0' ? '' : `${entry.since}+: `}${userFileText(entry.value)}`));
+      // Where a library the tool calls decides the directories (platformdirs on macOS), each range of its versions.
+      const library = user.libraryDirectories === undefined ? undefined : values(user.libraryDirectories)[0];
+      const latest = (values(user.files)[0] ?? []).at(-1)?.value;
+      for (const [index, entry] of (library?.directories ?? []).entries()) {
+        if (library === undefined || latest === null || latest === undefined) break;
+        const until = library.directories[index + 1]?.since;
+        const range = entry.since === '0.0.0' ? `before ${until ?? 'any version'}` : until === undefined ? `${entry.since}+` : `${entry.since}–${until}`;
+        const platforms = library.platforms.map((name) => PLATFORM_NAMES[name]).join(', ');
+        const file = latest.locations.find((location) => location.platforms.some((platform) => library.platforms.includes(platform)));
+        if (file === undefined) continue;
+        const text = userFileText({ ...latest, locations: [{ ...file, platforms: library.platforms, directories: entry.value }] }).replace(`${platforms}: `, '');
+        files.push(`${platforms} with ${library.library} ${range}: ${text}`);
+      }
       const settings = (values(user.settings)[0] ?? []).map((setting) => `\`${setting.key}\` (${setting.since}${setting.until === undefined ? '+' : `–${setting.until}`})`);
       const exact = values(user.invalidValueFails).some((value) => value) ? 'yes' : 'no';
       return `| ${tool.name} | ${files.join('<br>') || 'none'} | ${settings.join(', ') || 'none'} | ${exact} |`;

@@ -1,7 +1,7 @@
 // Facts about the environment around the package managers: how repositories pin tool versions (Corepack,
 // npm devEngines, Volta, asdf) and how GitHub Actions workflows install them.
 import { verifiedOn } from './define.ts';
-import type { EnvironmentKnowledge } from './types.ts';
+import type { EnvironmentKnowledge, UserDirectory } from './types.ts';
 
 const { verified } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -11,9 +11,17 @@ const audited = verifiedOn('2026-10-31');
 const release13 = verifiedOn('2026-11-01');
 const mcpFacts = verifiedOn('2026-11-01');
 const actionChecks = verifiedOn('2026-11-01');
+const leftovers = verifiedOn('2026-11-01');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
+const COREPACK_V0_36_0 = 'https://github.com/nodejs/corepack/blob/v0.36.0';
+/** The variables Corepack's code reads for its home folder, in order; a variable counts when it is set, even empty (??). */
+const COREPACK_VARIABLES: readonly UserDirectory[] = [
+  { from: { env: 'COREPACK_HOME', emptyCounts: true }, path: '' },
+  { from: { env: 'XDG_CACHE_HOME', emptyCounts: true }, path: 'node/corepack' },
+  { from: { env: 'LOCALAPPDATA', emptyCounts: true }, path: 'node/corepack' },
+];
 const NPM_PACKAGE_JSON = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md';
 // docs.pypi.org is built from docs/user in the warehouse repository; the specifications from pypa/packaging.python.org.
 const PYPI_INDEX_API = 'https://github.com/pypi/warehouse/blob/c137701f3afcd80c346c574c31c9b46eeb738664/docs/user/api/index-api.md';
@@ -49,6 +57,49 @@ export const environment: EnvironmentKnowledge = {
       ],
       'https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md',
       'Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0.',
+    ),
+    package: leftovers.verified(
+      'corepack',
+      `${COREPACK_V0_36_0}/package.json`,
+      'Its published bin field (publishConfig.bin) declares yarn (./dist/yarn.js), yarnpkg, pnpm and pnpx next to corepack. corepack enable links them from the folder of the corepack executable (a relative symlink to dist/<name>.js on Linux and macOS, a cmd-shim on Windows; sources/commands/Enable.ts), so the package.json behind a yarn or pnpm shim is Corepack\'s, which says nothing about the version the shim runs.',
+    ),
+    toolPackages: leftovers.verified(
+      { npm: ['npm'], pnpm: ['pnpm'], yarn: ['yarn', '@yarnpkg/cli-dist'] },
+      `${COREPACK_V0_36_0}/config.json`,
+      'The npm packages Corepack installs each package manager from: npm; pnpm; yarn below 2.0.0 (Yarn Classic) and, with COREPACK_NPM_REGISTRY, @yarnpkg/cli-dist for Yarn 2 and later ("npmRegistry": { "package": "@yarnpkg/cli-dist", "bin": "bin/yarn.js" }). npm i -g @yarnpkg/cli-dist installs the same package, whose package.json declares bin yarn and carries the Yarn version (observed for 4.18.1).',
+    ),
+    defaults: leftovers.disputed(
+      'Corepack 0.36.0 runs the version lastKnownGood.json names for a package manager when no package.json above the current folder sets packageManager; without an entry it fetches the latest version of the npm package (yarn: Yarn Classic 1.x, which never reads .yarnrc.yml) and records it there, or with COREPACK_DEFAULT_TO_LATEST=0 uses its built-in default (getDefaultVersion in sources/Engine.ts). The code looks for the home folder in COREPACK_HOME, XDG_CACHE_HOME, LOCALAPPDATA (on every system) and then the home folder, using a variable that is set even when it is empty (??); the README leaves out XDG_CACHE_HOME and LOCALAPPDATA outside Windows. The code is what runs, so depcurfew follows it; the layout is the same since 0.13.0 (sources/folderUtils.ts), before which the folder was ~/.node/corepack. Values carry a hash after + (1.22.22+sha1.ac34...), which is not part of the version.',
+      leftovers.evidence(
+        {
+          since: '0.13.0',
+          locations: [
+            {
+              platforms: ['linux', 'darwin'],
+              directories: [...COREPACK_VARIABLES, { from: 'home', path: '.cache/node/corepack' }],
+              file: 'lastKnownGood.json',
+            },
+            {
+              platforms: ['win32'],
+              directories: [...COREPACK_VARIABLES, { from: 'home', path: 'AppData/Local/node/corepack' }],
+              file: 'lastKnownGood.json',
+            },
+          ],
+        },
+        `${COREPACK_V0_36_0}/sources/folderUtils.ts`,
+        'getCorepackHomeFolder: process.env.COREPACK_HOME ?? join(process.env.XDG_CACHE_HOME ?? process.env.LOCALAPPDATA ?? join(homedir(), process.platform === `win32` ? `AppData/Local` : `.cache`), `node/corepack`); sources/Engine.ts reads join(getCorepackHomeFolder(), `lastKnownGood.json`), a JSON object of package manager names and versions.',
+      ),
+      leftovers.evidence(
+        {
+          since: '0.13.0',
+          locations: [
+            { platforms: ['linux', 'darwin'], directories: [{ from: { env: 'COREPACK_HOME' }, path: '' }, { from: 'home', path: '.cache/node/corepack' }], file: 'lastKnownGood.json' },
+            { platforms: ['win32'], directories: [{ from: { env: 'COREPACK_HOME' }, path: '' }, { from: { env: 'LOCALAPPDATA' }, path: 'node/corepack' }], file: 'lastKnownGood.json' },
+          ],
+        },
+        `${COREPACK_V0_36_0}/README.md`,
+        '"COREPACK_HOME can be set in order to define where Corepack should install the package managers. By default it is set to %LOCALAPPDATA%\\node\\corepack on Windows, and to $HOME/.cache/node/corepack everywhere else."',
+      ),
     ),
   },
   devEngines: verified(

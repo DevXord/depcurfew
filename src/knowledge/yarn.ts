@@ -5,6 +5,7 @@ const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
+const leftovers = verifiedOn('2026-11-01');
 const BERRY = 'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1';
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 
@@ -229,6 +230,11 @@ export const yarn: ToolKnowledge = {
       { until: '2.0.0', file: '.yarnrc' },
       'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/registries/yarn-registry.js',
       'Yarn Classic (1.x, last release 1.22.22) reads .yarnrc and .npmrc from the project, its parent folders, the home folder (homeConfigLoc = ~/.yarnrc) and the global prefix (getPossibleConfigLocations in src/registries/npm-registry.js), never .yarnrc.yml, which only Yarn 2 and later read. depcurfew does not configure Yarn Classic.',
+    ),
+    yarnPath: leftovers.uncertain(
+      { key: 'yarnPath', releaseFile: 'yarn-<version>.cjs', variables: ['YARN_YARN_PATH', 'YARN_IGNORE_PATH'] },
+      `${BERRY}/packages/plugin-essentials/sources/commands/set/version.ts`,
+      'yarn set version saves the release as .yarn/releases/yarn-<version>.cjs and writes a relative yarnPath to it. Yarn 2 and later read yarnPath (an absolute path setting, resolved against the folder of the .yarnrc.yml that sets it) from every .yarnrc.yml, the home file included, before the project is found (Configuration.find, pickPrimaryCoreFields), and run node <yarnPath> instead of themselves (runYarnPath in packages/yarnpkg-cli/sources/lib.ts); a nearer .yarnrc.yml with its own yarnPath, YARN_YARN_PATH or YARN_IGNORE_PATH changes that. The file name is only a hint: a URL or a file given to yarn set version gives other names (yarn-remote.cjs), a hand-written yarnPath may name any file, and the version inside the bundle is minified, so depcurfew uses the name only when it is yarn-<exact version>.cjs and the file exists.',
     ),
     denyList: user.verified(
       { file: 'package.json', setting: 'dependenciesMeta.<package>.built', value: false, since: '2.0.0' },

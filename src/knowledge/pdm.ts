@@ -1,9 +1,11 @@
 import { verifiedOn } from './define.ts';
+import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './platformdirs.ts';
 import type { SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
+const leftovers = verifiedOn('2026-11-01');
 
 // pdm-project.org is built from docs/ in the repository.
 const PDM = 'https://github.com/pdm-project/pdm/blob/2.29.5';
@@ -12,7 +14,7 @@ const CHANGELOG = `${PDM}/CHANGELOG.md`;
 const CANDIDATES = `${PDM}/src/pdm/models/candidates.py`;
 const CONFIG = `${PDM}/src/pdm/project/config.py`;
 
-/** The home config.toml; only the macOS directories are disputed. */
+/** The home config.toml; on macOS the directories are those of the docs (see user.libraryDirectories). */
 const userFiles = (darwin: readonly UserDirectory[]): Versioned<UserFile> => [
   {
     since: '0.0.0',
@@ -114,18 +116,15 @@ export const pdm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, `${PDM}/docs/usage/workspace.md`, 'Not read; see workspaces.'),
   },
   user: {
-    files: user.disputed(
-      'The docs give ~/Library/Application Support/pdm on macOS. The code asks the installed platformdirs (not pinned in pyproject.toml), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) PDM reads $XDG_CONFIG_HOME/pdm/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in PDM\'s environment. Linux and Windows agree. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked.',
-      user.evidence(
-        userFiles([MACOS_DIRECTORY]),
-        `${PDM}/docs/usage/config.md`,
-        '<CONFIG_ROOT> is "$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux", "~/Library/Application Support/pdm on macOS" and "%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows".',
-      ),
-      user.evidence(
-        userFiles([{ from: { env: 'XDG_CONFIG_HOME' }, path: 'pdm' }, MACOS_DIRECTORY]),
-        `${PDM}/src/pdm/project/core.py`,
-        'global_config = platformdirs.user_config_path("pdm") / "config.toml", which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows the default appauthor repeats the name (pdm\\pdm) and roaming is off, so platformdirs asks for the Local AppData known folder.',
-      ),
+    files: user.verified(
+      userFiles([MACOS_DIRECTORY]),
+      `${PDM}/docs/usage/config.md`,
+      '<CONFIG_ROOT> is "$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux", "~/Library/Application Support/pdm on macOS" and "%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows". The code agrees on Linux and Windows: global_config = platformdirs.user_config_path("pdm") / "config.toml", without an override (src/pdm/project/core.py; on Windows the default appauthor repeats the name and roaming is off, so platformdirs asks for the Local AppData known folder). On macOS the directory depends on the installed platformdirs (libraryDirectories); the docs\' directory is used when its version cannot be read. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked.',
+    ),
+    libraryDirectories: leftovers.verified(
+      platformdirsMacos('pdm'),
+      PLATFORMDIRS_CHANGELOG,
+      `PDM 2.29.5 does not pin platformdirs (pyproject.toml; its own lock has 4.9.6). ${PLATFORMDIRS_NOTE}`,
     ),
     settings: user.verified(
       [{ purpose: 'cooldown', key: 'strategy.exclude-newer', since: '2.27.0' }],

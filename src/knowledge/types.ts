@@ -138,7 +138,7 @@ export interface UserDirectory {
    * `relativeToCwd` the tool takes a relative value as it is, so it reads the file relative to the directory each
    * command runs in; without it and without `absolute`, what the tool does with a relative value is not known.
    */
-  from: { env: string; absolute?: boolean; relativeToCwd?: boolean } | 'home';
+  from: { env: string; absolute?: boolean; relativeToCwd?: boolean; emptyCounts?: boolean } | 'home';
   /** Path below it, with / separators; empty for the directory itself. */
   path: string;
   /** Use this directory only when it already exists (pip on macOS). */
@@ -226,10 +226,37 @@ export interface UserVariable {
   defaultPath?: string;
 }
 
+/**
+ * Directories of the user file that a library the tool calls decides, by the library's version (platformdirs for
+ * Poetry and PDM on macOS). depcurfew reads that version from the library's .dist-info next to the tool's own.
+ */
+export interface LibraryDirectories {
+  /** The distribution name of the library, as its .dist-info folder spells it (platformdirs). */
+  library: string;
+  /** The platforms whose directories it decides; the other platforms keep those of `files`. */
+  platforms: readonly UserPlatform[];
+  /** The directories per library version, oldest first; they replace the directories of `files` on those platforms. */
+  directories: Versioned<readonly UserDirectory[]>;
+}
+
+/** The unit of the release-age setting in the user file, when it differs from the tool's own (`cooldown.unit`). */
+export interface UserCooldownUnit {
+  key: string;
+  unit: 'seconds' | 'minutes' | 'hours' | 'days';
+  /** Only whole numbers count; depcurfew rounds up, to the longer delay. */
+  wholeNumbers: boolean;
+  /** What the tool does with any other value: ignores it without a word, or stops. */
+  otherValues: 'ignored' | 'fail';
+}
+
 /** The tool's user-level configuration, for `depcurfew apply --user` and `doctor --user`. */
 export interface UserConfigKnowledge {
   /** The user file per version, oldest first; null for versions without a user file. */
   files: Fact<Versioned<UserFile | null>>;
+  /** Directories of the user file that depend on the version of a library the tool calls. */
+  libraryDirectories?: Fact<LibraryDirectories>;
+  /** The unit of the release-age setting there, when it is not the unit of the tool's project setting. */
+  cooldownUnit?: Fact<UserCooldownUnit>;
   /** Settings depcurfew can write there. */
   settings: Fact<readonly UserSetting[]>;
   /** What a version does with a key it does not know in the user file: ignore it, warn, or fail. */
@@ -821,12 +848,26 @@ export interface GitIgnoreCaseKnowledge {
   trueValues: readonly string[];
 }
 
+/** The file in which Corepack records the version of each package manager it runs outside a project. */
+export interface CorepackDefaultsKnowledge {
+  /** The first Corepack version with this layout. */
+  since: string;
+  /** Where the file is: the first directory that applies is used. */
+  locations: readonly UserLocation[];
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
     devEnginesSince: Fact<string>;
     envFileSince: Fact<string>;
     bundledWithNode: Fact<Versioned<boolean>>;
+    /** The npm package of Corepack, whose package.json declares the shims of the package managers (yarn, pnpm). */
+    package: Fact<string>;
+    /** The npm packages that install a package manager itself, for the tools Corepack knows. */
+    toolPackages: Fact<Readonly<Partial<Record<ToolId, readonly string[]>>>>;
+    /** lastKnownGood.json: the version of each package manager Corepack runs outside a project. */
+    defaults: Fact<CorepackDefaultsKnowledge>;
   };
   devEngines: Fact<DevEnginesKnowledge>;
   devEnginesSince: Fact<string>;

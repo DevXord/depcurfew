@@ -17,6 +17,7 @@ export const APPLY_WARNINGS = {
   'no-user-config': 'apply --user: the tool has no user-level configuration file, so nothing is written for it.',
   'user-setting-project-only': 'apply --user: the tool reads a part of the policy only from project files, so it is not written into the user file.',
   'user-directory-relative': 'apply --user: the environment variable that names the directory of the user file (XDG_CONFIG_HOME, APPDATA) is a relative path, so the tool looks in another place from each directory, or where it looks then is not known; nothing is written for it.',
+  'user-file-uncertain': 'apply --user: a library the tool calls decides where its user file is (platformdirs for Poetry and PDM on macOS), and its version cannot be read from files, so apply --user writes where the tool\'s docs say and names the other files the tool may read.',
   'user-setting-overridden': 'apply --user: a file the tool reads ahead of its user file (~/.npmrc for pnpm 10) sets a key apply writes there to another value, so the value written has no effect.',
   'version-not-used': 'apply --user: --for gives the version of a tool that apply --user does not configure (not in PATH with targets "auto", or not listed under targets).',
   'cooldown-not-written': 'The release-age delay cannot be written for a tool.',

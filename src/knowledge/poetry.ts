@@ -1,8 +1,10 @@
 import { verifiedOn } from './define.ts';
+import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './platformdirs.ts';
 import type { SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-30');
 const user = verifiedOn('2026-10-31');
+const leftovers = verifiedOn('2026-11-01');
 
 // python-poetry.org/docs is built from docs/ in the repository.
 const POETRY = 'https://github.com/python-poetry/poetry/blob/2.5.1';
@@ -12,7 +14,7 @@ const LOCKER = `${POETRY}/src/poetry/packages/locker.py`;
 const CHOOSER = `${POETRY}/src/poetry/installation/chooser.py`;
 const CONFIG = `${POETRY}/src/poetry/config/config.py`;
 
-/** The user config.toml; only the macOS directories are disputed. */
+/** The user config.toml; on macOS the directories are those of the docs (see user.libraryDirectories). */
 const userFiles = (darwin: readonly UserDirectory[]): Versioned<UserFile> => [
   {
     since: '2.0.0',
@@ -126,18 +128,15 @@ export const poetry: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, 'https://github.com/python-poetry/poetry/issues/2270', 'No workspaces.'),
   },
   user: {
-    files: user.disputed(
-      'The docs give ~/Library/Application Support/pypoetry on macOS. The code asks the installed platformdirs (pyproject.toml allows >=3.0.0,<5), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) Poetry reads $XDG_CONFIG_HOME/pypoetry/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in Poetry\'s environment. Linux and Windows agree. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked.',
-      user.evidence(
-        userFiles([MACOS_DIRECTORY]),
-        `${CONFIGURATION}#config-directory`,
-        '"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry".',
-      ),
-      user.evidence(
-        userFiles([{ from: { env: 'XDG_CONFIG_HOME' }, path: 'pypoetry' }, MACOS_DIRECTORY]),
-        `${POETRY}/src/poetry/locations.py`,
-        'CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path("pypoetry", appauthor=False, roaming=True) from platformdirs, which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names.',
-      ),
+    files: user.verified(
+      userFiles([MACOS_DIRECTORY]),
+      `${CONFIGURATION}#config-directory`,
+      '"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry". The code agrees on Linux and Windows: CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path("pypoetry", appauthor=False, roaming=True) from platformdirs, without an override (src/poetry/locations.py; on Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names). On macOS the directory depends on the installed platformdirs (libraryDirectories); the docs\' directory is used when its version cannot be read. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked.',
+    ),
+    libraryDirectories: leftovers.verified(
+      platformdirsMacos('pypoetry'),
+      PLATFORMDIRS_CHANGELOG,
+      `Poetry 2.5.1 allows platformdirs >=3.0.0,<5 (pyproject.toml; its own lock has 4.11.8), and the official installer runs pip install without constraints in Poetry's virtual environment (python-poetry/install.python-poetry.org, install-poetry.py), so a new install gets the latest 4.x. ${PLATFORMDIRS_NOTE}`,
     ),
     settings: user.verified(
       [

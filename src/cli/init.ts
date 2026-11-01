@@ -3,7 +3,8 @@ import { dirname, join } from 'node:path';
 import { homeProblem, ownerOfNewUnderHome } from '../user/home.ts';
 import { shownPath, type UserEnvironment } from '../user/locate.ts';
 import { userPolicyPath } from '../user/policy-path.ts';
-import { describeDelay, longestDelay, policyDuration } from '../apply/delays.ts';
+import { describeDelay, longestDelay, policyDuration, type ConfiguredDelay } from '../apply/delays.ts';
+import { longestUserDelay } from '../user/delays.ts';
 import { fileSystemReason, writeChanges } from '../apply/workspace.ts';
 import { detectProject } from '../detect/index.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
@@ -47,9 +48,22 @@ function blockingFile(path: string): string | undefined {
   }
 }
 
+/** The default policy, with the longest delay `longest` finds above the default minimum as cooldown.minimum. */
+function keepLongest(longest: (minutes: number) => ConfiguredDelay | undefined): { kept: ConfiguredDelay | undefined; minimum: string; text: string } {
+  const defaultMinimum = parseDuration(DEFAULT_POLICY.cooldown.minimum);
+  const kept = defaultMinimum.ok ? longest(defaultMinimum.duration.minutes) : undefined;
+  const minimum = kept === undefined ? DEFAULT_POLICY.cooldown.minimum : policyDuration(kept.minutes);
+  return { kept, minimum, text: renderPolicy({ ...DEFAULT_POLICY, cooldown: { ...DEFAULT_POLICY.cooldown, minimum } }) };
+}
+
+/** Where the delay that init keeps is set: setting, value, file and line. */
+const keptMessage = (kept: ConfiguredDelay, minimum: string): string =>
+  `cooldown.minimum is ${minimum} instead of ${DEFAULT_POLICY.cooldown.minimum}, to keep the longest release-age delay already set: ${describeDelay(kept)}.\n`;
+
 /**
  * init --user: the default policy as the user policy, in a directory that is created when missing; not without a home
- * directory (home-missing, as apply --user). Run by root in the home directory of another user, what it creates there
+ * directory (home-missing, as apply --user). A longer release-age delay that the user files of the installed tools set
+ * becomes cooldown.minimum (decision D-101). Run by root in the home directory of another user, what it creates there
  * belongs to that user (decision D-093).
  */
 export function initUser(force: boolean, environment: UserEnvironment, io: CliIo): number {
@@ -87,13 +101,16 @@ export function initUser(force: boolean, environment: UserEnvironment, io: CliIo
   if (existing?.isSymbolicLink() === true) return fail('cannot-write', `${shown} is a symlink; depcurfew does not write through symlinks`, 'Replace the symlink with a regular file');
   if (existing !== undefined && !existing.isFile()) return fail('cannot-write', `${shown} is not a regular file`, `Remove ${shown}, then run depcurfew init --user again`);
   const ownerOfNew = ownerOfNewUnderHome(environment);
+  // A longer delay the user files of the installed tools set becomes cooldown.minimum, as in a project (decision D-101).
+  const { kept, minimum, text } = keepLongest((minutes) => longestUserDelay(environment, minutes));
   try {
     // writeChanges creates the missing directories, one level at a time when they are given to the owner of HOME.
-    writeChanges(dirname(target), [{ file: POLICY_FILE, before: existing === undefined ? null : readFileSync(target, 'utf8'), after: renderPolicy(DEFAULT_POLICY) }], ownerOfNew === undefined ? {} : { ownerOfNew });
+    writeChanges(dirname(target), [{ file: POLICY_FILE, before: existing === undefined ? null : readFileSync(target, 'utf8'), after: text }], ownerOfNew === undefined ? {} : { ownerOfNew });
   } catch (error) {
     return fail('cannot-write', `cannot write ${shown}: ${errorMessage(error)}`, 'Make sure you can write to the directory, then run depcurfew init --user again');
   }
   io.stdout(`${existing === undefined ? 'Created' : 'Overwrote'} ${shown} with the default policy.\n`);
+  if (kept !== undefined) io.stdout(keptMessage(kept, minimum));
   io.stdout('Run depcurfew apply --user --dry-run to see what it writes into the user-level configuration of your tools.\n');
   return EXIT_OK;
 }
@@ -166,9 +183,7 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
       `projects lists ${listing(projects.map((entry) => entry.project))}: the root has no manifest or lockfile, these directories do, so depcurfew configures each as a project of its own and the bots from the root; edit projects in ${POLICY_FILE} if that is not right.\n`,
     );
   }
-  if (kept !== undefined) {
-    io.stdout(`cooldown.minimum is ${minimum} instead of ${DEFAULT_POLICY.cooldown.minimum}, to keep the longest release-age delay already set: ${describeDelay(kept)}.\n`);
-  }
+  if (kept !== undefined) io.stdout(keptMessage(kept, minimum));
   io.stdout(`Detected tools: ${detected.length === 0 ? 'none' : detected.join(', ')}.\n`);
   // Building from source runs the package's own build code, so the default deny blocks it (decision D-065); a package
   // without wheels then stops installing, which a team should see before apply (user feedback before 1.3.0).

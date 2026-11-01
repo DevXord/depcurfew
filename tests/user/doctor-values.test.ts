@@ -115,6 +115,27 @@ describe('switches that allow every install script, as the tools parse them', ()
     expect(keysOf(environment)).toEqual(reported ? ['enableScripts'] : []);
   });
 
+  it('names the scope of a weakening npmScopes entry in ~/.yarnrc.yml, not the pattern of the knowledge base (D-101)', () => {
+    const environment = machine({ npm: { yarn: '4.18.1' }, policy: false });
+    writeFileSync(userFile('yarn', environment), 'npmScopes:\n  acme:\n    npmMinimalAgeGate: 0\n');
+    const [finding] = weakens(environment);
+    expect(finding?.message).toMatch(/^npmScopes\.acme\.npmMinimalAgeGate = 0 in .*\.yarnrc\.yml \(Yarn \(Berry\)\) turns the age gate off for that scope in every project$/u);
+    expect(finding?.fix).toMatch(/^Remove npmScopes\.acme\.npmMinimalAgeGate from /u);
+    expect(finding?.location.line).toBe(3);
+    expect(`${finding?.message ?? ''} ${finding?.fix ?? ''}`).not.toContain('*');
+  });
+
+  it('checks Yarn for the release yarnPath in ~/.yarnrc.yml names, and says so (D-101)', () => {
+    const environment = machine({ npm: { yarn: '4.18.1' }, policy: false });
+    const rc = userFile('yarn', environment);
+    writeFileSync(rc, 'yarnPath: .yarn/releases/yarn-4.10.3.cjs\n');
+    mkdirSync(join(dirname(rc), '.yarn', 'releases'), { recursive: true });
+    writeFileSync(join(dirname(rc), '.yarn', 'releases', 'yarn-4.10.3.cjs'), '// bundle\n');
+    const report = runUserDoctor({ environment });
+    expect(report.checked?.tools).toEqual([{ id: 'yarn', name: 'Yarn (Berry)', version: '4.10.3', versionFrom: 'yarnPath in ~/.yarnrc.yml' }]);
+    expect(report.findings).toEqual([]);
+  });
+
   it('reports use_uv = "yes" in the PDM config.toml, which PDM reads as true', () => {
     const environment = machine({ python: { pdm: '2.29.5' }, policy: false });
     writeFileSync(userFile('pdm', environment), 'use_uv = "yes"\n');

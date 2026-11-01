@@ -211,8 +211,13 @@ export function configuredDelays(repository: Repository, detection: Detection, t
 
 /** The longest delay the repository configures, when it is longer than `minutes` and depcurfew.json can hold it. */
 export function longestDelay(root: string, detection: Detection, minutes: number, tools: readonly ToolKnowledge[] = knowledgeBase): ConfiguredDelay | undefined {
+  return longestOf(configuredDelays(new Repository(root), detection, tools), minutes);
+}
+
+/** The longest of the delays, when it is longer than `minutes` and depcurfew.json can hold it (init and init --user). */
+export function longestOf(delays: readonly ConfiguredDelay[], minutes: number): ConfiguredDelay | undefined {
   let longest: ConfiguredDelay | undefined;
-  for (const delay of configuredDelays(new Repository(root), detection, tools)) {
+  for (const delay of delays) {
     if (delay.minutes > (longest?.minutes ?? minutes) && parseDuration(policyDuration(delay.minutes)).ok) longest = delay;
   }
   return longest;

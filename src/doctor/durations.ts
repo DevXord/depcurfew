@@ -2,7 +2,7 @@
 // in the syntax the knowledge base records for that tool (extra.durationStrings).
 import { isRecord, values } from '../apply/facts.ts';
 import { compareVersions, parseVersion, type Version } from '../apply/version.ts';
-import type { ToolKnowledge } from '../knowledge/types.ts';
+import type { ToolKnowledge, UserCooldownUnit } from '../knowledge/types.ts';
 
 const MINUTES: Record<string, number> = {
   ms: 1 / 60000,
@@ -77,6 +77,34 @@ export function delayMinutes(tool: ToolKnowledge, value: unknown, version: Versi
   }
   const minutes = SYNTAX[format['syntax']]?.(text);
   return minutes === undefined ? { ok: false, reason: `"${text}" is not a duration ${tool.name} understands` } : { ok: true, minutes };
+}
+
+/** The unit of the release-age setting in the tool's user file, when it is not the unit of its own setting (user.cooldownUnit). */
+export function userCooldownUnit(tool: ToolKnowledge): UserCooldownUnit | undefined {
+  const fact = tool.user?.cooldownUnit;
+  return fact === undefined ? undefined : values(fact)[0];
+}
+
+/** A delay as written in the tool's user file: in the unit of user.cooldownUnit where it has one, else as `delayMinutes`. */
+export function userDelayMinutes(tool: ToolKnowledge, value: unknown, version: Version | undefined): DelayValue {
+  const unit = userCooldownUnit(tool);
+  if (unit === undefined) return delayMinutes(tool, value, version);
+  if (value === null || value === undefined || value === false) return { ok: true, minutes: 0 };
+  const number = typeof value === 'string' && /^\d+(\.\d+)?$/u.test(value.trim()) ? Number(value.trim()) : value;
+  if (typeof number !== 'number' || !Number.isFinite(number) || number < 0 || (unit.wholeNumbers && !Number.isInteger(number))) {
+    return { ok: false, reason: `${tool.name} reads ${unit.key} there only as a whole number of ${unit.unit}` };
+  }
+  return { ok: true, minutes: number * (UNIT_MINUTES[unit.unit] ?? Number.NaN) };
+}
+
+/** The value the tool's user file takes for a delay: in the unit of user.cooldownUnit, rounded up to a whole number where only those count. */
+export function userCooldownAmount(tool: ToolKnowledge, minutes: number): { value: number; minutes: number } | undefined {
+  const unit = userCooldownUnit(tool);
+  const factor = unit === undefined ? undefined : UNIT_MINUTES[unit.unit];
+  if (unit === undefined || factor === undefined) return undefined;
+  // Rounded toward the longer delay.
+  const amount = unit.wholeNumbers ? Math.ceil(minutes / factor) : minutes / factor;
+  return { value: amount, minutes: amount * factor };
 }
 
 export function formatMinutes(minutes: number): string {

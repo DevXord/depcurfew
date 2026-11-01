@@ -259,6 +259,7 @@ const { verified: verified$11, uncertain: uncertain$10, disputed: disputed$5, ev
 const checked$6 = verifiedOn("2026-10-29");
 const reviewed$3 = verifiedOn("2026-10-30");
 const user$8 = verifiedOn("2026-10-31");
+const leftovers$4 = verifiedOn("2026-11-01");
 const DENO_V2_9_8 = "https://github.com/denoland/deno/blob/v2.9.8";
 const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
@@ -362,7 +363,13 @@ const deno$1 = {
 			purpose: "cooldown",
 			key: "min-release-age",
 			since: "2.8.0"
-		}], `${DENO_V2_9_8}/Releases.md`, "2.8.0: \"feat(npmrc): support min-release-age (#33983)\". A whole number of days (npmrcFormat); the same line sets npm's min-release-age, also in days. minimumDependencyAge.exclude and allowScripts exist only in deno.json (allowScripts at the workspace root), so Deno has no user-level exclusions or script settings."),
+		}], `${DENO_V2_9_8}/Releases.md`, "2.8.0: \"feat(npmrc): support min-release-age (#33983)\". A whole number of days (cooldownUnit); the same line sets npm's min-release-age, also in days. minimumDependencyAge.exclude and allowScripts exist only in deno.json (allowScripts at the workspace root), so Deno has no user-level exclusions or script settings."),
+		cooldownUnit: leftovers$4.verified({
+			key: "min-release-age",
+			unit: "days",
+			wholeNumbers: true,
+			otherValues: "ignored"
+		}, NPMRC_PARSER, "NpmRc::parse reads min-release-age \"in days\" (min_release_age_days: Option<u64>; \"npm interprets the value as a number of days\"): an INI number of 0 or more, or a text that parses as a whole number after ${VAR} expansion; anything else, such as 72h or 1.5, is ignored without a message, so the age comes from the next source. The project .npmrc wins over the home file (libs/resolver/npmrc.rs), and the days count only where deno.json and --min-dep-age set nothing; those take minutes, an ISO-8601 duration or an RFC 3339 date (libs/config/util.rs, libs/cli_parser/src/defs.rs)."),
 		unknownKeys: user$8.verified("ignore", NPMRC_PARSER, "NpmRc::parse reads registry, auth, replace-registry-host, min-release-age and trust-policy keys and skips every other key without a message."),
 		invalidValueFails: user$8.verified(false, NPMRC_PARSER, "A min-release-age that is not a whole number of days, such as 72h, is ignored without a message (test \"invalid value is ignored\"), so the age silently comes from the next source. A home .npmrc that does not parse at all stops the command (libs/resolver/npmrc.rs)."),
 		weakening: user$8.verified([{
@@ -1873,16 +1880,70 @@ const pip$1 = {
 	}
 };
 
+// src/knowledge/platformdirs.ts
+const PLATFORMDIRS_CHANGELOG = "https://github.com/tox-dev/platformdirs/blob/4.14.2/docs/changelog.rst";
+const PLATFORMDIRS_NOTE = "The macOS user_config_dir by platformdirs version, read from the code at the tags: before 4.6.0 always ~/Library/Application Support/<app> (4.5.1 macos.py has no XDG support); 4.6.0 \"Honor XDG environment variables on macOS\" (#375): a non-empty XDG_CONFIG_HOME wins, a relative one too (os.environ.get(\"XDG_CONFIG_HOME\", \"\").strip() in _xdg.py), and otherwise the config directory is user_data_dir, so a non-empty XDG_DATA_HOME gives $XDG_DATA_HOME/<app>; 4.9.6 \"Fix macOS XDG variables leaking across user_config_dir, user_data_dir, and user_state_dir\" (#473; 4.9.4 still returns user_data_dir); 4.11.8 \"Ignore relative paths in XDG Base Directory environment variables and use the existing platform fallback\" (#540, _xdg_dir with posixpath.isabs); the same in 4.14.2. A relative value is used as it is, so the tool reads it from the directory each command runs in.";
+/** The macOS config directories platformdirs gives an app, by its version. */
+function platformdirsMacos(app) {
+	const appSupport = {
+		from: "home",
+		path: `Library/Application Support/${app}`
+	};
+	const config = (absolute) => ({
+		from: absolute ? {
+			env: "XDG_CONFIG_HOME",
+			absolute: true
+		} : {
+			env: "XDG_CONFIG_HOME",
+			relativeToCwd: true
+		},
+		path: app
+	});
+	return {
+		library: "platformdirs",
+		platforms: ["darwin"],
+		directories: [
+			{
+				since: "0.0.0",
+				value: [appSupport]
+			},
+			{
+				since: "4.6.0",
+				value: [
+					config(false),
+					{
+						from: {
+							env: "XDG_DATA_HOME",
+							relativeToCwd: true
+						},
+						path: app
+					},
+					appSupport
+				]
+			},
+			{
+				since: "4.9.6",
+				value: [config(false), appSupport]
+			},
+			{
+				since: "4.11.8",
+				value: [config(true), appSupport]
+			}
+		]
+	};
+}
+
 // src/knowledge/pdm.ts
 const { verified: verified$7, uncertain: uncertain$6 } = verifiedOn("2026-10-30");
 const rechecked$2 = verifiedOn("2026-10-31");
 const user$5 = verifiedOn("2026-10-31");
+const leftovers$3 = verifiedOn("2026-11-01");
 const PDM = "https://github.com/pdm-project/pdm/blob/2.29.5";
 const LOCKFILE = `${PDM}/docs/usage/lockfile.md`;
 const CHANGELOG$2 = `${PDM}/CHANGELOG.md`;
 const CANDIDATES = `${PDM}/src/pdm/models/candidates.py`;
 const CONFIG$1 = `${PDM}/src/pdm/project/config.py`;
-/** The home config.toml; only the macOS directories are disputed. */
+/** The home config.toml; on macOS the directories are those of the docs (see user.libraryDirectories). */
 const userFiles$1 = (darwin) => [{
 	since: "0.0.0",
 	value: {
@@ -1971,10 +2032,8 @@ const pdm$1 = {
 		workspacesObjectKey: uncertain$6(null, `${PDM}/docs/usage/workspace.md`, "Not read; see workspaces.")
 	},
 	user: {
-		files: user$5.disputed("The docs give ~/Library/Application Support/pdm on macOS. The code asks the installed platformdirs (not pinned in pyproject.toml), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) PDM reads $XDG_CONFIG_HOME/pdm/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in PDM's environment. Linux and Windows agree. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked.", user$5.evidence(userFiles$1([MACOS_DIRECTORY$1]), `${PDM}/docs/usage/config.md`, "<CONFIG_ROOT> is \"$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux\", \"~/Library/Application Support/pdm on macOS\" and \"%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows\"."), user$5.evidence(userFiles$1([{
-			from: { env: "XDG_CONFIG_HOME" },
-			path: "pdm"
-		}, MACOS_DIRECTORY$1]), `${PDM}/src/pdm/project/core.py`, "global_config = platformdirs.user_config_path(\"pdm\") / \"config.toml\", which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows the default appauthor repeats the name (pdm\\pdm) and roaming is off, so platformdirs asks for the Local AppData known folder.")),
+		files: user$5.verified(userFiles$1([MACOS_DIRECTORY$1]), `${PDM}/docs/usage/config.md`, "<CONFIG_ROOT> is \"$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux\", \"~/Library/Application Support/pdm on macOS\" and \"%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows\". The code agrees on Linux and Windows: global_config = platformdirs.user_config_path(\"pdm\") / \"config.toml\", without an override (src/pdm/project/core.py; on Windows the default appauthor repeats the name and roaming is off, so platformdirs asks for the Local AppData known folder). On macOS the directory depends on the installed platformdirs (libraryDirectories); the docs' directory is used when its version cannot be read. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked."),
+		libraryDirectories: leftovers$3.verified(platformdirsMacos("pdm"), PLATFORMDIRS_CHANGELOG, `PDM 2.29.5 does not pin platformdirs (pyproject.toml; its own lock has 4.9.6). ${PLATFORMDIRS_NOTE}`),
 		settings: user$5.verified([{
 			purpose: "cooldown",
 			key: "strategy.exclude-newer",
@@ -2952,13 +3011,14 @@ const pnpm$1 = {
 // src/knowledge/poetry.ts
 const { verified: verified$4, uncertain: uncertain$3, disputed: disputed$2, evidence: evidence$2 } = verifiedOn("2026-10-30");
 const user$2 = verifiedOn("2026-10-31");
+const leftovers$2 = verifiedOn("2026-11-01");
 const POETRY = "https://github.com/python-poetry/poetry/blob/2.5.1";
 const CONFIGURATION$2 = `${POETRY}/docs/configuration.md`;
 const CHANGELOG = `${POETRY}/CHANGELOG.md`;
 const LOCKER = `${POETRY}/src/poetry/packages/locker.py`;
 const CHOOSER = `${POETRY}/src/poetry/installation/chooser.py`;
 const CONFIG = `${POETRY}/src/poetry/config/config.py`;
-/** The user config.toml; only the macOS directories are disputed. */
+/** The user config.toml; on macOS the directories are those of the docs (see user.libraryDirectories). */
 const userFiles = (darwin) => [{
 	since: "2.0.0",
 	value: {
@@ -3050,10 +3110,8 @@ const poetry$1 = {
 		workspacesObjectKey: uncertain$3(null, "https://github.com/python-poetry/poetry/issues/2270", "No workspaces.")
 	},
 	user: {
-		files: user$2.disputed("The docs give ~/Library/Application Support/pypoetry on macOS. The code asks the installed platformdirs (pyproject.toml allows >=3.0.0,<5), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) Poetry reads $XDG_CONFIG_HOME/pypoetry/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in Poetry's environment. Linux and Windows agree. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked.", user$2.evidence(userFiles([MACOS_DIRECTORY]), `${CONFIGURATION$2}#config-directory`, "\"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry\"."), user$2.evidence(userFiles([{
-			from: { env: "XDG_CONFIG_HOME" },
-			path: "pypoetry"
-		}, MACOS_DIRECTORY]), `${POETRY}/src/poetry/locations.py`, "CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path(\"pypoetry\", appauthor=False, roaming=True) from platformdirs, which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names.")),
+		files: user$2.verified(userFiles([MACOS_DIRECTORY]), `${CONFIGURATION$2}#config-directory`, "\"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry\". The code agrees on Linux and Windows: CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path(\"pypoetry\", appauthor=False, roaming=True) from platformdirs, without an override (src/poetry/locations.py; on Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names). On macOS the directory depends on the installed platformdirs (libraryDirectories); the docs' directory is used when its version cannot be read. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked."),
+		libraryDirectories: leftovers$2.verified(platformdirsMacos("pypoetry"), PLATFORMDIRS_CHANGELOG, `Poetry 2.5.1 allows platformdirs >=3.0.0,<5 (pyproject.toml; its own lock has 4.11.8), and the official installer runs pip install without constraints in Poetry's virtual environment (python-poetry/install.python-poetry.org, install-poetry.py), so a new install gets the latest 4.x. ${PLATFORMDIRS_NOTE}`),
 		settings: user$2.verified([
 			{
 				purpose: "cooldown",
@@ -3912,6 +3970,7 @@ const { verified: verified$1, uncertain, disputed, evidence } = verifiedOn("2026
 const checked$3 = verifiedOn("2026-10-29");
 const rechecked = verifiedOn("2026-10-31");
 const user = verifiedOn("2026-10-31");
+const leftovers$1 = verifiedOn("2026-11-01");
 const BERRY = "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1";
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 /** Variables for settings with a single value, which both the docs and the code accept. */
@@ -4107,6 +4166,11 @@ const yarn$1 = {
 			until: "2.0.0",
 			file: ".yarnrc"
 		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/registries/yarn-registry.js", "Yarn Classic (1.x, last release 1.22.22) reads .yarnrc and .npmrc from the project, its parent folders, the home folder (homeConfigLoc = ~/.yarnrc) and the global prefix (getPossibleConfigLocations in src/registries/npm-registry.js), never .yarnrc.yml, which only Yarn 2 and later read. depcurfew does not configure Yarn Classic."),
+		yarnPath: leftovers$1.uncertain({
+			key: "yarnPath",
+			releaseFile: "yarn-<version>.cjs",
+			variables: ["YARN_YARN_PATH", "YARN_IGNORE_PATH"]
+		}, `${BERRY}/packages/plugin-essentials/sources/commands/set/version.ts`, "yarn set version saves the release as .yarn/releases/yarn-<version>.cjs and writes a relative yarnPath to it. Yarn 2 and later read yarnPath (an absolute path setting, resolved against the folder of the .yarnrc.yml that sets it) from every .yarnrc.yml, the home file included, before the project is found (Configuration.find, pickPrimaryCoreFields), and run node <yarnPath> instead of themselves (runYarnPath in packages/yarnpkg-cli/sources/lib.ts); a nearer .yarnrc.yml with its own yarnPath, YARN_YARN_PATH or YARN_IGNORE_PATH changes that. The file name is only a hint: a URL or a file given to yarn set version gives other names (yarn-remote.cjs), a hand-written yarnPath may name any file, and the version inside the bundle is minified, so depcurfew uses the name only when it is yarn-<exact version>.cjs and the file exists."),
 		denyList: user.verified({
 			file: "package.json",
 			setting: "dependenciesMeta.<package>.built",
@@ -4194,8 +4258,34 @@ const audited = verifiedOn("2026-10-31");
 const release13 = verifiedOn("2026-11-01");
 const mcpFacts = verifiedOn("2026-11-01");
 const actionChecks = verifiedOn("2026-11-01");
+const leftovers = verifiedOn("2026-11-01");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
+const COREPACK_V0_36_0 = "https://github.com/nodejs/corepack/blob/v0.36.0";
+/** The variables Corepack's code reads for its home folder, in order; a variable counts when it is set, even empty (??). */
+const COREPACK_VARIABLES = [
+	{
+		from: {
+			env: "COREPACK_HOME",
+			emptyCounts: true
+		},
+		path: ""
+	},
+	{
+		from: {
+			env: "XDG_CACHE_HOME",
+			emptyCounts: true
+		},
+		path: "node/corepack"
+	},
+	{
+		from: {
+			env: "LOCALAPPDATA",
+			emptyCounts: true
+		},
+		path: "node/corepack"
+	}
+];
 const NPM_PACKAGE_JSON = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
 const SPECIFICATIONS = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications";
 const MCP = "https://github.com/modelcontextprotocol/modelcontextprotocol/blob/d0e246ea3c69eafaa2806bc4cd28025703ba2c2b";
@@ -4225,7 +4315,54 @@ const environment = {
 				since: "25.0.0",
 				value: false
 			}
-		], "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md", "Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0.")
+		], "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md", "Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0."),
+		package: leftovers.verified("corepack", `${COREPACK_V0_36_0}/package.json`, "Its published bin field (publishConfig.bin) declares yarn (./dist/yarn.js), yarnpkg, pnpm and pnpx next to corepack. corepack enable links them from the folder of the corepack executable (a relative symlink to dist/<name>.js on Linux and macOS, a cmd-shim on Windows; sources/commands/Enable.ts), so the package.json behind a yarn or pnpm shim is Corepack's, which says nothing about the version the shim runs."),
+		toolPackages: leftovers.verified({
+			npm: ["npm"],
+			pnpm: ["pnpm"],
+			yarn: ["yarn", "@yarnpkg/cli-dist"]
+		}, `${COREPACK_V0_36_0}/config.json`, "The npm packages Corepack installs each package manager from: npm; pnpm; yarn below 2.0.0 (Yarn Classic) and, with COREPACK_NPM_REGISTRY, @yarnpkg/cli-dist for Yarn 2 and later (\"npmRegistry\": { \"package\": \"@yarnpkg/cli-dist\", \"bin\": \"bin/yarn.js\" }). npm i -g @yarnpkg/cli-dist installs the same package, whose package.json declares bin yarn and carries the Yarn version (observed for 4.18.1)."),
+		defaults: leftovers.disputed("Corepack 0.36.0 runs the version lastKnownGood.json names for a package manager when no package.json above the current folder sets packageManager; without an entry it fetches the latest version of the npm package (yarn: Yarn Classic 1.x, which never reads .yarnrc.yml) and records it there, or with COREPACK_DEFAULT_TO_LATEST=0 uses its built-in default (getDefaultVersion in sources/Engine.ts). The code looks for the home folder in COREPACK_HOME, XDG_CACHE_HOME, LOCALAPPDATA (on every system) and then the home folder, using a variable that is set even when it is empty (??); the README leaves out XDG_CACHE_HOME and LOCALAPPDATA outside Windows. The code is what runs, so depcurfew follows it; the layout is the same since 0.13.0 (sources/folderUtils.ts), before which the folder was ~/.node/corepack. Values carry a hash after + (1.22.22+sha1.ac34...), which is not part of the version.", leftovers.evidence({
+			since: "0.13.0",
+			locations: [{
+				platforms: ["linux", "darwin"],
+				directories: [...COREPACK_VARIABLES, {
+					from: "home",
+					path: ".cache/node/corepack"
+				}],
+				file: "lastKnownGood.json"
+			}, {
+				platforms: ["win32"],
+				directories: [...COREPACK_VARIABLES, {
+					from: "home",
+					path: "AppData/Local/node/corepack"
+				}],
+				file: "lastKnownGood.json"
+			}]
+		}, `${COREPACK_V0_36_0}/sources/folderUtils.ts`, "getCorepackHomeFolder: process.env.COREPACK_HOME ?? join(process.env.XDG_CACHE_HOME ?? process.env.LOCALAPPDATA ?? join(homedir(), process.platform === `win32` ? `AppData/Local` : `.cache`), `node/corepack`); sources/Engine.ts reads join(getCorepackHomeFolder(), `lastKnownGood.json`), a JSON object of package manager names and versions."), leftovers.evidence({
+			since: "0.13.0",
+			locations: [{
+				platforms: ["linux", "darwin"],
+				directories: [{
+					from: { env: "COREPACK_HOME" },
+					path: ""
+				}, {
+					from: "home",
+					path: ".cache/node/corepack"
+				}],
+				file: "lastKnownGood.json"
+			}, {
+				platforms: ["win32"],
+				directories: [{
+					from: { env: "COREPACK_HOME" },
+					path: ""
+				}, {
+					from: { env: "LOCALAPPDATA" },
+					path: "node/corepack"
+				}],
+				file: "lastKnownGood.json"
+			}]
+		}, `${COREPACK_V0_36_0}/README.md`, "\"COREPACK_HOME can be set in order to define where Corepack should install the package managers. By default it is set to %LOCALAPPDATA%\\node\\corepack on Windows, and to $HOME/.cache/node/corepack everywhere else.\""))
 	},
 	devEngines: verified({
 		key: "devEngines",

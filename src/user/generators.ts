@@ -13,7 +13,7 @@ import { allowedNames, cooldownValue, denyList, eachSource, exclusions, sameList
 import type { Context } from '../apply/generators/context.ts';
 import { userFileFor } from './locate.ts';
 import { matchesPattern } from '../doctor/allow-lists.ts';
-import { delayMinutes, formatMinutes, type DelayValue } from '../doctor/durations.ts';
+import { delayMinutes, formatMinutes, userCooldownAmount, userDelayMinutes, type DelayValue } from '../doctor/durations.ts';
 import { splitSpec } from '../doctor/lockfiles.ts';
 import { iniEntries, iniValue, tomlSetting, yamlSetting, type IniEntry } from '../doctor/settings.ts';
 import { YAML_MARKER } from '../apply/yaml-edit.ts';
@@ -247,19 +247,11 @@ function npmrc(targets: readonly UserTarget[]): void {
     if (policy.cooldown !== undefined) {
       const key = userKey(context, 'cooldown');
       if (key !== undefined && key !== blocked) {
-        const deno = context.tool.id === 'deno';
-        let value: { value: number | string; minutes: number } | undefined;
-        if (deno) {
-          const days = Math.ceil(policy.cooldown.minimum.minutes / 1440);
-          value = { value: days, minutes: days * 1440 };
-        } else {
-          value = cooldownValue(context);
-        }
+        // Deno reads min-release-age in .npmrc as whole days, not in the unit of its own setting (user.cooldownUnit).
+        const value = userCooldownAmount(context.tool, policy.cooldown.minimum.minutes) ?? cooldownValue(context);
         if (value !== undefined) {
           add(key, [`${key}=${value.value}`]);
-          // Deno reads min-release-age in .npmrc as whole days, not in the unit of its own setting.
-          const days = (old: unknown): DelayValue => (typeof old === 'number' && Number.isInteger(old) ? { ok: true, minutes: old * 1440 } : { ok: false, reason: 'not whole days' });
-          shortenedWarning(target, iniFound(entries, key), { key, value: value.value, minutes: value.minutes }, 'block', deno ? days : undefined);
+          shortenedWarning(target, iniFound(entries, key), { key, value: value.value, minutes: value.minutes }, 'block', (old) => userDelayMinutes(context.tool, old, context.version));
         }
       }
       const excludeKey = userKey(context, 'cooldownExclude', policy.cooldown.exclude.length === 0);
