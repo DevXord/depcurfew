@@ -214,7 +214,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   return { ...outputs, 'sarif-file': shownSarif };
 }
 
-/** The title of the check run: the result and the count of checks, e.g. "No problems found (13 checks: 9 passed, 4 not applicable)". */
+/** The title of the check run: the result and the count of checks, e.g. "No problems found (14 checks: 9 passed, 5 not applicable)". */
 function checkRunTitle(report: DoctorReport): string {
   const counts = countLevels(report.findings);
   const result =

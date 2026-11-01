@@ -6,7 +6,9 @@ import { convertCooldown } from '../policy/convert.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
-import { autoTargets } from '../apply/targets.ts';
+import { join } from 'node:path';
+import { projectProblems, relocateDetection } from '../apply/projects.ts';
+import { autoTargets, directoryTargets } from '../apply/targets.ts';
 import { managerName, toolName } from './describe.ts';
 import { paint, PLAIN, type Paint } from '../color.ts';
 import { printable } from '../printable.ts';
@@ -27,10 +29,17 @@ export type PolicyReport =
     }
   | { file: string; valid: false; issues: string[] };
 
+/** A directory listed in projects in depcurfew.json (decision D-100), with its files named relative to the root. */
+export type ProjectReport =
+  | { directory: string; project: Detection; targets: { mode: 'auto' | 'listed'; tools: ToolId[] } }
+  | { directory: string; project: null; error: { code: string; message: string; fix: string } };
+
 export interface ExplainReport {
   schemaVersion: 1;
   project: Detection;
   policy: PolicyReport | null;
+  /** The directories listed in projects; empty without them or without a usable policy. */
+  projects: ProjectReport[];
   /** A depcurfew.json that cannot be used, in the shape of the errors of apply --json and check --json. */
   errors: InputError[];
 }
@@ -51,22 +60,36 @@ function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[]): { min
   return { minimum: minimum.text, tools: entries };
 }
 
-/** The policy section; a depcurfew.json that cannot be used is read as apply reads it, with the same error. */
-function policyReport(directory: string, detection: Detection): { policy: PolicyReport | null; errors: InputError[] } {
+/**
+ * The policy section and the projects; a depcurfew.json that cannot be used is read as apply reads it, with the same
+ * error. With projects, the targets are the ones apply configures in each directory, and the cooldown is converted for
+ * every tool of the root and of the projects.
+ */
+function policyReport(directory: string, detection: Detection): { policy: PolicyReport | null; projects: ProjectReport[]; errors: InputError[] } {
   let policy: ResolvedPolicy | undefined;
   try {
     policy = loadPolicyIfPresent(directory);
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     const issues = error.issues.length > 0 ? error.issues : [error.message];
-    return { policy: { file: POLICY_FILE, valid: false, issues }, errors: [policyInputError(error, POLICY_FILE)] };
+    return { policy: { file: POLICY_FILE, valid: false, issues }, projects: [], errors: [policyInputError(error, POLICY_FILE)] };
   }
-  if (policy === undefined) return { policy: null, errors: [] };
-  const targets =
-    policy.targets === 'auto'
-      ? { mode: 'auto' as const, tools: autoTargets(directory, detection).targets }
-      : { mode: 'listed' as const, tools: [...policy.targets] };
-  return { policy: { file: POLICY_FILE, valid: true, targets, cooldown: cooldownReport(policy, targets.tools) }, errors: [] };
+  if (policy === undefined) return { policy: null, projects: [], errors: [] };
+  const mode = policy.targets === 'auto' ? ('auto' as const) : ('listed' as const);
+  const withProjects = policy.projects.length > 0;
+  const problems = projectProblems(directory, policy.projects, detection);
+  const projects = policy.projects.map((entry): ProjectReport => {
+    const problem = problems.find((item) => item.project === entry);
+    if (problem !== undefined) return { directory: entry, project: null, error: { code: problem.code, message: problem.message, fix: problem.fix } };
+    const root = join(directory, entry);
+    const found = detectProject(root);
+    const { targets } = directoryTargets(root, policy, found, knowledgeBase, { project: entry, withProjects });
+    return { directory: entry, project: relocateDetection(entry, found), targets: { mode, tools: [...targets] } };
+  });
+  const tools = withProjects ? [...directoryTargets(directory, policy, detection, knowledgeBase, { withProjects }).targets] : policy.targets === 'auto' ? autoTargets(directory, detection).targets : [...policy.targets];
+  const every = [...new Set([...tools, ...projects.flatMap((entry) => ('targets' in entry ? entry.targets.tools : []))])];
+  const ordered = knowledgeBase.map((tool) => tool.id).filter((id) => every.includes(id));
+  return { policy: { file: POLICY_FILE, valid: true, targets: { mode, tools }, cooldown: cooldownReport(policy, withProjects ? ordered : tools) }, projects, errors: [] };
 }
 
 export function buildReport(directory: string): ExplainReport {
@@ -139,21 +162,33 @@ function policyLines(policy: PolicyReport | null): string[] {
 /** Section headings (unindented lines up to their first colon) in bold, "cannot apply" and "invalid" in yellow. */
 function paintReport(lines: readonly string[], colors: Paint): string[] {
   return lines.map((line) => {
-    const marked = line.replace(/: (cannot apply|invalid)(?=:|$)/u, (_match, word: string) => `: ${colors.yellow(word)}`);
+    const marked = line.replace(/: (cannot apply|cannot be used|invalid)(?=:|$)/u, (_match, word: string) => `: ${colors.yellow(word)}`);
     return /^\S/u.test(marked) ? marked.replace(/^[^:]+:/u, (heading) => colors.bold(heading)) : marked;
   });
 }
 
+/** A directory listed in projects: what was found there and what apply configures, or why it cannot be used. */
+function listedProjectLines(entry: ProjectReport): string[] {
+  if (entry.project === null) return [`Project ${entry.directory}: cannot be used`, `  ${entry.error.message} (${entry.error.code})`, `  fix: ${entry.error.fix}`];
+  const names = entry.targets.tools.map(toolName);
+  return [
+    `Project ${entry.directory}:`,
+    ...projectLines(entry.project).map((line) => `  ${line}`),
+    `  targets: ${names.length === 0 ? 'none' : names.join(', ')} (${entry.targets.mode === 'auto' ? 'detected' : 'listed'})`,
+  ];
+}
+
 export function renderReport(report: ExplainReport, colors: Paint = PLAIN): string {
   // Every line holds names and values from the repository: control characters in them are shown as text.
-  const lines = [...projectLines(report.project), '', ...policyLines(report.policy)].map((line) => printable(line));
+  const projects = report.projects.flatMap((entry) => ['', ...listedProjectLines(entry)]);
+  const lines = [...projectLines(report.project), '', ...policyLines(report.policy), ...projects].map((line) => printable(line));
   return `${paintReport(lines, colors).join('\n')}\n`;
 }
 
 export function explain(directory: string | undefined, json: boolean, io: CliIo): number {
   const target = projectDirectory(directory, 'explain');
   if (!target.ok) {
-    if (json) io.stdout(`${safeJson({ schemaVersion: 1, project: null, policy: null, notices: [], errors: [target.error] }, 2)}\n`);
+    if (json) io.stdout(`${safeJson({ schemaVersion: 1, project: null, policy: null, projects: [], notices: [], errors: [target.error] }, 2)}\n`);
     else reportInputError(target.error, io);
     return EXIT_USAGE;
   }

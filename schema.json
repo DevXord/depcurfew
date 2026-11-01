@@ -167,6 +167,21 @@
         }
       ],
       "default": "auto"
+    },
+    "projects": {
+      "description": "Directories of independent projects in this repository, each with its own manifest and lockfile (e.g. frontend and backend). depcurfew configures each one with this policy as a project of its own, and configures Renovate and Dependabot once, from the repository root, for all of them. The repository root is always configured as well. A project must not be inside another one, must not be a workspace package of the root and must not have a depcurfew.json of its own.",
+      "type": "array",
+      "items": {
+        "description": "A directory relative to the repository root, with / between directories, e.g. \"frontend\" or \"services/api\". No patterns, no \"..\", no / at either end.",
+        "type": "string",
+        "pattern": "^(?!\\.\\.?(?:/|$))(?!.*/\\.\\.?(?:/|$))(?!(?:.*/)?(?:node_modules|\\.git)(?:/|$))[^/\\\\:*?\"<>|\\u0000-\\u001f\\u007f]+(?:/[^/\\\\:*?\"<>|\\u0000-\\u001f\\u007f]+)*$",
+        "examples": [
+          "frontend",
+          "services/api"
+        ]
+      },
+      "uniqueItems": true,
+      "default": []
     }
   },
   "required": [

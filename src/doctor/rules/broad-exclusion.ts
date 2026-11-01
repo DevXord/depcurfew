@@ -11,6 +11,7 @@ import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion } from '../effective.ts';
 import { matchesEveryName, readRenovateConfig, ruleScope, type RuleScope } from '../renovate.ts';
 import { lineOf, readSetting, yamlSetting } from '../settings.ts';
+import { managerSources } from '../projects.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { usesBot, usesManager } from '../applies.ts';
 
@@ -23,7 +24,8 @@ function tool(context: RuleContext, id: string): ToolKnowledge | undefined {
 
 function checkPolicy(context: RuleContext): void {
   const policy = context.policy;
-  if (policy === undefined) return;
+  // depcurfew.json is the root's; a project listed in projects has none (decision D-100).
+  if (policy === undefined || context.project !== undefined) return;
   const text = context.repository.readText(POLICY_FILE) ?? '';
   const lists: [string, readonly string[]][] = [
     ['cooldown.exclude', policy.cooldown?.exclude ?? []],
@@ -159,7 +161,9 @@ function checkRenovate(context: RuleContext, file: string): void {
   const matching = extraOf(bot, 'packageRuleMatching', isMatching);
   const datasources = extraOf(bot, 'datasources', isRecord);
   // Registries of the detected package managers; a rule for another registry changes nothing here.
-  const detected = [...new Set(context.detection.packageManagers.filter((entry) => entry.supported).flatMap((entry) => {
+  // The bots of the root serve every project listed in projects too (decision D-100).
+  const managers = managerSources(context).flatMap((source) => source.managers);
+  const detected = [...new Set(managers.flatMap((entry) => {
     const knowledge = tool(context, entry.id);
     return knowledge === undefined ? [] : [ecosystemOfTool(knowledge)];
   }))];

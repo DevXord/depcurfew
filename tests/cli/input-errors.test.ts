@@ -177,7 +177,7 @@ describe('a directory that does not exist or is a file', () => {
   it('explain --json prints a document with the error', async () => {
     const result = await exec('explain', '--json', missing);
     expect([result.code, result.stderr]).toEqual([EXIT_USAGE, '']);
-    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, project: null, policy: null, notices: [], errors: [notFound] });
+    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, project: null, policy: null, projects: [], notices: [], errors: [notFound] });
   });
 
   it('documents the exit code in the help of every command that takes a directory', async () => {

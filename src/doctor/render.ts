@@ -19,10 +19,11 @@ function levelColor(level: Level, colors: Paint): (text: string) => string {
   return level === 'warning' ? colors.yellow : colors.cyan;
 }
 
-/** A tool as the log of what was checked names it: npm 11.21.1 (package.json). */
+/** A tool as the log of what was checked names it: npm 11.21.1 (package.json), and in a project npm 11.21.1 (frontend/package.json) in frontend. */
 export function checkedTool(tool: CheckedTool): string {
-  if (tool.version === undefined) return tool.name;
-  return `${tool.name} ${tool.version}${tool.versionFrom === undefined ? '' : ` (${tool.versionFrom})`}`;
+  const where = tool.project === undefined ? '' : ` in ${tool.project}`;
+  if (tool.version === undefined) return `${tool.name}${where}`;
+  return `${tool.name} ${tool.version}${tool.versionFrom === undefined ? '' : ` (${tool.versionFrom})`}${where}`;
 }
 
 /**

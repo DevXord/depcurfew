@@ -1,5 +1,6 @@
 import type { Repository } from '../detect/repository.ts';
 import type { Detection } from '../detect/types.ts';
+import type { PlanOptions } from '../apply/index.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 
@@ -39,10 +40,32 @@ export interface RuleContext {
   tools: readonly ToolKnowledge[];
   report(finding: Omit<Finding, 'rule' | 'level'> & { level?: Level }): void;
   notice(message: string, file?: string): void;
+  /**
+   * Set when the rules run on a directory listed in projects in depcurfew.json (decision D-100): its path relative to
+   * the repository root. `root`, `repository` and `detection` are then the project's, and file names relative to it.
+   */
+  project?: string;
+  /**
+   * At the repository root: the directories listed in projects that could be read, for the rules that compare the
+   * bots, which are configured from the root, with the package managers of every project.
+   */
+  projects?: readonly ProjectView[];
+  /** How apply plans this directory, for the rules that compare with that plan (config-drift). */
+  plan?: PlanOptions;
+}
+
+/** A directory listed in projects, as the rules at the repository root see it. */
+export interface ProjectView {
+  /** Relative to the repository root, as listed. */
+  directory: string;
+  /** The absolute path. */
+  root: string;
+  repository: Repository;
+  detection: Detection;
 }
 
 /** What a rule may look at to decide whether it concerns the project: the context without the reporting functions. */
-export type ProjectView = Omit<RuleContext, 'report' | 'notice'>;
+export type RuleScope = Omit<RuleContext, 'report' | 'notice'>;
 
 export interface Rule {
   /** Stable kebab-case identifier, used in SARIF and in the documentation. */
@@ -64,7 +87,7 @@ export interface Rule {
    * without a bot. false shows the rule as "not applicable" in the list of what doctor checked (decision D-098). It
    * never changes findings: check still runs, and a rule that reports one has problems. Absent: it always applies.
    */
-  applies?(scope: ProjectView): boolean;
+  applies?(scope: RuleScope): boolean;
   check(context: RuleContext): void;
 }
 
@@ -72,6 +95,8 @@ export interface Rule {
 export interface CheckedTool {
   id: string;
   name: string;
+  /** The directory listed in projects the tool was found in; absent for the repository root. */
+  project?: string;
   version?: string;
   /** Where the version comes from: a repository file, or PATH for doctor --user. */
   versionFrom?: string;

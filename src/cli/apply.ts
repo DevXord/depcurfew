@@ -7,12 +7,12 @@
 // bidirectional characters from the files as text (\x1b, ‮) in every line, on a terminal and in a pipe alike (in
 // a pipe the CR of CRLF line breaks stays, so the diff still applies); the diff in the JSON document keeps them all,
 // escaped by JSON.
-import { applyProject, ApplyWriteError, PolicyError, type ApplyReport } from '../apply/index.ts';
+import { applyProject, ApplyWriteError, PolicyError, type ApplyProblem, type ApplyReport } from '../apply/index.ts';
 import { unifiedDiff } from '../apply/diff.ts';
 import type { Version } from '../apply/version.ts';
 import { WriteFailed } from '../apply/workspace.ts';
 import type { ToolId } from '../knowledge/types.ts';
-import { planUserApply, writeUserChanges, type UserProblem } from '../user/apply.ts';
+import { planUserApply, writeUserChanges } from '../user/apply.ts';
 import { shownPath, type UserEnvironment } from '../user/locate.ts';
 import { userPolicyPath } from '../user/policy-path.ts';
 import { loadUserPolicy } from '../user/policy.ts';
@@ -111,9 +111,9 @@ function lineOf(message: string): number | undefined {
 
 /**
  * The errors of a plan, one source for the text and the JSON document: the problems that concern no single file
- * (apply --user), then every file that cannot be edited. `report.errors` holds the problems' messages first.
+ * (apply --user, a directory listed in projects), then every file that cannot be edited. `report.errors` holds the problems' messages first.
  */
-function planErrors(report: ApplyReport, problems: readonly UserProblem[], command: string): JsonError[] {
+function planErrors(report: ApplyReport, problems: readonly ApplyProblem[], command: string): JsonError[] {
   return [
     ...problems.map((problem): JsonError => ({ code: problem.code, level: 'error', location: problem.location, message: problem.message, fix: problem.fix })),
     ...report.failures.map((failure, index): JsonError => {
@@ -229,7 +229,7 @@ export function apply(directory: string | undefined, options: ApplyOptions, io: 
     return EXIT_FAILURE;
   }
 
-  return printReport(report, planErrors(report, [], 'depcurfew apply'), options, notices, io);
+  return printReport(report, planErrors(report, report.problems ?? [], 'depcurfew apply'), options, notices, io);
 }
 
 /** The result of a plan (project or user): the JSON document, or the changes or diff on stdout and the diagnostics on stderr. */

@@ -1,0 +1,9 @@
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "npm@11.19.1",
+  "allowScripts": {
+    "esbuild": true
+  }
+}

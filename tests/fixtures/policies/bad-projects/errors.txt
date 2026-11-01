@@ -1,0 +1,13 @@
+projects[0]: invalid project directory "": must not be empty; write the directory of the project relative to the repository root, e.g. "frontend" or "services/api"
+projects[1]: invalid project directory ".": is the repository root, which depcurfew configures anyway; remove the entry
+projects[2]: invalid project directory "/frontend": must be relative to the repository root; write "frontend"
+projects[3]: invalid project directory "C:/web": must be relative to the repository root, without a drive letter, e.g. "frontend" or "services/api"
+projects[4]: invalid project directory "apps\\web": must use / between directories; write "apps/web"
+projects[5]: invalid project directory "backend/": must not end with /; write "backend"
+projects[6]: invalid project directory "a//b": must not contain //; write "a/b"
+projects[7]: invalid project directory "../other": must not contain "..": a project is a directory inside the repository; write its path from the repository root
+projects[8]: invalid project directory "./api": must not contain "." as a directory; write "api"
+projects[9]: invalid project directory "packages/*": must be a plain directory path: patterns and the characters \ : * ? " < > | and control characters are not supported, so list each directory, e.g. "frontend" or "services/api"
+projects[10]: invalid project directory "node_modules/x": lies in node_modules, which depcurfew does not read; list the directory of your own project
+projects[12]: duplicate entry "frontend" (first at index 11)
+projects[13]: must be a directory path such as "frontend", got 3

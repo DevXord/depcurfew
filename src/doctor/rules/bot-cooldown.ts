@@ -13,6 +13,7 @@ import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion, managerDelay, versionedValue, type Delay } from '../effective.ts';
 import { readRenovateConfig, renovateDelay } from '../renovate.ts';
 import { jsonSetting, yamlSetting } from '../settings.ts';
+import { managerSources } from '../projects.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { usesBot, usesManager } from '../applies.ts';
 
@@ -175,8 +176,9 @@ export const botCooldownMismatch: Rule = {
   requiresPolicy: false,
   applies: (scope) => usesBot(scope) && usesManager(scope),
   check(context) {
-    const managers = context.detection.packageManagers.filter((entry) => entry.supported);
-    if (managers.length === 0) return;
+    // Bots are configured from the root for every project in projects (decision D-100), so they wait for all of them.
+    const sources = managerSources(context);
+    if (sources.every((source) => source.managers.length === 0)) return;
     const delays: BotDelay[] = [];
     for (const detected of context.detection.bots) {
       const bot = context.tools.find((entry) => entry.id === detected.id);
@@ -185,11 +187,14 @@ export const botCooldownMismatch: Rule = {
       delays.push(...(detected.id === 'dependabot' ? dependabotDelays(context, bot, file) : renovateDelays(context, bot, file)));
     }
     for (const delay of delays) {
-      for (const manager of managers.filter((entry) => delay.managers.includes(entry.id))) {
-        const tool = context.tools.find((entry) => entry.id === manager.id);
-        if (tool === undefined) continue;
-        const own = managerDelay(context, manager, tool);
-        if (own === undefined || delay.location === undefined) continue;
+      for (const { manager, source } of sources.flatMap((item) => item.managers.filter((entry) => delay.managers.includes(entry.id)).map((manager) => ({ manager, source: item })))) {
+        const knowledge = context.tools.find((entry) => entry.id === manager.id);
+        if (knowledge === undefined) continue;
+        const found = managerDelay(source.context, manager, knowledge);
+        if (found === undefined || delay.location === undefined) continue;
+        // A project's manager is named with its directory, and the file of its delay relative to the root.
+        const tool = source.project === undefined ? knowledge : { ...knowledge, name: `${knowledge.name} in ${source.project}` };
+        const own = { ...found, origin: source.relocate(found.origin) };
         if (delay.unreadablePreset !== undefined) {
           if (own.minutes > 0) {
             context.report({
@@ -215,7 +220,7 @@ export const botCooldownMismatch: Rule = {
                   ? `Make the ${delay.bot.name} delay at least ${describe(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)`
                   : `Make the ${delay.bot.name} delay at least ${describe(own.minutes)}, or run depcurfew apply`),
           });
-        } else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, own.location?.file)) {
+        } else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, found.location?.file)) {
           context.report({
             level: 'warning',
             location: delay.location,

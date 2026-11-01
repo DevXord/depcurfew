@@ -29,7 +29,7 @@ describe('depcurfew explain --json', () => {
     const result = await exec('explain', '--json', repo('pnpm10-monorepo'));
     expect(result.code).toBe(EXIT_OK);
     expect(result.stderr).toBe('');
-    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, project: expected('pnpm10-monorepo'), policy: null, notices: [], errors: [] });
+    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, project: expected('pnpm10-monorepo'), policy: null, projects: [], notices: [], errors: [] });
   });
 
   describe('with a policy', () => {

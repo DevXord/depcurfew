@@ -1,6 +1,7 @@
 // `depcurfew apply`: turns the policy into configuration for every target tool. Package managers go first, so that
 // bots can be given a delay at least as long as the longest one a manager enforces (otherwise a bot would
 // propose versions the package manager then refuses to install).
+import { join } from 'node:path';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
 import { denyConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
@@ -34,16 +35,19 @@ import { renovate } from './generators/renovate.ts';
 import { uv } from './generators/uv.ts';
 import { yarn } from './generators/yarn.ts';
 import { ManifestGuard, manifestNames } from './manifests.ts';
+import { inProject, projectProblems, relocateText } from './projects.ts';
 import { listing } from './requirements.ts';
-import { autoTargets } from './targets.ts';
+import { directoryTargets } from './targets.ts';
 import { parseVersion, pinnedVersion, type Version } from './version.ts';
 import { warningText, type ApplyErrorCode, type ApplyWarning } from './warnings.ts';
 import { WriteFailed, writeChanges, type FileChange } from './workspace.ts';
 
 export type { FileChange } from './workspace.ts';
+export type { ProjectProblem } from './projects.ts';
 export type { EditFailure, Snippet } from './generators/context.ts';
 
 export interface ApplyReport {
+  /** Repository-relative paths, also for the files of the directories listed in projects. */
   changes: FileChange[];
   /** The warnings as one line of text each. */
   warnings: string[];
@@ -54,6 +58,42 @@ export interface ApplyReport {
   errors: string[];
   /** The same failures with the tool and the file. */
   failures: EditFailure[];
+  /**
+   * Directories listed in projects that cannot be used (decision D-100); their messages come first in `errors`, and
+   * nothing is written when there is one.
+   */
+  problems?: ApplyProblem[];
+}
+
+/** An error that concerns no file being edited (a directory listed in projects, the home directory of apply --user). */
+export interface ApplyProblem {
+  code: ApplyErrorCode;
+  location: { file: string; line?: number };
+  message: string;
+  fix: string;
+}
+
+/** How a directory is planned in a repository with projects (decision D-100). */
+export interface PlanOptions {
+  /** The directory is the project listed so in projects (relative to the repository root): bots are not configured there. */
+  project?: string;
+  /** The directory is the root of a repository with projects: what the projects configure, which bots serve too. */
+  projects?: { managerMinutes: readonly number[]; targets: ReadonlySet<ToolId> };
+}
+
+/** What a plan configured, for the plan of the root in a repository with projects (and doctor's). */
+export interface PlanDetails {
+  /** The delays the package managers were given, in minutes. */
+  managerMinutes: readonly number[];
+  /** The tools configured. */
+  targets: ReadonlySet<ToolId>;
+}
+
+const DETAILS = new WeakMap<ApplyReport, PlanDetails>();
+
+/** What planApply configured for this report; undefined for a report it did not make. */
+export function planDetails(report: ApplyReport): PlanDetails | undefined {
+  return DETAILS.get(report);
 }
 
 const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv };
@@ -173,8 +213,11 @@ function ignoredFileWarnings(root: string, changes: readonly FileChange[]): Appl
   });
 }
 
-/** Computes every change without writing anything. */
-export function planApply(root: string, policy: ResolvedPolicy, detection: Detection, tools: readonly ToolKnowledge[] = knowledgeBase): ApplyReport {
+/**
+ * Computes every change of one directory without writing anything. With projects in the policy, `options` says which
+ * part of the repository this directory is (planRepository plans them all).
+ */
+export function planApply(root: string, policy: ResolvedPolicy, detection: Detection, tools: readonly ToolKnowledge[] = knowledgeBase, options: PlanOptions = {}): ApplyReport {
   const workspace = new ManifestGuard(root, manifestNames(tools));
   const warnings: ApplyWarning[] = [];
   const snippets: Snippet[] = [];
@@ -184,9 +227,9 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     const text = outdatedText(copy, 'apply', true);
     warnings.push({ code: 'depcurfew-outdated', location: { file: copy.file, ...(copy.line === undefined ? {} : { line: copy.line }) }, message: text.message, fix: text.fix });
   }
-  const auto = policy.targets === 'auto' ? autoTargets(root, detection, tools) : undefined;
-  const targets = new Set<ToolId>(policy.targets === 'auto' ? (auto?.targets ?? []) : policy.targets);
-  for (const entry of auto?.ciOnly ?? []) {
+  const { targets, auto } = directoryTargets(root, policy, detection, tools, { ...(options.project === undefined ? {} : { project: options.project }), withProjects: options.project !== undefined || options.projects !== undefined });
+  // A tool a project configures appears in the workflows of the root, which set up every project.
+  for (const entry of (auto?.ciOnly ?? []).filter((item) => options.projects?.targets.has(item.id) !== true)) {
     const tool = tools.find((item) => item.id === entry.id);
     const name = tool?.name ?? entry.id;
     warnings.push({
@@ -228,7 +271,14 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
       fix: warning.code === 'invalid-file' ? `Fix the syntax error${file === undefined ? '' : ` in ${file}`}, then run depcurfew apply again` : `${fix}, then run depcurfew apply again`,
     });
   }
-  if (targets.size === 0) {
+  // The root of a repository with projects may hold nothing but the projects.
+  if (targets.size === 0 && options.project !== undefined) {
+    warnings.push({
+      code: 'nothing-to-configure',
+      message: `no tools to configure in ${options.project}: depcurfew found no supported package manager there`,
+      fix: `Check that "${options.project}" in projects in ${POLICY_FILE} is the directory of the project, with its manifest and lockfile; depcurfew explain shows what it detects`,
+    });
+  } else if (targets.size === 0 && options.projects === undefined) {
     warnings.push({
       code: 'nothing-to-configure',
       message: 'no tools to configure: depcurfew found no supported package manager or bot here',
@@ -236,10 +286,12 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     });
   }
 
-  // Package managers see the policy of their registry; bots serve both and get all of it.
+  // Package managers see the policy of their registry; bots serve both and get all of it, and the package managers of
+  // every project too.
+  const botTargets = new Set<ToolId>([...targets, ...(options.projects?.targets ?? [])]);
   const run = (tool: ToolKnowledge, version: Version | undefined, action: (context: ReturnType<typeof createContext>) => void) => {
     const view = tool.kind === 'package-manager' ? policyFor(policy, ecosystemOfTool(tool)) : policy;
-    const context = createContext({ tool, tools, targets, policy: view, version, workspace, warnings, snippets, failures });
+    const context = createContext({ tool, tools, targets: tool.kind === 'package-manager' ? targets : botTargets, policy: view, version, workspace, warnings, snippets, failures });
     workspace.startTool(tool.id);
     try {
       action(context);
@@ -283,7 +335,7 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
     });
   }
 
-  const duration = policy.cooldown === undefined ? undefined : botDuration(policy.cooldown.minimum, managerMinutes);
+  const duration = policy.cooldown === undefined ? undefined : botDuration(policy.cooldown.minimum, [...managerMinutes, ...(options.projects?.managerMinutes ?? [])]);
   for (const tool of tools) {
     const generator = BOTS[tool.id];
     if (generator === undefined || !targets.has(tool.id)) continue;
@@ -293,9 +345,111 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   warnings.push(...allowListWarnings(root, workspace, policy, detection, targets, tools));
   const changes = workspace.changes();
   if (policy.cooldown !== undefined) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
-  warnings.push(...ignoredFileWarnings(root, changes));
+  // A project's files may match a .gitignore of the root, which planRepository reads for all of them.
+  if (options.project === undefined) warnings.push(...ignoredFileWarnings(root, changes));
   const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
-  return { changes, warnings: warnings.map(warningText), warningDetails: warnings, snippets, errors, failures };
+  const report: ApplyReport = { changes, warnings: warnings.map(warningText), warningDetails: warnings, snippets, errors, failures };
+  DETAILS.set(report, { managerMinutes, targets });
+  return report;
+}
+
+/** The files a message about a project may name, relative to the project: what detection found and what the plan touched. */
+export function projectFiles(detection: Detection, report?: ApplyReport): Set<string> {
+  const files = new Set<string>([...detection.npmrcFiles, ...detection.workflows, ...detection.warnings.flatMap((warning) => warning.files)]);
+  for (const manager of detection.packageManagers) {
+    for (const file of [...manager.evidence.map((item) => item.file), ...manager.configFiles, ...manager.versions.map((item) => item.file)]) files.add(file);
+  }
+  for (const bot of detection.bots) for (const file of bot.configFiles) files.add(file);
+  for (const declaration of detection.workspaces?.declarations ?? []) files.add(declaration.file);
+  if (report !== undefined) {
+    for (const change of report.changes) files.add(change.file);
+    for (const failure of report.failures) files.add(failure.file);
+    for (const snippet of report.snippets) files.add(snippet.file);
+    for (const warning of report.warningDetails) if (warning.location !== undefined) files.add(warning.location.file);
+  }
+  return files;
+}
+
+/** The plan of a project with every file named relative to the repository root, in paths and in messages. */
+function relocateReport(project: string, report: ApplyReport, detection: Detection): ApplyReport {
+  const files = projectFiles(detection, report);
+  const text = (value: string) => relocateText(value, project, files);
+  const warningDetails = report.warningDetails.map((warning): ApplyWarning => {
+    const { code, location, message, fix, ...rest } = warning;
+    return {
+      code,
+      project,
+      ...rest,
+      ...(location === undefined ? {} : { location: { ...location, file: inProject(project, location.file) } }),
+      // A message without a file would not say which project it is about.
+      message: location === undefined ? `${project}: ${text(message)}` : text(message),
+      ...(fix === undefined ? {} : { fix: text(fix) }),
+    };
+  });
+  return {
+    changes: report.changes.map((change) => ({ ...change, file: inProject(project, change.file) })),
+    warnings: warningDetails.map(warningText),
+    warningDetails,
+    snippets: report.snippets.map((snippet) => ({ ...snippet, file: inProject(project, snippet.file) })),
+    errors: report.errors.map(text),
+    failures: report.failures.map((failure) => ({ ...failure, file: inProject(project, failure.file), message: text(failure.message) })),
+  };
+}
+
+function byFile(a: FileChange, b: FileChange): number {
+  return a.file < b.file ? -1 : a.file > b.file ? 1 : 0;
+}
+
+/**
+ * Plans the whole repository: the root as planApply does, and each directory listed in projects as a project of its
+ * own with the same policy (decision D-100). Bots are configured only from the root, with a delay at least as long
+ * as any package manager of any project gets. Every path is relative to the root. A listed directory that cannot be
+ * used is an error (`problems`), so that nothing is written; the other directories are still planned, so one run
+ * reports everything.
+ */
+export function planRepository(root: string, policy: ResolvedPolicy, tools: readonly ToolKnowledge[] = knowledgeBase, rootDetection: Detection = detectProject(root, tools)): ApplyReport {
+  if (policy.projects.length === 0) return planApply(root, policy, rootDetection, tools);
+  const problems = projectProblems(root, policy.projects, rootDetection);
+  const projects = policy.projects
+    .filter((project) => !problems.some((problem) => problem.project === project))
+    .map((project) => {
+      const directory = join(root, project);
+      const detection = detectProject(directory, tools);
+      const report = planApply(directory, policy, detection, tools, { project });
+      return { project, detection, report, details: planDetails(report) };
+    });
+  const projectTargets = new Set(projects.flatMap((entry) => [...(entry.details?.targets ?? [])]));
+  const rootReport = planApply(root, policy, rootDetection, tools, {
+    projects: { managerMinutes: projects.flatMap((entry) => entry.details?.managerMinutes ?? []), targets: projectTargets },
+  });
+  const rootDetails = planDetails(rootReport);
+  const relocated = projects.map((entry) => relocateReport(entry.project, entry.report, entry.detection));
+  const projectChanges = relocated.flatMap((entry) => entry.changes);
+  const warningDetails = [...rootReport.warningDetails, ...relocated.flatMap((entry) => entry.warningDetails), ...ignoredFileWarnings(root, projectChanges)];
+  const configured = new Set([...(rootDetails?.targets ?? []), ...projectTargets]);
+  // With listed targets, a package manager that no directory uses is configured nowhere (decision D-100).
+  if (policy.targets !== 'auto') {
+    for (const id of policy.targets.filter((entry) => !configured.has(entry) && tools.find((tool) => tool.id === entry)?.kind === 'package-manager')) {
+      const name = tools.find((tool) => tool.id === id)?.name ?? id;
+      warningDetails.push({
+        code: 'target-not-found',
+        tool: id,
+        message: `${name} is listed in targets, but neither the repository root nor a directory in projects uses it, so nothing is written for it`,
+        fix: `Add the directory of the ${name} project to projects in ${POLICY_FILE}, or remove "${id}" from targets`,
+      });
+    }
+  }
+  const report: ApplyReport = {
+    changes: [...rootReport.changes, ...projectChanges].sort(byFile),
+    warnings: warningDetails.map(warningText),
+    warningDetails,
+    snippets: [...rootReport.snippets, ...relocated.flatMap((entry) => entry.snippets)],
+    errors: [...problems.map((problem) => problem.message), ...rootReport.errors, ...relocated.flatMap((entry) => entry.errors)],
+    failures: [...rootReport.failures, ...relocated.flatMap((entry) => entry.failures)],
+    problems,
+  };
+  DETAILS.set(report, { managerMinutes: [...(rootDetails?.managerMinutes ?? []), ...projects.flatMap((entry) => entry.details?.managerMinutes ?? [])], targets: configured });
+  return report;
 }
 
 export class PolicyError extends Error {
@@ -397,7 +551,7 @@ export class ApplyWriteError extends Error {
  * A file that cannot be written throws ApplyWriteError after the files already written are put back.
  */
 export function applyProject(root: string, options: { write?: boolean } = {}): ApplyReport {
-  const report = planApply(root, loadPolicy(root), detectProject(root));
+  const report = planRepository(root, loadPolicy(root));
   if (options.write !== false && report.errors.length === 0) {
     try {
       writeChanges(root, report.changes);

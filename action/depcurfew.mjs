@@ -13321,15 +13321,15 @@ function requirementsFormatOf(tool) {
 		parser: record("requirementsParser")
 	};
 }
-function escapeRegExp(text) {
+function escapeRegExp$1(text) {
 	return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 /** The requirements and constraints files a requirements file includes (-r, -c), as written, with their lines. */
 function requirementsIncludes(input, format) {
 	const includes = isRecord(format["includes"]) ? format["includes"] : {};
 	const options = [...strings$1(includes["requirements"]), ...strings$1(includes["constraints"])];
-	const short = options.filter((option) => !option.startsWith("--")).map(escapeRegExp);
-	const long = options.filter((option) => option.startsWith("--")).map(escapeRegExp);
+	const short = options.filter((option) => !option.startsWith("--")).map(escapeRegExp$1);
+	const long = options.filter((option) => option.startsWith("--")).map(escapeRegExp$1);
 	const pattern = new RegExp(`^(?:(?:${short.join("|") || "(?!)"})\\s*|(?:${long.join("|") || "(?!)"})(?:\\s+|=))(\\S+)`, "u");
 	return requirementsLines(input, format).flatMap(({ text: body, line }) => {
 		const path = pattern.exec(body)?.[1];
@@ -13348,14 +13348,14 @@ function requirementSource(requirement, format, editable) {
 	const vcs = isRecord(format["vcs"]) ? format["vcs"] : {};
 	const gitPrefixes = strings$1(vcs["git"]);
 	const otherPrefixes = strings$1(vcs["other"]);
-	const egg = new RegExp(`${escapeRegExp(String(format["egg"]))}([^&\\s]+)`, "u");
+	const egg = new RegExp(`${escapeRegExp$1(String(format["egg"]))}([^&\\s]+)`, "u");
 	const paths = isRecord(format["paths"]) ? format["paths"] : {};
 	const separators = strings$1(paths["separators"]);
 	const currentDirectory = String(paths["currentDirectory"]);
 	const archives = strings$1(paths["archiveExtensions"]);
-	const urlSchemes = new RegExp(`^(?:${strings$1(paths["urlSchemes"]).map(escapeRegExp).join("|") || "(?!)"})://`, "iu");
-	const fileScheme = new RegExp(`^${escapeRegExp(String(paths["fileScheme"]))}(//)?`, "iu");
-	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp(String(format["direct"]).trim())}\\s*(.+)$`, "u");
+	const urlSchemes = new RegExp(`^(?:${strings$1(paths["urlSchemes"]).map(escapeRegExp$1).join("|") || "(?!)"})://`, "iu");
+	const fileScheme = new RegExp(`^${escapeRegExp$1(String(paths["fileScheme"]))}(//)?`, "iu");
+	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp$1(String(format["direct"]).trim())}\\s*(.+)$`, "u");
 	const looksLikePath = (text) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
 	const isArchive = (text) => archives.some((extension) => text.toLowerCase().endsWith(extension));
 	const named = reference.exec(requirement);
@@ -15226,6 +15226,44 @@ function convertCooldown(tool, duration) {
 	};
 }
 
+// src/policy/project-directory.ts
+/** Characters no entry may hold: Windows forbids them in file names, and * and ? would read as patterns. */
+const FORBIDDEN = /[\\:*?"<>|\u0000-\u001f\u007f]/u;
+/** Directories detection never enters, so a project inside one would never be read. */
+const SKIPPED = ["node_modules", ".git"];
+/**
+* Also used as the JSON Schema pattern: segments of one or more allowed characters, none of them "." or "..",
+* separated by single slashes, without a slash at either end.
+*/
+const PROJECT_DIRECTORY_PATTERN = "^(?!\\.\\.?(?:/|$))(?!.*/\\.\\.?(?:/|$))(?!(?:.*/)?(?:node_modules|\\.git)(?:/|$))[^/\\\\:*?\"<>|\\u0000-\\u001f\\u007f]+(?:/[^/\\\\:*?\"<>|\\u0000-\\u001f\\u007f]+)*$";
+const EXAMPLE = "e.g. \"frontend\" or \"services/api\"";
+/** Returns why the entry is not a usable project directory, or undefined when it is one. */
+function validateProjectDirectory(entry) {
+	if (entry === "") return `must not be empty; write the directory of the project relative to the repository root, ${EXAMPLE}`;
+	if (/^[A-Za-z]:/u.test(entry) || entry.startsWith("\\\\")) return `must be relative to the repository root, without a drive letter, ${EXAMPLE}`;
+	if (entry.startsWith("/")) {
+		const relative = entry.replace(/^\/+/u, "").replace(/\/+$/u, "");
+		return relative === "" ? "is the repository root, which depcurfew configures anyway; remove the entry" : `must be relative to the repository root; write "${relative}"`;
+	}
+	if (entry.includes("\\")) return `must use / between directories; write "${entry.replaceAll("\\", "/").replace(/\/+$/u, "")}"`;
+	if (entry === "." || entry === "./") return "is the repository root, which depcurfew configures anyway; remove the entry";
+	if (entry.endsWith("/")) return `must not end with /; write "${entry.replace(/\/+$/u, "")}"`;
+	const segments = entry.split("/");
+	if (segments.includes("")) return `must not contain //; write "${segments.filter((segment) => segment !== "").join("/")}"`;
+	if (segments.includes("..")) return "must not contain \"..\": a project is a directory inside the repository; write its path from the repository root";
+	if (segments.includes(".")) {
+		const cleaned = segments.filter((segment) => segment !== ".").join("/");
+		return cleaned === "" ? "is the repository root, which depcurfew configures anyway; remove the entry" : `must not contain "." as a directory; write "${cleaned}"`;
+	}
+	const skipped = segments.find((segment) => SKIPPED.includes(segment));
+	if (skipped !== void 0) return `lies in ${skipped}, which depcurfew does not read; list the directory of your own project`;
+	if (FORBIDDEN.test(entry)) return `must be a plain directory path: patterns and the characters \\ : * ? " < > | and control characters are not supported, so list each directory, ${EXAMPLE}`;
+}
+/** Whether `inner` is a directory inside `outer` (both entries of projects). */
+function isInsideProject(outer, inner) {
+	return inner.startsWith(`${outer}/`);
+}
+
 // src/knowledge/schema.ts
 const TOOL_IDS = [
 	"npm",
@@ -15599,13 +15637,34 @@ const targetsShape = anyOf([literal("auto", { description: "Configure the tools 
 	nonEmpty: "use \"auto\" to detect tools",
 	description: "Configure exactly these tools."
 })], { description: "Tools to configure: \"auto\" detects them in the repository, or list them explicitly." });
+const projectsShape = list(text({
+	label: "a directory path such as \"frontend\"",
+	kind: "invalid project directory",
+	pattern: PROJECT_DIRECTORY_PATTERN,
+	examples: ["frontend", "services/api"],
+	description: "A directory relative to the repository root, with / between directories, e.g. \"frontend\" or \"services/api\". No patterns, no \"..\", no / at either end.",
+	parse: (input) => {
+		const message = validateProjectDirectory(input);
+		return message === void 0 ? {
+			ok: true,
+			value: input
+		} : {
+			ok: false,
+			message
+		};
+	}
+}), {
+	unique: true,
+	description: "Directories of independent projects in this repository, each with its own manifest and lockfile (e.g. frontend and backend). depcurfew configures each one with this policy as a project of its own, and configures Renovate and Dependabot once, from the repository root, for all of them. The repository root is always configured as well. A project must not be inside another one, must not be a workspace package of the root and must not have a depcurfew.json of its own."
+});
 const policyShape = object({
 	$schema: optional(anyString({ description: "JSON Schema of this file, for editor support." })),
 	version: required(literal(1, { description: "Version of the policy format." })),
 	cooldown: optional(cooldownShape),
 	installScripts: optional(installScriptsShape),
 	sources: optional(sourcesShape),
-	targets: withDefault(targetsShape, "auto")
+	targets: withDefault(targetsShape, "auto"),
+	projects: withDefault(projectsShape, [])
 }, { description: "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot." });
 
 // src/policy/validate.ts
@@ -15662,7 +15721,7 @@ function commonName(a, b) {
 * A package can be allowed or denied, not both: the same entry, an entry of one list covered by a pattern of the
 * other, or two patterns that match a common name. npm and Python names never meet (decision D-088).
 */
-function overlaps(allow, deny) {
+function overlaps$1(allow, deny) {
 	const issues = [];
 	const advice = "a package is either allowed or denied, so remove it from one list";
 	for (const denied of deny) for (const allowed of allow) {
@@ -15691,8 +15750,33 @@ function overlaps(allow, deny) {
 	}
 	return issues;
 }
+/**
+* Each project is configured on its own, with its directory as the root, so one inside another would have its files
+* planned twice; two entries that differ only in case name one directory on Windows and macOS.
+*/
+function projectIssues(projects) {
+	const issues = [];
+	projects.forEach((project, index) => {
+		const outer = projects.findIndex((other) => isInsideProject(other, project));
+		if (outer !== -1) {
+			issues.push({
+				path: formatPath(["projects", index]),
+				message: `"${project}" is inside "${projects[outer] ?? ""}" (projects[${outer}]); each project is configured on its own, so list only one of them`
+			});
+			return;
+		}
+		const twin = projects.findIndex((other, at) => at < index && other !== project && other.toLowerCase() === project.toLowerCase());
+		if (twin !== -1) issues.push({
+			path: formatPath(["projects", index]),
+			message: `"${project}" and "${projects[twin] ?? ""}" (projects[${twin}]) differ only in case, so they name the same directory on Windows and macOS; keep the one spelled as the directory is`
+		});
+	});
+	return issues;
+}
 function crossFieldIssues(document, tools) {
 	const issues = [];
+	const projects = section(projectsShape, document, "projects");
+	if (projects !== void 0) issues.push(...projectIssues(projects));
 	const installScripts = section(installScriptsShape, document, "installScripts");
 	if (installScripts?.default === "allow" && installScripts.allow.length > 0) issues.push({
 		path: formatPath(["installScripts", "allow"]),
@@ -15702,7 +15786,7 @@ function crossFieldIssues(document, tools) {
 		path: formatPath(["installScripts", "deny"]),
 		message: "has no effect when default is \"allow\"; remove the list or set default to \"deny\""
 	});
-	if (installScripts !== void 0) issues.push(...overlaps(installScripts.allow, installScripts.deny));
+	if (installScripts !== void 0) issues.push(...overlaps$1(installScripts.allow, installScripts.deny));
 	const cooldown = section(cooldownShape, document, "cooldown");
 	const targets = section(targetsShape, document, "targets");
 	if (cooldown !== void 0 && Array.isArray(targets)) for (const id of targets) {
@@ -16496,7 +16580,7 @@ function atLeast$1(version, since) {
 	return version === void 0 || required === void 0 || compareVersions$1(version, required) >= 0;
 }
 /** The files and settings a package manager reads its delay from at the root, the one it reads first first. */
-function managerSources(repository, manager, tool, version) {
+function managerSources$1(repository, manager, tool, version) {
 	const setting = settingOf(tool.cooldown.setting);
 	if (setting === null) return [];
 	if (tool.id === "deno") {
@@ -16527,7 +16611,7 @@ function managerDelay(repository, manager, tool) {
 			...python,
 			setting
 		};
-	} else for (const source of managerSources(repository, manager, tool, version)) {
+	} else for (const source of managerSources$1(repository, manager, tool, version)) {
 		const setting = readSetting(repository, source.file, source.setting);
 		if (setting !== void 0) {
 			found = {
@@ -18654,6 +18738,29 @@ function autoTargets(root, detection, tools = knowledgeBase) {
 		ciOnly
 	};
 }
+/**
+* The tools apply configures in one directory. Without projects: the detected ones ("auto") or the listed ones. With
+* projects (decision D-100), listed package managers only where they are detected, as npm in a Python project would
+* get an .npmrc it never reads; Renovate and Dependabot read their configuration from the repository root only, so a
+* project (`project` set) configures none.
+*/
+function directoryTargets(root, policy, detection, tools, place) {
+	const auto = policy.targets === "auto" ? autoTargets(root, detection, tools) : void 0;
+	const isBot = (id) => tools.find((tool) => tool.id === id)?.kind === "update-bot";
+	let targets;
+	if (policy.targets === "auto") targets = new Set(auto?.targets ?? []);
+	else if (place.withProjects) {
+		const found = new Set(autoTargets(root, detection, tools).targets);
+		targets = new Set(policy.targets.filter((id) => isBot(id) || found.has(id)));
+	} else targets = new Set(policy.targets);
+	if (place.project !== void 0) {
+		for (const id of [...targets]) if (isBot(id)) targets.delete(id);
+	}
+	return {
+		targets,
+		auto
+	};
+}
 
 // src/read-limited.ts
 const CHUNK = 65536;
@@ -19438,6 +19545,112 @@ var ManifestGuard = class extends Workspace {
 	}
 };
 
+// src/apply/projects.ts
+/** A path of a project file as seen from the repository root. */
+function inProject(project, file) {
+	return file === "" || file === "." ? project : `${project}/${file}`;
+}
+function escapeRegExp(text) {
+	return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+/**
+* The text of a message about a project with the names of the project's files (relative to the project) made
+* relative to the repository root: ".npmrc" becomes "frontend/.npmrc". Only whole paths are replaced, never the end
+* of a longer path, and depcurfew.json stays as it is, because the policy is the root's.
+*/
+function relocateText(text, project, files) {
+	const names = [...new Set(files)].filter((file) => file !== "" && file !== "depcurfew.json").sort((a, b) => b.length - a.length);
+	if (names.length === 0 || text === "") return text;
+	const pattern = new RegExp(`(?<![\\w./\\\\-])(?:${names.map(escapeRegExp).join("|")})(?![\\w/\\\\-]|\\.\\w)`, "gu");
+	return text.replace(pattern, (file) => inProject(project, file));
+}
+/** Whether two directories of the repository are the same or one lies inside the other. */
+function overlaps(a, b) {
+	return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+/**
+* The problems of the directories listed in projects: one that does not exist, is not a directory, is reached through
+* a symlink (which may lead out of the repository, and would put the files apply writes in another place), has a
+* depcurfew.json of its own (two policies for the same files), or overlaps a workspace package of the root (whose
+* configuration the root already writes). `rootDetection` is the detection of the root, for its workspaces.
+*/
+function projectProblems(root, projects, rootDetection) {
+	if (projects.length === 0) return [];
+	const policy = readPolicyFile(root);
+	const text = policy.status === "ok" ? policy.text : "";
+	const real = realpathSync(root);
+	const problems = [];
+	for (const project of projects) {
+		const line = lineOf$1(text, JSON.stringify(project));
+		const location = {
+			file: POLICY_FILE,
+			...line === void 0 ? {} : { line }
+		};
+		const remove = `remove "${project}" from projects in ${POLICY_FILE}`;
+		const problem = (code, message, fix, at = location) => problems.push({
+			code,
+			project,
+			location: at,
+			message,
+			fix
+		});
+		let missing;
+		let link;
+		let file;
+		const parts = project.split("/");
+		for (let count = 1; count <= parts.length; count++) {
+			const part = parts.slice(0, count).join("/");
+			let stats;
+			try {
+				stats = lstatSync(join(root, part), { throwIfNoEntry: false });
+			} catch {
+				stats = void 0;
+			}
+			if (stats === void 0) {
+				missing = part;
+				break;
+			}
+			if (stats.isSymbolicLink()) {
+				link = part;
+				break;
+			}
+			if (!stats.isDirectory()) {
+				file = part;
+				break;
+			}
+		}
+		if (missing !== void 0) {
+			problem("project-not-found", `the project directory ${project} listed in projects does not exist`, `Create ${project}, or correct or ${remove}`);
+			continue;
+		}
+		if (link !== void 0) {
+			let target;
+			try {
+				target = realpathSync(join(root, link));
+			} catch {
+				target = void 0;
+			}
+			const outside = target === void 0 || !isInside(real, target);
+			problem("project-symlink", `the project directory ${project} listed in projects ${link === project ? "is" : `lies under ${link}, which is`} a symlink${outside ? " that leads outside the repository" : ""}; depcurfew does not follow symlinks to projects, so the files it writes stay in the repository`, outside ? `Move the project into the repository, or ${remove}` : `List the directory the symlink points to instead, or ${remove}`);
+			continue;
+		}
+		if (file !== void 0) {
+			problem("project-not-a-directory", `${file} is a file, so the project directory ${project} listed in projects is not a directory`, `List the directory of the project, not a file in it, or ${remove}`);
+			continue;
+		}
+		if (readPolicyFile(join(root, project)).status !== "missing") {
+			problem("project-has-policy", `${inProject(project, POLICY_FILE)} is a second policy for ${project}, which projects in the ${POLICY_FILE} of the repository root already covers`, `Remove ${inProject(project, POLICY_FILE)} (move what it sets into the ${POLICY_FILE} of the root), or ${remove} and run depcurfew in ${project} on its own`, { file: inProject(project, POLICY_FILE) });
+			continue;
+		}
+		const member = rootDetection?.workspaces?.packages.find((directory) => overlaps(directory, project));
+		if (member !== void 0) {
+			const declared = rootDetection?.workspaces?.declarations.map((declaration) => declaration.file).join(", ") ?? "";
+			problem("project-in-workspace", `the project directory ${project} listed in projects ${member === project ? "is a workspace package" : member.startsWith(`${project}/`) ? `holds the workspace package ${member}` : `lies in the workspace package ${member}`} of the repository root (declared in ${declared}), which the configuration of the root already covers`, `${remove.charAt(0).toUpperCase()}${remove.slice(1)}; depcurfew configures workspace packages with the root`);
+		}
+	}
+	return problems;
+}
+
 // src/apply/warnings.ts
 /** A warning as one line of text, as ApplyReport.warnings has it. */
 function warningText(warning) {
@@ -19445,6 +19658,11 @@ function warningText(warning) {
 }
 
 // src/apply/index.ts
+const DETAILS = /* @__PURE__ */ new WeakMap();
+/** What planApply configured for this report; undefined for a report it did not make. */
+function planDetails(report) {
+	return DETAILS.get(report);
+}
 const MANAGERS = {
 	npm,
 	pnpm,
@@ -19585,8 +19803,11 @@ function ignoredFileWarnings(root, changes) {
 		}];
 	});
 }
-/** Computes every change without writing anything. */
-function planApply(root, policy, detection, tools = knowledgeBase) {
+/**
+* Computes every change of one directory without writing anything. With projects in the policy, `options` says which
+* part of the repository this directory is (planRepository plans them all).
+*/
+function planApply(root, policy, detection, tools = knowledgeBase, options = {}) {
 	const workspace = new ManifestGuard(root, manifestNames(tools));
 	const warnings = [];
 	const snippets = [];
@@ -19604,9 +19825,11 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 			fix: text.fix
 		});
 	}
-	const auto = policy.targets === "auto" ? autoTargets(root, detection, tools) : void 0;
-	const targets = new Set(policy.targets === "auto" ? auto?.targets ?? [] : policy.targets);
-	for (const entry of auto?.ciOnly ?? []) {
+	const { targets, auto } = directoryTargets(root, policy, detection, tools, {
+		...options.project === void 0 ? {} : { project: options.project },
+		withProjects: options.project !== void 0 || options.projects !== void 0
+	});
+	for (const entry of (auto?.ciOnly ?? []).filter((item) => options.projects?.targets.has(item.id) !== true)) {
 		const name = tools.find((item) => item.id === entry.id)?.name ?? entry.id;
 		warnings.push({
 			code: "tool-only-in-ci",
@@ -19639,17 +19862,23 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 			fix: warning.code === "invalid-file" ? `Fix the syntax error${file === void 0 ? "" : ` in ${file}`}, then run depcurfew apply again` : `${fix}, then run depcurfew apply again`
 		});
 	}
-	if (targets.size === 0) warnings.push({
+	if (targets.size === 0 && options.project !== void 0) warnings.push({
+		code: "nothing-to-configure",
+		message: `no tools to configure in ${options.project}: depcurfew found no supported package manager there`,
+		fix: `Check that "${options.project}" in projects in ${POLICY_FILE} is the directory of the project, with its manifest and lockfile; depcurfew explain shows what it detects`
+	});
+	else if (targets.size === 0 && options.projects === void 0) warnings.push({
 		code: "nothing-to-configure",
 		message: "no tools to configure: depcurfew found no supported package manager or bot here",
 		fix: "Run depcurfew explain to see what depcurfew detects"
 	});
+	const botTargets = /* @__PURE__ */ new Set([...targets, ...options.projects?.targets ?? []]);
 	const run = (tool, version, action) => {
 		const view = tool.kind === "package-manager" ? policyFor(policy, ecosystemOfTool(tool)) : policy;
 		const context = createContext({
 			tool,
 			tools,
-			targets,
+			targets: tool.kind === "package-manager" ? targets : botTargets,
 			policy: view,
 			version,
 			workspace,
@@ -19695,7 +19924,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 			if (minutes !== void 0) managerMinutes.push(minutes);
 		});
 	}
-	const duration = policy.cooldown === void 0 ? void 0 : botDuration(policy.cooldown.minimum, managerMinutes);
+	const duration = policy.cooldown === void 0 ? void 0 : botDuration(policy.cooldown.minimum, [...managerMinutes, ...options.projects?.managerMinutes ?? []]);
 	for (const tool of tools) {
 		const generator = BOTS[tool.id];
 		if (generator === void 0 || !targets.has(tool.id)) continue;
@@ -19704,9 +19933,9 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	warnings.push(...allowListWarnings(root, workspace, policy, detection, targets, tools));
 	const changes = workspace.changes();
 	if (policy.cooldown !== void 0) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
-	warnings.push(...ignoredFileWarnings(root, changes));
+	if (options.project === void 0) warnings.push(...ignoredFileWarnings(root, changes));
 	const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
-	return {
+	const report = {
 		changes,
 		warnings: warnings.map(warningText),
 		warningDetails: warnings,
@@ -19714,6 +19943,33 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		errors,
 		failures
 	};
+	DETAILS.set(report, {
+		managerMinutes,
+		targets
+	});
+	return report;
+}
+/** The files a message about a project may name, relative to the project: what detection found and what the plan touched. */
+function projectFiles(detection, report) {
+	const files = /* @__PURE__ */ new Set([
+		...detection.npmrcFiles,
+		...detection.workflows,
+		...detection.warnings.flatMap((warning) => warning.files)
+	]);
+	for (const manager of detection.packageManagers) for (const file of [
+		...manager.evidence.map((item) => item.file),
+		...manager.configFiles,
+		...manager.versions.map((item) => item.file)
+	]) files.add(file);
+	for (const bot of detection.bots) for (const file of bot.configFiles) files.add(file);
+	for (const declaration of detection.workspaces?.declarations ?? []) files.add(declaration.file);
+	if (report !== void 0) {
+		for (const change of report.changes) files.add(change.file);
+		for (const failure of report.failures) files.add(failure.file);
+		for (const snippet of report.snippets) files.add(snippet.file);
+		for (const warning of report.warningDetails) if (warning.location !== void 0) files.add(warning.location.file);
+	}
+	return files;
 }
 var PolicyError = class extends Error {
 	issues;
@@ -19903,6 +20159,32 @@ async function createCheckRun(env, token, content, fetchImpl) {
 	return `${line}${failure === void 0 || missing === 0 ? "" : `; ${plural$2(missing, "more annotation")} could not be added: ${failure}`}\n`;
 }
 
+// src/doctor/plan.ts
+const plans = /* @__PURE__ */ new WeakMap();
+/**
+* The plan of one directory, made once for a policy and a detection. A directory is planned with the same options
+* throughout a doctor run (the root, or a project listed in projects), so they are not part of the key.
+*/
+function plannedFor(root, policy, detection, tools, options) {
+	let byDetection = plans.get(policy);
+	if (byDetection === void 0) {
+		byDetection = /* @__PURE__ */ new WeakMap();
+		plans.set(policy, byDetection);
+	}
+	let plan = byDetection.get(detection);
+	if (plan === void 0) {
+		plan = planApply(root, policy, detection, tools, options);
+		byDetection.set(detection, plan);
+	}
+	return plan;
+}
+/** undefined when the repository has no policy. */
+function plannedApply(context) {
+	const { policy, detection } = context;
+	if (policy === void 0) return void 0;
+	return plannedFor(context.root, policy, detection, context.tools, context.plan);
+}
+
 // src/color.ts
 const CODES = {
 	red: [31, 39],
@@ -19948,10 +20230,11 @@ function levelColor(level, colors) {
 	if (level === "error") return (text) => colors.bold(colors.red(text));
 	return level === "warning" ? colors.yellow : colors.cyan;
 }
-/** A tool as the log of what was checked names it: npm 11.21.1 (package.json). */
+/** A tool as the log of what was checked names it: npm 11.21.1 (package.json), and in a project npm 11.21.1 (frontend/package.json) in frontend. */
 function checkedTool(tool) {
-	if (tool.version === void 0) return tool.name;
-	return `${tool.name} ${tool.version}${tool.versionFrom === void 0 ? "" : ` (${tool.versionFrom})`}`;
+	const where = tool.project === void 0 ? "" : ` in ${tool.project}`;
+	if (tool.version === void 0) return `${tool.name}${where}`;
+	return `${tool.name} ${tool.version}${tool.versionFrom === void 0 ? "" : ` (${tool.versionFrom})`}${where}`;
 }
 /**
 * Each rule with what it checks and what came of it, from the findings of the run. A rule with findings has problems
@@ -20203,10 +20486,36 @@ function renovateDelay(bot, config, ecosystem) {
 	};
 }
 
+// src/doctor/projects.ts
+function managerSources(context) {
+	return [{
+		context,
+		managers: context.detection.packageManagers.filter((entry) => entry.supported),
+		relocate: (text) => text
+	}, ...(context.projects ?? []).map((view) => {
+		const files = projectFiles(view.detection);
+		const relocate = (text) => relocateText(text, view.directory, [...files, ...view.repository.read]);
+		const { projects: _projects, ...rest } = context;
+		return {
+			project: view.directory,
+			context: {
+				...rest,
+				root: view.root,
+				repository: view.repository,
+				detection: view.detection,
+				project: view.directory,
+				notice: (message, file) => context.notice(relocate(message), file === void 0 ? void 0 : inProject(view.directory, file))
+			},
+			managers: view.detection.packageManagers.filter((entry) => entry.supported),
+			relocate
+		};
+	})];
+}
+
 // src/doctor/applies.ts
 /** The project uses one of these package managers (any, when none is named) in a version the knowledge base covers. */
 function usesManager(scope, ids) {
-	return scope.detection.packageManagers.some((manager) => manager.supported && (ids === void 0 || ids.includes(manager.id)));
+	return [scope.detection, ...(scope.projects ?? []).map((project) => project.detection)].some((detection) => detection.packageManagers.some((manager) => manager.supported && (ids === void 0 || ids.includes(manager.id))));
 }
 /** The project configures an update bot (any, when none is named). */
 function usesBot(scope, ids) {
@@ -20377,8 +20686,8 @@ const botCooldownMismatch = {
 	requiresPolicy: false,
 	applies: (scope) => usesBot(scope) && usesManager(scope),
 	check(context) {
-		const managers = context.detection.packageManagers.filter((entry) => entry.supported);
-		if (managers.length === 0) return;
+		const sources = managerSources(context);
+		if (sources.every((source) => source.managers.length === 0)) return;
 		const delays = [];
 		for (const detected of context.detection.bots) {
 			const bot = context.tools.find((entry) => entry.id === detected.id);
@@ -20386,11 +20695,22 @@ const botCooldownMismatch = {
 			if (bot === void 0 || file === void 0) continue;
 			delays.push(...detected.id === "dependabot" ? dependabotDelays(context, bot, file) : renovateDelays(context, bot, file));
 		}
-		for (const delay of delays) for (const manager of managers.filter((entry) => delay.managers.includes(entry.id))) {
-			const tool = context.tools.find((entry) => entry.id === manager.id);
-			if (tool === void 0) continue;
-			const own = managerDelay$1(context, manager, tool);
-			if (own === void 0 || delay.location === void 0) continue;
+		for (const delay of delays) for (const { manager, source } of sources.flatMap((item) => item.managers.filter((entry) => delay.managers.includes(entry.id)).map((manager) => ({
+			manager,
+			source: item
+		})))) {
+			const knowledge = context.tools.find((entry) => entry.id === manager.id);
+			if (knowledge === void 0) continue;
+			const found = managerDelay$1(source.context, manager, knowledge);
+			if (found === void 0 || delay.location === void 0) continue;
+			const tool = source.project === void 0 ? knowledge : {
+				...knowledge,
+				name: `${knowledge.name} in ${source.project}`
+			};
+			const own = {
+				...found,
+				origin: source.relocate(found.origin)
+			};
 			if (delay.unreadablePreset !== void 0) {
 				if (own.minutes > 0) context.report({
 					level: "note",
@@ -20406,7 +20726,7 @@ const botCooldownMismatch = {
 				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
 				fix: delay.fix ?? (delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(own.minutes)}, or limit the rule to the packages that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`)
 			});
-			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, own.location?.file)) context.report({
+			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, found.location?.file)) context.report({
 				level: "warning",
 				location: delay.location,
 				message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe$1(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
@@ -20424,7 +20744,7 @@ function tool(context, id) {
 }
 function checkPolicy(context) {
 	const policy = context.policy;
-	if (policy === void 0) return;
+	if (policy === void 0 || context.project !== void 0) return;
 	const text = context.repository.readText("depcurfew.json") ?? "";
 	const lists = [["cooldown.exclude", policy.cooldown?.exclude ?? []], ["installScripts.allow", policy.installScripts?.allow ?? []]];
 	for (const [field, patterns] of lists) for (const pattern of patterns.filter(isBroad)) {
@@ -20558,7 +20878,8 @@ function checkRenovate(context, file) {
 	const config = readRenovateConfig(text, file, file === packageJson.file ? [packageJson.key] : []);
 	const matching = extraOf(bot, "packageRuleMatching", isMatching);
 	const datasources = extraOf(bot, "datasources", isRecord);
-	const detected = [...new Set(context.detection.packageManagers.filter((entry) => entry.supported).flatMap((entry) => {
+	const managers = managerSources(context).flatMap((source) => source.managers);
+	const detected = [...new Set(managers.flatMap((entry) => {
 		const knowledge = tool(context, entry.id);
 		return knowledge === void 0 ? [] : [ecosystemOfTool(knowledge)];
 	}))];
@@ -20606,25 +20927,6 @@ const broadExclusion = {
 		}
 	}
 };
-
-// src/doctor/plan.ts
-const plans = /* @__PURE__ */ new WeakMap();
-/** undefined when the repository has no policy. */
-function plannedApply(context) {
-	const { policy, detection } = context;
-	if (policy === void 0) return void 0;
-	let byDetection = plans.get(policy);
-	if (byDetection === void 0) {
-		byDetection = /* @__PURE__ */ new WeakMap();
-		plans.set(policy, byDetection);
-	}
-	let plan = byDetection.get(detection);
-	if (plan === void 0) {
-		plan = planApply(context.root, policy, detection, context.tools);
-		byDetection.set(detection, plan);
-	}
-	return plan;
-}
 
 // src/doctor/rules/config-drift.ts
 function clean(line) {
@@ -21022,6 +21324,26 @@ const invalidPolicy = {
 				fix: policyErrorFix(error)
 			});
 		}
+	}
+};
+
+// src/doctor/rules/invalid-project.ts
+const invalidProject = {
+	id: "invalid-project",
+	checks: `Every directory listed in projects in ${POLICY_FILE} exists in the repository, has no ${POLICY_FILE} of its own and is not a workspace package of the root`,
+	summary: `A directory listed in projects in ${POLICY_FILE} does not exist, is not a directory, is a symlink, has a ${POLICY_FILE} of its own or overlaps a workspace package of the root.`,
+	description: `depcurfew checks and configures each listed directory as a project of its own. A directory that is missing or misspelled is never checked, so its package managers keep whatever configuration they have; one with a ${POLICY_FILE} of its own would follow two policies, and a workspace package of the root is configured with the root already. depcurfew apply writes nothing while one of them is listed.`,
+	help: `Correct or remove the entry in projects, or remove the ${POLICY_FILE} of the project.`,
+	level: "error",
+	requiresPolicy: true,
+	applies: (scope) => (scope.policy?.projects.length ?? 0) > 0,
+	check(context) {
+		if (context.project !== void 0 || context.policy === void 0) return;
+		for (const problem of projectProblems(context.root, context.policy.projects, context.detection)) context.report({
+			location: problem.location,
+			message: problem.message,
+			fix: problem.fix
+		});
 	}
 };
 
@@ -22029,6 +22351,7 @@ const unreadableConfig = {
 /** Every doctor rule, in the order they are documented. unreadable-config runs last, after every other rule has read its files. */
 const RULES = [
 	invalidPolicy,
+	invalidProject,
 	depcurfewOutdated,
 	managerVersionTooOld,
 	settingIgnoredByVersion,
@@ -22330,22 +22653,10 @@ function byLocation(a, b) {
 	if (a.location.file !== b.location.file) return a.location.file < b.location.file ? -1 : 1;
 	return (a.location.line ?? 0) - (b.location.line ?? 0) || LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0);
 }
-/**
-* Runs the rules on a repository. When depcurfew.json exists but is invalid, it throws PolicyError, or with
-* invalidPolicy: 'report' runs the rules that need no policy and reports the problems as an invalid-policy finding.
-*/
-function runDoctor(root, options = {}) {
-	const tools = options.tools ?? knowledgeBase;
-	let policy;
-	let invalid = false;
-	try {
-		policy = loadPolicyIfPresent(root);
-	} catch (error) {
-		if (!(error instanceof PolicyError) || options.invalidPolicy !== "report") throw error;
-		invalid = true;
-	}
-	const detection = detectProject(root);
-	const repository = new Repository(root);
+/** Runs the rules on one directory, with the policy of the repository root. */
+function runRules(root, policy, rules, tools, where = {}) {
+	const detection = where.detection ?? detectProject(root, tools);
+	const repository = where.repository ?? new Repository(root);
 	const findings = [];
 	const notices = [];
 	const notice = (message, file) => {
@@ -22354,9 +22665,6 @@ function runDoctor(root, options = {}) {
 			file
 		});
 	};
-	if (invalid) notice(`${POLICY_FILE} is invalid: only the rules that do not need a policy ran`);
-	else if (policy === void 0) notice(`no ${POLICY_FILE}: only the rules that do not need a policy ran`);
-	const rules = options.rules ?? RULES;
 	for (const rule of rules) {
 		if (rule.requiresPolicy && policy === void 0) continue;
 		rule.check({
@@ -22365,6 +22673,9 @@ function runDoctor(root, options = {}) {
 			detection,
 			policy,
 			tools,
+			...where.project === void 0 ? {} : { project: where.project },
+			...where.projects === void 0 ? {} : { projects: where.projects },
+			...where.plan === void 0 ? {} : { plan: where.plan },
 			report: ({ level, ...finding }) => findings.push({
 				rule: rule.id,
 				level: level ?? rule.level,
@@ -22375,23 +22686,136 @@ function runDoctor(root, options = {}) {
 	}
 	const reported = rules.includes(unreadableConfig);
 	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
+	return {
+		findings,
+		notices,
+		detection,
+		repository
+	};
+}
+/** The findings and notices of a project, with every file named relative to the repository root. */
+function relocateRun(project, run, plan) {
+	const files = projectFiles(run.detection, plan);
+	for (const file of run.repository.read) files.add(file);
+	for (const finding of run.findings) files.add(finding.location.file);
+	for (const notice of run.notices) if (notice.file !== void 0) files.add(notice.file);
+	const text = (value) => relocateText(value, project, files);
+	return {
+		findings: run.findings.map((finding) => ({
+			...finding,
+			location: {
+				...finding.location,
+				file: finding.location.file === "depcurfew.json" ? POLICY_FILE : inProject(project, finding.location.file)
+			},
+			message: text(finding.message),
+			...finding.fix === void 0 ? {} : { fix: text(finding.fix) }
+		})),
+		notices: run.notices.map((notice) => notice.file === void 0 ? { message: `${project}: ${text(notice.message)}` } : {
+			message: text(notice.message),
+			file: inProject(project, notice.file)
+		})
+	};
+}
+/**
+* Runs the rules on a repository. When depcurfew.json exists but is invalid, it throws PolicyError, or with
+* invalidPolicy: 'report' runs the rules that need no policy and reports the problems as an invalid-policy finding.
+* `policy` passes the policy in instead of reading depcurfew.json (null: run as without one). With projects in the
+* policy, the rules also run on every listed directory with the same policy, and the report covers them all, with
+* paths relative to the root (decision D-100).
+*/
+function runDoctor(root, options = {}) {
+	const tools = options.tools ?? knowledgeBase;
+	let policy;
+	let invalid = false;
+	if (options.policy !== void 0) policy = options.policy ?? void 0;
+	else try {
+		policy = loadPolicyIfPresent(root);
+	} catch (error) {
+		if (!(error instanceof PolicyError) || options.invalidPolicy !== "report") throw error;
+		invalid = true;
+	}
+	const rules = options.rules ?? RULES;
+	const detection = detectProject(root, tools);
+	const listed = policy?.projects ?? [];
+	const problems = projectProblems(root, listed, detection);
+	const views = listed.filter((project) => !problems.some((problem) => problem.project === project)).map((project) => {
+		const directory = join(root, project);
+		return {
+			directory: project,
+			root: directory,
+			repository: new Repository(directory),
+			detection: detectProject(directory, tools)
+		};
+	});
+	const plans = policy === void 0 ? [] : views.map((view) => planDetails(plannedFor(view.root, policy, view.detection, tools, { project: view.directory })));
+	const rootPlan = views.length === 0 ? void 0 : { projects: {
+		managerMinutes: plans.flatMap((details) => details?.managerMinutes ?? []),
+		targets: new Set(plans.flatMap((details) => [...details?.targets ?? []]))
+	} };
+	const projectRuns = views.map((view) => ({
+		view,
+		run: runRules(view.root, policy, rules, tools, {
+			detection: view.detection,
+			repository: view.repository,
+			project: view.directory,
+			plan: { project: view.directory }
+		})
+	}));
+	const rootRun = runRules(root, policy, rules, tools, {
+		detection,
+		...views.length === 0 ? {} : { projects: views },
+		...rootPlan === void 0 ? {} : { plan: rootPlan }
+	});
+	const notices = [];
+	const addNotice = (item) => {
+		if (!notices.some((known) => known.message === item.message)) notices.push(item);
+	};
+	if (invalid) addNotice({ message: `${POLICY_FILE} is invalid: only the rules that do not need a policy ran` });
+	else if (policy === void 0) addNotice({ message: `no ${POLICY_FILE}: only the rules that do not need a policy ran` });
+	const findings = [...rootRun.findings];
+	for (const item of rootRun.notices) addNotice(item);
+	for (const { view, run } of projectRuns) {
+		const relocated = relocateRun(view.directory, run, policy === void 0 ? void 0 : plannedFor(view.root, policy, view.detection, tools, { project: view.directory }));
+		findings.push(...relocated.findings);
+		for (const item of relocated.notices) addNotice(item);
+	}
 	const sorted = findings.sort(byLocation);
-	const seen = checkedOf(detection, repository, tools, policy !== void 0 || invalid);
-	const scope = {
+	const rootChecked = checkedOf(detection, rootRun.repository, tools, policy !== void 0 || invalid);
+	const projectChecked = projectRuns.map(({ view, run }) => {
+		const checked = checkedOf(run.detection, run.repository, tools, false);
+		return {
+			tools: checked.tools.map((tool) => ({
+				...tool,
+				project: view.directory,
+				...tool.versionFrom === void 0 ? {} : { versionFrom: inProject(view.directory, tool.versionFrom) }
+			})),
+			files: checked.files.map((file) => inProject(view.directory, file))
+		};
+	});
+	const scopes = [{
 		root,
-		repository,
+		repository: rootRun.repository,
 		detection,
 		policy,
-		tools
-	};
+		tools,
+		...views.length === 0 ? {} : { projects: views }
+	}, ...views.map((view) => ({
+		root: view.root,
+		repository: view.repository,
+		detection: view.detection,
+		policy,
+		tools,
+		project: view.directory
+	}))];
 	return {
 		schemaVersion: 1,
 		policy: invalid ? "invalid" : policy === void 0 ? "missing" : "valid",
 		findings: sorted,
 		notices,
 		checked: {
-			...seen,
-			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && !invalid && (rule.requiresPolicy || rule.id === "invalid-policy"), (rule) => rule.applies?.(scope) ?? true),
+			tools: [...rootChecked.tools, ...projectChecked.flatMap((checked) => checked.tools)],
+			files: [.../* @__PURE__ */ new Set([...rootChecked.files, ...projectChecked.flatMap((checked) => checked.files)])].sort(),
+			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && !invalid && (rule.requiresPolicy || rule.id === "invalid-policy"), (rule) => rule.applies === void 0 || scopes.some((scope) => rule.applies?.(scope) === true)),
 			policyFile: POLICY_FILE
 		}
 	};
@@ -22613,7 +23037,7 @@ function runAction(env, io) {
 		"sarif-file": shownSarif
 	};
 }
-/** The title of the check run: the result and the count of checks, e.g. "No problems found (13 checks: 9 passed, 4 not applicable)". */
+/** The title of the check run: the result and the count of checks, e.g. "No problems found (14 checks: 9 passed, 5 not applicable)". */
 function checkRunTitle(report) {
 	const counts = countLevels(report.findings);
 	const result = report.findings.length === 0 ? "No problems found" : [

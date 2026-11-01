@@ -1,0 +1,4 @@
+{
+  "version": 1,
+  "projects": ["", ".", "/frontend", "C:/web", "apps\\web", "backend/", "a//b", "../other", "./api", "packages/*", "node_modules/x", "frontend", "frontend", 3]
+}

@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "targets": "auto",
+  "projects": ["frontend", "services/api", ".config"]
+}

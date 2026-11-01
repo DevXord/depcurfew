@@ -11,7 +11,9 @@ import { parseDuration } from '../policy/duration.ts';
 import type { ApplyErrorCode } from '../apply/warnings.ts';
 import { autoTargets } from '../apply/targets.ts';
 import { listing } from '../apply/requirements.ts';
+import { inProject } from '../apply/projects.ts';
 import { detectedNames, toolName } from './describe.ts';
+import { proposedProjects } from './init-projects.ts';
 import { reportInputError, resolveDirectory } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -115,10 +117,21 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
     return fail('cannot-write', `${shownTarget} is a directory, not a file`, `Remove or rename the directory ${shownTarget}, then run depcurfew init again`);
   }
   const detection = detectProject(absolute);
+  // No manifest in the root, but in direct subdirectories: independent projects (decision D-100).
+  const projects = proposedProjects(absolute).map((project) => ({ project, detection: detectProject(join(absolute, project)) }));
   const defaultMinimum = parseDuration(DEFAULT_POLICY.cooldown.minimum);
-  const kept = defaultMinimum.ok ? longestDelay(absolute, detection, defaultMinimum.duration.minutes) : undefined;
+  // The longest delay of the root and of every project, which apply would otherwise shorten (decision D-075).
+  let kept = defaultMinimum.ok ? longestDelay(absolute, detection, defaultMinimum.duration.minutes) : undefined;
+  for (const entry of defaultMinimum.ok ? projects : []) {
+    const longer = longestDelay(join(absolute, entry.project), entry.detection, kept?.minutes ?? (defaultMinimum.ok ? defaultMinimum.duration.minutes : 0));
+    if (longer !== undefined) kept = { ...longer, location: { ...longer.location, file: inProject(entry.project, longer.location.file) } };
+  }
   const minimum = kept === undefined ? DEFAULT_POLICY.cooldown.minimum : policyDuration(kept.minutes);
-  const text = renderPolicy({ ...DEFAULT_POLICY, cooldown: { ...DEFAULT_POLICY.cooldown, minimum } });
+  const text = renderPolicy({
+    ...DEFAULT_POLICY,
+    cooldown: { ...DEFAULT_POLICY.cooldown, minimum },
+    ...(projects.length === 0 ? {} : { projects: projects.map((entry) => entry.project) }),
+  });
   try {
     if (existing === undefined || !force) {
       // 'wx' fails if the file appeared in the meantime, so nothing is overwritten without --force.
@@ -145,20 +158,28 @@ export function init(directory: string | undefined, force: boolean, io: CliIo): 
   // As apply sees it under targets "auto": a tool seen only in a CI setup step is not configured (decision D-075).
   const { ciOnly } = autoTargets(absolute, detection);
   const ciNames = new Set(ciOnly.map((entry) => toolName(entry.id)));
-  const detected = detectedNames(detection).filter((name) => !ciNames.has(name));
+  const projectTools = projects.flatMap((entry) => detectedNames(entry.detection).map((name) => `${name} (${entry.project})`));
+  const detected = [...detectedNames(detection).filter((name) => !ciNames.has(name)), ...projectTools];
   io.stdout(`${existing === undefined ? 'Created' : 'Overwrote'} ${shownTarget} with the default policy.\n`);
+  if (projects.length > 0) {
+    io.stdout(
+      `projects lists ${listing(projects.map((entry) => entry.project))}: the root has no manifest or lockfile, these directories do, so depcurfew configures each as a project of its own and the bots from the root; edit projects in ${POLICY_FILE} if that is not right.\n`,
+    );
+  }
   if (kept !== undefined) {
     io.stdout(`cooldown.minimum is ${minimum} instead of ${DEFAULT_POLICY.cooldown.minimum}, to keep the longest release-age delay already set: ${describeDelay(kept)}.\n`);
   }
   io.stdout(`Detected tools: ${detected.length === 0 ? 'none' : detected.join(', ')}.\n`);
   // Building from source runs the package's own build code, so the default deny blocks it (decision D-065); a package
   // without wheels then stops installing, which a team should see before apply (user feedback before 1.3.0).
-  if (DEFAULT_POLICY.installScripts.default === 'deny' && detection.packageManagers.some((manager) => manager.supported && isPythonTool(manager.id))) {
+  if (DEFAULT_POLICY.installScripts.default === 'deny' && [detection, ...projects.map((entry) => entry.detection)].some((found) => found.packageManagers.some((manager) => manager.supported && isPythonTool(manager.id)))) {
     io.stdout(
       'note: installScripts.default "deny" also blocks building Python packages from source, so a package without wheels for your platform stops installing; run depcurfew doctor before depcurfew apply to see the locked packages that have none, and add the ones you trust to installScripts.allow as pypi:<name>.\n',
     );
   }
-  for (const entry of ciOnly) {
+  // In a repository of projects the workflows of the root set up the projects' tools, as apply knows (decision D-100).
+  const inProjects = new Set(projects.flatMap((entry) => entry.detection.packageManagers.map((manager) => manager.id)));
+  for (const entry of ciOnly.filter((item) => !inProjects.has(item.id as never))) {
     io.stdout(
       `${toolName(entry.id)} is seen only in a CI setup step (${listing(entry.workflows)}), so depcurfew apply does not configure it; add "${entry.id}" to targets in ${POLICY_FILE} if it installs packages for this project.\n`,
     );

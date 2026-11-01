@@ -42,7 +42,7 @@ describe('parsePolicy', () => {
   });
 
   it('ignores a UTF-8 byte order mark', () => {
-    expect(parsePolicy('﻿{ "version": 1 }')).toEqual({ ok: true, policy: { version: 1, targets: 'auto' } });
+    expect(parsePolicy('﻿{ "version": 1 }')).toEqual({ ok: true, policy: { version: 1, targets: 'auto', projects: [] } });
   });
 });
 

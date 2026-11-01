@@ -98,7 +98,23 @@ Every section is optional: a section that is absent means depcurfew does not man
 | `sources.file` | `"allow"`, `"deny"` |  | Dependencies installed from local tarball files. |
 | `sources.directory` | `"allow"`, `"deny"` |  | Dependencies installed from local directories. |
 | `targets` |  | `"auto"` | Tools to configure: "auto" detects them in the repository, or list them explicitly. |
+| `projects` |  | `[]` | Directories of independent projects in this repository, each with its own manifest and lockfile (e.g. frontend and backend). depcurfew configures each one with this policy as a project of its own, and configures Renovate and Dependabot once, from the repository root, for all of them. The repository root is always configured as well. A project must not be inside another one, must not be a workspace package of the root and must not have a depcurfew.json of its own. |
 <!-- END GENERATED: policy-fields -->
+
+### Several projects in one repository
+
+A repository can hold independent projects side by side, each in its own directory with its own manifest and lockfile, often with nothing in the root but the bot configuration:
+
+```text
+.github/dependabot.yml   updates entries for /frontend and /backend
+depcurfew.json           "projects": ["frontend", "backend"]
+frontend/                package.json, package-lock.json
+backend/                 pyproject.toml, uv.lock
+```
+
+List those directories under `projects`, relative to the repository root with `/` between directories (no patterns, no `..`, no `/` at either end). `apply`, `doctor` and `explain` then treat each listed directory as a project of its own with the policy of the root: its own `.npmrc`, lockfiles and workspaces, as if the command ran there. The root is configured as before. Renovate and Dependabot are configured once, from the repository root, where they read their configuration, and wait at least as long as the package manager of any project (in the example, npm rounds `36h` up to 2 days, so every Dependabot entry gets `default-days: 2`). Every path in the output is relative to the root (`frontend/.npmrc`), and all files of all projects are written or none.
+
+`depcurfew init` in a root without a manifest or lockfile lists the direct subdirectories that have one. A listed directory that does not exist, is a file, is reached through a symlink, has a `depcurfew.json` of its own or overlaps a workspace package of the root is an error (`project-not-found`, `project-not-a-directory`, `project-symlink`, `project-has-policy`, `project-in-workspace`): `apply` writes nothing, and `doctor` reports it as `invalid-project`. With a list of `targets`, each listed package manager is configured only in the directories that use it. `check` and the Claude Code hook find the `depcurfew.json` of the root from a project directory, as from any subdirectory of the repository.
 
 ## Commands
 
@@ -147,6 +163,7 @@ Warnings:
 - `depcurfew-outdated`: The project installs a newer depcurfew than the one running, which may not know settings that version writes.
 - `file-unreadable`: A file that shows which tools a project uses cannot be read or parsed (too large, a symlink out of the repository, no read permission, invalid), so depcurfew may configure fewer tools than the project uses.
 - `tool-not-supported`: A detected or installed tool is not supported (Yarn Classic), so nothing is written for it.
+- `target-not-found`: With projects, a package manager listed under targets is configured in each directory (the root or a project) that uses it, and none uses it, so nothing is written for it.
 - `tool-only-in-ci`: A tool appears only in a CI setup step, with no manifest, lockfile or configuration in the repository, so targets "auto" does not configure it.
 - `version-not-pinned`: No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.
 - `version-too-old`: The pinned version of a tool (with apply --user, the installed one) lacks a setting the policy needs, so that setting is not written.
@@ -198,6 +215,11 @@ Errors (nothing is written):
 - `policy-exists`: depcurfew init found a depcurfew.json and writes it only with --force.
 - `directory-not-found`: The directory given on the command line does not exist or cannot be opened.
 - `not-a-directory`: The path given on the command line is a file, not a directory.
+- `project-not-found`: A directory listed in projects in depcurfew.json does not exist, so nothing is written.
+- `project-not-a-directory`: A path listed in projects in depcurfew.json is a file, not a directory, so nothing is written.
+- `project-symlink`: A directory listed in projects in depcurfew.json is a symlink or lies under one, which may lead out of the repository, so nothing is written.
+- `project-has-policy`: A directory listed in projects has a depcurfew.json of its own, a second policy for the same files, so nothing is written.
+- `project-in-workspace`: A directory listed in projects is, holds or lies in a workspace package of the repository root, which the root configuration already covers, so nothing is written.
 - `home-missing`: apply --user and init --user: the home directory (HOME, USERPROFILE on Windows) does not exist or is not an absolute path, so nothing is written.
 <!-- END GENERATED: apply-codes -->
 
@@ -331,6 +353,14 @@ Without a valid policy, the rules that compare the repository with depcurfew.jso
 
 Fix: Fix what the message lists; an editor that reads the $schema of depcurfew.json shows the problems as you type.
 
+### `invalid-project`
+
+**error** · needs depcurfew.json · A directory listed in projects in depcurfew.json does not exist, is not a directory, is a symlink, has a depcurfew.json of its own or overlaps a workspace package of the root.
+
+depcurfew checks and configures each listed directory as a project of its own. A directory that is missing or misspelled is never checked, so its package managers keep whatever configuration they have; one with a depcurfew.json of its own would follow two policies, and a workspace package of the root is configured with the root already. depcurfew apply writes nothing while one of them is listed.
+
+Fix: Correct or remove the entry in projects, or remove the depcurfew.json of the project.
+
 ### `depcurfew-outdated`
 
 **warning** · The project installs a newer depcurfew than the one running.
@@ -430,7 +460,7 @@ Fix: Fix what the message describes: invalid syntax, missing read permission, a 
 
 ## GitHub Action
 
-The action runs `depcurfew doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error, or also a warning with `fail-on: warning` (as `depcurfew doctor --strict`). The log and the job summary also say what was checked: the tools found, the files read and every check with its result (passed, the problems it found, skipped because it needs `depcurfew.json`, or not applicable to the project). A clean run adds a notice with the same list ("No problems found in 7 files for npm 11.21.1 (package.json). 13 checks: 9 passed, 4 not applicable."), so it is not mistaken for one that did nothing. Code scanning lists only alerts, so its entry stays empty when there is nothing to report; next to it, in the Checks tab of a pull request, the action adds the check "depcurfew doctor" with the result, the table of checks and the findings as annotations on their lines (at most 100, errors first; a finding about a whole file is shown on its first line). It needs `checks: write`, which the example below grants; without it the step only says so in the log. A workflow that runs on both `push` and `pull_request` checks the same commit twice: the second run updates the entry of the first one instead of adding another, unless both run at the same moment, since GitHub has no way to look for an entry and add one in a single step. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
+The action runs `depcurfew doctor`, prints the report to the job log, shows each finding as an annotation on its file and in a table in the job summary, each with how to fix it, uploads the SARIF report to code scanning and fails the job when doctor finds an error, or also a warning with `fail-on: warning` (as `depcurfew doctor --strict`). The log and the job summary also say what was checked: the tools found, the files read and every check with its result (passed, the problems it found, skipped because it needs `depcurfew.json`, or not applicable to the project). A clean run adds a notice with the same list ("No problems found in 7 files for npm 11.21.1 (package.json). 14 checks: 9 passed, 5 not applicable."), so it is not mistaken for one that did nothing. Code scanning lists only alerts, so its entry stays empty when there is nothing to report; next to it, in the Checks tab of a pull request, the action adds the check "depcurfew doctor" with the result, the table of checks and the findings as annotations on their lines (at most 100, errors first; a finding about a whole file is shown on its first line). It needs `checks: write`, which the example below grants; without it the step only says so in the log. A workflow that runs on both `push` and `pull_request` checks the same commit twice: the second run updates the entry of the first one instead of adding another, unless both run at the same moment, since GitHub has no way to look for an entry and add one in a single step. It runs from its own checkout, with nothing to install, and sets up Node.js 22 only when the runner has an older version.
 
 Pin it to a full commit SHA, like every action in your workflows; the example pins the commit of the latest release, and the comment names its tag. If the repository cannot use code scanning, set `upload-sarif: false`; the findings stay in the job log.
 

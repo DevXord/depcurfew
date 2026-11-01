@@ -9,6 +9,7 @@ export const APPLY_WARNINGS = {
   'depcurfew-outdated': 'The project installs a newer depcurfew than the one running, which may not know settings that version writes.',
   'file-unreadable': 'A file that shows which tools a project uses cannot be read or parsed (too large, a symlink out of the repository, no read permission, invalid), so depcurfew may configure fewer tools than the project uses.',
   'tool-not-supported': 'A detected or installed tool is not supported (Yarn Classic), so nothing is written for it.',
+  'target-not-found': 'With projects, a package manager listed under targets is configured in each directory (the root or a project) that uses it, and none uses it, so nothing is written for it.',
   'tool-only-in-ci': 'A tool appears only in a CI setup step, with no manifest, lockfile or configuration in the repository, so targets "auto" does not configure it.',
   'version-not-pinned': 'No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.',
   'version-too-old': 'The pinned version of a tool (with apply --user, the installed one) lacks a setting the policy needs, so that setting is not written.',
@@ -60,6 +61,11 @@ export const APPLY_ERRORS = {
   'policy-exists': 'depcurfew init found a depcurfew.json and writes it only with --force.',
   'directory-not-found': 'The directory given on the command line does not exist or cannot be opened.',
   'not-a-directory': 'The path given on the command line is a file, not a directory.',
+  'project-not-found': 'A directory listed in projects in depcurfew.json does not exist, so nothing is written.',
+  'project-not-a-directory': 'A path listed in projects in depcurfew.json is a file, not a directory, so nothing is written.',
+  'project-symlink': 'A directory listed in projects in depcurfew.json is a symlink or lies under one, which may lead out of the repository, so nothing is written.',
+  'project-has-policy': 'A directory listed in projects has a depcurfew.json of its own, a second policy for the same files, so nothing is written.',
+  'project-in-workspace': 'A directory listed in projects is, holds or lies in a workspace package of the repository root, which the root configuration already covers, so nothing is written.',
   'home-missing': 'apply --user and init --user: the home directory (HOME, USERPROFILE on Windows) does not exist or is not an absolute path, so nothing is written.',
 } as const satisfies Record<string, string>;
 
@@ -68,6 +74,8 @@ export type ApplyErrorCode = keyof typeof APPLY_ERRORS;
 
 export interface ApplyWarning {
   code: ApplyWarningCode;
+  /** The directory listed in projects that the warning concerns; absent for the repository root. */
+  project?: string;
   /** The tool it concerns, when there is one. */
   tool?: ToolId;
   /** The file it concerns, when there is one, and the line when it is known. */

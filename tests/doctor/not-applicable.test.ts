@@ -29,6 +29,7 @@ describe('rules that do not concern the project', () => {
     const report = runDoctor(join(DOCTOR, 'bot-cooldown-mismatch/passes-consistent/repo'));
     expect(results(report)).toEqual({
       'invalid-policy': 'skipped',
+      'invalid-project': 'not-applicable',
       'depcurfew-outdated': 'not-applicable',
       'manager-version-too-old': 'passed',
       'setting-ignored-by-version': 'passed',
@@ -42,7 +43,7 @@ describe('rules that do not concern the project', () => {
       'lockfile-install-scripts': 'skipped',
       'unreadable-config': 'passed',
     });
-    expect(resultCounts(report.checked?.rules ?? [])).toBe('13 checks: 7 passed, 2 not applicable, 4 skipped');
+    expect(resultCounts(report.checked?.rules ?? [])).toBe('14 checks: 7 passed, 3 not applicable, 4 skipped');
   });
 
   it('are not applicable in a PDM project without bots: the npm, pnpm and bot rules', () => {
@@ -60,6 +61,7 @@ describe('rules that do not concern the project', () => {
     const report = runDoctor(join(REPOS, 'empty'));
     expect(results(report)).toEqual({
       'invalid-policy': 'skipped',
+      'invalid-project': 'not-applicable',
       'depcurfew-outdated': 'not-applicable',
       'manager-version-too-old': 'not-applicable',
       'setting-ignored-by-version': 'not-applicable',

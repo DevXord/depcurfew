@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "web/.npmrc",
+      "line": 2
+    },
+    "message": "web/.npmrc does not match depcurfew.json: `min-release-age=1` should be `min-release-age=3`",
+    "fix": "Run depcurfew apply to bring web/.npmrc back in line with depcurfew.json (depcurfew apply --dry-run shows the change first), or change depcurfew.json if the edit was intended"
+  }
+]

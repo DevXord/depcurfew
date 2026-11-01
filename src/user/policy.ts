@@ -37,6 +37,11 @@ export function loadUserPolicy(environment: UserEnvironment): UserPolicy {
     throw new PolicyError(`${shown} is not a file`, [], 'policy-unreadable', unreadable);
   }
   const result = parsePolicy(read.bytes.toString('utf8'));
-  if (!result.ok) throw new PolicyError(`${shown} is invalid`, result.issues.map(formatIssue), 'policy-invalid', `Fix these problems in ${shown}; an editor that reads its $schema shows them as you type`);
+  const fix = `Fix these problems in ${shown}; an editor that reads its $schema shows them as you type`;
+  if (!result.ok) throw new PolicyError(`${shown} is invalid`, result.issues.map(formatIssue), 'policy-invalid', fix);
+  // The user policy configures the tools of this machine, not the directories of a repository (decision D-100).
+  if (result.policy.projects.length > 0) {
+    throw new PolicyError(`${shown} is invalid`, ['projects: has no meaning in the user policy, which configures the tools of this machine, not a repository; remove it and list projects in the depcurfew.json of the repository'], 'policy-invalid', fix);
+  }
   return { policy: result.policy, path, shown };
 }

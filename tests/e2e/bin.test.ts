@@ -101,6 +101,7 @@ describe('built depcurfew executable', () => {
       schemaVersion: 1,
       project: JSON.parse(readFileSync(new URL('tests/fixtures/expected/npm-basic/detect.json', root), 'utf8')),
       policy: null,
+      projects: [],
       notices: [],
       errors: [],
     });
