@@ -1,6 +1,6 @@
 import { verifiedOn } from './define.ts';
 import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './platformdirs.ts';
-import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
+import type { DirectoryOptionsKnowledge, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
@@ -245,6 +245,29 @@ export const pdm: ToolKnowledge = {
       },
       `${PDM}/src/pdm/cli/commands/add.py`,
       'pdm add takes requirements as arguments and editable ones with -e; its options come from cli/options.py and the global ones (-c/--config, --pep582, -I, -n, --no-cache) from core.py. --venv and --pep582 take an optional value, so argparse takes the next word for it. PDM parses with argparse, which accepts abbreviated long options.',
+    ),
+    registrySettings: leftovers.verified<readonly RegistrySettingKnowledge[]>(
+      [
+        {
+          file: 'pyproject.toml',
+          path: ['tool', 'pdm', 'source'],
+          applies: 'all',
+          effect: 'adds',
+          urlKey: 'url',
+          entries: {
+            nameKey: 'name',
+            rules: [
+              { key: 'type', value: 'find_links', effect: 'adds' },
+              { key: 'name', value: 'pypi', effect: 'replaces' },
+            ],
+            first: 'adds',
+            others: 'adds',
+            pypiName: 'pypi',
+          },
+        },
+      ],
+      `${PDM}/docs/usage/config.md`,
+      '[[tool.pdm.source]] has name, url, verify_ssl, type ("index or find_links, default to index") and include_packages and exclude_packages. "If you want to omit the default PyPI index, just set the source name to pypi and that source will replace it"; the source list is pypi.url (when no source is named pypi), then the sources of pyproject.toml, then pypi.<name>.url of the configuration, and by default "all sources are treated as equal" and the best matching version across them is taken, so any other source adds an index. Project.get_sources (src/pdm/project/core.py) keys the sources by name and fills a source named pypi from pypi.url, so one without a URL is PyPI (or the pypi.url of the user\'s configuration, which depcurfew does not read); PDM compares the name pypi exactly, depcurfew without regard to case, which only compares more URLs. Variables in url (${PROJECT_ROOT}) are expanded by PDM, so depcurfew cannot read such a URL. include_packages and exclude_packages are not read: a source counts for every package.',
     ),
     registryOverrides: verified(
       { registryOptions: [], registryVariables: ['PDM_PYPI_URL'], configOptions: ['-c', '--config'], configVariables: ['PDM_CONFIG_FILE'] },

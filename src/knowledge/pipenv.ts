@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 
@@ -9,6 +9,7 @@ const PIPFILE = `${PIPENV}/docs/pipfile.md`;
 const CHANGELOG = `${PIPENV}/CHANGELOG.md`;
 const CONFIGURATION = `${PIPENV}/docs/configuration.md`;
 const user = verifiedOn('2026-10-31');
+const final = verifiedOn('2026-11-01');
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(null, PIPFILE, `No Pipfile setting allows or forbids ${kind} dependencies (concluded from the documented [pipenv] directives).`),
@@ -132,6 +133,27 @@ export const pipenv: ToolKnowledge = {
       { registryOptions: ['-i', '--index', '--pypi-mirror'], registryVariables: ['PIPENV_PYPI_MIRROR'], configOptions: ['--extra-pip-args'], configVariables: ['PIPENV_DOTENV_LOCATION'] },
       CONFIGURATION,
       '--index names a package index by URL or by a source name of the Pipfile; --pypi-mirror and PIPENV_PYPI_MIRROR replace PyPI. --extra-pip-args hands arguments to pip, which may name another index, and Pipenv loads PIP_* variables from the .env file that PIPENV_DOTENV_LOCATION names (options.py).',
+    ),
+    registrySettings: final.verified<readonly RegistrySettingKnowledge[]>(
+      [
+        {
+          file: 'Pipfile',
+          path: ['source'],
+          applies: 'all',
+          effect: 'replaces',
+          urlKey: 'url',
+          entries: {
+            nameKey: 'name',
+            rules: [],
+            first: 'replaces',
+            others: 'pinned',
+            pins: { file: 'Pipfile', tables: [['*']], key: 'index' },
+            searchAll: ['pipenv', 'install_search_all_sources'],
+          },
+        },
+      ],
+      `${PIPENV}/docs/indexes.md`,
+      'Each [[source]] has name, url and verify_ssl. "all packages are mapped to a single package index for security reasons"; "To install a package from a specific index, you must match the name of the index" (torch = {version = "*", index = "pytorch"} in [packages]); to use another index as the default, "simply omit PyPI from your sources". A package without index comes from the default index, the first source: Resolver.create in pipenv/utils/resolver.py takes project.sources.get_default_index()["name"], which is pipfile_sources()[0] (pipenv/utils/sources.py), and without [[source]] the default is https://pypi.org/simple (pipenv/project.py). With install_search_all_sources = true in [pipenv], "pipenv install and pipenv sync will search all configured sources for packages, but only during installation", so every source adds. Names are compared exactly (get_index_by_name), depcurfew without regard to case; package categories are any top-level table ([packages], [dev-packages] and custom ones). Variables in url are expanded by Pipenv (expand_url_credentials), so depcurfew cannot read such a URL.',
     ),
     selection: verified(
       {

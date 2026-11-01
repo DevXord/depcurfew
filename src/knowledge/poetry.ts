@@ -1,6 +1,6 @@
 import { verifiedOn } from './define.ts';
 import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './platformdirs.ts';
-import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
+import type { DirectoryOptionsKnowledge, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-30');
 const user = verifiedOn('2026-10-31');
@@ -293,6 +293,30 @@ export const poetry: ToolKnowledge = {
       },
       `${POETRY}/docs/cli.md`,
       'Global options: --directory=DIRECTORY (-C) "The working directory for the Poetry command (defaults to the current working directory). All command-line arguments will be resolved relative to the given directory."; --project=PROJECT (-P) "Specify another path as the project root. All command-line arguments will be resolved relative to the current working directory or directory specified using --directory option if used." The page names no environment variable for either.',
+    ),
+    registrySettings: finalReview.verified<readonly RegistrySettingKnowledge[]>(
+      [
+        {
+          file: 'pyproject.toml',
+          path: ['tool', 'poetry', 'source'],
+          applies: 'all',
+          effect: 'replaces',
+          urlKey: 'url',
+          entries: {
+            nameKey: 'name',
+            rules: [
+              { key: 'priority', value: 'supplemental', effect: 'adds' },
+              { key: 'priority', value: 'explicit', effect: 'pinned' },
+            ],
+            first: 'replaces',
+            others: 'replaces',
+            pypiName: 'pypi',
+            pins: { file: 'pyproject.toml', tables: [['tool', 'poetry', 'dependencies'], ['tool', 'poetry', 'group', '*', 'dependencies']], key: 'source' },
+          },
+        },
+      ],
+      `${POETRY}/docs/repositories.md`,
+      '[[tool.poetry.source]] has name, url and priority. "If priority is undefined, the source is considered a primary source"; "All primary package sources are searched for each dependency without a source constraint" and "If you configure at least one primary source, the implicit PyPI source is disabled", so a primary source replaces PyPI. Supplemental sources "are only searched if no other (higher-priority) source yields a compatible package distribution": depcurfew does not know whether PyPI has a version the constraint takes, so such a source counts as one that adds. Explicit sources "are only searched when a package configuration explicitly indicates" them: a dependency with source = "name" in [tool.poetry.dependencies] or [tool.poetry.group.<group>.dependencies], also in a list of constraint tables (docs/dependency-specification.md, docs/managing-dependencies.md). create_pool in src/poetry/factory.py reads Priority[source.get("priority", "primary").upper()], so the value is compared without regard to case; the schema (src/poetry/json/schemas/poetry.json) allows primary, supplemental and explicit, and another value (default or secondary of Poetry 1.x) fails in 2.5.1 and counts as primary here. A source whose name is pypi in any case is PyPI itself (PyPiRepository), which "cannot be configured with a custom url" (create_package_source).',
     ),
     configCommands: leftovers.verified(
       [{ command: ['poetry', 'config'], operands: 2, options: ['--unset', '--migrate'] }],

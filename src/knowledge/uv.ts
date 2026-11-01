@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, IndexEntriesKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const guard = verifiedOn('2026-11-01');
@@ -20,6 +20,26 @@ const release13 = verifiedOn('2026-11-01');
 const final = verifiedOn('2026-11-01');
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = ['1', 'true', 't', 'yes', 'y', 'on'];
+
+/**
+ * What an entry of [[tool.uv.index]] (or [[index]] in uv.toml) does (decision D-120, docs/concepts/indexes.md at
+ * 0.13.6): "An index can be marked as explicit = true to prevent packages from being installed from that index unless
+ * explicitly pinned to it", and "A package can be pinned to a specific index by specifying the index in its
+ * tool.uv.sources entry" (torch = { index = "pytorch" }, or a list of such tables "disambiguated by environment
+ * markers"); default = true replaces PyPI; any other entry is asked before the default index. The page says named
+ * indexes referenced via tool.uv.sources "must be defined within the project's pyproject.toml file"; depcurfew takes
+ * the explicit indexes of uv.toml too, which can only report more.
+ */
+const INDEX_ENTRIES: IndexEntriesKnowledge = {
+  nameKey: 'name',
+  rules: [
+    { key: 'explicit', value: true, effect: 'pinned' },
+    { key: 'default', value: true, effect: 'replaces' },
+  ],
+  first: 'adds',
+  others: 'adds',
+  pins: { file: 'pyproject.toml', tables: [['tool', 'uv', 'sources']], key: 'index' },
+};
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -199,14 +219,14 @@ export const uv: ToolKnowledge = {
   extra: {
     registrySettings: release13.verified(
       [
-        { file: 'pyproject.toml', path: ['tool', 'uv', 'index'], applies: 'all', effect: 'replaces', urlKey: 'url', unlessTrue: 'explicit', replacesWhen: 'default' },
+        { file: 'pyproject.toml', path: ['tool', 'uv', 'index'], applies: 'all', effect: 'adds', urlKey: 'url', entries: INDEX_ENTRIES },
         { file: 'pyproject.toml', path: ['tool', 'uv', 'index-url'], applies: 'all', effect: 'replaces' },
         { file: 'pyproject.toml', path: ['tool', 'uv', 'extra-index-url'], applies: 'all', effect: 'adds' },
         { file: 'pyproject.toml', path: ['tool', 'uv', 'find-links'], applies: 'all', effect: 'adds' },
         { file: 'pyproject.toml', path: ['tool', 'uv', 'pip', 'index-url'], applies: 'all', effect: 'replaces' },
         { file: 'pyproject.toml', path: ['tool', 'uv', 'pip', 'extra-index-url'], applies: 'all', effect: 'adds' },
         { file: 'pyproject.toml', path: ['tool', 'uv', 'pip', 'find-links'], applies: 'all', effect: 'adds' },
-        { file: 'uv.toml', path: ['index'], applies: 'all', effect: 'replaces', urlKey: 'url', unlessTrue: 'explicit', replacesWhen: 'default' },
+        { file: 'uv.toml', path: ['index'], applies: 'all', effect: 'adds', urlKey: 'url', entries: INDEX_ENTRIES },
         { file: 'uv.toml', path: ['index-url'], applies: 'all', effect: 'replaces' },
         { file: 'uv.toml', path: ['extra-index-url'], applies: 'all', effect: 'adds' },
         { file: 'uv.toml', path: ['find-links'], applies: 'all', effect: 'adds' },
@@ -215,7 +235,7 @@ export const uv: ToolKnowledge = {
         { file: 'uv.toml', path: ['pip', 'find-links'], applies: 'all', effect: 'adds' },
       ],
       SETTINGS,
-      'ResolverInstallerSchema: index ("The package indexes to use when resolving dependencies", [[tool.uv.index]] with name and url), index-url ("The URL of the Python package index (by default: <https://pypi.org/simple>)"), extra-index-url ("Extra URLs of package indexes to use, in addition to --index-url") and find-links ("Locations to search for candidate distributions, in addition to those found in the registry indexes"); PipOptions ([tool.uv.pip]) has index-url, extra-index-url and find-links too. uv.toml takes the same keys at its top level (extra.configTables). docs/concepts/indexes.md: "Indexes are prioritized in the order in which they\'re defined", the default index is "always treated as lowest priority", with the default first-index strategy uv "will stop at the first index on which a given package is available", default = true replaces PyPI ("set default = true on another index entry" to "exclude PyPI from the list of indexes"), so an entry without it adds an index that is asked before the default one, and an explicit = true index is used only for packages pinned to it in tool.uv.sources.',
+      'ResolverInstallerSchema: index ("The package indexes to use when resolving dependencies", [[tool.uv.index]] with name and url), index-url ("The URL of the Python package index (by default: <https://pypi.org/simple>)"), extra-index-url ("Extra URLs of package indexes to use, in addition to --index-url") and find-links ("Locations to search for candidate distributions, in addition to those found in the registry indexes"); PipOptions ([tool.uv.pip]) has index-url, extra-index-url and find-links too. uv.toml takes the same keys at its top level (extra.configTables). docs/concepts/indexes.md: "Indexes are prioritized in the order in which they\'re defined", the default index is "always treated as lowest priority", with the default first-index strategy uv "will stop at the first index on which a given package is available", default = true replaces PyPI ("set default = true on another index entry" to "exclude PyPI from the list of indexes"), so an entry without it adds an index that is asked before the default one, and an explicit = true index is used only for packages pinned to it in tool.uv.sources. Each [[index]] entry is read as entries says (decision D-120): explicit = true counts only for the packages tool.uv.sources pins to it by name, default = true replaces PyPI, any other entry adds an index (see INDEX_ENTRIES).',
     ),
     pylockCreatedBy: verified(
       'uv',

@@ -588,10 +588,36 @@ export interface RegistrySettingKnowledge {
   effect: 'replaces' | 'adds';
   /** A value may be a table that holds the URL under this key (Bun's { url, token }, uv's [[index]] entries). */
   urlKey?: string;
-  /** For an array of tables: entries with this key set to true do not count (uv: an explicit index). */
-  unlessTrue?: string;
-  /** For an array of tables with effect replaces: only an entry with this key set to true replaces; others add (uv: default). */
-  replacesWhen?: string;
+  /** For an array of tables (uv's [[tool.uv.index]], Poetry's and PDM's sources, Pipfile's [[source]]): what each entry does. */
+  entries?: IndexEntriesKnowledge;
+}
+
+/**
+ * What an entry of an array of index tables does (decision D-120): replaces the default index for every package; adds
+ * an index for every package; or is used only for the packages pinned to it by name (an explicit index).
+ */
+export type IndexEntryEffect = 'replaces' | 'adds' | 'pinned';
+
+export interface IndexEntriesKnowledge {
+  /** The key with the entry's name, by which packages are pinned to it. */
+  nameKey: string;
+  /**
+   * Rules over the keys of an entry, the first that matches decides: an entry whose `key` has `value` (text compared
+   * without regard to case) does `effect`. uv: explicit = true is pinned, default = true replaces; Poetry: priority.
+   */
+  rules: readonly { key: string; value: string | boolean; effect: IndexEntryEffect }[];
+  /** What the first entry and the others do when no rule matches (Pipfile: the first source is the default index). */
+  first: IndexEntryEffect;
+  others: IndexEntryEffect;
+  /** An entry with this name (in any case) and no URL is PyPI itself (Poetry, PDM: pypi). */
+  pypiName?: string;
+  /**
+   * Where packages are pinned to an entry: in `file` of the same directory or a parent, the tables at `tables` (keys
+   * from the top, * for any key) map package names to a table, or a list of tables, whose `key` names the entry.
+   */
+  pins?: { file: string; tables: readonly (readonly string[])[]; key: string };
+  /** A true value at this path of the same file makes the pinned entries count for every package, as adds (Pipenv). */
+  searchAll?: readonly string[];
 }
 
 // Facts about the environment around the package managers: version pinning (Corepack, Volta, asdf) and CI.

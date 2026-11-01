@@ -27,6 +27,7 @@ import type { ToolId } from '../knowledge/types.ts';
 import { popularPackages } from '../knowledge/popular.ts';
 import { popularPythonPackages } from '../knowledge/popular-python.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
+import { PYPI_PREFIX } from '../policy/package-pattern.ts';
 import { DEFAULT_POLICY, POLICY_FILE, renderPolicy } from '../policy/defaults.ts';
 import { findPolicyDirectory } from '../policy/file.ts';
 import { environment } from '../knowledge/environment.ts';
@@ -325,6 +326,8 @@ function appliesTo(setting: UnreadSetting, report: PackageReport, request: Check
   // .npmrc counts for every tool of the npm ecosystem (pnpm and Bun read it too); a tool's own file for that tool only.
   if (setting.tool === 'npm' ? python : setting.tool !== request.tool) return false;
   if (setting.applies === 'scope') return scopeOf(report.name) === setting.scope;
+  // An index pinned to one Python package (decision D-120).
+  if (setting.applies === 'package') return python && setting.package === normalizePythonName(report.name.slice(PYPI_PREFIX.length));
   if (setting.applies === 'tag') {
     // tag= chooses the version only of npm, and only for a name without a version or with a range.
     const selector = parseSpec(report.spec)?.selector?.trim() ?? '';
@@ -380,6 +383,14 @@ function unreadFinding(setting: UnreadSetting, report: PackageReport, applied: P
   }
   const python = isPythonSpec(report.spec);
   const what = python ? 'index' : 'registry';
+  if (setting.applies === 'package' && setting.pin !== undefined) {
+    // depcurfew checks one index for all Python packages, so --index would move the others (decision D-120).
+    const named = value === undefined ? `the index set in ${where}, whose value depcurfew cannot read` : `the index ${value} from ${where}`;
+    return finding(
+      `the install would use ${named}, to which ${setting.pin.file} (line ${setting.pin.line}) pins it; depcurfew checked ${used}`,
+      `the package in the index that ${setting.pin.file} pins it to: depcurfew checks one index for every Python package of a command, so it cannot vouch for one that comes from another; depcurfew check --index ${value ?? '<its URL>'} ${report.spec} checks it there`,
+    );
+  }
   if (setting.effect === 'adds') {
     return finding(
       `the install may also take it from ${value ?? 'the places'} that ${where} adds; depcurfew checked only ${used}`,
@@ -394,6 +405,28 @@ function unreadFinding(setting: UnreadSetting, report: PackageReport, applied: P
       ? `set ${setting.scope ?? '@scope'}:registry=${url} in the .npmrc next to ${POLICY_FILE}`
       : `pass ${python ? '--index' : '--registry'} ${url} ${options}`;
   return finding(`the install would use ${named}; depcurfew checked ${used}`, `the package in the ${what} that ${setting.file} names; if you trust that ${what}, ${remedy}`);
+}
+
+/** Findings that the checked registry or index does not have the package or the version. */
+const MISSING: ReadonlySet<CheckFinding['code']> = new Set(['not-found', 'no-version']);
+
+/**
+ * What to say when the checked registry or index has no such package or version, while a setting depcurfew did not
+ * take may make the install take it from elsewhere (decision D-120): not that the name is made up, but where it may
+ * come from instead.
+ */
+function missingMessage(missing: CheckFinding, setting: UnreadSetting, report: PackageReport, applied: Pick<AppliedPolicy, 'registry' | 'index' | 'scopes' | 'tag'>): string {
+  const used = usedFor(setting, report, applied);
+  const absent = missing.code === 'not-found' ? `${report.name ?? report.spec} does not exist in ${used}` : `${missing.message} in ${used}`;
+  const where = `${setting.file} (line ${setting.line})`;
+  const value = setting.value === undefined ? '' : ` ${setting.value}`;
+  const what = isPythonSpec(report.spec) ? 'index' : 'registry';
+  if (setting.applies === 'package' && setting.pin !== undefined) {
+    return `${absent}, but ${setting.pin.file} (line ${setting.pin.line}) pins it to the index${value} set in ${where}, which depcurfew did not check`;
+  }
+  const scope = setting.applies === 'scope' ? ` for ${setting.scope ?? ''}` : '';
+  const source = setting.effect === 'adds' ? (setting.value === undefined ? `the places that ${where} adds` : `the ${what}${value} that ${where} adds`) : `the ${what}${scope}${value} set in ${where}`;
+  return `${absent}, but it may come from ${source}, which depcurfew did not check`;
 }
 
 /** The settings of a tool's own configuration files for the requests of a command, read once per tool. */
@@ -453,13 +486,25 @@ export async function checkApplied(requests: readonly CheckRequest[], applied: A
     const request = requests[index] ?? { spec: report.spec };
     // One finding per package: the first setting that applies to it.
     const setting = unread.find((candidate) => appliesTo(candidate, report, request) && changesTheCheck(candidate, usedFor(candidate, report, applied)));
-    if (setting !== undefined) report.findings.push(unreadFinding(setting, report, applied));
+    if (setting === undefined) continue;
+    const finding = unreadFinding(setting, report, applied);
+    // A package or version missing where depcurfew looked may be where the install looks (decision D-120): the
+    // finding asks instead of denying, and says where.
+    const missing = setting.applies === 'tag' ? undefined : report.findings.find((candidate) => MISSING.has(candidate.code));
+    if (missing === undefined) {
+      report.findings.push(finding);
+      continue;
+    }
+    const at = report.findings.indexOf(missing);
+    report.findings = report.findings.filter((candidate) => !MISSING.has(candidate.code));
+    report.findings.splice(at, 0, { ...finding, message: missingMessage(missing, setting, report, applied) });
   }
   return { reports, skipped: [...applied.skipped, ...tools.skipped] };
 }
 
 /** What to say about a configuration file that was not read. */
 function skippedNotice(skipped: SkippedFile): string {
+  if (skipped.notice !== undefined) return skipped.notice;
   const what = skipped.file.split('/').at(-1) === '.npmrc' ? 'its registry settings, if any, were not used' : 'the registry it may set was not looked at';
   return `${skipped.file} was not read: ${skipped.reason}; ${what}`;
 }
@@ -781,7 +826,9 @@ export function policyNotices(applied: AppliedPolicy, npm: boolean, options: { a
         'config-not-read',
         skippedNotice(skipped),
         { file: skipped.file },
-        agent ? `Tell the user that ${skipped.file} was not read; do not change it yourself` : `Make ${skipped.file} a regular file of at most ${MAX_CONFIG_SIZE / (1024 * 1024)} MiB that depcurfew can read, or remove it`,
+        agent
+          ? (skipped.agentFix ?? `Tell the user that ${skipped.file} was not read; do not change it yourself`)
+          : (skipped.fix ?? `Make ${skipped.file} a regular file of at most ${MAX_CONFIG_SIZE / (1024 * 1024)} MiB that depcurfew can read, or remove it`),
       ),
     ),
   ];

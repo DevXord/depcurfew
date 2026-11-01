@@ -2685,6 +2685,32 @@ const pdm$1 = {
 			},
 			editableOptions: ["-e", "--editable"]
 		}, `${PDM}/src/pdm/cli/commands/add.py`, "pdm add takes requirements as arguments and editable ones with -e; its options come from cli/options.py and the global ones (-c/--config, --pep582, -I, -n, --no-cache) from core.py. --venv and --pep582 take an optional value, so argparse takes the next word for it. PDM parses with argparse, which accepts abbreviated long options."),
+		registrySettings: leftovers$3.verified([{
+			file: "pyproject.toml",
+			path: [
+				"tool",
+				"pdm",
+				"source"
+			],
+			applies: "all",
+			effect: "adds",
+			urlKey: "url",
+			entries: {
+				nameKey: "name",
+				rules: [{
+					key: "type",
+					value: "find_links",
+					effect: "adds"
+				}, {
+					key: "name",
+					value: "pypi",
+					effect: "replaces"
+				}],
+				first: "adds",
+				others: "adds",
+				pypiName: "pypi"
+			}
+		}], `${PDM}/docs/usage/config.md`, "[[tool.pdm.source]] has name, url, verify_ssl, type (\"index or find_links, default to index\") and include_packages and exclude_packages. \"If you want to omit the default PyPI index, just set the source name to pypi and that source will replace it\"; the source list is pypi.url (when no source is named pypi), then the sources of pyproject.toml, then pypi.<name>.url of the configuration, and by default \"all sources are treated as equal\" and the best matching version across them is taken, so any other source adds an index. Project.get_sources (src/pdm/project/core.py) keys the sources by name and fills a source named pypi from pypi.url, so one without a URL is PyPI (or the pypi.url of the user's configuration, which depcurfew does not read); PDM compares the name pypi exactly, depcurfew without regard to case, which only compares more URLs. Variables in url (${PROJECT_ROOT}) are expanded by PDM, so depcurfew cannot read such a URL. include_packages and exclude_packages are not read: a source counts for every package."),
 		registryOverrides: verified$7({
 			registryOptions: [],
 			registryVariables: ["PDM_PYPI_URL"],
@@ -2712,6 +2738,7 @@ const PIPFILE = `${PIPENV}/docs/pipfile.md`;
 const CHANGELOG$1 = `${PIPENV}/CHANGELOG.md`;
 const CONFIGURATION$3 = `${PIPENV}/docs/configuration.md`;
 const user$4 = verifiedOn("2026-10-31");
+const final$1 = verifiedOn("2026-11-01");
 const noSetting$3 = (kind) => ({ setting: uncertain$5(null, PIPFILE, `No Pipfile setting allows or forbids ${kind} dependencies (concluded from the documented [pipenv] directives).`) });
 const pipenv$1 = {
 	id: "pipenv",
@@ -2871,6 +2898,25 @@ const pipenv$1 = {
 			configOptions: ["--extra-pip-args"],
 			configVariables: ["PIPENV_DOTENV_LOCATION"]
 		}, CONFIGURATION$3, "--index names a package index by URL or by a source name of the Pipfile; --pypi-mirror and PIPENV_PYPI_MIRROR replace PyPI. --extra-pip-args hands arguments to pip, which may name another index, and Pipenv loads PIP_* variables from the .env file that PIPENV_DOTENV_LOCATION names (options.py)."),
+		registrySettings: final$1.verified([{
+			file: "Pipfile",
+			path: ["source"],
+			applies: "all",
+			effect: "replaces",
+			urlKey: "url",
+			entries: {
+				nameKey: "name",
+				rules: [],
+				first: "replaces",
+				others: "pinned",
+				pins: {
+					file: "Pipfile",
+					tables: [["*"]],
+					key: "index"
+				},
+				searchAll: ["pipenv", "install_search_all_sources"]
+			}
+		}], `${PIPENV}/docs/indexes.md`, "Each [[source]] has name, url and verify_ssl. \"all packages are mapped to a single package index for security reasons\"; \"To install a package from a specific index, you must match the name of the index\" (torch = {version = \"*\", index = \"pytorch\"} in [packages]); to use another index as the default, \"simply omit PyPI from your sources\". A package without index comes from the default index, the first source: Resolver.create in pipenv/utils/resolver.py takes project.sources.get_default_index()[\"name\"], which is pipfile_sources()[0] (pipenv/utils/sources.py), and without [[source]] the default is https://pypi.org/simple (pipenv/project.py). With install_search_all_sources = true in [pipenv], \"pipenv install and pipenv sync will search all configured sources for packages, but only during installation\", so every source adds. Names are compared exactly (get_index_by_name), depcurfew without regard to case; package categories are any top-level table ([packages], [dev-packages] and custom ones). Variables in url are expanded by Pipenv (expand_url_credentials), so depcurfew cannot read such a URL."),
 		selection: verified$6({
 			prereleases: { onFlags: ["--pre"] },
 			buildFromSource: {
@@ -3927,6 +3973,47 @@ const poetry$1 = {
 			],
 			variables: []
 		}, `${POETRY}/docs/cli.md`, "Global options: --directory=DIRECTORY (-C) \"The working directory for the Poetry command (defaults to the current working directory). All command-line arguments will be resolved relative to the given directory.\"; --project=PROJECT (-P) \"Specify another path as the project root. All command-line arguments will be resolved relative to the current working directory or directory specified using --directory option if used.\" The page names no environment variable for either."),
+		registrySettings: finalReview$1.verified([{
+			file: "pyproject.toml",
+			path: [
+				"tool",
+				"poetry",
+				"source"
+			],
+			applies: "all",
+			effect: "replaces",
+			urlKey: "url",
+			entries: {
+				nameKey: "name",
+				rules: [{
+					key: "priority",
+					value: "supplemental",
+					effect: "adds"
+				}, {
+					key: "priority",
+					value: "explicit",
+					effect: "pinned"
+				}],
+				first: "replaces",
+				others: "replaces",
+				pypiName: "pypi",
+				pins: {
+					file: "pyproject.toml",
+					tables: [[
+						"tool",
+						"poetry",
+						"dependencies"
+					], [
+						"tool",
+						"poetry",
+						"group",
+						"*",
+						"dependencies"
+					]],
+					key: "source"
+				}
+			}
+		}], `${POETRY}/docs/repositories.md`, "[[tool.poetry.source]] has name, url and priority. \"If priority is undefined, the source is considered a primary source\"; \"All primary package sources are searched for each dependency without a source constraint\" and \"If you configure at least one primary source, the implicit PyPI source is disabled\", so a primary source replaces PyPI. Supplemental sources \"are only searched if no other (higher-priority) source yields a compatible package distribution\": depcurfew does not know whether PyPI has a version the constraint takes, so such a source counts as one that adds. Explicit sources \"are only searched when a package configuration explicitly indicates\" them: a dependency with source = \"name\" in [tool.poetry.dependencies] or [tool.poetry.group.<group>.dependencies], also in a list of constraint tables (docs/dependency-specification.md, docs/managing-dependencies.md). create_pool in src/poetry/factory.py reads Priority[source.get(\"priority\", \"primary\").upper()], so the value is compared without regard to case; the schema (src/poetry/json/schemas/poetry.json) allows primary, supplemental and explicit, and another value (default or secondary of Poetry 1.x) fails in 2.5.1 and counts as primary here. A source whose name is pypi in any case is PyPI itself (PyPiRepository), which \"cannot be configured with a custom url\" (create_package_source)."),
 		configCommands: leftovers$2.verified([{
 			command: ["poetry", "config"],
 			operands: 2,
@@ -4153,6 +4240,38 @@ const TRUE_VALUES = [
 	"y",
 	"on"
 ];
+/**
+* What an entry of [[tool.uv.index]] (or [[index]] in uv.toml) does (decision D-120, docs/concepts/indexes.md at
+* 0.13.6): "An index can be marked as explicit = true to prevent packages from being installed from that index unless
+* explicitly pinned to it", and "A package can be pinned to a specific index by specifying the index in its
+* tool.uv.sources entry" (torch = { index = "pytorch" }, or a list of such tables "disambiguated by environment
+* markers"); default = true replaces PyPI; any other entry is asked before the default index. The page says named
+* indexes referenced via tool.uv.sources "must be defined within the project's pyproject.toml file"; depcurfew takes
+* the explicit indexes of uv.toml too, which can only report more.
+*/
+const INDEX_ENTRIES = {
+	nameKey: "name",
+	rules: [{
+		key: "explicit",
+		value: true,
+		effect: "pinned"
+	}, {
+		key: "default",
+		value: true,
+		effect: "replaces"
+	}],
+	first: "adds",
+	others: "adds",
+	pins: {
+		file: "pyproject.toml",
+		tables: [[
+			"tool",
+			"uv",
+			"sources"
+		]],
+		key: "index"
+	}
+};
 const noSetting$1 = (kind) => ({ setting: uncertain$1(null, `${UV}/uv.schema.json`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings). no-sources only ignores the tool.uv.sources table; a URL dependency introduced by a registry package is rejected during resolution (docs/pip/compatibility.md).`) });
 const uv$1 = {
 	id: "uv",
@@ -4358,10 +4477,9 @@ const uv$1 = {
 					"index"
 				],
 				applies: "all",
-				effect: "replaces",
+				effect: "adds",
 				urlKey: "url",
-				unlessTrue: "explicit",
-				replacesWhen: "default"
+				entries: INDEX_ENTRIES
 			},
 			{
 				file: "pyproject.toml",
@@ -4430,10 +4548,9 @@ const uv$1 = {
 				file: "uv.toml",
 				path: ["index"],
 				applies: "all",
-				effect: "replaces",
+				effect: "adds",
 				urlKey: "url",
-				unlessTrue: "explicit",
-				replacesWhen: "default"
+				entries: INDEX_ENTRIES
 			},
 			{
 				file: "uv.toml",
@@ -4471,7 +4588,7 @@ const uv$1 = {
 				applies: "all",
 				effect: "adds"
 			}
-		], SETTINGS, "ResolverInstallerSchema: index (\"The package indexes to use when resolving dependencies\", [[tool.uv.index]] with name and url), index-url (\"The URL of the Python package index (by default: <https://pypi.org/simple>)\"), extra-index-url (\"Extra URLs of package indexes to use, in addition to --index-url\") and find-links (\"Locations to search for candidate distributions, in addition to those found in the registry indexes\"); PipOptions ([tool.uv.pip]) has index-url, extra-index-url and find-links too. uv.toml takes the same keys at its top level (extra.configTables). docs/concepts/indexes.md: \"Indexes are prioritized in the order in which they're defined\", the default index is \"always treated as lowest priority\", with the default first-index strategy uv \"will stop at the first index on which a given package is available\", default = true replaces PyPI (\"set default = true on another index entry\" to \"exclude PyPI from the list of indexes\"), so an entry without it adds an index that is asked before the default one, and an explicit = true index is used only for packages pinned to it in tool.uv.sources."),
+		], SETTINGS, "ResolverInstallerSchema: index (\"The package indexes to use when resolving dependencies\", [[tool.uv.index]] with name and url), index-url (\"The URL of the Python package index (by default: <https://pypi.org/simple>)\"), extra-index-url (\"Extra URLs of package indexes to use, in addition to --index-url\") and find-links (\"Locations to search for candidate distributions, in addition to those found in the registry indexes\"); PipOptions ([tool.uv.pip]) has index-url, extra-index-url and find-links too. uv.toml takes the same keys at its top level (extra.configTables). docs/concepts/indexes.md: \"Indexes are prioritized in the order in which they're defined\", the default index is \"always treated as lowest priority\", with the default first-index strategy uv \"will stop at the first index on which a given package is available\", default = true replaces PyPI (\"set default = true on another index entry\" to \"exclude PyPI from the list of indexes\"), so an entry without it adds an index that is asked before the default one, and an explicit = true index is used only for packages pinned to it in tool.uv.sources. Each [[index]] entry is read as entries says (decision D-120): explicit = true counts only for the packages tool.uv.sources pins to it by name, default = true replaces PyPI, any other entry adds an index (see INDEX_ENTRIES)."),
 		pylockCreatedBy: verified$2("uv", `${UV}/crates/uv-lock/src/lock/export/pylock_toml.rs`, "uv export --format pylock.toml (and uv pip compile to pylock.toml) writes created-by = \"uv\". The project itself and workspace members are written as directory = { path = …, editable = true }, with the path relative to the lock file, \".\" for the project."),
 		configTables: verified$2({
 			"pyproject.toml": "tool.uv",
@@ -16109,24 +16226,38 @@ function readWorkflows(repository, facts) {
 }
 
 // src/detect/wildcard.ts
-/** Whether `text` matches `pattern`, in which `*` stands for any run of characters (including none). */
-function matchSegment$1(text, pattern) {
+/** Thrown when a StepBudget runs out before matching ends. */
+var OutOfSteps = class extends Error {};
+/** Takes `count` steps from the budget, if there is one. */
+function spendSteps(budget, count) {
+	if (budget === void 0) return;
+	budget.left -= count;
+	if (budget.left < 0) throw new OutOfSteps("out of steps");
+}
+/**
+* Whether `text` matches `pattern`, in which `*` stands for any run of characters (including none). With a budget,
+* each step of the loop takes one from it (decision D-120: workspace patterns of a package.json in another directory).
+*/
+function matchSegment$1(text, pattern, budget) {
 	let at = 0;
 	let index = 0;
 	let star = -1;
 	let resume = 0;
-	while (at < text.length) if (index < pattern.length && pattern[index] === "*") {
-		star = index;
-		index += 1;
-		resume = at;
-	} else if (index < pattern.length && pattern[index] === text[at]) {
-		index += 1;
-		at += 1;
-	} else if (star !== -1) {
-		index = star + 1;
-		resume += 1;
-		at = resume;
-	} else return false;
+	while (at < text.length) {
+		spendSteps(budget, 1);
+		if (index < pattern.length && pattern[index] === "*") {
+			star = index;
+			index += 1;
+			resume = at;
+		} else if (index < pattern.length && pattern[index] === text[at]) {
+			index += 1;
+			at += 1;
+		} else if (star !== -1) {
+			index = star + 1;
+			resume += 1;
+			at = resume;
+		} else return false;
+	}
 	while (pattern[index] === "*") index += 1;
 	return index === pattern.length;
 }
