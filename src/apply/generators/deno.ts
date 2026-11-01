@@ -36,7 +36,10 @@ export const deno: ManagerGenerator = (context) => {
   if (policy.installScripts !== undefined) {
     const allowAll = extraOf(tool, 'allowAllScripts', isSwitch);
     if (policy.installScripts.default === 'allow') {
-      if (context.supports(allowAll.since, allowAll.setting)) json.set([allowAll.setting], allowAll.value);
+      if (context.supports(allowAll.since, allowAll.setting)) {
+        json.set([allowAll.setting], allowAll.value);
+        context.writes('installScripts', allowAll.setting, configFile(context));
+      }
     } else {
       const setting = settingOf(tool.installScripts.allowList.setting) ?? allowAll.setting;
       const since = sinceOf(tool.installScripts.allowList.availableSince);
@@ -47,7 +50,9 @@ export const deno: ManagerGenerator = (context) => {
       // The object form { allow, deny } keeps its deny list; only its allow part is managed.
       const path = isRecord(current) ? [setting, 'allow'] : [setting];
       const allowed = isRecord(current) ? current['allow'] : current;
-      if (allowed === allowAll.value && context.atLeast(since)) {
+      const replaced = allowed === allowAll.value && context.atLeast(since);
+      if (replaced || specifiers.length > 0) context.writes('installScripts', path.join('.'), configFile(context));
+      if (replaced) {
         context.warn({
           code: 'allow-all-replaced',
           message: `${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`,
@@ -72,6 +77,7 @@ export const deno: ManagerGenerator = (context) => {
           .map((name) => String(deny.value).replace('<package>', name));
         const now = json.get([setting]);
         const list = isRecord(now) ? now['deny'] : undefined;
+        if (denied.length > 0 && (!isRecord(now) || list === undefined || Array.isArray(list))) context.writes('installScripts', deny.setting, file);
         if (denied.length > 0 && !isRecord(now)) {
           json.set([setting], { allow: Array.isArray(now) ? now : [], deny: denied });
         } else if (denied.length > 0 && list === undefined) {

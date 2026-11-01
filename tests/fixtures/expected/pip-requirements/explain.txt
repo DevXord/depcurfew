@@ -1,0 +1,8 @@
+Policy (depcurfew.json):
+  targets: pip (detected)
+  cooldown 36h:
+    pip: 2 days (rounded up)
+  installScripts deny, allow pypi:docopt:
+    pip: --only-binary and --no-binary in requirements.txt; warning: pip: --only-binary forbids building only packages from an index; pip still builds git, local directory and source archive dependencies (build-switch-scope); fix: Run depcurfew doctor to find them in the requirements files; warning: pip: --no-binary lets docopt be built from source while building is forbidden for everything else; pip then always builds it from source, even where a wheel exists, because it has no setting that only allows building (forced-source-build); fix: If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json
+  sources git deny, remoteTarball deny, file allow, directory allow:
+    pip: nothing written; warning: pip has no setting for git dependencies, so "deny" cannot be enforced; pip has no setting for URL dependencies, so "deny" cannot be enforced (source-not-enforceable); fix: Run depcurfew doctor, which reports such dependencies in the requirements files

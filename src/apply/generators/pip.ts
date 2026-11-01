@@ -28,17 +28,20 @@ export const pip: ManagerGenerator = (context) => {
 
   const entries: string[] = [];
   const managed: string[] = [];
+  const settings: string[] = [];
   if (policy.installScripts?.default === 'deny') {
     const build = extraOf(tool, 'buildSwitch', isSwitch);
     const setting = settingOf(tool.installScripts.allowList.setting);
     if (context.supports(build.since, build.setting)) {
       entries.push(`${build.setting}=${String(build.value)}`);
       managed.push(build.setting);
+      settings.push(build.setting);
       buildSwitchScopeWarning(context, build.setting, build.covers);
       if (setting !== null) {
         managed.push(setting);
         const names = policy.installScripts.allow.length > 0 ? buildAllowList(context, setting) : [];
         for (const name of names) entries.push(`${setting}=${name}`);
+        if (names.length > 0) settings.push(setting);
         forcedBuildWarning(context, setting, names);
       }
     }
@@ -56,6 +59,8 @@ export const pip: ManagerGenerator = (context) => {
     }
     return undefined;
   }
+  // Only into a requirements file that exists; without one, requirements-file-missing says what to do instead.
+  for (const setting of settings) context.writes('installScripts', setting, file);
   if (entries.length > 0 || hasManagedLines(context.read(file))) context.requirements(file, entries, managed);
   return undefined;
 };

@@ -1,0 +1,24 @@
+Policy (depcurfew.json):
+  targets: Dependabot (detected)
+  cooldown 36h:
+    npm: 2 days (rounded up)
+    uv: 36 hours
+    Dependabot: 2 days (rounded up)
+  installScripts deny, allow esbuild:
+    Dependabot: nothing to write
+  sources git deny, remoteTarball deny:
+    Dependabot: nothing to write
+
+Project frontend:
+  targets: npm (detected)
+  installScripts:
+    npm: strict-allow-scripts in frontend/.npmrc, allowScripts in frontend/package.json
+  sources:
+    npm: allow-git and allow-remote in frontend/.npmrc
+
+Project backend:
+  targets: uv (detected)
+  installScripts:
+    uv: no-build in [tool.uv] of backend/pyproject.toml
+  sources:
+    uv: nothing written; warning: backend: uv has no setting for git dependencies, so "deny" cannot be enforced; backend: uv has no setting for URL dependencies, so "deny" cannot be enforced (source-not-enforceable); fix: Run depcurfew doctor, which reports such dependencies in the lockfile

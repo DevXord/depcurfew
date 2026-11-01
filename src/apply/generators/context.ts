@@ -15,7 +15,7 @@ import { requirementsFormatOf } from '../../doctor/python-lockfiles.ts';
 import { describeRequirements, type Requirement } from '../requirements.ts';
 import { writeTomlBlock } from '../toml.ts';
 import { compareVersions, formatVersion, parseVersion, type Version } from '../version.ts';
-import type { ApplyWarning } from '../warnings.ts';
+import type { ApplyWarning, PolicyPart } from '../warnings.ts';
 import type { NpmInUse } from '../../doctor/rules/bundled-versions.ts';
 import type { Workspace } from '../workspace.ts';
 import { yamlGet, yamlSet, yamlSetMany } from '../yaml-edit.ts';
@@ -24,6 +24,46 @@ export interface Snippet {
   tool: ToolId;
   file: string;
   text: string;
+}
+
+/**
+ * A setting a generator writes for installScripts or sources (decision D-117), for depcurfew explain. Files are
+ * relative to the directory planned; `table` is the TOML table the key is written in.
+ */
+export interface WrittenSetting {
+  tool: ToolId;
+  /** The directory listed in projects; absent at the root. */
+  project?: string;
+  part: PolicyPart;
+  setting: string;
+  file: string;
+  table?: string;
+}
+
+/** A setting the version is too old for, as `supports` found it; the warning version-too-old names it. */
+export interface MissingSetting {
+  tool: ToolId;
+  project?: string;
+  setting: string;
+}
+
+let recording: { written: WrittenSetting[]; missing: MissingSetting[] } | undefined;
+
+/**
+ * Runs a plan and returns what its generators wrote for installScripts and sources and which settings were too new
+ * for the version (decision D-117): explain shows them from the generators apply runs, not from a second description.
+ * A generator names a setting with `writes` also when the file already holds it, so a repository apply has already
+ * configured shows the same settings.
+ */
+export function recordSettings<T>(action: () => T): { result: T; written: WrittenSetting[]; missing: MissingSetting[] } {
+  const outer = recording;
+  const current = { written: [] as WrittenSetting[], missing: [] as MissingSetting[] };
+  recording = current;
+  try {
+    return { result: action(), ...current };
+  } finally {
+    recording = outer;
+  }
 }
 
 /** A file a generator could not read or edit; nothing is written when there is one. */
@@ -62,6 +102,11 @@ export interface Context {
   /** Reports a warning about this tool (the tool is filled in); the same warning twice is reported once. */
   warn(warning: Omit<ApplyWarning, 'tool'>): void;
   snippet(file: string, text: string): void;
+  /**
+   * Names a setting the generator writes for installScripts or sources, also when the file already has the value; it
+   * edits nothing. depcurfew explain shows these (decision D-117).
+   */
+  writes(part: PolicyPart, setting: string, file: string, table?: string): void;
   /** Whether the pinned version has a setting available since `since`; when it is too old, finish() reports it. */
   supports(since: string | undefined, setting: string): boolean;
   /** The same check without a warning. */
@@ -124,7 +169,8 @@ export function createContext(options: {
     return options.version === undefined || required === undefined || compareVersions(options.version, required) >= 0;
   };
   const unsupported: Requirement[] = [];
-  const warn = (warning: Omit<ApplyWarning, 'tool'>) => {
+  const where = options.project === undefined ? {} : { project: options.project };
+  const warn =(warning: Omit<ApplyWarning, 'tool'>) => {
     const { code, ...rest } = warning;
     if (!warnings.some((known) => known.code === code && known.message === warning.message)) warnings.push({ code, tool: tool.id, ...rest });
   };
@@ -155,9 +201,18 @@ export function createContext(options: {
     read: (file) => guard(file, () => workspace.read(file)),
     warn,
     snippet: (file, text) => options.snippets.push({ tool: tool.id, file, text }),
+    writes(part, setting, file, table) {
+      const written = recording?.written;
+      if (written === undefined) return;
+      const entry: WrittenSetting = { tool: tool.id, ...where, part, setting, file, ...(table === undefined || table === '' ? {} : { table }) };
+      if (!written.some((known) => JSON.stringify(known) === JSON.stringify(entry))) written.push(entry);
+    },
     supports(since, setting) {
       if (atLeast(since)) return true;
-      if (since !== undefined) unsupported.push({ setting, since });
+      if (since !== undefined) {
+        unsupported.push({ setting, since });
+        recording?.missing.push({ tool: tool.id, ...where, setting });
+      }
       return false;
     },
     finish() {

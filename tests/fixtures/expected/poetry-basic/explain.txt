@@ -1,0 +1,11 @@
+Policy (depcurfew.json):
+  targets: Poetry, Renovate (detected)
+  cooldown 36h:
+    Poetry: 2 days (rounded up)
+    Renovate: 36 hours
+  installScripts deny, allow pypi:docopt:
+    Poetry: only-binary and no-binary in [installer] of poetry.toml; warning: Poetry: installer.only-binary applies when packages are installed; poetry lock may still build source distributions to read their dependencies (build-switch-install-only); fix: Run poetry lock where a build cannot reach secrets (CI or a container), and depcurfew doctor, which lists the packages in poetry.lock without a wheel; warning: Poetry: installer.only-binary forbids building only packages from an index; Poetry still builds git, local directory and source archive dependencies (build-switch-scope); fix: Run depcurfew doctor to find them in the lockfile; warning: Poetry: installer.no-binary lets docopt be built from source while building is forbidden for everything else; Poetry then always builds it from source, even where a wheel exists, because it has no setting that only allows building (forced-source-build); fix: If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json
+    Renovate: nothing to write
+  sources git deny, remoteTarball deny, file allow, directory allow:
+    Poetry: nothing written; warning: Poetry has no setting for git dependencies, so "deny" cannot be enforced; Poetry has no setting for URL dependencies, so "deny" cannot be enforced (source-not-enforceable); fix: Run depcurfew doctor, which reports such dependencies in the lockfile
+    Renovate: nothing to write

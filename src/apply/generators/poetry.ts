@@ -45,6 +45,7 @@ export const poetry: ManagerGenerator = (context) => {
     if (context.supports(build.since, build.setting)) {
       installer.entries.push(`${key} = ${tomlValue(build.value)}`);
       installer.managed.push(key);
+      context.writes('installScripts', key, file, table);
       const lockfile = (tool.project === undefined ? [] : values(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value))[0] ?? 'the lockfile';
       context.warn({
         code: 'build-switch-install-only',
@@ -57,7 +58,10 @@ export const poetry: ManagerGenerator = (context) => {
         installer.managed.push(splitDotted(setting).key);
         const wanted = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting);
         const names = wanted ? buildAllowList(context, setting) : [];
-        if (names.length > 0) installer.entries.push(`${splitDotted(setting).key} = ${tomlValue(names)}`);
+        if (names.length > 0) {
+          installer.entries.push(`${splitDotted(setting).key} = ${tomlValue(names)}`);
+          context.writes('installScripts', splitDotted(setting).key, file, table);
+        }
         forcedBuildWarning(context, setting, names);
       }
     }

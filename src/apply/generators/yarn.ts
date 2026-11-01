@@ -15,7 +15,8 @@ const isScriptsSwitch = (value: unknown): value is ScriptsSwitch =>
 
 export const yarn: ManagerGenerator = (context) => {
   const { tool, policy } = context;
-  const yaml = context.yaml(firstFile(tool.cooldown.configFiles) ?? '.yarnrc.yml');
+  const file = firstFile(tool.cooldown.configFiles) ?? '.yarnrc.yml';
+  const yaml = context.yaml(file);
   let minutes: number | undefined;
 
   if (policy.cooldown !== undefined) {
@@ -36,11 +37,15 @@ export const yarn: ManagerGenerator = (context) => {
     const scripts = extraOf(tool, 'scriptsSwitch', isScriptsSwitch);
     const deny = policy.installScripts.default === 'deny';
     yaml.set([scripts.setting], deny ? scripts.deny : scripts.allow);
+    context.writes('installScripts', scripts.setting, file);
     const template = settingOf(tool.installScripts.allowList.setting);
     if (deny && template !== null && policy.installScripts.allow.length > 0) {
       if (context.supports(sinceOf(tool.installScripts.allowList.availableSince), template)) {
-        const json = context.json(settingOf(tool.installScripts.allowList.file) ?? 'package.json');
-        for (const name of allowedNames(context, template.split('.')[0] ?? template)) {
+        const listFile = settingOf(tool.installScripts.allowList.file) ?? 'package.json';
+        const json = context.json(listFile);
+        const names = allowedNames(context, template.split('.')[0] ?? template);
+        if (names.length > 0) context.writes('installScripts', template, listFile);
+        for (const name of names) {
           const path = template.split('.').map((segment) => (segment === '<package>' ? name : segment));
           if (json.get(path) !== true) json.set(path, true);
         }
@@ -50,6 +55,7 @@ export const yarn: ManagerGenerator = (context) => {
   }
 
   eachSource(context, (_kind, setting, access) => {
+    context.writes('sources', setting, file);
     const value = access === 'deny' ? [] : ['**'];
     if (!sameList(yaml.get([setting]), value)) yaml.set([setting], value);
   });

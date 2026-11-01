@@ -1,0 +1,120 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "npm"
+      ]
+    },
+    "cooldown": {
+      "minimum": "3d",
+      "tools": [
+        {
+          "tool": "npm",
+          "ok": true,
+          "unit": "days",
+          "value": 3,
+          "exact": true
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "esbuild",
+        "@scope/*"
+      ],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "npm",
+          "settings": [
+            {
+              "setting": "strict-allow-scripts",
+              "file": ".npmrc"
+            },
+            {
+              "setting": "allowScripts",
+              "file": "package.json"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "strict-allow-scripts-for-npm-in-use",
+              "level": "warning",
+              "tool": "npm",
+              "location": {
+                "file": "Dockerfile",
+                "line": 9
+              },
+              "message": "npm is not pinned for the repository, and npm 11.17.0 (installed in Dockerfile, line 9) and npm 11.16.0 to 11.19.1 (with Node.js 24 in .nvmrc) run dependency install scripts that allowScripts does not cover unless strict-allow-scripts is set, so depcurfew apply writes strict-allow-scripts=true; with it, in npm 12.0.0 and later the install fails instead of blocking the script with a warning",
+              "fix": "Make every place listed here run npm 12.0.0 or later (npm install -g npm@12.0.0 before it installs packages), and depcurfew apply leaves strict-allow-scripts out; pinning npm in packageManager or devEngines does not change the npm they run. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in depcurfew.json"
+            },
+            {
+              "code": "scripts-not-enforceable",
+              "level": "warning",
+              "tool": "npm",
+              "location": {
+                "file": "apps/web/Containerfile",
+                "line": 1
+              },
+              "message": "the npm that comes with Node.js of node@sha256:4f1d2b5c0a9e8f7d6c5b4a3928170615f4e3d2c1b0a9f8e7d6c5b4a392817061 in apps/web/Containerfile (depcurfew cannot tell which one: the image is pinned by digest only (node@sha256:4f1d2b5c0a9e8f7d6c5b4a3928170615f4e3d2c1b0a9f8e7d6c5b4a392817061)) may run every dependency install script, so depcurfew counts it as one that does, and \"deny\" may not be enforced there",
+              "fix": "Declare a Node.js version depcurfew knows there (an exact release it knows or a release line such as 24), or install npm 11.16.0 or later before packages are installed there (npm install -g npm@11.16.0); npm 12 blocks dependency scripts by default"
+            },
+            {
+              "code": "scripts-not-enforceable",
+              "level": "warning",
+              "tool": "npm",
+              "location": {
+                "file": "Dockerfile",
+                "line": 3
+              },
+              "message": "npm 10.5.1 to 10.9.9 (with Node.js 22 of node:22-alpine in Dockerfile), npm 11.3.0 to 11.13.0 (with Node.js 24 in .nvmrc) and npm 10.9.0 (with Node.js v22.11.0 in .node-version) run every dependency install script and have no allow-list, so \"deny\" cannot be enforced there",
+              "fix": "Install npm 11.16.0 or later before packages are installed there (npm install -g npm@11.16.0), or move to a Node.js release that comes with it; npm 12 blocks dependency scripts by default"
+            },
+            {
+              "code": "allow-pattern-unsupported",
+              "level": "warning",
+              "tool": "npm",
+              "message": "npm: allowScripts takes package names only; \"@scope/*\" not written",
+              "fix": "List the package names in installScripts.allow"
+            }
+          ]
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "npm",
+          "settings": [
+            {
+              "setting": "allow-git",
+              "file": ".npmrc"
+            },
+            {
+              "setting": "allow-remote",
+              "file": ".npmrc"
+            },
+            {
+              "setting": "allow-file",
+              "file": ".npmrc"
+            },
+            {
+              "setting": "allow-directory",
+              "file": ".npmrc"
+            }
+          ],
+          "warnings": []
+        }
+      ]
+    }
+  },
+  "projects": []
+}

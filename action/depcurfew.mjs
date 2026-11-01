@@ -6806,7 +6806,7 @@ function tomlValueAt(document, path) {
 	return node;
 }
 
-// node_modules/yaml/dist/nodes/identity.js
+// ../../../node_modules/yaml/dist/nodes/identity.js
 var require_identity = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const ALIAS = Symbol.for("yaml.alias");
 	const DOC = Symbol.for("yaml.document");
@@ -6856,7 +6856,7 @@ var require_identity = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isSeq = isSeq;
 }));
 
-// node_modules/yaml/dist/visit.js
+// ../../../node_modules/yaml/dist/visit.js
 var require_visit = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	const BREAK = Symbol("break visit");
@@ -7047,7 +7047,7 @@ var require_visit = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.visitAsync = visitAsync;
 }));
 
-// node_modules/yaml/dist/doc/directives.js
+// ../../../node_modules/yaml/dist/doc/directives.js
 var require_directives = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var visit = require_visit();
@@ -7211,7 +7211,7 @@ var require_directives = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Directives = Directives;
 }));
 
-// node_modules/yaml/dist/doc/anchors.js
+// ../../../node_modules/yaml/dist/doc/anchors.js
 var require_anchors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var visit = require_visit();
@@ -7278,7 +7278,7 @@ var require_anchors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.findNewAnchor = findNewAnchor;
 }));
 
-// node_modules/yaml/dist/doc/applyReviver.js
+// ../../../node_modules/yaml/dist/doc/applyReviver.js
 var require_applyReviver = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Applies the JSON.parse reviver algorithm as defined in the ECMA-262 spec,
@@ -7320,7 +7320,7 @@ var require_applyReviver = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.applyReviver = applyReviver;
 }));
 
-// node_modules/yaml/dist/nodes/toJS.js
+// ../../../node_modules/yaml/dist/nodes/toJS.js
 var require_toJS = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	/**
@@ -7357,7 +7357,7 @@ var require_toJS = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.toJS = toJS;
 }));
 
-// node_modules/yaml/dist/nodes/Node.js
+// ../../../node_modules/yaml/dist/nodes/Node.js
 var require_Node = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var applyReviver = require_applyReviver();
 	var identity = require_identity();
@@ -7391,7 +7391,7 @@ var require_Node = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.NodeBase = NodeBase;
 }));
 
-// node_modules/yaml/dist/nodes/Alias.js
+// ../../../node_modules/yaml/dist/nodes/Alias.js
 var require_Alias = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var anchors = require_anchors();
 	var visit = require_visit();
@@ -7487,7 +7487,7 @@ var require_Alias = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Alias = Alias;
 }));
 
-// node_modules/yaml/dist/nodes/Scalar.js
+// ../../../node_modules/yaml/dist/nodes/Scalar.js
 var require_Scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Node = require_Node();
@@ -7514,7 +7514,7 @@ var require_Scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isScalarValue = isScalarValue;
 }));
 
-// node_modules/yaml/dist/doc/createNode.js
+// ../../../node_modules/yaml/dist/doc/createNode.js
 var require_createNode = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Alias = require_Alias();
 	var identity = require_identity();
@@ -7577,7 +7577,7 @@ var require_createNode = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.createNode = createNode;
 }));
 
-// node_modules/yaml/dist/nodes/Collection.js
+// ../../../node_modules/yaml/dist/nodes/Collection.js
 var require_Collection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var createNode = require_createNode();
 	var identity = require_identity();
@@ -7698,7 +7698,7 @@ var require_Collection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isEmptyPath = isEmptyPath;
 }));
 
-// node_modules/yaml/dist/stringify/stringifyComment.js
+// ../../../node_modules/yaml/dist/stringify/stringifyComment.js
 var require_stringifyComment = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Stringifies a comment.
@@ -7718,7 +7718,7 @@ var require_stringifyComment = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyComment = stringifyComment;
 }));
 
-// node_modules/yaml/dist/stringify/foldFlowLines.js
+// ../../../node_modules/yaml/dist/stringify/foldFlowLines.js
 var require_foldFlowLines = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const FOLD_FLOW = "flow";
 	const FOLD_BLOCK = "block";
@@ -7838,7 +7838,7 @@ var require_foldFlowLines = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.foldFlowLines = foldFlowLines;
 }));
 
-// node_modules/yaml/dist/stringify/stringifyString.js
+// ../../../node_modules/yaml/dist/stringify/stringifyString.js
 var require_stringifyString = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	var foldFlowLines = require_foldFlowLines();
@@ -8062,7 +8062,7 @@ var require_stringifyString = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyString = stringifyString;
 }));
 
-// node_modules/yaml/dist/stringify/stringify.js
+// ../../../node_modules/yaml/dist/stringify/stringify.js
 var require_stringify = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var anchors = require_anchors();
 	var identity = require_identity();
@@ -8170,7 +8170,7 @@ var require_stringify = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringify = stringify;
 }));
 
-// node_modules/yaml/dist/stringify/stringifyPair.js
+// ../../../node_modules/yaml/dist/stringify/stringifyPair.js
 var require_stringifyPair = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Scalar = require_Scalar();
@@ -8267,7 +8267,7 @@ var require_stringifyPair = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyPair = stringifyPair;
 }));
 
-// node_modules/yaml/dist/log.js
+// ../../../node_modules/yaml/dist/log.js
 var require_log = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var node_process = __require("process");
 	function debug(logLevel, ...messages) {
@@ -8283,7 +8283,7 @@ var require_log = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.warn = warn;
 }));
 
-// node_modules/yaml/dist/schema/yaml-1.1/merge.js
+// ../../../node_modules/yaml/dist/schema/yaml-1.1/merge.js
 var require_merge = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Scalar = require_Scalar();
@@ -8326,7 +8326,7 @@ var require_merge = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.merge = merge;
 }));
 
-// node_modules/yaml/dist/nodes/addPairToJSMap.js
+// ../../../node_modules/yaml/dist/nodes/addPairToJSMap.js
 var require_addPairToJSMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var log = require_log();
 	var merge = require_merge();
@@ -8377,7 +8377,7 @@ var require_addPairToJSMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.addPairToJSMap = addPairToJSMap;
 }));
 
-// node_modules/yaml/dist/nodes/Pair.js
+// ../../../node_modules/yaml/dist/nodes/Pair.js
 var require_Pair = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var createNode = require_createNode();
 	var stringifyPair = require_stringifyPair();
@@ -8412,7 +8412,7 @@ var require_Pair = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.createPair = createPair;
 }));
 
-// node_modules/yaml/dist/stringify/stringifyCollection.js
+// ../../../node_modules/yaml/dist/stringify/stringifyCollection.js
 var require_stringifyCollection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var stringify = require_stringify();
@@ -8530,7 +8530,7 @@ var require_stringifyCollection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyCollection = stringifyCollection;
 }));
 
-// node_modules/yaml/dist/nodes/YAMLMap.js
+// ../../../node_modules/yaml/dist/nodes/YAMLMap.js
 var require_YAMLMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var stringifyCollection = require_stringifyCollection();
 	var addPairToJSMap = require_addPairToJSMap();
@@ -8639,7 +8639,7 @@ var require_YAMLMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.findPair = findPair;
 }));
 
-// node_modules/yaml/dist/schema/common/map.js
+// ../../../node_modules/yaml/dist/schema/common/map.js
 var require_map = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var YAMLMap = require_YAMLMap();
@@ -8657,7 +8657,7 @@ var require_map = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.map = map;
 }));
 
-// node_modules/yaml/dist/nodes/YAMLSeq.js
+// ../../../node_modules/yaml/dist/nodes/YAMLSeq.js
 var require_YAMLSeq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var createNode = require_createNode();
 	var stringifyCollection = require_stringifyCollection();
@@ -8763,7 +8763,7 @@ var require_YAMLSeq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.YAMLSeq = YAMLSeq;
 }));
 
-// node_modules/yaml/dist/schema/common/seq.js
+// ../../../node_modules/yaml/dist/schema/common/seq.js
 var require_seq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var YAMLSeq = require_YAMLSeq();
@@ -8781,7 +8781,7 @@ var require_seq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.seq = seq;
 }));
 
-// node_modules/yaml/dist/schema/common/string.js
+// ../../../node_modules/yaml/dist/schema/common/string.js
 var require_string = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var stringifyString = require_stringifyString();
 	const string = {
@@ -8797,7 +8797,7 @@ var require_string = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.string = string;
 }));
 
-// node_modules/yaml/dist/schema/common/null.js
+// ../../../node_modules/yaml/dist/schema/common/null.js
 var require_null = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	const nullTag = {
@@ -8812,7 +8812,7 @@ var require_null = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.nullTag = nullTag;
 }));
 
-// node_modules/yaml/dist/schema/core/bool.js
+// ../../../node_modules/yaml/dist/schema/core/bool.js
 var require_bool$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	const boolTag = {
@@ -8831,7 +8831,7 @@ var require_bool$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.boolTag = boolTag;
 }));
 
-// node_modules/yaml/dist/stringify/stringifyNumber.js
+// ../../../node_modules/yaml/dist/stringify/stringifyNumber.js
 var require_stringifyNumber = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function stringifyNumber({ format, minFractionDigits, tag, value }) {
 		if (typeof value === "bigint") return String(value);
@@ -8852,7 +8852,7 @@ var require_stringifyNumber = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyNumber = stringifyNumber;
 }));
 
-// node_modules/yaml/dist/schema/core/float.js
+// ../../../node_modules/yaml/dist/schema/core/float.js
 var require_float$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	var stringifyNumber = require_stringifyNumber();
@@ -8894,7 +8894,7 @@ var require_float$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.floatNaN = floatNaN;
 }));
 
-// node_modules/yaml/dist/schema/core/int.js
+// ../../../node_modules/yaml/dist/schema/core/int.js
 var require_int$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var stringifyNumber = require_stringifyNumber();
 	const intIdentify = (value) => typeof value === "bigint" || Number.isInteger(value);
@@ -8935,7 +8935,7 @@ var require_int$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.intOct = intOct;
 }));
 
-// node_modules/yaml/dist/schema/core/schema.js
+// ../../../node_modules/yaml/dist/schema/core/schema.js
 var require_schema$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var map = require_map();
 	var _null = require_null();
@@ -8960,7 +8960,7 @@ var require_schema$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.schema = schema;
 }));
 
-// node_modules/yaml/dist/schema/json/schema.js
+// ../../../node_modules/yaml/dist/schema/json/schema.js
 var require_schema$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	var map = require_map();
@@ -9023,7 +9023,7 @@ var require_schema$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.schema = schema;
 }));
 
-// node_modules/yaml/dist/schema/yaml-1.1/binary.js
+// ../../../node_modules/yaml/dist/schema/yaml-1.1/binary.js
 var require_binary = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var node_buffer = __require("buffer");
 	var Scalar = require_Scalar();
@@ -9080,7 +9080,7 @@ var require_binary = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.binary = binary;
 }));
 
-// node_modules/yaml/dist/schema/yaml-1.1/pairs.js
+// ../../../node_modules/yaml/dist/schema/yaml-1.1/pairs.js
 var require_pairs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Pair = require_Pair();
@@ -9141,7 +9141,7 @@ var require_pairs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolvePairs = resolvePairs;
 }));
 
-// node_modules/yaml/dist/schema/yaml-1.1/omap.js
+// ../../../node_modules/yaml/dist/schema/yaml-1.1/omap.js
 var require_omap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var toJS = require_toJS();
@@ -9206,7 +9206,7 @@ var require_omap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.omap = omap;
 }));
 
-// node_modules/yaml/dist/schema/yaml-1.1/bool.js
+// ../../../node_modules/yaml/dist/schema/yaml-1.1/bool.js
 var require_bool = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	function boolStringify({ value, source }, ctx) {
@@ -9233,7 +9233,7 @@ var require_bool = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.trueTag = trueTag;
 }));
 
-// node_modules/yaml/dist/schema/yaml-1.1/float.js
+// ../../../node_modules/yaml/dist/schema/yaml-1.1/float.js
 var require_float = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	var stringifyNumber = require_stringifyNumber();
@@ -9278,7 +9278,7 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.floatNaN = floatNaN;
 }));
 
-// node_modules/yaml/dist/schema/yaml-1.1/int.js
+// ../../../node_modules/yaml/dist/schema/yaml-1.1/int.js
 var require_int = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var stringifyNumber = require_stringifyNumber();
 	const intIdentify = (value) => typeof value === "bigint" || Number.isInteger(value);
@@ -9351,7 +9351,7 @@ var require_int = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.intOct = intOct;
 }));
 
-// node_modules/yaml/dist/schema/yaml-1.1/set.js
+// ../../../node_modules/yaml/dist/schema/yaml-1.1/set.js
 var require_set = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Pair = require_Pair();
@@ -9420,7 +9420,7 @@ var require_set = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.set = set;
 }));
 
-// node_modules/yaml/dist/schema/yaml-1.1/timestamp.js
+// ../../../node_modules/yaml/dist/schema/yaml-1.1/timestamp.js
 var require_timestamp = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var stringifyNumber = require_stringifyNumber();
 	/** Internal types handle bigint as number, because TS can't figure it out. */
@@ -9503,7 +9503,7 @@ var require_timestamp = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.timestamp = timestamp;
 }));
 
-// node_modules/yaml/dist/schema/yaml-1.1/schema.js
+// ../../../node_modules/yaml/dist/schema/yaml-1.1/schema.js
 var require_schema = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var map = require_map();
 	var _null = require_null();
@@ -9544,7 +9544,7 @@ var require_schema = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.schema = schema;
 }));
 
-// node_modules/yaml/dist/schema/tags.js
+// ../../../node_modules/yaml/dist/schema/tags.js
 var require_tags = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var map = require_map();
 	var _null = require_null();
@@ -9630,7 +9630,7 @@ var require_tags = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getTags = getTags;
 }));
 
-// node_modules/yaml/dist/schema/Schema.js
+// ../../../node_modules/yaml/dist/schema/Schema.js
 var require_Schema = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var map = require_map();
@@ -9659,7 +9659,7 @@ var require_Schema = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Schema = Schema;
 }));
 
-// node_modules/yaml/dist/stringify/stringifyDocument.js
+// ../../../node_modules/yaml/dist/stringify/stringifyDocument.js
 var require_stringifyDocument = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var stringify = require_stringify();
@@ -9721,7 +9721,7 @@ var require_stringifyDocument = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringifyDocument = stringifyDocument;
 }));
 
-// node_modules/yaml/dist/doc/Document.js
+// ../../../node_modules/yaml/dist/doc/Document.js
 var require_Document = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Alias = require_Alias();
 	var Collection = require_Collection();
@@ -10002,7 +10002,7 @@ var require_Document = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Document = Document;
 }));
 
-// node_modules/yaml/dist/errors.js
+// ../../../node_modules/yaml/dist/errors.js
 var require_errors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var YAMLError = class extends Error {
 		constructor(name, pos, code, message) {
@@ -10055,7 +10055,7 @@ var require_errors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.prettifyError = prettifyError;
 }));
 
-// node_modules/yaml/dist/compose/resolve-props.js
+// ../../../node_modules/yaml/dist/compose/resolve-props.js
 var require_resolve_props = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function resolveProps(tokens, { flow, indicator, next, offset, onError, parentIndent, startOnNewline }) {
 		let spaceBefore = false;
@@ -10162,7 +10162,7 @@ var require_resolve_props = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveProps = resolveProps;
 }));
 
-// node_modules/yaml/dist/compose/util-contains-newline.js
+// ../../../node_modules/yaml/dist/compose/util-contains-newline.js
 var require_util_contains_newline = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function containsNewline(key) {
 		if (!key) return null;
@@ -10191,7 +10191,7 @@ var require_util_contains_newline = /* @__PURE__ */ __commonJSMin(((exports) => 
 	exports.containsNewline = containsNewline;
 }));
 
-// node_modules/yaml/dist/compose/util-flow-indent-check.js
+// ../../../node_modules/yaml/dist/compose/util-flow-indent-check.js
 var require_util_flow_indent_check = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var utilContainsNewline = require_util_contains_newline();
 	function flowIndentCheck(indent, fc, onError) {
@@ -10203,7 +10203,7 @@ var require_util_flow_indent_check = /* @__PURE__ */ __commonJSMin(((exports) =>
 	exports.flowIndentCheck = flowIndentCheck;
 }));
 
-// node_modules/yaml/dist/compose/util-map-includes.js
+// ../../../node_modules/yaml/dist/compose/util-map-includes.js
 var require_util_map_includes = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	function mapIncludes(ctx, items, search) {
@@ -10215,7 +10215,7 @@ var require_util_map_includes = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.mapIncludes = mapIncludes;
 }));
 
-// node_modules/yaml/dist/compose/resolve-block-map.js
+// ../../../node_modules/yaml/dist/compose/resolve-block-map.js
 var require_resolve_block_map = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Pair = require_Pair();
 	var YAMLMap = require_YAMLMap();
@@ -10303,7 +10303,7 @@ var require_resolve_block_map = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveBlockMap = resolveBlockMap;
 }));
 
-// node_modules/yaml/dist/compose/resolve-block-seq.js
+// ../../../node_modules/yaml/dist/compose/resolve-block-seq.js
 var require_resolve_block_seq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var YAMLSeq = require_YAMLSeq();
 	var resolveProps = require_resolve_props();
@@ -10348,7 +10348,7 @@ var require_resolve_block_seq = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveBlockSeq = resolveBlockSeq;
 }));
 
-// node_modules/yaml/dist/compose/resolve-end.js
+// ../../../node_modules/yaml/dist/compose/resolve-end.js
 var require_resolve_end = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function resolveEnd(end, offset, reqSpace, onError) {
 		let comment = "";
@@ -10386,7 +10386,7 @@ var require_resolve_end = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveEnd = resolveEnd;
 }));
 
-// node_modules/yaml/dist/compose/resolve-flow-collection.js
+// ../../../node_modules/yaml/dist/compose/resolve-flow-collection.js
 var require_resolve_flow_collection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Pair = require_Pair();
@@ -10549,7 +10549,7 @@ var require_resolve_flow_collection = /* @__PURE__ */ __commonJSMin(((exports) =
 	exports.resolveFlowCollection = resolveFlowCollection;
 }));
 
-// node_modules/yaml/dist/compose/compose-collection.js
+// ../../../node_modules/yaml/dist/compose/compose-collection.js
 var require_compose_collection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Scalar = require_Scalar();
@@ -10601,7 +10601,7 @@ var require_compose_collection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.composeCollection = composeCollection;
 }));
 
-// node_modules/yaml/dist/compose/resolve-block-scalar.js
+// ../../../node_modules/yaml/dist/compose/resolve-block-scalar.js
 var require_resolve_block_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	function resolveBlockScalar(ctx, scalar, onError) {
@@ -10778,7 +10778,7 @@ var require_resolve_block_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveBlockScalar = resolveBlockScalar;
 }));
 
-// node_modules/yaml/dist/compose/resolve-flow-scalar.js
+// ../../../node_modules/yaml/dist/compose/resolve-flow-scalar.js
 var require_resolve_flow_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Scalar = require_Scalar();
 	var resolveEnd = require_resolve_end();
@@ -10983,7 +10983,7 @@ var require_resolve_flow_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.resolveFlowScalar = resolveFlowScalar;
 }));
 
-// node_modules/yaml/dist/compose/compose-scalar.js
+// ../../../node_modules/yaml/dist/compose/compose-scalar.js
 var require_compose_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var identity = require_identity();
 	var Scalar = require_Scalar();
@@ -11044,7 +11044,7 @@ var require_compose_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.composeScalar = composeScalar;
 }));
 
-// node_modules/yaml/dist/compose/util-empty-scalar-position.js
+// ../../../node_modules/yaml/dist/compose/util-empty-scalar-position.js
 var require_util_empty_scalar_position = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function emptyScalarPosition(offset, before, pos) {
 		if (before) {
@@ -11071,7 +11071,7 @@ var require_util_empty_scalar_position = /* @__PURE__ */ __commonJSMin(((exports
 	exports.emptyScalarPosition = emptyScalarPosition;
 }));
 
-// node_modules/yaml/dist/compose/compose-node.js
+// ../../../node_modules/yaml/dist/compose/compose-node.js
 var require_compose_node = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Alias = require_Alias();
 	var identity = require_identity();
@@ -11162,7 +11162,7 @@ var require_compose_node = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.composeNode = composeNode;
 }));
 
-// node_modules/yaml/dist/compose/compose-doc.js
+// ../../../node_modules/yaml/dist/compose/compose-doc.js
 var require_compose_doc = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var Document = require_Document();
 	var composeNode = require_compose_node();
@@ -11204,7 +11204,7 @@ var require_compose_doc = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.composeDoc = composeDoc;
 }));
 
-// node_modules/yaml/dist/compose/composer.js
+// ../../../node_modules/yaml/dist/compose/composer.js
 var require_composer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var node_process = __require("process");
 	var directives = require_directives();
@@ -11402,7 +11402,7 @@ var require_composer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Composer = Composer;
 }));
 
-// node_modules/yaml/dist/parse/cst-scalar.js
+// ../../../node_modules/yaml/dist/parse/cst-scalar.js
 var require_cst_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var resolveBlockScalar = require_resolve_block_scalar();
 	var resolveFlowScalar = require_resolve_flow_scalar();
@@ -11669,7 +11669,7 @@ var require_cst_scalar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.setScalarValue = setScalarValue;
 }));
 
-// node_modules/yaml/dist/parse/cst-stringify.js
+// ../../../node_modules/yaml/dist/parse/cst-stringify.js
 var require_cst_stringify = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Stringify a CST document, token, or collection item
@@ -11720,7 +11720,7 @@ var require_cst_stringify = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringify = stringify;
 }));
 
-// node_modules/yaml/dist/parse/cst-visit.js
+// ../../../node_modules/yaml/dist/parse/cst-visit.js
 var require_cst_visit = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const BREAK = Symbol("break visit");
 	const SKIP = Symbol("skip children");
@@ -11811,7 +11811,7 @@ var require_cst_visit = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.visit = visit;
 }));
 
-// node_modules/yaml/dist/parse/cst.js
+// ../../../node_modules/yaml/dist/parse/cst.js
 var require_cst = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var cstScalar = require_cst_scalar();
 	var cstStringify = require_cst_stringify();
@@ -11890,7 +11890,7 @@ var require_cst = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.tokenType = tokenType;
 }));
 
-// node_modules/yaml/dist/parse/lexer.js
+// ../../../node_modules/yaml/dist/parse/lexer.js
 var require_lexer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var cst = require_cst();
 	function isEmpty(ch) {
@@ -12423,7 +12423,7 @@ var require_lexer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Lexer = Lexer;
 }));
 
-// node_modules/yaml/dist/parse/line-counter.js
+// ../../../node_modules/yaml/dist/parse/line-counter.js
 var require_line_counter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Tracks newlines during parsing in order to provide an efficient API for
@@ -12470,7 +12470,7 @@ var require_line_counter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.LineCounter = LineCounter;
 }));
 
-// node_modules/yaml/dist/parse/parser.js
+// ../../../node_modules/yaml/dist/parse/parser.js
 var require_parser = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var node_process = __require("process");
 	var cst = require_cst();
@@ -13336,7 +13336,7 @@ var require_parser = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Parser = Parser;
 }));
 
-// node_modules/yaml/dist/public-api.js
+// ../../../node_modules/yaml/dist/public-api.js
 var require_public_api = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var composer = require_composer();
 	var Document = require_Document();
@@ -13425,7 +13425,7 @@ var require_public_api = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.stringify = stringify;
 }));
 
-// node_modules/yaml/dist/index.js
+// ../../../node_modules/yaml/dist/index.js
 var require_dist = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var composer = require_composer();
 	var Document = require_Document();
@@ -21232,8 +21232,9 @@ function writeDenyList(context) {
 	if (!context.supports(deny.since, deny.setting)) return;
 	const file = deny.file.endsWith(".yaml") ? context.yaml(deny.file) : context.json(deny.file);
 	const allowed = allowedInFiles(context);
-	for (const name of deniedNames(context, settingName(deny.setting))) {
-		if (allowed.has(name)) continue;
+	const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
+	if (names.length > 0) context.writes("installScripts", deny.setting, deny.file);
+	for (const name of names) {
 		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
 		if (file.get(path) !== deny.value) file.set(path, deny.value);
 	}
@@ -21349,6 +21350,7 @@ const bun = (context) => {
 			if (setting !== null && context.supports(since, setting)) {
 				const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
 				const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
+				context.writes("installScripts", setting, listFile);
 				const current = context.json(listFile).get([setting]);
 				if (current === void 0 && context.exists(listFile)) context.warn({
 					code: "built-in-list-replaced",
@@ -21646,6 +21648,7 @@ function topBlock(lines, at, entries, separate, marker) {
 }
 
 // src/apply/generators/context.ts
+let recording;
 var EditFailed = class extends Error {};
 function createContext(options) {
 	const { tool, workspace, warnings, failures } = options;
@@ -21662,6 +21665,7 @@ function createContext(options) {
 		return options.version === void 0 || required === void 0 || compareVersions$1(options.version, required) >= 0;
 	};
 	const unsupported = [];
+	const where = options.project === void 0 ? {} : { project: options.project };
 	const warn = (warning) => {
 		const { code, ...rest } = warning;
 		if (!warnings.some((known) => known.code === code && known.message === warning.message)) warnings.push({
@@ -21704,12 +21708,32 @@ function createContext(options) {
 			file,
 			text
 		}),
+		writes(part, setting, file, table) {
+			const written = recording?.written;
+			if (written === void 0) return;
+			const entry = {
+				tool: tool.id,
+				...where,
+				part,
+				setting,
+				file,
+				...table === void 0 || table === "" ? {} : { table }
+			};
+			if (!written.some((known) => JSON.stringify(known) === JSON.stringify(entry))) written.push(entry);
+		},
 		supports(since, setting) {
 			if (atLeast(since)) return true;
-			if (since !== void 0) unsupported.push({
-				setting,
-				since
-			});
+			if (since !== void 0) {
+				unsupported.push({
+					setting,
+					since
+				});
+				recording?.missing.push({
+					tool: tool.id,
+					...where,
+					setting
+				});
+			}
 			return false;
 		},
 		finish() {
@@ -21782,7 +21806,10 @@ const deno = (context) => {
 	if (policy.installScripts !== void 0) {
 		const allowAll = extraOf(tool, "allowAllScripts", isSwitch);
 		if (policy.installScripts.default === "allow") {
-			if (context.supports(allowAll.since, allowAll.setting)) json.set([allowAll.setting], allowAll.value);
+			if (context.supports(allowAll.since, allowAll.setting)) {
+				json.set([allowAll.setting], allowAll.value);
+				context.writes("installScripts", allowAll.setting, configFile(context));
+			}
 		} else {
 			const setting = settingOf(tool.installScripts.allowList.setting) ?? allowAll.setting;
 			const since = sinceOf(tool.installScripts.allowList.availableSince);
@@ -21790,7 +21817,9 @@ const deno = (context) => {
 			const current = json.get([setting]);
 			const path = isRecord(current) ? [setting, "allow"] : [setting];
 			const allowed = isRecord(current) ? current["allow"] : current;
-			if (allowed === allowAll.value && context.atLeast(since)) {
+			const replaced = allowed === allowAll.value && context.atLeast(since);
+			if (replaced || specifiers.length > 0) context.writes("installScripts", path.join("."), configFile(context));
+			if (replaced) {
 				context.warn({
 					code: "allow-all-replaced",
 					message: `${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`,
@@ -21809,6 +21838,7 @@ const deno = (context) => {
 				const denied = deniedNames(context, deny.setting).filter((name) => !allowedByFile.has(name)).map((name) => String(deny.value).replace("<package>", name));
 				const now = json.get([setting]);
 				const list = isRecord(now) ? now["deny"] : void 0;
+				if (denied.length > 0 && (!isRecord(now) || list === void 0 || Array.isArray(list))) context.writes("installScripts", deny.setting, file);
 				if (denied.length > 0 && !isRecord(now)) json.set([setting], {
 					allow: Array.isArray(now) ? now : [],
 					deny: denied
@@ -21931,7 +21961,7 @@ const isEffects = (value) => Array.isArray(value) && value.every((entry) => isRe
 * warning says unless the pin is such an npm and no place runs npm 12. An npm before 11.16 cannot block them at all,
 * which scripts-not-enforceable says with where that npm comes from.
 */
-function scriptsForVersionsInUse(context, entries, managed) {
+function scriptsForVersionsInUse(context, file, entries, managed) {
 	const { tool } = context;
 	const defaults = values$1(tool.installScripts.defaultPolicy)[0] ?? [];
 	const strict = extraOf(tool, "strictAllowScripts", isSwitch);
@@ -21957,6 +21987,7 @@ function scriptsForVersionsInUse(context, entries, managed) {
 	if (notices.length > 0) {
 		entries.push(`${strict.setting}=${String(strict.value)}`);
 		managed.push(strict.setting);
+		context.writes("installScripts", strict.setting, file);
 		const blocking = of("deny-except-allowlist");
 		const pin = context.inUse.find((entry) => entry.pin === true);
 		if (!(pin !== void 0 && notices.some((item) => item.entry === pin)) || blocking.length > 0) {
@@ -22053,15 +22084,17 @@ const npm = (context) => {
 			if (context.supports(allowAll.since, allowAll.setting)) {
 				entries.push(`${allowAll.setting}=${String(allowAll.value)}`);
 				managed.push(allowAll.setting);
+				context.writes("installScripts", allowAll.setting, file);
 			}
 		} else {
 			if (context.atLeast(allowAll.since)) managed.push(allowAll.setting);
 			const defaults = scriptsDefault(context).value;
 			const strict = extraOf(tool, "strictAllowScripts", isSwitch);
-			if (context.inUse.length > 0) scriptsForVersionsInUse(context, entries, managed);
+			if (context.inUse.length > 0) scriptsForVersionsInUse(context, file, entries, managed);
 			else if (defaults === "run-with-warning" && context.supports(strict.since, strict.setting)) {
 				entries.push(`${strict.setting}=${String(strict.value)}`);
 				managed.push(strict.setting);
+				context.writes("installScripts", strict.setting, file);
 			} else if (defaults === "run") {
 				const since = sinceOf(tool.installScripts.allowList.availableSince) ?? "";
 				context.warn({
@@ -22079,7 +22112,9 @@ const npm = (context) => {
 			if (setting !== null) {
 				if (policy.installScripts.allow.length > 0 && someSupports(context, sinceOf(tool.installScripts.allowList.availableSince), setting)) {
 					const json = context.json(listFile);
-					for (const name of allowedNames(context, setting)) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+					const names = allowedNames(context, setting);
+					if (names.length > 0) context.writes("installScripts", setting, listFile);
+					for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
 				}
 			}
 			writeDenyList(context);
@@ -22088,6 +22123,7 @@ const npm = (context) => {
 	eachSource(context, (_kind, setting, access) => {
 		entries.push(`${setting}=${access === "deny" ? "none" : "all"}`);
 		managed.push(setting);
+		context.writes("sources", setting, file);
 	});
 	if (entries.length > 0 || hasManagedLines(context.read(file)) || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
 	return minutes;
@@ -22198,17 +22234,20 @@ const pip = (context) => {
 	}
 	const entries = [];
 	const managed = [];
+	const settings = [];
 	if (policy.installScripts?.default === "deny") {
 		const build = extraOf(tool, "buildSwitch", isSwitch);
 		const setting = settingOf(tool.installScripts.allowList.setting);
 		if (context.supports(build.since, build.setting)) {
 			entries.push(`${build.setting}=${String(build.value)}`);
 			managed.push(build.setting);
+			settings.push(build.setting);
 			buildSwitchScopeWarning(context, build.setting, build.covers);
 			if (setting !== null) {
 				managed.push(setting);
 				const names = policy.installScripts.allow.length > 0 ? buildAllowList(context, setting) : [];
 				for (const name of names) entries.push(`${setting}=${name}`);
+				if (names.length > 0) settings.push(setting);
 				forcedBuildWarning(context, setting, names);
 			}
 		}
@@ -22222,6 +22261,7 @@ const pip = (context) => {
 		});
 		return;
 	}
+	for (const setting of settings) context.writes("installScripts", setting, file);
 	if (entries.length > 0 || hasManagedLines(context.read(file))) context.requirements(file, entries, managed);
 };
 
@@ -22318,8 +22358,10 @@ const isIgnoredList = (value) => isRecord(value) && typeof value["since"] === "s
 */
 function mergeList(context, workspaceFileSince, setting, names) {
 	const inWorkspaceFile = context.atLeast(workspaceFileSince);
-	const target = inWorkspaceFile ? context.yaml(firstFile(context.tool.cooldown.configFiles) ?? "pnpm-workspace.yaml") : context.json("package.json");
+	const file = inWorkspaceFile ? firstFile(context.tool.cooldown.configFiles) ?? "pnpm-workspace.yaml" : "package.json";
+	const target = inWorkspaceFile ? context.yaml(file) : context.json(file);
 	const path = inWorkspaceFile ? [setting] : ["pnpm", setting];
+	context.writes("installScripts", path.join("."), file);
 	const current = target.get(path);
 	const list = Array.isArray(current) ? [...current] : [];
 	const merged = [...list, ...names.filter((name) => !list.includes(name))];
@@ -22385,7 +22427,10 @@ const pnpm = (context) => {
 	if (policy.installScripts !== void 0) {
 		const allowAll = extraOf(tool, "allowAllBuilds", isSwitch);
 		if (policy.installScripts.default === "allow") {
-			if (context.supports(allowAll.since, allowAll.setting)) yaml.set([allowAll.setting], allowAll.value);
+			if (context.supports(allowAll.since, allowAll.setting)) {
+				yaml.set([allowAll.setting], allowAll.value);
+				context.writes("installScripts", allowAll.setting, file);
+			}
 		} else {
 			const defaults = scriptsDefault(context);
 			const legacy = extraOf(tool, "onlyBuiltDependencies", isLegacy);
@@ -22416,14 +22461,15 @@ const pnpm = (context) => {
 					fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 				});
 				yaml.set([allowAll.setting], false);
+				context.writes("installScripts", allowAll.setting, file);
 			}
 			const setting = settingOf(tool.installScripts.allowList.setting) ?? "allowBuilds";
 			const since = sinceOf(tool.installScripts.allowList.availableSince);
 			const wanted = policy.installScripts.allow.length > 0;
 			if (context.atLeast(since)) {
-				if (wanted) {
-					for (const name of allowedNames(context, setting)) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
-				}
+				const names = wanted ? allowedNames(context, setting) : [];
+				if (names.length > 0) context.writes("installScripts", setting, file);
+				for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
 				writeDenyList(context);
 			} else {
 				if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, "onlyBuiltDependencies"))) mergeList(context, legacy.workspaceFileSince, "onlyBuiltDependencies", allowedNames(context, "onlyBuiltDependencies"));
@@ -22446,6 +22492,7 @@ const pnpm = (context) => {
 					fix: `Remove the ${fromNpmrc.key} line from .npmrc; add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 				});
 				yaml.set([allowAll.setting], false);
+				context.writes("installScripts", allowAll.setting, file);
 			}
 		}
 	}
@@ -22470,6 +22517,7 @@ const pnpm = (context) => {
 			});
 		}
 		yaml.set([exoticSetting], denied.length > 0);
+		context.writes("sources", exoticSetting, file);
 	}
 	return minutes;
 };
@@ -22505,12 +22553,16 @@ const pdm = (context) => {
 		if (context.supports(build.since, build.setting)) {
 			entries.push(`${build.setting} = ${tomlValue(build.value)}`);
 			managed.push(build.setting);
+			context.writes("installScripts", build.setting, file, table);
 			buildSwitchScopeWarning(context, build.setting, build.covers);
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			if (setting !== null) {
 				managed.push(setting);
 				const names = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting) ? buildAllowList(context, setting) : [];
-				if (names.length > 0) entries.push(`${setting} = ${tomlValue(names)}`);
+				if (names.length > 0) {
+					entries.push(`${setting} = ${tomlValue(names)}`);
+					context.writes("installScripts", setting, file, table);
+				}
 				forcedBuildWarning(context, setting, names);
 			}
 		}
@@ -22600,6 +22652,7 @@ const poetry = (context) => {
 		if (context.supports(build.since, build.setting)) {
 			installer.entries.push(`${key} = ${tomlValue(build.value)}`);
 			installer.managed.push(key);
+			context.writes("installScripts", key, file, table);
 			const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value))[0] ?? "the lockfile";
 			context.warn({
 				code: "build-switch-install-only",
@@ -22611,7 +22664,10 @@ const poetry = (context) => {
 			if (setting !== null) {
 				installer.managed.push(splitDotted(setting).key);
 				const names = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting) ? buildAllowList(context, setting) : [];
-				if (names.length > 0) installer.entries.push(`${splitDotted(setting).key} = ${tomlValue(names)}`);
+				if (names.length > 0) {
+					installer.entries.push(`${splitDotted(setting).key} = ${tomlValue(names)}`);
+					context.writes("installScripts", splitDotted(setting).key, file, table);
+				}
 				forcedBuildWarning(context, setting, names);
 			}
 		}
@@ -22748,11 +22804,15 @@ const uv = (context) => {
 		if (context.supports(build.since, build.setting)) {
 			entries.push(`${build.setting} = ${tomlValue(build.value)}`);
 			managed.push(build.setting);
+			context.writes("installScripts", build.setting, file, table);
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			if (setting !== null) {
 				managed.push(setting);
 				const names = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting) ? buildAllowList(context, setting) : [];
-				if (names.length > 0) entries.push(`${setting} = ${tomlValue(names)}`);
+				if (names.length > 0) {
+					entries.push(`${setting} = ${tomlValue(names)}`);
+					context.writes("installScripts", setting, file, table);
+				}
 				forcedBuildWarning(context, setting, names);
 			}
 		}
@@ -22770,7 +22830,8 @@ const uv = (context) => {
 const isScriptsSwitch = (value) => isRecord(value) && typeof value["setting"] === "string" && "allow" in value && "deny" in value;
 const yarn = (context) => {
 	const { tool, policy } = context;
-	const yaml = context.yaml(firstFile(tool.cooldown.configFiles) ?? ".yarnrc.yml");
+	const file = firstFile(tool.cooldown.configFiles) ?? ".yarnrc.yml";
+	const yaml = context.yaml(file);
 	let minutes;
 	if (policy.cooldown !== void 0) {
 		const setting = settingOf(tool.cooldown.setting) ?? "npmMinimalAgeGate";
@@ -22789,11 +22850,15 @@ const yarn = (context) => {
 		const scripts = extraOf(tool, "scriptsSwitch", isScriptsSwitch);
 		const deny = policy.installScripts.default === "deny";
 		yaml.set([scripts.setting], deny ? scripts.deny : scripts.allow);
+		context.writes("installScripts", scripts.setting, file);
 		const template = settingOf(tool.installScripts.allowList.setting);
 		if (deny && template !== null && policy.installScripts.allow.length > 0) {
 			if (context.supports(sinceOf(tool.installScripts.allowList.availableSince), template)) {
-				const json = context.json(settingOf(tool.installScripts.allowList.file) ?? "package.json");
-				for (const name of allowedNames(context, template.split(".")[0] ?? template)) {
+				const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
+				const json = context.json(listFile);
+				const names = allowedNames(context, template.split(".")[0] ?? template);
+				if (names.length > 0) context.writes("installScripts", template, listFile);
+				for (const name of names) {
 					const path = template.split(".").map((segment) => segment === "<package>" ? name : segment);
 					if (json.get(path) !== true) json.set(path, true);
 				}
@@ -22802,6 +22867,7 @@ const yarn = (context) => {
 		if (deny) writeDenyList(context);
 	}
 	eachSource(context, (_kind, setting, access) => {
+		context.writes("sources", setting, file);
 		const value = access === "deny" ? [] : ["**"];
 		if (!sameList(yaml.get([setting]), value)) yaml.set([setting], value);
 	});

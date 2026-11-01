@@ -1,0 +1,91 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "pip"
+      ]
+    },
+    "cooldown": {
+      "minimum": "36h",
+      "tools": [
+        {
+          "tool": "pip",
+          "ok": true,
+          "unit": "days",
+          "value": 2,
+          "exact": false
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "pypi:docopt"
+      ],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "pip",
+          "settings": [
+            {
+              "setting": "--only-binary",
+              "file": "requirements.txt"
+            },
+            {
+              "setting": "--no-binary",
+              "file": "requirements.txt"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "build-switch-scope",
+              "level": "warning",
+              "tool": "pip",
+              "message": "pip: --only-binary forbids building only packages from an index; pip still builds git, local directory and source archive dependencies",
+              "fix": "Run depcurfew doctor to find them in the requirements files"
+            },
+            {
+              "code": "forced-source-build",
+              "level": "warning",
+              "tool": "pip",
+              "message": "pip: --no-binary lets docopt be built from source while building is forbidden for everything else; pip then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
+              "fix": "If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json"
+            }
+          ]
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "pip",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "pip",
+              "message": "pip has no setting for git dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the requirements files"
+            },
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "pip",
+              "message": "pip has no setting for URL dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the requirements files"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "projects": []
+}

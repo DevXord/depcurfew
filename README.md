@@ -134,7 +134,7 @@ The package installs two names for the same command: `depcurfew` and the short `
 | Command | What it does |
 | --- | --- |
 | `depcurfew init [directory] [--force]` | Writes `depcurfew.json` with the default policy (keeping a longer release-age delay the repository already sets); `--force` overwrites an existing one. |
-| `depcurfew explain [directory] [--json]` | Describes the detected package managers, versions, bots and workspaces, and the policy values for each tool. |
+| `depcurfew explain [directory] [--json]` | Describes the detected package managers, versions, bots and workspaces, and what the policy means for each tool: the release-age delay, and the settings `apply` writes for `installScripts` and `sources`, or why a tool cannot enforce them. |
 | `depcurfew apply [directory] [--dry-run] [--json]` | Writes the policy into the configuration of every target tool; `--dry-run` prints a unified diff instead, `--json` the result as JSON. |
 | `depcurfew doctor [directory] [--json \| --sarif] [--fail-on error\|warning]` | Finds configuration that silently does not work and drift from the policy; `--sarif` prints SARIF 2.1.0 for code scanning, and `--fail-on` overrides `doctor.failOn` of the policy (`--strict` is `--fail-on warning`). |
 | `depcurfew check <package...> [--json] [--dir <directory>] [--registry <url>] [--index <url>]` | Checks packages against the policy before you install them: see [Guarding installs](#guarding-installs). |
@@ -151,6 +151,17 @@ Exit codes: `0` success (warnings included, except for `doctor` when warnings fa
 Every finding and warning says what to do about it. When a command cannot start, it says why with a code (`directory-not-found`, `not-a-directory`, `policy-missing`, `policy-invalid`, `policy-unreadable`, and for `init` also `policy-exists` and `cannot-write`) and what to do; with `--json` that is a document with `errors` on stdout, and `doctor --sarif` prints a run marked as not successful. Text for people is colored on a terminal; `NO_COLOR=1` turns colors off and `FORCE_COLOR=1` turns them on, for example in a CI log that shows them. Control characters in names and values from the repository or a registry are shown as text (ESC as `\x1b`, or as `\u001b` inside a quoted value such as a package name in the problems of `depcurfew.json`), so a crafted package or file name cannot change the terminal. `--json`, `--sarif` and a diff written to a file stay plain, for programs and AI agents.
 
 The `--json` documents of all commands share these fields: `schemaVersion` (1), `policy` (its status in `apply` and `doctor`, the path of the `depcurfew.json` used in `check`, its values in `explain`), `notices` (such as the parent directory whose `depcurfew.json` was used) and `errors`, the reasons a command could not start, each with `code`, `level`, `location.file`, `message` and `fix`, and `issues` for `policy-invalid`. A usage error with `--json` (an unknown option, `check` without a package, `--json` with `--sarif`) prints a document with only `schemaVersion` and `errors`, with the code `usage` and no location, and exits with 2. The warnings of `explain` have `code`, `level`, `location` (when they concern one file), `message`, `files` and `fix`. Paths are relative to the directory the command works on (a directory that does not exist is named as given). A `depcurfew.json` that cannot be used is an error with the same code, message and fix in `apply`, `check` and `explain`, which also keeps it in `policy`; `doctor` reports it as the finding `invalid-policy`, so that it reaches code scanning too, and counts it in `summary.error`. Within a `schemaVersion` fields and values are only added; a field is removed or changes its meaning only with a new `schemaVersion`.
+
+`explain` shows, for each tool in the policy section (and for each directory listed in `projects`), what `installScripts` and `sources` mean there, from the same plan `apply` makes: the settings `apply` writes with their files, or the warning `apply` gives when the tool cannot enforce a part, with its code and what to do. The text has one line per tool and part, `nothing to write` when `apply` writes nothing there and has nothing to say, and `not managed` when the policy has no such section:
+
+```text
+  installScripts deny, allow esbuild:
+    <tool>: <setting> and <setting> in <file>, <setting> in <file>; warning: <message> (<code>); fix: <what to do>
+  sources git deny:
+    <tool>: nothing written; warning: <tool> has no setting for git dependencies, so "deny" cannot be enforced (source-not-enforceable); fix: <what to do>
+```
+
+In `explain --json`, `policy.installScripts` holds `default`, `allow`, `deny` and `tools`, `policy.sources` the sources the policy sets and `tools`, and each entry of `projects` has `installScripts` and `sources` with `tools` (each `null` when the policy has no such section). Each entry of `tools` has `tool`, `settings` (`setting`, `file`, and `table` for a TOML table) and `warnings`, the warnings of `apply --json` about that part for the tool. A setting that `apply` writes only to correct a value (`allow-all-replaced`) is listed only while the file still needs that correction.
 
 How `apply` edits files:
 

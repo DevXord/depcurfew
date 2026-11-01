@@ -1,0 +1,97 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "npm",
+        "renovate"
+      ]
+    },
+    "cooldown": {
+      "minimum": "3d",
+      "tools": [
+        {
+          "tool": "npm",
+          "ok": true,
+          "unit": "days",
+          "value": 3,
+          "exact": true
+        },
+        {
+          "tool": "renovate",
+          "ok": true,
+          "unit": "duration-string",
+          "value": "3 days",
+          "exact": true
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "esbuild",
+        "@scope/*"
+      ],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "npm",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "scripts-not-enforceable",
+              "level": "warning",
+              "tool": "npm",
+              "location": {
+                "file": "package.json"
+              },
+              "message": "npm 11.6.2 (Volta in package.json), npm 11.6.2 (installed in job test of .github/workflows/ci.yml, line 11) and npm 10.9.0 (with Node.js 22.11.0 in .tool-versions) run every dependency install script and have no allow-list, so \"deny\" cannot be enforced there",
+              "fix": "Install npm 11.16.0 or later before packages are installed there (npm install -g npm@11.16.0), or move to a Node.js release that comes with it, and require it in Volta in package.json; npm 12 blocks dependency scripts by default"
+            },
+            {
+              "code": "version-too-old",
+              "level": "warning",
+              "tool": "npm",
+              "message": "npm 11.6.2 does not support min-release-age and allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), allowScripts (added in 11.16.0); not written",
+              "fix": "Require npm 11.16.0 or later where the version is pinned"
+            }
+          ]
+        },
+        {
+          "tool": "renovate",
+          "settings": [],
+          "warnings": []
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "npm",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "version-too-old",
+              "level": "warning",
+              "tool": "npm",
+              "message": "npm 11.6.2 does not support min-release-age and allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), allowScripts (added in 11.16.0); not written",
+              "fix": "Require npm 11.16.0 or later where the version is pinned"
+            }
+          ]
+        },
+        {
+          "tool": "renovate",
+          "settings": [],
+          "warnings": []
+        }
+      ]
+    }
+  },
+  "projects": []
+}

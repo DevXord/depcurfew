@@ -26,7 +26,7 @@ const isEffects = (value: unknown): value is { since: string; value: string }[] 
  * warning says unless the pin is such an npm and no place runs npm 12. An npm before 11.16 cannot block them at all,
  * which scripts-not-enforceable says with where that npm comes from.
  */
-function scriptsForVersionsInUse(context: Context, entries: string[], managed: string[]): void {
+function scriptsForVersionsInUse(context: Context, file: string, entries: string[], managed: string[]): void {
   const { tool } = context;
   const defaults = values(tool.installScripts.defaultPolicy)[0] ?? [];
   const strict = extraOf(tool, 'strictAllowScripts', isSwitch);
@@ -52,6 +52,7 @@ function scriptsForVersionsInUse(context: Context, entries: string[], managed: s
   if (notices.length > 0) {
     entries.push(`${strict.setting}=${String(strict.value)}`);
     managed.push(strict.setting);
+    context.writes('installScripts', strict.setting, file);
     const blocking = of('deny-except-allowlist');
     const pin = context.inUse.find((entry) => entry.pin === true);
     const pinNeedsIt = pin !== undefined && notices.some((item) => item.entry === pin);
@@ -153,6 +154,7 @@ export const npm: ManagerGenerator = (context) => {
       if (context.supports(allowAll.since, allowAll.setting)) {
         entries.push(`${allowAll.setting}=${String(allowAll.value)}`);
         managed.push(allowAll.setting);
+        context.writes('installScripts', allowAll.setting, file);
       }
     } else {
       if (context.atLeast(allowAll.since)) managed.push(allowAll.setting);
@@ -161,10 +163,11 @@ export const npm: ManagerGenerator = (context) => {
       const defaults = scriptsDefault(context).value;
       const strict = extraOf(tool, 'strictAllowScripts', isSwitch);
       if (context.inUse.length > 0) {
-        scriptsForVersionsInUse(context, entries, managed);
+        scriptsForVersionsInUse(context, file, entries, managed);
       } else if (defaults === 'run-with-warning' && context.supports(strict.since, strict.setting)) {
         entries.push(`${strict.setting}=${String(strict.value)}`);
         managed.push(strict.setting);
+        context.writes('installScripts', strict.setting, file);
       } else if (defaults === 'run') {
         const since = sinceOf(tool.installScripts.allowList.availableSince) ?? '';
         context.warn({
@@ -179,7 +182,9 @@ export const npm: ManagerGenerator = (context) => {
         const wanted = policy.installScripts.allow.length > 0;
         if (wanted && someSupports(context, sinceOf(tool.installScripts.allowList.availableSince), setting)) {
           const json = context.json(listFile);
-          for (const name of allowedNames(context, setting)) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+          const names = allowedNames(context, setting);
+          if (names.length > 0) context.writes('installScripts', setting, listFile);
+          for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
         }
       }
       writeDenyList(context);
@@ -189,6 +194,7 @@ export const npm: ManagerGenerator = (context) => {
   eachSource(context, (_kind, setting, access) => {
     entries.push(`${setting}=${access === 'deny' ? 'none' : 'all'}`);
     managed.push(setting);
+    context.writes('sources', setting, file);
   });
 
   // Without entries, the file is still edited when it sets a managed key by hand (such as the switch that allows

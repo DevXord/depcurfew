@@ -1,0 +1,160 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "dependabot"
+      ]
+    },
+    "cooldown": {
+      "minimum": "36h",
+      "tools": [
+        {
+          "tool": "npm",
+          "ok": true,
+          "unit": "days",
+          "value": 2,
+          "exact": false
+        },
+        {
+          "tool": "uv",
+          "ok": true,
+          "unit": "duration-string",
+          "value": "36 hours",
+          "exact": true
+        },
+        {
+          "tool": "dependabot",
+          "ok": true,
+          "unit": "days",
+          "value": 2,
+          "exact": false
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "esbuild"
+      ],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "dependabot",
+          "settings": [],
+          "warnings": []
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "tools": [
+        {
+          "tool": "dependabot",
+          "settings": [],
+          "warnings": []
+        }
+      ]
+    }
+  },
+  "projects": [
+    {
+      "directory": "frontend",
+      "targets": {
+        "mode": "auto",
+        "tools": [
+          "npm"
+        ]
+      },
+      "installScripts": {
+        "tools": [
+          {
+            "tool": "npm",
+            "settings": [
+              {
+                "setting": "strict-allow-scripts",
+                "file": "frontend/.npmrc"
+              },
+              {
+                "setting": "allowScripts",
+                "file": "frontend/package.json"
+              }
+            ],
+            "warnings": []
+          }
+        ]
+      },
+      "sources": {
+        "tools": [
+          {
+            "tool": "npm",
+            "settings": [
+              {
+                "setting": "allow-git",
+                "file": "frontend/.npmrc"
+              },
+              {
+                "setting": "allow-remote",
+                "file": "frontend/.npmrc"
+              }
+            ],
+            "warnings": []
+          }
+        ]
+      }
+    },
+    {
+      "directory": "backend",
+      "targets": {
+        "mode": "auto",
+        "tools": [
+          "uv"
+        ]
+      },
+      "installScripts": {
+        "tools": [
+          {
+            "tool": "uv",
+            "settings": [
+              {
+                "setting": "no-build",
+                "file": "backend/pyproject.toml",
+                "table": "tool.uv"
+              }
+            ],
+            "warnings": []
+          }
+        ]
+      },
+      "sources": {
+        "tools": [
+          {
+            "tool": "uv",
+            "settings": [],
+            "warnings": [
+              {
+                "code": "source-not-enforceable",
+                "level": "warning",
+                "project": "backend",
+                "tool": "uv",
+                "message": "backend: uv has no setting for git dependencies, so \"deny\" cannot be enforced",
+                "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+              },
+              {
+                "code": "source-not-enforceable",
+                "level": "warning",
+                "project": "backend",
+                "tool": "uv",
+                "message": "backend: uv has no setting for URL dependencies, so \"deny\" cannot be enforced",
+                "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

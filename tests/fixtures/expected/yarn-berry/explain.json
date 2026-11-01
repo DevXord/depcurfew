@@ -1,0 +1,85 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "yarn"
+      ]
+    },
+    "cooldown": {
+      "minimum": "3d",
+      "tools": [
+        {
+          "tool": "yarn",
+          "ok": true,
+          "unit": "minutes",
+          "value": 4320,
+          "exact": true
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "esbuild",
+        "@scope/*"
+      ],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "yarn",
+          "settings": [
+            {
+              "setting": "enableScripts",
+              "file": ".yarnrc.yml"
+            },
+            {
+              "setting": "dependenciesMeta.<package>.built",
+              "file": "package.json"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "allow-pattern-unsupported",
+              "level": "warning",
+              "tool": "yarn",
+              "message": "Yarn (Berry): dependenciesMeta takes package names only; \"@scope/*\" not written",
+              "fix": "List the package names in installScripts.allow"
+            }
+          ]
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "yarn",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "yarn",
+              "message": "Yarn (Berry) has no setting for remote tarball dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+            },
+            {
+              "code": "version-too-old",
+              "level": "warning",
+              "tool": "yarn",
+              "message": "Yarn (Berry) 4.9.2 does not support npmMinimalAgeGate (added in 4.10.2), approvedGitRepositories (added in 4.14.0); not written",
+              "fix": "Require Yarn (Berry) 4.14.0 or later where the version is pinned"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "projects": []
+}

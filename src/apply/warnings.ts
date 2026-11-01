@@ -75,6 +75,36 @@ export const APPLY_ERRORS = {
 export type ApplyWarningCode = keyof typeof APPLY_WARNINGS;
 export type ApplyErrorCode = keyof typeof APPLY_ERRORS;
 
+/** The parts of the policy that depcurfew explain shows apply's settings and warnings for, per tool (decision D-117). */
+export type PolicyPart = 'installScripts' | 'sources';
+
+/**
+ * The parts of the policy each warning is about, for depcurfew explain (decision D-117). version-too-old and
+ * manifest-missing are placed by the settings they name; the other warnings are about the release-age delay, bots or the
+ * repository as a whole.
+ */
+export const WARNING_PARTS: Partial<Readonly<Record<ApplyWarningCode, readonly PolicyPart[]>>> = {
+  'tool-not-supported': ['installScripts', 'sources'],
+  'allow-pattern-unsupported': ['installScripts'],
+  'deny-pattern-unsupported': ['installScripts'],
+  'allow-all-unsupported': ['installScripts'],
+  'allow-all-replaced': ['installScripts'],
+  'allow-list-entry-outside-policy': ['installScripts'],
+  'deny-conflicts-with-file': ['installScripts'],
+  'unexpected-value': ['installScripts'],
+  'built-in-list-replaced': ['installScripts'],
+  'scripts-not-enforceable': ['installScripts'],
+  'strict-allow-scripts-for-npm-in-use': ['installScripts'],
+  'forced-source-build': ['installScripts'],
+  'build-switch-scope': ['installScripts'],
+  'build-switch-install-only': ['installScripts'],
+  'build-switch-environment-only': ['installScripts'],
+  'requirements-file-missing': ['installScripts'],
+  'source-not-enforceable': ['sources'],
+  'source-switch-indirect-only': ['sources'],
+  'source-switch-combined': ['sources'],
+};
+
 export interface ApplyWarning {
   code: ApplyWarningCode;
   /** The directory listed in projects that the warning concerns; absent for the repository root. */

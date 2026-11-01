@@ -27,8 +27,10 @@ const isIgnoredList = (value: unknown): value is { since: string; workspaceFileS
  */
 function mergeList(context: Context, workspaceFileSince: string, setting: string, names: readonly string[]): void {
   const inWorkspaceFile = context.atLeast(workspaceFileSince);
-  const target = inWorkspaceFile ? context.yaml(firstFile(context.tool.cooldown.configFiles) ?? 'pnpm-workspace.yaml') : context.json('package.json');
+  const file = inWorkspaceFile ? (firstFile(context.tool.cooldown.configFiles) ?? 'pnpm-workspace.yaml') : 'package.json';
+  const target = inWorkspaceFile ? context.yaml(file) : context.json(file);
   const path = inWorkspaceFile ? [setting] : ['pnpm', setting];
+  context.writes('installScripts', path.join('.'), file);
   const current = target.get(path);
   const list = Array.isArray(current) ? [...(current as unknown[])] : [];
   const merged = [...list, ...names.filter((name) => !list.includes(name))];
@@ -98,7 +100,10 @@ export const pnpm: ManagerGenerator = (context) => {
   if (policy.installScripts !== undefined) {
     const allowAll = extraOf(tool, 'allowAllBuilds', isSwitch);
     if (policy.installScripts.default === 'allow') {
-      if (context.supports(allowAll.since, allowAll.setting)) yaml.set([allowAll.setting], allowAll.value);
+      if (context.supports(allowAll.since, allowAll.setting)) {
+        yaml.set([allowAll.setting], allowAll.value);
+        context.writes('installScripts', allowAll.setting, file);
+      }
     } else {
       // Before pnpm 10, every dependency runs its install scripts unless pnpm.onlyBuiltDependencies in package.json
       // names the ones that may (since 6.32.1; any list, even an empty one, blocks the rest), so the list is written
@@ -129,12 +134,15 @@ export const pnpm: ManagerGenerator = (context) => {
           fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`,
         });
         yaml.set([allowAll.setting], false);
+        context.writes('installScripts', allowAll.setting, file);
       }
       const setting = settingOf(tool.installScripts.allowList.setting) ?? 'allowBuilds';
       const since = sinceOf(tool.installScripts.allowList.availableSince);
       const wanted = policy.installScripts.allow.length > 0;
       if (context.atLeast(since)) {
-        if (wanted) for (const name of allowedNames(context, setting)) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
+        const names = wanted ? allowedNames(context, setting) : [];
+        if (names.length > 0) context.writes('installScripts', setting, file);
+        for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
         writeDenyList(context);
       } else {
         if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, 'onlyBuiltDependencies'))) {
@@ -161,6 +169,7 @@ export const pnpm: ManagerGenerator = (context) => {
           fix: `Remove the ${fromNpmrc.key} line from .npmrc; add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`,
         });
         yaml.set([allowAll.setting], false);
+        context.writes('installScripts', allowAll.setting, file);
       }
     }
   }
@@ -189,6 +198,7 @@ export const pnpm: ManagerGenerator = (context) => {
       }
     }
     yaml.set([exoticSetting], denied.length > 0);
+    context.writes('sources', exoticSetting, file);
   }
   return minutes;
 };

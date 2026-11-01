@@ -12,6 +12,9 @@ import { projectProblems, relocateDetection } from '../apply/projects.ts';
 import { autoTargets, directoryTargets } from '../apply/targets.ts';
 import { listing } from '../apply/requirements.ts';
 import { rootPlaces } from '../doctor/rules/bundled-versions.ts';
+import { policyEffects, type PolicyEffects, type ToolEffect } from '../apply/effects.ts';
+import type { PolicyPart } from '../apply/warnings.ts';
+import { SOURCE_KINDS } from '../knowledge/schema.ts';
 import { managerName, toolName } from './describe.ts';
 import { paint, PLAIN, type Paint } from '../color.ts';
 import { printable } from '../printable.ts';
@@ -23,12 +26,28 @@ type CooldownEntry =
   | { tool: ToolId; ok: true; unit: string; value: number | string; exact: boolean }
   | { tool: ToolId; ok: false; reason: string };
 
+type Access = 'allow' | 'deny';
+type SourceKind = (typeof SOURCE_KINDS)[number];
+
+/** What apply does with a part of the policy for each tool (decision D-117): the settings it writes, its warnings. */
+export interface PartReport {
+  tools: ToolEffect[];
+}
+
+/** installScripts as the policy gives it, and what apply does with it for each tool. */
+export type InstallScriptsReport = { default: Access; allow: string[]; deny: string[] } & PartReport;
+
+/** The dependency sources the policy manages, and what apply does with them for each tool. */
+export type SourcesReport = Partial<Record<SourceKind, Access>> & PartReport;
+
 export type PolicyReport =
   | {
       file: string;
       valid: true;
       targets: { mode: 'auto' | 'listed'; tools: ToolId[] };
       cooldown: { minimum: string; tools: CooldownEntry[] } | null;
+      installScripts: InstallScriptsReport | null;
+      sources: SourcesReport | null;
     }
   | { file: string; valid: false; issues: string[] };
 
@@ -57,7 +76,15 @@ export interface FromRoot {
 
 /** A directory listed in projects in depcurfew.json (decision D-100), with its files named relative to the root. */
 export type ProjectReport =
-  | { directory: string; project: ExplainDetection; fromRoot: FromRoot; targets: { mode: 'auto' | 'listed'; tools: ToolId[] } }
+  | {
+      directory: string;
+      project: ExplainDetection;
+      fromRoot: FromRoot;
+      targets: { mode: 'auto' | 'listed'; tools: ToolId[] };
+      /** What apply does with installScripts and sources there (decision D-117); null when the policy has no such part. */
+      installScripts: PartReport | null;
+      sources: PartReport | null;
+    }
   | { directory: string; project: null; error: { code: string; level: 'error'; location: { file: string; line?: number }; message: string; fix: string } };
 
 export interface ExplainReport {
@@ -137,6 +164,9 @@ function policyReport(directory: string, detection: Detection): { policy: Policy
   if (policy === undefined) return { policy: null, projects: [], errors: [], withProjects: false };
   const mode = policy.targets === 'auto' ? ('auto' as const) : ('listed' as const);
   const withProjects = policy.projects.length > 0;
+  // One plan of the whole repository, as apply makes it, only when the policy has a part it shows (decision D-117).
+  const effects = policy.installScripts === undefined && policy.sources === undefined ? undefined : policyEffects(directory, policy, detection);
+  const part = (name: PolicyPart, project: string | undefined, ids: readonly ToolId[]) => partReport(effects, policy, name, project, ids);
   const problems = projectProblems(directory, policy.projects, detection);
   const projects = policy.projects.map((entry): ProjectReport => {
     const problem = problems.find((item) => item.project === entry);
@@ -146,14 +176,40 @@ function policyReport(directory: string, detection: Detection): { policy: Policy
     const { targets } = directoryTargets(root, policy, found, knowledgeBase, { project: entry, withProjects });
     const places = rootPlaces(detection, entry, found);
     const fromRoot: FromRoot = { versions: [...places.versions], dockerfiles: places.dockerfiles.map((item) => ({ file: item.file.file, stages: [...item.stages] })) };
-    return { directory: entry, project: explained(relocateDetection(entry, found)), fromRoot, targets: { mode, tools: [...targets] } };
+    return {
+      directory: entry,
+      project: explained(relocateDetection(entry, found)),
+      fromRoot,
+      targets: { mode, tools: [...targets] },
+      installScripts: part('installScripts', entry, [...targets]),
+      sources: part('sources', entry, [...targets]),
+    };
   });
   const tools = withProjects ? [...directoryTargets(directory, policy, detection, knowledgeBase, { withProjects }).targets] : policy.targets === 'auto' ? autoTargets(directory, detection).targets : [...policy.targets];
   const every = [...new Set([...tools, ...projects.flatMap((entry) => ('targets' in entry ? entry.targets.tools : []))])];
   const ordered = knowledgeBase.map((tool) => tool.id).filter((id) => every.includes(id));
   // A directory that cannot be used is an error, as in apply, with the line of its entry in depcurfew.json.
   const errors = problems.map((problem): InputError => ({ code: problem.code, level: 'error', location: problem.location, message: problem.message, fix: problem.fix }));
-  return { policy: { file: POLICY_FILE, valid: true, targets: { mode, tools }, cooldown: cooldownReport(policy, withProjects ? ordered : tools) }, projects, errors, withProjects };
+  const scripts = policy.installScripts;
+  const installScripts = scripts === undefined ? null : { default: scripts.default, allow: [...scripts.allow], deny: [...scripts.deny], tools: part('installScripts', undefined, tools)?.tools ?? [] };
+  const sources = policy.sources === undefined ? null : { ...sourceAccess(policy.sources), tools: part('sources', undefined, tools)?.tools ?? [] };
+  return {
+    policy: { file: POLICY_FILE, valid: true, targets: { mode, tools }, cooldown: cooldownReport(policy, withProjects ? ordered : tools), installScripts, sources },
+    projects,
+    errors,
+    withProjects,
+  };
+}
+
+/** The sources the policy manages, in the order of the policy schema. */
+function sourceAccess(sources: NonNullable<ResolvedPolicy['sources']>): Partial<Record<SourceKind, Access>> {
+  return Object.fromEntries(SOURCE_KINDS.flatMap((kind) => (sources[kind] === undefined ? [] : [[kind, sources[kind]]])));
+}
+
+/** What apply does with a part of the policy for the tools of one directory; null when the policy lacks the part. */
+function partReport(effects: PolicyEffects | undefined, policy: ResolvedPolicy, name: PolicyPart, project: string | undefined, tools: readonly ToolId[]): PartReport | null {
+  if (effects === undefined || policy[name] === undefined) return null;
+  return { tools: tools.map((tool) => effects(project, name, tool)) };
 }
 
 export function buildReport(directory: string): ExplainReport {
@@ -254,23 +310,65 @@ function policyLines(policy: PolicyReport | null, errors: readonly InputError[])
     `Policy (${policy.file}):`,
     `  targets: ${names.length === 0 ? 'none' : names.join(', ')} (${policy.targets.mode === 'auto' ? 'detected' : 'listed'})`,
   ];
-  if (policy.cooldown === null) return [...lines, '  cooldown: not managed'];
-  lines.push(`  cooldown ${policy.cooldown.minimum}:`);
-  for (const entry of policy.cooldown.tools) {
-    const name = toolName(entry.tool);
-    lines.push(
-      entry.ok
-        ? `    ${name}: ${amount(entry.value, entry.unit)}${entry.exact ? '' : ' (rounded up)'}`
-        : `    ${name}: cannot apply: ${entry.reason}`,
-    );
+  if (policy.cooldown === null) lines.push('  cooldown: not managed');
+  else {
+    lines.push(`  cooldown ${policy.cooldown.minimum}:`);
+    for (const entry of policy.cooldown.tools) {
+      const name = toolName(entry.tool);
+      lines.push(
+        entry.ok
+          ? `    ${name}: ${amount(entry.value, entry.unit)}${entry.exact ? '' : ' (rounded up)'}`
+          : `    ${name}: cannot apply: ${entry.reason}`,
+      );
+    }
   }
+  const scripts = policy.installScripts;
+  const lists = scripts === null ? [] : [...(scripts.allow.length === 0 ? [] : [`allow ${listing(scripts.allow)}`]), ...(scripts.deny.length === 0 ? [] : [`deny ${listing(scripts.deny)}`])];
+  lines.push(...partLines(scripts === null ? 'installScripts' : `installScripts ${[scripts.default, ...lists].join(', ')}`, scripts));
+  const sources = policy.sources;
+  const access = sources === null ? [] : SOURCE_KINDS.flatMap((kind) => (sources[kind] === undefined ? [] : [`${kind} ${sources[kind]}`]));
+  lines.push(...partLines(access.length === 0 ? 'sources' : `sources ${access.join(', ')}`, sources));
   return lines;
 }
 
-/** Section headings (unindented lines up to their first colon) in bold, "cannot apply" and "invalid" in yellow. */
+/**
+ * What apply does with a part of the policy (decision D-117), one line per tool: the settings it writes with their
+ * files, then apply's warnings with their codes and what to do; "nothing to write" when it writes nothing and has
+ * nothing to say. The JSON document holds the same settings and warnings.
+ */
+function partLines(heading: string, part: PartReport | null): string[] {
+  if (part === null) return [`  ${heading}: not managed`];
+  if (part.tools.length === 0) return [`  ${heading}: no tools to configure`];
+  return [`  ${heading}:`, ...part.tools.map((entry) => `    ${toolName(entry.tool)}: ${effectText(entry)}`)];
+}
+
+function effectText(entry: ToolEffect): string {
+  // Settings grouped by file (and TOML table), in the order the generator writes them.
+  const places: { place: string; settings: string[] }[] = [];
+  for (const { setting, file, table } of entry.settings) {
+    const place = table === undefined ? file : `[${table}] of ${file}`;
+    const group = places.find((item) => item.place === place);
+    if (group === undefined) places.push({ place, settings: [setting] });
+    else group.settings.push(setting);
+  }
+  // Warnings with the same code and fix in a row share the code and the fix (the two sources a tool cannot hold).
+  const warnings: { code: string; fix: string | undefined; messages: string[] }[] = [];
+  for (const warning of entry.warnings) {
+    const last = warnings.at(-1);
+    if (last !== undefined && last.code === warning.code && last.fix === warning.fix) last.messages.push(warning.message);
+    else warnings.push({ code: warning.code, fix: warning.fix, messages: [warning.message] });
+  }
+  const said = warnings.map((item) => `warning: ${item.messages.join('; ')} (${item.code})${item.fix === undefined ? '' : `; fix: ${item.fix}`}`);
+  if (places.length === 0 && said.length === 0) return 'nothing to write';
+  return [places.length === 0 ? 'nothing written' : places.map((item) => `${listing(item.settings)} in ${item.place}`).join(', '), ...said].join('; ');
+}
+
+/** Section headings (unindented lines up to their first colon) in bold, "cannot apply", "invalid" and apply's "warning" in yellow. */
 function paintReport(lines: readonly string[], colors: Paint): string[] {
   return lines.map((line) => {
-    const marked = line.replace(/: (cannot apply|cannot be used|invalid)(?=:|$)/u, (_match, word: string) => `: ${colors.yellow(word)}`);
+    const marked = line
+      .replace(/: (cannot apply|cannot be used|invalid)(?=:|$)/u, (_match, word: string) => `: ${colors.yellow(word)}`)
+      .replace(/(?<=^ {4}[^:]+: (?:.*; )?)warning(?=: )/gu, (word) => colors.yellow(word));
     return /^\S/u.test(marked) ? marked.replace(/^[^:]+:/u, (heading) => colors.bold(heading)) : marked;
   });
 }
@@ -288,6 +386,9 @@ function listedProjectLines(entry: ProjectReport, rootDetection: Pick<Detection,
     `Project ${entry.directory}:`,
     ...projectLines(entry.project, { directory: entry.directory, places: entry.fromRoot, detection: rootDetection }).map((line) => `  ${line}`),
     `  targets: ${names.length === 0 ? 'none' : names.join(', ')} (${entry.targets.mode === 'auto' ? 'detected' : 'listed'})`,
+    // The policy's values are in the policy section; a part the policy lacks is "not managed" there.
+    ...(entry.installScripts === null ? [] : partLines('installScripts', entry.installScripts)),
+    ...(entry.sources === null ? [] : partLines('sources', entry.sources)),
   ];
 }
 

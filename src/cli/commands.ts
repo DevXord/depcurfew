@@ -155,7 +155,7 @@ export const COMMANDS: readonly CommandInfo[] = [
     arguments: '[directory]',
     options: [{ name: 'json', summary: 'Print the result as JSON' }],
     details:
-      `Shows what depcurfew detects in the repository (package managers and their versions, bots, workspaces, .npmrc files, GitHub Actions workflows) and, with depcurfew.json, the value written for each tool. ${NEAREST_POLICY}`,
+      `Shows what depcurfew detects in the repository (package managers and their versions, bots, workspaces, .npmrc files, GitHub Actions workflows) and, with depcurfew.json, the release-age delay written for each tool and, for installScripts and sources, the settings depcurfew apply writes for each tool with their files, or the warning apply gives when a tool cannot enforce them, with its code and what to do. ${NEAREST_POLICY}`,
     examples: ['depcurfew explain', 'depcurfew explain --json'],
     exitCodes: [
       [0, 'the repository was described'],

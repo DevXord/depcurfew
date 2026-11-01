@@ -59,6 +59,8 @@ describe('depcurfew explain --json', () => {
             { tool: 'dependabot', ok: true, unit: 'days', value: 2, exact: false },
           ],
         },
+        installScripts: null,
+        sources: null,
       });
     });
 
@@ -79,6 +81,8 @@ describe('depcurfew explain --json', () => {
             { tool: 'renovate', ok: true, unit: 'duration-string', value: '7 days', exact: true },
           ],
         },
+        installScripts: null,
+        sources: null,
       });
     });
 
@@ -143,6 +147,8 @@ describe('depcurfew explain --json', () => {
           '  cooldown 36h:',
           '    pnpm: 2160 minutes',
           '    Dependabot: 2 days (rounded up)',
+          '  installScripts: not managed',
+          '  sources: not managed',
           '',
         ].join('\n'),
       );

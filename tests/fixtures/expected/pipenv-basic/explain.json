@@ -1,0 +1,75 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "pipenv"
+      ]
+    },
+    "cooldown": {
+      "minimum": "36h",
+      "tools": [
+        {
+          "tool": "pipenv",
+          "ok": true,
+          "unit": "duration-string",
+          "value": "2 days",
+          "exact": false
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "pypi:docopt"
+      ],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "pipenv",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "build-switch-environment-only",
+              "level": "warning",
+              "tool": "pipenv",
+              "message": "Pipenv: the Pipfile has no setting that forbids building packages from source, so installScripts \"deny\" is not written",
+              "fix": "Set PIP_ONLY_BINARY=:all: where Pipenv installs packages (CI, Dockerfile); Pipenv passes it on to pip"
+            }
+          ]
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "pipenv",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "pipenv",
+              "message": "Pipenv has no setting for git dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+            },
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "pipenv",
+              "message": "Pipenv has no setting for URL dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "projects": []
+}

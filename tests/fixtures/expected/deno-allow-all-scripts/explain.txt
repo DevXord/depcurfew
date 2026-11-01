@@ -1,0 +1,7 @@
+Policy (depcurfew.json):
+  targets: Deno (detected)
+  cooldown 1w:
+    Deno: 10080 minutes
+  installScripts deny:
+    Deno: allowScripts in deno.json; warning: Deno: allowScripts allowed every install script; replaced with the policy's allow-list (allow-all-replaced); fix: Add the packages whose install scripts must run to installScripts.allow in depcurfew.json, then run depcurfew apply again
+  sources: not managed

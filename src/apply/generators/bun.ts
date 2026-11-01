@@ -43,6 +43,7 @@ export const bun: ManagerGenerator = (context) => {
       if (setting !== null && context.supports(since, setting)) {
         const listFile = settingOf(tool.installScripts.allowList.file) ?? 'package.json';
         const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
+        context.writes('installScripts', setting, listFile);
         const current = context.json(listFile).get([setting]);
         // Without package.json nothing is written (apply does not create manifests), so nothing is replaced either.
         if (current === undefined && context.exists(listFile)) {
