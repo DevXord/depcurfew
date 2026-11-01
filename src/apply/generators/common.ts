@@ -134,8 +134,9 @@ export function writeDenyList(context: Context): void {
   if (!context.supports(deny.since, deny.setting)) return;
   const file = deny.file.endsWith('.yaml') ? context.yaml(deny.file) : context.json(deny.file);
   const allowed = allowedInFiles(context);
-  for (const name of deniedNames(context, settingName(deny.setting))) {
-    if (allowed.has(name)) continue;
+  const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
+  if (names.length > 0) context.writes('installScripts', deny.setting, deny.file);
+  for (const name of names) {
     const path = deny.setting.includes('<package>') ? deny.setting.split('.').map((segment) => (segment === '<package>' ? name : segment)) : [...deny.setting.split('.'), name];
     if (file.get(path) !== deny.value) file.set(path, deny.value);
   }

@@ -34,6 +34,41 @@ describe('CI workflow', () => {
   });
 });
 
+describe('runtime smoke test job', () => {
+  const runtime = read('ci.yml').jobs['runtime'] as Job & { strategy: { matrix: { node: string[] } } };
+
+  it('builds once, then runs the smoke test of the built CLI on each Node.js version', () => {
+    expect(runtime.strategy['fail-fast']).toBe(false);
+    expect(runtime.strategy.matrix.node.length).toBeGreaterThan(0);
+    const runs = runtime.steps.map((step) => step.run).filter((run) => run !== undefined);
+    expect(runs.slice(-3)).toEqual(['npm ci', 'npm run build', 'node tests/runtime/smoke.mjs']);
+  });
+
+  it('runs on the oldest Node.js that engines in package.json allows (decision D-103)', () => {
+    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { engines: { node: string } };
+    const oldest = /^>=(\d+\.\d+\.\d+)$/u.exec(pkg.engines.node)?.[1];
+    expect(oldest).toBeDefined();
+    expect(runtime.strategy.matrix.node).toContain(oldest);
+  });
+});
+
+describe('npm in CI', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { packageManager: string };
+  const pinned = manifest.packageManager.replace(/^npm@/u, '');
+
+  // Node.js 22 comes with npm 10, which ignores the settings of .npmrc it does not know (decision D-099).
+  it.each([
+    ['ci.yml', 'test'],
+    ['ci.yml', 'runtime'],
+    ['release.yml', 'stage'],
+  ])('%s installs the npm of packageManager before npm ci', (name, id) => {
+    const steps = (read(name).jobs[id] as Job).steps.map((step) => step.run ?? '');
+    const upgrade = steps.indexOf(`npm install -g npm@${pinned}`);
+    expect(upgrade, name).toBeGreaterThan(-1);
+    expect(upgrade).toBeLessThan(steps.indexOf('npm ci'));
+  });
+});
+
 describe('workflows that run on every push', () => {
   it.each(['ci.yml', 'action-test.yml'])('%s limits how long every job may run', (name) => {
     for (const [id, job] of Object.entries(read(name).jobs)) expect(job['timeout-minutes'], `${name}: ${id}`).toBeGreaterThan(0);

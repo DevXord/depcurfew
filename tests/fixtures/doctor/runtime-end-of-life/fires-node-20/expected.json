@@ -1,0 +1,29 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 8
+    },
+    "message": "Node.js 20 (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test) is past its end of life (Node.js 20 ended on 2026-04-30) and gets no more releases, security fixes included",
+    "fix": "Move to a supported Node.js LTS line in GitHub Actions: 22 (until 2027-04-30), 24 (until 2028-04-30) or 26 (until 2029-04-30)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".nvmrc",
+      "line": 1
+    },
+    "message": "Node.js lts/iron in .nvmrc is past its end of life (Node.js 20 ended on 2026-04-30) and gets no more releases, security fixes included",
+    "fix": "Move to a supported Node.js LTS line in .nvmrc: 22 (until 2027-04-30), 24 (until 2028-04-30) or 26 (until 2029-04-30)"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "Dockerfile",
+      "line": 1
+    },
+    "message": "Node.js 20 in Dockerfile is past its end of life (Node.js 20 ended on 2026-04-30) and gets no more releases, security fixes included",
+    "fix": "Move to a supported Node.js LTS line in Dockerfile: 22 (until 2027-04-30), 24 (until 2028-04-30) or 26 (until 2029-04-30)"
+  }
+]

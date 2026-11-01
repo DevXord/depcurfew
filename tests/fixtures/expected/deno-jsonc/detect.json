@@ -22,7 +22,9 @@
           "version": "v2.x",
           "source": "github-actions",
           "file": ".github/workflows/ci.yml",
-          "line": 10
+          "line": 10,
+          "job": "test",
+          "step": 8
         }
       ],
       "configFiles": [
@@ -52,5 +54,15 @@
   "workflows": [
     ".github/workflows/ci.yml"
   ],
+  "jobs": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "id": "test",
+      "line": 4,
+      "commands": [],
+      "runsNode": false
+    }
+  ],
+  "dockerfiles": [],
   "warnings": []
 }

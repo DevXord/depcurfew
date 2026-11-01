@@ -18,8 +18,3 @@ export function detectedTargets(detection: Detection): ToolId[] {
     ...detection.bots.map((bot) => bot.id),
   ];
 }
-
-/** Every detected tool for a one-line summary, including unsupported ones. */
-export function detectedNames(detection: Detection): string[] {
-  return [...detection.packageManagers.map(managerName), ...detection.bots.map((bot) => toolName(bot.id))];
-}

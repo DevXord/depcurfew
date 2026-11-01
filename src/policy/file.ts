@@ -81,7 +81,7 @@ export function findPolicyDirectory(start: string): string | undefined {
 }
 
 /** Whether `directory` or one of its parents has .git. */
-function insideRepository(directory: string): boolean {
+export function insideRepository(directory: string): boolean {
   for (let current = directory; ; current = dirname(current)) {
     if (exists(join(current, GIT_ENTRY))) return true;
     if (dirname(current) === current) return false;

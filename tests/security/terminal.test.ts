@@ -166,8 +166,8 @@ describe('control characters from untrusted sources in text output', () => {
     const result = await exec(['check', '--dir', repo, 'evil-pkg'], true);
     expectVisible(result.stdout);
     const plain = result.stdout.replace(SGR, '');
-    expect(plain).toContain('runs install scripts (postinstall: node x.js\\x0d\\x1b[2Knothing to see)');
-    expect(plain).toContain('is deprecated: use \\x1b]8;;http://evil.example/\\x07lodash\\x1b]8;;\\x07 instead\\x1b]0;PWNED\\x07\\x0d\\x1b[2Kok');
+    expect(plain).toContain('runs install scripts (postinstall: "node x.js\\x0d\\x1b[2Knothing to see")');
+    expect(plain).toContain('is deprecated, with the message "use \\x1b]8;;http://evil.example/\\x07lodash\\x1b]8;;\\x07 instead\\x1b]0;PWNED\\x07\\x0d\\x1b[2Kok');
     const json = JSON.parse((await exec(['check', '--json', '--dir', repo, 'evil-pkg'])).stdout) as { packages: { findings: { message: string }[] }[] };
     expect(json.packages[0]?.findings.some((finding) => finding.message.includes(`instead${TITLE}`))).toBe(true);
   });

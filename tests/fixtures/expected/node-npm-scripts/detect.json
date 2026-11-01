@@ -1,0 +1,19 @@
+{
+  "packageManagers": [],
+  "node": {
+    "versions": []
+  },
+  "bots": [],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
+  "warnings": [
+    {
+      "code": "nothing-detected",
+      "message": "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found",
+      "files": []
+    }
+  ]
+}

@@ -16,15 +16,17 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   yarn: [{ host: 'yarnpkg.com' }, { host: 'github.com', pathPrefix: '/yarnpkg/' }],
   bun: [{ host: 'bun.com' }, { host: 'bun.sh' }, { host: 'github.com', pathPrefix: '/oven-sh/' }],
   deno: [{ host: 'docs.deno.com' }, { host: 'deno.com' }, { host: 'github.com', pathPrefix: '/denoland/' }],
-  uv: [{ host: 'docs.astral.sh' }, { host: 'github.com', pathPrefix: '/astral-sh/' }],
+  // jiff (BurntSushi) is the library uv reads and prints exclude-newer spans with (extra.spanSyntax).
+  uv: [{ host: 'docs.astral.sh' }, { host: 'github.com', pathPrefix: '/astral-sh/' }, { host: 'github.com', pathPrefix: '/burntsushi/jiff/' }],
   pip: [
     { host: 'pip.pypa.io' },
     { host: 'github.com', pathPrefix: '/pypa/' },
     { host: 'packaging.python.org' },
     { host: 'peps.python.org' },
   ],
-  poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }],
-  pdm: [{ host: 'pdm-project.org' }, { host: 'github.com', pathPrefix: '/pdm-project/' }],
+  // platformdirs (tox-dev) is the library both Poetry and PDM call for their user config directory, without an override.
+  poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }, { host: 'github.com', pathPrefix: '/tox-dev/' }],
+  pdm: [{ host: 'pdm-project.org' }, { host: 'github.com', pathPrefix: '/pdm-project/' }, { host: 'github.com', pathPrefix: '/tox-dev/' }],
   pipenv: [{ host: 'pipenv.pypa.io' }, { host: 'github.com', pathPrefix: '/pypa/' }],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
   dependabot: [
@@ -34,7 +36,7 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   ],
 };
 
-/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git and the Windows shells. */
+/** Official locations for facts about the environment: Corepack and Node.js, npm and its registry, Volta, asdf, GitHub Actions, Claude Code, Python packaging, git, the Windows shells, Docker and the Node.js version managers. */
 export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'nodejs.org' },
   { host: 'github.com', pathPrefix: '/nodejs/' },
@@ -64,6 +66,25 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   // PowerShell and cmd.exe: learn.microsoft.com is built from MicrosoftDocs repositories such as PowerShell-Docs.
   { host: 'learn.microsoft.com' },
   { host: 'github.com', pathPrefix: '/microsoftdocs/' },
+  // Model Context Protocol (depcurfew mcp): modelcontextprotocol.io is built from docs/ in
+  // modelcontextprotocol/modelcontextprotocol, which also holds the schema of every revision.
+  { host: 'modelcontextprotocol.io' },
+  { host: 'github.com', pathPrefix: '/modelcontextprotocol/' },
+  // VS Code as an MCP client: code.visualstudio.com/docs is built from microsoft/vscode-docs.
+  { host: 'code.visualstudio.com' },
+  { host: 'github.com', pathPrefix: '/microsoft/vscode-docs/' },
+  // Official Docker images: docker-library/official-images publishes the tags, docker-library/python builds the python image.
+  { host: 'github.com', pathPrefix: '/docker-library/' },
+  // The Dockerfile reference on docs.docker.com is vendored from moby/buildkit; moby/moby vendors the image reference rules.
+  { host: 'github.com', pathPrefix: '/moby/' },
+  // docs.docker.com is built from docker/docs; docker/cli and docker/buildx hold the command references.
+  { host: 'github.com', pathPrefix: '/docker/' },
+  // Buildah and Podman, the tools that read Containerfile.
+  { host: 'github.com', pathPrefix: '/containers/' },
+  // Node.js version managers and their version files: nvm (.nvmrc), nodenv (.node-version) and fnm (Schniz/fnm).
+  { host: 'github.com', pathPrefix: '/nvm-sh/' },
+  { host: 'github.com', pathPrefix: '/nodenv/' },
+  { host: 'github.com', pathPrefix: '/schniz/' },
 ];
 
 export function isOfficialSource(url: URL, rules: readonly SourceRule[]): boolean {

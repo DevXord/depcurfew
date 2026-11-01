@@ -37,11 +37,11 @@ export class Repository {
     this.root = realpathSync(root);
   }
 
-  warn(code: string, message: string, files: readonly string[]): void {
+  warn(code: string, message: string, files: readonly string[], line?: number): void {
     const key = `${code}\0${message}`;
     if (this.#warned.has(key)) return;
     this.#warned.add(key);
-    this.warnings.push({ code, message, files: [...files] });
+    this.warnings.push({ code, message, files: [...files], ...(line === undefined ? {} : { line }) });
   }
 
   /** A file that exists but cannot be read, e.g. without read permission; unreadable-config reports it. */

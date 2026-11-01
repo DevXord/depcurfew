@@ -37,5 +37,7 @@
   "workspaces": null,
   "npmrcFiles": [],
   "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
   "warnings": []
 }

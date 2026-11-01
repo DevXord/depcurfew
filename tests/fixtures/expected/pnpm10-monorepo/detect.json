@@ -39,7 +39,9 @@
         "version": "22",
         "source": "github-actions",
         "file": ".github/workflows/ci.yml",
-        "line": 11
+        "line": 11,
+        "job": "test",
+        "step": 9
       }
     ]
   },
@@ -66,5 +68,21 @@
   "workflows": [
     ".github/workflows/ci.yml"
   ],
+  "jobs": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "id": "test",
+      "line": 4,
+      "commands": [
+        {
+          "kind": "install",
+          "tool": "pnpm",
+          "line": 13
+        }
+      ],
+      "runsNode": true
+    }
+  ],
+  "dockerfiles": [],
   "warnings": []
 }

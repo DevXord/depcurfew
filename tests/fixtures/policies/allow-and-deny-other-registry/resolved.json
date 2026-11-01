@@ -1,1 +1,1 @@
-{ "version": 1, "installScripts": { "default": "deny", "allow": ["*-cli", "pypi:acme-*"], "deny": ["pypi:foo-cli", "acme-native", "@acme/*"] }, "targets": "auto" }
+{ "version": 1, "installScripts": { "default": "deny", "allow": ["*-cli", "pypi:acme-*"], "deny": ["pypi:foo-cli", "acme-native", "@acme/*"] }, "targets": "auto", "projects": [] }

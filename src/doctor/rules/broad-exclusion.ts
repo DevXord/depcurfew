@@ -11,7 +11,9 @@ import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion } from '../effective.ts';
 import { matchesEveryName, readRenovateConfig, ruleScope, type RuleScope } from '../renovate.ts';
 import { lineOf, readSetting, yamlSetting } from '../settings.ts';
+import { managerSources } from '../projects.ts';
 import type { Rule, RuleContext } from '../types.ts';
+import { usesBot, usesManager } from '../applies.ts';
 
 /** Patterns that match every package (or every scoped package): *, **, @*\/*, npm:*, and regexes like /.*\/. */
 export const isBroad = matchesEveryName;
@@ -22,7 +24,8 @@ function tool(context: RuleContext, id: string): ToolKnowledge | undefined {
 
 function checkPolicy(context: RuleContext): void {
   const policy = context.policy;
-  if (policy === undefined) return;
+  // depcurfew.json is the root's; a project listed in projects has none (decision D-100).
+  if (policy === undefined || context.project !== undefined) return;
   const text = context.repository.readText(POLICY_FILE) ?? '';
   const lists: [string, readonly string[]][] = [
     ['cooldown.exclude', policy.cooldown?.exclude ?? []],
@@ -158,7 +161,9 @@ function checkRenovate(context: RuleContext, file: string): void {
   const matching = extraOf(bot, 'packageRuleMatching', isMatching);
   const datasources = extraOf(bot, 'datasources', isRecord);
   // Registries of the detected package managers; a rule for another registry changes nothing here.
-  const detected = [...new Set(context.detection.packageManagers.filter((entry) => entry.supported).flatMap((entry) => {
+  // The bots of the root serve every project listed in projects too (decision D-100).
+  const managers = managerSources(context).flatMap((source) => source.managers);
+  const detected = [...new Set(managers.flatMap((entry) => {
     const knowledge = tool(context, entry.id);
     return knowledge === undefined ? [] : [ecosystemOfTool(knowledge)];
   }))];
@@ -196,11 +201,14 @@ export const broadExclusion: Rule = {
   help: 'Replace the pattern with the packages or scopes that really need the exception.',
   level: 'error',
   requiresPolicy: false,
+  // The policy's own lists, the package managers' exception lists and the bots' rules.
+  applies: (scope) => scope.policy !== undefined || usesManager(scope) || usesBot(scope),
   check(context) {
     checkPolicy(context);
     checkManagers(context);
     checkYarnScopes(context);
-    for (const bot of context.detection.bots) {
+    // A project's own bot files are never read by the bot; bot-cooldown-mismatch gives a note at each (decision D-107).
+    for (const bot of context.project === undefined ? context.detection.bots : []) {
       for (const file of bot.configFiles) {
         if (bot.id === 'dependabot') checkDependabot(context, file);
         if (bot.id === 'renovate') checkRenovate(context, file);

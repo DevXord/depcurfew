@@ -1,0 +1,4 @@
+{
+  // JSON5: unquoted keys and single quotes, which depcurfew does not read
+  minimumReleaseAge: '12 hours',
+}

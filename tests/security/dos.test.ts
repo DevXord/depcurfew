@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { scanCommandLine } from '../../src/check/command.ts';
+import { requestedSpecs } from '../../src/check/hook.ts';
 import { detectProject } from '../../src/detect/index.ts';
 import { wildcardMatch } from '../../src/detect/wildcard.ts';
 import { matchesPattern } from '../../src/doctor/allow-lists.ts';
@@ -84,5 +85,76 @@ describe('PowerShell and cmd command lines of a hook event', () => {
     ['many expansions in cmd /c', `cmd /c "npm i ${'%x% '.repeat(250_000)}"`, 'posix'],
   ] as const)('reads %s quickly', (_label, line, shell) => {
     expect(elapsed(() => scanCommandLine(line, { shell }))).toBeLessThan(5000);
+  });
+});
+
+describe('the directories of a hook event (decision D-118)', () => {
+  it.each([
+    ['many loops that change directory', 'while x; do cd a && npm i y; '.repeat(30_000), 'posix'],
+    ['many changes of directory', 'cd a && npm i y && pushd b && '.repeat(30_000), 'posix'],
+    ['many open subshells', `${'( cd a && '.repeat(80_000)}npm i y`, 'posix'],
+    ['many command substitutions with changes', 'echo $(cd a && npm i y) '.repeat(40_000), 'posix'],
+    ['deeply nested branches', `${'if x; then cd a; '.repeat(60_000)}npm i y`, 'posix'],
+    ['many changes of location in PowerShell', 'Set-Location a; npm i y; Push-Location b; '.repeat(30_000), 'powershell'],
+  ] as const)('reads %s quickly', (_label, line, shell) => {
+    expect(elapsed(() => scanCommandLine(line, { shell }))).toBeLessThan(5000);
+  });
+});
+
+describe('the stack of pushd, traps, env -S and names the shell builds (decision D-123)', () => {
+  // A 1 MiB line takes about a second here; the limit is the one the blocks above use, which leaves room for slow CI
+  // machines (Windows runners took 2.5 s) and still catches the super-linear cases these inputs come from (14 s to 68 s).
+  const MiB = 1024 * 1024;
+  /** `part` repeated up to 1 MiB, the most the hook reads, with `tail` at the end. */
+  const filled = (part: string, tail = '') => part.repeat(Math.floor((MiB - tail.length) / part.length)) + tail;
+  it.each([
+    // The verifier's inputs: every ( ) subshell used to copy the stack of pushd (36.7 s and 27.7 s).
+    ['many pushd, then many subshells', `${'pushd a;'.repeat(62_000)}${'(:);'.repeat(120_000)}npm i fresh-pkg@1.1.0`],
+    ['pushd and a subshell, many times', 'pushd a; (:); '.repeat(70_000)],
+    ['pushd of an absolute path and a subshell', filled('pushd /a; (:); ', 'npm i x')],
+    ['cd and cd -, many times', filled('cd a; cd -; ', 'npm i x')],
+    ['cd to absolute paths between installs', filled('cd /a; npm i x; cd /b; npm i y; ')],
+    ['installs after long paths', `${`cd ${'a'.repeat(1000)}; `.repeat(64)}${'npm i x;'.repeat(120_000)}`],
+    ['pushd and pushd +1', filled('pushd a; pushd +1; ', 'npm i x')],
+    ['pushd, popd and an install', filled('pushd a; popd; npm i x; ')],
+    ['dirs -c between pushd and popd', filled('pushd a; dirs -c; popd; ', 'npm i x')],
+    ['pushd -n', filled('pushd -n a; ', 'popd; npm i x')],
+    ['nested env -S', filled("env -S'-S\"-i\"' ", 'npm i x')],
+    ['many -S strings', `env ${'-S -i '.repeat(150_000)}npm i x`],
+    ['an alias that ends in a blank, many times', `alias n='n '; ${'n '.repeat(400_000)}`],
+    ['a long alias that ends in a blank', `alias n='${'x'.repeat(1000)} '; ${'n '.repeat(400_000)}`],
+    ['traps that change directory', filled("trap 'cd a' DEBUG; npm i x; ")],
+    ['files run with .', filled('. ./x.sh; npm i x; ')],
+    ['activation scripts of virtual environments', filled('source .venv/bin/activate; pip install x; . v/bin/activate; ')],
+    ['declare with a name the shell builds', filled('declare "$X=1"; cd -; npm i x; ')],
+    ['arithmetic and subscripts', filled('(( $X )); echo ${a[$i]}; ')],
+    ['functions that change directory', filled('f() { cd a; }; npm i x; ')],
+    ['many commands that do nothing', filled(':;')],
+  ])('reads %s quickly', (_label, line) => {
+    expect(elapsed(() => scanCommandLine(line))).toBeLessThan(5000);
+  });
+
+  it('collects many options that weaken the policy quickly in the hook (it took 7.8 s)', () => {
+    const line = 'npm ci --min-release-age=0;'.repeat(36_000);
+    expect(elapsed(() => expect(requestedSpecs(line).overrides).toHaveLength(36_000))).toBeLessThan(5000);
+  });
+
+  it('removes repeated installs in a directory with long paths quickly in the hook (it took 18 s)', () => {
+    const line = `${`cd ${'a'.repeat(1000)}; `.repeat(64)}${'npm i x;'.repeat(120_000)}`;
+    expect(elapsed(() => expect(requestedSpecs(line).specs).toHaveLength(1))).toBeLessThan(5000);
+  });
+});
+
+describe('aliases that expand themselves (decision D-119)', () => {
+  it.each([
+    ['an alias of 30 copies of itself', `alias a='${'a;'.repeat(30)}'; a`],
+    ['an alias of 40 copies of itself', `alias a='${'a;'.repeat(40)}'; a`],
+    ['an alias that installs and expands itself', `alias a='npm i x; ${'a; '.repeat(40)}'; a; a; a`],
+    ['two aliases that expand each other', `alias a='${'b;'.repeat(40)}' b='${'a;'.repeat(40)}'; a; b`],
+    ['a chain of aliases', `alias d='${'true;'.repeat(40)}'; alias c='${'d;'.repeat(40)}'; alias b='${'c;'.repeat(40)}'; alias a='${'b;'.repeat(40)}'; a; a`],
+    ['an alias through eval', `alias a='eval "${'a;'.repeat(40)}"'; a`],
+    ['many uses of a long alias', `alias a='${'true; '.repeat(20_000)}'; ${'a;'.repeat(20_000)}`],
+  ])('reads %s in under a second', (_label, line) => {
+    expect(elapsed(() => scanCommandLine(line))).toBeLessThan(1000);
   });
 });

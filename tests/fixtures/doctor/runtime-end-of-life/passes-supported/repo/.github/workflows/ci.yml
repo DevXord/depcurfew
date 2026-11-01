@@ -1,0 +1,12 @@
+name: CI
+on: [push]
+jobs:
+  old-node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+      - uses: ./
+      - run: test -s report.sarif

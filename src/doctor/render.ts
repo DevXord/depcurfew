@@ -2,6 +2,7 @@
 // repository, so control characters in them are shown as visible text (printable) before colors are added.
 import { PLAIN, type Paint } from '../color.ts';
 import { printable } from '../printable.ts';
+import { failOnExplanation, type FailOnSetting } from './fail-on.ts';
 import type { Checked, CheckedTool, DoctorReport, Finding, Level, Rule, RuleResult } from './types.ts';
 
 export function countLevels(findings: readonly Finding[]): Record<'error' | 'warning' | 'note', number> {
@@ -19,24 +20,35 @@ function levelColor(level: Level, colors: Paint): (text: string) => string {
   return level === 'warning' ? colors.yellow : colors.cyan;
 }
 
-/** A tool as the log of what was checked names it: npm 11.21.1 (package.json). */
+/** A tool as the log of what was checked names it: npm 11.21.1 (package.json), and in a project npm 11.21.1 (frontend/package.json) in frontend. */
 export function checkedTool(tool: CheckedTool): string {
-  if (tool.version === undefined) return tool.name;
-  return `${tool.name} ${tool.version}${tool.versionFrom === undefined ? '' : ` (${tool.versionFrom})`}`;
+  const where = `${tool.project === undefined ? '' : ` in ${tool.project}`}${tool.unread === true ? ` (not read by ${tool.name})` : ''}`;
+  if (tool.version === undefined) return `${tool.name}${where}`;
+  return `${tool.name} ${tool.version}${tool.versionFrom === undefined ? '' : ` (${tool.versionFrom})`}${where}`;
 }
 
-/** Each rule with what it checks and what came of it, from the findings of the run. */
-export function ruleResults(rules: readonly Rule[], findings: readonly Finding[], skipped: (rule: Rule) => boolean): RuleResult[] {
+/**
+ * Each rule with what it checks and what came of it, from the findings of the run. A rule with findings has problems
+ * whatever `applies` says; one that does not apply is not applicable rather than skipped, since a policy would not
+ * give it anything to check.
+ */
+export function ruleResults(
+  rules: readonly Rule[],
+  findings: readonly Finding[],
+  skipped: (rule: Rule) => boolean,
+  applies: (rule: Rule) => boolean = () => true,
+): RuleResult[] {
   return rules.map((rule) => {
     const own = findings.filter((finding) => finding.rule === rule.id);
     const count = (level: Level) => own.filter((finding) => finding.level === level).length;
-    const result: RuleResult['result'] = skipped(rule) ? 'skipped' : own.length > 0 ? 'problems' : 'passed';
+    const result: RuleResult['result'] = own.length > 0 ? 'problems' : !applies(rule) ? 'not-applicable' : skipped(rule) ? 'skipped' : 'passed';
     return { rule: rule.id, check: rule.checks ?? rule.summary, result, errors: count('error'), warnings: count('warning'), notes: count('note') };
   });
 }
 
-/** The result of one check as a word or counts: passed, skipped, or "1 error, 2 warnings". */
+/** The result of one check as words or counts: passed, skipped, not applicable, or "1 error, 2 warnings". */
 export function resultText(result: RuleResult): string {
+  if (result.result === 'not-applicable') return 'not applicable';
   if (result.result !== 'problems') return result.result;
   return (
     [
@@ -55,15 +67,24 @@ export function resultCounts(results: readonly RuleResult[]): string {
   const of = (kind: RuleResult['result']) => results.filter((result) => result.result === kind).length;
   const parts = [`${of('passed')} passed`];
   if (of('problems') > 0) parts.push(`${of('problems')} found problems`);
+  if (of('not-applicable') > 0) parts.push(`${of('not-applicable')} not applicable`);
   if (of('skipped') > 0) parts.push(`${of('skipped')} skipped`);
   return `${results.length} ${results.length === 1 ? 'check' : 'checks'}: ${parts.join(', ')}`;
+}
+
+/**
+ * What a skipped check needs, after it: the policy file, or a valid one when the file is there but invalid (decision
+ * D-121). `file` is the policy file as shown (depcurfew.json, or `depcurfew.json` in Markdown).
+ */
+export function policyNeeded(file: string, policy: DoctorReport['policy'] | undefined): string {
+  return policy === 'invalid' ? `needs a valid ${file}` : `needs ${file}`;
 }
 
 /**
  * What doctor checked, below the result: the tools found, the files read and every check with its result, so that a
  * clean report says what it covers and is not mistaken for one that did nothing.
  */
-export function checkedLines(checked: Checked): string[] {
+export function checkedLines(checked: Checked, policy?: DoctorReport['policy']): string[] {
   const width = Math.max(...checked.rules.map((result) => resultText(result).length), 'passed'.length);
   return [
     'What was checked:',
@@ -71,19 +92,38 @@ export function checkedLines(checked: Checked): string[] {
     `  Files read: ${checked.files.length === 0 ? 'none' : checked.files.join(', ')}`,
     `  ${resultCounts(checked.rules)}`,
     ...checked.rules.map(
-      (result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === 'skipped' ? ` (needs ${checked.policyFile})` : ''} [${result.rule}]`,
+      (result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === 'skipped' ? ` (${policyNeeded(checked.policyFile, policy)})` : ''} [${result.rule}]`,
     ),
   ];
 }
 
-export function renderText(report: DoctorReport, rules: readonly Rule[], colors: Paint = PLAIN): string {
+/** The line --strict adds when warnings make doctor fail. */
+export const STRICT_NOTE = '--strict: warnings count as failures, so depcurfew doctor exits with 1';
+
+/**
+ * `failOn`: which findings fail doctor and where that was set (decision D-112); when warnings make it fail, a line under
+ * the counts says why, with how to fail on errors only. `strict` alone (before D-112) adds STRICT_NOTE.
+ */
+export function renderText(
+  report: DoctorReport,
+  rules: readonly Rule[],
+  colors: Paint = PLAIN,
+  options: { strict?: boolean; failOn?: FailOnSetting } = {},
+): string {
   const counts = countLevels(report.findings);
+  // The line of counts covers what the text shows: the notes below count as notes too (decision D-116). Which findings
+  // fail doctor is decided from the findings alone, and notes never do.
+  const shown = { ...counts, note: counts.note + report.notices.length };
   const lines: string[] = [];
   if (report.findings.length === 0) {
     lines.push(colors.green('No problems found.'));
   } else {
-    const count = (level: Level) => (counts[level] === 0 ? plural(0, level) : levelColor(level, colors)(plural(counts[level], level)));
+    const count = (level: Level) => (shown[level] === 0 ? plural(0, level) : levelColor(level, colors)(plural(shown[level], level)));
     lines.push(`${count('error')}, ${count('warning')}, ${count('note')}`);
+    // When a warning alone makes doctor fail, say so next to the counts, with where that was set.
+    const explanation = options.failOn === undefined ? undefined : failOnExplanation(options.failOn, counts);
+    if (explanation !== undefined) lines.push(printable(explanation.message), `  ${colors.green('fix:')} ${printable(explanation.fix)}`);
+    else if (options.failOn === undefined && options.strict === true && counts.warning > 0) lines.push(STRICT_NOTE);
     let file: string | undefined;
     for (const finding of report.findings) {
       if (finding.location.file !== file) {
@@ -97,8 +137,13 @@ export function renderText(report: DoctorReport, rules: readonly Rule[], colors:
     }
   }
   if (report.notices.length > 0) {
-    lines.push('', colors.bold('Notes:'), ...report.notices.map((notice) => `  ${printable(notice.message)}`));
+    // Each with its level as a word, its code and what to do, as findings have them (decision D-116).
+    lines.push('', colors.bold('Notes:'));
+    for (const notice of report.notices) {
+      lines.push(`  ${levelColor('note', colors)('note')} ${printable(notice.message)} ${colors.dim(`(${printable(notice.code)})`)}`);
+      if (notice.fix !== undefined) lines.push(`    ${colors.green('fix:')} ${printable(notice.fix)}`);
+    }
   }
-  if (report.checked !== undefined) lines.push('', ...checkedLines(report.checked).map((line, index) => (index === 0 ? colors.bold(printable(line)) : printable(line))));
+  if (report.checked !== undefined) lines.push('', ...checkedLines(report.checked, report.policy).map((line, index) => (index === 0 ? colors.bold(printable(line)) : printable(line))));
   return `${lines.join('\n')}\n`;
 }

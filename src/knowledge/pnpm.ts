@@ -1,11 +1,12 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
+import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
+const runtimes = verifiedOn('2026-11-01');
 const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
 const PNPM_V11_CODE = 'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src';
 
@@ -253,6 +254,11 @@ export const pnpm: ToolKnowledge = {
       'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/building/policy/src/index.ts',
       'allowBuilds: { pkg: false } records a denial: the build is decided, not reported as unreviewed and does not fail strictDepBuilds ("A recorded build the policy denies was decided on purpose"). pnpm 10.26 maps false to ignoredBuiltDependencies, which only silences the report. Under dangerouslyAllowAllBuilds a denied package still builds before pnpm 12.12.0.',
     ),
+    projectInstall: runtimes.verified(
+      { commands: ['install', 'i'], bare: false },
+      'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli/install.md',
+      'Commands that install the dependencies of the project: "pnpm install is used to install all dependencies for a project", "Aliases: i". pnpm add (commandLine.add) adds packages. pnpm without a command does not install.',
+    ),
     commandLine: rechecked.verified(
       {
         add: [['pnpm', 'add']],
@@ -293,7 +299,7 @@ export const pnpm: ToolKnowledge = {
       `${PNPM_V12}/pnpm11/config/reader/src/index.ts`,
       'registry and @scope:registry are read from the command line over .npmrc (docs/npmrc.md in pnpm/pnpm.io). Every pnpm_config_<key> or PNPM_CONFIG_<KEY> variable whose key is a setting sets it (src/env.ts, parseEnvVars), registry included. The user-level .npmrc, which may set any registry, is the file named by --npmrc-auth-file, --userconfig, pnpm_config_npmrc_auth_file, pnpm_config_userconfig, npmrcAuthFile in the global config.yaml or npm_config_userconfig (getNpmrcAuthFile; src/loadNpmrcFiles.ts reads it in place of ~/.npmrc). pnpm 10 reads npm_config_* variables as npm does.',
     ),
-    parsing: reviewed.verified(
+    parsing: runtimes.verified(
       {
         abbreviations: true,
         anyDashes: true,
@@ -309,7 +315,54 @@ export const pnpm: ToolKnowledge = {
         },
       },
       `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`,
-      'pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag. Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y.',
+      'pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag: lib/nopt.js strips every leading no- in any case, each one inverting it, before the prefix is resolved, so --no-ign is --no-ignore-scripts when no other option of the command starts with ign (parse-cli-args, shorthands.ts and pnpm/nopt read again 2026-11-01). Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y.',
+    ),
+    booleanWords: runtimes.verified(
+      true,
+      'https://github.com/pnpm/nopt/blob/main/lib/nopt.js',
+      'The nopt fork pnpm imports (@pnpm/nopt, imported by pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1) reads a Boolean option followed by the word true or false as that value and skips the word, inverted after --no- (parse in lib/nopt.js).',
+    ),
+    directoryOptions: runtimes.verified<DirectoryOptionsKnowledge>(
+      { options: [{ name: '--dir', moves: 'directory' }], variables: [] },
+      'https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/pnpm-cli.md',
+      '-C <path>, --dir <path>: "Run as if pnpm was started in <path> instead of the current working directory." -C is the shorthand of --dir (parsing.shorthands). pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1 takes dir from the options nopt parsed from the whole command line ("let dir = parsedOpts[\'dir\']") and looks for the workspace from it ("findWorkspaceDir((dir ?? process.cwd()) as string)"). -w, --workspace-root ("Run as if pnpm was started in the root of the workspace") is not listed: it names no directory.',
+    ),
+    configCommands: runtimes.verified(
+      [
+        { command: ['pnpm', 'config'], writes: ['set', 'delete'] },
+        { command: ['pnpm', 'c'], writes: ['set', 'delete'] },
+        { command: ['pnpm', 'pkg'], writes: ['set', 'delete', 'fix'], manifest: true },
+      ],
+      'https://github.com/pnpm/pnpm.io/blob/main/docs/cli/config.md',
+      'pnpm config (aliases: c) manages the configuration files: set <key> <value>, get <key>, delete <key> and list; get and list only read. pnpm pkg "Manages the contents of package.json from the command line": get, set, delete and fix, no aliases (docs/cli/pkg.md).',
+    ),
+    installOverrides: runtimes.verified(
+      {
+        options: [
+          { name: '--ignore-scripts', weakens: 'scripts', values: { except: ['true'] } },
+          { name: '--ignoreScripts', weakens: 'scripts', values: { except: ['true'] } },
+          { name: '--allow-build', weakens: 'scripts', values: 'any' },
+          { name: '--dangerouslyAllowAllBuilds', weakens: 'scripts', values: { except: ['false'] } },
+          { name: '--dangerously-allow-all-builds', weakens: 'scripts', values: { except: ['false'] } },
+          { name: '--minimumReleaseAge', weakens: 'delay', values: 'delay' },
+          { name: '--minimum-release-age', weakens: 'delay', values: 'delay' },
+          { name: '--minimumReleaseAgeExclude', weakens: 'delay', values: 'any' },
+          { name: '--minimum-release-age-exclude', weakens: 'delay', values: 'any' },
+          { name: '--minimumReleaseAgeStrict', weakens: 'delay', values: { except: ['true'] } },
+          { name: '--minimum-release-age-strict', weakens: 'delay', values: { except: ['true'] } },
+        ],
+        variables: [
+          { name: 'pnpm_config_minimum_release_age', weakens: 'delay', values: 'delay' },
+          { name: 'pnpm_config_minimum_release_age_exclude', weakens: 'delay', values: 'any' },
+          { name: 'pnpm_config_minimum_release_age_strict', weakens: 'delay', values: { except: ['true'] } },
+          { name: 'pnpm_config_ignore_scripts', weakens: 'scripts', values: { except: ['true'] } },
+          { name: 'pnpm_config_dangerously_allow_all_builds', weakens: 'scripts', values: ['true'] },
+          { name: 'npm_config_minimum_release_age', weakens: 'delay', values: 'delay' },
+          { name: 'npm_config_dangerously_allow_all_builds', weakens: 'scripts', values: { except: ['false', 'null', 'undefined'] } },
+        ],
+      },
+      `${PNPM_V12}/pnpm11/config/reader/src/env.ts`,
+      'pnpm add takes --ignore-scripts ("Same as the ignoreScripts setting") and --allow-build, which lists packages allowed to run postinstall scripts (docs/cli/add.md in pnpm/pnpm.io; a ! prefix denies one instead, still asked about). Any setting can be given as --config.<key>=<value>, the key kept as written (normalizeOptions in pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1), so both spellings are listed and the scanner reads the key without --config.. pnpm_config_<key> and PNPM_CONFIG_<KEY> set the setting of the camel-cased key; a Boolean only from the exact words true and false, a number with Number (parseEnvVars in env.ts). pnpm 10 reads npm_config_* variables as npm does (registryOverrides). minimumReleaseAgeStrict false installs a younger version when no older one matches (user.weakening).',
     ),
     minimumReleaseAgeStrict: checked.verified(
       { setting: 'minimumReleaseAgeStrict', value: true, since: '11.0.0' },

@@ -4,8 +4,9 @@
 import { statSync } from 'node:fs';
 import { relative, resolve, sep } from 'node:path';
 import { PolicyError, policyErrorFix } from '../apply/index.ts';
+import { listedAsProject } from '../apply/projects.ts';
 import type { ApplyErrorCode } from '../apply/warnings.ts';
-import { paint } from '../color.ts';
+import { paint, PLAIN, type Paint } from '../color.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { findPolicyDirectory } from '../policy/file.ts';
 import { printable } from '../printable.ts';
@@ -15,7 +16,8 @@ import type { CliIo } from './io.ts';
 export interface InputError {
   code: ApplyErrorCode;
   level: 'error';
-  location: { file: string };
+  /** `variable` with file "environment": the environment variable that is wrong (HOME, decision D-124). */
+  location: { file: string; line?: number; variable?: string };
   message: string;
   fix: string;
   issues?: string[];
@@ -46,12 +48,26 @@ export function checkDirectory(directory: string | undefined, cwd = process.cwd(
 }
 
 /**
- * The directory apply, doctor and explain work on. A directory given on the command line is taken as it is. Without
- * one, it is the nearest directory with depcurfew.json from `cwd` up to the root of the repository, so a command run
- * in a subdirectory does not pass for a project without a policy; `notice` then says which directory it is.
+ * The directory apply, doctor and explain work on. Without a directory on the command line, it is the nearest directory
+ * with depcurfew.json from `cwd` up to the root of the repository, so a command run in a subdirectory does not pass for
+ * a project without a policy. A directory given on the command line is taken as it is, unless the nearest depcurfew.json
+ * above it lists it (or a directory it lies in) under projects: then the command works on that root, which checks it as
+ * one of its projects, as when run in that directory (decision D-115). `notice` says which directory it is.
  */
 export function projectDirectory(directory: string | undefined, command: string, cwd = process.cwd()): DirectoryResult {
-  if (directory !== undefined) return checkDirectory(directory, cwd);
+  if (directory !== undefined) {
+    const checked = checkDirectory(directory, cwd);
+    if (!checked.ok) return checked;
+    const found = findPolicyDirectory(checked.directory);
+    if (found === undefined || found === checked.directory || !listedAsProject(found, checked.directory)) return checked;
+    const shown = relative(resolve(cwd), found).split(sep).join('/') || '.';
+    const file = shown === '.' ? POLICY_FILE : `${shown}/${POLICY_FILE}`;
+    return {
+      ok: true,
+      directory: found,
+      notice: `${directory} is listed in projects in ${file}, so depcurfew ${command} works on ${shown}, which covers it with that policy; paths are relative to it`,
+    };
+  }
   const start = resolve(cwd);
   const found = findPolicyDirectory(start);
   if (found === undefined || found === start) return checkDirectory(undefined, start);
@@ -64,22 +80,44 @@ export function policyInputError(error: PolicyError, file: string): InputError {
   return {
     code: error.code,
     level: 'error',
-    location: { file },
+    location: { file, ...(error.line === undefined ? {} : { line: error.line }) },
     message: error.message,
-    fix: policyErrorFix(error),
+    fix: policyErrorFix(error, file),
     ...(error.issues.length === 0 ? {} : { issues: error.issues }),
   };
 }
 
-/** An input error on stderr, like an error of apply: the message with its code, the issues, then what to do. */
-export function reportInputError(error: InputError, io: CliIo): void {
-  const colors = paint(io.colors?.stderr);
-  const lines = [
-    `error: ${printable(error.message)} ${colors.dim(`(${error.code})`)}`,
+/**
+ * The message of an input error with the line of its location, as the JSON document has it (decision D-122): after the
+ * file when the message starts with it ("depcurfew.json (line 6) is invalid"), else before the message, as apply names
+ * the line of an entry of projects ("app/depcurfew.json (line 6): depcurfew.json is invalid"). A message that names
+ * the line itself, and a location without one, leave the message as it is. The Action says an invalid policy the same
+ * way (decision D-124).
+ */
+export function messageAtLine(message: string, file: string, line: number | undefined): string {
+  if (line === undefined || new RegExp(`\\bline ${line}\\b`, 'u').test(message)) return message;
+  return message.startsWith(`${file} `) ? `${file} (line ${line})${message.slice(file.length)}` : `${file} (line ${line}): ${message}`;
+}
+
+function withLine(error: InputError): string {
+  return messageAtLine(error.message, error.location.file, error.location.line);
+}
+
+/**
+ * An input error as lines, like an error of apply: the level and the message with its code, the issues, then what to
+ * do. One source for stderr and for explain, which shows an unusable depcurfew.json in its report (decision D-111).
+ */
+export function inputErrorLines(error: InputError, colors: Paint = PLAIN): string[] {
+  return [
+    `error: ${printable(withLine(error))} ${colors.dim(`(${error.code})`)}`,
     ...(error.issues ?? []).map((issue) => `  ${printable(issue)}`),
     `  ${colors.green('fix:')} ${printable(error.fix)}`,
   ];
-  io.stderr(`${lines.join('\n')}\n`);
+}
+
+/** An input error on stderr (inputErrorLines). */
+export function reportInputError(error: InputError, io: CliIo): void {
+  io.stderr(`${inputErrorLines(error, paint(io.colors?.stderr)).join('\n')}\n`);
 }
 
 /** The absolute path of an existing directory given on the command line, or undefined after reporting the error. */

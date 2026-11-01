@@ -3,6 +3,7 @@
 import { TOOL_IDS } from '../knowledge/schema.ts';
 import { DURATION_PATTERN, parseDuration } from './duration.ts';
 import { PACKAGE_PATTERN, validatePackagePattern } from './package-pattern.ts';
+import { PROJECT_DIRECTORY_PATTERN, validateProjectDirectory } from './project-directory.ts';
 import {
   anyOf,
   anyString,
@@ -105,6 +106,45 @@ export const targetsShape = anyOf(
   { description: 'Tools to configure: "auto" detects them in the repository, or list them explicitly.' },
 );
 
+export const projectsShape = list(
+  text({
+    label: 'a directory path such as "frontend"',
+    kind: 'invalid project directory',
+    pattern: PROJECT_DIRECTORY_PATTERN,
+    examples: ['frontend', 'services/api'],
+    description: 'A directory relative to the repository root, with / between directories, e.g. "frontend" or "services/api". No patterns, no "..", no / at either end.',
+    parse: (input) => {
+      const message = validateProjectDirectory(input);
+      return message === undefined ? { ok: true, value: input } : { ok: false, message };
+    },
+  }),
+  {
+    unique: true,
+    description:
+      'Directories of independent projects in this repository, each with its own manifest and lockfile (e.g. frontend and backend). depcurfew configures each one with this policy as a project of its own, and configures Renovate and Dependabot once, from the repository root, for all of them. The repository root is always configured as well. A project must not be inside another one, must not be a workspace package of the root and must not have a depcurfew.json of its own.',
+  },
+);
+
+/** Which findings make depcurfew doctor exit with 1 (decision D-112). */
+export const FAIL_ON_LEVELS = ['error', 'warning'] as const;
+
+export const doctorShape = object(
+  {
+    // No default here: a section without failOn leaves the choice to doctor, which then fails on errors only and says
+    // that the default decided (decision D-116).
+    failOn: optional(
+      oneOfStrings(FAIL_ON_LEVELS, {
+        description:
+          'Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: "error" (only errors, also when left out) or "warning" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it.',
+      }),
+    ),
+  },
+  {
+    description:
+      'How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes "failOn": "warning".',
+  },
+);
+
 export const policyShape = object(
   {
     $schema: optional(anyString({ description: 'JSON Schema of this file, for editor support.' })),
@@ -113,6 +153,8 @@ export const policyShape = object(
     installScripts: optional(installScriptsShape),
     sources: optional(sourcesShape),
     targets: withDefault(targetsShape, 'auto'),
+    projects: withDefault(projectsShape, []),
+    doctor: optional(doctorShape),
   },
   { description: 'One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot.' },
 );

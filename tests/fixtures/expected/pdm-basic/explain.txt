@@ -1,0 +1,8 @@
+Policy (depcurfew.json):
+  targets: PDM (detected)
+  cooldown 36h:
+    PDM: 36 hours
+  installScripts deny, allow pypi:docopt:
+    PDM: only-binary and no-binary in [tool.pdm.resolution] of pyproject.toml; warning: PDM: only-binary forbids building only packages from an index; PDM still builds git, local directory and source archive dependencies (build-switch-scope); fix: Run depcurfew doctor to find them in the lockfile; warning: PDM: no-binary lets docopt be built from source while building is forbidden for everything else; PDM then always builds it from source, even where a wheel exists, because it has no setting that only allows building (forced-source-build); fix: If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json
+  sources git deny, remoteTarball deny, file allow, directory allow:
+    PDM: nothing written; warning: PDM has no setting for git dependencies, so "deny" cannot be enforced; PDM has no setting for URL dependencies, so "deny" cannot be enforced (source-not-enforceable); fix: Run depcurfew doctor, which reports such dependencies in the lockfile

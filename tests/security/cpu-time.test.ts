@@ -44,7 +44,10 @@ describe('many edits of one YAML file', () => {
     const root = repository({ 'package.json': '{}', '.github/dependabot.yml': `version: 2\nupdates:\n${entry.repeat(500)}` });
     let findings: ReturnType<typeof runDoctor>['findings'] = [];
     expect(seconds(() => (findings = runDoctor(root).findings))).toBeLessThan(10);
-    expect(findings.filter((finding) => finding.rule === 'config-drift' && finding.location.file === '.github/dependabot.yml')).toHaveLength(1);
+    // Each entry differs: five findings, the last with how many more places differ (decision D-115).
+    const drift = findings.filter((finding) => finding.rule === 'config-drift' && finding.location.file === '.github/dependabot.yml');
+    expect(drift).toHaveLength(5);
+    expect(drift.at(-1)?.message).toMatch(/; 495 more places in \.github\/dependabot\.yml differ too \(depcurfew apply --dry-run shows them\)$/u);
     let after = '';
     expect(seconds(() => (after = applyProject(root, { write: false }).changes.find((change) => change.file === '.github/dependabot.yml')?.after ?? ''))).toBeLessThan(10);
     expect(after.match(/default-days: 3/gu)).toHaveLength(500);

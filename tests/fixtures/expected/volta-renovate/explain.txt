@@ -1,0 +1,11 @@
+Policy (depcurfew.json):
+  targets: npm, Renovate (detected)
+  cooldown 3d:
+    npm: 3 days
+    Renovate: 3 days
+  installScripts deny, allow esbuild and @scope/*:
+    npm: nothing written; warning: npm 11.6.2 (Volta in package.json), npm 11.6.2 (installed in job test of .github/workflows/ci.yml, line 11) and npm 10.9.0 (with Node.js 22.11.0 in .tool-versions) run every dependency install script and have no allow-list, so "deny" cannot be enforced there (scripts-not-enforceable); fix: Install npm 11.16.0 or later before packages are installed there (npm install -g npm@11.16.0), or move to a Node.js release that comes with it, and require it in Volta in package.json; npm 12 blocks dependency scripts by default; warning: npm 11.6.2 does not support min-release-age and allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), allowScripts (added in 11.16.0); not written (version-too-old); fix: Require npm 11.16.0 or later where the version is pinned
+    Renovate: nothing to write
+  sources git deny, remoteTarball deny, file allow, directory allow:
+    npm: nothing written; warning: npm 11.6.2 does not support min-release-age and allow-git (added in 11.10.0), allow-remote, allow-file and allow-directory (added in 11.15.0), allowScripts (added in 11.16.0); not written (version-too-old); fix: Require npm 11.16.0 or later where the version is pinned
+    Renovate: nothing to write

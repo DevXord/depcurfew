@@ -1,9 +1,11 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
+import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './platformdirs.ts';
+import type { DirectoryOptionsKnowledge, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
+const leftovers = verifiedOn('2026-11-01');
 
 // pdm-project.org is built from docs/ in the repository.
 const PDM = 'https://github.com/pdm-project/pdm/blob/2.29.5';
@@ -12,7 +14,7 @@ const CHANGELOG = `${PDM}/CHANGELOG.md`;
 const CANDIDATES = `${PDM}/src/pdm/models/candidates.py`;
 const CONFIG = `${PDM}/src/pdm/project/config.py`;
 
-/** The home config.toml; only the macOS directories are disputed. */
+/** The home config.toml; on macOS the directories are those of the docs (see user.libraryDirectories). */
 const userFiles = (darwin: readonly UserDirectory[]): Versioned<UserFile> => [
   {
     since: '0.0.0',
@@ -114,18 +116,15 @@ export const pdm: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, `${PDM}/docs/usage/workspace.md`, 'Not read; see workspaces.'),
   },
   user: {
-    files: user.disputed(
-      'The docs give ~/Library/Application Support/pdm on macOS. The code asks the installed platformdirs (not pinned in pyproject.toml), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) PDM reads $XDG_CONFIG_HOME/pdm/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in PDM\'s environment. Linux and Windows agree. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked.',
-      user.evidence(
-        userFiles([MACOS_DIRECTORY]),
-        `${PDM}/docs/usage/config.md`,
-        '<CONFIG_ROOT> is "$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux", "~/Library/Application Support/pdm on macOS" and "%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows".',
-      ),
-      user.evidence(
-        userFiles([{ from: { env: 'XDG_CONFIG_HOME' }, path: 'pdm' }, MACOS_DIRECTORY]),
-        `${PDM}/src/pdm/project/core.py`,
-        'global_config = platformdirs.user_config_path("pdm") / "config.toml", which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows the default appauthor repeats the name (pdm\\pdm) and roaming is off, so platformdirs asks for the Local AppData known folder.',
-      ),
+    files: user.verified(
+      userFiles([MACOS_DIRECTORY]),
+      `${PDM}/docs/usage/config.md`,
+      '<CONFIG_ROOT> is "$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux", "~/Library/Application Support/pdm on macOS" and "%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows". The code agrees on Linux and Windows: global_config = platformdirs.user_config_path("pdm") / "config.toml", without an override (src/pdm/project/core.py; on Windows the default appauthor repeats the name and roaming is off, so platformdirs asks for the Local AppData known folder). On macOS the directory depends on the installed platformdirs (libraryDirectories); the docs\' directory is used when its version cannot be read. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked.',
+    ),
+    libraryDirectories: leftovers.verified(
+      platformdirsMacos('pdm'),
+      PLATFORMDIRS_CHANGELOG,
+      `PDM 2.29.5 does not pin platformdirs (pyproject.toml; its own lock has 4.9.6). ${PLATFORMDIRS_NOTE}`,
     ),
     settings: user.verified(
       [{ purpose: 'cooldown', key: 'strategy.exclude-newer', since: '2.27.0' }],
@@ -192,10 +191,41 @@ export const pdm: ToolKnowledge = {
       `${PDM}/src/pdm/project/project_file.py`,
       'pdm.lock keeps a content_hash of the whole [tool.pdm.resolution] table (PyProject.content_hash), or with canonical lock inputs (lock_inputs = true, since 2.28.1) the table itself (src/pdm/project/lockfile/freshness.py), so a change to any key in it, exclude-newer and only-binary included, makes the lockfile out of date. pdm lock --check and pdm install --check then exit with 1 ("Lockfile doesn\'t satisfy the project requirements"), pdm install without --check locks again first and pdm sync only warns (check_lockfile in src/pdm/cli/actions.py) until pdm lock runs again; with exclude-newer set, pdm lock resolves every package again (src/pdm/cli/commands/lock.py).',
     ),
+    lockHash: leftovers.verified(
+      {
+        key: ['metadata', 'content_hash'],
+        separator: ':',
+        inputs: ['metadata', 'lock_inputs'],
+        inputsSetting: ['tool', 'pdm', 'resolution', 'lock_inputs'],
+        workspace: ['tool', 'pdm', 'workspace'],
+        project: ['project'],
+        fields: [
+          { name: 'sources', path: ['tool', 'pdm', 'source'], missing: [] },
+          { name: 'dependencies', path: ['project', 'dependencies'], missing: [] },
+          { name: 'optional-dependencies', path: ['project', 'optional-dependencies'], missing: {} },
+          { name: 'requires-python', path: ['project', 'requires-python'], missing: '' },
+          { name: 'resolution', path: ['tool', 'pdm', 'resolution'], missing: {} },
+        ],
+        groups: { name: 'dev-dependencies', tables: [['dependency-groups'], ['tool', 'pdm', 'dev-dependencies']], separators: '[^A-Za-z0-9]+' },
+      },
+      `${PDM}/src/pdm/project/project_file.py`,
+      'PyProject.content_hash: json.dumps(dump_data, sort_keys=True) of sources (tool.pdm.source, default []), dependencies, dev-dependencies, optional-dependencies (default {}), requires-python (default "") and resolution (tool.pdm.resolution, default {}), encoded as UTF-8 and hashed with hashlib (sha256). dev-dependencies are the [dependency-groups] tables, each name normalized (normalize_name in src/pdm/utils.py: re.sub(r"[^A-Za-z0-9]+", "-", name).lower(); a name twice is an error), then the lists of tool.pdm.dev-dependencies appended under their normalized names. pdm.lock keeps it as [metadata] content_hash = "sha256:<hex>" (src/pdm/project/lockfile/pdmlock.py). Project.is_lockfile_fresh (src/pdm/project/core.py) compares it only while pdm.lock has no metadata.lock_inputs and resolution.lock_inputs is not true; a workspace root (tool.pdm.workspace set, WorkspaceManager.is_root in src/pdm/project/workspace.py) hashes the members too. PDM reads pyproject.toml with tomllib (src/pdm/project/toml_file.py), and without a [project] table it converts a Poetry or Flit project first (_convert_pyproject).',
+    ),
     uvMode: uncertain(
       { file: 'pdm.toml', key: 'use_uv' },
       `${PDM}/docs/usage/uv.md`,
       'Experimental since 2.19.0: PDM resolves and installs with uv. It passes the cutoff and the build settings to uv lock, but runs uv sync --frozen without the build settings (src/pdm/installers/uv.py), and pdm.lock then lists source distributions even with only-binary.',
+    ),
+    directoryOptions: leftovers.verified<DirectoryOptionsKnowledge>(
+      {
+        options: [
+          { name: '-p', moves: 'project' },
+          { name: '--project', moves: 'project' },
+        ],
+        variables: [{ name: 'PDM_PROJECT', moves: 'project' }],
+      },
+      `${PDM}/src/pdm/cli/options.py`,
+      'project_option: "-p", "--project", dest="project_path", help "Specify another path as the project root, which changes the base of pyproject.toml and __pypackages__ [env var: PDM_PROJECT]", default=os.getenv("PDM_PROJECT").',
     ),
     commandLine: verified(
       {
@@ -215,6 +245,29 @@ export const pdm: ToolKnowledge = {
       },
       `${PDM}/src/pdm/cli/commands/add.py`,
       'pdm add takes requirements as arguments and editable ones with -e; its options come from cli/options.py and the global ones (-c/--config, --pep582, -I, -n, --no-cache) from core.py. --venv and --pep582 take an optional value, so argparse takes the next word for it. PDM parses with argparse, which accepts abbreviated long options.',
+    ),
+    registrySettings: leftovers.verified<readonly RegistrySettingKnowledge[]>(
+      [
+        {
+          file: 'pyproject.toml',
+          path: ['tool', 'pdm', 'source'],
+          applies: 'all',
+          effect: 'adds',
+          urlKey: 'url',
+          entries: {
+            nameKey: 'name',
+            rules: [
+              { key: 'type', value: 'find_links', effect: 'adds' },
+              { key: 'name', value: 'pypi', effect: 'replaces' },
+            ],
+            first: 'adds',
+            others: 'adds',
+            pypiName: 'pypi',
+          },
+        },
+      ],
+      `${PDM}/docs/usage/config.md`,
+      '[[tool.pdm.source]] has name, url, verify_ssl, type ("index or find_links, default to index") and include_packages and exclude_packages. "If you want to omit the default PyPI index, just set the source name to pypi and that source will replace it"; the source list is pypi.url (when no source is named pypi), then the sources of pyproject.toml, then pypi.<name>.url of the configuration, and by default "all sources are treated as equal" and the best matching version across them is taken, so any other source adds an index. Project.get_sources (src/pdm/project/core.py) keys the sources by name and fills a source named pypi from pypi.url, so one without a URL is PyPI (or the pypi.url of the user\'s configuration, which depcurfew does not read); PDM compares the name pypi exactly, depcurfew without regard to case, which only compares more URLs. Variables in url (${PROJECT_ROOT}) are expanded by PDM, so depcurfew cannot read such a URL. include_packages and exclude_packages are not read: a source counts for every package.',
     ),
     registryOverrides: verified(
       { registryOptions: [], registryVariables: ['PDM_PYPI_URL'], configOptions: ['-c', '--config'], configVariables: ['PDM_CONFIG_FILE'] },

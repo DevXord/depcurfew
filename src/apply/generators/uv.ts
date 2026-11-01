@@ -40,12 +40,16 @@ export const uv: ManagerGenerator = (context) => {
     if (context.supports(build.since, build.setting)) {
       entries.push(`${build.setting} = ${tomlValue(build.value)}`);
       managed.push(build.setting);
+      context.writes('installScripts', build.setting, file, table);
       const setting = settingOf(tool.installScripts.allowList.setting);
       if (setting !== null) {
         managed.push(setting);
         const wanted = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting);
         const names = wanted ? buildAllowList(context, setting) : [];
-        if (names.length > 0) entries.push(`${setting} = ${tomlValue(names)}`);
+        if (names.length > 0) {
+          entries.push(`${setting} = ${tomlValue(names)}`);
+          context.writes('installScripts', setting, file, table);
+        }
         forcedBuildWarning(context, setting, names);
       }
     }

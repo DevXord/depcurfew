@@ -19,6 +19,7 @@ import type {
 } from './types.ts';
 import { parseToml, tomlValueAt, type TomlDocument, type TomlValue } from './toml.ts';
 import { readWorkflows } from './workflows.ts';
+import { dockerfileCandidates, readDockerStages } from './dockerfiles.ts';
 import { expandWorkspaces } from './workspaces.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { parseYaml } from '../yaml-parse.ts';
@@ -27,7 +28,18 @@ import { yamlOptionsFor } from '../apply/facts.ts';
 export type * from './types.ts';
 
 const EVIDENCE_ORDER: readonly EvidenceKind[] = ['lockfile', 'packageManager', 'devEngines', 'config', 'ci', 'default'];
-const SOURCE_ORDER: readonly VersionSource[] = ['packageManager', 'tool-config', 'devEngines', 'volta', 'tool-versions', 'github-actions'];
+const SOURCE_ORDER: readonly VersionSource[] = [
+  'packageManager',
+  'tool-config',
+  'devEngines',
+  'volta',
+  'tool-versions',
+  'nvmrc',
+  'node-version',
+  'engines',
+  'github-actions',
+  'dockerfile',
+];
 
 type Json = Record<string, unknown>;
 
@@ -181,6 +193,59 @@ function readToolVersions(repository: Repository, facts: DetectionFacts, collect
   });
 }
 
+/**
+ * .nvmrc and .node-version in the root: the first line that is not empty, without a # comment in .nvmrc. engines.node
+ * of package.json is a range of the Node.js versions the package works on, kept as written.
+ */
+function readNodeFiles(repository: Repository, facts: DetectionFacts, manifest: Json | undefined, collector: Collector): void {
+  const files: [string, 'nvmrc' | 'node-version', string | undefined][] = [
+    [facts.nodeFiles.nvmrc, 'nvmrc', facts.nodeFiles.comment],
+    [facts.nodeFiles.nodeVersion, 'node-version', undefined],
+  ];
+  for (const [file, source, comment] of files) {
+    const text = repository.isFile(file) ? repository.readText(file) : undefined;
+    if (text === undefined) continue;
+    for (const [index, raw] of text.split(/\r?\n/u).entries()) {
+      const version = (comment === undefined ? raw : (raw.split(comment, 1)[0] ?? '')).trim();
+      if (version === '') continue;
+      collector.addVersion('node', { version, source, file, line: index + 1 });
+      break;
+    }
+  }
+  const engines = manifest?.[facts.nodeFiles.engines.key];
+  const range = isObject(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : undefined;
+  if (typeof range === 'string') collector.addVersion('node', { version: range, source: 'engines', file: 'package.json' });
+}
+
+/** The version setup-node reads from the file node-version-file names, when depcurfew can read it the same way. */
+function versionFromFile(repository: Repository, facts: DetectionFacts, path: string, manifest: Json | undefined): string | undefined {
+  const file = path.trim().replace(/^(?:\.\/)+/u, '');
+  const { versionFile } = facts.setupNode;
+  if (file === '' || !repository.isFile(file)) return undefined;
+  if (file.endsWith('.json')) {
+    const json = file === versionFile.packageJson ? manifest : repository.parse(file, (text) => JSON.parse(text) as unknown);
+    if (!isObject(json)) return undefined;
+    for (const key of versionFile.packageJsonOrder) {
+      if (key === `${facts.devEngines.key}.${facts.devEngines.runtimeKey}`) {
+        const devEngines = json[facts.devEngines.key];
+        const entries = isObject(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : [];
+        const entry = entries.find((item) => item.name.toLowerCase() === 'node' && item.version !== undefined);
+        if (entry?.version !== undefined) return entry.version;
+        continue;
+      }
+      const value = key.split('.').reduce<unknown>((node, part) => (isObject(node) ? node[part] : undefined), json);
+      if (typeof value === 'string') return value;
+    }
+    return undefined;
+  }
+  if (file.endsWith('.toml')) return undefined;
+  const text = repository.readText(file);
+  if (text === undefined) return undefined;
+  const match = new RegExp(versionFile.textPattern, 'mu').exec(text);
+  const version = match?.groups?.['version'] ?? text.trim();
+  return version === '' ? undefined : version;
+}
+
 function yarnVariant(repository: Repository, facts: DetectionFacts, collector: Collector): { variant: 'berry' | 'classic'; file: string } {
   if (repository.isFile('yarn.lock')) {
     const head = repository.readHead('yarn.lock') ?? '';
@@ -292,6 +357,7 @@ export function detectProject(
     readVolta(facts, manifest, collector);
   }
   readToolVersions(repository, facts, collector);
+  readNodeFiles(repository, facts, manifest, collector);
   readPythonConfig(repository, facts, collector);
 
   // A lockfile that names the tool which wrote it (created-by in pylock.toml) belongs to that tool when depcurfew
@@ -317,10 +383,23 @@ export function detectProject(
   for (const { tool, file } of workflows.installs) {
     if (managerIds.has(tool)) collector.addEvidence(tool as PackageManagerId, 'ci', file);
   }
-  for (const { tool, declaration } of workflows.versions) collector.addVersion(tool, declaration);
+  for (const { tool, declaration } of workflows.versions) {
+    const version = tool === 'node' && !('version' in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : undefined;
+    collector.addVersion(tool, version === undefined ? declaration : { version, ...declaration });
+  }
 
   const workspaces = readWorkspaces(repository, facts, manifest);
   const directories = ['.', ...(workspaces?.packages ?? [])];
+
+  const manifests = [...new Set(facts.managers.flatMap((manager) => manager.manifests))];
+  const dockerfiles = dockerfileCandidates(repository, facts.docker, manifests, workspaces?.packages ?? []).flatMap((file) => {
+    const text = repository.readText(file);
+    if (text === undefined) return [];
+    const reading = readDockerStages(file, text, facts.docker);
+    for (const { tool, declaration } of reading.versions) collector.addVersion(tool, declaration);
+    for (const { message, line } of reading.notices) repository.warn('script-not-followed', message, [file], line);
+    return [reading.info];
+  });
 
   const hasEvidence = (ecosystem: string) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
   if (manifest !== undefined && !hasEvidence('npm')) {
@@ -402,6 +481,8 @@ export function detectProject(
     workspaces,
     npmrcFiles: npmrcFiles(repository, directories),
     workflows: workflows.files,
+    jobs: workflows.jobs,
+    dockerfiles,
     warnings: [...repository.warnings].sort((a, b) => byPath(a.code, b.code) || byPath(a.files.join(), b.files.join())),
   };
 }

@@ -42,7 +42,7 @@ describe('parsePolicy', () => {
   });
 
   it('ignores a UTF-8 byte order mark', () => {
-    expect(parsePolicy('﻿{ "version": 1 }')).toEqual({ ok: true, policy: { version: 1, targets: 'auto' } });
+    expect(parsePolicy('﻿{ "version": 1 }')).toEqual({ ok: true, policy: { version: 1, targets: 'auto', projects: [] } });
   });
 });
 
@@ -106,6 +106,39 @@ describe('validatePolicy', () => {
       '(root): unknown field "odd key"',
       'installScripts.allow[1]: invalid package pattern "b c": must not contain spaces',
     ]);
+  });
+});
+
+describe('doctor section (decision D-112)', () => {
+  it('is optional, so a policy without it keeps failing on errors only', () => {
+    const result = validatePolicy({ version: 1 });
+    expect(result.ok && result.policy.doctor).toBeUndefined();
+  });
+
+  it('takes failOn "error" or "warning", and leaves it out when the field is left out (decision D-116)', () => {
+    expect(validatePolicy({ version: 1, doctor: { failOn: 'warning' } })).toMatchObject({ ok: true, policy: { doctor: { failOn: 'warning' } } });
+    expect(validatePolicy({ version: 1, doctor: { failOn: 'error' } })).toMatchObject({ ok: true, policy: { doctor: { failOn: 'error' } } });
+    // Nothing is set, so doctor falls back to its default ("error") and says it came from the default, not the policy.
+    const empty = validatePolicy({ version: 1, doctor: {} });
+    expect(empty).toMatchObject({ ok: true, policy: { doctor: {} } });
+    expect(empty.ok && empty.policy.doctor?.failOn).toBeUndefined();
+  });
+
+  it('says which values failOn takes, and suggests the likely one', () => {
+    const issues = (document: unknown) => {
+      const result = validatePolicy(document);
+      return result.ok ? [] : result.issues.map(formatIssue);
+    };
+    expect(issues({ version: 1, doctor: { failOn: 'warnings' } })).toEqual(['doctor.failOn: must be one of "error", "warning", got "warnings"; did you mean "warning"?']);
+    expect(issues({ version: 1, doctor: { failOn: true } })).toEqual(['doctor.failOn: must be one of "error", "warning", got true']);
+    expect(issues({ version: 1, doctor: { failon: 'warning' } })).toEqual(['doctor: unknown field "failon"; did you mean "failOn"?']);
+    expect(issues({ version: 1, doctor: 'warning' })).toEqual(['doctor: must be an object, got "warning"']);
+    expect(issues({ version: 1, doctr: { failOn: 'warning' } })).toEqual(['(root): unknown field "doctr"; did you mean "doctor"?']);
+  });
+
+  it('is part of the default policy of init, which fails on warnings', () => {
+    expect(DEFAULT_POLICY.doctor).toEqual({ failOn: 'warning' });
+    expectTypeOf<NonNullable<ResolvedPolicy['doctor']>['failOn']>().toEqualTypeOf<'error' | 'warning' | undefined>();
   });
 });
 

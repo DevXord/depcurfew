@@ -136,7 +136,7 @@ describe('detectProject stays inside the repository', () => {
 });
 
 describe('detectProject on GitHub Actions', () => {
-  it('records expressions and every setup step in every workflow', () => {
+  it('records expressions, the values of a matrix key and every setup step in every workflow', () => {
     write('package.json', '{}');
     write('package-lock.json', '{}');
     write(
@@ -154,16 +154,45 @@ describe('detectProject on GitHub Actions', () => {
         '      - run: |',
         '          corepack enable',
         '          npm i -g npm@11.6.0',
+        '  other:',
+        '    steps:',
+        '      - uses: actions/setup-node@v4',
+        '        with:',
+        '          node-version: ${{ inputs.node }}',
         '',
       ].join('\n'),
     );
     const result = detectProject(root);
+    const file = '.github/workflows/test.yaml';
     expect(result.node.versions).toEqual([
-      { version: '${{ matrix.node }}', source: 'github-actions', file: '.github/workflows/test.yaml', line: 9 },
+      { version: '20', source: 'github-actions', file, line: 5, job: 'test', step: 7, matrix: 'node' },
+      { version: '22', source: 'github-actions', file, line: 5, job: 'test', step: 7, matrix: 'node' },
+      { version: '${{ inputs.node }}', source: 'github-actions', file, line: 17, job: 'other', step: 15 },
     ]);
-    expect(result.packageManagers[0]?.versions).toEqual([
-      { version: '11.6.0', source: 'github-actions', file: '.github/workflows/test.yaml', line: 12 },
+    expect(result.packageManagers[0]?.versions).toEqual([{ version: '11.6.0', source: 'github-actions', file, line: 12, job: 'test' }]);
+    expect(result.jobs).toEqual([
+      { file, id: 'test', line: 2, commands: [{ kind: 'upgrade', tool: 'npm', version: '11.6.0', line: 12 }], runsNode: true },
+      { file, id: 'other', line: 13, commands: [], runsNode: false },
     ]);
+  });
+
+  it('reads the Node.js version setup-node takes from node-version-file', () => {
+    write('package.json', JSON.stringify({ private: true, devEngines: { runtime: [{ name: 'node', version: '24.14.1' }] }, engines: { node: '>=22' } }));
+    write('package-lock.json', '{}');
+    write('.nvmrc', '# the LTS line\nlts/jod # comment\n');
+    write('.tool-versions', 'python 3.13.14\nnodejs 24.19.0\n');
+    const steps = ['package.json', '.nvmrc', './.tool-versions', 'missing.txt', 'mise.toml'].flatMap((name) => [
+      '      - uses: actions/setup-node@v7',
+      '        with:',
+      `          node-version-file: ${name}`,
+    ]);
+    write('.github/workflows/ci.yml', ['jobs:', '  test:', '    steps:', ...steps, ''].join('\n'));
+    // setup-node takes the first line that is only a version, or else the whole text (src/util.ts), comments included.
+    const versions = detectProject(root).node.versions.filter((entry) => entry.source === 'github-actions');
+    expect(versions.map((entry) => ('version' in entry ? entry.version : undefined))).toEqual(['24.14.1', '# the LTS line\nlts/jod # comment', '24.19.0', undefined, undefined]);
+    // .nvmrc itself is read as nvm reads it, without the comment.
+    expect(detectProject(root).node.versions.find((entry) => entry.source === 'nvmrc')).toEqual({ version: 'lts/jod', source: 'nvmrc', file: '.nvmrc', line: 2 });
+    expect(detectProject(root).node.versions.find((entry) => entry.source === 'engines')).toEqual({ version: '>=22', source: 'engines', file: 'package.json' });
   });
 });
 

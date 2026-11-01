@@ -1,0 +1,118 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "poetry",
+        "renovate"
+      ]
+    },
+    "cooldown": {
+      "minimum": "36h",
+      "tools": [
+        {
+          "tool": "poetry",
+          "ok": true,
+          "unit": "days",
+          "value": 2,
+          "exact": false
+        },
+        {
+          "tool": "renovate",
+          "ok": true,
+          "unit": "duration-string",
+          "value": "36 hours",
+          "exact": true
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "pypi:docopt"
+      ],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "poetry",
+          "settings": [
+            {
+              "setting": "only-binary",
+              "file": "poetry.toml",
+              "table": "installer"
+            },
+            {
+              "setting": "no-binary",
+              "file": "poetry.toml",
+              "table": "installer"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "build-switch-install-only",
+              "level": "warning",
+              "tool": "poetry",
+              "message": "Poetry: installer.only-binary applies when packages are installed; poetry lock may still build source distributions to read their dependencies",
+              "fix": "Run poetry lock where a build cannot reach secrets (CI or a container), and depcurfew doctor, which lists the packages in poetry.lock without a wheel"
+            },
+            {
+              "code": "build-switch-scope",
+              "level": "warning",
+              "tool": "poetry",
+              "message": "Poetry: installer.only-binary forbids building only packages from an index; Poetry still builds git, local directory and source archive dependencies",
+              "fix": "Run depcurfew doctor to find them in the lockfile"
+            },
+            {
+              "code": "forced-source-build",
+              "level": "warning",
+              "tool": "poetry",
+              "message": "Poetry: installer.no-binary lets docopt be built from source while building is forbidden for everything else; Poetry then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
+              "fix": "If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json"
+            }
+          ]
+        },
+        {
+          "tool": "renovate",
+          "settings": [],
+          "warnings": []
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "poetry",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "poetry",
+              "message": "Poetry has no setting for git dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+            },
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "poetry",
+              "message": "Poetry has no setting for URL dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+            }
+          ]
+        },
+        {
+          "tool": "renovate",
+          "settings": [],
+          "warnings": []
+        }
+      ]
+    }
+  },
+  "projects": []
+}

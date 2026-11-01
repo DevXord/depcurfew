@@ -19,7 +19,8 @@
           "version": "11.6.2",
           "source": "github-actions",
           "file": ".github/workflows/ci.yml",
-          "line": 11
+          "line": 11,
+          "job": "test"
         }
       ],
       "configFiles": []
@@ -39,10 +40,13 @@
         "line": 1
       },
       {
+        "version": "22.11.0",
         "versionFile": ".tool-versions",
         "source": "github-actions",
         "file": ".github/workflows/ci.yml",
-        "line": 10
+        "line": 10,
+        "job": "test",
+        "step": 8
       }
     ]
   },
@@ -59,5 +63,28 @@
   "workflows": [
     ".github/workflows/ci.yml"
   ],
+  "jobs": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "id": "test",
+      "line": 4,
+      "commands": [
+        {
+          "kind": "upgrade",
+          "tool": "npm",
+          "version": "11.6.2",
+          "line": 11
+        },
+        {
+          "kind": "install",
+          "tool": "npm",
+          "lockfile": true,
+          "line": 12
+        }
+      ],
+      "runsNode": true
+    }
+  ],
+  "dockerfiles": [],
   "warnings": []
 }

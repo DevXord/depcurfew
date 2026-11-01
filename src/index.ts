@@ -1,15 +1,15 @@
 export { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, run } from './cli/run.ts';
 export type { CliIo } from './cli/run.ts';
 export { getVersion } from './version.ts';
-export { applyProject, ApplyWriteError, botDuration, loadPolicy, planApply, PolicyError } from './apply/index.ts';
-export type { ApplyReport, FileChange, Snippet } from './apply/index.ts';
+export { applyProject, ApplyWriteError, botDuration, loadPolicy, planApply, planRepository, PolicyError } from './apply/index.ts';
+export type { ApplyProblem, ApplyReport, FileChange, PlanOptions, ProjectProblem, Snippet } from './apply/index.ts';
 export { unifiedDiff } from './apply/diff.ts';
 export { APPLY_ERRORS, APPLY_WARNINGS, warningText } from './apply/warnings.ts';
 export type { ApplyErrorCode, ApplyWarning, ApplyWarningCode } from './apply/warnings.ts';
 export { checkSpec, checkSpecs } from './check/index.ts';
 export type { CheckFinding, CheckOptions, FindingCode, PackageReport } from './check/index.ts';
 export { scanCommandLine } from './check/command.ts';
-export type { CommandScan, InstallRequest, ScanOptions } from './check/command.ts';
+export type { CommandDirectory, CommandScan, InstallRequest, KnownDirectory, ScanOptions } from './check/command.ts';
 export { PopularNames } from './check/similar.ts';
 export { detectProject } from './detect/index.ts';
 export { countLevels, renderText, RULES, runDoctor, toSarif } from './doctor/index.ts';

@@ -20,6 +20,8 @@
   "workspaces": null,
   "npmrcFiles": [],
   "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
   "warnings": [
     {
       "code": "package-manager-assumed",

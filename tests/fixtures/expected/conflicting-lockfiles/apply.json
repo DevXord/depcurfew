@@ -31,7 +31,7 @@
     {
       "code": "version-too-old",
       "tool": "pnpm",
-      "message": "pnpm 10.0.0 does not support minimumReleaseAge (since 10.16.0), blockExoticSubdeps (since 10.26.0); not written",
+      "message": "pnpm 10.0.0 does not support minimumReleaseAge (added in 10.16.0), blockExoticSubdeps (added in 10.26.0); not written",
       "fix": "Require pnpm 10.26.0 or later where the version is pinned"
     }
   ],

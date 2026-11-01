@@ -35,16 +35,19 @@ describe('depcurfew doctor', () => {
   it('prints findings grouped by file and fails on errors', async () => {
     const result = await exec('doctor', FAILING);
     expect(result.code).toBe(EXIT_FAILURE);
-    expect(result.stdout).toMatch(/^1 error, 0 warnings, 0 notes\n\n\.github\/dependabot\.yml\n {2}7: error Dependabot proposes npm updates after 3 days/u);
+    // The note below counts in the line of counts (decision D-116).
+    expect(result.stdout).toMatch(/^1 error, 0 warnings, 1 note\n\n\.github\/dependabot\.yml\n {2}7: error Dependabot proposes npm updates after 3 days/u);
     expect(result.stdout).toContain('(bot-cooldown-mismatch)\n    fix: Make the Dependabot delay at least 1 week, or run depcurfew apply\n');
-    expect(result.stdout).toContain('\nNotes:\n  no depcurfew.json: only the rules that do not need a policy ran\n');
+    expect(result.stdout).toContain(
+      '\nNotes:\n  note no depcurfew.json: only the rules that do not need a policy ran (policy-missing)\n    fix: Run depcurfew init to write depcurfew.json, so that the rules that compare the repository with it run too\n',
+    );
     expect(result.stderr).toBe('');
   });
 
   it('exits with 0 when there are only warnings', async () => {
     const result = await exec('doctor', WARNING_ONLY);
     expect(result.code).toBe(EXIT_OK);
-    expect(result.stdout.startsWith('0 errors, 1 warning, 0 notes\n')).toBe(true);
+    expect(result.stdout.startsWith('0 errors, 1 warning, 1 note\n')).toBe(true);
   });
 
   it('says so when nothing is found', async () => {
@@ -55,9 +58,10 @@ describe('depcurfew doctor', () => {
     // This fixture has no depcurfew.json, so the rules that compare with one are named as not run.
     expect(result.stdout).toContain('\n\nWhat was checked:\n  Tools: ');
     expect(result.stdout).toMatch(/^  Files read: .*\.github\/dependabot\.yml/mu);
-    expect(result.stdout).toMatch(/^  \d+ checks: \d+ passed, \d+ skipped$/mu);
-    expect(result.stdout).toContain('    passed   Update bots wait at least as long as the package manager before proposing a new version [bot-cooldown-mismatch]\n');
-    expect(result.stdout).toContain('    skipped  Configuration files match what depcurfew apply writes for depcurfew.json (needs depcurfew.json) [config-drift]\n');
+    expect(result.stdout).toMatch(/^  \d+ checks: \d+ passed, \d+ not applicable, \d+ skipped$/mu);
+    expect(result.stdout).toContain('    passed          Update bots wait at least as long as the package manager before proposing a new version [bot-cooldown-mismatch]\n');
+    expect(result.stdout).toContain('    skipped         Configuration files match what depcurfew apply writes for depcurfew.json (needs depcurfew.json) [config-drift]\n');
+    expect(result.stdout).toContain('    not applicable  Python tools read their settings where they are written [python-config-ignored]\n');
     const json = JSON.parse((await exec('doctor', '--json', CLEAN)).stdout) as { checked: { files: string[]; rules: { rule: string; result: string; check: string }[]; policyFile: string } };
     expect(json.checked.files).toContain('.github/dependabot.yml');
     expect(json.checked.rules.find((entry) => entry.rule === 'config-drift')).toMatchObject({ result: 'skipped', check: 'Configuration files match what depcurfew apply writes for depcurfew.json' });
@@ -100,7 +104,9 @@ describe('depcurfew doctor', () => {
   it('rejects --json together with --sarif', async () => {
     const result = await exec('doctor', '--json', '--sarif', CLEAN);
     expect(result.code).toBe(EXIT_USAGE);
-    expect(result.stderr).toContain("'--json' and '--sarif' cannot be used together");
+    // With --json the error is a JSON document on stdout (D-107).
+    expect(result.stderr).toBe('');
+    expect(JSON.parse(result.stdout)).toMatchObject({ errors: [{ code: 'usage', message: "'--json' and '--sarif' cannot be used together; pick one" }] });
   });
 
   describe('with an invalid policy file', () => {
@@ -116,7 +122,7 @@ describe('depcurfew doctor', () => {
     it('reports it as an error finding in the text report and runs the rules that need no policy', async () => {
       const result = await exec('doctor', invalid());
       expect([result.code, result.stderr]).toEqual([EXIT_FAILURE, '']);
-      expect(result.stdout).toContain(`depcurfew.json\n  error ${message} (invalid-policy)\n    fix: Fix these problems in depcurfew.json`);
+      expect(result.stdout).toContain(`depcurfew.json\n  1: error ${message} (invalid-policy)\n    fix: Fix these problems in depcurfew.json`);
       expect(result.stdout).toContain('depcurfew.json is invalid: only the rules that do not need a policy ran');
     });
 
@@ -125,7 +131,7 @@ describe('depcurfew doctor', () => {
       expect([result.code, result.stderr]).toEqual([EXIT_FAILURE, '']);
       const report = JSON.parse(result.stdout) as { policy: string; summary: { error: number }; findings: { rule: string; message: string; location: unknown }[] };
       expect(report).toMatchObject({ schemaVersion: 1, policy: 'invalid', summary: { error: 1 } });
-      expect(report.findings).toEqual([expect.objectContaining({ rule: 'invalid-policy', level: 'error', location: { file: 'depcurfew.json' }, message })]);
+      expect(report.findings).toEqual([expect.objectContaining({ rule: 'invalid-policy', level: 'error', location: { file: 'depcurfew.json', line: 1 }, message })]);
     });
 
     it('prints it as a SARIF result', async () => {

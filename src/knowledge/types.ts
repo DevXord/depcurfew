@@ -138,7 +138,7 @@ export interface UserDirectory {
    * `relativeToCwd` the tool takes a relative value as it is, so it reads the file relative to the directory each
    * command runs in; without it and without `absolute`, what the tool does with a relative value is not known.
    */
-  from: { env: string; absolute?: boolean; relativeToCwd?: boolean } | 'home';
+  from: { env: string; absolute?: boolean; relativeToCwd?: boolean; emptyCounts?: boolean } | 'home';
   /** Path below it, with / separators; empty for the directory itself. */
   path: string;
   /** Use this directory only when it already exists (pip on macOS). */
@@ -226,10 +226,37 @@ export interface UserVariable {
   defaultPath?: string;
 }
 
+/**
+ * Directories of the user file that a library the tool calls decides, by the library's version (platformdirs for
+ * Poetry and PDM on macOS). depcurfew reads that version from the library's .dist-info next to the tool's own.
+ */
+export interface LibraryDirectories {
+  /** The distribution name of the library, as its .dist-info folder spells it (platformdirs). */
+  library: string;
+  /** The platforms whose directories it decides; the other platforms keep those of `files`. */
+  platforms: readonly UserPlatform[];
+  /** The directories per library version, oldest first; they replace the directories of `files` on those platforms. */
+  directories: Versioned<readonly UserDirectory[]>;
+}
+
+/** The unit of the release-age setting in the user file, when it differs from the tool's own (`cooldown.unit`). */
+export interface UserCooldownUnit {
+  key: string;
+  unit: 'seconds' | 'minutes' | 'hours' | 'days';
+  /** Only whole numbers count; depcurfew rounds up, to the longer delay. */
+  wholeNumbers: boolean;
+  /** What the tool does with any other value: ignores it without a word, or stops. */
+  otherValues: 'ignored' | 'fail';
+}
+
 /** The tool's user-level configuration, for `depcurfew apply --user` and `doctor --user`. */
 export interface UserConfigKnowledge {
   /** The user file per version, oldest first; null for versions without a user file. */
   files: Fact<Versioned<UserFile | null>>;
+  /** Directories of the user file that depend on the version of a library the tool calls. */
+  libraryDirectories?: Fact<LibraryDirectories>;
+  /** The unit of the release-age setting there, when it is not the unit of the tool's project setting. */
+  cooldownUnit?: Fact<UserCooldownUnit>;
   /** Settings depcurfew can write there. */
   settings: Fact<readonly UserSetting[]>;
   /** What a version does with a key it does not know in the user file: ignore it, warn, or fail. */
@@ -297,7 +324,11 @@ export interface CommandLineParsing {
   groupedShortOptions?: boolean;
   /** Any number of leading dashes names the same option: -registry, --registry and ---registry (nopt). */
   anyDashes?: boolean;
-  /** An option starting with this prefix is a negated flag and never takes a value (nopt: --no-save). */
+  /**
+   * An option starting with this prefix is a negated flag and takes no value but true or false (nopt: --no-save). The
+   * prefix counts in any case and more than once, each time inverting the flag, and the rest is read like any option
+   * name, abbreviations included (nopt: --no-ign is --no-ignore-scripts, --no-no-save is --save).
+   */
   negation?: string;
   /**
    * Words that stand for other options, without their dashes (nopt shorthands): reg is --registry. A word made only
@@ -306,6 +337,8 @@ export interface CommandLineParsing {
   shorthands?: Readonly<Record<string, readonly string[]>>;
   /** An option starting with this prefix sets the setting named after it, as the option of that name does (pnpm: --config.registry=…). */
   settingPrefix?: string;
+  /** A flag takes true or false from the next word (nopt: --ignore-scripts false); listed in a fact of its own (booleanWords). */
+  booleanWords?: boolean;
 }
 
 /**
@@ -425,6 +458,88 @@ export interface PackageSpecKnowledge {
 }
 
 /**
+ * The values with which a switch weakens a protection: `delay` is a release-age delay in the tool's unit
+ * (cooldown.unit) or a duration string (durationStrings), which depcurfew compares with the policy; `any` is every
+ * value; otherwise the values listed, or every value except those (fail closed). A flag without a value is "true".
+ */
+export type OverrideValues = 'delay' | 'any' | readonly string[] | { readonly except: readonly string[] };
+
+/** An option or environment variable of one command that weakens what depcurfew apply configured. */
+export interface OverrideSwitch {
+  /** The option as the scanner resolves it (--name) or the variable, compared without regard to case. */
+  name: string;
+  /** The release-age delay, or the rule on dependency install scripts. */
+  weakens: 'delay' | 'scripts';
+  values: OverrideValues;
+}
+
+/**
+ * Options and environment variables that weaken, for a single command, the release-age delay or the rule on
+ * dependency install scripts that depcurfew apply wrote into the tool's configuration (the install guard asks).
+ */
+export interface InstallOverridesKnowledge {
+  options: readonly OverrideSwitch[];
+  variables: readonly OverrideSwitch[];
+}
+
+/**
+ * An option or environment variable that makes one command of a tool run in another directory, or find its project
+ * there (decision D-118): the install guard then checks the install with the policy of that directory.
+ */
+export interface DirectoryOption {
+  /** The option as the scanner resolves it (--prefix; a short form the tool's parsing expands is left out) or the variable. */
+  name: string;
+  /**
+   * directory: the command runs as if started there; project: only its project (and so its configuration files) is
+   * found from there, while other relative paths stay relative to the working directory. A project option is relative
+   * to the directory a directory option gives, when both are used.
+   */
+  moves: 'directory' | 'project';
+  /** Where the option counts: anywhere among the tool's options (left out), only as the first argument, or as the last two words of `command`. */
+  position?: 'first' | 'last';
+  /** With position last: the command it counts in, e.g. ["yarn", "add"]. */
+  command?: readonly string[];
+  /** Commands of the tool on which it has no effect (uv pip with --project). */
+  ignoredBy?: readonly (readonly string[])[];
+  /** npm: the directory is the local prefix as given; npm reads its .npmrc without looking for a package.json above it. */
+  localPrefix?: boolean;
+  /**
+   * The value names this file of the project (Pipenv's PIPENV_PIPFILE names the Pipfile), and the project is its
+   * directory; a file of another name is one the install guard does not read, so the directory counts as unknown.
+   */
+  file?: string;
+}
+
+export interface DirectoryOptionsKnowledge {
+  options: readonly DirectoryOption[];
+  variables: readonly DirectoryOption[];
+}
+
+/** A command that changes the tool's configuration, which an install later in the same command line reads. */
+export interface ConfigCommand {
+  /** The executable and its subcommand, e.g. ["npm", "config"]. */
+  command: readonly string[];
+  /** Words after it that change the configuration (set, delete); others only read it. */
+  writes?: readonly string[];
+  /** It changes the configuration when given at least this many arguments (poetry config key value). */
+  operands?: number;
+  /** Options that make it change the configuration (poetry config --unset). */
+  options?: readonly string[];
+  /** It changes package.json (npm pkg set), whose settings the install reads, rather than a configuration file. */
+  manifest?: boolean;
+}
+
+/**
+ * The command names a tool accepts and how it resolves them (npm's deref): camelCase is read as kebab-case, then an
+ * exact command, an alias, or a unique prefix of a command or an alias, whose alias is followed to its command.
+ */
+export interface CommandNamesKnowledge {
+  commands: readonly string[];
+  /** Alias to the name it stands for (a command or another alias). */
+  aliases: Readonly<Record<string, string>>;
+}
+
+/**
  * Command-line options and environment variables that change where a package manager fetches packages from. In
  * option names, <scope> stands for any scope; variable names are compared without regard to case.
  */
@@ -447,6 +562,76 @@ export interface RegistryConfigKnowledge {
   key: string;
   /** A scope followed by this suffix is the key of that scope's registry, e.g. @myco:registry. */
   scopeKeySuffix: string;
+}
+
+/** Where npm reads the project .npmrc from: the local prefix of the directory it runs in. */
+export interface NpmLocalPrefixKnowledge {
+  /** The first directory from the current one up that has this file or this directory is the local prefix. */
+  markers: { file: string; directory: string };
+  /** A higher directory whose package.json lists the prefix as a workspace becomes the prefix. */
+  workspaceRoot: boolean;
+  /** The field of package.json with the workspace patterns (an array, or an object with this key). */
+  workspacesField: string;
+  workspacesObjectKey: string;
+  /** The option that sets the local prefix on the command line. */
+  prefixOption: string;
+  /**
+   * The option that, set to false on the command line (--no-workspaces), keeps the first directory as the local prefix,
+   * so npm reads the .npmrc of a workspace package; its value elsewhere (.npmrc, npm_config_) does not count.
+   */
+  workspacesOption: string;
+  /** The project configuration file, read from the local prefix. */
+  projectFile: string;
+}
+
+/**
+ * A setting of a package manager's own configuration file that chooses where its packages come from, which depcurfew
+ * check does not read: the registry of all packages, or of the packages of one scope.
+ */
+export interface RegistrySettingKnowledge {
+  /** The configuration file, by name; it is looked for in the directory the command runs in and its parents. */
+  file: string;
+  /** Keys from the top of the file; * stands for any key, the scope (with or without @). */
+  path: readonly string[];
+  /** all: every package the tool installs; scope: the packages of the scope that * names. */
+  applies: 'all' | 'scope';
+  /**
+   * replaces: the value is the URL used instead of the default registry or index, so a value that names the one
+   * depcurfew checked changes nothing; adds: the value adds a place to install from next to it.
+   */
+  effect: 'replaces' | 'adds';
+  /** A value may be a table that holds the URL under this key (Bun's { url, token }, uv's [[index]] entries). */
+  urlKey?: string;
+  /** For an array of tables (uv's [[tool.uv.index]], Poetry's and PDM's sources, Pipfile's [[source]]): what each entry does. */
+  entries?: IndexEntriesKnowledge;
+}
+
+/**
+ * What an entry of an array of index tables does (decision D-120): replaces the default index for every package; adds
+ * an index for every package; or is used only for the packages pinned to it by name (an explicit index).
+ */
+export type IndexEntryEffect = 'replaces' | 'adds' | 'pinned';
+
+export interface IndexEntriesKnowledge {
+  /** The key with the entry's name, by which packages are pinned to it. */
+  nameKey: string;
+  /**
+   * Rules over the keys of an entry, the first that matches decides: an entry whose `key` has `value` (text compared
+   * without regard to case) does `effect`. uv: explicit = true is pinned, default = true replaces; Poetry: priority.
+   */
+  rules: readonly { key: string; value: string | boolean; effect: IndexEntryEffect }[];
+  /** What the first entry and the others do when no rule matches (Pipfile: the first source is the default index). */
+  first: IndexEntryEffect;
+  others: IndexEntryEffect;
+  /** An entry with this name (in any case) and no URL is PyPI itself (Poetry, PDM: pypi). */
+  pypiName?: string;
+  /**
+   * Where packages are pinned to an entry: in `file` of the same directory or a parent, the tables at `tables` (keys
+   * from the top, * for any key) map package names to a table, or a list of tables, whose `key` names the entry.
+   */
+  pins?: { file: string; tables: readonly (readonly string[])[]; key: string };
+  /** A true value at this path of the same file makes the pinned entries count for every package, as adds (Pipenv). */
+  searchAll?: readonly string[];
 }
 
 // Facts about the environment around the package managers: version pinning (Corepack, Volta, asdf) and CI.
@@ -531,6 +716,15 @@ export interface NpmRegistryKnowledge {
 }
 
 /** How the Python interpreter runs a module (python -m pip) or a command string. */
+/**
+ * A Python virtual environment as venv creates it: `marker` is the file in the environment's directory, and the
+ * activation scripts sit in a binary directory right under it, per platform (bin on POSIX, Scripts on Windows).
+ */
+export interface VirtualEnvironmentKnowledge {
+  marker: string;
+  scripts: readonly { platform: 'posix' | 'windows'; directory: string; names: readonly string[] }[];
+}
+
 export interface PythonInterpreterKnowledge {
   /** Executable names; versioned names such as python3.12 are the same. */
   executables: readonly string[];
@@ -614,10 +808,155 @@ export interface ClaudeCodeHooksKnowledge {
   settings: { hooks: string; matcher: string; handlers: string; type: string; commandType: string; command: string; args: string };
 }
 
+/** additionalContext in hookSpecificOutput of a PreToolUse hook: text Claude reads next to the tool result. */
+export interface ClaudeCodeHookContextKnowledge {
+  field: string;
+  /** Whether the field works without a permission decision (which leaves the call to the normal permission flow). */
+  withoutDecision: boolean;
+  /** Longer text is written to a file and Claude gets its path with a preview. */
+  inlineLimit: number;
+}
+
+/** The SessionStart hook that can install the project, and what happens to a guard whose script is missing. */
+export interface ClaudeCodeSessionStartKnowledge {
+  event: string;
+  /** The matchers for a new and a resumed session. */
+  matchers: readonly string[];
+  /** The variable a shell-form hook command reads for the project root. */
+  projectDirVariable: string;
+  /** Whether Claude's first response waits for SessionStart hooks to finish. */
+  firstResponseWaits: boolean;
+  /** What a PreToolUse hook with onFailure "block" does when its script is missing. */
+  missingScriptWithBlock: 'blocks';
+  /** The part of the error Claude Code shows then, before the output of the command that failed. */
+  blockedNotice: string;
+  /** Whether a cloud environment's setup script runs before Claude Code starts. */
+  cloudSetupScriptRunsBeforeClaudeCode: boolean;
+}
+
 /** A Claude Code tool that runs shell commands, by the name a matcher and the event use, and the shell it runs them in. */
 export interface ClaudeCodeShellTool {
   tool: string;
   shell: 'bash' | 'powershell';
+}
+
+/** A shell tool call that carries another input in place of the command (a Monitor WebSocket watch). */
+export interface ClaudeCodeCommandlessInputKnowledge {
+  tool: string;
+  /** The field of the event, next to the command field, that takes the place of the command. */
+  input: string;
+}
+
+/** Model Context Protocol revisions: the legacy ones open a session with initialize, the modern ones carry the version on every request. */
+export interface McpRevisionsKnowledge {
+  /** Newest first. */
+  legacy: readonly string[];
+  /** Newest first. */
+  modern: readonly string[];
+}
+
+/** The initialize handshake of the legacy revisions. */
+export interface McpLifecycleKnowledge {
+  initialize: string;
+  initialized: string;
+  ping: string;
+  /** Fields of the initialize request and result. */
+  request: { protocolVersion: string; capabilities: string; clientInfo: string };
+  result: { protocolVersion: string; capabilities: string; serverInfo: string; instructions: string };
+}
+
+/** What a modern (stateless) request and result carry in `_meta`, and the discovery method. */
+export interface McpStatelessKnowledge {
+  metaField: string;
+  protocolVersion: string;
+  clientCapabilities: string;
+  clientInfo: string;
+  serverInfo: string;
+  discover: string;
+  /** The fields of a discovery result. */
+  discoverResult: { supportedVersions: string; capabilities: string; instructions: string };
+  /** Every modern result has this field, with `complete` for a finished result. */
+  resultType: { field: string; complete: string };
+  /** Caching hints that discovery and tools/list results must carry. */
+  caching: { ttl: string; scope: string; publicScope: string };
+  /** The data of an unsupported-version error. */
+  unsupportedVersionData: { supported: string; requested: string };
+}
+
+/** Tools: the methods and the fields of a tool and of a call result. */
+export interface McpToolsKnowledge {
+  list: string;
+  call: string;
+  capability: string;
+  /** The revision that added each optional field of a tool or a result; older clients do not know them. */
+  fieldsSince: { annotations: string; title: string; structuredContent: string };
+}
+
+export interface McpCancellationKnowledge {
+  method: string;
+  requestId: string;
+}
+
+/** The JSON-RPC error codes the server uses. */
+export interface McpErrorCodesKnowledge {
+  parseError: number;
+  invalidRequest: number;
+  methodNotFound: number;
+  invalidParams: number;
+  internalError: number;
+  unsupportedProtocolVersion: number;
+}
+
+/** The id of an error response: required (a string or a number) in the schemas before `optionalSince`, optional from it. */
+export interface McpErrorIdKnowledge {
+  optionalSince: string;
+}
+
+/** stdio: messages are UTF-8 JSON-RPC, one per line, without embedded newlines; stderr is free for logs. */
+export interface McpStdioKnowledge {
+  delimiter: string;
+  /** Revisions whose servers must accept JSON-RPC batches (arrays). */
+  batchRevisions: readonly string[];
+}
+
+/** How Claude Code is told about a stdio server: `claude mcp add` and the project file. */
+export interface McpClaudeCodeKnowledge {
+  /** claude mcp add [options] <name> -- <command> [args...] */
+  addCommand: readonly string[];
+  separator: string;
+  scopeOption: string;
+  projectScope: string;
+  transportOption: string;
+  stdioTransport: string;
+  projectFile: string;
+  serversKey: string;
+  /** Set in the server's environment to the project root; in command and args it needs a default. */
+  projectDirVariable: string;
+  projectDirReference: string;
+}
+
+/** Where Claude Desktop keeps its configuration, per platform, and the key of its servers. */
+export interface McpClaudeDesktopKnowledge {
+  configFiles: { darwin: string; win32: string; linux: string };
+  serversKey: string;
+}
+
+/** VS Code's own format (.vscode/mcp.json) and its command line. */
+export interface McpVsCodeKnowledge {
+  file: string;
+  serversKey: string;
+  typeField: string;
+  stdioType: string;
+  cwdField: string;
+  workspaceFolder: string;
+  /** code --add-mcp '{"name": …, …}' adds a server to the user profile. */
+  addOption: string;
+}
+
+export interface McpClientsKnowledge {
+  claudeCode: Fact<McpClaudeCodeKnowledge>;
+  claudeDesktop: Fact<McpClaudeDesktopKnowledge>;
+  vscode: Fact<McpVsCodeKnowledge>;
 }
 
 /**
@@ -640,13 +979,24 @@ export interface AnnotationLimitsKnowledge {
 /** The Markdown job summary of a step: the environment variable naming its file and its size limit. */
 /** Creating a check run with the workflow token, so that the result shows in the pull request's Checks tab. */
 export interface CheckRunsKnowledge {
-  /** POST endpoint, with {repository} as owner/name. */
-  endpoint: string;
+  /**
+   * Paths with {repository} as owner/name: create (POST), update (PATCH, {id} the check run), and list the check runs
+   * of a commit (GET, {ref} a SHA), which takes the query parameters checkName and filter (with the value latest).
+   */
+  endpoints: { create: string; update: string; list: string };
+  query: { checkName: string; filter: string; latest: string };
   apiVersion: string;
-  /** The workflow permission the token needs. */
+  /** The workflow permission the token needs; it covers the list endpoint too (write includes read). */
   permission: Record<string, string>;
   /** Limit of output.summary, in characters. */
   summaryMaxLength: number;
+  /** output.annotations: at most this many per request; further ones are appended by update requests. */
+  annotationsPerRequest: number;
+  /** annotation_level for each doctor level. */
+  annotationLevels: Record<'error' | 'warning' | 'note', string>;
+  /** Limits of an annotation: title in characters, message in bytes (64 KB, taken as 64000). */
+  annotationTitleMaxLength: number;
+  annotationMessageMaxBytes: number;
   /** Variables the runner sets: API URL, owner/name, commit and the event payload file. */
   variables: { apiUrl: string; repository: string; sha: string; eventPath: string };
   /** Path in the event payload of the commit a pull request check belongs to (GITHUB_SHA is the merge commit there). */
@@ -688,12 +1038,144 @@ export interface GitIgnoreCaseKnowledge {
   trueValues: readonly string[];
 }
 
+/** The file in which Corepack records the version of each package manager it runs outside a project. */
+export interface CorepackDefaultsKnowledge {
+  /** The first Corepack version with this layout. */
+  since: string;
+  /** Where the file is: the first directory that applies is used. */
+  locations: readonly UserLocation[];
+}
+
+/** The version of a tool each release of a runtime bundles, for one release line (Node.js 22, CPython 3.12). */
+export interface BundledVersionsLine {
+  /** The release line: 22 for Node.js, 3.12 for CPython. */
+  line: string;
+  /** The newest release of the line on the day the fact was verified. */
+  latest: string;
+  /** [first release, bundled version]: the first release of the line that bundles each version, oldest first. */
+  bundles: readonly (readonly [string, string])[];
+}
+
+/** One Node.js release line in the release schedule. */
+export interface ReleaseLineSchedule {
+  line: number;
+  /** The first release (YYYY-MM-DD). */
+  start: string;
+  /** When the line became LTS; absent for lines that never do. */
+  lts?: string;
+  /** End of life: no more releases, security fixes included. */
+  end: string;
+  /** The LTS codename in lower case, as nvm, setup-node and the node image tags write it. */
+  codename?: string;
+}
+
+/** Names of moving Node.js versions in a version file or a setup-node input. */
+export interface NodeVersionNamesKnowledge {
+  /** Names of the newest release. */
+  newest: readonly string[];
+  /** The name of the newest LTS line. */
+  newestLts: string;
+  /** Followed by a codename: that LTS line (lts/jod). */
+  ltsPrefix: string;
+  /** Followed by a number n: the n-th LTS line before the newest one (lts/-1); absent when not supported. */
+  previousLtsPrefix?: string;
+}
+
+export interface NvmrcKnowledge extends NodeVersionNamesKnowledge {
+  file: string;
+  /** Starts a comment that runs to the end of the line. */
+  comment: string;
+}
+
+/** How setup-node reads the file named by node-version-file. */
+export interface SetupNodeVersionFileKnowledge {
+  /** A JSON manifest whose keys are read in order: dotted paths, devEngines.runtime means its entry named node. */
+  packageJson: string;
+  packageJsonOrder: readonly string[];
+  /** Any other file: the first line that matches (multiline), group "version"; otherwise the whole text, trimmed. */
+  textPattern: string;
+}
+
+/** How an image reference names the registry, the namespace and the tag when they are left out. */
+export interface ImageReferenceKnowledge {
+  defaultHost: string;
+  /** Hosts that mean the default registry. */
+  hosts: readonly string[];
+  /** The namespace of the official images, implied when a Docker Hub name has no namespace. */
+  officialNamespace: string;
+  defaultTag: string;
+}
+
+/** The Dockerfile syntax the reader relies on. */
+export interface DockerfileSyntaxKnowledge {
+  /** Starts a comment line, and a parser directive at the top of the file. */
+  comment: string;
+  /** The parser directive that sets the escape character, and the characters it accepts (the default first). */
+  escapeDirective: string;
+  escapeCharacters: readonly string[];
+  /** The only instruction allowed before the first FROM. */
+  globalArgInstruction: string;
+}
+
+/** An official runtime image: which tool version it ships and how its tags are built. */
+export interface RuntimeImageKnowledge {
+  /** The repository name on Docker Hub, in the official namespace. */
+  image: string;
+  /** The tool the image ships as the runtime release bundles it, unchanged. */
+  bundles: 'npm' | 'pip';
+  /** Variant names a tag may carry after the version (22-alpine, 3.12-slim-bookworm), or on its own. */
+  variants: readonly string[];
+}
+
+/** Tags of an official image that move to another release line: tag (without variant) to release line. */
+export interface MovingTagsKnowledge {
+  tags: Readonly<Record<string, string>>;
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
     devEnginesSince: Fact<string>;
     envFileSince: Fact<string>;
     bundledWithNode: Fact<Versioned<boolean>>;
+    /** The npm package of Corepack, whose package.json declares the shims of the package managers (yarn, pnpm). */
+    package: Fact<string>;
+    /** The npm packages that install a package manager itself, for the tools Corepack knows. */
+    toolPackages: Fact<Readonly<Partial<Record<ToolId, readonly string[]>>>>;
+    /** lastKnownGood.json: the version of each package manager Corepack runs outside a project. */
+    defaults: Fact<CorepackDefaultsKnowledge>;
+    /** corepack enable installs an npm shim only when npm is named. */
+    enableNpm: Fact<{ command: string; npmOnlyWhenNamed: boolean }>;
+  };
+  node: {
+    /** The npm each Node.js release bundles, per release line. */
+    bundledNpm: Fact<readonly BundledVersionsLine[]>;
+    releaseSchedule: Fact<readonly ReleaseLineSchedule[]>;
+    nvmrc: Fact<NvmrcKnowledge>;
+    /** The version file of nodenv, also read by fnm and setup-node. */
+    nodeVersionFile: Fact<{ file: string }>;
+    /** engines.node in package.json: the Node.js versions a package works with, advisory. */
+    engines: Fact<{ key: string; runtimeKey: string }>;
+    /** The Node.js version files that version managers also use in subdirectories of their directory. */
+    inheritedVersionFiles: Fact<readonly string[]>;
+  };
+  docker: {
+    imageReference: Fact<ImageReferenceKnowledge>;
+    syntax: Fact<DockerfileSyntaxKnowledge>;
+    /** How COPY and ADD read a source path in the build context: from its root, with ../ and trailing slashes removed. */
+    copySources: Fact<{ relativeTo: 'context'; parentNavigation: 'removed'; trailingSlash: 'ignored' }>;
+    /** ENV: variables for the later instructions of the stage and the stages that start from it (decision D-115). */
+    environment: Fact<{ instruction: string; inheritedByStages: boolean; spaceForm: boolean }>;
+    /** The default file name, and the suffix of other Dockerfiles (build.Dockerfile). */
+    dockerfileNames: Fact<{ defaultName: string; suffix: string }>;
+    /** Dockerfile.<name>: a common convention without an official source. */
+    dockerfilePrefix: Fact<string>;
+    /** The file name Buildah and Podman read by default. */
+    containerfile: Fact<string>;
+    nodeImage: Fact<RuntimeImageKnowledge>;
+    nodeImageTags: Fact<MovingTagsKnowledge>;
+    pythonImage: Fact<RuntimeImageKnowledge>;
+    pythonImageTags: Fact<MovingTagsKnowledge>;
   };
   devEngines: Fact<DevEnginesKnowledge>;
   devEnginesSince: Fact<string>;
@@ -710,6 +1192,16 @@ export interface EnvironmentKnowledge {
   githubActions: {
     workflows: Fact<WorkflowsKnowledge>;
     setupNode: Fact<SetupActionKnowledge>;
+    /** The versions node-version accepts besides semver ranges. */
+    setupNodeVersions: Fact<NodeVersionNamesKnowledge>;
+    setupNodeVersionFile: Fact<SetupNodeVersionFileKnowledge>;
+    /**
+     * jobs.<job_id>.container: the image the job's run steps run in, as a string or under image, with its env
+     * (decision D-115).
+     */
+    jobContainer: Fact<{ key: string; imageKey: string; envKey: string }>;
+    /** The env maps of a workflow, a job and a step; the most specific one wins (decision D-115). */
+    environmentKeys: Fact<{ key: string; levels: readonly ('workflow' | 'job' | 'step')[] }>;
     pnpmActionSetup: Fact<SetupActionKnowledge>;
     pnpmSetup: Fact<SetupActionKnowledge>;
     setupBun: Fact<SetupActionKnowledge>;
@@ -740,11 +1232,33 @@ export interface EnvironmentKnowledge {
     hooks: Fact<ClaudeCodeHooksKnowledge>;
     /** The tools whose PreToolUse events carry a shell command in the hooks fact's input.command. */
     shellTools: Fact<readonly ClaudeCodeShellTool[]>;
+    sessionStart: Fact<ClaudeCodeSessionStartKnowledge>;
+    /** The field of a PreToolUse hook's output that adds text to Claude's context, with or without a decision. */
+    hookContext: Fact<ClaudeCodeHookContextKnowledge>;
+    /** Shell tool calls without a command: a Monitor WebSocket watch. */
+    commandlessInputs: Fact<readonly ClaudeCodeCommandlessInputKnowledge[]>;
+  };
+  /** The Model Context Protocol, for depcurfew mcp, and how its clients start a stdio server. */
+  mcp: {
+    revisions: Fact<McpRevisionsKnowledge>;
+    lifecycle: Fact<McpLifecycleKnowledge>;
+    stateless: Fact<McpStatelessKnowledge>;
+    tools: Fact<McpToolsKnowledge>;
+    cancellation: Fact<McpCancellationKnowledge>;
+    errorCodes: Fact<McpErrorCodesKnowledge>;
+    errorId: Fact<McpErrorIdKnowledge>;
+    stdio: Fact<McpStdioKnowledge>;
+    clients: McpClientsKnowledge;
   };
   git: {
     /** Where git reads the patterns of files it does not pick up, and the index that lists the tracked files. */
     ignore: Fact<GitIgnoreKnowledge>;
     ignoreCase: Fact<GitIgnoreCaseKnowledge>;
+    /**
+     * The entry at the root of a working tree that makes a directory a repository of its own: a .git directory, or in
+     * a submodule a .git file pointing to its git directory in the superproject (decision D-115).
+     */
+    repositoryEntry: Fact<{ entry: string; submoduleEntry: 'file' }>;
   };
   windows: {
     commandShims: Fact<CommandShimsKnowledge>;
@@ -763,6 +1277,10 @@ export interface EnvironmentKnowledge {
     /** File extensions of source distributions on an index, which are built when installed. */
     sourceDistributionExtensions: Fact<readonly string[]>;
     interpreter: Fact<PythonInterpreterKnowledge>;
+    /** A virtual environment made by venv: the file in its directory that marks it, and its activation scripts. */
+    virtualEnvironment: Fact<VirtualEnvironmentKnowledge>;
+    /** The pip each CPython release bundles in ensurepip, per release line. */
+    bundledPip: Fact<readonly BundledVersionsLine[]>;
     /** Hatch, which has no supply-chain settings of its own: how a project shows it uses Hatch. */
     hatch: Fact<{ pyprojectTable: string; configFile: string }>;
   };

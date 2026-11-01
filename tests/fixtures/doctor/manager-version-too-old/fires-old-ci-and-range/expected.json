@@ -5,7 +5,7 @@
       "file": ".github/workflows/ci.yml",
       "line": 10
     },
-    "message": "pnpm 9.15.0 in GitHub Actions (.github/workflows/ci.yml) does not support minimumReleaseAge and minimumReleaseAgeExclude (since 10.16.0)",
+    "message": "pnpm 9.15.0 in GitHub Actions (.github/workflows/ci.yml) does not support minimumReleaseAge and minimumReleaseAgeExclude (added in 10.16.0)",
     "fix": "Require pnpm 10.16.0 or later in GitHub Actions"
   },
   {
@@ -14,7 +14,7 @@
       "file": "package.json",
       "line": 5
     },
-    "message": "devEngines (package.json) allows pnpm 10.0.0 (\"^10.0.0\"), which does not support minimumReleaseAge and minimumReleaseAgeExclude (since 10.16.0)",
+    "message": "devEngines (package.json) allows pnpm 10.0.0 (\"^10.0.0\"), which does not support minimumReleaseAge and minimumReleaseAgeExclude (added in 10.16.0)",
     "fix": "Require pnpm 10.16.0 or later in devEngines"
   }
 ]

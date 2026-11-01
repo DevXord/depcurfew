@@ -1,9 +1,10 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
+import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const user = verifiedOn('2026-10-31');
+const runtimes = verifiedOn('2026-11-01');
 const BUN_V1_4_4 = 'https://github.com/oven-sh/bun/blob/bun-v1.4.4';
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 
@@ -171,6 +172,19 @@ export const bun: ToolKnowledge = {
     ),
   },
   extra: {
+    registrySettings: runtimes.verified(
+      [
+        { file: 'bunfig.toml', path: ['install', 'registry'], applies: 'all', effect: 'replaces', urlKey: 'url' },
+        { file: 'bunfig.toml', path: ['install', 'scopes', '*'], applies: 'scope', effect: 'replaces', urlKey: 'url' },
+      ],
+      `${BUN_V1_4_4}/docs/runtime/bunfig.mdx`,
+      '"Put bunfig.toml in your project root, alongside your package.json"; the global $HOME/.bunfig.toml (or $XDG_CONFIG_HOME/.bunfig.toml) is loaded too, and local keys win. "The default registry is https://registry.npmjs.org/. To change it": [install] registry, a string or { url, token }. "To configure a registry for a particular scope (for example, @myorg/<package>), use install.scopes": a key per scope (myorg = "https://registry.myorg.com/" or a table with url).',
+    ),
+    projectInstall: runtimes.verified(
+      { commands: ['install'], bare: false },
+      'https://github.com/oven-sh/bun/blob/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/pm/cli/install.mdx',
+      '"if your project has a package.json, you can use bun install"; the page names no alias, so none is listed. bun add (commandLine.add) adds packages.',
+    ),
     commandLine: checked.verified(
       {
         add: [['bun', 'add']],
@@ -231,5 +245,21 @@ export const bun: ToolKnowledge = {
       `${INSTALL}#minimum-release-age`,
     ),
     bunxCooldown: verified('bunx applies --minimum-release-age only since 1.4.4', 'https://bun.com/blog/bun-v1.4.4'),
+    directoryOptions: runtimes.verified<DirectoryOptionsKnowledge>(
+      { options: [{ name: '--cwd', moves: 'directory' }], variables: [] },
+      `${BUN_V1_4_4}/docs/snippets/cli/add.mdx`,
+      'bun add: <ParamField path="--cwd" type="string"> "Set a specific current working directory" (Global Configuration & Context); bun install has the same option, "Set a specific cwd" (docs/snippets/cli/install.mdx at the same tag, General Configuration).',
+    ),
+    installOverrides: runtimes.verified(
+      {
+        options: [
+          { name: '--minimum-release-age', weakens: 'delay', values: 'delay' },
+          { name: '--trust', weakens: 'scripts', values: 'any' },
+        ],
+        variables: [],
+      },
+      'https://github.com/oven-sh/bun/blob/main/docs/pm/cli/install.mdx',
+      'bun add @types/bun --minimum-release-age 259200 # seconds: "A number is in seconds", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it. bun add --trust "adds the package to trustedDependencies in the project\'s package.json and installs it", so its lifecycle scripts run (docs/snippets/cli/add.mdx and docs/pm/lifecycle.mdx at bun-v1.4.4); lifecycle.mdx names no variable that turns scripts on, and ignore-scripts read from the environment "only turns scripts off".',
+    ),
   },
 };

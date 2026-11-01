@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".claude/depcurfew/package-lock.json",
+      "line": 12
+    },
+    "message": "depcurfew 99.0.0 is pinned in .claude/depcurfew/package-lock.json, but the depcurfew running this check is older, so it may not know settings that version writes or checks",
+    "fix": "Install it in .claude/depcurfew (cd .claude/depcurfew && npm ci --ignore-scripts), then run that copy (node .claude/depcurfew/node_modules/depcurfew/dist/cli.js doctor), or update the depcurfew you run to 99.0.0 or later"
+  }
+]

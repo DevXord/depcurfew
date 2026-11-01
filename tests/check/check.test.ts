@@ -43,7 +43,7 @@ describe('depcurfew check on registry packages', () => {
   it('reports install scripts the policy does not allow', async () => {
     const report = await checkSpec('esbuild@0.28.1', options());
     expect(codes(report.findings)).toEqual(['error:install-scripts']);
-    expect(report.findings[0]?.message).toBe('esbuild@0.28.1 runs install scripts (postinstall: node install.js) that depcurfew.json does not allow');
+    expect(report.findings[0]?.message).toBe('esbuild@0.28.1 runs install scripts (postinstall: "node install.js") that depcurfew.json does not allow');
   });
 
   it('does not report install scripts the policy denies on purpose (installScripts.deny), and fixes never suggest allowing them', async () => {

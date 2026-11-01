@@ -101,12 +101,13 @@ describe('depcurfew CLI', () => {
   it('points an unknown option of a command to that command\'s help', async () => {
     const result = await exec('apply', '--frobnicate');
     expect(result.code).toBe(EXIT_USAGE);
-    expect(result.stderr).toBe("depcurfew: unknown option '--frobnicate'\nRun 'depcurfew apply --help' for its options.\n");
+    // The form of every error that keeps a command from starting: level, message and code, then what to do (D-113).
+    expect(result.stderr).toBe("error: unknown option '--frobnicate' (usage)\n  fix: Run 'depcurfew apply --help' for its options\n");
   });
 
   it('points too many arguments to the command help', async () => {
     const result = await exec('doctor', 'a', 'b');
     expect(result.code).toBe(EXIT_USAGE);
-    expect(result.stderr).toContain("Run 'depcurfew doctor --help' for usage.");
+    expect(result.stderr).toBe("error: too many arguments for 'doctor' (usage)\n  fix: Run 'depcurfew doctor --help' for usage\n");
   });
 });

@@ -5,17 +5,19 @@
 import { LineCounter, isMap, isScalar, type Node } from 'yaml';
 import { PolicyError } from '../apply/index.ts';
 import { BLOCK_END, isBlockStart } from '../apply/block.ts';
-import { formatVersion, type Version } from '../apply/version.ts';
+import { compareVersions, formatVersion, parseVersion, type Version } from '../apply/version.ts';
 import type { ApplyWarning } from '../apply/warnings.ts';
 import { YAML_MARKER } from '../apply/yaml-edit.ts';
 import { ruleResults } from '../doctor/render.ts';
+import { driftPlaces, MAX_DIFFERENCES } from '../doctor/rules/config-drift.ts';
 import { iniLines } from '../doctor/settings.ts';
-import type { Checked, DoctorReport, Finding, Notice, Rule } from '../doctor/types.ts';
+import { makeNotice, type Checked, type DoctorReport, type Finding, type Notice, type Rule } from '../doctor/types.ts';
 import { parseToml, TomlDateTime, type TomlDocument, type TomlTable } from '../detect/toml.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
+import { values } from '../apply/facts.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId, ToolKnowledge, UserFile, UserWeakening } from '../knowledge/types.ts';
-import { ecosystemOfTool } from '../policy/ecosystem.ts';
+import { POLICY_FILE } from '../policy/defaults.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import { listing } from '../apply/requirements.ts';
 import { redactCredentials } from '../printable.ts';
@@ -23,11 +25,12 @@ import { readLimited } from '../read-limited.ts';
 import { isMergePair, mergedPair, parseYamlDocument } from '../yaml-parse.ts';
 import { planUserApply } from './apply.ts';
 import { homeProblem, type HomeProblem } from './home.ts';
-import { locateUserFile, shownPath, userFileFor, userFilePath, type RelativeDirectory, type UserEnvironment } from './locate.ts';
+import { locateUserFile, shownPath, userFilePath, type RelativeDirectory, type UserEnvironment } from './locate.ts';
 import { userPolicyPath } from './policy-path.ts';
 import { loadUserPolicy, userPolicyFix } from './policy.ts';
 import { environmentOverrides } from './variables.ts';
-import { findExecutable, installedVersion } from './versions.ts';
+import { installedUserFile, possibleUserFiles } from './user-file.ts';
+import { findExecutable, installedToolName, toolVersion, type InstalledVersion } from './versions.ts';
 
 const noCheck = (): void => undefined;
 
@@ -89,10 +92,40 @@ export const USER_RULES: readonly Rule[] = [
   },
 ];
 
+/** The checks of the user files and variables of installed tools: not applicable when no tool is in PATH. */
+const INSTALLED_TOOL_RULES: ReadonlySet<string> = new Set(['user-config-drift', 'user-config-weakens', 'user-environment-overrides']);
+
+const DRIFT_FIX = 'Run depcurfew apply --user --dry-run to see the difference, then depcurfew apply --user';
+
+/**
+ * The user-config-drift findings of a user file that apply --user would change, as config-drift reports a project
+ * file: one for each place that differs, with its line and what should be there (decisions D-116 and D-122), at most
+ * MAX_DIFFERENCES, the last with how many more places differ; a file that does not exist is one finding.
+ */
+export function userDriftFindings(change: { file: string; before: string | null; after: string }, policyFile: string): Finding[] {
+  if (change.before === null) {
+    return [{ rule: 'user-config-drift', level: 'warning', location: { file: change.file }, message: `${change.file} does not exist, so the user policy is not applied there`, fix: DRIFT_FIX }];
+  }
+  const places = driftPlaces(change.file, change.before, change.after);
+  const shown = places.slice(0, MAX_DIFFERENCES);
+  const rest = places.length - shown.length;
+  return shown.map((place, index): Finding => {
+    const more = index === shown.length - 1 && rest > 0 ? `; ${rest} more ${rest === 1 ? 'place' : 'places'} in ${change.file} ${rest === 1 ? 'differs' : 'differ'} too (depcurfew apply --user --dry-run shows them)` : '';
+    return {
+      rule: 'user-config-drift',
+      level: 'warning',
+      location: { file: change.file, line: place.line },
+      // config-drift speaks of a project: here it is the user policy, written by apply --user.
+      message: `${change.file} does not match the user policy (${policyFile}): ${place.text.replaceAll('depcurfew apply ', 'depcurfew apply --user ').replaceAll(POLICY_FILE, 'the user policy')}${more}`,
+      fix: DRIFT_FIX,
+    };
+  });
+}
+
 const MAX_FILE = 1024 * 1024;
 
 /** A key of a user file with its value: INI keys by line (lists one value per line), TOML and YAML keys at any depth. */
-interface Entry {
+export interface Entry {
   /** The key; dotted keys and nested tables as separate parts. */
   path: readonly string[];
   /** INI: the [section] the key is in; undefined above the first header. */
@@ -103,7 +136,7 @@ interface Entry {
   managed: boolean;
 }
 
-type Read = { ok: true; entries: Entry[] } | { ok: false; message: string; line?: number; fix: string };
+export type Read = { ok: true; entries: Entry[] } | { ok: false; message: string; line?: number; fix: string };
 
 /** The 1-based lines between the markers of depcurfew's managed blocks (INI and TOML). */
 function blockLines(lines: readonly string[]): Set<number> {
@@ -196,7 +229,8 @@ function yamlRead(text: string, merge = false): Read {
   return { ok: true, entries };
 }
 
-function parse(file: UserFile, text: string): Read {
+/** The keys of a user file as the tool reads them, or why it cannot be parsed; init --user reads delays with it too. */
+export function parseUserFile(file: UserFile, text: string): Read {
   if (file.format === 'yaml') return yamlRead(text, file.mergeKeys === true);
   if (file.format === 'ini') return { ok: true, entries: iniRead(text, file) };
   try {
@@ -277,7 +311,7 @@ function keyAndValue(entry: Entry): string {
 }
 
 /** Whether the tool reads keys of this INI section; every section counts when the knowledge base does not say. */
-function readsSection(file: UserFile, entry: Entry): boolean {
+export function readsSection(file: UserFile, entry: Entry): boolean {
   return file.format !== 'ini' || file.sections === undefined || file.sections.includes(entry.section ?? '');
 }
 
@@ -325,13 +359,61 @@ export interface UserDoctorOptions {
 
 const SKIPPED = new Set<ApplyWarning['code']>(['version-unknown', 'no-user-config']);
 
+/** The warnings of apply --user that say the installed version cannot take a setting the user policy needs. */
+const TOO_OLD = new Set<ApplyWarning['code']>(['version-too-old', 'scripts-not-enforceable']);
+
+/** "min-release-age (added in 11.10.0)" from "npm 10.9.9 does not support min-release-age (added in 11.10.0); not written". */
+function unsupported(warning: ApplyWarning): string {
+  if (warning.code === 'scripts-not-enforceable') return 'an allow-list for install scripts';
+  return /\bdoes not support (.+?)(?:; not written)?$/u.exec(warning.message)?.[1] ?? warning.message;
+}
+
+/**
+ * An installed tool too old for settings the user policy needs (decision D-107): apply --user leaves them out, so the
+ * policy does not protect the tool there. A warning of user-config-drift that says what stays unprotected, with the
+ * lowest version that has all of them; doctor --user is not clean while it lasts (and --strict fails).
+ */
+function tooOldFinding(tool: ToolKnowledge, version: Version | undefined, warnings: readonly ApplyWarning[], shown: string, writesSome: boolean): Finding {
+  const name = version === undefined ? tool.name : `${tool.name} ${formatVersion(version)}`;
+  const delay = values(tool.cooldown.setting)[0];
+  const open = [
+    ...(warnings.some((warning) => warning.code === 'scripts-not-enforceable') ? ['the install scripts of dependencies still run'] : []),
+    ...(warnings.some((warning) => warning.code === 'version-too-old' && typeof delay === 'string' && warning.message.includes(` ${delay} `)) ? ['new versions install without the release-age delay'] : []),
+    // "allow-remote, allow-file and allow-directory are not set": the other settings, without the versions that added them.
+    ...warnings
+      .filter((warning) => warning.code === 'version-too-old')
+      .flatMap((warning) => {
+        const text = unsupported(warning).replace(/; where official sources disagree.*$/u, '').replace(/ \(added in [^)]+\)/gu, '');
+        const settings = text.split(/, | and /u).filter((setting) => setting !== '' && setting !== delay);
+        return settings.length === 0 ? [] : [`${listing(settings)} ${settings.length === 1 ? 'is' : 'are'} not set`];
+      }),
+  ];
+  // The lowest version that has every setting: the highest of the versions the fixes name.
+  const needed = warnings
+    .map((warning) => parseVersion(/\bUpdate \S+ to (\d+\.\d+\.\d+) or later\b/u.exec(warning.fix ?? '')?.[1] ?? ''))
+    .filter((entry): entry is Version => entry !== undefined)
+    .sort(compareVersions)
+    .at(-1);
+  const update = needed === undefined ? `Update ${tool.name}` : `Update ${tool.name} to ${formatVersion(needed)} or later${tool.id === 'npm' ? ` (npm install -g npm@${formatVersion(needed)})` : ''}`;
+  const settings = listing(warnings.map(unsupported));
+  return {
+    rule: 'user-config-drift',
+    level: 'warning',
+    location: { file: shown },
+    message: writesSome
+      ? `${name} is too old for part of the user policy: it lacks ${settings}, so depcurfew apply --user leaves ${warnings.length === 1 ? 'that' : 'those'} out of ${shown} and the user policy does not fully protect ${tool.name}: ${listing(open)}`
+      : `${name} is too old for the user policy: it lacks ${settings}, so depcurfew apply --user writes nothing to ${shown} and the user policy does not protect ${tool.name}: ${listing(open)}`,
+    fix: `${update}, then run depcurfew apply --user; or pass the installed version with --for ${tool.id}@<version>${version === undefined ? '' : ` if ${formatVersion(version)} is not it`}`,
+  };
+}
+
 export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { policyFile: string } {
   const { environment } = options;
   const tools = options.tools ?? knowledgeBase;
   const findings: Finding[] = [];
   const notices: Notice[] = [];
-  const notice = (message: string) => {
-    if (!notices.some((known) => known.message === message)) notices.push({ message });
+  const notice = (code: string, message: string, fix?: string) => {
+    if (!notices.some((known) => known.message === message)) notices.push(makeNotice(code, message, undefined, fix));
   };
   let policy: ResolvedPolicy | undefined;
   let status: DoctorReport['policy'] = 'valid';
@@ -351,16 +433,17 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     if (!(error instanceof PolicyError)) throw error;
     if (error.code === 'policy-missing') {
       status = 'missing';
-      notice(`${error.message}: only the checks that do not need a user policy ran`);
+      // Without a home directory init --user writes nothing, so the fix is the one of the home directory finding.
+      notice('policy-missing', `${error.message}: only the checks that do not need a user policy ran`, home === undefined ? 'Run depcurfew init --user to write it, so that the checks that compare the user configuration with it run too' : home.fix);
     } else {
       status = 'invalid';
-      notice(`${policyFile} cannot be used: only the checks that do not need a user policy ran`);
-      // A JSON syntax error says where it is ("invalid JSON at line 2, column 16").
-      const line = /\binvalid JSON at line (\d+)\b/u.exec(error.issues.join('\n'))?.[1];
+      notice('policy-invalid', `${policyFile} cannot be used: only the checks that do not need a user policy ran`, 'Fix what the user-policy-invalid finding lists, then run depcurfew doctor --user again');
+      // The line of the field the first problem names, or of a JSON syntax error (decision D-116).
+      const line = error.line;
       findings.push({
         rule: 'user-policy-invalid',
         level: 'error',
-        location: { file: policyFile, ...(line === undefined ? {} : { line: Number(line) }) },
+        location: { file: policyFile, ...(line === undefined ? {} : { line }) },
         message: error.issues.length === 0 ? error.message : `${error.message}: ${error.issues.join('; ')}`,
         fix: userPolicyFix(error, policyFile),
       });
@@ -368,13 +451,9 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   }
 
   const installed = tools.filter((tool) => tool.kind === 'package-manager' && tool.user !== undefined && findExecutable(tool.id, environment) !== undefined);
-  /** Versions as the tools print them (pip 24.0), for the list of what was checked. */
-  const versionTexts = new Map<ToolId, string | undefined>(
-    installed.map((tool) => [tool.id, options.versions?.[tool.id] === undefined ? installedVersion(tool.id, ecosystemOfTool(tool), environment)?.text : undefined]),
-  );
-  const versions = new Map<ToolId, Version | undefined>(
-    installed.map((tool) => [tool.id, options.versions?.[tool.id] ?? installedVersion(tool.id, ecosystemOfTool(tool), environment)?.version]),
-  );
+  /** Versions read from files, with the text as the tools print it (pip 24.0) and where it came from, for the list of what was checked. */
+  const read = new Map<ToolId, InstalledVersion | undefined>(installed.map((tool) => [tool.id, options.versions?.[tool.id] === undefined ? toolVersion(tool, environment) : undefined]));
+  const versions = new Map<ToolId, Version | undefined>(installed.map((tool) => [tool.id, options.versions?.[tool.id] ?? read.get(tool.id)?.version]));
   const unreadable = new Set<string>();
   const reportUnreadable = (shown: string, problem: { message: string; fix: string; line?: number }) => {
     if (unreadable.has(shown)) return;
@@ -390,7 +469,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     for (const problem of plan.report.problems) reportProblem(problem);
     const skipped = new Set(plan.report.warningDetails.filter((warning) => SKIPPED.has(warning.code)).map((warning) => warning.tool));
     const pathOf = (tool: ToolKnowledge): string | undefined => {
-      const file = userFileFor(tool, versions.get(tool.id) ?? options.versions?.[tool.id]);
+      const file = installedUserFile(tool, versions.get(tool.id) ?? options.versions?.[tool.id], environment);
       return file === null ? undefined : userFilePath(file, environment);
     };
     // A file apply --user cannot edit is not planned for any tool (npm and Deno share ~/.npmrc).
@@ -411,13 +490,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     }
     for (const change of plan.report.changes) {
       if (!failedPaths.has(change.path)) planned.set(change.path, change.after);
-      findings.push({
-        rule: 'user-config-drift',
-        level: 'warning',
-        location: { file: change.file },
-        message: change.before === null ? `${change.file} does not exist, so the user policy is not applied there` : `${change.file} does not match the user policy (${policyFile})`,
-        fix: 'Run depcurfew apply --user --dry-run to see the difference, then depcurfew apply --user',
-      });
+      findings.push(...userDriftFindings(change, policyFile));
     }
     const targets = policy.targets;
     for (const tool of installed) {
@@ -429,17 +502,31 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     for (const warning of plan.report.warningDetails) {
       const tool = tools.find((candidate) => candidate.id === warning.tool);
       if (warning.code === 'version-unknown' && tool !== undefined) {
-        const file = userFileFor(tool, undefined);
+        const file = installedUserFile(tool, undefined, environment);
         const path = file === null ? undefined : userFilePath(file, environment);
         const where = path === undefined ? 'its user file' : shownPath(path, environment);
         notice(
+          warning.code,
           `${tool.name}: depcurfew cannot read the installed version from its files, so depcurfew apply --user leaves ${where} alone (${tool.name} stops every command on a value its version does not understand) and doctor --user does not compare it with the user policy; pass the version with --for ${tool.id}@<version> (${tool.id} --version shows it)`,
+          `Run depcurfew doctor --user --for ${tool.id}@<version> with the version ${tool.id} --version shows`,
         );
-      } else if (warning.code === 'no-user-config' || warning.code === 'nothing-to-configure') {
-        notice(warning.message);
+      } else if (warning.code === 'no-user-config' || warning.code === 'nothing-to-configure' || warning.code === 'user-file-uncertain') {
+        notice(warning.code, warning.message, warning.fix);
       }
     }
-    tooOld = plan.report.warningDetails.filter((warning) => warning.code === 'version-too-old');
+    tooOld = plan.report.warningDetails.filter((warning) => TOO_OLD.has(warning.code));
+    for (const tool of installed) {
+      if ((targets !== 'auto' && !targets.includes(tool.id)) || skipped.has(tool.id)) continue;
+      const own = tooOld.filter((warning) => warning.tool === tool.id);
+      if (own.length === 0) continue;
+      const path = pathOf(tool);
+      // Whether apply --user writes anything for the tool: its file, as planned, has a block or marker of depcurfew.
+      const change = path === undefined ? undefined : plan.report.changes.find((entry) => entry.path === path);
+      const text = change?.after ?? (path === undefined ? undefined : readLimited(path, MAX_FILE));
+      const body = typeof text === 'string' ? text : text?.ok === true ? text.bytes.toString('utf8') : '';
+      const writesSome = body.split(/\r?\n/u).some((line) => isBlockStart(line) || line.trim() === YAML_MARKER);
+      findings.push(tooOldFinding(tool, versions.get(tool.id), own, path === undefined ? 'its user file' : shownPath(path, environment), writesSome));
+    }
   }
 
   // A version given with --for for a tool that is not checked, as apply --user warns (version-not-used); a tool that
@@ -450,7 +537,9 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     if (tool?.user !== undefined && policy !== undefined && policy.targets !== 'auto' && policy.targets.includes(id)) continue;
     const toolName = tool?.name ?? id;
     notice(
+      'version-not-used',
       `${toolName}: --for ${id}@${formatVersion(version)} is not used, because ${tool?.user === undefined ? `depcurfew knows no user-level configuration of ${toolName}` : `${toolName} is not in PATH, so doctor --user does not check it`}`,
+      tool?.user === undefined ? `Leave out --for ${id}@${formatVersion(version)}` : `Leave out --for ${id}@${formatVersion(version)}, or add "${id}" to targets in ${policyFile} to check ${toolName} without it in PATH`,
     );
   }
 
@@ -462,8 +551,13 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     const located = locateUserFile(file, environment);
     return located === undefined ? undefined : 'relative' in located ? located.relative.path : located.path;
   };
+  // Where a library decides the directories and its version is unknown, every file its versions give (D-101).
   const filesOf = (tool: ToolKnowledge, version: Version | undefined): (UserFile | null)[] =>
-    tool.user === undefined ? [] : version === undefined ? (evidenceOf(tool.user.files)[0]?.value ?? []).map((entry) => entry.value) : [userFileFor(tool, version)];
+    tool.user === undefined
+      ? []
+      : version === undefined
+        ? (evidenceOf(tool.user.files)[0]?.value ?? []).flatMap((entry) => (entry.value === null ? [null] : possibleUserFiles(tool, parseVersion(entry.since), environment)))
+        : possibleUserFiles(tool, version, environment);
   for (const tool of installed) {
     for (const file of filesOf(tool, versions.get(tool.id))) {
       const located = file === null ? undefined : locateUserFile(file, environment);
@@ -493,7 +587,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
       if (problem !== undefined) reportUnreadable(shown, problem);
       else if (read.ok) {
         filesRead.add(shown);
-        result = parse(file, read.bytes.toString('utf8'));
+        result = parseUserFile(file, read.bytes.toString('utf8'));
         if (!result.ok) {
           reportUnreadable(shown, {
             message: `${shown} cannot be parsed (${result.message}), so depcurfew cannot check it`,
@@ -515,7 +609,7 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
     if (!planned.has(path)) return undefined;
     const text = planned.get(path);
     if (text === undefined) return current;
-    const result = parse(file, text);
+    const result = parseUserFile(file, text);
     return result.ok ? result.entries : undefined;
   };
   const reported = new Set<string>();
@@ -589,15 +683,6 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
         }
       }
     }
-    for (const warning of tooOld.filter((candidate) => candidate.tool === tool.id)) {
-      const file = userFileFor(tool, version);
-      const path = file === null ? undefined : userFilePath(file, environment);
-      const where = path === undefined ? 'its user file' : shownPath(path, environment);
-      const shownVersion = version === undefined ? '' : ` ${formatVersion(version)}`;
-      notice(
-        `${warning.message.replace(/; not written$/u, '')}, so depcurfew apply --user does not write it to ${where} and the user policy does not protect ${tool.name} there; update ${tool.name}, or pass the installed version with --for ${tool.id}@<version> if${shownVersion} is not it (${tool.id} --version shows it)`,
-      );
-    }
   }
 
   // One finding per variable as it is set, with what it does for each tool that reads it.
@@ -637,10 +722,21 @@ export function runUserDoctor(options: UserDoctorOptions): DoctorReport & { poli
   const checked: Checked = {
     tools: installed.map((tool) => {
       const version = versions.get(tool.id);
-      return { id: tool.id, name: tool.name, ...(version === undefined ? {} : { version: versionTexts.get(tool.id) ?? formatVersion(version), versionFrom: options.versions?.[tool.id] === undefined ? 'PATH' : '--for' }) };
+      const found = read.get(tool.id);
+      return { id: tool.id, name: installedToolName(tool, version), ...(version === undefined ? {} : { version: found?.text ?? formatVersion(version), versionFrom: options.versions?.[tool.id] === undefined ? (found?.from ?? 'PATH') : '--for' }) };
     }),
     files: [...filesRead].sort(),
-    rules: ruleResults(USER_RULES, clean, (rule) => policy === undefined && (rule.requiresPolicy || (rule.id === 'user-policy-invalid' && status === 'missing'))),
+    rules: ruleResults(
+      USER_RULES,
+      clean,
+      (rule) => policy === undefined && (rule.requiresPolicy || (rule.id === 'user-policy-invalid' && status === 'missing')),
+      // The user files and the variables are those of the tools in PATH: without one, these checks concern nothing
+      // (D-098), except drift for a tool the targets of the user policy name.
+      (rule) =>
+        installed.length > 0 ||
+        !INSTALLED_TOOL_RULES.has(rule.id) ||
+        (rule.id === 'user-config-drift' && policy !== undefined && policy.targets !== 'auto' && policy.targets.some((id) => tools.find((tool) => tool.id === id)?.user !== undefined)),
+    ),
     policyFile,
   };
   return { schemaVersion: 1, policy: status, findings: clean, notices: notices.map((item) => ({ ...item, message: redactCredentials(item.message) })), checked, policyFile };

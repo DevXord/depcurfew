@@ -5,7 +5,7 @@
       "file": "pyproject.toml",
       "line": 15
     },
-    "message": "requires-poetry in [tool.poetry] (pyproject.toml) allows Poetry 2.0.0 (\">=2.0\"), which does not support solver.min-release-age (since 2.4.0)",
+    "message": "requires-poetry in [tool.poetry] (pyproject.toml) allows Poetry 2.0.0 (\">=2.0\"), which does not support solver.min-release-age (added in 2.4.0)",
     "fix": "Require Poetry 2.4.0 or later in requires-poetry in [tool.poetry]"
   }
 ]

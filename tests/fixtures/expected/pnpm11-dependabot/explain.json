@@ -1,0 +1,97 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "pnpm",
+        "dependabot"
+      ]
+    },
+    "cooldown": {
+      "minimum": "3d",
+      "tools": [
+        {
+          "tool": "pnpm",
+          "ok": true,
+          "unit": "minutes",
+          "value": 4320,
+          "exact": true
+        },
+        {
+          "tool": "dependabot",
+          "ok": true,
+          "unit": "days",
+          "value": 3,
+          "exact": true
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "esbuild",
+        "@scope/*"
+      ],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "pnpm",
+          "settings": [
+            {
+              "setting": "allowBuilds",
+              "file": "pnpm-workspace.yaml"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "allow-pattern-unsupported",
+              "level": "warning",
+              "tool": "pnpm",
+              "message": "pnpm: allowBuilds takes package names only; \"@scope/*\" not written",
+              "fix": "List the package names in installScripts.allow"
+            }
+          ]
+        },
+        {
+          "tool": "dependabot",
+          "settings": [],
+          "warnings": []
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "pnpm",
+          "settings": [
+            {
+              "setting": "blockExoticSubdeps",
+              "file": "pnpm-workspace.yaml"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "source-switch-indirect-only",
+              "level": "warning",
+              "tool": "pnpm",
+              "message": "pnpm: blockExoticSubdeps stops git and tarball sources only for indirect dependencies; direct ones stay allowed",
+              "fix": "Run depcurfew doctor, which reports direct ones in pnpm-lock.yaml"
+            }
+          ]
+        },
+        {
+          "tool": "dependabot",
+          "settings": [],
+          "warnings": []
+        }
+      ]
+    }
+  },
+  "projects": []
+}

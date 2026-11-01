@@ -1,0 +1,2 @@
+projects[1]: "frontend/app" is inside "frontend" (projects[0]); each project is configured on its own, so list only one of them
+projects[3]: "backend" and "Backend" (projects[2]) differ only in case, so they name the same directory on Windows and macOS; keep the one spelled as the directory is

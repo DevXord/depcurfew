@@ -43,6 +43,8 @@
   "workspaces": null,
   "npmrcFiles": [],
   "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
   "warnings": [
     {
       "code": "renovate-config-in-package-json",

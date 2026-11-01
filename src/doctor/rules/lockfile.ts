@@ -1,7 +1,7 @@
 // Lockfile rules. lockfile-forbidden-source: a package from a source depcurfew.json denies. lockfile-install-scripts:
 // a package with install scripts that depcurfew.json does not allow, where the lockfile records scripts.
 import { extraOf, isRecord, isSwitch, sinceOf, values } from '../../apply/facts.ts';
-import { compareVersions, parseVersion, pinnedVersion } from '../../apply/version.ts';
+import { compareVersions, parseVersion, pinnedVersion, type Version } from '../../apply/version.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
@@ -15,6 +15,9 @@ import { requirementsFormatOf } from '../python-lockfiles.ts';
 import { readPythonSetting, requirementsOptions } from '../python.ts';
 import { iniValue, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
+import { hasBuildRecords, showsBuilds } from '../python-lockfiles.ts';
+import { hasLockfile } from '../applies.ts';
+import { npmInUseSeveral, npmInUseText, npmPlaces, repositoryPin, type NpmInUse } from './bundled-versions.ts';
 
 const LABELS = {
   npm: { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' },
@@ -59,6 +62,7 @@ export const lockfileForbiddenSource: Rule = {
   help: 'Replace the dependency with a registry version, or allow that source in depcurfew.json.',
   level: 'error',
   requiresPolicy: true,
+  applies: hasLockfile,
   check(context) {
     const sources = context.policy?.sources;
     if (sources === undefined) return;
@@ -94,14 +98,39 @@ function shownSpec(spec: string): string {
   return /^(?:file|portal|link):/u.test(text) && hash !== -1 ? text.slice(0, hash) : text;
 }
 
-/** Whether the version in use runs dependency install scripts without an allow-list, under any official reading. */
-function runsScripts(context: RuleContext, tool: ToolKnowledge): boolean {
+/**
+ * The versions of the tool the directory runs, each with where it comes from: for npm every place npm runs, as apply
+ * sees them (npmPlaces, decisions D-105 and D-109); for the other tools the version they pin. The latest known version
+ * when none is declared.
+ */
+function versionsInUse(context: RuleContext, tool: ToolKnowledge): { version: Version | undefined; place?: NpmInUse }[] {
   const manager = context.detection.packageManagers.find((entry) => entry.id === tool.id);
-  const version = (manager === undefined ? undefined : pinnedVersion(manager)) ?? latestVersion(tool);
-  return evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
-    const policy: ScriptPolicy | undefined = versionedValue(evidence.value, version);
-    return policy === 'run' || policy === 'run-with-warning';
-  });
+  if (manager === undefined) return [{ version: latestVersion(tool) }];
+  if (tool.id !== 'npm') return [{ version: repositoryPin(manager) ?? pinnedVersion(manager) ?? latestVersion(tool) }];
+  const places = npmPlaces(context).flatMap((place): { version: Version | undefined; place: NpmInUse }[] =>
+    place.unknown !== undefined ? [{ version: undefined, place }] : place.versions.map((version) => ({ version, place })),
+  );
+  return places.length > 0 ? places : [{ version: pinnedVersion(manager) ?? latestVersion(tool) }];
+}
+
+/**
+ * The first npm in use (or the version of another tool) that runs dependency install scripts no list covers: one that
+ * runs them all, or, unless strict-allow-scripts is set (`strict`), one that runs them with a notice. `text` names the
+ * versions of that place that run them ("npm 11.16.0 (with Node.js 24.18.0 in Dockerfile)"), absent without a place.
+ */
+function runsScripts(context: RuleContext, tool: ToolKnowledge, strict: boolean): { text?: string; several?: boolean; unknown?: true } | undefined {
+  const runs = (version: Version | undefined) =>
+    evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
+      const policy: ScriptPolicy | undefined = versionedValue(evidence.value, version);
+      return policy === 'run' || (policy === 'run-with-warning' && !strict);
+    });
+  // An npm depcurfew cannot tell counts as one that runs them (decision D-111).
+  const found = versionsInUse(context, tool).find((entry) => entry.place?.unknown !== undefined || runs(entry.version));
+  if (found === undefined) return undefined;
+  const place = found.place;
+  if (place?.unknown !== undefined) return { text: npmInUseText(place), unknown: true };
+  const versions = place?.versions.filter(runs) ?? [];
+  return place === undefined ? {} : { text: npmInUseText(place, versions), several: npmInUseSeveral(place, versions) };
 }
 
 /**
@@ -218,10 +247,12 @@ export const lockfileInstallScripts: Rule = {
   checks: 'The lockfile has no install scripts or source builds that depcurfew.json does not allow',
   summary: 'The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.',
   description:
-    'Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.',
+    'Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index (depcurfew check pypi:<name> shows whether one has wheels), only to requirements from a repository, a URL or a local path.',
   help: 'Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).',
   level: 'error',
   requiresPolicy: true,
+  // pip requirements files and Pipfile.lock list hashes only, so they cannot show a package without wheels (D-107).
+  applies: (scope) => hasBuildRecords(scope.detection.packageManagers, scope.tools),
   check(context) {
     const policy = context.policy;
     if (policy?.installScripts?.default !== 'deny') return;
@@ -231,6 +262,12 @@ export const lockfileInstallScripts: Rule = {
       const deny = view?.deny ?? [];
       if (ecosystemOfTool(tool) === 'pypi') {
         reportPythonBuilds(context, lockfile, tool, allow, deny);
+        if (!showsBuilds(tool, lockfile.file, context.tools) && lockfile.entries.some((entry) => entry.source === 'registry' && entry.installScript === undefined)) {
+          context.notice(
+            `lockfile-install-scripts cannot tell from ${lockfile.file} which packages from the index are built from source: it lists no wheels or source distributions; depcurfew check pypi:<name> shows whether a package has wheels`,
+            lockfile.file,
+          );
+        }
         return;
       }
       if (!lockfile.recordsScripts) {
@@ -242,7 +279,11 @@ export const lockfileInstallScripts: Rule = {
         context.notice(`${lockfile.file} marks no package with install scripts; Bun records them only since 1.4.4, so an older lockfile may hide some`, lockfile.file);
       }
       const disabledBy = scriptsDisabledBy(context, tool);
-      const running = disabledBy === undefined && runsScripts(context, tool);
+      // strict-allow-scripts does nothing in an npm that does not know it, so such an npm in use still runs them.
+      const runner = disabledBy?.all === true ? undefined : runsScripts(context, tool, disabledBy !== undefined);
+      const running = runner !== undefined;
+      // "npm 11.16.0 (with Node.js 24.18.0 in Dockerfile) runs them": the npm in use that does (decision D-109).
+      const runs = runner?.text === undefined ? `${tool.name} runs them by default` : `${runner.text} ${runner.unknown === true ? 'may run' : runner.several === true ? 'run' : 'runs'} them`;
       const lists = ownLists(context, tool);
       for (const entry of flagged) {
         if (allow.some((pattern) => matchesPattern(entry.name, pattern))) continue;
@@ -268,7 +309,7 @@ export const lockfileInstallScripts: Rule = {
           context.report({
             level: 'error',
             location: location(lockfile, entry),
-            message: `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} denies them`,
+            message: `${entry.name} has install scripts and ${runs}, but ${POLICY_FILE} denies them`,
             fix: `Make ${tool.name} stop running dependency install scripts (run depcurfew apply and follow its warnings), or replace the package`,
           });
           continue;
@@ -277,7 +318,7 @@ export const lockfileInstallScripts: Rule = {
           level: running ? 'error' : 'warning',
           location: location(lockfile, entry),
           message: running
-            ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it`
+            ? `${entry.name} has install scripts and ${runs}, but ${POLICY_FILE} does not allow it`
             : disabledBy === undefined
               ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them`
               : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy.reason}; the package may need them`,

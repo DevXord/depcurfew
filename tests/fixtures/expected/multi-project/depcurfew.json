@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "cooldown": {
+    "minimum": "36h",
+    "exclude": ["@acme/*", "pypi:acme-*"],
+    "securityUpdates": "bypass"
+  },
+  "installScripts": {
+    "default": "deny",
+    "allow": ["esbuild"]
+  },
+  "sources": {
+    "git": "deny",
+    "remoteTarball": "deny"
+  },
+  "targets": "auto",
+  "projects": ["frontend", "backend"]
+}

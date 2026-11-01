@@ -22,6 +22,13 @@ interface Entry {
   body: string;
 }
 
+/**
+ * The codes of the errors writeChanges throws itself, when a directory on the way to a file leads out of the root (a
+ * symlink put in place after apply looked at it) or is no longer the directory the file was staged in.
+ */
+export const OUTSIDE = 'DEPCURFEW_OUTSIDE_ROOT';
+export const CHANGED = 'DEPCURFEW_DIRECTORY_CHANGED';
+
 /** Why a file system call failed, in plain words; the error code when there are none. */
 export function fileSystemReason(error: unknown): string {
   const code = (error as NodeJS.ErrnoException).code;
@@ -36,6 +43,8 @@ export function fileSystemReason(error: unknown): string {
     EEXIST: 'a file of the same name is in the way',
     EBUSY: 'the file is busy',
     ENAMETOOLONG: 'its name is too long',
+    [OUTSIDE]: 'a directory on its path is a symlink that leads outside the directory depcurfew writes to',
+    [CHANGED]: 'a directory on its path changed while depcurfew was writing',
   };
   if (code !== undefined && reasons[code] !== undefined) return reasons[code];
   return code ?? (error instanceof Error ? error.message : String(error));
@@ -198,6 +207,8 @@ export interface WriteOptions {
    * apply and init --user, run by root in the home directory of another user, give what they create there to that user.
    */
   ownerOfNew?: (path: string) => Owner | undefined;
+  /** Called once every temporary file is written, before the first rename (tests change the file system there). */
+  staged?: () => void;
 }
 
 /** The changes of one workspace root, for writeChangeSets. */
@@ -307,6 +318,8 @@ interface Item {
 
 interface Staged extends Item {
   temporary: string;
+  /** The real path of the file's directory when it was staged, inside the real path of the root. */
+  directory: string;
   /** The mode of the file it replaces; undefined for a new file. */
   mode: number | undefined;
   /**
@@ -378,6 +391,40 @@ function missingTop(directory: string): string | undefined {
     if (dirname(current) === current) break;
   }
   return top;
+}
+
+function writeError(code: string, path: string): Error {
+  return Object.assign(new Error(`${code}: ${path}`), { code, path });
+}
+
+/**
+ * The real path of `directory`, which must lie inside `realRoot` (the real path of the root): a directory on the way
+ * that became a symlink after apply looked at it (the directory of a project swapped for a link out of the
+ * repository) would otherwise take the file outside. Throws an error with the code OUTSIDE.
+ */
+function realInside(realRoot: string, directory: string): string {
+  const real = realpathSync(directory);
+  if (!isInside(realRoot, real)) throw writeError(OUTSIDE, directory);
+  return real;
+}
+
+/**
+ * Whether the directory of a staged file is still the one it was staged in; throws an error with the code OUTSIDE
+ * when it now leads out of the root, or CHANGED when it leads elsewhere inside it. Checked right before each rename.
+ */
+function checkUnchanged(realRoot: string, entry: Staged): void {
+  const now = realInside(realRoot, dirname(entry.path));
+  if (now !== entry.directory) throw writeError(CHANGED, dirname(entry.path));
+}
+
+/** Whether checkUnchanged passes, for putting a file back: one whose directory changed is left alone. */
+function unchanged(realRoot: string, entry: Staged): boolean {
+  try {
+    checkUnchanged(realRoot, entry);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -466,19 +513,36 @@ export function writeChangeSets(sets: readonly ChangeSet[], options: WriteOption
     }
   };
   const details = () => ({ ...(options.platform === undefined ? {} : { platform: options.platform }), leftovers });
+  const realRoots = new Map<string, string>();
+  const realRoot = (root: string): string => {
+    let real = realRoots.get(root);
+    if (real === undefined) {
+      // init --user writes into a directory it creates: the real path of the part that exists, and the rest as given.
+      const top = missingTop(root);
+      real = top === undefined ? realpathSync(root) : join(realpathSync(dirname(top)), relative(dirname(top), root));
+      realRoots.set(root, real);
+    }
+    return real;
+  };
   let current = items[0]?.name ?? '';
   try {
     for (const item of items) {
       current = item.name;
       const top = missingTop(dirname(item.path));
+      // Nothing is created through a directory that leads out of the root: the deepest one that exists is checked first.
+      const existing = top === undefined ? dirname(item.path) : dirname(top);
+      // Above the root only when the root itself is created (init --user): nothing of the root to leave then.
+      if (isInside(item.root, existing)) realInside(realRoot(item.root), existing);
       // Recorded first, so that the directories are removed even when mkdirSync creates some of them and then fails.
       if (top !== undefined) created.push(top);
       makeDirectories(dirname(item.path), options.ownerOfNew);
+      const directory = realInside(realRoot(item.root), dirname(item.path));
       const stats = item.change.before === null ? undefined : statSync(item.path);
       const mode = stats === undefined ? undefined : stats.mode & 0o7777;
       const owner = stats === undefined ? newOwner(item.path, options.ownerOfNew) : ownerToKeep(item.path);
-      staged.push({ ...item, temporary: stage(item.path, item.change.after, mode, owner), mode, owner });
+      staged.push({ ...item, temporary: stage(item.path, item.change.after, mode, owner), directory, mode, owner });
     }
+    options.staged?.();
   } catch (error) {
     for (const entry of staged) remove(entry);
     removeDirectories(created, paths);
@@ -489,6 +553,7 @@ export function writeChangeSets(sets: readonly ChangeSet[], options: WriteOption
   try {
     for (const entry of staged) {
       current = entry.name;
+      checkUnchanged(realRoot(entry.root), entry);
       retried(() => renameSync(entry.temporary, entry.path), options);
       renamed.push(entry);
     }
@@ -497,6 +562,11 @@ export function writeChangeSets(sets: readonly ChangeSet[], options: WriteOption
     const unrestored: string[] = [];
     const backups: Record<string, string> = {};
     for (const entry of renamed.reverse()) {
+      // A file is put back only where it was written, never through a directory that changed meanwhile.
+      if (!unchanged(realRoot(entry.root), entry)) {
+        unrestored.push(entry.name);
+        continue;
+      }
       if (entry.change.before === null) {
         try {
           retried(() => rmSync(entry.path, { force: true }), options);

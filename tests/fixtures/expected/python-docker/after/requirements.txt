@@ -1,0 +1,4 @@
+# >>> depcurfew managed block: edit depcurfew.json and run depcurfew apply instead
+--only-binary=:all:
+# <<< depcurfew managed block
+flask==3.1.2

@@ -2,7 +2,8 @@
   {
     "level": "error",
     "location": {
-      "file": "depcurfew.json"
+      "file": "depcurfew.json",
+      "line": 1
     },
     "message": "depcurfew.json is invalid: cooldown.minimum: invalid duration \"soon\": use a whole number followed by m (minutes), h (hours), d (days) or w (weeks), e.g. \"36h\", \"3d\" or \"1w\"; installScripts.default: must be one of \"allow\", \"deny\", got \"maybe\"",
     "fix": "Fix these problems in depcurfew.json; an editor that reads its $schema shows them as you type"

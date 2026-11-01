@@ -7,12 +7,13 @@
 // bidirectional characters from the files as text (\x1b, ‮) in every line, on a terminal and in a pipe alike (in
 // a pipe the CR of CRLF line breaks stays, so the diff still applies); the diff in the JSON document keeps them all,
 // escaped by JSON.
-import { applyProject, ApplyWriteError, PolicyError, type ApplyReport } from '../apply/index.ts';
+import { applyProject, ApplyWriteError, PolicyError, type ApplyProblem, type ApplyReport } from '../apply/index.ts';
 import { unifiedDiff } from '../apply/diff.ts';
 import type { Version } from '../apply/version.ts';
 import { WriteFailed } from '../apply/workspace.ts';
 import type { ToolId } from '../knowledge/types.ts';
-import { planUserApply, writeUserChanges, type UserProblem } from '../user/apply.ts';
+import { planUserApply, writeUserChanges } from '../user/apply.ts';
+import { homeProblem } from '../user/home.ts';
 import { shownPath, type UserEnvironment } from '../user/locate.ts';
 import { userPolicyPath } from '../user/policy-path.ts';
 import { loadUserPolicy } from '../user/policy.ts';
@@ -21,8 +22,9 @@ import { paint, type Paint } from '../color.ts';
 import { safeJson } from '../json-safe.ts';
 import { printable } from '../printable.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
+import { makeNotice } from '../doctor/types.ts';
 import { toolName } from './describe.ts';
-import { policyInputError, projectDirectory, reportInputError } from './directory.ts';
+import { policyInputError, projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
 function indent(text: string): string {
@@ -83,7 +85,10 @@ function diagnostics(report: ApplyReport, errors: readonly JsonError[], colors: 
     lines.push(colors.bold(`${toolName(snippet.tool)}: add this to ${printable(snippet.file)} by hand:`), indent(printable(snippet.text, { lines: true })));
   }
   for (const error of errors) {
-    lines.push(`error: ${printable(error.message)} ${colors.dim(`(${error.code})`)}`);
+    // A directory listed in projects is an entry of depcurfew.json: the text names it and the line, as the JSON does.
+    const { file, line } = error.location;
+    const where = error.code.startsWith('project-') && !error.message.includes(file) ? `${file}${line === undefined ? '' : ` (line ${line})`}: ` : '';
+    lines.push(`error: ${printable(`${where}${error.message}`)} ${colors.dim(`(${error.code})`)}`);
     if (error.fix !== undefined) lines.push(`  ${colors.green('fix:')} ${printable(error.fix)}`);
   }
   return lines.length === 0 ? '' : `${lines.join('\n')}\n`;
@@ -97,7 +102,7 @@ interface JsonError {
   code: ApplyErrorCode;
   level: 'error';
   tool?: string;
-  location: { file: string; line?: number };
+  location: { file: string; line?: number; variable?: string };
   message: string;
   fix?: string;
   issues?: string[];
@@ -111,9 +116,9 @@ function lineOf(message: string): number | undefined {
 
 /**
  * The errors of a plan, one source for the text and the JSON document: the problems that concern no single file
- * (apply --user), then every file that cannot be edited. `report.errors` holds the problems' messages first.
+ * (apply --user, a directory listed in projects), then every file that cannot be edited. `report.errors` holds the problems' messages first.
  */
-function planErrors(report: ApplyReport, problems: readonly UserProblem[], command: string): JsonError[] {
+function planErrors(report: ApplyReport, problems: readonly ApplyProblem[], command: string): JsonError[] {
   return [
     ...problems.map((problem): JsonError => ({ code: problem.code, level: 'error', location: problem.location, message: problem.message, fix: problem.fix })),
     ...report.failures.map((failure, index): JsonError => {
@@ -164,7 +169,8 @@ function writeError(error: ApplyWriteError, json: boolean, notices: readonly { m
     `error: ${printable(error.message)} ${colors.dim(`(${error.code})`)}\n`,
     `  ${colors.green('fix:')} ${printable(error.fix)}\n`,
   ];
-  lines.push(error.unrestored.length === 0 ? 'depcurfew: nothing written because of the errors above.\n' : 'depcurfew: some files were changed; see the error above.\n');
+  // A note, as the other notes of apply (decision D-122): the errors above say what is wrong and what to do.
+  lines.push(error.unrestored.length === 0 ? 'note: nothing written because of the errors above\n' : 'note: some files were changed; see the error above\n');
   io.stderr(lines.join(''));
   return EXIT_FAILURE;
 }
@@ -187,9 +193,15 @@ function applyUser(options: ApplyOptions & { user: NonNullable<ApplyOptions['use
   } catch (error) {
     if (!(error instanceof PolicyError)) throw error;
     const file = shownPath(userPolicyPath(options.user.environment), options.user.environment);
-    const failure = policyInputError(error, file);
-    if (options.json) io.stdout(jsonReport(dryRun, error.code === 'policy-missing' ? 'missing' : 'invalid', undefined, [failure], []));
-    else reportInputError(failure, io);
+    // Without a home directory, init --user cannot write the user policy either, so that comes first (decision D-116):
+    // a missing policy is then no error of its own, whose fix (init --user) would only be refused.
+    const home = homeProblem(options.user.environment, 'apply');
+    const failures: InputError[] = [
+      ...(home === undefined ? [] : [{ code: home.code, level: 'error' as const, location: home.location, message: home.message, fix: home.fix }]),
+      ...(home !== undefined && error.code === 'policy-missing' ? [] : [policyInputError(error, file)]),
+    ];
+    if (options.json) io.stdout(jsonReport(dryRun, error.code === 'policy-missing' ? 'missing' : 'invalid', undefined, failures, []));
+    else for (const failure of failures) reportInputError(failure, io);
     return EXIT_FAILURE;
   }
   const planned = planUserApply(loaded.policy, { environment: options.user.environment, versions: options.user.versions });
@@ -215,8 +227,9 @@ export function apply(directory: string | undefined, options: ApplyOptions, io: 
     return EXIT_USAGE;
   }
   const absolute = target.directory;
-  const notices = target.notice === undefined ? [] : [{ message: target.notice }];
-  if (!options.json) for (const notice of notices) io.stderr(`note: ${notice.message}\n`);
+  // The same notice doctor gives when the directory is a project of a parent policy (decision D-115).
+  const notices = target.notice === undefined ? [] : [makeNotice('policy-from-parent', target.notice, POLICY_FILE)];
+  if (!options.json) for (const notice of notices) io.stderr(`note: ${notice.message} (${notice.code})\n`);
   let report: ApplyReport;
   try {
     report = applyProject(absolute, { write: !dryRun });
@@ -229,7 +242,7 @@ export function apply(directory: string | undefined, options: ApplyOptions, io: 
     return EXIT_FAILURE;
   }
 
-  return printReport(report, planErrors(report, [], 'depcurfew apply'), options, notices, io);
+  return printReport(report, planErrors(report, report.problems ?? [], 'depcurfew apply'), options, notices, io);
 }
 
 /** The result of a plan (project or user): the JSON document, or the changes or diff on stdout and the diagnostics on stderr. */
@@ -256,7 +269,7 @@ function printReport(report: ApplyReport, errors: JsonError[], options: { dryRun
   }
   io.stderr(diagnostics(report, errors, paint(io.colors?.stderr)));
   if (errors.length > 0) {
-    io.stderr(dryRun ? 'depcurfew: apply would write nothing because of the errors above.\n' : 'depcurfew: nothing written because of the errors above.\n');
+    io.stderr(dryRun ? 'note: apply would write nothing because of the errors above\n' : 'note: nothing written because of the errors above\n');
     return EXIT_FAILURE;
   }
   if (dryRun) io.stderr(report.changes.length === 0 ? 'Dry run: nothing to change.\n' : `Dry run: ${count(report.changes.length)} would change; nothing written.\n`);

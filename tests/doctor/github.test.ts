@@ -61,7 +61,7 @@ describe('job summary', () => {
 });
 
 describe('what was checked', () => {
-  const result = (rule: string, check: string, kind: 'passed' | 'problems' | 'skipped', errors = 0) => ({ rule, check, result: kind, errors, warnings: 0, notes: 0 });
+  const result = (rule: string, check: string, kind: 'passed' | 'problems' | 'skipped' | 'not-applicable', errors = 0) => ({ rule, check, result: kind, errors, warnings: 0, notes: 0 });
   const checked = {
     tools: [{ id: 'npm', name: 'npm', version: '11.21.1', versionFrom: 'package.json' }, { id: 'renovate', name: 'Renovate' }],
     files: ['package.json', 'renovate.json'],

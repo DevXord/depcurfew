@@ -6,6 +6,8 @@ import { isRecord, values } from '../apply/facts.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
+import type { PackageManagerInfo } from '../detect/types.ts';
+import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { parseToml } from '../detect/toml.ts';
 import type { LockEntry, Source } from './lockfiles.ts';
@@ -14,6 +16,35 @@ type Format = Record<string, unknown>;
 
 const WHEEL = evidenceOf(environment.python.wheelExtension)[0]?.value ?? '.whl';
 const SDISTS = evidenceOf(environment.python.sourceDistributionExtensions)[0]?.value ?? [];
+
+/**
+ * Whether a Python lockfile shows which packages are built from source because it lists the files of each package
+ * (wheels and source distributions): uv.lock, poetry.lock and pdm.lock (extra.lockfileFormat with wheels or files), and
+ * pylock.toml (pip's format, also when another tool wrote it). Pipfile.lock and pip requirements files list hashes only,
+ * so they cannot tell a package without wheels from one with them (decision D-107).
+ */
+export function showsBuilds(tool: ToolKnowledge, file: string, tools: readonly ToolKnowledge[]): boolean {
+  const pip = tools.find((entry) => entry.id === 'pip');
+  const names = pip?.project?.lockfiles === undefined ? [] : values(pip.project.lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
+  const pattern = pip?.extra?.['lockfilePattern'] === undefined ? undefined : values(pip.extra['lockfilePattern'])[0];
+  const pylock = names.includes(file) || (typeof pattern === 'string' && new RegExp(pattern, 'u').test(file));
+  // pip's own format is pylock.toml; its requirements files have none.
+  if (!pylock && tool.id === 'pip') return false;
+  const fact = (pylock ? pip : tool)?.extra?.['lockfileFormat'];
+  const format = fact === undefined ? undefined : values(fact)[0];
+  return isRecord(format) && (typeof format['wheels'] === 'string' || typeof format['files'] === 'string');
+}
+
+/** Whether a package manager of the project has a lockfile that showsBuilds, or records install scripts (the npm ecosystem). */
+export function hasBuildRecords(managers: readonly PackageManagerInfo[], tools: readonly ToolKnowledge[], ecosystem: 'pypi' | 'any' = 'any'): boolean {
+  return managers.some((manager) => {
+    const tool = tools.find((entry) => entry.id === manager.id);
+    if (!manager.supported || tool === undefined) return false;
+    const python = ecosystemOfTool(tool) === 'pypi';
+    if (ecosystem === 'pypi' && !python) return false;
+    return manager.evidence.some((evidence) => evidence.kind === 'lockfile' && (!python || showsBuilds(tool, evidence.file, tools)));
+  });
+}
 
 function text(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;

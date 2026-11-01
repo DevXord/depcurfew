@@ -5,7 +5,7 @@
       "file": "package.json",
       "line": 1
     },
-    "message": "pnpm 10.16.0 in packageManager (package.json) does not support minimumReleaseAge for packages requested by exact version (since 10.17.0)",
+    "message": "pnpm 10.16.0 in packageManager (package.json) does not support minimumReleaseAge for packages requested by exact version (added in 10.17.0)",
     "fix": "Require pnpm 10.17.0 or later in packageManager"
   }
 ]

@@ -2,14 +2,31 @@
 // and values, deprecation messages, install scripts) shows control characters as visible text, so that a crafted name
 // cannot move the cursor, clear a line, set the window title or show a fake link (ANSI and OSC sequences) in a
 // terminal or a CI log. Bidirectional controls (U+202E and the like) are written as \uHHHH too, so that a name cannot
-// be shown in another order than it has (Trojan Source). JSON and SARIF need nothing of this: JSON.stringify escapes
-// control characters itself.
+// be shown in another order than it has (Trojan Source), and so are the other invisible characters (zero-width
+// characters, tag characters, variation selectors), which can hide text from a person that a model still reads. JSON
+// and SARIF go through safeJson instead (src/json-safe.ts).
 
 /** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
 const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
 const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
-/** The Unicode bidirectional formatting characters: ALM, LRM, RLM, LRE to RLO, LRI to PDI. */
-const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
+/**
+ * Characters that change how text is shown or read without being seen: the format characters (\p{Cf}: the
+ * bidirectional controls ALM, LRM, RLM, LRE to RLO and LRI to PDI, zero-width space, joiners, word joiner, invisible
+ * operators, the byte order mark, the soft hyphen, the tag characters U+E0001 and U+E0020 to U+E007F), the rest of the
+ * tag block (U+E0000 to U+E007F), whose characters spell hidden ASCII that a model may read, the variation selectors
+ * (U+FE00 to U+FE0F, U+E0100 to U+E01EF), and letters that show as blank space: the Hangul fillers U+115F, U+1160,
+ * U+3164 and U+FFA0 and the blank braille pattern U+2800, which can hide a word or pass for a space.
+ */
+export const INVISIBLE = /[\p{Cf}\u{e0000}-\u{e007f}\ufe00-\ufe0f\u{e0100}-\u{e01ef}\u115f\u1160\u3164\uffa0\u2800]/gu;
+
+/** The line and paragraph separators, which some viewers and parsers take as a line break. */
+const LINE_SEPARATORS = /[\u2028\u2029]/gu;
+
+/** A character of INVISIBLE as \uHHHH, or \u{HHHHH} beyond the BMP. */
+function visible(character: string): string {
+  const code = character.codePointAt(0) ?? 0;
+  return code > 0xffff ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, '0')}`;
+}
 
 /** The user name and password of a URL (scheme://user:password@host), anywhere in a text. */
 const CREDENTIALS = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@]+@/giu;
@@ -35,12 +52,14 @@ export function redactCredentials(text: string): string {
 }
 
 /**
- * The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`. Line breaks are control
+ * The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`, and every invisible
+ * character (INVISIBLE) and the line and paragraph separators as `\uHHHH` or `\u{HHHHH}`. Line breaks are control
  * characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
  * depcurfew lays out in lines itself, such as a snippet to add by hand. Apply it before adding colors.
  */
 export function printable(text: string, options: { lines?: boolean } = {}): string {
   return text
     .replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, '0')}`)
-    .replace(BIDI, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
+    .replace(INVISIBLE, visible)
+    .replace(LINE_SEPARATORS, visible);
 }

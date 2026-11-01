@@ -1,0 +1,8 @@
+Policy (depcurfew.json):
+  targets: Pipenv (detected)
+  cooldown 36h:
+    Pipenv: 2 days (rounded up)
+  installScripts deny, allow pypi:docopt:
+    Pipenv: nothing written; warning: Pipenv: the Pipfile has no setting that forbids building packages from source, so installScripts "deny" is not written (build-switch-environment-only); fix: Set PIP_ONLY_BINARY=:all: where Pipenv installs packages (CI, Dockerfile); Pipenv passes it on to pip
+  sources git deny, remoteTarball deny, file allow, directory allow:
+    Pipenv: nothing written; warning: Pipenv has no setting for git dependencies, so "deny" cannot be enforced; Pipenv has no setting for URL dependencies, so "deny" cannot be enforced (source-not-enforceable); fix: Run depcurfew doctor, which reports such dependencies in the lockfile

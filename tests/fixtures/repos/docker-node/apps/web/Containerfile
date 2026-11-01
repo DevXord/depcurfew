@@ -1,0 +1,2 @@
+FROM node@sha256:4f1d2b5c0a9e8f7d6c5b4a3928170615f4e3d2c1b0a9f8e7d6c5b4a392817061
+RUN npm ci

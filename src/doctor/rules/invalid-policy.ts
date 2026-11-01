@@ -19,7 +19,7 @@ export const invalidPolicy: Rule = {
     } catch (error) {
       if (!(error instanceof PolicyError)) throw error;
       context.report({
-        location: { file: POLICY_FILE },
+        location: { file: POLICY_FILE, ...(error.line === undefined ? {} : { line: error.line }) },
         message: error.issues.length === 0 ? error.text : `${error.text}: ${error.issues.join('; ')}`,
         fix: policyErrorFix(error),
       });

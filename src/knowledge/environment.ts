@@ -1,20 +1,48 @@
 // Facts about the environment around the package managers: how repositories pin tool versions (Corepack,
 // npm devEngines, Volta, asdf) and how GitHub Actions workflows install them.
 import { verifiedOn } from './define.ts';
-import type { EnvironmentKnowledge } from './types.ts';
+import type { EnvironmentKnowledge, UserDirectory } from './types.ts';
 
 const { verified } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const python = verifiedOn('2026-10-30');
 const gitFacts = verifiedOn('2026-10-30');
 const audited = verifiedOn('2026-10-31');
+const release13 = verifiedOn('2026-11-01');
+const mcpFacts = verifiedOn('2026-11-01');
+const actionChecks = verifiedOn('2026-11-01');
+const leftovers = verifiedOn('2026-11-01');
+const runtimes = verifiedOn('2026-11-01');
+const recheck = verifiedOn('2026-11-01');
+const finalReview = verifiedOn('2026-11-01');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
+const COREPACK_V0_36_0 = 'https://github.com/nodejs/corepack/blob/v0.36.0';
+/** The variables Corepack's code reads for its home folder, in order; a variable counts when it is set, even empty (??). */
+const COREPACK_VARIABLES: readonly UserDirectory[] = [
+  { from: { env: 'COREPACK_HOME', emptyCounts: true }, path: '' },
+  { from: { env: 'XDG_CACHE_HOME', emptyCounts: true }, path: 'node/corepack' },
+  { from: { env: 'LOCALAPPDATA', emptyCounts: true }, path: 'node/corepack' },
+];
 const NPM_PACKAGE_JSON = 'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md';
 // docs.pypi.org is built from docs/user in the warehouse repository; the specifications from pypa/packaging.python.org.
 const PYPI_INDEX_API = 'https://github.com/pypi/warehouse/blob/c137701f3afcd80c346c574c31c9b46eeb738664/docs/user/api/index-api.md';
 const SPECIFICATIONS = 'https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications';
+// modelcontextprotocol.io is built from docs/ in the specification repository; schema/ holds the TypeScript schema of
+// each revision.
+const MCP = 'https://github.com/modelcontextprotocol/modelcontextprotocol/blob/d0e246ea3c69eafaa2806bc4cd28025703ba2c2b';
+// code.visualstudio.com/docs is built from docs/ in microsoft/vscode-docs.
+const VSCODE_MCP = 'https://github.com/microsoft/vscode-docs/blob/5a54a294d553935c53374f43c668e37d08f0118e/docs/agents/reference/mcp-configuration.md';
+// Pinned on 2026-11-01 (decision D-099).
+const NODE_RELEASE = 'https://github.com/nodejs/Release/blob/c3e8696312969c95643cb52f05f124c161db87b2';
+const DOCKER_NODE = 'https://github.com/nodejs/docker-node/blob/14b1d124e21d312c46b30db98985ab7e58a89594';
+const DOCKER_PYTHON = 'https://github.com/docker-library/python/blob/f4c67ece208dead594e43628d22e3c6027dd97ab';
+const OFFICIAL_IMAGES = 'https://github.com/docker-library/official-images/blob/ed47b185c4a0fec32cb51279211416a2d28c4f00/library';
+// docs.docker.com/reference/dockerfile/ is vendored from this file of moby/buildkit.
+const DOCKERFILE_REFERENCE = 'https://github.com/moby/buildkit/blob/c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5/frontend/dockerfile/docs/reference.md';
+const DOCKER_DOCS = 'https://github.com/docker/docs/blob/53581df94e05ad4116a8d31e47ea098289fa5498';
+const SETUP_NODE = 'https://github.com/actions/setup-node/blob/949feb2413d6458794dcd2491c4babbbce0c15c1';
 
 export const environment: EnvironmentKnowledge = {
   corepack: {
@@ -41,6 +69,199 @@ export const environment: EnvironmentKnowledge = {
       ],
       'https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md',
       'Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0.',
+    ),
+    package: leftovers.verified(
+      'corepack',
+      `${COREPACK_V0_36_0}/package.json`,
+      'Its published bin field (publishConfig.bin) declares yarn (./dist/yarn.js), yarnpkg, pnpm and pnpx next to corepack. corepack enable links them from the folder of the corepack executable (a relative symlink to dist/<name>.js on Linux and macOS, a cmd-shim on Windows; sources/commands/Enable.ts), so the package.json behind a yarn or pnpm shim is Corepack\'s, which says nothing about the version the shim runs.',
+    ),
+    toolPackages: leftovers.verified(
+      { npm: ['npm'], pnpm: ['pnpm'], yarn: ['yarn', '@yarnpkg/cli-dist'] },
+      `${COREPACK_V0_36_0}/config.json`,
+      'The npm packages Corepack installs each package manager from: npm; pnpm; yarn below 2.0.0 (Yarn Classic) and, with COREPACK_NPM_REGISTRY, @yarnpkg/cli-dist for Yarn 2 and later ("npmRegistry": { "package": "@yarnpkg/cli-dist", "bin": "bin/yarn.js" }). npm i -g @yarnpkg/cli-dist installs the same package, whose package.json declares bin yarn and carries the Yarn version (observed for 4.18.1).',
+    ),
+    defaults: leftovers.disputed(
+      'Corepack 0.36.0 runs the version lastKnownGood.json names for a package manager when no package.json above the current folder sets packageManager; without an entry it fetches the latest version of the npm package (yarn: Yarn Classic 1.x, which never reads .yarnrc.yml) and records it there, or with COREPACK_DEFAULT_TO_LATEST=0 uses its built-in default (getDefaultVersion in sources/Engine.ts). The code looks for the home folder in COREPACK_HOME, XDG_CACHE_HOME, LOCALAPPDATA (on every system) and then the home folder, using a variable that is set even when it is empty (??); the README leaves out XDG_CACHE_HOME and LOCALAPPDATA outside Windows. The code is what runs, so depcurfew follows it; the layout is the same since 0.13.0 (sources/folderUtils.ts), before which the folder was ~/.node/corepack. Values carry a hash after + (1.22.22+sha1.ac34...), which is not part of the version.',
+      leftovers.evidence(
+        {
+          since: '0.13.0',
+          locations: [
+            {
+              platforms: ['linux', 'darwin'],
+              directories: [...COREPACK_VARIABLES, { from: 'home', path: '.cache/node/corepack' }],
+              file: 'lastKnownGood.json',
+            },
+            {
+              platforms: ['win32'],
+              directories: [...COREPACK_VARIABLES, { from: 'home', path: 'AppData/Local/node/corepack' }],
+              file: 'lastKnownGood.json',
+            },
+          ],
+        },
+        `${COREPACK_V0_36_0}/sources/folderUtils.ts`,
+        'getCorepackHomeFolder: process.env.COREPACK_HOME ?? join(process.env.XDG_CACHE_HOME ?? process.env.LOCALAPPDATA ?? join(homedir(), process.platform === `win32` ? `AppData/Local` : `.cache`), `node/corepack`); sources/Engine.ts reads join(getCorepackHomeFolder(), `lastKnownGood.json`), a JSON object of package manager names and versions.',
+      ),
+      leftovers.evidence(
+        {
+          since: '0.13.0',
+          locations: [
+            { platforms: ['linux', 'darwin'], directories: [{ from: { env: 'COREPACK_HOME' }, path: '' }, { from: 'home', path: '.cache/node/corepack' }], file: 'lastKnownGood.json' },
+            { platforms: ['win32'], directories: [{ from: { env: 'COREPACK_HOME' }, path: '' }, { from: { env: 'LOCALAPPDATA' }, path: 'node/corepack' }], file: 'lastKnownGood.json' },
+          ],
+        },
+        `${COREPACK_V0_36_0}/README.md`,
+        '"COREPACK_HOME can be set in order to define where Corepack should install the package managers. By default it is set to %LOCALAPPDATA%\\node\\corepack on Windows, and to $HOME/.cache/node/corepack everywhere else."',
+      ),
+    ),
+    enableNpm: runtimes.verified(
+      { command: 'enable', npmOnlyWhenNamed: true },
+      COREPACK_README,
+      'corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: "Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm.',
+    ),
+  },
+  node: {
+    bundledNpm: runtimes.verified(
+      [
+        { line: '0.6', latest: '0.6.21', bundles: [['0.6.3', '1.1.0-alpha-2'], ['0.6.4', '1.1.0-alpha-6'], ['0.6.6', '1.1.0-beta-4'], ['0.6.7', '1.1.0-beta-10'], ['0.6.8', '1.1.0-2'], ['0.6.9', '1.1.0-3'], ['0.6.11', '1.1.1'], ['0.6.12', '1.1.4'], ['0.6.13', '1.1.9'], ['0.6.14', '1.1.12'], ['0.6.15', '1.1.16'], ['0.6.16', '1.1.19'], ['0.6.17', '1.1.21'], ['0.6.19', '1.1.24'], ['0.6.20', '1.1.37']] },
+        { line: '0.7', latest: '0.7.12', bundles: [['0.7.0', '1.1.0-2'], ['0.7.2', '1.1.0-3'], ['0.7.4', '1.1.1'], ['0.7.6', '1.1.8'], ['0.7.7', '1.1.15'], ['0.7.8', '1.1.18'], ['0.7.9', '1.1.23'], ['0.7.10', '1.1.25'], ['0.7.11', '1.1.26'], ['0.7.12', '1.1.30']] },
+        { line: '0.8', latest: '0.8.28', bundles: [['0.8.0', '1.1.32'], ['0.8.1', '1.1.33'], ['0.8.2', '1.1.36'], ['0.8.3', '1.1.43'], ['0.8.4', '1.1.45'], ['0.8.5', '1.1.46'], ['0.8.6', '1.1.48'], ['0.8.7', '1.1.49'], ['0.8.8', '1.1.59'], ['0.8.9', '1.1.61'], ['0.8.10', '1.1.62'], ['0.8.12', '1.1.63'], ['0.8.13', '1.1.65'], ['0.8.15', '1.1.66'], ['0.8.16', '1.1.69'], ['0.8.17', '1.2.0'], ['0.8.18', '1.2.2'], ['0.8.19', '1.2.10'], ['0.8.20', '1.2.11'], ['0.8.22', '1.2.14'], ['0.8.23', '1.2.18'], ['0.8.24', '1.2.24'], ['0.8.25', '1.2.30']] },
+        { line: '0.9', latest: '0.9.12', bundles: [['0.9.0', '1.1.44'], ['0.9.1', '1.1.59'], ['0.9.2', '1.1.61'], ['0.9.3', '1.1.64'], ['0.9.4', '1.1.70'], ['0.9.6', '1.2.0'], ['0.9.7', '1.2.2'], ['0.9.8', '1.2.3'], ['0.9.9', '1.2.10'], ['0.9.10', '1.2.12']] },
+        { line: '0.10', latest: '0.10.48', bundles: [['0.10.0', '1.2.14'], ['0.10.1', '1.2.15'], ['0.10.3', '1.2.17'], ['0.10.4', '1.2.18'], ['0.10.7', '1.2.21'], ['0.10.8', '1.2.23'], ['0.10.9', '1.2.24'], ['0.10.10', '1.2.25'], ['0.10.11', '1.2.30'], ['0.10.12', '1.2.32'], ['0.10.13', '1.3.2'], ['0.10.14', '1.3.5'], ['0.10.16', '1.3.8'], ['0.10.19', '1.3.11'], ['0.10.22', '1.3.14'], ['0.10.23', '1.3.17'], ['0.10.24', '1.3.21'], ['0.10.25', '1.3.24'], ['0.10.26', '1.4.3'], ['0.10.27', '1.4.8'], ['0.10.28', '1.4.9'], ['0.10.29', '1.4.14'], ['0.10.30', '1.4.21'], ['0.10.31', '1.4.23'], ['0.10.32', '1.4.28'], ['0.10.41', '1.4.29'], ['0.10.44', '2.15.0'], ['0.10.45', '2.15.1']] },
+        { line: '0.11', latest: '0.11.16', bundles: [['0.11.0', '1.2.15'], ['0.11.1', '1.2.18'], ['0.11.2', '1.2.21'], ['0.11.3', '1.2.25'], ['0.11.4', '1.3.4'], ['0.11.5', '1.3.6'], ['0.11.6', '1.3.8'], ['0.11.8', '1.3.13'], ['0.11.9', '1.3.15'], ['0.11.10', '1.3.22'], ['0.11.11', '1.3.25'], ['0.11.12', '1.4.3'], ['0.11.13', '1.4.9'], ['0.11.14', '2.0.0'], ['0.11.15', '2.1.6'], ['0.11.16', '2.3.0']] },
+        { line: '0.12', latest: '0.12.18', bundles: [['0.12.0', '2.5.1'], ['0.12.2', '2.7.4'], ['0.12.3', '2.9.1'], ['0.12.4', '2.10.1'], ['0.12.5', '2.11.2'], ['0.12.7', '2.11.3'], ['0.12.8', '2.14.9'], ['0.12.13', '2.15.0'], ['0.12.14', '2.15.1'], ['0.12.18', '2.15.11']] },
+        { line: '4', latest: '4.9.1', bundles: [['4.0.0', '2.14.2'], ['4.1.0', '2.14.3'], ['4.1.1', '2.14.4'], ['4.2.0', '2.14.7'], ['4.2.4', '2.14.12'], ['4.4.0', '2.14.20'], ['4.4.2', '2.15.0'], ['4.4.3', '2.15.1'], ['4.4.5', '2.15.5'], ['4.4.7', '2.15.8'], ['4.5.0', '2.15.9'], ['4.6.2', '2.15.11']] },
+        { line: '5', latest: '5.12.0', bundles: [['5.0.0', '3.3.6'], ['5.1.0', '3.3.12'], ['5.6.0', '3.6.0'], ['5.8.0', '3.7.3'], ['5.10.0', '3.8.3'], ['5.11.0', '3.8.6']] },
+        { line: '6', latest: '6.17.1', bundles: [['6.0.0', '3.8.6'], ['6.2.0', '3.8.9'], ['6.2.1', '3.9.3'], ['6.2.2', '3.9.5'], ['6.3.0', '3.10.3'], ['6.8.0', '3.10.8'], ['6.9.2', '3.10.9'], ['6.9.3', '3.10.10']] },
+        { line: '7', latest: '7.10.1', bundles: [['7.0.0', '3.10.8'], ['7.1.0', '3.10.9'], ['7.2.1', '3.10.10'], ['7.4.0', '4.0.5'], ['7.5.0', '4.1.2'], ['7.8.0', '4.2.0']] },
+        { line: '8', latest: '8.17.0', bundles: [['8.0.0', '5.0.0'], ['8.1.0', '5.0.3'], ['8.2.0', '5.3.0'], ['8.7.0', '5.4.2'], ['8.9.0', '5.5.1'], ['8.9.4', '5.6.0'], ['8.12.0', '6.4.1'], ['8.17.0', '6.13.4']] },
+        { line: '9', latest: '9.11.2', bundles: [['9.0.0', '5.5.1'], ['9.4.0', '5.6.0']] },
+        { line: '10', latest: '10.24.1', bundles: [['10.0.0', '5.6.0'], ['10.3.0', '6.1.0'], ['10.8.0', '6.2.0'], ['10.10.0', '6.4.1'], ['10.16.0', '6.9.0'], ['10.17.0', '6.11.3'], ['10.18.0', '6.13.4'], ['10.20.0', '6.14.4'], ['10.22.0', '6.14.6'], ['10.23.0', '6.14.8'], ['10.23.1', '6.14.10'], ['10.23.3', '6.14.11'], ['10.24.1', '6.14.12']] },
+        { line: '11', latest: '11.15.0', bundles: [['11.0.0', '6.4.1'], ['11.6.0', '6.5.0-next.0'], ['11.7.0', '6.5.0'], ['11.10.0', '6.7.0']] },
+        { line: '12', latest: '12.22.12', bundles: [['12.0.0', '6.9.0'], ['12.7.0', '6.10.0'], ['12.8.0', '6.10.2'], ['12.10.0', '6.10.3'], ['12.11.0', '6.11.3'], ['12.13.0', '6.12.0'], ['12.13.1', '6.12.1'], ['12.14.0', '6.13.4'], ['12.16.2', '6.14.4'], ['12.18.1', '6.14.5'], ['12.18.3', '6.14.6'], ['12.19.0', '6.14.8'], ['12.20.1', '6.14.10'], ['12.20.2', '6.14.11'], ['12.22.1', '6.14.12'], ['12.22.2', '6.14.13'], ['12.22.4', '6.14.14'], ['12.22.6', '6.14.15'], ['12.22.10', '6.14.16']] },
+        { line: '13', latest: '13.14.0', bundles: [['13.0.0', '6.12.0'], ['13.1.0', '6.12.1'], ['13.2.0', '6.13.1'], ['13.4.0', '6.13.4'], ['13.7.0', '6.13.6'], ['13.9.0', '6.13.7'], ['13.12.0', '6.14.4']] },
+        { line: '14', latest: '14.21.3', bundles: [['14.0.0', '6.14.4'], ['14.3.0', '6.14.5'], ['14.6.0', '6.14.6'], ['14.7.0', '6.14.7'], ['14.9.0', '6.14.8'], ['14.15.2', '6.14.9'], ['14.15.4', '6.14.10'], ['14.15.5', '6.14.11'], ['14.16.1', '6.14.12'], ['14.17.0', '6.14.13'], ['14.17.4', '6.14.14'], ['14.17.6', '6.14.15'], ['14.19.0', '6.14.16'], ['14.19.2', '6.14.17'], ['14.21.3', '6.14.18']] },
+        { line: '15', latest: '15.14.0', bundles: [['15.0.0', '7.0.2'], ['15.0.1', '7.0.3'], ['15.1.0', '7.0.8'], ['15.3.0', '7.0.14'], ['15.4.0', '7.0.15'], ['15.5.0', '7.3.0'], ['15.6.0', '7.4.0'], ['15.7.0', '7.4.3'], ['15.8.0', '7.5.1'], ['15.9.0', '7.5.3'], ['15.11.0', '7.6.0'], ['15.12.0', '7.6.3'], ['15.13.0', '7.7.6']] },
+        { line: '16', latest: '16.20.2', bundles: [['16.0.0', '7.10.0'], ['16.1.0', '7.11.2'], ['16.2.0', '7.13.0'], ['16.3.0', '7.15.1'], ['16.4.0', '7.18.1'], ['16.5.0', '7.19.1'], ['16.6.1', '7.20.3'], ['16.8.0', '7.21.0'], ['16.9.0', '7.21.1'], ['16.10.0', '7.24.0'], ['16.11.0', '8.0.0'], ['16.12.0', '8.1.0'], ['16.13.1', '8.1.2'], ['16.14.0', '8.3.1'], ['16.14.1', '8.5.0'], ['16.15.0', '8.5.5'], ['16.15.1', '8.11.0'], ['16.17.0', '8.15.0'], ['16.18.0', '8.19.2'], ['16.19.0', '8.19.3'], ['16.20.0', '8.19.4']] },
+        { line: '17', latest: '17.9.1', bundles: [['17.0.0', '8.1.0'], ['17.1.0', '8.1.2'], ['17.2.0', '8.1.4'], ['17.3.0', '8.3.0'], ['17.4.0', '8.3.1'], ['17.5.0', '8.4.1'], ['17.6.0', '8.5.1'], ['17.7.0', '8.5.2'], ['17.8.0', '8.5.5'], ['17.9.1', '8.11.0']] },
+        { line: '18', latest: '18.20.8', bundles: [['18.0.0', '8.6.0'], ['18.1.0', '8.8.0'], ['18.2.0', '8.9.0'], ['18.3.0', '8.11.0'], ['18.4.0', '8.12.1'], ['18.6.0', '8.13.2'], ['18.7.0', '8.15.0'], ['18.8.0', '8.18.0'], ['18.9.0', '8.19.1'], ['18.10.0', '8.19.2'], ['18.13.0', '8.19.3'], ['18.14.0', '9.3.1'], ['18.14.2', '9.5.0'], ['18.16.0', '9.5.1'], ['18.17.0', '9.6.7'], ['18.18.0', '9.8.1'], ['18.19.0', '10.2.3'], ['18.19.1', '10.2.4'], ['18.20.0', '10.5.0'], ['18.20.3', '10.7.0'], ['18.20.5', '10.8.2']] },
+        { line: '19', latest: '19.9.0', bundles: [['19.0.0', '8.19.2'], ['19.1.0', '8.19.3'], ['19.3.0', '9.2.0'], ['19.5.0', '9.3.1'], ['19.6.0', '9.4.0'], ['19.7.0', '9.5.0'], ['19.8.0', '9.5.1'], ['19.9.0', '9.6.3']] },
+        { line: '20', latest: '20.20.2', bundles: [['20.0.0', '9.6.4'], ['20.2.0', '9.6.6'], ['20.3.0', '9.6.7'], ['20.4.0', '9.7.2'], ['20.5.0', '9.8.0'], ['20.6.0', '9.8.1'], ['20.7.0', '10.1.0'], ['20.10.0', '10.2.3'], ['20.11.0', '10.2.4'], ['20.12.0', '10.5.0'], ['20.13.0', '10.5.2'], ['20.14.0', '10.7.0'], ['20.16.0', '10.8.1'], ['20.17.0', '10.8.2']] },
+        { line: '21', latest: '21.7.3', bundles: [['21.0.0', '10.2.0'], ['21.2.0', '10.2.3'], ['21.3.0', '10.2.4'], ['21.7.0', '10.5.0']] },
+        { line: '22', latest: '22.23.4', bundles: [['22.0.0', '10.5.1'], ['22.1.0', '10.7.0'], ['22.3.0', '10.8.1'], ['22.5.0', '10.8.2'], ['22.9.0', '10.8.3'], ['22.10.0', '10.9.0'], ['22.13.0', '10.9.2'], ['22.18.0', '10.9.3'], ['22.21.0', '10.9.4'], ['22.22.2', '10.9.7'], ['22.22.3', '10.9.8'], ['22.23.3', '10.9.9']] },
+        { line: '23', latest: '23.11.1', bundles: [['23.0.0', '10.9.0'], ['23.4.0', '10.9.2']] },
+        { line: '24', latest: '24.22.2', bundles: [['24.0.0', '11.3.0'], ['24.3.0', '11.4.2'], ['24.5.0', '11.5.1'], ['24.8.0', '11.6.0'], ['24.10.0', '11.6.1'], ['24.11.1', '11.6.2'], ['24.13.1', '11.8.0'], ['24.14.0', '11.9.0'], ['24.14.1', '11.11.0'], ['24.15.0', '11.12.1'], ['24.16.0', '11.13.0'], ['24.18.0', '11.16.0'], ['24.19.0', '11.17.0'], ['24.20.0', '11.19.0'], ['24.22.0', '11.19.1']] },
+        { line: '25', latest: '25.9.0', bundles: [['25.0.0', '11.6.2'], ['25.4.0', '11.7.0'], ['25.5.0', '11.8.0'], ['25.6.1', '11.9.0'], ['25.7.0', '11.10.1'], ['25.8.0', '11.11.0'], ['25.8.2', '11.11.1'], ['25.9.0', '11.12.1']] },
+        { line: '26', latest: '26.13.0', bundles: [['26.0.0', '11.12.1'], ['26.1.0', '11.13.0'], ['26.3.0', '11.16.0'], ['26.4.0', '11.17.0'], ['26.6.0', '11.18.0'], ['26.7.0', '11.19.0'], ['26.8.2', '11.19.1'], ['26.11.0', '11.20.0']] },
+      ],
+      'https://nodejs.org/dist/index.json',
+      'The npm field of every release in index.json (fetched on 2026-11-01, sha256 6b27fe5766e87929d16ccdde05c516cbdd12200eab62b28d4b2f31d34e21481a), as the first release of each line that bundles each npm version; latest is the newest release of the line that day. Lines are the major version from 4 on and the minor version before (0.6 to 0.12, as Node.js numbered them then). The bundled npm never goes down within a line. Releases before 0.6.3 (0.1.14 to 0.5.10 and 0.6.0 to 0.6.2) have no npm field: they came without npm. Every release before 18.0.0 bundles npm 8.19.4 or earlier (16.20.2 has npm 8.19.4), so none of them has min-release-age, allowScripts or strict-allow-scripts. 27.0.0-alpha.0.0.0 (npm 12.1.0) is a prerelease and left out: no release bundles npm 12 yet, Node.js 22 stays on npm 10.9.x, 24 reaches npm 11.10 or later only from 24.14.1 (npm 11.10.x was skipped) and 25 ends at npm 11.12.1.',
+    ),
+    releaseSchedule: runtimes.verified(
+      [
+        { line: 4, start: '2015-09-08', lts: '2015-10-12', end: '2018-04-30', codename: 'argon' },
+        { line: 5, start: '2015-10-29', end: '2016-06-30' },
+        { line: 6, start: '2016-04-26', lts: '2016-10-18', end: '2019-04-30', codename: 'boron' },
+        { line: 7, start: '2016-10-25', end: '2017-06-30' },
+        { line: 8, start: '2017-05-30', lts: '2017-10-31', end: '2019-12-31', codename: 'carbon' },
+        { line: 9, start: '2017-10-01', end: '2018-06-30' },
+        { line: 10, start: '2018-04-24', lts: '2018-10-30', end: '2021-04-30', codename: 'dubnium' },
+        { line: 11, start: '2018-10-23', end: '2019-06-01' },
+        { line: 12, start: '2019-04-23', lts: '2019-10-21', end: '2022-04-30', codename: 'erbium' },
+        { line: 13, start: '2019-10-22', end: '2020-06-01' },
+        { line: 14, start: '2020-04-21', lts: '2020-10-27', end: '2023-04-30', codename: 'fermium' },
+        { line: 15, start: '2020-10-20', end: '2021-06-01' },
+        { line: 16, start: '2021-04-20', lts: '2021-10-26', end: '2023-09-11', codename: 'gallium' },
+        { line: 17, start: '2021-10-19', end: '2022-06-01' },
+        { line: 18, start: '2022-04-19', lts: '2022-10-25', end: '2025-04-30', codename: 'hydrogen' },
+        { line: 19, start: '2022-10-18', end: '2023-06-01' },
+        { line: 20, start: '2023-04-18', lts: '2023-10-24', end: '2026-04-30', codename: 'iron' },
+        { line: 21, start: '2023-10-17', end: '2024-06-01' },
+        { line: 22, start: '2024-04-24', lts: '2024-10-29', end: '2027-04-30', codename: 'jod' },
+        { line: 23, start: '2024-10-16', end: '2025-06-01' },
+        { line: 24, start: '2025-05-06', lts: '2025-10-28', end: '2028-04-30', codename: 'krypton' },
+        { line: 25, start: '2025-10-15', end: '2026-06-01' },
+        { line: 26, start: '2026-05-05', lts: '2026-10-28', end: '2029-04-30', codename: 'lithium' },
+        { line: 27, start: '2027-04-22', lts: '2027-10-20', end: '2030-04-30' },
+      ],
+      `${NODE_RELEASE}/schedule.json`,
+      'start, lts and end of each line from 4 on, codenames in lower case as nvm and the node image tags write them. After end a line gets no more releases, security fixes included; the README says "Production applications should only use Active LTS or Maintenance LTS releases". From Node.js 27 every line first goes through an alpha phase (27 has "alpha": "2026-10-28" and no codename yet) and every line becomes LTS.',
+    ),
+    nvmrc: runtimes.verified(
+      { file: '.nvmrc', comment: '#', newest: ['node', 'stable'], newestLts: 'lts/*', ltsPrefix: 'lts/', previousLtsPrefix: 'lts/-' },
+      'https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md',
+      'The file must contain precisely one version followed by a newline; # starts a comment, and comments, blank lines and leading and trailing white space are ignored. node is the latest version and stable an alias for it; lts/* is the latest LTS and lts/<codename> the LTS releases of that line; the file may hold "any other string that nvm understands". nvm use looks for the file from the current directory upwards. lts/-n is not in the README but in nvm.sh at the same commit (https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/nvm.sh, read 2026-11-01): nvm_normalize_lts, which nvm_alias calls for every alias (so also for the version of .nvmrc), matches "lts/-[123456789] | lts/-[123456789][0123456789]*", takes N from after the -, adds 1 and picks the N-th last entry of the lts alias directory, whose entries are the LTS codenames (alphabetical, which is release order) after *; so lts/-1 is the LTS line before the newest one, as in setup-node. When nothing matches it says "That many LTS releases do not exist yet."',
+    ),
+    nodeVersionFile: runtimes.verified(
+      { file: '.node-version' },
+      'https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/README.md',
+      'nodenv uses the version in .node-version of the project directory. fnm reads .node-version and .nvmrc and writes the file with node --version, so a leading v occurs (github.com/Schniz/fnm/blob/07f13237ae208f531f8ea88d4cfde3160c22f99a/README.md); setup-node reads it through node-version-file.',
+    ),
+    engines: runtimes.verified(
+      { key: 'engines', runtimeKey: 'node' },
+      `${NPM_PACKAGE_JSON}#engines`,
+      'engines.node is the range of Node.js versions the package works on. Unless engine-strict is set, it is advisory and only produces warnings when the package is installed as a dependency; it does not choose the Node.js that runs. setup-node reads it from package.json through node-version-file when volta.node and devEngines.runtime are missing, and picks the newest version that matches.',
+    ),
+    inheritedVersionFiles: recheck.verified(
+      ['.nvmrc', '.node-version', '.tool-versions'],
+      'https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md',
+      'nvm: "nvm use et. al. will traverse directory structure upwards from the current directory looking for the .nvmrc file". nodenv: find_local_version_file in libexec/nodenv-version-file checks the directory for .node-version and then each parent up to the root (https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/libexec/nodenv-version-file). asdf: the tool versions a .tool-versions file declares "will be used in that directory and any subdirectories" (https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md). Volta is not one of them: for_dir in crates/volta-core/src/project/mod.rs "will search ancestors to find a package.json and use that as the root of the project" and reads a parent package.json only through extends (https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/mod.rs), so the volta key of the root package.json does not reach a project with a package.json of its own.',
+    ),
+  },
+  docker: {
+    imageReference: runtimes.verified(
+      { defaultHost: 'docker.io', hosts: ['docker.io', 'index.docker.io', 'registry-1.docker.io'], officialNamespace: 'library', defaultTag: 'latest' },
+      'https://github.com/moby/moby/blob/9aa9edfa787e08bb2da31694cd8a402876f32232/vendor/github.com/distribution/reference/normalize.go',
+      'splitDockerDomain canonicalizes ubuntu and docker.io/ubuntu as docker.io/library/ubuntu, and the legacy domain index.docker.io as docker.io. A reference without a tag means latest (docs/reference/commandline/image_tag.md in github.com/docker/cli at 8c8a77521af82b08bf3499cafb4c0e2e7b024936: "If the namespace is omitted, Docker defaults to library, the namespace reserved for Docker Official Images"). registry-1.docker.io is Docker Hub\'s registry itself: "DefaultRegistryHost is the hostname for the default (Docker Hub) registry used for pushing and pulling images", DefaultRegistryHost = "registry-1.docker.io" (https://github.com/moby/moby/blob/9aa9edfa787e08bb2da31694cd8a402876f32232/daemon/pkg/registry/config.go), so registry-1.docker.io/library/node is the same official image.',
+    ),
+    syntax: runtimes.verified(
+      { comment: '#', escapeDirective: 'escape', escapeCharacters: ['\\', '`'], globalArgInstruction: 'ARG' },
+      DOCKERFILE_REFERENCE,
+      'Instructions are not case-sensitive. A line that begins with # is a comment unless it is a parser directive; comment lines are removed also inside a continued instruction. Parser directives (syntax, escape, check; keys not case-sensitive) must come first: after a comment, an empty line or an instruction none is read. The escape character (\\ by default, or `) at the end of a line continues the instruction; escaping is not performed in RUN except at the end of a line. ARG is the only instruction allowed before FROM, and FROM reads ARGs declared before the first FROM ($VAR, ${VAR}, ${VAR:-word}, ${VAR-word}, ${VAR:+word}, ${VAR+word}); --build-arg can change them. FROM [--platform=<platform>] <image>[:<tag>][@<digest>] [AS <name>]; a later FROM <name> starts from that stage. A here-document (RUN <<EOF) makes the following lines part of the instruction, up to the line with only the delimiter. Only RUN, COPY and ADD in shell form take here-documents, and only a whole word starts one: the parser splits the line into words with quotes kept (shlex.RawQuotes) and matches each word against ^(\\d*)<<(-?)\\s*([^<]*)$, so a quoted "a <<b" starts none (heredocsFromLine and reHeredoc in frontend/dockerfile/parser/parser.go at the same commit).',
+    ),
+    copySources: recheck.verified(
+      { relativeTo: 'context', parentNavigation: 'removed', trailingSlash: 'ignored' },
+      `${DOCKERFILE_REFERENCE}#copying-from-the-build-context`,
+      'COPY and ADD without --from: "When copying source files from the build context, paths are interpreted as relative to the root of the context. Specifying a source path with a leading slash or one that navigates outside the build context, such as COPY ../something /something, automatically removes any parent directory navigation (../). Trailing slashes in the source path are also disregarded, making COPY something/ /something equivalent to COPY something /something." The ADD section says the same about ADD ../something. So /frontend/x, ../frontend/x and frontend/x are the same file, and frontend/.. is the root of the context.',
+    ),
+    environment: finalReview.verified(
+      { instruction: 'ENV', inheritedByStages: true, spaceForm: true },
+      `${DOCKERFILE_REFERENCE}#env`,
+      'ENV <key>=<value> [<key>=<value>...]: "This value will be in the environment for all subsequent instructions in the build stage", and "A stage inherits any environment variables that were set using ENV by its parent stage or any ancestor". "Like command line parsing, quotes and backslashes can be used to include spaces within values". The alternative "ENV <key> <value>, omitting the =" sets one variable, and is discouraged. RUN commands see these variables, and ENV wins over an ARG of the same name.',
+    ),
+    dockerfileNames: runtimes.verified(
+      { defaultName: 'Dockerfile', suffix: '.Dockerfile' },
+      `${DOCKER_DOCS}/content/manuals/build/concepts/dockerfile.md`,
+      '"The default filename to use for a Dockerfile is Dockerfile, without a file extension." "A common convention is to name these <something>.Dockerfile", passed with --file.',
+    ),
+    dockerfilePrefix: runtimes.uncertain(
+      'Dockerfile.',
+      `${DOCKER_DOCS}/content/manuals/build/concepts/dockerfile.md`,
+      'Dockerfile.<name> (Dockerfile.dev) is a common practice, but no Docker documentation that was read mentions it; depcurfew reads such files too, because they are Dockerfiles passed with --file.',
+    ),
+    containerfile: runtimes.verified(
+      'Containerfile',
+      'https://github.com/containers/buildah/blob/14d624b398e05a07deecf29d50a44a149785cc20/docs/buildah-build.1.md',
+      '"A Containerfile uses the same syntax as a Dockerfile internally"; Buildah and Podman read Containerfile or Dockerfile. Docker does not read Containerfile by default.',
+    ),
+    nodeImage: runtimes.verified(
+      { image: 'node', bundles: 'npm', variants: ['alpine', 'slim', 'alpine3.23', 'alpine3.24', 'bookworm', 'bookworm-slim', 'trixie', 'trixie-slim'] },
+      `${DOCKER_NODE}/Dockerfile-debian.template`,
+      'The image downloads the official tarball of the release and extracts it unchanged; its only npm command is npm --version, and docs/BestPractices.md tells users to add RUN npm install --global npm@<version> to change npm. So node:<version> has exactly the npm that release bundles. The Alpine images extract the -musl tarball or build from source. Tags (stackbrew.js): X.Y.Z, X.Y, X and <codename>, each also with -<variant>, and -alpine and -slim for the default variants; the variants are those of versions.json, plus alpine and slim. Yarn 1 is in the images up to Node.js 25.',
+    ),
+    nodeImageTags: runtimes.uncertain(
+      { tags: { latest: '26', current: '26', lts: '26' } },
+      `${OFFICIAL_IMAGES}/node`,
+      'Moving tags on 2026-10-28, when library/node was last generated: lts, lts-<codename>, current, latest and a variant alone (alpine, slim, bookworm) all mean 26.13.0. They move to another line without notice: after 26 became LTS no line is current, and how current and latest resolve once 27 is released is not documented. Tags of lines no longer built (20, iron, 18) are gone from library/node and are not updated any more.',
+    ),
+    pythonImage: runtimes.verified(
+      { image: 'python', bundles: 'pip', variants: ['alpine', 'slim', 'trixie', 'slim-trixie', 'bookworm', 'slim-bookworm', 'alpine3.23', 'alpine3.24'] },
+      `${DOCKER_PYTHON}/versions.sh`,
+      '"our policy is now to use the pip version that is installed during the Python build (which is the version bundled in ensurepip), and to not support overriding it": Dockerfile-linux.template configures CPython --with-ensurepip and installs no other pip (only setuptools and wheel for 3.11). So python:<version> has the pip that CPython release bundles. Images built before 2024-09-07 installed pip with get-pip.py, at the version ensurepip had. Tags (generate-stackbrew-library.sh): X.Y.Z and X.Y, each with -<variant>; -slim and -alpine mean the default suite.',
+    ),
+    pythonImageTags: runtimes.uncertain(
+      { tags: { latest: '3.15', '3': '3.15' } },
+      `${OFFICIAL_IMAGES}/python`,
+      "On 2026-11-01 latest, 3 and a variant alone (slim, alpine, trixie) mean 3.15.2 (aliases [3.15]='3 latest' in generate-stackbrew-library.sh); they move when a new line is released. X.Y-rc tags are prereleases.",
     ),
   },
   devEngines: verified(
@@ -85,6 +306,26 @@ export const environment: EnvironmentKnowledge = {
       },
       'https://github.com/actions/setup-node/blob/main/action.yml',
       'Current major v7. node-version-file reads package.json, .nvmrc, .node-version, .tool-versions or mise.toml; node-version wins when both are set.',
+    ),
+    setupNodeVersions: runtimes.verified(
+      { newest: ['latest', 'current', 'node', '*'], newestLts: 'lts/*', ltsPrefix: 'lts/', previousLtsPrefix: 'lts/-' },
+      `${SETUP_NODE}/README.md`,
+      "Tag v7.1.0. node-version takes semver (22, 24.8.0, >=10.15.0, 12.x), the NVM LTS syntax (lts/jod, lts/*, lts/-n) and latest, current, node or * for the latest release. A matching version in the runner's tool cache is used first, so a major version such as 24 may give an older release of the line unless check-latest is set.",
+    ),
+    setupNodeVersionFile: runtimes.verified(
+      { packageJson: 'package.json', packageJsonOrder: ['volta.node', 'devEngines.runtime', 'engines.node'], textPattern: '^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$' },
+      `${SETUP_NODE}/docs/advanced-usage.md`,
+      'node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE. In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile in src/util.ts tries JSON, then TOML tools.node, then the first line that matches the pattern, then the whole text trimmed.',
+    ),
+    jobContainer: finalReview.verified(
+      { key: 'container', imageKey: 'image', envKey: 'env' },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobscontainer',
+      'Read from the page source in github/docs (data/reusables/actions/jobs/section-running-jobs-in-a-container.md and section-running-jobs-in-a-container-image.md, main on 2026-11-01): "Use jobs.<job_id>.container to create a container to run any steps in a job that don\'t already specify a container"; "If you do not set a container, all steps will run directly on the host specified by runs-on"; "When you only specify a container image, you can omit the image keyword" (container: node:18); jobs.<job_id>.container.image is "the Docker image to use as the container to run the action", and container.env sets variables in the container. So the run steps of such a job use the Node.js and npm of that image, until a setup step installs another.',
+    ),
+    environmentKeys: finalReview.verified(
+      { key: 'env', levels: ['workflow', 'job', 'step'] },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env',
+      'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is "A map of variables that are available to the steps of all jobs in the workflow", jobs.<job_id>.env "A map of variables that are available to all steps in the job", and jobs.<job_id>.steps[*].env "Sets variables for steps to use in the runner environment"; for the same name GitHub "uses the most specific variable": the step\'s over the job\'s over the workflow\'s.',
     ),
     pnpmActionSetup: verified(
       { action: 'pnpm/action-setup', installs: ['pnpm'], inputs: [{ name: 'version', kind: 'version', tool: 'pnpm' }] },
@@ -199,17 +440,26 @@ export const environment: EnvironmentKnowledge = {
       'https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations',
       '10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown.',
     ),
-    checkRuns: audited.verified(
+    checkRuns: actionChecks.verified(
       {
-        endpoint: '/repos/{repository}/check-runs',
+        endpoints: {
+          create: '/repos/{repository}/check-runs',
+          update: '/repos/{repository}/check-runs/{id}',
+          list: '/repos/{repository}/commits/{ref}/check-runs',
+        },
+        query: { checkName: 'check_name', filter: 'filter', latest: 'latest' },
         apiVersion: '2022-11-28',
         permission: { checks: 'write' },
         summaryMaxLength: 65535,
+        annotationsPerRequest: 50,
+        annotationLevels: { error: 'failure', warning: 'warning', note: 'notice' },
+        annotationTitleMaxLength: 255,
+        annotationMessageMaxBytes: 64_000,
         variables: { apiUrl: 'GITHUB_API_URL', repository: 'GITHUB_REPOSITORY', sha: 'GITHUB_SHA', eventPath: 'GITHUB_EVENT_PATH' },
         pullRequestHeadSha: ['pull_request', 'head', 'sha'],
       },
-      'https://docs.github.com/en/rest/checks/runs#create-a-check-run',
-      'Read from the sources of this page, the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json) and github/docs. POST /repos/{owner}/{repo}/check-runs ("Create a check run") needs name and head_sha; status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write "permits an action to create a check run" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the "Last merge commit on the GITHUB_REF branch" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH).',
+      'https://docs.github.com/en/rest/checks/runs',
+      'Read from the sources of this page (#create-a-check-run, #update-a-check-run, #list-check-runs-for-a-git-reference), the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json, commit f9ed74230d54847b5ca00a1343e8e349e858b8fb) and github/docs (commit 33b1f4a6fec2d9b6fd3d374afa56bcd9f0875b57); content/rest/checks/runs.md is generated from the REST description. POST /repos/{owner}/{repo}/check-runs ("Create a check run") needs name and head_sha and takes external_id, "A reference for the run on the integrator\'s system"; PATCH /repos/{owner}/{repo}/check-runs/{check_run_id} ("Update a check run") takes the same fields but head_sha, with only summary required in output, and "OAuth apps and personal access tokens (classic) cannot use this endpoint"; GET /repos/{owner}/{repo}/commits/{ref}/check-runs ("List check runs for a Git reference", ref a SHA, heads/BRANCH or tags/TAG) takes check_name ("Returns check runs with the specified name"), filter (latest, the default, or all: "latest returns the most recent check runs"), per_page (at most 100) and app_id, and answers {total_count, check_runs}, each with id, name, external_id (nullable), app (with slug, not required) and output.annotations_count. Fine-grained permissions (src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json in github/docs): the list needs Checks read, update and create need Checks write; "write includes read" (github-token-scope-descriptions.md). output.annotations: "maxItems": 50 per request, "To create more than 50 annotations, you have to make multiple requests to the Update a check run endpoint. Each time you update the check run, annotations are appended"; each annotation requires path, start_line, end_line (lines start at 1), annotation_level (notice, warning or failure) and message ("The maximum size is 64 KB"), with an optional title ("The maximum size is 255 characters"). No total per check run is documented; the same description says "GitHub Actions are limited to 10 warning annotations and 10 error annotations per step" without saying whether that binds check runs created through the API (uncertain). Not documented either: whether only the app that created a run may update it, and the app slug of runs created with the workflow token. A check suite holds the runs of one GitHub App for one commit (using-the-rest-api-to-interact-with-checks.md), and GitHub keeps at most 1000 runs of the same name per suite. status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write "permits an action to create a check run" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the "Last merge commit on the GITHUB_REF branch" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH).',
     ),
     stepSummary: checked.verified(
       { variable: 'GITHUB_STEP_SUMMARY', maxBytes: 1024 * 1024 },
@@ -285,6 +535,24 @@ export const environment: EnvironmentKnowledge = {
       'https://code.claude.com/docs/en/hooks',
       'A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. A matcher of names separated by | matches each of them exactly. With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules.',
     ),
+    hookContext: mcpFacts.uncertain(
+      { field: 'additionalContext', withoutDecision: true, inlineLimit: 10_000 },
+      'https://code.claude.com/docs/en/hooks#pretooluse-decision-control',
+      'The PreToolUse decision control table lists additionalContext in hookSpecificOutput as "String added to Claude\'s context alongside the tool result. Ignored when permissionDecision is \"defer\"", next to permissionDecision, permissionDecisionReason and updatedInput, and #add-context-for-claude says Claude Code wraps the string in a system reminder that Claude reads on the next model request, places it next to the tool result for PreToolUse, writes a value over 10,000 characters to a file and passes its path with a preview of 2,000 characters, and recommends factual statements over imperative instructions. Uncertain: the page does not say in so many words that additionalContext works without permissionDecision; the table ties it to no decision but defer, and an output without permissionDecision leaves the call to the normal permission flow.',
+    ),
+    sessionStart: release13.verified(
+      {
+        event: 'SessionStart',
+        matchers: ['startup', 'resume'],
+        projectDirVariable: 'CLAUDE_PROJECT_DIR',
+        firstResponseWaits: true,
+        missingScriptWithBlock: 'blocks',
+        blockedNotice: 'failed; blocking because onFailure is "block"',
+        cloudSetupScriptRunsBeforeClaudeCode: true,
+      },
+      'https://code.claude.com/docs/en/hooks#sessionstart',
+      'SessionStart runs when a session starts or resumes; its matcher startup fires for a new session (also resume, clear, compact and fork). Hooks run in the background, but "Claude\'s first response still waits for the hooks to finish", and a prompt sent meanwhile does not reach Claude until they finish. A command hook may be shell form (command with $CLAUDE_PROJECT_DIR, the repository root). With onFailure set to "block" (#block-the-action-when-a-hook-fails), a PreToolUse hook whose script is missing blocks the call ("failed; blocking because onFailure is \"block\"" followed by node\'s error output, in the example "PreToolUse:Bash hook error: [node ${CLAUDE_PROJECT_DIR}/.claude/hooks/check-command.js]: failed; blocking because onFailure is \"block\"" and "Error: Cannot find module \'/path/to/project/.claude/hooks/check-command.js\'", re-read 2026-11-01): node starts, cannot load the script and exits with 1, which counts as a failure; without it, the same missing script is a non-blocking error and the command runs. In cloud sessions (https://code.claude.com/docs/en/cloud-environments#setup-scripts) a setup script is a Bash script that runs as root before Claude Code launches and is skipped when a cached environment exists; SessionStart hooks of the repository\'s .claude/settings.json run in local and cloud sessions (in a session with one repository, outside a project thread), user-level ~/.claude/settings.json hooks do not reach the cloud. The docs recommend a SessionStart hook for project setup such as npm install.',
+    ),
     shellTools: audited.verified(
       [
         { tool: 'Bash', shell: 'bash' },
@@ -294,6 +562,113 @@ export const environment: EnvironmentKnowledge = {
       'https://code.claude.com/docs/en/tools-reference',
       'Tool names are the exact strings of hook matchers. Bash executes shell commands. PowerShell executes PowerShell commands natively; hooks get its command in tool_input.command with the same fields as Bash, and the docs say to match Bash|PowerShell in hooks that inspect shell commands: on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash it is enabled automatically and the Bash tool is not registered at all (also https://code.claude.com/docs/en/hooks#powershell). On Windows with Git Bash it is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1. Monitor runs a command in the background and feeds its output lines back to Claude, with the same permission rules as Bash; on Windows it is available only with Git Bash; a WebSocket watch takes a ws input in place of command.',
     ),
+    commandlessInputs: release13.verified(
+      [{ tool: 'Monitor', input: 'tool_input.ws' }],
+      'https://code.claude.com/docs/en/tools-reference#websocket-source',
+      '"A WebSocket watch takes a `ws` input in place of `command`, and a single Monitor call can\'t combine the two"; ws has url (a ws:// or wss:// URL) and optional protocols. Opening a WebSocket has its own approval prompt.',
+    ),
+  },
+  mcp: {
+    revisions: mcpFacts.verified(
+      { legacy: ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'], modern: ['2026-07-28'] },
+      `${MCP}/docs/specification/2026-07-28/basic/versioning.mdx`,
+      'Modern: revisions that carry version, identity and capabilities on every request (2026-07-28 and later); legacy: revisions that open a session with the initialize handshake (2025-11-25 and earlier). A dual-era server may serve both on one stdio process: a request with the modern per-request _meta is served statelessly, an initialize request selects legacy semantics for the process. docs/docs.json lists 2026-07-28 (latest), 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05; schema/2026-07-28/schema.ts and schema/draft/schema.ts both say LATEST_PROTOCOL_VERSION = "2026-07-28".',
+    ),
+    lifecycle: mcpFacts.verified(
+      {
+        initialize: 'initialize',
+        initialized: 'notifications/initialized',
+        ping: 'ping',
+        request: { protocolVersion: 'protocolVersion', capabilities: 'capabilities', clientInfo: 'clientInfo' },
+        result: { protocolVersion: 'protocolVersion', capabilities: 'capabilities', serverInfo: 'serverInfo', instructions: 'instructions' },
+      },
+      `${MCP}/docs/specification/2025-11-25/basic/lifecycle.mdx`,
+      'If the server supports the requested protocolVersion it must answer with the same one, otherwise with another version it supports, which should be its latest; a client that cannot use it disconnects (the same wording in 2024-11-05). After the result the client sends notifications/initialized. The initialize request must not be cancelled and, in 2025-03-26, must not be part of a batch. ping (basic/utilities/ping.mdx) is answered promptly with an empty result and may be sent before initialization. 2026-07-28 removes initialize, notifications/initialized and ping (docs/specification/2026-07-28/changelog.mdx).',
+    ),
+    stateless: mcpFacts.verified(
+      {
+        metaField: '_meta',
+        protocolVersion: 'io.modelcontextprotocol/protocolVersion',
+        clientCapabilities: 'io.modelcontextprotocol/clientCapabilities',
+        clientInfo: 'io.modelcontextprotocol/clientInfo',
+        serverInfo: 'io.modelcontextprotocol/serverInfo',
+        discover: 'server/discover',
+        discoverResult: { supportedVersions: 'supportedVersions', capabilities: 'capabilities', instructions: 'instructions' },
+        resultType: { field: 'resultType', complete: 'complete' },
+        caching: { ttl: 'ttlMs', scope: 'cacheScope', publicScope: 'public' },
+        unsupportedVersionData: { supported: 'supported', requested: 'requested' },
+      },
+      `${MCP}/docs/specification/2026-07-28/basic/index.mdx`,
+      'Every 2026-07-28 request carries params._meta with io.modelcontextprotocol/protocolVersion and io.modelcontextprotocol/clientCapabilities (required; a request missing either is rejected with -32602) and optionally io.modelcontextprotocol/clientInfo; servers should put io.modelcontextprotocol/serverInfo in the _meta of every result, and every result must carry resultType ("complete" for a finished one; clients read an absent one as complete). Servers must implement server/discover (server/discover.mdx: supportedVersions, capabilities, instructions, serverInfo in _meta). server/utilities/caching.mdx: results of server/discover and tools/list must carry ttlMs (>= 0) and cacheScope ("public" suits lists of tools that are the same for all users). An unsupported version gets -32022 with data { supported, requested } (basic/versioning.mdx). Self-reported identity must not change behavior.',
+    ),
+    tools: mcpFacts.verified(
+      { list: 'tools/list', call: 'tools/call', capability: 'tools', fieldsSince: { annotations: '2025-03-26', title: '2025-06-18', structuredContent: '2025-06-18' } },
+      `${MCP}/docs/specification/2026-07-28/server/tools.mdx`,
+      'A server with tools declares the tools capability and answers tools/list (tools in a deterministic order that does not vary per connection) and tools/call ({ name, arguments }; result content, optional structuredContent and isError). Errors of the tool itself, including input values the model can correct, belong in the result with isError: true; an unknown tool or a request that does not fit the schema is a protocol error (-32602). A tool that returns structuredContent should also return the same JSON in a text block. Tool names should be 1 to 128 characters of letters, digits, _, - and . . Annotations (readOnlyHint, openWorldHint and others) are hints that clients must treat as untrusted. Annotations arrived in 2025-03-26 (changelog.mdx), title and structured output in 2025-06-18 (changelog.mdx); in 2025-11-25 and earlier structuredContent is an object.',
+    ),
+    cancellation: mcpFacts.verified(
+      { method: 'notifications/cancelled', requestId: 'requestId' },
+      `${MCP}/docs/specification/2026-07-28/basic/patterns/cancellation.mdx`,
+      'The client cancels an in-flight request with the notification notifications/cancelled and params { requestId, reason? }; the server should stop the work as soon as practical and must not send any further message for that request, and may ignore an unknown or finished request (also basic/transports/stdio.mdx). The same notification exists in the legacy revisions (2025-11-25/basic/utilities/cancellation.mdx).',
+    ),
+    errorCodes: mcpFacts.verified(
+      { parseError: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internalError: -32603, unsupportedProtocolVersion: -32022 },
+      `${MCP}/schema/2026-07-28/schema.ts`,
+      'PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR and UNSUPPORTED_PROTOCOL_VERSION. -32601 is for a method the server does not implement. basic/index.mdx: request ids are strings or integers and never null; notifications have no id and get no response; an error response has the id of its request except when it could not be read, and the 2025-11-25 and 2026-07-28 schemas make id optional in an error response; codes from -32000 to -32019 are legacy and other codes from -32020 to -32099 that the specification does not define must not be used.',
+    ),
+    errorId: mcpFacts.verified(
+      { optionalSince: '2025-11-25' },
+      `${MCP}/schema/2025-11-25/schema.ts`,
+      'JSONRPCErrorResponse has id?: RequestId in the 2025-11-25 schema (also in schema/2026-07-28/schema.ts); the schemas of 2025-06-18 and 2024-11-05 have JSONRPCError with a required id: RequestId (string | number), and basic/index.mdx of 2025-06-18 says responses must include the same id as their request and request ids must not be null. Neither says what an error response for a request whose id cannot be read carries; JSON-RPC 2.0 uses null there (jsonrpc.org was not reachable to verify it).',
+    ),
+    stdio: mcpFacts.verified(
+      { delimiter: '\n', batchRevisions: ['2025-03-26'] },
+      `${MCP}/docs/specification/2026-07-28/basic/transports/stdio.mdx`,
+      'The server reads JSON-RPC messages from stdin and writes them to stdout, delimited by newlines and without embedded newlines; it must not write anything to stdout that is not a valid MCP message, may log UTF-8 to stderr and should exit promptly when stdin is closed. Batches: 2025-03-26 (basic/index.mdx) says implementations must support receiving JSON-RPC batches; 2025-06-18 removed batching (changelog.mdx), and later revisions have no batch message.',
+    ),
+    clients: {
+      claudeCode: mcpFacts.verified(
+        {
+          addCommand: ['claude', 'mcp', 'add'],
+          separator: '--',
+          scopeOption: '--scope',
+          projectScope: 'project',
+          transportOption: '--transport',
+          stdioTransport: 'stdio',
+          projectFile: '.mcp.json',
+          serversKey: 'mcpServers',
+          projectDirVariable: 'CLAUDE_PROJECT_DIR',
+          projectDirReference: '${CLAUDE_PROJECT_DIR:-.}',
+        },
+        'https://code.claude.com/docs/en/mcp',
+        'claude mcp add [options] <name> -- <command> [args...]: everything after -- goes to the server untouched. Scopes: local (the default, ~/.claude.json), project (.mcp.json in the project root, shared through the repository; Claude Code asks before using its servers) and user. .mcp.json has a top-level mcpServers object of entries with command, args and env; an entry without type is a stdio server. Claude Code sets CLAUDE_PROJECT_DIR to the project root in the environment of the server, not in its own, so ${VAR} expansion in command or args of .mcp.json needs a default such as ${CLAUDE_PROJECT_DIR:-.}. To stop a stdio server it sends SIGINT, then SIGTERM after 100 ms and SIGKILL after a further 400 ms (macOS, Linux); on Windows it closes stdin and ends the process tree after 300 ms.',
+      ),
+      claudeDesktop: mcpFacts.verified(
+        {
+          configFiles: {
+            darwin: '~/Library/Application Support/Claude/claude_desktop_config.json',
+            win32: '%APPDATA%\\Claude\\claude_desktop_config.json',
+            linux: '~/.config/Claude/claude_desktop_config.json',
+          },
+          serversKey: 'mcpServers',
+        },
+        `${MCP}/docs/docs/2026-07-28/develop/connect-local-servers.mdx`,
+        'The page "Connect to local MCP servers" of modelcontextprotocol.io: Claude Desktop reads mcpServers (entries with command, args and env) from claude_desktop_config.json. It documents no working directory and no variables, and its troubleshooting asks for absolute paths. The stderr of a server goes to mcp-server-<name>.log in ~/Library/Logs/Claude (macOS) or %APPDATA%\\Claude\\logs (Windows).',
+      ),
+      vscode: mcpFacts.verified(
+        {
+          file: '.vscode/mcp.json',
+          serversKey: 'servers',
+          typeField: 'type',
+          stdioType: 'stdio',
+          cwdField: 'cwd',
+          workspaceFolder: '${workspaceFolder}',
+          addOption: '--add-mcp',
+        },
+        VSCODE_MCP,
+        'The source of code.visualstudio.com/docs/agents/reference/mcp-configuration. .vscode/mcp.json (in the workspace or the user profile) has a top-level servers object; a stdio server needs type "stdio" and command, and takes args, cwd (defaults to the workspace folder when run in a workspace), env and envFile; predefined variables such as ${workspaceFolder} work in the configuration. VS Code also reads the portable .mcp.json with mcpServers at the workspace root, without cwd. code --add-mcp with a JSON object of a name and the server configuration adds the server to the user profile.',
+      ),
+    },
   },
   git: {
     ignore: gitFacts.verified(
@@ -305,6 +680,11 @@ export const environment: EnvironmentKnowledge = {
       { configFile: '.git/config', section: 'core', key: 'ignorecase', trueValues: ['yes', 'on', 'true', '1'] },
       'https://github.com/git/git/blob/v2.56.0/Documentation/config/core.adoc',
       'core.ignoreCase turns on workarounds for file systems that are not case sensitive (APFS, HFS+, FAT, NTFS); it defaults to false, but git clone and git init probe the file system and set it to true when appropriate, so a repository cloned on Windows or macOS has it. With it, git matches .gitignore patterns and looks up the index without regard to case: match_basename and match_pathname in dir.c compare with fspathncmp and fnmatch_icase_mem, which fold case (strncasecmp, WM_CASEFOLD) when repo_ignore_case is set, and environment.c reads core.ignorecase (both at v2.56.0). Section and variable names are case-insensitive, true is yes, on, true or 1 in any case, and a variable without = <value> is true (Documentation/config.adoc at v2.56.0).',
+    ),
+    repositoryEntry: finalReview.verified(
+      { entry: '.git', submoduleEntry: 'file' },
+      'https://github.com/git/git/blob/v2.56.0/Documentation/gitsubmodules.adoc',
+      '"A submodule is a repository embedded inside another repository", with its own history; "the repository it is embedded in is called a superproject". Its git directory is "located under the $GIT_DIR/modules/ directory of its superproject", with "a .git file at the root of the submodule\'s working directory pointing to" it, and the superproject tracks it only "via a gitlink entry in the tree" with the commit it expects. So a directory with a .git entry of its own (a directory, or the file of a submodule) holds the files of another repository.',
     ),
   },
   windows: {
@@ -345,10 +725,35 @@ export const environment: EnvironmentKnowledge = {
       'https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py',
       'ARCHIVE_EXTENSIONS of pip without .whl: the archives pip accepts from an index besides wheels (index/package_finder.py rejects any other extension), all of them built when installed. A standard sdist is named {name}-{version}.tar.gz with the name normalized (PEP 625, source-distribution-format.rst); older uploads use the other extensions and names that are not normalized.',
     ),
+    bundledPip: runtimes.verified(
+      [
+        { line: '3.9', latest: '3.9.25', bundles: [['3.9.0', '20.2.3'], ['3.9.5', '21.1.1'], ['3.9.6', '21.1.3'], ['3.9.7', '21.2.3'], ['3.9.8', '21.2.4'], ['3.9.11', '22.0.4'], ['3.9.17', '23.0.1']] },
+        { line: '3.10', latest: '3.10.22', bundles: [['3.10.0', '21.2.3'], ['3.10.1', '21.2.4'], ['3.10.3', '22.0.4'], ['3.10.6', '22.2.1'], ['3.10.7', '22.2.2'], ['3.10.9', '22.3.1'], ['3.10.11', '23.0.1']] },
+        { line: '3.11', latest: '3.11.18', bundles: [['3.11.0', '22.3.0'], ['3.11.1', '22.3.1'], ['3.11.4', '23.1.2'], ['3.11.5', '23.2.1'], ['3.11.8', '24.0.0']] },
+        { line: '3.12', latest: '3.12.16', bundles: [['3.12.0', '23.2.1'], ['3.12.2', '24.0.0'], ['3.12.5', '24.2.0'], ['3.12.8', '24.3.1'], ['3.12.10', '25.0.1']] },
+        { line: '3.13', latest: '3.13.18', bundles: [['3.13.0', '24.2.0'], ['3.13.1', '24.3.1'], ['3.13.3', '25.0.1'], ['3.13.4', '25.1.1'], ['3.13.6', '25.2.0'], ['3.13.10', '25.3.0'], ['3.13.13', '26.0.1'], ['3.13.14', '26.1.2'], ['3.13.15', '26.2.1'], ['3.13.17', '26.2.2']] },
+        { line: '3.14', latest: '3.14.10', bundles: [['3.14.0', '25.2.0'], ['3.14.1', '25.3.0'], ['3.14.4', '26.0.1'], ['3.14.5', '26.1.1'], ['3.14.6', '26.1.2'], ['3.14.7', '26.2.1'], ['3.14.9', '26.2.2']] },
+        { line: '3.15', latest: '3.15.2', bundles: [['3.15.0', '26.2.1'], ['3.15.1', '26.2.2']] },
+      ],
+      'https://github.com/python/cpython/blob/v3.15.2/Lib/ensurepip/__init__.py',
+      '_PIP_VERSION in Lib/ensurepip/__init__.py at every final tag from v3.9.0 to v3.15.2 (github.com/python/cpython/blob/v<X.Y.Z>/...; the latest tags are v3.9.25 0bbaf5de, v3.10.22 acb4dc12, v3.11.18 26badd80, v3.12.16 2c2462af, v3.13.18 0d4bd512, v3.14.10 b703b2c5 and v3.15.2 5e58eaad), as the first release of each line that bundles each pip version. Two-part values such as 24.0 are written 24.0.0. 3.12 and older never bundle pip 26; pip 26.1 or later comes with 3.13.14, 3.14.5 and 3.15.0.',
+    ),
     hatch: python.verified(
       { pyprojectTable: 'tool.hatch', configFile: 'hatch.toml' },
       'https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md',
       'Hatch reads its project configuration from [tool.hatch] of pyproject.toml or from hatch.toml. It has no setting of its own for a release-age delay, building from source or dependency sources; its environments install with uv (installer = "uv", the default of its internal environments) or pip (docs/how-to/environment/select-installer.md), and uv reads [tool.uv] of the project under Hatch too (tested on 2026-10-30 with Hatch 1.18.2 and uv 0.13.6).',
+    ),
+    // docs.python.org is built from Doc/ in the CPython repository; docs.python.org itself was not reachable today.
+    virtualEnvironment: finalReview.verified(
+      {
+        marker: 'pyvenv.cfg',
+        scripts: [
+          { platform: 'posix', directory: 'bin', names: ['activate', 'activate.fish', 'activate.csh', 'Activate.ps1'] },
+          { platform: 'windows', directory: 'Scripts', names: ['activate.bat', 'Activate.ps1'] },
+        ],
+      },
+      'https://github.com/python/cpython/blob/v3.14.0/Doc/library/venv.rst',
+      'Creating virtual environments: venv "places a pyvenv.cfg file in it with a home key" (in the target directory) and "also creates a bin (or Scripts on Windows) subdirectory". How venvs work: "A virtual environment may be "activated" using a script in its binary directory (bin on POSIX; Scripts on Windows)"; the table of activation commands: POSIX bash/zsh source <venv>/bin/activate, fish source <venv>/bin/activate.fish, csh/tcsh source <venv>/bin/activate.csh, pwsh <venv>/bin/Activate.ps1; Windows cmd.exe <venv>\\Scripts\\activate.bat, PowerShell <venv>\\Scripts\\Activate.ps1. Activation prepends the binary directory to PATH and sets VIRTUAL_ENV. Lib/venv/__init__.py at v3.14.0 writes pyvenv.cfg as os.path.join(context.env_dir, "pyvenv.cfg") and installs the scripts of the common directory and of os.name.',
     ),
     interpreter: audited.verified(
       { executables: ['python', 'python3', 'py'], moduleOption: '-m', commandOption: '-c', valueOptions: ['-W', '-X', '--check-hash-based-pycs'], groupedShortOptions: true },

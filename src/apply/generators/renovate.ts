@@ -2,7 +2,12 @@
 // for security updates. pypi: names get their own rule limited to the pypi datasource; when the repository also has
 // Python packages, the rule for npm names leaves out that datasource, so an npm exception never reaches a Python
 // package of the same name. JSON5 files and the deprecated package.json key are not edited; a snippet is printed.
+import { delayMinutes, formatMinutes } from '../../doctor/durations.ts';
+import { latestVersion } from '../../doctor/effective.ts';
+import { readRenovateConfig, renovateDelay } from '../../doctor/renovate.ts';
+import type { Ecosystem } from '../../knowledge/types.ts';
 import { convertCooldown } from '../../policy/convert.ts';
+import { listing } from '../requirements.ts';
 import { ecosystemOfTool } from '../../policy/ecosystem.ts';
 import { patternsFor } from '../../policy/package-pattern.ts';
 import { extraOf, isRecord, settingOf, values } from '../facts.ts';
@@ -91,6 +96,7 @@ export const renovate: BotGenerator = (context, duration) => {
     return;
   }
 
+  shorterRules(context, file, result.value, rule.list, descriptionKey);
   const json = context.json(file);
   json.set([setting], result.value);
   for (const managed of managedRules) {
@@ -110,3 +116,49 @@ export const renovate: BotGenerator = (context, duration) => {
   }
   json.set(securityPath, security);
 };
+
+const ECOSYSTEM_LABELS: Readonly<Record<Ecosystem, string>> = { npm: 'npm', pypi: 'Python' };
+
+/**
+ * packageRules entries that apply does not manage and that give every package of a registry, or some update types, a
+ * shorter delay than the one apply writes: Renovate uses them, and apply never changes entries it did not write, so it
+ * warns (decision D-116). They are found as doctor's bot-cooldown-mismatch finds them (renovateDelay), on the file as
+ * it is, with the top-level delay apply writes and without depcurfew's own exclusion rules.
+ */
+function shorterRules(context: Parameters<BotGenerator>[0], file: string, written: unknown, list: string, descriptionKey: string): void {
+  const { tool } = context;
+  const config = readRenovateConfig(context.read(file), file, []);
+  const own = new Set<unknown>([RULE_DESCRIPTION, PYTHON_RULE_DESCRIPTION]);
+  const planned = { ...config, top: { value: written, line: config.top?.line ?? 1 }, rules: config.rules.filter((entry) => !own.has(entry.rule[descriptionKey])) };
+  const wanted = delayMinutes(tool, written, latestVersion(tool));
+  if (!wanted.ok) return;
+  const ecosystems = (['npm', 'pypi'] as const).filter((ecosystem) =>
+    context.tools.some((entry) => entry.kind === 'package-manager' && context.targets.has(entry.id) && ecosystemOfTool(entry) === ecosystem),
+  );
+  const found = new Map<number, { line: number; value: unknown; types: Set<string>; ecosystems: Set<Ecosystem> }>();
+  for (const ecosystem of ecosystems) {
+    const delay = renovateDelay(tool, planned, ecosystem);
+    if (!delay.known) continue;
+    for (const [type, source] of delay.byType) {
+      if (source.rule === undefined) continue;
+      const minutes = delayMinutes(tool, source.value, latestVersion(tool));
+      if (!minutes.ok || minutes.minutes >= wanted.minutes) continue;
+      const entry = found.get(source.rule) ?? { line: source.line, value: source.value, types: new Set<string>(), ecosystems: new Set<Ecosystem>() };
+      entry.types.add(type);
+      entry.ecosystems.add(ecosystem);
+      found.set(source.rule, entry);
+    }
+  }
+  const updateTypes = extraOf(tool, 'delayedUpdateTypes', (value): value is string[] => Array.isArray(value) && value.every(isString));
+  const describe = (minutes: number) => (minutes === 0 ? 'no delay' : formatMinutes(minutes));
+  for (const [index, entry] of [...found].sort(([a], [b]) => a - b)) {
+    const types = updateTypes.filter((type) => entry.types.has(type));
+    const scope = types.length === updateTypes.length ? 'updates' : `${listing(types)} updates`;
+    context.warn({
+      code: 'bot-rule-shortens-delay',
+      location: { file, line: entry.line },
+      message: `${context.name}: ${list}[${index}] in ${file} (line ${entry.line}) sets minimumReleaseAge: ${JSON.stringify(entry.value)} for ${scope} of ${listing([...entry.ecosystems].map((ecosystem) => ECOSYSTEM_LABELS[ecosystem]))} packages, shorter than the ${describe(wanted.minutes)} depcurfew apply writes for ${context.name}; ${context.name} uses the rule, and depcurfew apply does not change entries it did not write`,
+      fix: `Make minimumReleaseAge in ${list}[${index}] of ${file} at least ${describe(wanted.minutes)}, or limit the rule to the packages that need a shorter delay`,
+    });
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "pnpm"
+      ]
+    },
+    "cooldown": {
+      "minimum": "3d",
+      "tools": [
+        {
+          "tool": "pnpm",
+          "ok": true,
+          "unit": "minutes",
+          "value": 4320,
+          "exact": true
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "esbuild",
+        "@scope/*"
+      ],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "pnpm",
+          "settings": [
+            {
+              "setting": "onlyBuiltDependencies",
+              "file": "pnpm-workspace.yaml"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "allow-pattern-unsupported",
+              "level": "warning",
+              "tool": "pnpm",
+              "message": "pnpm: onlyBuiltDependencies takes package names only; \"@scope/*\" not written",
+              "fix": "List the package names in installScripts.allow"
+            }
+          ]
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "pnpm",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "version-too-old",
+              "level": "warning",
+              "tool": "pnpm",
+              "message": "pnpm 10.12.1 does not support minimumReleaseAge (added in 10.16.0), blockExoticSubdeps (added in 10.26.0); not written",
+              "fix": "Require pnpm 10.26.0 or later where the version is pinned"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "projects": []
+}

@@ -5,6 +5,7 @@
 import { parse as parseYaml } from 'yaml';
 import { isRecord, values } from '../apply/facts.ts';
 import { APPLY_ERRORS, APPLY_WARNINGS } from '../apply/warnings.ts';
+import { INIT_NOTES, INIT_WARNINGS } from '../cli/init-codes.ts';
 import { RULES } from '../doctor/index.ts';
 import type { Rule } from '../doctor/types.ts';
 import { USER_RULES } from '../user/doctor.ts';
@@ -13,6 +14,7 @@ import { SOURCE_KINDS } from '../knowledge/schema.ts';
 import type { CommandLineKnowledge, EnvironmentKnowledge, Fact, ToolKnowledge, UserConfigKnowledge, UserDirectory, UserFile, UserPlatform } from '../knowledge/types.ts';
 import { DEFAULT_POLICY, renderPolicy } from '../policy/defaults.ts';
 import { policyJsonSchema } from '../policy/json-schema.ts';
+import { INSTALLED_CLI, TOOLS_DIRECTORY } from '../self-version.ts';
 
 export interface ReadmeInputs {
   tools: readonly ToolKnowledge[];
@@ -140,9 +142,17 @@ function rulesList(rules: readonly Rule[] = RULES): string {
   ).join('\n\n');
 }
 
+function codeList(codes: Readonly<Record<string, string>>): string[] {
+  return Object.entries(codes).map(([code, summary]) => `- \`${code}\`: ${summary}`);
+}
+
 function applyCodes(): string {
-  const list = (codes: Readonly<Record<string, string>>) => Object.entries(codes).map(([code, summary]) => `- \`${code}\`: ${summary}`);
-  return ['Warnings:', '', ...list(APPLY_WARNINGS), '', 'Errors (nothing is written):', '', ...list(APPLY_ERRORS)].join('\n');
+  return ['Warnings:', '', ...codeList(APPLY_WARNINGS), '', 'Errors (nothing is written):', '', ...codeList(APPLY_ERRORS)].join('\n');
+}
+
+/** The warnings and notes of init (decision D-122); its errors are those of apply. */
+function initCodes(): string {
+  return ['Warnings:', '', ...codeList(INIT_WARNINGS), '', 'Notes:', '', ...codeList(INIT_NOTES)].join('\n');
 }
 
 function actionTables(action: string): string {
@@ -152,7 +162,10 @@ function actionTables(action: string): string {
     const header = withDefault ? `| ${heading} | Default | Description |\n| --- | --- | --- |` : `| ${heading} | Description |\n| --- | --- |`;
     const rows = entries.map(([name, value]) => {
       const entry = isRecord(value) ? value : {};
-      const columns = withDefault ? [`\`${name}\``, `\`${String(entry['default'] ?? '')}\``, String(entry['description'] ?? '')] : [`\`${name}\``, String(entry['description'] ?? '')];
+      // An empty default (fail-on) is shown as "empty": an empty code span would show the backticks.
+      const fallback = String(entry['default'] ?? '');
+      const shown = fallback === '' ? 'empty' : `\`${fallback}\``;
+      const columns = withDefault ? [`\`${name}\``, shown, String(entry['description'] ?? '')] : [`\`${name}\``, String(entry['description'] ?? '')];
       return `| ${columns.map(cell).join(' | ')} |`;
     });
     return [header, ...rows].join('\n');
@@ -194,6 +207,46 @@ function exampleWorkflow(environment: EnvironmentKnowledge, workflow: string): s
 
 function commandList(entries: readonly (readonly string[])[]): string {
   return entries.map((entry) => `\`${entry.join(' ')}\``).join(', ');
+}
+
+/**
+ * What the hook does before depcurfew is installed, and how to install it first: with onFailure "block" a missing
+ * cli.js blocks every shell command, including the install that would bring it (user feedback before 1.3.0).
+ */
+function bootstrap(environment: EnvironmentKnowledge): string[] {
+  const hooks = values(environment.claudeCode.hooks)[0];
+  const start = values(environment.claudeCode.sessionStart)[0];
+  if (hooks === undefined || start === undefined) throw new Error('README: missing the Claude Code hooks or SessionStart fact');
+  const keys = hooks.settings;
+  const cli = INSTALLED_CLI;
+  const variable = `$${start.projectDirVariable}`;
+  const sessionStart = {
+    [keys.hooks]: {
+      [start.event]: [
+        {
+          [keys.matcher]: start.matchers.join(hooks.matcherSeparator),
+          [keys.handlers]: [{ [keys.type]: keys.commandType, [keys.command]: `cd "${variable}" && { test -f ${cli} || npm ci --ignore-scripts; }` }],
+        },
+      ],
+    },
+  };
+  return [
+    '**Before depcurfew is installed.** The hook runs the copy in `node_modules`. When that file is missing (a fresh clone before `npm ci`, a repository without `package.json` in its root, a new cloud session), node still starts, cannot load it and exits with code 1 and a stack trace, and with `' +
+      `${hooks.onFailure.field}: "${hooks.onFailure.value}"\` that failure blocks every command of these tools, including the \`npm ci\` that would install depcurfew; without it, every command runs unchecked. The blocked call shows the hook command, \`${start.blockedNotice}\` and node's \`Error: Cannot find module '…/${cli}'\`: run the install (\`npm ci --ignore-scripts\` in the project, or in \`${TOOLS_DIRECTORY}\` for the tools directory below) from a terminal, then try again. So install depcurfew before the hook is needed:`,
+    '',
+    `- **On your machine:** run \`npm ci\` once after cloning, in a terminal, before you start Claude Code.`,
+    `- **In every session:** a \`${start.event}\` hook installs the locked copy when it is missing (with pnpm, Yarn or Bun, use their install from the lockfile instead of \`npm ci\`). It runs when a session starts or resumes, and ${start.firstResponseWaits ? "Claude's first response waits for it" : 'it may still run when Claude answers'}, so the guard is in place before the first command. \`--ignore-scripts\` keeps the install from running dependency scripts before the guard is there. Add it next to \`${hooks.event}\` in the same \`${hooks.settingsFile}\`:`,
+    '',
+    '```json',
+    JSON.stringify(sessionStart, null, 2),
+    '```',
+    '',
+    `- **A repository without \`package.json\` in its root** (several projects side by side): keep depcurfew in a small tools directory, for example \`${TOOLS_DIRECTORY}/package.json\` with depcurfew pinned exactly and its \`package-lock.json\` committed, install it there (\`cd ${TOOLS_DIRECTORY} && npm ci --ignore-scripts\`, also in the \`${start.event}\` hook), and point the hook at \`${hooks.projectDir}/${TOOLS_DIRECTORY}/${cli}\`.`,
+    start.cloudSetupScriptRunsBeforeClaudeCode
+      ? `- **Cloud sessions (Claude Code on the web):** the repository's \`${hooks.settingsFile}\` hooks run there, user-level ones do not. The environment's setup script runs before Claude Code starts, so it can install depcurfew too; the \`${start.event}\` hook above covers a cached environment as well.`
+      : '',
+    `- **Locked out already:** install depcurfew from a terminal outside Claude Code, or remove the hook from \`${hooks.settingsFile}\` there; Claude cannot do it for you while the hook blocks its commands, which is the point of \`${hooks.onFailure.value}\`.`,
+  ].filter((line, index, all) => line !== '' || all[index - 1] !== '');
 }
 
 /** The Claude Code hook settings and the install commands the guard reads, from the knowledge base. */
@@ -246,11 +299,60 @@ function claudeCodeHook(environment: EnvironmentKnowledge, tools: readonly ToolK
     '',
     `\`${hooks.onFailure.field}: "${hooks.onFailure.value}"\` needs Claude Code ${hooks.onFailure.since} or later; without it, a hook that fails to start, crashes or times out lets the command through.`,
     '',
+    ...bootstrap(environment),
+    '',
     'Commands the guard reads (an add subcommand of any npm package manager, such as `install` or `i`, is checked for all of them; Python commands are matched word for word, and `python -m pip` counts as `pip`):',
     '',
     '| Package manager | Add packages | Download and run | Starter kits |',
     '| --- | --- | --- | --- |',
     ...rows,
+  ].join('\n');
+}
+
+/** How the MCP clients start depcurfew mcp, from the knowledge base (environment.mcp.clients). */
+function mcpClients(environment: EnvironmentKnowledge): string {
+  const claudeCode = values(environment.mcp.clients.claudeCode)[0];
+  const desktop = values(environment.mcp.clients.claudeDesktop)[0];
+  const vscode = values(environment.mcp.clients.vscode)[0];
+  if (claudeCode === undefined || desktop === undefined || vscode === undefined) throw new Error('README: missing the MCP client facts');
+  const script = 'node_modules/depcurfew/dist/cli.js';
+  const projectScript = `${claudeCode.projectDirReference}/${script}`;
+  const json = (value: unknown) => ['```json', JSON.stringify(value, null, 2), '```'];
+  const absolute = '/path/to/project';
+  const desktopServer = { command: 'node', args: [`${absolute}/${script}`, 'mcp', '--dir', absolute] };
+  const vscodeServer = {
+    [vscode.typeField]: vscode.stdioType,
+    command: 'node',
+    args: [`${vscode.workspaceFolder}/${script}`, 'mcp'],
+    [vscode.cwdField]: vscode.workspaceFolder,
+  };
+  const revisions = values(environment.mcp.revisions)[0];
+  const lifecycle = values(environment.mcp.lifecycle)[0];
+  if (revisions === undefined || lifecycle === undefined) throw new Error('README: missing the MCP protocol facts');
+  return [
+    `The server speaks the \`${lifecycle.initialize}\` handshake of the protocol revisions ${revisions.legacy.join(', ')} and the stateless revision${revisions.modern.length === 1 ? '' : 's'} ${revisions.modern.join(', ')}, without the handshake, for clients that use ${revisions.modern.length === 1 ? 'it' : 'them'}.`,
+    '',
+    `**Claude Code.** Add the server to \`${claudeCode.projectFile}\` of the project, which everyone working on it shares (Claude Code asks before it starts a server from that file):`,
+    '',
+    '```bash',
+    `${[...claudeCode.addCommand, claudeCode.scopeOption, claudeCode.projectScope, claudeCode.transportOption, claudeCode.stdioTransport, 'depcurfew', claudeCode.separator, 'node', `'${projectScript}'`, 'mcp'].join(' ')}`,
+    '```',
+    '',
+    `or write \`${claudeCode.projectFile}\` yourself:`,
+    '',
+    ...json({ [claudeCode.serversKey]: { depcurfew: { command: 'node', args: [projectScript, 'mcp'] } } }),
+    '',
+    `Claude Code sets \`${claudeCode.projectDirVariable}\` to the project root for the server, and \`depcurfew mcp\` takes it as the project directory. Claude Code itself does not have the variable, so in \`args\` it needs the default \`${claudeCode.projectDirReference}\` (in cmd.exe, leave out the single quotes).`,
+    '',
+    `**Claude Desktop.** In \`claude_desktop_config.json\` (macOS: \`${desktop.configFiles.darwin}\`, Windows: \`${desktop.configFiles.win32}\`, Linux: \`${desktop.configFiles.linux}\`), with absolute paths and \`--dir\`, because Claude Desktop starts servers in no particular directory:`,
+    '',
+    ...json({ [desktop.serversKey]: { depcurfew: desktopServer } }),
+    '',
+    `**VS Code.** In \`${vscode.file}\` of the workspace:`,
+    '',
+    ...json({ [vscode.serversKey]: { depcurfew: vscodeServer } }),
+    '',
+    `\`code ${vscode.addOption} '${JSON.stringify({ name: 'depcurfew', [vscode.typeField]: vscode.stdioType, ...desktopServer })}'\` adds the server for one project to your user profile instead.`,
   ].join('\n');
 }
 
@@ -272,6 +374,7 @@ function userFileText(file: UserFile): string {
       const where = location.directories
         .map((directory) => {
           const conditions = [
+            ...(directory.from !== 'home' && directory.from.absolute === true ? ['it is an absolute path'] : []),
             ...(directory.ifExists === true ? ['the folder exists'] : []),
             ...(directory.unlessEnv === undefined ? [] : [`${platform === 'win32' ? `%${directory.unlessEnv}%` : `$${directory.unlessEnv}`} is not set`]),
           ];
@@ -290,6 +393,19 @@ function userTable(tools: readonly ToolKnowledge[]): string {
     .map((tool) => {
       const user = tool.user as UserConfigKnowledge;
       const files = (values(user.files)[0] ?? []).map((entry) => (entry.value === null ? `${entry.since === '0.0.0' ? '' : `${entry.since}+: `}none` : `${entry.since === '0.0.0' ? '' : `${entry.since}+: `}${userFileText(entry.value)}`));
+      // Where a library the tool calls decides the directories (platformdirs on macOS), each range of its versions.
+      const library = user.libraryDirectories === undefined ? undefined : values(user.libraryDirectories)[0];
+      const latest = (values(user.files)[0] ?? []).at(-1)?.value;
+      for (const [index, entry] of (library?.directories ?? []).entries()) {
+        if (library === undefined || latest === null || latest === undefined) break;
+        const until = library.directories[index + 1]?.since;
+        const range = entry.since === '0.0.0' ? `before ${until ?? 'any version'}` : until === undefined ? `${entry.since}+` : `${entry.since}–${until}`;
+        const platforms = library.platforms.map((name) => PLATFORM_NAMES[name]).join(', ');
+        const file = latest.locations.find((location) => location.platforms.some((platform) => library.platforms.includes(platform)));
+        if (file === undefined) continue;
+        const text = userFileText({ ...latest, locations: [{ ...file, platforms: library.platforms, directories: entry.value }] }).replace(`${platforms}: `, '');
+        files.push(`${platforms} with ${library.library} ${range}: ${text}`);
+      }
       const settings = (values(user.settings)[0] ?? []).map((setting) => `\`${setting.key}\` (${setting.since}${setting.until === undefined ? '+' : `–${setting.until}`})`);
       const exact = values(user.invalidValueFails).some((value) => value) ? 'yes' : 'no';
       return `| ${tool.name} | ${files.join('<br>') || 'none'} | ${settings.join(', ') || 'none'} | ${exact} |`;
@@ -306,9 +422,11 @@ export function readmeSections(inputs: ReadmeInputs): Record<string, string> {
     tools: toolsTable(inputs.tools),
     rules: rulesList(),
     'apply-codes': applyCodes(),
+    'init-codes': initCodes(),
     'action-reference': actionTables(inputs.action),
     'action-workflow': exampleWorkflow(inputs.environment, inputs.workflow),
     'claude-code-hook': claudeCodeHook(inputs.environment, inputs.tools),
+    'mcp-clients': mcpClients(inputs.environment),
   };
 }
 

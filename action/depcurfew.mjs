@@ -19,7 +19,7 @@
 import { createRequire } from "node:module";
 import { appendFileSync, closeSync, constants, fchmodSync, fchownSync, fstatSync, lchownSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import nodePath, { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 // \0rolldown/runtime.js
 var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod, mod.exports), cb = null), mod.exports);
@@ -69,6 +69,7 @@ function verifiedOn(verifiedAt) {
 const { verified: verified$12, uncertain: uncertain$11, disputed: disputed$6, evidence: evidence$6 } = verifiedOn("2026-10-28");
 const checked$7 = verifiedOn("2026-10-29");
 const user$9 = verifiedOn("2026-10-31");
+const runtimes$3 = verifiedOn("2026-11-01");
 const BUN_V1_4_4 = "https://github.com/oven-sh/bun/blob/bun-v1.4.4";
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 const BUNFIG = "https://bun.com/docs/runtime/bunfig";
@@ -185,6 +186,27 @@ const bun$1 = {
 		variables: user$9.uncertain([], `${BUN_V1_4_4}/docs/pm/cli/install.mdx`, "No environment variable sets minimumReleaseAge or its exclusions: concluded from the install page, which lists registry, token, lockfile and retry variables only. NPM_CONFIG_IGNORE_SCRIPTS only turns scripts off. XDG_CONFIG_HOME moves the user file (user.files).")
 	},
 	extra: {
+		registrySettings: runtimes$3.verified([{
+			file: "bunfig.toml",
+			path: ["install", "registry"],
+			applies: "all",
+			effect: "replaces",
+			urlKey: "url"
+		}, {
+			file: "bunfig.toml",
+			path: [
+				"install",
+				"scopes",
+				"*"
+			],
+			applies: "scope",
+			effect: "replaces",
+			urlKey: "url"
+		}], `${BUN_V1_4_4}/docs/runtime/bunfig.mdx`, "\"Put bunfig.toml in your project root, alongside your package.json\"; the global $HOME/.bunfig.toml (or $XDG_CONFIG_HOME/.bunfig.toml) is loaded too, and local keys win. \"The default registry is https://registry.npmjs.org/. To change it\": [install] registry, a string or { url, token }. \"To configure a registry for a particular scope (for example, @myorg/<package>), use install.scopes\": a key per scope (myorg = \"https://registry.myorg.com/\" or a table with url)."),
+		projectInstall: runtimes$3.verified({
+			commands: ["install"],
+			bare: false
+		}, "https://github.com/oven-sh/bun/blob/da867c60bf0bcbf9d6d36994f8ca0efa42075115/docs/pm/cli/install.mdx", "\"if your project has a package.json, you can use bun install\"; the page names no alias, so none is listed. bun add (commandLine.add) adds packages."),
 		commandLine: checked$7.verified({
 			add: [["bun", "add"]],
 			run: [{
@@ -250,7 +272,26 @@ const bun$1 = {
 		latestVersion: verified$12("1.4.4", "https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4"),
 		trustedDependenciesReplacesDefaults: checked$7.verified("Adding trustedDependencies replaces the built-in trusted list, so default-trusted packages that are not listed stop running scripts", `${LIFECYCLE}#behavior-of-the-trusteddependencies-field`, "So an empty list trusts no package: without the field Bun 1.4.4 ran esbuild's postinstall (esbuild is on the built-in list); with \"trustedDependencies\": [] it blocked it (bun pm untrusted listed it), tested on 2026-10-29."),
 		lockedVersionsNotRechecked: verified$12("minimumReleaseAge only affects new resolutions; versions already in bun.lock are kept", `${INSTALL$1}#minimum-release-age`),
-		bunxCooldown: verified$12("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4")
+		bunxCooldown: verified$12("bunx applies --minimum-release-age only since 1.4.4", "https://bun.com/blog/bun-v1.4.4"),
+		directoryOptions: runtimes$3.verified({
+			options: [{
+				name: "--cwd",
+				moves: "directory"
+			}],
+			variables: []
+		}, `${BUN_V1_4_4}/docs/snippets/cli/add.mdx`, "bun add: <ParamField path=\"--cwd\" type=\"string\"> \"Set a specific current working directory\" (Global Configuration & Context); bun install has the same option, \"Set a specific cwd\" (docs/snippets/cli/install.mdx at the same tag, General Configuration)."),
+		installOverrides: runtimes$3.verified({
+			options: [{
+				name: "--minimum-release-age",
+				weakens: "delay",
+				values: "delay"
+			}, {
+				name: "--trust",
+				weakens: "scripts",
+				values: "any"
+			}],
+			variables: []
+		}, "https://github.com/oven-sh/bun/blob/main/docs/pm/cli/install.mdx", "bun add @types/bun --minimum-release-age 259200 # seconds: \"A number is in seconds\", or a number with a unit such as 90m, 12 hours, 3d or 2 weeks (durationStrings). The page lists no environment variable for it. bun add --trust \"adds the package to trustedDependencies in the project's package.json and installs it\", so its lifecycle scripts run (docs/snippets/cli/add.mdx and docs/pm/lifecycle.mdx at bun-v1.4.4); lifecycle.mdx names no variable that turns scripts on, and ignore-scripts read from the environment \"only turns scripts off\".")
 	}
 };
 
@@ -259,6 +300,7 @@ const { verified: verified$11, uncertain: uncertain$10, disputed: disputed$5, ev
 const checked$6 = verifiedOn("2026-10-29");
 const reviewed$3 = verifiedOn("2026-10-30");
 const user$8 = verifiedOn("2026-10-31");
+const leftovers$4 = verifiedOn("2026-11-01");
 const DENO_V2_9_8 = "https://github.com/denoland/deno/blob/v2.9.8";
 const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
@@ -281,7 +323,7 @@ const SUPPLY_CHAIN = "https://docs.deno.com/runtime/packages/supply_chain/#minim
 const SCHEMA$1 = "https://github.com/denoland/deno/blob/v2.9.8/cli/schemas/config-file.v1.json";
 const INSTALL = "https://docs.deno.com/runtime/reference/cli/install/";
 const NOT_SUPPORTED = "https://docs.deno.com/examples/local_unpublished_packages_tutorial/#what-is-not-supported";
-const release$4 = (version) => `https://github.com/denoland/deno/releases/tag/v${version}`;
+const release$5 = (version) => `https://github.com/denoland/deno/releases/tag/v${version}`;
 const unsupported = (note) => ({ setting: verified$11(null, NOT_SUPPORTED, note) });
 const WORKSPACES$1 = "https://github.com/denoland/docs/blob/main/runtime/fundamentals/workspaces.md";
 const deno$1 = {
@@ -293,7 +335,7 @@ const deno$1 = {
 		configFiles: verified$11(["deno.json", ".npmrc"], SUPPLY_CHAIN, "min-release-age in .npmrc since 2.8; also NPM_CONFIG_MIN_RELEASE_AGE. This page does not state precedence; denoland/deno#35458 gives CLI flag, deno.json, .npmrc, environment, built-in default."),
 		cliFlag: verified$11("--minimum-dependency-age", DENO_JSON, "Alias --min-dep-age since 2.9.3. deno install honors it since 2.5.5; deno add, deno remove and deno x since 2.9.4."),
 		unit: verified$11("minutes", SCHEMA$1, "Numbers are minutes; strings may be an ISO-8601 duration (P3D, PT72H), an absolute date or an RFC3339 timestamp; 0 turns it off. The .npmrc format differs (see npmrcFormat)."),
-		availableSince: disputed$5("The 2.5.5 release notes ship the flag, the deno.json key and exclude as unstable; the release blog says the feature was introduced in 2.6.", evidence$5("2.5.5", release$4("2.5.5")), evidence$5("2.6.0", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
+		availableSince: disputed$5("The 2.5.5 release notes ship the flag, the deno.json key and exclude as unstable; the release blog says the feature was introduced in 2.6.", evidence$5("2.5.5", release$5("2.5.5")), evidence$5("2.6.0", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
 		default: verified$11([{
 			since: "0.0.0",
 			value: null
@@ -303,7 +345,7 @@ const deno$1 = {
 		}], DENO_JSON, "Since 2.9 a 24-hour minimum applies when nothing is configured; set 0 to turn it off. Whether the default covers JSR is not stated."),
 		exclude: {
 			setting: verified$11("minimumDependencyAge.exclude", SCHEMA$1),
-			availableSince: verified$11("2.5.5", release$4("2.5.5")),
+			availableSince: verified$11("2.5.5", release$5("2.5.5")),
 			patternSyntax: verified$11("Specifiers prefixed npm: or jsr:; a trailing * matches by prefix (npm:@scope/*) since 2.9.2", SCHEMA$1, "Before 2.9.2 wildcard entries were stored literally and never matched. No CLI flag or .npmrc key for exclusions.")
 		},
 		securityUpdates: uncertain$10("applies", SUPPLY_CHAIN, "No security bypass is documented; only per-package exclude or an age of 0.")
@@ -362,7 +404,13 @@ const deno$1 = {
 			purpose: "cooldown",
 			key: "min-release-age",
 			since: "2.8.0"
-		}], `${DENO_V2_9_8}/Releases.md`, "2.8.0: \"feat(npmrc): support min-release-age (#33983)\". A whole number of days (npmrcFormat); the same line sets npm's min-release-age, also in days. minimumDependencyAge.exclude and allowScripts exist only in deno.json (allowScripts at the workspace root), so Deno has no user-level exclusions or script settings."),
+		}], `${DENO_V2_9_8}/Releases.md`, "2.8.0: \"feat(npmrc): support min-release-age (#33983)\". A whole number of days (cooldownUnit); the same line sets npm's min-release-age, also in days. minimumDependencyAge.exclude and allowScripts exist only in deno.json (allowScripts at the workspace root), so Deno has no user-level exclusions or script settings."),
+		cooldownUnit: leftovers$4.verified({
+			key: "min-release-age",
+			unit: "days",
+			wholeNumbers: true,
+			otherValues: "ignored"
+		}, NPMRC_PARSER, "NpmRc::parse reads min-release-age \"in days\" (min_release_age_days: Option<u64>; \"npm interprets the value as a number of days\"): an INI number of 0 or more, or a text that parses as a whole number after ${VAR} expansion; anything else, such as 72h or 1.5, is ignored without a message, so the age comes from the next source. The project .npmrc wins over the home file (libs/resolver/npmrc.rs), and the days count only where deno.json and --min-dep-age set nothing; those take minutes, an ISO-8601 duration or an RFC 3339 date (libs/config/util.rs, libs/cli_parser/src/defs.rs)."),
 		unknownKeys: user$8.verified("ignore", NPMRC_PARSER, "NpmRc::parse reads registry, auth, replace-registry-host, min-release-age and trust-policy keys and skips every other key without a message."),
 		invalidValueFails: user$8.verified(false, NPMRC_PARSER, "A min-release-age that is not a whole number of days, such as 72h, is ignored without a message (test \"invalid value is ignored\"), so the age silently comes from the next source. A home .npmrc that does not parse at all stops the command (libs/resolver/npmrc.rs)."),
 		weakening: user$8.verified([{
@@ -462,10 +510,30 @@ const deno$1 = {
 			since: "2.6.0",
 			value: true
 		}, SCHEMA$1, "allowScripts: true allows every npm lifecycle script. Only the JSON value true does: to_allow_scripts_config (libs/config/deno_json/mod.rs at v2.9.8) gives every package for true, none for false and null, and stops with \"expected string array, boolean, or object\" for a string or a number, so \"true\" or 1 cannot turn it on silently."),
-		latestVersion: verified$11("2.9.8", release$4("2.9.8")),
+		latestVersion: verified$11("2.9.8", release$5("2.9.8")),
 		npmrcFormat: disputed$5("The safe choice is an integer number of days, which also matches npm.", evidence$5("whole days only, e.g. min-release-age=3", SUPPLY_CHAIN), evidence$5("a duration with a unit, e.g. min-release-age=72h", "https://deno.com/blog/v2.9#minimum-dependency-age-enabled-by-default")),
 		fileLinkSkipped: disputed$5("Official pages disagree on whether the project's own file: and link: dependencies are skipped, or only those in published packages' metadata.", evidence$5("file: and link: dependencies in the project package.json are silently skipped", NOT_SUPPORTED), evidence$5("file: and link: specifiers in registry metadata of npm packages are skipped", "https://deno.com/blog/v2.8#file-and-link-dependencies-in-npm-packages")),
-		denoXCooldown: verified$11("deno x honors minimumDependencyAge only since 2.9.4", release$4("2.9.4")),
+		denoXCooldown: verified$11("deno x honors minimumDependencyAge only since 2.9.4", release$5("2.9.4")),
+		installOverrides: leftovers$4.verified({
+			options: [
+				{
+					name: "--minimum-dependency-age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--min-dep-age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--allow-scripts",
+					weakens: "scripts",
+					values: "any"
+				}
+			],
+			variables: []
+		}, "https://github.com/denoland/docs/blob/main/runtime/packages/supply_chain.md", "deno install --minimum-dependency-age=P3D: deno.json and the flag accept an ISO-8601 duration such as P3D or PT72H, or an integer of minutes, and 0 turns it off; --min-dep-age is its alias (cooldown.cliFlag). deno install --allow-scripts=<packages> lets those packages run their lifecycle scripts, which Deno does not run by default (runtime/reference/cli/install.md in denoland/docs)."),
 		dxRunsScripts: verified$11("dx defaults to --allow-all and runs lifecycle scripts once the download prompt is accepted", "https://deno.com/blog/v2.6")
 	}
 };
@@ -474,6 +542,7 @@ const deno$1 = {
 const { verified: verified$10, uncertain: uncertain$9, disputed: disputed$4, evidence: evidence$4 } = verifiedOn("2026-10-28");
 const python$2 = verifiedOn("2026-10-30");
 const review = verifiedOn("2026-10-31");
+const projects$1 = verifiedOn("2026-11-01");
 const OPTIONS$1 = "https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference";
 const COOLDOWN_GA = "https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/";
 const DEFAULT_COOLDOWN = "https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/";
@@ -511,6 +580,15 @@ const dependabot$1 = {
 		disableAll: uncertain$9(null, `${OPTIONS$1}#insecure-external-code-execution`, "Nothing to configure for JavaScript ecosystems: scripts are always disabled (source code). For bundler, mix and pip, external code execution is disabled automatically when registries are configured.")
 	},
 	extra: {
+		configLocation: projects$1.verified({
+			from: "repository-root",
+			branch: "default"
+		}, "https://docs.github.com/en/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file", "\"You must store this file in the .github directory of your repository in the default branch (typically main), at .github/dependabot.yml or .github/dependabot.yaml\" (github/docs, content/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file.md, read 2026-11-01), so a .github/dependabot.yml in a subdirectory is not read."),
+		directories: projects$1.verified({
+			keys: ["directory", "directories"],
+			relativeTo: "repository-root",
+			globsIn: "directories"
+		}, "https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#directories-or-directory", "Required in each updates entry: directory for one directory of manifests, directories for a list; \"Define directories relative to the root of the repository for most package managers\"; \"The directories key supports globbing and the wildcard character *. These features are not supported by the directory key.\" How a glob matches is not described further (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, read 2026-11-01)."),
 		yamlMergeKeys: review.uncertain(false, "https://github.com/dependabot/dependabot-core/pull/9653", "Not known. The options reference does not mention YAML anchors or merge keys, GitHub parses dependabot.yml in its own service, and the dependabot-core pull request that would allow aliases (\"we can't use the YAML anchor (aliases) feature in dependabot.yml file\") is still open and marked stale (read 2026-10-31). depcurfew reads dependabot.yml without merge keys: a cooldown that an entry would get only through <<: *defaults counts as missing, which bot-cooldown reports, and depcurfew apply writes the cooldown into the entry itself, which wins over merged keys where they apply."),
 		cooldownKeys: verified$10({
 			days: "default-days",
@@ -557,13 +635,15 @@ const { verified: verified$9, uncertain: uncertain$8, disputed: disputed$3, evid
 const checked$5 = verifiedOn("2026-10-29");
 const reviewed$2 = verifiedOn("2026-10-30");
 const rechecked$4 = verifiedOn("2026-10-31");
+const runtimes$2 = verifiedOn("2026-11-01");
+const finalReview$3 = verifiedOn("2026-11-01");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
-const release$3 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
+const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
 const INSTALL_TIME_CONTROLS = "https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/";
 const SOURCE_FLAGS_SINCE_NOTE = "The 11.14.0 release notes add the flag; the GitHub changelog dates it to 11.15.0, which also moved enforcement into the resolver. Treat 11.15.0 as the safe minimum.";
 const VALUES_NOTE = "The 2026-05-22 GitHub changelog mentions only all and none; the config reference also lists root.";
-const sourceFlagSince = () => disputed$3(SOURCE_FLAGS_SINCE_NOTE, evidence$3("11.14.0", release$3("11.14.0")), evidence$3("11.15.0", INSTALL_TIME_CONTROLS));
+const sourceFlagSince = () => disputed$3(SOURCE_FLAGS_SINCE_NOTE, evidence$3("11.14.0", release$4("11.14.0")), evidence$3("11.15.0", INSTALL_TIME_CONTROLS));
 const LOCKFILE_V12 = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-lock-json.md";
 const PACKAGE_JSON$1 = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
 const NPM_DEFINITIONS = "https://github.com/npm/cli/blob/v12.2.1/workspaces/config/lib/definitions/definitions.js";
@@ -598,14 +678,14 @@ const npm$1 = {
 		configFiles: verified$9([".npmrc"], NPMRC$1, "Any npm config layer works: project .npmrc (read only at the project root and not for global installs), ~/.npmrc, the global npmrc, npm_config_min_release_age or the CLI. package.json cannot set it."),
 		cliFlag: verified$9("--min-release-age=<days>", "https://docs.npmjs.com/cli/v12/commands/npm-install#min-release-age"),
 		unit: verified$9("days", `${CONFIG$2}#min-release-age`, "Type is null or Number; 0 turns the delay off. Fractional days are not documented."),
-		availableSince: verified$9("11.10.0", release$3("11.10.0")),
+		availableSince: verified$9("11.10.0", release$4("11.10.0")),
 		default: verified$9([{
 			since: "11.10.0",
 			value: null
 		}], `${CONFIG$2}#min-release-age`, "Unchanged in npm 12."),
 		exclude: {
 			setting: verified$9("min-release-age-exclude", `${CONFIG$2}#min-release-age-exclude`),
-			availableSince: verified$9("11.17.0", release$3("11.17.0")),
+			availableSince: verified$9("11.17.0", release$4("11.17.0")),
 			patternSyntax: verified$9("Package names or minimatch globs matched against the name, e.g. @myorg/*; only the named package is exempt, not its dependencies; also exempts from before", `${CONFIG$2}#min-release-age-exclude`)
 		},
 		securityUpdates: verified$9("applies", `${CONFIG$2}#min-release-age`, "npm audit fix keeps the vulnerable version, warns that the fix was blocked (since 11.18.0) and exits non-zero. Add the package to min-release-age-exclude or relax the delay.")
@@ -628,7 +708,7 @@ const npm$1 = {
 		allowList: {
 			setting: verified$9("allowScripts", "https://docs.npmjs.com/cli/v12/commands/npm-install-scripts"),
 			file: verified$9("package.json", "https://docs.npmjs.com/cli/v12/commands/npm-install-scripts", "Only the root package.json counts; allowScripts in dependencies is ignored. npx, npm exec and global installs use the allow-scripts config instead."),
-			availableSince: verified$9("11.16.0", release$3("11.16.0")),
+			availableSince: verified$9("11.16.0", release$4("11.16.0")),
 			format: uncertain$8("Object keyed by name, name@version or name@v1 || v2 with true (allow) or false (deny); npm install-scripts approve writes pinned name@version entries", "https://github.com/npm/rfcs/blob/main/accepted/0054-make-scripts-install-opt-in.md", "The exact entry grammar (no semver ranges) is stated in accepted RFC 0054; the shipped docs describe entries only in prose.")
 		},
 		disableAll: verified$9("ignore-scripts", `${CONFIG$2}#ignore-scripts`, "Default false. Overrides allowScripts and dangerously-allow-all-scripts. npm run/test/start still run the named script, but not its pre/post scripts.")
@@ -641,7 +721,7 @@ const npm$1 = {
 				"none",
 				"root"
 			], `${CONFIG$2}#allow-git`, "root allows only git dependencies listed in the project package.json."),
-			availableSince: disputed$3("The release notes add --allow-git in 11.9.0; the GitHub changelog says it was introduced in 11.10.0.", evidence$3("11.9.0", release$3("11.9.0")), evidence$3("11.10.0", INSTALL_TIME_CONTROLS)),
+			availableSince: disputed$3("The release notes add --allow-git in 11.9.0; the GitHub changelog says it was introduced in 11.10.0.", evidence$3("11.9.0", release$4("11.9.0")), evidence$3("11.10.0", INSTALL_TIME_CONTROLS)),
 			default: verified$9([{
 				since: "11.9.0",
 				value: "all"
@@ -664,7 +744,7 @@ const npm$1 = {
 			}, {
 				since: "12.0.0",
 				value: "none"
-			}], release$3("12.0.0"))
+			}], release$4("12.0.0"))
 		},
 		file: {
 			setting: verified$9("allow-file", `${CONFIG$2}#allow-file`),
@@ -855,6 +935,18 @@ const npm$1 = {
 		], `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`, "Environment variables starting with npm_config_ are interpreted as configuration parameters; config values are case-insensitive, so NPM_CONFIG_FOO=bar works the same. loadEnv in workspaces/config/lib/index.js (11.21.1 and 12.2.1) skips variables whose value is empty and reads them in the order of the environment, so of two spellings the later one wins. userconfig defaults to ~/.npmrc (definitions.js), and npm exports the resolved path as npm_config_userconfig to every command it runs (see extra.childEnvironment), so that value names the default file.")
 	},
 	extra: {
+		localPrefix: runtimes$2.verified({
+			markers: {
+				file: "package.json",
+				directory: "node_modules"
+			},
+			workspaceRoot: true,
+			workspacesField: "workspaces",
+			workspacesObjectKey: "packages",
+			prefixOption: "--prefix",
+			workspacesOption: "--workspaces",
+			projectFile: ".npmrc"
+		}, `${NPM_CONFIG_LIB}/index.js`, "loadLocalPrefix: --prefix on the command line is the local prefix. Otherwise npm walks up from the current directory (walk-up-path yields the directory and each parent up to the root, with no other stop; \"for (const p of walkUp(this.cwd))\") and takes the first directory with a package.json file or a node_modules directory (\"hasPackageJson || await dirExists(p, 'node_modules')\"). Unless workspaces are set to false on the command line (\"this.#get('workspaces', 'cli')\", so --no-workspaces or --workspaces=false; .npmrc and npm_config_workspaces do not count) or npm runs in global mode, it walks on: each higher directory with a package.json is read with @npmcli/package-json normalize, and one that cannot be read or normalized (\".catch(() => ({ content: {} }))\") or has no workspaces is passed over; the first whose mapped workspaces include that directory (\"w === this.localPrefix\", the same path) becomes the prefix, and a .npmrc of the workspace is skipped (\"ignoring workspace config at ${this.localPrefix}/.npmrc\"). Without a match the prefix is the current directory (\"this.localPrefix = this.cwd\"). loadProjectConfig reads \"resolve(this.localPrefix, '.npmrc')\" as the project configuration, except in global mode and when that path is the userconfig file. Workspaces (@npmcli/map-workspaces 6.0.0, the version npm 12.2.1 locks, with glob 13.0.6 and minimatch 10.2.5, https://github.com/npm/map-workspaces/blob/v6.0.0/lib/index.js): an array of patterns or an object with a packages array, else EWORKSPACESCONFIG, and an entry that is not text throws too; the leading ! are removed and an odd number of them negates, then a leading ./ or leading slashes (\"pattern.replace(/^\\.?\\/+/, '')\"); a pattern drops the earlier negated patterns it matches as text, and each negated pattern drops the patterns it matches as text and is given to glob as ignore, with **/node_modules/**; glob gets every pattern with a trailing / (directories only) and its defaults: * and ** do not match a name that starts with a dot, ** does not follow symlinked directories, and matching ignores case on macOS and Windows; a match without package.json (ENOENT, ENOTDIR) is no workspace, another error and two workspaces of one name throw, and npm stops. normalize (https://github.com/npm/package-json/blob/v8.0.0/lib/normalize.js, steps bin and binDir) throws for a bin list with an entry that is not text and for directories.bin that is not text when bin is not set. No .git or home directory stops the walk."),
 		childEnvironment: user$7.verified({
 			marker: "npm_execpath",
 			prefix: "npm_config_"
@@ -927,7 +1019,7 @@ const npm$1 = {
 			since: "11.17.0",
 			trailingOnly: false
 		}, NPM_DEFINITIONS, "min-release-age-exclude takes package names or minimatch globs from its first version."),
-		latestVersion: verified$9("12.2.1", release$3("12.2.1"), "Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1)."),
+		latestVersion: verified$9("12.2.1", release$4("12.2.1"), "Marked as the latest GitHub release on 2026-10-28; the 11.x line is still maintained (11.21.1)."),
 		beforeInteraction: reviewed$2.verified({
 			setting: "before",
 			exclusive: {
@@ -941,6 +1033,13 @@ const npm$1 = {
 			value: true,
 			since: "11.16.0"
 		}, NPM_DEFINITIONS_V11_16, "strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it."),
+		strictAllowScriptsEffect: runtimes$2.verified([{
+			since: "11.16.0",
+			value: "the install fails instead of running the script with a notice"
+		}, {
+			since: "12.0.0",
+			value: "the install fails instead of blocking the script with a warning"
+		}], NPM_DEFINITIONS, "npm 12.2.1 still defines strict-allow-scripts (default false): \"If true, turn the install-script policy from a warning into a hard error: any dependency with install scripts that is not covered by allowScripts will fail the install instead of being blocked with a warning.\" Dependencies denied with false are still skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it. So the same .npmrc line keeps npm 11.16 to 11.x from running such scripts and makes npm 12 stop the install at them. The 11.16.0 effect is the one in strictAllowScripts (definitions.js at v11.16.0)."),
 		unknownNpmrcKeys: rechecked$4.verified("unknown keys in .npmrc files only warn unless strict-npmrc is set; unknown command-line flags throw since npm 12", `${NPM_GITHUB_V12}/CHANGELOG.md`, "Matters for generated .npmrc files: keys npm does not know (e.g. pnpm-only keys) print a warning on every npm command. The 12.0.0 entry: unknown CLI flags \"now throw instead of warning. (Unknown .npmrc configs still warn by default; opt into erroring with the new strict-npmrc config.)\"; lib/base-cmd.js at 12.2.1 does the same."),
 		commandLine: checked$5.verified({
 			add: INSTALL_ALIASES.map((alias) => ["npm", alias]),
@@ -1172,7 +1271,7 @@ const npm$1 = {
 			"--workspaces-update",
 			"--yes"
 		], NPM_DEFINITIONS, "npm options whose type includes Boolean, which may stand alone: the definitions of 12.2.1 and of 11.21.1 (where shrinkwrap is one too; 12.2.1 adds ignore-existing, ignore-extension, ignore-patch-failures, allow-unused-patches, keep-edit-dir and strict-npmrc). With valueOptions they are every npm option, so an abbreviated option can be resolved as npm resolves it."),
-		parsing: reviewed$2.verified({
+		parsing: runtimes$2.verified({
 			abbreviations: true,
 			anyDashes: true,
 			negation: "--no-",
@@ -1218,7 +1317,7 @@ const npm$1 = {
 				w: ["--workspace"],
 				y: ["--yes"]
 			}
-		}, NPM_SHORTHANDS, "The shorthands npm passes to nopt: the list in definitions/index.js and the short names of the definitions (the same in 11.21.1). nopt (node_modules/nopt/lib/nopt-lib.js, versions 8.1.0 in npm 10.9.4, 9.0.0 in 11.21.1 and 10.0.1 in 12.2.1, same parse and resolveShort) strips every leading dash, so -reg, --reg and -registry work; takes an exact option first, then an exact shorthand, then a word of one-letter shorthands (-gD), then an unambiguous prefix of an option name (abbrev), then a prefix of a shorthand; and reads --no-<name> as a negated flag that takes no value. npm 10 expands abbreviations silently, npm 11 warns \"Expanding --regis to --registry. This will stop working in the next major version of npm.\" and npm 12 refuses them with EUNKNOWNCONFIG (abbrevHandler in workspaces/config/lib/index.js of 11.21.1 and 12.2.1). Shorthands are expanded only on the command line, not in .npmrc or npm_config_ variables. npx turns -p into --package and expands exact shorthands itself before npm exec reads the rest (bin/npx-cli.js)."),
+		}, NPM_SHORTHANDS, "The shorthands npm passes to nopt: the list in definitions/index.js and the short names of the definitions (the same in 11.21.1). nopt (node_modules/nopt/lib/nopt-lib.js, versions 8.1.0 in npm 10.9.4, 9.0.0 in 11.21.1 and 10.0.1 in 12.2.1, same parse and resolveShort) strips every leading dash, so -reg, --reg and -registry work; takes an exact option first, then an exact shorthand, then a word of one-letter shorthands (-gD), then an unambiguous prefix of an option name (abbrev), then a prefix of a shorthand; and reads --no-<name> as a negated flag that takes no value. After the shorthands (resolveShort) nopt strips every leading no- in any case, each one inverting the flag, and then takes <name> as an exact option or an unambiguous prefix (abbrevs), so --no-ign is --no-ignore-scripts where no other option starts with ign (npm 11; npm 12 has ignore-existing too) and --no-no-ignore-scripts sets ignore-scripts to true; a negated flag takes a following true or false, inverted (definitions/index.js and definitions.js at v12.2.1 and lib/nopt-lib.js of nopt 10.0.1, read again 2026-11-01). npm 10 expands abbreviations silently, npm 11 warns \"Expanding --regis to --registry. This will stop working in the next major version of npm.\" and npm 12 refuses them with EUNKNOWNCONFIG (abbrevHandler in workspaces/config/lib/index.js of 11.21.1 and 12.2.1). Shorthands are expanded only on the command line, not in .npmrc or npm_config_ variables. npx turns -p into --package and expands exact shorthands itself before npm exec reads the rest (bin/npx-cli.js)."),
 		versionSelection: reviewed$2.verified({
 			tagOption: "--tag",
 			tagVariable: "npm_config_tag",
@@ -1260,12 +1359,303 @@ const npm$1 = {
 			configOptions: ["--userconfig", "--globalconfig"],
 			configVariables: ["npm_config_userconfig", "npm_config_globalconfig"]
 		}, NPM_DEFINITIONS, "registry is a URL; userconfig and globalconfig are the user and global configuration files. Putting --foo bar on the command line sets the foo configuration parameter, and environment variables that start with npm_config_ are configuration parameters too, without regard to case (docs/lib/content/using-npm/config.md); @scope:registry is the key of a scope's registry (https://docs.npmjs.com/cli/v12/using-npm/scope)."),
-		lockfileInstalls: uncertain$8("npm ci installs versions pinned in package-lock.json without applying min-release-age", "https://docs.npmjs.com/cli/v12/commands/npm-ci", "Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window.")
+		configCommands: runtimes$2.verified([
+			{
+				command: ["npm", "config"],
+				writes: [
+					"set",
+					"delete",
+					"rm",
+					"del",
+					"edit",
+					"fix"
+				]
+			},
+			{
+				command: ["npm", "set"],
+				operands: 1
+			},
+			{
+				command: ["npm", "pkg"],
+				writes: [
+					"set",
+					"delete",
+					"fix"
+				],
+				manifest: true
+			}
+		], "https://github.com/npm/cli/blob/v12.2.1/lib/commands/config.js", "npm config set sets keys (in the user configuration unless location is given), delete (also rm and del) removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list (ls) only read (the switch in exec, and docs/lib/content/commands/npm-config.md). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js). npm pkg set, delete and fix write package.json back, get only reads (lib/commands/pkg.js). Other spellings of these commands come from commandNames."),
+		commandNames: runtimes$2.verified({
+			commands: [
+				"access",
+				"approve-scripts",
+				"audit",
+				"bugs",
+				"cache",
+				"ci",
+				"completion",
+				"config",
+				"dedupe",
+				"deny-scripts",
+				"deprecate",
+				"diff",
+				"dist-tag",
+				"docs",
+				"doctor",
+				"edit",
+				"exec",
+				"explain",
+				"explore",
+				"find-dupes",
+				"fund",
+				"get",
+				"help",
+				"help-search",
+				"init",
+				"install",
+				"install-ci-test",
+				"install-scripts",
+				"install-test",
+				"link",
+				"ll",
+				"login",
+				"logout",
+				"ls",
+				"org",
+				"outdated",
+				"owner",
+				"pack",
+				"patch",
+				"ping",
+				"pkg",
+				"prefix",
+				"profile",
+				"prune",
+				"publish",
+				"query",
+				"rebuild",
+				"repo",
+				"restart",
+				"root",
+				"run",
+				"sbom",
+				"search",
+				"set",
+				"stage",
+				"start",
+				"stop",
+				"team",
+				"test",
+				"token",
+				"trust",
+				"undeprecate",
+				"uninstall",
+				"unpublish",
+				"update",
+				"version",
+				"view",
+				"whoami"
+			],
+			aliases: {
+				author: "owner",
+				home: "docs",
+				issues: "bugs",
+				info: "view",
+				show: "view",
+				find: "search",
+				add: "install",
+				unlink: "uninstall",
+				remove: "uninstall",
+				rm: "uninstall",
+				r: "uninstall",
+				un: "uninstall",
+				rb: "rebuild",
+				list: "ls",
+				ln: "link",
+				create: "init",
+				i: "install",
+				it: "install-test",
+				cit: "install-ci-test",
+				u: "update",
+				up: "update",
+				c: "config",
+				s: "search",
+				se: "search",
+				tst: "test",
+				t: "test",
+				ddp: "dedupe",
+				v: "view",
+				"run-script": "run",
+				"clean-install": "ci",
+				"clean-install-test": "install-ci-test",
+				x: "exec",
+				why: "explain",
+				la: "ll",
+				verison: "version",
+				ic: "ci",
+				innit: "init",
+				in: "install",
+				ins: "install",
+				inst: "install",
+				insta: "install",
+				instal: "install",
+				isnt: "install",
+				isnta: "install",
+				isntal: "install",
+				isntall: "install",
+				"install-clean": "ci",
+				"isntall-clean": "ci",
+				hlep: "help",
+				"dist-tags": "dist-tag",
+				upgrade: "update",
+				udpate: "update",
+				rum: "run",
+				sit: "install-ci-test",
+				urn: "run",
+				ogr: "org"
+			}
+		}, CMD_LIST, "deref resolves a command name: camelCase to kebab-case (installTest is install-test), an exact command, a direct alias, else a unique abbreviation of the commands and alias names (abbrev), whose aliases are followed to the command (npm install-cl is install-clean, then ci). So npm c, npm con, npm conf and npm confi are npm config, and npm pk is npm pkg."),
+		installOverrides: runtimes$2.verified({
+			options: [
+				{
+					name: "--min-release-age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--before",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "--min-release-age-exclude",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "--ignore-scripts",
+					weakens: "scripts",
+					values: { except: ["true"] }
+				},
+				{
+					name: "--dangerously-allow-all-scripts",
+					weakens: "scripts",
+					values: { except: [
+						"false",
+						"null",
+						"undefined"
+					] }
+				},
+				{
+					name: "--allow-scripts",
+					weakens: "scripts",
+					values: "any"
+				}
+			],
+			variables: [
+				{
+					name: "npm_config_min_release_age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "npm_config_before",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "npm_config_min_release_age_exclude",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "npm_config_ignore_scripts",
+					weakens: "scripts",
+					values: { except: ["true", ""] }
+				},
+				{
+					name: "npm_config_dangerously_allow_all_scripts",
+					weakens: "scripts",
+					values: { except: [
+						"false",
+						"null",
+						"undefined"
+					] }
+				},
+				{
+					name: "npm_config_allow_scripts",
+					weakens: "scripts",
+					values: "any"
+				}
+			]
+		}, NPM_DEFINITIONS, "Settings that a single npm command can change on its command line or in its environment: \"Putting --foo bar on the command line sets the foo configuration parameter\", \"--flag without specifying any value will set the value to true\", \"Any environment variables that start with npm_config_ will be interpreted as a configuration parameter\", case-insensitive, and an environment configuration without a value is true (docs/lib/content/using-npm/config.md at v12.2.1). Types in definitions.js at v12.2.1: ignore-scripts Boolean, default false (\"If true, npm does not run scripts specified in package.json files\"); min-release-age null or Number of days; before null or Date; min-release-age-exclude a list exempt from min-release-age and before; dangerously-allow-all-scripts Boolean, which bypasses the allowScripts policy; allow-scripts a list of packages whose install scripts may run. A value other than true for ignore-scripts, any true value of dangerously-allow-all-scripts (the false values as in user.variables), any allow-scripts, before or min-release-age-exclude, and a min-release-age shorter than the policy weaken what depcurfew apply wrote."),
+		directoryOptions: runtimes$2.verified({
+			options: [{
+				name: "--prefix",
+				moves: "directory",
+				localPrefix: true
+			}],
+			variables: []
+		}, NPM_DEFINITIONS, "prefix (short C, so -C dir is --prefix dir): \"The location to install global items. If set on the command line, then it forces non-global commands to run in the specified folder.\" loadLocalPrefix in workspaces/config/lib/index.js (v12.2.1) reads it only from the command line (\"this.#get('prefix', 'cli')\"), takes it as the local prefix as given and does not walk up, so npm_config_prefix and .npmrc do not move a command; the project .npmrc is the one in that folder."),
+		booleanWords: runtimes$2.verified(true, "https://github.com/npm/nopt/blob/v10.0.1/lib/nopt-lib.js", "nopt, which parses the npm command line, also supports \"--bool true or --bool false\": a Boolean option followed by the word true or false takes it as its value and skips it, and a --no- prefix inverts the value (parse in lib/nopt-lib.js at v10.0.1, used by npm 12.2.1, and the same code at v9.0.0, used by npm 11.21.1)."),
+		installCommands: runtimes$2.verified({
+			install: INSTALL_ALIASES,
+			clean: [
+				"ci",
+				"clean-install",
+				"ic",
+				"install-clean",
+				"isntall-clean",
+				"install-ci-test",
+				"cit",
+				"clean-install-test",
+				"sit"
+			],
+			update: [
+				"update",
+				"up",
+				"upgrade",
+				"udpate"
+			]
+		}, CMD_LIST, "Commands that install packages into the project and their aliases: install (add, i, typo aliases, install-test and it), ci (clean-install, ic, install-clean, isntall-clean) with install-ci-test (cit, clean-install-test, sit), and update (up, upgrade, udpate; u only from npm 12, so left out). The same in v10.9.9 (lib/utils/cmd-list.js). npm also accepts unique abbreviations of command names, which are not listed."),
+		globalOption: runtimes$2.verified([
+			"--global",
+			"-g",
+			"--location=global"
+		], NPM_DEFINITIONS, "global (short g) \"Operates in global mode, so that packages are installed into the prefix folder instead of the current working directory\" and sets location to global; npm install -g npm@<version> replaces the npm that runs (docs/lib/content/commands/npm-install.md: \"In global mode (ie, with -g or --global appended to the command)\")."),
+		unknownConfigKeys: runtimes$2.verified([{
+			since: "0.0.0",
+			value: "ignored"
+		}, {
+			since: "11.2.0",
+			value: "warning"
+		}], "https://github.com/npm/cli/blob/v10.9.9/workspaces/config/lib/index.js", "npm 10 loads every key of an .npmrc without checking whether it knows it (#loadObject only checks deprecated and exclusive keys), so a setting it does not have yet, such as min-release-age, is ignored without any message. checkUnknown first appears in v11.2.0 (workspaces/config/lib/index.js), which warns: Unknown project config \"<key>\". This will stop working in the next major version of npm. The 11.2.0 changelog does not name the change; the version comes from reading the code at the tags. npm 12 collects unknown keys to fail the command (v12.2.1), with the exact behavior not read."),
+		lockfileInstalls: uncertain$8("npm ci installs versions pinned in package-lock.json without applying min-release-age", "https://docs.npmjs.com/cli/v12/commands/npm-ci", "Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window."),
+		cleanInstall: finalReview$3.verified({
+			commands: "clean",
+			installsLockedVersions: true,
+			failsWhenOutOfSync: true,
+			writesLockfile: false
+		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-ci.md", "npm ci (the clean commands of installCommands): \"The project must have an existing package-lock.json\"; \"If dependencies in the package lock do not match those in package.json, npm ci will exit with an error, instead of updating the package lock\"; \"It will never write to package.json or package-lock.json: installs are essentially frozen.\" lib/commands/ci.js at v12.2.1 loads the lockfile (loadVirtual), builds the ideal tree, throws \"`npm ci` can only install packages when your package.json and package-lock.json are in sync\" when validateLockfile finds a difference, and reifies with packageLock: true and save: false. So npm ci installs exactly the versions package-lock.json records, and a release-age delay cannot change which versions it installs; the settings of its params (ignore-scripts, allow-scripts, strict-allow-scripts, allow-git, allow-remote, allow-file, allow-directory) still apply."),
+		scriptsOff: finalReview$3.verified({
+			option: "--ignore-scripts",
+			variable: "npm_config_ignore_scripts",
+			anyCase: true,
+			value: "true"
+		}, "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/config.md", "ignore-scripts (Boolean, default false; definitions.js at v12.2.1: \"If true, npm does not run scripts specified in package.json files\") is one of the params of npm ci and npm install (lib/commands/ci.js). On the command line --ignore-scripts sets it; \"Any environment variables that start with npm_config_ will be interpreted as a configuration parameter\", with underscores for dashes, and \"Config values are case-insensitive, so NPM_CONFIG_FOO=bar will work the same\". depcurfew counts only the value true (and the flag without a value) as off: parseField turns only \"true\" into true, and loadEnv skips empty values (user.variables)."),
+		nodeEngines: finalReview$3.verified([{
+			since: "11.0.0",
+			node: "^20.17.0 || >=22.9.0"
+		}, {
+			since: "12.0.0",
+			node: "^22.22.2 || ^24.15.0 || >=26.0.0"
+		}], "https://github.com/npm/cli/blob/v11.19.1/package.json", "engines.node of npm/cli package.json, the same at the tags v11.0.0, v11.10.0, v11.16.0, v11.19.1 and v11.21.1 (^20.17.0 || >=22.9.0) and at v12.0.0 and v12.2.1 (^22.22.2 || ^24.15.0 || >=26.0.0, https://github.com/npm/cli/blob/v12.2.1/package.json). On a Node.js outside the range npm only warns that it does not support it: lib/cli/entry.js at v11.19.1 runs log.warn('cli', validateEngines.unsupportedMessage) when !satisfies(node, engines), for a Node.js \"still unsupported and untested and might not work reliably\", and lib/cli/validate-engines.js prints \"ERROR: npm ... is known not to run on Node.js ...\" when it fails with a SyntaxError. So npm install -g npm@11 on Node.js 18 installs an npm that is not meant to run there.")
 	}
 };
 
 // src/knowledge/pip.ts
 const { verified: verified$8, uncertain: uncertain$7 } = verifiedOn("2026-10-30");
+const guard$1 = verifiedOn("2026-11-01");
 const rechecked$3 = verifiedOn("2026-10-31");
 const PIP = "https://github.com/pypa/pip/blob/26.2.2";
 const NEWS = `${PIP}/NEWS.rst`;
@@ -1280,6 +1670,7 @@ const PIPX = "https://github.com/pypa/pipx/blob/1.18.10";
 const PYLOCK = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst";
 const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
 const user$6 = verifiedOn("2026-10-31");
+const finalReview$2 = verifiedOn("2026-11-01");
 const noSetting$5 = (kind) => ({ setting: uncertain$7(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
 const pip$1 = {
 	id: "pip",
@@ -1511,6 +1902,14 @@ const pip$1 = {
 		], CONFIGURATION$4, "\"Note that if a file exists at the location that this is set to, the user config file will not be loaded.\" PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory (see files).")
 	},
 	extra: {
+		configCommand: finalReview$2.verified({
+			command: "config",
+			writes: [
+				"set",
+				"unset",
+				"edit"
+			]
+		}, `${PIP}/src/pip/_internal/commands/configuration.py`, "pip config: \"Manage local and global configuration\"; \"set: Set the command.option=value\", \"unset: Unset the value associated with command.option\", \"edit: Edit the configuration file in an editor\". Without --user, --global or --site it changes the configuration file of the active virtual environment when that file exists, otherwise the user file. So a CI step or RUN with pip config set can give the later pip installs a release-age delay that no environment variable shows (decision D-115)."),
 		configSections: user$6.verified({
 			global: "global",
 			commandsOverride: true
@@ -1869,20 +2268,101 @@ const pip$1 = {
 			configOptions: ["--pip-args"],
 			configVariables: []
 		}, `${PIPX}/src/pipx/main.py`, "--index-url is the base URL of the index; --pip-args is split and handed to pip, so it may carry --extra-index-url, --find-links or --no-index. With the pip backend pipx passes the PIP_* variables on to pip; with the uv backend it ignores them and uv reads its own (docs/how-to/use-uv-backend.rst); both kinds are registry variables of pip and uv."),
-		latestVersion: verified$8("26.2.2", NEWS, "Released on 2026-10-20.")
+		latestVersion: verified$8("26.2.2", NEWS, "Released on 2026-10-20."),
+		configCommands: guard$1.verified([{
+			command: ["pip", "config"],
+			writes: [
+				"set",
+				"unset",
+				"edit"
+			]
+		}, {
+			command: ["pip3", "config"],
+			writes: [
+				"set",
+				"unset",
+				"edit"
+			]
+		}], "https://github.com/pypa/pip/blob/main/src/pip/_internal/commands/configuration.py", "pip config list, edit, get, set, unset and debug: set and unset change a value and save the file, edit opens it in an editor, list, get and debug only read. Without --user, --global or --site the site file is used if one exists, else the user file."),
+		installOverrides: guard$1.verified({
+			options: [{
+				name: "--uploaded-prior-to",
+				weakens: "delay",
+				values: "delay"
+			}],
+			variables: [{
+				name: "PIP_UPLOADED_PRIOR_TO",
+				weakens: "delay",
+				values: "delay"
+			}]
+		}, "https://github.com/pypa/pip/blob/main/src/pip/_internal/cli/cmdoptions.py", "--uploaded-prior-to (metavar datetime_or_duration): \"Only consider packages uploaded prior to the given value\", an ISO 8601 datetime or a duration of whole days P<n>D. PIP_UPLOADED_PRIOR_TO is its environment variable (environmentVariable). A datetime is not compared with the policy, so it is asked about.")
 	}
 };
+
+// src/knowledge/platformdirs.ts
+const PLATFORMDIRS_CHANGELOG = "https://github.com/tox-dev/platformdirs/blob/4.14.2/docs/changelog.rst";
+const PLATFORMDIRS_NOTE = "The macOS user_config_dir by platformdirs version, read from the code at the tags: before 4.6.0 always ~/Library/Application Support/<app> (4.5.1 macos.py has no XDG support); 4.6.0 \"Honor XDG environment variables on macOS\" (#375): a non-empty XDG_CONFIG_HOME wins, a relative one too (os.environ.get(\"XDG_CONFIG_HOME\", \"\").strip() in _xdg.py), and otherwise the config directory is user_data_dir, so a non-empty XDG_DATA_HOME gives $XDG_DATA_HOME/<app>; 4.9.6 \"Fix macOS XDG variables leaking across user_config_dir, user_data_dir, and user_state_dir\" (#473; 4.9.4 still returns user_data_dir); 4.11.8 \"Ignore relative paths in XDG Base Directory environment variables and use the existing platform fallback\" (#540, _xdg_dir with posixpath.isabs); the same in 4.14.2. A relative value is used as it is, so the tool reads it from the directory each command runs in.";
+/** The macOS config directories platformdirs gives an app, by its version. */
+function platformdirsMacos(app) {
+	const appSupport = {
+		from: "home",
+		path: `Library/Application Support/${app}`
+	};
+	const config = (absolute) => ({
+		from: absolute ? {
+			env: "XDG_CONFIG_HOME",
+			absolute: true
+		} : {
+			env: "XDG_CONFIG_HOME",
+			relativeToCwd: true
+		},
+		path: app
+	});
+	return {
+		library: "platformdirs",
+		platforms: ["darwin"],
+		directories: [
+			{
+				since: "0.0.0",
+				value: [appSupport]
+			},
+			{
+				since: "4.6.0",
+				value: [
+					config(false),
+					{
+						from: {
+							env: "XDG_DATA_HOME",
+							relativeToCwd: true
+						},
+						path: app
+					},
+					appSupport
+				]
+			},
+			{
+				since: "4.9.6",
+				value: [config(false), appSupport]
+			},
+			{
+				since: "4.11.8",
+				value: [config(true), appSupport]
+			}
+		]
+	};
+}
 
 // src/knowledge/pdm.ts
 const { verified: verified$7, uncertain: uncertain$6 } = verifiedOn("2026-10-30");
 const rechecked$2 = verifiedOn("2026-10-31");
 const user$5 = verifiedOn("2026-10-31");
+const leftovers$3 = verifiedOn("2026-11-01");
 const PDM = "https://github.com/pdm-project/pdm/blob/2.29.5";
 const LOCKFILE = `${PDM}/docs/usage/lockfile.md`;
 const CHANGELOG$2 = `${PDM}/CHANGELOG.md`;
 const CANDIDATES = `${PDM}/src/pdm/models/candidates.py`;
 const CONFIG$1 = `${PDM}/src/pdm/project/config.py`;
-/** The home config.toml; only the macOS directories are disputed. */
+/** The home config.toml; on macOS the directories are those of the docs (see user.libraryDirectories). */
 const userFiles$1 = (darwin) => [{
 	since: "0.0.0",
 	value: {
@@ -1971,10 +2451,8 @@ const pdm$1 = {
 		workspacesObjectKey: uncertain$6(null, `${PDM}/docs/usage/workspace.md`, "Not read; see workspaces.")
 	},
 	user: {
-		files: user$5.disputed("The docs give ~/Library/Application Support/pdm on macOS. The code asks the installed platformdirs (not pinned in pyproject.toml), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) PDM reads $XDG_CONFIG_HOME/pdm/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in PDM's environment. Linux and Windows agree. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked.", user$5.evidence(userFiles$1([MACOS_DIRECTORY$1]), `${PDM}/docs/usage/config.md`, "<CONFIG_ROOT> is \"$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux\", \"~/Library/Application Support/pdm on macOS\" and \"%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows\"."), user$5.evidence(userFiles$1([{
-			from: { env: "XDG_CONFIG_HOME" },
-			path: "pdm"
-		}, MACOS_DIRECTORY$1]), `${PDM}/src/pdm/project/core.py`, "global_config = platformdirs.user_config_path(\"pdm\") / \"config.toml\", which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows the default appauthor repeats the name (pdm\\pdm) and roaming is off, so platformdirs asks for the Local AppData known folder.")),
+		files: user$5.verified(userFiles$1([MACOS_DIRECTORY$1]), `${PDM}/docs/usage/config.md`, "<CONFIG_ROOT> is \"$XDG_CONFIG_HOME/pdm (~/.config/pdm in most cases) on Linux\", \"~/Library/Application Support/pdm on macOS\" and \"%USERPROFILE%\\AppData\\Local\\pdm\\pdm on Windows\". The code agrees on Linux and Windows: global_config = platformdirs.user_config_path(\"pdm\") / \"config.toml\", without an override (src/pdm/project/core.py; on Windows the default appauthor repeats the name and roaming is off, so platformdirs asks for the Local AppData known folder). On macOS the directory depends on the installed platformdirs (libraryDirectories); the docs' directory is used when its version cannot be read. The home configuration is TOML whose nested tables are read as dotted keys ([strategy] exclude-newer is strategy.exclude-newer, load_config in src/pdm/project/config.py). -c/--config and PDM_CONFIG_FILE replace it; the site configuration is merged below it. Checked at 2.29.5; earlier versions are not tracked."),
+		libraryDirectories: leftovers$3.verified(platformdirsMacos("pdm"), PLATFORMDIRS_CHANGELOG, `PDM 2.29.5 does not pin platformdirs (pyproject.toml; its own lock has 4.9.6). ${PLATFORMDIRS_NOTE}`),
 		settings: user$5.verified([{
 			purpose: "cooldown",
 			key: "strategy.exclude-newer",
@@ -2061,10 +2539,84 @@ const pdm$1 = {
 			lock: "pdm lock",
 			failing: ["pdm lock --check", "pdm install --check"]
 		}, `${PDM}/src/pdm/project/project_file.py`, "pdm.lock keeps a content_hash of the whole [tool.pdm.resolution] table (PyProject.content_hash), or with canonical lock inputs (lock_inputs = true, since 2.28.1) the table itself (src/pdm/project/lockfile/freshness.py), so a change to any key in it, exclude-newer and only-binary included, makes the lockfile out of date. pdm lock --check and pdm install --check then exit with 1 (\"Lockfile doesn't satisfy the project requirements\"), pdm install without --check locks again first and pdm sync only warns (check_lockfile in src/pdm/cli/actions.py) until pdm lock runs again; with exclude-newer set, pdm lock resolves every package again (src/pdm/cli/commands/lock.py)."),
+		lockHash: leftovers$3.verified({
+			key: ["metadata", "content_hash"],
+			separator: ":",
+			inputs: ["metadata", "lock_inputs"],
+			inputsSetting: [
+				"tool",
+				"pdm",
+				"resolution",
+				"lock_inputs"
+			],
+			workspace: [
+				"tool",
+				"pdm",
+				"workspace"
+			],
+			project: ["project"],
+			fields: [
+				{
+					name: "sources",
+					path: [
+						"tool",
+						"pdm",
+						"source"
+					],
+					missing: []
+				},
+				{
+					name: "dependencies",
+					path: ["project", "dependencies"],
+					missing: []
+				},
+				{
+					name: "optional-dependencies",
+					path: ["project", "optional-dependencies"],
+					missing: {}
+				},
+				{
+					name: "requires-python",
+					path: ["project", "requires-python"],
+					missing: ""
+				},
+				{
+					name: "resolution",
+					path: [
+						"tool",
+						"pdm",
+						"resolution"
+					],
+					missing: {}
+				}
+			],
+			groups: {
+				name: "dev-dependencies",
+				tables: [["dependency-groups"], [
+					"tool",
+					"pdm",
+					"dev-dependencies"
+				]],
+				separators: "[^A-Za-z0-9]+"
+			}
+		}, `${PDM}/src/pdm/project/project_file.py`, "PyProject.content_hash: json.dumps(dump_data, sort_keys=True) of sources (tool.pdm.source, default []), dependencies, dev-dependencies, optional-dependencies (default {}), requires-python (default \"\") and resolution (tool.pdm.resolution, default {}), encoded as UTF-8 and hashed with hashlib (sha256). dev-dependencies are the [dependency-groups] tables, each name normalized (normalize_name in src/pdm/utils.py: re.sub(r\"[^A-Za-z0-9]+\", \"-\", name).lower(); a name twice is an error), then the lists of tool.pdm.dev-dependencies appended under their normalized names. pdm.lock keeps it as [metadata] content_hash = \"sha256:<hex>\" (src/pdm/project/lockfile/pdmlock.py). Project.is_lockfile_fresh (src/pdm/project/core.py) compares it only while pdm.lock has no metadata.lock_inputs and resolution.lock_inputs is not true; a workspace root (tool.pdm.workspace set, WorkspaceManager.is_root in src/pdm/project/workspace.py) hashes the members too. PDM reads pyproject.toml with tomllib (src/pdm/project/toml_file.py), and without a [project] table it converts a Poetry or Flit project first (_convert_pyproject)."),
 		uvMode: uncertain$6({
 			file: "pdm.toml",
 			key: "use_uv"
 		}, `${PDM}/docs/usage/uv.md`, "Experimental since 2.19.0: PDM resolves and installs with uv. It passes the cutoff and the build settings to uv lock, but runs uv sync --frozen without the build settings (src/pdm/installers/uv.py), and pdm.lock then lists source distributions even with only-binary."),
+		directoryOptions: leftovers$3.verified({
+			options: [{
+				name: "-p",
+				moves: "project"
+			}, {
+				name: "--project",
+				moves: "project"
+			}],
+			variables: [{
+				name: "PDM_PROJECT",
+				moves: "project"
+			}]
+		}, `${PDM}/src/pdm/cli/options.py`, "project_option: \"-p\", \"--project\", dest=\"project_path\", help \"Specify another path as the project root, which changes the base of pyproject.toml and __pypackages__ [env var: PDM_PROJECT]\", default=os.getenv(\"PDM_PROJECT\")."),
 		commandLine: verified$7({
 			add: [["pdm", "add"]],
 			run: [],
@@ -2134,6 +2686,32 @@ const pdm$1 = {
 			},
 			editableOptions: ["-e", "--editable"]
 		}, `${PDM}/src/pdm/cli/commands/add.py`, "pdm add takes requirements as arguments and editable ones with -e; its options come from cli/options.py and the global ones (-c/--config, --pep582, -I, -n, --no-cache) from core.py. --venv and --pep582 take an optional value, so argparse takes the next word for it. PDM parses with argparse, which accepts abbreviated long options."),
+		registrySettings: leftovers$3.verified([{
+			file: "pyproject.toml",
+			path: [
+				"tool",
+				"pdm",
+				"source"
+			],
+			applies: "all",
+			effect: "adds",
+			urlKey: "url",
+			entries: {
+				nameKey: "name",
+				rules: [{
+					key: "type",
+					value: "find_links",
+					effect: "adds"
+				}, {
+					key: "name",
+					value: "pypi",
+					effect: "replaces"
+				}],
+				first: "adds",
+				others: "adds",
+				pypiName: "pypi"
+			}
+		}], `${PDM}/docs/usage/config.md`, "[[tool.pdm.source]] has name, url, verify_ssl, type (\"index or find_links, default to index\") and include_packages and exclude_packages. \"If you want to omit the default PyPI index, just set the source name to pypi and that source will replace it\"; the source list is pypi.url (when no source is named pypi), then the sources of pyproject.toml, then pypi.<name>.url of the configuration, and by default \"all sources are treated as equal\" and the best matching version across them is taken, so any other source adds an index. Project.get_sources (src/pdm/project/core.py) keys the sources by name and fills a source named pypi from pypi.url, so one without a URL is PyPI (or the pypi.url of the user's configuration, which depcurfew does not read); PDM compares the name pypi exactly, depcurfew without regard to case, which only compares more URLs. Variables in url (${PROJECT_ROOT}) are expanded by PDM, so depcurfew cannot read such a URL. include_packages and exclude_packages are not read: a source counts for every package."),
 		registryOverrides: verified$7({
 			registryOptions: [],
 			registryVariables: ["PDM_PYPI_URL"],
@@ -2161,6 +2739,7 @@ const PIPFILE = `${PIPENV}/docs/pipfile.md`;
 const CHANGELOG$1 = `${PIPENV}/CHANGELOG.md`;
 const CONFIGURATION$3 = `${PIPENV}/docs/configuration.md`;
 const user$4 = verifiedOn("2026-10-31");
+const final$1 = verifiedOn("2026-11-01");
 const noSetting$3 = (kind) => ({ setting: uncertain$5(null, PIPFILE, `No Pipfile setting allows or forbids ${kind} dependencies (concluded from the documented [pipenv] directives).`) });
 const pipenv$1 = {
 	id: "pipenv",
@@ -2320,6 +2899,33 @@ const pipenv$1 = {
 			configOptions: ["--extra-pip-args"],
 			configVariables: ["PIPENV_DOTENV_LOCATION"]
 		}, CONFIGURATION$3, "--index names a package index by URL or by a source name of the Pipfile; --pypi-mirror and PIPENV_PYPI_MIRROR replace PyPI. --extra-pip-args hands arguments to pip, which may name another index, and Pipenv loads PIP_* variables from the .env file that PIPENV_DOTENV_LOCATION names (options.py)."),
+		directoryOptions: final$1.verified({
+			options: [],
+			variables: [{
+				name: "PIPENV_PIPFILE",
+				moves: "project",
+				file: "Pipfile"
+			}]
+		}, `${PIPENV}/pipenv/utils/pipfile.py`, "Pipfile.location returns project.s.PIPENV_PIPFILE when it is set, and only otherwise searches the working directory and its parents (find_pipfile, PIPENV_MAX_DEPTH); project_directory is str(Path(self.location).parent.absolute()), and Project.__init__ (pipenv/project.py) changes to it for every command but run. pipenv/environments.py: \"If set, this specifies a custom Pipfile location. When running pipenv from a location other than the same directory where the Pipfile is located, instruct pipenv to find the Pipfile in the location specified by this environment variable\"; the path is taken relative to the working directory and made absolute. pipenv/cli/options.py has no option that moves the project (--where only prints it)."),
+		registrySettings: final$1.verified([{
+			file: "Pipfile",
+			path: ["source"],
+			applies: "all",
+			effect: "replaces",
+			urlKey: "url",
+			entries: {
+				nameKey: "name",
+				rules: [],
+				first: "replaces",
+				others: "pinned",
+				pins: {
+					file: "Pipfile",
+					tables: [["*"]],
+					key: "index"
+				},
+				searchAll: ["pipenv", "install_search_all_sources"]
+			}
+		}], `${PIPENV}/docs/indexes.md`, "Each [[source]] has name, url and verify_ssl. \"all packages are mapped to a single package index for security reasons\"; \"To install a package from a specific index, you must match the name of the index\" (torch = {version = \"*\", index = \"pytorch\"} in [packages]); to use another index as the default, \"simply omit PyPI from your sources\". A package without index comes from the default index, the first source: Resolver.create in pipenv/utils/resolver.py takes project.sources.get_default_index()[\"name\"], which is pipfile_sources()[0] (pipenv/utils/sources.py), and without [[source]] the default is https://pypi.org/simple (pipenv/project.py). With install_search_all_sources = true in [pipenv], \"pipenv install and pipenv sync will search all configured sources for packages, but only during installation\", so every source adds. Names are compared exactly (get_index_by_name), depcurfew without regard to case; package categories are any top-level table ([packages], [dev-packages] and custom ones). Variables in url are expanded by Pipenv (expand_url_credentials), so depcurfew cannot read such a URL."),
 		selection: verified$6({
 			prereleases: { onFlags: ["--pre"] },
 			buildFromSource: {
@@ -2337,6 +2943,7 @@ const checked$4 = verifiedOn("2026-10-29");
 const reviewed$1 = verifiedOn("2026-10-30");
 const rechecked$1 = verifiedOn("2026-10-31");
 const user$3 = verifiedOn("2026-10-31");
+const runtimes$1 = verifiedOn("2026-11-01");
 const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
 const PNPM_V11_CODE = "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src";
 /** A file in pnpm's config directory (getConfigDir): $XDG_CONFIG_HOME/pnpm when set, else the platform's own place. */
@@ -2387,7 +2994,7 @@ const SETTINGS_V10 = "https://pnpm.io/10.x/settings";
 const BUILD = "https://pnpm.io/settings/build";
 const RESOLUTION_V11 = "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/dependency-resolution.md";
 const BUILD_V11 = "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-11.x/settings/build.md";
-const release$2 = (version) => `https://github.com/pnpm/pnpm/releases/tag/v${version}`;
+const release$3 = (version) => `https://github.com/pnpm/pnpm/releases/tag/v${version}`;
 const exoticSubdeps = {
 	setting: verified$5("blockExoticSubdeps", SETTINGS_V10, "Blocks git repositories and tarball URLs for transitive dependencies only; no setting blocks them as direct dependencies."),
 	values: verified$5(["true", "false"], RESOLUTION$1),
@@ -2398,7 +3005,7 @@ const exoticSubdeps = {
 	}, {
 		since: "11.0.0",
 		value: "true"
-	}], release$2("11.0.0"))
+	}], release$3("11.0.0"))
 };
 const localPaths = { setting: uncertain$4(null, "https://pnpm.io/settings", "No setting restricts file: or link: dependencies (concluded from the full settings list); blockExoticSubdeps treats local paths and workspace links as trusted.") };
 const WORKSPACE_YAML_V10 = "https://github.com/pnpm/pnpm.io/blob/main/versioned_docs/version-10.x/pnpm-workspace_yaml.md";
@@ -2408,10 +3015,10 @@ const pnpm$1 = {
 	kind: "package-manager",
 	cooldown: {
 		setting: verified$5("minimumReleaseAge", "https://pnpm.io/blog/releases/10.16"),
-		configFiles: rechecked$1.verified(["pnpm-workspace.yaml"], release$2("11.0.0"), "pnpm-workspace.yaml works in every version that has the setting. The global config.yaml exists only from 11.0.0 (\"the new global config.yaml\"); pnpm 10 reads user-level settings from ~/.npmrc and <configDir>/rc instead (see user.files). pnpm 10 also reads minimum-release-age from .npmrc; pnpm 11+ reads only auth and registry settings from .npmrc and ignores the package.json \"pnpm\" field."),
+		configFiles: rechecked$1.verified(["pnpm-workspace.yaml"], release$3("11.0.0"), "pnpm-workspace.yaml works in every version that has the setting. The global config.yaml exists only from 11.0.0 (\"the new global config.yaml\"); pnpm 10 reads user-level settings from ~/.npmrc and <configDir>/rc instead (see user.files). pnpm 10 also reads minimum-release-age from .npmrc; pnpm 11+ reads only auth and registry settings from .npmrc and ignores the package.json \"pnpm\" field."),
 		cliFlag: uncertain$4(null, "https://pnpm.io/cli/install", "No dedicated flag is documented for install or add; release notes mention \"a CLI flag\" without syntax. Environment variable: PNPM_CONFIG_MINIMUM_RELEASE_AGE (pnpm 11+), npm_config_minimum_release_age (pnpm 10)."),
 		unit: verified$5("minutes", RESOLUTION$1, "Integer number of minutes, e.g. 1440 = 1 day; no duration strings."),
-		availableSince: verified$5("10.16.0", release$2("10.16.0")),
+		availableSince: verified$5("10.16.0", release$3("10.16.0")),
 		default: verified$5([{
 			since: "10.16.0",
 			value: 0
@@ -2421,7 +3028,7 @@ const pnpm$1 = {
 		}], RESOLUTION_V11, "The built-in 1440 is non-strict: pnpm adds immature versions to minimumReleaseAgeExclude instead of failing (see strictMode)."),
 		exclude: {
 			setting: verified$5("minimumReleaseAgeExclude", SETTINGS_V10),
-			availableSince: verified$5("10.16.0", release$2("10.16.0")),
+			availableSince: verified$5("10.16.0", release$3("10.16.0")),
 			patternSyntax: verified$5("Package names (all versions); globs such as @myorg/* since 10.17.0; exact versions name@1.2.3 or name@1.2.3 || 1.2.4 since 10.19.0; ranges are not documented", SETTINGS_V10)
 		},
 		securityUpdates: verified$5("applies", "https://pnpm.io/cli/audit", "No setting bypasses the delay. Since 11.0.0, pnpm audit --fix adds the minimum patched version of each advisory to minimumReleaseAgeExclude (since 11.22.0 only while it is still inside the window).")
@@ -2433,7 +3040,7 @@ const pnpm$1 = {
 		}, {
 			since: "10.0.0",
 			value: "deny-except-allowlist"
-		}], release$2("10.0.0"), "Unreviewed builds only warn in pnpm 10; strictDepBuilds is true by default since 11.0.0, so they fail the install. Prepare scripts of git-hosted dependencies are blocked since 10.26.0."),
+		}], release$3("10.0.0"), "Unreviewed builds only warn in pnpm 10; strictDepBuilds is true by default since 11.0.0, so they fail the install. Prepare scripts of git-hosted dependencies are blocked since 10.26.0."),
 		allowList: {
 			setting: verified$5("allowBuilds", BUILD, "Replaced onlyBuiltDependencies, which was removed in 11.0.0 (see legacyAllowList). Since 12.11.0, permissions.<package>.build takes precedence over allowBuilds (extra.buildPermissions)."),
 			file: verified$5("pnpm-workspace.yaml", BUILD),
@@ -2675,6 +3282,10 @@ const pnpm$1 = {
 			value: false,
 			since: "10.26.0"
 		}, "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/building/policy/src/index.ts", "allowBuilds: { pkg: false } records a denial: the build is decided, not reported as unreviewed and does not fail strictDepBuilds (\"A recorded build the policy denies was decided on purpose\"). pnpm 10.26 maps false to ignoredBuiltDependencies, which only silences the report. Under dangerouslyAllowAllBuilds a denied package still builds before pnpm 12.12.0."),
+		projectInstall: runtimes$1.verified({
+			commands: ["install", "i"],
+			bare: false
+		}, "https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/cli/install.md", "Commands that install the dependencies of the project: \"pnpm install is used to install all dependencies for a project\", \"Aliases: i\". pnpm add (commandLine.add) adds packages. pnpm without a command does not install."),
 		commandLine: rechecked$1.verified({
 			add: [["pnpm", "add"]],
 			run: [
@@ -2742,7 +3353,7 @@ const pnpm$1 = {
 			configOptions: ["--userconfig", "--npmrc-auth-file"],
 			configVariables: ["pnpm_config_npmrc_auth_file", "pnpm_config_userconfig"]
 		}, `${PNPM_V12}/pnpm11/config/reader/src/index.ts`, "registry and @scope:registry are read from the command line over .npmrc (docs/npmrc.md in pnpm/pnpm.io). Every pnpm_config_<key> or PNPM_CONFIG_<KEY> variable whose key is a setting sets it (src/env.ts, parseEnvVars), registry included. The user-level .npmrc, which may set any registry, is the file named by --npmrc-auth-file, --userconfig, pnpm_config_npmrc_auth_file, pnpm_config_userconfig, npmrcAuthFile in the global config.yaml or npm_config_userconfig (getNpmrcAuthFile; src/loadNpmrcFiles.ts reads it in place of ~/.npmrc). pnpm 10 reads npm_config_* variables as npm does."),
-		parsing: reviewed$1.verified({
+		parsing: runtimes$1.verified({
 			abbreviations: true,
 			anyDashes: true,
 			negation: "--no-",
@@ -2782,13 +3393,140 @@ const pnpm$1 = {
 				F: ["--filter"],
 				y: ["--yes"]
 			}
-		}, `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`, "pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag. Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y."),
+		}, `${PNPM_V12}/pnpm11/cli/parse-cli-args/src/index.ts`, "pnpm parses its command line with @pnpm/nopt 0.3.1 (github.com/pnpm/nopt, lib/nopt.js), a fork of nopt: every leading dash is stripped, an exact shorthand or a word of one-letter shorthands is expanded, and an unambiguous prefix of an option of the command is taken for that option, so pnpm add --reg=<url> sets registry; --no-<name> is a negated flag: lib/nopt.js strips every leading no- in any case, each one inverting it, before the prefix is resolved, so --no-ign is --no-ignore-scripts when no other option of the command starts with ign (parse-cli-args, shorthands.ts and pnpm/nopt read again 2026-11-01). Options pnpm does not know make it stop with an error (pnpm11/pnpm/src/main.ts, dropUnknownOptions). --config.<key>=<value> sets the setting <key> (separateConfigDotArgs, normalizeOptions), also in pnpm 10.34.9 (cli/parse-cli-args/src/index.ts). The shorthands are pnpm11/pnpm/src/shorthands.ts; pnpm 10.34.9 has the same without y."),
+		booleanWords: runtimes$1.verified(true, "https://github.com/pnpm/nopt/blob/main/lib/nopt.js", "The nopt fork pnpm imports (@pnpm/nopt, imported by pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1) reads a Boolean option followed by the word true or false as that value and skips the word, inverted after --no- (parse in lib/nopt.js)."),
+		directoryOptions: runtimes$1.verified({
+			options: [{
+				name: "--dir",
+				moves: "directory"
+			}],
+			variables: []
+		}, "https://github.com/pnpm/pnpm.io/blob/7aded9fe30ceb31d4302b4189fcac84c958582b0/docs/pnpm-cli.md", "-C <path>, --dir <path>: \"Run as if pnpm was started in <path> instead of the current working directory.\" -C is the shorthand of --dir (parsing.shorthands). pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1 takes dir from the options nopt parsed from the whole command line (\"let dir = parsedOpts['dir']\") and looks for the workspace from it (\"findWorkspaceDir((dir ?? process.cwd()) as string)\"). -w, --workspace-root (\"Run as if pnpm was started in the root of the workspace\") is not listed: it names no directory."),
+		configCommands: runtimes$1.verified([
+			{
+				command: ["pnpm", "config"],
+				writes: ["set", "delete"]
+			},
+			{
+				command: ["pnpm", "c"],
+				writes: ["set", "delete"]
+			},
+			{
+				command: ["pnpm", "pkg"],
+				writes: [
+					"set",
+					"delete",
+					"fix"
+				],
+				manifest: true
+			}
+		], "https://github.com/pnpm/pnpm.io/blob/main/docs/cli/config.md", "pnpm config (aliases: c) manages the configuration files: set <key> <value>, get <key>, delete <key> and list; get and list only read. pnpm pkg \"Manages the contents of package.json from the command line\": get, set, delete and fix, no aliases (docs/cli/pkg.md)."),
+		installOverrides: runtimes$1.verified({
+			options: [
+				{
+					name: "--ignore-scripts",
+					weakens: "scripts",
+					values: { except: ["true"] }
+				},
+				{
+					name: "--ignoreScripts",
+					weakens: "scripts",
+					values: { except: ["true"] }
+				},
+				{
+					name: "--allow-build",
+					weakens: "scripts",
+					values: "any"
+				},
+				{
+					name: "--dangerouslyAllowAllBuilds",
+					weakens: "scripts",
+					values: { except: ["false"] }
+				},
+				{
+					name: "--dangerously-allow-all-builds",
+					weakens: "scripts",
+					values: { except: ["false"] }
+				},
+				{
+					name: "--minimumReleaseAge",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--minimum-release-age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "--minimumReleaseAgeExclude",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "--minimum-release-age-exclude",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "--minimumReleaseAgeStrict",
+					weakens: "delay",
+					values: { except: ["true"] }
+				},
+				{
+					name: "--minimum-release-age-strict",
+					weakens: "delay",
+					values: { except: ["true"] }
+				}
+			],
+			variables: [
+				{
+					name: "pnpm_config_minimum_release_age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "pnpm_config_minimum_release_age_exclude",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "pnpm_config_minimum_release_age_strict",
+					weakens: "delay",
+					values: { except: ["true"] }
+				},
+				{
+					name: "pnpm_config_ignore_scripts",
+					weakens: "scripts",
+					values: { except: ["true"] }
+				},
+				{
+					name: "pnpm_config_dangerously_allow_all_builds",
+					weakens: "scripts",
+					values: ["true"]
+				},
+				{
+					name: "npm_config_minimum_release_age",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "npm_config_dangerously_allow_all_builds",
+					weakens: "scripts",
+					values: { except: [
+						"false",
+						"null",
+						"undefined"
+					] }
+				}
+			]
+		}, `${PNPM_V12}/pnpm11/config/reader/src/env.ts`, "pnpm add takes --ignore-scripts (\"Same as the ignoreScripts setting\") and --allow-build, which lists packages allowed to run postinstall scripts (docs/cli/add.md in pnpm/pnpm.io; a ! prefix denies one instead, still asked about). Any setting can be given as --config.<key>=<value>, the key kept as written (normalizeOptions in pnpm11/cli/parse-cli-args/src/index.ts at v12.16.1), so both spellings are listed and the scanner reads the key without --config.. pnpm_config_<key> and PNPM_CONFIG_<KEY> set the setting of the camel-cased key; a Boolean only from the exact words true and false, a number with Number (parseEnvVars in env.ts). pnpm 10 reads npm_config_* variables as npm does (registryOverrides). minimumReleaseAgeStrict false installs a younger version when no older one matches (user.weakening)."),
 		minimumReleaseAgeStrict: checked$4.verified({
 			setting: "minimumReleaseAgeStrict",
 			value: true,
 			since: "11.0.0"
 		}, RESOLUTION$1, "When false, pnpm falls back to a version that does not meet minimumReleaseAge; when true, resolution fails. It defaults to true when minimumReleaseAge is set explicitly, except in 11.0.0-11.0.3 and 12.0.0-12.2.x (see strictMode): pnpm 11.0.0 and 12.0.0 installed a version 4 hours old with minimumReleaseAge: 4320 on 2026-10-29, and 12.0.0 added it to minimumReleaseAgeExclude."),
-		cooldownExactVersions: checked$4.verified("10.17.0", release$2("10.17.0"), "pnpm 10.17.0: \"Don't ignore the minimumReleaseAge check, when the package is requested by exact version\". pnpm 10.16.0 installed typescript@7.1.0-dev.20261029.1, 4 hours old, with minimumReleaseAge: 4320 on 2026-10-29."),
+		cooldownExactVersions: checked$4.verified("10.17.0", release$3("10.17.0"), "pnpm 10.17.0: \"Don't ignore the minimumReleaseAge check, when the package is requested by exact version\". pnpm 10.16.0 installed typescript@7.1.0-dev.20261029.1, 4 hours old, with minimumReleaseAge: 4320 on 2026-10-29."),
 		lockfileDocuments: checked$4.verified({
 			bootMarker: "---",
 			graph: "last"
@@ -2826,14 +3564,14 @@ const pnpm$1 = {
 			since: "11.0.0",
 			npmrc: "auth and registry settings",
 			packageJsonField: "pnpm"
-		}, release$2("11.0.0"), "Structured form of npmrcIgnored: from 11.0.0 on, other .npmrc settings and the package.json \"pnpm\" field have no effect."),
+		}, release$3("11.0.0"), "Structured form of npmrcIgnored: from 11.0.0 on, other .npmrc settings and the package.json \"pnpm\" field have no effect."),
 		lockfileRecheck: uncertain$4([{
 			since: "10.16.0",
 			value: false
 		}, {
 			since: "11.1.3",
 			value: true
-		}], release$2("11.1.3"), "Structured form of lockfileVerification: whether a frozen-lockfile install re-checks the age of versions already in the lockfile. trustLockfile: true (11.3.0) turns the check off."),
+		}], release$3("11.1.3"), "Structured form of lockfileVerification: whether a frozen-lockfile install re-checks the age of versions already in the lockfile. trustLockfile: true (11.3.0) turns the check off."),
 		allowAllBuilds: rechecked$1.verified({
 			setting: "dangerouslyAllowAllBuilds",
 			since: "10.9.0",
@@ -2889,8 +3627,8 @@ const pnpm$1 = {
 			}]
 		}, "https://github.com/pnpm/pnpm/blob/v10.28.0/config/config/src/dependencyBuildOptions.ts", "pnpm 10 reads dangerously-allow-all-builds from the project .npmrc as from every .npmrc, with parseField of @pnpm/npm-conf, so every value but false, null and undefined is on (user.weakening). From 10.13.0 config/config/src/index.ts takes the build settings of all .npmrc files and npm_config_* variables aside (extractAndRemoveDependencyBuildOptions) and applies them only when pnpm-workspace.yaml and the \"pnpm\" field of package.json (from which getOptionsFromRootManifest takes onlyBuiltDependencies, onlyBuiltDependenciesFile and neverBuiltDependencies) set none of projectKeys (hasDependencyBuildOptions: a key that is not null or undefined); the list gained allowBuilds in 10.26.0 (dependencyBuildOptions.ts at 10.13.0, 10.25.0, 10.26.0 and 10.28.0; the file does not exist in 10.12.1). Before 10.13.0 the .npmrc value applies unless pnpm-workspace.yaml sets dangerouslyAllowAllBuilds itself (npmrcPrecedence). pnpm 11 reads only auth and registry settings from .npmrc (ignoredSince)."),
 		yamlMergeKeys: rechecked$1.verified(true, "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/workspace/workspace-manifest-reader/src/index.ts", "pnpm-workspace.yaml and the global config.yaml (readWorkspaceManifest with cfgFileName) are read with read-yaml-file, which calls load of js-yaml with its default schema, and that schema has the merge type: read-yaml-file 3.0.0 with @zkochan/js-yaml 0.0.11 in 11.28.10, read-yaml-file 2.1.0 with @zkochan/js-yaml 0.0.9 in 10.28.0 and 0.0.11 in 10.34.9 (workspace/read-manifest/src/index.ts and pnpm-lock.yaml at those tags; lib/schema/default.js of the packages). pnpm 12 reads both files with serde_saphyr::from_str (pnpm/crates/config/src/workspace_yaml/parse_settings.rs at 12.16.1), whose default MergeKeyPolicy is Merge (serde-saphyr 0.0.29). So <<: *defaults brings the keys of the anchored map into the map, and settings set that way apply (a review run with pnpm 10.28.0: pnpm config get dangerouslyAllowAllBuilds gave true and installs ran scripts). A key written in the map itself wins over a merged one whatever their order (mergeMappings of js-yaml adds only missing keys; serde-saphyr adds merged entries whose key is not seen), and earlier maps of <<: [*a, *b] win over later ones; a quoted \"<<\" is an ordinary key."),
-		latestVersion: verified$5("12.16.1", release$2("12.16.1"), "pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches."),
-		npmrcIgnored: verified$5("pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json \"pnpm\" field and no longer reads npm_config_* variables", release$2("11.0.0")),
+		latestVersion: verified$5("12.16.1", release$3("12.16.1"), "pnpm 12.0.0 shipped on 26 Aug and 11.0.0 on 28 Apr (GitHub shows no year; 2026 inferred from release order). 11.x and 10.x still receive patches."),
+		npmrcIgnored: verified$5("pnpm 11+ reads only auth and registry settings from .npmrc, ignores the package.json \"pnpm\" field and no longer reads npm_config_* variables", release$3("11.0.0")),
 		buildPermissions: rechecked$1.verified({
 			setting: "permissions",
 			capability: "build",
@@ -2918,7 +3656,7 @@ const pnpm$1 = {
 		}, {
 			since: "11.0.0",
 			value: "true"
-		}], release$2("11.0.0"), "When true, an unreviewed dependency build script fails the install."),
+		}], release$3("11.0.0"), "When true, an unreviewed dependency build script fails the install."),
 		strictMode: verified$5([
 			{
 				since: "11.0.0",
@@ -2936,7 +3674,7 @@ const pnpm$1 = {
 				since: "12.3.0",
 				value: "strict whenever minimumReleaseAge is set explicitly"
 			}
-		], release$2("12.3.0"), "In non-strict mode pnpm silently writes immature picks into minimumReleaseAgeExclude. Strict mode fails CI installs with ERR_PNPM_NO_MATURE_MATCHING_VERSION."),
+		], release$3("12.3.0"), "In non-strict mode pnpm silently writes immature picks into minimumReleaseAgeExclude. Strict mode fails CI installs with ERR_PNPM_NO_MATURE_MATCHING_VERSION."),
 		ignoreMissingTime: verified$5("minimumReleaseAgeIgnoreMissingTime defaults to true: packages whose registry metadata has no publish time skip the age check", RESOLUTION$1),
 		lockfileVerification: uncertain$4([{
 			since: "10.16.0",
@@ -2944,7 +3682,7 @@ const pnpm$1 = {
 		}, {
 			since: "11.1.3",
 			value: "lockfile entries are re-checked; trustLockfile: true (11.3.0) turns this off"
-		}], release$2("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
+		}], release$3("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
 		unknownWorkspaceKeys: verified$5("pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns", "https://pnpm.io/blog/releases/12.0")
 	}
 };
@@ -2952,13 +3690,15 @@ const pnpm$1 = {
 // src/knowledge/poetry.ts
 const { verified: verified$4, uncertain: uncertain$3, disputed: disputed$2, evidence: evidence$2 } = verifiedOn("2026-10-30");
 const user$2 = verifiedOn("2026-10-31");
+const leftovers$2 = verifiedOn("2026-11-01");
+const finalReview$1 = verifiedOn("2026-11-01");
 const POETRY = "https://github.com/python-poetry/poetry/blob/2.5.1";
 const CONFIGURATION$2 = `${POETRY}/docs/configuration.md`;
 const CHANGELOG = `${POETRY}/CHANGELOG.md`;
 const LOCKER = `${POETRY}/src/poetry/packages/locker.py`;
 const CHOOSER = `${POETRY}/src/poetry/installation/chooser.py`;
 const CONFIG = `${POETRY}/src/poetry/config/config.py`;
-/** The user config.toml; only the macOS directories are disputed. */
+/** The user config.toml; on macOS the directories are those of the docs (see user.libraryDirectories). */
 const userFiles = (darwin) => [{
 	since: "2.0.0",
 	value: {
@@ -3050,10 +3790,8 @@ const poetry$1 = {
 		workspacesObjectKey: uncertain$3(null, "https://github.com/python-poetry/poetry/issues/2270", "No workspaces.")
 	},
 	user: {
-		files: user$2.disputed("The docs give ~/Library/Application Support/pypoetry on macOS. The code asks the installed platformdirs (pyproject.toml allows >=3.0.0,<5), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) Poetry reads $XDG_CONFIG_HOME/pypoetry/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in Poetry's environment. Linux and Windows agree. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked.", user$2.evidence(userFiles([MACOS_DIRECTORY]), `${CONFIGURATION$2}#config-directory`, "\"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry\"."), user$2.evidence(userFiles([{
-			from: { env: "XDG_CONFIG_HOME" },
-			path: "pypoetry"
-		}, MACOS_DIRECTORY]), `${POETRY}/src/poetry/locations.py`, "CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path(\"pypoetry\", appauthor=False, roaming=True) from platformdirs, which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names.")),
+		files: user$2.verified(userFiles([MACOS_DIRECTORY]), `${CONFIGURATION$2}#config-directory`, "\"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry\". The code agrees on Linux and Windows: CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path(\"pypoetry\", appauthor=False, roaming=True) from platformdirs, without an override (src/poetry/locations.py; on Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names). On macOS the directory depends on the installed platformdirs (libraryDirectories); the docs' directory is used when its version cannot be read. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked."),
+		libraryDirectories: leftovers$2.verified(platformdirsMacos("pypoetry"), PLATFORMDIRS_CHANGELOG, `Poetry 2.5.1 allows platformdirs >=3.0.0,<5 (pyproject.toml; its own lock has 4.11.8), and the official installer runs pip install without constraints in Poetry's virtual environment (python-poetry/install.python-poetry.org, install-poetry.py), so a new install gets the latest 4.x. ${PLATFORMDIRS_NOTE}`),
 		settings: user$2.verified([
 			{
 				purpose: "cooldown",
@@ -3139,6 +3877,10 @@ const poetry$1 = {
 		], `${CONFIGURATION$2}#using-environment-variables`, "Any setting can be set as POETRY_ plus its name in capitals with dots and dashes replaced by underscores, and environment variables come first in the precedence (\"Configuration sources\"). POETRY_CONFIG_DIR replaces the platform directory (src/poetry/locations.py).")
 	},
 	extra: {
+		installedPackage: finalReview$1.verified({
+			name: "poetry",
+			commands: [["pipx", "install"], ["pip", "install"]]
+		}, `${POETRY}/docs/_index.md`, "The installation page installs a given version with \"pipx install poetry==1.8.4\", in CI with \"$POETRY_HOME/bin/pip install poetry==2.0.0\", and manually with pip in a virtual environment (\"$VENV_PATH/bin/pip install poetry\"). So poetry==<version> in such a command of a CI job or a Dockerfile is the Poetry the later commands run (decision D-115)."),
 		pylockCreatedBy: verified$4("poetry-plugin-export", "https://github.com/python-poetry/poetry-plugin-export/blob/1.10.1/src/poetry_plugin_export/exporter.py", "Poetry exports pylock.toml with its export plugin (poetry export --format pylock.toml), which writes created-by = \"poetry-plugin-export\"."),
 		configTable: verified$4({
 			solver: "solver",
@@ -3218,7 +3960,94 @@ const poetry$1 = {
 				listBooleans: true
 			}
 		}, CONFIGURATION$2, "installer.no-binary (POETRY_INSTALLER_NO_BINARY) disallows wheels for :all: or true, none for :none: or false, or the named packages separated by commas; installer.only-binary (POETRY_INSTALLER_ONLY_BINARY, since 2.0.0) takes the same values; explicit package names win over :all:. poetry add --allow-prereleases accepts pre-releases (src/poetry/console/commands/add.py)."),
-		latestVersion: verified$4("2.5.1", CHANGELOG, "Released on 2026-09-20.")
+		latestVersion: verified$4("2.5.1", CHANGELOG, "Released on 2026-09-20."),
+		directoryOptions: leftovers$2.verified({
+			options: [
+				{
+					name: "-C",
+					moves: "directory"
+				},
+				{
+					name: "--directory",
+					moves: "directory"
+				},
+				{
+					name: "-P",
+					moves: "project"
+				},
+				{
+					name: "--project",
+					moves: "project"
+				}
+			],
+			variables: []
+		}, `${POETRY}/docs/cli.md`, "Global options: --directory=DIRECTORY (-C) \"The working directory for the Poetry command (defaults to the current working directory). All command-line arguments will be resolved relative to the given directory.\"; --project=PROJECT (-P) \"Specify another path as the project root. All command-line arguments will be resolved relative to the current working directory or directory specified using --directory option if used.\" The page names no environment variable for either."),
+		registrySettings: finalReview$1.verified([{
+			file: "pyproject.toml",
+			path: [
+				"tool",
+				"poetry",
+				"source"
+			],
+			applies: "all",
+			effect: "replaces",
+			urlKey: "url",
+			entries: {
+				nameKey: "name",
+				rules: [{
+					key: "priority",
+					value: "supplemental",
+					effect: "adds"
+				}, {
+					key: "priority",
+					value: "explicit",
+					effect: "pinned"
+				}],
+				first: "replaces",
+				others: "replaces",
+				pypiName: "pypi",
+				pins: {
+					file: "pyproject.toml",
+					tables: [[
+						"tool",
+						"poetry",
+						"dependencies"
+					], [
+						"tool",
+						"poetry",
+						"group",
+						"*",
+						"dependencies"
+					]],
+					key: "source"
+				}
+			}
+		}], `${POETRY}/docs/repositories.md`, "[[tool.poetry.source]] has name, url and priority. \"If priority is undefined, the source is considered a primary source\"; \"All primary package sources are searched for each dependency without a source constraint\" and \"If you configure at least one primary source, the implicit PyPI source is disabled\", so a primary source replaces PyPI. Supplemental sources \"are only searched if no other (higher-priority) source yields a compatible package distribution\": depcurfew does not know whether PyPI has a version the constraint takes, so such a source counts as one that adds. Explicit sources \"are only searched when a package configuration explicitly indicates\" them: a dependency with source = \"name\" in [tool.poetry.dependencies] or [tool.poetry.group.<group>.dependencies], also in a list of constraint tables (docs/dependency-specification.md, docs/managing-dependencies.md). create_pool in src/poetry/factory.py reads Priority[source.get(\"priority\", \"primary\").upper()], so the value is compared without regard to case; the schema (src/poetry/json/schemas/poetry.json) allows primary, supplemental and explicit, and another value (default or secondary of Poetry 1.x) fails in 2.5.1 and counts as primary here. A source whose name is pypi in any case is PyPI itself (PyPiRepository), which \"cannot be configured with a custom url\" (create_package_source)."),
+		configCommands: leftovers$2.verified([{
+			command: ["poetry", "config"],
+			operands: 2,
+			options: ["--unset", "--migrate"]
+		}], "https://github.com/python-poetry/poetry/blob/main/docs/cli.md", "poetry config [options] [setting-key] [setting-value1] ... [setting-valueN] sets a key to a value; --unset removes the key, --migrate migrates outdated settings and --list only shows them."),
+		installOverrides: leftovers$2.verified({
+			options: [],
+			variables: [
+				{
+					name: "POETRY_SOLVER_MIN_RELEASE_AGE",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE_SOURCE",
+					weakens: "delay",
+					values: "any"
+				}
+			]
+		}, "https://github.com/python-poetry/poetry/blob/main/docs/configuration.md", "Settings can be set with environment variables prefixed by POETRY_, the upper-case setting name with dots and dashes replaced by underscores; solver.min-release-age (int, days) is POETRY_SOLVER_MIN_RELEASE_AGE. poetry add has no option for it.")
 	}
 };
 
@@ -3227,10 +4056,11 @@ const { verified: verified$3, uncertain: uncertain$2, disputed: disputed$1, evid
 const python$1 = verifiedOn("2026-10-30");
 const reviewed = verifiedOn("2026-10-30");
 const rules = verifiedOn("2026-10-30");
+const projects = verifiedOn("2026-11-01");
 const AT = "https://github.com/renovatebot/renovate/blob/44.198.2";
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
 const MINIMUM_RELEASE_AGE = "https://docs.renovatebot.com/key-concepts/minimum-release-age/";
-const release$1 = (version) => `https://github.com/renovatebot/renovate/releases/tag/${version}`;
+const release$2 = (version) => `https://github.com/renovatebot/renovate/releases/tag/${version}`;
 const renovate$1 = {
 	id: "renovate",
 	name: "Renovate",
@@ -3254,14 +4084,14 @@ const renovate$1 = {
 		], OPTIONS, "Searched in this order. The \"renovate\" key in package.json still works but is deprecated. Shared presets (extends) can also set it."),
 		cliFlag: verified$3("--minimum-release-age", `${OPTIONS}#minimumreleaseage`, "Self-hosted CLI only; environment variable RENOVATE_MINIMUM_RELEASE_AGE."),
 		unit: verified$3("duration-string", MINIMUM_RELEASE_AGE, "For example \"3 days\" or \"14 days\". Since 42.19.5 \"0 days\" is treated like null."),
-		availableSince: verified$3("35.46.0", release$1("35.46.0"), "Earlier versions had the same feature as stabilityDays (first version not tracked)."),
+		availableSince: verified$3("35.46.0", release$2("35.46.0"), "Earlier versions had the same feature as stabilityDays (first version not tracked)."),
 		default: verified$3([{
 			since: "0.0.0",
 			value: null
 		}], "https://github.com/renovatebot/renovate/blob/main/lib/config/options/index.ts", "Off unless configured; the docs table shows no default. config:best-practices adds \"3 days\" for npm (see presets). Since 44.96.0 minimumReleaseAgeBuffer adds 30 minutes once a delay is set."),
 		exclude: {
 			setting: verified$3("packageRules: matchPackageNames + minimumReleaseAge: null", `${MINIMUM_RELEASE_AGE}#how-do-i-opt-out-dependencies-from-minimum-release-age-checks`, "No dedicated exclusion list."),
-			availableSince: uncertain$2("35.46.0", release$1("35.46.0"), "Assumed to work since the option exists with packageRule scope; not stated by a release note."),
+			availableSince: uncertain$2("35.46.0", release$2("35.46.0"), "Assumed to work since the option exists with packageRule scope; not stated by a release note."),
 			patternSyntax: verified$3("matchPackageNames: exact names, globs such as @org/** (with ! negation) or /regex/; case-insensitive", `${OPTIONS}#matchpackagenames`, "Glob and regex patterns since 38.0.0.")
 		},
 		securityUpdates: verified$3("bypass", `${MINIMUM_RELEASE_AGE}#what-happens-to-security-updates`, "The vulnerabilityAlerts defaults set minimumReleaseAge to null; a delay can still be set inside vulnerabilityAlerts.")
@@ -3275,6 +4105,10 @@ const renovate$1 = {
 		disableAll: verified$3("ignoreScripts: true", `${OPTIONS}#ignorescripts`, "The default; the self-hosted global allowScripts also defaults to false.")
 	},
 	extra: {
+		configLocation: projects.verified({
+			from: "repository-root",
+			branch: "default"
+		}, `${AT}/lib/workers/repository/init/merge.ts`, "detectConfigFile looks for each name in configFiles (lib/config/app-strings.ts) in the file list of the repository, whose paths start at the repository root, so a renovate.json in a subdirectory is never read. The configuration options page (docs/usage/configuration-options.md at 44.198.2): \"Any config you define applies to the whole repository (e.g. if you have a monorepo)\" and \"Renovate always uses the config from the repository's default branch\"."),
 		durationStrings: verified$3({
 			since: null,
 			syntax: "words"
@@ -3384,8 +4218,8 @@ const renovate$1 = {
 		}, {
 			since: "42.0.0",
 			value: "minimumReleaseAgeBehaviour timestamp-required: such updates are held"
-		}], release$1("42.0.0"), "minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open."),
-		internalChecksFilter: verified$3("Defaults to \"strict\" since 33.0.0; with \"none\" or \"flexible\" branches and PRs are created before the delay ends and only automerge waits", release$1("33.0.0")),
+		}], release$2("42.0.0"), "minimumReleaseAgeBehaviour was added in 41.150.0; timestamp-optional still fails open."),
+		internalChecksFilter: verified$3("Defaults to \"strict\" since 33.0.0; with \"none\" or \"flexible\" branches and PRs are created before the delay ends and only automerge waits", release$2("33.0.0")),
 		independentOfPackageManager: verified$3("minimumReleaseAge is set independently of the package manager's own release-age configuration", MINIMUM_RELEASE_AGE, "Source code passes --before to npm only; pnpm, Yarn and Bun gates are not read."),
 		digestBypassFixed: disputed$1("Digest updates could bypass minimumReleaseAge; the advisory and a maintainer comment give different fixed versions. Rebase requests could bypass strict checks before 44.61.3 (GHSA-2frq-pm48-6j4h).", evidence$1("44.3.1", "https://github.com/renovatebot/renovate/security/advisories/GHSA-g4qr-hw2h-687r"), evidence$1("44.10.0", "https://github.com/renovatebot/renovate/discussions/42260"))
 	}
@@ -3393,6 +4227,7 @@ const renovate$1 = {
 
 // src/knowledge/uv.ts
 const { verified: verified$2, uncertain: uncertain$1 } = verifiedOn("2026-10-30");
+const guard = verifiedOn("2026-11-01");
 const UV = "https://github.com/astral-sh/uv/blob/0.13.6";
 const RESOLUTION = `${UV}/docs/concepts/resolution.md`;
 const CONFIGURATION$1 = `${UV}/docs/concepts/configuration-files.md`;
@@ -3403,6 +4238,8 @@ const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
 const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor, version) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll(".", "")}`;
 const user$1 = verifiedOn("2026-10-31");
+const release13$1 = verifiedOn("2026-11-01");
+const final = verifiedOn("2026-11-01");
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = [
 	"1",
@@ -3412,6 +4249,38 @@ const TRUE_VALUES = [
 	"y",
 	"on"
 ];
+/**
+* What an entry of [[tool.uv.index]] (or [[index]] in uv.toml) does (decision D-120, docs/concepts/indexes.md at
+* 0.13.6): "An index can be marked as explicit = true to prevent packages from being installed from that index unless
+* explicitly pinned to it", and "A package can be pinned to a specific index by specifying the index in its
+* tool.uv.sources entry" (torch = { index = "pytorch" }, or a list of such tables "disambiguated by environment
+* markers"); default = true replaces PyPI; any other entry is asked before the default index. The page says named
+* indexes referenced via tool.uv.sources "must be defined within the project's pyproject.toml file"; depcurfew takes
+* the explicit indexes of uv.toml too, which can only report more.
+*/
+const INDEX_ENTRIES = {
+	nameKey: "name",
+	rules: [{
+		key: "explicit",
+		value: true,
+		effect: "pinned"
+	}, {
+		key: "default",
+		value: true,
+		effect: "replaces"
+	}],
+	first: "adds",
+	others: "adds",
+	pins: {
+		file: "pyproject.toml",
+		tables: [[
+			"tool",
+			"uv",
+			"sources"
+		]],
+		key: "index"
+	}
+};
 const noSetting$1 = (kind) => ({ setting: uncertain$1(null, `${UV}/uv.schema.json`, `No setting allows or forbids ${kind} dependencies (concluded from the list of settings). no-sources only ignores the tool.uv.sources table; a URL dependency introduced by a registry package is rejected during resolution (docs/pip/compatibility.md).`) });
 const uv$1 = {
 	id: "uv",
@@ -3608,6 +4477,127 @@ const uv$1 = {
 		], `${UV}/crates/uv-static/src/env_vars.rs`, "\"Settings provided via environment variables take precedence over persistent configuration, and settings provided via the command line take precedence over both\" (docs/concepts/configuration-files.md). UV_NO_BUILD_PACKAGE since 0.6.5, UV_NO_BINARY and UV_NO_BINARY_PACKAGE since 0.5.30 (lists separated by spaces), UV_NO_CONFIG since 0.2.30, UV_CONFIG_FILE since 0.1.34. UV_NO_BUILD, UV_NO_BINARY and UV_NO_CONFIG are flags parsed with the BoolishValueParser of clap (crates/uv-cli/src/lib.rs), whose true values are y, yes, t, true, on and 1 and false values n, no, f, false, off and 0, in any case (https://github.com/clap-rs/clap/blob/v4.6.7/clap_builder/src/util/str_to_bool.rs, the clap_builder version in the Cargo.lock of uv); a false value leaves the flag unset (flag() in crates/uv-cli/src/options.rs gives None), so the files decide (with UV_NO_BUILD=0 uv 0.11.32 still refused to build in a review test on 2026-10-31). XDG_CONFIG_HOME and APPDATA move the user directory (see files).")
 	},
 	extra: {
+		registrySettings: release13$1.verified([
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"index"
+				],
+				applies: "all",
+				effect: "adds",
+				urlKey: "url",
+				entries: INDEX_ENTRIES
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"index-url"
+				],
+				applies: "all",
+				effect: "replaces"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"extra-index-url"
+				],
+				applies: "all",
+				effect: "adds"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"find-links"
+				],
+				applies: "all",
+				effect: "adds"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"pip",
+					"index-url"
+				],
+				applies: "all",
+				effect: "replaces"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"pip",
+					"extra-index-url"
+				],
+				applies: "all",
+				effect: "adds"
+			},
+			{
+				file: "pyproject.toml",
+				path: [
+					"tool",
+					"uv",
+					"pip",
+					"find-links"
+				],
+				applies: "all",
+				effect: "adds"
+			},
+			{
+				file: "uv.toml",
+				path: ["index"],
+				applies: "all",
+				effect: "adds",
+				urlKey: "url",
+				entries: INDEX_ENTRIES
+			},
+			{
+				file: "uv.toml",
+				path: ["index-url"],
+				applies: "all",
+				effect: "replaces"
+			},
+			{
+				file: "uv.toml",
+				path: ["extra-index-url"],
+				applies: "all",
+				effect: "adds"
+			},
+			{
+				file: "uv.toml",
+				path: ["find-links"],
+				applies: "all",
+				effect: "adds"
+			},
+			{
+				file: "uv.toml",
+				path: ["pip", "index-url"],
+				applies: "all",
+				effect: "replaces"
+			},
+			{
+				file: "uv.toml",
+				path: ["pip", "extra-index-url"],
+				applies: "all",
+				effect: "adds"
+			},
+			{
+				file: "uv.toml",
+				path: ["pip", "find-links"],
+				applies: "all",
+				effect: "adds"
+			}
+		], SETTINGS, "ResolverInstallerSchema: index (\"The package indexes to use when resolving dependencies\", [[tool.uv.index]] with name and url), index-url (\"The URL of the Python package index (by default: <https://pypi.org/simple>)\"), extra-index-url (\"Extra URLs of package indexes to use, in addition to --index-url\") and find-links (\"Locations to search for candidate distributions, in addition to those found in the registry indexes\"); PipOptions ([tool.uv.pip]) has index-url, extra-index-url and find-links too. uv.toml takes the same keys at its top level (extra.configTables). docs/concepts/indexes.md: \"Indexes are prioritized in the order in which they're defined\", the default index is \"always treated as lowest priority\", with the default first-index strategy uv \"will stop at the first index on which a given package is available\", default = true replaces PyPI (\"set default = true on another index entry\" to \"exclude PyPI from the list of indexes\"), so an entry without it adds an index that is asked before the default one, and an explicit = true index is used only for packages pinned to it in tool.uv.sources. Each [[index]] entry is read as entries says (decision D-120): explicit = true counts only for the packages tool.uv.sources pins to it by name, default = true replaces PyPI, any other entry adds an index (see INDEX_ENTRIES)."),
 		pylockCreatedBy: verified$2("uv", `${UV}/crates/uv-lock/src/lock/export/pylock_toml.rs`, "uv export --format pylock.toml (and uv pip compile to pylock.toml) writes created-by = \"uv\". The project itself and workspace members are written as directory = { path = …, editable = true }, with the path relative to the lock file, \".\" for the project."),
 		configTables: verified$2({
 			"pyproject.toml": "tool.uv",
@@ -3670,6 +4660,99 @@ const uv$1 = {
 			lock: "uv lock",
 			failing: ["uv sync --locked", "uv lock --check"]
 		}, SERIALIZE, "uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again (\"Resolving despite existing lockfile due to addition of global exclude newer\", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded."),
+		lockOptions: final.verified({
+			table: "options",
+			timestamp: "exclude-newer",
+			span: "exclude-newer-span",
+			packages: "exclude-newer-package",
+			packageTimestamp: "timestamp",
+			packageSpan: "span",
+			placeholder: "0001-01-01T00:00:00Z"
+		}, SERIALIZE, "write_options writes [options] when exclude-newer is set: an absolute value as exclude-newer = \"<timestamp>\"; a relative one as exclude-newer = the placeholder \"0001-01-01T00:00:00Z\" (with the comment \"This has no effect and is included for backwards compatibility when using relative exclude-newer values\") and exclude-newer-span = the span as jiff prints it, ISO 8601 (P3D, P1W); since 0.11.8 exclude-newer may be missing next to exclude-newer-span. [options.exclude-newer-package] holds name = \"<timestamp>\", name = { timestamp = <placeholder>, span = \"P3D\" } or name = false. The placeholder is ExcludeNewerValue::PLACEHOLDER in crates/uv-distribution-types/src/exclude_newer.rs."),
+		lockComparison: final.verified({
+			spans: "fieldwise",
+			absolute: "earlier",
+			packages: "locked-or-recorded",
+			dateOnly: "next-day-system-time-zone"
+		}, `${UV}/crates/uv-configuration/src/exclude_newer.rs`, "ExcludeNewer::compare (lock against the settings, in crates/uv-lock-operations/src/validated_lock.rs after lock.filter_exclude_newer) resolves again on an added or removed global value, a span that differs (ExcludeNewerSpan compares self.0.fieldwise() == other.0.fieldwise() in crates/uv-distribution-types/src/exclude_newer.rs, so \"7 days\" and P1W differ), a span added to or removed from an absolute value, and an absolute timestamp that is earlier than the locked one (a later one does not count); only a new timestamp of the same span is ignored. Per package (only names of locked packages and names the lock already records, filter_exclude_newer in crates/uv-lock/src/lock/mod.rs): a cutoff removed, a disabled one enabled, an enabled one added, or a changed value; an enabled one that is now disabled does not count. A date without a time (2026-01-01) is the start of the next day in the system time zone, so the timestamp it gives depends on the machine. Messages such as \"Resolving despite existing lockfile due to change of exclude newer span from `P3D` to `P1W`\" come from the Display of ExcludeNewerValueChange."),
+		spanSyntax: final.verified({
+			friendlyUnits: {
+				years: [
+					"years",
+					"year",
+					"yrs",
+					"yr",
+					"y"
+				],
+				months: [
+					"months",
+					"month",
+					"mos",
+					"mo"
+				],
+				weeks: [
+					"weeks",
+					"week",
+					"wks",
+					"wk",
+					"w"
+				],
+				days: [
+					"days",
+					"day",
+					"d"
+				],
+				hours: [
+					"hours",
+					"hour",
+					"hrs",
+					"hr",
+					"h"
+				],
+				minutes: [
+					"minutes",
+					"minute",
+					"mins",
+					"min",
+					"m"
+				],
+				seconds: [
+					"seconds",
+					"second",
+					"secs",
+					"sec",
+					"s"
+				],
+				milliseconds: [
+					"milliseconds",
+					"millisecond",
+					"millis",
+					"milli",
+					"msecs",
+					"msec",
+					"ms"
+				],
+				microseconds: [
+					"microseconds",
+					"microsecond",
+					"micros",
+					"micro",
+					"usecs",
+					"usec",
+					"us"
+				],
+				nanoseconds: [
+					"nanoseconds",
+					"nanosecond",
+					"nanos",
+					"nano",
+					"nsecs",
+					"nsec",
+					"ns"
+				]
+			},
+			rejectedUnits: ["years", "months"]
+		}, "https://github.com/BurntSushi/jiff/blob/0.2.37/crates/jiff/src/fmt/friendly/mod.rs", "jiff 0.2.37 is the version in Cargo.lock of uv 0.13.6. uv parses a relative exclude-newer with jiff's Span (FromStr of ExcludeNewerValue tries a timestamp, then a date, then a span), which reads the friendly format (\"3 days\", \"1w\", \"2 weeks, 3 days\", with each unit at most once, larger units first, a leading sign or a trailing \"ago\") and ISO 8601 (P3D, PT36H). Span prints as ISO 8601 by default, which is what uv.lock records. uv rejects years and months (\"use days instead\", crates/uv-distribution-types/src/exclude_newer.rs). The friendly format also has HH:MM:SS and fractions of hours and smaller units, which depcurfew does not read."),
 		commandLine: verified$2({
 			add: [
 				["uv", "add"],
@@ -3896,6 +4979,47 @@ const uv$1 = {
 			}]
 		}, CLI, "VersionSelectionArgs: --prerelease takes disallow, allow, if-necessary, explicit or if-necessary-or-explicit (UV_PRERELEASE); allow considers pre-releases of every package and disallow none (docs/concepts/resolution.md); --prerelease-package takes PACKAGE=MODE; the hidden --pre means allow. BuildOptionsArgs of uv add, uv run, uv tool install and uv tool run (uvx): --no-binary (UV_NO_BINARY, a boolean) installs every package from source, --binary turns it off, --no-binary-package names one package (UV_NO_BINARY_PACKAGE, separated by spaces). uv pip install takes --no-binary and --only-binary as lists separated by commas with :all: and :none:, as pip does (PipInstallArgs)."),
 		latestVersion: verified$2("0.13.6", `${UV}/CHANGELOG.md`, "Released on 2026-10-26."),
+		directoryOptions: guard.verified({
+			options: [{
+				name: "--directory",
+				moves: "directory"
+			}, {
+				name: "--project",
+				moves: "project",
+				ignoredBy: [["uv", "pip"]]
+			}],
+			variables: [
+				{
+					name: "UV_WORKING_DIR",
+					moves: "directory"
+				},
+				{
+					name: "UV_WORKING_DIRECTORY",
+					moves: "directory"
+				},
+				{
+					name: "UV_PROJECT",
+					moves: "project",
+					ignoredBy: [["uv", "pip"]]
+				}
+			]
+		}, CLI, "GlobalArgs (global = true, so before or after the subcommand): --directory \"Change to the given directory prior to running the command. Relative paths are resolved with the given directory as the base\", env UV_WORKING_DIR; --project \"Discover a project in the given directory. All pyproject.toml, uv.toml, and .python-version files will be discovered by walking up the directory tree from the project root … Other command-line arguments (such as relative paths) will be resolved relative to the current working directory … This setting has no effect when used in the uv pip interface\", env UV_PROJECT. crates/uv-static/src/env_vars.rs: UV_WORKING_DIR is \"Equivalent to the --directory command-line argument. UV_WORKING_DIRECTORY (added in v0.9.1) is also supported for backwards compatibility\", UV_PROJECT \"Equivalent to the --project command-line argument\"."),
+		installOverrides: guard.verified({
+			options: [{
+				name: "--exclude-newer",
+				weakens: "delay",
+				values: "delay"
+			}, {
+				name: "--exclude-newer-package",
+				weakens: "delay",
+				values: "any"
+			}],
+			variables: [{
+				name: "UV_EXCLUDE_NEWER",
+				weakens: "delay",
+				values: "delay"
+			}]
+		}, `${UV}/crates/uv-cli/src/lib.rs`, "ExcludeNewerArgs: #[arg(long, env = EnvVars::UV_EXCLUDE_NEWER)] exclude_newer accepts RFC 3339 timestamps, local dates, friendly and ISO 8601 durations, and false to disable it; PackageExcludeNewerArgs adds --exclude-newer-package PACKAGE=DATE and is flattened into ResolverArgs, InstallerArgs and ResolverInstallerArgs. A date is not compared with the policy, so it is asked about."),
 		pipTable: user$1.verified({
 			table: "pip",
 			keys: {
@@ -3912,6 +5036,7 @@ const { verified: verified$1, uncertain, disputed, evidence } = verifiedOn("2026
 const checked$3 = verifiedOn("2026-10-29");
 const rechecked = verifiedOn("2026-10-31");
 const user = verifiedOn("2026-10-31");
+const leftovers$1 = verifiedOn("2026-11-01");
 const BERRY = "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1";
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 /** Variables for settings with a single value, which both the docs and the code accept. */
@@ -3929,7 +5054,7 @@ const SCALAR_VARIABLES = [{
 const YARNRC = "https://yarnpkg.com/configuration/yarnrc";
 const MANIFEST = "https://yarnpkg.com/configuration/manifest";
 const SCHEMA = "https://github.com/yarnpkg/berry/blob/master/packages/docusaurus/static/configuration/yarnrc.json";
-const release = (version) => `https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F${version}`;
+const release$1 = (version) => `https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F${version}`;
 const noSetting = (source, note) => ({ setting: uncertain(null, source, note) });
 const yarn$1 = {
 	id: "yarn",
@@ -3940,14 +5065,14 @@ const yarn$1 = {
 		configFiles: verified$1([".yarnrc.yml"], YARNRC, "Also YARN_NPM_MINIMAL_AGE_GATE (general YARN_ env rule) and, since 4.17.0, npmScopes.<scope>.npmMinimalAgeGate. package.json cannot set it."),
 		cliFlag: uncertain(null, "https://yarnpkg.com/cli/install", "No flag sets the gate. --no-time-gate on yarn add and yarn up (4.15.0+) disables it for one command; yarn install has no such flag."),
 		unit: verified$1("minutes", "https://github.com/yarnpkg/berry/pull/6942", "Bare numbers are minutes. Since 4.11.0 duration strings with ms, s, m, h, d or w (e.g. 3d, 1w) also work; on 4.10.x a string such as 7d silently had no effect."),
-		availableSince: checked$3.verified("4.10.2", release("4.10.2"), "The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: \"Bust the metadata cache\" (#6908) and \"support registries without publish times using minimalAgeGate\" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old (\"No candidates found\"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depcurfew writes the setting from 4.10.2 on."),
+		availableSince: checked$3.verified("4.10.2", release$1("4.10.2"), "The setting arrived in 4.10.0 (release notes, pull request and source; the security docs page at https://yarnpkg.com/features/security says 4.12). 4.10.2 fixed it: \"Bust the metadata cache\" (#6908) and \"support registries without publish times using minimalAgeGate\" (#6907). On 2026-10-29 Yarn 4.10.1 with npmMinimalAgeGate: 4320 refused zod@3.23.8 and esbuild@0.25.0, both over a year old (\"No candidates found\"), while 4.10.2, 4.10.3, 4.11.0 and 4.12.0 installed them and refused a version 4 hours old. depcurfew writes the setting from 4.10.2 on."),
 		default: disputed("The code is unambiguous: off until 4.14.x, 1d from 4.15.0. The published settings schema claimed 3d for 4.11.0-4.14.x and 0m in 4.16.0; the live yarnrc page shows \"1w\", which is an example value. Upgraded projects with an old lockfile get npmMinimalAgeGate: 0 written to .yarnrc.yml (see upgradeMigration).", evidence([{
 			since: "4.10.0",
 			value: 0
 		}, {
 			since: "4.15.0",
 			value: "1d"
-		}], release("4.15.0")), evidence([
+		}], release$1("4.15.0")), evidence([
 			{
 				since: "4.10.0",
 				value: 0
@@ -3963,7 +5088,7 @@ const yarn$1 = {
 		], "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.11.0/packages/docusaurus/static/configuration/yarnrc.json")),
 		exclude: {
 			setting: verified$1("npmPreapprovedPackages", `${YARNRC}#npmPreapprovedPackages`),
-			availableSince: verified$1("4.10.0", release("4.10.0")),
+			availableSince: verified$1("4.10.0", release$1("4.10.0")),
 			patternSyntax: verified$1("Package descriptors or name globs, optionally with a semver range: @scope/*, package, package*, package@^1.0.0; global only, not per npmScopes", `${YARNRC}#npmPreapprovedPackages`)
 		},
 		securityUpdates: uncertain("applies", "https://yarnpkg.com/cli/npm/audit", "No automatic bypass is documented and yarn npm audit only reports. Options: --no-time-gate on yarn add/up, a pinned npmPreapprovedPackages entry, or a per-scope gate of 0.")
@@ -3975,7 +5100,7 @@ const yarn$1 = {
 		}, {
 			since: "4.14.0",
 			value: "deny-except-allowlist"
-		}], release("4.14.0"), "Workspace scripts still run. Upgraded projects with an old lockfile get enableScripts: true written to .yarnrc.yml. Yarn 1 runs scripts unless --ignore-scripts is passed."),
+		}], release$1("4.14.0"), "Workspace scripts still run. Upgraded projects with an old lockfile get enableScripts: true written to .yarnrc.yml. Yarn 1 runs scripts unless --ignore-scripts is passed."),
 		allowList: {
 			setting: verified$1("dependenciesMeta.<package>.built", `${MANIFEST}#dependenciesMeta.built`),
 			file: verified$1("package.json", `${MANIFEST}#dependenciesMeta`, "Root package.json only; ignored inside workspaces."),
@@ -3988,7 +5113,7 @@ const yarn$1 = {
 		git: {
 			setting: verified$1("approvedGitRepositories", `${YARNRC}#approvedGitRepositories`),
 			values: verified$1(["repository URL glob patterns, e.g. https://github.com/org/*"], `${YARNRC}#approvedGitRepositories`),
-			availableSince: verified$1("4.14.0", release("4.14.0")),
+			availableSince: verified$1("4.14.0", release$1("4.14.0")),
 			default: verified$1([{
 				since: "4.14.0",
 				value: "[] (every git dependency is blocked)"
@@ -4102,17 +5227,41 @@ const yarn$1 = {
 		], CONFIGURATION, "A variable starting with yarn_ in any case sets the camel-cased setting before the rc files are read, and they cannot change it (Configuration.find and use; YARN_IGNORE_SCRIPTS is ignored); a list setting takes a comma-separated string (parseValue); enableScripts accepts true or 1 (parseBoolean), false or 0 turn it off, and any other value stops Yarn, so every value but false and 0 counts as on."), user.evidence(SCALAR_VARIABLES, `${BERRY}/packages/docusaurus/static/configuration/yarnrc.json`, "Most settings \"can also be defined through environment variables (at least for the simpler ones; arrays and objects aren't supported yet)\", and such values \"will overwrite any that might have been defined in the RC files\"."))
 	},
 	extra: {
+		registrySettings: leftovers$1.verified([{
+			file: ".yarnrc.yml",
+			path: ["npmRegistryServer"],
+			applies: "all",
+			effect: "replaces"
+		}, {
+			file: ".yarnrc.yml",
+			path: [
+				"npmScopes",
+				"*",
+				"npmRegistryServer"
+			],
+			applies: "scope",
+			effect: "replaces"
+		}], YARNRC, "npmRegistryServer: \"Define the registry to use when fetching packages\"; npmScopes: \"Per-scope registry configurations\", whose entries take npmRegistryServer (\"See npmRegistryServer\"), keyed by the scope without @. \"While Yarn will automatically find them in the parent directories, they should usually be kept at the root of your project\". Yarn (Berry) does not read registry= from .npmrc."),
 		yamlMergeKeys: user.verified(false, `${BERRY}/packages/yarnpkg-parsers/sources/syml.ts`, "parseSyml reads .yarnrc.yml with load of js-yaml and FAILSAFE_SCHEMA, which has no merge type (only strings, sequences and maps), so <<: *defaults is an ordinary key named <<: Configuration.use rejects it as an unrecognized setting in a project .yarnrc.yml (enableStrictSettings, default true) and sets it aside in the home file, so merged values never apply. Every scalar is a string to Yarn, which parses it per setting (parseValue in packages/yarnpkg-core/sources/Configuration.ts)."),
 		classicUserFile: user.verified({
 			until: "2.0.0",
 			file: ".yarnrc"
 		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/registries/yarn-registry.js", "Yarn Classic (1.x, last release 1.22.22) reads .yarnrc and .npmrc from the project, its parent folders, the home folder (homeConfigLoc = ~/.yarnrc) and the global prefix (getPossibleConfigLocations in src/registries/npm-registry.js), never .yarnrc.yml, which only Yarn 2 and later read. depcurfew does not configure Yarn Classic."),
+		yarnPath: leftovers$1.uncertain({
+			key: "yarnPath",
+			releaseFile: "yarn-<version>.cjs",
+			variables: ["YARN_YARN_PATH", "YARN_IGNORE_PATH"]
+		}, `${BERRY}/packages/plugin-essentials/sources/commands/set/version.ts`, "yarn set version saves the release as .yarn/releases/yarn-<version>.cjs and writes a relative yarnPath to it. Yarn 2 and later read yarnPath (an absolute path setting, resolved against the folder of the .yarnrc.yml that sets it) from every .yarnrc.yml, the home file included, before the project is found (Configuration.find, pickPrimaryCoreFields), and run node <yarnPath> instead of themselves (runYarnPath in packages/yarnpkg-cli/sources/lib.ts); a nearer .yarnrc.yml with its own yarnPath, YARN_YARN_PATH or YARN_IGNORE_PATH changes that. The file name is only a hint: a URL or a file given to yarn set version gives other names (yarn-remote.cjs), a hand-written yarnPath may name any file, and the version inside the bundle is minified, so depcurfew uses the name only when it is yarn-<exact version>.cjs and the file exists."),
 		denyList: user.verified({
 			file: "package.json",
 			setting: "dependenciesMeta.<package>.built",
 			value: false,
 			since: "2.0.0"
 		}, "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-pnp/sources/jsInstallUtils.ts", "With built: false in the root package.json, Yarn reports that the build \"has been explicitly disabled through configuration\" as an info message instead of the warning that all build scripts are disabled; built: false also wins over enableScripts: true. Only the top-level manifest counts (CHANGELOG 2.0.0)."),
+		projectInstall: leftovers$1.verified({
+			commands: ["install"],
+			bare: true
+		}, `${BERRY}/packages/plugin-essentials/sources/commands/install.ts`, "The install command (\"install the project dependencies\") has the paths [`install`] and Command.Default, so yarn without a command installs too. yarn add (commandLine.add) adds packages."),
 		commandLine: checked$3.verified({
 			add: [["yarn", "add"]],
 			run: [{
@@ -4171,8 +5320,49 @@ const yarn$1 = {
 		}, `${YARNRC}#npmPreapprovedPackages`, "Name globs such as @scope/* or package* in npmPreapprovedPackages."),
 		berryLockfileMarker: uncertain("__metadata", "https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Project.ts", "Read from code: Yarn 2+ writes a __metadata key into yarn.lock and treats a lockfile without it but with \"yarn lockfile v1\" as Yarn Classic."),
 		classicLockfileHeader: verified$1("# yarn lockfile v1", "https://github.com/yarnpkg/yarn/blob/master/src/lockfile/stringify.js", "Written as # yarn lockfile v${LOCKFILE_VERSION} with LOCKFILE_VERSION = 1 (src/constants.js)."),
-		latestVersion: verified$1("4.18.1", release("4.18.1"), "Yarn 6 is still in preview."),
+		latestVersion: verified$1("4.18.1", release$1("4.18.1"), "Yarn 6 is still in preview."),
 		bypassFlag: verified$1("--no-time-gate on yarn add and yarn up (4.15.0+)", "https://yarnpkg.com/cli/add"),
+		directoryOptions: leftovers$1.verified({
+			options: [{
+				name: "--cwd",
+				moves: "directory",
+				position: "first"
+			}, {
+				name: "--cwd",
+				moves: "directory",
+				position: "last",
+				command: ["yarn", "add"]
+			}],
+			variables: []
+		}, `${BERRY}/packages/yarnpkg-cli/sources/lib.ts`, "checkCwd takes --cwd <dir> or --cwd=<dir> only as the first argument (\"argv[0] === `--cwd`\", \"argv[0].startsWith(`--cwd=`)\"), and for yarn add also as the last two words (\"argv[0] === `add` && argv[argv.length - 2] === `--cwd`\"; \"CRA adds `--cwd` at the end of the command\"), removes them and runs the command with cli.defaultContext.cwd = ppath.resolve(cwd). Yarn finds the project and its .yarnrc.yml files from that directory."),
+		configCommands: leftovers$1.verified([{
+			command: ["yarn", "config"],
+			writes: ["set", "unset"]
+		}], `${BERRY}/packages/plugin-essentials/sources/index.ts`, "plugin-essentials registers config get, config set and config unset next to config (commands/config/*.ts at 4.18.1). yarn config set updates the project configuration, or the home configuration with -H/--home (commands/config/set.ts); yarn config and yarn config get only print settings (commands/config.ts: \"This command prints the current active configuration settings\")."),
+		installOverrides: leftovers$1.verified({
+			options: [{
+				name: "--no-time-gate",
+				weakens: "delay",
+				values: "any"
+			}],
+			variables: [
+				{
+					name: "YARN_NPM_MINIMAL_AGE_GATE",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "YARN_NPM_PREAPPROVED_PACKAGES",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "YARN_ENABLE_SCRIPTS",
+					weakens: "scripts",
+					values: { except: ["false", "0"] }
+				}
+			]
+		}, `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`, "yarn add declares noTimeGate = Option.Boolean(`--no-time-gate`), \"Disable the minimum release age check for this command\" (plugin-essentials/sources/commands/add.ts at 4.18.1). getEnvironmentSettings lowercases every environment variable, keeps those starting with yarn_ and camel-cases the rest into a setting (ENVIRONMENT_PREFIX), so YARN_NPM_MINIMAL_AGE_GATE sets npmMinimalAgeGate, YARN_NPM_PREAPPROVED_PACKAGES npmPreapprovedPackages and YARN_ENABLE_SCRIPTS enableScripts; the values that keep scripts off are those of user.variables."),
 		perScopeGate: rechecked.verified({
 			scopes: "npmScopes",
 			setting: "npmMinimalAgeGate",
@@ -4191,10 +5381,51 @@ const checked$2 = verifiedOn("2026-10-29");
 const python = verifiedOn("2026-10-30");
 const gitFacts = verifiedOn("2026-10-30");
 const audited = verifiedOn("2026-10-31");
+const release13 = verifiedOn("2026-11-01");
+const mcpFacts = verifiedOn("2026-11-01");
+const actionChecks = verifiedOn("2026-11-01");
+const leftovers = verifiedOn("2026-11-01");
+const runtimes = verifiedOn("2026-11-01");
+const recheck = verifiedOn("2026-11-01");
+const finalReview = verifiedOn("2026-11-01");
 const COREPACK_README = "https://github.com/nodejs/corepack/blob/main/README.md";
 const COREPACK_CHANGELOG = "https://github.com/nodejs/corepack/blob/main/CHANGELOG.md";
+const COREPACK_V0_36_0 = "https://github.com/nodejs/corepack/blob/v0.36.0";
+/** The variables Corepack's code reads for its home folder, in order; a variable counts when it is set, even empty (??). */
+const COREPACK_VARIABLES = [
+	{
+		from: {
+			env: "COREPACK_HOME",
+			emptyCounts: true
+		},
+		path: ""
+	},
+	{
+		from: {
+			env: "XDG_CACHE_HOME",
+			emptyCounts: true
+		},
+		path: "node/corepack"
+	},
+	{
+		from: {
+			env: "LOCALAPPDATA",
+			emptyCounts: true
+		},
+		path: "node/corepack"
+	}
+];
 const NPM_PACKAGE_JSON = "https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/configuring-npm/package-json.md";
 const SPECIFICATIONS = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications";
+const MCP = "https://github.com/modelcontextprotocol/modelcontextprotocol/blob/d0e246ea3c69eafaa2806bc4cd28025703ba2c2b";
+const VSCODE_MCP = "https://github.com/microsoft/vscode-docs/blob/5a54a294d553935c53374f43c668e37d08f0118e/docs/agents/reference/mcp-configuration.md";
+const NODE_RELEASE = "https://github.com/nodejs/Release/blob/c3e8696312969c95643cb52f05f124c161db87b2";
+const DOCKER_NODE = "https://github.com/nodejs/docker-node/blob/14b1d124e21d312c46b30db98985ab7e58a89594";
+const DOCKER_PYTHON = "https://github.com/docker-library/python/blob/f4c67ece208dead594e43628d22e3c6027dd97ab";
+const OFFICIAL_IMAGES = "https://github.com/docker-library/official-images/blob/ed47b185c4a0fec32cb51279211416a2d28c4f00/library";
+const DOCKERFILE_REFERENCE = "https://github.com/moby/buildkit/blob/c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5/frontend/dockerfile/docs/reference.md";
+const DOCKER_DOCS = "https://github.com/docker/docs/blob/53581df94e05ad4116a8d31e47ea098289fa5498";
+const SETUP_NODE = "https://github.com/actions/setup-node/blob/949feb2413d6458794dcd2491c4babbbce0c15c1";
 const environment = {
 	corepack: {
 		packageManagerField: verified({
@@ -4220,7 +5451,820 @@ const environment = {
 				since: "25.0.0",
 				value: false
 			}
-		], "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md", "Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0.")
+		], "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md", "Node.js 25.0.0 stopped distributing Corepack; the Corepack README says it ships with Node.js from 14.19.0 up to (but not including) 25.0.0."),
+		package: leftovers.verified("corepack", `${COREPACK_V0_36_0}/package.json`, "Its published bin field (publishConfig.bin) declares yarn (./dist/yarn.js), yarnpkg, pnpm and pnpx next to corepack. corepack enable links them from the folder of the corepack executable (a relative symlink to dist/<name>.js on Linux and macOS, a cmd-shim on Windows; sources/commands/Enable.ts), so the package.json behind a yarn or pnpm shim is Corepack's, which says nothing about the version the shim runs."),
+		toolPackages: leftovers.verified({
+			npm: ["npm"],
+			pnpm: ["pnpm"],
+			yarn: ["yarn", "@yarnpkg/cli-dist"]
+		}, `${COREPACK_V0_36_0}/config.json`, "The npm packages Corepack installs each package manager from: npm; pnpm; yarn below 2.0.0 (Yarn Classic) and, with COREPACK_NPM_REGISTRY, @yarnpkg/cli-dist for Yarn 2 and later (\"npmRegistry\": { \"package\": \"@yarnpkg/cli-dist\", \"bin\": \"bin/yarn.js\" }). npm i -g @yarnpkg/cli-dist installs the same package, whose package.json declares bin yarn and carries the Yarn version (observed for 4.18.1)."),
+		defaults: leftovers.disputed("Corepack 0.36.0 runs the version lastKnownGood.json names for a package manager when no package.json above the current folder sets packageManager; without an entry it fetches the latest version of the npm package (yarn: Yarn Classic 1.x, which never reads .yarnrc.yml) and records it there, or with COREPACK_DEFAULT_TO_LATEST=0 uses its built-in default (getDefaultVersion in sources/Engine.ts). The code looks for the home folder in COREPACK_HOME, XDG_CACHE_HOME, LOCALAPPDATA (on every system) and then the home folder, using a variable that is set even when it is empty (??); the README leaves out XDG_CACHE_HOME and LOCALAPPDATA outside Windows. The code is what runs, so depcurfew follows it; the layout is the same since 0.13.0 (sources/folderUtils.ts), before which the folder was ~/.node/corepack. Values carry a hash after + (1.22.22+sha1.ac34...), which is not part of the version.", leftovers.evidence({
+			since: "0.13.0",
+			locations: [{
+				platforms: ["linux", "darwin"],
+				directories: [...COREPACK_VARIABLES, {
+					from: "home",
+					path: ".cache/node/corepack"
+				}],
+				file: "lastKnownGood.json"
+			}, {
+				platforms: ["win32"],
+				directories: [...COREPACK_VARIABLES, {
+					from: "home",
+					path: "AppData/Local/node/corepack"
+				}],
+				file: "lastKnownGood.json"
+			}]
+		}, `${COREPACK_V0_36_0}/sources/folderUtils.ts`, "getCorepackHomeFolder: process.env.COREPACK_HOME ?? join(process.env.XDG_CACHE_HOME ?? process.env.LOCALAPPDATA ?? join(homedir(), process.platform === `win32` ? `AppData/Local` : `.cache`), `node/corepack`); sources/Engine.ts reads join(getCorepackHomeFolder(), `lastKnownGood.json`), a JSON object of package manager names and versions."), leftovers.evidence({
+			since: "0.13.0",
+			locations: [{
+				platforms: ["linux", "darwin"],
+				directories: [{
+					from: { env: "COREPACK_HOME" },
+					path: ""
+				}, {
+					from: "home",
+					path: ".cache/node/corepack"
+				}],
+				file: "lastKnownGood.json"
+			}, {
+				platforms: ["win32"],
+				directories: [{
+					from: { env: "COREPACK_HOME" },
+					path: ""
+				}, {
+					from: { env: "LOCALAPPDATA" },
+					path: "node/corepack"
+				}],
+				file: "lastKnownGood.json"
+			}]
+		}, `${COREPACK_V0_36_0}/README.md`, "\"COREPACK_HOME can be set in order to define where Corepack should install the package managers. By default it is set to %LOCALAPPDATA%\\node\\corepack on Windows, and to $HOME/.cache/node/corepack everywhere else.\"")),
+		enableNpm: runtimes.verified({
+			command: "enable",
+			npmOnlyWhenNamed: true
+		}, COREPACK_README, "corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: \"Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means\". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm.")
+	},
+	node: {
+		bundledNpm: runtimes.verified([
+			{
+				line: "0.6",
+				latest: "0.6.21",
+				bundles: [
+					["0.6.3", "1.1.0-alpha-2"],
+					["0.6.4", "1.1.0-alpha-6"],
+					["0.6.6", "1.1.0-beta-4"],
+					["0.6.7", "1.1.0-beta-10"],
+					["0.6.8", "1.1.0-2"],
+					["0.6.9", "1.1.0-3"],
+					["0.6.11", "1.1.1"],
+					["0.6.12", "1.1.4"],
+					["0.6.13", "1.1.9"],
+					["0.6.14", "1.1.12"],
+					["0.6.15", "1.1.16"],
+					["0.6.16", "1.1.19"],
+					["0.6.17", "1.1.21"],
+					["0.6.19", "1.1.24"],
+					["0.6.20", "1.1.37"]
+				]
+			},
+			{
+				line: "0.7",
+				latest: "0.7.12",
+				bundles: [
+					["0.7.0", "1.1.0-2"],
+					["0.7.2", "1.1.0-3"],
+					["0.7.4", "1.1.1"],
+					["0.7.6", "1.1.8"],
+					["0.7.7", "1.1.15"],
+					["0.7.8", "1.1.18"],
+					["0.7.9", "1.1.23"],
+					["0.7.10", "1.1.25"],
+					["0.7.11", "1.1.26"],
+					["0.7.12", "1.1.30"]
+				]
+			},
+			{
+				line: "0.8",
+				latest: "0.8.28",
+				bundles: [
+					["0.8.0", "1.1.32"],
+					["0.8.1", "1.1.33"],
+					["0.8.2", "1.1.36"],
+					["0.8.3", "1.1.43"],
+					["0.8.4", "1.1.45"],
+					["0.8.5", "1.1.46"],
+					["0.8.6", "1.1.48"],
+					["0.8.7", "1.1.49"],
+					["0.8.8", "1.1.59"],
+					["0.8.9", "1.1.61"],
+					["0.8.10", "1.1.62"],
+					["0.8.12", "1.1.63"],
+					["0.8.13", "1.1.65"],
+					["0.8.15", "1.1.66"],
+					["0.8.16", "1.1.69"],
+					["0.8.17", "1.2.0"],
+					["0.8.18", "1.2.2"],
+					["0.8.19", "1.2.10"],
+					["0.8.20", "1.2.11"],
+					["0.8.22", "1.2.14"],
+					["0.8.23", "1.2.18"],
+					["0.8.24", "1.2.24"],
+					["0.8.25", "1.2.30"]
+				]
+			},
+			{
+				line: "0.9",
+				latest: "0.9.12",
+				bundles: [
+					["0.9.0", "1.1.44"],
+					["0.9.1", "1.1.59"],
+					["0.9.2", "1.1.61"],
+					["0.9.3", "1.1.64"],
+					["0.9.4", "1.1.70"],
+					["0.9.6", "1.2.0"],
+					["0.9.7", "1.2.2"],
+					["0.9.8", "1.2.3"],
+					["0.9.9", "1.2.10"],
+					["0.9.10", "1.2.12"]
+				]
+			},
+			{
+				line: "0.10",
+				latest: "0.10.48",
+				bundles: [
+					["0.10.0", "1.2.14"],
+					["0.10.1", "1.2.15"],
+					["0.10.3", "1.2.17"],
+					["0.10.4", "1.2.18"],
+					["0.10.7", "1.2.21"],
+					["0.10.8", "1.2.23"],
+					["0.10.9", "1.2.24"],
+					["0.10.10", "1.2.25"],
+					["0.10.11", "1.2.30"],
+					["0.10.12", "1.2.32"],
+					["0.10.13", "1.3.2"],
+					["0.10.14", "1.3.5"],
+					["0.10.16", "1.3.8"],
+					["0.10.19", "1.3.11"],
+					["0.10.22", "1.3.14"],
+					["0.10.23", "1.3.17"],
+					["0.10.24", "1.3.21"],
+					["0.10.25", "1.3.24"],
+					["0.10.26", "1.4.3"],
+					["0.10.27", "1.4.8"],
+					["0.10.28", "1.4.9"],
+					["0.10.29", "1.4.14"],
+					["0.10.30", "1.4.21"],
+					["0.10.31", "1.4.23"],
+					["0.10.32", "1.4.28"],
+					["0.10.41", "1.4.29"],
+					["0.10.44", "2.15.0"],
+					["0.10.45", "2.15.1"]
+				]
+			},
+			{
+				line: "0.11",
+				latest: "0.11.16",
+				bundles: [
+					["0.11.0", "1.2.15"],
+					["0.11.1", "1.2.18"],
+					["0.11.2", "1.2.21"],
+					["0.11.3", "1.2.25"],
+					["0.11.4", "1.3.4"],
+					["0.11.5", "1.3.6"],
+					["0.11.6", "1.3.8"],
+					["0.11.8", "1.3.13"],
+					["0.11.9", "1.3.15"],
+					["0.11.10", "1.3.22"],
+					["0.11.11", "1.3.25"],
+					["0.11.12", "1.4.3"],
+					["0.11.13", "1.4.9"],
+					["0.11.14", "2.0.0"],
+					["0.11.15", "2.1.6"],
+					["0.11.16", "2.3.0"]
+				]
+			},
+			{
+				line: "0.12",
+				latest: "0.12.18",
+				bundles: [
+					["0.12.0", "2.5.1"],
+					["0.12.2", "2.7.4"],
+					["0.12.3", "2.9.1"],
+					["0.12.4", "2.10.1"],
+					["0.12.5", "2.11.2"],
+					["0.12.7", "2.11.3"],
+					["0.12.8", "2.14.9"],
+					["0.12.13", "2.15.0"],
+					["0.12.14", "2.15.1"],
+					["0.12.18", "2.15.11"]
+				]
+			},
+			{
+				line: "4",
+				latest: "4.9.1",
+				bundles: [
+					["4.0.0", "2.14.2"],
+					["4.1.0", "2.14.3"],
+					["4.1.1", "2.14.4"],
+					["4.2.0", "2.14.7"],
+					["4.2.4", "2.14.12"],
+					["4.4.0", "2.14.20"],
+					["4.4.2", "2.15.0"],
+					["4.4.3", "2.15.1"],
+					["4.4.5", "2.15.5"],
+					["4.4.7", "2.15.8"],
+					["4.5.0", "2.15.9"],
+					["4.6.2", "2.15.11"]
+				]
+			},
+			{
+				line: "5",
+				latest: "5.12.0",
+				bundles: [
+					["5.0.0", "3.3.6"],
+					["5.1.0", "3.3.12"],
+					["5.6.0", "3.6.0"],
+					["5.8.0", "3.7.3"],
+					["5.10.0", "3.8.3"],
+					["5.11.0", "3.8.6"]
+				]
+			},
+			{
+				line: "6",
+				latest: "6.17.1",
+				bundles: [
+					["6.0.0", "3.8.6"],
+					["6.2.0", "3.8.9"],
+					["6.2.1", "3.9.3"],
+					["6.2.2", "3.9.5"],
+					["6.3.0", "3.10.3"],
+					["6.8.0", "3.10.8"],
+					["6.9.2", "3.10.9"],
+					["6.9.3", "3.10.10"]
+				]
+			},
+			{
+				line: "7",
+				latest: "7.10.1",
+				bundles: [
+					["7.0.0", "3.10.8"],
+					["7.1.0", "3.10.9"],
+					["7.2.1", "3.10.10"],
+					["7.4.0", "4.0.5"],
+					["7.5.0", "4.1.2"],
+					["7.8.0", "4.2.0"]
+				]
+			},
+			{
+				line: "8",
+				latest: "8.17.0",
+				bundles: [
+					["8.0.0", "5.0.0"],
+					["8.1.0", "5.0.3"],
+					["8.2.0", "5.3.0"],
+					["8.7.0", "5.4.2"],
+					["8.9.0", "5.5.1"],
+					["8.9.4", "5.6.0"],
+					["8.12.0", "6.4.1"],
+					["8.17.0", "6.13.4"]
+				]
+			},
+			{
+				line: "9",
+				latest: "9.11.2",
+				bundles: [["9.0.0", "5.5.1"], ["9.4.0", "5.6.0"]]
+			},
+			{
+				line: "10",
+				latest: "10.24.1",
+				bundles: [
+					["10.0.0", "5.6.0"],
+					["10.3.0", "6.1.0"],
+					["10.8.0", "6.2.0"],
+					["10.10.0", "6.4.1"],
+					["10.16.0", "6.9.0"],
+					["10.17.0", "6.11.3"],
+					["10.18.0", "6.13.4"],
+					["10.20.0", "6.14.4"],
+					["10.22.0", "6.14.6"],
+					["10.23.0", "6.14.8"],
+					["10.23.1", "6.14.10"],
+					["10.23.3", "6.14.11"],
+					["10.24.1", "6.14.12"]
+				]
+			},
+			{
+				line: "11",
+				latest: "11.15.0",
+				bundles: [
+					["11.0.0", "6.4.1"],
+					["11.6.0", "6.5.0-next.0"],
+					["11.7.0", "6.5.0"],
+					["11.10.0", "6.7.0"]
+				]
+			},
+			{
+				line: "12",
+				latest: "12.22.12",
+				bundles: [
+					["12.0.0", "6.9.0"],
+					["12.7.0", "6.10.0"],
+					["12.8.0", "6.10.2"],
+					["12.10.0", "6.10.3"],
+					["12.11.0", "6.11.3"],
+					["12.13.0", "6.12.0"],
+					["12.13.1", "6.12.1"],
+					["12.14.0", "6.13.4"],
+					["12.16.2", "6.14.4"],
+					["12.18.1", "6.14.5"],
+					["12.18.3", "6.14.6"],
+					["12.19.0", "6.14.8"],
+					["12.20.1", "6.14.10"],
+					["12.20.2", "6.14.11"],
+					["12.22.1", "6.14.12"],
+					["12.22.2", "6.14.13"],
+					["12.22.4", "6.14.14"],
+					["12.22.6", "6.14.15"],
+					["12.22.10", "6.14.16"]
+				]
+			},
+			{
+				line: "13",
+				latest: "13.14.0",
+				bundles: [
+					["13.0.0", "6.12.0"],
+					["13.1.0", "6.12.1"],
+					["13.2.0", "6.13.1"],
+					["13.4.0", "6.13.4"],
+					["13.7.0", "6.13.6"],
+					["13.9.0", "6.13.7"],
+					["13.12.0", "6.14.4"]
+				]
+			},
+			{
+				line: "14",
+				latest: "14.21.3",
+				bundles: [
+					["14.0.0", "6.14.4"],
+					["14.3.0", "6.14.5"],
+					["14.6.0", "6.14.6"],
+					["14.7.0", "6.14.7"],
+					["14.9.0", "6.14.8"],
+					["14.15.2", "6.14.9"],
+					["14.15.4", "6.14.10"],
+					["14.15.5", "6.14.11"],
+					["14.16.1", "6.14.12"],
+					["14.17.0", "6.14.13"],
+					["14.17.4", "6.14.14"],
+					["14.17.6", "6.14.15"],
+					["14.19.0", "6.14.16"],
+					["14.19.2", "6.14.17"],
+					["14.21.3", "6.14.18"]
+				]
+			},
+			{
+				line: "15",
+				latest: "15.14.0",
+				bundles: [
+					["15.0.0", "7.0.2"],
+					["15.0.1", "7.0.3"],
+					["15.1.0", "7.0.8"],
+					["15.3.0", "7.0.14"],
+					["15.4.0", "7.0.15"],
+					["15.5.0", "7.3.0"],
+					["15.6.0", "7.4.0"],
+					["15.7.0", "7.4.3"],
+					["15.8.0", "7.5.1"],
+					["15.9.0", "7.5.3"],
+					["15.11.0", "7.6.0"],
+					["15.12.0", "7.6.3"],
+					["15.13.0", "7.7.6"]
+				]
+			},
+			{
+				line: "16",
+				latest: "16.20.2",
+				bundles: [
+					["16.0.0", "7.10.0"],
+					["16.1.0", "7.11.2"],
+					["16.2.0", "7.13.0"],
+					["16.3.0", "7.15.1"],
+					["16.4.0", "7.18.1"],
+					["16.5.0", "7.19.1"],
+					["16.6.1", "7.20.3"],
+					["16.8.0", "7.21.0"],
+					["16.9.0", "7.21.1"],
+					["16.10.0", "7.24.0"],
+					["16.11.0", "8.0.0"],
+					["16.12.0", "8.1.0"],
+					["16.13.1", "8.1.2"],
+					["16.14.0", "8.3.1"],
+					["16.14.1", "8.5.0"],
+					["16.15.0", "8.5.5"],
+					["16.15.1", "8.11.0"],
+					["16.17.0", "8.15.0"],
+					["16.18.0", "8.19.2"],
+					["16.19.0", "8.19.3"],
+					["16.20.0", "8.19.4"]
+				]
+			},
+			{
+				line: "17",
+				latest: "17.9.1",
+				bundles: [
+					["17.0.0", "8.1.0"],
+					["17.1.0", "8.1.2"],
+					["17.2.0", "8.1.4"],
+					["17.3.0", "8.3.0"],
+					["17.4.0", "8.3.1"],
+					["17.5.0", "8.4.1"],
+					["17.6.0", "8.5.1"],
+					["17.7.0", "8.5.2"],
+					["17.8.0", "8.5.5"],
+					["17.9.1", "8.11.0"]
+				]
+			},
+			{
+				line: "18",
+				latest: "18.20.8",
+				bundles: [
+					["18.0.0", "8.6.0"],
+					["18.1.0", "8.8.0"],
+					["18.2.0", "8.9.0"],
+					["18.3.0", "8.11.0"],
+					["18.4.0", "8.12.1"],
+					["18.6.0", "8.13.2"],
+					["18.7.0", "8.15.0"],
+					["18.8.0", "8.18.0"],
+					["18.9.0", "8.19.1"],
+					["18.10.0", "8.19.2"],
+					["18.13.0", "8.19.3"],
+					["18.14.0", "9.3.1"],
+					["18.14.2", "9.5.0"],
+					["18.16.0", "9.5.1"],
+					["18.17.0", "9.6.7"],
+					["18.18.0", "9.8.1"],
+					["18.19.0", "10.2.3"],
+					["18.19.1", "10.2.4"],
+					["18.20.0", "10.5.0"],
+					["18.20.3", "10.7.0"],
+					["18.20.5", "10.8.2"]
+				]
+			},
+			{
+				line: "19",
+				latest: "19.9.0",
+				bundles: [
+					["19.0.0", "8.19.2"],
+					["19.1.0", "8.19.3"],
+					["19.3.0", "9.2.0"],
+					["19.5.0", "9.3.1"],
+					["19.6.0", "9.4.0"],
+					["19.7.0", "9.5.0"],
+					["19.8.0", "9.5.1"],
+					["19.9.0", "9.6.3"]
+				]
+			},
+			{
+				line: "20",
+				latest: "20.20.2",
+				bundles: [
+					["20.0.0", "9.6.4"],
+					["20.2.0", "9.6.6"],
+					["20.3.0", "9.6.7"],
+					["20.4.0", "9.7.2"],
+					["20.5.0", "9.8.0"],
+					["20.6.0", "9.8.1"],
+					["20.7.0", "10.1.0"],
+					["20.10.0", "10.2.3"],
+					["20.11.0", "10.2.4"],
+					["20.12.0", "10.5.0"],
+					["20.13.0", "10.5.2"],
+					["20.14.0", "10.7.0"],
+					["20.16.0", "10.8.1"],
+					["20.17.0", "10.8.2"]
+				]
+			},
+			{
+				line: "21",
+				latest: "21.7.3",
+				bundles: [
+					["21.0.0", "10.2.0"],
+					["21.2.0", "10.2.3"],
+					["21.3.0", "10.2.4"],
+					["21.7.0", "10.5.0"]
+				]
+			},
+			{
+				line: "22",
+				latest: "22.23.4",
+				bundles: [
+					["22.0.0", "10.5.1"],
+					["22.1.0", "10.7.0"],
+					["22.3.0", "10.8.1"],
+					["22.5.0", "10.8.2"],
+					["22.9.0", "10.8.3"],
+					["22.10.0", "10.9.0"],
+					["22.13.0", "10.9.2"],
+					["22.18.0", "10.9.3"],
+					["22.21.0", "10.9.4"],
+					["22.22.2", "10.9.7"],
+					["22.22.3", "10.9.8"],
+					["22.23.3", "10.9.9"]
+				]
+			},
+			{
+				line: "23",
+				latest: "23.11.1",
+				bundles: [["23.0.0", "10.9.0"], ["23.4.0", "10.9.2"]]
+			},
+			{
+				line: "24",
+				latest: "24.22.2",
+				bundles: [
+					["24.0.0", "11.3.0"],
+					["24.3.0", "11.4.2"],
+					["24.5.0", "11.5.1"],
+					["24.8.0", "11.6.0"],
+					["24.10.0", "11.6.1"],
+					["24.11.1", "11.6.2"],
+					["24.13.1", "11.8.0"],
+					["24.14.0", "11.9.0"],
+					["24.14.1", "11.11.0"],
+					["24.15.0", "11.12.1"],
+					["24.16.0", "11.13.0"],
+					["24.18.0", "11.16.0"],
+					["24.19.0", "11.17.0"],
+					["24.20.0", "11.19.0"],
+					["24.22.0", "11.19.1"]
+				]
+			},
+			{
+				line: "25",
+				latest: "25.9.0",
+				bundles: [
+					["25.0.0", "11.6.2"],
+					["25.4.0", "11.7.0"],
+					["25.5.0", "11.8.0"],
+					["25.6.1", "11.9.0"],
+					["25.7.0", "11.10.1"],
+					["25.8.0", "11.11.0"],
+					["25.8.2", "11.11.1"],
+					["25.9.0", "11.12.1"]
+				]
+			},
+			{
+				line: "26",
+				latest: "26.13.0",
+				bundles: [
+					["26.0.0", "11.12.1"],
+					["26.1.0", "11.13.0"],
+					["26.3.0", "11.16.0"],
+					["26.4.0", "11.17.0"],
+					["26.6.0", "11.18.0"],
+					["26.7.0", "11.19.0"],
+					["26.8.2", "11.19.1"],
+					["26.11.0", "11.20.0"]
+				]
+			}
+		], "https://nodejs.org/dist/index.json", "The npm field of every release in index.json (fetched on 2026-11-01, sha256 6b27fe5766e87929d16ccdde05c516cbdd12200eab62b28d4b2f31d34e21481a), as the first release of each line that bundles each npm version; latest is the newest release of the line that day. Lines are the major version from 4 on and the minor version before (0.6 to 0.12, as Node.js numbered them then). The bundled npm never goes down within a line. Releases before 0.6.3 (0.1.14 to 0.5.10 and 0.6.0 to 0.6.2) have no npm field: they came without npm. Every release before 18.0.0 bundles npm 8.19.4 or earlier (16.20.2 has npm 8.19.4), so none of them has min-release-age, allowScripts or strict-allow-scripts. 27.0.0-alpha.0.0.0 (npm 12.1.0) is a prerelease and left out: no release bundles npm 12 yet, Node.js 22 stays on npm 10.9.x, 24 reaches npm 11.10 or later only from 24.14.1 (npm 11.10.x was skipped) and 25 ends at npm 11.12.1."),
+		releaseSchedule: runtimes.verified([
+			{
+				line: 4,
+				start: "2015-09-08",
+				lts: "2015-10-12",
+				end: "2018-04-30",
+				codename: "argon"
+			},
+			{
+				line: 5,
+				start: "2015-10-29",
+				end: "2016-06-30"
+			},
+			{
+				line: 6,
+				start: "2016-04-26",
+				lts: "2016-10-18",
+				end: "2019-04-30",
+				codename: "boron"
+			},
+			{
+				line: 7,
+				start: "2016-10-25",
+				end: "2017-06-30"
+			},
+			{
+				line: 8,
+				start: "2017-05-30",
+				lts: "2017-10-31",
+				end: "2019-12-31",
+				codename: "carbon"
+			},
+			{
+				line: 9,
+				start: "2017-10-01",
+				end: "2018-06-30"
+			},
+			{
+				line: 10,
+				start: "2018-04-24",
+				lts: "2018-10-30",
+				end: "2021-04-30",
+				codename: "dubnium"
+			},
+			{
+				line: 11,
+				start: "2018-10-23",
+				end: "2019-06-01"
+			},
+			{
+				line: 12,
+				start: "2019-04-23",
+				lts: "2019-10-21",
+				end: "2022-04-30",
+				codename: "erbium"
+			},
+			{
+				line: 13,
+				start: "2019-10-22",
+				end: "2020-06-01"
+			},
+			{
+				line: 14,
+				start: "2020-04-21",
+				lts: "2020-10-27",
+				end: "2023-04-30",
+				codename: "fermium"
+			},
+			{
+				line: 15,
+				start: "2020-10-20",
+				end: "2021-06-01"
+			},
+			{
+				line: 16,
+				start: "2021-04-20",
+				lts: "2021-10-26",
+				end: "2023-09-11",
+				codename: "gallium"
+			},
+			{
+				line: 17,
+				start: "2021-10-19",
+				end: "2022-06-01"
+			},
+			{
+				line: 18,
+				start: "2022-04-19",
+				lts: "2022-10-25",
+				end: "2025-04-30",
+				codename: "hydrogen"
+			},
+			{
+				line: 19,
+				start: "2022-10-18",
+				end: "2023-06-01"
+			},
+			{
+				line: 20,
+				start: "2023-04-18",
+				lts: "2023-10-24",
+				end: "2026-04-30",
+				codename: "iron"
+			},
+			{
+				line: 21,
+				start: "2023-10-17",
+				end: "2024-06-01"
+			},
+			{
+				line: 22,
+				start: "2024-04-24",
+				lts: "2024-10-29",
+				end: "2027-04-30",
+				codename: "jod"
+			},
+			{
+				line: 23,
+				start: "2024-10-16",
+				end: "2025-06-01"
+			},
+			{
+				line: 24,
+				start: "2025-05-06",
+				lts: "2025-10-28",
+				end: "2028-04-30",
+				codename: "krypton"
+			},
+			{
+				line: 25,
+				start: "2025-10-15",
+				end: "2026-06-01"
+			},
+			{
+				line: 26,
+				start: "2026-05-05",
+				lts: "2026-10-28",
+				end: "2029-04-30",
+				codename: "lithium"
+			},
+			{
+				line: 27,
+				start: "2027-04-22",
+				lts: "2027-10-20",
+				end: "2030-04-30"
+			}
+		], `${NODE_RELEASE}/schedule.json`, "start, lts and end of each line from 4 on, codenames in lower case as nvm and the node image tags write them. After end a line gets no more releases, security fixes included; the README says \"Production applications should only use Active LTS or Maintenance LTS releases\". From Node.js 27 every line first goes through an alpha phase (27 has \"alpha\": \"2026-10-28\" and no codename yet) and every line becomes LTS."),
+		nvmrc: runtimes.verified({
+			file: ".nvmrc",
+			comment: "#",
+			newest: ["node", "stable"],
+			newestLts: "lts/*",
+			ltsPrefix: "lts/",
+			previousLtsPrefix: "lts/-"
+		}, "https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md", "The file must contain precisely one version followed by a newline; # starts a comment, and comments, blank lines and leading and trailing white space are ignored. node is the latest version and stable an alias for it; lts/* is the latest LTS and lts/<codename> the LTS releases of that line; the file may hold \"any other string that nvm understands\". nvm use looks for the file from the current directory upwards. lts/-n is not in the README but in nvm.sh at the same commit (https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/nvm.sh, read 2026-11-01): nvm_normalize_lts, which nvm_alias calls for every alias (so also for the version of .nvmrc), matches \"lts/-[123456789] | lts/-[123456789][0123456789]*\", takes N from after the -, adds 1 and picks the N-th last entry of the lts alias directory, whose entries are the LTS codenames (alphabetical, which is release order) after *; so lts/-1 is the LTS line before the newest one, as in setup-node. When nothing matches it says \"That many LTS releases do not exist yet.\""),
+		nodeVersionFile: runtimes.verified({ file: ".node-version" }, "https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/README.md", "nodenv uses the version in .node-version of the project directory. fnm reads .node-version and .nvmrc and writes the file with node --version, so a leading v occurs (github.com/Schniz/fnm/blob/07f13237ae208f531f8ea88d4cfde3160c22f99a/README.md); setup-node reads it through node-version-file."),
+		engines: runtimes.verified({
+			key: "engines",
+			runtimeKey: "node"
+		}, `${NPM_PACKAGE_JSON}#engines`, "engines.node is the range of Node.js versions the package works on. Unless engine-strict is set, it is advisory and only produces warnings when the package is installed as a dependency; it does not choose the Node.js that runs. setup-node reads it from package.json through node-version-file when volta.node and devEngines.runtime are missing, and picks the newest version that matches."),
+		inheritedVersionFiles: recheck.verified([
+			".nvmrc",
+			".node-version",
+			".tool-versions"
+		], "https://github.com/nvm-sh/nvm/blob/5e38bc0caed342356ffd26eb21e0e9b995ac228b/README.md", "nvm: \"nvm use et. al. will traverse directory structure upwards from the current directory looking for the .nvmrc file\". nodenv: find_local_version_file in libexec/nodenv-version-file checks the directory for .node-version and then each parent up to the root (https://github.com/nodenv/nodenv/blob/5083e9819756c1a127a626a874703349f4ddb2e4/libexec/nodenv-version-file). asdf: the tool versions a .tool-versions file declares \"will be used in that directory and any subdirectories\" (https://github.com/asdf-vm/asdf/blob/master/docs/manage/configuration.md). Volta is not one of them: for_dir in crates/volta-core/src/project/mod.rs \"will search ancestors to find a package.json and use that as the root of the project\" and reads a parent package.json only through extends (https://github.com/volta-cli/volta/blob/main/crates/volta-core/src/project/mod.rs), so the volta key of the root package.json does not reach a project with a package.json of its own.")
+	},
+	docker: {
+		imageReference: runtimes.verified({
+			defaultHost: "docker.io",
+			hosts: [
+				"docker.io",
+				"index.docker.io",
+				"registry-1.docker.io"
+			],
+			officialNamespace: "library",
+			defaultTag: "latest"
+		}, "https://github.com/moby/moby/blob/9aa9edfa787e08bb2da31694cd8a402876f32232/vendor/github.com/distribution/reference/normalize.go", "splitDockerDomain canonicalizes ubuntu and docker.io/ubuntu as docker.io/library/ubuntu, and the legacy domain index.docker.io as docker.io. A reference without a tag means latest (docs/reference/commandline/image_tag.md in github.com/docker/cli at 8c8a77521af82b08bf3499cafb4c0e2e7b024936: \"If the namespace is omitted, Docker defaults to library, the namespace reserved for Docker Official Images\"). registry-1.docker.io is Docker Hub's registry itself: \"DefaultRegistryHost is the hostname for the default (Docker Hub) registry used for pushing and pulling images\", DefaultRegistryHost = \"registry-1.docker.io\" (https://github.com/moby/moby/blob/9aa9edfa787e08bb2da31694cd8a402876f32232/daemon/pkg/registry/config.go), so registry-1.docker.io/library/node is the same official image."),
+		syntax: runtimes.verified({
+			comment: "#",
+			escapeDirective: "escape",
+			escapeCharacters: ["\\", "`"],
+			globalArgInstruction: "ARG"
+		}, DOCKERFILE_REFERENCE, "Instructions are not case-sensitive. A line that begins with # is a comment unless it is a parser directive; comment lines are removed also inside a continued instruction. Parser directives (syntax, escape, check; keys not case-sensitive) must come first: after a comment, an empty line or an instruction none is read. The escape character (\\ by default, or `) at the end of a line continues the instruction; escaping is not performed in RUN except at the end of a line. ARG is the only instruction allowed before FROM, and FROM reads ARGs declared before the first FROM ($VAR, ${VAR}, ${VAR:-word}, ${VAR-word}, ${VAR:+word}, ${VAR+word}); --build-arg can change them. FROM [--platform=<platform>] <image>[:<tag>][@<digest>] [AS <name>]; a later FROM <name> starts from that stage. A here-document (RUN <<EOF) makes the following lines part of the instruction, up to the line with only the delimiter. Only RUN, COPY and ADD in shell form take here-documents, and only a whole word starts one: the parser splits the line into words with quotes kept (shlex.RawQuotes) and matches each word against ^(\\d*)<<(-?)\\s*([^<]*)$, so a quoted \"a <<b\" starts none (heredocsFromLine and reHeredoc in frontend/dockerfile/parser/parser.go at the same commit)."),
+		copySources: recheck.verified({
+			relativeTo: "context",
+			parentNavigation: "removed",
+			trailingSlash: "ignored"
+		}, `${DOCKERFILE_REFERENCE}#copying-from-the-build-context`, "COPY and ADD without --from: \"When copying source files from the build context, paths are interpreted as relative to the root of the context. Specifying a source path with a leading slash or one that navigates outside the build context, such as COPY ../something /something, automatically removes any parent directory navigation (../). Trailing slashes in the source path are also disregarded, making COPY something/ /something equivalent to COPY something /something.\" The ADD section says the same about ADD ../something. So /frontend/x, ../frontend/x and frontend/x are the same file, and frontend/.. is the root of the context."),
+		environment: finalReview.verified({
+			instruction: "ENV",
+			inheritedByStages: true,
+			spaceForm: true
+		}, `${DOCKERFILE_REFERENCE}#env`, "ENV <key>=<value> [<key>=<value>...]: \"This value will be in the environment for all subsequent instructions in the build stage\", and \"A stage inherits any environment variables that were set using ENV by its parent stage or any ancestor\". \"Like command line parsing, quotes and backslashes can be used to include spaces within values\". The alternative \"ENV <key> <value>, omitting the =\" sets one variable, and is discouraged. RUN commands see these variables, and ENV wins over an ARG of the same name."),
+		dockerfileNames: runtimes.verified({
+			defaultName: "Dockerfile",
+			suffix: ".Dockerfile"
+		}, `${DOCKER_DOCS}/content/manuals/build/concepts/dockerfile.md`, "\"The default filename to use for a Dockerfile is Dockerfile, without a file extension.\" \"A common convention is to name these <something>.Dockerfile\", passed with --file."),
+		dockerfilePrefix: runtimes.uncertain("Dockerfile.", `${DOCKER_DOCS}/content/manuals/build/concepts/dockerfile.md`, "Dockerfile.<name> (Dockerfile.dev) is a common practice, but no Docker documentation that was read mentions it; depcurfew reads such files too, because they are Dockerfiles passed with --file."),
+		containerfile: runtimes.verified("Containerfile", "https://github.com/containers/buildah/blob/14d624b398e05a07deecf29d50a44a149785cc20/docs/buildah-build.1.md", "\"A Containerfile uses the same syntax as a Dockerfile internally\"; Buildah and Podman read Containerfile or Dockerfile. Docker does not read Containerfile by default."),
+		nodeImage: runtimes.verified({
+			image: "node",
+			bundles: "npm",
+			variants: [
+				"alpine",
+				"slim",
+				"alpine3.23",
+				"alpine3.24",
+				"bookworm",
+				"bookworm-slim",
+				"trixie",
+				"trixie-slim"
+			]
+		}, `${DOCKER_NODE}/Dockerfile-debian.template`, "The image downloads the official tarball of the release and extracts it unchanged; its only npm command is npm --version, and docs/BestPractices.md tells users to add RUN npm install --global npm@<version> to change npm. So node:<version> has exactly the npm that release bundles. The Alpine images extract the -musl tarball or build from source. Tags (stackbrew.js): X.Y.Z, X.Y, X and <codename>, each also with -<variant>, and -alpine and -slim for the default variants; the variants are those of versions.json, plus alpine and slim. Yarn 1 is in the images up to Node.js 25."),
+		nodeImageTags: runtimes.uncertain({ tags: {
+			latest: "26",
+			current: "26",
+			lts: "26"
+		} }, `${OFFICIAL_IMAGES}/node`, "Moving tags on 2026-10-28, when library/node was last generated: lts, lts-<codename>, current, latest and a variant alone (alpine, slim, bookworm) all mean 26.13.0. They move to another line without notice: after 26 became LTS no line is current, and how current and latest resolve once 27 is released is not documented. Tags of lines no longer built (20, iron, 18) are gone from library/node and are not updated any more."),
+		pythonImage: runtimes.verified({
+			image: "python",
+			bundles: "pip",
+			variants: [
+				"alpine",
+				"slim",
+				"trixie",
+				"slim-trixie",
+				"bookworm",
+				"slim-bookworm",
+				"alpine3.23",
+				"alpine3.24"
+			]
+		}, `${DOCKER_PYTHON}/versions.sh`, "\"our policy is now to use the pip version that is installed during the Python build (which is the version bundled in ensurepip), and to not support overriding it\": Dockerfile-linux.template configures CPython --with-ensurepip and installs no other pip (only setuptools and wheel for 3.11). So python:<version> has the pip that CPython release bundles. Images built before 2024-09-07 installed pip with get-pip.py, at the version ensurepip had. Tags (generate-stackbrew-library.sh): X.Y.Z and X.Y, each with -<variant>; -slim and -alpine mean the default suite."),
+		pythonImageTags: runtimes.uncertain({ tags: {
+			latest: "3.15",
+			"3": "3.15"
+		} }, `${OFFICIAL_IMAGES}/python`, "On 2026-11-01 latest, 3 and a variant alone (slim, alpine, trixie) mean 3.15.2 (aliases [3.15]='3 latest' in generate-stackbrew-library.sh); they move when a new line is released. X.Y-rc tags are prereleases.")
 	},
 	devEngines: verified({
 		key: "devEngines",
@@ -4271,6 +6315,39 @@ const environment = {
 				tool: "node"
 			}]
 		}, "https://github.com/actions/setup-node/blob/main/action.yml", "Current major v7. node-version-file reads package.json, .nvmrc, .node-version, .tool-versions or mise.toml; node-version wins when both are set."),
+		setupNodeVersions: runtimes.verified({
+			newest: [
+				"latest",
+				"current",
+				"node",
+				"*"
+			],
+			newestLts: "lts/*",
+			ltsPrefix: "lts/",
+			previousLtsPrefix: "lts/-"
+		}, `${SETUP_NODE}/README.md`, "Tag v7.1.0. node-version takes semver (22, 24.8.0, >=10.15.0, 12.x), the NVM LTS syntax (lts/jod, lts/*, lts/-n) and latest, current, node or * for the latest release. A matching version in the runner's tool cache is used first, so a major version such as 24 may give an older release of the line unless check-latest is set."),
+		setupNodeVersionFile: runtimes.verified({
+			packageJson: "package.json",
+			packageJsonOrder: [
+				"volta.node",
+				"devEngines.runtime",
+				"engines.node"
+			],
+			textPattern: "^(?:node(js)?\\s+)?v?(?<version>[^\\s]+)$"
+		}, `${SETUP_NODE}/docs/advanced-usage.md`, "node-version-file accepts .nvmrc, .node-version, .tool-versions, mise.toml or package.json, relative to GITHUB_WORKSPACE. In package.json it checks volta.node, then the devEngines.runtime entry named node, then engines.node, then volta.extends. getNodeVersionFromFile in src/util.ts tries JSON, then TOML tools.node, then the first line that matches the pattern, then the whole text trimmed."),
+		jobContainer: finalReview.verified({
+			key: "container",
+			imageKey: "image",
+			envKey: "env"
+		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobscontainer", "Read from the page source in github/docs (data/reusables/actions/jobs/section-running-jobs-in-a-container.md and section-running-jobs-in-a-container-image.md, main on 2026-11-01): \"Use jobs.<job_id>.container to create a container to run any steps in a job that don't already specify a container\"; \"If you do not set a container, all steps will run directly on the host specified by runs-on\"; \"When you only specify a container image, you can omit the image keyword\" (container: node:18); jobs.<job_id>.container.image is \"the Docker image to use as the container to run the action\", and container.env sets variables in the container. So the run steps of such a job use the Node.js and npm of that image, until a setup step installs another."),
+		environmentKeys: finalReview.verified({
+			key: "env",
+			levels: [
+				"workflow",
+				"job",
+				"step"
+			]
+		}, "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env", "Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is \"A map of variables that are available to the steps of all jobs in the workflow\", jobs.<job_id>.env \"A map of variables that are available to all steps in the job\", and jobs.<job_id>.steps[*].env \"Sets variables for steps to use in the runner environment\"; for the same name GitHub \"uses the most specific variable\": the step's over the job's over the workflow's."),
 		pnpmActionSetup: verified({
 			action: "pnpm/action-setup",
 			installs: ["pnpm"],
@@ -4418,11 +6495,28 @@ const environment = {
 			perLevelPerStep: 10,
 			perJob: 50
 		}, "https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations", "10 error, 10 warning and 10 notice annotations per step; 50 annotations per job, summed over all steps. Annotations over the limit are not shown."),
-		checkRuns: audited.verified({
-			endpoint: "/repos/{repository}/check-runs",
+		checkRuns: actionChecks.verified({
+			endpoints: {
+				create: "/repos/{repository}/check-runs",
+				update: "/repos/{repository}/check-runs/{id}",
+				list: "/repos/{repository}/commits/{ref}/check-runs"
+			},
+			query: {
+				checkName: "check_name",
+				filter: "filter",
+				latest: "latest"
+			},
 			apiVersion: "2022-11-28",
 			permission: { checks: "write" },
 			summaryMaxLength: 65535,
+			annotationsPerRequest: 50,
+			annotationLevels: {
+				error: "failure",
+				warning: "warning",
+				note: "notice"
+			},
+			annotationTitleMaxLength: 255,
+			annotationMessageMaxBytes: 64e3,
 			variables: {
 				apiUrl: "GITHUB_API_URL",
 				repository: "GITHUB_REPOSITORY",
@@ -4434,7 +6528,7 @@ const environment = {
 				"head",
 				"sha"
 			]
-		}, "https://docs.github.com/en/rest/checks/runs#create-a-check-run", "Read from the sources of this page, the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json) and github/docs. POST /repos/{owner}/{repo}/check-runs (\"Create a check run\") needs name and head_sha; status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write \"permits an action to create a check run\" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the \"Last merge commit on the GITHUB_REF branch\" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH)."),
+		}, "https://docs.github.com/en/rest/checks/runs", "Read from the sources of this page (#create-a-check-run, #update-a-check-run, #list-check-runs-for-a-git-reference), the REST description github/rest-api-description (descriptions/api.github.com/api.github.com.json, commit f9ed74230d54847b5ca00a1343e8e349e858b8fb) and github/docs (commit 33b1f4a6fec2d9b6fd3d374afa56bcd9f0875b57); content/rest/checks/runs.md is generated from the REST description. POST /repos/{owner}/{repo}/check-runs (\"Create a check run\") needs name and head_sha and takes external_id, \"A reference for the run on the integrator's system\"; PATCH /repos/{owner}/{repo}/check-runs/{check_run_id} (\"Update a check run\") takes the same fields but head_sha, with only summary required in output, and \"OAuth apps and personal access tokens (classic) cannot use this endpoint\"; GET /repos/{owner}/{repo}/commits/{ref}/check-runs (\"List check runs for a Git reference\", ref a SHA, heads/BRANCH or tags/TAG) takes check_name (\"Returns check runs with the specified name\"), filter (latest, the default, or all: \"latest returns the most recent check runs\"), per_page (at most 100) and app_id, and answers {total_count, check_runs}, each with id, name, external_id (nullable), app (with slug, not required) and output.annotations_count. Fine-grained permissions (src/github-apps/data/fpt-2022-11-28/server-to-server-permissions.json in github/docs): the list needs Checks read, update and create need Checks write; \"write includes read\" (github-token-scope-descriptions.md). output.annotations: \"maxItems\": 50 per request, \"To create more than 50 annotations, you have to make multiple requests to the Update a check run endpoint. Each time you update the check run, annotations are appended\"; each annotation requires path, start_line, end_line (lines start at 1), annotation_level (notice, warning or failure) and message (\"The maximum size is 64 KB\"), with an optional title (\"The maximum size is 255 characters\"). No total per check run is documented; the same description says \"GitHub Actions are limited to 10 warning annotations and 10 error annotations per step\" without saying whether that binds check runs created through the API (uncertain). Not documented either: whether only the app that created a run may update it, and the app slug of runs created with the workflow token. A check suite holds the runs of one GitHub App for one commit (using-the-rest-api-to-interact-with-checks.md), and GitHub keeps at most 1000 runs of the same name per suite. status completed needs a conclusion (success, neutral, failure and others); output.title and output.summary (Markdown, maxLength 65535) show in the Checks tab; only GitHub Apps can create check runs, which the workflow token is. checks: write \"permits an action to create a check run\" (data/reusables/actions/github-token-scope-descriptions.md in github/docs, which links the permissions with apiVersion=2022-11-28); a pull request from a fork gets a read-only token unless the repository sends write tokens to such workflows (workflow-syntax.md, How permissions are calculated). For pull_request, GITHUB_SHA is the \"Last merge commit on the GITHUB_REF branch\" (events-that-trigger-workflows.md), so the check goes on pull_request.head.sha from the payload file GITHUB_EVENT_PATH names (webhook-pull-request-opened schema; variables.md for GITHUB_API_URL, GITHUB_REPOSITORY and GITHUB_EVENT_PATH)."),
 		stepSummary: checked$2.verified({
 			variable: "GITHUB_STEP_SUMMARY",
 			maxBytes: 1048576
@@ -4520,6 +6614,20 @@ const environment = {
 				args: "args"
 			}
 		}, "https://code.claude.com/docs/en/hooks", "A PreToolUse command hook gets the event as JSON on stdin and decides by printing one JSON object and exiting 0: deny prevents the call and shows the reason to Claude, ask prompts the user (also in auto mode), deny wins over ask. The PowerShell tool passes its command in tool_input.command with the same fields as the Bash tool. A matcher of names separated by | matches each of them exactly. With args set, command runs as an executable without a shell; on Windows it must resolve to a real executable such as a .exe, not a .cmd or .bat shim from node_modules/.bin. Without onFailure, a hook that fails to start, crashes or times out lets the call through. The if filter is best-effort; the docs recommend the permission system for hard allow or deny rules."),
+		hookContext: mcpFacts.uncertain({
+			field: "additionalContext",
+			withoutDecision: true,
+			inlineLimit: 1e4
+		}, "https://code.claude.com/docs/en/hooks#pretooluse-decision-control", "The PreToolUse decision control table lists additionalContext in hookSpecificOutput as \"String added to Claude's context alongside the tool result. Ignored when permissionDecision is \"defer\"\", next to permissionDecision, permissionDecisionReason and updatedInput, and #add-context-for-claude says Claude Code wraps the string in a system reminder that Claude reads on the next model request, places it next to the tool result for PreToolUse, writes a value over 10,000 characters to a file and passes its path with a preview of 2,000 characters, and recommends factual statements over imperative instructions. Uncertain: the page does not say in so many words that additionalContext works without permissionDecision; the table ties it to no decision but defer, and an output without permissionDecision leaves the call to the normal permission flow."),
+		sessionStart: release13.verified({
+			event: "SessionStart",
+			matchers: ["startup", "resume"],
+			projectDirVariable: "CLAUDE_PROJECT_DIR",
+			firstResponseWaits: true,
+			missingScriptWithBlock: "blocks",
+			blockedNotice: "failed; blocking because onFailure is \"block\"",
+			cloudSetupScriptRunsBeforeClaudeCode: true
+		}, "https://code.claude.com/docs/en/hooks#sessionstart", "SessionStart runs when a session starts or resumes; its matcher startup fires for a new session (also resume, clear, compact and fork). Hooks run in the background, but \"Claude's first response still waits for the hooks to finish\", and a prompt sent meanwhile does not reach Claude until they finish. A command hook may be shell form (command with $CLAUDE_PROJECT_DIR, the repository root). With onFailure set to \"block\" (#block-the-action-when-a-hook-fails), a PreToolUse hook whose script is missing blocks the call (\"failed; blocking because onFailure is \"block\"\" followed by node's error output, in the example \"PreToolUse:Bash hook error: [node ${CLAUDE_PROJECT_DIR}/.claude/hooks/check-command.js]: failed; blocking because onFailure is \"block\"\" and \"Error: Cannot find module '/path/to/project/.claude/hooks/check-command.js'\", re-read 2026-11-01): node starts, cannot load the script and exits with 1, which counts as a failure; without it, the same missing script is a non-blocking error and the command runs. In cloud sessions (https://code.claude.com/docs/en/cloud-environments#setup-scripts) a setup script is a Bash script that runs as root before Claude Code launches and is skipped when a cached environment exists; SessionStart hooks of the repository's .claude/settings.json run in local and cloud sessions (in a session with one repository, outside a project thread), user-level ~/.claude/settings.json hooks do not reach the cloud. The docs recommend a SessionStart hook for project setup such as npm install."),
 		shellTools: audited.verified([
 			{
 				tool: "Bash",
@@ -4533,7 +6641,126 @@ const environment = {
 				tool: "Monitor",
 				shell: "bash"
 			}
-		], "https://code.claude.com/docs/en/tools-reference", "Tool names are the exact strings of hook matchers. Bash executes shell commands. PowerShell executes PowerShell commands natively; hooks get its command in tool_input.command with the same fields as Bash, and the docs say to match Bash|PowerShell in hooks that inspect shell commands: on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash it is enabled automatically and the Bash tool is not registered at all (also https://code.claude.com/docs/en/hooks#powershell). On Windows with Git Bash it is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1. Monitor runs a command in the background and feeds its output lines back to Claude, with the same permission rules as Bash; on Windows it is available only with Git Bash; a WebSocket watch takes a ws input in place of command.")
+		], "https://code.claude.com/docs/en/tools-reference", "Tool names are the exact strings of hook matchers. Bash executes shell commands. PowerShell executes PowerShell commands natively; hooks get its command in tool_input.command with the same fields as Bash, and the docs say to match Bash|PowerShell in hooks that inspect shell commands: on Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell, and without Git Bash it is enabled automatically and the Bash tool is not registered at all (also https://code.claude.com/docs/en/hooks#powershell). On Windows with Git Bash it is on by default for claude.ai and Console accounts, CLAUDE_CODE_USE_POWERSHELL_TOOL=0 turns it off, and Claude Code runs pwsh.exe or else powershell.exe 5.1. Monitor runs a command in the background and feeds its output lines back to Claude, with the same permission rules as Bash; on Windows it is available only with Git Bash; a WebSocket watch takes a ws input in place of command."),
+		commandlessInputs: release13.verified([{
+			tool: "Monitor",
+			input: "tool_input.ws"
+		}], "https://code.claude.com/docs/en/tools-reference#websocket-source", "\"A WebSocket watch takes a `ws` input in place of `command`, and a single Monitor call can't combine the two\"; ws has url (a ws:// or wss:// URL) and optional protocols. Opening a WebSocket has its own approval prompt.")
+	},
+	mcp: {
+		revisions: mcpFacts.verified({
+			legacy: [
+				"2025-11-25",
+				"2025-06-18",
+				"2025-03-26",
+				"2024-11-05"
+			],
+			modern: ["2026-07-28"]
+		}, `${MCP}/docs/specification/2026-07-28/basic/versioning.mdx`, "Modern: revisions that carry version, identity and capabilities on every request (2026-07-28 and later); legacy: revisions that open a session with the initialize handshake (2025-11-25 and earlier). A dual-era server may serve both on one stdio process: a request with the modern per-request _meta is served statelessly, an initialize request selects legacy semantics for the process. docs/docs.json lists 2026-07-28 (latest), 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05; schema/2026-07-28/schema.ts and schema/draft/schema.ts both say LATEST_PROTOCOL_VERSION = \"2026-07-28\"."),
+		lifecycle: mcpFacts.verified({
+			initialize: "initialize",
+			initialized: "notifications/initialized",
+			ping: "ping",
+			request: {
+				protocolVersion: "protocolVersion",
+				capabilities: "capabilities",
+				clientInfo: "clientInfo"
+			},
+			result: {
+				protocolVersion: "protocolVersion",
+				capabilities: "capabilities",
+				serverInfo: "serverInfo",
+				instructions: "instructions"
+			}
+		}, `${MCP}/docs/specification/2025-11-25/basic/lifecycle.mdx`, "If the server supports the requested protocolVersion it must answer with the same one, otherwise with another version it supports, which should be its latest; a client that cannot use it disconnects (the same wording in 2024-11-05). After the result the client sends notifications/initialized. The initialize request must not be cancelled and, in 2025-03-26, must not be part of a batch. ping (basic/utilities/ping.mdx) is answered promptly with an empty result and may be sent before initialization. 2026-07-28 removes initialize, notifications/initialized and ping (docs/specification/2026-07-28/changelog.mdx)."),
+		stateless: mcpFacts.verified({
+			metaField: "_meta",
+			protocolVersion: "io.modelcontextprotocol/protocolVersion",
+			clientCapabilities: "io.modelcontextprotocol/clientCapabilities",
+			clientInfo: "io.modelcontextprotocol/clientInfo",
+			serverInfo: "io.modelcontextprotocol/serverInfo",
+			discover: "server/discover",
+			discoverResult: {
+				supportedVersions: "supportedVersions",
+				capabilities: "capabilities",
+				instructions: "instructions"
+			},
+			resultType: {
+				field: "resultType",
+				complete: "complete"
+			},
+			caching: {
+				ttl: "ttlMs",
+				scope: "cacheScope",
+				publicScope: "public"
+			},
+			unsupportedVersionData: {
+				supported: "supported",
+				requested: "requested"
+			}
+		}, `${MCP}/docs/specification/2026-07-28/basic/index.mdx`, "Every 2026-07-28 request carries params._meta with io.modelcontextprotocol/protocolVersion and io.modelcontextprotocol/clientCapabilities (required; a request missing either is rejected with -32602) and optionally io.modelcontextprotocol/clientInfo; servers should put io.modelcontextprotocol/serverInfo in the _meta of every result, and every result must carry resultType (\"complete\" for a finished one; clients read an absent one as complete). Servers must implement server/discover (server/discover.mdx: supportedVersions, capabilities, instructions, serverInfo in _meta). server/utilities/caching.mdx: results of server/discover and tools/list must carry ttlMs (>= 0) and cacheScope (\"public\" suits lists of tools that are the same for all users). An unsupported version gets -32022 with data { supported, requested } (basic/versioning.mdx). Self-reported identity must not change behavior."),
+		tools: mcpFacts.verified({
+			list: "tools/list",
+			call: "tools/call",
+			capability: "tools",
+			fieldsSince: {
+				annotations: "2025-03-26",
+				title: "2025-06-18",
+				structuredContent: "2025-06-18"
+			}
+		}, `${MCP}/docs/specification/2026-07-28/server/tools.mdx`, "A server with tools declares the tools capability and answers tools/list (tools in a deterministic order that does not vary per connection) and tools/call ({ name, arguments }; result content, optional structuredContent and isError). Errors of the tool itself, including input values the model can correct, belong in the result with isError: true; an unknown tool or a request that does not fit the schema is a protocol error (-32602). A tool that returns structuredContent should also return the same JSON in a text block. Tool names should be 1 to 128 characters of letters, digits, _, - and . . Annotations (readOnlyHint, openWorldHint and others) are hints that clients must treat as untrusted. Annotations arrived in 2025-03-26 (changelog.mdx), title and structured output in 2025-06-18 (changelog.mdx); in 2025-11-25 and earlier structuredContent is an object."),
+		cancellation: mcpFacts.verified({
+			method: "notifications/cancelled",
+			requestId: "requestId"
+		}, `${MCP}/docs/specification/2026-07-28/basic/patterns/cancellation.mdx`, "The client cancels an in-flight request with the notification notifications/cancelled and params { requestId, reason? }; the server should stop the work as soon as practical and must not send any further message for that request, and may ignore an unknown or finished request (also basic/transports/stdio.mdx). The same notification exists in the legacy revisions (2025-11-25/basic/utilities/cancellation.mdx)."),
+		errorCodes: mcpFacts.verified({
+			parseError: -32700,
+			invalidRequest: -32600,
+			methodNotFound: -32601,
+			invalidParams: -32602,
+			internalError: -32603,
+			unsupportedProtocolVersion: -32022
+		}, `${MCP}/schema/2026-07-28/schema.ts`, "PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR and UNSUPPORTED_PROTOCOL_VERSION. -32601 is for a method the server does not implement. basic/index.mdx: request ids are strings or integers and never null; notifications have no id and get no response; an error response has the id of its request except when it could not be read, and the 2025-11-25 and 2026-07-28 schemas make id optional in an error response; codes from -32000 to -32019 are legacy and other codes from -32020 to -32099 that the specification does not define must not be used."),
+		errorId: mcpFacts.verified({ optionalSince: "2025-11-25" }, `${MCP}/schema/2025-11-25/schema.ts`, "JSONRPCErrorResponse has id?: RequestId in the 2025-11-25 schema (also in schema/2026-07-28/schema.ts); the schemas of 2025-06-18 and 2024-11-05 have JSONRPCError with a required id: RequestId (string | number), and basic/index.mdx of 2025-06-18 says responses must include the same id as their request and request ids must not be null. Neither says what an error response for a request whose id cannot be read carries; JSON-RPC 2.0 uses null there (jsonrpc.org was not reachable to verify it)."),
+		stdio: mcpFacts.verified({
+			delimiter: "\n",
+			batchRevisions: ["2025-03-26"]
+		}, `${MCP}/docs/specification/2026-07-28/basic/transports/stdio.mdx`, "The server reads JSON-RPC messages from stdin and writes them to stdout, delimited by newlines and without embedded newlines; it must not write anything to stdout that is not a valid MCP message, may log UTF-8 to stderr and should exit promptly when stdin is closed. Batches: 2025-03-26 (basic/index.mdx) says implementations must support receiving JSON-RPC batches; 2025-06-18 removed batching (changelog.mdx), and later revisions have no batch message."),
+		clients: {
+			claudeCode: mcpFacts.verified({
+				addCommand: [
+					"claude",
+					"mcp",
+					"add"
+				],
+				separator: "--",
+				scopeOption: "--scope",
+				projectScope: "project",
+				transportOption: "--transport",
+				stdioTransport: "stdio",
+				projectFile: ".mcp.json",
+				serversKey: "mcpServers",
+				projectDirVariable: "CLAUDE_PROJECT_DIR",
+				projectDirReference: "${CLAUDE_PROJECT_DIR:-.}"
+			}, "https://code.claude.com/docs/en/mcp", "claude mcp add [options] <name> -- <command> [args...]: everything after -- goes to the server untouched. Scopes: local (the default, ~/.claude.json), project (.mcp.json in the project root, shared through the repository; Claude Code asks before using its servers) and user. .mcp.json has a top-level mcpServers object of entries with command, args and env; an entry without type is a stdio server. Claude Code sets CLAUDE_PROJECT_DIR to the project root in the environment of the server, not in its own, so ${VAR} expansion in command or args of .mcp.json needs a default such as ${CLAUDE_PROJECT_DIR:-.}. To stop a stdio server it sends SIGINT, then SIGTERM after 100 ms and SIGKILL after a further 400 ms (macOS, Linux); on Windows it closes stdin and ends the process tree after 300 ms."),
+			claudeDesktop: mcpFacts.verified({
+				configFiles: {
+					darwin: "~/Library/Application Support/Claude/claude_desktop_config.json",
+					win32: "%APPDATA%\\Claude\\claude_desktop_config.json",
+					linux: "~/.config/Claude/claude_desktop_config.json"
+				},
+				serversKey: "mcpServers"
+			}, `${MCP}/docs/docs/2026-07-28/develop/connect-local-servers.mdx`, "The page \"Connect to local MCP servers\" of modelcontextprotocol.io: Claude Desktop reads mcpServers (entries with command, args and env) from claude_desktop_config.json. It documents no working directory and no variables, and its troubleshooting asks for absolute paths. The stderr of a server goes to mcp-server-<name>.log in ~/Library/Logs/Claude (macOS) or %APPDATA%\\Claude\\logs (Windows)."),
+			vscode: mcpFacts.verified({
+				file: ".vscode/mcp.json",
+				serversKey: "servers",
+				typeField: "type",
+				stdioType: "stdio",
+				cwdField: "cwd",
+				workspaceFolder: "${workspaceFolder}",
+				addOption: "--add-mcp"
+			}, VSCODE_MCP, "The source of code.visualstudio.com/docs/agents/reference/mcp-configuration. .vscode/mcp.json (in the workspace or the user profile) has a top-level servers object; a stdio server needs type \"stdio\" and command, and takes args, cwd (defaults to the workspace folder when run in a workspace), env and envFile; predefined variables such as ${workspaceFolder} work in the configuration. VS Code also reads the portable .mcp.json with mcpServers at the workspace root, without cwd. code --add-mcp with a JSON object of a name and the server configuration adds the server to the user profile.")
+		}
 	},
 	git: {
 		ignore: gitFacts.verified({
@@ -4552,7 +6779,11 @@ const environment = {
 				"true",
 				"1"
 			]
-		}, "https://github.com/git/git/blob/v2.56.0/Documentation/config/core.adoc", "core.ignoreCase turns on workarounds for file systems that are not case sensitive (APFS, HFS+, FAT, NTFS); it defaults to false, but git clone and git init probe the file system and set it to true when appropriate, so a repository cloned on Windows or macOS has it. With it, git matches .gitignore patterns and looks up the index without regard to case: match_basename and match_pathname in dir.c compare with fspathncmp and fnmatch_icase_mem, which fold case (strncasecmp, WM_CASEFOLD) when repo_ignore_case is set, and environment.c reads core.ignorecase (both at v2.56.0). Section and variable names are case-insensitive, true is yes, on, true or 1 in any case, and a variable without = <value> is true (Documentation/config.adoc at v2.56.0).")
+		}, "https://github.com/git/git/blob/v2.56.0/Documentation/config/core.adoc", "core.ignoreCase turns on workarounds for file systems that are not case sensitive (APFS, HFS+, FAT, NTFS); it defaults to false, but git clone and git init probe the file system and set it to true when appropriate, so a repository cloned on Windows or macOS has it. With it, git matches .gitignore patterns and looks up the index without regard to case: match_basename and match_pathname in dir.c compare with fspathncmp and fnmatch_icase_mem, which fold case (strncasecmp, WM_CASEFOLD) when repo_ignore_case is set, and environment.c reads core.ignorecase (both at v2.56.0). Section and variable names are case-insensitive, true is yes, on, true or 1 in any case, and a variable without = <value> is true (Documentation/config.adoc at v2.56.0)."),
+		repositoryEntry: finalReview.verified({
+			entry: ".git",
+			submoduleEntry: "file"
+		}, "https://github.com/git/git/blob/v2.56.0/Documentation/gitsubmodules.adoc", "\"A submodule is a repository embedded inside another repository\", with its own history; \"the repository it is embedded in is called a superproject\". Its git directory is \"located under the $GIT_DIR/modules/ directory of its superproject\", with \"a .git file at the root of the submodule's working directory pointing to\" it, and the superproject tracks it only \"via a gitlink entry in the tree\" with the commit it expects. So a directory with a .git entry of its own (a directory, or the file of a submodule) holds the files of another repository.")
 	},
 	windows: {
 		commandShims: audited.verified({
@@ -4583,10 +6814,111 @@ const environment = {
 			".tar.lz",
 			".tar.lzma"
 		], "https://github.com/pypa/pip/blob/26.2.2/src/pip/_internal/utils/filetypes.py", "ARCHIVE_EXTENSIONS of pip without .whl: the archives pip accepts from an index besides wheels (index/package_finder.py rejects any other extension), all of them built when installed. A standard sdist is named {name}-{version}.tar.gz with the name normalized (PEP 625, source-distribution-format.rst); older uploads use the other extensions and names that are not normalized."),
+		bundledPip: runtimes.verified([
+			{
+				line: "3.9",
+				latest: "3.9.25",
+				bundles: [
+					["3.9.0", "20.2.3"],
+					["3.9.5", "21.1.1"],
+					["3.9.6", "21.1.3"],
+					["3.9.7", "21.2.3"],
+					["3.9.8", "21.2.4"],
+					["3.9.11", "22.0.4"],
+					["3.9.17", "23.0.1"]
+				]
+			},
+			{
+				line: "3.10",
+				latest: "3.10.22",
+				bundles: [
+					["3.10.0", "21.2.3"],
+					["3.10.1", "21.2.4"],
+					["3.10.3", "22.0.4"],
+					["3.10.6", "22.2.1"],
+					["3.10.7", "22.2.2"],
+					["3.10.9", "22.3.1"],
+					["3.10.11", "23.0.1"]
+				]
+			},
+			{
+				line: "3.11",
+				latest: "3.11.18",
+				bundles: [
+					["3.11.0", "22.3.0"],
+					["3.11.1", "22.3.1"],
+					["3.11.4", "23.1.2"],
+					["3.11.5", "23.2.1"],
+					["3.11.8", "24.0.0"]
+				]
+			},
+			{
+				line: "3.12",
+				latest: "3.12.16",
+				bundles: [
+					["3.12.0", "23.2.1"],
+					["3.12.2", "24.0.0"],
+					["3.12.5", "24.2.0"],
+					["3.12.8", "24.3.1"],
+					["3.12.10", "25.0.1"]
+				]
+			},
+			{
+				line: "3.13",
+				latest: "3.13.18",
+				bundles: [
+					["3.13.0", "24.2.0"],
+					["3.13.1", "24.3.1"],
+					["3.13.3", "25.0.1"],
+					["3.13.4", "25.1.1"],
+					["3.13.6", "25.2.0"],
+					["3.13.10", "25.3.0"],
+					["3.13.13", "26.0.1"],
+					["3.13.14", "26.1.2"],
+					["3.13.15", "26.2.1"],
+					["3.13.17", "26.2.2"]
+				]
+			},
+			{
+				line: "3.14",
+				latest: "3.14.10",
+				bundles: [
+					["3.14.0", "25.2.0"],
+					["3.14.1", "25.3.0"],
+					["3.14.4", "26.0.1"],
+					["3.14.5", "26.1.1"],
+					["3.14.6", "26.1.2"],
+					["3.14.7", "26.2.1"],
+					["3.14.9", "26.2.2"]
+				]
+			},
+			{
+				line: "3.15",
+				latest: "3.15.2",
+				bundles: [["3.15.0", "26.2.1"], ["3.15.1", "26.2.2"]]
+			}
+		], "https://github.com/python/cpython/blob/v3.15.2/Lib/ensurepip/__init__.py", "_PIP_VERSION in Lib/ensurepip/__init__.py at every final tag from v3.9.0 to v3.15.2 (github.com/python/cpython/blob/v<X.Y.Z>/...; the latest tags are v3.9.25 0bbaf5de, v3.10.22 acb4dc12, v3.11.18 26badd80, v3.12.16 2c2462af, v3.13.18 0d4bd512, v3.14.10 b703b2c5 and v3.15.2 5e58eaad), as the first release of each line that bundles each pip version. Two-part values such as 24.0 are written 24.0.0. 3.12 and older never bundle pip 26; pip 26.1 or later comes with 3.13.14, 3.14.5 and 3.15.0."),
 		hatch: python.verified({
 			pyprojectTable: "tool.hatch",
 			configFile: "hatch.toml"
 		}, "https://github.com/pypa/hatch/blob/hatch-v1.18.2/docs/intro.md", "Hatch reads its project configuration from [tool.hatch] of pyproject.toml or from hatch.toml. It has no setting of its own for a release-age delay, building from source or dependency sources; its environments install with uv (installer = \"uv\", the default of its internal environments) or pip (docs/how-to/environment/select-installer.md), and uv reads [tool.uv] of the project under Hatch too (tested on 2026-10-30 with Hatch 1.18.2 and uv 0.13.6)."),
+		virtualEnvironment: finalReview.verified({
+			marker: "pyvenv.cfg",
+			scripts: [{
+				platform: "posix",
+				directory: "bin",
+				names: [
+					"activate",
+					"activate.fish",
+					"activate.csh",
+					"Activate.ps1"
+				]
+			}, {
+				platform: "windows",
+				directory: "Scripts",
+				names: ["activate.bat", "Activate.ps1"]
+			}]
+		}, "https://github.com/python/cpython/blob/v3.14.0/Doc/library/venv.rst", "Creating virtual environments: venv \"places a pyvenv.cfg file in it with a home key\" (in the target directory) and \"also creates a bin (or Scripts on Windows) subdirectory\". How venvs work: \"A virtual environment may be \"activated\" using a script in its binary directory (bin on POSIX; Scripts on Windows)\"; the table of activation commands: POSIX bash/zsh source <venv>/bin/activate, fish source <venv>/bin/activate.fish, csh/tcsh source <venv>/bin/activate.csh, pwsh <venv>/bin/Activate.ps1; Windows cmd.exe <venv>\\Scripts\\activate.bat, PowerShell <venv>\\Scripts\\Activate.ps1. Activation prepends the binary directory to PATH and sets VIRTUAL_ENV. Lib/venv/__init__.py at v3.14.0 writes pyvenv.cfg as os.path.join(context.env_dir, \"pyvenv.cfg\") and installs the scripts of the common directory and of os.name."),
 		interpreter: audited.verified({
 			executables: [
 				"python",
@@ -4815,7 +7147,7 @@ function values(fact) {
 	return evidenceOf(fact).map((evidence) => evidence.value);
 }
 /** The value of a fact; for a disputed fact the first variant, which must agree with the others in shape. */
-function first(fact) {
+function first$1(fact) {
 	const [value] = values(fact);
 	return value;
 }
@@ -4827,13 +7159,13 @@ function allVersions(versioned) {
 }
 function extraString(tool, key) {
 	const fact = tool.extra?.[key];
-	const value = fact === void 0 ? void 0 : first(fact);
+	const value = fact === void 0 ? void 0 : first$1(fact);
 	if (typeof value !== "string") throw new Error(`knowledge base: ${tool.id} extra.${key} must be a string`);
 	return value;
 }
 function extraValue(tool, key) {
 	const fact = tool.extra?.[key];
-	return fact === void 0 ? void 0 : first(fact);
+	return fact === void 0 ? void 0 : first$1(fact);
 }
 /** required-version in [tool.uv] of pyproject.toml and at the top of uv.toml; requires-poetry in [tool.poetry]. */
 function requiredVersions(tool, pythonProject) {
@@ -4858,7 +7190,7 @@ function tool$1(tools, id) {
 	return found;
 }
 function detectionFacts(tools, environment) {
-	const pythonProject = first(environment.python.projectFile);
+	const pythonProject = first$1(environment.python.projectFile);
 	const shared = /* @__PURE__ */ new Set([...SHARED_FILES, pythonProject]);
 	const managers = PACKAGE_MANAGERS.map((id) => {
 		const entry = tool$1(tools, id);
@@ -4878,7 +7210,7 @@ function detectionFacts(tools, environment) {
 			lockfiles: unique(values(project.lockfiles).flatMap(allVersions)),
 			manifests,
 			configFiles: unique([...ownConfig, ...manifests]).filter((file) => !shared.has(file)),
-			workspaces: workspaceFacts(first(project.workspaces), first(project.workspacesObjectKey)),
+			workspaces: workspaceFacts(first$1(project.workspaces), first$1(project.workspacesObjectKey)),
 			pyprojectTable: typeof pyprojectTable === "string" ? pyprojectTable : null,
 			requiredVersions: requiredVersions(entry, pythonProject),
 			configFileOrder: Array.isArray(order) && order.every((file) => typeof file === "string") ? order : null,
@@ -4890,7 +7222,7 @@ function detectionFacts(tools, environment) {
 	const bots = BOTS$1.map((id) => {
 		const entry = tool$1(tools, id);
 		const packageJson = entry.extra?.["packageJsonConfig"];
-		const key = packageJson === void 0 ? null : first(packageJson).key;
+		const key = packageJson === void 0 ? null : first$1(packageJson).key;
 		return {
 			id,
 			configFiles: unique(values(entry.cooldown.configFiles).flat()),
@@ -4899,23 +7231,101 @@ function detectionFacts(tools, environment) {
 	});
 	const yarn = tool$1(tools, "yarn");
 	const actions = environment.githubActions;
+	const npm = tool$1(tools, "npm");
+	const pip = tool$1(tools, "pip");
+	const installs = extraValue(npm, "installCommands");
+	const installCommands = isRecord(installs) ? Object.values(installs).flatMap((list) => Array.isArray(list) ? list.filter((item) => typeof item === "string") : []) : [];
+	const globalOptions = extraValue(npm, "globalOption");
+	const npmValues = extraValue(npm, "valueOptions");
+	const pipLine = extraValue(pip, "commandLine");
+	const interpreter = first$1(environment.python.interpreter);
+	const scope = extraValue(npm, "npmrcScope");
+	const clean = extraValue(npm, "cleanInstall");
+	const pipFlag = pip.cooldown.cliFlag === void 0 ? void 0 : first$1(pip.cooldown.cliFlag);
+	const pipVariable = extraValue(pip, "environmentVariable");
+	const pipConfig = extraValue(pip, "configFileVariable");
+	const pipConfigCommand = extraValue(pip, "configCommand");
+	const pipConfigFiles = extraValue(pip, "configFileNames");
+	const poetryTool = tools.find((candidate) => candidate.id === "poetry");
+	const poetryPackage = poetryTool === void 0 ? void 0 : extraValue(poetryTool, "installedPackage");
+	const off = extraValue(npm, "scriptsOff");
+	const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+	const others = [
+		"pnpm",
+		"yarn",
+		"bun"
+	].flatMap((id) => {
+		const entry = tools.find((candidate) => candidate.id === id);
+		const install = entry === void 0 ? void 0 : extraValue(entry, "projectInstall");
+		const line = entry === void 0 ? void 0 : extraValue(entry, "commandLine");
+		if (!isRecord(install)) return [];
+		const add = (line?.add ?? []).filter((command) => command[0] === id && command.length === 2).map((command) => command[1] ?? "");
+		return [{
+			tool: id,
+			install: strings(install["commands"]),
+			add,
+			bare: install["bare"] === true,
+			valueOptions: [...line?.valueOptions ?? []]
+		}];
+	});
+	const commands = {
+		npm: {
+			installCommands,
+			globalOptions: strings(globalOptions),
+			valueOptions: strings(npmValues),
+			globalIgnoresProject: isRecord(scope) && scope["globalMode"] === "ignored",
+			cleanCommands: isRecord(installs) && isRecord(clean) && typeof clean["commands"] === "string" && Array.isArray(installs[clean["commands"]]) ? strings(installs[clean["commands"]]) : [],
+			...isRecord(off) && typeof off["option"] === "string" && typeof off["variable"] === "string" && typeof off["value"] === "string" ? { scriptsOff: {
+				option: off["option"],
+				variable: off["variable"],
+				value: off["value"]
+			} } : {}
+		},
+		others,
+		pip: {
+			executables: unique((pipLine?.add ?? []).map((command) => command[0] ?? "")),
+			installCommand: pipLine?.add[0]?.[1] ?? "install",
+			valueOptions: pipLine?.valueOptions ?? [],
+			...typeof pipFlag === "string" && typeof pipVariable === "string" && typeof pipConfig === "string" ? { delay: {
+				option: pipFlag,
+				variable: pipVariable,
+				configVariable: pipConfig
+			} } : {},
+			...isRecord(pipConfigCommand) && typeof pipConfigCommand["command"] === "string" && Array.isArray(pipConfigFiles) ? { config: {
+				command: pipConfigCommand["command"],
+				writes: strings(pipConfigCommand["writes"]),
+				files: strings(pipConfigFiles)
+			} } : {}
+		},
+		python: interpreter,
+		corepack: { enableCommand: first$1(environment.corepack.enableNpm).command },
+		...isRecord(poetryPackage) && typeof poetryPackage["name"] === "string" && Array.isArray(poetryPackage["commands"]) ? { poetry: {
+			name: poetryPackage["name"],
+			commands: poetryPackage["commands"].filter((item) => Array.isArray(item))
+		} } : {}
+	};
+	const docker = environment.docker;
+	const names = first$1(docker.dockerfileNames);
+	const nvmrc = first$1(environment.node.nvmrc);
 	return {
 		managers,
 		pythonProject,
-		hatch: first(environment.python.hatch),
+		hatch: first$1(environment.python.hatch),
 		bots,
 		yarn: {
 			berryMarker: extraString(yarn, "berryLockfileMarker"),
 			classicHeader: extraString(yarn, "classicLockfileHeader")
 		},
-		packageManagerKey: first(environment.corepack.packageManagerField).key,
-		devEngines: first(environment.devEngines),
-		volta: first(environment.volta.manifest),
+		packageManagerKey: first$1(environment.corepack.packageManagerField).key,
+		devEngines: first$1(environment.devEngines),
+		volta: first$1(environment.volta.manifest),
 		toolVersions: {
-			file: first(environment.asdf.toolVersionsFile),
-			plugins: first(environment.asdf.plugins)
+			file: first$1(environment.asdf.toolVersionsFile),
+			plugins: first$1(environment.asdf.plugins)
 		},
-		workflows: first(actions.workflows),
+		workflows: first$1(actions.workflows),
+		jobContainer: first$1(actions.jobContainer),
+		workflowEnvironment: { key: first$1(actions.environmentKeys).key },
 		setupActions: [
 			actions.setupNode,
 			actions.pnpmActionSetup,
@@ -4926,7 +7336,34 @@ function detectionFacts(tools, environment) {
 			actions.setupUv,
 			actions.installPoetry,
 			actions.actionsPoetry
-		].map(first)
+		].map(first$1),
+		setupNode: {
+			action: first$1(actions.setupNode).action,
+			versionFile: first$1(actions.setupNodeVersionFile)
+		},
+		nodeFiles: {
+			nvmrc: nvmrc.file,
+			comment: nvmrc.comment,
+			nodeVersion: first$1(environment.node.nodeVersionFile).file,
+			engines: first$1(environment.node.engines)
+		},
+		docker: {
+			syntax: first$1(docker.syntax),
+			reference: first$1(docker.imageReference),
+			names: {
+				exact: [names.defaultName, first$1(docker.containerfile)],
+				suffix: names.suffix,
+				prefix: first$1(docker.dockerfilePrefix)
+			},
+			node: first$1(docker.nodeImage),
+			python: first$1(docker.pythonImage),
+			nodeTags: first$1(docker.nodeImageTags).tags,
+			pythonTags: first$1(docker.pythonImageTags).tags,
+			codenames: first$1(environment.node.releaseSchedule).flatMap((line) => line.codename === void 0 ? [] : [line.codename]),
+			environment: first$1(docker.environment),
+			commands
+		},
+		commands
 	};
 }
 
@@ -4975,14 +7412,15 @@ var Repository = class {
 	constructor(root) {
 		this.root = realpathSync(root);
 	}
-	warn(code, message, files) {
+	warn(code, message, files, line) {
 		const key = `${code}\0${message}`;
 		if (this.#warned.has(key)) return;
 		this.#warned.add(key);
 		this.warnings.push({
 			code,
 			message,
-			files: [...files]
+			files: [...files],
+			...line === void 0 ? {} : { line }
 		});
 	}
 	/** A file that exists but cannot be read, e.g. without read permission; unreadable-config reports it. */
@@ -12399,8 +14837,1268 @@ function parseYaml(text, options = {}) {
 	return document.toJS();
 }
 
+// src/detect/commands.ts
+/** Programs that run the rest of their arguments as a command. */
+const WRAPPERS = /* @__PURE__ */ new Set([
+	"sudo",
+	"env",
+	"time",
+	"exec",
+	"command",
+	"nohup",
+	"nice"
+]);
+/** Executables that show a job uses Node.js. */
+const NODE_EXECUTABLES = /* @__PURE__ */ new Set([
+	"node",
+	"npm",
+	"npx",
+	"pnpm",
+	"pnpx",
+	"yarn",
+	"yarnpkg",
+	"bun",
+	"bunx",
+	"corepack"
+]);
+const SHELLS = /* @__PURE__ */ new Set([
+	"sh",
+	"bash",
+	"ash",
+	"dash",
+	"zsh"
+]);
+/** Reserved words of the shell that may come before a command. */
+const RESERVED = /* @__PURE__ */ new Set([
+	"if",
+	"then",
+	"else",
+	"elif",
+	"do",
+	"while",
+	"until",
+	"!",
+	"{",
+	"}"
+]);
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
+/**
+* The same, with how deep in ( ) and $( ) each command is: a cd in a subshell does not change the directory of the
+* commands after it (decision D-115).
+*/
+function splitWithDepth(script) {
+	const commands = [];
+	let words = [];
+	let text = "";
+	let start = -1;
+	let depth = 0;
+	const endWord = () => {
+		if (start >= 0) words.push({
+			text,
+			offset: start
+		});
+		text = "";
+		start = -1;
+	};
+	const endCommand = () => {
+		endWord();
+		if (words.length > 0) commands.push({
+			words,
+			depth
+		});
+		words = [];
+	};
+	const begin = (index) => {
+		if (start < 0) start = index;
+	};
+	for (let index = 0; index < script.length; index++) {
+		const char = script[index] ?? "";
+		if (char === "\\") {
+			const next = script[index + 1];
+			if (next === "\n") {
+				index += 1;
+				continue;
+			}
+			if (next === "\r" && script[index + 2] === "\n") {
+				index += 2;
+				continue;
+			}
+			begin(index);
+			if (next !== void 0) text += next;
+			index += 1;
+		} else if (char === "'") {
+			begin(index);
+			const end = script.indexOf("'", index + 1);
+			const close = end < 0 ? script.length : end;
+			text += script.slice(index + 1, close);
+			index = close;
+		} else if (char === "\"") {
+			begin(index);
+			let cursor = index + 1;
+			while (cursor < script.length && script[cursor] !== "\"") {
+				if (script[cursor] === "\\" && cursor + 1 < script.length) cursor += 1;
+				text += script[cursor] ?? "";
+				cursor += 1;
+			}
+			index = cursor;
+		} else if (char === "$" && script[index + 1] === "{") {
+			begin(index);
+			const end = script.indexOf("}", index + 2);
+			const close = end < 0 ? script.length - 1 : end;
+			text += script.slice(index, close + 1);
+			index = close;
+		} else if (char === "#" && start < 0) {
+			const end = script.indexOf("\n", index);
+			endCommand();
+			index = end < 0 ? script.length : end;
+		} else if (char === " " || char === "	" || char === "\r") endWord();
+		else if (char === "\n" || char === ";" || char === "&" || char === "|" || char === "(" || char === ")" || char === "`") {
+			if (char === "(" && text === "$" && start >= 0 && script[index - 1] === "$") {
+				text = "";
+				start = -1;
+			}
+			endCommand();
+			if (char === "(") depth += 1;
+			else if (char === ")" && depth > 0) depth -= 1;
+		} else {
+			begin(index);
+			text += char;
+		}
+	}
+	endCommand();
+	return commands;
+}
+/** The program name of a word: without its directory, in lower case, without .exe, .cmd, .bat or .ps1. */
+function programName(word) {
+	return word.slice(Math.max(word.lastIndexOf("/"), word.lastIndexOf("\\")) + 1).toLowerCase().replace(/\.(?:exe|cmd|bat|ps1)$/u, "");
+}
+/** The program and its arguments, and the variables the command line sets for it (NAME=value, env NAME=value). */
+function commandParts(words) {
+	const assignments = [];
+	let index = 0;
+	while (index < words.length) {
+		const text = words[index]?.text ?? "";
+		if (ASSIGNMENT.test(text)) {
+			const equals = text.indexOf("=");
+			assignments.push([text.slice(0, equals), text.slice(equals + 1)]);
+			index += 1;
+		} else if (RESERVED.has(text)) index += 1;
+		else if (WRAPPERS.has(programName(text))) {
+			index += 1;
+			while (index < words.length && /^-/u.test(words[index]?.text ?? "")) index += 1;
+		} else break;
+	}
+	return {
+		command: words.slice(index),
+		assignments
+	};
+}
+/** The first argument that is not an option, skipping the values of options that take one. */
+function firstOperand(args, valueOptions) {
+	for (let index = 0; index < args.length; index++) {
+		const text = args[index]?.text ?? "";
+		if (!text.startsWith("-")) return index;
+		if (!text.includes("=") && valueOptions.has(text)) index += 1;
+	}
+	return -1;
+}
+function operands(args, valueOptions) {
+	const found = [];
+	for (let index = 0; index < args.length; index++) {
+		const word = args[index];
+		if (word === void 0) continue;
+		if (!word.text.startsWith("-")) found.push(word);
+		else if (!word.text.includes("=") && valueOptions.has(word.text)) index += 1;
+	}
+	return found;
+}
+/** The options of a list as a set, made once per list (the facts are the same for every command of a run). */
+const SETS = /* @__PURE__ */ new WeakMap();
+function setOf(list) {
+	let found = SETS.get(list);
+	if (found === void 0) {
+		found = new Set(list);
+		SETS.set(list, found);
+	}
+	return found;
+}
+/** Longer words are no program name depcurfew knows, so they are not looked at further. */
+const MAX_NAME = 64;
+/**
+* A name that is the executable with a version appended (python3.12, pip3.13) stands for the executable. The suffix is
+* cut by a loop from the end, so a long word of digits takes linear time.
+*/
+function matchesExecutable(name, executables) {
+	if (name.length > MAX_NAME) return false;
+	if (executables.includes(name)) return true;
+	let end = name.length;
+	while (end > 0 && /[0-9.]/u.test(name[end - 1] ?? "")) end -= 1;
+	while (end < name.length && name[end] === ".") end += 1;
+	return end < name.length && end > 0 && executables.includes(name.slice(0, end));
+}
+/** -c, or grouped short options that include c (-ec, -xc): a shell reads its script from the next argument. */
+function isCommandOption(text) {
+	if (text.length < 2 || text.length > MAX_NAME || text[0] !== "-" || text[1] === "-") return false;
+	let command = false;
+	for (let index = 1; index < text.length; index++) {
+		const char = text[index] ?? "";
+		if (!/\w/u.test(char)) return false;
+		if (char === "c") command = true;
+	}
+	return command;
+}
+/**
+* Set in an Environment when a script sets more variables than depcurfew follows (MAX_ASSIGNMENTS): the later ones are
+* not read, so the variables of the commands after them cannot be told. No variable can have this name.
+*/
+const UNKNOWN_VARIABLES = "<unknown>";
+/** The variables the reader looks at, by name, each with whether the tool reads it in any case; made once per facts. */
+const READ_NAMES = /* @__PURE__ */ new WeakMap();
+function readNames(facts) {
+	let names = READ_NAMES.get(facts);
+	if (names === void 0) {
+		const found = /* @__PURE__ */ new Map();
+		const off = facts.npm.scriptsOff;
+		if (off !== void 0) found.set(off.variable.toLowerCase(), true);
+		const delay = facts.pip.delay;
+		if (delay !== void 0) {
+			found.set(delay.variable, false);
+			found.set(delay.configVariable, false);
+		}
+		names = found;
+		READ_NAMES.set(facts, names);
+	}
+	return names;
+}
+/** The name a variable is kept under in an Environment, or undefined when no command reads it. */
+function keptName(facts, name) {
+	const names = readNames(facts);
+	if (name === UNKNOWN_VARIABLES || names.get(name) === false) return name;
+	const lower = name.toLowerCase();
+	return names.get(lower) === true ? lower : void 0;
+}
+/**
+* The variables of the layers that commands read, later layers winning (the CI env of the workflow, then of the job, then
+* of the step); every other variable is left out (decision D-121).
+*/
+function withVariables(facts, ...layers) {
+	const kept = /* @__PURE__ */ new Map();
+	for (const layer of layers) for (const [name, value] of layer ?? []) {
+		const key = keptName(facts, name);
+		if (key !== void 0) kept.set(key, value);
+	}
+	return kept;
+}
+/** The value of a variable that the tool reads in any case (npm_config_*), the last one set winning. */
+function anyCase(environment, name) {
+	return environment.get(name.toLowerCase());
+}
+/**
+* Whether npm runs with dependency install scripts off: npm_config_ignore_scripts=true in any case, then
+* --ignore-scripts (or =true, or followed by true) on the command line, which a later --ignore-scripts=false or
+* --no-ignore-scripts turns back on. Only the value true counts: anything else may leave them on (decision D-115).
+*/
+function scriptsOff(args, environment, facts) {
+	const known = facts.npm.scriptsOff;
+	if (known === void 0) return false;
+	let off = !environment.has(UNKNOWN_VARIABLES) && anyCase(environment, known.variable) === known.value;
+	const negated = `--no-${known.option.slice(2)}`;
+	for (const [index, word] of args.entries()) if (word.text === known.option) off = args[index + 1]?.text !== "false";
+	else if (word.text.startsWith(`${known.option}=`)) off = word.text.slice(known.option.length + 1) === known.value;
+	else if (word.text === negated) off = false;
+	return off;
+}
+function npmCommand(args, at, facts, environment) {
+	const values = setOf(facts.npm.valueOptions);
+	const index = firstOperand(args, values);
+	const command = args[index]?.text;
+	if (command === void 0 || !facts.npm.installCommands.includes(command)) return void 0;
+	const rest = args.filter((_, position) => position !== index);
+	const global = rest.some((word) => facts.npm.globalOptions.includes(word.text));
+	const self = operands(rest, values).find((word) => /^npm(?:@|$)/u.test(word.text));
+	if (global && self !== void 0) return {
+		kind: "upgrade",
+		tool: "npm",
+		version: self.text.includes("@") ? self.text.slice(4) || "latest" : "latest",
+		offset: at
+	};
+	if (global && facts.npm.globalIgnoresProject) return void 0;
+	return {
+		kind: "install",
+		tool: "npm",
+		...facts.npm.cleanCommands.includes(command) ? { lockfile: true } : {},
+		...scriptsOff(rest, environment, facts) ? { scriptsOff: true } : {},
+		offset: at
+	};
+}
+/** pnpm install, pnpm i, pnpm add, yarn, yarn install, yarn add, bun install, bun add. */
+function otherCommand(tool, args, at) {
+	const command = args[firstOperand(args, setOf(tool.valueOptions))]?.text;
+	if (command === void 0 ? tool.bare : tool.install.includes(command) || tool.add.includes(command)) return {
+		kind: "install",
+		tool: tool.tool,
+		offset: at
+	};
+}
+function corepackCommand(args, at, facts) {
+	const command = args.find((word) => !word.text.startsWith("-"));
+	if (command === void 0) return void 0;
+	const names = args.filter((word) => word !== command && !word.text.startsWith("-"));
+	if (command.text === facts.corepack.enableCommand && names.some((word) => word.text === "npm")) return {
+		kind: "upgrade",
+		tool: "npm",
+		offset: at
+	};
+	const spec = names.find((word) => word.text.startsWith("npm@"));
+	const global = args.some((word) => word.text === "-g" || word.text === "--global");
+	const activate = args.some((word) => word.text === "--activate");
+	if (spec !== void 0 && (command.text === "install" && global || command.text === "prepare" && activate)) return {
+		kind: "upgrade",
+		tool: "npm",
+		version: spec.text.slice(4) || "latest",
+		offset: at
+	};
+}
+/** The arguments of pip when the words run it: pip install ..., or python -m pip install ... */
+function pipArguments(words, facts) {
+	const name = programName(words[0]?.text ?? "");
+	if (matchesExecutable(name, facts.pip.executables)) return words.slice(1);
+	if (!matchesExecutable(name, facts.python.executables)) return void 0;
+	const { moduleOption, commandOption } = facts.python;
+	const values = setOf(facts.python.valueOptions);
+	const letter = moduleOption.slice(1);
+	for (let index = 1; index < words.length; index++) {
+		const text = words[index]?.text ?? "";
+		if (!text.startsWith("-") || text === commandOption) return void 0;
+		const grouped = /^-([A-Za-z]*)$/u.exec(text)?.[1];
+		if (text === moduleOption || grouped !== void 0 && grouped.endsWith(letter) && !grouped.slice(0, -1).includes(commandOption.slice(1))) return words[index + 1]?.text === "pip" ? words.slice(index + 2) : void 0;
+		if (text.startsWith(moduleOption) && text.length > moduleOption.length) return text.slice(moduleOption.length) === "pip" ? words.slice(index + 1) : void 0;
+		if (values.has(text)) index += 1;
+	}
+}
+/** pip==26.1 or pip>=26.1 as a version: an exact one with three parts (pip pins 26.1 as 26.1.0), a range as written. */
+function pipVersion(spec) {
+	const exact = /^===?\s*(\d+(?:\.\d+)*)$/u.exec(spec.trim());
+	if (exact?.[1] !== void 0) {
+		const parts = exact[1].split(".");
+		while (parts.length < 3) parts.push("0");
+		return parts.join(".");
+	}
+	return spec.trim();
+}
+/** poetry==2.3.0 (or poetry>=2.4) among the operands of an install: the Poetry it installs, as written (decision D-115). */
+function poetryVersions(words, at, facts) {
+	const name = facts.poetry?.name;
+	if (name === void 0) return [];
+	return words.flatMap((word) => {
+		const spec = new RegExp(`^${name}(?:\\[[^\\]]*\\])?\\s*([=<>~!].*)$`, "iu").exec(word.text)?.[1];
+		return spec === void 0 ? [] : [{
+			kind: "upgrade",
+			tool: "poetry",
+			version: pipVersion(spec),
+			offset: at
+		}];
+	});
+}
+/**
+* The release-age delay a pip install gets (decision D-115): --uploaded-prior-to on the command line, else
+* PIP_UPLOADED_PRIOR_TO; unknown when PIP_CONFIG_FILE names a file that may set it, or the value has a variable.
+*/
+function pipDelay(args, environment, facts) {
+	const known = facts.pip.delay;
+	if (known === void 0) return {};
+	let value = environment.get(known.variable);
+	for (const [index, word] of args.entries()) if (word.text === known.option) value = args[index + 1]?.text;
+	else if (word.text.startsWith(`${known.option}=`)) value = word.text.slice(known.option.length + 1);
+	const config = environment.get(known.configVariable);
+	if (config !== void 0 && config !== "" || value?.includes("$") === true || environment.has(UNKNOWN_VARIABLES)) return { delayUnknown: true };
+	return value === void 0 || value === "" ? {} : { delay: value };
+}
+function pipCommand(args, at, facts, environment) {
+	const values = setOf(facts.pip.valueOptions);
+	const index = firstOperand(args, values);
+	if (args[index]?.text !== facts.pip.installCommand) return [];
+	const rest = args.slice(index + 1);
+	const upgrade = rest.some((word) => word.text === "-U" || word.text === "--upgrade");
+	for (const word of operands(rest, values)) {
+		const match = /^pip(?=$|[=<>~!\s[;])(?:\[[^\]]*\])?\s*(.*)$/iu.exec(word.text);
+		if (match === null) continue;
+		const spec = match[1] ?? "";
+		if (spec !== "") return [{
+			kind: "upgrade",
+			tool: "pip",
+			version: pipVersion(spec),
+			offset: at
+		}];
+		if (upgrade) return [{
+			kind: "upgrade",
+			tool: "pip",
+			version: "latest",
+			offset: at
+		}];
+		return [];
+	}
+	return [{
+		kind: "install",
+		tool: "pip",
+		...pipDelay(rest, environment, facts),
+		offset: at
+	}, ...poetryVersions(operands(rest, values), at, facts)];
+}
+/** pipx install poetry==2.3.0: the Poetry it installs. */
+function pipxCommand(args, at, facts) {
+	const pipx = facts.poetry?.commands.find((command) => command[0] === "pipx");
+	const index = args.findIndex((word) => !word.text.startsWith("-"));
+	if (pipx === void 0 || args[index]?.text !== pipx[1]) return [];
+	return poetryVersions(args.slice(index + 1).filter((word) => !word.text.startsWith("-")), at, facts);
+}
+/**
+* Whether a simple command may change pip's configuration: pip config set, unset or edit, or a word naming pip.conf or
+* pip.ini (cp, tee, a redirection to it). Then the delay of later pip installs cannot be told (decision D-115).
+*/
+function changesPipConfig(words, facts) {
+	const config = facts.pip.config;
+	if (config === void 0) return false;
+	if (words.some((word) => config.files.includes(programName(word.text.replace(/^\d*>+/u, ""))))) return true;
+	const pip = pipArguments(words, facts);
+	if (pip === void 0) return false;
+	const operands = pip.filter((word) => !word.text.startsWith("-"));
+	return operands[0]?.text === config.command && config.writes.includes(operands[1]?.text ?? "");
+}
+/** What one simple command does with npm or pip, if anything. */
+function readCommand(words, facts, depth, environment = /* @__PURE__ */ new Map()) {
+	const { command, assignments } = commandParts(words);
+	const first = command[0];
+	if (first === void 0) return {
+		found: [],
+		runsNode: false
+	};
+	if (changesPipConfig(command, facts)) return {
+		found: [],
+		runsNode: false,
+		pipConfig: true
+	};
+	const seen = assignments.length === 0 ? environment : withVariables(facts, environment, assignments);
+	const name = programName(first.text);
+	const args = command.slice(1);
+	if (SHELLS.has(name) && depth < 2) {
+		const script = args.find((_word, index) => index > 0 && isCommandOption(args[index - 1]?.text ?? ""));
+		if (script !== void 0) {
+			const { commands, ...inner } = findToolCommands(script.text, facts, depth + 1, seen);
+			return {
+				...inner,
+				found: commands.map((item) => ({
+					...item,
+					offset: script.offset
+				}))
+			};
+		}
+	}
+	const runsNode = NODE_EXECUTABLES.has(name);
+	if (name === "npm") return {
+		found: [npmCommand(args, first.offset, facts, seen)].filter((item) => item !== void 0),
+		runsNode
+	};
+	if (name === "corepack") return {
+		found: [corepackCommand(args, first.offset, facts)].filter((item) => item !== void 0),
+		runsNode
+	};
+	const other = facts.others.find((entry) => entry.tool === name);
+	if (other !== void 0) return {
+		found: [otherCommand(other, args, first.offset)].filter((item) => item !== void 0),
+		runsNode
+	};
+	if (name === "pipx") return {
+		found: pipxCommand(args, first.offset, facts),
+		runsNode
+	};
+	const pip = pipArguments(command, facts);
+	if (pip !== void 0) return {
+		found: pipCommand(pip, first.offset, facts, seen),
+		runsNode
+	};
+	return {
+		found: [],
+		runsNode
+	};
+}
+/**
+* A directory a cd leads to that depcurfew does not follow ($DIR, ~, an absolute path, a path out of the start). No
+* directory listed in projects can have this name (project-directory.ts refuses < and >).
+*/
+const UNKNOWN_DIRECTORY = "<unknown>";
+/**
+* The most cd commands of one script depcurfew follows; later ones lead to an unknown directory (decision D-121). A CI
+* step or a RUN instruction that changes the directory hundreds of times builds no project depcurfew could name.
+*/
+const MAX_DIRECTORY_CHANGES = 256;
+/** The longest directory, relative to where the script starts, that depcurfew follows (PATH_MAX on Linux). */
+const MAX_DIRECTORY_LENGTH = 4096;
+/** The most variables one script sets (export NAME=value, NAME=value before a command) that depcurfew reads. */
+const MAX_ASSIGNMENTS = 1024;
+/**
+* The directory after `cd <path>` from `current` (relative to where the script starts, '' there): a literal relative
+* path is followed, .. included; anything else (a variable, ~, -, an absolute path, out of the start) is unknown, and
+* so is a directory longer than MAX_DIRECTORY_LENGTH (`tooLong`). Linear in the length of both, which
+* MAX_DIRECTORY_LENGTH bounds for `current`.
+*/
+function changeDirectory(current, target) {
+	const unknown = { directory: UNKNOWN_DIRECTORY };
+	if (current === "<unknown>" || target === void 0 || target === "" || target === "<unknown>" || /[$~`*?]/u.test(target) || target.startsWith("/") || target === "-") return unknown;
+	const parts = current === "" ? [] : current.split("/");
+	for (const part of target.replace(/\\/gu, "/").split("/")) {
+		if (part === "" || part === ".") continue;
+		if (part === "..") {
+			if (parts.length === 0) return unknown;
+			parts.pop();
+		} else parts.push(part);
+	}
+	const directory = parts.join("/");
+	return directory.length > 4096 ? {
+		...unknown,
+		tooLong: true
+	} : { directory };
+}
+/**
+* The install and upgrade commands of a script, with the offset of each in the script, and whether it runs Node.js.
+* `environment` holds the variables set before the script (CI env, Dockerfile ENV); export NAME=value adds to them for
+* the later commands. A literal cd changes the directory of the later commands of the same shell (`cd`, relative to
+* where the script starts), not of those after the ( ) it is in (decision D-115). Linear in the length of the script:
+* each command costs the same however many cd and export commands come before it, and past MAX_DIRECTORY_CHANGES cd
+* commands or MAX_ASSIGNMENTS variables the directory or the variables are unknown (`overLimit`, decision D-121).
+*/
+function findToolCommands(script, facts, depth = 0, environment = /* @__PURE__ */ new Map()) {
+	const commands = [];
+	let runsNode = false;
+	let pipConfig = false;
+	const overLimit = {};
+	const variables = withVariables(facts, environment);
+	let changes = 0;
+	let assignments = 0;
+	const assigned = (count) => {
+		assignments += count;
+		if (assignments <= 1024 || variables.has(UNKNOWN_VARIABLES)) return;
+		variables.set(UNKNOWN_VARIABLES, "");
+		overLimit.variables = true;
+	};
+	const directories = [""];
+	for (const { words, depth: level } of splitWithDepth(script)) {
+		while (directories.length <= level) directories.push(directories.at(-1) ?? "");
+		directories.length = level + 1;
+		const here = directories[level] ?? "";
+		const { command, assignments: own } = commandParts(words);
+		const program = command[0]?.text;
+		if (own.length > 0) assigned(own.length);
+		if (program === "cd") {
+			changes += 1;
+			const target = command.find((word, index) => index > 0 && !word.text.startsWith("-"))?.text ?? "~";
+			if (changes > 256) {
+				if (here !== "<unknown>") overLimit.directory ??= "changes";
+				directories[level] = UNKNOWN_DIRECTORY;
+				continue;
+			}
+			const next = changeDirectory(here, target);
+			if (next.tooLong === true) overLimit.directory ??= "length";
+			directories[level] = next.directory;
+			continue;
+		}
+		if (program === "export") {
+			const exported = command.slice(1).filter((word) => word.text.indexOf("=") > 0 && ASSIGNMENT.test(word.text));
+			assigned(exported.length);
+			if (variables.has(UNKNOWN_VARIABLES)) continue;
+			for (const word of exported) {
+				const equals = word.text.indexOf("=");
+				const key = keptName(facts, word.text.slice(0, equals));
+				if (key !== void 0) variables.set(key, word.text.slice(equals + 1));
+			}
+			continue;
+		}
+		const result = readCommand(words, facts, depth, variables);
+		const joined = /* @__PURE__ */ new Map();
+		for (const found of result.found) {
+			let cd = here;
+			if (found.cd !== void 0 && found.cd !== "" && here !== "<unknown>") {
+				const known = joined.get(found.cd);
+				if (known !== void 0) cd = known;
+				else {
+					const next = here === "" || found.cd === "<unknown>" ? { directory: found.cd } : changeDirectory(here, found.cd);
+					if (next.tooLong === true) overLimit.directory ??= "length";
+					cd = next.directory;
+					joined.set(found.cd, cd);
+				}
+			}
+			commands.push(cd === "" ? (({ cd: _cd, ...rest }) => rest)(found) : {
+				...found,
+				cd
+			});
+		}
+		runsNode ||= result.runsNode;
+		pipConfig ||= result.pipConfig === true;
+		if (result.overLimit?.directory !== void 0) overLimit.directory ??= result.overLimit.directory;
+		if (result.overLimit?.variables === true) overLimit.variables = true;
+	}
+	return {
+		commands,
+		runsNode,
+		...pipConfig ? { pipConfig: true } : {},
+		...overLimit.directory !== void 0 || overLimit.variables === true ? { overLimit } : {}
+	};
+}
+/**
+* What a notice says when a script (a run step, a RUN instruction, `where`) went over a limit of the reader (decision
+* D-121): its later installs run in a directory depcurfew cannot tell, or with variables it did not read.
+*/
+function overLimitMessages(overLimit, where) {
+	return [...overLimit?.directory === void 0 ? [] : [`${where} ${overLimit.directory === "changes" ? `changes the directory more than ${256} times` : `changes to a directory longer than ${MAX_DIRECTORY_LENGTH} characters`}, so depcurfew cannot tell which directory the installs after that run in and checks them with the settings of the repository root`], ...overLimit?.variables === true ? [`${where} sets more than ${MAX_ASSIGNMENTS} variables, so depcurfew does not read the later ones: npm installs after that count as ones that run dependency install scripts, and the release-age delay of pip installs after that is not checked`] : []];
+}
+/** The same for the words of an exec form (RUN ["npm", "ci"]), which no shell splits. */
+function findExecCommands(words, facts, environment = /* @__PURE__ */ new Map()) {
+	const { found, ...result } = readCommand(words, facts, 0, withVariables(facts, environment));
+	return {
+		commands: found,
+		...result
+	};
+}
+
+// src/detect/dockerfile.ts
+const DIRECTIVE = /^#[ \t]*([A-Za-z][A-Za-z0-9_-]*)[ \t]*=(.*)$/u;
+const KNOWN_DIRECTIVES = /* @__PURE__ */ new Set([
+	"syntax",
+	"escape",
+	"check"
+]);
+/** A word that starts a here-document: an optional file descriptor, <<, an optional -, and the delimiter, quoted or not. */
+const HEREDOC_WORD = /^\d*<<(-?)(["']?)([A-Za-z0-9_][A-Za-z0-9_.-]*)\2$/u;
+/** Instructions whose here-documents belong to them. */
+const HEREDOC_INSTRUCTIONS = /* @__PURE__ */ new Set([
+	"RUN",
+	"COPY",
+	"ADD"
+]);
+/** Words kept of the command a here-document marker is in; a shell with its options needs few. */
+const MAX_COMMAND_WORDS = 16;
+/** Words that end a simple command. */
+const OPERATORS = /* @__PURE__ */ new Set([
+	"&&",
+	"||",
+	";",
+	"|",
+	"&"
+]);
+/** Longer words are no marker, and only their start is kept. */
+const MAX_WORD = 256;
+/** Here-document bodies kept per instruction; later ones are still read past, so the instructions after them stay right. */
+const MAX_HEREDOCS = 256;
+/** The escape character the parser directives at the top of the file set. */
+function escapeOf(lines, syntax) {
+	let escape = syntax.escapeCharacters[0] ?? "\\";
+	const seen = /* @__PURE__ */ new Set();
+	let index = 0;
+	for (; index < lines.length; index++) {
+		const match = DIRECTIVE.exec((lines[index] ?? "").trimStart());
+		if (match === null) break;
+		const key = (match[1] ?? "").toLowerCase();
+		if (!KNOWN_DIRECTIVES.has(key) || seen.has(key)) break;
+		seen.add(key);
+		const value = (match[2] ?? "").trim();
+		if (key === syntax.escapeDirective && syntax.escapeCharacters.includes(value)) escape = value;
+	}
+	return {
+		escape,
+		start: index
+	};
+}
+/**
+* The here-document markers of an instruction's text, in order, as BuildKit finds them (decision D-105): the text is
+* split into words with quotes kept, and only a whole word such as <<EOF, <<-"EOF" or 3<<EOF starts a here-document,
+* so `echo "a <<b"` starts none. One pass over the text.
+*/
+function heredocMarkers(text) {
+	const markers = [];
+	let words = [];
+	let count = 0;
+	let pending = [];
+	let word = "";
+	let inWord = false;
+	const append = (part) => {
+		if (word.length <= MAX_WORD) word += part.slice(0, 257 - word.length);
+	};
+	const endCommand = () => {
+		for (const marker of pending) if (count <= MAX_COMMAND_WORDS) marker.command = words.join(" ");
+		words = [];
+		count = 0;
+		pending = [];
+	};
+	const end = () => {
+		if (!inWord) return;
+		inWord = false;
+		const match = word.length <= MAX_WORD ? HEREDOC_WORD.exec(word) : null;
+		if (match !== null) {
+			const marker = {
+				strip: match[1] === "-",
+				delimiter: match[3] ?? ""
+			};
+			markers.push(marker);
+			pending.push(marker);
+		} else if (OPERATORS.has(word)) endCommand();
+		else {
+			const last = word.endsWith(";") && !word.endsWith("\\;");
+			count += 1;
+			if (count <= MAX_COMMAND_WORDS) words.push(last ? word.slice(0, -1) : word);
+			if (last) endCommand();
+		}
+		word = "";
+	};
+	for (let index = 0; index < text.length; index++) {
+		const char = text[index] ?? "";
+		if (char === " " || char === "	") {
+			end();
+			continue;
+		}
+		inWord = true;
+		if (char === "\"" || char === "'") {
+			let cursor = index + 1;
+			while (cursor < text.length && text[cursor] !== char) cursor += char === "\"" && text[cursor] === "\\" ? 2 : 1;
+			const close = Math.min(cursor, text.length - 1);
+			append(text.slice(index, Math.min(close + 1, index + MAX_WORD + 1)));
+			index = close;
+		} else if (char === "\\") {
+			append(text.slice(index, index + 2));
+			index += 1;
+		} else append(char);
+	}
+	end();
+	endCommand();
+	return markers;
+}
+/** Reads the instructions of a Dockerfile. Every line is looked at once, so the time grows with the size of the file. */
+function readDockerfile(source, syntax) {
+	const lines = source.split(/\r?\n/u);
+	const { escape, start } = escapeOf(lines, syntax);
+	const instructions = [];
+	let index = start;
+	while (index < lines.length) {
+		const first = (lines[index] ?? "").trimStart();
+		if (first === "" || first.startsWith(syntax.comment)) {
+			index += 1;
+			continue;
+		}
+		const line = index + 1;
+		const parts = [];
+		const segments = [];
+		let length = 0;
+		let current = first;
+		let currentLine = line;
+		for (;;) {
+			const trimmed = current.trimEnd();
+			const continues = trimmed.endsWith(escape);
+			const content = continues ? trimmed.slice(0, -escape.length) : current;
+			segments.push({
+				offset: length,
+				line: currentLine
+			});
+			parts.push(content);
+			length += content.length;
+			index += 1;
+			if (!continues) break;
+			while (index < lines.length) {
+				const next = (lines[index] ?? "").trimStart();
+				if (next !== "" && !next.startsWith(syntax.comment)) break;
+				index += 1;
+			}
+			if (index >= lines.length) break;
+			current = lines[index] ?? "";
+			currentLine = index + 1;
+		}
+		const whole = parts.join("");
+		const keyword = /^\S+/u.exec(whole)?.[0] ?? "";
+		const text = whole.slice(keyword.length).trimStart();
+		const shift = whole.length - text.length;
+		const instruction = {
+			keyword: keyword.toUpperCase(),
+			text,
+			line,
+			segments: segments.map((segment) => ({
+				offset: Math.max(0, segment.offset - shift),
+				line: segment.line
+			})),
+			heredocs: []
+		};
+		if (HEREDOC_INSTRUCTIONS.has(instruction.keyword) && !text.startsWith("[") && text.includes("<<")) for (const marker of heredocMarkers(text)) {
+			const body = [];
+			const bodyLine = index + 1;
+			const keep = instruction.heredocs.length < 256;
+			while (index < lines.length) {
+				const raw = lines[index] ?? "";
+				index += 1;
+				const candidate = marker.strip ? raw.replace(/^\t+/u, "") : raw;
+				if (candidate === marker.delimiter) break;
+				if (keep) body.push(candidate);
+			}
+			if (keep) instruction.heredocs.push({
+				body: body.join("\n"),
+				line: bodyLine,
+				...marker.command === void 0 ? {} : { command: marker.command }
+			});
+		}
+		instructions.push(instruction);
+	}
+	return instructions;
+}
+/** The line of an offset in an instruction's text: the last segment that starts at or before it, by binary search. */
+function lineAt$2(instruction, offset) {
+	const { segments } = instruction;
+	let low = 0;
+	let high = segments.length - 1;
+	let found = -1;
+	while (low <= high) {
+		const middle = low + high >> 1;
+		if ((segments[middle]?.offset ?? 0) <= offset) {
+			found = middle;
+			low = middle + 1;
+		} else high = middle - 1;
+	}
+	return found < 0 ? instruction.line : segments[found]?.line ?? instruction.line;
+}
+/** ARG NAME=value ARG2: the names with their defaults (undefined when there is none), quotes removed. */
+function argDeclarations(text) {
+	const declarations = [];
+	for (const match of text.matchAll(/([A-Za-z_][A-Za-z0-9_]*)(?:=("[^"]*"|'[^']*'|\S*))?/gu)) {
+		const value = match[2];
+		declarations.push([match[1] ?? "", value === void 0 ? void 0 : /^(["']).*\1$/su.test(value) ? value.slice(1, -1) : value]);
+	}
+	return declarations;
+}
+/** A value longer than this after substitution is not read: ARGs that repeat each other grow without bound. */
+const MAX_SUBSTITUTED_LENGTH = 4096;
+/** At most this many variables are replaced in one value. */
+const MAX_SUBSTITUTIONS = 256;
+const TOO_LONG = `it is longer than ${MAX_SUBSTITUTED_LENGTH} characters after ARG substitution, which depcurfew does not read`;
+/**
+* Replaces $VAR, ${VAR}, ${VAR:-word}, ${VAR-word}, ${VAR:+word} and ${VAR+word} with the ARGs declared before the
+* first FROM. A variable without a value (declared without a default, or not declared) can only come from
+* --build-arg, so the result is unknown, unless a modifier gives the value for an unset variable. A variable in
+* `unreadable` (an ARG whose own value depcurfew did not read) and a result past MAX_SUBSTITUTED_LENGTH characters or
+* MAX_SUBSTITUTIONS variables are unknown too, with the reason.
+*/
+function substitute(text, args, escape, unreadable = /* @__PURE__ */ new Map()) {
+	let result = "";
+	let substitutions = 0;
+	if (text.length > 4096) return {
+		ok: false,
+		variable: "",
+		reason: TOO_LONG
+	};
+	for (let index = 0; index < text.length; index++) {
+		if (result.length > 4096) return {
+			ok: false,
+			variable: "",
+			reason: TOO_LONG
+		};
+		const char = text[index] ?? "";
+		if (char === escape && text[index + 1] === "$") {
+			result += "$";
+			index += 1;
+			continue;
+		}
+		if (char !== "$") {
+			result += char;
+			continue;
+		}
+		let name;
+		let modifier = "";
+		let word = "";
+		if (text[index + 1] === "{") {
+			const end = text.indexOf("}", index + 2);
+			if (end < 0) return {
+				ok: false,
+				variable: text.slice(index + 2)
+			};
+			const inner = /^([A-Za-z_][A-Za-z0-9_]*)(?:(:?[-+])(.*))?$/su.exec(text.slice(index + 2, end));
+			if (inner === null) return {
+				ok: false,
+				variable: text.slice(index + 2, end)
+			};
+			name = inner[1] ?? "";
+			modifier = inner[2] ?? "";
+			word = inner[3] ?? "";
+			index = end;
+		} else {
+			const plain = /^[A-Za-z_][A-Za-z0-9_]*/u.exec(text.slice(index + 1, index + 257))?.[0];
+			if (plain === void 0) {
+				result += char;
+				continue;
+			}
+			name = plain;
+			index += plain.length;
+		}
+		substitutions += 1;
+		if (substitutions > 256) return {
+			ok: false,
+			variable: name,
+			reason: `it uses more than ${256} ARG substitutions, which depcurfew does not read`
+		};
+		const why = unreadable.get(name);
+		if (why !== void 0) return {
+			ok: false,
+			variable: name,
+			reason: why
+		};
+		const value = args.get(name);
+		const set = value !== void 0;
+		const empty = value === void 0 || value === "";
+		if (modifier === ":-" || modifier === "-") {
+			if (modifier === ":-" && empty || modifier === "-" && !set) result += word;
+			else result += value ?? "";
+		} else if (modifier === ":+" || modifier === "+") {
+			if (modifier === ":+" && !empty || modifier === "+" && set) result += word;
+		} else if (set) result += value;
+		else return {
+			ok: false,
+			variable: name
+		};
+	}
+	return result.length > 4096 ? {
+		ok: false,
+		variable: "",
+		reason: TOO_LONG
+	} : {
+		ok: true,
+		value: result
+	};
+}
+
+// src/detect/dockerfiles.ts
+const IGNORE_FILE = ".dockerignore";
+function isDockerfileName(name, facts) {
+	if (name.endsWith(IGNORE_FILE)) return false;
+	return facts.names.exact.includes(name) || name.endsWith(facts.names.suffix) && name.length > facts.names.suffix.length || name.startsWith(facts.names.prefix) && name.length > facts.names.prefix.length;
+}
+/** An image reference split into the repository on Docker Hub (when it is there), the tag and the digest. */
+function splitReference(reference, facts) {
+	const [named = "", digest] = reference.split("@", 2);
+	const slash = named.lastIndexOf("/");
+	const colon = named.lastIndexOf(":");
+	const tag = colon > slash ? named.slice(colon + 1) : void 0;
+	const parts = (colon > slash ? named.slice(0, colon) : named).split("/");
+	const host = parts.length > 1 && /[.:]|^localhost$/u.test(parts[0] ?? "") ? parts[0] : void 0;
+	const path = host === void 0 ? parts : parts.slice(1);
+	const hub = host === void 0 || facts.reference.hosts.includes(host.toLowerCase());
+	const namespace = facts.reference.officialNamespace;
+	return {
+		repository: hub && path.length === 2 && path[0] === namespace ? path[1] ?? "" : path.join("/"),
+		hub,
+		...tag === void 0 ? {} : { tag },
+		...digest === void 0 ? {} : { digest }
+	};
+}
+/** The version a node tag names: 22-alpine is 22, lts-jod is jod, alpine alone is the current line. */
+function nodeTagVersion(tag, facts) {
+	const numbered = /^(\d+(?:\.\d+){0,2})(?:-.+)?$/u.exec(tag);
+	if (numbered !== null) return numbered[1];
+	const [head = "", ...rest] = tag.split("-");
+	if (head === "lts" && rest[0] !== void 0 && facts.codenames.includes(rest[0])) return rest[0];
+	if (Object.hasOwn(facts.nodeTags, head) || facts.codenames.includes(head)) return head;
+	return facts.node.variants.includes(tag) || facts.node.variants.includes(head) ? "current" : void 0;
+}
+/** The version a python tag names: 3.12-slim is 3.12, slim alone is latest; release candidates are not versions. */
+function pythonTagVersion(tag, facts) {
+	const numbered = /^(\d+(?:\.\d+){0,2})(?:-(.+))?$/u.exec(tag);
+	if (numbered !== null) return numbered[2]?.split("-").includes("rc") === true ? void 0 : numbered[1];
+	if (Object.hasOwn(facts.pythonTags, tag)) return tag;
+	return facts.python.variants.includes(tag) || facts.python.variants.some((variant) => tag.startsWith(`${variant}-`)) ? "latest" : void 0;
+}
+/** The official node or python image a reference names, with the version of its tag; also for jobs.<id>.container. */
+function imageRuntime(reference, facts) {
+	return runtimeOf(reference, facts);
+}
+function runtimeOf(reference, facts) {
+	const { repository, hub, tag, digest } = splitReference(reference, facts);
+	if (!hub) return void 0;
+	const tool = repository === facts.node.image ? "node" : repository === facts.python.image ? "python" : void 0;
+	if (tool === void 0) return void 0;
+	if (tag === void 0 && digest !== void 0) return {
+		tool,
+		unknown: `the image is pinned by digest only (${reference})`
+	};
+	const used = tag ?? facts.reference.defaultTag;
+	const version = tool === "node" ? nodeTagVersion(used, facts) : pythonTagVersion(used, facts);
+	return version === void 0 ? {
+		tool,
+		...tag === void 0 ? {} : { tag },
+		unknown: `depcurfew does not know the tag ${used}`
+	} : {
+		tool,
+		...tag === void 0 ? {} : { tag },
+		version
+	};
+}
+/** Words of a RUN instruction in exec form (RUN ["npm", "ci"]), or undefined for the shell form. */
+function execWords(text) {
+	if (!text.startsWith("[")) return void 0;
+	try {
+		const parsed = JSON.parse(text);
+		return Array.isArray(parsed) && parsed.every((item) => typeof item === "string") ? parsed : void 0;
+	} catch {
+		return;
+	}
+}
+/** The text of a RUN instruction without its options (--mount=..., --network=...). */
+function withoutOptions(text) {
+	let offset = 0;
+	for (;;) {
+		const option = /^--\S*\s*/u.exec(text.slice(offset));
+		if (option === null) return {
+			text: text.slice(offset),
+			offset
+		};
+		offset += option[0].length;
+	}
+}
+/**
+* A here-document body is a script when it is fed to a shell: RUN <<EOF, or RUN <<EOF bash, or RUN bash -e <<EOF. The
+* other words of its command are few (the reader keeps at most 16), so the test is short.
+*/
+function isScript(command) {
+	return command !== void 0 && (command === "" || /^(?:\S*\/)?(?:sh|bash|ash|dash|zsh)(?: -\S+)*$/u.test(command));
+}
+/** A command as found, with the directory of its cd (relative to the working directory) as `directory`. */
+function located({ cd, ...command }, line) {
+	return {
+		...command,
+		line,
+		...cd === void 0 ? {} : { directory: cd }
+	};
+}
+/**
+* ENV NAME=value [NAME2=value2 ...], or the older ENV NAME value: the variables it sets, quotes removed. A value with $
+* is kept as written (depcurfew does not expand it, so it never reads as true).
+*/
+function envDeclarations(text, spaceForm) {
+	const words = [];
+	let word = "";
+	let inWord = false;
+	for (let index = 0; index < text.length; index++) {
+		const char = text[index] ?? "";
+		if (char === " " || char === "	") {
+			if (inWord) words.push(word);
+			word = "";
+			inWord = false;
+		} else if (char === "\"" || char === "'") {
+			const end = text.indexOf(char, index + 1);
+			const close = end < 0 ? text.length : end;
+			word += text.slice(index + 1, close);
+			inWord = true;
+			index = close;
+		} else if (char === "\\" && index + 1 < text.length) {
+			word += text[index + 1] ?? "";
+			inWord = true;
+			index += 1;
+		} else {
+			word += char;
+			inWord = true;
+		}
+	}
+	if (inWord) words.push(word);
+	const first = words[0];
+	if (first === void 0) return [];
+	if (!first.includes("=")) return spaceForm && words.length > 1 ? [[first, words.slice(1).join(" ")]] : [];
+	return words.flatMap((item) => {
+		const equals = item.indexOf("=");
+		return equals > 0 ? [[item.slice(0, equals), item.slice(equals + 1)]] : [];
+	});
+}
+function runCommands(instruction, facts, environment) {
+	const commands = [];
+	const { text, offset } = withoutOptions(instruction.text);
+	const exec = execWords(text);
+	if (exec !== void 0) {
+		const words = exec.map((word) => ({
+			text: word,
+			offset: 0
+		}));
+		const found = findExecCommands(words, facts.commands, environment);
+		for (const { offset: _offset, ...command } of found.commands) commands.push(located(command, instruction.line));
+		return {
+			commands,
+			...found.pipConfig === true ? { pipConfig: true } : {}
+		};
+	}
+	const found = findToolCommands(text, facts.commands, 0, environment);
+	let pipConfig = found.pipConfig === true;
+	const overLimit = { ...found.overLimit };
+	for (const { offset: at, ...command } of found.commands) commands.push(located(command, lineAt$2(instruction, offset + at)));
+	for (const heredoc of instruction.heredocs) {
+		if (!isScript(heredoc.command)) continue;
+		const lineStarts = [0];
+		for (let index = heredoc.body.indexOf("\n"); index >= 0; index = heredoc.body.indexOf("\n", index + 1)) lineStarts.push(index + 1);
+		const body = findToolCommands(heredoc.body, facts.commands, 0, environment);
+		pipConfig ||= body.pipConfig === true;
+		if (body.overLimit?.directory !== void 0) overLimit.directory ??= body.overLimit.directory;
+		if (body.overLimit?.variables === true) overLimit.variables = true;
+		for (const { offset: at, ...command } of body.commands) {
+			let low = 0;
+			let high = lineStarts.length - 1;
+			while (low < high) {
+				const middle = Math.ceil((low + high) / 2);
+				if ((lineStarts[middle] ?? 0) <= at) low = middle;
+				else high = middle - 1;
+			}
+			commands.push(located(command, heredoc.line + low));
+		}
+	}
+	return {
+		commands,
+		...pipConfig ? { pipConfig: true } : {},
+		...Object.keys(overLimit).length === 0 ? {} : { overLimit }
+	};
+}
+/** The most COPY and ADD sources kept for one stage. */
+const MAX_COPIES = 256;
+/**
+* The sources of a COPY or ADD instruction from the build context: every word but the last (the destination), without
+* options and here-documents, in shell or exec form. Nothing for --from (another stage or image).
+*/
+function copySources(text) {
+	const { text: rest, offset } = withoutOptions(text.trim());
+	if (/(?:^|\s)--from\b/iu.test(text.trim().slice(0, offset))) return [];
+	return (execWords(rest.trim()) ?? rest.trim().split(/\s+/u).filter(Boolean)).slice(0, -1).filter((word) => !word.startsWith("<<")).slice(0, MAX_COPIES);
+}
+/** Reads one Dockerfile. */
+function readDockerStages(file, text, facts) {
+	const instructions = readDockerfile(text, facts.syntax);
+	const escape = facts.syntax.escapeCharacters[0] ?? "\\";
+	const args = /* @__PURE__ */ new Map();
+	const unreadable = /* @__PURE__ */ new Map();
+	const stages = [];
+	const named = /* @__PURE__ */ new Map();
+	const environments = [];
+	const versions = [];
+	const notices = [];
+	for (const instruction of instructions) {
+		if (instruction.keyword === facts.syntax.globalArgInstruction && stages.length === 0) {
+			for (const [name, value] of argDeclarations(instruction.text)) {
+				const resolved = value === void 0 ? void 0 : substitute(value, args, escape, unreadable);
+				args.set(name, resolved?.ok === true ? resolved.value : void 0);
+				const why = resolved?.ok === false ? resolved.reason : void 0;
+				if (why !== void 0) unreadable.set(name, why.startsWith("it ") ? `the ARG ${name} ${why.slice(3)}` : why);
+				else unreadable.delete(name);
+			}
+			continue;
+		}
+		if (instruction.keyword === "FROM") {
+			const words = instruction.text.split(/\s+/u).filter(Boolean);
+			const position = words.findIndex((word) => !word.startsWith("--"));
+			const written = words[position] ?? "";
+			const alias = words[position + 1]?.toLowerCase() === "as" ? words[position + 2]?.toLowerCase() : void 0;
+			const stage = {
+				line: instruction.line,
+				...alias === void 0 ? {} : { name: alias },
+				commands: []
+			};
+			const substituted = substitute(written, args, escape, unreadable);
+			if (!substituted.ok) {
+				const reference = written.split("@", 1)[0] ?? "";
+				const colon = reference.lastIndexOf(":");
+				const name = colon > reference.lastIndexOf("/") ? reference.slice(0, colon) : reference;
+				const runtime = name.includes("$") || name.length > 256 ? void 0 : runtimeOf(name, facts);
+				const why = substituted.reason;
+				const reason = why === void 0 ? `the ARG ${substituted.variable} it uses has no value in the Dockerfile` : why.startsWith("it ") ? `the image reference ${why.slice(3)}` : why;
+				if (runtime !== void 0) stage.runtime = {
+					tool: runtime.tool,
+					unknown: reason
+				};
+			} else {
+				stage.image = substituted.value;
+				const earlier = named.get(substituted.value.toLowerCase()) ?? -1;
+				if (earlier >= 0) {
+					stage.from = earlier;
+					const inherited = stages[earlier]?.runtime;
+					if (inherited !== void 0) stage.runtime = inherited;
+				} else {
+					const runtime = runtimeOf(substituted.value, facts);
+					if (runtime !== void 0) {
+						stage.runtime = runtime;
+						if (runtime.tool === "node" && runtime.version !== void 0) versions.push({
+							tool: "node",
+							declaration: {
+								version: runtime.version,
+								source: "dockerfile",
+								file,
+								line: instruction.line,
+								stage: alias ?? String(stages.length)
+							}
+						});
+					}
+				}
+			}
+			const { commands: _commands, ...fields } = stage;
+			if (alias !== void 0 && !named.has(alias)) named.set(alias, stages.length);
+			const parent = stage.from === void 0 || !facts.environment.inheritedByStages ? void 0 : environments[stage.from];
+			environments.push(parent ?? /* @__PURE__ */ new Map());
+			stages.push({
+				...fields,
+				commands: []
+			});
+			continue;
+		}
+		const stage = stages.at(-1);
+		const environment = environments.at(-1);
+		if (instruction.keyword === facts.environment.instruction && environment !== void 0) {
+			environments[environments.length - 1] = withVariables(facts.commands, environment, envDeclarations(instruction.text, facts.environment.spaceForm));
+			continue;
+		}
+		if ((instruction.keyword === "COPY" || instruction.keyword === "ADD") && stage !== void 0) {
+			const sources = copySources(instruction.text);
+			if (sources.length > 0) stage.copies = [...stage.copies ?? [], ...sources].slice(0, MAX_COPIES);
+			continue;
+		}
+		if (instruction.keyword !== "RUN" || stage === void 0) continue;
+		const run = runCommands(instruction, facts, environment ?? /* @__PURE__ */ new Map());
+		if (run.pipConfig === true) stage.pipConfig = true;
+		for (const message of overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`)) notices.push({
+			message,
+			line: instruction.line
+		});
+		for (const command of run.commands) {
+			stage.commands.push(command);
+			if (command.kind === "upgrade" && command.version !== void 0 && (command.tool === "npm" || command.tool === "pip" || command.tool === "poetry")) versions.push({
+				tool: command.tool,
+				declaration: {
+					version: command.version,
+					source: "dockerfile",
+					file,
+					line: command.line,
+					stage: stage.name ?? String(stages.length - 1)
+				}
+			});
+		}
+	}
+	return {
+		info: {
+			file,
+			stages
+		},
+		versions,
+		notices
+	};
+}
+/**
+* The Dockerfiles of the root, of its direct subdirectories that have no manifest of their own (docker/, .devcontainer/),
+* and of workspace packages, sorted by path.
+*/
+function dockerfileCandidates(repository, facts, manifests, packages) {
+	const directories = /* @__PURE__ */ new Set([".", ...packages]);
+	for (const name of repository.listDirectories(".")) if (!manifests.some((manifest) => repository.isFile(joinPath(name, manifest)))) directories.add(name);
+	const files = [];
+	for (const directory of directories) for (const name of repository.listFiles(directory)) if (isDockerfileName(name, facts)) files.push(joinPath(directory, name));
+	return [...new Set(files)].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+}
+
 // src/detect/workflows.ts
-const NPM_GLOBAL_UPGRADE = /\bnpm\s+(?:install|i)\s+(?:-g|--global)\s+npm@([^\s'"`;&|]+)/gu;
+const MATRIX_VALUE = /^\$\{\{\s*matrix\.([A-Za-z_][A-Za-z0-9_-]*)\s*\}\}$/u;
+/** At most this many values of one matrix key are checked; a longer list is reported as not checked (a notice). */
+const MAX_MATRIX_VALUES = 256;
 function scalarText(node) {
 	if (!(0, import_dist.isScalar)(node) || node.value === null || node.value === void 0) return void 0;
 	return String(node.value);
@@ -12409,13 +16107,86 @@ function findAction(actions, uses) {
 	const name = uses.split("@", 1)[0]?.toLowerCase();
 	return actions.find((action) => action.action.toLowerCase() === name);
 }
+/**
+* The values of a matrix key: its list and the values include entries give it, each value once (at its first line),
+* without the values an exclude entry with only this key removes (an entry with more keys removes some combinations
+* only, so the value stays). undefined when they cannot be listed, `too-many` past MAX_MATRIX_VALUES.
+*/
+function matrixValues(job, key) {
+	const strategy = job.get("strategy");
+	const matrix = (0, import_dist.isMap)(strategy) ? strategy.get("matrix") : void 0;
+	if (!(0, import_dist.isMap)(matrix)) return void 0;
+	const values = /* @__PURE__ */ new Map();
+	const add = (item) => {
+		const text = scalarText(item);
+		if (text === void 0 || values.has(text)) return true;
+		if (values.size >= 256) return false;
+		values.set(text, item);
+		return true;
+	};
+	const list = matrix.get(key, true);
+	if ((0, import_dist.isSeq)(list)) for (const item of list.items) {
+		if (!(0, import_dist.isScalar)(item)) return void 0;
+		if (!add(item)) return "too-many";
+	}
+	else if (list !== void 0) return;
+	const include = matrix.get("include");
+	if ((0, import_dist.isSeq)(include)) for (const entry of include.items) {
+		const value = (0, import_dist.isMap)(entry) ? entry.get(key, true) : void 0;
+		if ((0, import_dist.isScalar)(value) && !add(value)) return "too-many";
+	}
+	const exclude = matrix.get("exclude");
+	if ((0, import_dist.isSeq)(exclude) && (0, import_dist.isSeq)(list)) {
+		const included = new Set((0, import_dist.isSeq)(include) ? include.items.map((item) => (0, import_dist.isMap)(item) ? scalarText(item.get(key, true)) : void 0) : []);
+		for (const entry of exclude.items) {
+			if (!(0, import_dist.isMap)(entry) || entry.items.length !== 1) continue;
+			const value = entry.get(key, true);
+			const text = (0, import_dist.isScalar)(value) ? scalarText(value) : void 0;
+			if (text !== void 0 && !included.has(text)) values.delete(text);
+		}
+	}
+	return values.size === 0 ? void 0 : [...values.values()];
+}
+/** A working directory as written, without ./ and a trailing /; undefined for the root. */
+function workingDirectory(node) {
+	const text = scalarText(node)?.trim();
+	if (text === void 0) return void 0;
+	let value = text.replace(/\\/gu, "/");
+	while (value.startsWith("./")) value = value.slice(2);
+	while (value.endsWith("/")) value = value.slice(0, -1);
+	return value === "" || value === "." ? void 0 : value;
+}
+/** The directory of a command: the working directory of its step joined with the literal cd before it (decision D-115). */
+function commandDirectory(step, cd) {
+	if (cd === void 0) return step;
+	if (cd === "<unknown>" || step === void 0) return cd;
+	return `${step}/${cd}`;
+}
+/** The variables of an env map whose values are scalars, as text (a YAML true is "true"). */
+function environmentOf(node) {
+	const found = /* @__PURE__ */ new Map();
+	if (!(0, import_dist.isMap)(node)) return found;
+	for (const pair of node.items) {
+		const key = scalarText(pair.key);
+		const value = scalarText(pair.value);
+		if (key !== void 0 && value !== void 0) found.set(key, value);
+	}
+	return found;
+}
+/** defaults.run.working-directory of a workflow or a job. */
+function defaultDirectory(node) {
+	const defaults = (0, import_dist.isMap)(node) ? node.get("defaults") : void 0;
+	const run = (0, import_dist.isMap)(defaults) ? defaults.get("run") : void 0;
+	return (0, import_dist.isMap)(run) ? workingDirectory(run.get("working-directory", true)) : void 0;
+}
 function readWorkflows(repository, facts) {
 	const { directory, extensions } = facts.workflows;
 	const files = repository.listFiles(directory).filter((name) => extensions.some((extension) => name.endsWith(extension))).map((name) => joinPath(directory, name));
 	const findings = {
 		files,
 		versions: [],
-		installs: []
+		installs: [],
+		jobs: []
 	};
 	for (const file of files) {
 		const text = repository.readText(file);
@@ -12428,28 +16199,112 @@ function readWorkflows(repository, facts) {
 			continue;
 		}
 		const lineOf = (node) => node.range === void 0 || node.range === null ? void 0 : lineCounter.linePos(node.range[0]).line;
-		const declare = (tool, value, node) => {
-			const line = lineOf(node);
-			findings.versions.push({
-				tool,
-				declaration: {
-					...value,
-					source: "github-actions",
-					file,
-					...line === void 0 ? {} : { line }
-				}
-			});
-		};
 		const jobs = document.get("jobs");
 		if (!(0, import_dist.isMap)(jobs)) continue;
-		for (const job of jobs.items) {
-			const steps = (0, import_dist.isMap)(job.value) ? job.value.get("steps") : void 0;
+		const workflowDirectory = defaultDirectory(document.contents);
+		const { key: envKey } = facts.workflowEnvironment;
+		const workflowEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(document.contents) ? document.contents.get(envKey) : void 0));
+		for (const pair of jobs.items) {
+			const id = scalarText(pair.key);
+			const job = pair.value;
+			if (id === void 0 || !(0, import_dist.isMap)(job)) continue;
+			const declare = (tool, value, node, step) => {
+				const matrix = "version" in value ? MATRIX_VALUE.exec(value.version)?.[1] : void 0;
+				const expanded = matrix === void 0 ? void 0 : matrixValues(job, matrix);
+				if (matrix !== void 0 && expanded === "too-many") {
+					const line = lineOf(node);
+					const unknown = `the matrix lists more than ${256} values for ${matrix}, which depcurfew does not check`;
+					findings.versions.push({
+						tool,
+						declaration: {
+							...value,
+							source: "github-actions",
+							file,
+							...line === void 0 ? {} : { line },
+							job: id,
+							...step === void 0 ? {} : { step },
+							matrix,
+							unknown
+						}
+					});
+					return;
+				}
+				if (matrix !== void 0 && Array.isArray(expanded)) {
+					for (const item of expanded) {
+						const version = scalarText(item);
+						const line = lineOf(item);
+						if (version !== void 0) findings.versions.push({
+							tool,
+							declaration: {
+								version,
+								source: "github-actions",
+								file,
+								...line === void 0 ? {} : { line },
+								job: id,
+								...step === void 0 ? {} : { step },
+								matrix
+							}
+						});
+					}
+					return;
+				}
+				const line = lineOf(node);
+				findings.versions.push({
+					tool,
+					declaration: {
+						...value,
+						source: "github-actions",
+						file,
+						...line === void 0 ? {} : { line },
+						job: id,
+						...step === void 0 ? {} : { step }
+					}
+				});
+			};
+			const record = {
+				file,
+				id,
+				line: ((0, import_dist.isScalar)(pair.key) ? lineOf(pair.key) : void 0) ?? 1,
+				commands: [],
+				runsNode: false
+			};
+			findings.jobs.push(record);
+			const jobDirectory = defaultDirectory(job) ?? workflowDirectory;
+			const { key: containerKey, imageKey, envKey: containerEnvKey } = facts.jobContainer;
+			const container = job.get(containerKey, true);
+			const imageNode = (0, import_dist.isMap)(container) ? container.get(imageKey, true) : container;
+			const image = scalarText(imageNode);
+			if (image !== void 0 && (0, import_dist.isScalar)(imageNode) && !image.includes("${{")) {
+				const runtime = imageRuntime(image.trim(), facts.docker);
+				const line = lineOf(imageNode);
+				if (runtime?.tool === "node") {
+					const at = line === void 0 ? {} : {
+						line,
+						step: line
+					};
+					findings.versions.push({
+						tool: "node",
+						declaration: {
+							version: runtime.version ?? runtime.tag ?? image,
+							source: "github-actions",
+							file,
+							...at,
+							job: id,
+							container: image.trim(),
+							...runtime.version === void 0 ? { unknown: runtime.unknown ?? "the tag names no version" } : {}
+						}
+					});
+				}
+			}
+			const jobEnvironment = withVariables(facts.commands, environmentOf((0, import_dist.isMap)(container) ? container.get(containerEnvKey) : void 0), workflowEnvironment, environmentOf(job.get(envKey)));
+			const steps = job.get("steps");
 			if (!(0, import_dist.isSeq)(steps)) continue;
 			for (const step of steps.items) {
 				if (!(0, import_dist.isMap)(step)) continue;
 				const uses = scalarText(step.get("uses", true));
 				const action = uses === void 0 ? void 0 : findAction(facts.setupActions, uses);
 				if (action !== void 0) {
+					const stepLine = lineOf(step);
 					for (const tool of action.installs) findings.installs.push({
 						tool,
 						file
@@ -12459,26 +16314,41 @@ function readWorkflows(repository, facts) {
 						const node = inputs.get(input.name, true);
 						const value = scalarText(node);
 						if (value === void 0 || !(0, import_dist.isScalar)(node)) continue;
-						if (input.kind === "version" && input.tool !== void 0) declare(input.tool, { version: value }, node);
-						if (input.kind === "version-file" && input.tool !== void 0) declare(input.tool, { versionFile: value }, node);
+						if (input.kind === "version" && input.tool !== void 0) declare(input.tool, { version: value }, node, stepLine);
+						if (input.kind === "version-file" && input.tool !== void 0) declare(input.tool, { versionFile: value }, node, stepLine);
 						if (input.kind === "runtime") {
 							const [name, version] = value.split("@");
-							if ((name === "node" || name === "bun" || name === "deno") && version !== void 0 && version !== "") declare(name, { version }, node);
+							if ((name === "node" || name === "bun" || name === "deno") && version !== void 0 && version !== "") declare(name, { version }, node, stepLine);
 						}
 					}
 				}
 				const run = step.get("run", true);
 				if ((0, import_dist.isScalar)(run) && typeof run.value === "string" && run.range !== void 0 && run.range !== null) {
-					const source = text.slice(run.range[0], run.range[1]);
-					for (const match of source.matchAll(NPM_GLOBAL_UPGRADE)) {
-						const line = lineCounter.linePos(run.range[0] + match.index).line;
-						findings.versions.push({
-							tool: "npm",
+					const start = run.range[0];
+					const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey)));
+					const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
+					const runLine = lineCounter.linePos(start).line;
+					for (const message of overLimitMessages(found.overLimit, `the run step of job ${id} in ${file} (line ${runLine})`)) repository.warn("script-not-followed", message, [file], runLine);
+					record.runsNode ||= found.runsNode;
+					const configVariable = facts.commands.pip.delay?.configVariable;
+					if (found.pipConfig === true || configVariable !== void 0 && (environment.get(configVariable) ?? "") !== "") record.pipConfig = true;
+					const stepDirectory = step.has("working-directory") ? workingDirectory(step.get("working-directory", true)) : jobDirectory;
+					for (const { offset, cd, ...command } of found.commands) {
+						const line = lineCounter.linePos(start + offset).line;
+						const directory = commandDirectory(stepDirectory, cd);
+						record.commands.push({
+							...command,
+							line,
+							...directory === void 0 ? {} : { directory }
+						});
+						if ((command.tool === "npm" || command.tool === "poetry") && command.kind === "upgrade" && command.version !== void 0) findings.versions.push({
+							tool: command.tool,
 							declaration: {
-								version: match[1] ?? "",
+								version: command.version,
 								source: "github-actions",
 								file,
-								line
+								line,
+								job: id
 							}
 						});
 					}
@@ -12490,24 +16360,38 @@ function readWorkflows(repository, facts) {
 }
 
 // src/detect/wildcard.ts
-/** Whether `text` matches `pattern`, in which `*` stands for any run of characters (including none). */
-function matchSegment$1(text, pattern) {
+/** Thrown when a StepBudget runs out before matching ends. */
+var OutOfSteps = class extends Error {};
+/** Takes `count` steps from the budget, if there is one. */
+function spendSteps(budget, count) {
+	if (budget === void 0) return;
+	budget.left -= count;
+	if (budget.left < 0) throw new OutOfSteps("out of steps");
+}
+/**
+* Whether `text` matches `pattern`, in which `*` stands for any run of characters (including none). With a budget,
+* each step of the loop takes one from it (decision D-120: workspace patterns of a package.json in another directory).
+*/
+function matchSegment$1(text, pattern, budget) {
 	let at = 0;
 	let index = 0;
 	let star = -1;
 	let resume = 0;
-	while (at < text.length) if (index < pattern.length && pattern[index] === "*") {
-		star = index;
-		index += 1;
-		resume = at;
-	} else if (index < pattern.length && pattern[index] === text[at]) {
-		index += 1;
-		at += 1;
-	} else if (star !== -1) {
-		index = star + 1;
-		resume += 1;
-		at = resume;
-	} else return false;
+	while (at < text.length) {
+		spendSteps(budget, 1);
+		if (index < pattern.length && pattern[index] === "*") {
+			star = index;
+			index += 1;
+			resume = at;
+		} else if (index < pattern.length && pattern[index] === text[at]) {
+			index += 1;
+			at += 1;
+		} else if (star !== -1) {
+			index = star + 1;
+			resume += 1;
+			at = resume;
+		} else return false;
+	}
 	while (pattern[index] === "*") index += 1;
 	return index === pattern.length;
 }
@@ -12519,7 +16403,7 @@ function wildcardMatch(text, pattern) {
 }
 
 // src/detect/workspaces.ts
-function segmentsOf(pattern) {
+function segmentsOf$1(pattern) {
 	const segments = [];
 	for (const segment of pattern.split("/")) {
 		if (segment === "" || segment === ".") continue;
@@ -12563,7 +16447,7 @@ function expandWorkspaces(repository, patterns, manifests, declaredIn) {
 			repository.warn("workspace-outside-repository", `workspace pattern "${raw}" points outside the repository`, [declaredIn]);
 			continue;
 		}
-		matchDirectories(repository, segmentsOf(pattern), 0, ".", negated ? excluded : included, /* @__PURE__ */ new Set());
+		matchDirectories(repository, segmentsOf$1(pattern), 0, ".", negated ? excluded : included, /* @__PURE__ */ new Set());
 	}
 	return [...included].filter((directory) => directory !== "." && !excluded.has(directory)).filter((directory) => manifests.some((manifest) => repository.isFile(joinPath(directory, manifest)))).sort();
 }
@@ -12592,7 +16476,11 @@ const SOURCE_ORDER = [
 	"devEngines",
 	"volta",
 	"tool-versions",
-	"github-actions"
+	"nvmrc",
+	"node-version",
+	"engines",
+	"github-actions",
+	"dockerfile"
 ];
 function isObject$2(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -12741,6 +16629,69 @@ function readToolVersions(repository, facts, collector) {
 		});
 	});
 }
+/**
+* .nvmrc and .node-version in the root: the first line that is not empty, without a # comment in .nvmrc. engines.node
+* of package.json is a range of the Node.js versions the package works on, kept as written.
+*/
+function readNodeFiles(repository, facts, manifest, collector) {
+	const files = [[
+		facts.nodeFiles.nvmrc,
+		"nvmrc",
+		facts.nodeFiles.comment
+	], [
+		facts.nodeFiles.nodeVersion,
+		"node-version",
+		void 0
+	]];
+	for (const [file, source, comment] of files) {
+		const text = repository.isFile(file) ? repository.readText(file) : void 0;
+		if (text === void 0) continue;
+		for (const [index, raw] of text.split(/\r?\n/u).entries()) {
+			const version = (comment === void 0 ? raw : raw.split(comment, 1)[0] ?? "").trim();
+			if (version === "") continue;
+			collector.addVersion("node", {
+				version,
+				source,
+				file,
+				line: index + 1
+			});
+			break;
+		}
+	}
+	const engines = manifest?.[facts.nodeFiles.engines.key];
+	const range = isObject$2(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : void 0;
+	if (typeof range === "string") collector.addVersion("node", {
+		version: range,
+		source: "engines",
+		file: "package.json"
+	});
+}
+/** The version setup-node reads from the file node-version-file names, when depcurfew can read it the same way. */
+function versionFromFile(repository, facts, path, manifest) {
+	const file = path.trim().replace(/^(?:\.\/)+/u, "");
+	const { versionFile } = facts.setupNode;
+	if (file === "" || !repository.isFile(file)) return void 0;
+	if (file.endsWith(".json")) {
+		const json = file === versionFile.packageJson ? manifest : repository.parse(file, (text) => JSON.parse(text));
+		if (!isObject$2(json)) return void 0;
+		for (const key of versionFile.packageJsonOrder) {
+			if (key === `${facts.devEngines.key}.${facts.devEngines.runtimeKey}`) {
+				const devEngines = json[facts.devEngines.key];
+				const entry = (isObject$2(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : []).find((item) => item.name.toLowerCase() === "node" && item.version !== void 0);
+				if (entry?.version !== void 0) return entry.version;
+				continue;
+			}
+			const value = key.split(".").reduce((node, part) => isObject$2(node) ? node[part] : void 0, json);
+			if (typeof value === "string") return value;
+		}
+		return;
+	}
+	if (file.endsWith(".toml")) return void 0;
+	const text = repository.readText(file);
+	if (text === void 0) return void 0;
+	const version = new RegExp(versionFile.textPattern, "mu").exec(text)?.groups?.["version"] ?? text.trim();
+	return version === "" ? void 0 : version;
+}
 function yarnVariant(repository, facts, collector) {
 	if (repository.isFile("yarn.lock")) {
 		const head = repository.readHead("yarn.lock") ?? "";
@@ -12853,6 +16804,7 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		readVolta(facts, manifest, collector);
 	}
 	readToolVersions(repository, facts, collector);
+	readNodeFiles(repository, facts, manifest, collector);
 	readPythonConfig(repository, facts, collector);
 	const owners = /* @__PURE__ */ new Map();
 	for (const manager of facts.managers) {
@@ -12872,9 +16824,24 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 	}
 	const workflows = readWorkflows(repository, facts);
 	for (const { tool, file } of workflows.installs) if (managerIds.has(tool)) collector.addEvidence(tool, "ci", file);
-	for (const { tool, declaration } of workflows.versions) collector.addVersion(tool, declaration);
+	for (const { tool, declaration } of workflows.versions) {
+		const version = tool === "node" && !("version" in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : void 0;
+		collector.addVersion(tool, version === void 0 ? declaration : {
+			version,
+			...declaration
+		});
+	}
 	const workspaces = readWorkspaces(repository, facts, manifest);
 	const directories = [".", ...workspaces?.packages ?? []];
+	const manifests = [...new Set(facts.managers.flatMap((manager) => manager.manifests))];
+	const dockerfiles = dockerfileCandidates(repository, facts.docker, manifests, workspaces?.packages ?? []).flatMap((file) => {
+		const text = repository.readText(file);
+		if (text === void 0) return [];
+		const reading = readDockerStages(file, text, facts.docker);
+		for (const { tool, declaration } of reading.versions) collector.addVersion(tool, declaration);
+		for (const { message, line } of reading.notices) repository.warn("script-not-followed", message, [file], line);
+		return [reading.info];
+	});
 	const hasEvidence = (ecosystem) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
 	if (manifest !== void 0 && !hasEvidence("npm")) {
 		collector.addEvidence("npm", "default", "package.json");
@@ -12931,6 +16898,8 @@ function detectProject(root, tools = knowledgeBase, environment$1 = environment)
 		workspaces,
 		npmrcFiles: npmrcFiles(repository, directories),
 		workflows: workflows.files,
+		jobs: workflows.jobs,
+		dockerfiles,
 		warnings: [...repository.warnings].sort((a, b) => byPath(a.code, b.code) || byPath(a.files.join(), b.files.join()))
 	};
 }
@@ -12940,7 +16909,7 @@ const POLICY_FILE = "depcurfew.json";
 
 // src/apply/requirements.ts
 /** "a", "a and b", "a, b and c". */
-function listing(items) {
+function listing$1(items) {
 	if (items.length <= 1) return items[0] ?? "";
 	return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
 }
@@ -12964,13 +16933,101 @@ function describeRequirements(requirements) {
 		0,
 		0
 	]);
-	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing(group.settings)} (since ${since})`).join(", ");
+	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$1(group.settings)} (added in ${since})`).join(", ");
 	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
+}
+
+// src/policy/package-pattern.ts
+const NAME$1 = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
+const PYTHON_NAME$1 = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
+const PYPI_PREFIX = "pypi:";
+/** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
+const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME$1}|(?!\\*+$)(@${NAME$1}/)?${NAME$1})$`;
+const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
+function validatePythonPattern(pattern) {
+	const name = pattern.slice(5);
+	if (name === "") return `write a Python package name after ${PYPI_PREFIX}, e.g. "${PYPI_PREFIX}requests"`;
+	const versionAt = name.search(/[@=<>!~;[ ]/u);
+	if (versionAt > 0 && !name.startsWith("@")) return `versions are not supported; write "${PYPI_PREFIX}${name.slice(0, versionAt)}"`;
+	if (/^\*+$/u.test(name)) return "it matches every package; list packages explicitly";
+	const example = `e.g. "${PYPI_PREFIX}requests" or "${PYPI_PREFIX}acme-*"`;
+	if (name.startsWith("@")) return `Python package names have no scope; expected a name or a name pattern with *, ${example}`;
+	if (!GRAMMAR.test(pattern)) return `expected a Python package name or a name pattern with *, ${example}`;
+}
+/** Returns why the pattern is invalid, or undefined when it is valid. */
+function validatePackagePattern(pattern) {
+	if (pattern === "") return "must not be empty";
+	if (/\s/u.test(pattern)) return "must not contain spaces";
+	if (pattern.startsWith("pypi:")) return validatePythonPattern(pattern);
+	const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(pattern);
+	if (prefix !== null) {
+		const rest = pattern.slice(prefix[0].length);
+		return prefix[1]?.toLowerCase() === "pypi" ? `the only ecosystem prefix is ${PYPI_PREFIX}; write Python packages as "${PYPI_PREFIX}${rest}"` : `the only ecosystem prefix is ${PYPI_PREFIX}; write npm packages without a prefix, e.g. "${rest}"`;
+	}
+	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
+	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
+	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
+	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
+	if (!GRAMMAR.test(pattern)) return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
+}
+/** The ecosystem a policy pattern belongs to. */
+function ecosystemOf(pattern) {
+	return pattern.startsWith("pypi:") ? "pypi" : "npm";
+}
+/** The patterns of one ecosystem, without the pypi: prefix. */
+function patternsFor(patterns, ecosystem) {
+	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => ecosystem === "pypi" ? pattern.slice(5) : pattern);
+}
+
+// src/policy/ecosystem.ts
+function ecosystemOfTool(tool) {
+	return tool.ecosystem ?? "npm";
+}
+/** The policy with cooldown.exclude, installScripts.allow and installScripts.deny reduced to the patterns of one ecosystem. */
+function policyFor(policy, ecosystem) {
+	return {
+		...policy,
+		...policy.cooldown === void 0 ? {} : { cooldown: {
+			...policy.cooldown,
+			exclude: patternsFor(policy.cooldown.exclude, ecosystem)
+		} },
+		...policy.installScripts === void 0 ? {} : { installScripts: {
+			...policy.installScripts,
+			allow: patternsFor(policy.installScripts.allow, ecosystem),
+			deny: patternsFor(policy.installScripts.deny, ecosystem)
+		} }
+	};
 }
 
 // src/doctor/python-lockfiles.ts
 const WHEEL = evidenceOf(environment.python.wheelExtension)[0]?.value ?? ".whl";
 const SDISTS = evidenceOf(environment.python.sourceDistributionExtensions)[0]?.value ?? [];
+/**
+* Whether a Python lockfile shows which packages are built from source because it lists the files of each package
+* (wheels and source distributions): uv.lock, poetry.lock and pdm.lock (extra.lockfileFormat with wheels or files), and
+* pylock.toml (pip's format, also when another tool wrote it). Pipfile.lock and pip requirements files list hashes only,
+* so they cannot tell a package without wheels from one with them (decision D-107).
+*/
+function showsBuilds(tool, file, tools) {
+	const pip = tools.find((entry) => entry.id === "pip");
+	const names = pip?.project?.lockfiles === void 0 ? [] : values$1(pip.project.lockfiles).flatMap((list) => list.flatMap((entry) => [...entry.value]));
+	const pattern = pip?.extra?.["lockfilePattern"] === void 0 ? void 0 : values$1(pip.extra["lockfilePattern"])[0];
+	const pylock = names.includes(file) || typeof pattern === "string" && new RegExp(pattern, "u").test(file);
+	if (!pylock && tool.id === "pip") return false;
+	const fact = (pylock ? pip : tool)?.extra?.["lockfileFormat"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(format) && (typeof format["wheels"] === "string" || typeof format["files"] === "string");
+}
+/** Whether a package manager of the project has a lockfile that showsBuilds, or records install scripts (the npm ecosystem). */
+function hasBuildRecords(managers, tools, ecosystem = "any") {
+	return managers.some((manager) => {
+		const tool = tools.find((entry) => entry.id === manager.id);
+		if (!manager.supported || tool === void 0) return false;
+		const python = ecosystemOfTool(tool) === "pypi";
+		if (ecosystem === "pypi" && !python) return false;
+		return manager.evidence.some((evidence) => evidence.kind === "lockfile" && (!python || showsBuilds(tool, evidence.file, tools)));
+	});
+}
 function text$1(value) {
 	return typeof value === "string" ? value : void 0;
 }
@@ -13162,7 +17219,7 @@ function requirementsLines(input, format) {
 	}
 	return result;
 }
-const PYTHON_NAME$1 = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? "^[A-Za-z0-9][A-Za-z0-9._-]*$", "iu");
+const PYTHON_NAME = new RegExp(evidenceOf(environment.python.namePattern)[0]?.value ?? "^[A-Za-z0-9][A-Za-z0-9._-]*$", "iu");
 /** The facts about pip requirements files in one record: syntax, includes (-r, -c) and how pip tells paths and URLs. */
 function requirementsFormatOf(tool) {
 	const record = (key) => {
@@ -13177,15 +17234,15 @@ function requirementsFormatOf(tool) {
 		parser: record("requirementsParser")
 	};
 }
-function escapeRegExp(text) {
+function escapeRegExp$1(text) {
 	return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 /** The requirements and constraints files a requirements file includes (-r, -c), as written, with their lines. */
 function requirementsIncludes(input, format) {
 	const includes = isRecord(format["includes"]) ? format["includes"] : {};
 	const options = [...strings$1(includes["requirements"]), ...strings$1(includes["constraints"])];
-	const short = options.filter((option) => !option.startsWith("--")).map(escapeRegExp);
-	const long = options.filter((option) => option.startsWith("--")).map(escapeRegExp);
+	const short = options.filter((option) => !option.startsWith("--")).map(escapeRegExp$1);
+	const long = options.filter((option) => option.startsWith("--")).map(escapeRegExp$1);
 	const pattern = new RegExp(`^(?:(?:${short.join("|") || "(?!)"})\\s*|(?:${long.join("|") || "(?!)"})(?:\\s+|=))(\\S+)`, "u");
 	return requirementsLines(input, format).flatMap(({ text: body, line }) => {
 		const path = pattern.exec(body)?.[1];
@@ -13204,14 +17261,14 @@ function requirementSource(requirement, format, editable) {
 	const vcs = isRecord(format["vcs"]) ? format["vcs"] : {};
 	const gitPrefixes = strings$1(vcs["git"]);
 	const otherPrefixes = strings$1(vcs["other"]);
-	const egg = new RegExp(`${escapeRegExp(String(format["egg"]))}([^&\\s]+)`, "u");
+	const egg = new RegExp(`${escapeRegExp$1(String(format["egg"]))}([^&\\s]+)`, "u");
 	const paths = isRecord(format["paths"]) ? format["paths"] : {};
 	const separators = strings$1(paths["separators"]);
 	const currentDirectory = String(paths["currentDirectory"]);
 	const archives = strings$1(paths["archiveExtensions"]);
-	const urlSchemes = new RegExp(`^(?:${strings$1(paths["urlSchemes"]).map(escapeRegExp).join("|") || "(?!)"})://`, "iu");
-	const fileScheme = new RegExp(`^${escapeRegExp(String(paths["fileScheme"]))}(//)?`, "iu");
-	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp(String(format["direct"]).trim())}\\s*(.+)$`, "u");
+	const urlSchemes = new RegExp(`^(?:${strings$1(paths["urlSchemes"]).map(escapeRegExp$1).join("|") || "(?!)"})://`, "iu");
+	const fileScheme = new RegExp(`^${escapeRegExp$1(String(paths["fileScheme"]))}(//)?`, "iu");
+	const reference = new RegExp(`^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\\[[^\\]]*\\])?\\s*${escapeRegExp$1(String(format["direct"]).trim())}\\s*(.+)$`, "u");
 	const looksLikePath = (text) => separators.some((separator) => text.includes(separator)) || text.startsWith(currentDirectory);
 	const isArchive = (text) => archives.some((extension) => text.toLowerCase().endsWith(extension));
 	const named = reference.exec(requirement);
@@ -13220,7 +17277,7 @@ function requirementSource(requirement, format, editable) {
 	const located = (source, location, builds) => ({
 		source,
 		target: location,
-		...name !== void 0 && PYTHON_NAME$1.test(name) ? { name } : {},
+		...name !== void 0 && PYTHON_NAME.test(name) ? { name } : {},
 		builds
 	});
 	if (gitPrefixes.some((prefix) => target.startsWith(prefix))) return located("git", target, true);
@@ -13599,7 +17656,7 @@ function requirementsTrees(repository, roots, format) {
 				if (reason === void 0) queue.push(target);
 				else unreadable.push(`${path} (line ${line}, ${reason})`);
 			}
-			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing(unreadable)}`, [file]);
+			if (unreadable.length > 0) repository.warn("unreadable-include", `cannot read the files that ${file} includes: ${listing$1(unreadable)}`, [file]);
 		}
 		for (const file of tree) trees.set(file, [.../* @__PURE__ */ new Set([...trees.get(file) ?? [], ...tree])]);
 	}
@@ -14676,9 +18733,2480 @@ const UNREADABLE_WARNINGS = {
 	"workspace-outside-repository": "Keep workspace packages inside the repository",
 	"unreadable-include": "Keep the included files in the repository and refer to them by a relative path, so that depcurfew can check them"
 };
+/**
+* What to do about each warning of detection, by its code: the fixes above for files that could not be read, and the
+* others. One source for the warnings of explain and the notices of doctor (decision D-116).
+*/
+const WARNING_FIXES = {
+	...UNREADABLE_WARNINGS,
+	"nothing-detected": `Run depcurfew explain in the directory of the project, or list the directories of the projects under projects in ${POLICY_FILE}`,
+	"invalid-package-manager": "Write packageManager in package.json as name@version, with a package manager depcurfew knows",
+	"package-manager-assumed": "Commit the lockfile, or name the package manager and its version in packageManager in package.json",
+	"yarn-classic-unsupported": "Move to Yarn 2 or later, or to another package manager depcurfew configures",
+	"renovate-config-in-package-json": "Move the renovate key of package.json to renovate.json",
+	"multiple-lockfiles": "Remove the lockfiles of the package managers the project does not use",
+	"package-manager-mismatch": "Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager",
+	"python-tool-unknown": `Commit the lockfile of the tool that installs the project, or name the tool in targets in ${POLICY_FILE}`,
+	"script-not-followed": "Split the script into shorter run steps or RUN instructions, or check by hand where the installs after that point run and with which variables"
+};
+/**
+* Warnings of detection that doctor shows as notices: what detection could not follow, so the rules did not check it
+* (decision D-121). The others are about what explain and apply configure.
+*/
+const DETECTION_NOTICES = /* @__PURE__ */ new Set(["script-not-followed"]);
+
+// src/check/semver.ts
+const VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+function parseSemver(text) {
+	const match = VERSION.exec(text.trim());
+	if (match === null) return void 0;
+	const prerelease = match[4] === void 0 ? [] : match[4].split(".").map((part) => /^\d+$/u.test(part) ? Number(part) : part);
+	return {
+		major: Number(match[1]),
+		minor: Number(match[2]),
+		patch: Number(match[3]),
+		prerelease
+	};
+}
+function compareSemver(a, b) {
+	const main = a.major - b.major || a.minor - b.minor || a.patch - b.patch;
+	if (main !== 0) return main;
+	if (a.prerelease.length === 0 || b.prerelease.length === 0) return b.prerelease.length - a.prerelease.length;
+	for (let index = 0; index < Math.max(a.prerelease.length, b.prerelease.length); index++) {
+		const left = a.prerelease[index];
+		const right = b.prerelease[index];
+		if (left === void 0) return -1;
+		if (right === void 0) return 1;
+		if (left === right) continue;
+		if (typeof left === "number" && typeof right === "number") return left - right;
+		if (typeof left === "number") return -1;
+		if (typeof right === "number") return 1;
+		return left < right ? -1 : 1;
+	}
+	return 0;
+}
+const PARTIAL$1 = /^v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+function partial$1(text) {
+	if (text === "" || text === "*" || text === "x" || text === "X") return {
+		major: void 0,
+		minor: void 0,
+		patch: void 0,
+		prerelease: []
+	};
+	const match = PARTIAL$1.exec(text);
+	if (match === null) return void 0;
+	const number = (part) => part === void 0 || /^[xX*]$/u.test(part) ? void 0 : Number(part);
+	const major = number(match[1]);
+	const minor = major === void 0 ? void 0 : number(match[2]);
+	const patch = minor === void 0 ? void 0 : number(match[3]);
+	return {
+		major,
+		minor,
+		patch,
+		prerelease: patch === void 0 || match[4] === void 0 ? [] : match[4].split(".").map((part) => /^\d+$/u.test(part) ? Number(part) : part)
+	};
+}
+const version = (major, minor, patch, prerelease = []) => ({
+	major,
+	minor,
+	patch,
+	prerelease
+});
+/** The lowest version of a release line, below its prereleases: x.y.z-0. */
+const floor = (major, minor, patch) => version(major, minor, patch, [0]);
+function full(value) {
+	return version(value.major ?? 0, value.minor ?? 0, value.patch ?? 0, value.prerelease);
+}
+/** Comparators of one operator and partial version, as npm desugars them. */
+function desugar(operator, value) {
+	const { major, minor, patch } = value;
+	if (major === void 0) return operator === "<" || operator === ">" ? [{
+		operator: "<",
+		version: floor(0, 0, 0)
+	}] : [];
+	switch (operator) {
+		case "":
+		case "=":
+			if (minor === void 0) return [{
+				operator: ">=",
+				version: version(major, 0, 0)
+			}, {
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			if (patch === void 0) return [{
+				operator: ">=",
+				version: version(major, minor, 0)
+			}, {
+				operator: "<",
+				version: floor(major, minor + 1, 0)
+			}];
+			return [{
+				operator: "=",
+				version: full(value)
+			}];
+		case "~":
+		case "~>":
+			if (minor === void 0) return [{
+				operator: ">=",
+				version: version(major, 0, 0)
+			}, {
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			return [{
+				operator: ">=",
+				version: full(value)
+			}, {
+				operator: "<",
+				version: floor(major, minor + 1, 0)
+			}];
+		case "^": {
+			const lower = {
+				operator: ">=",
+				version: full(value)
+			};
+			if (major > 0 || minor === void 0) return [lower, {
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			if (minor > 0 || patch === void 0) return [lower, {
+				operator: "<",
+				version: floor(0, minor + 1, 0)
+			}];
+			return [lower, {
+				operator: "<",
+				version: floor(0, 0, patch + 1)
+			}];
+		}
+		case ">":
+			if (minor === void 0) return [{
+				operator: ">=",
+				version: version(major + 1, 0, 0)
+			}];
+			if (patch === void 0) return [{
+				operator: ">=",
+				version: version(major, minor + 1, 0)
+			}];
+			return [{
+				operator: ">",
+				version: full(value)
+			}];
+		case ">=": return [{
+			operator: ">=",
+			version: full(value)
+		}];
+		case "<": return [{
+			operator: "<",
+			version: patch === void 0 ? floor(major, minor ?? 0, 0) : full(value)
+		}];
+		case "<=":
+			if (minor === void 0) return [{
+				operator: "<",
+				version: floor(major + 1, 0, 0)
+			}];
+			if (patch === void 0) return [{
+				operator: "<",
+				version: floor(major, minor + 1, 0)
+			}];
+			return [{
+				operator: "<=",
+				version: full(value)
+			}];
+		default: return;
+	}
+}
+/** Comparator sets joined by ||; undefined when the text is not a range (for example a dist-tag). */
+function parseRange(text) {
+	const sets = [];
+	for (const raw of text.split("||")) {
+		const set = raw.trim().replaceAll(/(\^|~>?|>=|<=|>|<|=)\s+/gu, "$1");
+		const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(set);
+		if (hyphen !== null) {
+			const from = partial$1(hyphen[1] ?? "");
+			const to = partial$1(hyphen[2] ?? "");
+			if (from === void 0 || to === void 0) return void 0;
+			const lower = desugar(">=", from) ?? [];
+			const upper = to.major === void 0 ? [] : desugar("<=", to) ?? [];
+			sets.push([...lower, ...upper]);
+			continue;
+		}
+		const comparators = [];
+		for (const part of set === "" ? [""] : set.split(/\s+/u)) {
+			const match = /^(\^|~>?|>=|<=|>|<|=)?(.*)$/u.exec(part);
+			const value = partial$1(match?.[2] ?? "");
+			if (match === null || value === void 0) return void 0;
+			const desugared = desugar(match[1] ?? "", value);
+			if (desugared === void 0) return void 0;
+			comparators.push(...desugared);
+		}
+		sets.push(comparators);
+	}
+	return sets;
+}
+function holds(comparator, candidate) {
+	const order = compareSemver(candidate, comparator.version);
+	switch (comparator.operator) {
+		case "<": return order < 0;
+		case "<=": return order <= 0;
+		case ">": return order > 0;
+		case ">=": return order >= 0;
+		case "=": return order === 0;
+	}
+}
+function satisfiesSet(candidate, set) {
+	if (!set.every((comparator) => holds(comparator, candidate))) return false;
+	if (candidate.prerelease.length === 0) return true;
+	return set.some((comparator) => comparator.version.prerelease.length > 0 && !(comparator.version.prerelease.length === 1 && comparator.version.prerelease[0] === 0 && comparator.operator === "<") && comparator.version.major === candidate.major && comparator.version.minor === candidate.minor && comparator.version.patch === candidate.patch);
+}
+function satisfies(candidate, range) {
+	const parsed = parseSemver(candidate);
+	const sets = parseRange(range);
+	return parsed !== void 0 && sets !== void 0 && sets.some((set) => satisfiesSet(parsed, set));
+}
+
+// src/doctor/durations.ts
+const MINUTES$2 = {
+	ms: 1 / 6e4,
+	s: 1 / 60,
+	second: 1 / 60,
+	m: 1,
+	minute: 1,
+	h: 60,
+	hour: 60,
+	d: 1440,
+	day: 1440,
+	w: 10080,
+	week: 10080
+};
+const UNIT_MINUTES = {
+	seconds: 1 / 60,
+	minutes: 1,
+	hours: 60,
+	days: 1440
+};
+function word(unit) {
+	return MINUTES$2[unit.toLowerCase().replace(/s$/u, "")];
+}
+const SYNTAX = {
+	compact: (text) => {
+		const match = /^(\d+)(ms|s|m|h|d|w)$/u.exec(text);
+		return match === null ? void 0 : Number(match[1]) * (MINUTES$2[match[2] ?? ""] ?? NaN);
+	},
+	"compact-or-words": (text) => SYNTAX["compact"]?.(text) ?? SYNTAX["words"]?.(text),
+	words: (text) => {
+		const parts = [...text.matchAll(/(\d+)\s*([a-z]+)/giu)];
+		if (parts.length === 0 || parts.map((part) => part[0]).join(" ").replaceAll(/\s+/gu, "") !== text.replaceAll(/\s+/gu, "")) return void 0;
+		let total = 0;
+		for (const part of parts) {
+			const unit = word(part[2] ?? "");
+			if (unit === void 0) return void 0;
+			total += Number(part[1]) * unit;
+		}
+		return total;
+	},
+	"words-or-iso8601": (text) => SYNTAX["iso8601"]?.(text) ?? SYNTAX["words"]?.(text),
+	iso8601: (text) => {
+		const match = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/u.exec(text);
+		if (match === null || text === "P" || text.endsWith("T")) return void 0;
+		const [weeks, days, hours, minutes, seconds] = match.slice(1).map((part) => Number(part ?? 0));
+		return (weeks ?? 0) * 10080 + (days ?? 0) * 1440 + (hours ?? 0) * 60 + (minutes ?? 0) + (seconds ?? 0) / 60;
+	}
+};
+/** A delay as written for `tool` at `version` (undefined: the latest version). null and 0 mean no delay. */
+function delayMinutes(tool, value, version) {
+	if (value === null || value === void 0 || value === false) return {
+		ok: true,
+		minutes: 0
+	};
+	if (typeof value === "number" && Number.isNaN(value)) return {
+		ok: false,
+		reason: "NaN is not a delay"
+	};
+	if (typeof value === "bigint" || typeof value === "number" && Math.abs(value) > Number.MAX_SAFE_INTEGER) return {
+		ok: false,
+		reason: `${String(value)} is too large to be a delay`
+	};
+	if (typeof value === "number") {
+		const unit = values$1(tool.cooldown.unit)[0];
+		const factor = unit === null || unit === void 0 ? void 0 : UNIT_MINUTES[unit];
+		return factor === void 0 ? {
+			ok: false,
+			reason: `${tool.name} takes no number here`
+		} : {
+			ok: true,
+			minutes: value * factor
+		};
+	}
+	if (typeof value !== "string") return {
+		ok: false,
+		reason: `${JSON.stringify(value) ?? String(value)} is not a delay`
+	};
+	const text = value.trim();
+	if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
+	const fact = tool.extra?.["durationStrings"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	if (!isRecord(format) || typeof format["syntax"] !== "string") return {
+		ok: false,
+		reason: `${tool.name} takes no duration strings`
+	};
+	const since = typeof format["since"] === "string" ? parseVersion(format["since"]) : void 0;
+	if (since !== void 0 && version !== void 0 && compareVersions$1(version, since) < 0) return {
+		ok: false,
+		reason: `${tool.name} accepts duration strings only since ${format["since"]}`
+	};
+	const minutes = SYNTAX[format["syntax"]]?.(text);
+	return minutes === void 0 ? {
+		ok: false,
+		reason: `"${text}" is not a duration ${tool.name} understands`
+	} : {
+		ok: true,
+		minutes
+	};
+}
+function formatMinutes(minutes) {
+	for (const [unit, size] of [
+		["week", 10080],
+		["day", 1440],
+		["hour", 60]
+	]) if (minutes >= size && minutes % size === 0) return `${minutes / size} ${unit}${minutes === size ? "" : "s"}`;
+	const rounded = Math.round(minutes * 100) / 100;
+	return `${rounded} minute${rounded === 1 ? "" : "s"}`;
+}
+
+// src/doctor/python.ts
+const isStringList$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+/** The parsed TOML file, or undefined when it is missing or does not parse (unreadable-config then reports it). */
+function readTomlDocument(repository, file) {
+	return repository.parseOnce(file, parseToml);
+}
+/** The value at a key path of a TOML file, with the line of its key. */
+function tomlSettingAt(repository, file, path) {
+	const document = readTomlDocument(repository, file);
+	const value = document === void 0 ? void 0 : tomlValueAt(document, path);
+	return document === void 0 || value === void 0 ? void 0 : {
+		file,
+		line: document.lineOf(path) ?? 1,
+		value
+	};
+}
+/** The files and key paths where a Python tool reads `setting`, in the order the tool uses them. */
+function pythonSettingPaths(repository, tool, setting) {
+	const tables = tool.extra?.["configTables"] === void 0 ? void 0 : extraOf(tool, "configTables", isRecord);
+	if (tables !== void 0) {
+		const files = (tool.extra?.["configFileOrder"] === void 0 ? Object.keys(tables) : extraOf(tool, "configFileOrder", isStringList$1)).filter((name) => name in tables);
+		const file = files.find((name) => repository.isFile(name)) ?? files[0];
+		if (file === void 0) return [];
+		const table = String(tables[file] ?? "");
+		return [{
+			file,
+			path: [...table === "" ? [] : table.split("."), setting]
+		}];
+	}
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
+	return file === void 0 || !file.endsWith(".toml") ? [] : [{
+		file,
+		path: setting.split(".")
+	}];
+}
+/** A Python tool's setting as the tool reads it in the project, or undefined when it is not set. */
+function readPythonSetting(repository, tool, setting) {
+	for (const { file, path } of pythonSettingPaths(repository, tool, setting)) {
+		const found = tomlSettingAt(repository, file, path);
+		if (found !== void 0) return found;
+	}
+}
+/**
+* A long option of a requirements file as pip reads it (extra.requirementsParser): an exact name, or a prefix that
+* names exactly one option of the parser; anything else (an unknown option or an ambiguous prefix) as written.
+*/
+function expandRequirementsOption(option, longOptions) {
+	if (longOptions.includes(option)) return option;
+	const matches = longOptions.filter((name) => name.startsWith(option));
+	return matches.length === 1 ? matches[0] ?? option : option;
+}
+/** The long options of pip's requirements parser in a requirements format record (requirementsFormatOf). */
+function requirementsLongOptions(format) {
+	const parser = format["parser"];
+	const options = isRecord(parser) && parser["abbreviations"] === true ? parser["longOptions"] : void 0;
+	return isStringList$1(options) ? options : [];
+}
+/**
+* The global option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines; an
+* abbreviated option (--only-bin) as the option pip reads it as. Options after a requirement on the same logical line
+* (--hash on a continuation line) belong to that requirement and are skipped.
+*/
+function requirementsOptions(repository, file, format) {
+	const text = repository.readText(file);
+	if (text === void 0) return [];
+	const longOptions = requirementsLongOptions(format);
+	return requirementsLines(text, format).flatMap(({ text: line, line: number }) => {
+		const match = /^(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(line);
+		return match === null ? [] : [{
+			option: expandRequirementsOption(match[1] ?? "", longOptions),
+			value: match[2] ?? "",
+			line: number
+		}];
+	});
+}
+
+// src/doctor/effective.ts
+function latestVersion$1(tool) {
+	const fact = tool.extra?.["latestVersion"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return typeof value === "string" ? parseVersion(value) : void 0;
+}
+/** The value in effect at `version` (or the latest entry when the version is unknown). */
+function versionedValue(list, version) {
+	let current;
+	for (const entry of list) {
+		const since = parseVersion(entry.since);
+		if (version === void 0 || since === void 0 || compareVersions$1(version, since) >= 0) current = entry.value;
+	}
+	return current;
+}
+function managerConfigFiles(tool, manager) {
+	if (tool.id === "deno") return manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file));
+	return (values$1(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== ".npmrc" || tool.id === "npm").slice(0, 1);
+}
+/**
+* pnpm before 11 also reads its settings from the root .npmrc, spelled in kebab case, when pnpm-workspace.yaml does not
+* set them (extra.npmrcPrecedence); pnpm 11 reads only auth and registry settings there (extra.ignoredSince).
+*/
+function pnpmNpmrcSetting(context, tool, version, setting) {
+	if (tool.id !== "pnpm" || tool.extra?.["npmrcPrecedence"] === void 0 || tool.extra["ignoredSince"] === void 0) return void 0;
+	const until = parseVersion(String(extraOf(tool, "ignoredSince", isRecord)["since"]));
+	const over = extraOf(tool, "npmrcPrecedence", isRecord)["over"];
+	if (until === void 0 || version === void 0 || compareVersions$1(version, until) >= 0 || !Array.isArray(over) || !over.includes(".npmrc")) return void 0;
+	return readSetting(context.repository, ".npmrc", npmrcKey(setting));
+}
+const isNpmrcBuildSettings = (value) => isRecord(value) && isRecord(value["allowAll"]) && Array.isArray(value["allowAll"]["off"]) && typeof value["until"] === "string" && Array.isArray(value["projectKeys"]);
+/**
+* pnpm 10: the dangerously-allow-all-builds line of the root .npmrc when it is on and takes effect (extra.npmrcBuildSettings):
+* every value but those pnpm reads as off, while pnpm-workspace.yaml does not set dangerouslyAllowAllBuilds and, from
+* 10.13.0, sets no build settings at all. The "pnpm" field of package.json is not consulted, which errs towards
+* reporting. undefined for other versions and for an unknown one (the latest is assumed, which reads no such .npmrc key).
+*/
+function pnpmNpmrcAllowsAllBuilds(tool, version, read) {
+	const fact = tool.extra?.["npmrcBuildSettings"] === void 0 ? void 0 : extraOf(tool, "npmrcBuildSettings", isNpmrcBuildSettings);
+	const since = fact === void 0 ? void 0 : parseVersion(fact.allowAll.since);
+	const until = fact === void 0 ? void 0 : parseVersion(fact.until);
+	if (fact === void 0 || version === void 0 || since === void 0 || until === void 0) return void 0;
+	if (compareVersions$1(version, since) < 0 || compareVersions$1(version, until) >= 0) return void 0;
+	const entry = iniEntries(read(".npmrc") ?? "").filter((item) => item.key === fact.allowAll.key).at(-1);
+	if (entry === void 0 || fact.allowAll.off.includes(entry.value.trim())) return void 0;
+	const workspace = read("pnpm-workspace.yaml");
+	const sets = (key) => {
+		const found = workspace === void 0 ? void 0 : yamlSetting(workspace, [key], yamlOptionsFor("pnpm-workspace.yaml"));
+		return found !== void 0 && found.value !== null && found.value !== void 0;
+	};
+	const keys = versionedValue(fact.projectKeys, version) ?? [];
+	if (sets(extraOf(tool, "allowAllBuilds", isSwitch).setting) || keys.some(sets)) return void 0;
+	return {
+		key: entry.key,
+		value: entry.value,
+		line: entry.line,
+		off: fact.allowAll.off
+	};
+}
+/** The package manager's delay, or undefined (with a notice) when a configured value cannot be read. */
+function managerDelay$1(context, manager, tool) {
+	const version = pinnedVersion(manager) ?? latestVersion$1(tool);
+	const versionText = version === void 0 ? tool.name : `${tool.name} ${formatVersion(version)}`;
+	const setting = settingOf(tool.cooldown.setting);
+	const since = sinceOf(tool.cooldown.availableSince);
+	if (!(since === void 0 || version === void 0 || compareVersions$1(version, parseVersion(since) ?? [
+		0,
+		0,
+		0
+	]) >= 0)) return {
+		minutes: 0,
+		origin: `${versionText} has no ${setting ?? "release-age setting"}`
+	};
+	if (setting !== null) {
+		let found;
+		let key = setting;
+		if (ecosystemOfTool(tool) === "pypi") found = readPythonSetting(context.repository, tool, setting);
+		else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
+		if (found === void 0) {
+			found = pnpmNpmrcSetting(context, tool, version, setting);
+			if (found !== void 0) key = npmrcKey(setting);
+		}
+		if (found !== void 0) {
+			const raw = isRecord(found.value) ? found.value["age"] : found.value;
+			const delay = delayMinutes(tool, raw, version);
+			if (!delay.ok) {
+				context.notice(`${tool.name}: cannot read ${key} in ${found.file}: ${delay.reason}`, found.file);
+				return;
+			}
+			return {
+				minutes: delay.minutes,
+				origin: `${key}: ${JSON.stringify(raw)} in ${found.file}`,
+				location: {
+					file: found.file,
+					line: found.line
+				}
+			};
+		}
+	}
+	let longest;
+	for (const evidence of evidenceOf(tool.cooldown.default)) {
+		const value = versionedValue(evidence.value, version);
+		const delay = delayMinutes(tool, value, version);
+		if (delay.ok && (longest === void 0 || delay.minutes > longest)) longest = delay.minutes;
+	}
+	const minutes = longest ?? 0;
+	const disputed = tool.cooldown.default.status === "disputed" ? "; official sources disagree, the longest is assumed" : "";
+	return {
+		minutes,
+		origin: minutes === 0 ? `${versionText} has no delay by default` : `the default of ${versionText}${disputed}`
+	};
+}
+
+// src/policy/file.ts
+function firstLine(error) {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.split("\n", 1)[0] ?? message;
+}
+/** Whether a path exists; an error other than "no such file" counts as existing, so that it is reported, not skipped. */
+function exists(path) {
+	try {
+		lstatSync(path);
+		return true;
+	} catch (error) {
+		const code = error.code;
+		return code !== "ENOENT" && code !== "ENOTDIR";
+	}
+}
+function readPolicyFile(root) {
+	if (!exists(join(root, "depcurfew.json"))) return { status: "missing" };
+	let repository;
+	let text;
+	try {
+		repository = new Repository(root);
+		text = repository.readText(POLICY_FILE);
+	} catch (error) {
+		return {
+			status: "unreadable",
+			reason: `cannot read ${POLICY_FILE}: ${firstLine(error)}`
+		};
+	}
+	if (text !== void 0) return {
+		status: "ok",
+		text
+	};
+	return {
+		status: "unreadable",
+		reason: repository.warnings[0]?.message ?? `${"depcurfew.json"} is not a regular file and was not read`
+	};
+}
+
+// src/apply/projects.ts
+/**
+* Whether the depcurfew.json of `root` lists `directory` (an absolute path below it), or a directory it lies in, under
+* projects, so that depcurfew run on `directory` works on the root, which checks it as one of its projects (decision
+* D-115). A policy that cannot be read lists nothing.
+*/
+function listedAsProject(root, directory) {
+	const file = readPolicyFile(root);
+	if (file.status !== "ok") return false;
+	let projects;
+	try {
+		projects = JSON.parse(file.text).projects;
+	} catch {
+		return false;
+	}
+	if (!Array.isArray(projects)) return false;
+	const path = relative(root, directory).split(sep).join("/");
+	return projects.some((project) => typeof project === "string" && project !== "" && (path === project || path.startsWith(`${project}/`)));
+}
+/** A path of a project file as seen from the repository root. */
+function inProject(project, file) {
+	return file === "" || file === "." ? project : `${project}/${file}`;
+}
+function escapeRegExp(text) {
+	return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+/**
+* The text of a message about a project with the names of the project's files (relative to the project) made
+* relative to the repository root: ".npmrc" becomes "frontend/.npmrc". Only whole paths are replaced, never the end
+* of a longer path, and depcurfew.json stays as it is, because the policy is the root's.
+*/
+function relocateText(text, project, files) {
+	const names = [...new Set(files)].filter((file) => file !== "" && file !== "depcurfew.json").sort((a, b) => b.length - a.length);
+	if (names.length === 0 || text === "") return text;
+	const pattern = new RegExp(`(?<![\\w./\\\\-])(?:${names.map(escapeRegExp).join("|")})(?![\\w/\\\\-]|\\.\\w| at the repository root)`, "gu");
+	return text.replace(pattern, (file) => inProject(project, file));
+}
+/**
+* The line of each entry of projects in the text of depcurfew.json, from the positions of the elements of that array
+* (the same name may also stand elsewhere, e.g. in cooldown.exclude); the first occurrence of the quoted name when
+* the text cannot be parsed.
+*/
+function projectLines(text) {
+	let listed;
+	let offsets;
+	try {
+		listed = jsonGet(text, ["projects"]);
+		offsets = jsonElementOffsets(text, ["projects"]);
+	} catch {
+		listed = void 0;
+	}
+	return (project) => {
+		const index = Array.isArray(listed) ? listed.indexOf(project) : -1;
+		const offset = index === -1 ? void 0 : offsets?.[index];
+		return offset === void 0 ? lineOf$1(text, JSON.stringify(project)) : text.slice(0, offset).split("\n").length;
+	};
+}
+/** Whether two directories of the repository are the same or one lies inside the other. */
+function overlaps$1(a, b) {
+	return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+/** The entry that makes a directory a repository of its own (.git, a directory or a submodule's file). */
+function repositoryEntry() {
+	return values$1(environment.git.repositoryEntry)[0]?.entry ?? ".git";
+}
+/** The directory on the way to a project (or the project itself) that is a repository of its own, if any. */
+function nestedRepository(root, project) {
+	const parts = project.split("/");
+	for (let count = 1; count <= parts.length; count++) {
+		const part = parts.slice(0, count).join("/");
+		try {
+			if (lstatSync(join(root, part, repositoryEntry()), { throwIfNoEntry: false }) !== void 0) return part;
+		} catch {}
+	}
+}
+/**
+* The problems of the directories listed in projects: one that does not exist, is not a directory, is reached through
+* a symlink (which may lead out of the repository, and would put the files apply writes in another place), is a
+* repository of its own or lies in one (a git submodule: its files belong to another repository), has a
+* depcurfew.json of its own (two policies for the same files), or overlaps a workspace package of the root (whose
+* configuration the root already writes). `rootDetection` is the detection of the root, for its workspaces.
+*/
+function projectProblems(root, projects, rootDetection) {
+	if (projects.length === 0) return [];
+	const policy = readPolicyFile(root);
+	const text = policy.status === "ok" ? policy.text : "";
+	const real = realpathSync(root);
+	const problems = [];
+	const entryLine = projectLines(text);
+	for (const project of projects) {
+		const line = entryLine(project);
+		const location = {
+			file: POLICY_FILE,
+			...line === void 0 ? {} : { line }
+		};
+		const remove = `remove "${project}" from projects in ${POLICY_FILE}`;
+		const problem = (code, message, fix, at = location) => problems.push({
+			code,
+			project,
+			location: at,
+			message,
+			fix
+		});
+		let missing;
+		let link;
+		let file;
+		const parts = project.split("/");
+		for (let count = 1; count <= parts.length; count++) {
+			const part = parts.slice(0, count).join("/");
+			let stats;
+			try {
+				stats = lstatSync(join(root, part), { throwIfNoEntry: false });
+			} catch {
+				stats = void 0;
+			}
+			if (stats === void 0) {
+				missing = part;
+				break;
+			}
+			if (stats.isSymbolicLink()) {
+				link = part;
+				break;
+			}
+			if (!stats.isDirectory()) {
+				file = part;
+				break;
+			}
+		}
+		if (missing !== void 0) {
+			problem("project-not-found", `the project directory ${project} listed in projects does not exist`, `Create ${project}, or correct or ${remove}`);
+			continue;
+		}
+		if (link !== void 0) {
+			let target;
+			try {
+				target = realpathSync(join(root, link));
+			} catch {
+				target = void 0;
+			}
+			const outside = target === void 0 || !isInside(real, target);
+			problem("project-symlink", `the project directory ${project} listed in projects ${link === project ? "is" : `lies under ${link}, which is`} a symlink${outside ? " that leads outside the repository" : ""}; depcurfew does not follow symlinks to projects, so the files it writes stay in the repository`, outside ? `Move the project into the repository, or ${remove}` : `List the directory the symlink points to instead, or ${remove}`);
+			continue;
+		}
+		if (file !== void 0) {
+			problem("project-not-a-directory", `${file} is a file, so the project directory ${project} listed in projects is not a directory`, `List the directory of the project, not a file in it, or ${remove}`);
+			continue;
+		}
+		const repository = nestedRepository(root, project);
+		if (repository !== void 0) {
+			const entry = inProject(repository, repositoryEntry());
+			problem("project-is-repository", `the project directory ${project} listed in projects ${repository === project ? "is" : `lies in ${repository}, which is`} a separate git repository (${entry} is there, as in a git submodule), so the files depcurfew would write there belong to that repository`, `${remove.charAt(0).toUpperCase()}${remove.slice(1)}, and run depcurfew in ${repository} on its own, with a ${POLICY_FILE} of that repository`);
+			continue;
+		}
+		if (readPolicyFile(join(root, project)).status !== "missing") {
+			problem("project-has-policy", `${inProject(project, POLICY_FILE)} is a second policy for ${project}, which projects in the ${POLICY_FILE} of the repository root already covers`, `Remove ${inProject(project, POLICY_FILE)} (move what it sets into the ${POLICY_FILE} of the root), or ${remove} and run depcurfew in ${project} on its own`);
+			continue;
+		}
+		const member = rootDetection?.workspaces?.packages.find((directory) => overlaps$1(directory, project));
+		if (member !== void 0) {
+			const declared = rootDetection?.workspaces?.declarations.map((declaration) => declaration.file).join(", ") ?? "";
+			problem("project-in-workspace", `the project directory ${project} listed in projects ${member === project ? "is a workspace package" : member.startsWith(`${project}/`) ? `holds the workspace package ${member}` : `lies in the workspace package ${member}`} of the repository root (declared in ${declared}), which the configuration of the root already covers`, `${remove.charAt(0).toUpperCase()}${remove.slice(1)}; depcurfew configures workspace packages with the root`);
+		}
+	}
+	return problems;
+}
+
+// src/doctor/projects.ts
+function managerSources$1(context) {
+	return [{
+		context,
+		managers: context.detection.packageManagers.filter((entry) => entry.supported),
+		relocate: (text) => text
+	}, ...(context.projects ?? []).map((view) => {
+		const files = projectFiles(view.detection);
+		const relocate = (text) => relocateText(text, view.directory, [...files, ...view.repository.read]);
+		const { projects: _projects, ...rest } = context;
+		return {
+			project: view.directory,
+			context: {
+				...rest,
+				root: view.root,
+				repository: view.repository,
+				detection: view.detection,
+				project: view.directory,
+				notice: (message, file, fix) => context.notice(relocate(message), file === void 0 ? void 0 : inProject(view.directory, file), fix === void 0 ? void 0 : relocate(fix))
+			},
+			managers: view.detection.packageManagers.filter((entry) => entry.supported),
+			relocate
+		};
+	})];
+}
+
+// src/doctor/version-range.ts
+const PARTIAL = /^v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
+/** Comparator operators; a space between an operator and its version is allowed, as in semver. */
+const OPERATOR = /(\^|~>?|>=|<=|>|<|=)\s+/gu;
+function partial(text) {
+	const match = PARTIAL.exec(text);
+	if (match === null) return void 0;
+	const number = (part) => part === void 0 || /^[xX*]$/u.test(part) ? void 0 : Number(part);
+	const major = Number(match[1]);
+	const minor = number(match[2]);
+	const patch = minor === void 0 ? void 0 : number(match[3]);
+	const complete = minor !== void 0 && patch !== void 0;
+	const version = [
+		major,
+		minor ?? 0,
+		patch ?? 0
+	];
+	return {
+		bound: complete && match[4] !== void 0 ? {
+			version,
+			prerelease: match[4]
+		} : { version },
+		complete
+	};
+}
+/** The bound as a version, with its prerelease identifiers. */
+function versionOf(bound) {
+	const [major, minor, patch] = bound.version;
+	return bound.prerelease === void 0 ? [
+		major,
+		minor,
+		patch
+	] : [
+		major,
+		minor,
+		patch,
+		bound.prerelease
+	];
+}
+/** Orders bounds as compareVersions orders pinned versions: a prerelease before its release, as in semver. */
+function compareBounds(a, b) {
+	return compareVersions$1(versionOf(a), versionOf(b));
+}
+/** Whether `bound` comes before the release `version`. */
+function belowVersion(bound, version) {
+	return compareBounds(bound, { version }) < 0;
+}
+function formatBound(bound) {
+	return formatVersion(versionOf(bound));
+}
+/** Lower bound of one comparator set (space-separated comparators that must all hold). */
+function setLowerBound(set) {
+	const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(set);
+	if (hyphen !== null) {
+		const from = partial(hyphen[1] ?? "");
+		return from === void 0 ? void 0 : {
+			bound: from.bound,
+			exact: false
+		};
+	}
+	const comparators = set.replaceAll(OPERATOR, "$1").split(/\s+/u).filter(Boolean);
+	if (comparators.length === 0 || comparators.every((part) => /^[xX*]$/u.test(part))) return {
+		bound: { version: [
+			0,
+			0,
+			0
+		] },
+		exact: false
+	};
+	let lowest = { version: [
+		0,
+		0,
+		0
+	] };
+	let exact = comparators.length === 1;
+	for (const comparator of comparators) {
+		const match = /^(\^|~>?|>=|<=|>|<|=)?(.+)$/u.exec(comparator);
+		if (match === null) return void 0;
+		const operator = match[1] ?? "";
+		const value = partial(match[2] ?? "");
+		if (value === void 0) return void 0;
+		if (operator === "<" || operator === "<=") {
+			exact = false;
+			continue;
+		}
+		let bound = value.bound;
+		if (operator === ">" && bound.prerelease === void 0) {
+			const given = (match[2] ?? "").split(".").filter((part) => /^\d+$/u.test(part)).length;
+			const [major, minor, patch] = bound.version;
+			bound = { version: given >= 3 ? [
+				major,
+				minor,
+				patch + 1
+			] : given === 2 ? [
+				major,
+				minor + 1,
+				0
+			] : [
+				major + 1,
+				0,
+				0
+			] };
+		}
+		if (operator !== "" && operator !== "=") exact = false;
+		if (!value.complete) exact = false;
+		if (compareBounds(bound, lowest) > 0) lowest = bound;
+	}
+	return {
+		bound: lowest,
+		exact
+	};
+}
+function lowestVersion(text) {
+	const trimmed = text.trim();
+	if (trimmed === "" || trimmed.includes("${{")) return { kind: "unknown" };
+	let result;
+	for (const set of trimmed.split("||")) {
+		const lower = setLowerBound(set.trim());
+		if (lower === void 0) return { kind: "unknown" };
+		const order = result === void 0 ? -1 : compareBounds(lower.bound, result.bound);
+		if (result === void 0 || order < 0) result = lower;
+		else if (order === 0) result = {
+			bound: result.bound,
+			exact: result.exact && lower.exact
+		};
+	}
+	if (result === void 0) return { kind: "unknown" };
+	const sets = trimmed.split("||").length;
+	return {
+		kind: result.exact && sets === 1 ? "exact" : "range",
+		...result.bound
+	};
+}
+
+// src/doctor/runtime-versions.ts
+function first(fact) {
+	return evidenceOf(fact)[0]?.value;
+}
+/** The names a declaration may use: setup-node in CI, image tags in a Dockerfile, nvm names in .nvmrc and .node-version. */
+function namingOf(source) {
+	if (source === "github-actions") return "setup-node";
+	if (source === "dockerfile") return "docker";
+	if (source === "nvmrc" || source === "node-version") return "nvm";
+	return "semver";
+}
+/** The names a declaration may use: a job container's image tag reads like a Dockerfile's (decision D-115). */
+function namingFor(declaration) {
+	return declaration.container === void 0 ? namingOf(declaration.source) : "docker";
+}
+function segmentsOf(lines) {
+	return lines.flatMap((entry) => {
+		const latest = parseVersion(entry.latest);
+		if (latest === void 0) return [];
+		return entry.bundles.flatMap(([release, tool], index) => {
+			const from = parseVersion(release);
+			const bundled = parseVersion(tool);
+			const next = entry.bundles[index + 1]?.[0];
+			const until = next === void 0 ? void 0 : parseVersion(next);
+			if (from === void 0 || bundled === void 0) return [];
+			return [{
+				line: entry.line,
+				from,
+				...until === void 0 ? {} : { until },
+				latest,
+				bundled
+			}];
+		});
+	});
+}
+function max(a, b) {
+	return compareVersions$1(a, b) >= 0 ? a : b;
+}
+function release(version) {
+	return [
+		version[0],
+		version[1],
+		version[2]
+	];
+}
+/** Every segment some release of which satisfies the range; undefined when the text is not a range. */
+function matching(text, segments) {
+	const found = /* @__PURE__ */ new Set();
+	for (const set of text.split("||")) {
+		const lowest = lowestVersion(set);
+		if (lowest.kind === "unknown") return void 0;
+		for (const segment of segments) {
+			const candidate = max(segment.from, release(lowest.version));
+			if ((segment.until === void 0 ? compareVersions$1(candidate, segment.latest) <= 0 : compareVersions$1(candidate, segment.until) < 0) && satisfies(formatVersion(candidate), set.trim() === "" ? "*" : set)) found.add(segment);
+		}
+	}
+	return segments.filter((segment) => found.has(segment));
+}
+function sortedUnique(versions) {
+	const sorted = [...versions].sort(compareVersions$1);
+	return sorted.filter((version, index) => index === 0 || compareVersions$1(version, sorted[index - 1]) !== 0);
+}
+function runtimeFacts(environment) {
+	const schedule = environment.node.releaseSchedule;
+	return {
+		node: segmentsOf(first(environment.node.bundledNpm)),
+		python: segmentsOf(first(environment.python.bundledPip)),
+		schedule: first(schedule),
+		scheduleDate: evidenceOf(schedule)[0]?.verifiedAt ?? "",
+		setupNode: first(environment.githubActions.setupNodeVersions),
+		nvm: first(environment.node.nvmrc),
+		nodeTags: first(environment.docker.nodeImageTags).tags,
+		pythonTags: first(environment.docker.pythonImageTags).tags
+	};
+}
+/** LTS lines on the day the schedule was read, newest first. */
+function ltsLines(facts) {
+	return facts.schedule.filter((line) => line.lts !== void 0 && line.lts <= facts.scheduleDate).sort((a, b) => b.line - a.line);
+}
+/** A name of a moving Node.js version as the release line it means; undefined for anything else. */
+function nodeName(text, naming, facts) {
+	const name = text.toLowerCase();
+	const newestLine = facts.node.reduce((newest, segment) => Number(segment.line) > Number(newest) ? segment.line : newest, "0");
+	const codename = (word) => facts.schedule.find((line) => line.codename === word)?.line;
+	if (naming === "docker") {
+		if (Object.hasOwn(facts.nodeTags, name)) return facts.nodeTags[name];
+		const line = codename(name);
+		return line === void 0 ? void 0 : String(line);
+	}
+	if (naming !== "setup-node" && naming !== "nvm") return void 0;
+	const names = naming === "setup-node" ? facts.setupNode : facts.nvm;
+	if (names.newest.includes(name)) return newestLine;
+	if (name === names.newestLts) return String(ltsLines(facts)[0]?.line ?? newestLine);
+	if (names.previousLtsPrefix !== void 0 && name.startsWith(names.previousLtsPrefix)) {
+		const back = Number(name.slice(names.previousLtsPrefix.length));
+		const line = Number.isInteger(back) ? ltsLines(facts)[back]?.line : void 0;
+		return line === void 0 ? void 0 : String(line);
+	}
+	if (name.startsWith(names.ltsPrefix)) {
+		const line = codename(name.slice(names.ltsPrefix.length));
+		return line === void 0 ? void 0 : String(line);
+	}
+}
+function resolveIn(text, segments, lineOf) {
+	const lowest = lowestVersion(text);
+	if (lowest.kind === "unknown") return {
+		kind: "unknown",
+		reason: "it is not a version or a range depcurfew can read"
+	};
+	if (lowest.kind === "exact") {
+		const version = release(lowest.version);
+		const line = lineOf(version);
+		const ofLine = segments.filter((segment) => segment.line === line);
+		const latest = ofLine[0]?.latest;
+		if (latest === void 0) return {
+			kind: "unknown",
+			reason: `depcurfew does not know which version its line ${line} bundles`
+		};
+		if (compareVersions$1(version, latest) > 0) return {
+			kind: "unknown",
+			reason: `it is newer than the releases depcurfew knows (${line} up to ${formatVersion(latest)})`
+		};
+		const segment = ofLine.findLast((entry) => compareVersions$1(entry.from, version) <= 0);
+		if (segment === void 0) return {
+			kind: "unknown",
+			reason: `depcurfew knows no version that it comes with (the first release of ${line} that does is ${formatVersion(ofLine[0]?.from)})`
+		};
+		return {
+			kind: "exact",
+			bundled: [segment.bundled],
+			lines: [line]
+		};
+	}
+	const found = matching(text, segments);
+	if (found === void 0) return {
+		kind: "unknown",
+		reason: "it is not a version or a range depcurfew can read"
+	};
+	if (found.length === 0) return {
+		kind: "unknown",
+		reason: "it matches no release depcurfew knows"
+	};
+	return {
+		kind: "range",
+		bundled: sortedUnique(found.map((segment) => segment.bundled)),
+		lines: [...new Set(found.map((segment) => segment.line))]
+	};
+}
+/** The npm versions the Node.js releases a declaration allows come with. */
+function nodeBundledNpm(written, naming, facts) {
+	const text = written.trim();
+	return resolveIn(nodeName(text, naming, facts) ?? text, facts.node, nodeLineOf);
+}
+/** The last release before `until` in the same line, for testing a range against the end of a segment. */
+function justBefore(until) {
+	if (until[2] > 0) return [
+		until[0],
+		until[1],
+		until[2] - 1
+	];
+	if (until[1] > 0) return [
+		until[0],
+		until[1] - 1,
+		Number.MAX_SAFE_INTEGER
+	];
+	return [
+		until[0] - 1,
+		Number.MAX_SAFE_INTEGER,
+		Number.MAX_SAFE_INTEGER
+	];
+}
+/**
+* Whether the Node.js releases a declaration allows lie in a range (engines.node of npm, decision D-115): `all`, `none`
+* or `some`, undefined when the declaration cannot be read. Each known segment of releases is tested at its first and
+* its last release the declaration allows; the ranges npm declares (^20.17.0 || >=22.9.0) are intervals, so that is
+* enough.
+*/
+function nodeReleasesIn(written, naming, range, facts) {
+	const text = nodeName(written.trim(), naming, facts) ?? written.trim();
+	const lowest = lowestVersion(text);
+	if (lowest.kind === "unknown") return void 0;
+	const inside = (version) => satisfies(formatVersion(version), range);
+	if (lowest.kind === "exact") return inside(release(lowest.version)) ? "all" : "none";
+	const found = matching(text, facts.node);
+	if (found === void 0 || found.length === 0) return void 0;
+	let yes = false;
+	let no = false;
+	for (const segment of found) {
+		const first = max(segment.from, release(lowest.version));
+		const end = segment.until === void 0 ? segment.latest : justBefore(segment.until);
+		const last = satisfies(formatVersion(end), text) ? end : first;
+		for (const version of [first, last]) if (inside(version)) yes = true;
+		else no = true;
+	}
+	return yes && no ? "some" : yes ? "all" : "none";
+}
+/** The release line of a Node.js version: the major version from 4 on, the minor one before (0.12). */
+function nodeLineOf(version) {
+	return version[0] === 0 ? `0.${version[1]}` : String(version[0]);
+}
+/** The pip versions the CPython releases of a python image tag version (3.12, 3.12.4, latest) come with. */
+function pythonBundledPip(written, facts) {
+	const text = written.trim().toLowerCase();
+	return resolveIn((Object.hasOwn(facts.pythonTags, text) ? facts.pythonTags[text] : void 0) ?? text, facts.python, (version) => `${version[0]}.${version[1]}`);
+}
+/** The Node.js release lines a declaration allows, from the schedule (so also lines older than the bundled-npm data). */
+function nodeLines(written, naming, facts) {
+	const text = written.trim();
+	const named = nodeName(text, naming, facts);
+	const exact = named === void 0 ? parseVersion(text) : void 0;
+	const sets = (exact !== void 0 && exact[3] !== void 0 ? formatVersion(release(exact)) : named ?? text).split("||");
+	const found = [];
+	for (const line of facts.schedule) {
+		const start = [
+			line.line,
+			0,
+			0
+		];
+		const next = [
+			line.line + 1,
+			0,
+			0
+		];
+		let allowed = false;
+		for (const set of sets) {
+			const lowest = lowestVersion(set);
+			if (lowest.kind === "unknown") return void 0;
+			const candidate = max(start, release(lowest.version));
+			if (compareVersions$1(candidate, next) < 0 && satisfies(formatVersion(candidate), set.trim() === "" ? "*" : set)) allowed = true;
+		}
+		if (allowed) found.push(line);
+	}
+	return found;
+}
+/** The lines that are LTS and not past their end of life on the given day (YYYY-MM-DD), oldest first. */
+function supportedLtsLines(facts, today) {
+	return facts.schedule.filter((line) => line.lts !== void 0 && line.lts <= today && line.end > today).sort((a, b) => a.line - b.line);
+}
+/**
+* Per release line, the first release that bundles `needed` or later, lowest line first; only the given lines (the
+* supported Node.js LTS lines) when they are given.
+*/
+function firstReleasesWith(needed, segments, lines) {
+	const found = /* @__PURE__ */ new Map();
+	for (const segment of segments) {
+		if (lines !== void 0 && !lines.includes(segment.line)) continue;
+		if (compareVersions$1(segment.bundled, needed) < 0) continue;
+		const known = found.get(segment.line);
+		if (known === void 0 || compareVersions$1(segment.from, known) < 0) found.set(segment.line, segment.from);
+	}
+	return [...found].map(([line, release]) => ({
+		line,
+		release
+	})).sort((a, b) => compareVersions$1(a.release, b.release));
+}
+/** "24.14.1 or a later 24.x; 26.0.0 or later": a later release of a line keeps the bundled version, a later line may not. */
+function releasesPhrase(found, newestLine) {
+	return found.map(({ line, release }) => line === newestLine ? `${formatVersion(release)} or later` : `${formatVersion(release)} or a later ${line}.x`).join("; ");
+}
+/** The newest line of the data. */
+function newestLineOf(segments) {
+	return segments.reduce((newest, segment) => compareVersions$1(segment.from, newest.from) > 0 ? segment : newest, segments[0]).line;
+}
+/** Today as YYYY-MM-DD in UTC. */
+function today() {
+	return new Date(Date.now()).toISOString().slice(0, 10);
+}
+
+// src/doctor/rules/bundled-versions.ts
+const SOURCE_LABEL = {
+	packageManager: "packageManager",
+	"tool-config": "the required version",
+	devEngines: "devEngines",
+	volta: "Volta",
+	"tool-versions": ".tool-versions",
+	nvmrc: ".nvmrc",
+	"node-version": ".node-version",
+	engines: "engines",
+	"github-actions": "GitHub Actions",
+	dockerfile: "Dockerfile"
+};
+const RULE$1 = "manager-version-too-old";
+/** Where developers choose their Node.js; anyone can install another npm, so these give warnings. */
+const DEVELOPER_SOURCES = /* @__PURE__ */ new Set([
+	"nvmrc",
+	"node-version",
+	"volta",
+	"tool-versions",
+	"devEngines",
+	"engines"
+]);
+function newest(versions) {
+	return versions.reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
+}
+function bundledText(tool, bundled) {
+	const low = bundled[0];
+	const high = bundled.at(-1);
+	return compareVersions$1(low, high) === 0 ? `${tool} ${formatVersion(low)}` : `${tool} ${formatVersion(low)} to ${formatVersion(high)}`;
+}
+const INDEXES = /* @__PURE__ */ new WeakMap();
+function jobKey(file, id) {
+	return `${file}\u0000${id}`;
+}
+/** The first index whose value is greater than `value` (or `orEqual` and equal), in a sorted list. */
+function firstAbove(sorted, value, orEqual = false) {
+	let low = 0;
+	let high = sorted.length;
+	while (low < high) {
+		const middle = low + high >> 1;
+		const item = sorted[middle] ?? 0;
+		if (item > value || orEqual && item === value) high = middle;
+		else low = middle + 1;
+	}
+	return low;
+}
+function jobIndex(detection) {
+	const known = INDEXES.get(detection);
+	if (known !== void 0) return known;
+	const byKey = /* @__PURE__ */ new Map();
+	const groups = [];
+	for (const job of detection.jobs) {
+		const key = jobKey(job.file, job.id);
+		if (byKey.has(key)) continue;
+		const commands = [...job.commands].sort((a, b) => a.line - b.line);
+		const group = {
+			job,
+			declarations: [],
+			steps: [],
+			commands,
+			lines: commands.map((command) => command.line),
+			after: /* @__PURE__ */ new Map()
+		};
+		byKey.set(key, group);
+		groups.push(group);
+	}
+	for (const declaration of detection.node.versions) {
+		if (declaration.source !== "github-actions" || declaration.job === void 0) continue;
+		const group = byKey.get(jobKey(declaration.file, declaration.job));
+		if (group === void 0) continue;
+		group.declarations.push(declaration);
+		if (declaration.step !== void 0) group.steps.push(declaration.step);
+	}
+	for (const group of groups) group.steps = [...new Set(group.steps)].sort((a, b) => a - b);
+	const index = {
+		groups,
+		of: (declaration) => declaration.job === void 0 ? void 0 : byKey.get(jobKey(declaration.file, declaration.job))
+	};
+	INDEXES.set(detection, index);
+	return index;
+}
+/**
+* The commands of a job that use the Node.js a setup step declares: after that step and before the next step that
+* sets up Node.js again (a job can build on one version and then test on another). Without a step line, all of them.
+* Binary searches over the sorted lines, and the result is kept per step.
+*/
+function commandsAfterStep(group, declaration) {
+	const step = declaration.step;
+	if (step === void 0) return group.commands;
+	const known = group.after.get(step);
+	if (known !== void 0) return known;
+	const next = group.steps[firstAbove(group.steps, step)];
+	const { lines } = group;
+	const start = firstAbove(lines, step);
+	const end = next === void 0 ? lines.length : firstAbove(lines, next - 1);
+	const found = group.commands.slice(start, Math.max(start, end));
+	group.after.set(step, found);
+	return found;
+}
+/** The project (a directory listed in projects) a command's working directory lies in; '' for the root. */
+function projectOf(command, projects) {
+	const directory = command.directory;
+	if (directory === void 0) return "";
+	return projects.find((project) => directory === project || directory.startsWith(`${project}/`)) ?? "";
+}
+function addInstall(found, command) {
+	if (found === void 0) return {
+		first: command.line,
+		lockfile: command.lockfile === true,
+		scriptsOff: command.scriptsOff === true
+	};
+	return {
+		first: Math.min(found.first, command.line),
+		lockfile: found.lockfile && command.lockfile === true,
+		scriptsOff: found.scriptsOff && command.scriptsOff === true
+	};
+}
+/**
+* Per project ('' for the root) and per npm (`source`: the bundled one, or the npm install -g npm@X before them): the
+* installs of a run of commands. An upgrade replaces npm for every later command of the run, whatever the directory.
+*/
+function installsBySource(commands, tool, projectFor, start, found) {
+	let source = start;
+	for (const command of commands) {
+		if (command.tool !== tool) continue;
+		if (command.kind === "upgrade") {
+			source = command;
+			continue;
+		}
+		const project = projectFor(command);
+		const byProject = found.get(source) ?? /* @__PURE__ */ new Map();
+		found.set(source, byProject);
+		byProject.set(project, addInstall(byProject.get(project), command));
+	}
+	return source;
+}
+/**
+* The root jobs, with only the commands that install in `project` or replace npm or pip, for a project's plan and the
+* npm it runs: a CI job with working-directory: frontend uses frontend/.npmrc (decision D-105). Declarations stay those
+* of the root workflow files.
+*/
+function jobsInProject(detection, project) {
+	const jobs = detection.jobs.map((job) => ({
+		...job,
+		commands: job.commands.filter((command) => command.kind === "upgrade" || projectOf(command, [project]) === project)
+	})).filter((job) => job.commands.some((command) => command.kind === "install"));
+	const keys = new Set(jobs.map((job) => jobKey(job.file, job.id)));
+	const versions = detection.node.versions.filter((declaration) => declaration.source === "github-actions" && declaration.job !== void 0 && keys.has(jobKey(declaration.file, declaration.job)));
+	return {
+		jobs: jobs.map((job) => ({
+			...job,
+			commands: job.commands.map(({ directory: _directory, ...command }) => command)
+		})),
+		versions
+	};
+}
+/** "Node.js 22 (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test)", "Node.js 22 in .nvmrc". */
+function nodeSubject(declaration, label) {
+	const matrix = declaration.matrix === void 0 ? "" : ` (matrix.${declaration.matrix})`;
+	const container = declaration.container === void 0 ? "" : ` of the job container ${declaration.container}`;
+	const where = declaration.source === "github-actions" && declaration.job !== void 0 ? `${declaration.file}, job ${declaration.job}` : declaration.file;
+	const from = declaration.versionFile === void 0 ? "" : ` from ${declaration.versionFile}`;
+	return `Node.js ${declaration.version}${matrix}${container}${from} in ${label === where ? label : `${label} (${where})`}`;
+}
+/** nodeBundledNpm with the result kept per text, for a matrix that repeats one version in many steps. */
+function resolver(facts) {
+	const known = /* @__PURE__ */ new Map();
+	return (text, naming) => {
+		const key = `${naming}\u0000${text}`;
+		let found = known.get(key);
+		if (found === void 0) {
+			found = nodeBundledNpm(text, naming, facts);
+			known.set(key, found);
+		}
+		return found;
+	};
+}
+/**
+* The places of every job (decision D-115): the commands after a setup step (or the job container) and before the
+* next one use its Node.js; npm install -g npm@X replaces npm for the later commands of that part of the job.
+*/
+function jobPlaces(detection, projects) {
+	const places = [];
+	for (const group of jobIndex(detection).groups) {
+		const byStep = /* @__PURE__ */ new Map();
+		for (const declaration of group.declarations) {
+			const list = byStep.get(declaration.step) ?? [];
+			list.push(declaration);
+			byStep.set(declaration.step, list);
+		}
+		const parts = /* @__PURE__ */ new Map();
+		for (const command of group.commands) {
+			const index = firstAbove(group.steps, command.line - 1);
+			const step = index === 0 ? void 0 : group.steps[index - 1];
+			const list = parts.get(step) ?? [];
+			list.push(command);
+			parts.set(step, list);
+		}
+		const project = (command) => projectOf(command, projects);
+		for (const [step, commands] of parts) {
+			const found = /* @__PURE__ */ new Map();
+			installsBySource(commands, "npm", project, void 0, found);
+			const nodes = byStep.get(step) ?? [];
+			for (const [source, byProject] of found) for (const [directory, installs] of byProject) if (source !== void 0) places.push({
+				job: group.job,
+				upgrade: source,
+				nodes,
+				project: directory,
+				installs
+			});
+			else for (const declaration of nodes) places.push({
+				job: group.job,
+				declaration,
+				nodes: [declaration],
+				project: directory,
+				installs
+			});
+		}
+	}
+	return places;
+}
+/**
+* The places of every stage (decision D-115). A stage starts with the tool of the stage it starts from, or of its image;
+* its installs belong to the project its COPY sources name (stageProjects), or, in a stage that copies the whole build
+* context, to the project of the directory a literal cd leads to (cd frontend && npm ci); otherwise to the root. The
+* installs with the same tool and of the same project are one place, at the first stage that has them. One pass in
+* order: a stage only starts from an earlier one.
+*/
+function dockerPlaces(dockerfiles, tool, projects = []) {
+	const runtimeTool = tool === "npm" ? "node" : "python";
+	const places = [];
+	const built = builtByProject(projects);
+	for (const file of dockerfiles) {
+		const lineage = [];
+		const known = /* @__PURE__ */ new Map();
+		for (const [index, stage] of file.stages.entries()) {
+			const from = stage.from;
+			const above = from === void 0 || from >= index ? void 0 : lineage[from];
+			const whole = (above?.whole ?? false) || (stage.copies ?? []).some((source) => contextPath(source) === ".");
+			const assigned = built(file, index);
+			const projectFor = (command) => assigned ?? (whole ? projectOf(command, projects) : "");
+			const found = /* @__PURE__ */ new Map();
+			const last = installsBySource(stage.commands, tool, projectFor, above?.upgrade, found);
+			const root = above?.root ?? stage;
+			lineage.push({
+				root,
+				upgrade: last,
+				whole
+			});
+			for (const [source, byProject] of found) {
+				if (source === void 0 && stage.runtime?.tool !== runtimeTool) continue;
+				const ofSource = known.get(source ?? root) ?? /* @__PURE__ */ new Map();
+				known.set(source ?? root, ofSource);
+				for (const [project, installs] of byProject) {
+					const place = ofSource.get(project);
+					if (place !== void 0) {
+						place.installs = {
+							first: place.installs.first,
+							lockfile: place.installs.lockfile && installs.lockfile,
+							scriptsOff: place.installs.scriptsOff && installs.scriptsOff
+						};
+						continue;
+					}
+					const created = {
+						file,
+						index,
+						stage,
+						root,
+						...source === void 0 ? {} : { upgrade: source },
+						project,
+						installs
+					};
+					ofSource.set(project, created);
+					places.push(created);
+				}
+			}
+		}
+	}
+	return places;
+}
+/** The developer files that choose the Node.js npm comes with; `fromRoot`: the project uses version files of the root. */
+function developerPlaces(detection, manager, manifest, fromRoot = false) {
+	const declarations = detection.node.versions.filter((entry) => DEVELOPER_SOURCES.has(entry.source));
+	const voltaNpm = manager?.versions.some((entry) => entry.source === "volta") === true;
+	const isPrivate = typeof manifest === "object" && manifest !== null && manifest["private"] === true;
+	const others = fromRoot || declarations.some((entry) => entry.source !== "engines");
+	return declarations.filter((declaration) => {
+		if (!("version" in declaration)) return false;
+		if (declaration.source === "volta" && voltaNpm) return false;
+		return !(declaration.source === "engines" && (!isPrivate || others));
+	});
+}
+/** The sources of the version files that version managers also use in subdirectories (environment.node.inheritedVersionFiles). */
+function inheritedSources() {
+	const files = values$1(environment.node.inheritedVersionFiles)[0] ?? [];
+	const sources = {
+		".nvmrc": "nvmrc",
+		".node-version": "node-version",
+		".tool-versions": "tool-versions"
+	};
+	return new Set(files.flatMap((file) => sources[file] === void 0 ? [] : [sources[file]]));
+}
+/**
+* A COPY or ADD source as Docker reads it in the build context (environment.docker.copySources): from the root of the
+* context, with . and .. resolved, ../ that would leave the context and trailing slashes removed. "frontend/../" is
+* the root ("."), "./frontend/./x" and "/frontend/x" are "frontend/x". Undefined when Docker would read it otherwise
+* than depcurfew assumes (the fact changed).
+*/
+function contextPath(source) {
+	const facts = values$1(environment.docker.copySources)[0];
+	if (facts === void 0 || facts.relativeTo !== "context" || facts.parentNavigation !== "removed") return void 0;
+	const parts = [];
+	for (const part of source.split("/")) {
+		if (part === "" || part === ".") continue;
+		if (part === "..") parts.pop();
+		else parts.push(part);
+	}
+	return parts.length === 0 ? "." : parts.join("/");
+}
+/**
+* The project a COPY or ADD source lies in: "frontend/x", "./frontend/./x" and "frontend/" lie in frontend; ".",
+* "frontend/../", "frontend-old/" and a source the project name only starts (frontend*) do not (decision D-111).
+*/
+function copiedProject(source, projects) {
+	const path = contextPath(source);
+	if (path === void 0 || path.split("/").includes("..")) return void 0;
+	return projects.find((project) => path === project || path.startsWith(`${project}/`));
+}
+/**
+* For every stage of a root Dockerfile: the project it builds, when it and the stages it starts from copy files from
+* the build context and every such file lies in that one project (COPY frontend/package.json ./). COPY . . or files of
+* several directories are not clearly a build of one project, so such a stage stays the root's (decision D-109).
+*/
+function stageProjects(file, projects) {
+	const found = [];
+	for (const [index, stage] of file.stages.entries()) {
+		const above = stage.from !== void 0 && stage.from < index ? found[stage.from] : void 0;
+		let project = above?.project;
+		let any = above?.any ?? false;
+		let mixed = above?.mixed ?? false;
+		for (const source of stage.copies ?? []) {
+			const own = copiedProject(source, projects);
+			if (own === void 0 || any && own !== project) mixed = true;
+			project ??= own;
+			any = true;
+		}
+		found.push({
+			project,
+			any,
+			mixed
+		});
+	}
+	return found.map((entry) => entry.any && !entry.mixed ? entry.project : void 0);
+}
+/**
+* What a project takes from the root (decisions D-109 and D-111): the root's .nvmrc, .node-version and .tool-versions,
+* which nvm, nodenv and asdf also use in its directory. Each tool reads only its own file, so a project's own file
+* hides only the root file of the same kind: with frontend/.nvmrc, asdf still finds the root .tool-versions there.
+* Volta, devEngines and engines of the root package.json do not reach a project with a package.json of its own. And
+* the stages of root Dockerfiles that build it.
+*/
+function rootPlaces(rootDetection, project, projectDetection) {
+	const own = new Set(projectDetection?.node.versions.map((declaration) => declaration.source) ?? []);
+	const inherited = inheritedSources();
+	const versions = rootDetection.node.versions.filter((declaration) => inherited.has(declaration.source) && !own.has(declaration.source));
+	const installing = /* @__PURE__ */ new Map();
+	for (const place of dockerPlaces(rootDetection.dockerfiles, "npm", [project])) if (place.project === project) installing.set(place.file, [...installing.get(place.file) ?? [], place.index]);
+	return {
+		project,
+		versions,
+		dockerfiles: rootDetection.dockerfiles.map((file) => {
+			return {
+				file,
+				stages: [.../* @__PURE__ */ new Set([...stageProjects(file, [project]).flatMap((built, index) => built === project ? [index] : []), ...installing.get(file) ?? []])].sort((a, b) => a - b)
+			};
+		}).filter((entry) => entry.stages.length > 0)
+	};
+}
+/** Whether a stage of a root Dockerfile builds one of the projects, so that it is not the root's. */
+function builtByProject(projects) {
+	const known = /* @__PURE__ */ new Map();
+	return (file, index) => {
+		if (projects.length === 0) return void 0;
+		let built = known.get(file);
+		if (built === void 0) {
+			built = stageProjects(file, projects);
+			known.set(file, built);
+		}
+		return built[index];
+	};
+}
+const AT_ROOT = " at the repository root";
+/** The versions from which npm treats dependency scripts and the settings of the policy otherwise. */
+function npmMarks() {
+	return [
+		...(values$1(npm$1.installScripts.defaultPolicy)[0] ?? []).map((entry) => entry.since),
+		sinceOf(npm$1.installScripts.allowList.availableSince),
+		sinceOf(npm$1.cooldown.availableSince)
+	].flatMap((text) => {
+		const version = text === void 0 ? void 0 : parseVersion(text);
+		return version === void 0 ? [] : [version];
+	});
+}
+/**
+* The npm of npm install -g npm@<spec> (decision D-115): an exact version; for a range (npm@11, npm@^11.10.0) its lowest
+* version and the versions it allows from which npm treats dependency scripts otherwise, as for a range in
+* packageManager; for a spec depcurfew cannot read (npm@latest, npm@${NPM_VERSION}) an npm it cannot tell, which
+* counts as one that runs every dependency install script (decision D-111).
+*/
+function upgradeEntry(spec, where, location, nodes = []) {
+	const fields = {
+		where,
+		...location === void 0 ? {} : { location },
+		...nodes.length === 0 ? {} : { nodes }
+	};
+	const exact = parseVersion(spec);
+	if (exact !== void 0) return {
+		versions: [exact],
+		...fields
+	};
+	const lowest = lowestVersion(spec);
+	if (lowest.kind === "unknown") return {
+		versions: [],
+		unknown: `npm@${spec} names no version depcurfew can read`,
+		spec,
+		...fields
+	};
+	const candidates = [lowest.version, ...npmMarks()].filter((version) => satisfies(formatVersion(version), spec)).sort(compareVersions$1);
+	const versions = candidates.filter((version, index) => index === 0 || compareVersions$1(version, candidates[index - 1]) !== 0);
+	return {
+		versions: versions.length === 0 ? [lowest.version] : versions,
+		range: spec,
+		...fields
+	};
+}
+/**
+* The npm versions a directory runs (decisions D-105, D-109 and D-115): the versions declared for npm itself (the pin
+* for the repository, other declarations, the lowest version of a range), npm install -g npm@<version> in CI jobs and
+* Dockerfile stages that install packages with it, and the npm that comes with the Node.js of every place
+* manager-version-too-old checks (CI jobs and Dockerfile stages that install with it, developer version files). A
+* version that cannot be read stays in the list as unknown. A place whose installs all run with scripts off
+* (--ignore-scripts) is left out: it runs no dependency script. `projects` leaves out root CI installs in those
+* directories and root Dockerfile stages that build them; `extra` adds root jobs that install in this project
+* (jobsInProject), `root` the root's version files and Dockerfile stages (rootPlaces). apply writes
+* strict-allow-scripts from this list, and doctor promises it from the same list.
+*/
+function npmInUse(detection, manifest, label, options = {}) {
+	const resolve = resolver(sharedFacts());
+	const found = [];
+	const keys = /* @__PURE__ */ new Set();
+	const push = (entry) => {
+		const key = `${entry.where}\u0000${entry.versions.map(formatVersion).join(" ")}\u0000${entry.unknown ?? ""}`;
+		if (keys.has(key)) return;
+		keys.add(key);
+		found.push(entry);
+	};
+	const add = (resolution, where, location, node) => {
+		const fields = {
+			where: `with ${where}`,
+			...location === void 0 ? {} : { location },
+			...node === void 0 ? {} : { nodes: [node] }
+		};
+		push(resolution.kind === "unknown" ? {
+			versions: [],
+			unknown: resolution.reason,
+			...fields
+		} : {
+			versions: [...resolution.bundled],
+			...fields
+		});
+	};
+	const unknownNode = (reason, where, location) => add({
+		kind: "unknown",
+		reason
+	}, where, location);
+	const at = (file, line) => ({
+		file,
+		...line === void 0 ? {} : { line }
+	});
+	const upgrade = (command, where, location, nodes = []) => {
+		if (command.version !== void 0) push(upgradeEntry(command.version, where, location, nodes));
+	};
+	const stageNodes = (place) => {
+		const version = place.stage.runtime?.tool === "node" ? place.stage.runtime.version : void 0;
+		return version === void 0 ? [] : [{
+			version,
+			naming: "docker"
+		}];
+	};
+	const projects = options.projects ?? [];
+	const manager = detection.packageManagers.find((entry) => entry.id === "npm");
+	const pin = manager === void 0 ? void 0 : repositoryPin(manager);
+	let pinned = false;
+	for (const declaration of manager?.versions ?? []) {
+		if (!("version" in declaration)) continue;
+		if (declaration.source === "github-actions" || declaration.source === "dockerfile") continue;
+		const exact = parseVersion(declaration.version);
+		if (exact !== void 0) {
+			const isPin = !pinned && pin !== void 0 && compareVersions$1(exact, pin) === 0;
+			pinned ||= isPin;
+			push({
+				versions: [exact],
+				where: `${label(declaration)} in ${declaration.file}`,
+				location: at(declaration.file, declaration.line),
+				...isPin ? { pin: true } : {}
+			});
+			continue;
+		}
+		const lowest = lowestVersion(declaration.version);
+		const version = lowest.kind === "unknown" ? void 0 : parseVersion(formatBound(lowest));
+		if (version !== void 0) push({
+			versions: [version],
+			where: `the lowest version ${label(declaration)} in ${declaration.file} allows`,
+			location: at(declaration.file, declaration.line)
+		});
+	}
+	const views = [detection];
+	if (options.extra !== void 0 && options.extra.jobs.length > 0) views.push({
+		...detection,
+		jobs: [...options.extra.jobs],
+		node: { versions: [...options.extra.versions] },
+		dockerfiles: []
+	});
+	const jobs = views.flatMap((view, index) => jobPlaces(view, index === 0 ? projects : []).map((place) => ({
+		place,
+		ownFile: index === 0
+	})));
+	const own = dockerPlaces(detection.dockerfiles, "npm", projects).filter((place) => place.project === "");
+	const rootProject = options.root?.project;
+	const fromRoot = (options.root?.dockerfiles ?? []).flatMap(({ file, stages }) => {
+		const keep = new Set(stages);
+		return dockerPlaces([file], "npm", rootProject === void 0 ? [] : [rootProject]).filter((place) => rootProject === void 0 ? keep.has(place.index) : place.project === rootProject);
+	});
+	for (const { place, ownFile } of jobs) {
+		if (place.upgrade === void 0 || place.project !== "" || place.installs.scriptsOff) continue;
+		upgrade(place.upgrade, `installed in job ${place.job.id} of ${place.job.file}${ownFile ? "" : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : void 0, place.nodes.flatMap(nodeOf));
+	}
+	for (const place of own) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}, line ${place.upgrade.line}`, at(place.file.file, place.upgrade.line), stageNodes(place));
+	for (const place of fromRoot) if (place.upgrade !== void 0 && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}${AT_ROOT}, line ${place.upgrade.line}`, void 0, stageNodes(place));
+	for (const { place, ownFile } of jobs) {
+		const declaration = place.declaration;
+		if (declaration === void 0 || place.project !== "" || place.installs.scriptsOff) continue;
+		const location = ownFile ? at(declaration.file, declaration.line) : void 0;
+		const job = `job ${place.job.id} of ${declaration.file}${ownFile ? "" : AT_ROOT}`;
+		if (!("version" in declaration)) {
+			unknownNode("depcurfew cannot read the version from that file", `Node.js from ${declaration.versionFile} in ${job}`, location);
+			continue;
+		}
+		const matrix = declaration.matrix === void 0 ? "" : ` (matrix.${declaration.matrix})`;
+		const container = declaration.container === void 0 ? "" : ` of the job container ${declaration.container}`;
+		const from = declaration.versionFile === void 0 ? "" : ` from ${declaration.versionFile}`;
+		const where = `Node.js ${declaration.version}${matrix}${container}${from} in ${job}`;
+		if (declaration.unknown !== void 0) unknownNode(declaration.unknown, where, location);
+		else add(resolve(declaration.version, namingFor(declaration)), where, location, {
+			version: declaration.version,
+			naming: namingFor(declaration)
+		});
+	}
+	const subject = (place) => `Node.js ${place.stage.runtime?.version === void 0 ? "" : `${place.stage.runtime.version} `}of ${place.root.image ?? "node"} in ${place.file.file}`;
+	const stage = (place, suffix, location) => {
+		if (place.upgrade !== void 0 || place.installs.scriptsOff) return;
+		const version = place.stage.runtime?.version;
+		if (version === void 0) unknownNode(place.stage.runtime?.unknown ?? "the tag names no version", `${subject(place)}${suffix}`, location);
+		else add(resolve(version, "docker"), `${subject(place)}${suffix}`, location, {
+			version,
+			naming: "docker"
+		});
+	};
+	for (const place of own) stage(place, "", at(place.file.file, place.root.line));
+	for (const declaration of developerPlaces(detection, manager, manifest, (options.root?.versions.length ?? 0) > 0)) {
+		const where = declaration.file === label(declaration) ? declaration.file : `${label(declaration)} in ${declaration.file}`;
+		add(resolve(declaration.version, namingOf(declaration.source)), `Node.js ${declaration.version} in ${where}`, at(declaration.file, declaration.line), {
+			version: declaration.version,
+			naming: namingOf(declaration.source)
+		});
+	}
+	for (const declaration of options.root?.versions ?? []) if ("version" in declaration) add(resolve(declaration.version, namingOf(declaration.source)), `Node.js ${declaration.version} in ${declaration.file}${AT_ROOT}`, void 0, {
+		version: declaration.version,
+		naming: namingOf(declaration.source)
+	});
+	for (const place of fromRoot) stage(place, AT_ROOT, void 0);
+	return found;
+}
+/** "npm 11.16.0 (with Node.js 24.18.0 in .nvmrc)", "npm 11.3.0 to 11.19.1 (…)": the versions of an entry, or some of them. */
+function npmInUseText(entry, versions = entry.versions) {
+	if (entry.spec !== void 0) return `npm@${entry.spec} (${entry.where}; depcurfew cannot tell which version that is)`;
+	if (entry.unknown !== void 0 || versions.length === 0) return `the npm that comes ${entry.where} (depcurfew cannot tell which one: ${entry.unknown ?? "no version is known"})`;
+	if (entry.range !== void 0) return `npm@${entry.range} (${entry.where})`;
+	const sorted = [...versions].sort(compareVersions$1);
+	const low = formatVersion(sorted[0]);
+	const high = formatVersion(sorted.at(-1));
+	return `npm ${low === high ? low : `${low} to ${high}`} (${entry.where})`;
+}
+/**
+* Whether the text of an entry (npmInUseText) names several versions, "npm 8.6.0 to 10.8.2 (…)", so that the verb after
+* it is plural: "npm@11 (…)", "npm 10.9.0 (…)" and an npm depcurfew cannot tell are one (decision D-121).
+*/
+function npmInUseSeveral(entry, versions = entry.versions) {
+	if (entry.spec !== void 0 || entry.range !== void 0 || entry.unknown !== void 0 || versions.length < 2) return false;
+	const sorted = [...versions].sort(compareVersions$1);
+	return compareVersions$1(sorted[0], sorted.at(-1)) !== 0;
+}
+function nodeOf(declaration) {
+	return "version" in declaration && declaration.unknown === void 0 ? [{
+		version: declaration.version,
+		naming: namingFor(declaration)
+	}] : [];
+}
+/** Whether npm ci installs exactly the versions of package-lock.json, so that a release-age delay changes nothing there. */
+function lockedVersionsInstalled() {
+	const fact = npm$1.extra?.["cleanInstall"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return typeof value === "object" && value !== null && value["installsLockedVersions"] === true;
+}
+/**
+* The settings the installs of a place rely on (decision D-115): npm ci installs the versions package-lock.json records,
+* so the release-age delay changes nothing there; installs with dependency scripts off need no script blocking.
+*/
+function placeFeatures(features, installs) {
+	if (installs === void 0) return [...features];
+	const locked = installs.lockfile && lockedVersionsInstalled();
+	return features.filter((item) => !(locked && item.kind === "cooldown") && !(installs.scriptsOff && item.kind === "scripts"));
+}
+/** The range of Node.js versions an npm version is meant to run on (engines.node of npm/cli at its release). */
+function npmEngines(version) {
+	const fact = npm$1.extra?.["nodeEngines"];
+	const list = fact === void 0 ? void 0 : values$1(fact)[0];
+	if (!Array.isArray(list)) return void 0;
+	let found;
+	for (const entry of list) {
+		const since = parseVersion(entry.since);
+		if (since !== void 0 && compareVersions$1(version, since) >= 0) found = entry.node;
+	}
+	return found;
+}
+/**
+* Whether the npm a fix names runs on the Node.js of the place (decision D-115): `none` when no release the place allows
+* is in the engines range of that npm (npm 11 on Node.js 18), `some` when only some are (npm 11 on Node.js 20 runs from
+* 20.17.0), undefined when every one is or it cannot be told.
+*/
+function enginesVerdict(version, nodes, facts) {
+	const range = npmEngines(version);
+	if (range === void 0 || nodes === void 0 || nodes.length === 0) return void 0;
+	const known = VERDICTS.get(facts) ?? /* @__PURE__ */ new Map();
+	VERDICTS.set(facts, known);
+	const verdicts = nodes.map((node) => {
+		const key = `${node.version}\u0000${node.naming}\u0000${range}`;
+		if (!known.has(key)) known.set(key, nodeReleasesIn(node.version, node.naming, range, facts));
+		return known.get(key);
+	});
+	if (verdicts.every((verdict) => verdict === "none")) return {
+		verdict: "none",
+		range
+	};
+	if (verdicts.some((verdict) => verdict === "none" || verdict === "some")) return {
+		verdict: "some",
+		range
+	};
+}
+const VERDICTS = /* @__PURE__ */ new WeakMap();
+/** The facts of the knowledge base about Node.js releases, made once: npmInUse runs for every directory of a plan. */
+let shared;
+function sharedFacts() {
+	shared ??= runtimeFacts(environment);
+	return shared;
+}
+/**
+* Whether npm `version` runs on the Node.js of the places (decision D-115): `none` when no release they allow is in its
+* engines range (npm 11 on Node.js 18), `some` when only some are, undefined when every one is or it cannot be told.
+* The same check for the fixes of doctor and of depcurfew apply (decision D-121).
+*/
+function npmEnginesOn(version, nodes) {
+	return enginesVerdict(version, nodes, sharedFacts());
+}
+/** An install of npm `version` in a place, with what the Node.js there needs for it. */
+function installOn(place, version, facts) {
+	const text = formatVersion(version);
+	const engines = enginesVerdict(version, place.nodes, facts);
+	if (engines === void 0) return place.install(text);
+	if (engines.verdict === "none") return `move to a Node.js release that npm ${text} runs on (${engines.range}), then ${place.install(text)}`;
+	const install = place.install(text);
+	const note = `npm ${text} runs on Node.js ${engines.range} only`;
+	return install.endsWith(")") ? `${install.slice(0, -1)}; ${note})` : `${install} (${note})`;
+}
+function report$1(context, helpers, check, place, resolution, facts) {
+	const name = check.tool.name;
+	const low = resolution.bundled[0];
+	const high = newest(resolution.bundled);
+	const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => compareVersions$1(low, since) < 0);
+	if (missing.length === 0) return;
+	const none = missing.filter((item) => compareVersions$1(high, parseVersion(item.since)) < 0);
+	const some = missing.filter((item) => !none.includes(item));
+	const single = compareVersions$1(low, high) === 0;
+	const describe = (items) => describeRequirements(items.map(({ setting, since }) => ({
+		setting,
+		since
+	})));
+	const clauses = single ? [`which does not support ${describe(missing)}`] : [...none.length > 0 ? [`none of which supports ${describe(none)}`] : [], ...some.length > 0 ? [`not all of which support ${describe(some)}`] : []];
+	const disputed = missing.some((item) => item.disputed === true) ? "; where official sources disagree on the version, depcurfew assumes the later one" : "";
+	const silent = check.warnsSince !== void 0 && compareVersions$1(low, check.warnsSince) < 0 ? `; ${name} before ${formatVersion(check.warnsSince)} ignores settings it does not know without a warning` : "";
+	const verb = resolution.kind === "exact" || single ? "comes with" : "can come with";
+	const message = `${place.subject} ${verb} ${bundledText(name, resolution.bundled)}, ${clauses.join(", and ")}${place.installs === void 0 ? "" : `, and ${place.installs}`}${silent}${disputed}`;
+	const needed = newest(missing.map((item) => parseVersion(item.since)));
+	const target = check.pinned !== void 0 && compareVersions$1(check.pinned, needed) >= 0 ? check.pinned : needed;
+	const segments = check.tool.id === "npm" ? facts.node : facts.python;
+	const lines = check.tool.id === "npm" ? supportedLtsLines(facts, today()).map((line) => String(line.line)) : void 0;
+	const better = firstReleasesWith(needed, segments, lines);
+	const newestLine = lines === void 0 ? newestLineOf(segments) : lines.at(-1) ?? "";
+	const runtimeFor = (version) => {
+		const releases = firstReleasesWith(version, segments, lines);
+		return releases.length === 0 ? void 0 : place.runtime(releasesPhrase(releases, newestLine), formatVersion(releases[0]?.release), formatVersion(version));
+	};
+	const runtime = better.length === 0 ? void 0 : runtimeFor(needed);
+	const other = helpers.alternative(missing, name, check.advice);
+	const enough = other !== void 0 && compareVersions$1(low, other.version) >= 0;
+	const otherRuntime = other === void 0 || enough ? void 0 : runtimeFor(other.version);
+	const noRelease = better.length === 0 && check.tool.id === "npm" ? `; no supported Node.js release comes with ${name} ${formatVersion(needed)} yet` : "";
+	const install = (version) => check.tool.id === "npm" ? installOn(place, version, facts) : place.install(formatVersion(version));
+	const fix = [
+		...enough ? [other.set] : [],
+		install(target),
+		...runtime === void 0 ? [] : [runtime],
+		...other === void 0 || enough ? [] : [`${install(other.version)} ${other.suffix(place.installSeen ? "repository" : "machine")}`, ...otherRuntime === void 0 ? [] : [`${otherRuntime} ${other.suffix("repository")}`]]
+	].join(", or ");
+	const level = place.enforced && none.length > 0 ? "error" : "warning";
+	context.report({
+		level,
+		location: place.line === void 0 ? { file: place.file } : {
+			file: place.file,
+			line: place.line
+		},
+		message,
+		fix: `${fix.charAt(0).toUpperCase()}${fix.slice(1)}${noRelease}`
+	});
+}
+function unknown(context, subject, reason, file) {
+	context.notice(`${RULE$1} cannot tell which npm or pip comes with ${subject}: ${reason}`, file);
+}
+/**
+* The npm an npm install -g npm@X puts in place, checked against the settings of the directory its installs run in, as
+* for packageManager: an exact version that lacks one is an error, a range whose lowest version does a warning, and a
+* version depcurfew cannot read a notice (apply counts it as an npm that runs every dependency install script).
+*/
+function checkUpgrade(context, helpers, check, place, facts) {
+	const spec = place.command.version;
+	if (spec === void 0) return;
+	const name = check.tool.name;
+	const where = place.label === place.file ? place.label : `${place.label} (${place.file})`;
+	const lowest = lowestVersion(spec);
+	if (lowest.kind === "unknown") {
+		context.notice(`${RULE$1} cannot evaluate ${name} version "${spec}" in ${place.file}`, place.file);
+		return;
+	}
+	const missing = helpers.missing(placeFeatures(check.features, place.of), (since) => belowVersion(lowest, since));
+	if (missing.length === 0) return;
+	const needed = newest(missing.map((item) => parseVersion(item.since)));
+	const list = describeRequirements(missing);
+	const subject = lowest.kind === "exact" ? `${name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} allows ${name} ${formatBound(lowest)} ("${spec}"), which does not support ${list}`;
+	const alternative = helpers.alternative(missing, name, check.advice);
+	const engines = (version) => {
+		const found = enginesVerdict(version, place.nodes, facts);
+		if (found === void 0) return "";
+		return found.verdict === "none" ? ` (npm ${formatVersion(version)} runs on Node.js ${found.range}, so move to such a Node.js release first)` : ` (npm ${formatVersion(version)} runs on Node.js ${found.range} only)`;
+	};
+	const fix = alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}` : `Require ${name} ${formatVersion(needed)} or later in ${place.label}${engines(needed)}${alternative === void 0 ? "" : `, or ${alternative.text}`}`;
+	context.report({
+		level: lowest.kind === "exact" ? "error" : "warning",
+		location: {
+			file: place.file,
+			line: place.command.line
+		},
+		message: `${subject}${place.installs === void 0 ? "" : `, and ${place.installs}`}`,
+		fix
+	});
+}
+/**
+* CI jobs that install with npm: with the npm of a declared Node.js, or with the npm npm install -g npm@X puts in its
+* place. An install in the directory of a project (working-directory: frontend, cd frontend) uses that project's npm
+* configuration, so it is checked against the project's settings (decisions D-105 and D-115).
+*/
+function checkJobs(context, helpers, checkFor, facts) {
+	const projects = (context.projects ?? []).map((view) => view.directory);
+	const resolve = resolver(facts);
+	for (const place of jobPlaces(context.detection, projects)) {
+		const { job, project, installs } = place;
+		const check = checkFor(project);
+		if (check === void 0) continue;
+		const where = project === "" ? "" : ` in ${project}`;
+		const uses = `job ${job.id} installs packages with it${where} on line ${installs.first}`;
+		if (place.upgrade !== void 0) {
+			checkUpgrade(context, helpers, check, {
+				command: place.upgrade,
+				file: job.file,
+				label: SOURCE_LABEL["github-actions"],
+				...project === "" ? {} : { installs: uses },
+				of: installs,
+				nodes: place.nodes.flatMap(nodeOf)
+			}, facts);
+			continue;
+		}
+		const declaration = place.declaration;
+		if (declaration === void 0) continue;
+		if (!("version" in declaration)) {
+			unknown(context, `the Node.js of ${declaration.versionFile} in ${declaration.file}`, "depcurfew cannot read the version from that file", declaration.file);
+			continue;
+		}
+		const subject = nodeSubject(declaration, helpers.label(declaration));
+		if (declaration.unknown !== void 0) {
+			unknown(context, subject, declaration.unknown, declaration.file);
+			continue;
+		}
+		const resolution = resolve(declaration.version, namingFor(declaration));
+		if (resolution.kind === "unknown") {
+			unknown(context, subject, resolution.reason, declaration.file);
+			continue;
+		}
+		report$1(context, helpers, check, {
+			subject,
+			file: declaration.file,
+			...declaration.line === void 0 ? {} : { line: declaration.line },
+			enforced: true,
+			installs: uses,
+			of: installs,
+			nodes: nodeOf(declaration),
+			install: (version) => `run npm install -g npm@${version} in job ${job.id} before it installs packages`,
+			installSeen: true,
+			runtime: (releases, _first, bundled) => declaration.container === void 0 ? `set up a Node.js release that comes with npm ${bundled} or later (${releases})` : `run the job in a node image whose Node.js release comes with npm ${bundled} or later (${releases})`
+		}, resolution, facts);
+	}
+}
+/**
+* Dockerfile stages that install with the tool of their image, or with the npm an npm install -g npm@X puts in its
+* place; a root stage that builds a project, or installs in its directory, is checked for it.
+*/
+function checkDockerfiles(context, helpers, checkFor, tool, facts) {
+	const runtimeTool = tool === "npm" ? "node" : "python";
+	const projects = tool === "npm" ? (context.projects ?? []).map((view) => view.directory) : [];
+	for (const { file, stage, root, upgrade, project, installs } of dockerPlaces(context.detection.dockerfiles, tool, projects)) {
+		const check = checkFor(project);
+		if (check === void 0) continue;
+		const name = stage.name === void 0 ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
+		const uses = `${name} installs packages with it${project === "" ? "" : ` for ${project}`} on line ${installs.first}`;
+		const runtime = stage.runtime;
+		if (upgrade !== void 0) {
+			if (tool !== "npm") continue;
+			const nodes = runtime?.tool === "node" && runtime.version !== void 0 ? [{
+				version: runtime.version,
+				naming: "docker"
+			}] : [];
+			checkUpgrade(context, helpers, check, {
+				command: upgrade,
+				file: file.file,
+				label: SOURCE_LABEL.dockerfile,
+				...project === "" ? {} : { installs: uses },
+				of: installs,
+				nodes
+			}, facts);
+			continue;
+		}
+		if (runtime === void 0) continue;
+		const image = root.image ?? (runtimeTool === "node" ? "node" : "python");
+		const runtimeName = runtimeTool === "node" ? "Node.js" : "Python";
+		const version = runtime.version;
+		const subject = `${runtimeName}${version === void 0 ? "" : ` ${version}`} (${image}) in ${file.file}`;
+		if (version === void 0) {
+			const settings = placeFeatures(check.features, installs);
+			if (settings.length === 0) continue;
+			const list = describeRequirements(settings.map(({ setting, since }) => ({
+				setting,
+				since
+			})));
+			context.report({
+				level: "note",
+				location: {
+					file: file.file,
+					line: root.line
+				},
+				message: `${RULE$1} cannot tell which ${tool} comes with ${subject}: ${runtime.unknown ?? "the tag names no version"}`,
+				fix: `Use a ${runtimeTool} image tag that names the ${runtimeName} version (such as ${runtimeTool}:${runtimeTool === "node" ? "24-alpine" : "3.13-slim"}, with the digest after it: ${runtimeTool}:<tag>@sha256:…), or check by hand that the ${tool} of that image supports ${list}`
+			});
+			continue;
+		}
+		const resolution = runtimeTool === "node" ? nodeBundledNpm(version, "docker", facts) : pythonBundledPip(version, facts);
+		if (resolution.kind === "unknown") {
+			unknown(context, subject, resolution.reason, file.file);
+			continue;
+		}
+		const replace = tool === "npm" ? (target) => `npm install -g npm@${target}` : (target) => `pip install pip==${target}`;
+		report$1(context, helpers, check, {
+			subject,
+			file: file.file,
+			line: root.line,
+			enforced: true,
+			installs: uses,
+			of: installs,
+			...tool === "npm" ? { nodes: [{
+				version,
+				naming: "docker"
+			}] } : {},
+			install: (target) => `add RUN ${replace(target)} to ${name} before it installs packages`,
+			installSeen: true,
+			runtime: (releases, first, bundled) => `start from a ${runtimeTool} image whose ${runtimeName} release comes with ${tool} ${bundled} or later (${releases}), such as ${runtimeTool}:${first}`
+		}, resolution, facts);
+	}
+}
+/**
+* The version files developers use. `project`: the root's files, checked for a project that has none of its own and
+* uses them (decision D-109).
+*/
+function checkDeveloperFiles(context, helpers, check, declarations, facts, project) {
+	for (const declaration of declarations) {
+		const subject = nodeSubject(declaration, helpers.label(declaration));
+		const resolution = nodeBundledNpm(declaration.version, namingOf(declaration.source), facts);
+		if (resolution.kind === "unknown") {
+			unknown(context, subject, resolution.reason, declaration.file);
+			continue;
+		}
+		const line = helpers.line(declaration);
+		report$1(context, helpers, check, {
+			subject,
+			file: declaration.file,
+			...line === void 0 ? {} : { line },
+			enforced: false,
+			...project === void 0 ? {} : { installs: `${project} has no ${declaration.file.split("/").at(-1) ?? declaration.file} of its own, so it uses this one` },
+			nodes: [{
+				version: declaration.version,
+				naming: namingOf(declaration.source)
+			}],
+			install: (version) => `install npm ${version} where this Node.js is used (npm install -g npm@${version})`,
+			installSeen: false,
+			runtime: (releases, _first, bundled) => `require a Node.js release that comes with npm ${bundled} or later in ${helpers.label(declaration)} (${releases})`
+		}, resolution, facts);
+	}
+}
+/** The exact version the repository pins for everyone (packageManager, devEngines, Volta, .tool-versions, the tool's own configuration). */
+function repositoryPin(manager) {
+	return pinnedVersion({
+		...manager,
+		versions: manager.versions.filter((entry) => entry.source !== "github-actions" && entry.source !== "dockerfile")
+	});
+}
+/** The options of npmInUse for a directory: the root (whose projects are left out) or a project (with what the root gives it). */
+function npmInUseOptions(context) {
+	const ci = context.plan?.ci;
+	const root = context.plan?.root;
+	return {
+		projects: (context.projects ?? []).map((view) => view.directory),
+		...ci === void 0 ? {} : { extra: ci },
+		...root === void 0 ? {} : { root }
+	};
+}
+/** The npm versions a directory runs, as apply sees them (npmInUse). */
+function npmPlaces(context) {
+	const manifest = context.repository.parseOnce("package.json", (text) => JSON.parse(text));
+	return npmInUse(context.detection, manifest, (declaration) => SOURCE_LABEL[declaration.source], npmInUseOptions(context));
+}
+/**
+* What depcurfew apply does about strict-allow-scripts for npm in a directory (decision D-109): `now`, it writes it for
+* the repository as it is, because some npm in use runs scripts allowScripts does not cover with a notice; `targeted`,
+* it configures npm there at all, so a change of the repository that brings such an npm makes it write it.
+*/
+function strictAdvice(context, tool) {
+	const policy = context.policy;
+	const targeted = policy !== void 0 && (policy.targets === "auto" || policy.targets.includes(tool.id));
+	if (!targeted || tool.extra?.["strictAllowScripts"] === void 0) return {
+		now: false,
+		targeted
+	};
+	const defaults = values$1(tool.installScripts.defaultPolicy)[0] ?? [];
+	return {
+		now: npmPlaces(context).some((entry) => entry.versions.some((version) => versionedValue(defaults, version) === "run-with-warning")),
+		targeted
+	};
+}
+/** The check of npm in one directory (the root or a project): its settings, its pin and when unknown keys warn. */
+function npmCheck(context, helpers, managers, project) {
+	const manager = managers.find((entry) => entry.id === "npm" && entry.supported);
+	const npm = context.tools.find((entry) => entry.id === "npm");
+	if (manager === void 0 || npm === void 0) return void 0;
+	const features = helpers.features(npm, context).map((item) => project === void 0 || item.instead === void 0 ? item : {
+		...item,
+		instead: {
+			...item.instead,
+			file: `${project}/${item.instead.file}`
+		}
+	});
+	if (features.length === 0) return void 0;
+	const unknownKeys = npm.extra?.["unknownConfigKeys"] === void 0 ? void 0 : values$1(npm.extra["unknownConfigKeys"])[0];
+	const warning = Array.isArray(unknownKeys) ? unknownKeys.find((entry) => entry.value === "warning")?.since : void 0;
+	const warnsSince = warning === void 0 ? void 0 : parseVersion(warning);
+	return {
+		tool: npm,
+		features,
+		pinned: repositoryPin(manager),
+		...warnsSince === void 0 ? {} : { warnsSince },
+		advice: strictAdvice(context, npm)
+	};
+}
+/** The npm and pip that come with the declared runtimes, checked against the settings the repository relies on. */
+function checkBundledVersions(context, helpers) {
+	const facts = runtimeFacts(environment);
+	const managed = (id) => context.detection.packageManagers.find((entry) => entry.id === id && entry.supported);
+	const npmManager = managed("npm");
+	const rootCheck = npmCheck(context, helpers, context.detection.packageManagers);
+	const views = context.projects ?? [];
+	const sources = views.length === 0 ? [] : managerSources$1(context).filter((source) => source.project !== void 0);
+	const checks = /* @__PURE__ */ new Map();
+	const planOf = (project) => {
+		const ci = jobsInProject(context.detection, project);
+		return {
+			project,
+			...ci.jobs.length === 0 ? {} : { ci },
+			root: rootPlaces(context.detection, project, views.find((view) => view.directory === project)?.detection)
+		};
+	};
+	const checkFor = (project) => {
+		if (project === "") return rootCheck;
+		if (!checks.has(project)) {
+			const source = sources.find((entry) => entry.project === project);
+			const plan = planOf(project);
+			checks.set(project, source === void 0 ? void 0 : npmCheck({
+				...source.context,
+				plan
+			}, helpers, source.managers, project));
+		}
+		return checks.get(project);
+	};
+	checkJobs(context, helpers, checkFor, facts);
+	checkDockerfiles(context, helpers, checkFor, "npm", facts);
+	if (npmManager !== void 0 && rootCheck !== void 0) {
+		const manifest = context.repository.parseOnce("package.json", (text) => JSON.parse(text));
+		checkDeveloperFiles(context, helpers, rootCheck, developerPlaces(context.detection, npmManager, manifest), facts);
+	}
+	for (const view of views) {
+		const inherited = planOf(view.directory).root?.versions ?? [];
+		const check = inherited.length === 0 ? void 0 : checkFor(view.directory);
+		if (check === void 0) continue;
+		checkDeveloperFiles(context, helpers, check, inherited.filter((declaration) => "version" in declaration), facts, view.directory);
+	}
+	const pipManager = managed("pip");
+	const pip = context.tools.find((entry) => entry.id === "pip");
+	if (pipManager !== void 0 && pip !== void 0) {
+		const features = helpers.features(pip, context);
+		const check = {
+			tool: pip,
+			features,
+			pinned: repositoryPin(pipManager),
+			advice: {
+				now: false,
+				targeted: false
+			}
+		};
+		if (features.length > 0) checkDockerfiles(context, helpers, (project) => project === "" ? check : void 0, "pip", facts);
+	}
+}
+
+// src/knowledge/schema.ts
+const TOOL_IDS = [
+	"npm",
+	"pnpm",
+	"yarn",
+	"bun",
+	"deno",
+	"uv",
+	"pip",
+	"poetry",
+	"pdm",
+	"pipenv",
+	"renovate",
+	"dependabot"
+];
+const SOURCE_KINDS = [
+	"git",
+	"remoteTarball",
+	"file",
+	"directory"
+];
+const SOURCE_GROUPS = SOURCE_KINDS.map((kind) => ({
+	anchor: `sources.${kind}.setting`,
+	dependents: [
+		"values",
+		"availableSince",
+		"default"
+	].map((field) => `sources.${kind}.${field}`)
+}));
+
+// src/doctor/rules/manager-version.ts
+const kinded = (kind, found) => found === void 0 ? void 0 : {
+	...found,
+	kind
+};
+/**
+* When a missing feature can also be had with a setting from an earlier version (decision D-105): that version, the
+* newest of it and the other missing features, and how to say it in a fix. The fix promises that depcurfew apply writes
+* the setting only where it does (decision D-109): "which depcurfew apply writes for this repository" when apply writes it
+* now; after a change of the repository that apply sees (a pinned version, a CI step, a Dockerfile, a version file),
+* "which depcurfew apply then writes"; otherwise (npm installed on a machine, npm not in targets) "by hand".
+*/
+function alternativeOf(missing, name, advice) {
+	const instead = missing.find((item) => item.instead !== void 0)?.instead;
+	if (instead === void 0) return void 0;
+	const version = [instead.since, ...missing.filter((item) => item.instead === void 0).map((item) => item.since)].map((since) => parseVersion(since)).reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
+	const { setting, file } = instead;
+	const now = advice.now && advice.targeted;
+	const suffix = (change) => now ? `with ${setting} in ${file}, which depcurfew apply writes for this repository` : change === "machine" ? `and add ${setting} to ${file} by hand` : advice.targeted ? `with ${setting} in ${file}, which depcurfew apply then writes` : `with ${setting} added to ${file} by hand`;
+	return {
+		version,
+		suffix,
+		set: now ? `set ${setting} in ${file}, which depcurfew apply writes for this repository` : `add ${setting} to ${file} by hand`,
+		text: `${name} ${formatVersion(version)} or later ${suffix("repository")}`
+	};
+}
+function feature(setting, since) {
+	if (setting === null || since === void 0) return void 0;
+	const version = typeof since === "string" ? since : sinceOf(since);
+	if (version === void 0 || parseVersion(version) === void 0) return void 0;
+	return {
+		setting,
+		since: version,
+		disputed: typeof since !== "string" && since.status === "disputed"
+	};
+}
+/** Settings depcurfew.json makes `apply` write for this tool. */
+function policyFeatures(tool, policy) {
+	const features = [];
+	if (policy.cooldown !== void 0) {
+		features.push(kinded("cooldown", feature(settingOf(tool.cooldown.setting), tool.cooldown.availableSince)));
+		const exact = tool.extra?.["cooldownExactVersions"] === void 0 ? void 0 : values$1(tool.extra["cooldownExactVersions"])[0];
+		const setting = settingOf(tool.cooldown.setting);
+		if (typeof exact === "string" && setting !== null) features.push(kinded("cooldown", feature(`${setting} for packages requested by exact version`, exact)));
+		if (policy.cooldown.exclude.length > 0) features.push(kinded("cooldown", feature(settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince)));
+	}
+	if (policy.installScripts !== void 0) {
+		const build = tool.extra?.["buildSwitch"] === void 0 ? void 0 : values$1(tool.extra["buildSwitch"])[0];
+		if (policy.installScripts.default === "deny" && isSwitch(build)) features.push(kinded("scripts", feature(build.setting, build.since)));
+		const allowAll = tool.extra?.["allowAllScripts"] ?? tool.extra?.["allowAllBuilds"];
+		const switchFact = allowAll === void 0 ? void 0 : values$1(allowAll)[0];
+		if (policy.installScripts.default === "allow" && isSwitch(switchFact)) features.push(kinded("scripts", feature(switchFact.setting, switchFact.since)));
+		if (policy.installScripts.default === "deny" && policy.installScripts.allow.length > 0) {
+			const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord);
+			const setting = settingOf(tool.installScripts.allowList.setting);
+			features.push(kinded("scripts", legacy !== void 0 && typeof legacy["since"] === "string" ? feature(setting, legacy["since"]) : feature(setting?.includes("<") ? setting.split(".")[0] ?? setting : setting, tool.installScripts.allowList.availableSince)));
+		}
+	}
+	for (const kind of SOURCE_KINDS) {
+		const source = tool.sources?.[kind];
+		if (policy.sources?.[kind] !== void 0 && source !== void 0) features.push(feature(settingOf(source.setting), source.availableSince));
+	}
+	return features.filter((item) => item !== void 0);
+}
+/** Settings already present in the manager's own configuration file. */
+function configuredFeatures(context, tool) {
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
+	if (file === void 0) return [];
+	const candidates = [
+		[
+			settingOf(tool.cooldown.setting),
+			tool.cooldown.availableSince,
+			"cooldown"
+		],
+		[
+			settingOf(tool.cooldown.exclude.setting),
+			tool.cooldown.exclude.availableSince,
+			"cooldown"
+		],
+		...SOURCE_KINDS.map((kind) => [
+			settingOf(tool.sources?.[kind]?.setting),
+			tool.sources?.[kind]?.availableSince,
+			void 0
+		])
+	];
+	const files = tool.id === "deno" ? context.detection.packageManagers.find((entry) => entry.id === "deno")?.configFiles.filter((name) => /^deno\.jsonc?$/u.test(name)) ?? [] : [file];
+	const configured = (setting) => ecosystemOfTool(tool) === "pypi" ? readPythonSetting(context.repository, tool, setting) !== void 0 : files.some((name) => readSetting(context.repository, name, setting) !== void 0);
+	return candidates.filter(([setting]) => setting !== null && configured(setting)).map(([setting, since, kind]) => kind === void 0 ? feature(setting, since) : kinded(kind, feature(setting, since))).filter((item) => item !== void 0);
+}
+/** Where a version is declared, for messages; a tool's own required version is named by its key. */
+function sourceLabel(tool, declaration) {
+	if (declaration.source !== "tool-config") return SOURCE_LABEL[declaration.source];
+	const required = tool.extra?.["requiredVersion"] === void 0 ? void 0 : values$1(tool.extra["requiredVersion"])[0];
+	if (!isRecord(required) || typeof required["key"] !== "string") return SOURCE_LABEL[declaration.source];
+	return declaration.file.endsWith("pyproject.toml") && typeof required["table"] === "string" ? `${required["key"]} in [${required["table"]}]` : required["key"];
+}
+function declarationLine(context, declaration) {
+	if (declaration.line !== void 0) return declaration.line;
+	const text = context.repository.readText(declaration.file);
+	if (text === void 0) return void 0;
+	const key = {
+		packageManager: "\"packageManager\"",
+		devEngines: "\"devEngines\"",
+		volta: "\"volta\"",
+		engines: "\"engines\""
+	}[declaration.source];
+	return key === void 0 ? void 0 : lineOf$1(text, key);
+}
+/**
+* npm with installScripts "deny": what keeps dependency install scripts from running with the files as written
+* (decision D-105). ignore-scripts=true turns them off in every version; strict-allow-scripts=true stops the install
+* at a script allowScripts does not cover from 11.16.0; without either, only npm 12 blocks such scripts by default,
+* and 11.16 to 11.x run them with a notice.
+*/
+function scriptFeatures(context, tool, policy) {
+	if (policy.installScripts?.default !== "deny" || tool.extra?.["strictAllowScripts"] === void 0) return [];
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
+	if (file === void 0) return [];
+	const disable = tool.installScripts.disableAll.status === "verified" ? tool.installScripts.disableAll.value : void 0;
+	if (typeof disable === "string" && /^[\w.-]+$/u.test(disable) && readSetting(context.repository, file, disable)?.value === true) return [];
+	const strict = extraOf(tool, "strictAllowScripts", isSwitch);
+	if (readSetting(context.repository, file, strict.setting)?.value === strict.value) {
+		const found = kinded("scripts", feature(strict.setting, strict.since));
+		return found === void 0 ? [] : [found];
+	}
+	const blocks = kinded("scripts", feature(`blocking dependency install scripts without ${strict.setting}`, (values$1(tool.installScripts.defaultPolicy)[0] ?? []).find((entry) => entry.value === "deny-except-allowlist")?.since));
+	return blocks === void 0 || strict.since === void 0 ? [] : [{
+		...blocks,
+		instead: {
+			setting: `${strict.setting}=${String(strict.value)}`,
+			file,
+			since: strict.since
+		}
+	}];
+}
+/** Every setting in use for a tool: the ones depcurfew.json needs and the ones already in its configuration. */
+function featuresOf(context, tool) {
+	const features = /* @__PURE__ */ new Map();
+	const policy = context.policy === void 0 ? void 0 : policyFor(context.policy, ecosystemOfTool(tool));
+	const fromPolicy = policy === void 0 ? [] : [...policyFeatures(tool, policy), ...scriptFeatures(context, tool, policy)];
+	for (const item of [...fromPolicy, ...configuredFeatures(context, tool)]) features.set(item.setting, item);
+	return [...features.values()];
+}
+/** Features a version lacks, without "minimumReleaseAge for packages requested by exact version" when minimumReleaseAge itself is missing. */
+function missingFeatures(features, below) {
+	const missing = features.filter((item) => below(parseVersion(item.since)));
+	return missing.filter((item) => !missing.some((other) => other !== item && item.setting.startsWith(`${other.setting} for `)));
+}
+function checkManager(context, manager, tool, features) {
+	if (features.length === 0) return;
+	const advice = features.some((item) => item.instead !== void 0) ? strictAdvice(context, tool) : {
+		now: false,
+		targeted: false
+	};
+	for (const declaration of manager.versions) {
+		if (!("version" in declaration)) continue;
+		if (tool.id === "npm" && (declaration.source === "github-actions" || declaration.source === "dockerfile")) continue;
+		const lowest = lowestVersion(declaration.version);
+		const label = sourceLabel(tool, declaration);
+		const where = label === declaration.file ? label : `${label} (${declaration.file})`;
+		if (lowest.kind === "unknown") {
+			context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
+			continue;
+		}
+		const missing = missingFeatures(features, (since) => belowVersion(lowest, since));
+		if (missing.length === 0) continue;
+		const needed = missing.map((item) => parseVersion(item.since)).reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
+		const list = describeRequirements(missing);
+		const line = declarationLine(context, declaration);
+		const subject = lowest.kind === "exact" ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
+		const alternative = alternativeOf(missing, tool.name, advice);
+		context.report({
+			level: lowest.kind === "exact" ? "error" : "warning",
+			location: line === void 0 ? { file: declaration.file } : {
+				file: declaration.file,
+				line
+			},
+			message: subject,
+			fix: alternative !== void 0 && lowest.kind === "exact" && compareVersions$1(lowest.version, alternative.version) >= 0 ? `${alternative.set.charAt(0).toUpperCase()}${alternative.set.slice(1)}, or require ${tool.name} ${formatVersion(needed)} or later in ${label}` : `Require ${tool.name} ${formatVersion(needed)} or later in ${label}${alternative === void 0 ? "" : `, or ${alternative.text}`}`
+		});
+	}
+}
+const managerVersionTooOld = {
+	id: "manager-version-too-old",
+	checks: "The declared package manager versions, and the npm and pip that come with the declared Node.js and Python versions, support the settings the repository relies on",
+	summary: "A declared package manager version, or the npm or pip that comes with a declared Node.js or Python version, is older than a setting the repository relies on.",
+	description: "Package managers ignore settings they do not know yet; npm 10 does not even warn. When packageManager, devEngines, Volta, .tool-versions, a CI step or a Dockerfile pins an older version, the setting is silently not applied there. The same holds for the npm that comes with the Node.js a CI job, a Dockerfile stage or a version file (.nvmrc, .node-version) chooses, and for the pip of a python image: Node.js 22 comes with npm 10, which has no min-release-age.",
+	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared, or install a newer npm or pip before installing packages.",
+	level: "error",
+	requiresPolicy: false,
+	applies: (scope) => scope.detection.packageManagers.length > 0,
+	check(context) {
+		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+			const tool = context.tools.find((entry) => entry.id === manager.id);
+			if (tool !== void 0) checkManager(context, manager, tool, featuresOf(context, tool));
+		}
+		checkBundledVersions(context, {
+			features: (tool, where) => featuresOf(where, tool),
+			alternative: (missing, name, advice) => alternativeOf(missing, name, advice),
+			missing: missingFeatures,
+			line: (declaration) => declarationLine(context, declaration),
+			label: (declaration) => SOURCE_LABEL[declaration.source]
+		});
+		for (const manager of context.detection.packageManagers.filter((entry) => !entry.supported && entry.variant === "classic")) {
+			const berry = context.tools.find((entry) => entry.id === manager.id);
+			if (context.policy === void 0 || berry === void 0) continue;
+			const declaration = manager.versions.find((entry) => entry.source === "packageManager");
+			const file = declaration?.file ?? manager.evidence[0]?.file ?? "package.json";
+			const line = declaration === void 0 ? void 0 : declarationLine(context, declaration);
+			const since = sinceOf(berry.cooldown.availableSince);
+			context.report({
+				level: "error",
+				location: line === void 0 ? { file } : {
+					file,
+					line
+				},
+				message: `Yarn Classic (1.x) has none of the settings ${POLICY_FILE} needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it`,
+				fix: `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures`
+			});
+		}
+	}
+};
 
 // src/policy/duration.ts
-const MINUTES$2 = {
+const MINUTES$1 = {
 	w: 10080,
 	d: 1440,
 	h: 60,
@@ -14752,7 +21280,7 @@ function formatDuration(minutes) {
 		"w",
 		"d",
 		"h"
-	]) if (minutes % MINUTES$2[symbol] === 0) return `${minutes / MINUTES$2[symbol]}${symbol}`;
+	]) if (minutes % MINUTES$1[symbol] === 0) return `${minutes / MINUTES$1[symbol]}${symbol}`;
 	return `${minutes}m`;
 }
 function failure(message) {
@@ -14777,7 +21305,7 @@ function parseDuration(input) {
 	for (const [index, token] of tokens.entries()) {
 		const [whole = "", fraction = ""] = token.number.split(".");
 		const symbol = units[index];
-		scaled += BigInt(`${whole || "0"}${fraction.padEnd(decimals, "0")}`) * BigInt(symbol === void 0 ? 0 : MINUTES$2[symbol]);
+		scaled += BigInt(`${whole || "0"}${fraction.padEnd(decimals, "0")}`) * BigInt(symbol === void 0 ? 0 : MINUTES$1[symbol]);
 	}
 	if (tokens.every((token) => /^[0.]*$/u.test(token.number))) return failure(ZERO);
 	if (units.includes(void 0)) return failure(`a unit is missing; ${HINT}`);
@@ -14796,68 +21324,6 @@ function parseDuration(input) {
 	return failure(`${/\s/u.test(input) ? "spaces are not allowed" : tokens.some((token) => token.unit !== token.unit.toLowerCase()) ? "units are lowercase" : tokens.some((token) => token.unit.length > 1) ? "use the short unit" : tokens.length > 1 ? "use a single unit" : "leading zeros are not allowed"}; write "${suggestion}"`);
 }
 
-// src/policy/package-pattern.ts
-const NAME$1 = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
-const PYTHON_NAME = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
-const PYPI_PREFIX = "pypi:";
-/** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
-const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME}|(?!\\*+$)(@${NAME$1}/)?${NAME$1})$`;
-const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
-function validatePythonPattern(pattern) {
-	const name = pattern.slice(5);
-	if (name === "") return `write a Python package name after ${PYPI_PREFIX}, e.g. "${PYPI_PREFIX}requests"`;
-	const versionAt = name.search(/[@=<>!~;[ ]/u);
-	if (versionAt > 0 && !name.startsWith("@")) return `versions are not supported; write "${PYPI_PREFIX}${name.slice(0, versionAt)}"`;
-	if (/^\*+$/u.test(name)) return "it matches every package; list packages explicitly";
-	const example = `e.g. "${PYPI_PREFIX}requests" or "${PYPI_PREFIX}acme-*"`;
-	if (name.startsWith("@")) return `Python package names have no scope; expected a name or a name pattern with *, ${example}`;
-	if (!GRAMMAR.test(pattern)) return `expected a Python package name or a name pattern with *, ${example}`;
-}
-/** Returns why the pattern is invalid, or undefined when it is valid. */
-function validatePackagePattern(pattern) {
-	if (pattern === "") return "must not be empty";
-	if (/\s/u.test(pattern)) return "must not contain spaces";
-	if (pattern.startsWith("pypi:")) return validatePythonPattern(pattern);
-	const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(pattern);
-	if (prefix !== null) {
-		const rest = pattern.slice(prefix[0].length);
-		return prefix[1]?.toLowerCase() === "pypi" ? `the only ecosystem prefix is ${PYPI_PREFIX}; write Python packages as "${PYPI_PREFIX}${rest}"` : `the only ecosystem prefix is ${PYPI_PREFIX}; write npm packages without a prefix, e.g. "${rest}"`;
-	}
-	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
-	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
-	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
-	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
-	if (!GRAMMAR.test(pattern)) return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
-}
-/** The ecosystem a policy pattern belongs to. */
-function ecosystemOf(pattern) {
-	return pattern.startsWith("pypi:") ? "pypi" : "npm";
-}
-/** The patterns of one ecosystem, without the pypi: prefix. */
-function patternsFor(patterns, ecosystem) {
-	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => ecosystem === "pypi" ? pattern.slice(5) : pattern);
-}
-
-// src/policy/ecosystem.ts
-function ecosystemOfTool(tool) {
-	return tool.ecosystem ?? "npm";
-}
-/** The policy with cooldown.exclude, installScripts.allow and installScripts.deny reduced to the patterns of one ecosystem. */
-function policyFor(policy, ecosystem) {
-	return {
-		...policy,
-		...policy.cooldown === void 0 ? {} : { cooldown: {
-			...policy.cooldown,
-			exclude: patternsFor(policy.cooldown.exclude, ecosystem)
-		} },
-		...policy.installScripts === void 0 ? {} : { installScripts: {
-			...policy.installScripts,
-			allow: patternsFor(policy.installScripts.allow, ecosystem),
-			deny: patternsFor(policy.installScripts.deny, ecosystem)
-		} }
-	};
-}
-
 // src/version.ts
 const PACKAGE_JSON = new URL("../package.json", import.meta.url);
 let cached;
@@ -14868,6 +21334,13 @@ function getVersion() {
 
 // src/self-version.ts
 const NAME = "depcurfew";
+/**
+* The tools directory the README recommends for a repository without package.json in its root: depcurfew pinned in
+* its own package.json and package-lock.json there (decision D-116).
+*/
+const TOOLS_DIRECTORY = ".claude/depcurfew";
+/** The project's copy as the hook of the README runs it, relative to its directory. */
+const INSTALLED_CLI = `node_modules/${NAME}/dist/cli.js`;
 function lineOf(text, needle) {
 	const index = text.indexOf(needle);
 	return index < 0 ? void 0 : text.slice(0, index).split("\n").length;
@@ -14883,19 +21356,22 @@ function versionIn(text, read) {
 	return typeof version === "string" && parseVersion(version) !== void 0 ? version : void 0;
 }
 const field = (value, key) => typeof value === "object" && value !== null && Object.hasOwn(value, key) ? value[key] : void 0;
-/** The installed copy in node_modules, else the version package-lock.json records; undefined when neither has one. */
-function projectCopy(repository) {
-	const manifest = `node_modules/${NAME}/package.json`;
+/** The copy of one directory: installed in node_modules, else the version package-lock.json records. */
+function copyIn(repository, directory) {
+	const prefix = directory === void 0 ? "" : `${directory}/`;
+	const at = directory === void 0 ? {} : { directory };
+	const manifest = `${prefix}node_modules/${NAME}/package.json`;
 	const installedText = repository.isFile(manifest) ? repository.readText(manifest) : void 0;
 	if (installedText !== void 0) {
 		const version = versionIn(installedText, (document) => field(document, "version"));
 		if (version !== void 0) return {
 			version,
 			file: manifest,
-			...lineAt(installedText, "\"version\"")
+			...lineAt(installedText, "\"version\""),
+			...at
 		};
 	}
-	const lockfile = "package-lock.json";
+	const lockfile = `${prefix}package-lock.json`;
 	const lockText = repository.isFile(lockfile) ? repository.readText(lockfile) : void 0;
 	if (lockText !== void 0) {
 		const key = `node_modules/${NAME}`;
@@ -14903,9 +21379,22 @@ function projectCopy(repository) {
 		if (version !== void 0) return {
 			version,
 			file: lockfile,
-			...lineAt(lockText, `"${key}"`)
+			...lineAt(lockText, `"${key}"`),
+			...at
 		};
 	}
+}
+/**
+* The newest copy of depcurfew the repository installs or pins: in the project (node_modules, else package-lock.json)
+* or in the tools directory of the README (TOOLS_DIRECTORY, decision D-116); undefined when neither has one.
+*/
+function projectCopy(repository) {
+	return [copyIn(repository, void 0), copyIn(repository, TOOLS_DIRECTORY)].filter((copy) => copy !== void 0).reduce((newest, copy) => newest === void 0 || isNewer(copy.version, newest.version) ? copy : newest, void 0);
+}
+function isNewer(version, than) {
+	const a = parseVersion(version);
+	const b = parseVersion(than);
+	return a !== void 0 && b !== void 0 && compareVersions$1(a, b) > 0;
 }
 function lineAt(text, needle) {
 	const line = lineOf(text, needle);
@@ -14918,13 +21407,15 @@ function lineAt(text, needle) {
 */
 function outdatedText(copy, command, line = false) {
 	const at = line && copy.line !== void 0 ? `, line ${copy.line}` : "";
-	const pinned = copy.file === "package-lock.json";
-	const where = pinned ? `is pinned in ${copy.file}${line && copy.line !== void 0 ? ` (line ${copy.line})` : ""}` : `is installed in the project (${copy.file}${at})`;
+	const pinned = copy.file.endsWith("package-lock.json");
+	const where = pinned ? `is pinned in ${copy.file}${line && copy.line !== void 0 ? ` (line ${copy.line})` : ""}` : `is installed in ${copy.directory ?? "the project"} (${copy.file}${at})`;
 	const knows = command === "apply" ? "settings that version writes" : "settings that version writes or checks";
 	const runner = command === "apply" ? "apply" : "this check";
+	const update = `update the depcurfew you run to ${copy.version} or later`;
+	const tools = copy.directory === void 0 ? void 0 : `node ${copy.directory}/${INSTALLED_CLI} ${command}`;
 	return {
 		message: `depcurfew ${copy.version} ${where}, but the depcurfew running ${runner} is older, so it may not know ${knows}`,
-		fix: pinned ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or update the depcurfew you run to ${copy.version} or later` : `Run the project's copy (npx depcurfew ${command}), or update the depcurfew you run to ${copy.version} or later`
+		fix: tools !== void 0 ? pinned ? `Install it in ${copy.directory} (cd ${copy.directory} && npm ci --ignore-scripts), then run that copy (${tools}), or ${update}` : `Run that copy (${tools}), or ${update}` : pinned ? `Install the project's dependencies (npm ci), then run its copy (npx depcurfew ${command}), or ${update}` : `Run the project's copy (npx depcurfew ${command}), or ${update}`
 	};
 }
 /** Whether the project's copy is newer than the depcurfew that runs. */
@@ -14932,44 +21423,6 @@ function isNewerThanRunning(copy, running = getVersion()) {
 	const pinned = parseVersion(copy.version);
 	const current = parseVersion(running);
 	return pinned !== void 0 && current !== void 0 && compareVersions$1(pinned, current) > 0;
-}
-
-// src/policy/file.ts
-function firstLine(error) {
-	const message = error instanceof Error ? error.message : String(error);
-	return message.split("\n", 1)[0] ?? message;
-}
-/** Whether a path exists; an error other than "no such file" counts as existing, so that it is reported, not skipped. */
-function exists(path) {
-	try {
-		lstatSync(path);
-		return true;
-	} catch (error) {
-		const code = error.code;
-		return code !== "ENOENT" && code !== "ENOTDIR";
-	}
-}
-function readPolicyFile(root) {
-	if (!exists(join(root, "depcurfew.json"))) return { status: "missing" };
-	let repository;
-	let text;
-	try {
-		repository = new Repository(root);
-		text = repository.readText(POLICY_FILE);
-	} catch (error) {
-		return {
-			status: "unreadable",
-			reason: `cannot read ${POLICY_FILE}: ${firstLine(error)}`
-		};
-	}
-	if (text !== void 0) return {
-		status: "ok",
-		text
-	};
-	return {
-		status: "unreadable",
-		reason: repository.warnings[0]?.message ?? `${"depcurfew.json"} is not a regular file and was not read`
-	};
 }
 
 // src/policy/convert.ts
@@ -15082,35 +21535,43 @@ function convertCooldown(tool, duration) {
 	};
 }
 
-// src/knowledge/schema.ts
-const TOOL_IDS = [
-	"npm",
-	"pnpm",
-	"yarn",
-	"bun",
-	"deno",
-	"uv",
-	"pip",
-	"poetry",
-	"pdm",
-	"pipenv",
-	"renovate",
-	"dependabot"
-];
-const SOURCE_KINDS = [
-	"git",
-	"remoteTarball",
-	"file",
-	"directory"
-];
-const SOURCE_GROUPS = SOURCE_KINDS.map((kind) => ({
-	anchor: `sources.${kind}.setting`,
-	dependents: [
-		"values",
-		"availableSince",
-		"default"
-	].map((field) => `sources.${kind}.${field}`)
-}));
+// src/policy/project-directory.ts
+/** Characters no entry may hold: Windows forbids them in file names, and * and ? would read as patterns. */
+const FORBIDDEN = /[\\:*?"<>|\u0000-\u001f\u007f]/u;
+/** Directories detection never enters, so a project inside one would never be read. */
+const SKIPPED = ["node_modules", ".git"];
+/**
+* Also used as the JSON Schema pattern: segments of one or more allowed characters, none of them "." or "..",
+* separated by single slashes, without a slash at either end.
+*/
+const PROJECT_DIRECTORY_PATTERN = "^(?!\\.\\.?(?:/|$))(?!.*/\\.\\.?(?:/|$))(?!(?:.*/)?(?:node_modules|\\.git)(?:/|$))[^/\\\\:*?\"<>|\\u0000-\\u001f\\u007f]+(?:/[^/\\\\:*?\"<>|\\u0000-\\u001f\\u007f]+)*$";
+const EXAMPLE = "e.g. \"frontend\" or \"services/api\"";
+/** Returns why the entry is not a usable project directory, or undefined when it is one. */
+function validateProjectDirectory(entry) {
+	if (entry === "") return `must not be empty; write the directory of the project relative to the repository root, ${EXAMPLE}`;
+	if (/^[A-Za-z]:/u.test(entry) || entry.startsWith("\\\\")) return `must be relative to the repository root, without a drive letter, ${EXAMPLE}`;
+	if (entry.startsWith("/")) {
+		const relative = entry.replace(/^\/+/u, "").replace(/\/+$/u, "");
+		return relative === "" ? "is the repository root, which depcurfew configures anyway; remove the entry" : `must be relative to the repository root; write "${relative}"`;
+	}
+	if (entry.includes("\\")) return `must use / between directories; write "${entry.replaceAll("\\", "/").replace(/\/+$/u, "")}"`;
+	if (entry === "." || entry === "./") return "is the repository root, which depcurfew configures anyway; remove the entry";
+	if (entry.endsWith("/")) return `must not end with /; write "${entry.replace(/\/+$/u, "")}"`;
+	const segments = entry.split("/");
+	if (segments.includes("")) return `must not contain //; write "${segments.filter((segment) => segment !== "").join("/")}"`;
+	if (segments.includes("..")) return "must not contain \"..\": a project is a directory inside the repository; write its path from the repository root";
+	if (segments.includes(".")) {
+		const cleaned = segments.filter((segment) => segment !== ".").join("/");
+		return cleaned === "" ? "is the repository root, which depcurfew configures anyway; remove the entry" : `must not contain "." as a directory; write "${cleaned}"`;
+	}
+	const skipped = segments.find((segment) => SKIPPED.includes(segment));
+	if (skipped !== void 0) return `lies in ${skipped}, which depcurfew does not read; list the directory of your own project`;
+	if (FORBIDDEN.test(entry)) return `must be a plain directory path: patterns and the characters \\ : * ? " < > | and control characters are not supported, so list each directory, ${EXAMPLE}`;
+}
+/** Whether `inner` is a directory inside `outer` (both entries of projects). */
+function isInsideProject(outer, inner) {
+	return inner.startsWith(`${outer}/`);
+}
 
 // src/policy/shape.ts
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/u;
@@ -15455,13 +21916,38 @@ const targetsShape = anyOf([literal("auto", { description: "Configure the tools 
 	nonEmpty: "use \"auto\" to detect tools",
 	description: "Configure exactly these tools."
 })], { description: "Tools to configure: \"auto\" detects them in the repository, or list them explicitly." });
+const projectsShape = list(text({
+	label: "a directory path such as \"frontend\"",
+	kind: "invalid project directory",
+	pattern: PROJECT_DIRECTORY_PATTERN,
+	examples: ["frontend", "services/api"],
+	description: "A directory relative to the repository root, with / between directories, e.g. \"frontend\" or \"services/api\". No patterns, no \"..\", no / at either end.",
+	parse: (input) => {
+		const message = validateProjectDirectory(input);
+		return message === void 0 ? {
+			ok: true,
+			value: input
+		} : {
+			ok: false,
+			message
+		};
+	}
+}), {
+	unique: true,
+	description: "Directories of independent projects in this repository, each with its own manifest and lockfile (e.g. frontend and backend). depcurfew configures each one with this policy as a project of its own, and configures Renovate and Dependabot once, from the repository root, for all of them. The repository root is always configured as well. A project must not be inside another one, must not be a workspace package of the root and must not have a depcurfew.json of its own."
+});
+/** Which findings make depcurfew doctor exit with 1 (decision D-112). */
+const FAIL_ON_LEVELS = ["error", "warning"];
+const doctorShape = object({ failOn: optional(oneOfStrings(FAIL_ON_LEVELS, { description: "Which findings make depcurfew doctor exit with 1 and fail the GitHub Action: \"error\" (only errors, also when left out) or \"warning\" (warnings too). Notes never fail. doctor --fail-on and the input fail-on of the Action override it." })) }, { description: "How depcurfew doctor and the GitHub Action treat findings. Without this section only errors fail, as before; depcurfew init writes \"failOn\": \"warning\"." });
 const policyShape = object({
 	$schema: optional(anyString({ description: "JSON Schema of this file, for editor support." })),
 	version: required(literal(1, { description: "Version of the policy format." })),
 	cooldown: optional(cooldownShape),
 	installScripts: optional(installScriptsShape),
 	sources: optional(sourcesShape),
-	targets: withDefault(targetsShape, "auto")
+	targets: withDefault(targetsShape, "auto"),
+	projects: withDefault(projectsShape, []),
+	doctor: optional(doctorShape)
 }, { description: "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot." });
 
 // src/policy/validate.ts
@@ -15547,8 +22033,33 @@ function overlaps(allow, deny) {
 	}
 	return issues;
 }
+/**
+* Each project is configured on its own, with its directory as the root, so one inside another would have its files
+* planned twice; two entries that differ only in case name one directory on Windows and macOS.
+*/
+function projectIssues(projects) {
+	const issues = [];
+	projects.forEach((project, index) => {
+		const outer = projects.findIndex((other) => isInsideProject(other, project));
+		if (outer !== -1) {
+			issues.push({
+				path: formatPath(["projects", index]),
+				message: `"${project}" is inside "${projects[outer] ?? ""}" (projects[${outer}]); each project is configured on its own, so list only one of them`
+			});
+			return;
+		}
+		const twin = projects.findIndex((other, at) => at < index && other !== project && other.toLowerCase() === project.toLowerCase());
+		if (twin !== -1) issues.push({
+			path: formatPath(["projects", index]),
+			message: `"${project}" and "${projects[twin] ?? ""}" (projects[${twin}]) differ only in case, so they name the same directory on Windows and macOS; keep the one spelled as the directory is`
+		});
+	});
+	return issues;
+}
 function crossFieldIssues(document, tools) {
 	const issues = [];
+	const projects = section(projectsShape, document, "projects");
+	if (projects !== void 0) issues.push(...projectIssues(projects));
 	const installScripts = section(installScriptsShape, document, "installScripts");
 	if (installScripts?.default === "allow" && installScripts.allow.length > 0) issues.push({
 		path: formatPath(["installScripts", "allow"]),
@@ -15624,304 +22135,6 @@ function parsePolicy(source, tools = knowledgeBase) {
 }
 function formatIssue(issue) {
 	return `${issue.path}: ${issue.message}`;
-}
-
-// src/doctor/durations.ts
-const MINUTES$1 = {
-	ms: 1 / 6e4,
-	s: 1 / 60,
-	second: 1 / 60,
-	m: 1,
-	minute: 1,
-	h: 60,
-	hour: 60,
-	d: 1440,
-	day: 1440,
-	w: 10080,
-	week: 10080
-};
-const UNIT_MINUTES = {
-	seconds: 1 / 60,
-	minutes: 1,
-	hours: 60,
-	days: 1440
-};
-function word(unit) {
-	return MINUTES$1[unit.toLowerCase().replace(/s$/u, "")];
-}
-const SYNTAX = {
-	compact: (text) => {
-		const match = /^(\d+)(ms|s|m|h|d|w)$/u.exec(text);
-		return match === null ? void 0 : Number(match[1]) * (MINUTES$1[match[2] ?? ""] ?? NaN);
-	},
-	"compact-or-words": (text) => SYNTAX["compact"]?.(text) ?? SYNTAX["words"]?.(text),
-	words: (text) => {
-		const parts = [...text.matchAll(/(\d+)\s*([a-z]+)/giu)];
-		if (parts.length === 0 || parts.map((part) => part[0]).join(" ").replaceAll(/\s+/gu, "") !== text.replaceAll(/\s+/gu, "")) return void 0;
-		let total = 0;
-		for (const part of parts) {
-			const unit = word(part[2] ?? "");
-			if (unit === void 0) return void 0;
-			total += Number(part[1]) * unit;
-		}
-		return total;
-	},
-	"words-or-iso8601": (text) => SYNTAX["iso8601"]?.(text) ?? SYNTAX["words"]?.(text),
-	iso8601: (text) => {
-		const match = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/u.exec(text);
-		if (match === null || text === "P" || text.endsWith("T")) return void 0;
-		const [weeks, days, hours, minutes, seconds] = match.slice(1).map((part) => Number(part ?? 0));
-		return (weeks ?? 0) * 10080 + (days ?? 0) * 1440 + (hours ?? 0) * 60 + (minutes ?? 0) + (seconds ?? 0) / 60;
-	}
-};
-/** A delay as written for `tool` at `version` (undefined: the latest version). null and 0 mean no delay. */
-function delayMinutes(tool, value, version) {
-	if (value === null || value === void 0 || value === false) return {
-		ok: true,
-		minutes: 0
-	};
-	if (typeof value === "number" && Number.isNaN(value)) return {
-		ok: false,
-		reason: "NaN is not a delay"
-	};
-	if (typeof value === "bigint" || typeof value === "number" && Math.abs(value) > Number.MAX_SAFE_INTEGER) return {
-		ok: false,
-		reason: `${String(value)} is too large to be a delay`
-	};
-	if (typeof value === "number") {
-		const unit = values$1(tool.cooldown.unit)[0];
-		const factor = unit === null || unit === void 0 ? void 0 : UNIT_MINUTES[unit];
-		return factor === void 0 ? {
-			ok: false,
-			reason: `${tool.name} takes no number here`
-		} : {
-			ok: true,
-			minutes: value * factor
-		};
-	}
-	if (typeof value !== "string") return {
-		ok: false,
-		reason: `${JSON.stringify(value) ?? String(value)} is not a delay`
-	};
-	const text = value.trim();
-	if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
-	const fact = tool.extra?.["durationStrings"];
-	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	if (!isRecord(format) || typeof format["syntax"] !== "string") return {
-		ok: false,
-		reason: `${tool.name} takes no duration strings`
-	};
-	const since = typeof format["since"] === "string" ? parseVersion(format["since"]) : void 0;
-	if (since !== void 0 && version !== void 0 && compareVersions$1(version, since) < 0) return {
-		ok: false,
-		reason: `${tool.name} accepts duration strings only since ${format["since"]}`
-	};
-	const minutes = SYNTAX[format["syntax"]]?.(text);
-	return minutes === void 0 ? {
-		ok: false,
-		reason: `"${text}" is not a duration ${tool.name} understands`
-	} : {
-		ok: true,
-		minutes
-	};
-}
-function formatMinutes(minutes) {
-	for (const [unit, size] of [
-		["week", 10080],
-		["day", 1440],
-		["hour", 60]
-	]) if (minutes >= size && minutes % size === 0) return `${minutes / size} ${unit}${minutes === size ? "" : "s"}`;
-	const rounded = Math.round(minutes * 100) / 100;
-	return `${rounded} minute${rounded === 1 ? "" : "s"}`;
-}
-
-// src/doctor/python.ts
-const isStringList$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-/** The parsed TOML file, or undefined when it is missing or does not parse (unreadable-config then reports it). */
-function readTomlDocument(repository, file) {
-	return repository.parseOnce(file, parseToml);
-}
-/** The value at a key path of a TOML file, with the line of its key. */
-function tomlSettingAt(repository, file, path) {
-	const document = readTomlDocument(repository, file);
-	const value = document === void 0 ? void 0 : tomlValueAt(document, path);
-	return document === void 0 || value === void 0 ? void 0 : {
-		file,
-		line: document.lineOf(path) ?? 1,
-		value
-	};
-}
-/** The files and key paths where a Python tool reads `setting`, in the order the tool uses them. */
-function pythonSettingPaths(repository, tool, setting) {
-	const tables = tool.extra?.["configTables"] === void 0 ? void 0 : extraOf(tool, "configTables", isRecord);
-	if (tables !== void 0) {
-		const files = (tool.extra?.["configFileOrder"] === void 0 ? Object.keys(tables) : extraOf(tool, "configFileOrder", isStringList$1)).filter((name) => name in tables);
-		const file = files.find((name) => repository.isFile(name)) ?? files[0];
-		if (file === void 0) return [];
-		const table = String(tables[file] ?? "");
-		return [{
-			file,
-			path: [...table === "" ? [] : table.split("."), setting]
-		}];
-	}
-	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
-	return file === void 0 || !file.endsWith(".toml") ? [] : [{
-		file,
-		path: setting.split(".")
-	}];
-}
-/** A Python tool's setting as the tool reads it in the project, or undefined when it is not set. */
-function readPythonSetting(repository, tool, setting) {
-	for (const { file, path } of pythonSettingPaths(repository, tool, setting)) {
-		const found = tomlSettingAt(repository, file, path);
-		if (found !== void 0) return found;
-	}
-}
-/**
-* A long option of a requirements file as pip reads it (extra.requirementsParser): an exact name, or a prefix that
-* names exactly one option of the parser; anything else (an unknown option or an ambiguous prefix) as written.
-*/
-function expandRequirementsOption(option, longOptions) {
-	if (longOptions.includes(option)) return option;
-	const matches = longOptions.filter((name) => name.startsWith(option));
-	return matches.length === 1 ? matches[0] ?? option : option;
-}
-/** The long options of pip's requirements parser in a requirements format record (requirementsFormatOf). */
-function requirementsLongOptions(format) {
-	const parser = format["parser"];
-	const options = isRecord(parser) && parser["abbreviations"] === true ? parser["longOptions"] : void 0;
-	return isStringList$1(options) ? options : [];
-}
-/**
-* The global option lines of a requirements file, e.g. --only-binary=:all:, with their values and lines; an
-* abbreviated option (--only-bin) as the option pip reads it as. Options after a requirement on the same logical line
-* (--hash on a continuation line) belong to that requirement and are skipped.
-*/
-function requirementsOptions(repository, file, format) {
-	const text = repository.readText(file);
-	if (text === void 0) return [];
-	const longOptions = requirementsLongOptions(format);
-	return requirementsLines(text, format).flatMap(({ text: line, line: number }) => {
-		const match = /^(--[a-z-]+)(?:[=\s]\s*(\S+))?/u.exec(line);
-		return match === null ? [] : [{
-			option: expandRequirementsOption(match[1] ?? "", longOptions),
-			value: match[2] ?? "",
-			line: number
-		}];
-	});
-}
-
-// src/doctor/effective.ts
-function latestVersion$1(tool) {
-	const fact = tool.extra?.["latestVersion"];
-	const value = fact === void 0 ? void 0 : values$1(fact)[0];
-	return typeof value === "string" ? parseVersion(value) : void 0;
-}
-/** The value in effect at `version` (or the latest entry when the version is unknown). */
-function versionedValue(list, version) {
-	let current;
-	for (const entry of list) {
-		const since = parseVersion(entry.since);
-		if (version === void 0 || since === void 0 || compareVersions$1(version, since) >= 0) current = entry.value;
-	}
-	return current;
-}
-function managerConfigFiles(tool, manager) {
-	if (tool.id === "deno") return manager.configFiles.filter((file) => /^deno\.jsonc?$/u.test(file));
-	return (values$1(tool.cooldown.configFiles)[0] ?? []).filter((file) => file !== ".npmrc" || tool.id === "npm").slice(0, 1);
-}
-/**
-* pnpm before 11 also reads its settings from the root .npmrc, spelled in kebab case, when pnpm-workspace.yaml does not
-* set them (extra.npmrcPrecedence); pnpm 11 reads only auth and registry settings there (extra.ignoredSince).
-*/
-function pnpmNpmrcSetting(context, tool, version, setting) {
-	if (tool.id !== "pnpm" || tool.extra?.["npmrcPrecedence"] === void 0 || tool.extra["ignoredSince"] === void 0) return void 0;
-	const until = parseVersion(String(extraOf(tool, "ignoredSince", isRecord)["since"]));
-	const over = extraOf(tool, "npmrcPrecedence", isRecord)["over"];
-	if (until === void 0 || version === void 0 || compareVersions$1(version, until) >= 0 || !Array.isArray(over) || !over.includes(".npmrc")) return void 0;
-	return readSetting(context.repository, ".npmrc", npmrcKey(setting));
-}
-const isNpmrcBuildSettings = (value) => isRecord(value) && isRecord(value["allowAll"]) && Array.isArray(value["allowAll"]["off"]) && typeof value["until"] === "string" && Array.isArray(value["projectKeys"]);
-/**
-* pnpm 10: the dangerously-allow-all-builds line of the root .npmrc when it is on and takes effect (extra.npmrcBuildSettings):
-* every value but those pnpm reads as off, while pnpm-workspace.yaml does not set dangerouslyAllowAllBuilds and, from
-* 10.13.0, sets no build settings at all. The "pnpm" field of package.json is not consulted, which errs towards
-* reporting. undefined for other versions and for an unknown one (the latest is assumed, which reads no such .npmrc key).
-*/
-function pnpmNpmrcAllowsAllBuilds(tool, version, read) {
-	const fact = tool.extra?.["npmrcBuildSettings"] === void 0 ? void 0 : extraOf(tool, "npmrcBuildSettings", isNpmrcBuildSettings);
-	const since = fact === void 0 ? void 0 : parseVersion(fact.allowAll.since);
-	const until = fact === void 0 ? void 0 : parseVersion(fact.until);
-	if (fact === void 0 || version === void 0 || since === void 0 || until === void 0) return void 0;
-	if (compareVersions$1(version, since) < 0 || compareVersions$1(version, until) >= 0) return void 0;
-	const entry = iniEntries(read(".npmrc") ?? "").filter((item) => item.key === fact.allowAll.key).at(-1);
-	if (entry === void 0 || fact.allowAll.off.includes(entry.value.trim())) return void 0;
-	const workspace = read("pnpm-workspace.yaml");
-	const sets = (key) => {
-		const found = workspace === void 0 ? void 0 : yamlSetting(workspace, [key], yamlOptionsFor("pnpm-workspace.yaml"));
-		return found !== void 0 && found.value !== null && found.value !== void 0;
-	};
-	const keys = versionedValue(fact.projectKeys, version) ?? [];
-	if (sets(extraOf(tool, "allowAllBuilds", isSwitch).setting) || keys.some(sets)) return void 0;
-	return {
-		key: entry.key,
-		value: entry.value,
-		line: entry.line,
-		off: fact.allowAll.off
-	};
-}
-/** The package manager's delay, or undefined (with a notice) when a configured value cannot be read. */
-function managerDelay$1(context, manager, tool) {
-	const version = pinnedVersion(manager) ?? latestVersion$1(tool);
-	const versionText = version === void 0 ? tool.name : `${tool.name} ${formatVersion(version)}`;
-	const setting = settingOf(tool.cooldown.setting);
-	const since = sinceOf(tool.cooldown.availableSince);
-	if (!(since === void 0 || version === void 0 || compareVersions$1(version, parseVersion(since) ?? [
-		0,
-		0,
-		0
-	]) >= 0)) return {
-		minutes: 0,
-		origin: `${versionText} has no ${setting ?? "release-age setting"}`
-	};
-	if (setting !== null) {
-		let found;
-		let key = setting;
-		if (ecosystemOfTool(tool) === "pypi") found = readPythonSetting(context.repository, tool, setting);
-		else for (const file of managerConfigFiles(tool, manager)) found ??= readSetting(context.repository, file, setting);
-		if (found === void 0) {
-			found = pnpmNpmrcSetting(context, tool, version, setting);
-			if (found !== void 0) key = npmrcKey(setting);
-		}
-		if (found !== void 0) {
-			const raw = isRecord(found.value) ? found.value["age"] : found.value;
-			const delay = delayMinutes(tool, raw, version);
-			if (!delay.ok) {
-				context.notice(`${tool.name}: cannot read ${key} in ${found.file}: ${delay.reason}`, found.file);
-				return;
-			}
-			return {
-				minutes: delay.minutes,
-				origin: `${key}: ${JSON.stringify(raw)} in ${found.file}`,
-				location: {
-					file: found.file,
-					line: found.line
-				}
-			};
-		}
-	}
-	let longest;
-	for (const evidence of evidenceOf(tool.cooldown.default)) {
-		const value = versionedValue(evidence.value, version);
-		const delay = delayMinutes(tool, value, version);
-		if (delay.ok && (longest === void 0 || delay.minutes > longest)) longest = delay.minutes;
-	}
-	const minutes = longest ?? 0;
-	const disputed = tool.cooldown.default.status === "disputed" ? "; official sources disagree, the longest is assumed" : "";
-	return {
-		minutes,
-		origin: minutes === 0 ? `${versionText} has no delay by default` : `the default of ${versionText}${disputed}`
-	};
 }
 
 // src/apply/yaml-edit.ts
@@ -16510,7 +22723,24 @@ function policyDuration(minutes) {
 }
 /** A value and where it is set, for messages: `min-release-age: 14 in .npmrc (line 2)`. */
 function describeDelay(delay) {
-	return `${delay.setting}: ${JSON.stringify(delay.value)} in ${delay.location.file} (line ${delay.location.line})`;
+	return `${settingText(delay.location.file, delay.setting, delay.value)} in ${delay.location.file} (line ${delay.location.line})`;
+}
+/** INI files: .npmrc, pnpm's rc and pip's configuration files. */
+const INI_FILES = /* @__PURE__ */ new Set([
+	".npmrc",
+	"rc",
+	"pip.conf",
+	"pip.ini"
+]);
+/**
+* A setting as its file writes it (decision D-111): "min-release-age=3" in an INI file such as .npmrc,
+* 'exclude-newer = "3 days"' in TOML, 'minimumReleaseAge: 4320' in YAML and JSON.
+*/
+function settingText(file, key, value) {
+	const name = file.split("/").at(-1) ?? file;
+	if (INI_FILES.has(name)) return `${key}=${typeof value === "string" ? value : JSON.stringify(value)}`;
+	if (name.endsWith(".toml") || name === "Pipfile") return `${key} = ${JSON.stringify(value)}`;
+	return `${key}: ${JSON.stringify(value)}`;
 }
 /** Files read as lines, where apply comments out a setting it takes over instead of replacing its value. */
 function lineBased(file) {
@@ -16545,7 +22775,7 @@ function shortenedDelays(root, changes, detection, tools, targets, policyMinimum
 		if (now === void 0 || now.minutes >= old.minutes) return [];
 		const name = tools.find((tool) => tool.id === old.tool)?.name ?? old.tool;
 		const scope = old.label === void 0 ? "" : ` for ${old.label}`;
-		const action = !(now.location.file === old.location.file && now.setting === old.setting) ? `writes ${now.setting}: ${JSON.stringify(now.value)} to ${now.location.file}, which ${name} reads first` : lineBased(old.location.file) ? `comments it out and writes ${now.setting}: ${JSON.stringify(now.value)} in its managed block` : `replaces it with ${JSON.stringify(now.value)}`;
+		const action = !(now.location.file === old.location.file && now.setting === old.setting) ? `writes ${settingText(now.location.file, now.setting, now.value)} to ${now.location.file}, which ${name} reads first` : lineBased(old.location.file) ? `comments it out and writes ${settingText(now.location.file, now.setting, now.value)} in its managed block` : `replaces it with ${JSON.stringify(now.value)}`;
 		return [{
 			code: "cooldown-shortened",
 			tool: old.tool,
@@ -16993,8 +23223,9 @@ function writeDenyList(context) {
 	if (!context.supports(deny.since, deny.setting)) return;
 	const file = deny.file.endsWith(".yaml") ? context.yaml(deny.file) : context.json(deny.file);
 	const allowed = allowedInFiles(context);
-	for (const name of deniedNames(context, settingName(deny.setting))) {
-		if (allowed.has(name)) continue;
+	const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
+	if (names.length > 0) context.writes("installScripts", deny.setting, deny.file);
+	for (const name of names) {
 		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
 		if (file.get(path) !== deny.value) file.set(path, deny.value);
 	}
@@ -17110,6 +23341,7 @@ const bun = (context) => {
 			if (setting !== null && context.supports(since, setting)) {
 				const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
 				const names = policy.installScripts.allow.length > 0 ? allowedNames(context, setting) : [];
+				context.writes("installScripts", setting, listFile);
 				const current = context.json(listFile).get([setting]);
 				if (current === void 0 && context.exists(listFile)) context.warn({
 					code: "built-in-list-replaced",
@@ -17132,7 +23364,7 @@ const bun = (context) => {
 * The setting a line sets, read as npm reads it, with the reader doctor uses (extra.npmrcFormat): quotes removed,
 * a key without = included, a trailing comment cut off; `key[]` as `key`.
 */
-function keyOf$1(line) {
+function keyOf$2(line) {
 	const parsed = iniLine(line);
 	return parsed === void 0 || "section" in parsed ? void 0 : parsed.key.replace(/\[\]$/u, "");
 }
@@ -17157,8 +23389,8 @@ function writeIniBlock(body, entries, managedKeys, marker = BLOCK_START) {
 	const lines = removed.lines.map((line) => parts(line).map((part) => {
 		if (isSection(part)) inSection = true;
 		const original = commentedOut(part);
-		if (original !== void 0) return !inSection && managed.has(keyOf$1(original) ?? "") ? part : original;
-		const key = inSection ? void 0 : keyOf$1(part);
+		if (original !== void 0) return !inSection && managed.has(keyOf$2(original) ?? "") ? part : original;
+		const key = inSection ? void 0 : keyOf$2(part);
 		return key !== void 0 && managed.has(key) ? `${entries.length === 0 ? TURNED_OFF : SUPERSEDED}${part.trim()}` : part;
 	}).join("\r"));
 	if (entries.length === 0) return joinLines(lines);
@@ -17196,7 +23428,7 @@ function writeRequirementsBlock(body, entries, managedOptions, longOptions = [])
 
 // src/apply/toml.ts
 const HEADER = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/u;
-function keyOf(line) {
+function keyOf$1(line) {
 	const trimmed = line.trim();
 	if (trimmed === "" || trimmed.startsWith("#") || trimmed.startsWith("[")) return void 0;
 	const equals = trimmed.indexOf("=");
@@ -17261,7 +23493,7 @@ function tablesOf(lines) {
 		const header = HEADER.exec(line);
 		if (header !== null) current = header[1];
 		tables[index] = current;
-		if (header === null && keyOf(line) !== void 0) {
+		if (header === null && keyOf$1(line) !== void 0) {
 			const end = valueEnd(lines, index);
 			for (let next = index + 1; next <= end; next++) tables[next] = current;
 			index = end;
@@ -17299,7 +23531,7 @@ function restoreLines(lines, table, isManaged) {
 		}
 		const original = commentedOut(line);
 		if (original === void 0) {
-			if (keyOf(line) !== void 0) index = valueEnd(lines, index);
+			if (keyOf$1(line) !== void 0) index = valueEnd(lines, index);
 			continue;
 		}
 		const noted = HEADER.exec(original);
@@ -17309,7 +23541,7 @@ function restoreLines(lines, table, isManaged) {
 			if (section === "restored") lines[index] = original;
 			continue;
 		}
-		const key = keyOf(original);
+		const key = keyOf$1(original);
 		if (key === void 0 || section === "kept") continue;
 		const dotted = !topLevel && current === void 0 && key.startsWith(prefix);
 		if (section === "table" && !((topLevel ? current === void 0 : current === table) && !isManaged(key) || dotted && !isManaged(key.slice(prefix.length)))) continue;
@@ -17356,7 +23588,7 @@ function writeTomlBlock(body, table, entries, managedKeys, label, scope = "proje
 			if (!line.trim().startsWith("[[")) headers.set(index, current);
 			continue;
 		}
-		const key = keyOf(line);
+		const key = keyOf$1(line);
 		if (key === void 0) continue;
 		const end = valueEnd(lines, index);
 		const inTable = (topLevel ? current === void 0 : current === table) && isManaged(key);
@@ -17367,7 +23599,7 @@ function writeTomlBlock(body, table, entries, managedKeys, label, scope = "proje
 		} else if (!topLevel && current === void 0 && (key === table || key.startsWith(`${table}.`) || table.startsWith(`${key}.`))) definedAtTop = true;
 		index = end;
 	}
-	if (entries.length === 0) return joinLines(lines);
+	if (entries.length === 0) return joinLines(withoutCreatedTable(lines, table, removed));
 	if (topLevel) {
 		const firstTable = boundaries[0] ?? lines.length;
 		if (removed.at !== void 0 && removed.at <= firstTable) return joinLines(topBlock(lines, removed.at, entries, removed.separated, marker));
@@ -17396,6 +23628,27 @@ function writeTomlBlock(body, table, entries, managedKeys, label, scope = "proje
 	return joinLines(insertBlock(lines, end, entries, void 0, marker));
 }
 /**
+* The table apply created for its block goes away with the block when nothing else is in it (decision D-116). apply
+* writes such a table as its header with the block right below it, and the blank line before the header; a block it
+* added to a table that was there follows a blank line after the header, which removeBlockAt reports as `separated`.
+* So a table with anything else in it, with a comment on its header line, or with the block apart from the header, is
+* the user's and stays, also when it is empty.
+*/
+function withoutCreatedTable(lines, table, removed) {
+	const at = removed.at;
+	if (table === "" || at === void 0 || removed.separated || at === 0) return lines;
+	const header = at - 1;
+	if (lines[header]?.trim() !== `[${table}]`) return lines;
+	let end = at;
+	while (end < lines.length && !HEADER.test(lines[end] ?? "")) {
+		if ((lines[end] ?? "").trim() !== "") return lines;
+		end += 1;
+	}
+	const rest = [...lines.slice(0, header), ...lines.slice(at)];
+	if (header > 0 && rest[header - 1]?.trim() === "" && (header === rest.length || rest[header]?.trim() === "")) rest.splice(header - 1, 1);
+	return rest;
+}
+/**
 * A top-level block, with a blank line before a table header that follows it right away. A key that follows it stays
 * where it is, so that a second run changes nothing.
 */
@@ -17407,6 +23660,7 @@ function topBlock(lines, at, entries, separate, marker) {
 }
 
 // src/apply/generators/context.ts
+let recording;
 var EditFailed = class extends Error {};
 function createContext(options) {
 	const { tool, workspace, warnings, failures } = options;
@@ -17423,6 +23677,7 @@ function createContext(options) {
 		return options.version === void 0 || required === void 0 || compareVersions$1(options.version, required) >= 0;
 	};
 	const unsupported = [];
+	const where = options.project === void 0 ? {} : { project: options.project };
 	const warn = (warning) => {
 		const { code, ...rest } = warning;
 		if (!warnings.some((known) => known.code === code && known.message === warning.message)) warnings.push({
@@ -17452,6 +23707,8 @@ function createContext(options) {
 		name: tool.name,
 		policy: options.policy,
 		version: options.version,
+		inUse: options.inUse ?? [],
+		...options.project === void 0 ? {} : { project: options.project },
 		versionLabel,
 		user,
 		workspace,
@@ -17463,12 +23720,34 @@ function createContext(options) {
 			file,
 			text
 		}),
+		writes(part, setting, file, table) {
+			if (recording === void 0) return;
+			const entry = {
+				tool: tool.id,
+				...where,
+				part,
+				setting,
+				file,
+				...table === void 0 || table === "" ? {} : { table }
+			};
+			const key = JSON.stringify(entry);
+			if (recording.keys.has(key)) return;
+			recording.keys.add(key);
+			recording.written.push(entry);
+		},
 		supports(since, setting) {
 			if (atLeast(since)) return true;
-			if (since !== void 0) unsupported.push({
-				setting,
-				since
-			});
+			if (since !== void 0) {
+				unsupported.push({
+					setting,
+					since
+				});
+				recording?.missing.push({
+					tool: tool.id,
+					...where,
+					setting
+				});
+			}
 			return false;
 		},
 		finish() {
@@ -17541,7 +23820,10 @@ const deno = (context) => {
 	if (policy.installScripts !== void 0) {
 		const allowAll = extraOf(tool, "allowAllScripts", isSwitch);
 		if (policy.installScripts.default === "allow") {
-			if (context.supports(allowAll.since, allowAll.setting)) json.set([allowAll.setting], allowAll.value);
+			if (context.supports(allowAll.since, allowAll.setting)) {
+				json.set([allowAll.setting], allowAll.value);
+				context.writes("installScripts", allowAll.setting, configFile(context));
+			}
 		} else {
 			const setting = settingOf(tool.installScripts.allowList.setting) ?? allowAll.setting;
 			const since = sinceOf(tool.installScripts.allowList.availableSince);
@@ -17549,7 +23831,9 @@ const deno = (context) => {
 			const current = json.get([setting]);
 			const path = isRecord(current) ? [setting, "allow"] : [setting];
 			const allowed = isRecord(current) ? current["allow"] : current;
-			if (allowed === allowAll.value && context.atLeast(since)) {
+			const replaced = allowed === allowAll.value && context.atLeast(since);
+			if (replaced || specifiers.length > 0) context.writes("installScripts", path.join("."), configFile(context));
+			if (replaced) {
 				context.warn({
 					code: "allow-all-replaced",
 					message: `${context.name}: ${setting} allowed every install script; replaced with the policy's allow-list`,
@@ -17568,6 +23852,7 @@ const deno = (context) => {
 				const denied = deniedNames(context, deny.setting).filter((name) => !allowedByFile.has(name)).map((name) => String(deny.value).replace("<package>", name));
 				const now = json.get([setting]);
 				const list = isRecord(now) ? now["deny"] : void 0;
+				if (denied.length > 0 && (!isRecord(now) || list === void 0 || Array.isArray(list))) context.writes("installScripts", deny.setting, file);
 				if (denied.length > 0 && !isRecord(now)) json.set([setting], {
 					allow: Array.isArray(now) ? now : [],
 					deny: denied
@@ -17679,7 +23964,111 @@ const dependabot = (context, duration) => {
 
 // src/apply/generators/npm.ts
 const isString$1 = (value) => typeof value === "string";
+/** The most places a warning names; a matrix of many Node.js versions would otherwise make one sentence of hundreds. */
+const MAX_PLACES = 6;
 const isBefore$1 = (value) => isRecord(value) && typeof value["setting"] === "string" && isRecord(value["exclusive"]) && typeof value["beforeWinsSince"] === "string";
+const isEffects = (value) => Array.isArray(value) && value.every((entry) => isRecord(entry) && typeof entry["since"] === "string" && typeof entry["value"] === "string");
+/**
+* installScripts "deny" (decisions D-105 and D-109): what the npm versions the directory runs need, from every place
+* npm runs (the pin among them). Any of 11.16 to 11.x runs scripts allowScripts does not cover with a notice unless
+* strict-allow-scripts is set, so it is written; npm 12 reads it too and stops the install at such a script, which a
+* warning says unless the pin is such an npm and no place runs npm 12. An npm before 11.16 cannot block them at all,
+* which scripts-not-enforceable says with where that npm comes from.
+*/
+function scriptsForVersionsInUse(context, file, entries, managed) {
+	const { tool } = context;
+	const defaults = values$1(tool.installScripts.defaultPolicy)[0] ?? [];
+	const strict = extraOf(tool, "strictAllowScripts", isSwitch);
+	const effects = tool.extra?.["strictAllowScriptsEffect"] === void 0 ? [] : extraOf(tool, "strictAllowScriptsEffect", isEffects);
+	const of = (policy) => context.inUse.flatMap((entry) => {
+		const versions = entry.versions.filter((version) => versionedValue(defaults, version) === policy);
+		return versions.length === 0 ? [] : [{
+			text: npmInUseText(entry, versions),
+			several: npmInUseSeveral(entry, versions),
+			entry
+		}];
+	});
+	const where = (found) => {
+		const location = found.find((item) => item.entry.location !== void 0)?.entry.location;
+		return location === void 0 ? {} : { location };
+	};
+	const places = (found) => {
+		const texts = found.map((item) => item.text);
+		return texts.length <= MAX_PLACES ? listing$1(texts) : `${texts.slice(0, 5).join(", ")} and ${texts.length - MAX_PLACES + 1} more places`;
+	};
+	const plural = (found) => found.length > 1 || found[0]?.several === true;
+	const enginesOf = (version, entries) => {
+		const parsed = parseVersion(version);
+		return parsed === void 0 ? void 0 : npmEnginesOn(parsed, entries.flatMap((entry) => entry.nodes ?? []));
+	};
+	const installThere = (version, entries) => {
+		const engines = enginesOf(version, entries);
+		const install = `install npm ${version} or later before packages are installed there (npm install -g npm@${version}${engines?.verdict === "some" ? `; npm ${version} runs on Node.js ${engines.range} only` : ""})`;
+		return engines?.verdict === "none" ? `move to a Node.js release that npm ${version} runs on (${engines.range}), then ${install}` : install;
+	};
+	const capitalized = (text) => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+	const notices = of("run-with-warning");
+	if (notices.length > 0) {
+		entries.push(`${strict.setting}=${String(strict.value)}`);
+		managed.push(strict.setting);
+		context.writes("installScripts", strict.setting, file);
+		const blocking = of("deny-except-allowlist");
+		const pin = context.inUse.find((entry) => entry.pin === true);
+		const pinNeedsIt = pin !== void 0 && notices.some((item) => item.entry === pin);
+		if (!pinNeedsIt || blocking.length > 0) {
+			const later = effects.at(-1);
+			const since = values$1(tool.installScripts.defaultPolicy)[0]?.find((entry) => entry.value === "deny-except-allowlist")?.since ?? later?.since ?? "";
+			const target = pin !== void 0 && versionedValue(defaults, pin.versions[0]) === "deny-except-allowlist" ? formatVersion(pin.versions[0]) : since;
+			const effect = later === void 0 ? "" : `; with it, in npm ${later.since} and later ${later.value}${blocking.length === 0 ? "" : `, which applies to ${places(blocking)}`}`;
+			const others = notices.filter((item) => item.entry.pin !== true);
+			const which = pinNeedsIt ? "the other places listed here" : "every place listed here";
+			const engines = enginesOf(target, others.map((item) => item.entry));
+			const run = `run npm ${since} or later (npm install -g npm@${target} before it installs packages${engines?.verdict === "some" ? `; npm ${target} runs on Node.js ${engines.range} only` : ""}; a pin in packageManager or devEngines does not change the npm they run)`;
+			const how = [...pinNeedsIt ? [`require npm ${since} or later in ${pin.where}`] : [], ...others.length === 0 ? [] : [engines?.verdict === "none" ? `move ${which} to a Node.js release that npm ${target} runs on (${engines.range}) and make them ${run}` : `make ${which} ${run}`]].join(", and ");
+			const unpinned = `nothing pins one npm for ${context.project ?? "the repository"} (packageManager, devEngines, Volta or .tool-versions), and `;
+			context.warn({
+				code: "strict-allow-scripts-for-npm-in-use",
+				...where(notices),
+				message: `${pin === void 0 ? unpinned : ""}${places(notices)} ${plural(notices) ? "run" : "runs"} dependency install scripts that allowScripts does not cover unless ${strict.setting} is set, so depcurfew apply writes ${strict.setting}=${String(strict.value)}${effect}`,
+				fix: `${how.charAt(0).toUpperCase()}${how.slice(1)}, and depcurfew apply leaves ${strict.setting} out. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in ${POLICY_FILE}`
+			});
+		}
+	}
+	const unknown = context.inUse.filter((entry) => entry.unknown !== void 0).map((entry) => ({
+		text: npmInUseText(entry),
+		several: false,
+		entry
+	}));
+	if (unknown.length > 0) {
+		const since = sinceOf(tool.installScripts.allowList.availableSince) ?? "";
+		context.warn({
+			code: "scripts-not-enforceable",
+			...where(unknown),
+			message: `${places(unknown)} may run every dependency install script, so depcurfew counts ${unknown.length > 1 ? "them as ones that do" : "it as one that does"}, and "deny" may not be enforced there`,
+			fix: `Declare a Node.js version depcurfew knows there (an exact release it knows or a release line such as 24), or ${installThere(since, unknown.map((item) => item.entry))}; npm 12 blocks dependency scripts by default`
+		});
+	}
+	const running = of("run");
+	if (running.length > 0) {
+		const since = sinceOf(tool.installScripts.allowList.availableSince) ?? "";
+		const several = plural(running);
+		const pinRuns = running.find((item) => item.entry.pin === true)?.entry;
+		context.warn({
+			code: "scripts-not-enforceable",
+			...where(running),
+			message: `${places(running)} ${several ? "run" : "runs"} every dependency install script and ${several ? "have" : "has"} no allow-list, so "deny" cannot be enforced there`,
+			fix: pinRuns !== void 0 && running.length === 1 ? `Require npm ${since} or later in ${pinRuns.where} (npm 12 blocks dependency scripts by default)` : capitalized(`${installThere(since, running.map((item) => item.entry))}, or move to a Node.js release that comes with it${pinRuns === void 0 ? "" : `, and require it in ${pinRuns.where}`}; npm 12 blocks dependency scripts by default`)
+		});
+	}
+}
+/** Whether some npm in use (or the pinned one) has a setting available since `since`. */
+function someSupports(context, since, setting) {
+	if (context.inUse.length === 0) return context.supports(since, setting);
+	const required = since === void 0 ? void 0 : parseVersion(since);
+	if (required === void 0 || context.inUse.some((entry) => entry.unknown !== void 0 || entry.versions.some((version) => compareVersions$1(version, required) >= 0))) return true;
+	context.supports(since, setting);
+	return false;
+}
 const npm = (context) => {
 	const { tool, policy } = context;
 	const file = firstFile(tool.cooldown.configFiles) ?? ".npmrc";
@@ -17726,14 +24115,17 @@ const npm = (context) => {
 			if (context.supports(allowAll.since, allowAll.setting)) {
 				entries.push(`${allowAll.setting}=${String(allowAll.value)}`);
 				managed.push(allowAll.setting);
+				context.writes("installScripts", allowAll.setting, file);
 			}
 		} else {
 			if (context.atLeast(allowAll.since)) managed.push(allowAll.setting);
 			const defaults = scriptsDefault(context).value;
 			const strict = extraOf(tool, "strictAllowScripts", isSwitch);
-			if (defaults === "run-with-warning" && context.supports(strict.since, strict.setting)) {
+			if (context.inUse.length > 0) scriptsForVersionsInUse(context, file, entries, managed);
+			else if (defaults === "run-with-warning" && context.supports(strict.since, strict.setting)) {
 				entries.push(`${strict.setting}=${String(strict.value)}`);
 				managed.push(strict.setting);
+				context.writes("installScripts", strict.setting, file);
 			} else if (defaults === "run") {
 				const since = sinceOf(tool.installScripts.allowList.availableSince) ?? "";
 				context.warn({
@@ -17749,9 +24141,11 @@ const npm = (context) => {
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
 			if (setting !== null) {
-				if (policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting)) {
+				if (policy.installScripts.allow.length > 0 && someSupports(context, sinceOf(tool.installScripts.allowList.availableSince), setting)) {
 					const json = context.json(listFile);
-					for (const name of allowedNames(context, setting)) if (json.get([setting, name]) !== true) json.set([setting, name], true);
+					const names = allowedNames(context, setting);
+					if (names.length > 0) context.writes("installScripts", setting, listFile);
+					for (const name of names) if (json.get([setting, name]) !== true) json.set([setting, name], true);
 				}
 			}
 			writeDenyList(context);
@@ -17760,6 +24154,7 @@ const npm = (context) => {
 	eachSource(context, (_kind, setting, access) => {
 		entries.push(`${setting}=${access === "deny" ? "none" : "all"}`);
 		managed.push(setting);
+		context.writes("sources", setting, file);
 	});
 	if (entries.length > 0 || hasManagedLines(context.read(file)) || managed.length > 0 && context.exists(file)) context.ini(file, entries, managed);
 	return minutes;
@@ -17780,7 +24175,7 @@ function forcedBuildWarning(context, setting, names, policyFile = POLICY_FILE) {
 	context.warn({
 		code: "forced-source-build",
 		message: `${context.name}: ${setting} lets ${names.join(", ")} be built from source while building is forbidden for everything else; ${context.name} then always builds ${names.length === 1 ? "it" : "them"} from source, even where a wheel exists, because it has no setting that only allows building`,
-		fix: names.length === 1 ? `If ${policyNames.join("")} has a wheel and needs no build, remove it from installScripts.allow in ${policyFile}` : `Remove those of ${listing(policyNames)} that have a wheel and need no build from installScripts.allow in ${policyFile}`
+		fix: names.length === 1 ? `If ${policyNames.join("")} has a wheel and needs no build, remove it from installScripts.allow in ${policyFile}` : `Remove those of ${listing$1(policyNames)} that have a wheel and need no build from installScripts.allow in ${policyFile}`
 	});
 }
 /** Says when the tool's switch does not stop git, local and URL dependencies from being built. */
@@ -17809,7 +24204,7 @@ function compactDuration(value) {
 	return `${count}${letter}`;
 }
 const isStringList = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-function isLockedSettings(value) {
+function isLockedSettings$1(value) {
 	return isRecord(value) && (value["settings"] === "table" || isStringList(value["settings"])) && typeof value["lock"] === "string" && isStringList(value["failing"]);
 }
 /** A TOML value for comparison: a date-time as written. */
@@ -17824,7 +24219,7 @@ function comparable(value) {
 function relockWarning(context, file, table, edit) {
 	const { tool } = context;
 	if (tool.extra?.["lockedSettings"] === void 0) return;
-	const locked = extraOf(tool, "lockedSettings", isLockedSettings);
+	const locked = extraOf(tool, "lockedSettings", isLockedSettings$1);
 	const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value)).find((name) => context.exists(name));
 	if (lockfile === void 0) return;
 	const body = context.exists(file) ? context.read(file) : "";
@@ -17846,8 +24241,8 @@ function relockWarning(context, file, table, edit) {
 	context.warn({
 		code: "lockfile-out-of-date",
 		location: { file: lockfile },
-		message: locked.settings === "table" ? `${context.name}: ${lockfile} is checked against the whole [${table}] table, and this change alters ${listing(changed)}, so ${lockfile} is out of date` : `${context.name}: ${lockfile} records ${listing(changed)}, so it is out of date after this change`,
-		fix: `Run ${locked.lock} and commit ${lockfile}; until then ${listing(locked.failing)} fail`
+		message: locked.settings === "table" ? `${context.name}: ${lockfile} is checked against the whole [${table}] table, and this change alters ${listing$1(changed)}, so ${lockfile} is out of date` : `${context.name}: ${lockfile} records ${listing$1(changed)}, so it is out of date after this change`,
+		fix: `Run ${locked.lock} and commit ${lockfile}; until then ${listing$1(locked.failing)} fail`
 	});
 }
 
@@ -17870,17 +24265,20 @@ const pip = (context) => {
 	}
 	const entries = [];
 	const managed = [];
+	const settings = [];
 	if (policy.installScripts?.default === "deny") {
 		const build = extraOf(tool, "buildSwitch", isSwitch);
 		const setting = settingOf(tool.installScripts.allowList.setting);
 		if (context.supports(build.since, build.setting)) {
 			entries.push(`${build.setting}=${String(build.value)}`);
 			managed.push(build.setting);
+			settings.push(build.setting);
 			buildSwitchScopeWarning(context, build.setting, build.covers);
 			if (setting !== null) {
 				managed.push(setting);
 				const names = policy.installScripts.allow.length > 0 ? buildAllowList(context, setting) : [];
 				for (const name of names) entries.push(`${setting}=${name}`);
+				if (names.length > 0) settings.push(setting);
 				forcedBuildWarning(context, setting, names);
 			}
 		}
@@ -17894,6 +24292,7 @@ const pip = (context) => {
 		});
 		return;
 	}
+	for (const setting of settings) context.writes("installScripts", setting, file);
 	if (entries.length > 0 || hasManagedLines(context.read(file))) context.requirements(file, entries, managed);
 };
 
@@ -17990,8 +24389,10 @@ const isIgnoredList = (value) => isRecord(value) && typeof value["since"] === "s
 */
 function mergeList(context, workspaceFileSince, setting, names) {
 	const inWorkspaceFile = context.atLeast(workspaceFileSince);
-	const target = inWorkspaceFile ? context.yaml(firstFile(context.tool.cooldown.configFiles) ?? "pnpm-workspace.yaml") : context.json("package.json");
+	const file = inWorkspaceFile ? firstFile(context.tool.cooldown.configFiles) ?? "pnpm-workspace.yaml" : "package.json";
+	const target = inWorkspaceFile ? context.yaml(file) : context.json(file);
 	const path = inWorkspaceFile ? [setting] : ["pnpm", setting];
+	context.writes("installScripts", path.join("."), file);
 	const current = target.get(path);
 	const list = Array.isArray(current) ? [...current] : [];
 	const merged = [...list, ...names.filter((name) => !list.includes(name))];
@@ -18057,7 +24458,10 @@ const pnpm = (context) => {
 	if (policy.installScripts !== void 0) {
 		const allowAll = extraOf(tool, "allowAllBuilds", isSwitch);
 		if (policy.installScripts.default === "allow") {
-			if (context.supports(allowAll.since, allowAll.setting)) yaml.set([allowAll.setting], allowAll.value);
+			if (context.supports(allowAll.since, allowAll.setting)) {
+				yaml.set([allowAll.setting], allowAll.value);
+				context.writes("installScripts", allowAll.setting, file);
+			}
 		} else {
 			const defaults = scriptsDefault(context);
 			const legacy = extraOf(tool, "onlyBuiltDependencies", isLegacy);
@@ -18088,14 +24492,15 @@ const pnpm = (context) => {
 					fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 				});
 				yaml.set([allowAll.setting], false);
+				context.writes("installScripts", allowAll.setting, file);
 			}
 			const setting = settingOf(tool.installScripts.allowList.setting) ?? "allowBuilds";
 			const since = sinceOf(tool.installScripts.allowList.availableSince);
 			const wanted = policy.installScripts.allow.length > 0;
 			if (context.atLeast(since)) {
-				if (wanted) {
-					for (const name of allowedNames(context, setting)) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
-				}
+				const names = wanted ? allowedNames(context, setting) : [];
+				if (names.length > 0) context.writes("installScripts", setting, file);
+				for (const name of names) if (yaml.get([setting, name]) !== true) yaml.set([setting, name], true);
 				writeDenyList(context);
 			} else {
 				if ((wanted || mustList) && (mustList ? context.atLeast(legacy.since) : context.supports(legacy.since, "onlyBuiltDependencies"))) mergeList(context, legacy.workspaceFileSince, "onlyBuiltDependencies", allowedNames(context, "onlyBuiltDependencies"));
@@ -18118,6 +24523,7 @@ const pnpm = (context) => {
 					fix: `Remove the ${fromNpmrc.key} line from .npmrc; add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
 				});
 				yaml.set([allowAll.setting], false);
+				context.writes("installScripts", allowAll.setting, file);
 			}
 		}
 	}
@@ -18142,6 +24548,7 @@ const pnpm = (context) => {
 			});
 		}
 		yaml.set([exoticSetting], denied.length > 0);
+		context.writes("sources", exoticSetting, file);
 	}
 	return minutes;
 };
@@ -18177,12 +24584,16 @@ const pdm = (context) => {
 		if (context.supports(build.since, build.setting)) {
 			entries.push(`${build.setting} = ${tomlValue(build.value)}`);
 			managed.push(build.setting);
+			context.writes("installScripts", build.setting, file, table);
 			buildSwitchScopeWarning(context, build.setting, build.covers);
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			if (setting !== null) {
 				managed.push(setting);
 				const names = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting) ? buildAllowList(context, setting) : [];
-				if (names.length > 0) entries.push(`${setting} = ${tomlValue(names)}`);
+				if (names.length > 0) {
+					entries.push(`${setting} = ${tomlValue(names)}`);
+					context.writes("installScripts", setting, file, table);
+				}
 				forcedBuildWarning(context, setting, names);
 			}
 		}
@@ -18272,6 +24683,7 @@ const poetry = (context) => {
 		if (context.supports(build.since, build.setting)) {
 			installer.entries.push(`${key} = ${tomlValue(build.value)}`);
 			installer.managed.push(key);
+			context.writes("installScripts", key, file, table);
 			const lockfile = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles)).flatMap((versions) => versions.flatMap((entry) => entry.value))[0] ?? "the lockfile";
 			context.warn({
 				code: "build-switch-install-only",
@@ -18283,7 +24695,10 @@ const poetry = (context) => {
 			if (setting !== null) {
 				installer.managed.push(splitDotted(setting).key);
 				const names = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting) ? buildAllowList(context, setting) : [];
-				if (names.length > 0) installer.entries.push(`${splitDotted(setting).key} = ${tomlValue(names)}`);
+				if (names.length > 0) {
+					installer.entries.push(`${splitDotted(setting).key} = ${tomlValue(names)}`);
+					context.writes("installScripts", splitDotted(setting).key, file, table);
+				}
 				forcedBuildWarning(context, setting, names);
 			}
 		}
@@ -18293,12 +24708,182 @@ const poetry = (context) => {
 	return minutes;
 };
 
+// src/doctor/renovate.ts
+const isStrings$2 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$2(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
+const isPresetFact = (value) => isRecord(value) && isStrings$2(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
+const isInternal = (value) => isRecord(value) && isStrings$2(value["prefixes"]) && isStrings$2(value["settingDelay"]);
+function readRenovateConfig(text, file, base) {
+	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
+	const extendsList = jsonSetting(text, [...base, "extends"]);
+	const list = jsonSetting(text, [...base, "packageRules"]);
+	const lines = Array.isArray(list?.value) ? jsonElementLines(text, [...base, "packageRules"]) : void 0;
+	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
+		index,
+		rule,
+		line: lines?.[index] ?? list.line
+	}] : []) : [];
+	return {
+		file,
+		base,
+		top,
+		extends: {
+			presets: isStrings$2(extendsList?.value) ? extendsList.value : [],
+			line: extendsList?.line ?? 1
+		},
+		rules
+	};
+}
+/**
+* Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
+* case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
+*/
+function matchesPattern(input, pattern, negation) {
+	const negative = pattern.startsWith(negation);
+	const body = negative ? pattern.slice(negation.length) : pattern;
+	if (!negative && body === "*") return true;
+	const regex = /^\/(.+)\/(i?)$/u.exec(body);
+	if (regex !== null) {
+		let result;
+		try {
+			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
+		} catch {
+			return;
+		}
+		return negative ? !result : result;
+	}
+	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
+	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
+	return negative ? !result : result;
+}
+/** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
+function matchesList(input, patterns, negation) {
+	if (patterns.length === 0) return false;
+	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
+	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
+	const results = positive.map((pattern) => matchesPattern(input, pattern, negation));
+	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
+	const excluded = negative.map((pattern) => matchesPattern(input, pattern, negation));
+	if (excluded.includes(false)) return false;
+	return excluded.includes(void 0) ? void 0 : true;
+}
+/** Patterns that match every package name: *, **, @*\/*, npm:*, and regexes like /.*\/. */
+function matchesEveryName(pattern) {
+	const name = pattern.replace(/^(npm|jsr):/u, "");
+	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
+}
+/**
+* The update types for which a rule applies to every package of `ecosystem`, or undefined when it narrows the
+* packages (or depcurfew cannot tell).
+*/
+function ruleScope(bot, rule, ecosystem) {
+	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$2);
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
+	const known = /* @__PURE__ */ new Set([
+		...matching.packageMatchers,
+		matching.datasourceMatcher,
+		matching.updateTypeMatcher
+	]);
+	if (matchers.some((key) => !known.has(key))) return void 0;
+	let names = { kind: "all" };
+	for (const key of matching.packageMatchers) {
+		if (!(key in rule)) continue;
+		const patterns = rule[key];
+		if (!isStrings$2(patterns) || patterns.length === 0) return void 0;
+		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
+		const broad = positive.find(matchesEveryName);
+		if (positive.length > 0 && broad === void 0) return void 0;
+		if (broad !== void 0 && names.kind === "all") names = {
+			kind: "pattern",
+			pattern: broad
+		};
+		else if (positive.length === 0) names = {
+			kind: "except",
+			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
+		};
+	}
+	if (matching.datasourceMatcher in rule) {
+		const patterns = rule[matching.datasourceMatcher];
+		const datasource = datasources[ecosystem];
+		if (!isStrings$2(patterns) || typeof datasource !== "string" || matchesList(datasource, patterns, matching.negation) !== true) return void 0;
+	}
+	let types = updateTypes;
+	if (matching.updateTypeMatcher in rule) {
+		const patterns = rule[matching.updateTypeMatcher];
+		if (!isStrings$2(patterns)) return void 0;
+		types = updateTypes.filter((type) => matchesList(type, patterns, matching.negation) === true);
+	}
+	return types.length === 0 ? void 0 : {
+		updateTypes: types,
+		names,
+		matchers
+	};
+}
+function presetName(preset) {
+	return preset.replace(/\(.*\)$/u, "");
+}
+/**
+* The delay Renovate applies to every package of `ecosystem`, for each delayed update type. Without a top-level value
+* or a rule, an update type has no entry: Renovate does not wait.
+*/
+function renovateDelay(bot, config, ecosystem) {
+	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$2);
+	const internal = extraOf(bot, "internalPresets", isInternal);
+	const datasources = extraOf(bot, "datasources", isRecord);
+	const byType = /* @__PURE__ */ new Map();
+	const set = (types, source) => {
+		for (const type of types) byType.set(type, source);
+	};
+	const path = [...config.base, "minimumReleaseAge"].join(".");
+	if (config.top !== void 0) set(updateTypes, {
+		value: config.top.value,
+		origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`,
+		line: config.top.line
+	});
+	for (const key of ["minimumReleaseAgePresets", "pypiPresets"]) {
+		const fact = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresetFact);
+		const preset = fact === void 0 ? void 0 : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
+		if (fact === void 0 || preset === void 0 || datasources[ecosystem] !== fact.datasource) continue;
+		set(updateTypes, {
+			value: fact.value,
+			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
+			line: config.extends.line
+		});
+	}
+	let repositorySets = config.top !== void 0;
+	for (const { index, line, rule } of config.rules) {
+		if (!("minimumReleaseAge" in rule)) continue;
+		const scope = ruleScope(bot, rule, ecosystem);
+		if (scope === void 0) continue;
+		repositorySets = true;
+		set(scope.updateTypes, {
+			value: rule["minimumReleaseAge"],
+			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
+			line,
+			rule: index
+		});
+	}
+	const unreadable = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
+	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
+	if (unreadable !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
+		known: false,
+		preset: unreadable,
+		line: config.extends.line
+	};
+	return {
+		known: true,
+		byType
+	};
+}
+
 // src/apply/generators/renovate.ts
 const RULE_DESCRIPTION = "depcurfew: packages excluded from minimumReleaseAge";
 const PYTHON_RULE_DESCRIPTION = "depcurfew: Python packages excluded from minimumReleaseAge";
 const isString = (value) => typeof value === "string";
 const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
-const isPath = (value) => Array.isArray(value) && value.every(isString);
+const isPath$1 = (value) => Array.isArray(value) && value.every(isString);
 const renovate = (context, duration) => {
 	const { tool, policy } = context;
 	if (policy.cooldown === void 0 || duration === void 0) return;
@@ -18314,7 +24899,7 @@ const renovate = (context, duration) => {
 	const setting = settingOf(tool.cooldown.setting) ?? "minimumReleaseAge";
 	const rule = extraOf(tool, "excludeRule", isRule);
 	const descriptionKey = extraOf(tool, "ruleDescription", isString);
-	const securityPath = extraOf(tool, "securityUpdatesSetting", isPath);
+	const securityPath = extraOf(tool, "securityUpdatesSetting", isPath$1);
 	const datasources = extraOf(tool, "datasources", isRecord);
 	const excluded = policy.cooldown.exclude;
 	const patterns = exclusions(context, patternsFor(excluded, "npm")) ?? [];
@@ -18374,6 +24959,7 @@ const renovate = (context, duration) => {
 		context.snippet(where, snippet());
 		return;
 	}
+	shorterRules(context, file, result.value, rule.list, descriptionKey);
 	const json = context.json(file);
 	json.set([setting], result.value);
 	for (const managed of managedRules) {
@@ -18388,6 +24974,66 @@ const renovate = (context, duration) => {
 	}
 	json.set(securityPath, security);
 };
+const ECOSYSTEM_LABELS = {
+	npm: "npm",
+	pypi: "Python"
+};
+/**
+* packageRules entries that apply does not manage and that give every package of a registry, or some update types, a
+* shorter delay than the one apply writes: Renovate uses them, and apply never changes entries it did not write, so it
+* warns (decision D-116). They are found as doctor's bot-cooldown-mismatch finds them (renovateDelay), on the file as
+* it is, with the top-level delay apply writes and without depcurfew's own exclusion rules.
+*/
+function shorterRules(context, file, written, list, descriptionKey) {
+	const { tool } = context;
+	const config = readRenovateConfig(context.read(file), file, []);
+	const own = /* @__PURE__ */ new Set([RULE_DESCRIPTION, PYTHON_RULE_DESCRIPTION]);
+	const planned = {
+		...config,
+		top: {
+			value: written,
+			line: config.top?.line ?? 1
+		},
+		rules: config.rules.filter((entry) => !own.has(entry.rule[descriptionKey]))
+	};
+	const wanted = delayMinutes(tool, written, latestVersion$1(tool));
+	if (!wanted.ok) return;
+	const ecosystems = ["npm", "pypi"].filter((ecosystem) => context.tools.some((entry) => entry.kind === "package-manager" && context.targets.has(entry.id) && ecosystemOfTool(entry) === ecosystem));
+	const found = /* @__PURE__ */ new Map();
+	for (const ecosystem of ecosystems) {
+		const delay = renovateDelay(tool, planned, ecosystem);
+		if (!delay.known) continue;
+		for (const [type, source] of delay.byType) {
+			if (source.rule === void 0) continue;
+			const minutes = delayMinutes(tool, source.value, latestVersion$1(tool));
+			if (!minutes.ok || minutes.minutes >= wanted.minutes) continue;
+			const entry = found.get(source.rule) ?? {
+				line: source.line,
+				value: source.value,
+				types: /* @__PURE__ */ new Set(),
+				ecosystems: /* @__PURE__ */ new Set()
+			};
+			entry.types.add(type);
+			entry.ecosystems.add(ecosystem);
+			found.set(source.rule, entry);
+		}
+	}
+	const updateTypes = extraOf(tool, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every(isString));
+	const describe = (minutes) => minutes === 0 ? "no delay" : formatMinutes(minutes);
+	for (const [index, entry] of [...found].sort(([a], [b]) => a - b)) {
+		const types = updateTypes.filter((type) => entry.types.has(type));
+		const scope = types.length === updateTypes.length ? "updates" : `${listing$1(types)} updates`;
+		context.warn({
+			code: "bot-rule-shortens-delay",
+			location: {
+				file,
+				line: entry.line
+			},
+			message: `${context.name}: ${list}[${index}] in ${file} (line ${entry.line}) sets minimumReleaseAge: ${JSON.stringify(entry.value)} for ${scope} of ${listing$1([...entry.ecosystems].map((ecosystem) => ECOSYSTEM_LABELS[ecosystem]))} packages, shorter than the ${describe(wanted.minutes)} depcurfew apply writes for ${context.name}; ${context.name} uses the rule, and depcurfew apply does not change entries it did not write`,
+			fix: `Make minimumReleaseAge in ${list}[${index}] of ${file} at least ${describe(wanted.minutes)}, or limit the rule to the packages that need a shorter delay`
+		});
+	}
+}
 
 // src/apply/generators/uv.ts
 const uv = (context) => {
@@ -18420,11 +25066,15 @@ const uv = (context) => {
 		if (context.supports(build.since, build.setting)) {
 			entries.push(`${build.setting} = ${tomlValue(build.value)}`);
 			managed.push(build.setting);
+			context.writes("installScripts", build.setting, file, table);
 			const setting = settingOf(tool.installScripts.allowList.setting);
 			if (setting !== null) {
 				managed.push(setting);
 				const names = policy.installScripts.allow.length > 0 && context.supports(sinceOf(tool.installScripts.allowList.availableSince), setting) ? buildAllowList(context, setting) : [];
-				if (names.length > 0) entries.push(`${setting} = ${tomlValue(names)}`);
+				if (names.length > 0) {
+					entries.push(`${setting} = ${tomlValue(names)}`);
+					context.writes("installScripts", setting, file, table);
+				}
 				forcedBuildWarning(context, setting, names);
 			}
 		}
@@ -18442,7 +25092,8 @@ const uv = (context) => {
 const isScriptsSwitch = (value) => isRecord(value) && typeof value["setting"] === "string" && "allow" in value && "deny" in value;
 const yarn = (context) => {
 	const { tool, policy } = context;
-	const yaml = context.yaml(firstFile(tool.cooldown.configFiles) ?? ".yarnrc.yml");
+	const file = firstFile(tool.cooldown.configFiles) ?? ".yarnrc.yml";
+	const yaml = context.yaml(file);
 	let minutes;
 	if (policy.cooldown !== void 0) {
 		const setting = settingOf(tool.cooldown.setting) ?? "npmMinimalAgeGate";
@@ -18460,12 +25111,29 @@ const yarn = (context) => {
 	if (policy.installScripts !== void 0) {
 		const scripts = extraOf(tool, "scriptsSwitch", isScriptsSwitch);
 		const deny = policy.installScripts.default === "deny";
+		const current = yaml.get([scripts.setting]);
+		if (deny && current === scripts.allow) {
+			const found = context.exists(file) ? yamlSetting(context.read(file), [scripts.setting]) : void 0;
+			context.warn({
+				code: "allow-all-replaced",
+				...found === void 0 ? {} : { location: {
+					file,
+					line: found.line
+				} },
+				message: `${context.name}: ${scripts.setting}: ${JSON.stringify(current)} in ${file}${found === void 0 ? "" : ` (line ${found.line})`} allowed every install script; set to ${JSON.stringify(scripts.deny)} because the policy denies install scripts`,
+				fix: `Add the packages whose install scripts must run to installScripts.allow in ${POLICY_FILE}, then run depcurfew apply again`
+			});
+		}
 		yaml.set([scripts.setting], deny ? scripts.deny : scripts.allow);
+		context.writes("installScripts", scripts.setting, file);
 		const template = settingOf(tool.installScripts.allowList.setting);
 		if (deny && template !== null && policy.installScripts.allow.length > 0) {
 			if (context.supports(sinceOf(tool.installScripts.allowList.availableSince), template)) {
-				const json = context.json(settingOf(tool.installScripts.allowList.file) ?? "package.json");
-				for (const name of allowedNames(context, template.split(".")[0] ?? template)) {
+				const listFile = settingOf(tool.installScripts.allowList.file) ?? "package.json";
+				const json = context.json(listFile);
+				const names = allowedNames(context, template.split(".")[0] ?? template);
+				if (names.length > 0) context.writes("installScripts", template, listFile);
+				for (const name of names) {
 					const path = template.split(".").map((segment) => segment === "<package>" ? name : segment);
 					if (json.get(path) !== true) json.set(path, true);
 				}
@@ -18474,6 +25142,7 @@ const yarn = (context) => {
 		if (deny) writeDenyList(context);
 	}
 	eachSource(context, (_kind, setting, access) => {
+		context.writes("sources", setting, file);
 		const value = access === "deny" ? [] : ["**"];
 		if (!sameList(yaml.get([setting]), value)) yaml.set([setting], value);
 	});
@@ -18508,6 +25177,29 @@ function autoTargets(root, detection, tools = knowledgeBase) {
 	return {
 		targets: detectedTargets(detection).filter((id) => !ciOnly.some((entry) => entry.id === id)),
 		ciOnly
+	};
+}
+/**
+* The tools apply configures in one directory. Without projects: the detected ones ("auto") or the listed ones. With
+* projects (decision D-100), listed package managers only where they are detected, as npm in a Python project would
+* get an .npmrc it never reads; Renovate and Dependabot read their configuration from the repository root only, so a
+* project (`project` set) configures none.
+*/
+function directoryTargets(root, policy, detection, tools, place) {
+	const auto = policy.targets === "auto" ? autoTargets(root, detection, tools) : void 0;
+	const isBot = (id) => tools.find((tool) => tool.id === id)?.kind === "update-bot";
+	let targets;
+	if (policy.targets === "auto") targets = new Set(auto?.targets ?? []);
+	else if (place.withProjects) {
+		const found = new Set(autoTargets(root, detection, tools).targets);
+		targets = new Set(policy.targets.filter((id) => isBot(id) || found.has(id)));
+	} else targets = new Set(policy.targets);
+	if (place.project !== void 0) {
+		for (const id of [...targets]) if (isBot(id)) targets.delete(id);
+	}
+	return {
+		targets,
+		auto
 	};
 }
 
@@ -18585,15 +25277,30 @@ function readLimited(path, limit, options = {}) {
 /** C0 controls but tab, DEL and C1 controls; with `lines`, line feeds stay too. */
 const CONTROLS = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/gu;
 const CONTROLS_BUT_LINE_FEEDS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu;
-/** The Unicode bidirectional formatting characters: ALM, LRM, RLM, LRE to RLO, LRI to PDI. */
-const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
 /**
-* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`. Line breaks are control
+* Characters that change how text is shown or read without being seen: the format characters (\p{Cf}: the
+* bidirectional controls ALM, LRM, RLM, LRE to RLO and LRI to PDI, zero-width space, joiners, word joiner, invisible
+* operators, the byte order mark, the soft hyphen, the tag characters U+E0001 and U+E0020 to U+E007F), the rest of the
+* tag block (U+E0000 to U+E007F), whose characters spell hidden ASCII that a model may read, the variation selectors
+* (U+FE00 to U+FE0F, U+E0100 to U+E01EF), and letters that show as blank space: the Hangul fillers U+115F, U+1160,
+* U+3164 and U+FFA0 and the blank braille pattern U+2800, which can hide a word or pass for a space.
+*/
+const INVISIBLE = /[\p{Cf}\u{e0000}-\u{e007f}\ufe00-\ufe0f\u{e0100}-\u{e01ef}\u115f\u1160\u3164\uffa0\u2800]/gu;
+/** The line and paragraph separators, which some viewers and parsers take as a line break. */
+const LINE_SEPARATORS = /[\u2028\u2029]/gu;
+/** A character of INVISIBLE as \uHHHH, or \u{HHHHH} beyond the BMP. */
+function visible(character) {
+	const code = character.codePointAt(0) ?? 0;
+	return code > 65535 ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, "0")}`;
+}
+/**
+* The text with every control character but tab written as `\xHH`, e.g. ESC as `\x1b`, and every invisible
+* character (INVISIBLE) and the line and paragraph separators as `\uHHHH` or `\u{HHHHH}`. Line breaks are control
 * characters too, so a value from a file cannot start a line of its own; `lines: true` keeps line feeds, for text
 * depcurfew lays out in lines itself, such as a snippet to add by hand. Apply it before adding colors.
 */
 function printable(text, options = {}) {
-	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(BIDI, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
+	return text.replace(options.lines === true ? CONTROLS_BUT_LINE_FEEDS : CONTROLS, (character) => `\\x${character.charCodeAt(0).toString(16).padStart(2, "0")}`).replace(INVISIBLE, visible).replace(LINE_SEPARATORS, visible);
 }
 
 // src/apply/diff.ts
@@ -18794,6 +25501,12 @@ function withMixedEndings(body, style, original) {
 }
 
 // src/apply/workspace.ts
+/**
+* The codes of the errors writeChanges throws itself, when a directory on the way to a file leads out of the root (a
+* symlink put in place after apply looked at it) or is no longer the directory the file was staged in.
+*/
+const OUTSIDE = "DEPCURFEW_OUTSIDE_ROOT";
+const CHANGED = "DEPCURFEW_DIRECTORY_CHANGED";
 /** Why a file system call failed, in plain words; the error code when there are none. */
 function fileSystemReason(error) {
 	const code = error.code;
@@ -18807,7 +25520,9 @@ function fileSystemReason(error) {
 		ENOTDIR: "a part of its path is not a directory",
 		EEXIST: "a file of the same name is in the way",
 		EBUSY: "the file is busy",
-		ENAMETOOLONG: "its name is too long"
+		ENAMETOOLONG: "its name is too long",
+		[OUTSIDE]: "a directory on its path is a symlink that leads outside the directory depcurfew writes to",
+		[CHANGED]: "a directory on its path changed while depcurfew was writing"
 	};
 	if (code !== void 0 && reasons[code] !== void 0) return reasons[code];
 	return code ?? (error instanceof Error ? error.message : String(error));
@@ -19081,6 +25796,38 @@ function missingTop(directory) {
 	}
 	return top;
 }
+function writeError(code, path) {
+	return Object.assign(/* @__PURE__ */ new Error(`${code}: ${path}`), {
+		code,
+		path
+	});
+}
+/**
+* The real path of `directory`, which must lie inside `realRoot` (the real path of the root): a directory on the way
+* that became a symlink after apply looked at it (the directory of a project swapped for a link out of the
+* repository) would otherwise take the file outside. Throws an error with the code OUTSIDE.
+*/
+function realInside(realRoot, directory) {
+	const real = realpathSync(directory);
+	if (!isInside(realRoot, real)) throw writeError(OUTSIDE, directory);
+	return real;
+}
+/**
+* Whether the directory of a staged file is still the one it was staged in; throws an error with the code OUTSIDE
+* when it now leads out of the root, or CHANGED when it leads elsewhere inside it. Checked right before each rename.
+*/
+function checkUnchanged(realRoot, entry) {
+	if (realInside(realRoot, dirname(entry.path)) !== entry.directory) throw writeError(CHANGED, dirname(entry.path));
+}
+/** Whether checkUnchanged passes, for putting a file back: one whose directory changed is left alone. */
+function unchanged(realRoot, entry) {
+	try {
+		checkUnchanged(realRoot, entry);
+		return true;
+	} catch {
+		return false;
+	}
+}
 /**
 * Creates `directory` and the directories above it that are missing, one level at a time, and gives each one it
 * creates to the owner `ownerOfNew` names for its real path, so that a directory a symlink led elsewhere (out of the
@@ -19166,23 +25913,38 @@ function writeChangeSets(sets, options = {}) {
 		...options.platform === void 0 ? {} : { platform: options.platform },
 		leftovers
 	});
+	const realRoots = /* @__PURE__ */ new Map();
+	const realRoot = (root) => {
+		let real = realRoots.get(root);
+		if (real === void 0) {
+			const top = missingTop(root);
+			real = top === void 0 ? realpathSync(root) : join(realpathSync(dirname(top)), relative(dirname(top), root));
+			realRoots.set(root, real);
+		}
+		return real;
+	};
 	let current = items[0]?.name ?? "";
 	try {
 		for (const item of items) {
 			current = item.name;
 			const top = missingTop(dirname(item.path));
+			const existing = top === void 0 ? dirname(item.path) : dirname(top);
+			if (isInside(item.root, existing)) realInside(realRoot(item.root), existing);
 			if (top !== void 0) created.push(top);
 			makeDirectories(dirname(item.path), options.ownerOfNew);
+			const directory = realInside(realRoot(item.root), dirname(item.path));
 			const stats = item.change.before === null ? void 0 : statSync(item.path);
 			const mode = stats === void 0 ? void 0 : stats.mode & 4095;
 			const owner = stats === void 0 ? newOwner(item.path, options.ownerOfNew) : ownerToKeep(item.path);
 			staged.push({
 				...item,
 				temporary: stage(item.path, item.change.after, mode, owner),
+				directory,
 				mode,
 				owner
 			});
 		}
+		options.staged?.();
 	} catch (error) {
 		for (const entry of staged) remove(entry);
 		removeDirectories(created, paths);
@@ -19192,6 +25954,7 @@ function writeChangeSets(sets, options = {}) {
 	try {
 		for (const entry of staged) {
 			current = entry.name;
+			checkUnchanged(realRoot(entry.root), entry);
 			retried(() => renameSync(entry.temporary, entry.path), options);
 			renamed.push(entry);
 		}
@@ -19200,6 +25963,10 @@ function writeChangeSets(sets, options = {}) {
 		const unrestored = [];
 		const backups = {};
 		for (const entry of renamed.reverse()) {
+			if (!unchanged(realRoot(entry.root), entry)) {
+				unrestored.push(entry.name);
+				continue;
+			}
 			if (entry.change.before === null) {
 				try {
 					retried(() => rmSync(entry.path, { force: true }), options);
@@ -19255,7 +26022,7 @@ function settingsIn(file, text) {
 		else if (line !== "" && !line.startsWith("#") && line.includes("=")) byTable.set(table, [...byTable.get(table) ?? [], line.slice(0, line.indexOf("=")).trim()]);
 	}
 	return {
-		settings: [...byTable].map(([name, keys]) => name === "" ? listing(keys) : `${listing(keys)} in [${name}]`),
+		settings: [...byTable].map(([name, keys]) => name === "" ? listing$1(keys) : `${listing$1(keys)} in [${name}]`),
 		count: [...byTable.values()].reduce((sum, keys) => sum + keys.length, 0)
 	};
 }
@@ -19300,7 +26067,64 @@ function warningText(warning) {
 	return warning.fix === void 0 ? warning.message : `${warning.message}. ${warning.fix}`;
 }
 
+// src/doctor/positions.ts
+/**
+* Where a parser says the error is, from its message: the yaml package and depcurfew's own checks write "at line 3,
+* column 1", the TOML reader "at line 4", V8's JSON.parse "(line 2 column 5)". The location gets it, so that SARIF and
+* the annotations point at the line (decision D-116); undefined when the message names none.
+*/
+function positionInMessage(message) {
+	const match = /\bat line (\d+)(?:, column (\d+))?/u.exec(message) ?? /\(line (\d+) column (\d+)\)/u.exec(message);
+	if (match === null) return void 0;
+	const line = Number(match[1]);
+	const column = match[2] === void 0 ? void 0 : Number(match[2]);
+	if (!Number.isSafeInteger(line) || line < 1) return void 0;
+	return column === void 0 || !Number.isSafeInteger(column) || column < 1 ? { line } : {
+		line,
+		column
+	};
+}
+
+// src/doctor/policy-lines.ts
+/** A path as formatPath writes it, as segments; undefined for "(root)" and anything it does not write. */
+function parseIssuePath(path) {
+	if (path === "(root)") return [];
+	const segments = [];
+	const pattern = /^(?:\.?([A-Za-z_$][\w$]*)|\[(\d+)\]|\[("(?:[^"\\]|\\.)*")\])/u;
+	let rest = path;
+	while (rest !== "") {
+		const match = pattern.exec(rest);
+		if (match === null) return void 0;
+		if (match[1] !== void 0) segments.push(match[1]);
+		else if (match[2] !== void 0) segments.push(Number(match[2]));
+		else segments.push(JSON.parse(match[3] ?? "\"\""));
+		rest = rest.slice(match[0].length);
+	}
+	return segments;
+}
+/** The line of the first issue that has one: the field it names, or the nearest field around it, or a syntax error's own. */
+function policyIssueLine(text, issues) {
+	for (const issue of issues) {
+		const segments = parseIssuePath(issue.path);
+		if (segments === void 0) continue;
+		if (segments.length === 0) {
+			const position = positionInMessage(issue.message);
+			if (position !== void 0) return position.line;
+			continue;
+		}
+		for (let length = segments.length; length > 0; length--) {
+			const found = jsonSetting(text, segments.slice(0, length));
+			if (found !== void 0) return found.line;
+		}
+	}
+}
+
 // src/apply/index.ts
+const DETAILS = /* @__PURE__ */ new WeakMap();
+/** What planApply configured for this report; undefined for a report it did not make. */
+function planDetails(report) {
+	return DETAILS.get(report);
+}
 const MANAGERS = {
 	npm,
 	pnpm,
@@ -19441,8 +26265,11 @@ function ignoredFileWarnings(root, changes) {
 		}];
 	});
 }
-/** Computes every change without writing anything. */
-function planApply(root, policy, detection, tools = knowledgeBase) {
+/**
+* Computes every change of one directory without writing anything. With projects in the policy, `options` says which
+* part of the repository this directory is (planRepository plans them all).
+*/
+function planApply(root, policy, detection, tools = knowledgeBase, options = {}) {
 	const workspace = new ManifestGuard(root, manifestNames(tools));
 	const warnings = [];
 	const snippets = [];
@@ -19460,15 +26287,17 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 			fix: text.fix
 		});
 	}
-	const auto = policy.targets === "auto" ? autoTargets(root, detection, tools) : void 0;
-	const targets = new Set(policy.targets === "auto" ? auto?.targets ?? [] : policy.targets);
-	for (const entry of auto?.ciOnly ?? []) {
+	const { targets, auto } = directoryTargets(root, policy, detection, tools, {
+		...options.project === void 0 ? {} : { project: options.project },
+		withProjects: options.project !== void 0 || options.projects !== void 0
+	});
+	for (const entry of (auto?.ciOnly ?? []).filter((item) => options.projects?.targets.has(item.id) !== true)) {
 		const name = tools.find((item) => item.id === entry.id)?.name ?? entry.id;
 		warnings.push({
 			code: "tool-only-in-ci",
 			tool: entry.id,
 			location: { file: entry.workflows[0] ?? "" },
-			message: `${name} appears only in a CI setup step (${listing(entry.workflows)}); the repository has no ${listing(entry.manifests)}, lockfile or ${name} configuration, so nothing is written for it`,
+			message: `${name} appears only in a CI setup step (${listing$1(entry.workflows)}); the repository has no ${listing$1(entry.manifests)}, lockfile or ${name} configuration, so nothing is written for it`,
 			fix: `If ${name} installs packages for this project, add "${entry.id}" to targets in ${POLICY_FILE} and run depcurfew apply again`
 		});
 	}
@@ -19495,23 +26324,38 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 			fix: warning.code === "invalid-file" ? `Fix the syntax error${file === void 0 ? "" : ` in ${file}`}, then run depcurfew apply again` : `${fix}, then run depcurfew apply again`
 		});
 	}
-	if (targets.size === 0) warnings.push({
+	if (targets.size === 0 && options.project !== void 0) {
+		const excluded = policy.targets === "auto" ? [] : detection.packageManagers.filter((manager) => manager.supported && !policy.targets.includes(manager.id)).map((manager) => manager.id);
+		const names = excluded.map((id) => tools.find((tool) => tool.id === id)?.name ?? id);
+		warnings.push(excluded.length > 0 ? {
+			code: "nothing-to-configure",
+			message: `no tools to configure: ${options.project} uses ${listing$1(names)}, but targets in ${POLICY_FILE} does not list ${names.length === 1 ? "it" : "them"}`,
+			fix: `Add ${listing$1(excluded.map((id) => `"${id}"`))} to targets in ${POLICY_FILE} to configure ${options.project}, or remove "${options.project}" from projects if depcurfew should leave it alone`
+		} : {
+			code: "nothing-to-configure",
+			message: "no tools to configure: depcurfew found no supported package manager there",
+			fix: `Check that "${options.project}" in projects in ${POLICY_FILE} is the directory of the project, with its manifest and lockfile; depcurfew explain shows what it detects`
+		});
+	} else if (targets.size === 0 && options.projects === void 0) warnings.push({
 		code: "nothing-to-configure",
 		message: "no tools to configure: depcurfew found no supported package manager or bot here",
 		fix: "Run depcurfew explain to see what depcurfew detects"
 	});
-	const run = (tool, version, action) => {
+	const botTargets = /* @__PURE__ */ new Set([...targets, ...options.projects?.targets ?? []]);
+	const run = (tool, version, action, inUse) => {
 		const view = tool.kind === "package-manager" ? policyFor(policy, ecosystemOfTool(tool)) : policy;
 		const context = createContext({
 			tool,
 			tools,
-			targets,
+			targets: tool.kind === "package-manager" ? targets : botTargets,
 			policy: view,
 			version,
 			workspace,
 			warnings,
 			snippets,
-			failures
+			failures,
+			...inUse === void 0 ? {} : { inUse },
+			...options.project === void 0 ? {} : { project: options.project }
 		});
 		workspace.startTool(tool.id);
 		try {
@@ -19521,7 +26365,7 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		}
 		context.finish();
 		for (const skipped of workspace.skipped()) {
-			const settings = skipped.settings.length === 0 ? `${tool.name}'s settings` : listing(skipped.settings);
+			const settings = skipped.settings.length === 0 ? `${tool.name}'s settings` : listing$1(skipped.settings);
 			warnings.push({
 				code: "manifest-missing",
 				tool: tool.id,
@@ -19549,9 +26393,9 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		run(tool, version, (context) => {
 			const minutes = generator(context);
 			if (minutes !== void 0) managerMinutes.push(minutes);
-		});
+		}, tool.id === "npm" && manager !== void 0 ? npmVersionsInUse(root, detection, policy, options) : void 0);
 	}
-	const duration = policy.cooldown === void 0 ? void 0 : botDuration(policy.cooldown.minimum, managerMinutes);
+	const duration = policy.cooldown === void 0 ? void 0 : botDuration(policy.cooldown.minimum, [...managerMinutes, ...options.projects?.managerMinutes ?? []]);
 	for (const tool of tools) {
 		const generator = BOTS[tool.id];
 		if (generator === void 0 || !targets.has(tool.id)) continue;
@@ -19560,9 +26404,9 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 	warnings.push(...allowListWarnings(root, workspace, policy, detection, targets, tools));
 	const changes = workspace.changes();
 	if (policy.cooldown !== void 0) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
-	warnings.push(...ignoredFileWarnings(root, changes));
+	if (options.project === void 0) warnings.push(...ignoredFileWarnings(root, changes));
 	const errors = failures.map((failure) => `${tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool}: cannot edit ${failure.file}: ${failure.message}`);
-	return {
+	const report = {
 		changes,
 		warnings: warnings.map(warningText),
 		warningDetails: warnings,
@@ -19570,27 +26414,89 @@ function planApply(root, policy, detection, tools = knowledgeBase) {
 		errors,
 		failures
 	};
+	DETAILS.set(report, {
+		managerMinutes,
+		targets
+	});
+	return report;
+}
+/**
+* The npm versions a directory runs (decisions D-105 and D-109): the versions declared for npm (the pin for the whole
+* repository among them), the npm of the declared Node.js versions and the npm CI jobs and Dockerfiles install. At the
+* root of a repository with projects, CI installs in a project's directory and root Dockerfile stages that build a
+* project belong to that project; a project gets them, and the root's version files, through options.ci and options.root.
+*/
+function npmVersionsInUse(root, detection, policy, options) {
+	const manifest = new Repository(root).parseOnce("package.json", (text) => JSON.parse(text));
+	return npmInUse(detection, manifest, (declaration) => SOURCE_LABEL[declaration.source], {
+		projects: options.project === void 0 ? policy.projects : [],
+		...options.ci === void 0 ? {} : { extra: options.ci },
+		...options.root === void 0 ? {} : { root: options.root }
+	});
+}
+/**
+* The plan options of a directory listed in projects: its name, the installs root CI jobs run in it, and what it takes
+* from the root (its version files and Dockerfile stages, rootPlaces); `detection` is the project's.
+*/
+function projectPlanOptions(rootDetection, project, detection) {
+	const ci = jobsInProject(rootDetection, project);
+	const root = rootPlaces(rootDetection, project, detection);
+	return {
+		project,
+		...ci.jobs.length === 0 ? {} : { ci },
+		...root.versions.length === 0 && root.dockerfiles.length === 0 ? {} : { root }
+	};
+}
+/** The files a message about a project may name, relative to the project: what detection found and what the plan touched. */
+function projectFiles(detection, report) {
+	const files = /* @__PURE__ */ new Set([
+		...detection.npmrcFiles,
+		...detection.workflows,
+		...detection.warnings.flatMap((warning) => warning.files),
+		...detection.node.versions.map((declaration) => declaration.file),
+		...detection.dockerfiles.map((dockerfile) => dockerfile.file)
+	]);
+	for (const manager of detection.packageManagers) for (const file of [
+		...manager.evidence.map((item) => item.file),
+		...manager.configFiles,
+		...manager.versions.map((item) => item.file)
+	]) files.add(file);
+	for (const bot of detection.bots) for (const file of bot.configFiles) files.add(file);
+	for (const declaration of detection.workspaces?.declarations ?? []) files.add(declaration.file);
+	if (report !== void 0) {
+		for (const change of report.changes) files.add(change.file);
+		for (const failure of report.failures) files.add(failure.file);
+		for (const snippet of report.snippets) files.add(snippet.file);
+		for (const warning of report.warningDetails) if (warning.location !== void 0) files.add(warning.location.file);
+	}
+	return files;
 }
 var PolicyError = class extends Error {
 	issues;
 	code;
 	/** What to do, when the message does not say it. */
 	fix;
-	constructor(message, issues = [], code = "policy-invalid", fix) {
+	/** The line of the policy file the first problem concerns, when it can be found (decision D-116). */
+	line;
+	constructor(message, issues = [], code = "policy-invalid", fix, line) {
 		super(message);
 		this.issues = issues;
 		this.code = code;
 		this.fix = fix;
+		this.line = line;
 	}
 	/** The message and what to do, as one line of text. */
 	get text() {
 		return this.fix === void 0 ? this.message : `${this.message}; ${this.fix.charAt(0).toLowerCase()}${this.fix.slice(1)}`;
 	}
 };
-/** What to do about a policy that cannot be used, the same in doctor and in the JSON of apply and check. */
-function policyErrorFix(error) {
+/**
+* What to do about a policy that cannot be used, the same in doctor and in the JSON of apply and check; `file` names it
+* as the error does (../depcurfew.json from a directory below it, decision D-124).
+*/
+function policyErrorFix(error, file = POLICY_FILE) {
 	if (error.fix !== void 0) return error.fix;
-	return error.code === "policy-unreadable" ? `Make ${POLICY_FILE} a regular file inside the repository that the user running depcurfew can read` : `Fix these problems in ${POLICY_FILE}; an editor that reads its $schema shows them as you type`;
+	return error.code === "policy-unreadable" ? `Make ${file} a regular file inside the repository that the user running depcurfew can read` : `Fix these problems in ${file}; an editor that reads its $schema shows them as you type`;
 }
 /** The policy of the repository; undefined when it has no depcurfew.json. Throws PolicyError when it cannot be used. */
 function loadPolicyIfPresent(root) {
@@ -19598,75 +26504,8 @@ function loadPolicyIfPresent(root) {
 	if (file.status === "missing") return void 0;
 	if (file.status === "unreadable") throw new PolicyError(file.reason, [], "policy-unreadable");
 	const result = parsePolicy(file.text);
-	if (!result.ok) throw new PolicyError(`${POLICY_FILE} is invalid`, result.issues.map(formatIssue));
+	if (!result.ok) throw new PolicyError(`${POLICY_FILE} is invalid`, result.issues.map(formatIssue), "policy-invalid", void 0, policyIssueLine(file.text, result.issues));
 	return result.policy;
-}
-
-// src/action-check-run.ts
-const CHECK_RUN_NAME = "depcurfew doctor";
-/** The name of the check: with the directory when it is not the workspace root. */
-function checkRunName(directory) {
-	return directory === "" ? CHECK_RUN_NAME : `${CHECK_RUN_NAME} (${directory})`;
-}
-/** The commit the check belongs to: the head of a pull request (GITHUB_SHA is the merge commit there), else GITHUB_SHA. */
-function checkRunSha(env, facts) {
-	const eventPath = env[facts.variables.eventPath];
-	if (eventPath !== void 0 && eventPath !== "") try {
-		let value = JSON.parse(readFileSync(eventPath, "utf8"));
-		for (const key of facts.pullRequestHeadSha) value = typeof value === "object" && value !== null ? value[key] : void 0;
-		if (typeof value === "string" && /^[0-9a-f]{40,64}$/u.test(value)) return value;
-	} catch {}
-	const sha = env[facts.variables.sha];
-	return sha !== void 0 && /^[0-9a-f]{40,64}$/u.test(sha) ? sha : void 0;
-}
-/** A summary within the API limit, cut at a line with a note when longer. */
-function fitSummary(markdown, limit) {
-	if (markdown.length <= limit) return markdown;
-	const note = "\n\nThe rest did not fit; the job log and the job summary have everything.\n";
-	const cut = markdown.slice(0, limit - 73);
-	return `${cut.slice(0, Math.max(0, cut.lastIndexOf("\n")))}${note}`;
-}
-/**
-* Creates the check run; returns a line for the log. The token goes only to the API URL the runner sets, in a header,
-* and is never printed.
-*/
-async function createCheckRun(env, token, content, fetchImpl) {
-	const facts = values$1(environment.githubActions.checkRuns)[0];
-	if (facts === void 0) return "depcurfew: the depcurfew doctor check was not added: depcurfew knows no check run API\n";
-	const apiUrl = env[facts.variables.apiUrl];
-	const repository = env[facts.variables.repository];
-	const sha = checkRunSha(env, facts);
-	if (apiUrl === void 0 || !/^https:\/\//u.test(apiUrl) || repository === void 0 || !/^[\w.-]+\/[\w.-]+$/u.test(repository) || sha === void 0) return `depcurfew: the depcurfew doctor check was not added: ${facts.variables.apiUrl}, ${facts.variables.repository} or the commit is not set, as outside GitHub Actions\n`;
-	const permission = Object.entries(facts.permission).map(([name, level]) => `${name}: ${level}`).join(", ");
-	let response;
-	try {
-		response = await fetchImpl(`${apiUrl.replace(/\/+$/u, "")}${facts.endpoint.replace("{repository}", repository)}`, {
-			method: "POST",
-			headers: {
-				accept: "application/vnd.github+json",
-				authorization: `Bearer ${token}`,
-				"content-type": "application/json",
-				"user-agent": "depcurfew",
-				"x-github-api-version": facts.apiVersion
-			},
-			body: JSON.stringify({
-				name: content.name,
-				head_sha: sha,
-				status: "completed",
-				conclusion: content.conclusion,
-				output: {
-					title: content.title,
-					summary: fitSummary(content.summary, facts.summaryMaxLength)
-				}
-			}),
-			signal: AbortSignal.timeout(15e3)
-		});
-	} catch (error) {
-		return `depcurfew: the depcurfew doctor check was not added: the GitHub API did not answer (${error instanceof Error ? error.message : String(error)})\n`;
-	}
-	if (response.status === 201) return `depcurfew: added the check "${content.name}" with the result to the commit ${sha.slice(0, 12)}\n`;
-	if (response.status === 403 || response.status === 404) return `depcurfew: the depcurfew doctor check was not added: the workflow token may not create checks (HTTP ${response.status}). Add "${permission}" to the permissions of the job, or set the input check-run to false. A pull request from a fork gets a read-only token.\n`;
-	return `depcurfew: the depcurfew doctor check was not added: the GitHub API answered HTTP ${response.status}\n`;
 }
 
 // src/color.ts
@@ -19697,6 +26536,65 @@ const COLORED = {
 	dim: style(CODES.dim)
 };
 
+// src/cli/directory.ts
+/**
+* The message of an input error with the line of its location, as the JSON document has it (decision D-122): after the
+* file when the message starts with it ("depcurfew.json (line 6) is invalid"), else before the message, as apply names
+* the line of an entry of projects ("app/depcurfew.json (line 6): depcurfew.json is invalid"). A message that names
+* the line itself, and a location without one, leave the message as it is. The Action says an invalid policy the same
+* way (decision D-124).
+*/
+function messageAtLine(message, file, line) {
+	if (line === void 0 || new RegExp(`\\bline ${line}\\b`, "u").test(message)) return message;
+	return message.startsWith(`${file} `) ? `${file} (line ${line})${message.slice(file.length)}` : `${file} (line ${line}): ${message}`;
+}
+
+// src/doctor/fail-on.ts
+/** doctor.failOn of a valid policy; undefined without a policy, without the section or without the field in it (decision D-116). */
+function policyFailOn(policy) {
+	return policy?.doctor?.failOn;
+}
+/** The setting that applies: the option, else the policy's doctor.failOn, else "error". */
+function resolveFailOn(option, policy) {
+	if (option !== void 0) return {
+		failOn: option.failOn,
+		from: "option",
+		option: option.given
+	};
+	if (policy.failOn !== void 0) return {
+		failOn: policy.failOn,
+		from: "policy",
+		file: policy.file
+	};
+	return {
+		failOn: "error",
+		from: "default"
+	};
+}
+/** Whether findings with these counts fail doctor. */
+function fails(counts, failOn) {
+	return counts.error > 0 || failOn === "warning" && counts.warning > 0;
+}
+/**
+* The line under the counts when warnings make doctor fail, and how to fail on errors only; undefined when they do
+* not. One source for the text of the CLI.
+*/
+function failOnExplanation(setting, counts) {
+	if (setting.failOn !== "warning" || counts.warning === 0) return void 0;
+	if (setting.from === "policy") {
+		const file = setting.file ?? "depcurfew.json";
+		return {
+			message: `doctor.failOn is "warning" in ${file}, so warnings count as failures and depcurfew doctor exits with 1`,
+			fix: `Set doctor.failOn to "error" in ${file}, or pass --fail-on error, to fail on errors only`
+		};
+	}
+	const option = setting.option ?? "--fail-on warning";
+	return {
+		message: `${option}: warnings count as failures, so depcurfew doctor exits with 1`,
+		fix: `Pass --fail-on error instead of ${option} to fail on errors only`
+	};
+}
+
 // src/doctor/render.ts
 function countLevels(findings) {
 	const counts = {
@@ -19707,24 +26605,29 @@ function countLevels(findings) {
 	for (const finding of findings) counts[finding.level] += 1;
 	return counts;
 }
-function plural$1(count, word) {
+function plural$2(count, word) {
 	return `${count} ${count === 1 ? word : `${word}s`}`;
 }
 function levelColor(level, colors) {
 	if (level === "error") return (text) => colors.bold(colors.red(text));
 	return level === "warning" ? colors.yellow : colors.cyan;
 }
-/** A tool as the log of what was checked names it: npm 11.21.1 (package.json). */
+/** A tool as the log of what was checked names it: npm 11.21.1 (package.json), and in a project npm 11.21.1 (frontend/package.json) in frontend. */
 function checkedTool(tool) {
-	if (tool.version === void 0) return tool.name;
-	return `${tool.name} ${tool.version}${tool.versionFrom === void 0 ? "" : ` (${tool.versionFrom})`}`;
+	const where = `${tool.project === void 0 ? "" : ` in ${tool.project}`}${tool.unread === true ? ` (not read by ${tool.name})` : ""}`;
+	if (tool.version === void 0) return `${tool.name}${where}`;
+	return `${tool.name} ${tool.version}${tool.versionFrom === void 0 ? "" : ` (${tool.versionFrom})`}${where}`;
 }
-/** Each rule with what it checks and what came of it, from the findings of the run. */
-function ruleResults(rules, findings, skipped) {
+/**
+* Each rule with what it checks and what came of it, from the findings of the run. A rule with findings has problems
+* whatever `applies` says; one that does not apply is not applicable rather than skipped, since a policy would not
+* give it anything to check.
+*/
+function ruleResults(rules, findings, skipped, applies = () => true) {
 	return rules.map((rule) => {
 		const own = findings.filter((finding) => finding.rule === rule.id);
 		const count = (level) => own.filter((finding) => finding.level === level).length;
-		const result = skipped(rule) ? "skipped" : own.length > 0 ? "problems" : "passed";
+		const result = own.length > 0 ? "problems" : !applies(rule) ? "not-applicable" : skipped(rule) ? "skipped" : "passed";
 		return {
 			rule: rule.id,
 			check: rule.checks ?? rule.summary,
@@ -19735,44 +26638,66 @@ function ruleResults(rules, findings, skipped) {
 		};
 	});
 }
-/** The result of one check as a word or counts: passed, skipped, or "1 error, 2 warnings". */
+/** The result of one check as words or counts: passed, skipped, not applicable, or "1 error, 2 warnings". */
 function resultText(result) {
+	if (result.result === "not-applicable") return "not applicable";
 	if (result.result !== "problems") return result.result;
 	return [
 		[result.errors, "error"],
 		[result.warnings, "warning"],
 		[result.notes, "note"]
-	].filter(([count]) => count > 0).map(([count, word]) => plural$1(count, word)).join(", ");
+	].filter(([count]) => count > 0).map(([count, word]) => plural$2(count, word)).join(", ");
 }
 /** The checks that passed, failed or did not run, counted for one line. */
 function resultCounts(results) {
 	const of = (kind) => results.filter((result) => result.result === kind).length;
 	const parts = [`${of("passed")} passed`];
 	if (of("problems") > 0) parts.push(`${of("problems")} found problems`);
+	if (of("not-applicable") > 0) parts.push(`${of("not-applicable")} not applicable`);
 	if (of("skipped") > 0) parts.push(`${of("skipped")} skipped`);
 	return `${results.length} ${results.length === 1 ? "check" : "checks"}: ${parts.join(", ")}`;
+}
+/**
+* What a skipped check needs, after it: the policy file, or a valid one when the file is there but invalid (decision
+* D-121). `file` is the policy file as shown (depcurfew.json, or `depcurfew.json` in Markdown).
+*/
+function policyNeeded(file, policy) {
+	return policy === "invalid" ? `needs a valid ${file}` : `needs ${file}`;
 }
 /**
 * What doctor checked, below the result: the tools found, the files read and every check with its result, so that a
 * clean report says what it covers and is not mistaken for one that did nothing.
 */
-function checkedLines(checked) {
+function checkedLines(checked, policy) {
 	const width = Math.max(...checked.rules.map((result) => resultText(result).length), 6);
 	return [
 		"What was checked:",
 		`  Tools: ${checked.tools.length === 0 ? "no package manager or bot found" : checked.tools.map(checkedTool).join(", ")}`,
 		`  Files read: ${checked.files.length === 0 ? "none" : checked.files.join(", ")}`,
 		`  ${resultCounts(checked.rules)}`,
-		...checked.rules.map((result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === "skipped" ? ` (needs ${checked.policyFile})` : ""} [${result.rule}]`)
+		...checked.rules.map((result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === "skipped" ? ` (${policyNeeded(checked.policyFile, policy)})` : ""} [${result.rule}]`)
 	];
 }
-function renderText(report, rules, colors = PLAIN) {
+/** The line --strict adds when warnings make doctor fail. */
+const STRICT_NOTE = "--strict: warnings count as failures, so depcurfew doctor exits with 1";
+/**
+* `failOn`: which findings fail doctor and where that was set (decision D-112); when warnings make it fail, a line under
+* the counts says why, with how to fail on errors only. `strict` alone (before D-112) adds STRICT_NOTE.
+*/
+function renderText(report, rules, colors = PLAIN, options = {}) {
 	const counts = countLevels(report.findings);
+	const shown = {
+		...counts,
+		note: counts.note + report.notices.length
+	};
 	const lines = [];
 	if (report.findings.length === 0) lines.push(colors.green("No problems found."));
 	else {
-		const count = (level) => counts[level] === 0 ? plural$1(0, level) : levelColor(level, colors)(plural$1(counts[level], level));
+		const count = (level) => shown[level] === 0 ? plural$2(0, level) : levelColor(level, colors)(plural$2(shown[level], level));
 		lines.push(`${count("error")}, ${count("warning")}, ${count("note")}`);
+		const explanation = options.failOn === void 0 ? void 0 : failOnExplanation(options.failOn, counts);
+		if (explanation !== void 0) lines.push(printable(explanation.message), `  ${colors.green("fix:")} ${printable(explanation.fix)}`);
+		else if (options.failOn === void 0 && options.strict === true && counts.warning > 0) lines.push(STRICT_NOTE);
 		let file;
 		for (const finding of report.findings) {
 			if (finding.location.file !== file) {
@@ -19785,180 +26710,578 @@ function renderText(report, rules, colors = PLAIN) {
 			if (help !== void 0) lines.push(`    ${colors.green("fix:")} ${printable(help)}`);
 		}
 	}
-	if (report.notices.length > 0) lines.push("", colors.bold("Notes:"), ...report.notices.map((notice) => `  ${printable(notice.message)}`));
-	if (report.checked !== void 0) lines.push("", ...checkedLines(report.checked).map((line, index) => index === 0 ? colors.bold(printable(line)) : printable(line)));
+	if (report.notices.length > 0) {
+		lines.push("", colors.bold("Notes:"));
+		for (const notice of report.notices) {
+			lines.push(`  ${levelColor("note", colors)("note")} ${printable(notice.message)} ${colors.dim(`(${printable(notice.code)})`)}`);
+			if (notice.fix !== void 0) lines.push(`    ${colors.green("fix:")} ${printable(notice.fix)}`);
+		}
+	}
+	if (report.checked !== void 0) lines.push("", ...checkedLines(report.checked, report.policy).map((line, index) => index === 0 ? colors.bold(printable(line)) : printable(line)));
 	return `${lines.join("\n")}\n`;
 }
 
-// src/doctor/renovate.ts
-const isStrings$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$1(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
-const isPresetFact = (value) => isRecord(value) && isStrings$1(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
-const isInternal = (value) => isRecord(value) && isStrings$1(value["prefixes"]) && isStrings$1(value["settingDelay"]);
-function readRenovateConfig(text, file, base) {
-	const top = jsonSetting(text, [...base, "minimumReleaseAge"]);
-	const extendsList = jsonSetting(text, [...base, "extends"]);
-	const list = jsonSetting(text, [...base, "packageRules"]);
-	const lines = Array.isArray(list?.value) ? jsonElementLines(text, [...base, "packageRules"]) : void 0;
-	const rules = Array.isArray(list?.value) ? list.value.flatMap((rule, index) => isRecord(rule) ? [{
-		index,
-		rule,
-		line: lines?.[index] ?? list.line
-	}] : []) : [];
-	return {
-		file,
-		base,
-		top,
-		extends: {
-			presets: isStrings$1(extendsList?.value) ? extendsList.value : [],
-			line: extendsList?.line ?? 1
-		},
-		rules
-	};
+// src/doctor/github.ts
+const LEVELS = [
+	"error",
+	"warning",
+	"note"
+];
+function fixOf(finding, rules) {
+	return finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
+}
+function plural$1(count, word) {
+	return `${count} ${count === 1 ? word : `${word}s`}`;
+}
+function escaped(text, replacements) {
+	return replacements.reduce((result, [from, to]) => result.replaceAll(from, to), text);
 }
 /**
-* Whether one Renovate pattern matches `input`, as matchRegexOrGlob does: "*", a /regex/ (with ! for "not"), or a
-* case-insensitive glob. undefined for glob syntax beyond * (braces, classes...), which depcurfew does not evaluate.
+* Annotation commands for the findings, errors first, within the number GitHub shows in one step; `reserved` is how
+* many annotations of each level the step adds besides (a note of the action about its own run, decision D-122).
 */
-function matchesPattern(input, pattern, negation) {
-	const negative = pattern.startsWith(negation);
-	const body = negative ? pattern.slice(negation.length) : pattern;
-	if (!negative && body === "*") return true;
-	const regex = /^\/(.+)\/(i?)$/u.exec(body);
-	if (regex !== null) {
-		let result;
-		try {
-			result = new RegExp(regex[1] ?? "", regex[2] === "i" ? "iu" : "u").test(input);
-		} catch {
-			return;
+function annotationCommands(report, rules, format = values$1(environment.githubActions.annotations)[0], limits = values$1(environment.githubActions.annotationLimits)[0], reserved = {}) {
+	if (format === void 0 || limits === void 0) return {
+		lines: [],
+		omitted: report.findings.length
+	};
+	const data = (text) => escaped(text, format.escape);
+	const property = (text) => escaped(escaped(text, format.escape), format.escapeProperty);
+	const lines = [];
+	const others = LEVELS.reduce((sum, level) => sum + (reserved[level] ?? 0), 0);
+	for (const level of LEVELS) {
+		const findings = report.findings.filter((finding) => finding.level === level);
+		const room = Math.max(0, Math.min(limits.perLevelPerStep - (reserved[level] ?? 0), limits.perJob - others - lines.length));
+		for (const finding of findings.slice(0, room)) {
+			const properties = [
+				[format.properties.file, printable(finding.location.file)],
+				[format.properties.line, finding.location.line === void 0 ? void 0 : String(finding.location.line)],
+				[format.properties.title, `depcurfew: ${finding.rule}`]
+			].flatMap(([name, value]) => value === void 0 ? [] : [`${name}=${property(value)}`]);
+			const fix = fixOf(finding, rules);
+			const message = fix === void 0 ? printable(finding.message) : `${printable(finding.message)}\nFix: ${printable(fix)}`;
+			lines.push(`::${format.commands[level]} ${properties.join(",")}::${data(message)}`);
 		}
-		return negative ? !result : result;
 	}
-	if (/[?[\]{}()!+@]/u.test(body.replace(/^@/u, ""))) return void 0;
-	const result = wildcardMatch(input.toLowerCase(), body.toLowerCase().replaceAll("**", "*"));
-	return negative ? !result : result;
-}
-/** matchRegexOrGlobList: some positive pattern matches (when there are any) and every negative pattern does too. */
-function matchesList(input, patterns, negation) {
-	if (patterns.length === 0) return false;
-	const positive = patterns.filter((pattern) => !pattern.startsWith(negation));
-	const negative = patterns.filter((pattern) => pattern.startsWith(negation));
-	const results = positive.map((pattern) => matchesPattern(input, pattern, negation));
-	if (positive.length > 0 && !results.includes(true)) return results.includes(void 0) ? void 0 : false;
-	const excluded = negative.map((pattern) => matchesPattern(input, pattern, negation));
-	if (excluded.includes(false)) return false;
-	return excluded.includes(void 0) ? void 0 : true;
-}
-/** Patterns that match every package name: *, **, @*\/*, npm:*, and regexes like /.*\/. */
-function matchesEveryName(pattern) {
-	const name = pattern.replace(/^(npm|jsr):/u, "");
-	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
-}
-/**
-* The update types for which a rule applies to every package of `ecosystem`, or undefined when it narrows the
-* packages (or depcurfew cannot tell).
-*/
-function ruleScope(bot, rule, ecosystem) {
-	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$1);
-	const datasources = extraOf(bot, "datasources", isRecord);
-	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
-	const known = /* @__PURE__ */ new Set([
-		...matching.packageMatchers,
-		matching.datasourceMatcher,
-		matching.updateTypeMatcher
-	]);
-	if (matchers.some((key) => !known.has(key))) return void 0;
-	let names = { kind: "all" };
-	for (const key of matching.packageMatchers) {
-		if (!(key in rule)) continue;
-		const patterns = rule[key];
-		if (!isStrings$1(patterns) || patterns.length === 0) return void 0;
-		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
-		const broad = positive.find(matchesEveryName);
-		if (positive.length > 0 && broad === void 0) return void 0;
-		if (broad !== void 0 && names.kind === "all") names = {
-			kind: "pattern",
-			pattern: broad
-		};
-		else if (positive.length === 0) names = {
-			kind: "except",
-			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
-		};
-	}
-	if (matching.datasourceMatcher in rule) {
-		const patterns = rule[matching.datasourceMatcher];
-		const datasource = datasources[ecosystem];
-		if (!isStrings$1(patterns) || typeof datasource !== "string" || matchesList(datasource, patterns, matching.negation) !== true) return void 0;
-	}
-	let types = updateTypes;
-	if (matching.updateTypeMatcher in rule) {
-		const patterns = rule[matching.updateTypeMatcher];
-		if (!isStrings$1(patterns)) return void 0;
-		types = updateTypes.filter((type) => matchesList(type, patterns, matching.negation) === true);
-	}
-	return types.length === 0 ? void 0 : {
-		updateTypes: types,
-		names,
-		matchers
-	};
-}
-function presetName(preset) {
-	return preset.replace(/\(.*\)$/u, "");
-}
-/**
-* The delay Renovate applies to every package of `ecosystem`, for each delayed update type. Without a top-level value
-* or a rule, an update type has no entry: Renovate does not wait.
-*/
-function renovateDelay(bot, config, ecosystem) {
-	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$1);
-	const internal = extraOf(bot, "internalPresets", isInternal);
-	const datasources = extraOf(bot, "datasources", isRecord);
-	const byType = /* @__PURE__ */ new Map();
-	const set = (types, source) => {
-		for (const type of types) byType.set(type, source);
-	};
-	const path = [...config.base, "minimumReleaseAge"].join(".");
-	if (config.top !== void 0) set(updateTypes, {
-		value: config.top.value,
-		origin: `${path}: ${JSON.stringify(config.top.value)} in ${config.file}`,
-		line: config.top.line
-	});
-	for (const key of ["minimumReleaseAgePresets", "pypiPresets"]) {
-		const fact = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresetFact);
-		const preset = fact === void 0 ? void 0 : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
-		if (fact === void 0 || preset === void 0 || datasources[ecosystem] !== fact.datasource) continue;
-		set(updateTypes, {
-			value: fact.value,
-			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
-			line: config.extends.line
-		});
-	}
-	let repositorySets = config.top !== void 0;
-	for (const { index, line, rule } of config.rules) {
-		if (!("minimumReleaseAge" in rule)) continue;
-		const scope = ruleScope(bot, rule, ecosystem);
-		if (scope === void 0) continue;
-		repositorySets = true;
-		set(scope.updateTypes, {
-			value: rule["minimumReleaseAge"],
-			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
-			line,
-			rule: index
-		});
-	}
-	const unreadable = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
-	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
-	if (unreadable !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
-		known: false,
-		preset: unreadable,
-		line: config.extends.line
-	};
 	return {
-		known: true,
-		byType
+		lines,
+		omitted: report.findings.length - lines.length
 	};
 }
+/**
+* A message of the action about its own run (decision D-122): the line for the log with the level word
+* ("depcurfew: note: ..."), and the annotation of the same level (notice for a note), so that the run shows it as the
+* log words it. Control characters are shown as text in both, so text from the repository cannot start a command.
+*/
+function runMessage(level, message, format = values$1(environment.githubActions.annotations)[0]) {
+	const text = printable(message);
+	const line = `depcurfew: ${level}: ${text}\n`;
+	if (format === void 0) return {
+		line,
+		annotation: void 0
+	};
+	const property = escaped(escaped("depcurfew", format.escape), format.escapeProperty);
+	return {
+		line,
+		annotation: `::${format.commands[level]} ${format.properties.title}=${property}::${escaped(text, format.escape)}\n`
+	};
+}
+/**
+* The most annotations the depcurfew doctor check gets: two requests of the API. Errors come first; the job log and the
+* summary list every finding, and the step annotations show the first ones on the files too.
+*/
+const CHECK_RUN_ANNOTATIONS = 100;
+/** Text cut to a number of UTF-8 bytes, with "..." when cut. */
+function cutBytes(text, maxBytes) {
+	if (Buffer.byteLength(text) <= maxBytes) return text;
+	return `${Buffer.from(text).subarray(0, Math.max(0, maxBytes - 3)).toString().replace(/�$/u, "")}...`;
+}
+/**
+* The findings as annotations of the depcurfew doctor check (decision D-104), errors first, at most `max`: on the line
+* of the finding, or on line 1 when it concerns the whole file. Only files `include` accepts (in the workspace and
+* there) get one, and no path with control characters, which could not name the file; those are counted in `omitted`.
+* Text from the repository is shown as text (printable), as in the other annotations.
+*/
+function checkRunAnnotations(report, rules, include, facts = values$1(environment.githubActions.checkRuns)[0], max = 100) {
+	if (facts === void 0) return {
+		annotations: [],
+		omitted: report.findings.length
+	};
+	const annotations = [];
+	for (const level of LEVELS) for (const finding of report.findings.filter((entry) => entry.level === level)) {
+		const path = finding.location.file;
+		if (annotations.length >= max) break;
+		if (path === "" || printable(path) !== path || path.startsWith("/") || path.split("/").includes("..") || !include(path)) continue;
+		const line = finding.location.line ?? 1;
+		const fix = fixOf(finding, rules);
+		const message = fix === void 0 ? printable(finding.message) : `${printable(finding.message)}\nFix: ${printable(fix)}`;
+		annotations.push({
+			path,
+			start_line: line,
+			end_line: line,
+			annotation_level: facts.annotationLevels[level],
+			message: cutBytes(message, facts.annotationMessageMaxBytes),
+			title: printable(`depcurfew: ${finding.rule}`).slice(0, facts.annotationTitleMaxLength)
+		});
+	}
+	return {
+		annotations,
+		omitted: report.findings.length - annotations.length
+	};
+}
+/** The line below the summary of the check when findings are not annotated there. */
+function checkRunAnnotationNote(omitted, max = 100) {
+	if (omitted === 0) return "";
+	return `\n${plural$1(omitted, "finding")} ${omitted === 1 ? "is" : "are"} not shown as annotations on the files: the check gets at most ${max}, errors first, and only on files in the workspace. The job log lists every finding.\n`;
+}
+/**
+* A notice annotation for a clean report, so that the run shows that doctor ran and what it checked: the tools, the
+* number of files read and every check with its result, one per line.
+*/
+function cleanNotice(report, format = values$1(environment.githubActions.annotations)[0]) {
+	if (format === void 0 || report.findings.length > 0) return void 0;
+	const data = (text) => escaped(text, format.escape);
+	const property = (text) => escaped(escaped(text, format.escape), format.escapeProperty);
+	const checked = report.checked;
+	const lines = checked === void 0 ? ["No problems found"] : [`No problems found in ${plural$1(checked.files.length, "file")}${checked.tools.length === 0 ? "" : ` for ${checked.tools.map(checkedTool).join(", ")}`}. ${resultCounts(checked.rules)}.`, ...checked.rules.map((result) => `${resultText(result)}: ${result.check}${result.result === "skipped" ? ` (${policyNeeded(checked.policyFile, report.policy)})` : ""}`)];
+	return `::${format.commands.note} ${format.properties.title}=${property("depcurfew doctor: no problems found")}::${data(lines.map((line) => printable(line)).join("\n"))}`;
+}
+/** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
+function markdown(text) {
+	return printable(text.replaceAll(/\s*[\r\n]+\s*/gu, " ")).split(/(`[^`]*`)/u).map((part, index) => index % 2 === 1 ? part.replaceAll("|", "\\|") : part.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll(/([\\`*_[\]|~#!])/gu, "\\$1").replaceAll(/(https?|www)(?=[:.])/gu, "$1&#8203;")).join("");
+}
+/** A path or rule id as a code span; a line break in a path is shown as text, so it cannot end the table row. */
+function code$1(text) {
+	const shown = printable(text);
+	return shown.includes("`") ? markdown(shown) : `\`${shown.replaceAll("|", "\\|")}\``;
+}
+/**
+* The job summary: the counts, a table of findings with how to fix each one and the notices. Rows that would make it
+* longer than `maxBytes` are left out and counted instead, so the summary upload does not fail.
+*/
+function jobSummary(report, rules, directory, maxBytes) {
+	const found = countLevels(report.findings);
+	const counts = {
+		...found,
+		note: found.note + report.notices.length
+	};
+	const where = directory === "" ? "" : ` in ${code$1(directory)}`;
+	const head = ["## depcurfew doctor", ""];
+	if (report.findings.length === 0) head.push(`**No problems found**${where}.`);
+	else {
+		const count = (level) => counts[level] === 0 ? plural$1(0, level) : `**${plural$1(counts[level], level)}**`;
+		head.push(`${count("error")}, ${count("warning")}, ${count("note")}${where}.`, "", "| Level | Where | Problem | How to fix |", "| --- | --- | --- | --- |");
+	}
+	const tail = [
+		...report.notices.length === 0 ? [] : [
+			"",
+			"### Notes",
+			"",
+			...report.notices.map((notice) => `- note: ${markdown(notice.message)} (${code$1(notice.code)})${notice.fix === void 0 ? "" : ` Fix: ${markdown(notice.fix)}`}`)
+		],
+		...checkedSummary(report),
+		""
+	];
+	let size = Buffer.byteLength([...head, ...tail].join("\n")) + 200;
+	const rows = [];
+	for (const finding of report.findings) {
+		const location = finding.location.line === void 0 ? finding.location.file : `${finding.location.file}:${finding.location.line}`;
+		const row = `| ${finding.level === "error" ? "**error**" : finding.level} | ${code$1(location)} | ${markdown(finding.message)} (${code$1(finding.rule)}) | ${markdown(fixOf(finding, rules) ?? "")} |`;
+		size += Buffer.byteLength(row) + 1;
+		if (size > maxBytes) break;
+		rows.push(row);
+	}
+	const omitted = report.findings.length - rows.length;
+	const more = omitted === 0 ? [] : ["", `${plural$1(omitted, "more finding")} did not fit in the summary; the step log lists every finding.`];
+	return [
+		...head,
+		...rows,
+		...more,
+		...tail
+	].join("\n");
+}
+/** What doctor checked, below the findings: the tools, the files read and a table of every check with its result. */
+function checkedSummary(report) {
+	const checked = report.checked;
+	if (checked === void 0) return [];
+	return [
+		"",
+		"### What was checked",
+		"",
+		`- Tools: ${checked.tools.length === 0 ? "no package manager or bot found" : checked.tools.map((tool) => markdown(checkedTool(tool))).join(", ")}`,
+		`- Files read: ${checked.files.length === 0 ? "none" : checked.files.map(code$1).join(", ")}`,
+		`- ${markdown(resultCounts(checked.rules))}`,
+		"",
+		"| Result | Check | Rule |",
+		"| --- | --- | --- |",
+		...checked.rules.map((result) => {
+			return `| ${result.result === "problems" ? `**${resultText(result)}**` : result.result === "skipped" ? `skipped (${policyNeeded(code$1(checked.policyFile), report.policy)})` : resultText(result)} | ${markdown(result.check)} | ${code$1(result.rule)} |`;
+		})
+	];
+}
+/** A problem after doctor ran, such as a SARIF file that cannot be written: a line below the findings of the job summary. */
+function problemSummary(message) {
+	return [
+		"",
+		`**Error:** depcurfew ${markdown(message)}`,
+		""
+	].join("\n");
+}
+/** The job summary when doctor could not run. */
+function failureSummary(message) {
+	return [
+		"## depcurfew doctor",
+		"",
+		`depcurfew could not check the repository: ${markdown(message)}`,
+		""
+	].join("\n");
+}
+
+// src/action-check-run.ts
+const CHECK_RUN_NAME = "depcurfew doctor";
+/**
+* Set on the check runs depcurfew creates, so that a later run on the same commit finds its own entry and no other;
+* followed by a colon and the fingerprint of the annotations of the entry (checkRunExternalId).
+*/
+const CHECK_RUN_EXTERNAL_ID = "depcurfew";
+/**
+* The external_id of an entry with these annotations: "depcurfew:" and the SHA-256 of the annotations, so that a later
+* run on the same commit can tell whether the annotations the entry has are the ones it would add (decision D-107).
+*/
+function checkRunExternalId(annotations) {
+	return `${CHECK_RUN_EXTERNAL_ID}:${createHash("sha256").update(JSON.stringify(annotations)).digest("hex")}`;
+}
+/** The name of the check: with the directory when it is not the workspace root. */
+function checkRunName(directory) {
+	return directory === "" ? CHECK_RUN_NAME : `${CHECK_RUN_NAME} (${directory})`;
+}
+/** The commit the check belongs to: the head of a pull request (GITHUB_SHA is the merge commit there), else GITHUB_SHA. */
+function checkRunSha(env, facts) {
+	const eventPath = env[facts.variables.eventPath];
+	if (eventPath !== void 0 && eventPath !== "") try {
+		let value = JSON.parse(readFileSync(eventPath, "utf8"));
+		for (const key of facts.pullRequestHeadSha) value = typeof value === "object" && value !== null ? value[key] : void 0;
+		if (typeof value === "string" && /^[0-9a-f]{40,64}$/u.test(value)) return value;
+	} catch {}
+	const sha = env[facts.variables.sha];
+	return sha !== void 0 && /^[0-9a-f]{40,64}$/u.test(sha) ? sha : void 0;
+}
+/** A summary within the API limit, cut at a line with a note when longer. */
+function fitSummary(markdown, limit) {
+	if (markdown.length <= limit) return markdown;
+	const note = "\n\nThe rest did not fit; the job log and the job summary have everything.\n";
+	const cut = markdown.slice(0, limit - 73);
+	return `${cut.slice(0, Math.max(0, cut.lastIndexOf("\n")))}${note}`;
+}
+function plural(count, word) {
+	return `${count} ${count === 1 ? word : `${word}s`}`;
+}
+function reason(error) {
+	return `the GitHub API did not answer (${error instanceof Error ? error.message : String(error)})`;
+}
+/** The external id of an entry a later run replaced. */
+const REPLACED_EXTERNAL_ID = `${CHECK_RUN_EXTERNAL_ID}:replaced`;
+function existingRun(answer, name) {
+	const runs = typeof answer === "object" && answer !== null ? answer["check_runs"] : void 0;
+	if (!Array.isArray(runs)) return void 0;
+	for (const run of runs) {
+		if (typeof run !== "object" || run === null) continue;
+		const entry = run;
+		const externalId = entry["external_id"];
+		if (entry["name"] !== name || typeof externalId !== "string" || !(externalId === "depcurfew" || externalId.startsWith(`${"depcurfew"}:`))) continue;
+		if (externalId === REPLACED_EXTERNAL_ID) continue;
+		if (typeof entry["id"] !== "number" || !Number.isSafeInteger(entry["id"])) continue;
+		const output = entry["output"];
+		const count = typeof output === "object" && output !== null ? output["annotations_count"] : void 0;
+		return {
+			id: entry["id"],
+			annotations: typeof count === "number" ? count : 0,
+			externalId
+		};
+	}
+}
+/**
+* Creates the check run, or updates the one an earlier run of the action left on the same commit with the same name;
+* returns the line for the log. The token goes only to the API URL the runner sets, in a header, and is never printed.
+* Looking for the earlier entry and creating one is not atomic: two jobs that run at the same time can still add one
+* entry each. Any failure of the lookup or the update falls back to creating the entry. What did not work is a warning
+* (decision D-122): the line has the level word and is followed by a warning annotation of the same text, unless
+* `annotate` is false (the input annotations).
+*/
+async function createCheckRun(env, token, content, fetchImpl, options = {}) {
+	const warning = (message) => {
+		const { line, annotation } = runMessage("warning", message);
+		return options.annotate === false || annotation === void 0 ? line : `${line}${annotation}`;
+	};
+	const notAdded = (why) => warning(`the depcurfew doctor check was not added: ${why}`);
+	const facts = values$1(environment.githubActions.checkRuns)[0];
+	if (facts === void 0) return notAdded("depcurfew knows no check run API");
+	const apiUrl = env[facts.variables.apiUrl];
+	const repository = env[facts.variables.repository];
+	const sha = checkRunSha(env, facts);
+	if (apiUrl !== void 0 && apiUrl !== "" && !/^https:\/\//u.test(apiUrl)) {
+		const name = facts.variables.apiUrl;
+		return notAdded(`${name} is not an https URL, and depcurfew sends the token only over https; set ${name} to the https address of the GitHub API, or leave it to the runner, which sets it`);
+	}
+	if (apiUrl === void 0 || !/^https:\/\//u.test(apiUrl) || repository === void 0 || !/^[\w.-]+\/[\w.-]+$/u.test(repository) || sha === void 0) return notAdded(`${facts.variables.apiUrl}, ${facts.variables.repository} or the commit is not set, as outside GitHub Actions`);
+	const permission = Object.entries(facts.permission).map(([name, level]) => `${name}: ${level}`).join(", ");
+	const base = apiUrl.replace(/\/+$/u, "");
+	const url = (template, id) => `${base}${template.replace("{repository}", repository).replace("{ref}", sha).replace("{id}", id === void 0 ? "" : String(id))}`;
+	const request = (method, target, body) => fetchImpl(target, {
+		method,
+		headers: {
+			accept: "application/vnd.github+json",
+			authorization: `Bearer ${token}`,
+			...body === void 0 ? {} : { "content-type": "application/json" },
+			"user-agent": "depcurfew",
+			"x-github-api-version": facts.apiVersion
+		},
+		...body === void 0 ? {} : { body: JSON.stringify(body) },
+		signal: AbortSignal.timeout(15e3)
+	});
+	const batches = [];
+	const annotations = content.annotations ?? [];
+	for (let start = 0; start < annotations.length; start += facts.annotationsPerRequest) batches.push(annotations.slice(start, start + facts.annotationsPerRequest));
+	const output = (batch = []) => ({
+		title: content.title,
+		summary: fitSummary(content.summary, facts.summaryMaxLength),
+		...batch.length === 0 ? {} : { annotations: batch }
+	});
+	const externalId = checkRunExternalId(annotations);
+	const result = {
+		status: "completed",
+		conclusion: content.conclusion,
+		external_id: externalId
+	};
+	let existing;
+	try {
+		const query = `${facts.query.checkName}=${encodeURIComponent(content.name)}&${facts.query.filter}=${facts.query.latest}`;
+		const response = await request("GET", `${url(facts.endpoints.list)}?${query}`);
+		if (response.status === 200) existing = existingRun(await response.json(), content.name);
+	} catch {}
+	let id;
+	let updated = false;
+	let pending = batches;
+	let kept = false;
+	let replaced;
+	if (existing !== void 0) {
+		const same = existing.externalId === externalId && existing.annotations === annotations.length;
+		if (existing.annotations > 0 && !same) replaced = existing.id;
+		else try {
+			const keep = existing.annotations > 0;
+			if ((await request("PATCH", url(facts.endpoints.update, existing.id), {
+				...result,
+				output: output(keep ? [] : batches[0])
+			})).status === 200) {
+				({id} = existing);
+				updated = true;
+				kept = keep;
+				pending = keep ? [] : batches.slice(1);
+			}
+		} catch {}
+	}
+	if (!updated) {
+		let response;
+		try {
+			response = await request("POST", url(facts.endpoints.create), {
+				name: content.name,
+				head_sha: sha,
+				...result,
+				output: output(batches[0])
+			});
+		} catch (error) {
+			return notAdded(reason(error));
+		}
+		if (response.status === 403 || response.status === 404) return notAdded(`the workflow token may not create checks (HTTP ${response.status}). Add "${permission}" to the permissions of the job, or set the input check-run to false. A pull request from a fork gets a read-only token.`);
+		if (response.status !== 201) return notAdded(`the GitHub API answered HTTP ${response.status}`);
+		pending = batches.slice(1);
+		if (pending.length > 0) try {
+			const answer = await response.json();
+			const created = typeof answer === "object" && answer !== null ? answer["id"] : void 0;
+			if (typeof created === "number" && Number.isSafeInteger(created)) id = created;
+		} catch {}
+	}
+	let added = kept ? 0 : batches[0]?.length ?? 0;
+	let failure;
+	for (const batch of pending) {
+		if (id === void 0) {
+			failure = "the GitHub API did not say which check it added";
+			break;
+		}
+		try {
+			const response = await request("PATCH", url(facts.endpoints.update, id), { output: output(batch) });
+			if (response.status !== 200) {
+				failure = `the GitHub API answered HTTP ${response.status}`;
+				break;
+			}
+		} catch (error) {
+			failure = reason(error);
+			break;
+		}
+		added += batch.length;
+	}
+	let replacement = "";
+	let replacementFailed = false;
+	if (replaced !== void 0 && !updated) {
+		const supersede = {
+			conclusion: "neutral",
+			external_id: REPLACED_EXTERNAL_ID,
+			output: {
+				title: "Replaced by a later run of depcurfew doctor on this commit",
+				summary: `A later run of depcurfew doctor on this commit had a different result, and annotations cannot be removed from a check, so its result is in a new "${content.name}" entry. The annotations of this entry are from the earlier run.\n`
+			}
+		};
+		try {
+			const response = await request("PATCH", url(facts.endpoints.update, replaced), supersede);
+			replacementFailed = response.status !== 200;
+			replacement = response.status === 200 ? "; the earlier one, whose annotations are out of date, now says it is replaced" : `; the earlier one, whose annotations are out of date, could not be marked as replaced: the GitHub API answered HTTP ${response.status}`;
+		} catch (error) {
+			replacementFailed = true;
+			replacement = `; the earlier one, whose annotations are out of date, could not be marked as replaced: ${reason(error)}`;
+		}
+	}
+	const commit = sha.slice(0, 12);
+	const withAnnotations = added === 0 ? "" : ` and ${plural(added, "annotation")}`;
+	const line = updated ? `updated the check "${content.name}" on the commit ${commit} with the result of this run${withAnnotations}, instead of adding a second one${kept ? "; it keeps the annotations it has" : ""}` : `added the check "${content.name}" with the result${withAnnotations} to the commit ${commit}${replaced === void 0 ? "" : ", next to an earlier one with other annotations"}`;
+	const missing = (kept ? 0 : annotations.length) - added;
+	const lost = failure !== void 0 && missing !== 0;
+	const text = `${line}${lost ? `; ${plural(missing, "more annotation")} could not be added: ${failure}` : ""}${replacement}`;
+	return lost || replacementFailed ? warning(text) : `depcurfew: ${printable(text)}\n`;
+}
+
+// src/doctor/plan.ts
+const plans = /* @__PURE__ */ new WeakMap();
+/**
+* The plan of one directory, made once for a policy and a detection. A directory is planned with the same options
+* throughout a doctor run (the root, or a project listed in projects), so they are not part of the key.
+*/
+function plannedFor(root, policy, detection, tools, options) {
+	let byDetection = plans.get(policy);
+	if (byDetection === void 0) {
+		byDetection = /* @__PURE__ */ new WeakMap();
+		plans.set(policy, byDetection);
+	}
+	let plan = byDetection.get(detection);
+	if (plan === void 0) {
+		plan = planApply(root, policy, detection, tools, options);
+		byDetection.set(detection, plan);
+	}
+	return plan;
+}
+/** undefined when the repository has no policy. */
+function plannedApply(context) {
+	const { policy, detection } = context;
+	if (policy === void 0) return void 0;
+	return plannedFor(context.root, policy, detection, context.tools, context.plan);
+}
+
+// src/doctor/applies.ts
+/** The project uses one of these package managers (any, when none is named) in a version the knowledge base covers. */
+function usesManager(scope, ids) {
+	return [scope.detection, ...(scope.projects ?? []).map((project) => project.detection)].some((detection) => detection.packageManagers.some((manager) => manager.supported && (ids === void 0 || ids.includes(manager.id))));
+}
+/** The project configures an update bot (any, when none is named). */
+function usesBot(scope, ids) {
+	return scope.detection.bots.some((bot) => ids === void 0 || ids.includes(bot.id));
+}
+/** A package manager has a lockfile, or for pip requirements files, which say where packages come from too. */
+function hasLockfile(scope) {
+	return scope.detection.packageManagers.some((manager) => manager.supported && (manager.evidence.some((evidence) => evidence.kind === "lockfile") || manager.id === "pip" && manager.configFiles.length > 0));
+}
+
+// src/doctor/rules/unreadable-config.ts
+/**
+* YAML as detection and apply read it (parseYaml: the document shared with the rules, then its values), with or without
+* merge keys; throws its first error. Building the values applies the limit of the yaml package on aliases (100 per
+* anchor), so a file whose aliases expand without end is an error here as it is in apply, also without a policy
+* (decision D-124).
+*/
+const yamlParsers = [false, true].map((merge) => (text) => {
+	parseYaml(text, { merge });
+	return true;
+});
+/** The parser detection and apply read a configuration file with, by its name; undefined for other files (.npmrc, JSON5). */
+function configParser(file) {
+	const name = file.split("/").at(-1) ?? file;
+	if (/\.toml$/u.test(name) || name === "Pipfile") return parseToml;
+	if (/\.ya?ml$/u.test(name)) return yamlParsers[yamlOptionsFor(file).merge === true ? 1 : 0];
+	if (/\.jsonc?$/u.test(name) || name === ".renovaterc") return parseJsonc;
+}
+/**
+* Reads a configuration file of a tool found the way detection and apply read it, so that a syntax error is a warning
+* of the repository: TOML (also Pipfile), YAML, and JSON with comments (also .renovaterc). Other files (.npmrc, JSON5)
+* are not parsed here.
+*/
+function parseConfig(repository, file) {
+	const parser = configParser(file);
+	if (parser !== void 0) repository.parseOnce(file, parser);
+}
+/**
+* Whether the text of a configuration file parses as detection and apply read it, without a warning of the repository:
+* a rule that cannot use a file that does not parse says so (decision D-124), while unreadable-config reports the file
+* with the message of apply's plan, when there is one.
+*/
+function configParses(file, text) {
+	const parser = configParser(file);
+	if (parser === void 0) return true;
+	try {
+		parser(text);
+		return true;
+	} catch {
+		return false;
+	}
+}
+/** The configuration files of the package managers and bots detection found. */
+function configFilesOf(detection) {
+	return [.../* @__PURE__ */ new Set([...detection.packageManagers.flatMap((manager) => manager.configFiles), ...detection.bots.flatMap((bot) => bot.configFiles)])];
+}
+/** The fix for YAML whose aliases expand more than depcurfew reads (the yaml library's maxAliasCount). */
+const ALIAS_LIMIT_FIX = "Write the repeated values out instead of using so many YAML aliases (*name), so that depcurfew can check the file";
+const unreadableConfig = {
+	id: "unreadable-config",
+	checks: "Every configuration file and lockfile can be read and parsed",
+	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.",
+	description: "A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.",
+	help: "Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
+	level: "error",
+	requiresPolicy: false,
+	check(context) {
+		const reported = /* @__PURE__ */ new Set();
+		const reportWarning = (warning) => {
+			const fix = warning.code === "invalid-file" && /excessive alias count/iu.test(warning.message) ? ALIAS_LIMIT_FIX : UNREADABLE_WARNINGS[warning.code];
+			const file = warning.files[0] ?? "depcurfew.json";
+			if (fix === void 0 || reported.has(file)) return;
+			reported.add(file);
+			context.report({
+				location: {
+					file,
+					...warning.code === "invalid-file" ? positionInMessage(warning.message) : void 0
+				},
+				message: `${warning.message.replace(/:$/u, "")}; depcurfew cannot check it`,
+				fix
+			});
+		};
+		for (const warning of [...context.detection.warnings, ...context.repository.warnings]) reportWarning(warning);
+		for (const failure of plannedApply(context)?.failures ?? []) {
+			if (reported.has(failure.file)) continue;
+			reported.add(failure.file);
+			context.report({
+				location: {
+					file: failure.file,
+					...positionInMessage(failure.message)
+				},
+				message: `depcurfew apply cannot edit ${failure.file} for ${context.tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool} (${failure.message}), so it cannot be checked against ${POLICY_FILE}`,
+				fix: "Fix what the message describes, then run depcurfew apply; or add the settings by hand"
+			});
+		}
+		for (const file of configFilesOf(context.detection)) {
+			if (reported.has(file)) continue;
+			const known = context.repository.warnings.length;
+			parseConfig(context.repository, file);
+			for (const warning of context.repository.warnings.slice(known)) reportWarning(warning);
+		}
+	}
+};
 
 // src/doctor/rules/bot-cooldown.ts
 const isEcosystems = (value) => isRecord(value) && Object.values(value).every((list) => Array.isArray(list) && list.every((item) => typeof item === "string"));
@@ -20018,7 +27341,7 @@ function dependabotDelays(context, bot, file) {
 				bot,
 				managers,
 				minutes: 0,
-				origin: `cooldown.${include.key} in ${file} names only ${listing(patterns)}`,
+				origin: `cooldown.${include.key} in ${file} names only ${listing$1(patterns)}`,
 				location: {
 					file,
 					line: at
@@ -20032,13 +27355,23 @@ function dependabotDelays(context, bot, file) {
 	});
 }
 function renovateDelays(context, bot, file) {
-	if (!/\.jsonc?$/u.test(file) && !/\.renovaterc$/u.test(file)) {
-		context.notice(`bot-cooldown-mismatch cannot read ${file}; only JSON and JSONC Renovate files are read`, file);
-		return [];
-	}
+	const managersOf = (ecosystem) => context.tools.filter((tool) => tool.kind === "package-manager" && ecosystemOfTool(tool) === ecosystem).map((tool) => tool.id);
+	if (!/\.jsonc?$/u.test(file) && !/\.renovaterc$/u.test(file)) return ["npm", "pypi"].map((ecosystem) => ({
+		bot,
+		managers: managersOf(ecosystem),
+		minutes: 0,
+		origin: file,
+		location: {
+			file,
+			line: 1
+		},
+		securityBypass: false,
+		scope: "updates",
+		applies: false,
+		unreadableFile: file
+	}));
 	const text = context.repository.readText(file);
 	if (text === void 0) return [];
-	const managersOf = (ecosystem) => context.tools.filter((tool) => tool.kind === "package-manager" && ecosystemOfTool(tool) === ecosystem).map((tool) => tool.id);
 	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig$1);
 	const base = file === packageJson.file ? [packageJson.key] : [];
 	const security = jsonSetting(text, [
@@ -20090,7 +27423,7 @@ function renovateDelays(context, bot, file) {
 				line: source?.line ?? 1
 			},
 			securityBypass,
-			scope: types.length === updateTypes.length ? "updates" : `${listing(types)} updates`,
+			scope: types.length === updateTypes.length ? "updates" : `${listing$1(types)} updates`,
 			applies,
 			...source?.rule === void 0 ? {} : { rule: source.rule }
 		}];
@@ -20110,29 +27443,179 @@ function exemptsSecurityFixes(bot, manager, file) {
 	const fact = bot.extra?.["pnpmSecurityExclusions"] === void 0 ? void 0 : extraOf(bot, "pnpmSecurityExclusions", isRecord);
 	return fact !== void 0 && Array.isArray(fact["managers"]) && fact["managers"].includes(manager) && fact["file"] === file;
 }
+/**
+* A bot configuration file that depcurfew cannot read or parse, the way detection and apply read it: its delay is not
+* known, so the rule gives a note at the file for every package manager that waits, instead of a delay the file may not
+* have (decision D-124). unreadable-config reports the file itself.
+*/
+function unreadableBotFile(context, bot, file) {
+	const text = context.repository.readText(file);
+	const reason = text === void 0 ? "read" : configParses(file, text) ? void 0 : "parse";
+	if (reason === void 0) return void 0;
+	return [{
+		bot,
+		managers: context.tools.filter((tool) => tool.kind === "package-manager").map((tool) => tool.id),
+		minutes: 0,
+		origin: file,
+		location: {
+			file,
+			line: 1
+		},
+		securityBypass: false,
+		scope: "updates",
+		applies: false,
+		unreadableFile: file,
+		unreadableReason: reason
+	}];
+}
+const isConfigLocation = (value) => isRecord(value) && typeof value["from"] === "string";
+const isDirectories = (value) => isRecord(value) && Array.isArray(value["keys"]) && value["keys"].every((key) => typeof key === "string") && typeof value["globsIn"] === "string";
+/**
+* A bot configuration file inside a directory listed in projects: the bot reads its configuration only from the
+* repository root (extra.configLocation), and depcurfew apply configures bots only there (decision D-100), so what the
+* file says is never used. A note at the file instead of the findings its delay would give, reported by the root run,
+* which names the files from the root.
+*/
+function projectBotNotes(context, views) {
+	for (const view of views) for (const detected of view.detection.bots) {
+		const bot = context.tools.find((entry) => entry.id === detected.id);
+		if (bot === void 0) continue;
+		const fact = bot.extra?.["configLocation"];
+		const location = fact === void 0 ? void 0 : values$1(fact)[0];
+		const fromRoot = isConfigLocation(location) && location.from === "repository-root";
+		const atRoot = context.detection.bots.some((entry) => entry.id === detected.id && entry.configFiles.length > 0);
+		for (const own of detected.configFiles) {
+			const file = inProject(view.directory, own);
+			const where = fromRoot ? `${bot.name} reads its configuration only from the repository root${isConfigLocation(location) && location.branch === "default" ? ", on the default branch" : ""}, so it does not read ${file} in the project ${view.directory}` : `${file} is the ${bot.name} configuration of the project ${view.directory}`;
+			if (!atRoot) {
+				context.report({
+					level: "note",
+					location: { file },
+					message: `${where}, and the repository root has no ${bot.name} configuration`,
+					fix: detected.id === "dependabot" ? `Move ${file} to the .github directory at the repository root, with directory: /${view.directory} in its updates entries, then run depcurfew apply` : `Move ${file} to the repository root, then run depcurfew apply`
+				});
+				continue;
+			}
+			context.report({
+				level: "note",
+				location: { file },
+				message: `${where}; depcurfew apply configures ${bot.name} only at the repository root, and its delay there covers ${view.directory} too`,
+				fix: detected.id === "dependabot" ? `Move the updates entries of ${file} into the Dependabot configuration in the .github directory at the repository root, with directory: /${view.directory}, then remove ${file}` : `Move what ${file} sets into the Renovate configuration file at the repository root, then remove ${file}`
+			});
+		}
+	}
+}
+/** Whether a directory of a Dependabot updates entry names the project: the same path, or a glob of directories that matches it. */
+function namesDirectory(entry, project, globs) {
+	const trimmed = entry.replace(/^\/+/u, "").replace(/\/+$/u, "");
+	if (!globs || !trimmed.includes("*")) return trimmed === project;
+	const pattern = trimmed.split("**").map((part) => part.split("*").map((piece) => piece.replace(/[.+?^${}()|[\]\\]/gu, "\\$&")).join("[^/]*")).join(".*");
+	return new RegExp(`^${pattern}$`, "u").test(project);
+}
+/**
+* A project of a repository whose root Dependabot configuration has updates entries for other projects, but none for
+* this one and its ecosystem: Dependabot does not update it, and so does not wait for it either. Run at the root.
+*/
+function missingDependabotEntries(context, views) {
+	const detected = context.detection.bots.find((bot) => bot.id === "dependabot");
+	const bot = context.tools.find((entry) => entry.id === "dependabot");
+	const file = detected?.configFiles[0];
+	if (bot === void 0 || file === void 0 || views.length < 2) return;
+	const text = context.repository.readText(file);
+	if (text === void 0) return;
+	const updates = yamlSetting(text, ["updates"]);
+	if (updates === void 0 || !Array.isArray(updates.value)) return;
+	const ecosystems = extraOf(bot, "ecosystems", isEcosystems);
+	const keys = extraOf(bot, "directories", isDirectories);
+	const entries = updates.value.flatMap((entry) => {
+		if (!isRecord(entry) || typeof entry["package-ecosystem"] !== "string") return [];
+		const directories = keys.keys.flatMap((key) => {
+			const value = entry[key];
+			return (typeof value === "string" ? [value] : Array.isArray(value) ? value.filter((item) => typeof item === "string") : []).map((directory) => ({
+				directory,
+				globs: key === keys.globsIn
+			}));
+		});
+		return [{
+			ecosystem: entry["package-ecosystem"],
+			directories
+		}];
+	});
+	const needed = views.map((view) => ({
+		view,
+		ecosystems: [...new Set(view.detection.packageManagers.filter((manager) => manager.supported).flatMap((manager) => Object.keys(ecosystems).filter((name) => ecosystems[name]?.includes(manager.id) === true)))]
+	}));
+	const covers = (ecosystem, project) => entries.some((entry) => entry.ecosystem === ecosystem && entry.directories.some((item) => namesDirectory(item.directory, project, item.globs)));
+	const missing = needed.flatMap(({ view, ecosystems: names }) => names.filter((name) => !covers(name, view.directory)).map((ecosystem) => ({
+		view,
+		ecosystem
+	})));
+	const updated = needed.filter(({ view, ecosystems: names }) => names.some((name) => covers(name, view.directory))).map(({ view }) => view.directory);
+	if (updated.length === 0) return;
+	for (const { view, ecosystem } of missing) context.report({
+		level: "warning",
+		location: {
+			file,
+			line: updates.line
+		},
+		message: `${file} has no updates entry with package-ecosystem: ${ecosystem} for ${view.directory}, which projects in ${POLICY_FILE} lists, so Dependabot does not update the ${ecosystem} dependencies of ${view.directory}, while it updates ${listing$1(updated)}`,
+		fix: `If Dependabot should update ${view.directory}, add an updates entry with package-ecosystem: ${ecosystem} and directory: /${view.directory} to ${file}, then run depcurfew apply to give it the cooldown`
+	});
+}
 const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
 	checks: "Update bots wait at least as long as the package manager before proposing a new version",
 	summary: "An update bot waits less than the package manager before proposing a new version.",
-	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type.",
+	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type. A bot configuration file that depcurfew cannot read or parse, or a Renovate file in JSON5, gets a note for each package manager that waits, instead of a delay the file may not have. With projects in depcurfew.json, a bot configuration file inside a project gets a note, because the bot reads its configuration only from the repository root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.",
 	help: "Give the bot a delay at least as long as the package manager's (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => usesBot(scope) && usesManager(scope),
 	check(context) {
-		const managers = context.detection.packageManagers.filter((entry) => entry.supported);
-		if (managers.length === 0) return;
+		if (context.project !== void 0) return;
+		if (context.projects !== void 0) {
+			projectBotNotes(context, context.projects);
+			missingDependabotEntries(context, context.projects);
+		}
+		const sources = managerSources$1(context);
+		if (sources.every((source) => source.managers.length === 0)) return;
 		const delays = [];
 		for (const detected of context.detection.bots) {
 			const bot = context.tools.find((entry) => entry.id === detected.id);
 			const file = detected.configFiles[0];
 			if (bot === void 0 || file === void 0) continue;
-			delays.push(...detected.id === "dependabot" ? dependabotDelays(context, bot, file) : renovateDelays(context, bot, file));
+			delays.push(...unreadableBotFile(context, bot, file) ?? (detected.id === "dependabot" ? dependabotDelays(context, bot, file) : renovateDelays(context, bot, file)));
 		}
-		for (const delay of delays) for (const manager of managers.filter((entry) => delay.managers.includes(entry.id))) {
-			const tool = context.tools.find((entry) => entry.id === manager.id);
-			if (tool === void 0) continue;
-			const own = managerDelay$1(context, manager, tool);
-			if (own === void 0 || delay.location === void 0) continue;
+		for (const delay of delays) for (const { manager, source } of sources.flatMap((item) => item.managers.filter((entry) => delay.managers.includes(entry.id)).map((manager) => ({
+			manager,
+			source: item
+		})))) {
+			const knowledge = context.tools.find((entry) => entry.id === manager.id);
+			if (knowledge === void 0) continue;
+			const found = managerDelay$1(source.context, manager, knowledge);
+			if (found === void 0 || delay.location === void 0) continue;
+			const tool = source.project === void 0 ? knowledge : {
+				...knowledge,
+				name: `${knowledge.name} in ${source.project}`
+			};
+			const own = {
+				...found,
+				origin: source.relocate(found.origin)
+			};
+			if (delay.unreadableFile !== void 0) {
+				if (own.minutes > 0) {
+					const file = delay.unreadableFile;
+					const reason = delay.unreadableReason;
+					const cannot = reason === "parse" ? "cannot parse" : reason === "read" ? "cannot read" : "cannot read (it reads only JSON and JSONC Renovate files)";
+					context.report({
+						level: "note",
+						location: delay.location,
+						message: `${delay.bot.name} reads ${file}, which depcurfew ${cannot}, so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
+						fix: reason === "parse" ? `Fix the syntax error in ${file} (unreadable-config says what it is), then run depcurfew doctor again` : reason === "read" ? `Make ${file} a file depcurfew can read (unreadable-config says what is wrong), then run depcurfew doctor again` : `Make sure minimumReleaseAge in ${file} is at least ${describe$1(own.minutes)}, or move the configuration to renovate.json, which depcurfew reads`
+					});
+				}
+				continue;
+			}
 			if (delay.unreadablePreset !== void 0) {
 				if (own.minutes > 0) context.report({
 					level: "note",
@@ -20148,7 +27631,7 @@ const botCooldownMismatch = {
 				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
 				fix: delay.fix ?? (delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(own.minutes)}, or limit the rule to the packages that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`)
 			});
-			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, own.location?.file)) context.report({
+			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, found.location?.file)) context.report({
 				level: "warning",
 				location: delay.location,
 				message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe$1(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
@@ -20166,7 +27649,7 @@ function tool(context, id) {
 }
 function checkPolicy(context) {
 	const policy = context.policy;
-	if (policy === void 0) return;
+	if (policy === void 0 || context.project !== void 0) return;
 	const text = context.repository.readText("depcurfew.json") ?? "";
 	const lists = [["cooldown.exclude", policy.cooldown?.exclude ?? []], ["installScripts.allow", policy.installScripts?.allow ?? []]];
 	for (const [field, patterns] of lists) for (const pattern of patterns.filter(isBroad)) {
@@ -20288,7 +27771,7 @@ const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] =
 const isMatching = (value) => isRecord(value) && typeof value["negation"] === "string" && typeof value["datasourceMatcher"] === "string" && typeof value["updateTypeMatcher"] === "string";
 /** What a packageRules entry covers, for the message: its update types, names and datasources. */
 function covers(scope, datasources, matching) {
-	return `${scope.matchers.includes(matching.updateTypeMatcher) ? `${listing(scope.updateTypes)} updates of ` : ""}${scope.names.kind === "except" ? `every package except ${listing(scope.names.patterns.map((pattern) => pattern.slice(matching.negation.length)))}` : "every package"}${scope.matchers.includes(matching.datasourceMatcher) ? ` from the ${listing(datasources)} datasource${datasources.length === 1 ? "" : "s"}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
+	return `${scope.matchers.includes(matching.updateTypeMatcher) ? `${listing$1(scope.updateTypes)} updates of ` : ""}${scope.names.kind === "except" ? `every package except ${listing$1(scope.names.patterns.map((pattern) => pattern.slice(matching.negation.length)))}` : "every package"}${scope.matchers.includes(matching.datasourceMatcher) ? ` from the ${listing$1(datasources)} datasource${datasources.length === 1 ? "" : "s"}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
 }
 /** packageRules entries that turn minimumReleaseAge off for every package of a registry (extra.packageRuleMatching). */
 function checkRenovate(context, file) {
@@ -20300,7 +27783,8 @@ function checkRenovate(context, file) {
 	const config = readRenovateConfig(text, file, file === packageJson.file ? [packageJson.key] : []);
 	const matching = extraOf(bot, "packageRuleMatching", isMatching);
 	const datasources = extraOf(bot, "datasources", isRecord);
-	const detected = [...new Set(context.detection.packageManagers.filter((entry) => entry.supported).flatMap((entry) => {
+	const managers = managerSources$1(context).flatMap((source) => source.managers);
+	const detected = [...new Set(managers.flatMap((entry) => {
 		const knowledge = tool(context, entry.id);
 		return knowledge === void 0 ? [] : [ecosystemOfTool(knowledge)];
 	}))];
@@ -20337,37 +27821,21 @@ const broadExclusion = {
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => scope.policy !== void 0 || usesManager(scope) || usesBot(scope),
 	check(context) {
 		checkPolicy(context);
 		checkManagers(context);
 		checkYarnScopes(context);
-		for (const bot of context.detection.bots) for (const file of bot.configFiles) {
+		for (const bot of context.project === void 0 ? context.detection.bots : []) for (const file of bot.configFiles) {
 			if (bot.id === "dependabot") checkDependabot(context, file);
 			if (bot.id === "renovate") checkRenovate(context, file);
 		}
 	}
 };
 
-// src/doctor/plan.ts
-const plans = /* @__PURE__ */ new WeakMap();
-/** undefined when the repository has no policy. */
-function plannedApply(context) {
-	const { policy, detection } = context;
-	if (policy === void 0) return void 0;
-	let byDetection = plans.get(policy);
-	if (byDetection === void 0) {
-		byDetection = /* @__PURE__ */ new WeakMap();
-		plans.set(policy, byDetection);
-	}
-	let plan = byDetection.get(detection);
-	if (plan === void 0) {
-		plan = planApply(context.root, policy, detection, context.tools);
-		byDetection.set(detection, plan);
-	}
-	return plan;
-}
-
 // src/doctor/rules/config-drift.ts
+/** The most findings of one file; the last one says how many places differ besides (doctor --user too, D-122). */
+const MAX_DIFFERENCES = 5;
 function clean(line) {
 	return line.replace(/[\r\u0000]/gu, "").trim();
 }
@@ -20380,34 +27848,49 @@ function isFrame(line) {
 	return line === "" || line === "# managed by depcurfew" || isBlockStart(line) || line === "# <<< depcurfew managed block";
 }
 /**
-* The first block of lines that apply would change, without the lines that only gain or lose a trailing comma
-* (adding a JSON key changes the line before it) and without depcurfew's frame lines.
+* Every block of lines that apply would change, in order, without the lines that only gain or lose a trailing comma
+* (adding a JSON key changes the line before it) and without depcurfew's frame lines; a block left empty by that is
+* left out, but the first one stays. The first block also lists the lines apply comments out further down.
 */
-function firstDifference(before, after) {
+function differences(before, after) {
 	const operations = myers(lines(before), lines(after));
+	const total = Math.max(lines(before).length, 1);
+	const found = [];
 	let line = 1;
 	let index = 0;
-	while (index < operations.length && operations[index]?.kind === "same") {
-		line += 1;
-		index += 1;
+	while (index < operations.length) {
+		while (index < operations.length && operations[index]?.kind === "same") {
+			line += 1;
+			index += 1;
+		}
+		if (index >= operations.length) break;
+		const start = line;
+		let removed = [];
+		let added = [];
+		for (; index < operations.length && operations[index]?.kind !== "same"; index++) {
+			const operation = operations[index];
+			if (operation === void 0) break;
+			if (operation.kind === "delete") line += 1;
+			(operation.kind === "delete" ? removed : added).push(clean(operation.line));
+		}
+		const addedLines = new Set(added.map(withoutComma));
+		const commaOnly = new Set(removed.map(withoutComma).filter((text) => addedLines.has(text)));
+		removed = removed.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
+		added = added.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
+		const commentedLater = found.length === 0 ? operations.slice(index).filter((operation) => operation.kind === "insert" && isCommentedOut(clean(operation.line))).map((operation) => clean(operation.line)) : [];
+		if (found.length === 0 || removed.length > 0 || added.length > 0) found.push({
+			line: Math.min(start, total),
+			removed,
+			added,
+			commentedLater
+		});
 	}
-	let removed = [];
-	let added = [];
-	for (; index < operations.length && operations[index]?.kind !== "same"; index++) {
-		const operation = operations[index];
-		if (operation === void 0) break;
-		(operation.kind === "delete" ? removed : added).push(clean(operation.line));
-	}
-	const commaOnly = new Set(removed.filter((text) => added.some((other) => withoutComma(other) === withoutComma(text))).map(withoutComma));
-	removed = removed.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
-	added = added.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
-	const commentedLater = operations.slice(index).filter((operation) => operation.kind === "insert" && isCommentedOut(clean(operation.line))).map((operation) => clean(operation.line));
-	return {
-		line: Math.min(line, Math.max(lines(before).length, 1)),
-		removed,
-		added,
-		commentedLater
-	};
+	return found.length === 0 ? [{
+		line: 1,
+		removed: [],
+		added: [],
+		commentedLater: []
+	}] : found;
 }
 function isCommentedOut(line) {
 	return line.startsWith("# depcurfew: superseded by the managed block: ") || line.startsWith("# depcurfew: turned off; depcurfew.json manages this setting: ");
@@ -20431,20 +27914,20 @@ function firstMissing(before, after, path = []) {
 		if (deeper !== void 0) return deeper;
 	}
 }
-function code$1(text) {
+function code(text) {
 	return `\`${withoutComma(text)}\``;
 }
 /** Added lines for a message: a short JSON object or array on one line, otherwise the first line and a count. */
 function addedText(added) {
 	const [first = ""] = added;
-	if (added.length === 1) return code$1(first);
+	if (added.length === 1) return code(first);
 	const joined = added.join(" ").replaceAll(/\s+/gu, " ");
-	if (/[{[]$/u.test(first) && joined.length <= 100) return code$1(joined);
-	return `${code$1(first)} (and ${added.length - 1} more ${added.length === 2 ? "line" : "lines"})`;
+	if (/[{[]$/u.test(first) && joined.length <= 100) return code(joined);
+	return `${code(first)} (and ${added.length - 1} more ${added.length === 2 ? "line" : "lines"})`;
 }
 /** Lines as a list for a message: `a`, `b` and `c`. */
 function codeList(texts) {
-	const quoted = texts.map(code$1);
+	const quoted = texts.map(code);
 	return quoted.length <= 1 ? quoted[0] ?? "" : `${quoted.slice(0, -1).join(", ")} and ${quoted.at(-1) ?? ""}`;
 }
 /** A YAML `key: value` line at the top level of the map: its key and value as the tool reads them. */
@@ -20478,6 +27961,10 @@ function jsonPair(line) {
 		return;
 	}
 }
+/** The key of a `key=value`, `key = value` or `key: value` line, for pairing an old line with its replacement. */
+function keyOf(line) {
+	return /^\s*(?:-\s+)?["']?([^=:"'\s]+)["']?\s*[=:]/u.exec(line)?.[1];
+}
 /** What is wrong, in words: a value to change, a line to add or remove, or a hand-written line to comment out. */
 function describe(file, difference, before, after) {
 	const commented = difference.added.filter(isCommentedOut);
@@ -20497,20 +27984,21 @@ function describe(file, difference, before, after) {
 		return parts.join("; ");
 	}
 	const [removed] = difference.removed;
-	if (removed !== void 0 && difference.added.length > 0) return `${code$1(removed)} should be ${addedText(difference.added)}${quotedNote(file, removed, difference.added[0] ?? "")}`;
+	if (difference.removed.length > 1 && difference.removed.length === difference.added.length && difference.removed.every((text, index) => keyOf(text) !== void 0 && keyOf(text) === keyOf(difference.added[index] ?? ""))) return difference.removed.map((text, index) => `${code(text)} should be ${code(difference.added[index] ?? "")}${quotedNote(file, text, difference.added[index] ?? "")}`).join(", ");
+	if (removed !== void 0 && difference.added.length > 0) return `${code(removed)} should be ${addedText(difference.added)}${quotedNote(file, removed, difference.added[0] ?? "")}`;
 	if (difference.added.length > 0) {
 		const top = difference.added.length === 1 ? topLevelYaml(file, difference.added[0] ?? "") : void 0;
 		const merged = top === void 0 ? void 0 : yamlSetting(before, [top.key], yamlOptionsFor(file));
-		if (top !== void 0 && merged?.mergedAt !== void 0) return `${code$1(`${top.key}: ${JSON.stringify(merged.value)}`)} comes in through the merge key << at line ${merged.mergedAt} and should be ${addedText(difference.added)}; depcurfew apply writes it into the map itself, where it wins over merged keys`;
+		if (top !== void 0 && merged?.mergedAt !== void 0) return `${code(`${top.key}: ${JSON.stringify(merged.value)}`)} comes in through the merge key << at line ${merged.mergedAt} and should be ${addedText(difference.added)}; depcurfew apply writes it into the map itself, where it wins over merged keys`;
 		const missing = firstMissing(dataOf(file, before), dataOf(file, after));
 		if (missing !== void 0 && /\.jsonc?$/u.test(file)) {
 			const value = missing.reduce((node, key) => isObject(node) ? node[key] : void 0, dataOf(file, after));
 			const text = JSON.stringify(value);
-			return `${missing.join(".")} is missing${text !== void 0 && text.length <= 100 ? `; depcurfew apply adds ${code$1(`"${missing.at(-1) ?? ""}": ${text}`)}` : ""}`;
+			return `${missing.join(".")} is missing${text !== void 0 && text.length <= 100 ? `; depcurfew apply adds ${code(`"${missing.at(-1) ?? ""}": ${text}`)}` : ""}`;
 		}
 		return `${addedText(difference.added)} is missing`;
 	}
-	if (removed !== void 0) return `${code$1(removed)} should not be there`;
+	if (removed !== void 0) return `${code(removed)} should not be there`;
 	return "its layout differs from what depcurfew apply writes";
 }
 /** Where the finding points: the line of a value that comes in through a merge key, else the first difference. */
@@ -20588,29 +28076,46 @@ const configDrift = {
 				});
 				continue;
 			}
-			const difference = firstDifference(change.before, change.after);
-			context.report({
-				location: {
-					file: change.file,
-					line: findingLine(change.file, difference, change.before)
-				},
-				message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, change.before, change.after)}`,
-				fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`
-			});
+			const all = reportedDifferences(change.before, change.after);
+			const shown = all.slice(0, 5);
+			const rest = all.length - shown.length;
+			for (const [index, difference] of shown.entries()) {
+				const more = index === shown.length - 1 && rest > 0 ? `; ${rest} more ${rest === 1 ? "place" : "places"} in ${change.file} ${rest === 1 ? "differs" : "differ"} too (depcurfew apply --dry-run shows them)` : "";
+				context.report({
+					location: {
+						file: change.file,
+						line: findingLine(change.file, difference, change.before)
+					},
+					message: `${change.file} does not match ${POLICY_FILE}: ${describe(change.file, difference, change.before, change.after)}${more}`,
+					fix: `Run depcurfew apply to bring ${change.file} back in line with ${POLICY_FILE} (depcurfew apply --dry-run shows the change first), or change ${POLICY_FILE} if the edit was intended`
+				});
+			}
 		}
 		checkAllowLists(context, plan);
 	}
 };
+/**
+* The differences config-drift reports for a planned change, in order: every block of `differences` but those whose
+* lines the first one already names as commented out further down.
+*/
+function reportedDifferences(before, after) {
+	const [first, ...later] = differences(before, after);
+	const named = new Set(first?.commentedLater ?? []);
+	const originals = new Set([...named].map((line) => line.slice(line.startsWith("# depcurfew: superseded by the managed block: ") ? SUPERSEDED.length : TURNED_OFF.length).trim()));
+	const repeats = (item) => item.added.some((text) => named.has(text)) && item.removed.every((text) => originals.has(text));
+	return [first, ...later.filter((item) => !repeats(item))].filter((item) => item !== void 0);
+}
 
 // src/doctor/rules/depcurfew-outdated.ts
 const depcurfewOutdated = {
 	id: "depcurfew-outdated",
 	checks: "The depcurfew running is not older than the one the project installs",
 	summary: "The project installs a newer depcurfew than the one running.",
-	description: "A global install or an old cached copy may not know settings, rules or tool versions that the version pinned in the project knows, so it can miss problems or report fixed ones. The project copy is read from node_modules or package-lock.json.",
+	description: "A global install or an old cached copy may not know settings, rules or tool versions that the version pinned in the project knows, so it can miss problems or report fixed ones. The project copy is read from node_modules or package-lock.json, in the project and in the tools directory .claude/depcurfew that the README recommends for a repository without package.json in its root.",
 	help: "Run the project's copy of depcurfew (install the project's dependencies first when only package-lock.json pins it), or update the one you run.",
 	level: "warning",
 	requiresPolicy: false,
+	applies: (scope) => projectCopy(scope.repository) !== void 0,
 	check(context) {
 		const copy = projectCopy(context.repository);
 		if (copy === void 0 || !isNewerThanRunning(copy)) return;
@@ -20726,6 +28231,7 @@ const settingIgnoredByVersion = {
 	help: "Move the setting to the place and form this version reads.",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => usesManager(scope),
 	check(context) {
 		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
@@ -20756,11 +28262,34 @@ const invalidPolicy = {
 		} catch (error) {
 			if (!(error instanceof PolicyError)) throw error;
 			context.report({
-				location: { file: POLICY_FILE },
+				location: {
+					file: POLICY_FILE,
+					...error.line === void 0 ? {} : { line: error.line }
+				},
 				message: error.issues.length === 0 ? error.text : `${error.text}: ${error.issues.join("; ")}`,
 				fix: policyErrorFix(error)
 			});
 		}
+	}
+};
+
+// src/doctor/rules/invalid-project.ts
+const invalidProject = {
+	id: "invalid-project",
+	checks: `Every directory listed in projects in ${POLICY_FILE} exists in the repository, has no ${POLICY_FILE} of its own and is not a workspace package of the root`,
+	summary: `A directory listed in projects in ${POLICY_FILE} does not exist, is not a directory, is a symlink, has a ${POLICY_FILE} of its own or overlaps a workspace package of the root.`,
+	description: `depcurfew checks and configures each listed directory as a project of its own. A directory that is missing or misspelled is never checked, so its package managers keep whatever configuration they have; one with a ${POLICY_FILE} of its own would follow two policies, and a workspace package of the root is configured with the root already. depcurfew apply writes nothing while one of them is listed.`,
+	help: `Correct or remove the entry in projects, or remove the ${POLICY_FILE} of the project.`,
+	level: "error",
+	requiresPolicy: true,
+	applies: (scope) => (scope.policy?.projects.length ?? 0) > 0,
+	check(context) {
+		if (context.project !== void 0 || context.policy === void 0) return;
+		for (const problem of projectProblems(context.root, context.policy.projects, context.detection)) context.report({
+			location: problem.location,
+			message: problem.message,
+			fix: problem.fix
+		});
 	}
 };
 
@@ -20813,6 +28342,7 @@ const lockfileForbiddenSource = {
 	help: "Replace the dependency with a registry version, or allow that source in depcurfew.json.",
 	level: "error",
 	requiresPolicy: true,
+	applies: hasLockfile,
 	check(context) {
 		const sources = context.policy?.sources;
 		if (sources === void 0) return;
@@ -20845,14 +28375,46 @@ function shownSpec(spec) {
 	const hash = text.indexOf("#");
 	return /^(?:file|portal|link):/u.test(text) && hash !== -1 ? text.slice(0, hash) : text;
 }
-/** Whether the version in use runs dependency install scripts without an allow-list, under any official reading. */
-function runsScripts(context, tool) {
+/**
+* The versions of the tool the directory runs, each with where it comes from: for npm every place npm runs, as apply
+* sees them (npmPlaces, decisions D-105 and D-109); for the other tools the version they pin. The latest known version
+* when none is declared.
+*/
+function versionsInUse(context, tool) {
 	const manager = context.detection.packageManagers.find((entry) => entry.id === tool.id);
-	const version = (manager === void 0 ? void 0 : pinnedVersion(manager)) ?? latestVersion$1(tool);
-	return evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
+	if (manager === void 0) return [{ version: latestVersion$1(tool) }];
+	if (tool.id !== "npm") return [{ version: repositoryPin(manager) ?? pinnedVersion(manager) ?? latestVersion$1(tool) }];
+	const places = npmPlaces(context).flatMap((place) => place.unknown !== void 0 ? [{
+		version: void 0,
+		place
+	}] : place.versions.map((version) => ({
+		version,
+		place
+	})));
+	return places.length > 0 ? places : [{ version: pinnedVersion(manager) ?? latestVersion$1(tool) }];
+}
+/**
+* The first npm in use (or the version of another tool) that runs dependency install scripts no list covers: one that
+* runs them all, or, unless strict-allow-scripts is set (`strict`), one that runs them with a notice. `text` names the
+* versions of that place that run them ("npm 11.16.0 (with Node.js 24.18.0 in Dockerfile)"), absent without a place.
+*/
+function runsScripts(context, tool, strict) {
+	const runs = (version) => evidenceOf(tool.installScripts.defaultPolicy).some((evidence) => {
 		const policy = versionedValue(evidence.value, version);
-		return policy === "run" || policy === "run-with-warning";
+		return policy === "run" || policy === "run-with-warning" && !strict;
 	});
+	const found = versionsInUse(context, tool).find((entry) => entry.place?.unknown !== void 0 || runs(entry.version));
+	if (found === void 0) return void 0;
+	const place = found.place;
+	if (place?.unknown !== void 0) return {
+		text: npmInUseText(place),
+		unknown: true
+	};
+	const versions = place?.versions.filter(runs) ?? [];
+	return place === void 0 ? {} : {
+		text: npmInUseText(place, versions),
+		several: npmInUseSeveral(place, versions)
+	};
 }
 /**
 * How the repository keeps dependency scripts from running with the tool's own switch: ignore-scripts in .npmrc turns
@@ -20946,10 +28508,11 @@ const lockfileInstallScripts = {
 	id: "lockfile-install-scripts",
 	checks: "The lockfile has no install scripts or source builds that depcurfew.json does not allow",
 	summary: "The lockfile has packages with install scripts, or Python packages built from source, that depcurfew.json does not allow.",
-	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock and pylock.toml show which Python packages have no wheel.",
+	description: "Install scripts run arbitrary code during installation, and so does building a Python package from source (a source distribution, a git repository or a local directory). Where the package manager runs them by default, or an entry in its own allow-list lets them run, these packages execute code the policy does not allow; where it blocks them, they may not work without a build step. A package in installScripts.deny was reviewed and works without its scripts, so it is reported only while the package manager still runs them (or builds it from source), or when it cannot be installed without a build. Only npm, Bun (1.4.4+) and Deno (lockfile v5) record install scripts in the lockfile; uv.lock, poetry.lock, pdm.lock and pylock.toml show which Python packages have no wheel. pip requirements files and Pipfile.lock list hashes only, so the check does not apply to their packages from an index (depcurfew check pypi:<name> shows whether one has wheels), only to requirements from a repository, a URL or a local path.",
 	help: "Remove or replace the package, or review it and add it to installScripts.allow in depcurfew.json, or to installScripts.deny when it works without its scripts (Python packages with the prefix pypi:). For a package in installScripts.deny, make the package manager block its scripts (depcurfew apply records the denial where the tool can).",
 	level: "error",
 	requiresPolicy: true,
+	applies: (scope) => hasBuildRecords(scope.detection.packageManagers, scope.tools),
 	check(context) {
 		const policy = context.policy;
 		if (policy?.installScripts?.default !== "deny") return;
@@ -20959,6 +28522,7 @@ const lockfileInstallScripts = {
 			const deny = view?.deny ?? [];
 			if (ecosystemOfTool(tool) === "pypi") {
 				reportPythonBuilds(context, lockfile, tool, allow, deny);
+				if (!showsBuilds(tool, lockfile.file, context.tools) && lockfile.entries.some((entry) => entry.source === "registry" && entry.installScript === void 0)) context.notice(`lockfile-install-scripts cannot tell from ${lockfile.file} which packages from the index are built from source: it lists no wheels or source distributions; depcurfew check pypi:<name> shows whether a package has wheels`, lockfile.file);
 				return;
 			}
 			if (!lockfile.recordsScripts) {
@@ -20968,7 +28532,9 @@ const lockfileInstallScripts = {
 			const flagged = lockfile.entries.filter((entry) => entry.installScript === true);
 			if (flagged.length === 0 && tool.id === "bun") context.notice(`${lockfile.file} marks no package with install scripts; Bun records them only since 1.4.4, so an older lockfile may hide some`, lockfile.file);
 			const disabledBy = scriptsDisabledBy(context, tool);
-			const running = disabledBy === void 0 && runsScripts(context, tool);
+			const runner = disabledBy?.all === true ? void 0 : runsScripts(context, tool, disabledBy !== void 0);
+			const running = runner !== void 0;
+			const runs = runner?.text === void 0 ? `${tool.name} runs them by default` : `${runner.text} ${runner.unknown === true ? "may run" : runner.several === true ? "run" : "runs"} them`;
 			const lists = ownLists(context, tool);
 			for (const entry of flagged) {
 				if (allow.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
@@ -20989,7 +28555,7 @@ const lockfileInstallScripts = {
 					context.report({
 						level: "error",
 						location: location(lockfile, entry),
-						message: `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} denies them`,
+						message: `${entry.name} has install scripts and ${runs}, but ${POLICY_FILE} denies them`,
 						fix: `Make ${tool.name} stop running dependency install scripts (run depcurfew apply and follow its warnings), or replace the package`
 					});
 					continue;
@@ -20997,7 +28563,7 @@ const lockfileInstallScripts = {
 				context.report({
 					level: running ? "error" : "warning",
 					location: location(lockfile, entry),
-					message: running ? `${entry.name} has install scripts and ${tool.name} runs them by default, but ${POLICY_FILE} does not allow it` : disabledBy === void 0 ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them` : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy.reason}; the package may need them`,
+					message: running ? `${entry.name} has install scripts and ${runs}, but ${POLICY_FILE} does not allow it` : disabledBy === void 0 ? `${entry.name} has install scripts that ${tool.name} will not run because ${POLICY_FILE} does not allow it; the package may need them` : `${entry.name} has install scripts that ${tool.name} will not run because ${disabledBy.reason}; the package may need them`,
 					fix: running ? `Review its scripts and add ${entry.name} to installScripts.allow in ${POLICY_FILE}, or replace the package` : `Review its scripts: add ${entry.name} to installScripts.allow in ${POLICY_FILE} if it needs them, or to installScripts.deny if it works without them; otherwise replace the package`
 				});
 			}
@@ -21031,274 +28597,458 @@ function ownLists(context, tool) {
 	};
 }
 
-// src/doctor/version-range.ts
-const PARTIAL = /^v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u;
-/** Comparator operators; a space between an operator and its version is allowed, as in semver. */
-const OPERATOR = /(\^|~>?|>=|<=|>|<|=)\s+/gu;
-function partial(text) {
-	const match = PARTIAL.exec(text);
-	if (match === null) return void 0;
-	const number = (part) => part === void 0 || /^[xX*]$/u.test(part) ? void 0 : Number(part);
-	const major = Number(match[1]);
-	const minor = number(match[2]);
-	const patch = minor === void 0 ? void 0 : number(match[3]);
-	const complete = minor !== void 0 && patch !== void 0;
-	const version = [
-		major,
-		minor ?? 0,
-		patch ?? 0
-	];
+// src/doctor/locked-settings.ts
+const isStrings$1 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const SPAN_UNITS = [
+	"years",
+	"months",
+	"weeks",
+	"days",
+	"hours",
+	"minutes",
+	"seconds",
+	"milliseconds",
+	"microseconds",
+	"nanoseconds"
+];
+const isSpanSyntax = (value) => isRecord(value) && isRecord(value["friendlyUnits"]) && SPAN_UNITS.every((unit) => isStrings$1(value["friendlyUnits"][unit])) && isStrings$1(value["rejectedUnits"]);
+/** ISO 8601 durations as jiff prints and reads them: P1Y2M3W4DT5H6M7S, whole numbers only. */
+function isoSpan(text) {
+	const match = /^([+-]?)P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/iu.exec(text);
+	if (match === null || /^[+-]?P$/iu.test(text) || /T$/iu.test(text)) return void 0;
+	const units = {};
+	[
+		"years",
+		"months",
+		"weeks",
+		"days",
+		"hours",
+		"minutes",
+		"seconds"
+	].forEach((unit, index) => {
+		const value = match[index + 2];
+		if (value !== void 0) units[unit] = BigInt(value);
+	});
 	return {
-		bound: complete && match[4] !== void 0 ? {
-			version,
-			prerelease: match[4]
-		} : { version },
-		complete
+		negative: match[1] === "-",
+		units
 	};
 }
-/** The bound as a version, with its prerelease identifiers. */
-function versionOf(bound) {
-	const [major, minor, patch] = bound.version;
-	return bound.prerelease === void 0 ? [
-		major,
-		minor,
-		patch
-	] : [
-		major,
-		minor,
-		patch,
-		bound.prerelease
-	];
-}
-/** Orders bounds as compareVersions orders pinned versions: a prerelease before its release, as in semver. */
-function compareBounds(a, b) {
-	return compareVersions$1(versionOf(a), versionOf(b));
-}
-/** Whether `bound` comes before the release `version`. */
-function belowVersion(bound, version) {
-	return compareBounds(bound, { version }) < 0;
-}
-function formatBound(bound) {
-	return formatVersion(versionOf(bound));
-}
-/** Lower bound of one comparator set (space-separated comparators that must all hold). */
-function setLowerBound(set) {
-	const hyphen = /^(\S+)\s+-\s+(\S+)$/u.exec(set);
-	if (hyphen !== null) {
-		const from = partial(hyphen[1] ?? "");
-		return from === void 0 ? void 0 : {
-			bound: from.bound,
-			exact: false
-		};
+/** jiff's friendly format with whole numbers ("3 days", "1w", "2 weeks, 3 days", "-1 day", "1 day ago"). */
+function friendlySpan(text, syntax) {
+	let rest = text.trim();
+	let negative = false;
+	if (/^[+-]/u.test(rest)) {
+		negative = rest.startsWith("-");
+		rest = rest.slice(1).trimStart();
+	} else if (/\sago$/u.test(rest)) {
+		negative = true;
+		rest = rest.slice(0, -3).trimEnd();
 	}
-	const comparators = set.replaceAll(OPERATOR, "$1").split(/\s+/u).filter(Boolean);
-	if (comparators.length === 0 || comparators.every((part) => /^[xX*]$/u.test(part))) return {
-		bound: { version: [
-			0,
-			0,
-			0
-		] },
-		exact: false
-	};
-	let lowest = { version: [
-		0,
-		0,
-		0
-	] };
-	let exact = comparators.length === 1;
-	for (const comparator of comparators) {
-		const match = /^(\^|~>?|>=|<=|>|<|=)?(.+)$/u.exec(comparator);
+	const units = {};
+	let last = -1;
+	while (rest !== "") {
+		const match = /^(\d+)[ \t\n\f\r]*([A-Za-z]+)[ \t\n\f\r]*(?:,[ \t\n\f\r]*)?/u.exec(rest);
 		if (match === null) return void 0;
-		const operator = match[1] ?? "";
-		const value = partial(match[2] ?? "");
-		if (value === void 0) return void 0;
-		if (operator === "<" || operator === "<=") {
-			exact = false;
-			continue;
-		}
-		let bound = value.bound;
-		if (operator === ">" && bound.prerelease === void 0) {
-			const given = (match[2] ?? "").split(".").filter((part) => /^\d+$/u.test(part)).length;
-			const [major, minor, patch] = bound.version;
-			bound = { version: given >= 3 ? [
-				major,
-				minor,
-				patch + 1
-			] : given === 2 ? [
-				major,
-				minor + 1,
-				0
-			] : [
-				major + 1,
-				0,
-				0
-			] };
-		}
-		if (operator !== "" && operator !== "=") exact = false;
-		if (!value.complete) exact = false;
-		if (compareBounds(bound, lowest) > 0) lowest = bound;
+		const word = (match[2] ?? "").toLowerCase();
+		const index = SPAN_UNITS.findIndex((unit) => syntax.friendlyUnits[unit].includes(word));
+		if (index <= last) return void 0;
+		last = index;
+		units[SPAN_UNITS[index]] = BigInt(match[1] ?? "0");
+		rest = rest.slice(match[0].length);
 	}
-	return {
-		bound: lowest,
-		exact
+	return last === -1 ? void 0 : {
+		negative,
+		units
 	};
 }
-function lowestVersion(text) {
-	const trimmed = text.trim();
-	if (trimmed === "" || trimmed.includes("${{")) return { kind: "unknown" };
-	let result;
-	for (const set of trimmed.split("||")) {
-		const lower = setLowerBound(set.trim());
-		if (lower === void 0) return { kind: "unknown" };
-		const order = result === void 0 ? -1 : compareBounds(lower.bound, result.bound);
-		if (result === void 0 || order < 0) result = lower;
-		else if (order === 0) result = {
-			bound: result.bound,
-			exact: result.exact && lower.exact
+/** A span as uv reads it from a setting (friendly or ISO 8601), or undefined when depcurfew cannot read it as uv does. */
+function parseSpan(text, syntax) {
+	const span = isoSpan(text.trim()) ?? friendlySpan(text, syntax);
+	if (span === void 0 || syntax.rejectedUnits.some((unit) => (span.units[unit] ?? 0n) !== 0n)) return void 0;
+	return span;
+}
+/** Fieldwise equality, as ExcludeNewerSpan compares: the same number in every unit, and the same sign unless it is zero. */
+function sameSpan(a, b) {
+	const zero = (span) => SPAN_UNITS.every((unit) => (span.units[unit] ?? 0n) === 0n);
+	if (zero(a) || zero(b)) return zero(a) && zero(b);
+	return a.negative === b.negative && SPAN_UNITS.every((unit) => (a.units[unit] ?? 0n) === (b.units[unit] ?? 0n));
+}
+/** "7 days" and "1 week" cover the same time but are different spans to uv. */
+function sameLength(a, b) {
+	const nanos = {
+		years: -1n,
+		months: -1n,
+		weeks: 604800000000000n,
+		days: 86400000000000n,
+		hours: 3600000000000n,
+		minutes: 60000000000n,
+		seconds: 1000000000n,
+		milliseconds: 1000000n,
+		microseconds: 1000n,
+		nanoseconds: 1n
+	};
+	const total = (span) => SPAN_UNITS.reduce((sum, unit) => sum + (span.units[unit] ?? 0n) * nanos[unit], 0n) * (span.negative ? -1n : 1n);
+	return total(a) === total(b);
+}
+/** An RFC 3339 timestamp in nanoseconds since 1970, or undefined for anything else (a date alone included). */
+function parseTimestamp(text) {
+	const match = /^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(?:([Zz])|([+-])(\d{2}):(\d{2}))$/u.exec(text.trim());
+	if (match === null) return void 0;
+	const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
+	const milliseconds = Date.UTC(year, month - 1, day, hour, minute, second);
+	const check = new Date(milliseconds);
+	if (Number.isNaN(milliseconds) || check.getUTCDate() !== day || check.getUTCMonth() !== month - 1 || hour > 23 || minute > 59 || second > 60) return void 0;
+	const fraction = BigInt((match[7] ?? "").padEnd(9, "0") || "0");
+	const offset = match[8] !== void 0 ? 0 : (match[9] === "-" ? -1 : 1) * (Number(match[10]) * 60 + Number(match[11])) * 60;
+	return (BigInt(milliseconds / 1e3) - BigInt(offset)) * 1000000000n + fraction;
+}
+const isLockOptions = (value) => isRecord(value) && [
+	"table",
+	"timestamp",
+	"span",
+	"packages",
+	"packageTimestamp",
+	"packageSpan",
+	"placeholder"
+].every((key) => typeof value[key] === "string");
+/** A value of exclude-newer as uv reads it from a setting: a timestamp, then a date (unknown here), then a span. */
+function settingValue(value, syntax) {
+	const text = value instanceof TomlDateTime ? value.text : value;
+	if (typeof text !== "string") return { kind: "unknown" };
+	const at = parseTimestamp(text);
+	if (at !== void 0) return {
+		kind: "timestamp",
+		at,
+		text
+	};
+	if (/^\d{4}-\d{2}-\d{2}$/u.test(text.trim())) return { kind: "unknown" };
+	const span = parseSpan(text, syntax);
+	return span === void 0 ? { kind: "unknown" } : {
+		kind: "span",
+		span,
+		text
+	};
+}
+/** A value uv.lock records: a span next to a placeholder timestamp, or a timestamp. */
+function lockedValue(timestamp, span, options, syntax) {
+	if (typeof span === "string") {
+		const parsed = parseSpan(span, syntax);
+		return parsed === void 0 ? { kind: "unknown" } : {
+			kind: "span",
+			span: parsed,
+			text: span
 		};
 	}
-	if (result === void 0) return { kind: "unknown" };
-	const sets = trimmed.split("||").length;
+	const text = timestamp instanceof TomlDateTime ? timestamp.text : timestamp;
+	if (text === void 0) return void 0;
+	if (typeof text !== "string" || text === options.placeholder) return { kind: "unknown" };
+	const at = parseTimestamp(text);
+	return at === void 0 ? { kind: "unknown" } : {
+		kind: "timestamp",
+		at,
+		text
+	};
+}
+/** Whether uv locks again for this pair, as compare_exclude_newer_value decides: true, false, or undefined (cannot tell). */
+function valueChanged(locked, current) {
+	if (locked.kind === "unknown" || current.kind === "unknown") return void 0;
+	if (locked.kind !== current.kind) return true;
+	if (locked.kind === "span" && current.kind === "span") return !sameSpan(locked.span, current.span);
+	return locked.kind === "timestamp" && current.kind === "timestamp" ? current.at < locked.at : void 0;
+}
+/**
+* The first change of exclude-newer or exclude-newer-package between uv.lock and the settings, the way uv finds it
+* (extra.lockComparison); undefined when there is none, or when depcurfew cannot tell.
+*/
+function uvLockChange(tool, lock, lockedPackages, configFile, setting) {
+	if (tool.extra?.["lockOptions"] === void 0 || tool.extra["spanSyntax"] === void 0) return void 0;
+	const options = extraOf(tool, "lockOptions", isLockOptions);
+	const syntax = extraOf(tool, "spanSyntax", isSpanSyntax);
+	const table = tomlValueAt(lock, [options.table]);
+	const recorded = isRecord(table) ? table : {};
+	const lineOf = (...path) => lock.lineOf([options.table, ...path]);
+	const where = (found) => `${found.file} (line ${found.line})`;
+	const global = setting(options.timestamp);
+	const current = global === void 0 || global.value === false ? void 0 : settingValue(global.value, syntax);
+	const locked = lockedValue(recorded[options.timestamp], recorded[options.span], options, syntax);
+	const lockedText = typeof recorded[options.span] === "string" ? `${options.span} = ${JSON.stringify(recorded[options.span])}` : `${options.timestamp} = ${JSON.stringify(locked?.kind === "timestamp" ? locked.text : recorded[options.timestamp])}`;
+	const lockedLine = typeof recorded[options.span] === "string" ? lineOf(options.span) : lineOf(options.timestamp);
+	if (locked === void 0 && current !== void 0 && global !== void 0) return {
+		setting: options.timestamp,
+		locked: void 0,
+		current: `${options.timestamp} in ${where(global)} is ${JSON.stringify(global.value instanceof TomlDateTime ? global.value.text : global.value)}`,
+		line: void 0
+	};
+	if (locked !== void 0 && current === void 0) {
+		const file = global?.file;
+		return {
+			setting: options.timestamp,
+			locked: lockedText,
+			current: file === void 0 ? `${configFile} does not set ${options.timestamp}` : `${options.timestamp} is false in ${file}`,
+			line: lockedLine
+		};
+	}
+	if (locked !== void 0 && current !== void 0 && global !== void 0 && valueChanged(locked, current) === true) {
+		const note = locked.kind === "span" && current.kind === "span" && sameLength(locked.span, current.span) ? ` (uv compares the units as written, so ${spanWords(current.span)} is not ${spanWords(locked.span)})` : void 0;
+		return {
+			setting: options.timestamp,
+			locked: lockedText,
+			current: `${options.timestamp} in ${where(global)} is ${JSON.stringify(current.kind === "unknown" ? "" : current.text)}`,
+			line: lockedLine,
+			...note === void 0 ? {} : { note }
+		};
+	}
+	const packagesSetting = setting(options.packages);
+	const configured = /* @__PURE__ */ new Map();
+	if (packagesSetting !== void 0) {
+		if (!isRecord(packagesSetting.value)) return void 0;
+		for (const [name, value] of Object.entries(packagesSetting.value)) configured.set(normalizePythonName(name), value === false ? { kind: "disabled" } : {
+			kind: "enabled",
+			value: settingValue(value, syntax) ?? { kind: "unknown" },
+			text: JSON.stringify(value instanceof TomlDateTime ? value.text : value)
+		});
+	}
+	const lockedTable = recorded[options.packages];
+	const lockedOverrides = /* @__PURE__ */ new Map();
+	if (lockedTable !== void 0) {
+		if (!isRecord(lockedTable)) return void 0;
+		for (const [key, value] of Object.entries(lockedTable)) {
+			const override = value === false ? { kind: "disabled" } : isRecord(value) ? {
+				kind: "enabled",
+				value: lockedValue(value[options.packageTimestamp], value[options.packageSpan], options, syntax) ?? { kind: "unknown" },
+				text: tomlInline(value)
+			} : {
+				kind: "enabled",
+				value: lockedValue(value, void 0, options, syntax) ?? { kind: "unknown" },
+				text: JSON.stringify(value instanceof TomlDateTime ? value.text : value)
+			};
+			lockedOverrides.set(normalizePythonName(key), {
+				override,
+				key
+			});
+		}
+	}
+	const counted = /* @__PURE__ */ new Set([...lockedPackages.map(normalizePythonName), ...lockedOverrides.keys()]);
+	const packageWhere = packagesSetting === void 0 ? configFile : where(packagesSetting);
+	const lockedPackageText = (_name, entry) => `${options.packages} ${entry.key} = ${entry.override.kind === "disabled" ? "false" : entry.override.text}`;
+	for (const [name, entry] of lockedOverrides) {
+		const now = configured.get(name);
+		const line = lineOf(options.packages, entry.key);
+		if (now === void 0) return {
+			setting: options.packages,
+			locked: lockedPackageText(name, entry),
+			current: `${packagesSetting?.file ?? configFile} does not set ${options.packages} for ${name}`,
+			line
+		};
+		if (entry.override.kind === "disabled" && now.kind === "enabled") return {
+			setting: options.packages,
+			locked: lockedPackageText(name, entry),
+			current: `${options.packages} for ${name} in ${packageWhere} is ${now.text}`,
+			line
+		};
+		if (entry.override.kind === "enabled" && now.kind === "enabled" && valueChanged(entry.override.value, now.value) === true) return {
+			setting: options.packages,
+			locked: lockedPackageText(name, entry),
+			current: `${options.packages} for ${name} in ${packageWhere} is ${now.text}`,
+			line
+		};
+	}
+	for (const [name, now] of configured) {
+		if (!counted.has(name) || lockedOverrides.has(name) || now.kind !== "enabled") continue;
+		return {
+			setting: options.packages,
+			locked: void 0,
+			current: `${options.packages} for ${name} in ${packageWhere} is ${now.text}`,
+			line: void 0
+		};
+	}
+}
+function spanWords(span) {
+	const parts = SPAN_UNITS.filter((unit) => (span.units[unit] ?? 0n) !== 0n).map((unit) => {
+		const count = span.units[unit] ?? 0n;
+		return `${count} ${count === 1n ? unit.slice(0, -1) : unit}`;
+	});
+	return `${span.negative ? "-" : ""}${parts.join(" ") || "0 days"}`;
+}
+function tomlInline(value) {
+	return `{ ${Object.entries(value).map(([key, item]) => `${key} = ${JSON.stringify(item instanceof TomlDateTime ? item.text : item)}`).join(", ")} }`;
+}
+const isPath = (value) => isStrings$1(value);
+const isLockHash = (value) => isRecord(value) && isPath(value["key"]) && typeof value["separator"] === "string" && isPath(value["inputs"]) && isPath(value["inputsSetting"]) && isPath(value["workspace"]) && isPath(value["project"]) && Array.isArray(value["fields"]) && value["fields"].every((field) => isRecord(field) && typeof field["name"] === "string" && isPath(field["path"])) && isRecord(value["groups"]) && typeof value["groups"]["name"] === "string" && Array.isArray(value["groups"]["tables"]) && value["groups"]["tables"].every(isPath) && typeof value["groups"]["separators"] === "string";
+/** A JSON string as Python's json.dumps writes it (ensure_ascii): every character outside space..~ as \uXXXX. */
+function pythonString(text) {
+	const escapes = {
+		"\"": "\\\"",
+		"\\": "\\\\",
+		"\b": "\\b",
+		"\f": "\\f",
+		"\n": "\\n",
+		"\r": "\\r",
+		"	": "\\t"
+	};
+	let out = "\"";
+	for (let index = 0; index < text.length; index++) {
+		const char = text[index] ?? "";
+		const code = text.charCodeAt(index);
+		if (escapes[char] !== void 0) out += escapes[char];
+		else if (code >= 32 && code <= 126) out += char;
+		else out += `\\u${code.toString(16).padStart(4, "0")}`;
+	}
+	return `${out}"`;
+}
+/** Code-point order, as Python sorts str keys: the code points of each key are taken once, not at each comparison. */
+function byCodePoint(keys) {
+	const points = keys.map((key) => ({
+		key,
+		points: [...key].map((char) => char.codePointAt(0) ?? 0)
+	}));
+	points.sort((a, b) => {
+		const length = Math.min(a.points.length, b.points.length);
+		for (let index = 0; index < length; index++) {
+			const difference = (a.points[index] ?? 0) - (b.points[index] ?? 0);
+			if (difference !== 0) return difference;
+		}
+		return a.points.length - b.points.length;
+	});
+	return points.map((entry) => entry.key);
+}
+/**
+* json.dumps(value, sort_keys=True) as Python writes it; undefined for a value whose text depcurfew cannot be sure of:
+* numbers (the TOML reader does not keep 1.0 apart from 1, which Python writes differently), dates (which json.dumps
+* cannot write), and a string with a carriage return (a multi-line string, which TOML readers may write differently).
+*/
+function pythonJson(value) {
+	if (typeof value === "string") return value.includes("\r") ? void 0 : pythonString(value);
+	if (typeof value === "boolean") return value ? "true" : "false";
+	if (Array.isArray(value)) {
+		const items = value.map(pythonJson);
+		return items.some((item) => item === void 0) ? void 0 : `[${items.join(", ")}]`;
+	}
+	if (isRecord(value) && !(value instanceof TomlDateTime)) {
+		const keys = byCodePoint(Object.keys(value));
+		const parts = [];
+		for (const key of keys) {
+			const item = pythonJson(value[key]);
+			if (item === void 0) return void 0;
+			parts.push(`${pythonString(key)}: ${item}`);
+		}
+		return `{${parts.join(", ")}}`;
+	}
+}
+/**
+* Compares the content_hash of pdm.lock with the one PDM computes from pyproject.toml now (extra.lockHash); undefined
+* when PDM does not use it (canonical lock inputs), computes it differently (a workspace root, no [project] table), or
+* depcurfew cannot compute it the same way.
+*/
+function pdmHash(tool, lock, pyproject) {
+	if (tool.extra?.["lockHash"] === void 0) return void 0;
+	const fact = extraOf(tool, "lockHash", isLockHash);
+	const recorded = tomlValueAt(lock, fact.key);
+	if (typeof recorded !== "string") return void 0;
+	const at = recorded.indexOf(fact.separator);
+	if (at <= 0) return void 0;
+	const algorithm = recorded.slice(0, at);
+	const expected = recorded.slice(at + fact.separator.length).toLowerCase();
+	if (tomlValueAt(lock, fact.inputs) !== void 0 || tomlValueAt(pyproject, fact.inputsSetting) === true) return void 0;
+	const workspace = tomlValueAt(pyproject, fact.workspace);
+	if (workspace !== void 0 && !(isRecord(workspace) && Object.keys(workspace).length === 0)) return void 0;
+	if (!isRecord(tomlValueAt(pyproject, fact.project))) return void 0;
+	const groups = /* @__PURE__ */ new Map();
+	const separators = new RegExp(fact.groups.separators, "gu");
+	for (const [index, path] of fact.groups.tables.entries()) {
+		const table = tomlValueAt(pyproject, path);
+		if (table === void 0) continue;
+		if (!isRecord(table)) return void 0;
+		for (const [name, list] of Object.entries(table)) {
+			if (!Array.isArray(list)) return void 0;
+			const group = name.replace(separators, "-").toLowerCase();
+			const known = groups.get(group);
+			if (index === 0 && known !== void 0) return void 0;
+			if (known === void 0) groups.set(group, [...list]);
+			else for (const item of list) known.push(item);
+		}
+	}
+	const dump = { [fact.groups.name]: Object.fromEntries(groups) };
+	for (const field of fact.fields) dump[field.name] = tomlValueAt(pyproject, field.path) ?? field.missing;
+	const text = pythonJson(dump);
+	if (text === void 0) return void 0;
+	let actual;
+	try {
+		actual = createHash(algorithm).update(text, "utf8").digest("hex");
+	} catch {
+		return;
+	}
 	return {
-		kind: result.exact && sets === 1 ? "exact" : "range",
-		...result.bound
+		matches: actual === expected,
+		line: lock.lineOf(fact.key)
 	};
 }
 
-// src/doctor/rules/manager-version.ts
-function feature(setting, since) {
-	if (setting === null || since === void 0) return void 0;
-	const version = typeof since === "string" ? since : sinceOf(since);
-	if (version === void 0 || parseVersion(version) === void 0) return void 0;
-	return {
-		setting,
-		since: version,
-		disputed: typeof since !== "string" && since.status === "disputed"
+// src/doctor/rules/lockfile-out-of-date.ts
+const isLockedSettings = (value) => isRecord(value) && typeof value["lock"] === "string" && Array.isArray(value["failing"]) && value["failing"].every((item) => typeof item === "string");
+/** The lockfile of the tool the project has, from the knowledge base, with the commands that lock again and that fail. */
+function lockfileOf(context, tool) {
+	if (tool.extra?.["lockedSettings"] === void 0) return void 0;
+	const locked = extraOf(tool, "lockedSettings", isLockedSettings);
+	const file = (tool.project === void 0 ? [] : values$1(tool.project.lockfiles).flatMap((versions) => versions.flatMap((entry) => [...entry.value]))).find((name) => context.repository.isFile(name));
+	return file === void 0 ? void 0 : {
+		file,
+		locked
 	};
 }
-/** Settings depcurfew.json makes `apply` write for this tool. */
-function policyFeatures(tool, policy) {
-	const features = [];
-	if (policy.cooldown !== void 0) {
-		features.push(feature(settingOf(tool.cooldown.setting), tool.cooldown.availableSince));
-		const exact = tool.extra?.["cooldownExactVersions"] === void 0 ? void 0 : values$1(tool.extra["cooldownExactVersions"])[0];
-		const setting = settingOf(tool.cooldown.setting);
-		if (typeof exact === "string" && setting !== null) features.push(feature(`${setting} for packages requested by exact version`, exact));
-		if (policy.cooldown.exclude.length > 0) features.push(feature(settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince));
-	}
-	if (policy.installScripts !== void 0) {
-		const build = tool.extra?.["buildSwitch"] === void 0 ? void 0 : values$1(tool.extra["buildSwitch"])[0];
-		if (policy.installScripts.default === "deny" && isSwitch(build)) features.push(feature(build.setting, build.since));
-		const allowAll = tool.extra?.["allowAllScripts"] ?? tool.extra?.["allowAllBuilds"];
-		const switchFact = allowAll === void 0 ? void 0 : values$1(allowAll)[0];
-		if (policy.installScripts.default === "allow" && isSwitch(switchFact)) features.push(feature(switchFact.setting, switchFact.since));
-		if (policy.installScripts.default === "deny" && policy.installScripts.allow.length > 0) {
-			const legacy = tool.extra?.["onlyBuiltDependencies"] === void 0 ? void 0 : extraOf(tool, "onlyBuiltDependencies", isRecord);
-			const setting = settingOf(tool.installScripts.allowList.setting);
-			features.push(legacy !== void 0 && typeof legacy["since"] === "string" ? feature(setting, legacy["since"]) : feature(setting?.includes("<") ? setting.split(".")[0] ?? setting : setting, tool.installScripts.allowList.availableSince));
-		}
-	}
-	for (const kind of SOURCE_KINDS) {
-		const source = tool.sources?.[kind];
-		if (policy.sources?.[kind] !== void 0 && source !== void 0) features.push(feature(settingOf(source.setting), source.availableSince));
-	}
-	return features.filter((item) => item !== void 0);
+function checkUv$1(context, tool) {
+	const found = lockfileOf(context, tool);
+	if (found === void 0) return;
+	const lock = readTomlDocument(context.repository, found.file);
+	if (lock === void 0) return;
+	const packages = tomlValueAt(lock, ["package"]);
+	const names = Array.isArray(packages) ? packages.flatMap((item) => isRecord(item) && typeof item["name"] === "string" ? [item["name"]] : []) : [];
+	const configFile = pythonSettingPaths(context.repository, tool, "exclude-newer")[0]?.file ?? "pyproject.toml";
+	const change = uvLockChange(tool, lock, names, configFile, (key) => readPythonSetting(context.repository, tool, key));
+	if (change === void 0) return;
+	context.report({
+		location: change.line === void 0 ? { file: found.file } : {
+			file: found.file,
+			line: change.line
+		},
+		message: `${found.file} was locked ${change.locked === void 0 ? `without ${change.setting}` : `with ${change.locked}`}, but ${change.current} now${change.note ?? ""}, so ${listing$1(found.locked.failing)} fail until ${found.locked.lock} runs again`,
+		fix: `Run ${found.locked.lock} and commit ${found.file}, or set ${change.setting} back in ${configFile} if the change was not intended`
+	});
 }
-/** Settings already present in the manager's own configuration file. */
-function configuredFeatures(context, tool) {
-	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
-	if (file === void 0) return [];
-	const candidates = [
-		[settingOf(tool.cooldown.setting), tool.cooldown.availableSince],
-		[settingOf(tool.cooldown.exclude.setting), tool.cooldown.exclude.availableSince],
-		...SOURCE_KINDS.map((kind) => [settingOf(tool.sources?.[kind]?.setting), tool.sources?.[kind]?.availableSince])
-	];
-	const files = tool.id === "deno" ? context.detection.packageManagers.find((entry) => entry.id === "deno")?.configFiles.filter((name) => /^deno\.jsonc?$/u.test(name)) ?? [] : [file];
-	const configured = (setting) => ecosystemOfTool(tool) === "pypi" ? readPythonSetting(context.repository, tool, setting) !== void 0 : files.some((name) => readSetting(context.repository, name, setting) !== void 0);
-	return candidates.filter(([setting]) => setting !== null && configured(setting)).map(([setting, since]) => feature(setting, since)).filter((item) => item !== void 0);
+function checkPdm$1(context, tool) {
+	const found = lockfileOf(context, tool);
+	if (found === void 0) return;
+	const lock = readTomlDocument(context.repository, found.file);
+	const pyproject = readTomlDocument(context.repository, "pyproject.toml");
+	if (lock === void 0 || pyproject === void 0) return;
+	const result = pdmHash(tool, lock, pyproject);
+	if (result === void 0 || result.matches) return;
+	context.report({
+		location: result.line === void 0 ? { file: found.file } : {
+			file: found.file,
+			line: result.line
+		},
+		message: `${found.file} does not match pyproject.toml: its content_hash is not the one ${tool.name} computes from the dependencies, sources and [tool.pdm.resolution] settings of pyproject.toml now, so ${listing$1(found.locked.failing)} fail until ${found.locked.lock} runs again`,
+		fix: `Run ${found.locked.lock} and commit ${found.file}, or undo the change to pyproject.toml if it was not intended`
+	});
 }
-const SOURCE_LABEL = {
-	packageManager: "packageManager",
-	"tool-config": "the required version",
-	devEngines: "devEngines",
-	volta: "Volta",
-	"tool-versions": ".tool-versions",
-	"github-actions": "GitHub Actions"
-};
-/** Where a version is declared, for messages; a tool's own required version is named by its key. */
-function sourceLabel(tool, declaration) {
-	if (declaration.source !== "tool-config") return SOURCE_LABEL[declaration.source];
-	const required = tool.extra?.["requiredVersion"] === void 0 ? void 0 : values$1(tool.extra["requiredVersion"])[0];
-	if (!isRecord(required) || typeof required["key"] !== "string") return SOURCE_LABEL[declaration.source];
-	return declaration.file.endsWith("pyproject.toml") && typeof required["table"] === "string" ? `${required["key"]} in [${required["table"]}]` : required["key"];
-}
-function declarationLine(context, declaration) {
-	if (declaration.line !== void 0) return declaration.line;
-	const text = context.repository.readText(declaration.file);
-	if (text === void 0) return void 0;
-	const key = declaration.source === "packageManager" ? "\"packageManager\"" : declaration.source === "devEngines" ? "\"devEngines\"" : declaration.source === "volta" ? "\"volta\"" : void 0;
-	return key === void 0 ? void 0 : lineOf$1(text, key);
-}
-function checkManager(context, manager, tool) {
-	const features = /* @__PURE__ */ new Map();
-	for (const item of [...context.policy === void 0 ? [] : policyFeatures(tool, policyFor(context.policy, ecosystemOfTool(tool))), ...configuredFeatures(context, tool)]) features.set(item.setting, item);
-	if (features.size === 0) return;
-	for (const declaration of manager.versions) {
-		if (!("version" in declaration)) continue;
-		const lowest = lowestVersion(declaration.version);
-		const label = sourceLabel(tool, declaration);
-		const where = `${label} (${declaration.file})`;
-		if (lowest.kind === "unknown") {
-			context.notice(`manager-version-too-old cannot evaluate ${tool.name} version "${declaration.version}" in ${declaration.file}`, declaration.file);
-			continue;
-		}
-		const below = [...features.values()].filter((item) => belowVersion(lowest, parseVersion(item.since)));
-		const missing = below.filter((item) => !below.some((other) => other !== item && item.setting.startsWith(`${other.setting} for `)));
-		if (missing.length === 0) continue;
-		const needed = missing.map((item) => parseVersion(item.since)).reduce((a, b) => compareVersions$1(a, b) >= 0 ? a : b);
-		const list = describeRequirements(missing);
-		const line = declarationLine(context, declaration);
-		const subject = lowest.kind === "exact" ? `${tool.name} ${formatBound(lowest)} in ${where} does not support ${list}` : `${where} allows ${tool.name} ${formatBound(lowest)} ("${declaration.version}"), which does not support ${list}`;
-		context.report({
-			level: lowest.kind === "exact" ? "error" : "warning",
-			location: line === void 0 ? { file: declaration.file } : {
-				file: declaration.file,
-				line
-			},
-			message: subject,
-			fix: `Require ${tool.name} ${formatVersion(needed)} or later in ${label}`
-		});
-	}
-}
-const managerVersionTooOld = {
-	id: "manager-version-too-old",
-	checks: "The declared package manager versions support the settings the repository relies on",
-	summary: "A declared package manager version is older than a setting the repository relies on.",
-	description: "Package managers ignore settings they do not know yet. When packageManager, devEngines, Volta, .tool-versions or a CI step pins an older version, the setting is silently not applied there.",
-	help: "Raise the declared version to at least the version that introduced the setting, everywhere it is declared.",
-	level: "error",
+const TOOLS = /* @__PURE__ */ new Set(["uv", "pdm"]);
+const lockfileOutOfDate = {
+	id: "lockfile-out-of-date",
+	checks: "uv.lock and pdm.lock were locked with the settings the project has now",
+	summary: "A uv.lock or pdm.lock was locked with other settings than the project has now.",
+	description: "uv records the release-age delay (exclude-newer and exclude-newer-package) in uv.lock, and PDM checks pdm.lock against a hash of the dependencies, the sources and the [tool.pdm.resolution] table, the delay and the build ban included. After a change, by depcurfew apply or by hand, uv sync --locked, uv lock --check, pdm lock --check and pdm install --check fail until the lockfile is locked again, and the lockfile still holds what was resolved under the old settings.",
+	help: "Lock again (uv lock or pdm lock) and commit the lockfile.",
+	level: "warning",
 	requiresPolicy: false,
+	applies: (scope) => scope.detection.packageManagers.some((manager) => manager.supported && TOOLS.has(manager.id) && manager.evidence.some((evidence) => evidence.kind === "lockfile")),
 	check(context) {
-		for (const manager of context.detection.packageManagers.filter((entry) => entry.supported)) {
+		for (const manager of context.detection.packageManagers) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
-			if (tool !== void 0) checkManager(context, manager, tool);
-		}
-		for (const manager of context.detection.packageManagers.filter((entry) => !entry.supported && entry.variant === "classic")) {
-			const berry = context.tools.find((entry) => entry.id === manager.id);
-			if (context.policy === void 0 || berry === void 0) continue;
-			const declaration = manager.versions.find((entry) => entry.source === "packageManager");
-			const file = declaration?.file ?? manager.evidence[0]?.file ?? "package.json";
-			const line = declaration === void 0 ? void 0 : declarationLine(context, declaration);
-			const since = sinceOf(berry.cooldown.availableSince);
-			context.report({
-				level: "error",
-				location: line === void 0 ? { file } : {
-					file,
-					line
-				},
-				message: `Yarn Classic (1.x) has none of the settings ${POLICY_FILE} needs (release-age delay, install-script allow-list, dependency sources), so the policy does not apply to it`,
-				fix: `Move to ${berry.name}${since === void 0 ? "" : ` ${since} or later`}, or to another package manager depcurfew configures`
-			});
+			if (tool === void 0 || !manager.supported) continue;
+			if (tool.id === "uv") checkUv$1(context, tool);
+			if (tool.id === "pdm") checkPdm$1(context, tool);
 		}
 	}
 };
@@ -21522,6 +29272,7 @@ const npmrcOverridesPolicy = {
 	help: "Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => usesManager(scope, ["npm", "pnpm"]),
 	check(context) {
 		checkNpmWorkspaces(context);
 		checkNpmSections(context);
@@ -21538,6 +29289,7 @@ const pnpmSharedWorkspaceLockfile = {
 	help: "Remove security settings from package .npmrc files, or keep the default shared lockfile.",
 	level: "warning",
 	requiresPolicy: false,
+	applies: (scope) => usesManager(scope, ["pnpm"]),
 	check(context) {
 		const pnpm = managerOf(context, "pnpm");
 		if (pnpm === void 0) return;
@@ -21697,57 +29449,223 @@ function checkPip(context, tool, configFiles) {
 		});
 	}
 }
+function pipDelayOf(context, tool) {
+	const policy = context.policy;
+	if (policy?.cooldown === void 0) return void 0;
+	const converted = convertCooldown(tool, policy.cooldown.minimum);
+	if (!converted.ok || typeof converted.value !== "number") return void 0;
+	return {
+		days: converted.value,
+		minimum: policy.cooldown.minimum.text,
+		variable: extraOf(tool, "environmentVariable", (value) => typeof value === "string"),
+		option: `--${settingOf(tool.cooldown.setting) ?? ""}`,
+		since: sinceOf(tool.cooldown.availableSince)
+	};
+}
+/**
+* The finding for the first pip install of a stage or a job whose release-age delay does not hold: none (error), fewer
+* days than the policy (error) or a fixed date (warning). `where` names the place, `add` how to set it there. true when
+* a finding was reported.
+*/
+function reportPipDelay(context, delay, command, file, where, add, place) {
+	const plural = (count) => `${count} ${count === 1 ? "day" : "days"}`;
+	const location = {
+		file,
+		line: command.line
+	};
+	const instead = `Set ${delay.variable}=P${delay.days}D instead, ${place}, or as ${delay.option}=P${delay.days}D on that pip install`;
+	if (command.delay === void 0) {
+		context.report({
+			location,
+			message: `${where} without a release-age delay: pip reads no configuration from the project, and nothing sets ${delay.variable} or ${delay.option} there, so the ${delay.minimum} of ${POLICY_FILE} does not hold for it`,
+			fix: `${add}, or pass ${delay.option}=P${delay.days}D to that pip install (pip ${delay.since ?? "a recent version"} or later reads a number of days)`
+		});
+		return true;
+	}
+	const written = /^P(\d+)D$/u.exec(command.delay)?.[1];
+	if (written === void 0) {
+		if (!/^\d{4}-\d{2}-\d{2}/u.test(command.delay)) return false;
+		context.report({
+			level: "warning",
+			location,
+			message: `${where} with the release-age delay ${command.delay}, a fixed date: it holds back every later upload instead of delaying each new version by the ${delay.minimum} of ${POLICY_FILE}`,
+			fix: instead
+		});
+		return true;
+	}
+	if (Number(written) >= delay.days) return false;
+	context.report({
+		location,
+		message: `${where} with the release-age delay ${command.delay} (${plural(Number(written))}), shorter than the ${delay.minimum} of ${POLICY_FILE} (${plural(delay.days)} for pip)`,
+		fix: instead
+	});
+	return true;
+}
+/** pip installs of a stage or job that depcurfew can judge: installs whose delay is not hidden in a configuration file. */
+const judged = (command) => command.tool === "pip" && command.kind === "install" && command.delayUnknown !== true;
+/**
+* pip installs in Dockerfile stages of the official python image, which has no pip.conf: pip reads no configuration
+* from the project, so the release-age delay of the policy holds there only when the stage sets PIP_UPLOADED_PRIOR_TO
+* (ENV, also in a stage it starts from, or on the command) or passes --uploaded-prior-to, with at least as many days
+* (decision D-115). A stage (or one it starts from) that copies a pip.conf or pip.ini, writes pip's configuration
+* (pip config set) or names one with PIP_CONFIG_FILE is not checked.
+*/
+function checkPipDockerfiles(context, tool) {
+	const policy = context.policy;
+	const delay = pipDelayOf(context, tool);
+	if (policy === void 0 || delay === void 0 || policy.targets !== "auto" && !policy.targets.includes("pip")) return;
+	const names = extraOf(tool, "configFileNames", isStrings);
+	for (const file of context.detection.dockerfiles) {
+		const configured = [];
+		for (const [index, stage] of file.stages.entries()) {
+			const own = stage.pipConfig === true || (stage.copies ?? []).some((source) => names.includes(source.split("/").at(-1) ?? ""));
+			configured.push(own || stage.from !== void 0 && stage.from < index && configured[stage.from] === true);
+			if (stage.runtime?.tool !== "python" || configured[index] === true) continue;
+			const name = stage.name === void 0 ? `the stage at line ${stage.line}` : `stage ${stage.name}`;
+			for (const command of stage.commands.filter(judged)) {
+				const where = `${name} in ${file.file} installs packages with pip on line ${command.line}`;
+				const add = `Add ENV ${delay.variable}=P${delay.days}D to ${name} before line ${command.line}`;
+				if (reportPipDelay(context, delay, command, file.file, where, add, `with ENV in ${name} before line ${command.line}`)) break;
+			}
+		}
+	}
+}
+/** The directory listed in projects a command's working directory lies in; '' for the root. */
+function projectOfCommand(command, projects) {
+	const directory = command.directory;
+	if (directory === void 0) return "";
+	return projects.find((project) => directory === project || directory.startsWith(`${project}/`)) ?? "";
+}
+/**
+* pip installs in CI jobs, as in Dockerfile stages (decision D-115): pip takes the release-age delay only from
+* PIP_UPLOADED_PRIOR_TO in the env of the workflow, the job or the step (or set on the command line, or exported before)
+* or from --uploaded-prior-to. An install in the directory of a project (working-directory, cd) counts when that
+* project uses pip, with the policy of the root it shares. A job that may change pip's configuration (pip config set,
+* a pip.conf it writes, PIP_CONFIG_FILE) is not checked.
+*/
+function checkPipJobs(context, tool) {
+	const policy = context.policy;
+	const delay = pipDelayOf(context, tool);
+	if (policy === void 0 || delay === void 0 || policy.targets !== "auto" && !policy.targets.includes("pip")) return;
+	const views = context.projects ?? [];
+	const projects = views.map((view) => view.directory);
+	const pipIn = (detection) => detection.packageManagers.some((manager) => manager.id === "pip" && manager.supported);
+	const usesPip = new Map([["", pipIn(context.detection)], ...views.map((view) => [view.directory, pipIn(view.detection)])]);
+	for (const job of context.detection.jobs) {
+		if (job.pipConfig === true) continue;
+		for (const command of [...job.commands].sort((a, b) => a.line - b.line).filter(judged)) {
+			const project = projectOfCommand(command, projects);
+			if (usesPip.get(project) !== true) continue;
+			const where = `job ${job.id} in ${job.file} installs packages with pip${project === "" ? "" : ` in ${project}`} on line ${command.line}`;
+			const add = `Add ${delay.variable}: P${delay.days}D to the env of job ${job.id} (or of that step)`;
+			if (reportPipDelay(context, delay, command, job.file, where, add, `in the env of job ${job.id} or of that step`)) break;
+		}
+	}
+}
+const PYTHON_TOOLS = /* @__PURE__ */ new Set([
+	"uv",
+	"pip",
+	"pdm",
+	"pipenv"
+]);
 const pythonConfigIgnored = {
 	id: "python-config-ignored",
 	checks: "Python tools read their settings where they are written",
 	summary: "A Python tool ignores a setting where it is written.",
-	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
+	description: "uv reads uv.toml instead of [tool.uv] when both exist, and in a workspace only the root; pip reads no configuration from the project and rejects options it does not know in requirements files, so a CI job or a Dockerfile stage of the python image installs without the release-age delay unless it sets PIP_UPLOADED_PRIOR_TO or passes --uploaded-prior-to; PDM in uv mode installs without only-binary; Pipenv with resolver_backend = \"pure-python\" locks without cool-down-period. A setting in such a place looks effective but is not, and an exclude-newer date freezes dependencies instead of delaying new versions.",
 	help: "Move the setting to the file the tool reads.",
 	level: "error",
 	requiresPolicy: false,
+	applies: (scope) => scope.detection.packageManagers.some((manager) => PYTHON_TOOLS.has(manager.id)),
 	check(context) {
 		for (const manager of context.detection.packageManagers) {
 			const tool = context.tools.find((entry) => entry.id === manager.id);
 			if (tool === void 0) continue;
 			if (tool.id === "uv") checkUv(context, tool);
-			if (tool.id === "pip") checkPip(context, tool, manager.configFiles);
+			if (tool.id === "pip") {
+				checkPip(context, tool, manager.configFiles);
+				checkPipDockerfiles(context, tool);
+			}
 			if (tool.id === "pdm") checkPdm(context, tool);
 			if (tool.id === "pipenv") checkPipenv(context, tool);
 		}
+		const pip = context.tools.find((entry) => entry.id === "pip");
+		if (pip !== void 0) checkPipJobs(context, pip);
 	}
 };
 
-// src/doctor/rules/unreadable-config.ts
-const unreadableConfig = {
-	id: "unreadable-config",
-	checks: "Every configuration file and lockfile can be read and parsed",
-	summary: "A configuration file or lockfile cannot be read, parsed or edited, so depcurfew cannot check it.",
-	description: "A package manager or bot may still read the file and its settings may weaken the policy; depcurfew fails closed and reports an error instead of passing silently.",
-	help: "Fix what the message describes: invalid syntax, missing read permission, a symlink, a file over the size limit or a style depcurfew apply cannot edit.",
-	level: "error",
+// src/doctor/rules/runtime-end-of-life.ts
+const RULE = "runtime-end-of-life";
+function listing(items) {
+	return items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} or ${items.at(-1) ?? ""}`;
+}
+const runtimeEndOfLife = {
+	id: RULE,
+	checks: "No declared Node.js version is past its end of life",
+	summary: "A declared Node.js version is past its end of life.",
+	description: "After its end of life a Node.js release line gets no more releases, security fixes included. A version file, CI step or Dockerfile that only allows such lines keeps running an unpatched Node.js, and an older npm with it.",
+	help: "Move to a Node.js line that is still supported, in every place that declares the version.",
+	level: "warning",
 	requiresPolicy: false,
+	applies: (scope) => [scope.detection, ...(scope.projects ?? []).map((project) => project.detection)].some((detection) => detection.node.versions.length > 0 || detection.dockerfiles.some((file) => file.stages.some((stage) => stage.runtime?.tool === "node"))),
 	check(context) {
-		const reported = /* @__PURE__ */ new Set();
-		const warnings = [...context.detection.warnings, ...context.repository.warnings];
-		for (const warning of warnings) {
-			const fix = UNREADABLE_WARNINGS[warning.code];
-			const file = warning.files[0] ?? "depcurfew.json";
-			if (fix === void 0 || reported.has(file)) continue;
-			reported.add(file);
+		const facts = runtimeFacts(environment);
+		const now = today();
+		const supported = supportedLtsLines(facts, now).map((line) => `${line.line} (until ${line.end})`);
+		const jobs = jobIndex(context.detection);
+		const lines = listing(supported);
+		const check = supported.length === 0 ? "check by hand that it is a Node.js line that is still supported" : `check by hand that it is a supported Node.js LTS line: ${lines}`;
+		const cannotTell = (subject, reason, location, fix) => context.report({
+			level: "note",
+			location,
+			message: `${RULE} cannot tell whether ${subject} is past its end of life: ${reason}`,
+			fix: `${fix.charAt(0).toUpperCase()}${fix.slice(1)}`
+		});
+		for (const declaration of context.detection.node.versions) {
+			if (declaration.source === "github-actions") {
+				const group = jobs.of(declaration);
+				if (group !== void 0 && !group.job.runsNode) continue;
+				if (group !== void 0 && declaration.step !== void 0 && !commandsAfterStep(group, declaration).some((command) => command.kind === "install")) continue;
+			}
+			const label = SOURCE_LABEL[declaration.source];
+			const line = declarationLine(context, declaration);
+			const location = line === void 0 ? { file: declaration.file } : {
+				file: declaration.file,
+				line
+			};
+			if (!("version" in declaration)) {
+				cannotTell(`the Node.js of ${declaration.versionFile} in ${declaration.file}`, "depcurfew cannot read the version from that file", location, `${check.replace("it is", `${declaration.versionFile} names`)}`);
+				continue;
+			}
+			const subject = nodeSubject(declaration, label);
+			if (declaration.unknown !== void 0) {
+				cannotTell(subject, declaration.unknown, location, check.replace("it is", "every value is"));
+				continue;
+			}
+			const found = nodeLines(declaration.version, namingFor(declaration), facts);
+			if (found === void 0) {
+				cannotTell(subject, "it is not a version or a range depcurfew can read", location, `write the version in ${label} as depcurfew reads it (such as 24, 24.11.0 or lts/krypton), or ${check}`);
+				continue;
+			}
+			if (found.length === 0) {
+				cannotTell(subject, "it matches no Node.js release line depcurfew knows", location, `update depcurfew if this Node.js is newer than it knows, or ${check}`);
+				continue;
+			}
+			if (found.some((entry) => entry.end > now)) continue;
+			const last = found.reduce((newest, entry) => entry.line > newest.line ? entry : newest);
+			const message = found.length === 1 ? `${subject} is past its end of life (Node.js ${last.line} ended on ${last.end}) and gets no more releases, security fixes included` : `${subject} only allows Node.js lines past their end of life (the newest, ${last.line}, ended on ${last.end}), which get no security fixes`;
 			context.report({
-				location: { file },
-				message: `${warning.message.replace(/:$/u, "")}; depcurfew cannot check it`,
-				fix
+				location,
+				message,
+				fix: supported.length === 0 ? `Move to a Node.js line that is still supported, in ${label}` : `Move to a supported Node.js LTS line in ${label}: ${lines}`
 			});
 		}
-		for (const failure of plannedApply(context)?.failures ?? []) {
-			if (reported.has(failure.file)) continue;
-			reported.add(failure.file);
-			context.report({
-				location: { file: failure.file },
-				message: `depcurfew apply cannot edit ${failure.file} for ${context.tools.find((tool) => tool.id === failure.tool)?.name ?? failure.tool} (${failure.message}), so it cannot be checked against ${POLICY_FILE}`,
-				fix: "Fix what the message describes, then run depcurfew apply; or add the settings by hand"
-			});
+		for (const file of context.detection.dockerfiles) for (const stage of file.stages) {
+			if (stage.from !== void 0 || stage.runtime?.tool !== "node" || stage.runtime.version !== void 0) continue;
+			cannotTell(`Node.js (${stage.image ?? "node"}) in ${file.file}`, stage.runtime.unknown ?? "the tag names no version", {
+				file: file.file,
+				line: stage.line
+			}, `use a node image tag that names the Node.js version (such as node:24-alpine), or ${check.replace("it is", "the image has")}`);
 		}
 	}
 };
@@ -21756,8 +29674,10 @@ const unreadableConfig = {
 /** Every doctor rule, in the order they are documented. unreadable-config runs last, after every other rule has read its files. */
 const RULES = [
 	invalidPolicy,
+	invalidProject,
 	depcurfewOutdated,
 	managerVersionTooOld,
+	runtimeEndOfLife,
 	settingIgnoredByVersion,
 	npmrcOverridesPolicy,
 	pnpmSharedWorkspaceLockfile,
@@ -21767,8 +29687,29 @@ const RULES = [
 	broadExclusion,
 	lockfileForbiddenSource,
 	lockfileInstallScripts,
+	lockfileOutOfDate,
 	unreadableConfig
 ];
+
+// src/doctor/types.ts
+/** A notice with its fields in the order of a finding; `file`, `line` and `fix` only when they are known. */
+function makeNotice(code, message, file, fix, line) {
+	return {
+		level: "note",
+		code,
+		...file === void 0 ? {} : { location: {
+			file,
+			...line === void 0 ? {} : { line }
+		} },
+		message,
+		...file === void 0 ? {} : { file },
+		...fix === void 0 ? {} : { fix }
+	};
+}
+/** The same notice for another file (a project's file named from the root, at the same line), or without one. */
+function relocatedNotice(notice, message, file) {
+	return makeNotice(notice.code, message, file, notice.fix, file === void 0 ? void 0 : notice.location?.line);
+}
 
 // src/doctor/sarif.ts
 const SARIF_SCHEMA = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
@@ -21800,9 +29741,10 @@ function lineReader(root) {
 	};
 }
 function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
-	const location = (file, line) => {
+	const location = (file, line, column) => {
 		const startLine = line ?? 1;
 		const text = readLine(file, startLine) ?? "";
+		const startColumn = line === void 0 ? 1 : column ?? 1;
 		return { physicalLocation: {
 			artifactLocation: {
 				uri: pathUri(file),
@@ -21810,9 +29752,9 @@ function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 			},
 			region: {
 				startLine,
-				startColumn: 1,
+				startColumn,
 				endLine: startLine,
-				endColumn: Math.max(text.length, 1) + 1
+				endColumn: Math.max(text.length + 1, startColumn + 1, 2)
 			}
 		} };
 	};
@@ -21843,8 +29785,9 @@ function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 					descriptor: { id: error.code }
 				})), ...report.notices.map((notice) => ({
 					level: "note",
-					message: { text: notice.message },
-					...notice.file === void 0 ? {} : { locations: [location(notice.file, void 0)] }
+					message: { text: notice.fix === void 0 ? notice.message : `${notice.message}. Fix: ${notice.fix}` },
+					...notice.file === void 0 ? {} : { locations: [location(notice.file, notice.location?.line)] },
+					descriptor: { id: notice.code }
 				}))]
 			}],
 			results: report.findings.map((finding) => ({
@@ -21852,151 +29795,10 @@ function toSarif(report, rules, version, readLine = () => void 0, errors = []) {
 				...index.has(finding.rule) ? { ruleIndex: index.get(finding.rule) } : {},
 				level: finding.level,
 				message: { text: finding.fix === void 0 ? finding.message : `${finding.message}. Fix: ${finding.fix}` },
-				locations: [location(finding.location.file, finding.location.line)]
+				locations: [location(finding.location.file, finding.location.line, finding.location.column)]
 			}))
 		}]
 	};
-}
-
-// src/doctor/github.ts
-const LEVELS = [
-	"error",
-	"warning",
-	"note"
-];
-function fixOf(finding, rules) {
-	return finding.fix ?? rules.find((rule) => rule.id === finding.rule)?.help;
-}
-function plural(count, word) {
-	return `${count} ${count === 1 ? word : `${word}s`}`;
-}
-function escaped(text, replacements) {
-	return replacements.reduce((result, [from, to]) => result.replaceAll(from, to), text);
-}
-/** Annotation commands for the findings, errors first, within the number GitHub shows in one step. */
-function annotationCommands(report, rules, format = values$1(environment.githubActions.annotations)[0], limits = values$1(environment.githubActions.annotationLimits)[0]) {
-	if (format === void 0 || limits === void 0) return {
-		lines: [],
-		omitted: report.findings.length
-	};
-	const data = (text) => escaped(text, format.escape);
-	const property = (text) => escaped(escaped(text, format.escape), format.escapeProperty);
-	const lines = [];
-	for (const level of LEVELS) {
-		const findings = report.findings.filter((finding) => finding.level === level);
-		for (const finding of findings.slice(0, Math.min(limits.perLevelPerStep, limits.perJob - lines.length))) {
-			const properties = [
-				[format.properties.file, printable(finding.location.file)],
-				[format.properties.line, finding.location.line === void 0 ? void 0 : String(finding.location.line)],
-				[format.properties.title, `depcurfew: ${finding.rule}`]
-			].flatMap(([name, value]) => value === void 0 ? [] : [`${name}=${property(value)}`]);
-			const fix = fixOf(finding, rules);
-			const message = fix === void 0 ? printable(finding.message) : `${printable(finding.message)}\nFix: ${printable(fix)}`;
-			lines.push(`::${format.commands[level]} ${properties.join(",")}::${data(message)}`);
-		}
-	}
-	return {
-		lines,
-		omitted: report.findings.length - lines.length
-	};
-}
-/**
-* A notice annotation for a clean report, so that the run shows that doctor ran and what it checked: the tools, the
-* number of files read and every check with its result, one per line.
-*/
-function cleanNotice(report, format = values$1(environment.githubActions.annotations)[0]) {
-	if (format === void 0 || report.findings.length > 0) return void 0;
-	const data = (text) => escaped(text, format.escape);
-	const property = (text) => escaped(escaped(text, format.escape), format.escapeProperty);
-	const checked = report.checked;
-	const lines = checked === void 0 ? ["No problems found"] : [`No problems found in ${plural(checked.files.length, "file")}${checked.tools.length === 0 ? "" : ` for ${checked.tools.map(checkedTool).join(", ")}`}. ${resultCounts(checked.rules)}.`, ...checked.rules.map((result) => `${resultText(result)}: ${result.check}${result.result === "skipped" ? ` (needs ${checked.policyFile})` : ""}`)];
-	return `::${format.commands.note} ${format.properties.title}=${property("depcurfew doctor: no problems found")}::${data(lines.map((line) => printable(line)).join("\n"))}`;
-}
-/** Markdown text with code spans kept: outside them special characters are escaped, inside only the table pipe. */
-function markdown(text) {
-	return printable(text.replaceAll(/\s*[\r\n]+\s*/gu, " ")).split(/(`[^`]*`)/u).map((part, index) => index % 2 === 1 ? part.replaceAll("|", "\\|") : part.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll(/([\\`*_[\]|~#!])/gu, "\\$1").replaceAll(/(https?|www)(?=[:.])/gu, "$1&#8203;")).join("");
-}
-/** A path or rule id as a code span; a line break in a path is shown as text, so it cannot end the table row. */
-function code(text) {
-	const shown = printable(text);
-	return shown.includes("`") ? markdown(shown) : `\`${shown.replaceAll("|", "\\|")}\``;
-}
-/**
-* The job summary: the counts, a table of findings with how to fix each one and the notices. Rows that would make it
-* longer than `maxBytes` are left out and counted instead, so the summary upload does not fail.
-*/
-function jobSummary(report, rules, directory, maxBytes) {
-	const counts = countLevels(report.findings);
-	const where = directory === "" ? "" : ` in ${code(directory)}`;
-	const head = ["## depcurfew doctor", ""];
-	if (report.findings.length === 0) head.push(`**No problems found**${where}.`);
-	else {
-		const count = (level) => counts[level] === 0 ? plural(0, level) : `**${plural(counts[level], level)}**`;
-		head.push(`${count("error")}, ${count("warning")}, ${count("note")}${where}.`, "", "| Level | Where | Problem | How to fix |", "| --- | --- | --- | --- |");
-	}
-	const tail = [
-		...report.notices.length === 0 ? [] : [
-			"",
-			"### Notes",
-			"",
-			...report.notices.map((notice) => `- ${markdown(notice.message)}`)
-		],
-		...checkedSummary(report),
-		""
-	];
-	let size = Buffer.byteLength([...head, ...tail].join("\n")) + 200;
-	const rows = [];
-	for (const finding of report.findings) {
-		const location = finding.location.line === void 0 ? finding.location.file : `${finding.location.file}:${finding.location.line}`;
-		const row = `| ${finding.level === "error" ? "**error**" : finding.level} | ${code(location)} | ${markdown(finding.message)} (${code(finding.rule)}) | ${markdown(fixOf(finding, rules) ?? "")} |`;
-		size += Buffer.byteLength(row) + 1;
-		if (size > maxBytes) break;
-		rows.push(row);
-	}
-	const omitted = report.findings.length - rows.length;
-	const more = omitted === 0 ? [] : ["", `${plural(omitted, "more finding")} did not fit in the summary; the step log lists every finding.`];
-	return [
-		...head,
-		...rows,
-		...more,
-		...tail
-	].join("\n");
-}
-/** What doctor checked, below the findings: the tools, the files read and a table of every check with its result. */
-function checkedSummary(report) {
-	const checked = report.checked;
-	if (checked === void 0) return [];
-	return [
-		"",
-		"### What was checked",
-		"",
-		`- Tools: ${checked.tools.length === 0 ? "no package manager or bot found" : checked.tools.map((tool) => markdown(checkedTool(tool))).join(", ")}`,
-		`- Files read: ${checked.files.length === 0 ? "none" : checked.files.map(code).join(", ")}`,
-		`- ${markdown(resultCounts(checked.rules))}`,
-		"",
-		"| Result | Check | Rule |",
-		"| --- | --- | --- |",
-		...checked.rules.map((result) => {
-			return `| ${result.result === "problems" ? `**${resultText(result)}**` : result.result === "skipped" ? `skipped (needs ${code(checked.policyFile)})` : "passed"} | ${markdown(result.check)} | ${code(result.rule)} |`;
-		})
-	];
-}
-/** A problem after doctor ran, such as a SARIF file that cannot be written: a line below the findings of the job summary. */
-function problemSummary(message) {
-	return [
-		"",
-		`**Error:** depcurfew ${markdown(message)}`,
-		""
-	].join("\n");
-}
-/** The job summary when doctor could not run. */
-function failureSummary(message) {
-	return [
-		"## depcurfew doctor",
-		"",
-		`depcurfew could not check the repository: ${markdown(message)}`,
-		""
-	].join("\n");
 }
 
 // src/doctor/index.ts
@@ -22009,33 +29811,72 @@ function byLocation(a, b) {
 	if (a.location.file !== b.location.file) return a.location.file < b.location.file ? -1 : 1;
 	return (a.location.line ?? 0) - (b.location.line ?? 0) || LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0);
 }
+/** The most findings of one rule shown at one place that differ only in numbers (decision D-109). */
+const MAX_SIMILAR = 10;
 /**
-* Runs the rules on a repository. When depcurfew.json exists but is invalid, it throws PolicyError, or with
-* invalidPolicy: 'report' runs the rules that need no policy and reports the problems as an invalid-policy finding.
+* The findings once each (decision D-109): a finding with the same rule, level, place, message and fix as an earlier
+* one is left out (each setup step with the same matrix value gave the same finding again). At one place, findings of
+* one rule and level that differ only in numbers (the install line of each of 200 setup steps) are shown up to
+* MAX_SIMILAR times, and one more finding of the same level says how many are left out, so the counts and the exit
+* code keep their meaning. Linear in the number of findings.
 */
-function runDoctor(root, options = {}) {
-	const tools = options.tools ?? knowledgeBase;
-	let policy;
-	let invalid = false;
-	try {
-		policy = loadPolicyIfPresent(root);
-	} catch (error) {
-		if (!(error instanceof PolicyError) || options.invalidPolicy !== "report") throw error;
-		invalid = true;
+function condensed(findings) {
+	const seen = /* @__PURE__ */ new Set();
+	const similar = /* @__PURE__ */ new Map();
+	const kept = [];
+	for (const finding of findings) {
+		const place = `${finding.rule}\u0000${finding.level}\u0000${finding.location.file}\u0000${finding.location.line ?? ""}\u0000${finding.location.variable ?? ""}`;
+		const key = `${place}\u0000${finding.message}\u0000${finding.fix ?? ""}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		const shape = `${place}\u0000${finding.message.replace(/\d+/gu, "#")}\u0000${(finding.fix ?? "").replace(/\d+/gu, "#")}`;
+		const group = similar.get(shape) ?? {
+			shown: 0,
+			hidden: 0,
+			first: finding
+		};
+		similar.set(shape, group);
+		if (group.shown < MAX_SIMILAR) {
+			group.shown += 1;
+			kept.push(finding);
+		} else group.hidden += 1;
 	}
-	const detection = detectProject(root);
-	const repository = new Repository(root);
+	for (const { hidden, first } of similar.values()) {
+		if (hidden === 0) continue;
+		kept.push({
+			rule: first.rule,
+			level: first.level,
+			location: first.location,
+			message: `${hidden} more ${first.rule} ${hidden === 1 ? "finding" : "findings"} at this place ${hidden === 1 ? "differs" : "differ"} from the ones above only in numbers (line numbers or versions) and ${hidden === 1 ? "is" : "are"} not shown`,
+			...first.fix === void 0 ? {} : { fix: `Fix the ones above the same way, then run depcurfew doctor again to see the rest` }
+		});
+	}
+	return kept;
+}
+/**
+* A fix that runs depcurfew apply, while an entry of projects cannot be used: apply writes nothing until it is fixed, so
+* the fix says so first (decision D-115). invalid-project's own findings say what to change in projects.
+*/
+function applyWaits(finding, count) {
+	if (finding.rule === "invalid-project" || finding.fix === void 0 || !finding.fix.includes("depcurfew apply")) return finding;
+	const entries = count === 1 ? "the entry of projects" : "the entries of projects";
+	return {
+		...finding,
+		fix: `First fix ${entries} in ${POLICY_FILE} that invalid-project reports, because depcurfew apply writes nothing until then; then ${finding.fix.charAt(0).toLowerCase()}${finding.fix.slice(1)}`
+	};
+}
+/** Runs the rules on one directory, with the policy of the repository root. */
+function runRules(root, policy, rules, tools, where = {}) {
+	const detection = where.detection ?? detectProject(root, tools);
+	const repository = where.repository ?? new Repository(root);
 	const findings = [];
 	const notices = [];
-	const notice = (message, file) => {
-		if (!notices.some((item) => item.message === message)) notices.push(file === void 0 ? { message } : {
-			message,
-			file
-		});
+	const messages = /* @__PURE__ */ new Set();
+	const notice = (code, message, file, fix, line) => {
+		if (messages.has(message)) return;
+		messages.add(message);
+		notices.push(makeNotice(code, message, file, fix, line));
 	};
-	if (invalid) notice(`${POLICY_FILE} is invalid: only the rules that do not need a policy ran`);
-	else if (policy === void 0) notice(`no ${POLICY_FILE}: only the rules that do not need a policy ran`);
-	const rules = options.rules ?? RULES;
 	for (const rule of rules) {
 		if (rule.requiresPolicy && policy === void 0) continue;
 		rule.check({
@@ -22044,28 +29885,162 @@ function runDoctor(root, options = {}) {
 			detection,
 			policy,
 			tools,
+			...where.project === void 0 ? {} : { project: where.project },
+			...where.projects === void 0 ? {} : { projects: where.projects },
+			...where.plan === void 0 ? {} : { plan: where.plan },
 			report: ({ level, ...finding }) => findings.push({
 				rule: rule.id,
 				level: level ?? rule.level,
 				...finding
 			}),
-			notice
+			notice: (message, file, fix) => notice(rule.id, message, file, fix)
 		});
 	}
 	const reported = rules.includes(unreadableConfig);
-	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.message, warning.files[0]);
-	const sorted = findings.sort(byLocation);
+	for (const warning of repository.warnings) if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code]);
+	for (const warning of detection.warnings) if (DETECTION_NOTICES.has(warning.code)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code], warning.line);
+	return {
+		findings,
+		notices,
+		detection,
+		repository
+	};
+}
+/** The findings and notices of a project, with every file named relative to the repository root. */
+function relocateRun(project, run, plan) {
+	const files = projectFiles(run.detection, plan);
+	for (const file of run.repository.read) files.add(file);
+	for (const finding of run.findings) files.add(finding.location.file);
+	for (const notice of run.notices) if (notice.file !== void 0) files.add(notice.file);
+	const text = (value) => relocateText(value, project, files);
+	return {
+		findings: run.findings.map((finding) => ({
+			...finding,
+			location: {
+				...finding.location,
+				file: finding.location.file === "depcurfew.json" ? POLICY_FILE : inProject(project, finding.location.file)
+			},
+			message: text(finding.message),
+			...finding.fix === void 0 ? {} : { fix: text(finding.fix) }
+		})),
+		notices: run.notices.map((notice) => notice.file === void 0 ? relocatedNotice(notice, `${project}: ${text(notice.message)}`, void 0) : relocatedNotice(notice, text(notice.message), inProject(project, notice.file)))
+	};
+}
+/**
+* Runs the rules on a repository. When depcurfew.json exists but is invalid, it throws PolicyError, or with
+* invalidPolicy: 'report' runs the rules that need no policy and reports the problems as an invalid-policy finding.
+* `policy` passes the policy in instead of reading depcurfew.json (null: run as without one). With projects in the
+* policy, the rules also run on every listed directory with the same policy, and the report covers them all, with
+* paths relative to the root (decision D-100).
+*/
+function runDoctor(root, options = {}) {
+	const tools = options.tools ?? knowledgeBase;
+	let policy;
+	let invalid = false;
+	if (options.policy !== void 0) policy = options.policy ?? void 0;
+	else try {
+		policy = loadPolicyIfPresent(root);
+	} catch (error) {
+		if (!(error instanceof PolicyError) || options.invalidPolicy !== "report") throw error;
+		invalid = true;
+	}
+	const rules = options.rules ?? RULES;
+	const detection = detectProject(root, tools);
+	const listed = policy?.projects ?? [];
+	const problems = projectProblems(root, listed, detection);
+	const views = listed.filter((project) => !problems.some((problem) => problem.project === project)).map((project) => {
+		const directory = join(root, project);
+		return {
+			directory: project,
+			root: directory,
+			repository: new Repository(directory),
+			detection: detectProject(directory, tools)
+		};
+	});
+	const plans = policy === void 0 ? [] : views.map((view) => planDetails(plannedFor(view.root, policy, view.detection, tools, projectPlanOptions(detection, view.directory, view.detection))));
+	const rootPlan = views.length === 0 ? void 0 : { projects: {
+		managerMinutes: plans.flatMap((details) => details?.managerMinutes ?? []),
+		targets: new Set(plans.flatMap((details) => [...details?.targets ?? []]))
+	} };
+	const projectRuns = views.map((view) => ({
+		view,
+		run: runRules(view.root, policy, rules, tools, {
+			detection: view.detection,
+			repository: view.repository,
+			project: view.directory,
+			plan: projectPlanOptions(detection, view.directory, view.detection)
+		})
+	}));
+	const rootRun = runRules(root, policy, rules, tools, {
+		detection,
+		...views.length === 0 ? {} : { projects: views },
+		...rootPlan === void 0 ? {} : { plan: rootPlan }
+	});
+	const notices = [];
+	const shown = /* @__PURE__ */ new Set();
+	const addNotice = (item) => {
+		if (shown.has(item.message)) return;
+		shown.add(item.message);
+		notices.push(item);
+	};
+	if (invalid) addNotice(makeNotice("policy-invalid", `${POLICY_FILE} is invalid: only the rules that do not need a policy ran`, POLICY_FILE, "Fix what the invalid-policy finding lists, then run depcurfew doctor again"));
+	else if (policy === void 0) addNotice(makeNotice("policy-missing", `no ${POLICY_FILE}: only the rules that do not need a policy ran`, void 0, `Run depcurfew init to write ${POLICY_FILE}, so that the rules that compare the repository with it run too`));
+	const findings = [...rootRun.findings];
+	for (const item of rootRun.notices) addNotice(item);
+	for (const { view, run } of projectRuns) {
+		const relocated = relocateRun(view.directory, run, policy === void 0 ? void 0 : plannedFor(view.root, policy, view.detection, tools, projectPlanOptions(detection, view.directory, view.detection)));
+		findings.push(...relocated.findings);
+		for (const item of relocated.notices) addNotice(item);
+	}
+	const sorted = condensed(problems.length === 0 ? findings : findings.map((finding) => applyWaits(finding, problems.length))).sort(byLocation);
+	const rootChecked = checkedOf(detection, rootRun.repository, tools, policy !== void 0 || invalid);
+	const projectChecked = projectRuns.map(({ view, run }) => {
+		const checked = checkedOf(run.detection, run.repository, tools, false);
+		return {
+			tools: checked.tools.map((tool) => ({
+				...tool,
+				project: view.directory,
+				...tool.versionFrom === void 0 ? {} : { versionFrom: inProject(view.directory, tool.versionFrom) },
+				...readFromRoot(tools, tool.id) ? { unread: true } : {}
+			})),
+			files: checked.files.map((file) => inProject(view.directory, file))
+		};
+	});
+	const scopes = [{
+		root,
+		repository: rootRun.repository,
+		detection,
+		policy,
+		tools,
+		...views.length === 0 ? {} : { projects: views }
+	}, ...views.map((view) => ({
+		root: view.root,
+		repository: view.repository,
+		detection: view.detection,
+		policy,
+		tools,
+		project: view.directory
+	}))];
 	return {
 		schemaVersion: 1,
 		policy: invalid ? "invalid" : policy === void 0 ? "missing" : "valid",
 		findings: sorted,
 		notices,
 		checked: {
-			...checkedOf(detection, repository, tools, policy !== void 0 || invalid),
-			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && !invalid && (rule.requiresPolicy || rule.id === "invalid-policy")),
+			tools: [...rootChecked.tools, ...projectChecked.flatMap((checked) => checked.tools)],
+			files: [.../* @__PURE__ */ new Set([...rootChecked.files, ...projectChecked.flatMap((checked) => checked.files)])].sort(),
+			rules: ruleResults(rules, sorted, (rule) => policy === void 0 && (rule.requiresPolicy || !invalid && rule.id === "invalid-policy"), (rule) => rule.applies === void 0 || scopes.some((scope) => rule.applies?.(scope) === true)),
 			policyFile: POLICY_FILE
 		}
 	};
+}
+/** Whether a bot reads its configuration only from the repository root, so that a project's file of it is not read. */
+function readFromRoot(tools, id) {
+	const tool = tools.find((entry) => entry.id === id);
+	if (tool?.kind !== "update-bot") return false;
+	const fact = tool.extra?.["configLocation"];
+	const value = fact === void 0 ? void 0 : values$1(fact)[0];
+	return typeof value === "object" && value !== null && value["from"] === "repository-root";
 }
 /** The tools found and the files read by detection and the rules, for the log of what doctor checked. */
 function checkedOf(detection, repository, tools, policyRead) {
@@ -22095,6 +30070,7 @@ function checkedOf(detection, repository, tools, policyRead) {
 		...detection.npmrcFiles,
 		...detection.workflows
 	]) files.add(file);
+	for (const file of [...detection.node.versions.map((declaration) => declaration.file), ...detection.dockerfiles.map((dockerfile) => dockerfile.file)]) files.add(file);
 	for (const declaration of detection.workspaces?.declarations ?? []) files.add(declaration.file);
 	if (policyRead) files.add(POLICY_FILE);
 	return {
@@ -22110,6 +30086,17 @@ function input(env, name, fallback) {
 }
 function enabled(env, name) {
 	return input(env, name, "true") !== "false";
+}
+const FAIL_ON = ["error", "warning"];
+/**
+* Why the findings fail the step, or '' when they do not. `setting` is which findings fail and where that was set:
+* the input fail-on, doctor.failOn of the policy or neither (decision D-112); undefined with fail-on-error: false.
+*/
+function failReason(counts, setting) {
+	if (setting === void 0 || !fails(counts, setting.failOn)) return "";
+	const found = (setting.failOn === "warning" ? ["error", "warning"] : ["error"]).filter((level) => counts[level] > 0).map((level) => `${counts[level]} ${counts[level] === 1 ? level : `${level}s`}`).join(" and ");
+	const where = setting.from === "policy" ? ` (doctor.failOn is "warning" in ${setting.file ?? "depcurfew.json"})` : " (fail-on: warning)";
+	return `depcurfew doctor reported ${found}${setting.failOn === "warning" ? where : ""}; the job summary and the log of the Run depcurfew doctor step say how to fix each one`;
 }
 function summaryLimit() {
 	return values$1(environment.githubActions.stepSummary)[0]?.maxBytes ?? 0;
@@ -22128,7 +30115,11 @@ function relativeToWorkspace(report, prefix) {
 		})),
 		notices: report.notices.map((notice) => notice.file === void 0 ? notice : {
 			...notice,
-			file: move(notice.file)
+			file: move(notice.file),
+			...notice.location === void 0 ? {} : { location: {
+				...notice.location,
+				file: move(notice.location.file)
+			} }
 		}),
 		...report.checked === void 0 ? {} : { checked: {
 			...report.checked,
@@ -22149,6 +30140,17 @@ function untrusted(text) {
 	if (commands === void 0) return text.replaceAll(/^::/gmu, ": :");
 	const token = randomUUID();
 	return `${commands.stop.replace("{token}", token)}\n${text.endsWith("\n") ? text : `${text}\n`}${commands.resume.replace("{token}", token)}\n`;
+}
+/**
+* The directory itself, unless the nearest depcurfew.json above it in the workspace lists it under projects: then that
+* root, which checks it as one of its projects (decision D-115).
+*/
+function policyDirectory(workspace, directory) {
+	for (let current = directory; isInside(workspace, current); current = dirname(current)) {
+		if (lstatSync(resolve(current, "depcurfew.json"), { throwIfNoEntry: false }) !== void 0) return current !== directory && listedAsProject(current, directory) ? current : directory;
+		if (current === workspace || dirname(current) === current) break;
+	}
+	return directory;
 }
 /** The real path of a directory inside the workspace, following symlinks only as far as they stay inside it. */
 function scannedDirectory(workspace, input) {
@@ -22183,7 +30185,8 @@ function runAction(env, io) {
 		errors: 0,
 		warnings: 0,
 		notes: 0,
-		failure: ""
+		failure: "",
+		"fail-reason": ""
 	};
 	const summary = enabled(env, "job-summary");
 	const checkRun = enabled(env, "check-run") ? io.checkRun : void 0;
@@ -22193,23 +30196,42 @@ function runAction(env, io) {
 		summary: failureSummary(message),
 		conclusion: "failure"
 	});
+	const annotate = enabled(env, "annotations");
 	const fail = (message) => {
 		outputs.failure = message;
-		io.log(untrusted(`depcurfew: ${printable(message)}\n`));
+		io.log(untrusted(runMessage("error", message).line));
 		if (summary) io.summary(failureSummary(message));
 		failedCheck(message, "");
 		return outputs;
 	};
-	const directory = scannedDirectory(workspace, input(env, "directory", "."));
-	if (directory === void 0) return fail(`directory "${input(env, "directory", ".")}" is not a directory inside the workspace`);
+	const failOnInput = input(env, "fail-on", "");
+	if (failOnInput !== "" && !FAIL_ON.includes(failOnInput)) return fail(`the input fail-on is "${failOnInput}"; set it to error (errors fail the step) or warning (warnings fail it too), or leave it empty to follow doctor.failOn in ${POLICY_FILE} (errors only without it)`);
+	const given = scannedDirectory(workspace, input(env, "directory", "."));
+	if (given === void 0) return fail(`directory "${input(env, "directory", ".")}" is not a directory inside the workspace`);
+	const directory = policyDirectory(realpathSync(workspace), given);
 	const prefix = relative(realpathSync(workspace), directory).split(sep).join("/");
+	const file = prefix === "" ? POLICY_FILE : posix.join(prefix, POLICY_FILE);
+	const listed = directory === given ? void 0 : runMessage("note", `${input(env, "directory", ".")} is listed in projects in ${file}, so depcurfew doctor checks ${prefix === "" ? "the repository root" : prefix} with its projects`);
+	if (listed !== void 0) io.log(untrusted(listed.line));
 	let report;
+	let failOn;
 	try {
-		report = runDoctor(directory);
+		const policy = loadPolicyIfPresent(directory);
+		report = runDoctor(directory, { policy: policy ?? null });
+		const option = failOnInput === "" ? void 0 : {
+			failOn: failOnInput,
+			given: `fail-on: ${failOnInput}`
+		};
+		failOn = enabled(env, "fail-on-error") ? resolveFailOn(option, {
+			failOn: policyFailOn(policy),
+			file: prefix === "" ? POLICY_FILE : posix.join(prefix, POLICY_FILE)
+		}) : void 0;
 	} catch (error) {
 		if (!(error instanceof PolicyError)) throw error;
-		outputs.failure = [error.message, ...error.issues].join("; ");
-		io.log(untrusted(`depcurfew: ${printable(error.text)}\n${error.issues.map((issue) => `  ${printable(issue)}\n`).join("")}`));
+		const message = messageAtLine(error.message, file, error.line);
+		outputs.failure = [message, ...error.issues].join("; ");
+		const issues = error.issues.map((issue) => `  ${printable(issue)}\n`).join("");
+		io.log(untrusted(`${runMessage("error", message).line}${issues}  fix: ${printable(policyErrorFix(error, file))}\n`));
 		if (summary) io.summary(failureSummary(outputs.failure));
 		failedCheck(outputs.failure, prefix);
 		return outputs;
@@ -22219,31 +30241,30 @@ function runAction(env, io) {
 	Object.assign(outputs, {
 		errors: counts.error,
 		warnings: counts.warning,
-		notes: counts.note
+		notes: counts.note,
+		"fail-reason": failReason(counts, failOn)
 	});
 	const moved = relativeToWorkspace(report, prefix);
-	if (enabled(env, "annotations")) {
-		const annotations = annotationCommands(moved, RULES);
+	if (annotate) {
+		const notice = listed?.annotation;
+		if (notice !== void 0) io.log(notice);
+		const annotations = annotationCommands(moved, RULES, void 0, void 0, { note: notice === void 0 ? 0 : 1 });
 		if (annotations.lines.length > 0) io.log(`${annotations.lines.join("\n")}\n`);
 		const clean = cleanNotice(moved);
 		if (clean !== void 0) io.log(`${clean}\n`);
-		if (annotations.omitted > 0) io.log(`GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? "finding is" : "findings are"} in the report above.\n`);
+		if (annotations.omitted > 0) io.log(runMessage("note", `GitHub shows a limited number of annotations per step; ${annotations.omitted} more ${annotations.omitted === 1 ? "finding is" : "findings are"} in the report above.`).line);
 	}
 	if (summary) io.summary(jobSummary(moved, RULES, prefix, summaryLimit()));
-	if (checkRun !== void 0) {
-		const failOnError = enabled(env, "fail-on-error");
-		checkRun({
-			name: checkRunName(prefix),
-			title: checkRunTitle(moved),
-			summary: jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER),
-			conclusion: counts.error > 0 ? failOnError ? "failure" : "neutral" : counts.warning > 0 ? "neutral" : "success"
-		});
+	if (checkRun !== void 0) try {
+		checkRun(checkRunContent(workspace, moved, prefix, outputs, counts));
+	} catch (error) {
+		io.log(warningLines(`the depcurfew doctor check was not added: ${checkRunFailure(error)}`, annotate));
 	}
 	const sarif = `${JSON.stringify(toSarif(moved, RULES, getVersion(), lineReader(workspace)), null, 2)}\n`;
 	const shownSarif = isInside(workspace, sarifFile) ? relative(workspace, sarifFile).split(sep).join("/") : sarifFile;
 	const sarifFailure = (reason) => {
 		outputs.failure = `cannot write the SARIF file ${sarifInput}: ${reason}`;
-		io.log(untrusted(`depcurfew: ${printable(outputs.failure)}\n`));
+		io.log(untrusted(runMessage("error", outputs.failure).line));
 		if (summary) io.summary(problemSummary(outputs.failure));
 		return outputs;
 	};
@@ -22265,7 +30286,42 @@ function runAction(env, io) {
 		"sarif-file": shownSarif
 	};
 }
-/** The title of the check run: the result and the count of checks, e.g. "No problems found (13 checks: 13 passed)". */
+/**
+* Whether a finding's file can carry an annotation: a regular file in the workspace, looked at with lstat, so that a
+* symlink (also one that loops) is no file to annotate, and a file that cannot be looked at (EACCES, ELOOP on the way)
+* has none either; the finding stays in the summary and the log.
+*/
+function annotatable(workspace, file) {
+	try {
+		const path = resolve(workspace, file);
+		return isInside(workspace, path) && lstatSync(path, { throwIfNoEntry: false })?.isFile() === true;
+	} catch {
+		return false;
+	}
+}
+/** The content of the depcurfew doctor check run. */
+function checkRunContent(workspace, moved, prefix, outputs, counts) {
+	const annotated = checkRunAnnotations(moved, RULES, (file) => annotatable(workspace, file));
+	const note = checkRunAnnotationNote(annotated.omitted);
+	const limit = values$1(environment.githubActions.checkRuns)[0]?.summaryMaxLength ?? Number.MAX_SAFE_INTEGER;
+	return {
+		name: checkRunName(prefix),
+		title: checkRunTitle(moved),
+		summary: `${fitSummary(jobSummary(moved, RULES, prefix, Number.MAX_SAFE_INTEGER), limit - note.length)}${note}`,
+		conclusion: outputs["fail-reason"] !== "" ? "failure" : counts.error > 0 || counts.warning > 0 ? "neutral" : "success",
+		annotations: annotated.annotations
+	};
+}
+/** A warning of the action about its own run: the line with the level word and, unless annotations are off, its annotation. */
+function warningLines(message, annotate) {
+	const { line, annotation } = runMessage("warning", message);
+	return annotate && annotation !== void 0 ? `${line}${annotation}` : line;
+}
+/** Why the check could not be prepared or sent, in plain words: never the message, which may name runner paths. */
+function checkRunFailure(error) {
+	return typeof error?.code === "string" ? `a file could not be looked at (${fileSystemReason(error)})` : "an unexpected error occurred while preparing it";
+}
+/** The title of the check run: the result and the count of checks, e.g. "No problems found (14 checks: 9 passed, 5 not applicable)". */
 function checkRunTitle(report) {
 	const counts = countLevels(report.findings);
 	const result = report.findings.length === 0 ? "No problems found" : [
@@ -22299,7 +30355,14 @@ async function main(env = process.env, fetchImpl = (url, init) => fetch(url, ini
 	if (file !== void 0 && file !== "") appendFileSync(file, formatOutputs(outputs));
 	if (checkRun !== void 0) {
 		const token = input(env, "github-token", "");
-		process.stdout.write(token === "" ? "depcurfew: the depcurfew doctor check was not added: the input github-token is empty\n" : await createCheckRun(env, token, checkRun, fetchImpl));
+		const annotate = enabled(env, "annotations");
+		let line;
+		try {
+			line = token === "" ? warningLines("the depcurfew doctor check was not added: the input github-token is empty", annotate) : await createCheckRun(env, token, checkRun, fetchImpl, { annotate });
+		} catch (error) {
+			line = warningLines(`the depcurfew doctor check was not added: ${checkRunFailure(error)}`, annotate);
+		}
+		process.stdout.write(line);
 	}
 }
 

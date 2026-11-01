@@ -156,7 +156,7 @@ describe('depcurfew check on pypi: packages', () => {
   it('warns about a pinned yanked version, and leaves yanked versions out otherwise', async () => {
     const pinned = await checkSpec('pypi:requests==2.32.0', options());
     expect(codes(pinned.findings)).toEqual(['warning:yanked']);
-    expect(pinned.findings[0]?.message).toBe('pypi:requests 2.32.0 is yanked: Yanked due to conflicts with CVE-2024-35195 mitigation');
+    expect(pinned.findings[0]?.message).toBe('pypi:requests 2.32.0 is yanked, with the reason "Yanked due to conflicts with CVE-2024-35195 mitigation"');
     const range = await checkSpec('pypi:requests>=2.32.0,<2.32.2', options());
     expect(codes(range.findings)).toEqual(['error:no-version']);
     expect(range.findings[0]?.message).toBe('no version of pypi:requests matches ">=2.32.0,<2.32.2" (only yanked versions do)');
@@ -198,13 +198,13 @@ describe('depcurfew check on pypi: packages', () => {
   it('reports the project status', async () => {
     const quarantined = await checkSpec('pypi:demo', options({ fetch: page({ versions: [], files: [], 'project-status': { status: 'quarantined', reason: 'malware' } }) }));
     expect(codes(quarantined.findings)).toEqual(['error:quarantined']);
-    expect(quarantined.findings[0]?.message).toBe('pypi:demo is quarantined by the index, which considers it unsafe: malware');
+    expect(quarantined.findings[0]?.message).toBe('pypi:demo is quarantined by the index, which considers it unsafe, with the reason "malware"');
     const files = { versions: ['1.0'], files: [{ filename: 'demo-1.0-py3-none-any.whl', 'upload-time': '2020-01-01T00:00:00Z' }] };
     const archived = await checkSpec('pypi:demo', options({ fetch: page({ ...files, 'project-status': { status: 'archived' } }) }));
     expect(codes(archived.findings)).toEqual(['warning:archived']);
     const deprecated = await checkSpec('pypi:demo', options({ fetch: page({ ...files, 'project-status': { status: 'deprecated', reason: 'use demo2' } }) }));
     expect(codes(deprecated.findings)).toEqual(['warning:deprecated']);
-    expect(deprecated.findings[0]?.message).toBe('pypi:demo is deprecated: use demo2');
+    expect(deprecated.findings[0]?.message).toBe('pypi:demo is deprecated, with the reason "use demo2"');
   });
 
   it('measures the age by the newest file of the version', async () => {

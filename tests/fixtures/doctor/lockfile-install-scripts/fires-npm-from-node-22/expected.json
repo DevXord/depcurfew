@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 14
+    },
+    "message": "core-js has install scripts and npm 10.5.1 to 10.9.9 (with Node.js 22 in .nvmrc) run them, but depcurfew.json does not allow it",
+    "fix": "Review its scripts and add core-js to installScripts.allow in depcurfew.json, or replace the package"
+  }
+]

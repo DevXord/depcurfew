@@ -1,0 +1,93 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "pdm"
+      ]
+    },
+    "cooldown": {
+      "minimum": "36h",
+      "tools": [
+        {
+          "tool": "pdm",
+          "ok": true,
+          "unit": "duration-string",
+          "value": "36 hours",
+          "exact": true
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [
+        "pypi:docopt"
+      ],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "pdm",
+          "settings": [
+            {
+              "setting": "only-binary",
+              "file": "pyproject.toml",
+              "table": "tool.pdm.resolution"
+            },
+            {
+              "setting": "no-binary",
+              "file": "pyproject.toml",
+              "table": "tool.pdm.resolution"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "build-switch-scope",
+              "level": "warning",
+              "tool": "pdm",
+              "message": "PDM: only-binary forbids building only packages from an index; PDM still builds git, local directory and source archive dependencies",
+              "fix": "Run depcurfew doctor to find them in the lockfile"
+            },
+            {
+              "code": "forced-source-build",
+              "level": "warning",
+              "tool": "pdm",
+              "message": "PDM: no-binary lets docopt be built from source while building is forbidden for everything else; PDM then always builds it from source, even where a wheel exists, because it has no setting that only allows building",
+              "fix": "If pypi:docopt has a wheel and needs no build, remove it from installScripts.allow in depcurfew.json"
+            }
+          ]
+        }
+      ]
+    },
+    "sources": {
+      "git": "deny",
+      "remoteTarball": "deny",
+      "file": "allow",
+      "directory": "allow",
+      "tools": [
+        {
+          "tool": "pdm",
+          "settings": [],
+          "warnings": [
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "pdm",
+              "message": "PDM has no setting for git dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+            },
+            {
+              "code": "source-not-enforceable",
+              "level": "warning",
+              "tool": "pdm",
+              "message": "PDM has no setting for URL dependencies, so \"deny\" cannot be enforced",
+              "fix": "Run depcurfew doctor, which reports such dependencies in the lockfile"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "projects": []
+}

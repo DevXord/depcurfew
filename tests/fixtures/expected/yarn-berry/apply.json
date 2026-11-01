@@ -19,7 +19,7 @@
     {
       "code": "version-too-old",
       "tool": "yarn",
-      "message": "Yarn (Berry) 4.9.2 does not support npmMinimalAgeGate (since 4.10.2), approvedGitRepositories (since 4.14.0); not written",
+      "message": "Yarn (Berry) 4.9.2 does not support npmMinimalAgeGate (added in 4.10.2), approvedGitRepositories (added in 4.14.0); not written",
       "fix": "Require Yarn (Berry) 4.14.0 or later where the version is pinned"
     }
   ],

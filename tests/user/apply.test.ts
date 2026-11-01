@@ -5,6 +5,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { deno } from '../../src/knowledge/deno.ts';
+import type { ToolKnowledge } from '../../src/knowledge/types.ts';
 import { validatePolicy } from '../../src/policy/validate.ts';
 import type { ResolvedPolicy } from '../../src/policy/schema.ts';
 import { planUserApply, writeUserChanges } from '../../src/user/apply.ts';
@@ -101,6 +103,25 @@ describe('apply --user for npm and Deno (~/.npmrc)', () => {
       ['# >>> depcurfew managed block: edit the user depcurfew.json and run depcurfew apply --user instead', 'min-release-age=2', '# <<< depcurfew managed block', ''].join('\n'),
     );
     expect(alone.report.warningDetails.map((warning) => warning.code)).toContain('user-setting-project-only');
+  });
+
+  it.skipIf(!canSymlink())('takes the unit and the rounding of Deno\'s min-release-age from the knowledge base (user.cooldownUnit)', () => {
+    const environment = machine({ deno: '2.9.8' });
+    expect(deno.user?.cooldownUnit).toMatchObject({ status: 'verified', value: { key: 'min-release-age', unit: 'days', wholeNumbers: true, otherValues: 'ignored' } });
+    const user = deno.user;
+    if (user === undefined) throw new Error('Deno has no user section');
+    const unit = { key: 'min-release-age', unit: 'hours', wholeNumbers: true, otherValues: 'ignored' } as const;
+    const hours: ToolKnowledge = { ...deno, user: { ...user, cooldownUnit: { status: 'verified', value: unit, source: 'https://github.com/denoland/deno', verifiedAt: '2026-11-01' } } };
+    const planned = planUserApply(policy({ ...DEFAULT, cooldown: { minimum: '90m' }, targets: ['deno'] }), { environment, tools: [hours] });
+    // 90 minutes in whole hours, rounded up: 2.
+    expect(planned.report.changes[0]?.after).toContain('min-release-age=2\n');
+    // A value Deno ignores (72h) is no delay that apply --user shortens; 5 whole days is.
+    writeFileSync(join(environment.home, '.npmrc'), 'min-release-age=72h\n');
+    const ignored = planUserApply(policy({ ...DEFAULT, targets: ['deno'] }), { environment });
+    expect(ignored.report.warningDetails.map((warning) => warning.code)).not.toContain('cooldown-shortened');
+    writeFileSync(join(environment.home, '.npmrc'), 'min-release-age=5\n');
+    const longer = planUserApply(policy({ ...DEFAULT, targets: ['deno'] }), { environment });
+    expect(longer.report.warningDetails.find((warning) => warning.code === 'cooldown-shortened')?.message).toContain('min-release-age=5 in ~/.npmrc (line 1) waits 5 days');
   });
 
   it('configures nothing when no tool is in PATH and the policy lists none', () => {

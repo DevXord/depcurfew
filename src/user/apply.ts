@@ -23,10 +23,12 @@ import { readLimitedText } from '../read-limited.ts';
 import { parseYamlDocument } from '../yaml-parse.ts';
 import { reportProjectOnly, USER_GENERATORS, type UserTarget } from './generators.ts';
 import { homeProblem, ownerOfNewUnderHome, type HomeProblem } from './home.ts';
-import { locateUserFile, shownPath, userFileFor, userFilePath, type UserEnvironment } from './locate.ts';
+import { locateUserFile, shownPath, userFilePath, type UserEnvironment } from './locate.ts';
+import { listing } from '../apply/requirements.ts';
 import { userPolicyPath } from './policy-path.ts';
 import { environmentOverrides } from './variables.ts';
-import { findExecutable, installedVersion } from './versions.ts';
+import { installedUserFile, uncertainUserFile, type UncertainUserFile } from './user-file.ts';
+import { findExecutable, toolVersion } from './versions.ts';
 
 export interface UserChange extends FileChange {
   /** The absolute path of the file. */
@@ -186,6 +188,24 @@ function iniValues(text: string, file: UserFile, managedOnly: boolean): Map<stri
 
 const MAX_FILE = 1024 * 1024;
 
+/**
+ * user-file-uncertain: the version of the library that decides where the tool reads its user file (platformdirs for
+ * Poetry and PDM on macOS) cannot be read, and its versions put the file in different places here. apply --user writes
+ * where the tool's docs say, and names the other files and the variables that move it.
+ */
+function uncertainWarning(tool: ToolKnowledge, uncertain: UncertainUserFile): ApplyWarning {
+  const { library } = uncertain;
+  const files = uncertain.candidates.map((candidate) => `${candidate.shown} (${library} ${candidate.ranges.join(' or ')})`);
+  const variables = listing(uncertain.variables);
+  return {
+    code: 'user-file-uncertain',
+    tool: tool.id,
+    location: { file: uncertain.shown },
+    message: `${tool.name}: depcurfew cannot read the version of ${library} in ${tool.name}'s environment, which decides where ${tool.name} reads its user file here: ${files.join(', or ')}; depcurfew apply --user writes ${uncertain.shown}, where the ${tool.name} docs put it`,
+    fix: `Look for the ${library}-<version>.dist-info folder next to ${tool.name}'s own in the site-packages folder of ${tool.name}'s environment to see which file ${tool.name} reads${uncertain.variables.length === 0 ? '' : `, or unset ${variables} so that every ${library} version reads ${uncertain.shown}`}, then run depcurfew apply --user again`,
+  };
+}
+
 export function planUserApply(policy: ResolvedPolicy, options: UserApplyOptions): Planned {
   const tools = options.tools ?? knowledgeBase;
   const { environment } = options;
@@ -270,7 +290,7 @@ export function planUserApply(policy: ResolvedPolicy, options: UserApplyOptions)
   const configured: Configured[] = [];
   for (const tool of targets) {
     const given = options.versions?.[tool.id];
-    const installed = given === undefined ? installedVersion(tool.id, ecosystemOfTool(tool), environment) : undefined;
+    const installed = given === undefined ? toolVersion(tool, environment) : undefined;
     const version = given ?? installed?.version;
     versionsUsed[tool.id] = version;
     if (version === undefined) {
@@ -284,7 +304,7 @@ export function planUserApply(policy: ResolvedPolicy, options: UserApplyOptions)
         continue;
       }
     }
-    const file = userFileFor(tool, version);
+    const file = installedUserFile(tool, version, environment);
     if (file === null) {
       warnings.push({
         code: 'no-user-config',
@@ -310,6 +330,8 @@ export function planUserApply(policy: ResolvedPolicy, options: UserApplyOptions)
       continue;
     }
     const { path } = located;
+    const uncertain = uncertainUserFile(tool, version, environment);
+    if (uncertain !== undefined) warnings.push(uncertainWarning(tool, uncertain));
     if (version === undefined) {
       warnings.push({
         code: 'version-not-pinned',

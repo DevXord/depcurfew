@@ -58,7 +58,17 @@ describe('built depcurfew executable', () => {
     expect(depcurfewWith({ FORCE_COLOR: '1' }, 'doctor', '--json', directory).stdout).not.toMatch(ansi);
     expect(depcurfewWith({ FORCE_COLOR: '1' }, 'doctor', '--sarif', directory).stdout).not.toMatch(ansi);
     expect(depcurfewWith({ NO_COLOR: '1' }, 'doctor', directory).stdout).not.toMatch(ansi);
-    expect(depcurfewWith({ FORCE_COLOR: '1' }, 'frobnicate').stderr).toMatch(/^\u001b\[31m\u001b\[1mdepcurfew:/u);
+    // A usage error is written like any other error (decision D-113): the level in color, the code dimmed.
+    expect(depcurfewWith({ FORCE_COLOR: '1' }, 'frobnicate').stderr).toMatch(/^\u001b\[31m\u001b\[1merror:\u001b\[22m\u001b\[39m unknown command 'frobnicate' \u001b\[2m\(usage\)/u);
+  });
+
+  it('keeps stderr empty with FORCE_COLOR and NO_COLOR both set, where Node warns that it ignores NO_COLOR', () => {
+    // Node 22.15+ warns while loading node:util when both are set; depcurfew decides about colors itself (FORCE_COLOR
+    // wins), and with --json stderr must stay empty for programs.
+    const directory = fileURLToPath(new URL('tests/fixtures/doctor/config-drift/fires-hand-edited/repo', root));
+    const result = depcurfewWith({ FORCE_COLOR: '1', NO_COLOR: '1' }, 'doctor', '--json', directory);
+    expect(result.stderr).toBe('');
+    expect(JSON.parse(result.stdout).schemaVersion).toBe(1);
   });
 
   it('--version prints the package version', () => {
@@ -92,6 +102,7 @@ describe('built depcurfew executable', () => {
       schemaVersion: 1,
       project: JSON.parse(readFileSync(new URL('tests/fixtures/expected/npm-basic/detect.json', root), 'utf8')),
       policy: null,
+      projects: [],
       notices: [],
       errors: [],
     });
@@ -139,19 +150,19 @@ describe('built depcurfew executable', () => {
       const doctor = depcurfewIn(deep, 'doctor');
       expect(doctor.status).toBe(1);
       expect(doctor.stdout).toContain('package-lock.json\n  20: error package-lock.json installs ghshort from a git repository');
-      expect(doctor.stdout).toContain(`\nNotes:\n  ${note('doctor')}\n`);
+      expect(doctor.stdout).toContain(`\nNotes:\n  note ${note('doctor')} (policy-from-parent)\n`);
       expect(JSON.parse(depcurfewIn(deep, 'doctor', '--json').stdout)).toMatchObject({ policy: 'valid', notices: [{ message: note('doctor') }] });
 
       const explain = depcurfewIn(deep, 'explain');
-      expect([explain.status, explain.stderr]).toEqual([0, `note: ${note('explain')}\n`]);
+      expect([explain.status, explain.stderr]).toEqual([0, `note: ${note('explain')} (policy-from-parent)\n`]);
       expect(explain.stdout).toContain('Policy (depcurfew.json):\n');
-      expect(JSON.parse(depcurfewIn(deep, 'explain', '--json').stdout)).toMatchObject({ notices: [{ message: note('explain') }], errors: [] });
+      expect(JSON.parse(depcurfewIn(deep, 'explain', '--json').stdout)).toMatchObject({ notices: [{ level: 'note', code: 'policy-from-parent', location: { file: 'depcurfew.json' }, message: note('explain') }], errors: [] });
 
       const apply = depcurfewIn(deep, 'apply', '--dry-run');
       expect(apply.status).toBe(0);
-      expect(apply.stderr.startsWith(`note: ${note('apply')}\n`)).toBe(true);
+      expect(apply.stderr.startsWith(`note: ${note('apply')} (policy-from-parent)\n`)).toBe(true);
       expect(apply.stdout).toContain('+++ b/.npmrc\n');
-      expect(JSON.parse(depcurfewIn(deep, 'apply', '--dry-run', '--json').stdout)).toMatchObject({ notices: [{ message: note('apply') }] });
+      expect(JSON.parse(depcurfewIn(deep, 'apply', '--dry-run', '--json').stdout)).toMatchObject({ notices: [{ level: 'note', code: 'policy-from-parent', location: { file: 'depcurfew.json' }, message: note('apply') }] });
 
       // A directory given on the command line is taken as it is.
       expect(depcurfew('doctor', deep).stdout).toContain('no depcurfew.json: only the rules that do not need a policy ran');

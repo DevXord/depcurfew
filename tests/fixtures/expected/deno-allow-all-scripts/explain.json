@@ -1,0 +1,51 @@
+{
+  "policy": {
+    "file": "depcurfew.json",
+    "valid": true,
+    "targets": {
+      "mode": "auto",
+      "tools": [
+        "deno"
+      ]
+    },
+    "cooldown": {
+      "minimum": "1w",
+      "tools": [
+        {
+          "tool": "deno",
+          "ok": true,
+          "unit": "minutes",
+          "value": 10080,
+          "exact": true
+        }
+      ]
+    },
+    "installScripts": {
+      "default": "deny",
+      "allow": [],
+      "deny": [],
+      "tools": [
+        {
+          "tool": "deno",
+          "settings": [
+            {
+              "setting": "allowScripts",
+              "file": "deno.json"
+            }
+          ],
+          "warnings": [
+            {
+              "code": "allow-all-replaced",
+              "level": "warning",
+              "tool": "deno",
+              "message": "Deno: allowScripts allowed every install script; replaced with the policy's allow-list",
+              "fix": "Add the packages whose install scripts must run to installScripts.allow in depcurfew.json, then run depcurfew apply again"
+            }
+          ]
+        }
+      ]
+    },
+    "sources": null
+  },
+  "projects": []
+}

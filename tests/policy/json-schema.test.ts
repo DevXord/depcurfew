@@ -4,6 +4,7 @@ import { DEFAULT_POLICY, SCHEMA_URL } from '../../src/policy/defaults.ts';
 import { parseDuration } from '../../src/policy/duration.ts';
 import { policyJsonSchema, renderPolicyJsonSchema } from '../../src/policy/json-schema.ts';
 import { validatePackagePattern } from '../../src/policy/package-pattern.ts';
+import { validateProjectDirectory } from '../../src/policy/project-directory.ts';
 import { parsePolicy, validatePolicy } from '../../src/policy/validate.ts';
 import { policyFixtureNames, readFixture } from './fixture-files.ts';
 import { matchesSchema } from './json-schema-subset.ts';
@@ -12,7 +13,7 @@ const root = new URL('../../', import.meta.url);
 const schema = policyJsonSchema() as Record<string, unknown>;
 
 // Checks that need code: arithmetic limits and rules that span several fields.
-const VALIDATOR_ONLY = new Set(['duration-too-large', 'dependabot-over-maximum', 'allow-list-without-effect', 'deny-list-without-effect', 'allow-and-deny-overlap', 'allow-and-deny-patterns-overlap']);
+const VALIDATOR_ONLY = new Set(['duration-too-large', 'dependabot-over-maximum', 'allow-list-without-effect', 'deny-list-without-effect', 'allow-and-deny-overlap', 'allow-and-deny-patterns-overlap', 'projects-overlap']);
 
 function walkSchemas(node: unknown, visit: (schema: Record<string, unknown>, path: string) => void, path = '#'): void {
   if (typeof node !== 'object' || node === null || Array.isArray(node)) return;
@@ -82,5 +83,15 @@ describe('schema.json agrees with the validator', () => {
     '', '*', '**', 'foo bar', 'esbuild@0.25.0', '@scope/pkg@1', './local', '.hidden', '_private', '@scope', '@/name', 'a/b', 'https://x',
   ])('on package pattern %j', (pattern) => {
     expect(matchesSchema(excludeItems, pattern)).toBe(validatePackagePattern(pattern) === undefined);
+  });
+
+  const projectItems = ((schema['properties'] as Record<string, Record<string, unknown>>)['projects']?.['items'] ?? {}) as Record<string, unknown>;
+
+  it.each([
+    'frontend', 'services/api', '.config', 'a.b/c-d_e', 'web app', 'x/.y', '..a', 'a..', 'deck',
+    '', '.', './', '..', '../x', 'a/../b', 'a/./b', './a', '/a', 'a/', 'a//b', 'C:/a', 'c:a', 'a\\b', '\\\\server\\x', 'packages/*', 'a?b', 'a:b',
+    'node_modules', 'x/node_modules/y', '.git', 'a/.git', 'tab\there', 'a|b',
+  ])('on project directory %j', (entry) => {
+    expect(matchesSchema(projectItems, entry)).toBe(validateProjectDirectory(entry) === undefined);
   });
 });

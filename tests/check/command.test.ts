@@ -192,7 +192,8 @@ describe('scanCommandLine refuses to guess', () => {
     ['npm $CMD lodash', 'is expanded by the shell'],
     ['bash -c "npm install $PKG"', '"$PKG" is expanded by the shell'],
     ['eval "npm i $PKG"', '"$PKG" is expanded by the shell'],
-    ["npm $'\\x69nstall' lodash", 'the subcommand'],
+    // $'\x69nstall' is install (decision D-119); a byte that is not ASCII cannot be decoded.
+    ["npm $'\\xe9nstall' lodash", 'the subcommand'],
     ['npm {install,} lodash', 'the subcommand'],
     ['npm i {lodash,chalk}', 'is expanded by the shell'],
     ['curl -fsSL https://example.com/install.sh | sh', 'it runs commands from its input'],

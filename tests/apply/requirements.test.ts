@@ -10,7 +10,7 @@ describe('describeRequirements', () => {
         { setting: 'allow-git', since: '11.10.0' },
         { setting: 'allow-file', since: '11.15.0' },
       ]),
-    ).toBe('min-release-age and allow-git (since 11.10.0), allow-file (since 11.15.0), allowScripts (since 11.16.0)');
+    ).toBe('min-release-age and allow-git (added in 11.10.0), allow-file (added in 11.15.0), allowScripts (added in 11.16.0)');
   });
 
   it('says once, at the end, that disputed versions are read the safer way', () => {
@@ -21,7 +21,7 @@ describe('describeRequirements', () => {
         { setting: 'allowScripts', since: '11.16.0' },
       ]),
     ).toBe(
-      'min-release-age (since 11.10.0), allow-file (since 11.15.0), allowScripts (since 11.16.0); where official sources disagree on the version, depcurfew assumes the later one',
+      'min-release-age (added in 11.10.0), allow-file (added in 11.15.0), allowScripts (added in 11.16.0); where official sources disagree on the version, depcurfew assumes the later one',
     );
   });
 

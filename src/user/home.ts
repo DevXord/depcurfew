@@ -10,7 +10,11 @@ import type { UserEnvironment } from './locate.ts';
 /** A problem that concerns no single user file, with its code. */
 export interface HomeProblem {
   code: ApplyErrorCode;
-  location: { file: string };
+  /**
+   * The home directory; for one that is not an absolute path (also an empty HOME), the variable that names it, as
+   * doctor --user names an environment variable: { file: "environment", variable: "HOME" } (decision D-124).
+   */
+  location: { file: string; variable?: string };
   message: string;
   fix: string;
 }
@@ -31,9 +35,12 @@ export function homeProblem(environment: UserEnvironment, command: keyof typeof 
   const { home } = environment;
   const module = environment.platform === 'win32' ? win32 : posix;
   const variable = environment.platform === 'win32' ? 'USERPROFILE' : 'HOME';
-  const fix = `Set ${variable} to an existing directory, or run depcurfew ${command} --user as a user who has a home directory`;
-  const problem = (message: string): HomeProblem => ({ code: 'home-missing', location: { file: home }, message, fix });
-  if (!module.isAbsolute(home)) return problem(`the home directory ${JSON.stringify(home)} is not an absolute path, so depcurfew ${command} --user cannot tell where the user configuration is`);
+  const fixFor = (what: string) => `Set ${variable} to ${what}, or run depcurfew ${command} --user as a user who has a home directory`;
+  const problem = (message: string, fix = fixFor('an existing directory'), location: HomeProblem['location'] = { file: home }): HomeProblem => ({ code: 'home-missing', location, message, fix });
+  if (!module.isAbsolute(home)) {
+    // A relative or empty value names no file: the variable is what is wrong.
+    return problem(`the home directory ${JSON.stringify(home)} is not an absolute path, so depcurfew ${command} --user cannot tell where the user configuration is`, fixFor('the absolute path of an existing directory'), { file: 'environment', variable });
+  }
   let stats;
   try {
     stats = statSync(home, { throwIfNoEntry: false });

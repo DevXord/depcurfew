@@ -5,6 +5,7 @@ const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const user = verifiedOn('2026-10-31');
+const leftovers = verifiedOn('2026-11-01');
 const DENO_V2_9_8 = 'https://github.com/denoland/deno/blob/v2.9.8';
 const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
@@ -138,7 +139,12 @@ export const deno: ToolKnowledge = {
     settings: user.verified(
       [{ purpose: 'cooldown', key: 'min-release-age', since: '2.8.0' }],
       `${DENO_V2_9_8}/Releases.md`,
-      '2.8.0: "feat(npmrc): support min-release-age (#33983)". A whole number of days (npmrcFormat); the same line sets npm\'s min-release-age, also in days. minimumDependencyAge.exclude and allowScripts exist only in deno.json (allowScripts at the workspace root), so Deno has no user-level exclusions or script settings.',
+      '2.8.0: "feat(npmrc): support min-release-age (#33983)". A whole number of days (cooldownUnit); the same line sets npm\'s min-release-age, also in days. minimumDependencyAge.exclude and allowScripts exist only in deno.json (allowScripts at the workspace root), so Deno has no user-level exclusions or script settings.',
+    ),
+    cooldownUnit: leftovers.verified(
+      { key: 'min-release-age', unit: 'days', wholeNumbers: true, otherValues: 'ignored' },
+      NPMRC_PARSER,
+      'NpmRc::parse reads min-release-age "in days" (min_release_age_days: Option<u64>; "npm interprets the value as a number of days"): an INI number of 0 or more, or a text that parses as a whole number after ${VAR} expansion; anything else, such as 72h or 1.5, is ignored without a message, so the age comes from the next source. The project .npmrc wins over the home file (libs/resolver/npmrc.rs), and the days count only where deno.json and --min-dep-age set nothing; those take minutes, an ISO-8601 duration or an RFC 3339 date (libs/config/util.rs, libs/cli_parser/src/defs.rs).',
     ),
     unknownKeys: user.verified(
       'ignore',
@@ -247,6 +253,18 @@ export const deno: ToolKnowledge = {
       ),
     ),
     denoXCooldown: verified('deno x honors minimumDependencyAge only since 2.9.4', release('2.9.4')),
+    installOverrides: leftovers.verified(
+      {
+        options: [
+          { name: '--minimum-dependency-age', weakens: 'delay', values: 'delay' },
+          { name: '--min-dep-age', weakens: 'delay', values: 'delay' },
+          { name: '--allow-scripts', weakens: 'scripts', values: 'any' },
+        ],
+        variables: [],
+      },
+      'https://github.com/denoland/docs/blob/main/runtime/packages/supply_chain.md',
+      'deno install --minimum-dependency-age=P3D: deno.json and the flag accept an ISO-8601 duration such as P3D or PT72H, or an integer of minutes, and 0 turns it off; --min-dep-age is its alias (cooldown.cliFlag). deno install --allow-scripts=<packages> lets those packages run their lifecycle scripts, which Deno does not run by default (runtime/reference/cli/install.md in denoland/docs).',
+    ),
     dxRunsScripts: verified('dx defaults to --allow-all and runs lifecycle scripts once the download prompt is accepted', 'https://deno.com/blog/v2.6'),
   },
 };

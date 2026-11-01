@@ -30,6 +30,10 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
+      # Node.js 22 comes with npm 10, which ignores min-release-age and the allow-* settings of .npmrc without a
+      # warning, and older 24.x and 26.x releases come with npm 11 releases that lack some of them: install the npm
+      # of packageManager in package.json first (depcurfew doctor checks this, decision D-099).
+      - run: npm install -g npm@11.19.1
       # The project .npmrc sets ignore-scripts, so no dependency script runs.
       - run: npm ci
       - run: npm test
@@ -43,3 +47,32 @@ jobs:
         run: |
           npm run build:action
           git diff --exit-code -- action/
+
+  runtime:
+    # Finds the lowest Node.js the built CLI runs on (decision D-103): built once with a Node.js that can build it,
+    # then the smoke test runs on each version without npm, with nothing but the CLI and the fixtures.
+    name: Runtime smoke test on Node.js ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18.3.0', '18', '20.0.0', '20', '22.0.0', '22']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # The npm of packageManager, which knows the settings of .npmrc (decision D-099).
+      - run: npm install -g npm@11.19.1
+      # The project .npmrc sets ignore-scripts, so no dependency script runs.
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - run: node tests/runtime/smoke.mjs

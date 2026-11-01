@@ -9,13 +9,16 @@ import { formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import { policyFor } from '../policy/ecosystem.ts';
-import { CHECK_BY_HAND, describeAge, insecureFinding, sourceFindings, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
+import { CHECK_BY_HAND, describeAge, insecureFinding, quoted, sourceFindings, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
 import { checkPythonSpec, isPythonSpec } from './python.ts';
-import { fetchPackument, type Packument } from './registry.ts';
+import { cachedLookup, fetchPackument, type Packument } from './registry.ts';
 import { compareSemver, maxSatisfying, parseRange, parseSemver, satisfies } from './semver.ts';
 import { parseSpec } from './spec.ts';
 
 export { describeAge } from './findings.ts';
+
+/** What to do when the registry cannot be reached, for a person at the command line. */
+export const REGISTRY_RETRY_FIX = 'Run depcurfew check again when the registry is reachable, or pass --registry with a registry you can reach';
 export type { CheckFinding, CheckOptions, CheckRequest, FindingCode, PackageReport } from './findings.ts';
 
 function defaultTag(): string {
@@ -73,7 +76,8 @@ function oldEnough(packument: Packument, selector: string, cutoff: number): stri
   return maxSatisfying(versions, range);
 }
 
-async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions, preferred: string): Promise<void> {
+async function checkRegistryPackage(report: PackageReport, name: string, selector: string, options: CheckOptions, preferred: string, request: Omit<CheckRequest, 'spec'>): Promise<void> {
+  const { tool } = request;
   // check looks up npm packages, so only the policy's npm names apply.
   const policy = policyFor(options.policy, 'npm');
   const add = (finding: CheckFinding) => report.findings.push(finding);
@@ -99,16 +103,18 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
     });
   }
 
+  // The caller reports why (an unread scope registry): the name is not sent to a registry the install does not use.
+  if (options.skipLookup?.(name, tool, request) === true) return;
   const insecure = insecureFinding(options.registry, 'registry');
   if (insecure !== undefined) add(insecure);
-  const lookup = await fetchPackument(name, { registry: options.registry, fetch: options.fetch });
+  const lookup = await cachedLookup(options.lookups, `npm\0${options.registry}\0${name}`, () => fetchPackument(name, { registry: options.registry, fetch: options.fetch, signal: options.signal }));
   if (lookup.status === 'not-found') {
     if (scope !== undefined) {
       // A scope may belong to a private registry that no .npmrc depcurfew reads names, so a person decides.
       add({
         level: 'error',
         code: 'unverified',
-        message: `${name} is not in ${options.registry}; if ${scope} packages come from another registry, set ${scope}:registry in .npmrc, otherwise the name may be mistyped or made up`,
+        message: `${name} is not in ${options.registry}; either ${scope} packages come from another registry, which ${scope}:registry in .npmrc names, or the name is mistyped or made up`,
         fix: `Set ${scope}:registry in .npmrc if ${scope} packages come from another registry; otherwise check the spelling of the name`,
       });
       return;
@@ -126,7 +132,7 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
       level: 'error',
       code: 'unverified',
       message: `it cannot be checked: ${lookup.reason}`,
-      fix: lookup.fix ?? 'Run depcurfew check again when the registry is reachable, or pass --registry with a registry you can reach',
+      fix: lookup.fix ?? REGISTRY_RETRY_FIX,
     });
     return;
   }
@@ -182,7 +188,8 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
   const allowed = policy.installScripts?.allow.some((pattern) => matchesPattern(name, pattern)) ?? false;
   const denied = policy.installScripts?.deny.some((pattern) => matchesPattern(name, pattern)) ?? false;
   if (scripts.length > 0 && policy.installScripts?.default === 'deny' && !allowed && !denied) {
-    const listed = scripts.map((script) => (options.scriptBodies === false ? script : `${script}: ${String(document?.scripts?.[script])}`)).join('; ');
+    // The body of a script is the publisher's text, so it is quoted; the names come from the knowledge base.
+    const listed = scripts.map((script) => (options.scriptBodies === false ? script : `${script}: ${quoted(String(document?.scripts?.[script]))}`)).join('; ');
     add({
       level: 'error',
       code: 'install-scripts',
@@ -194,11 +201,15 @@ async function checkRegistryPackage(report: PackageReport, name: string, selecto
     add({
       level: 'warning',
       code: 'deprecated',
-      message: `${name}@${version} is deprecated: ${document.deprecated}`,
-      fix: 'Pick a version or package that is not deprecated; the deprecation message often names one',
+      // The message is the publisher's: quoted, so that it reads as data, and a replacement it names is only a suggestion.
+      message: `${name}@${version} is deprecated, with the message ${quoted(document.deprecated)}`,
+      fix: DEPRECATED_FIX,
     });
   }
 }
+
+/** What to do about a deprecated version: a replacement the publisher names is checked like any other package. */
+export const DEPRECATED_FIX = 'Pick a version or package that is not deprecated; check a replacement the message suggests like any other package before installing it';
 
 export async function checkSpec(request: string | CheckRequest, options: CheckOptions): Promise<PackageReport> {
   const { spec: raw, ...chosen } = typeof request === 'string' ? { spec: request } : request;
@@ -224,7 +235,7 @@ export async function checkSpec(request: string | CheckRequest, options: CheckOp
     report.name = spec.name;
     const preferred = chosen.tag ?? (chosen.ignoresConfigTag === true ? undefined : options.defaultTag) ?? defaultTag();
     if (preferred !== defaultTag()) report.tag = preferred;
-    await checkRegistryPackage(report, spec.name, spec.selector ?? '', options, preferred);
+    await checkRegistryPackage(report, spec.name, spec.selector ?? '', options, preferred, chosen);
   }
   return report;
 }
@@ -232,16 +243,20 @@ export async function checkSpec(request: string | CheckRequest, options: CheckOp
 /** How many packages are looked up at once. */
 const CONCURRENCY = 6;
 
-/** Checks the specs a few at a time; the reports keep the order of the specs. */
+/**
+ * Checks the specs a few at a time; the reports keep the order of the specs. When `options.signal` aborts, no further
+ * spec is looked up and the promise rejects with the signal's reason.
+ */
 export async function checkSpecs(specs: readonly (string | CheckRequest)[], options: CheckOptions): Promise<PackageReport[]> {
   const reports: PackageReport[] = [];
   let next = 0;
   const worker = async (): Promise<void> => {
-    while (next < specs.length) {
+    while (next < specs.length && options.signal?.aborted !== true) {
       const index = next++;
       reports[index] = await checkSpec(specs[index] as string | CheckRequest, options);
     }
   };
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, specs.length) }, worker));
+  options.signal?.throwIfAborted();
   return reports;
 }

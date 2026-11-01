@@ -29,7 +29,7 @@ describe('depcurfew explain --json', () => {
     const result = await exec('explain', '--json', repo('pnpm10-monorepo'));
     expect(result.code).toBe(EXIT_OK);
     expect(result.stderr).toBe('');
-    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, project: expected('pnpm10-monorepo'), policy: null, notices: [], errors: [] });
+    expect(JSON.parse(result.stdout)).toEqual({ schemaVersion: 1, project: expected('pnpm10-monorepo'), policy: null, projects: [], notices: [], errors: [] });
   });
 
   describe('with a policy', () => {
@@ -59,6 +59,8 @@ describe('depcurfew explain --json', () => {
             { tool: 'dependabot', ok: true, unit: 'days', value: 2, exact: false },
           ],
         },
+        installScripts: null,
+        sources: null,
       });
     });
 
@@ -79,6 +81,8 @@ describe('depcurfew explain --json', () => {
             { tool: 'renovate', ok: true, unit: 'duration-string', value: '7 days', exact: true },
           ],
         },
+        installScripts: null,
+        sources: null,
       });
     });
 
@@ -108,7 +112,8 @@ describe('depcurfew explain --json', () => {
         {
           code: 'policy-invalid',
           level: 'error',
-          location: { file: 'depcurfew.json' },
+          // The line of the field the problem names (decision D-116).
+          location: { file: 'depcurfew.json', line: 1 },
           message: 'depcurfew.json is invalid',
           fix: 'Fix these problems in depcurfew.json; an editor that reads its $schema shows them as you type',
           issues: ['cooldown.minimum: invalid duration "3 days": spaces are not allowed; write "3d"'],
@@ -135,6 +140,7 @@ describe('depcurfew explain --json', () => {
           'Workspaces: none',
           '.npmrc files: none',
           'GitHub Actions workflows: none',
+          'Dockerfiles: none',
           'Warnings: none',
           '',
           'Policy (depcurfew.json):',
@@ -142,6 +148,8 @@ describe('depcurfew explain --json', () => {
           '  cooldown 36h:',
           '    pnpm: 2160 minutes',
           '    Dependabot: 2 days (rounded up)',
+          '  installScripts: not managed',
+          '  sources: not managed',
           '',
         ].join('\n'),
       );
@@ -154,10 +162,22 @@ describe('depcurfew explain --json', () => {
       [
         'Warnings:',
         '  multiple-lockfiles: lockfiles of several package managers: package-lock.json, yarn.lock',
+        '    fix: Remove the lockfiles of the package managers the project does not use',
         '  package-manager-mismatch: packageManager names pnpm, but no pnpm lockfile exists',
+        '    fix: Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager',
         '  yarn-classic-unsupported: Yarn Classic (1.x) is not supported; depcurfew configures Yarn 2 and later',
+        '    fix: Move to Yarn 2 or later, or to another package manager depcurfew configures',
       ].join('\n'),
     );
+    const json = JSON.parse((await exec('explain', '--json', repo('conflicting-lockfiles'))).stdout) as { project: { warnings: unknown[] } };
+    expect(json.project.warnings[0]).toEqual({
+      code: 'multiple-lockfiles',
+      level: 'warning',
+      location: { file: 'package-lock.json' },
+      message: 'lockfiles of several package managers: package-lock.json, yarn.lock',
+      files: ['package-lock.json', 'yarn.lock'],
+      fix: 'Remove the lockfiles of the package managers the project does not use',
+    });
     expect(result.stdout).toContain('  Yarn Classic (not supported)\n');
     expect(result.stdout).toContain('Policy: no depcurfew.json\n');
   });

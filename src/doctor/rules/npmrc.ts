@@ -14,6 +14,7 @@ import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion, pnpmNpmrcAllowsAllBuilds } from '../effective.ts';
 import { iniEntries, iniLines, iniValue, npmrcKey, yamlSetting, type IniEntry } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
+import { usesManager } from '../applies.ts';
 
 function before(version: Version, limit: unknown): boolean {
   const until = typeof limit === 'string' ? parseVersion(limit) : undefined;
@@ -228,6 +229,7 @@ export const npmrcOverridesPolicy: Rule = {
   help: 'Keep security settings out of .npmrc files that are ignored or that override the policy; set them through depcurfew.json and depcurfew apply.',
   level: 'error',
   requiresPolicy: false,
+  applies: (scope) => usesManager(scope, ['npm', 'pnpm']),
   check(context) {
     checkNpmWorkspaces(context);
     checkNpmSections(context);
@@ -246,6 +248,7 @@ export const pnpmSharedWorkspaceLockfile: Rule = {
   help: 'Remove security settings from package .npmrc files, or keep the default shared lockfile.',
   level: 'warning',
   requiresPolicy: false,
+  applies: (scope) => usesManager(scope, ['pnpm']),
   check(context) {
     const pnpm = managerOf(context, 'pnpm');
     if (pnpm === undefined) return;

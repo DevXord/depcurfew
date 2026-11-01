@@ -1,7 +1,8 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, IndexEntriesKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
+const guard = verifiedOn('2026-11-01');
 
 // docs.astral.sh is built from docs/ in the repository; the settings and CLI references are generated from the code.
 const UV = 'https://github.com/astral-sh/uv/blob/0.13.6';
@@ -15,8 +16,30 @@ const SERIALIZE = `${UV}/crates/uv-lock/src/lock/serialize.rs`;
 const CLI = `${UV}/crates/uv-cli/src/lib.rs`;
 const changelog = (minor: string, version: string) => `${UV}/changelogs/${minor}.x.md#${version.replaceAll('.', '')}`;
 const user = verifiedOn('2026-10-31');
+const release13 = verifiedOn('2026-11-01');
+const final = verifiedOn('2026-11-01');
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = ['1', 'true', 't', 'yes', 'y', 'on'];
+
+/**
+ * What an entry of [[tool.uv.index]] (or [[index]] in uv.toml) does (decision D-120, docs/concepts/indexes.md at
+ * 0.13.6): "An index can be marked as explicit = true to prevent packages from being installed from that index unless
+ * explicitly pinned to it", and "A package can be pinned to a specific index by specifying the index in its
+ * tool.uv.sources entry" (torch = { index = "pytorch" }, or a list of such tables "disambiguated by environment
+ * markers"); default = true replaces PyPI; any other entry is asked before the default index. The page says named
+ * indexes referenced via tool.uv.sources "must be defined within the project's pyproject.toml file"; depcurfew takes
+ * the explicit indexes of uv.toml too, which can only report more.
+ */
+const INDEX_ENTRIES: IndexEntriesKnowledge = {
+  nameKey: 'name',
+  rules: [
+    { key: 'explicit', value: true, effect: 'pinned' },
+    { key: 'default', value: true, effect: 'replaces' },
+  ],
+  first: 'adds',
+  others: 'adds',
+  pins: { file: 'pyproject.toml', tables: [['tool', 'uv', 'sources']], key: 'index' },
+};
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -194,6 +217,26 @@ export const uv: ToolKnowledge = {
     ),
   },
   extra: {
+    registrySettings: release13.verified(
+      [
+        { file: 'pyproject.toml', path: ['tool', 'uv', 'index'], applies: 'all', effect: 'adds', urlKey: 'url', entries: INDEX_ENTRIES },
+        { file: 'pyproject.toml', path: ['tool', 'uv', 'index-url'], applies: 'all', effect: 'replaces' },
+        { file: 'pyproject.toml', path: ['tool', 'uv', 'extra-index-url'], applies: 'all', effect: 'adds' },
+        { file: 'pyproject.toml', path: ['tool', 'uv', 'find-links'], applies: 'all', effect: 'adds' },
+        { file: 'pyproject.toml', path: ['tool', 'uv', 'pip', 'index-url'], applies: 'all', effect: 'replaces' },
+        { file: 'pyproject.toml', path: ['tool', 'uv', 'pip', 'extra-index-url'], applies: 'all', effect: 'adds' },
+        { file: 'pyproject.toml', path: ['tool', 'uv', 'pip', 'find-links'], applies: 'all', effect: 'adds' },
+        { file: 'uv.toml', path: ['index'], applies: 'all', effect: 'adds', urlKey: 'url', entries: INDEX_ENTRIES },
+        { file: 'uv.toml', path: ['index-url'], applies: 'all', effect: 'replaces' },
+        { file: 'uv.toml', path: ['extra-index-url'], applies: 'all', effect: 'adds' },
+        { file: 'uv.toml', path: ['find-links'], applies: 'all', effect: 'adds' },
+        { file: 'uv.toml', path: ['pip', 'index-url'], applies: 'all', effect: 'replaces' },
+        { file: 'uv.toml', path: ['pip', 'extra-index-url'], applies: 'all', effect: 'adds' },
+        { file: 'uv.toml', path: ['pip', 'find-links'], applies: 'all', effect: 'adds' },
+      ],
+      SETTINGS,
+      'ResolverInstallerSchema: index ("The package indexes to use when resolving dependencies", [[tool.uv.index]] with name and url), index-url ("The URL of the Python package index (by default: <https://pypi.org/simple>)"), extra-index-url ("Extra URLs of package indexes to use, in addition to --index-url") and find-links ("Locations to search for candidate distributions, in addition to those found in the registry indexes"); PipOptions ([tool.uv.pip]) has index-url, extra-index-url and find-links too. uv.toml takes the same keys at its top level (extra.configTables). docs/concepts/indexes.md: "Indexes are prioritized in the order in which they\'re defined", the default index is "always treated as lowest priority", with the default first-index strategy uv "will stop at the first index on which a given package is available", default = true replaces PyPI ("set default = true on another index entry" to "exclude PyPI from the list of indexes"), so an entry without it adds an index that is asked before the default one, and an explicit = true index is used only for packages pinned to it in tool.uv.sources. Each [[index]] entry is read as entries says (decision D-120): explicit = true counts only for the packages tool.uv.sources pins to it by name, default = true replaces PyPI, any other entry adds an index (see INDEX_ENTRIES).',
+    ),
     pylockCreatedBy: verified(
       'uv',
       `${UV}/crates/uv-lock/src/lock/export/pylock_toml.rs`,
@@ -270,6 +313,35 @@ export const uv: ToolKnowledge = {
       SERIALIZE,
       'uv.lock records these in [options] (a relative exclude-newer as exclude-newer-span); after a change uv lock --check and uv sync --locked fail until uv lock runs again ("Resolving despite existing lockfile due to addition of global exclude newer", seen with uv 0.13.6 on 2026-10-30). no-build and no-binary-package are not recorded.',
     ),
+    lockOptions: final.verified(
+      { table: 'options', timestamp: 'exclude-newer', span: 'exclude-newer-span', packages: 'exclude-newer-package', packageTimestamp: 'timestamp', packageSpan: 'span', placeholder: '0001-01-01T00:00:00Z' },
+      SERIALIZE,
+      'write_options writes [options] when exclude-newer is set: an absolute value as exclude-newer = "<timestamp>"; a relative one as exclude-newer = the placeholder "0001-01-01T00:00:00Z" (with the comment "This has no effect and is included for backwards compatibility when using relative exclude-newer values") and exclude-newer-span = the span as jiff prints it, ISO 8601 (P3D, P1W); since 0.11.8 exclude-newer may be missing next to exclude-newer-span. [options.exclude-newer-package] holds name = "<timestamp>", name = { timestamp = <placeholder>, span = "P3D" } or name = false. The placeholder is ExcludeNewerValue::PLACEHOLDER in crates/uv-distribution-types/src/exclude_newer.rs.',
+    ),
+    lockComparison: final.verified(
+      { spans: 'fieldwise', absolute: 'earlier', packages: 'locked-or-recorded', dateOnly: 'next-day-system-time-zone' },
+      `${UV}/crates/uv-configuration/src/exclude_newer.rs`,
+      'ExcludeNewer::compare (lock against the settings, in crates/uv-lock-operations/src/validated_lock.rs after lock.filter_exclude_newer) resolves again on an added or removed global value, a span that differs (ExcludeNewerSpan compares self.0.fieldwise() == other.0.fieldwise() in crates/uv-distribution-types/src/exclude_newer.rs, so "7 days" and P1W differ), a span added to or removed from an absolute value, and an absolute timestamp that is earlier than the locked one (a later one does not count); only a new timestamp of the same span is ignored. Per package (only names of locked packages and names the lock already records, filter_exclude_newer in crates/uv-lock/src/lock/mod.rs): a cutoff removed, a disabled one enabled, an enabled one added, or a changed value; an enabled one that is now disabled does not count. A date without a time (2026-01-01) is the start of the next day in the system time zone, so the timestamp it gives depends on the machine. Messages such as "Resolving despite existing lockfile due to change of exclude newer span from `P3D` to `P1W`" come from the Display of ExcludeNewerValueChange.',
+    ),
+    spanSyntax: final.verified(
+      {
+        friendlyUnits: {
+          years: ['years', 'year', 'yrs', 'yr', 'y'],
+          months: ['months', 'month', 'mos', 'mo'],
+          weeks: ['weeks', 'week', 'wks', 'wk', 'w'],
+          days: ['days', 'day', 'd'],
+          hours: ['hours', 'hour', 'hrs', 'hr', 'h'],
+          minutes: ['minutes', 'minute', 'mins', 'min', 'm'],
+          seconds: ['seconds', 'second', 'secs', 'sec', 's'],
+          milliseconds: ['milliseconds', 'millisecond', 'millis', 'milli', 'msecs', 'msec', 'ms'],
+          microseconds: ['microseconds', 'microsecond', 'micros', 'micro', 'usecs', 'usec', 'us'],
+          nanoseconds: ['nanoseconds', 'nanosecond', 'nanos', 'nano', 'nsecs', 'nsec', 'ns'],
+        },
+        rejectedUnits: ['years', 'months'],
+      },
+      'https://github.com/BurntSushi/jiff/blob/0.2.37/crates/jiff/src/fmt/friendly/mod.rs',
+      'jiff 0.2.37 is the version in Cargo.lock of uv 0.13.6. uv parses a relative exclude-newer with jiff\'s Span (FromStr of ExcludeNewerValue tries a timestamp, then a date, then a span), which reads the friendly format ("3 days", "1w", "2 weeks, 3 days", with each unit at most once, larger units first, a leading sign or a trailing "ago") and ISO 8601 (P3D, PT36H). Span prints as ISO 8601 by default, which is what uv.lock records. uv rejects years and months ("use days instead", crates/uv-distribution-types/src/exclude_newer.rs). The friendly format also has HH:MM:SS and fractions of hours and smaller units, which depcurfew does not read.',
+    ),
     commandLine: verified(
       {
         add: [['uv', 'add'], ['uv', 'pip', 'install'], ['uv', 'tool', 'install']],
@@ -340,6 +412,32 @@ export const uv: ToolKnowledge = {
       'VersionSelectionArgs: --prerelease takes disallow, allow, if-necessary, explicit or if-necessary-or-explicit (UV_PRERELEASE); allow considers pre-releases of every package and disallow none (docs/concepts/resolution.md); --prerelease-package takes PACKAGE=MODE; the hidden --pre means allow. BuildOptionsArgs of uv add, uv run, uv tool install and uv tool run (uvx): --no-binary (UV_NO_BINARY, a boolean) installs every package from source, --binary turns it off, --no-binary-package names one package (UV_NO_BINARY_PACKAGE, separated by spaces). uv pip install takes --no-binary and --only-binary as lists separated by commas with :all: and :none:, as pip does (PipInstallArgs).',
     ),
     latestVersion: verified('0.13.6', `${UV}/CHANGELOG.md`, 'Released on 2026-10-26.'),
+    directoryOptions: guard.verified<DirectoryOptionsKnowledge>(
+      {
+        options: [
+          { name: '--directory', moves: 'directory' },
+          { name: '--project', moves: 'project', ignoredBy: [['uv', 'pip']] },
+        ],
+        variables: [
+          { name: 'UV_WORKING_DIR', moves: 'directory' },
+          { name: 'UV_WORKING_DIRECTORY', moves: 'directory' },
+          { name: 'UV_PROJECT', moves: 'project', ignoredBy: [['uv', 'pip']] },
+        ],
+      },
+      CLI,
+      'GlobalArgs (global = true, so before or after the subcommand): --directory "Change to the given directory prior to running the command. Relative paths are resolved with the given directory as the base", env UV_WORKING_DIR; --project "Discover a project in the given directory. All pyproject.toml, uv.toml, and .python-version files will be discovered by walking up the directory tree from the project root … Other command-line arguments (such as relative paths) will be resolved relative to the current working directory … This setting has no effect when used in the uv pip interface", env UV_PROJECT. crates/uv-static/src/env_vars.rs: UV_WORKING_DIR is "Equivalent to the --directory command-line argument. UV_WORKING_DIRECTORY (added in v0.9.1) is also supported for backwards compatibility", UV_PROJECT "Equivalent to the --project command-line argument".',
+    ),
+    installOverrides: guard.verified(
+      {
+        options: [
+          { name: '--exclude-newer', weakens: 'delay', values: 'delay' },
+          { name: '--exclude-newer-package', weakens: 'delay', values: 'any' },
+        ],
+        variables: [{ name: 'UV_EXCLUDE_NEWER', weakens: 'delay', values: 'delay' }],
+      },
+      `${UV}/crates/uv-cli/src/lib.rs`,
+      'ExcludeNewerArgs: #[arg(long, env = EnvVars::UV_EXCLUDE_NEWER)] exclude_newer accepts RFC 3339 timestamps, local dates, friendly and ISO 8601 durations, and false to disable it; PackageExcludeNewerArgs adds --exclude-newer-package PACKAGE=DATE and is flattened into ResolverArgs, InstallerArgs and ResolverInstallerArgs. A date is not compared with the policy, so it is asked about.',
+    ),
     pipTable: user.verified(
       { table: 'pip', keys: { 'exclude-newer': 'exclude-newer', 'exclude-newer-package': 'exclude-newer-package', 'no-binary-package': 'no-binary' } },
       `${UV}/crates/uv-cli/src/settings.rs`,

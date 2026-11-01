@@ -1,4 +1,5 @@
-// doctor findings for people reading a GitHub Actions run: annotations on the files and a Markdown job summary.
+// doctor findings for people reading a GitHub Actions run: annotations on the files (workflow commands, and those of
+// the depcurfew doctor check run) and a Markdown job summary.
 // Both carry text from the repository (file and package names), so annotation values are escaped the way
 // @actions/core escapes them and Markdown is escaped so a crafted name cannot add links, HTML or table cells.
 // Control characters in messages and paths are shown as text (printable), as in the log: the log viewer reads ANSI
@@ -6,8 +7,8 @@
 import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import { printable } from '../printable.ts';
-import type { AnnotationLimitsKnowledge, AnnotationsKnowledge } from '../knowledge/types.ts';
-import { checkedTool, countLevels, resultCounts, resultText } from './render.ts';
+import type { AnnotationLimitsKnowledge, AnnotationsKnowledge, CheckRunsKnowledge } from '../knowledge/types.ts';
+import { checkedTool, countLevels, policyNeeded, resultCounts, resultText } from './render.ts';
 import type { DoctorReport, Finding, Level, Rule } from './types.ts';
 
 const LEVELS: readonly Level[] = ['error', 'warning', 'note'];
@@ -31,20 +32,26 @@ export interface Annotations {
   omitted: number;
 }
 
-/** Annotation commands for the findings, errors first, within the number GitHub shows in one step. */
+/**
+ * Annotation commands for the findings, errors first, within the number GitHub shows in one step; `reserved` is how
+ * many annotations of each level the step adds besides (a note of the action about its own run, decision D-122).
+ */
 export function annotationCommands(
   report: DoctorReport,
   rules: readonly Rule[],
   format: AnnotationsKnowledge | undefined = values(environment.githubActions.annotations)[0],
   limits: AnnotationLimitsKnowledge | undefined = values(environment.githubActions.annotationLimits)[0],
+  reserved: Partial<Record<Level, number>> = {},
 ): Annotations {
   if (format === undefined || limits === undefined) return { lines: [], omitted: report.findings.length };
   const data = (text: string) => escaped(text, format.escape);
   const property = (text: string) => escaped(escaped(text, format.escape), format.escapeProperty);
   const lines: string[] = [];
+  const others = LEVELS.reduce((sum, level) => sum + (reserved[level] ?? 0), 0);
   for (const level of LEVELS) {
     const findings = report.findings.filter((finding) => finding.level === level);
-    for (const finding of findings.slice(0, Math.min(limits.perLevelPerStep, limits.perJob - lines.length))) {
+    const room = Math.max(0, Math.min(limits.perLevelPerStep - (reserved[level] ?? 0), limits.perJob - others - lines.length));
+    for (const finding of findings.slice(0, room)) {
       const properties = [
         [format.properties.file, printable(finding.location.file)],
         [format.properties.line, finding.location.line === undefined ? undefined : String(finding.location.line)],
@@ -56,6 +63,87 @@ export function annotationCommands(
     }
   }
   return { lines, omitted: report.findings.length - lines.length };
+}
+
+/**
+ * A message of the action about its own run (decision D-122): the line for the log with the level word
+ * ("depcurfew: note: ..."), and the annotation of the same level (notice for a note), so that the run shows it as the
+ * log words it. Control characters are shown as text in both, so text from the repository cannot start a command.
+ */
+export function runMessage(
+  level: Level,
+  message: string,
+  format: AnnotationsKnowledge | undefined = values(environment.githubActions.annotations)[0],
+): { line: string; annotation: string | undefined } {
+  const text = printable(message);
+  const line = `depcurfew: ${level}: ${text}\n`;
+  if (format === undefined) return { line, annotation: undefined };
+  const property = escaped(escaped('depcurfew', format.escape), format.escapeProperty);
+  return { line, annotation: `::${format.commands[level]} ${format.properties.title}=${property}::${escaped(text, format.escape)}\n` };
+}
+
+/** An annotation of the depcurfew doctor check run, as the Checks API takes it. */
+export interface CheckRunAnnotation {
+  path: string;
+  start_line: number;
+  end_line: number;
+  annotation_level: string;
+  message: string;
+  title: string;
+}
+
+/**
+ * The most annotations the depcurfew doctor check gets: two requests of the API. Errors come first; the job log and the
+ * summary list every finding, and the step annotations show the first ones on the files too.
+ */
+export const CHECK_RUN_ANNOTATIONS = 100;
+
+/** Text cut to a number of UTF-8 bytes, with "..." when cut. */
+function cutBytes(text: string, maxBytes: number): string {
+  if (Buffer.byteLength(text) <= maxBytes) return text;
+  return `${Buffer.from(text).subarray(0, Math.max(0, maxBytes - 3)).toString().replace(/�$/u, '')}...`;
+}
+
+/**
+ * The findings as annotations of the depcurfew doctor check (decision D-104), errors first, at most `max`: on the line
+ * of the finding, or on line 1 when it concerns the whole file. Only files `include` accepts (in the workspace and
+ * there) get one, and no path with control characters, which could not name the file; those are counted in `omitted`.
+ * Text from the repository is shown as text (printable), as in the other annotations.
+ */
+export function checkRunAnnotations(
+  report: DoctorReport,
+  rules: readonly Rule[],
+  include: (file: string) => boolean,
+  facts: CheckRunsKnowledge | undefined = values(environment.githubActions.checkRuns)[0],
+  max = CHECK_RUN_ANNOTATIONS,
+): { annotations: CheckRunAnnotation[]; omitted: number } {
+  if (facts === undefined) return { annotations: [], omitted: report.findings.length };
+  const annotations: CheckRunAnnotation[] = [];
+  for (const level of LEVELS) {
+    for (const finding of report.findings.filter((entry) => entry.level === level)) {
+      const path = finding.location.file;
+      if (annotations.length >= max) break;
+      if (path === '' || printable(path) !== path || path.startsWith('/') || path.split('/').includes('..') || !include(path)) continue;
+      const line = finding.location.line ?? 1;
+      const fix = fixOf(finding, rules);
+      const message = fix === undefined ? printable(finding.message) : `${printable(finding.message)}\nFix: ${printable(fix)}`;
+      annotations.push({
+        path,
+        start_line: line,
+        end_line: line,
+        annotation_level: facts.annotationLevels[level],
+        message: cutBytes(message, facts.annotationMessageMaxBytes),
+        title: printable(`depcurfew: ${finding.rule}`).slice(0, facts.annotationTitleMaxLength),
+      });
+    }
+  }
+  return { annotations, omitted: report.findings.length - annotations.length };
+}
+
+/** The line below the summary of the check when findings are not annotated there. */
+export function checkRunAnnotationNote(omitted: number, max = CHECK_RUN_ANNOTATIONS): string {
+  if (omitted === 0) return '';
+  return `\n${plural(omitted, 'finding')} ${omitted === 1 ? 'is' : 'are'} not shown as annotations on the files: the check gets at most ${max}, errors first, and only on files in the workspace. The job log lists every finding.\n`;
 }
 
 /**
@@ -72,7 +160,7 @@ export function cleanNotice(report: DoctorReport, format: AnnotationsKnowledge |
       ? ['No problems found']
       : [
           `No problems found in ${plural(checked.files.length, 'file')}${checked.tools.length === 0 ? '' : ` for ${checked.tools.map(checkedTool).join(', ')}`}. ${resultCounts(checked.rules)}.`,
-          ...checked.rules.map((result) => `${resultText(result)}: ${result.check}${result.result === 'skipped' ? ` (needs ${checked.policyFile})` : ''}`),
+          ...checked.rules.map((result) => `${resultText(result)}: ${result.check}${result.result === 'skipped' ? ` (${policyNeeded(checked.policyFile, report.policy)})` : ''}`),
         ];
   return `::${format.commands.note} ${format.properties.title}=${property('depcurfew doctor: no problems found')}::${data(lines.map((line) => printable(line)).join('\n'))}`;
 }
@@ -106,7 +194,9 @@ function code(text: string): string {
  * longer than `maxBytes` are left out and counted instead, so the summary upload does not fail.
  */
 export function jobSummary(report: DoctorReport, rules: readonly Rule[], directory: string, maxBytes: number): string {
-  const counts = countLevels(report.findings);
+  // The notes below count as notes too, as in the text (decision D-116).
+  const found = countLevels(report.findings);
+  const counts = { ...found, note: found.note + report.notices.length };
   const where = directory === '' ? '' : ` in ${code(directory)}`;
   const head = ['## depcurfew doctor', ''];
   if (report.findings.length === 0) {
@@ -116,7 +206,9 @@ export function jobSummary(report: DoctorReport, rules: readonly Rule[], directo
     head.push(`${count('error')}, ${count('warning')}, ${count('note')}${where}.`, '', '| Level | Where | Problem | How to fix |', '| --- | --- | --- | --- |');
   }
   const notes =
-    report.notices.length === 0 ? [] : ['', '### Notes', '', ...report.notices.map((notice) => `- ${markdown(notice.message)}`)];
+    report.notices.length === 0
+      ? []
+      : ['', '### Notes', '', ...report.notices.map((notice) => `- note: ${markdown(notice.message)} (${code(notice.code)})${notice.fix === undefined ? '' : ` Fix: ${markdown(notice.fix)}`}`)];
   const tail = [...notes, ...checkedSummary(report), ''];
   let size = Buffer.byteLength([...head, ...tail].join('\n')) + 200;
   const rows: string[] = [];
@@ -148,7 +240,7 @@ function checkedSummary(report: DoctorReport): string[] {
     '| Result | Check | Rule |',
     '| --- | --- | --- |',
     ...checked.rules.map((result) => {
-      const shown = result.result === 'problems' ? `**${resultText(result)}**` : result.result === 'skipped' ? `skipped (needs ${code(checked.policyFile)})` : 'passed';
+      const shown = result.result === 'problems' ? `**${resultText(result)}**` : result.result === 'skipped' ? `skipped (${policyNeeded(code(checked.policyFile), report.policy)})` : resultText(result);
       return `| ${shown} | ${markdown(result.check)} | ${code(result.rule)} |`;
     }),
   ];

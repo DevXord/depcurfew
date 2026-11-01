@@ -4,21 +4,48 @@
       "id": "uv",
       "supported": true,
       "evidence": [
-        { "kind": "lockfile", "file": "uv.lock" },
-        { "kind": "config", "file": "pyproject.toml" },
-        { "kind": "config", "file": "uv.toml" }
+        {
+          "kind": "lockfile",
+          "file": "uv.lock"
+        },
+        {
+          "kind": "config",
+          "file": "pyproject.toml"
+        },
+        {
+          "kind": "config",
+          "file": "uv.toml"
+        }
       ],
       "versions": [],
-      "configFiles": ["pyproject.toml", "uv.toml"]
+      "configFiles": [
+        "pyproject.toml",
+        "uv.toml"
+      ]
     }
   ],
-  "node": { "versions": [] },
+  "node": {
+    "versions": []
+  },
   "bots": [],
   "workspaces": {
-    "declarations": [{ "file": "pyproject.toml", "patterns": ["packages/*", "!packages/scratch"] }],
-    "packages": ["packages/api", "packages/core"]
+    "declarations": [
+      {
+        "file": "pyproject.toml",
+        "patterns": [
+          "packages/*",
+          "!packages/scratch"
+        ]
+      }
+    ],
+    "packages": [
+      "packages/api",
+      "packages/core"
+    ]
   },
   "npmrcFiles": [],
   "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
   "warnings": []
 }

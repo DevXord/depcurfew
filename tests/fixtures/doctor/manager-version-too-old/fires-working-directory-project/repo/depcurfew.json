@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3d" },
+  "targets": "auto",
+  "projects": ["frontend"]
+}

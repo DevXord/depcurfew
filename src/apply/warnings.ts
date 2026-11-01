@@ -9,6 +9,7 @@ export const APPLY_WARNINGS = {
   'depcurfew-outdated': 'The project installs a newer depcurfew than the one running, which may not know settings that version writes.',
   'file-unreadable': 'A file that shows which tools a project uses cannot be read or parsed (too large, a symlink out of the repository, no read permission, invalid), so depcurfew may configure fewer tools than the project uses.',
   'tool-not-supported': 'A detected or installed tool is not supported (Yarn Classic), so nothing is written for it.',
+  'target-not-found': 'With projects, a package manager listed under targets is configured in each directory (the root or a project) that uses it, and none uses it, so nothing is written for it.',
   'tool-only-in-ci': 'A tool appears only in a CI setup step, with no manifest, lockfile or configuration in the repository, so targets "auto" does not configure it.',
   'version-not-pinned': 'No exact version of a package manager is pinned, so depcurfew configures for the latest version it knows.',
   'version-too-old': 'The pinned version of a tool (with apply --user, the installed one) lacks a setting the policy needs, so that setting is not written.',
@@ -16,6 +17,7 @@ export const APPLY_WARNINGS = {
   'no-user-config': 'apply --user: the tool has no user-level configuration file, so nothing is written for it.',
   'user-setting-project-only': 'apply --user: the tool reads a part of the policy only from project files, so it is not written into the user file.',
   'user-directory-relative': 'apply --user: the environment variable that names the directory of the user file (XDG_CONFIG_HOME, APPDATA) is a relative path, so the tool looks in another place from each directory, or where it looks then is not known; nothing is written for it.',
+  'user-file-uncertain': 'apply --user: a library the tool calls decides where its user file is (platformdirs for Poetry and PDM on macOS), and its version cannot be read from files, so apply --user writes where the tool\'s docs say and names the other files the tool may read.',
   'user-setting-overridden': 'apply --user: a file the tool reads ahead of its user file (~/.npmrc for pnpm 10) sets a key apply writes there to another value, so the value written has no effect.',
   'version-not-used': 'apply --user: --for gives the version of a tool that apply --user does not configure (not in PATH with targets "auto", or not listed under targets).',
   'cooldown-not-written': 'The release-age delay cannot be written for a tool.',
@@ -31,7 +33,8 @@ export const APPLY_WARNINGS = {
   'deny-conflicts-with-file': "An entry in a tool's own list lets a package of installScripts.deny run its install scripts, or blocks a package of installScripts.allow; apply does not change entries it did not write.",
   'unexpected-value': 'A setting apply adds to has a value of a type the tool does not accept there, so apply leaves it as it is and writes nothing into it.',
   'built-in-list-replaced': "Bun's built-in list of trusted packages is replaced by the policy's allow-list.",
-  'scripts-not-enforceable': 'The pinned (with apply --user, the installed) npm or pnpm runs every install script and has no allow-list, so "deny" cannot be enforced.',
+  'scripts-not-enforceable': 'The pinned (with apply --user, the installed) npm or pnpm, or another npm the repository runs (one a declared Node.js comes with, or a CI job or Dockerfile installs), runs every install script and has no allow-list, so "deny" cannot be enforced; also given for an npm the repository runs whose version depcurfew cannot tell, which counts as one that runs them.',
+  'strict-allow-scripts-for-npm-in-use': 'An npm the repository runs (the pinned one, one a CI job or Dockerfile installs, or one a declared Node.js comes with, for a project also through the root version files and root Dockerfiles that build it) is 11.16 to 11.x and runs install scripts the allow-list does not cover unless strict-allow-scripts is set, so apply writes strict-allow-scripts=true, which makes npm 12 stop the install at such a script; not given when that npm is the pinned one and no place runs npm 12.',
   'before-overrides-cooldown': 'before= in .npmrc takes the place of the release-age delay apply writes, or makes npm stop with an error next to it (apply --user then does not write the delay).',
   'exact-version-gap': 'The pinned (with apply --user, the installed) pnpm skips the release-age delay for packages requested by exact version.',
   'source-not-enforceable': 'The tool has no setting for a dependency source the policy denies; doctor checks the lockfile instead.',
@@ -48,6 +51,7 @@ export const APPLY_WARNINGS = {
   'bot-config-missing': 'A bot has no configuration file, and depcurfew does not create one.',
   'bot-config-not-edited': 'A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.',
   'bot-entries-missing': 'The Dependabot configuration has no entries for the package managers in use.',
+  'bot-rule-shortens-delay': "A Renovate packageRules entry apply does not manage gives every package of a registry, or some update types, a shorter release-age delay than the one apply writes; Renovate uses it, and apply does not change it.",
   'security-delay-unsupported': 'Dependabot cannot delay security updates, so securityUpdates "delay" is not applied.',
 } as const satisfies Record<string, string>;
 
@@ -60,14 +64,53 @@ export const APPLY_ERRORS = {
   'policy-exists': 'depcurfew init found a depcurfew.json and writes it only with --force.',
   'directory-not-found': 'The directory given on the command line does not exist or cannot be opened.',
   'not-a-directory': 'The path given on the command line is a file, not a directory.',
+  usage: 'The command line is not valid: an unknown command, option or hook, a missing or extra argument, an option without its value or with one it does not take (such as a --registry that is not an http:// or https:// URL), or options that cannot go together (exit code 2); with --json the document holds only schemaVersion and this error.',
+  'project-not-found': 'A directory listed in projects in depcurfew.json does not exist, so nothing is written.',
+  'project-not-a-directory': 'A path listed in projects in depcurfew.json is a file, not a directory, so nothing is written.',
+  'project-symlink': 'A directory listed in projects in depcurfew.json is a symlink or lies under one, which may lead out of the repository, so nothing is written.',
+  'project-has-policy': 'A directory listed in projects has a depcurfew.json of its own, a second policy for the same files, so nothing is written.',
+  'project-is-repository': 'A directory listed in projects is a separate git repository or lies in one (it has a .git of its own, as a git submodule does), whose files belong to that repository, so nothing is written.',
+  'project-in-workspace': 'A directory listed in projects is, holds or lies in a workspace package of the repository root, which the root configuration already covers, so nothing is written.',
   'home-missing': 'apply --user and init --user: the home directory (HOME, USERPROFILE on Windows) does not exist or is not an absolute path, so nothing is written.',
 } as const satisfies Record<string, string>;
 
 export type ApplyWarningCode = keyof typeof APPLY_WARNINGS;
 export type ApplyErrorCode = keyof typeof APPLY_ERRORS;
 
+/** The parts of the policy that depcurfew explain shows apply's settings and warnings for, per tool (decision D-117). */
+export type PolicyPart = 'installScripts' | 'sources';
+
+/**
+ * The parts of the policy each warning is about, for depcurfew explain (decision D-117). version-too-old and
+ * manifest-missing are placed by the settings they name; the other warnings are about the release-age delay, bots or the
+ * repository as a whole.
+ */
+export const WARNING_PARTS: Partial<Readonly<Record<ApplyWarningCode, readonly PolicyPart[]>>> = {
+  'tool-not-supported': ['installScripts', 'sources'],
+  'allow-pattern-unsupported': ['installScripts'],
+  'deny-pattern-unsupported': ['installScripts'],
+  'allow-all-unsupported': ['installScripts'],
+  'allow-all-replaced': ['installScripts'],
+  'allow-list-entry-outside-policy': ['installScripts'],
+  'deny-conflicts-with-file': ['installScripts'],
+  'unexpected-value': ['installScripts'],
+  'built-in-list-replaced': ['installScripts'],
+  'scripts-not-enforceable': ['installScripts'],
+  'strict-allow-scripts-for-npm-in-use': ['installScripts'],
+  'forced-source-build': ['installScripts'],
+  'build-switch-scope': ['installScripts'],
+  'build-switch-install-only': ['installScripts'],
+  'build-switch-environment-only': ['installScripts'],
+  'requirements-file-missing': ['installScripts'],
+  'source-not-enforceable': ['sources'],
+  'source-switch-indirect-only': ['sources'],
+  'source-switch-combined': ['sources'],
+};
+
 export interface ApplyWarning {
   code: ApplyWarningCode;
+  /** The directory listed in projects that the warning concerns; absent for the repository root. */
+  project?: string;
   /** The tool it concerns, when there is one. */
   tool?: ToolId;
   /** The file it concerns, when there is one, and the line when it is known. */

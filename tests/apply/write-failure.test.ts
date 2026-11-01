@@ -103,7 +103,7 @@ describe('apply when a file cannot be written', () => {
     expect(result.stdout).toBe('');
     expect(result.stderr).toContain('error: cannot write renovate.json: permission denied (cannot-write)\n');
     expect(result.stderr).toContain(`  fix: ${refusedFix}\n`);
-    expect(result.stderr).toContain('depcurfew: nothing written because of the errors above.\n');
+    expect(result.stderr).toContain('note: nothing written because of the errors above\n');
     expect(result.stderr).not.toContain('unexpected error');
     expect(snapshot(directory)).toEqual(before);
     expect(comparableMode(statSync(join(directory, '.npmrc')).mode)).toBe(comparableMode(0o600));

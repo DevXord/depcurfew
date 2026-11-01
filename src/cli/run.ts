@@ -2,14 +2,21 @@ import { parseArgs } from 'node:util';
 import { getVersion } from '../version.ts';
 import { apply } from './apply.ts';
 import { paint, paintDiagnostics } from '../color.ts';
-import { check, type CheckDependencies } from './check.ts';
+import { check, HOOKS, type CheckDependencies } from './check.ts';
+import { reportInputError } from './directory.ts';
+import { defaultRegistry } from '../check/registry.ts';
+import { defaultIndex } from '../check/pypi.ts';
+import { withoutCredentials } from '../printable.ts';
 import { COMMANDS, findCommand } from './commands.ts';
 import { doctor } from './doctor.ts';
+import { RULES, toSarif } from '../doctor/index.ts';
 import { commandHelpText, helpText } from './help.ts';
 import { explain } from './explain.ts';
 import { init, initUser } from './init.ts';
+import { mcp } from './mcp.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 import { readStdin } from './stdin.ts';
+import { safeJson } from '../json-safe.ts';
 import { parseVersion, type Version } from '../apply/version.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId } from '../knowledge/types.ts';
@@ -27,6 +34,24 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Reports a usage error: on stderr like every other error that keeps a command from starting (`error: <message>
+ * (usage)` and the hint as `fix:`, decision D-113), or with --json as the JSON document of such an error (code usage,
+ * the message and the hint as the fix) on stdout, with nothing on stderr (decision D-107). Returns exit code 2.
+ */
+type Usage = (message: string, hint: string) => number;
+
+function usageReporter(io: CliIo, json: () => boolean, sarif: () => boolean = () => false): Usage {
+  return (message, hint) => {
+    const error = { code: 'usage' as const, level: 'error' as const, location: { file: '' }, message, fix: hint.replace(/\.\n?$/u, '') };
+    if (json()) io.stdout(`${safeJson({ schemaVersion: 1, errors: [{ code: error.code, level: error.level, message, fix: error.fix }] }, 2)}\n`);
+    // doctor --sarif alone: a run that did not succeed, so an upload to code scanning gets a document, not an empty file.
+    else if (sarif()) io.stdout(`${safeJson(toSarif({ schemaVersion: 1, policy: 'missing', findings: [], notices: [] }, RULES, getVersion(), undefined, [error]), 2)}\n`);
+    else reportInputError(error, io);
+    return EXIT_USAGE;
+  };
+}
+
 const DEFAULT_DEPENDENCIES: CheckDependencies = {
   fetch: (url, init) => fetch(url, init),
   now: () => new Date(),
@@ -38,17 +63,17 @@ function userOptions(
   values: Record<string, boolean | string | string[] | undefined>,
   rest: readonly string[],
   command: string,
-  io: CliIo,
+  usage: Usage,
   dependencies: CheckDependencies,
 ): { environment: UserEnvironment; versions: Partial<Record<ToolId, Version>> } | 'usage' | undefined {
   const given = Array.isArray(values['for']) ? values['for'] : [];
   if (values['user'] !== true) {
     if (given.length === 0) return undefined;
-    io.stderr(`depcurfew: --for works only with --user\nRun 'depcurfew ${command} --help' for usage.\n`);
+    usage('--for works only with --user', `Run 'depcurfew ${command} --help' for usage.`);
     return 'usage';
   }
   if (rest.length > 0) {
-    io.stderr(`depcurfew: --user takes no directory; it works on the user policy\nRun 'depcurfew ${command} --help' for usage.\n`);
+    usage('--user takes no directory; it works on the user policy', `Run 'depcurfew ${command} --help' for usage.`);
     return 'usage';
   }
   const versions: Partial<Record<ToolId, Version>> = {};
@@ -60,7 +85,7 @@ function userOptions(
     const version = at <= 0 ? undefined : parseVersion(/^v?\d+\.\d+$/u.test(text) ? `${text}.0` : text);
     const tool = knowledgeBase.find((candidate) => candidate.id === id && candidate.kind === 'package-manager');
     if (tool === undefined || version === undefined) {
-      io.stderr(`depcurfew: --for expects a package manager and an exact version, e.g. --for pnpm@11.28.10, not '${entry}'\nRun 'depcurfew ${command} --help' for usage.\n`);
+      usage(`--for expects a package manager and an exact version, e.g. --for pnpm@11.28.10, not '${entry}'`, `Run 'depcurfew ${command} --help' for usage.`);
       return 'usage';
     }
     versions[id] = version;
@@ -71,6 +96,20 @@ function userOptions(
 export async function run(argv: readonly string[], output: CliIo, dependencies: CheckDependencies = DEFAULT_DEPENDENCIES): Promise<number> {
   const errors = paint(output.colors?.stderr);
   const io: CliIo = { ...output, stderr: (text) => output.stderr(paintDiagnostics(text, errors)) };
+  // --json before the end of the options, also when they cannot be parsed.
+  const end = argv.indexOf('--');
+  // --json=x and --sarif=x (a value for an option that takes none) are usage errors too, reported in that format.
+  const options = end === -1 ? argv : argv.slice(0, end);
+  const given = (name: string) => options.some((argument) => argument === `--${name}` || argument.startsWith(`--${name}=`));
+  const jsonGiven = given('json');
+  // Only for a command that prints JSON: the stdout of mcp is its protocol.
+  const named = findCommand(argv.find((argument) => !argument.startsWith('-')) ?? '');
+  const sarifGiven = given('sarif');
+  const usage = usageReporter(
+    io,
+    () => jsonGiven && named?.options?.some((option) => option.name === 'json') === true,
+    () => sarifGiven && named?.options?.some((option) => option.name === 'sarif') === true,
+  );
   const commandOptions = Object.fromEntries(
     COMMANDS.flatMap((command) => command.options ?? []).map((option) => [
       option.name,
@@ -92,10 +131,15 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
   } catch (error) {
     // parseArgs explains how to pass a positional that starts with '-'; an unknown option is the usual case.
     const unknown = /Unknown option '([^']+)'/u.exec(errorMessage(error))?.[1];
-    const named = findCommand(argv.find((argument) => !argument.startsWith('-')) ?? '');
+    const valued = /Option '(--[^']+)' does not take an argument/u.exec(errorMessage(error))?.[1];
+    // Node's parseArgs writes "Option '--fail-on <value>' argument missing".
+    const missing = /Option '(?:-[^-][^,']*, )?(--[^' ]+)(?: <value>)?' argument missing/u.exec(errorMessage(error))?.[1];
     const hint = named === undefined ? USAGE_HINT : `Run 'depcurfew ${named.name} --help' for its options.\n`;
-    io.stderr(`depcurfew: ${unknown === undefined ? errorMessage(error) : `unknown option '${unknown}'`}\n${hint}`);
-    return EXIT_USAGE;
+    if (missing !== undefined) {
+      const value = COMMANDS.flatMap((command) => command.options ?? []).find((option) => `--${option.name}` === missing)?.value;
+      return usage(`option '${missing}' needs a value${value === undefined ? '' : `: ${missing} <${value}>`}`, hint);
+    }
+    return usage(unknown !== undefined ? `unknown option '${unknown}'` : valued !== undefined ? `option '${valued}' takes no value` : errorMessage(error), hint);
   }
 
   const [commandName, ...rest] = parsed.positionals;
@@ -119,45 +163,87 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
 
   const command = findCommand(commandName);
   if (command === undefined) {
-    io.stderr(`depcurfew: unknown command '${commandName}'\n${USAGE_HINT}`);
-    return EXIT_USAGE;
+    return usage(`unknown command '${commandName}'`, USAGE_HINT);
   }
   const allowed = new Set([...GLOBAL_OPTIONS, ...(command.options ?? []).map((option) => option.name)]);
   const foreign = Object.keys(values).find((name) => !allowed.has(name));
   if (foreign !== undefined) {
-    io.stderr(`depcurfew: option '--${foreign}' is not supported by '${command.name}'\nRun 'depcurfew ${command.name} --help' for its options.\n`);
-    return EXIT_USAGE;
+    return usage(`option '--${foreign}' is not supported by '${command.name}'`, `Run 'depcurfew ${command.name} --help' for its options.`);
   }
 
   if (command.implemented && command.variadic !== true && rest.length > 1) {
-    io.stderr(`depcurfew: too many arguments for '${command.name}'\nRun 'depcurfew ${command.name} --help' for usage.\n`);
-    return EXIT_USAGE;
+    return usage(`too many arguments for '${command.name}'`, `Run 'depcurfew ${command.name} --help' for usage.`);
   }
   if (command.name === 'init') {
     if (values['user'] === true) {
       if (rest.length > 0) {
-        io.stderr(`depcurfew: --user takes no directory; it writes the user policy\nRun 'depcurfew init --help' for usage.\n`);
-        return EXIT_USAGE;
+        return usage('--user takes no directory; it writes the user policy', "Run 'depcurfew init --help' for usage.");
       }
-      return initUser(values['force'] === true, dependencies.userEnvironment?.() ?? currentEnvironment(), io);
+      return initUser({ force: values['force'] === true, json: values['json'] === true }, dependencies.userEnvironment?.() ?? currentEnvironment(), io);
     }
-    return init(rest[0], values['force'] === true, io);
+    return init(rest[0], { force: values['force'] === true, json: values['json'] === true }, io);
   }
   if (command.name === 'explain') return explain(rest[0], values['json'] === true, io);
   if (command.name === 'apply') {
-    const user = userOptions(values, rest, command.name, io, dependencies);
+    const user = userOptions(values, rest, command.name, usage, dependencies);
     if (user === 'usage') return EXIT_USAGE;
     return apply(rest[0], { dryRun: values['dry-run'] === true, json: values['json'] === true, ...(user === undefined ? {} : { user }) }, io);
   }
   if (command.name === 'doctor') {
-    const user = userOptions(values, rest, command.name, io, dependencies);
+    if (values['json'] === true && values['sarif'] === true) return usage("'--json' and '--sarif' cannot be used together; pick one", "Run 'depcurfew doctor --help' for usage.");
+    // --fail-on over doctor.failOn of the policy (decision D-112); --strict is --fail-on warning.
+    const failOn = text('fail-on');
+    if (failOn !== undefined && failOn !== 'error' && failOn !== 'warning') {
+      return usage(`--fail-on takes error (only errors fail) or warning (warnings fail too), not '${failOn}'`, "Run 'depcurfew doctor --help' for usage.");
+    }
+    if (failOn === 'error' && values['strict'] === true) {
+      return usage("'--strict' and '--fail-on error' cannot be used together: --strict means --fail-on warning, so pass only one of them", "Run 'depcurfew doctor --help' for usage.");
+    }
+    const user = userOptions(values, rest, command.name, usage, dependencies);
     if (user === 'usage') return EXIT_USAGE;
-    return doctor(rest[0], { json: values['json'] === true, sarif: values['sarif'] === true, ...(user === undefined ? {} : { user }) }, io);
+    return doctor(
+      rest[0],
+      { json: values['json'] === true, sarif: values['sarif'] === true, strict: values['strict'] === true, ...(failOn === undefined ? {} : { failOn }), ...(user === undefined ? {} : { user }) },
+      io,
+    );
+  }
+  // --registry and --index are URLs; anything else would only fail as a registry that cannot be reached (decision D-113).
+  for (const [name, what, example] of [
+    ['registry', 'an npm registry', defaultRegistry()],
+    ['index', 'a Python package index', defaultIndex()],
+  ] as const) {
+    const value = text(name);
+    if (value === undefined) continue;
+    let protocol = '';
+    try {
+      protocol = new URL(value).protocol;
+    } catch {
+      // Not a URL.
+    }
+    if (protocol !== 'https:' && protocol !== 'http:') {
+      return usage(`--${name} takes the http:// or https:// URL of ${what}, such as ${example}, not '${withoutCredentials(value)}'`, `Run 'depcurfew ${command.name} --help' for usage.`);
+    }
   }
   if (command.name === 'check') {
+    // The usage errors of check, here so that --json gets them as a document.
+    const hook = text('hook');
+    if (hook !== undefined && !(HOOKS as readonly string[]).includes(hook)) return usage(`unknown hook '${hook}'; the hooks are ${HOOKS.join(', ')}`, "Run 'depcurfew check --help' for usage.");
+    if (hook === undefined && rest.length === 0) return usage("'check' needs at least one package, e.g. depcurfew check lodash@4", "Run 'depcurfew check --help' for usage.");
+    if (hook !== undefined && rest.length > 0) return usage("'--hook' reads the command from stdin and takes no packages", "Run 'depcurfew check --help' for usage.");
     return check(rest, { json: values['json'] === true, dir: text('dir'), registry: text('registry'), index: text('index'), hook: text('hook') }, io, dependencies);
   }
+  if (command.name === 'mcp') {
+    if (rest.length > 0) {
+      return usage("'mcp' takes no arguments; pass the project directory with --dir", "Run 'depcurfew mcp --help' for usage.");
+    }
+    return mcp({ dir: text('dir'), registry: text('registry'), index: text('index') }, io, {
+      fetch: dependencies.fetch,
+      now: dependencies.now,
+      ...(dependencies.home === undefined ? {} : { home: dependencies.home }),
+      ...(dependencies.mcpProcess === undefined ? {} : { process: dependencies.mcpProcess }),
+    });
+  }
 
-  io.stderr(`depcurfew: '${command.name}' is not implemented yet.\n`);
+  io.stderr(`error: '${command.name}' is not implemented yet\n`);
   return EXIT_FAILURE;
 }

@@ -2,6 +2,7 @@ import { verifiedOn } from './define.ts';
 import type { SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
+const guard = verifiedOn('2026-11-01');
 const rechecked = verifiedOn('2026-10-31');
 
 // pip.pypa.io is built from docs/html in the repository.
@@ -18,6 +19,7 @@ const PIPX = 'https://github.com/pypa/pipx/blob/1.18.10';
 const PYLOCK = 'https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668830f6eb94bbfe832320a9b0a2b/source/specifications/pylock-toml.rst';
 const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
 const user = verifiedOn('2026-10-31');
+const finalReview = verifiedOn('2026-11-01');
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -218,6 +220,11 @@ export const pip: ToolKnowledge = {
     ),
   },
   extra: {
+    configCommand: finalReview.verified(
+      { command: 'config', writes: ['set', 'unset', 'edit'] },
+      `${PIP}/src/pip/_internal/commands/configuration.py`,
+      'pip config: "Manage local and global configuration"; "set: Set the command.option=value", "unset: Unset the value associated with command.option", "edit: Edit the configuration file in an editor". Without --user, --global or --site it changes the configuration file of the active virtual environment when that file exists, otherwise the user file. So a CI step or RUN with pip config set can give the later pip installs a release-age delay that no environment variable shows (decision D-115).',
+    ),
     configSections: user.verified(
       { global: 'global', commandsOverride: true },
       CONFIGURATION,
@@ -401,5 +408,21 @@ export const pip: ToolKnowledge = {
       '--index-url is the base URL of the index; --pip-args is split and handed to pip, so it may carry --extra-index-url, --find-links or --no-index. With the pip backend pipx passes the PIP_* variables on to pip; with the uv backend it ignores them and uv reads its own (docs/how-to/use-uv-backend.rst); both kinds are registry variables of pip and uv.',
     ),
     latestVersion: verified('26.2.2', NEWS, 'Released on 2026-10-20.'),
+    configCommands: guard.verified(
+      [
+        { command: ['pip', 'config'], writes: ['set', 'unset', 'edit'] },
+        { command: ['pip3', 'config'], writes: ['set', 'unset', 'edit'] },
+      ],
+      'https://github.com/pypa/pip/blob/main/src/pip/_internal/commands/configuration.py',
+      'pip config list, edit, get, set, unset and debug: set and unset change a value and save the file, edit opens it in an editor, list, get and debug only read. Without --user, --global or --site the site file is used if one exists, else the user file.',
+    ),
+    installOverrides: guard.verified(
+      {
+        options: [{ name: '--uploaded-prior-to', weakens: 'delay', values: 'delay' }],
+        variables: [{ name: 'PIP_UPLOADED_PRIOR_TO', weakens: 'delay', values: 'delay' }],
+      },
+      'https://github.com/pypa/pip/blob/main/src/pip/_internal/cli/cmdoptions.py',
+      '--uploaded-prior-to (metavar datetime_or_duration): "Only consider packages uploaded prior to the given value", an ISO 8601 datetime or a duration of whole days P<n>D. PIP_UPLOADED_PRIOR_TO is its environment variable (environmentVariable). A datetime is not compared with the policy, so it is asked about.',
+    ),
   },
 };

@@ -1,0 +1,8 @@
+Policy (depcurfew.json):
+  targets: Yarn (Berry) (detected)
+  cooldown 3d:
+    Yarn (Berry): 4320 minutes
+  installScripts deny, allow esbuild and @scope/*:
+    Yarn (Berry): enableScripts in .yarnrc.yml, dependenciesMeta.<package>.built in package.json; warning: Yarn (Berry): dependenciesMeta takes package names only; "@scope/*" not written (allow-pattern-unsupported); fix: List the package names in installScripts.allow
+  sources git deny, remoteTarball deny, file allow, directory allow:
+    Yarn (Berry): nothing written; warning: Yarn (Berry) has no setting for remote tarball dependencies, so "deny" cannot be enforced (source-not-enforceable); fix: Run depcurfew doctor, which reports such dependencies in the lockfile; warning: Yarn (Berry) 4.9.2 does not support npmMinimalAgeGate (added in 4.10.2), approvedGitRepositories (added in 4.14.0); not written (version-too-old); fix: Require Yarn (Berry) 4.14.0 or later where the version is pinned

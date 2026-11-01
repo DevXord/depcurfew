@@ -1,0 +1,6 @@
+{
+  "name": "docker-node",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "engines": { "node": ">=22" }
+}

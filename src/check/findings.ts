@@ -1,7 +1,8 @@
 // The findings of depcurfew check and what the npm and Python checks share: the report of one package, the options, the
 // way an age is written and the findings for sources other than the registry.
+import type { ToolId } from '../knowledge/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
-import type { FetchLike } from './registry.ts';
+import type { FetchLike, LookupCache } from './registry.ts';
 import type { PopularNames } from './similar.ts';
 import type { PackageSpec, SpecKind } from './spec.ts';
 
@@ -31,6 +32,15 @@ export interface CheckFinding {
 
 export const CHECK_BY_HAND = 'Make sure you trust this source before installing it';
 
+/**
+ * Text a package's publisher wrote (a deprecation message, an install script, the reason of a project status) as it
+ * goes into a message: in double quotes, with backslashes and double quotes escaped, so that it reads as one quoted
+ * piece of data and cannot pass for depcurfew's own words. Control and invisible characters are left to printable.
+ */
+export function quoted(text: string): string {
+  return `"${text.replace(/[\\"]/gu, (character) => `\\${character}`)}"`;
+}
+
 export interface PackageReport {
   spec: string;
   kind: SpecKind | 'invalid';
@@ -50,6 +60,8 @@ export interface PackageReport {
 /** A spec with what the install command changes about the version or the build. */
 export interface CheckRequest {
   spec: string;
+  /** The package manager of the command, when a command names one (the hook): its own registry settings apply. */
+  tool?: ToolId;
   /** npm: the dist-tag npm prefers for a name without a version or with a range; the registry's default when left out. */
   tag?: string;
   /** The package manager is not npm, so tag= in .npmrc (CheckOptions.defaultTag) does not choose its version. */
@@ -58,6 +70,11 @@ export interface CheckRequest {
   prereleases?: 'allow' | 'deny';
   /** Python: the package is built from source even when it has wheels (true), or only wheels are used (false). */
   buildFromSource?: boolean;
+  /**
+   * npm: the command line has an option that may set workspaces (--no-workspaces, --workspaces=false), with which npm
+   * reads the .npmrc of a workspace package as its project configuration (decision D-124).
+   */
+  workspacesOption?: boolean;
 }
 
 export interface CheckOptions {
@@ -79,6 +96,15 @@ export interface CheckOptions {
    * written by the package's publisher and should not reach the model as part of depcurfew's reason.
    */
   scriptBodies?: boolean;
+  /** Stops the lookups: checkSpecs then rejects with the signal's reason (a cancelled call of depcurfew mcp). */
+  signal?: AbortSignal;
+  /** Lookups shared with other checks of the same run (the two policies of the hook), by registry and name. */
+  lookups?: LookupCache;
+  /**
+   * npm packages not to look up: their scope's registry is set in a file depcurfew does not take (decision D-113), so
+   * the name may be private and the public registry may hold a look-alike. The package is reported as unverified.
+   */
+  skipLookup?: (name: string, tool: ToolId | undefined, request?: Omit<CheckRequest, 'spec'>) => boolean;
 }
 
 /** This machine (a local registry such as Verdaccio): plain HTTP to it does not leave the machine. */

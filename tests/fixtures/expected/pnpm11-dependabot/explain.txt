@@ -1,0 +1,11 @@
+Policy (depcurfew.json):
+  targets: pnpm, Dependabot (detected)
+  cooldown 3d:
+    pnpm: 4320 minutes
+    Dependabot: 3 days
+  installScripts deny, allow esbuild and @scope/*:
+    pnpm: allowBuilds in pnpm-workspace.yaml; warning: pnpm: allowBuilds takes package names only; "@scope/*" not written (allow-pattern-unsupported); fix: List the package names in installScripts.allow
+    Dependabot: nothing to write
+  sources git deny, remoteTarball deny, file allow, directory allow:
+    pnpm: blockExoticSubdeps in pnpm-workspace.yaml; warning: pnpm: blockExoticSubdeps stops git and tarball sources only for indirect dependencies; direct ones stay allowed (source-switch-indirect-only); fix: Run depcurfew doctor, which reports direct ones in pnpm-lock.yaml
+    Dependabot: nothing to write

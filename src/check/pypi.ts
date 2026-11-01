@@ -6,8 +6,22 @@ import { isRecord, values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import type { PypiIndexKnowledge } from '../knowledge/types.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
-import { compareVersions, parseVersion } from './pep440.ts';
-import { fetchSameOrigin, MAX_DOCUMENT_SIZE, readLimited, TIMEOUT_MS, type FetchLike } from './registry.ts';
+import { formatVersion, parseVersion, type Pep440 } from './pep440.ts';
+import { fetchSameOrigin, MAX_DOCUMENT_SIZE, MAX_VERSIONS, readLimited, requestSignal, tooManyMembers, tooManyVersions, type FetchLike } from './registry.ts';
+
+/**
+ * The most files of one project page depcurfew reads (decision D-113): projects with many wheels per release have a
+ * few dozen files per version, so this is far above real pages under MAX_DOCUMENT_SIZE, and a page with more is made
+ * to cost time.
+ */
+export const MAX_FILES = 200_000;
+
+/** A key that two versions share exactly when they are equal (compareVersions): trailing zeros of the release dropped. */
+function equalityKey(version: Pep440): string {
+  const release = [...version.release];
+  while (release.length > 1 && release.at(-1) === 0) release.pop();
+  return formatVersion({ ...version, release });
+}
 
 export interface PypiFile {
   filename: string;
@@ -81,15 +95,18 @@ function toProject(document: unknown, requested: string): PypiProject | undefine
   if (!isRecord(document) || !Array.isArray(document[fields.filesField]) || !Array.isArray(document[fields.versionsField])) return undefined;
   const name = normalizePythonName(text(document['name']) ?? requested);
   const listed = (document[fields.versionsField] as unknown[]).filter((version): version is string => typeof version === 'string');
+  const exact = new Set(listed);
+  // The first listed version of each key, as a search of the list in its order would find it.
+  const byKey = new Map<string, string>();
+  for (const candidate of listed) {
+    const parsed = parseVersion(candidate);
+    if (parsed !== undefined && !byKey.has(equalityKey(parsed))) byKey.set(equalityKey(parsed), candidate);
+  }
   /** The listed version a file's version stands for: the same text, else an equal version (1.0 and 1.0.0). */
   const listedAs = (version: string): string => {
-    if (listed.includes(version)) return version;
+    if (exact.has(version)) return version;
     const parsed = parseVersion(version);
-    const equal = parsed === undefined ? undefined : listed.find((candidate) => {
-      const other = parseVersion(candidate);
-      return other !== undefined && compareVersions(other, parsed) === 0;
-    });
-    return equal ?? version;
+    return (parsed === undefined ? undefined : byKey.get(equalityKey(parsed))) ?? version;
   };
   const releases = new Map<string, PypiFile[]>();
   for (const entry of document[fields.filesField] as unknown[]) {
@@ -106,7 +123,9 @@ function toProject(document: unknown, requested: string): PypiProject | undefine
       yanked: typeof yanked === 'string' ? yanked : yanked === true ? '' : false,
     };
     const version = listedAs(found.version);
-    releases.set(version, [...(releases.get(version) ?? []), file]);
+    const files = releases.get(version);
+    if (files === undefined) releases.set(version, [file]);
+    else files.push(file);
   }
   const status = document[fields.statusField];
   const value = isRecord(status) ? text(status[fields.statusValueField]) : undefined;
@@ -114,13 +133,13 @@ function toProject(document: unknown, requested: string): PypiProject | undefine
   return { name, status: value ?? 'active', ...(reason === undefined ? {} : { statusReason: reason }), releases };
 }
 
-export async function fetchProject(name: string, options: { index: string; fetch: FetchLike; timeoutMs?: number; maxBytes?: number }): Promise<PypiLookup> {
+export async function fetchProject(name: string, options: { index: string; fetch: FetchLike; timeoutMs?: number; maxBytes?: number; signal?: AbortSignal | undefined }): Promise<PypiLookup> {
   const fields = api();
   let response: Response;
   try {
     const fetched = await fetchSameOrigin(
       projectUrl(options.index, name),
-      { headers: { accept: fields.accept }, signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS) },
+      { headers: { accept: fields.accept }, signal: requestSignal(options.timeoutMs, options.signal) },
       options.fetch,
       'index',
     );
@@ -133,7 +152,11 @@ export async function fetchProject(name: string, options: { index: string; fetch
   if (response.status === fields.notFoundStatus) return { status: 'not-found' };
   if (!response.ok) return { status: 'error', reason: `the index answered HTTP ${response.status}` };
   try {
-    const project = toProject(JSON.parse(await readLimited(response, options.maxBytes ?? MAX_DOCUMENT_SIZE)) as unknown, name);
+    const text = await readLimited(response, options.maxBytes ?? MAX_DOCUMENT_SIZE);
+    // Counted before the page is parsed (decision D-113).
+    const over = tooManyMembers(text, { [fields.versionsField]: MAX_VERSIONS, [fields.filesField]: MAX_FILES });
+    if (over !== undefined) return tooManyVersions(normalizePythonName(name), 'index', over === fields.filesField ? `${MAX_FILES} files` : `${MAX_VERSIONS} versions`);
+    const project = toProject(JSON.parse(text) as unknown, name);
     return project === undefined ? { status: 'error', reason: 'the index answered something that is not a project page' } : { status: 'found', project };
   } catch (error) {
     return { status: 'error', reason: error instanceof Error ? error.message : String(error) };

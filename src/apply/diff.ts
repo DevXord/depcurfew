@@ -187,11 +187,12 @@ export function unifiedDiff(file: string, before: string | null, after: string, 
 
 /**
  * Keys whose value is a secret, in INI (.npmrc, pip.conf), TOML and YAML lines: npm's _auth, _authToken and
- * _password (also under a //host/: prefix), and in any file a key that ends in token, password or secret, or
- * npmAuthIdent. depcurfew writes none of these keys; the names only decide which values a diff hides, so they err on
- * the side of hiding (decision D-091).
+ * _password (also under a //host/: prefix), npm's key (a client key in PEM format, not a path; certfile and keyfile
+ * are paths, decision D-115), and in any file a key that ends in token, password or secret, or npmAuthIdent.
+ * depcurfew writes none of these keys; the names only decide which values a diff hides, so they err on the side of
+ * hiding (decision D-091).
  */
-const SECRET_KEY = /^(?:_auth|npmauthident|[a-z0-9_-]*(?:token|password|passwd|secret))$/iu;
+const SECRET_KEY = /^(?:_auth|npmauthident|key|[a-z0-9_-]*(?:token|password|passwd|secret))$/iu;
 /** key = value: the key is everything before the first `=`, as in .npmrc, where it may hold colons (//host:443/:_auth). */
 const EQUALS = /^(\s*(?:-\s+)?["']?)([^="'\s][^="']*?)(["']?\s*=\s*)(.*)$/u;
 /** key: value, as in YAML. */

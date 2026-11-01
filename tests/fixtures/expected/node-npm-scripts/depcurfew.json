@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3d" },
+  "installScripts": { "default": "deny", "allow": [] },
+  "sources": { "git": "deny", "remoteTarball": "deny" },
+  "targets": "auto",
+  "projects": ["frontend"]
+}

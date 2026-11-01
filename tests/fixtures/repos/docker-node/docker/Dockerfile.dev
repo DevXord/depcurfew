@@ -1,0 +1,2 @@
+FROM docker.io/library/node:lts-jod
+RUN corepack enable npm && npm install

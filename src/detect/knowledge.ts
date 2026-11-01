@@ -3,16 +3,20 @@
 import { isRecord } from '../apply/facts.ts';
 import { evidenceOf } from '../knowledge/facts.ts';
 import type {
+  CommandLineKnowledge,
   Ecosystem,
   EnvironmentKnowledge,
   Fact,
   RuntimeOrTool,
   SetupActionKnowledge,
+  SetupNodeVersionFileKnowledge,
   ToolId,
   ToolKnowledge,
   Versioned,
   WorkspaceDeclaration,
 } from '../knowledge/types.ts';
+import type { CommandFacts } from './commands.ts';
+import type { DockerFacts } from './dockerfiles.ts';
 import type { BotId, PackageManagerId } from './types.ts';
 
 /** Where a tool's own configuration requires a version of the tool: a key path in a TOML file. */
@@ -62,7 +66,17 @@ export interface DetectionFacts {
   volta: { key: string; tools: readonly RuntimeOrTool[] };
   toolVersions: { file: string; plugins: Readonly<Record<string, RuntimeOrTool>> };
   workflows: { directory: string; extensions: readonly string[] };
+  /** jobs.<id>.container and the env maps of workflows, jobs and steps (decision D-115). */
+  jobContainer: { key: string; imageKey: string; envKey: string };
+  workflowEnvironment: { key: string };
   setupActions: SetupActionKnowledge[];
+  /** The action whose version inputs set up Node.js, and how it reads node-version-file. */
+  setupNode: { action: string; versionFile: SetupNodeVersionFileKnowledge };
+  /** .nvmrc and its comment character, .node-version, and engines.node in package.json. */
+  nodeFiles: { nvmrc: string; comment: string; nodeVersion: string; engines: { key: string; runtimeKey: string } };
+  docker: DockerFacts;
+  /** What the commands of run steps and RUN instructions do with npm and pip. */
+  commands: CommandFacts;
 }
 
 const PACKAGE_MANAGERS: readonly ToolId[] = ['npm', 'pnpm', 'yarn', 'bun', 'deno', 'uv', 'pip', 'poetry', 'pdm', 'pipenv'];
@@ -166,6 +180,64 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
 
   const yarn = tool(tools, 'yarn');
   const actions = environment.githubActions;
+  const npm = tool(tools, 'npm');
+  const pip = tool(tools, 'pip');
+  const installs = extraValue(npm, 'installCommands');
+  const installCommands = isRecord(installs) ? Object.values(installs).flatMap((list) => (Array.isArray(list) ? list.filter((item): item is string => typeof item === 'string') : [])) : [];
+  const globalOptions = extraValue(npm, 'globalOption');
+  const npmValues = extraValue(npm, 'valueOptions');
+  const pipLine = extraValue(pip, 'commandLine') as CommandLineKnowledge | undefined;
+  const interpreter = first(environment.python.interpreter);
+  const scope = extraValue(npm, 'npmrcScope');
+  const clean = extraValue(npm, 'cleanInstall');
+  const pipFlag = pip.cooldown.cliFlag === undefined ? undefined : first(pip.cooldown.cliFlag);
+  const pipVariable = extraValue(pip, 'environmentVariable');
+  const pipConfig = extraValue(pip, 'configFileVariable');
+  const pipConfigCommand = extraValue(pip, 'configCommand');
+  const pipConfigFiles = extraValue(pip, 'configFileNames');
+  const poetryTool = tools.find((candidate) => candidate.id === 'poetry');
+  const poetryPackage = poetryTool === undefined ? undefined : extraValue(poetryTool, 'installedPackage');
+  const off = extraValue(npm, 'scriptsOff');
+  const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
+  // pnpm, Yarn and Bun: the commands that install the project's dependencies and those that add packages.
+  const others = (['pnpm', 'yarn', 'bun'] as const).flatMap((id) => {
+    const entry = tools.find((candidate) => candidate.id === id);
+    const install = entry === undefined ? undefined : extraValue(entry, 'projectInstall');
+    const line = entry === undefined ? undefined : (extraValue(entry, 'commandLine') as CommandLineKnowledge | undefined);
+    if (!isRecord(install)) return [];
+    const add = (line?.add ?? []).filter((command) => command[0] === id && command.length === 2).map((command) => command[1] ?? '');
+    return [{ tool: id, install: strings(install['commands']), add, bare: install['bare'] === true, valueOptions: [...(line?.valueOptions ?? [])] }];
+  });
+  const commands: CommandFacts = {
+    npm: {
+      installCommands,
+      globalOptions: strings(globalOptions),
+      valueOptions: strings(npmValues),
+      globalIgnoresProject: isRecord(scope) && scope['globalMode'] === 'ignored',
+      cleanCommands: isRecord(installs) && isRecord(clean) && typeof clean['commands'] === 'string' && Array.isArray(installs[clean['commands']]) ? strings(installs[clean['commands']]) : [],
+      ...(isRecord(off) && typeof off['option'] === 'string' && typeof off['variable'] === 'string' && typeof off['value'] === 'string'
+        ? { scriptsOff: { option: off['option'], variable: off['variable'], value: off['value'] } }
+        : {}),
+    },
+    others,
+    pip: {
+      executables: unique((pipLine?.add ?? []).map((command) => command[0] ?? '')),
+      installCommand: pipLine?.add[0]?.[1] ?? 'install',
+      valueOptions: pipLine?.valueOptions ?? [],
+      ...(typeof pipFlag === 'string' && typeof pipVariable === 'string' && typeof pipConfig === 'string' ? { delay: { option: pipFlag, variable: pipVariable, configVariable: pipConfig } } : {}),
+      ...(isRecord(pipConfigCommand) && typeof pipConfigCommand['command'] === 'string' && Array.isArray(pipConfigFiles)
+        ? { config: { command: pipConfigCommand['command'], writes: strings(pipConfigCommand['writes']), files: strings(pipConfigFiles) } }
+        : {}),
+    },
+    python: interpreter,
+    corepack: { enableCommand: first(environment.corepack.enableNpm).command },
+    ...(isRecord(poetryPackage) && typeof poetryPackage['name'] === 'string' && Array.isArray(poetryPackage['commands'])
+      ? { poetry: { name: poetryPackage['name'], commands: (poetryPackage['commands'] as unknown[]).filter((item): item is string[] => Array.isArray(item)) } }
+      : {}),
+  };
+  const docker = environment.docker;
+  const names = first(docker.dockerfileNames);
+  const nvmrc = first(environment.node.nvmrc);
   return {
     managers,
     pythonProject,
@@ -177,6 +249,8 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
     volta: first(environment.volta.manifest),
     toolVersions: { file: first(environment.asdf.toolVersionsFile), plugins: first(environment.asdf.plugins) },
     workflows: first(actions.workflows),
+    jobContainer: first(actions.jobContainer),
+    workflowEnvironment: { key: first(actions.environmentKeys).key },
     setupActions: [
       actions.setupNode,
       actions.pnpmActionSetup,
@@ -188,5 +262,20 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
       actions.installPoetry,
       actions.actionsPoetry,
     ].map(first),
+    setupNode: { action: first(actions.setupNode).action, versionFile: first(actions.setupNodeVersionFile) },
+    nodeFiles: { nvmrc: nvmrc.file, comment: nvmrc.comment, nodeVersion: first(environment.node.nodeVersionFile).file, engines: first(environment.node.engines) },
+    docker: {
+      syntax: first(docker.syntax),
+      reference: first(docker.imageReference),
+      names: { exact: [names.defaultName, first(docker.containerfile)], suffix: names.suffix, prefix: first(docker.dockerfilePrefix) },
+      node: first(docker.nodeImage),
+      python: first(docker.pythonImage),
+      nodeTags: first(docker.nodeImageTags).tags,
+      pythonTags: first(docker.pythonImageTags).tags,
+      codenames: first(environment.node.releaseSchedule).flatMap((line) => (line.codename === undefined ? [] : [line.codename])),
+      environment: first(docker.environment),
+      commands,
+    },
+    commands,
   };
 }

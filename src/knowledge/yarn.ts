@@ -1,10 +1,11 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
+import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
+const leftovers = verifiedOn('2026-11-01');
 const BERRY = 'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1';
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 
@@ -220,6 +221,14 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    registrySettings: leftovers.verified(
+      [
+        { file: '.yarnrc.yml', path: ['npmRegistryServer'], applies: 'all', effect: 'replaces' },
+        { file: '.yarnrc.yml', path: ['npmScopes', '*', 'npmRegistryServer'], applies: 'scope', effect: 'replaces' },
+      ],
+      YARNRC,
+      'npmRegistryServer: "Define the registry to use when fetching packages"; npmScopes: "Per-scope registry configurations", whose entries take npmRegistryServer ("See npmRegistryServer"), keyed by the scope without @. "While Yarn will automatically find them in the parent directories, they should usually be kept at the root of your project". Yarn (Berry) does not read registry= from .npmrc.',
+    ),
     yamlMergeKeys: user.verified(
       false,
       `${BERRY}/packages/yarnpkg-parsers/sources/syml.ts`,
@@ -230,10 +239,20 @@ export const yarn: ToolKnowledge = {
       'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/registries/yarn-registry.js',
       'Yarn Classic (1.x, last release 1.22.22) reads .yarnrc and .npmrc from the project, its parent folders, the home folder (homeConfigLoc = ~/.yarnrc) and the global prefix (getPossibleConfigLocations in src/registries/npm-registry.js), never .yarnrc.yml, which only Yarn 2 and later read. depcurfew does not configure Yarn Classic.',
     ),
+    yarnPath: leftovers.uncertain(
+      { key: 'yarnPath', releaseFile: 'yarn-<version>.cjs', variables: ['YARN_YARN_PATH', 'YARN_IGNORE_PATH'] },
+      `${BERRY}/packages/plugin-essentials/sources/commands/set/version.ts`,
+      'yarn set version saves the release as .yarn/releases/yarn-<version>.cjs and writes a relative yarnPath to it. Yarn 2 and later read yarnPath (an absolute path setting, resolved against the folder of the .yarnrc.yml that sets it) from every .yarnrc.yml, the home file included, before the project is found (Configuration.find, pickPrimaryCoreFields), and run node <yarnPath> instead of themselves (runYarnPath in packages/yarnpkg-cli/sources/lib.ts); a nearer .yarnrc.yml with its own yarnPath, YARN_YARN_PATH or YARN_IGNORE_PATH changes that. The file name is only a hint: a URL or a file given to yarn set version gives other names (yarn-remote.cjs), a hand-written yarnPath may name any file, and the version inside the bundle is minified, so depcurfew uses the name only when it is yarn-<exact version>.cjs and the file exists.',
+    ),
     denyList: user.verified(
       { file: 'package.json', setting: 'dependenciesMeta.<package>.built', value: false, since: '2.0.0' },
       'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-pnp/sources/jsInstallUtils.ts',
       'With built: false in the root package.json, Yarn reports that the build "has been explicitly disabled through configuration" as an info message instead of the warning that all build scripts are disabled; built: false also wins over enableScripts: true. Only the top-level manifest counts (CHANGELOG 2.0.0).',
+    ),
+    projectInstall: leftovers.verified(
+      { commands: ['install'], bare: true },
+      `${BERRY}/packages/plugin-essentials/sources/commands/install.ts`,
+      'The install command ("install the project dependencies") has the paths [`install`] and Command.Default, so yarn without a command installs too. yarn add (commandLine.add) adds packages.',
     ),
     commandLine: checked.verified(
       {
@@ -294,6 +313,34 @@ export const yarn: ToolKnowledge = {
     ),
     latestVersion: verified('4.18.1', release('4.18.1'), 'Yarn 6 is still in preview.'),
     bypassFlag: verified('--no-time-gate on yarn add and yarn up (4.15.0+)', 'https://yarnpkg.com/cli/add'),
+    directoryOptions: leftovers.verified<DirectoryOptionsKnowledge>(
+      {
+        options: [
+          { name: '--cwd', moves: 'directory', position: 'first' },
+          { name: '--cwd', moves: 'directory', position: 'last', command: ['yarn', 'add'] },
+        ],
+        variables: [],
+      },
+      `${BERRY}/packages/yarnpkg-cli/sources/lib.ts`,
+      'checkCwd takes --cwd <dir> or --cwd=<dir> only as the first argument ("argv[0] === `--cwd`", "argv[0].startsWith(`--cwd=`)"), and for yarn add also as the last two words ("argv[0] === `add` && argv[argv.length - 2] === `--cwd`"; "CRA adds `--cwd` at the end of the command"), removes them and runs the command with cli.defaultContext.cwd = ppath.resolve(cwd). Yarn finds the project and its .yarnrc.yml files from that directory.',
+    ),
+    configCommands: leftovers.verified(
+      [{ command: ['yarn', 'config'], writes: ['set', 'unset'] }],
+      `${BERRY}/packages/plugin-essentials/sources/index.ts`,
+      'plugin-essentials registers config get, config set and config unset next to config (commands/config/*.ts at 4.18.1). yarn config set updates the project configuration, or the home configuration with -H/--home (commands/config/set.ts); yarn config and yarn config get only print settings (commands/config.ts: "This command prints the current active configuration settings").',
+    ),
+    installOverrides: leftovers.verified(
+      {
+        options: [{ name: '--no-time-gate', weakens: 'delay', values: 'any' }],
+        variables: [
+          { name: 'YARN_NPM_MINIMAL_AGE_GATE', weakens: 'delay', values: 'delay' },
+          { name: 'YARN_NPM_PREAPPROVED_PACKAGES', weakens: 'delay', values: 'any' },
+          { name: 'YARN_ENABLE_SCRIPTS', weakens: 'scripts', values: { except: ['false', '0'] } },
+        ],
+      },
+      `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`,
+      'yarn add declares noTimeGate = Option.Boolean(`--no-time-gate`), "Disable the minimum release age check for this command" (plugin-essentials/sources/commands/add.ts at 4.18.1). getEnvironmentSettings lowercases every environment variable, keeps those starting with yarn_ and camel-cases the rest into a setting (ENVIRONMENT_PREFIX), so YARN_NPM_MINIMAL_AGE_GATE sets npmMinimalAgeGate, YARN_NPM_PREAPPROVED_PACKAGES npmPreapprovedPackages and YARN_ENABLE_SCRIPTS enableScripts; the values that keep scripts off are those of user.variables.',
+    ),
     perScopeGate: rechecked.verified(
       { scopes: 'npmScopes', setting: 'npmMinimalAgeGate', since: '4.17.0', unset: '1d' },
       'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1/packages/plugin-npm/sources/npmConfigUtils.ts',

@@ -1,10 +1,12 @@
 import { verifiedOn } from './define.ts';
-import type { ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
+const runtimes = verifiedOn('2026-11-01');
+const finalReview = verifiedOn('2026-11-01');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -225,6 +227,11 @@ export const npm: ToolKnowledge = {
     ),
   },
   extra: {
+    localPrefix: runtimes.verified(
+      { markers: { file: 'package.json', directory: 'node_modules' }, workspaceRoot: true, workspacesField: 'workspaces', workspacesObjectKey: 'packages', prefixOption: '--prefix', workspacesOption: '--workspaces', projectFile: '.npmrc' },
+      `${NPM_CONFIG_LIB}/index.js`,
+      'loadLocalPrefix: --prefix on the command line is the local prefix. Otherwise npm walks up from the current directory (walk-up-path yields the directory and each parent up to the root, with no other stop; "for (const p of walkUp(this.cwd))") and takes the first directory with a package.json file or a node_modules directory ("hasPackageJson || await dirExists(p, \'node_modules\')"). Unless workspaces are set to false on the command line ("this.#get(\'workspaces\', \'cli\')", so --no-workspaces or --workspaces=false; .npmrc and npm_config_workspaces do not count) or npm runs in global mode, it walks on: each higher directory with a package.json is read with @npmcli/package-json normalize, and one that cannot be read or normalized (".catch(() => ({ content: {} }))") or has no workspaces is passed over; the first whose mapped workspaces include that directory ("w === this.localPrefix", the same path) becomes the prefix, and a .npmrc of the workspace is skipped ("ignoring workspace config at ${this.localPrefix}/.npmrc"). Without a match the prefix is the current directory ("this.localPrefix = this.cwd"). loadProjectConfig reads "resolve(this.localPrefix, \'.npmrc\')" as the project configuration, except in global mode and when that path is the userconfig file. Workspaces (@npmcli/map-workspaces 6.0.0, the version npm 12.2.1 locks, with glob 13.0.6 and minimatch 10.2.5, https://github.com/npm/map-workspaces/blob/v6.0.0/lib/index.js): an array of patterns or an object with a packages array, else EWORKSPACESCONFIG, and an entry that is not text throws too; the leading ! are removed and an odd number of them negates, then a leading ./ or leading slashes ("pattern.replace(/^\\.?\\/+/, \'\')"); a pattern drops the earlier negated patterns it matches as text, and each negated pattern drops the patterns it matches as text and is given to glob as ignore, with **/node_modules/**; glob gets every pattern with a trailing / (directories only) and its defaults: * and ** do not match a name that starts with a dot, ** does not follow symlinked directories, and matching ignores case on macOS and Windows; a match without package.json (ENOENT, ENOTDIR) is no workspace, another error and two workspaces of one name throw, and npm stops. normalize (https://github.com/npm/package-json/blob/v8.0.0/lib/normalize.js, steps bin and binDir) throws for a bin list with an entry that is not text and for directories.bin that is not text when bin is not set. No .git or home directory stops the walk.',
+    ),
     childEnvironment: user.verified(
       { marker: 'npm_execpath', prefix: 'npm_config_' },
       'https://github.com/npm/cli/blob/v11.21.1/workspaces/config/lib/set-envs.js',
@@ -308,6 +315,14 @@ export const npm: ToolKnowledge = {
       NPM_DEFINITIONS_V11_16,
       'strict-allow-scripts=true makes the install fail on a dependency with install scripts that allowScripts does not cover, instead of running them with a notice (default false). Entries denied with false are skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it.',
     ),
+    strictAllowScriptsEffect: runtimes.verified(
+      [
+        { since: '11.16.0', value: 'the install fails instead of running the script with a notice' },
+        { since: '12.0.0', value: 'the install fails instead of blocking the script with a warning' },
+      ],
+      NPM_DEFINITIONS,
+      'npm 12.2.1 still defines strict-allow-scripts (default false): "If true, turn the install-script policy from a warning into a hard error: any dependency with install scripts that is not covered by allowScripts will fail the install instead of being blocked with a warning." Dependencies denied with false are still skipped silently; --ignore-scripts and --dangerously-allow-all-scripts override it. So the same .npmrc line keeps npm 11.16 to 11.x from running such scripts and makes npm 12 stop the install at them. The 11.16.0 effect is the one in strictAllowScripts (definitions.js at v11.16.0).',
+    ),
     unknownNpmrcKeys: rechecked.verified(
       'unknown keys in .npmrc files only warn unless strict-npmrc is set; unknown command-line flags throw since npm 12',
       `${NPM_GITHUB_V12}/CHANGELOG.md`,
@@ -375,7 +390,7 @@ export const npm: ToolKnowledge = {
       NPM_DEFINITIONS,
       'npm options whose type includes Boolean, which may stand alone: the definitions of 12.2.1 and of 11.21.1 (where shrinkwrap is one too; 12.2.1 adds ignore-existing, ignore-extension, ignore-patch-failures, allow-unused-patches, keep-edit-dir and strict-npmrc). With valueOptions they are every npm option, so an abbreviated option can be resolved as npm resolves it.',
     ),
-    parsing: reviewed.verified(
+    parsing: runtimes.verified(
       {
         abbreviations: true,
         anyDashes: true,
@@ -392,7 +407,7 @@ export const npm: ToolKnowledge = {
         },
       },
       NPM_SHORTHANDS,
-      'The shorthands npm passes to nopt: the list in definitions/index.js and the short names of the definitions (the same in 11.21.1). nopt (node_modules/nopt/lib/nopt-lib.js, versions 8.1.0 in npm 10.9.4, 9.0.0 in 11.21.1 and 10.0.1 in 12.2.1, same parse and resolveShort) strips every leading dash, so -reg, --reg and -registry work; takes an exact option first, then an exact shorthand, then a word of one-letter shorthands (-gD), then an unambiguous prefix of an option name (abbrev), then a prefix of a shorthand; and reads --no-<name> as a negated flag that takes no value. npm 10 expands abbreviations silently, npm 11 warns "Expanding --regis to --registry. This will stop working in the next major version of npm." and npm 12 refuses them with EUNKNOWNCONFIG (abbrevHandler in workspaces/config/lib/index.js of 11.21.1 and 12.2.1). Shorthands are expanded only on the command line, not in .npmrc or npm_config_ variables. npx turns -p into --package and expands exact shorthands itself before npm exec reads the rest (bin/npx-cli.js).',
+      'The shorthands npm passes to nopt: the list in definitions/index.js and the short names of the definitions (the same in 11.21.1). nopt (node_modules/nopt/lib/nopt-lib.js, versions 8.1.0 in npm 10.9.4, 9.0.0 in 11.21.1 and 10.0.1 in 12.2.1, same parse and resolveShort) strips every leading dash, so -reg, --reg and -registry work; takes an exact option first, then an exact shorthand, then a word of one-letter shorthands (-gD), then an unambiguous prefix of an option name (abbrev), then a prefix of a shorthand; and reads --no-<name> as a negated flag that takes no value. After the shorthands (resolveShort) nopt strips every leading no- in any case, each one inverting the flag, and then takes <name> as an exact option or an unambiguous prefix (abbrevs), so --no-ign is --no-ignore-scripts where no other option starts with ign (npm 11; npm 12 has ignore-existing too) and --no-no-ignore-scripts sets ignore-scripts to true; a negated flag takes a following true or false, inverted (definitions/index.js and definitions.js at v12.2.1 and lib/nopt-lib.js of nopt 10.0.1, read again 2026-11-01). npm 10 expands abbreviations silently, npm 11 warns "Expanding --regis to --registry. This will stop working in the next major version of npm." and npm 12 refuses them with EUNKNOWNCONFIG (abbrevHandler in workspaces/config/lib/index.js of 11.21.1 and 12.2.1). Shorthands are expanded only on the command line, not in .npmrc or npm_config_ variables. npx turns -p into --package and expands exact shorthands itself before npm exec reads the rest (bin/npx-cli.js).',
     ),
     versionSelection: reviewed.verified(
       { tagOption: '--tag', tagVariable: 'npm_config_tag', tagKey: 'tag', bareRange: '*' },
@@ -427,10 +442,116 @@ export const npm: ToolKnowledge = {
       NPM_DEFINITIONS,
       'registry is a URL; userconfig and globalconfig are the user and global configuration files. Putting --foo bar on the command line sets the foo configuration parameter, and environment variables that start with npm_config_ are configuration parameters too, without regard to case (docs/lib/content/using-npm/config.md); @scope:registry is the key of a scope\'s registry (https://docs.npmjs.com/cli/v12/using-npm/scope).',
     ),
+    configCommands: runtimes.verified(
+      [
+        { command: ['npm', 'config'], writes: ['set', 'delete', 'rm', 'del', 'edit', 'fix'] },
+        { command: ['npm', 'set'], operands: 1 },
+        { command: ['npm', 'pkg'], writes: ['set', 'delete', 'fix'], manifest: true },
+      ],
+      'https://github.com/npm/cli/blob/v12.2.1/lib/commands/config.js',
+      'npm config set sets keys (in the user configuration unless location is given), delete (also rm and del) removes keys from every configuration file, edit opens a configuration file in an editor and fix repairs invalid items; get and list (ls) only read (the switch in exec, and docs/lib/content/commands/npm-config.md). npm set <key>=<value> runs npm config set with its arguments and fails without any (lib/commands/set.js); npm get only reads (lib/commands/get.js). npm pkg set, delete and fix write package.json back, get only reads (lib/commands/pkg.js). Other spellings of these commands come from commandNames.',
+    ),
+    commandNames: runtimes.verified(
+      {
+        commands: [
+          'access', 'approve-scripts', 'audit', 'bugs', 'cache', 'ci', 'completion', 'config', 'dedupe', 'deny-scripts',
+          'deprecate', 'diff', 'dist-tag', 'docs', 'doctor', 'edit', 'exec', 'explain', 'explore', 'find-dupes', 'fund',
+          'get', 'help', 'help-search', 'init', 'install', 'install-ci-test', 'install-scripts', 'install-test', 'link', 'll',
+          'login', 'logout', 'ls', 'org', 'outdated', 'owner', 'pack', 'patch', 'ping', 'pkg', 'prefix', 'profile', 'prune',
+          'publish', 'query', 'rebuild', 'repo', 'restart', 'root', 'run', 'sbom', 'search', 'set', 'stage', 'start', 'stop',
+          'team', 'test', 'token', 'trust', 'undeprecate', 'uninstall', 'unpublish', 'update', 'version', 'view', 'whoami'
+        ],
+        aliases: {
+          author: 'owner', home: 'docs', issues: 'bugs', info: 'view', show: 'view', find: 'search', add: 'install',
+          unlink: 'uninstall', remove: 'uninstall', rm: 'uninstall', r: 'uninstall', un: 'uninstall', rb: 'rebuild', list: 'ls',
+          ln: 'link', create: 'init', i: 'install', it: 'install-test', cit: 'install-ci-test', u: 'update', up: 'update',
+          c: 'config', s: 'search', se: 'search', tst: 'test', t: 'test', ddp: 'dedupe', v: 'view', 'run-script': 'run',
+          'clean-install': 'ci', 'clean-install-test': 'install-ci-test', x: 'exec', why: 'explain', la: 'll',
+          verison: 'version', ic: 'ci', innit: 'init', in: 'install', ins: 'install', inst: 'install', insta: 'install',
+          instal: 'install', isnt: 'install', isnta: 'install', isntal: 'install', isntall: 'install', 'install-clean': 'ci',
+          'isntall-clean': 'ci', hlep: 'help', 'dist-tags': 'dist-tag', upgrade: 'update', udpate: 'update', rum: 'run',
+          sit: 'install-ci-test', urn: 'run', ogr: 'org'
+        },
+      },
+      CMD_LIST,
+      'deref resolves a command name: camelCase to kebab-case (installTest is install-test), an exact command, a direct alias, else a unique abbreviation of the commands and alias names (abbrev), whose aliases are followed to the command (npm install-cl is install-clean, then ci). So npm c, npm con, npm conf and npm confi are npm config, and npm pk is npm pkg.',
+    ),
+    installOverrides: runtimes.verified(
+      {
+        options: [
+          { name: '--min-release-age', weakens: 'delay', values: 'delay' },
+          { name: '--before', weakens: 'delay', values: 'any' },
+          { name: '--min-release-age-exclude', weakens: 'delay', values: 'any' },
+          { name: '--ignore-scripts', weakens: 'scripts', values: { except: ['true'] } },
+          { name: '--dangerously-allow-all-scripts', weakens: 'scripts', values: { except: ['false', 'null', 'undefined'] } },
+          { name: '--allow-scripts', weakens: 'scripts', values: 'any' },
+        ],
+        variables: [
+          { name: 'npm_config_min_release_age', weakens: 'delay', values: 'delay' },
+          { name: 'npm_config_before', weakens: 'delay', values: 'any' },
+          { name: 'npm_config_min_release_age_exclude', weakens: 'delay', values: 'any' },
+          { name: 'npm_config_ignore_scripts', weakens: 'scripts', values: { except: ['true', ''] } },
+          { name: 'npm_config_dangerously_allow_all_scripts', weakens: 'scripts', values: { except: ['false', 'null', 'undefined'] } },
+          { name: 'npm_config_allow_scripts', weakens: 'scripts', values: 'any' },
+        ],
+      },
+      NPM_DEFINITIONS,
+      'Settings that a single npm command can change on its command line or in its environment: "Putting --foo bar on the command line sets the foo configuration parameter", "--flag without specifying any value will set the value to true", "Any environment variables that start with npm_config_ will be interpreted as a configuration parameter", case-insensitive, and an environment configuration without a value is true (docs/lib/content/using-npm/config.md at v12.2.1). Types in definitions.js at v12.2.1: ignore-scripts Boolean, default false ("If true, npm does not run scripts specified in package.json files"); min-release-age null or Number of days; before null or Date; min-release-age-exclude a list exempt from min-release-age and before; dangerously-allow-all-scripts Boolean, which bypasses the allowScripts policy; allow-scripts a list of packages whose install scripts may run. A value other than true for ignore-scripts, any true value of dangerously-allow-all-scripts (the false values as in user.variables), any allow-scripts, before or min-release-age-exclude, and a min-release-age shorter than the policy weaken what depcurfew apply wrote.',
+    ),
+    directoryOptions: runtimes.verified<DirectoryOptionsKnowledge>(
+      { options: [{ name: '--prefix', moves: 'directory', localPrefix: true }], variables: [] },
+      NPM_DEFINITIONS,
+      'prefix (short C, so -C dir is --prefix dir): "The location to install global items. If set on the command line, then it forces non-global commands to run in the specified folder." loadLocalPrefix in workspaces/config/lib/index.js (v12.2.1) reads it only from the command line ("this.#get(\'prefix\', \'cli\')"), takes it as the local prefix as given and does not walk up, so npm_config_prefix and .npmrc do not move a command; the project .npmrc is the one in that folder.',
+    ),
+    booleanWords: runtimes.verified(
+      true,
+      'https://github.com/npm/nopt/blob/v10.0.1/lib/nopt-lib.js',
+      'nopt, which parses the npm command line, also supports "--bool true or --bool false": a Boolean option followed by the word true or false takes it as its value and skips it, and a --no- prefix inverts the value (parse in lib/nopt-lib.js at v10.0.1, used by npm 12.2.1, and the same code at v9.0.0, used by npm 11.21.1).',
+    ),
+    installCommands: runtimes.verified(
+      {
+        install: INSTALL_ALIASES,
+        clean: ['ci', 'clean-install', 'ic', 'install-clean', 'isntall-clean', 'install-ci-test', 'cit', 'clean-install-test', 'sit'],
+        update: ['update', 'up', 'upgrade', 'udpate'],
+      },
+      CMD_LIST,
+      'Commands that install packages into the project and their aliases: install (add, i, typo aliases, install-test and it), ci (clean-install, ic, install-clean, isntall-clean) with install-ci-test (cit, clean-install-test, sit), and update (up, upgrade, udpate; u only from npm 12, so left out). The same in v10.9.9 (lib/utils/cmd-list.js). npm also accepts unique abbreviations of command names, which are not listed.',
+    ),
+    globalOption: runtimes.verified(
+      ['--global', '-g', '--location=global'],
+      NPM_DEFINITIONS,
+      'global (short g) "Operates in global mode, so that packages are installed into the prefix folder instead of the current working directory" and sets location to global; npm install -g npm@<version> replaces the npm that runs (docs/lib/content/commands/npm-install.md: "In global mode (ie, with -g or --global appended to the command)").',
+    ),
+    unknownConfigKeys: runtimes.verified(
+      [
+        { since: '0.0.0', value: 'ignored' },
+        { since: '11.2.0', value: 'warning' },
+      ],
+      'https://github.com/npm/cli/blob/v10.9.9/workspaces/config/lib/index.js',
+      'npm 10 loads every key of an .npmrc without checking whether it knows it (#loadObject only checks deprecated and exclusive keys), so a setting it does not have yet, such as min-release-age, is ignored without any message. checkUnknown first appears in v11.2.0 (workspaces/config/lib/index.js), which warns: Unknown project config "<key>". This will stop working in the next major version of npm. The 11.2.0 changelog does not name the change; the version comes from reading the code at the tags. npm 12 collects unknown keys to fail the command (v12.2.1), with the exact behavior not read.',
+    ),
     lockfileInstalls: uncertain(
       'npm ci installs versions pinned in package-lock.json without applying min-release-age',
       'https://docs.npmjs.com/cli/v12/commands/npm-ci',
       'Inferred: npm ci does not list min-release-age or before among its options, and a user report (npm/cli#9277) describes it installing a version younger than the window.',
+    ),
+    cleanInstall: finalReview.verified(
+      { commands: 'clean', installsLockedVersions: true, failsWhenOutOfSync: true, writesLockfile: false },
+      'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/commands/npm-ci.md',
+      'npm ci (the clean commands of installCommands): "The project must have an existing package-lock.json"; "If dependencies in the package lock do not match those in package.json, npm ci will exit with an error, instead of updating the package lock"; "It will never write to package.json or package-lock.json: installs are essentially frozen." lib/commands/ci.js at v12.2.1 loads the lockfile (loadVirtual), builds the ideal tree, throws "`npm ci` can only install packages when your package.json and package-lock.json are in sync" when validateLockfile finds a difference, and reifies with packageLock: true and save: false. So npm ci installs exactly the versions package-lock.json records, and a release-age delay cannot change which versions it installs; the settings of its params (ignore-scripts, allow-scripts, strict-allow-scripts, allow-git, allow-remote, allow-file, allow-directory) still apply.',
+    ),
+    scriptsOff: finalReview.verified(
+      { option: '--ignore-scripts', variable: 'npm_config_ignore_scripts', anyCase: true, value: 'true' },
+      'https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/config.md',
+      'ignore-scripts (Boolean, default false; definitions.js at v12.2.1: "If true, npm does not run scripts specified in package.json files") is one of the params of npm ci and npm install (lib/commands/ci.js). On the command line --ignore-scripts sets it; "Any environment variables that start with npm_config_ will be interpreted as a configuration parameter", with underscores for dashes, and "Config values are case-insensitive, so NPM_CONFIG_FOO=bar will work the same". depcurfew counts only the value true (and the flag without a value) as off: parseField turns only "true" into true, and loadEnv skips empty values (user.variables).',
+    ),
+    nodeEngines: finalReview.verified(
+      [
+        { since: '11.0.0', node: '^20.17.0 || >=22.9.0' },
+        { since: '12.0.0', node: '^22.22.2 || ^24.15.0 || >=26.0.0' },
+      ],
+      'https://github.com/npm/cli/blob/v11.19.1/package.json',
+      'engines.node of npm/cli package.json, the same at the tags v11.0.0, v11.10.0, v11.16.0, v11.19.1 and v11.21.1 (^20.17.0 || >=22.9.0) and at v12.0.0 and v12.2.1 (^22.22.2 || ^24.15.0 || >=26.0.0, https://github.com/npm/cli/blob/v12.2.1/package.json). On a Node.js outside the range npm only warns that it does not support it: lib/cli/entry.js at v11.19.1 runs log.warn(\'cli\', validateEngines.unsupportedMessage) when !satisfies(node, engines), for a Node.js "still unsupported and untested and might not work reliably", and lib/cli/validate-engines.js prints "ERROR: npm ... is known not to run on Node.js ..." when it fails with a SyntaxError. So npm install -g npm@11 on Node.js 18 installs an npm that is not meant to run there.',
     ),
   },
 };

@@ -1,8 +1,11 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
+import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './platformdirs.ts';
+import type { DirectoryOptionsKnowledge, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-30');
 const user = verifiedOn('2026-10-31');
+const leftovers = verifiedOn('2026-11-01');
+const finalReview = verifiedOn('2026-11-01');
 
 // python-poetry.org/docs is built from docs/ in the repository.
 const POETRY = 'https://github.com/python-poetry/poetry/blob/2.5.1';
@@ -12,7 +15,7 @@ const LOCKER = `${POETRY}/src/poetry/packages/locker.py`;
 const CHOOSER = `${POETRY}/src/poetry/installation/chooser.py`;
 const CONFIG = `${POETRY}/src/poetry/config/config.py`;
 
-/** The user config.toml; only the macOS directories are disputed. */
+/** The user config.toml; on macOS the directories are those of the docs (see user.libraryDirectories). */
 const userFiles = (darwin: readonly UserDirectory[]): Versioned<UserFile> => [
   {
     since: '2.0.0',
@@ -126,18 +129,15 @@ export const poetry: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, 'https://github.com/python-poetry/poetry/issues/2270', 'No workspaces.'),
   },
   user: {
-    files: user.disputed(
-      'The docs give ~/Library/Application Support/pypoetry on macOS. The code asks the installed platformdirs (pyproject.toml allows >=3.0.0,<5), and platformdirs 4.6.0 (2026-02-12) added the XDG variables on macOS, so with XDG_CONFIG_HOME set (not empty) Poetry reads $XDG_CONFIG_HOME/pypoetry/config.toml instead (https://github.com/tox-dev/platformdirs/blob/4.6.0/src/platformdirs/_xdg.py); which one applies depends on the platformdirs version in Poetry\'s environment. Linux and Windows agree. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked.',
-      user.evidence(
-        userFiles([MACOS_DIRECTORY]),
-        `${CONFIGURATION}#config-directory`,
-        '"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry".',
-      ),
-      user.evidence(
-        userFiles([{ from: { env: 'XDG_CONFIG_HOME' }, path: 'pypoetry' }, MACOS_DIRECTORY]),
-        `${POETRY}/src/poetry/locations.py`,
-        'CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path("pypoetry", appauthor=False, roaming=True) from platformdirs, which on macOS honors XDG_CONFIG_HOME since platformdirs 4.6.0. On Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names.',
-      ),
+    files: user.verified(
+      userFiles([MACOS_DIRECTORY]),
+      `${CONFIGURATION}#config-directory`,
+      '"Linux: $XDG_CONFIG_HOME/pypoetry or ~/.config/pypoetry - Windows: %APPDATA%\\pypoetry - macOS: ~/Library/Application Support/pypoetry". The code agrees on Linux and Windows: CONFIG_DIR = POETRY_CONFIG_DIR or user_config_path("pypoetry", appauthor=False, roaming=True) from platformdirs, without an override (src/poetry/locations.py; on Windows platformdirs asks for the Roaming AppData known folder, which APPDATA normally names). On macOS the directory depends on the installed platformdirs (libraryDirectories); the docs\' directory is used when its version cannot be read. config.toml holds the settings as nested tables ([solver] min-release-age = 7); auth.toml next to it holds credentials. POETRY_CONFIG_DIR replaces the directory. Checked at 2.4.0 and 2.5.1; 2.0.0 removed the special handling of the platformdirs 2 macOS directory (#8916, CHANGELOG.md), and older versions are not tracked.',
+    ),
+    libraryDirectories: leftovers.verified(
+      platformdirsMacos('pypoetry'),
+      PLATFORMDIRS_CHANGELOG,
+      `Poetry 2.5.1 allows platformdirs >=3.0.0,<5 (pyproject.toml; its own lock has 4.11.8), and the official installer runs pip install without constraints in Poetry's virtual environment (python-poetry/install.python-poetry.org, install-poetry.py), so a new install gets the latest 4.x. ${PLATFORMDIRS_NOTE}`,
     ),
     settings: user.verified(
       [
@@ -192,6 +192,11 @@ export const poetry: ToolKnowledge = {
     ),
   },
   extra: {
+    installedPackage: finalReview.verified(
+      { name: 'poetry', commands: [['pipx', 'install'], ['pip', 'install']] },
+      `${POETRY}/docs/_index.md`,
+      'The installation page installs a given version with "pipx install poetry==1.8.4", in CI with "$POETRY_HOME/bin/pip install poetry==2.0.0", and manually with pip in a virtual environment ("$VENV_PATH/bin/pip install poetry"). So poetry==<version> in such a command of a CI job or a Dockerfile is the Poetry the later commands run (decision D-115).',
+    ),
     pylockCreatedBy: verified(
       'poetry-plugin-export',
       'https://github.com/python-poetry/poetry-plugin-export/blob/1.10.1/src/poetry_plugin_export/exporter.py',
@@ -276,5 +281,59 @@ export const poetry: ToolKnowledge = {
       'installer.no-binary (POETRY_INSTALLER_NO_BINARY) disallows wheels for :all: or true, none for :none: or false, or the named packages separated by commas; installer.only-binary (POETRY_INSTALLER_ONLY_BINARY, since 2.0.0) takes the same values; explicit package names win over :all:. poetry add --allow-prereleases accepts pre-releases (src/poetry/console/commands/add.py).',
     ),
     latestVersion: verified('2.5.1', CHANGELOG, 'Released on 2026-09-20.'),
+    directoryOptions: leftovers.verified<DirectoryOptionsKnowledge>(
+      {
+        options: [
+          { name: '-C', moves: 'directory' },
+          { name: '--directory', moves: 'directory' },
+          { name: '-P', moves: 'project' },
+          { name: '--project', moves: 'project' },
+        ],
+        variables: [],
+      },
+      `${POETRY}/docs/cli.md`,
+      'Global options: --directory=DIRECTORY (-C) "The working directory for the Poetry command (defaults to the current working directory). All command-line arguments will be resolved relative to the given directory."; --project=PROJECT (-P) "Specify another path as the project root. All command-line arguments will be resolved relative to the current working directory or directory specified using --directory option if used." The page names no environment variable for either.',
+    ),
+    registrySettings: finalReview.verified<readonly RegistrySettingKnowledge[]>(
+      [
+        {
+          file: 'pyproject.toml',
+          path: ['tool', 'poetry', 'source'],
+          applies: 'all',
+          effect: 'replaces',
+          urlKey: 'url',
+          entries: {
+            nameKey: 'name',
+            rules: [
+              { key: 'priority', value: 'supplemental', effect: 'adds' },
+              { key: 'priority', value: 'explicit', effect: 'pinned' },
+            ],
+            first: 'replaces',
+            others: 'replaces',
+            pypiName: 'pypi',
+            pins: { file: 'pyproject.toml', tables: [['tool', 'poetry', 'dependencies'], ['tool', 'poetry', 'group', '*', 'dependencies']], key: 'source' },
+          },
+        },
+      ],
+      `${POETRY}/docs/repositories.md`,
+      '[[tool.poetry.source]] has name, url and priority. "If priority is undefined, the source is considered a primary source"; "All primary package sources are searched for each dependency without a source constraint" and "If you configure at least one primary source, the implicit PyPI source is disabled", so a primary source replaces PyPI. Supplemental sources "are only searched if no other (higher-priority) source yields a compatible package distribution": depcurfew does not know whether PyPI has a version the constraint takes, so such a source counts as one that adds. Explicit sources "are only searched when a package configuration explicitly indicates" them: a dependency with source = "name" in [tool.poetry.dependencies] or [tool.poetry.group.<group>.dependencies], also in a list of constraint tables (docs/dependency-specification.md, docs/managing-dependencies.md). create_pool in src/poetry/factory.py reads Priority[source.get("priority", "primary").upper()], so the value is compared without regard to case; the schema (src/poetry/json/schemas/poetry.json) allows primary, supplemental and explicit, and another value (default or secondary of Poetry 1.x) fails in 2.5.1 and counts as primary here. A source whose name is pypi in any case is PyPI itself (PyPiRepository), which "cannot be configured with a custom url" (create_package_source).',
+    ),
+    configCommands: leftovers.verified(
+      [{ command: ['poetry', 'config'], operands: 2, options: ['--unset', '--migrate'] }],
+      'https://github.com/python-poetry/poetry/blob/main/docs/cli.md',
+      'poetry config [options] [setting-key] [setting-value1] ... [setting-valueN] sets a key to a value; --unset removes the key, --migrate migrates outdated settings and --list only shows them.',
+    ),
+    installOverrides: leftovers.verified(
+      {
+        options: [],
+        variables: [
+          { name: 'POETRY_SOLVER_MIN_RELEASE_AGE', weakens: 'delay', values: 'delay' },
+          { name: 'POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE', weakens: 'delay', values: 'any' },
+          { name: 'POETRY_SOLVER_MIN_RELEASE_AGE_EXCLUDE_SOURCE', weakens: 'delay', values: 'any' },
+        ],
+      },
+      'https://github.com/python-poetry/poetry/blob/main/docs/configuration.md',
+      'Settings can be set with environment variables prefixed by POETRY_, the upper-case setting name with dots and dashes replaced by underscores; solver.min-release-age (int, days) is POETRY_SOLVER_MIN_RELEASE_AGE. poetry add has no option for it.',
+    ),
   },
 };

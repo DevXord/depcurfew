@@ -4,7 +4,8 @@ import type { ToolKnowledge } from '../knowledge/types.ts';
 import { convertCooldown } from './convert.ts';
 import { ecosystemOf } from './package-pattern.ts';
 import { normalizePythonName } from './python-names.ts';
-import { cooldownShape, installScriptsShape, policyShape, targetsShape, type ResolvedPolicy } from './schema.ts';
+import { isInsideProject } from './project-directory.ts';
+import { cooldownShape, installScriptsShape, policyShape, projectsShape, targetsShape, type ResolvedPolicy } from './schema.ts';
 import { formatPath, type Issue, type Shape } from './shape.ts';
 
 export type PolicyIssue = Issue;
@@ -98,8 +99,36 @@ function overlaps(allow: readonly string[], deny: readonly string[]): PolicyIssu
   return issues;
 }
 
+/**
+ * Each project is configured on its own, with its directory as the root, so one inside another would have its files
+ * planned twice; two entries that differ only in case name one directory on Windows and macOS.
+ */
+function projectIssues(projects: readonly string[]): PolicyIssue[] {
+  const issues: PolicyIssue[] = [];
+  projects.forEach((project, index) => {
+    const outer = projects.findIndex((other) => isInsideProject(other, project));
+    if (outer !== -1) {
+      issues.push({
+        path: formatPath(['projects', index]),
+        message: `"${project}" is inside "${projects[outer] ?? ''}" (projects[${outer}]); each project is configured on its own, so list only one of them`,
+      });
+      return;
+    }
+    const twin = projects.findIndex((other, at) => at < index && other !== project && other.toLowerCase() === project.toLowerCase());
+    if (twin !== -1) {
+      issues.push({
+        path: formatPath(['projects', index]),
+        message: `"${project}" and "${projects[twin] ?? ''}" (projects[${twin}]) differ only in case, so they name the same directory on Windows and macOS; keep the one spelled as the directory is`,
+      });
+    }
+  });
+  return issues;
+}
+
 function crossFieldIssues(document: unknown, tools: readonly ToolKnowledge[]): PolicyIssue[] {
   const issues: PolicyIssue[] = [];
+  const projects = section(projectsShape, document, 'projects');
+  if (projects !== undefined) issues.push(...projectIssues(projects));
 
   const installScripts = section(installScriptsShape, document, 'installScripts');
   if (installScripts?.default === 'allow' && installScripts.allow.length > 0) {
