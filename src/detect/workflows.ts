@@ -4,7 +4,7 @@
 import { isMap, isScalar, isSeq, LineCounter, type Node, type YAMLMap } from 'yaml';
 import { parseYamlDocument } from '../yaml-parse.ts';
 import type { RuntimeOrTool, SetupActionKnowledge } from '../knowledge/types.ts';
-import { findToolCommands, UNKNOWN_DIRECTORY } from './commands.ts';
+import { findToolCommands, overLimitMessages, UNKNOWN_DIRECTORY, withVariables } from './commands.ts';
 import { imageRuntime } from './dockerfiles.ts';
 import type { DetectionFacts } from './knowledge.ts';
 import { joinPath, type Repository } from './repository.ts';
@@ -140,7 +140,8 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
     if (!isMap(jobs)) continue;
     const workflowDirectory = defaultDirectory(document.contents);
     const { key: envKey } = facts.workflowEnvironment;
-    const workflowEnvironment = environmentOf(isMap(document.contents) ? document.contents.get(envKey) : undefined);
+    // Only the variables commands read are kept, so thousands of env entries cost no more per step (decision D-121).
+    const workflowEnvironment = withVariables(facts.commands, environmentOf(isMap(document.contents) ? document.contents.get(envKey) : undefined));
     for (const pair of jobs.items) {
       const id = scalarText(pair.key);
       const job = pair.value;
@@ -186,7 +187,7 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
         }
       }
       // The container's env, then the workflow's and the job's, which docker exec passes over it, then each step's.
-      const jobEnvironment = new Map([...environmentOf(isMap(container) ? container.get(containerEnvKey) : undefined), ...workflowEnvironment, ...environmentOf(job.get(envKey))]);
+      const jobEnvironment = withVariables(facts.commands, environmentOf(isMap(container) ? container.get(containerEnvKey) : undefined), workflowEnvironment, environmentOf(job.get(envKey)));
       const steps = job.get('steps');
       if (!isSeq(steps)) continue;
       for (const step of steps.items) {
@@ -217,8 +218,9 @@ export function readWorkflows(repository: Repository, facts: DetectionFacts): Wo
         if (isScalar(run) && typeof run.value === 'string' && run.range !== undefined && run.range !== null) {
           // Read the source text of the step, so that commands inside block scalars get their own line.
           const start = run.range[0];
-          const environment = new Map([...jobEnvironment, ...environmentOf(step.get(envKey))]);
+          const environment = withVariables(facts.commands, jobEnvironment, environmentOf(step.get(envKey)));
           const found = findToolCommands(text.slice(start, run.range[1]), facts.commands, 0, environment);
+          for (const message of overLimitMessages(found.overLimit, `the run step of job ${id} in ${file} (line ${lineCounter.linePos(start).line})`)) repository.warn('script-not-followed', message, [file]);
           record.runsNode ||= found.runsNode;
           const configVariable = facts.commands.pip.delay?.configVariable;
           if (found.pipConfig === true || (configVariable !== undefined && (environment.get(configVariable) ?? '') !== '')) record.pipConfig = true;

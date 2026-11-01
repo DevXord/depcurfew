@@ -2,7 +2,7 @@
 import { versionedValue } from '../../doctor/effective.ts';
 import { iniEntries } from '../../doctor/settings.ts';
 import type { ScriptPolicy } from '../../knowledge/types.ts';
-import { npmInUseText } from '../../doctor/rules/bundled-versions.ts';
+import { npmEnginesOn, npmInUseSeveral, npmInUseText, type NpmInUse } from '../../doctor/rules/bundled-versions.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { hasManagedLines } from '../block.ts';
 import { listing } from '../requirements.ts';
@@ -34,7 +34,7 @@ function scriptsForVersionsInUse(context: Context, file: string, entries: string
   const of = (policy: ScriptPolicy) =>
     context.inUse.flatMap((entry) => {
       const versions = entry.versions.filter((version) => versionedValue(defaults, version) === policy);
-      return versions.length === 0 ? [] : [{ text: npmInUseText(entry, versions), several: versions.length > 1, entry }];
+      return versions.length === 0 ? [] : [{ text: npmInUseText(entry, versions), several: npmInUseSeveral(entry, versions), entry }];
     });
   // The first place that declares such an npm, for the warning's location.
   const where = (found: ReturnType<typeof of>) => {
@@ -46,8 +46,21 @@ function scriptsForVersionsInUse(context: Context, file: string, entries: string
     const texts = found.map((item) => item.text);
     return texts.length <= MAX_PLACES ? listing(texts) : `${texts.slice(0, MAX_PLACES - 1).join(', ')} and ${texts.length - MAX_PLACES + 1} more places`;
   };
-  // "runs" for one version of one place, "run" for more.
+  // "runs" for one version of one place ("npm@11 (…)" too), "run" for more (decision D-121).
   const plural = (found: ReturnType<typeof of>) => found.length > 1 || found[0]?.several === true;
+  // An npm install that a fix offers for these places, with what their Node.js needs for that npm (decision D-121):
+  // npm 11 does not run on Node.js 18, so the fix moves to a Node.js it runs on first, as doctor's fixes do.
+  const enginesOf = (version: string, entries: readonly NpmInUse[]) => {
+    const parsed = parseVersion(version);
+    return parsed === undefined ? undefined : npmEnginesOn(parsed, entries.flatMap((entry) => entry.nodes ?? []));
+  };
+  const installThere = (version: string, entries: readonly NpmInUse[]) => {
+    const engines = enginesOf(version, entries);
+    const only = engines?.verdict === 'some' ? `; npm ${version} runs on Node.js ${engines.range} only` : '';
+    const install = `install npm ${version} or later before packages are installed there (npm install -g npm@${version}${only})`;
+    return engines?.verdict === 'none' ? `move to a Node.js release that npm ${version} runs on (${engines.range}), then ${install}` : install;
+  };
+  const capitalized = (text: string) => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
   const notices = of('run-with-warning');
   if (notices.length > 0) {
     entries.push(`${strict.setting}=${String(strict.value)}`);
@@ -65,13 +78,15 @@ function scriptsForVersionsInUse(context: Context, file: string, entries: string
       // The pin is raised where it is pinned; the other places (CI jobs, Dockerfiles, Node.js version files) install a
       // newer npm, which a pin does not change (decision D-115).
       const others = notices.filter((item) => item.entry.pin !== true);
+      const which = pinNeedsIt ? 'the other places listed here' : 'every place listed here';
+      const engines = enginesOf(target, others.map((item) => item.entry));
+      const only = engines?.verdict === 'some' ? `; npm ${target} runs on Node.js ${engines.range} only` : '';
+      const run = `run npm ${since} or later (npm install -g npm@${target} before it installs packages${only}; a pin in packageManager or devEngines does not change the npm they run)`;
       const steps = [
         ...(pinNeedsIt ? [`require npm ${since} or later in ${pin.where}`] : []),
         ...(others.length === 0
           ? []
-          : [
-              `make ${pinNeedsIt ? 'the other places listed here' : 'every place listed here'} run npm ${since} or later (npm install -g npm@${target} before it installs packages; a pin in packageManager or devEngines does not change the npm they run)`,
-            ]),
+          : [engines?.verdict === 'none' ? `move ${which} to a Node.js release that npm ${target} runs on (${engines.range}) and make them ${run}` : `make ${which} ${run}`]),
       ];
       const how = steps.join(', and ');
       // A Dockerfile's or a CI job's npm install -g npm@X does not pin npm for every place (decision D-115).
@@ -92,7 +107,7 @@ function scriptsForVersionsInUse(context: Context, file: string, entries: string
       code: 'scripts-not-enforceable',
       ...where(unknown),
       message: `${places(unknown)} may run every dependency install script, so depcurfew counts ${unknown.length > 1 ? 'them as ones that do' : 'it as one that does'}, and "deny" may not be enforced there`,
-      fix: `Declare a Node.js version depcurfew knows there (an exact release it knows or a release line such as 24), or install npm ${since} or later before packages are installed there (npm install -g npm@${since}); npm 12 blocks dependency scripts by default`,
+      fix: `Declare a Node.js version depcurfew knows there (an exact release it knows or a release line such as 24), or ${installThere(since, unknown.map((item) => item.entry))}; npm 12 blocks dependency scripts by default`,
     });
   }
   const running = of('run');
@@ -107,7 +122,9 @@ function scriptsForVersionsInUse(context: Context, file: string, entries: string
       // The pinned version is raised where it is pinned; the other places install a newer npm or choose a newer Node.js.
       fix: pinRuns !== undefined && running.length === 1
         ? `Require npm ${since} or later in ${pinRuns.where} (npm 12 blocks dependency scripts by default)`
-        : `Install npm ${since} or later before packages are installed there (npm install -g npm@${since}), or move to a Node.js release that comes with it${pinRuns === undefined ? '' : `, and require it in ${pinRuns.where}`}; npm 12 blocks dependency scripts by default`,
+        : capitalized(
+            `${installThere(since, running.map((item) => item.entry))}, or move to a Node.js release that comes with it${pinRuns === undefined ? '' : `, and require it in ${pinRuns.where}`}; npm 12 blocks dependency scripts by default`,
+          ),
     });
   }
 }

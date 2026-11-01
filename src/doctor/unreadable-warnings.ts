@@ -29,4 +29,11 @@ export const WARNING_FIXES: Readonly<Record<string, string>> = {
   'multiple-lockfiles': 'Remove the lockfiles of the package managers the project does not use',
   'package-manager-mismatch': 'Commit the lockfile of the package manager that packageManager in package.json names, or correct packageManager',
   'python-tool-unknown': `Commit the lockfile of the tool that installs the project, or name the tool in targets in ${POLICY_FILE}`,
+  'script-not-followed': 'Split the script into shorter run steps or RUN instructions, or check by hand where the installs after that point run and with which variables',
 };
+
+/**
+ * Warnings of detection that doctor shows as notices: what detection could not follow, so the rules did not check it
+ * (decision D-121). The others are about what explain and apply configure.
+ */
+export const DETECTION_NOTICES: ReadonlySet<string> = new Set(['script-not-followed']);

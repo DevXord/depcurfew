@@ -1,7 +1,7 @@
 // Dockerfiles and Containerfiles: which official node or python image each build stage starts from, and where npm
 // and pip install packages or are replaced. File names, image names and tags come from the knowledge base.
 import type { DockerfileSyntaxKnowledge, ImageReferenceKnowledge, RuntimeImageKnowledge } from '../knowledge/types.ts';
-import { findExecCommands, findToolCommands, type CommandFacts, type Environment, type Word } from './commands.ts';
+import { findExecCommands, findToolCommands, overLimitMessages, withVariables, type CommandFacts, type Environment, type ScriptCommands, type Word } from './commands.ts';
 import { argDeclarations, lineAt, readDockerfile, substitute, type Instruction } from './dockerfile.ts';
 import { joinPath, type Repository } from './repository.ts';
 import type { DockerfileInfo, DockerStage, StageRuntime, ToolCommand, VersionDeclaration } from './types.ts';
@@ -155,7 +155,7 @@ export function envDeclarations(text: string, spaceForm: boolean): [string, stri
   });
 }
 
-function runCommands(instruction: Instruction, facts: DockerFacts, environment: Environment): { commands: ToolCommand[]; pipConfig?: true } {
+function runCommands(instruction: Instruction, facts: DockerFacts, environment: Environment): { commands: ToolCommand[]; pipConfig?: true; overLimit?: ScriptCommands['overLimit'] } {
   const commands: ToolCommand[] = [];
   const { text, offset } = withoutOptions(instruction.text);
   const exec = execWords(text);
@@ -167,6 +167,7 @@ function runCommands(instruction: Instruction, facts: DockerFacts, environment: 
   }
   const found = findToolCommands(text, facts.commands, 0, environment);
   let pipConfig = found.pipConfig === true;
+  const overLimit: NonNullable<ScriptCommands['overLimit']> = { ...found.overLimit };
   for (const { offset: at, ...command } of found.commands) commands.push(located(command, lineAt(instruction, offset + at)));
   for (const heredoc of instruction.heredocs) {
     if (!isScript(heredoc.command)) continue;
@@ -174,6 +175,8 @@ function runCommands(instruction: Instruction, facts: DockerFacts, environment: 
     for (let index = heredoc.body.indexOf('\n'); index >= 0; index = heredoc.body.indexOf('\n', index + 1)) lineStarts.push(index + 1);
     const body = findToolCommands(heredoc.body, facts.commands, 0, environment);
     pipConfig ||= body.pipConfig === true;
+    if (body.overLimit?.directory !== undefined) overLimit.directory ??= body.overLimit.directory;
+    if (body.overLimit?.variables === true) overLimit.variables = true;
     for (const { offset: at, ...command } of body.commands) {
       let low = 0;
       let high = lineStarts.length - 1;
@@ -185,7 +188,7 @@ function runCommands(instruction: Instruction, facts: DockerFacts, environment: 
       commands.push(located(command, heredoc.line + low));
     }
   }
-  return { commands, ...(pipConfig ? { pipConfig: true as const } : {}) };
+  return { commands, ...(pipConfig ? { pipConfig: true as const } : {}), ...(Object.keys(overLimit).length === 0 ? {} : { overLimit }) };
 }
 
 /** The most COPY and ADD sources kept for one stage. */
@@ -206,6 +209,8 @@ export interface DockerfileReading {
   info: DockerfileInfo;
   /** Node.js from FROM, npm, pip and Poetry from RUN (npm install -g npm@X, pip install pip==X, pipx install poetry==X). */
   versions: { tool: 'node' | 'npm' | 'pip' | 'poetry'; declaration: VersionDeclaration }[];
+  /** RUN instructions that went over a limit of the command reader, as the notices say it (decision D-121). */
+  notices: string[];
 }
 
 /** Reads one Dockerfile. */
@@ -218,9 +223,11 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
   const stages: DockerStage[] = [];
   // The first stage of each name, for FROM <name>.
   const named = new Map<string, number>();
-  // The variables ENV sets in each stage, which the stages that start from it inherit (docker.environment).
-  const environments: Map<string, string>[] = [];
+  // The variables ENV sets in each stage, which the stages that start from it inherit (docker.environment); only those
+  // that commands read are kept (decision D-121).
+  const environments: Environment[] = [];
   const versions: DockerfileReading['versions'] = [];
+  const notices: string[] = [];
   for (const instruction of instructions) {
     if (instruction.keyword === facts.syntax.globalArgInstruction && stages.length === 0) {
       for (const [name, value] of argDeclarations(instruction.text)) {
@@ -268,14 +275,14 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
       const { commands: _commands, ...fields } = stage;
       if (alias !== undefined && !named.has(alias)) named.set(alias, stages.length);
       const parent = stage.from === undefined || !facts.environment.inheritedByStages ? undefined : environments[stage.from];
-      environments.push(new Map(parent ?? []));
+      environments.push(parent ?? new Map());
       stages.push({ ...fields, commands: [] });
       continue;
     }
     const stage = stages.at(-1);
     const environment = environments.at(-1);
     if (instruction.keyword === facts.environment.instruction && environment !== undefined) {
-      for (const [name, value] of envDeclarations(instruction.text, facts.environment.spaceForm)) environment.set(name, value);
+      environments[environments.length - 1] = withVariables(facts.commands, environment, envDeclarations(instruction.text, facts.environment.spaceForm));
       continue;
     }
     if ((instruction.keyword === 'COPY' || instruction.keyword === 'ADD') && stage !== undefined) {
@@ -286,6 +293,7 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
     if (instruction.keyword !== 'RUN' || stage === undefined) continue;
     const run = runCommands(instruction, facts, environment ?? new Map());
     if (run.pipConfig === true) stage.pipConfig = true;
+    notices.push(...overLimitMessages(run.overLimit, `the RUN instruction in ${file} (line ${instruction.line})`));
     for (const command of run.commands) {
       stage.commands.push(command);
       if (command.kind === 'upgrade' && command.version !== undefined && (command.tool === 'npm' || command.tool === 'pip' || command.tool === 'poetry')) {
@@ -293,7 +301,7 @@ export function readDockerStages(file: string, text: string, facts: DockerFacts)
       }
     }
   }
-  return { info: { file, stages }, versions };
+  return { info: { file, stages }, versions, notices };
 }
 
 /**

@@ -8,7 +8,7 @@ import { values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 import { printable } from '../printable.ts';
 import type { AnnotationLimitsKnowledge, AnnotationsKnowledge, CheckRunsKnowledge } from '../knowledge/types.ts';
-import { checkedTool, countLevels, resultCounts, resultText } from './render.ts';
+import { checkedTool, countLevels, policyNeeded, resultCounts, resultText } from './render.ts';
 import type { DoctorReport, Finding, Level, Rule } from './types.ts';
 
 const LEVELS: readonly Level[] = ['error', 'warning', 'note'];
@@ -160,7 +160,7 @@ export function cleanNotice(report: DoctorReport, format: AnnotationsKnowledge |
       ? ['No problems found']
       : [
           `No problems found in ${plural(checked.files.length, 'file')}${checked.tools.length === 0 ? '' : ` for ${checked.tools.map(checkedTool).join(', ')}`}. ${resultCounts(checked.rules)}.`,
-          ...checked.rules.map((result) => `${resultText(result)}: ${result.check}${result.result === 'skipped' ? ` (needs ${checked.policyFile})` : ''}`),
+          ...checked.rules.map((result) => `${resultText(result)}: ${result.check}${result.result === 'skipped' ? ` (${policyNeeded(checked.policyFile, report.policy)})` : ''}`),
         ];
   return `::${format.commands.note} ${format.properties.title}=${property('depcurfew doctor: no problems found')}::${data(lines.map((line) => printable(line)).join('\n'))}`;
 }
@@ -240,7 +240,7 @@ function checkedSummary(report: DoctorReport): string[] {
     '| Result | Check | Rule |',
     '| --- | --- | --- |',
     ...checked.rules.map((result) => {
-      const shown = result.result === 'problems' ? `**${resultText(result)}**` : result.result === 'skipped' ? `skipped (needs ${code(checked.policyFile)})` : resultText(result);
+      const shown = result.result === 'problems' ? `**${resultText(result)}**` : result.result === 'skipped' ? `skipped (${policyNeeded(code(checked.policyFile), report.policy)})` : resultText(result);
       return `| ${shown} | ${markdown(result.check)} | ${code(result.rule)} |`;
     }),
   ];

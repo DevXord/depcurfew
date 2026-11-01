@@ -68,7 +68,9 @@ function differences(before: string, after: string): Difference[] {
       if (operation.kind === 'delete') line += 1;
       (operation.kind === 'delete' ? removed : added).push(clean(operation.line));
     }
-    const commaOnly = new Set(removed.filter((text) => added.some((other) => withoutComma(other) === withoutComma(text))).map(withoutComma));
+    // A set of the added lines, so that a block of thousands of lines takes linear time (decision D-121).
+    const addedLines = new Set(added.map(withoutComma));
+    const commaOnly = new Set(removed.map(withoutComma).filter((text) => addedLines.has(text)));
     removed = removed.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
     added = added.filter((text) => !commaOnly.has(withoutComma(text)) && !isFrame(text));
     const commentedLater =
@@ -298,8 +300,12 @@ export const configDrift: Rule = {
  */
 function reportedDifferences(before: string, after: string): Difference[] {
   const [first, ...later] = differences(before, after);
+  // The lines the first finding names as commented out further down are not reported again.
   const named = new Set(first?.commentedLater ?? []);
-  const repeats = (item: Difference) => item.added.some((text) => named.has(text)) && item.removed.every((text) => [...named].some((line) => line.endsWith(text)));
+  // The lines themselves, without the comment apply puts before them: a set, so that thousands of commented lines
+  // take linear time (decision D-121).
+  const originals = new Set([...named].map((line) => line.slice(line.startsWith(SUPERSEDED) ? SUPERSEDED.length : TURNED_OFF.length).trim()));
+  const repeats = (item: Difference) => item.added.some((text) => named.has(text)) && item.removed.every((text) => originals.has(text));
   return [first, ...later.filter((item) => !repeats(item))].filter((item): item is Difference => item !== undefined);
 }
 

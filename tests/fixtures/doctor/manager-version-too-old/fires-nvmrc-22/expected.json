@@ -6,6 +6,6 @@
       "line": 1
     },
     "message": "Node.js 22 in .nvmrc can come with npm 10.5.1 to 10.9.9, none of which supports min-release-age (added in 11.10.0); npm before 11.2.0 ignores settings it does not know without a warning",
-    "fix": "Install npm 11.10.0 where this Node.js is used (npm install -g npm@11.10.0), or require a Node.js release that comes with npm 11.10.0 or later in .nvmrc (24.14.1 or a later 24.x; 26.0.0 or later)"
+    "fix": "Install npm 11.10.0 where this Node.js is used (npm install -g npm@11.10.0; npm 11.10.0 runs on Node.js ^20.17.0 || >=22.9.0 only), or require a Node.js release that comes with npm 11.10.0 or later in .nvmrc (24.14.1 or a later 24.x; 26.0.0 or later)"
   }
 ]

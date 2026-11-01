@@ -73,10 +73,18 @@ export function resultCounts(results: readonly RuleResult[]): string {
 }
 
 /**
+ * What a skipped check needs, after it: the policy file, or a valid one when the file is there but invalid (decision
+ * D-121). `file` is the policy file as shown (depcurfew.json, or `depcurfew.json` in Markdown).
+ */
+export function policyNeeded(file: string, policy: DoctorReport['policy'] | undefined): string {
+  return policy === 'invalid' ? `needs a valid ${file}` : `needs ${file}`;
+}
+
+/**
  * What doctor checked, below the result: the tools found, the files read and every check with its result, so that a
  * clean report says what it covers and is not mistaken for one that did nothing.
  */
-export function checkedLines(checked: Checked): string[] {
+export function checkedLines(checked: Checked, policy?: DoctorReport['policy']): string[] {
   const width = Math.max(...checked.rules.map((result) => resultText(result).length), 'passed'.length);
   return [
     'What was checked:',
@@ -84,7 +92,7 @@ export function checkedLines(checked: Checked): string[] {
     `  Files read: ${checked.files.length === 0 ? 'none' : checked.files.join(', ')}`,
     `  ${resultCounts(checked.rules)}`,
     ...checked.rules.map(
-      (result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === 'skipped' ? ` (needs ${checked.policyFile})` : ''} [${result.rule}]`,
+      (result) => `    ${resultText(result).padEnd(width)}  ${result.check}${result.result === 'skipped' ? ` (${policyNeeded(checked.policyFile, policy)})` : ''} [${result.rule}]`,
     ),
   ];
 }
@@ -136,6 +144,6 @@ export function renderText(
       if (notice.fix !== undefined) lines.push(`    ${colors.green('fix:')} ${printable(notice.fix)}`);
     }
   }
-  if (report.checked !== undefined) lines.push('', ...checkedLines(report.checked).map((line, index) => (index === 0 ? colors.bold(printable(line)) : printable(line))));
+  if (report.checked !== undefined) lines.push('', ...checkedLines(report.checked, report.policy).map((line, index) => (index === 0 ? colors.bold(printable(line)) : printable(line))));
   return `${lines.join('\n')}\n`;
 }

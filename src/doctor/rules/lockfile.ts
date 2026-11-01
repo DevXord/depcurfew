@@ -17,7 +17,7 @@ import { iniValue, readSetting } from '../settings.ts';
 import type { Rule, RuleContext } from '../types.ts';
 import { hasBuildRecords, showsBuilds } from '../python-lockfiles.ts';
 import { hasLockfile } from '../applies.ts';
-import { npmInUseText, npmPlaces, repositoryPin, type NpmInUse } from './bundled-versions.ts';
+import { npmInUseSeveral, npmInUseText, npmPlaces, repositoryPin, type NpmInUse } from './bundled-versions.ts';
 
 const LABELS = {
   npm: { git: 'a git repository', remoteTarball: 'a tarball URL', file: 'a local tarball', directory: 'a local directory' },
@@ -130,7 +130,7 @@ function runsScripts(context: RuleContext, tool: ToolKnowledge, strict: boolean)
   const place = found.place;
   if (place?.unknown !== undefined) return { text: npmInUseText(place), unknown: true };
   const versions = place?.versions.filter(runs) ?? [];
-  return place === undefined ? {} : { text: npmInUseText(place, versions), several: versions.length > 1 };
+  return place === undefined ? {} : { text: npmInUseText(place, versions), several: npmInUseSeveral(place, versions) };
 }
 
 /**

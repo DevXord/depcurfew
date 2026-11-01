@@ -243,15 +243,65 @@ export function isCommandOption(text: string): boolean {
 /** A command as found: `cd` is the directory it runs in relative to where the script starts ('' there), as written. */
 type Found = Omit<ToolCommand, 'line' | 'directory'> & { offset: number; cd?: string };
 
-/** The variables a command sees: those set before the script (CI env, Dockerfile ENV), by export, and on its own line. */
+/**
+ * The variables a command sees: those set before the script (CI env, Dockerfile ENV), by export, and on its own line.
+ * Only the variables the reader looks at are kept (withVariables): a CI file or a Dockerfile with thousands of variables
+ * then costs no more per command than one without any (decision D-121). A variable the tool reads in any case
+ * (npm_config_ignore_scripts) is kept under its name in lower case, the value set last winning.
+ */
 export type Environment = ReadonlyMap<string, string>;
+
+/**
+ * Set in an Environment when a script sets more variables than depcurfew follows (MAX_ASSIGNMENTS): the later ones are
+ * not read, so the variables of the commands after them cannot be told. No variable can have this name.
+ */
+const UNKNOWN_VARIABLES = '<unknown>';
+
+/** The variables the reader looks at, by name, each with whether the tool reads it in any case; made once per facts. */
+const READ_NAMES = new WeakMap<CommandFacts, ReadonlyMap<string, boolean>>();
+function readNames(facts: CommandFacts): ReadonlyMap<string, boolean> {
+  let names = READ_NAMES.get(facts);
+  if (names === undefined) {
+    const found = new Map<string, boolean>();
+    const off = facts.npm.scriptsOff;
+    if (off !== undefined) found.set(off.variable.toLowerCase(), true);
+    const delay = facts.pip.delay;
+    if (delay !== undefined) {
+      found.set(delay.variable, false);
+      found.set(delay.configVariable, false);
+    }
+    names = found;
+    READ_NAMES.set(facts, names);
+  }
+  return names;
+}
+
+/** The name a variable is kept under in an Environment, or undefined when no command reads it. */
+function keptName(facts: CommandFacts, name: string): string | undefined {
+  const names = readNames(facts);
+  if (name === UNKNOWN_VARIABLES || names.get(name) === false) return name;
+  const lower = name.toLowerCase();
+  return names.get(lower) === true ? lower : undefined;
+}
+
+/**
+ * The variables of the layers that commands read, later layers winning (the CI env of the workflow, then of the job, then
+ * of the step); every other variable is left out (decision D-121).
+ */
+export function withVariables(facts: CommandFacts, ...layers: (Iterable<readonly [string, string]> | undefined)[]): Map<string, string> {
+  const kept = new Map<string, string>();
+  for (const layer of layers) {
+    for (const [name, value] of layer ?? []) {
+      const key = keptName(facts, name);
+      if (key !== undefined) kept.set(key, value);
+    }
+  }
+  return kept;
+}
 
 /** The value of a variable that the tool reads in any case (npm_config_*), the last one set winning. */
 function anyCase(environment: Environment, name: string): string | undefined {
-  let found: string | undefined;
-  const lower = name.toLowerCase();
-  for (const [key, value] of environment) if (key.toLowerCase() === lower) found = value;
-  return found;
+  return environment.get(name.toLowerCase());
 }
 
 /**
@@ -262,7 +312,8 @@ function anyCase(environment: Environment, name: string): string | undefined {
 function scriptsOff(args: readonly Word[], environment: Environment, facts: CommandFacts): boolean {
   const known = facts.npm.scriptsOff;
   if (known === undefined) return false;
-  let off = anyCase(environment, known.variable) === known.value;
+  // Variables depcurfew did not read may turn them back on (decision D-121); the command line still counts.
+  let off = !environment.has(UNKNOWN_VARIABLES) && anyCase(environment, known.variable) === known.value;
   const negated = `--no-${known.option.slice(2)}`;
   for (const [index, word] of args.entries()) {
     if (word.text === known.option) {
@@ -376,7 +427,8 @@ function pipDelay(args: readonly Word[], environment: Environment, facts: Comman
     else if (word.text.startsWith(`${known.option}=`)) value = word.text.slice(known.option.length + 1);
   }
   const config = environment.get(known.configVariable);
-  if ((config !== undefined && config !== '') || value?.includes('$') === true) return { delayUnknown: true };
+  // Variables depcurfew did not read may set PIP_CONFIG_FILE, as one it reads may (decision D-121).
+  if ((config !== undefined && config !== '') || value?.includes('$') === true || environment.has(UNKNOWN_VARIABLES)) return { delayUnknown: true };
   return value === undefined || value === '' ? {} : { delay: value };
 }
 
@@ -419,21 +471,34 @@ function changesPipConfig(words: readonly Word[], facts: CommandFacts): boolean 
   return operands[0]?.text === config.command && config.writes.includes(operands[1]?.text ?? '');
 }
 
+/** What the reader found in a script or an exec form, and which of its limits the script went over (decision D-121). */
+export interface ScriptCommands {
+  commands: Found[];
+  runsNode: boolean;
+  pipConfig?: true;
+  /**
+   * `directory`: more than MAX_DIRECTORY_CHANGES cd commands (`changes`), or a directory longer than
+   * MAX_DIRECTORY_LENGTH (`length`), so later installs run in a directory depcurfew cannot tell. `variables`: more
+   * than MAX_ASSIGNMENTS variables set, so the variables of later commands cannot be told.
+   */
+  overLimit?: { directory?: 'changes' | 'length'; variables?: true };
+}
+
 /** What one simple command does with npm or pip, if anything. */
-function readCommand(words: readonly Word[], facts: CommandFacts, depth: number, environment: Environment = new Map()): { found: Found[]; runsNode: boolean; pipConfig?: true } {
+function readCommand(words: readonly Word[], facts: CommandFacts, depth: number, environment: Environment = new Map()): Omit<ScriptCommands, 'commands'> & { found: Found[] } {
   const { command, assignments } = commandParts(words);
   const first = command[0];
   if (first === undefined) return { found: [], runsNode: false };
   if (changesPipConfig(command, facts)) return { found: [], runsNode: false, pipConfig: true };
-  const seen: Environment = assignments.length === 0 ? environment : new Map([...environment, ...assignments]);
+  const seen: Environment = assignments.length === 0 ? environment : withVariables(facts, environment, assignments);
   const name = programName(first.text);
   const args = command.slice(1);
   // sh -c '...' runs its argument as a script.
   if (SHELLS.has(name) && depth < 2) {
     const script = args.find((_word, index) => index > 0 && isCommandOption(args[index - 1]?.text ?? ''));
     if (script !== undefined) {
-      const inner = findToolCommands(script.text, facts, depth + 1, seen);
-      return { found: inner.commands.map((item) => ({ ...item, offset: script.offset })), runsNode: inner.runsNode, ...(inner.pipConfig === true ? { pipConfig: true as const } : {}) };
+      const { commands, ...inner } = findToolCommands(script.text, facts, depth + 1, seen);
+      return { ...inner, found: commands.map((item) => ({ ...item, offset: script.offset })) };
     }
   }
   const runsNode = NODE_EXECUTABLES.has(name);
@@ -454,67 +519,144 @@ function readCommand(words: readonly Word[], facts: CommandFacts, depth: number,
 export const UNKNOWN_DIRECTORY = '<unknown>';
 
 /**
- * The directory after `cd <path>` from `current` (relative to where the script starts, '' there): a literal relative
- * path is followed, .. included; anything else (a variable, ~, -, an absolute path, out of the start) is unknown.
+ * The most cd commands of one script depcurfew follows; later ones lead to an unknown directory (decision D-121). A CI
+ * step or a RUN instruction that changes the directory hundreds of times builds no project depcurfew could name.
  */
-function changeDirectory(current: string, target: string | undefined): string {
-  if (current === UNKNOWN_DIRECTORY || target === undefined || target === '' || /[$~`*?]/u.test(target) || target.startsWith('/') || target === '-') return UNKNOWN_DIRECTORY;
+export const MAX_DIRECTORY_CHANGES = 256;
+/** The longest directory, relative to where the script starts, that depcurfew follows (PATH_MAX on Linux). */
+export const MAX_DIRECTORY_LENGTH = 4096;
+/** The most variables one script sets (export NAME=value, NAME=value before a command) that depcurfew reads. */
+export const MAX_ASSIGNMENTS = 1024;
+
+/**
+ * The directory after `cd <path>` from `current` (relative to where the script starts, '' there): a literal relative
+ * path is followed, .. included; anything else (a variable, ~, -, an absolute path, out of the start) is unknown, and
+ * so is a directory longer than MAX_DIRECTORY_LENGTH (`tooLong`). Linear in the length of both, which
+ * MAX_DIRECTORY_LENGTH bounds for `current`.
+ */
+function changeDirectory(current: string, target: string | undefined): { directory: string; tooLong?: true } {
+  const unknown = { directory: UNKNOWN_DIRECTORY };
+  if (current === UNKNOWN_DIRECTORY || target === undefined || target === '' || target === UNKNOWN_DIRECTORY || /[$~`*?]/u.test(target) || target.startsWith('/') || target === '-') return unknown;
   const parts = current === '' ? [] : current.split('/');
   for (const part of target.replace(/\\/gu, '/').split('/')) {
     if (part === '' || part === '.') continue;
     if (part === '..') {
-      if (parts.length === 0) return UNKNOWN_DIRECTORY;
+      if (parts.length === 0) return unknown;
       parts.pop();
     } else {
       parts.push(part);
     }
   }
-  return parts.join('/');
+  const directory = parts.join('/');
+  return directory.length > MAX_DIRECTORY_LENGTH ? { ...unknown, tooLong: true } : { directory };
 }
 
 /**
  * The install and upgrade commands of a script, with the offset of each in the script, and whether it runs Node.js.
  * `environment` holds the variables set before the script (CI env, Dockerfile ENV); export NAME=value adds to them for
  * the later commands. A literal cd changes the directory of the later commands of the same shell (`cd`, relative to
- * where the script starts), not of those after the ( ) it is in (decision D-115).
+ * where the script starts), not of those after the ( ) it is in (decision D-115). Linear in the length of the script:
+ * each command costs the same however many cd and export commands come before it, and past MAX_DIRECTORY_CHANGES cd
+ * commands or MAX_ASSIGNMENTS variables the directory or the variables are unknown (`overLimit`, decision D-121).
  */
-export function findToolCommands(script: string, facts: CommandFacts, depth = 0, environment: Environment = new Map()): { commands: Found[]; runsNode: boolean; pipConfig?: true } {
+export function findToolCommands(script: string, facts: CommandFacts, depth = 0, environment: Environment = new Map()): ScriptCommands {
   const commands: Found[] = [];
   let runsNode = false;
   let pipConfig = false;
-  const variables = new Map(environment);
+  const overLimit: NonNullable<ScriptCommands['overLimit']> = {};
+  const variables = withVariables(facts, environment);
+  let changes = 0;
+  let assignments = 0;
+  const assigned = (count: number) => {
+    assignments += count;
+    if (assignments <= MAX_ASSIGNMENTS || variables.has(UNKNOWN_VARIABLES)) return;
+    variables.set(UNKNOWN_VARIABLES, '');
+    overLimit.variables = true;
+  };
   // The directory at each depth of ( ); a deeper command starts from the one around it.
   const directories: string[] = [''];
   for (const { words, depth: level } of splitWithDepth(script)) {
     while (directories.length <= level) directories.push(directories.at(-1) ?? '');
     directories.length = level + 1;
     const here = directories[level] ?? '';
-    const { command } = commandParts(words);
+    const { command, assignments: own } = commandParts(words);
     const program = command[0]?.text;
+    if (own.length > 0) assigned(own.length);
     if (program === 'cd') {
-      directories[level] = changeDirectory(here, command.find((word, index) => index > 0 && !word.text.startsWith('-'))?.text ?? '~');
+      changes += 1;
+      const target = command.find((word, index) => index > 0 && !word.text.startsWith('-'))?.text ?? '~';
+      if (changes > MAX_DIRECTORY_CHANGES) {
+        if (here !== UNKNOWN_DIRECTORY) overLimit.directory ??= 'changes';
+        directories[level] = UNKNOWN_DIRECTORY;
+        continue;
+      }
+      const next = changeDirectory(here, target);
+      if (next.tooLong === true) overLimit.directory ??= 'length';
+      directories[level] = next.directory;
       continue;
     }
     if (program === 'export') {
-      for (const word of command.slice(1)) {
+      const exported = command.slice(1).filter((word) => word.text.indexOf('=') > 0 && ASSIGNMENT.test(word.text));
+      assigned(exported.length);
+      if (variables.has(UNKNOWN_VARIABLES)) continue;
+      for (const word of exported) {
         const equals = word.text.indexOf('=');
-        if (equals > 0 && ASSIGNMENT.test(word.text)) variables.set(word.text.slice(0, equals), word.text.slice(equals + 1));
+        const key = keptName(facts, word.text.slice(0, equals));
+        if (key !== undefined) variables.set(key, word.text.slice(equals + 1));
       }
       continue;
     }
     const result = readCommand(words, facts, depth, variables);
+    // The directories of an inner script (sh -c 'cd web && npm ci'), joined with this one once for each.
+    const joined = new Map<string, string>();
     for (const found of result.found) {
-      const cd = found.cd === undefined ? here : here === '' ? found.cd : found.cd === '' ? here : changeDirectory(here, found.cd);
+      let cd = here;
+      if (found.cd !== undefined && found.cd !== '' && here !== UNKNOWN_DIRECTORY) {
+        const known = joined.get(found.cd);
+        if (known !== undefined) cd = known;
+        else {
+          const next = here === '' || found.cd === UNKNOWN_DIRECTORY ? { directory: found.cd } : changeDirectory(here, found.cd);
+          if (next.tooLong === true) overLimit.directory ??= 'length';
+          cd = next.directory;
+          joined.set(found.cd, cd);
+        }
+      }
       commands.push(cd === '' ? (({ cd: _cd, ...rest }) => rest)(found) : { ...found, cd });
     }
     runsNode ||= result.runsNode;
     pipConfig ||= result.pipConfig === true;
+    if (result.overLimit?.directory !== undefined) overLimit.directory ??= result.overLimit.directory;
+    if (result.overLimit?.variables === true) overLimit.variables = true;
   }
-  return { commands, runsNode, ...(pipConfig ? { pipConfig: true as const } : {}) };
+  return {
+    commands,
+    runsNode,
+    ...(pipConfig ? { pipConfig: true as const } : {}),
+    ...(overLimit.directory !== undefined || overLimit.variables === true ? { overLimit } : {}),
+  };
+}
+
+/**
+ * What a notice says when a script (a run step, a RUN instruction, `where`) went over a limit of the reader (decision
+ * D-121): its later installs run in a directory depcurfew cannot tell, or with variables it did not read.
+ */
+export function overLimitMessages(overLimit: ScriptCommands['overLimit'], where: string): string[] {
+  return [
+    ...(overLimit?.directory === undefined
+      ? []
+      : [
+          `${where} ${overLimit.directory === 'changes' ? `changes the directory more than ${MAX_DIRECTORY_CHANGES} times` : `changes to a directory longer than ${MAX_DIRECTORY_LENGTH} characters`}, so depcurfew cannot tell which directory the installs after that run in and checks them with the settings of the repository root`,
+        ]),
+    ...(overLimit?.variables === true
+      ? [
+          `${where} sets more than ${MAX_ASSIGNMENTS} variables, so depcurfew does not read the later ones: npm installs after that count as ones that run dependency install scripts, and the release-age delay of pip installs after that is not checked`,
+        ]
+      : []),
+  ];
 }
 
 /** The same for the words of an exec form (RUN ["npm", "ci"]), which no shell splits. */
-export function findExecCommands(words: readonly Word[], facts: CommandFacts, environment: Environment = new Map()): { commands: Found[]; runsNode: boolean; pipConfig?: true } {
-  const result = readCommand(words, facts, 0, environment);
-  return { commands: result.found, runsNode: result.runsNode, ...(result.pipConfig === true ? { pipConfig: true as const } : {}) };
+export function findExecCommands(words: readonly Word[], facts: CommandFacts, environment: Environment = new Map()): ScriptCommands {
+  const { found, ...result } = readCommand(words, facts, 0, withVariables(facts, environment));
+  return { commands: found, ...result };
 }

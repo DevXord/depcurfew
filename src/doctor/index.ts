@@ -14,7 +14,7 @@ import { plannedFor } from './plan.ts';
 import { ruleResults } from './render.ts';
 import { RULES } from './rules/index.ts';
 import { UNREADABLE_WARNINGS, unreadableConfig } from './rules/unreadable-config.ts';
-import { WARNING_FIXES } from './unreadable-warnings.ts';
+import { DETECTION_NOTICES, WARNING_FIXES } from './unreadable-warnings.ts';
 import type { Detection } from '../detect/types.ts';
 import { makeNotice, relocatedNotice, type Checked, type DoctorReport, type Finding, type Notice, type ProjectView, type Rule } from './types.ts';
 
@@ -104,8 +104,11 @@ function runRules(
   const repository = where.repository ?? new Repository(root);
   const findings: Finding[] = [];
   const notices: Notice[] = [];
+  const messages = new Set<string>();
   const notice = (code: string, message: string, file?: string, fix?: string) => {
-    if (!notices.some((item) => item.message === message)) notices.push(makeNotice(code, message, file, fix));
+    if (messages.has(message)) return;
+    messages.add(message);
+    notices.push(makeNotice(code, message, file, fix));
   };
   for (const rule of rules) {
     if (rule.requiresPolicy && policy === undefined) continue;
@@ -125,6 +128,10 @@ function runRules(
   const reported = rules.includes(unreadableConfig);
   for (const warning of repository.warnings) {
     if (!reported || !(warning.code in UNREADABLE_WARNINGS)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code]);
+  }
+  // What detection could not follow, so the rules did not check it (decision D-121).
+  for (const warning of detection.warnings) {
+    if (DETECTION_NOTICES.has(warning.code)) notice(warning.code, warning.message, warning.files[0], WARNING_FIXES[warning.code]);
   }
   return { findings, notices, detection, repository };
 }
@@ -199,8 +206,11 @@ export function runDoctor(
   const rootRun = runRules(root, policy, rules, tools, { detection, ...(views.length === 0 ? {} : { projects: views }), ...(rootPlan === undefined ? {} : { plan: rootPlan }) });
 
   const notices: Notice[] = [];
+  const shown = new Set<string>();
   const addNotice = (item: Notice) => {
-    if (!notices.some((known) => known.message === item.message)) notices.push(item);
+    if (shown.has(item.message)) return;
+    shown.add(item.message);
+    notices.push(item);
   };
   // The policy's state, with the codes of apply's errors for it; the invalid-policy finding says how to fix an invalid one.
   if (invalid) addNotice(makeNotice('policy-invalid', `${POLICY_FILE} is invalid: only the rules that do not need a policy ran`, POLICY_FILE, 'Fix what the invalid-policy finding lists, then run depcurfew doctor again'));

@@ -50,7 +50,7 @@
                 "line": 2
               },
               "message": "nothing pins one npm for the repository (packageManager, devEngines, Volta or .tool-versions), and npm 11.16.0 to 11.19.1 (with Node.js 24 in .nvmrc) run dependency install scripts that allowScripts does not cover unless strict-allow-scripts is set, so depcurfew apply writes strict-allow-scripts=true; with it, in npm 12.0.0 and later the install fails instead of blocking the script with a warning",
-              "fix": "Make every place listed here run npm 12.0.0 or later (npm install -g npm@12.0.0 before it installs packages; a pin in packageManager or devEngines does not change the npm they run), and depcurfew apply leaves strict-allow-scripts out. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in depcurfew.json"
+              "fix": "Make every place listed here run npm 12.0.0 or later (npm install -g npm@12.0.0 before it installs packages; npm 12.0.0 runs on Node.js ^22.22.2 || ^24.15.0 || >=26.0.0 only; a pin in packageManager or devEngines does not change the npm they run), and depcurfew apply leaves strict-allow-scripts out. Until then, review the packages an install stops at and add them to installScripts.allow or installScripts.deny in depcurfew.json"
             },
             {
               "code": "scripts-not-enforceable",
@@ -72,7 +72,7 @@
                 "line": 3
               },
               "message": "npm 10.5.1 to 10.9.9 (with Node.js 22 of node:22-alpine in Dockerfile), npm 11.3.0 to 11.13.0 (with Node.js 24 in .nvmrc) and npm 10.9.0 (with Node.js v22.11.0 in .node-version) run every dependency install script and have no allow-list, so \"deny\" cannot be enforced there",
-              "fix": "Install npm 11.16.0 or later before packages are installed there (npm install -g npm@11.16.0), or move to a Node.js release that comes with it; npm 12 blocks dependency scripts by default"
+              "fix": "Install npm 11.16.0 or later before packages are installed there (npm install -g npm@11.16.0; npm 11.16.0 runs on Node.js ^20.17.0 || >=22.9.0 only), or move to a Node.js release that comes with it; npm 12 blocks dependency scripts by default"
             },
             {
               "code": "allow-pattern-unsupported",

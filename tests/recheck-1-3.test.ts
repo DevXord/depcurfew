@@ -120,7 +120,7 @@ describe('strict-allow-scripts from every place npm runs (item 1)', () => {
     const before = runDoctor(directory);
     const nvmrc = rule(before, 'manager-version-too-old').find((finding) => finding.location.file === '.nvmrc');
     expect(nvmrc?.fix).toBe(
-      'Install npm 12.0.0 where this Node.js is used (npm install -g npm@12.0.0), or install npm 11.16.0 where this Node.js is used (npm install -g npm@11.16.0) and add strict-allow-scripts=true to .npmrc by hand, or require a Node.js release that comes with npm 11.16.0 or later in .nvmrc (24.18.0 or a later 24.x; 26.3.0 or later) with strict-allow-scripts=true in .npmrc, which depcurfew apply then writes; no supported Node.js release comes with npm 12.0.0 yet',
+      'Install npm 12.0.0 where this Node.js is used (npm install -g npm@12.0.0; npm 12.0.0 runs on Node.js ^22.22.2 || ^24.15.0 || >=26.0.0 only), or install npm 11.16.0 where this Node.js is used (npm install -g npm@11.16.0; npm 11.16.0 runs on Node.js ^20.17.0 || >=22.9.0 only) and add strict-allow-scripts=true to .npmrc by hand, or require a Node.js release that comes with npm 11.16.0 or later in .nvmrc (24.18.0 or a later 24.x; 26.3.0 or later) with strict-allow-scripts=true in .npmrc, which depcurfew apply then writes; no supported Node.js release comes with npm 12.0.0 yet',
     );
     expect(planRepository(directory, loadPolicyIfPresent(directory) as never).changes.some((change) => change.after.includes('strict-allow-scripts'))).toBe(false);
     promisesHold(directory);

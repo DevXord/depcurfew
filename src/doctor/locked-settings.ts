@@ -330,15 +330,18 @@ function pythonString(text: string): string {
   return `${out}"`;
 }
 
-/** Code-point order, as Python sorts str keys. */
-function byCodePoint(a: string, b: string): number {
-  const left = [...a].map((char) => char.codePointAt(0) ?? 0);
-  const right = [...b].map((char) => char.codePointAt(0) ?? 0);
-  for (let index = 0; index < Math.min(left.length, right.length); index++) {
-    const difference = (left[index] ?? 0) - (right[index] ?? 0);
-    if (difference !== 0) return difference;
-  }
-  return left.length - right.length;
+/** Code-point order, as Python sorts str keys: the code points of each key are taken once, not at each comparison. */
+function byCodePoint(keys: readonly string[]): string[] {
+  const points = keys.map((key) => ({ key, points: [...key].map((char) => char.codePointAt(0) ?? 0) }));
+  points.sort((a, b) => {
+    const length = Math.min(a.points.length, b.points.length);
+    for (let index = 0; index < length; index++) {
+      const difference = (a.points[index] ?? 0) - (b.points[index] ?? 0);
+      if (difference !== 0) return difference;
+    }
+    return a.points.length - b.points.length;
+  });
+  return points.map((entry) => entry.key);
 }
 
 /**
@@ -354,7 +357,7 @@ export function pythonJson(value: unknown): string | undefined {
     return items.some((item) => item === undefined) ? undefined : `[${items.join(', ')}]`;
   }
   if (isRecord(value) && !(value instanceof TomlDateTime)) {
-    const keys = Object.keys(value).sort(byCodePoint);
+    const keys = byCodePoint(Object.keys(value));
     const parts: string[] = [];
     for (const key of keys) {
       const item = pythonJson(value[key]);
@@ -387,23 +390,25 @@ export function pdmHash(tool: ToolKnowledge, lock: TomlDocument, pyproject: Toml
   const workspace = tomlValueAt(pyproject, fact.workspace);
   if (workspace !== undefined && !(isRecord(workspace) && Object.keys(workspace).length === 0)) return undefined;
   if (!isRecord(tomlValueAt(pyproject, fact.project))) return undefined;
-  const groups: Record<string, unknown[]> = {};
+  // A Map, not an object: a group named constructor is data, and each list is appended once (decision D-121).
+  const groups = new Map<string, unknown[]>();
   const separators = new RegExp(fact.groups.separators, 'gu');
-  const [first, ...others] = fact.groups.tables;
-  for (const [index, path] of [first, ...others].entries()) {
-    if (path === undefined) continue;
+  for (const [index, path] of fact.groups.tables.entries()) {
     const table = tomlValueAt(pyproject, path);
     if (table === undefined) continue;
     if (!isRecord(table)) return undefined;
     for (const [name, list] of Object.entries(table)) {
       if (!Array.isArray(list)) return undefined;
       const group = name.replace(separators, '-').toLowerCase();
+      const known = groups.get(group);
       // A name twice in [dependency-groups] is an error of PDM; the later tables add to a group.
-      if (index === 0 && group in groups) return undefined;
-      groups[group] = [...(groups[group] ?? []), ...(list as unknown[])];
+      if (index === 0 && known !== undefined) return undefined;
+      if (known === undefined) groups.set(group, [...(list as unknown[])]);
+      else for (const item of list as unknown[]) known.push(item);
     }
   }
-  const dump: Record<string, unknown> = { [fact.groups.name]: groups };
+  // Object.fromEntries defines own properties, so no name (not even __proto__) changes the object's prototype.
+  const dump: Record<string, unknown> = { [fact.groups.name]: Object.fromEntries(groups) };
   for (const field of fact.fields) dump[field.name] = tomlValueAt(pyproject, field.path) ?? field.missing;
   const text = pythonJson(dump);
   if (text === undefined) return undefined;

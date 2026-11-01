@@ -47,7 +47,7 @@ export interface MissingSetting {
   setting: string;
 }
 
-let recording: { written: WrittenSetting[]; missing: MissingSetting[] } | undefined;
+let recording: { written: WrittenSetting[]; missing: MissingSetting[]; keys: Set<string> } | undefined;
 
 /**
  * Runs a plan and returns what its generators wrote for installScripts and sources and which settings were too new
@@ -57,10 +57,11 @@ let recording: { written: WrittenSetting[]; missing: MissingSetting[] } | undefi
  */
 export function recordSettings<T>(action: () => T): { result: T; written: WrittenSetting[]; missing: MissingSetting[] } {
   const outer = recording;
-  const current = { written: [] as WrittenSetting[], missing: [] as MissingSetting[] };
+  // The settings written so far by their text, so that each one is kept once in linear time (decision D-121).
+  const current = { written: [] as WrittenSetting[], missing: [] as MissingSetting[], keys: new Set<string>() };
   recording = current;
   try {
-    return { result: action(), ...current };
+    return { result: action(), written: current.written, missing: current.missing };
   } finally {
     recording = outer;
   }
@@ -202,10 +203,12 @@ export function createContext(options: {
     warn,
     snippet: (file, text) => options.snippets.push({ tool: tool.id, file, text }),
     writes(part, setting, file, table) {
-      const written = recording?.written;
-      if (written === undefined) return;
+      if (recording === undefined) return;
       const entry: WrittenSetting = { tool: tool.id, ...where, part, setting, file, ...(table === undefined || table === '' ? {} : { table }) };
-      if (!written.some((known) => JSON.stringify(known) === JSON.stringify(entry))) written.push(entry);
+      const key = JSON.stringify(entry);
+      if (recording.keys.has(key)) return;
+      recording.keys.add(key);
+      recording.written.push(entry);
     },
     supports(since, setting) {
       if (atLeast(since)) return true;

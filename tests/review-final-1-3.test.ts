@@ -120,7 +120,7 @@ describe('npm install -g npm with a range or a version depcurfew cannot read (B2
     const directory = ciRepo('^11.10.0');
     const report = runDoctor(directory);
     expect(rule(report, 'lockfile-install-scripts').map((finding) => [finding.level, finding.message])).toEqual([
-      ['error', 'core-js has install scripts and npm@^11.10.0 (installed in job test of .github/workflows/ci.yml, line 9) run them, but depcurfew.json does not allow it'],
+      ['error', 'core-js has install scripts and npm@^11.10.0 (installed in job test of .github/workflows/ci.yml, line 9) runs them, but depcurfew.json does not allow it'],
     ]);
     expect(npmrcOf(directory)).toContain('strict-allow-scripts=true');
     expect(codes(directory)).toEqual(expect.arrayContaining(['scripts-not-enforceable', 'strict-allow-scripts-for-npm-in-use']));
