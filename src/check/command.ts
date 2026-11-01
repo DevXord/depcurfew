@@ -1157,10 +1157,16 @@ function unreadable(reason: string): CommandScan {
   return { requests: [], unreadable: reason };
 }
 
+/** Appends every item of `items` to `list`, one by one: a spread of a long array would overflow the call stack. */
+function appendAll<T>(list: T[], items: readonly T[]): void {
+  for (const item of items) list.push(item);
+}
+
 function merge(into: CommandScan, scan: CommandScan): void {
-  into.requests.push(...scan.requests);
+  appendAll(into.requests, scan.requests);
   into.unreadable ??= scan.unreadable;
-  if (scan.overrides !== undefined && scan.overrides.length > 0) into.overrides = [...(into.overrides ?? []), ...scan.overrides];
+  // Appended in place, not copied: a long line may weaken thousands of installs (decision D-123).
+  if (scan.overrides !== undefined && scan.overrides.length > 0) appendAll((into.overrides ??= []), scan.overrides);
   if (into.changes === undefined && scan.changes !== undefined) into.changes = scan.changes;
   if (scan.manager === true) into.manager = true;
 }
@@ -2749,27 +2755,31 @@ function configChange(executable: string, rest: readonly Word[]): 'configuration
   configExecutables ??= new Set(commands().tools.flatMap((tool) => tool.configCommands.map((entry) => entry.command[0] ?? '')));
   if (!configExecutables.has(executable)) return undefined;
   for (const tool of commands().tools) {
-    for (const entry of tool.configCommands) {
-      if (entry.command[0] !== executable) continue;
-      const positional: Word[] = [];
-      const options: string[] = [];
-      for (let index = 0; index < rest.length; index++) {
-        const word = rest[index] as Word;
-        if (word.text === '--') {
-          positional.push(...rest.slice(index + 1));
-          break;
-        }
-        if (!isOption(word.text)) {
-          positional.push(word);
-          continue;
-        }
-        const option = readOption(rest, index, tool, (name) => tool.valueOptions.has(name));
-        options.push(option.name);
-        if (option.next !== undefined) index += 1;
+    const entries = tool.configCommands.filter((entry) => entry.command[0] === executable);
+    if (entries.length === 0) continue;
+    // The words are read once per tool, not once per entry: a long line may hold a hundred thousand installs.
+    const positional: Word[] = [];
+    const options: string[] = [];
+    for (let index = 0; index < rest.length; index++) {
+      const word = rest[index] as Word;
+      if (word.text === '--') {
+        positional.push(...rest.slice(index + 1));
+        break;
       }
+      if (!isOption(word.text)) {
+        positional.push(word);
+        continue;
+      }
+      const option = readOption(rest, index, tool, (name) => tool.valueOptions.has(name));
+      options.push(option.name);
+      if (option.next !== undefined) index += 1;
+    }
+    const names = tool.commandNames;
+    const first = positional[0];
+    const firstName = first === undefined || names === undefined ? first?.text : commandName(names, first.text);
+    const named = (word: Word | undefined, index: number) => (index === 0 ? firstName : word?.text);
+    for (const entry of entries) {
       const parts = entry.command.slice(1);
-      const names = tool.commandNames;
-      const named = (word: Word | undefined, index: number) => (word === undefined || index > 0 || names === undefined ? word?.text : commandName(names, word.text));
       if (!parts.every((part, index) => named(positional[index], index) === part && positional[index]?.dynamic !== true)) continue;
       const after = positional.slice(parts.length);
       const word = after[0];
@@ -3186,7 +3196,7 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
   if (scan.requests.length > 0 || scan.manager === true) {
     // npm_config_ignore_scripts=false npm ci weakens that install as much as npm i lodash.
     const found = overrideAssignments(reading.items, shown(line), placeOf);
-    if (found.length > 0) scan.overrides = [...(scan.overrides ?? []), ...found];
+    if (found.length > 0) appendAll((scan.overrides ??= []), found);
     const named = reading.named === undefined ? undefined : namedOverride(reading.named);
     if (named !== undefined) scan.unreadable ??= `${shown(line)}: ${named}`;
     directoryAssignments(commandList, scan);

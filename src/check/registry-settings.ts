@@ -170,6 +170,22 @@ function npmFacts(): { config: RegistryConfigKnowledge; prefix: NpmLocalPrefixKn
   return { config, prefix, tagKey: selection?.tagKey };
 }
 
+let workspacesNames: { name: string; shorthands: readonly string[] } | undefined;
+
+/**
+ * The name of npm's workspaces option without dashes and its shorthands, read from the knowledge base once: the hook
+ * asks this for every npm install of a command, which may name a hundred thousand (decision D-124).
+ */
+function workspacesOptionNames(): { name: string; shorthands: readonly string[] } {
+  if (workspacesNames !== undefined) return workspacesNames;
+  const { prefix } = npmFacts();
+  const npm = knowledgeBase.find((tool) => tool.id === 'npm');
+  const parsing = npm?.extra?.['parsing'] === undefined ? undefined : (values(npm.extra['parsing'])[0] as CommandLineParsing | undefined);
+  const shorthands = Object.entries(parsing?.shorthands ?? {}).filter(([, expansion]) => expansion[0] === prefix.workspacesOption).map(([short]) => short.toLowerCase());
+  workspacesNames = { name: prefix.workspacesOption.replace(/^-+/u, ''), shorthands };
+  return workspacesNames;
+}
+
 /**
  * Whether an npm command, as the scan gives it (its words after quotes, escapes and aliases), may set workspaces on its
  * command line, the only place npm reads that setting from for its local prefix (extra.localPrefix of npm, decision
@@ -179,11 +195,7 @@ function npmFacts(): { config: RegistryConfigKnowledge; prefix: NpmLocalPrefixKn
  * .npmrc. It errs towards yes.
  */
 export function mayTurnWorkspacesOff(command: string): boolean {
-  const { prefix } = npmFacts();
-  const name = prefix.workspacesOption.replace(/^-+/u, '');
-  const npm = knowledgeBase.find((tool) => tool.id === 'npm');
-  const parsing = npm?.extra?.['parsing'] === undefined ? undefined : (values(npm.extra['parsing'])[0] as CommandLineParsing | undefined);
-  const shorthands = Object.entries(parsing?.shorthands ?? {}).filter(([, expansion]) => expansion[0] === prefix.workspacesOption).map(([short]) => short.toLowerCase());
+  const { name, shorthands } = workspacesOptionNames();
   return command.split(/\s+/u).some((word) => {
     if (!word.startsWith('-')) return false;
     const bare = (word.replace(/^-+/u, '').replace(/^(?:no-)+/iu, '').split('=')[0] ?? '').toLowerCase();

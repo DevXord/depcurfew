@@ -132,6 +132,11 @@ describe('the stack of pushd, traps, env -S and names the shell builds (decision
     expect(elapsed(() => scanCommandLine(line))).toBeLessThan(2000);
   });
 
+  it('collects many options that weaken the policy quickly in the hook (it took 7.8 s)', () => {
+    const line = 'npm ci --min-release-age=0;'.repeat(36_000);
+    expect(elapsed(() => expect(requestedSpecs(line).overrides).toHaveLength(36_000))).toBeLessThan(2000);
+  });
+
   it('removes repeated installs in a directory with long paths quickly in the hook (it took 18 s)', () => {
     const line = `${`cd ${'a'.repeat(1000)}; `.repeat(64)}${'npm i x;'.repeat(120_000)}`;
     expect(elapsed(() => expect(requestedSpecs(line).specs).toHaveLength(1))).toBeLessThan(2000);
