@@ -47,7 +47,7 @@ The default policy:
 
 ## Installation
 
-depcurfew needs Node.js 22 or later and has a single runtime dependency, [`yaml`](https://github.com/eemeli/yaml).
+depcurfew runs on Node.js 18.3.0 or later, so it also works where a project or a coding agent still has an older Node.js (CI runs every command on the oldest version it supports), and has a single runtime dependency, [`yaml`](https://github.com/eemeli/yaml). Node.js 18 and 20 no longer get security fixes from the Node.js project; prefer a supported line where you can. Working on depcurfew itself needs Node.js 22.18 or later.
 
 Add it to the project as a development dependency, so the team, CI and coding agents all run the version pinned in the lockfile. Once `apply` has written the project's release-age delay, later updates of depcurfew go through that delay as well:
 

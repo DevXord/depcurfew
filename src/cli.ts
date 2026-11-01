@@ -30,16 +30,19 @@ function quietWhenClosed(stream: NodeJS.WriteStream): (text: string) => void {
  * the next tick, which on Node.js 24 and later comes before this module runs when node:util is a static import, so the
  * filter is installed first and the commands are loaded afterwards; every other warning is printed as before.
  */
-function dropColorWarning(): void {
+function dropKnownWarnings(): void {
   const printers = process.listeners('warning');
   process.removeAllListeners('warning');
   process.on('warning', (warning) => {
     if (warning.name === 'Warning' && warning.message.includes("'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env")) return;
+    // Node.js 18 before 18.17 marks the built-in fetch of check and the hook as experimental (decision D-103); it works
+    // the same, and the warning would break the empty stderr of --json.
+    if (warning.name === 'ExperimentalWarning' && warning.message.startsWith('The Fetch API is an experimental feature')) return;
     for (const print of printers) print(warning);
   });
 }
 
-dropColorWarning();
+dropKnownWarnings();
 import('./cli/run.ts')
   .then(({ run }) =>
     run(process.argv.slice(2), {

@@ -93,6 +93,13 @@ async function main() {
     appendFileSync(join(project, '.npmrc'), `registry=${registryUrl}\n`);
     const install = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npm install this-package-does-not-exist-xyz-123' }, cwd: project });
     await step('check --hook denies a made-up name', ['check', '--hook', 'claude-code'], { code: 0, json: true, contains: 'deny' }, { input: install });
+    const mcp = [
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'smoke', version: '1' } } },
+      { jsonrpc: '2.0', method: 'notifications/initialized' },
+      { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'explain_policy', arguments: {} } },
+    ];
+    await step('mcp session', ['mcp', '--dir', project], { code: 0, contains: 'check_packages' }, { input: mcp.map((message) => JSON.stringify(message)).join('\n') + '\n' });
   } finally {
     registry.close();
     rmSync(scratch, { recursive: true, force: true });
