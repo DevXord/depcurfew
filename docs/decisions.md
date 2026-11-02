@@ -2472,3 +2472,9 @@ Tag `v1.0.0` wskazuje commit na `main` sprzed PR #6, a `depcurfew@1.0.0` ma prow
 - **Zgodność wstecz.** Zmienia się tylko HTML i CSS strony; adresy stron i kotwic bez zmian.
 - **Testy.** `tests/site/markdown.test.ts`: tabela z czterema kolumnami bez `wide`, z pięcioma z `wide`. `tests/site/pages.ts`: każda strona wczytuje arkusz z tym samym znacznikiem co SHA-256 `site/style.css`, a sprawdzanie odnośników pomija część zapytania adresu, jak serwer plików.
 - **Ograniczenia.** Ikona (`favicon.svg`) ma stały adres, bo zmienia się rzadko; po jej zmianie przeglądarka może przez kilka minut pokazywać starą.
+
+## D-148 · Dependabot pomija TypeScript 7 (2026-11-02)
+
+- **Problem.** Dependabot zaproponował TypeScript 7.0.2 (PR #31). TypeScript 7 to kompilator napisany w Go bez klasycznego API kompilatora: wtyczka `.d.ts` tsdown kończy build błędem „TypeScript 7.0.2 does not provide the classic TypeScript API required by tsc” (chyba że projekt włączy `isolatedDeclarations`), a `tests/meta/esm-scanner.ts` parsuje źródła przez to API. Z TypeScript 7 nie przechodzi więc ani build, ani testy.
+- **Decyzja.** `.github/dependabot.yml` ma we wpisie `npm` regułę `ignore` dla `typescript` z `update-types: ["version-update:semver-major"]` (składnia z `dependabot-options-reference.md` w github/docs). Dependabot nie proponuje wtedy nowych wydań głównych TypeScript, a wydania 6.x dalej przychodzą. Samo zamknięcie PR pomija tylko jedno wydanie (7.0.2). depcurfew zostawia tę regułę: zarządza w tym pliku tylko blokiem `cooldown`, a `doctor` i `apply --dry-run` na repozytorium nic nie zgłaszają.
+- **Ograniczenia.** Przejście na TypeScript 7 wymaga `isolatedDeclarations` (jawne typy każdego eksportu w `src/`) albo budowania `.d.ts` inaczej oraz innego parsera w `tests/meta/esm-scanner.ts`; nowy parser to nowa zależność deweloperska, która wymaga zgody. Regułę usuwa się razem z tym przejściem.

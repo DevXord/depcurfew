@@ -6,6 +6,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # TypeScript 7 has no classic compiler API, which the .d.ts build of tsdown and the ESM test need (decision D-148).
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     # managed by depcurfew
     cooldown:
       default-days: 7
