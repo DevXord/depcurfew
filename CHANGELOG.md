@@ -44,9 +44,10 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 ### Documentation site
 
-- The documentation is also a website on GitHub Pages, built by `npm run site` from the README, the knowledge base and `schema.json`, so it says what the README says. It serves the policy schema at `schema.json` and at the stable address `schema/v1.json`.
+- The documentation is also a website, https://depcurfew.github.io, built by `npm run site` from the README, the knowledge base and `schema.json`, so it says what the README says. It serves the policy schema at `schema.json` and at the stable address `schema/v1.json`, and has the depcurfew icon.
 - Start pages for JavaScript (npm, pnpm, Yarn, Bun, Deno), Python (uv, pip, Poetry, PDM, Pipenv), PHP (Composer) and the update bots, each with the five-minute start, the settings depcurfew writes and the matching `doctor` rules. Every `doctor` rule, every `apply` and `init` code, the Claude Code hook, the MCP server and the GitHub Action have their own pages with stable anchors, and every knowledge base value links to its official source.
-- The site loads nothing from other hosts, needs no JavaScript and follows the system's light or dark mode. A Pages workflow deploys it only for published releases (or when started by hand), with the Pages permissions limited to the deploy job.
+- The site loads nothing from other hosts, needs no JavaScript and follows the system's light or dark mode. The repository depcurfew/depcurfew.github.io builds it once a day from the latest release (its workflow is in `site/org-repo/`), with the Pages permissions limited to the deploy job.
+- It keeps the documentation of every earlier release from 1.1.0 on under `/<version>/` (for example `/1.3.0/`): that version's README, knowledge base, changes and schema, with a banner naming the version and a link to the current docs, and a Versions page lists them. `npm run site -- --versions` builds them from the git release tags.
 
 ### Fixes
 

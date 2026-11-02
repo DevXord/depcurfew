@@ -32,7 +32,7 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 - `npm run docs:readme` – przepisuje wygenerowane sekcje README.md (baza wiedzy, polityka, reguły `doctor`, `action.yml`)
 - `npm run build:action` – buduje action/depcurfew.mjs dla GitHub Action; zatwierdzany w repozytorium, musi być zgodny ze źródłem
 - `npm run schema` – generuje schema.json z definicji polityki w src/policy/schema.ts
-- `npm run site` – buduje stronę dokumentacji w dist-site/ (poza gitem) z README.md, src/knowledge/ i schema.json; wdraża ją workflow .github/workflows/pages.yml przy opublikowanym wydaniu
+- `npm run site` – buduje stronę dokumentacji w dist-site/ (poza gitem) z README.md, src/knowledge/ i schema.json; z `-- --versions` także dokumentację wcześniejszych wydań z tagów git. Stronę https://depcurfew.github.io wdraża workflow repozytorium depcurfew/depcurfew.github.io (jego pliki są w site/org-repo/)
 - `node dist/cli.js explain tests/fixtures/repos/<nazwa>` – ręczne sprawdzenie wykrywania na fiksturze
 - `node dist/cli.js doctor tests/fixtures/doctor/<reguła>/<przypadek>/repo` – ręczne sprawdzenie reguły `doctor` na fiksturze (`--json`, `--sarif`)
 - `node dist/cli.js apply --dry-run <katalog>` – podgląd zmian `apply` bez zapisu (katalog musi mieć `depcurfew.json`)
