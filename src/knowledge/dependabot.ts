@@ -5,6 +5,7 @@ const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const python = verifiedOn('2026-10-30');
 const review = verifiedOn('2026-10-31');
 const projects = verifiedOn('2026-11-01');
+const bots = verifiedOn('2026-11-02');
 
 const OPTIONS = 'https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference';
 const COOLDOWN_GA = 'https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/';
@@ -105,6 +106,16 @@ export const dependabot: ToolKnowledge = {
       { npm: ['npm', 'pnpm', 'yarn'], bun: ['bun'], deno: ['deno'], pip: ['pip', 'poetry', 'pipenv'], uv: ['uv'] },
       `${OPTIONS}#package-ecosystem`,
       'The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). Cooldown, including the semver-* keys, is supported for all of them. PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0).',
+    ),
+    githubActions: bots.verified(
+      { ecosystem: 'github-actions', semverDays: false },
+      `${OPTIONS}#cooldown`,
+      'package-ecosystem github-actions updates the actions the workflows run: with directory / Dependabot "will search the /.github/workflows directory, as well as the action.yml/action.yaml file from the root directory". The cooldown table lists GitHub Actions with default-days supported and the semver-major-days, semver-minor-days and semver-patch-days keys not supported, and the default cooldown of 3 days covers version updates without a cooldown block (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, main on 2026-11-02).',
+    ),
+    actionsReleaseDate: bots.uncertain(
+      'the publication date of the GitHub release of the tag, else the date of the tag, else the date of the commit; with no date the update does not wait',
+      'https://github.com/dependabot/dependabot-core/blob/v0.402.0/github_actions/lib/dependabot/github_actions/update_checker/latest_version_finder.rb',
+      'Read from the code, not the docs. A proposed commit SHA is aged by published_at of the GitHub release of its tag, else the creatordate of the tag (git for-each-ref), else the commit date; version tags by the creatordate of each tag (refs_for_tag_with_detail in common/lib/dependabot/git_metadata_fetcher.rb), which is the tagger date of an annotated tag and the commit date of a lightweight one, both set in git by whoever makes them. Only default-days counts. A missing or unreadable date lets the update through (check_if_version_in_cooldown_period? returns false).',
     ),
     dayRange: disputed(
       'Matters for opting out of the default cooldown; cooldown.exclude: ["*"] works under the documented precedence rule either way. The announcement does not state its author\'s role.',

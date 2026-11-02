@@ -1,0 +1,11 @@
+{
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchManagers": ["npm"], "minimumReleaseAge": null },
+    { "matchCategories": ["js"], "matchUpdateTypes": ["major"], "minimumReleaseAge": null },
+    { "matchManagers": ["github-actions"], "minimumReleaseAge": "0 days" },
+    { "matchManagers": ["bun"], "minimumReleaseAge": null },
+    { "matchManagers": ["!npm"], "minimumReleaseAge": null },
+    { "matchCategories": ["python"], "minimumReleaseAge": null }
+  ]
+}

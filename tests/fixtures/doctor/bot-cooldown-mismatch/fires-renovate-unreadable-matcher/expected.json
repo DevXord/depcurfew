@@ -1,0 +1,11 @@
+[
+  {
+    "level": "note",
+    "location": {
+      "file": "renovate.json",
+      "line": 4
+    },
+    "message": "Renovate packageRules[0] in renovate.json sets minimumReleaseAge: \"1 hour\" for matchManagers [\"{npm,bun}\"], which depcurfew cannot read, so it cannot tell whether Renovate waits as long as npm (3 days, min-release-age: 3 in .npmrc)",
+    "fix": "Make sure packageRules[0] of renovate.json gives these packages a minimumReleaseAge of at least 3 days, or write its matchManagers with names, * or /regex/ patterns, which depcurfew reads"
+  }
+]

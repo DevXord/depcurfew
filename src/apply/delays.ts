@@ -14,6 +14,7 @@ import { parseDuration } from '../policy/duration.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { BLOCK_END, isBlockStart } from './block.ts';
 import { extraOf, isRecord, settingOf, values } from './facts.ts';
+import { isActionsEcosystem } from './generators/dependabot.ts';
 import { compareVersions, parseVersion, pinnedVersion, type Version } from './version.ts';
 import type { ApplyWarning } from './warnings.ts';
 import type { FileChange } from './workspace.ts';
@@ -133,13 +134,16 @@ function managerDelay(repository: Repository, manager: PackageManagerInfo, tool:
   };
 }
 
-function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: string): ConfiguredDelay[] {
+function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: string, workflows: readonly string[]): ConfiguredDelay[] {
   const text = repository.readText(file);
   if (text === undefined) return [];
   const updates = yamlSetting(text, ['updates']);
   if (updates === undefined || !Array.isArray(updates.value)) return [];
   const keys = extraOf(bot, 'cooldownKeys', isCooldownKeys);
   const ecosystems = Object.keys(extraOf(bot, 'ecosystems', isRecord));
+  // apply writes the github-actions entries too when there are workflows (decision D-130).
+  const actions = bot.extra?.['githubActions'] === undefined || workflows.length === 0 ? undefined : extraOf(bot, 'githubActions', isActionsEcosystem).ecosystem;
+  if (actions !== undefined) ecosystems.push(actions);
   const setting = settingOf(bot.cooldown.setting) ?? 'cooldown';
   const all = lines(text);
   return (updates.value as unknown[]).flatMap((entry, index): ConfiguredDelay[] => {
@@ -200,7 +204,7 @@ export function configuredDelays(repository: Repository, detection: Detection, t
     const bot = tools.find((entry) => entry.id === detected.id);
     const file = detected.configFiles[0];
     if (bot === undefined || file === undefined || (only !== undefined && !only.has(bot.id))) continue;
-    if (bot.id === 'dependabot') delays.push(...readable(() => dependabotDelays(repository, bot, file), []));
+    if (bot.id === 'dependabot') delays.push(...readable(() => dependabotDelays(repository, bot, file, detection.workflows), []));
     else {
       const delay = readable(() => renovateDelay(repository, bot, file), undefined);
       if (delay !== undefined) delays.push(delay);

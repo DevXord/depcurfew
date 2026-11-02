@@ -34,6 +34,14 @@ export function autoTargets(root: string, detection: Detection, tools: readonly 
 }
 
 /**
+ * Whether the policy's release-age delay covers the actions the workflows run for a bot (decision D-130): the
+ * repository has workflows, and the policy has a cooldown and configures the bot (targets "auto" or naming it).
+ */
+export function coversActions(policy: ResolvedPolicy | undefined, bot: ToolId, detection: Pick<Detection, 'workflows'>): boolean {
+  return policy?.cooldown !== undefined && (policy.targets === 'auto' || policy.targets.includes(bot)) && detection.workflows.length > 0;
+}
+
+/**
  * The tools apply configures in one directory. Without projects: the detected ones ("auto") or the listed ones. With
  * projects (decision D-100), listed package managers only where they are detected, as npm in a Python project would
  * get an .npmrc it never reads; Renovate and Dependabot read their configuration from the repository root only, so a

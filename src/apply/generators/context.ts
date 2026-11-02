@@ -140,7 +140,12 @@ export interface YamlFile {
 
 /** A generator for a package manager returns the cooldown it wrote, in minutes, so bots can wait at least as long. */
 export type ManagerGenerator = (context: Context) => number | undefined;
-export type BotGenerator = (context: Context, cooldown: Duration | undefined) => void;
+/** What a bot generator knows of the repository besides its files: the workflows whose actions it updates (decision D-130). */
+export interface BotRepository {
+  workflows: readonly string[];
+}
+
+export type BotGenerator = (context: Context, cooldown: Duration | undefined, repository: BotRepository) => void;
 
 export class EditFailed extends Error {}
 

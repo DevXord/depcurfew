@@ -1,0 +1,53 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "package-lock.json"
+        },
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "versions": [
+        {
+          "version": "12.2.1",
+          "source": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [
+    {
+      "id": "renovate",
+      "configFiles": [
+        "renovate.json"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "jobs": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "id": "test",
+      "line": 4,
+      "commands": [],
+      "runsNode": false
+    }
+  ],
+  "dockerfiles": [],
+  "warnings": []
+}

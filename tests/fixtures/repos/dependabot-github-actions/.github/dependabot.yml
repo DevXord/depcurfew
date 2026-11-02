@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  # The actions of the workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/build"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 1
+      semver-major-days: 1
+      exclude:
+        - "my-org/*"
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/release"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 14

@@ -6,6 +6,7 @@ const python = verifiedOn('2026-10-30');
 const reviewed = verifiedOn('2026-10-30');
 const rules = verifiedOn('2026-10-30');
 const projects = verifiedOn('2026-11-01');
+const bots = verifiedOn('2026-11-02');
 
 const AT = 'https://github.com/renovatebot/renovate/blob/44.198.2';
 
@@ -197,6 +198,58 @@ export const renovate: ToolKnowledge = {
       { uv: 'pep621', poetry: 'poetry', pip: 'pip_requirements', pdm: 'pep621', pipenv: 'pipenv' },
       'https://docs.renovatebot.com/modules/manager/pep621/',
       'pep621 updates pyproject.toml with uv.lock (there is no uv manager) or pdm.lock; poetry updates pyproject.toml with poetry.lock; pipenv updates the Pipfile with Pipfile.lock; pip_requirements updates requirements files. pip-compile is off by default (lib/modules/manager/pep621/readme.md and pipenv/index.ts at 44.198.1).',
+    ),
+    managers: bots.verified(
+      {
+        npm: 'npm',
+        pnpm: 'npm',
+        yarn: 'npm',
+        bun: 'bun',
+        deno: 'deno',
+        uv: 'pep621',
+        pdm: 'pep621',
+        poetry: 'poetry',
+        pip: 'pip_requirements',
+        pipenv: 'pipenv',
+        composer: 'composer',
+        'github-actions': 'github-actions',
+      },
+      `${AT}/lib/modules/manager/api.ts`,
+      'The Renovate manager that updates the packages of each tool, by its id in api.ts; github-actions updates the actions the workflows run. The npm manager reads package.json with package-lock.json, pnpm-lock.yaml or yarn.lock (lockFileNames in npm/index.ts). bun and deno have managers of their own that take a package.json over from npm (supersedesManagers in bun/index.ts and deno/index.ts, applied by lib/workers/repository/extract/supersedes.ts), and poetry takes pyproject.toml over from pep621, which updates it for uv and PDM. composer updates composer.json (composer/index.ts).',
+    ),
+    managerCategories: bots.verified(
+      {
+        npm: ['js'],
+        bun: ['js'],
+        deno: ['js'],
+        pep621: ['python'],
+        pip_requirements: ['python'],
+        poetry: ['python'],
+        pipenv: ['python'],
+        composer: ['php'],
+        'github-actions': ['ci'],
+      },
+      `${AT}/lib/config/index.ts`,
+      'getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them.',
+    ),
+    managerMatching: bots.verified(
+      { managerMatcher: 'matchManagers', categoryMatcher: 'matchCategories', customPrefix: 'custom.', stringIsList: true },
+      `${AT}/lib/util/package-rules/managers.ts`,
+      'matchManagers matches the manager id of a dependency like matchRegexOrGlobList (case-insensitive globs, /regex/ and ! for "not"), a custom manager as custom.<name>; matchCategories matches when any category of the dependency matches (anyMatchRegexOrGlobList in lib/util/package-rules/categories.ts). The configuration options page says matchCategories uses "any" logic and is applied after extraction (docs/usage/configuration-options.md). These two, matchPackageNames, matchDepNames, matchDatasources and matchUpdateTypes all have allowString in lib/config/options/index.ts, and massageConfig (lib/config/massage.ts) turns such a string into a list of one.',
+    ),
+    githubActions: bots.verified(
+      { manager: 'github-actions', datasource: 'github-tags', digestDatasource: 'github-digest' },
+      `${AT}/lib/modules/manager/github-actions/extract.ts`,
+      'An action pinned to a ref that looks like a version (v4, v4.2.0, also as a comment after a commit SHA) is looked up in the github-tags datasource, which gives major, minor and patch updates; another ref (main, a feature tag) goes to github-digest, which gives digest updates only (readme.md in the same directory). getManagerConfig (lib/config/index.ts) starts every manager from the whole configuration, so the top-level minimumReleaseAge applies to github-actions as to the other managers; no built-in preset sets a delay for it (lib/config/presets/internal/security.preset.ts).',
+    ),
+    actionsTimestamps: bots.verified(
+      {
+        'github-tags': 'the commit date of a lightweight tag or the tagger date of an annotated tag, or the date of a GitHub release of that version when that is newer',
+        'github-digest': 'the commit date',
+        missing: 'held',
+      },
+      `${AT}/lib/util/github/graphql/query-adapters/tags-query-adapter.ts`,
+      'github-tags reads committedDate of the commit a lightweight tag points to, or tagger.date of an annotated tag, and takes the publishedAt of a GitHub release of the same version when it is newer (lib/modules/datasource/github-tags/index.ts); github-digest takes the commit date (lib/modules/datasource/github-digest/index.ts). Both are dates from git that the person who makes the commit or the tag sets: the minimum release age page (docs/usage/key-concepts/minimum-release-age.md) says github-tags "uses the committedDate, which is separate from when it was pushed", and that a digest update of a tag moved to new commits ages against the original release date, so it may pass at once. Since 42.0.0 an update without a timestamp waits (missingTimestamp).',
     ),
     passesDelayToManager: python.verified(
       [

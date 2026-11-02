@@ -543,6 +543,7 @@ const { verified: verified$10, uncertain: uncertain$9, disputed: disputed$4, evi
 const python$2 = verifiedOn("2026-10-30");
 const review = verifiedOn("2026-10-31");
 const projects$1 = verifiedOn("2026-11-01");
+const bots$1 = verifiedOn("2026-11-02");
 const OPTIONS$1 = "https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference";
 const COOLDOWN_GA = "https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/";
 const DEFAULT_COOLDOWN = "https://github.blog/changelog/2026-07-14-dependabot-version-updates-introduce-default-package-cooldown/";
@@ -622,6 +623,11 @@ const dependabot$1 = {
 			],
 			uv: ["uv"]
 		}, `${OPTIONS$1}#package-ecosystem`, "The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). Cooldown, including the semver-* keys, is supported for all of them. PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0)."),
+		githubActions: bots$1.verified({
+			ecosystem: "github-actions",
+			semverDays: false
+		}, `${OPTIONS$1}#cooldown`, "package-ecosystem github-actions updates the actions the workflows run: with directory / Dependabot \"will search the /.github/workflows directory, as well as the action.yml/action.yaml file from the root directory\". The cooldown table lists GitHub Actions with default-days supported and the semver-major-days, semver-minor-days and semver-patch-days keys not supported, and the default cooldown of 3 days covers version updates without a cooldown block (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, main on 2026-11-02)."),
+		actionsReleaseDate: bots$1.uncertain("the publication date of the GitHub release of the tag, else the date of the tag, else the date of the commit; with no date the update does not wait", "https://github.com/dependabot/dependabot-core/blob/v0.402.0/github_actions/lib/dependabot/github_actions/update_checker/latest_version_finder.rb", "Read from the code, not the docs. A proposed commit SHA is aged by published_at of the GitHub release of its tag, else the creatordate of the tag (git for-each-ref), else the commit date; version tags by the creatordate of each tag (refs_for_tag_with_detail in common/lib/dependabot/git_metadata_fetcher.rb), which is the tagger date of an annotated tag and the commit date of a lightweight one, both set in git by whoever makes them. Only default-days counts. A missing or unreadable date lets the update through (check_if_version_in_cooldown_period? returns false)."),
 		dayRange: disputed$4("Matters for opting out of the default cooldown; cooldown.exclude: [\"*\"] works under the documented precedence rule either way. The announcement does not state its author's role.", evidence$4("1 to 90 days", "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates"), evidence$4("0 removes the cooldown", "https://github.com/dependabot/dependabot-core/discussions/15582")),
 		maximumDays: verified$10(90, "https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates", "The page says the number of cooldown days must be between 1 and 90; whether 0 is accepted is disputed (see dayRange)."),
 		missingPublishDate: verified$10("Updates proceed when the registry gives no publication date (fail open); for Docker only Docker Hub tag_last_pushed is used", `${CORE}/docker/README.md`),
@@ -4057,6 +4063,7 @@ const python$1 = verifiedOn("2026-10-30");
 const reviewed = verifiedOn("2026-10-30");
 const rules = verifiedOn("2026-10-30");
 const projects = verifiedOn("2026-11-01");
+const bots = verifiedOn("2026-11-02");
 const AT = "https://github.com/renovatebot/renovate/blob/44.198.2";
 const OPTIONS = "https://docs.renovatebot.com/configuration-options/";
 const MINIMUM_RELEASE_AGE = "https://docs.renovatebot.com/key-concepts/minimum-release-age/";
@@ -4205,6 +4212,47 @@ const renovate$1 = {
 			pdm: "pep621",
 			pipenv: "pipenv"
 		}, "https://docs.renovatebot.com/modules/manager/pep621/", "pep621 updates pyproject.toml with uv.lock (there is no uv manager) or pdm.lock; poetry updates pyproject.toml with poetry.lock; pipenv updates the Pipfile with Pipfile.lock; pip_requirements updates requirements files. pip-compile is off by default (lib/modules/manager/pep621/readme.md and pipenv/index.ts at 44.198.1)."),
+		managers: bots.verified({
+			npm: "npm",
+			pnpm: "npm",
+			yarn: "npm",
+			bun: "bun",
+			deno: "deno",
+			uv: "pep621",
+			pdm: "pep621",
+			poetry: "poetry",
+			pip: "pip_requirements",
+			pipenv: "pipenv",
+			composer: "composer",
+			"github-actions": "github-actions"
+		}, `${AT}/lib/modules/manager/api.ts`, "The Renovate manager that updates the packages of each tool, by its id in api.ts; github-actions updates the actions the workflows run. The npm manager reads package.json with package-lock.json, pnpm-lock.yaml or yarn.lock (lockFileNames in npm/index.ts). bun and deno have managers of their own that take a package.json over from npm (supersedesManagers in bun/index.ts and deno/index.ts, applied by lib/workers/repository/extract/supersedes.ts), and poetry takes pyproject.toml over from pep621, which updates it for uv and PDM. composer updates composer.json (composer/index.ts)."),
+		managerCategories: bots.verified({
+			npm: ["js"],
+			bun: ["js"],
+			deno: ["js"],
+			pep621: ["python"],
+			pip_requirements: ["python"],
+			poetry: ["python"],
+			pipenv: ["python"],
+			composer: ["php"],
+			"github-actions": ["ci"]
+		}, `${AT}/lib/config/index.ts`, "getManagerConfig gives each dependency the categories its manager exports (categories in lib/modules/manager/<id>/index.ts; the list of categories is lib/constants/category.ts), and matchCategories matches them."),
+		managerMatching: bots.verified({
+			managerMatcher: "matchManagers",
+			categoryMatcher: "matchCategories",
+			customPrefix: "custom.",
+			stringIsList: true
+		}, `${AT}/lib/util/package-rules/managers.ts`, "matchManagers matches the manager id of a dependency like matchRegexOrGlobList (case-insensitive globs, /regex/ and ! for \"not\"), a custom manager as custom.<name>; matchCategories matches when any category of the dependency matches (anyMatchRegexOrGlobList in lib/util/package-rules/categories.ts). The configuration options page says matchCategories uses \"any\" logic and is applied after extraction (docs/usage/configuration-options.md). These two, matchPackageNames, matchDepNames, matchDatasources and matchUpdateTypes all have allowString in lib/config/options/index.ts, and massageConfig (lib/config/massage.ts) turns such a string into a list of one."),
+		githubActions: bots.verified({
+			manager: "github-actions",
+			datasource: "github-tags",
+			digestDatasource: "github-digest"
+		}, `${AT}/lib/modules/manager/github-actions/extract.ts`, "An action pinned to a ref that looks like a version (v4, v4.2.0, also as a comment after a commit SHA) is looked up in the github-tags datasource, which gives major, minor and patch updates; another ref (main, a feature tag) goes to github-digest, which gives digest updates only (readme.md in the same directory). getManagerConfig (lib/config/index.ts) starts every manager from the whole configuration, so the top-level minimumReleaseAge applies to github-actions as to the other managers; no built-in preset sets a delay for it (lib/config/presets/internal/security.preset.ts)."),
+		actionsTimestamps: bots.verified({
+			"github-tags": "the commit date of a lightweight tag or the tagger date of an annotated tag, or the date of a GitHub release of that version when that is newer",
+			"github-digest": "the commit date",
+			missing: "held"
+		}, `${AT}/lib/util/github/graphql/query-adapters/tags-query-adapter.ts`, "github-tags reads committedDate of the commit a lightweight tag points to, or tagger.date of an annotated tag, and takes the publishedAt of a GitHub release of the same version when it is newer (lib/modules/datasource/github-tags/index.ts); github-digest takes the commit date (lib/modules/datasource/github-digest/index.ts). Both are dates from git that the person who makes the commit or the tag sets: the minimum release age page (docs/usage/key-concepts/minimum-release-age.md) says github-tags \"uses the committedDate, which is separate from when it was pushed\", and that a digest update of a tag moved to new commits ages against the original release date, so it may pass at once. Since 42.0.0 an update without a timestamp waits (missingTimestamp)."),
 		passesDelayToManager: python$1.verified([{
 			since: "0.0.0",
 			value: []
@@ -22137,6 +22185,310 @@ function formatIssue(issue) {
 	return `${issue.path}: ${issue.message}`;
 }
 
+// src/apply/generators/common.ts
+const MINUTES = {
+	seconds: 1 / 60,
+	minutes: 1,
+	hours: 60,
+	days: 1440,
+	weeks: 10080
+};
+const SOURCE_LABELS = {
+	npm: {
+		git: "git",
+		remoteTarball: "remote tarball",
+		file: "local tarball",
+		directory: "local directory"
+	},
+	pypi: {
+		git: "git",
+		remoteTarball: "URL",
+		file: "local archive",
+		directory: "local directory"
+	}
+};
+/** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
+function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
+	if (duration === void 0) return void 0;
+	const setting = settingOf(context.tool.cooldown.setting);
+	if (setting === null) return void 0;
+	const result = convertCooldown(context.tool, duration);
+	if (!result.ok) {
+		context.warn({
+			code: "cooldown-not-written",
+			message: `${context.name}: cooldown not written: ${result.reason}`,
+			fix: result.fix
+		});
+		return;
+	}
+	if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return void 0;
+	if (typeof result.value === "string") {
+		const [count = "0", unit = ""] = result.value.split(" ");
+		return {
+			value: result.value,
+			minutes: Number(count) * (MINUTES[unit.endsWith("s") ? unit : `${unit}s`] ?? 0)
+		};
+	}
+	return {
+		value: result.value,
+		minutes: result.value * (MINUTES[result.unit] ?? 0)
+	};
+}
+/** The exclusions (the policy's by default) that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
+function exclusions(context, patterns = context.policy.cooldown?.exclude ?? []) {
+	const setting = settingOf(context.tool.cooldown.exclude.setting);
+	if (setting === null) return void 0;
+	if (patterns.length > 0 && !context.supports(sinceOf(context.tool.cooldown.exclude.availableSince), setting)) return void 0;
+	const wildcards = extraOf(context.tool, "excludeWildcards", isWildcards);
+	const wildcardsWork = wildcards.since !== null && context.atLeast(wildcards.since);
+	return patterns.filter((pattern) => {
+		if (!pattern.includes("*")) return true;
+		const accepted = wildcardsWork && (!wildcards.trailingOnly || pattern.indexOf("*") === pattern.length - 1);
+		if (!accepted) context.warn({
+			code: "exclude-pattern-unsupported",
+			message: `${context.name}: ${setting} does not support the pattern "${pattern}"; not written`,
+			fix: "List the exact package names in cooldown.exclude"
+		});
+		return accepted;
+	});
+}
+function denyList(context) {
+	const fact = context.tool.extra?.["denyList"];
+	if (fact === void 0) return void 0;
+	const value = evidenceOf(fact)[0]?.value;
+	return isRecord(value) && typeof value["file"] === "string" && typeof value["setting"] === "string" && typeof value["since"] === "string" ? value : void 0;
+}
+/** The packages of installScripts.deny the tool can record: names only, patterns are dropped with a warning. */
+function deniedNames(context, setting) {
+	return (context.policy.installScripts?.deny ?? []).filter((pattern) => {
+		if (!pattern.includes("*")) return true;
+		context.warn({
+			code: "deny-pattern-unsupported",
+			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
+			fix: "List the package names in installScripts.deny"
+		});
+		return false;
+	});
+}
+/**
+* The files as this run has edited them so far, for reading the tools' own lists. A file the workspace cannot read
+* counts as missing: reading a list must not stop apply, and an edit of that file reports the problem itself.
+*/
+function workspaceText(workspace) {
+	return { readText(file) {
+		try {
+			return workspace.exists(file) ? workspace.read(file) : void 0;
+		} catch {
+			return;
+		}
+	} };
+}
+/**
+* The packages that an entry of the tool's own allow-list lets run their scripts, in any version. apply records no
+* denial for them, because that would change what the entry does, and apply never changes an entry it did not write
+* (decision D-088); the warning deny-conflicts-with-file names the entry instead.
+*/
+function allowedInFiles(context, configFiles = []) {
+	const id = context.tool.id;
+	const options = {
+		tool: context.tool,
+		...context.version === void 0 ? {} : { version: context.version }
+	};
+	return new Set(allowEntries(workspaceText(context.workspace), id, configFiles, options).map((entry) => entry.package));
+}
+/** The setting for messages: dependenciesMeta for the template dependenciesMeta.<package>.built. */
+function settingName(setting) {
+	const at = setting.indexOf(".<package>");
+	return at === -1 ? setting : setting.slice(0, at);
+}
+/**
+* Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
+* dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install.
+*/
+function writeDenyList(context) {
+	const deny = denyList(context);
+	if (deny === void 0 || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
+	if (!context.supports(deny.since, deny.setting)) return;
+	const file = deny.file.endsWith(".yaml") ? context.yaml(deny.file) : context.json(deny.file);
+	const allowed = allowedInFiles(context);
+	const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
+	if (names.length > 0) context.writes("installScripts", deny.setting, deny.file);
+	for (const name of names) {
+		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
+		if (file.get(path) !== deny.value) file.set(path, deny.value);
+	}
+}
+/** Allow-lists take package names only; patterns are dropped with a warning. */
+function allowedNames(context, setting) {
+	return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
+		if (!pattern.includes("*")) return true;
+		context.warn({
+			code: "allow-pattern-unsupported",
+			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
+			fix: "List the package names in installScripts.allow"
+		});
+		return false;
+	});
+}
+/**
+* What the pinned version does with dependency install scripts by default (installScripts.defaultPolicy), and the
+* first later version that does something else.
+*/
+function scriptsDefault(context) {
+	let value;
+	let changesIn;
+	for (const entry of values$1(context.tool.installScripts.defaultPolicy)[0] ?? []) if (context.atLeast(entry.since)) {
+		value = entry.value;
+		changesIn = void 0;
+	} else changesIn ??= entry.since;
+	return {
+		value,
+		changesIn
+	};
+}
+/** Where depcurfew doctor finds a tool's dependencies: the lockfile, or pip's requirements files. */
+function dependencyFiles(context) {
+	return context.tool.extra?.["requirementsFormat"] === void 0 ? "the lockfile" : "the requirements files";
+}
+/** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
+function lockfileShowsSources(tool) {
+	const fact = tool.extra?.["lockfileFormat"];
+	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	return isRecord(format) && format["sources"] !== null;
+}
+/** Calls `apply` for every dependency source the policy manages and the tool has a setting for. */
+function eachSource(context, apply) {
+	const sources = context.policy.sources;
+	if (sources === void 0) return;
+	for (const kind of SOURCE_KINDS) {
+		const access = sources[kind];
+		if (access === void 0) continue;
+		const knowledge = context.tool.sources?.[kind];
+		const setting = settingOf(knowledge?.setting);
+		if (setting === null) {
+			if (access === "deny") context.warn({
+				code: "source-not-enforceable",
+				message: `${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
+				fix: lockfileShowsSources(context.tool) ? `Run depcurfew doctor, which reports such dependencies in ${dependencyFiles(context)}` : "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
+			});
+			continue;
+		}
+		if (!context.supports(sinceOf(knowledge?.availableSince), setting)) continue;
+		apply(kind, setting, access);
+	}
+}
+/** `install.minimumReleaseAge` → table `install`, key `minimumReleaseAge`. */
+function splitDotted(setting) {
+	const dot = setting.indexOf(".");
+	return dot === -1 ? {
+		table: "",
+		key: setting
+	} : {
+		table: setting.slice(0, dot),
+		key: setting.slice(dot + 1)
+	};
+}
+function sameList(a, b) {
+	return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// src/apply/generators/dependabot.ts
+const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
+const isActionsEcosystem = (value) => isRecord(value) && typeof value["ecosystem"] === "string" && typeof value["semverDays"] === "boolean";
+const dependabot = (context, duration, repository) => {
+	const { tool, policy } = context;
+	if (policy.cooldown === void 0 || duration === void 0) return;
+	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
+	if (file === void 0) {
+		context.warn({
+			code: "bot-config-missing",
+			message: `${context.name}: no configuration file found; depcurfew does not create one`,
+			fix: "Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again"
+		});
+		return;
+	}
+	if (policy.cooldown.securityUpdates === "delay") context.warn({
+		code: "security-delay-unsupported",
+		message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`,
+		fix: `Review ${context.name} security pull requests before merging them, or set cooldown.securityUpdates to "bypass" in ${POLICY_FILE}, which is what ${context.name} does`
+	});
+	const result = convertCooldown(tool, duration);
+	if (!result.ok) {
+		context.warn({
+			code: "cooldown-not-written",
+			message: `${context.name}: cooldown not written: ${result.reason}`,
+			fix: result.fix
+		});
+		return;
+	}
+	const keys = extraOf(tool, "cooldownKeys", isKeys);
+	const managers = extraOf(tool, "ecosystems", isRecord);
+	const ecosystems = Object.keys(managers);
+	const actions = tool.extra?.["githubActions"] === void 0 || repository.workflows.length === 0 ? void 0 : extraOf(tool, "githubActions", isActionsEcosystem);
+	const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
+	const yaml = context.yaml(file);
+	const updates = yaml.get(["updates"]);
+	const patternsOf = (ecosystem) => {
+		const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
+		const python = context.tools.some((entry) => covered.includes(entry.id) && ecosystemOfTool(entry) === "pypi");
+		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], python ? "pypi" : "npm")) ?? [];
+	};
+	let configured = 0;
+	let configuredActions = 0;
+	const edits = [];
+	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
+		if (!isRecord(entry)) return;
+		const ecosystem = String(entry["package-ecosystem"]);
+		const forActions = actions !== void 0 && ecosystem === actions.ecosystem;
+		if (!forActions && !ecosystems.includes(ecosystem)) return;
+		if (forActions) configuredActions += 1;
+		else configured += 1;
+		const patterns = forActions ? void 0 : patternsOf(ecosystem);
+		const semverDays = forActions && !actions.semverDays ? [] : keys.semverDays;
+		const current = entry[setting];
+		if (!isRecord(current)) {
+			edits.push([[
+				"updates",
+				index,
+				setting
+			], {
+				[keys.days]: result.value,
+				...patterns !== void 0 && patterns.length > 0 ? { [keys.exclude]: patterns } : {}
+			}]);
+			return;
+		}
+		edits.push([[
+			"updates",
+			index,
+			setting,
+			keys.days
+		], result.value]);
+		for (const key of semverDays) {
+			const days = current[key];
+			if (typeof days === "number" && typeof result.value === "number" && days < result.value) edits.push([[
+				"updates",
+				index,
+				setting,
+				key
+			], result.value]);
+		}
+		if (patterns !== void 0 && (patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) edits.push([[
+			"updates",
+			index,
+			setting,
+			keys.exclude
+		], patterns]);
+	});
+	if (edits.length > 0) yaml.setMany(edits);
+	const managersInUse = context.tools.some((entry) => entry.kind === "package-manager" && context.targets.has(entry.id));
+	if (configured === 0 && (configuredActions === 0 || managersInUse)) context.warn({
+		code: "bot-entries-missing",
+		location: { file },
+		message: configuredActions === 0 ? `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; nothing to configure` : `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; only the ${actions?.ecosystem ?? ""} entries get the cooldown`,
+		fix: `Add an updates entry for each package manager Dependabot should update to ${file}, then run depcurfew apply again`
+	});
+};
+
 // src/apply/yaml-edit.ts
 const YAML_MARKER = "# managed by depcurfew";
 /**
@@ -22626,13 +22978,15 @@ function managerDelay(repository, manager, tool) {
 		managed: managed(repository.readText(found.file), found.file, path, found.line)
 	};
 }
-function dependabotDelays$1(repository, bot, file) {
+function dependabotDelays$1(repository, bot, file, workflows) {
 	const text = repository.readText(file);
 	if (text === void 0) return [];
 	const updates = yamlSetting(text, ["updates"]);
 	if (updates === void 0 || !Array.isArray(updates.value)) return [];
 	const keys = extraOf(bot, "cooldownKeys", isCooldownKeys$1);
 	const ecosystems = Object.keys(extraOf(bot, "ecosystems", isRecord));
+	const actions = bot.extra?.["githubActions"] === void 0 || workflows.length === 0 ? void 0 : extraOf(bot, "githubActions", isActionsEcosystem).ecosystem;
+	if (actions !== void 0) ecosystems.push(actions);
 	const setting = settingOf(bot.cooldown.setting) ?? "cooldown";
 	const all = lines$1(text);
 	return updates.value.flatMap((entry, index) => {
@@ -22706,7 +23060,7 @@ function configuredDelays(repository, detection, tools, only) {
 		const bot = tools.find((entry) => entry.id === detected.id);
 		const file = detected.configFiles[0];
 		if (bot === void 0 || file === void 0 || only !== void 0 && !only.has(bot.id)) continue;
-		if (bot.id === "dependabot") delays.push(...readable(() => dependabotDelays$1(repository, bot, file), []));
+		if (bot.id === "dependabot") delays.push(...readable(() => dependabotDelays$1(repository, bot, file, detection.workflows), []));
 		else {
 			const delay = readable(() => renovateDelay$1(repository, bot, file), void 0);
 			if (delay !== void 0) delays.push(delay);
@@ -23095,213 +23449,6 @@ function trackedFiles(repository) {
 	} catch {
 		return;
 	}
-}
-
-// src/apply/generators/common.ts
-const MINUTES = {
-	seconds: 1 / 60,
-	minutes: 1,
-	hours: 60,
-	days: 1440,
-	weeks: 10080
-};
-const SOURCE_LABELS = {
-	npm: {
-		git: "git",
-		remoteTarball: "remote tarball",
-		file: "local tarball",
-		directory: "local directory"
-	},
-	pypi: {
-		git: "git",
-		remoteTarball: "URL",
-		file: "local archive",
-		directory: "local directory"
-	}
-};
-/** The cooldown in the tool's unit, or undefined (with a warning) when it cannot be written. */
-function cooldownValue(context, duration = context.policy.cooldown?.minimum) {
-	if (duration === void 0) return void 0;
-	const setting = settingOf(context.tool.cooldown.setting);
-	if (setting === null) return void 0;
-	const result = convertCooldown(context.tool, duration);
-	if (!result.ok) {
-		context.warn({
-			code: "cooldown-not-written",
-			message: `${context.name}: cooldown not written: ${result.reason}`,
-			fix: result.fix
-		});
-		return;
-	}
-	if (!context.supports(sinceOf(context.tool.cooldown.availableSince), setting)) return void 0;
-	if (typeof result.value === "string") {
-		const [count = "0", unit = ""] = result.value.split(" ");
-		return {
-			value: result.value,
-			minutes: Number(count) * (MINUTES[unit.endsWith("s") ? unit : `${unit}s`] ?? 0)
-		};
-	}
-	return {
-		value: result.value,
-		minutes: result.value * (MINUTES[result.unit] ?? 0)
-	};
-}
-/** The exclusions (the policy's by default) that the tool's exclusion setting accepts; undefined when the setting cannot be used. */
-function exclusions(context, patterns = context.policy.cooldown?.exclude ?? []) {
-	const setting = settingOf(context.tool.cooldown.exclude.setting);
-	if (setting === null) return void 0;
-	if (patterns.length > 0 && !context.supports(sinceOf(context.tool.cooldown.exclude.availableSince), setting)) return void 0;
-	const wildcards = extraOf(context.tool, "excludeWildcards", isWildcards);
-	const wildcardsWork = wildcards.since !== null && context.atLeast(wildcards.since);
-	return patterns.filter((pattern) => {
-		if (!pattern.includes("*")) return true;
-		const accepted = wildcardsWork && (!wildcards.trailingOnly || pattern.indexOf("*") === pattern.length - 1);
-		if (!accepted) context.warn({
-			code: "exclude-pattern-unsupported",
-			message: `${context.name}: ${setting} does not support the pattern "${pattern}"; not written`,
-			fix: "List the exact package names in cooldown.exclude"
-		});
-		return accepted;
-	});
-}
-function denyList(context) {
-	const fact = context.tool.extra?.["denyList"];
-	if (fact === void 0) return void 0;
-	const value = evidenceOf(fact)[0]?.value;
-	return isRecord(value) && typeof value["file"] === "string" && typeof value["setting"] === "string" && typeof value["since"] === "string" ? value : void 0;
-}
-/** The packages of installScripts.deny the tool can record: names only, patterns are dropped with a warning. */
-function deniedNames(context, setting) {
-	return (context.policy.installScripts?.deny ?? []).filter((pattern) => {
-		if (!pattern.includes("*")) return true;
-		context.warn({
-			code: "deny-pattern-unsupported",
-			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
-			fix: "List the package names in installScripts.deny"
-		});
-		return false;
-	});
-}
-/**
-* The files as this run has edited them so far, for reading the tools' own lists. A file the workspace cannot read
-* counts as missing: reading a list must not stop apply, and an edit of that file reports the problem itself.
-*/
-function workspaceText(workspace) {
-	return { readText(file) {
-		try {
-			return workspace.exists(file) ? workspace.read(file) : void 0;
-		} catch {
-			return;
-		}
-	} };
-}
-/**
-* The packages that an entry of the tool's own allow-list lets run their scripts, in any version. apply records no
-* denial for them, because that would change what the entry does, and apply never changes an entry it did not write
-* (decision D-088); the warning deny-conflicts-with-file names the entry instead.
-*/
-function allowedInFiles(context, configFiles = []) {
-	const id = context.tool.id;
-	const options = {
-		tool: context.tool,
-		...context.version === void 0 ? {} : { version: context.version }
-	};
-	return new Set(allowEntries(workspaceText(context.workspace), id, configFiles, options).map((entry) => entry.package));
-}
-/** The setting for messages: dependenciesMeta for the template dependenciesMeta.<package>.built. */
-function settingName(setting) {
-	const at = setting.indexOf(".<package>");
-	return at === -1 ? setting : setting.slice(0, at);
-}
-/**
-* Records installScripts.deny where the tool has an explicit denial (npm allowScripts, pnpm allowBuilds, Yarn
-* dependenciesMeta): the tool then keeps those scripts blocked without warning about them on every install.
-*/
-function writeDenyList(context) {
-	const deny = denyList(context);
-	if (deny === void 0 || (context.policy.installScripts?.deny.length ?? 0) === 0) return;
-	if (!context.supports(deny.since, deny.setting)) return;
-	const file = deny.file.endsWith(".yaml") ? context.yaml(deny.file) : context.json(deny.file);
-	const allowed = allowedInFiles(context);
-	const names = deniedNames(context, settingName(deny.setting)).filter((name) => !allowed.has(name));
-	if (names.length > 0) context.writes("installScripts", deny.setting, deny.file);
-	for (const name of names) {
-		const path = deny.setting.includes("<package>") ? deny.setting.split(".").map((segment) => segment === "<package>" ? name : segment) : [...deny.setting.split("."), name];
-		if (file.get(path) !== deny.value) file.set(path, deny.value);
-	}
-}
-/** Allow-lists take package names only; patterns are dropped with a warning. */
-function allowedNames(context, setting) {
-	return (context.policy.installScripts?.allow ?? []).filter((pattern) => {
-		if (!pattern.includes("*")) return true;
-		context.warn({
-			code: "allow-pattern-unsupported",
-			message: `${context.name}: ${setting} takes package names only; "${pattern}" not written`,
-			fix: "List the package names in installScripts.allow"
-		});
-		return false;
-	});
-}
-/**
-* What the pinned version does with dependency install scripts by default (installScripts.defaultPolicy), and the
-* first later version that does something else.
-*/
-function scriptsDefault(context) {
-	let value;
-	let changesIn;
-	for (const entry of values$1(context.tool.installScripts.defaultPolicy)[0] ?? []) if (context.atLeast(entry.since)) {
-		value = entry.value;
-		changesIn = void 0;
-	} else changesIn ??= entry.since;
-	return {
-		value,
-		changesIn
-	};
-}
-/** Where depcurfew doctor finds a tool's dependencies: the lockfile, or pip's requirements files. */
-function dependencyFiles(context) {
-	return context.tool.extra?.["requirementsFormat"] === void 0 ? "the lockfile" : "the requirements files";
-}
-/** Whether depcurfew doctor can tell dependency sources apart in the tool's lockfile. */
-function lockfileShowsSources(tool) {
-	const fact = tool.extra?.["lockfileFormat"];
-	const format = fact === void 0 ? void 0 : values$1(fact)[0];
-	return isRecord(format) && format["sources"] !== null;
-}
-/** Calls `apply` for every dependency source the policy manages and the tool has a setting for. */
-function eachSource(context, apply) {
-	const sources = context.policy.sources;
-	if (sources === void 0) return;
-	for (const kind of SOURCE_KINDS) {
-		const access = sources[kind];
-		if (access === void 0) continue;
-		const knowledge = context.tool.sources?.[kind];
-		const setting = settingOf(knowledge?.setting);
-		if (setting === null) {
-			if (access === "deny") context.warn({
-				code: "source-not-enforceable",
-				message: `${context.name} has no setting for ${SOURCE_LABELS[ecosystemOfTool(context.tool)][kind]} dependencies, so "deny" cannot be enforced`,
-				fix: lockfileShowsSources(context.tool) ? `Run depcurfew doctor, which reports such dependencies in ${dependencyFiles(context)}` : "Review new dependencies by hand; depcurfew doctor cannot see them in the lockfile either"
-			});
-			continue;
-		}
-		if (!context.supports(sinceOf(knowledge?.availableSince), setting)) continue;
-		apply(kind, setting, access);
-	}
-}
-/** `install.minimumReleaseAge` → table `install`, key `minimumReleaseAge`. */
-function splitDotted(setting) {
-	const dot = setting.indexOf(".");
-	return dot === -1 ? {
-		table: "",
-		key: setting
-	} : {
-		table: setting.slice(0, dot),
-		key: setting.slice(dot + 1)
-	};
-}
-function sameList(a, b) {
-	return JSON.stringify(a) === JSON.stringify(b);
 }
 
 // src/apply/generators/bun.ts
@@ -23872,94 +24019,6 @@ const deno = (context) => {
 	}
 	eachSource(context, () => void 0);
 	return minutes;
-};
-
-// src/apply/generators/dependabot.ts
-const isKeys = (value) => isRecord(value) && typeof value["days"] === "string" && typeof value["exclude"] === "string" && Array.isArray(value["semverDays"]) && value["semverDays"].every((key) => typeof key === "string");
-const dependabot = (context, duration) => {
-	const { tool, policy } = context;
-	if (policy.cooldown === void 0 || duration === void 0) return;
-	const file = (values$1(tool.cooldown.configFiles)[0] ?? []).find((name) => context.exists(name));
-	if (file === void 0) {
-		context.warn({
-			code: "bot-config-missing",
-			message: `${context.name}: no configuration file found; depcurfew does not create one`,
-			fix: "Add .github/dependabot.yml if you use Dependabot, then run depcurfew apply again"
-		});
-		return;
-	}
-	if (policy.cooldown.securityUpdates === "delay") context.warn({
-		code: "security-delay-unsupported",
-		message: `${context.name} cannot delay security updates (cooldown applies to version updates only); securityUpdates "delay" not applied`,
-		fix: `Review ${context.name} security pull requests before merging them, or set cooldown.securityUpdates to "bypass" in ${POLICY_FILE}, which is what ${context.name} does`
-	});
-	const result = convertCooldown(tool, duration);
-	if (!result.ok) {
-		context.warn({
-			code: "cooldown-not-written",
-			message: `${context.name}: cooldown not written: ${result.reason}`,
-			fix: result.fix
-		});
-		return;
-	}
-	const keys = extraOf(tool, "cooldownKeys", isKeys);
-	const managers = extraOf(tool, "ecosystems", isRecord);
-	const ecosystems = Object.keys(managers);
-	const setting = settingOf(tool.cooldown.setting) ?? "cooldown";
-	const yaml = context.yaml(file);
-	const updates = yaml.get(["updates"]);
-	const patternsOf = (ecosystem) => {
-		const covered = Array.isArray(managers[ecosystem]) ? managers[ecosystem] : [];
-		const python = context.tools.some((entry) => covered.includes(entry.id) && ecosystemOfTool(entry) === "pypi");
-		return exclusions(context, patternsFor(policy.cooldown?.exclude ?? [], python ? "pypi" : "npm")) ?? [];
-	};
-	let configured = 0;
-	const edits = [];
-	(Array.isArray(updates) ? updates : []).forEach((entry, index) => {
-		if (!isRecord(entry) || !ecosystems.includes(String(entry["package-ecosystem"]))) return;
-		configured += 1;
-		const patterns = patternsOf(String(entry["package-ecosystem"]));
-		const current = entry[setting];
-		if (!isRecord(current)) {
-			edits.push([[
-				"updates",
-				index,
-				setting
-			], {
-				[keys.days]: result.value,
-				...patterns.length > 0 ? { [keys.exclude]: patterns } : {}
-			}]);
-			return;
-		}
-		edits.push([[
-			"updates",
-			index,
-			setting,
-			keys.days
-		], result.value]);
-		for (const key of keys.semverDays) {
-			const days = current[key];
-			if (typeof days === "number" && typeof result.value === "number" && days < result.value) edits.push([[
-				"updates",
-				index,
-				setting,
-				key
-			], result.value]);
-		}
-		if ((patterns.length > 0 || keys.exclude in current) && !sameList(current[keys.exclude], patterns)) edits.push([[
-			"updates",
-			index,
-			setting,
-			keys.exclude
-		], patterns]);
-	});
-	if (edits.length > 0) yaml.setMany(edits);
-	if (configured === 0) context.warn({
-		code: "bot-entries-missing",
-		location: { file },
-		message: `${context.name}: no ${ecosystems.join(", ")} entries in ${file}; nothing to configure`,
-		fix: `Add an updates entry for each package manager Dependabot should update to ${file}, then run depcurfew apply again`
-	});
 };
 
 // src/apply/generators/npm.ts
@@ -24710,6 +24769,10 @@ const poetry = (context) => {
 
 // src/doctor/renovate.ts
 const isStrings$2 = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+const isNames = (value) => isRecord(value) && Object.values(value).every((item) => typeof item === "string");
+const isLists = (value) => isRecord(value) && Object.values(value).every(isStrings$2);
+const isManagerMatching$1 = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string" && typeof value["stringIsList"] === "boolean";
+const isActions = (value) => isRecord(value) && typeof value["manager"] === "string" && typeof value["datasource"] === "string";
 const isMatching$1 = (value) => isRecord(value) && typeof value["negation"] === "string" && isStrings$2(value["packageMatchers"]) && typeof value["datasourceMatcher"] === "string";
 const isPresetFact = (value) => isRecord(value) && isStrings$2(value["presets"]) && typeof value["value"] === "string" && typeof value["datasource"] === "string";
 const isInternal = (value) => isRecord(value) && isStrings$2(value["prefixes"]) && isStrings$2(value["settingDelay"]);
@@ -24772,29 +24835,100 @@ function matchesEveryName(pattern) {
 	const name = pattern.replace(/^(npm|jsr):/u, "");
 	return /^(@\*+\/)?\*+$/u.test(name) || /^\/\^?\.[*+]\$?\/[a-z]*$/u.test(name);
 }
+function categoriesOf(bot, manager) {
+	if (manager === void 0 || bot.extra?.["managerCategories"] === void 0) return [];
+	return extraOf(bot, "managerCategories", isLists)[manager] ?? [];
+}
+/** The packages a package manager installs: its datasource, Renovate manager and categories (extra.managers). */
+function managerTarget(bot, tool, ecosystem) {
+	const datasource = extraOf(bot, "datasources", isRecord)[ecosystem];
+	const manager = bot.extra?.["managers"] === void 0 ? void 0 : extraOf(bot, "managers", isNames)[tool];
+	return {
+		...typeof datasource === "string" ? { datasource } : {},
+		...manager === void 0 ? {} : { manager },
+		categories: categoriesOf(bot, manager)
+	};
+}
+/** The actions the workflows run (extra.githubActions), when the knowledge base has them. */
+function actionsTarget(bot) {
+	if (bot.extra?.["githubActions"] === void 0) return void 0;
+	const fact = extraOf(bot, "githubActions", isActions);
+	return {
+		datasource: fact.datasource,
+		manager: fact.manager,
+		categories: categoriesOf(bot, fact.manager),
+		actions: true
+	};
+}
+/** The targets of the package managers among `tools`, one for each datasource and manager, with the tools of each. */
+function managerTargets(bot, tools) {
+	const groups = /* @__PURE__ */ new Map();
+	for (const tool of tools) {
+		if (tool.kind !== "package-manager") continue;
+		const target = managerTarget(bot, tool.id, ecosystemOfTool(tool));
+		const key = `${target.datasource ?? ""}\u0000${target.manager ?? `\u0000${tool.id}`}`;
+		const group = groups.get(key);
+		if (group === void 0) groups.set(key, {
+			target,
+			tools: [tool]
+		});
+		else group.tools.push(tool);
+	}
+	return [...groups.values()];
+}
+function targetOf(bot, on) {
+	if (typeof on !== "string") return on;
+	const datasource = extraOf(bot, "datasources", isRecord)[on];
+	return {
+		...typeof datasource === "string" ? { datasource } : {},
+		categories: []
+	};
+}
+/** The patterns of a matcher: a list, or one string when Renovate reads a string as a list of one (extra.managerMatching). */
+function patternsOf(value, stringIsList) {
+	if (isStrings$2(value)) return value;
+	return stringIsList && typeof value === "string" ? [value] : void 0;
+}
+/** anyMatchRegexOrGlobList: some input matches the list. */
+function matchesAny(inputs, patterns, negation) {
+	const results = inputs.map((input) => matchesList(input, patterns, negation));
+	if (results.includes(true)) return true;
+	return results.includes(void 0) ? void 0 : false;
+}
 /**
-* The update types for which a rule applies to every package of `ecosystem`, or undefined when it narrows the
-* packages (or depcurfew cannot tell).
+* How a rule covers the packages of `on` (a target, or the packages of a registry without a known manager): all of
+* them for some update types, some of them only, or depcurfew cannot tell.
 */
-function ruleScope(bot, rule, ecosystem) {
+function ruleCoverage(bot, rule, on) {
+	const target = targetOf(bot, on);
 	const matching = extraOf(bot, "packageRuleMatching", isMatching$1);
+	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching$1);
+	const stringIsList = managerMatching?.stringIsList === true;
 	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$2);
-	const datasources = extraOf(bot, "datasources", isRecord);
 	const matchers = Object.keys(rule).filter((key) => /^(match|exclude)[A-Z]/u.test(key));
 	const known = /* @__PURE__ */ new Set([
 		...matching.packageMatchers,
 		matching.datasourceMatcher,
-		matching.updateTypeMatcher
+		matching.updateTypeMatcher,
+		...managerMatching === void 0 ? [] : [managerMatching.managerMatcher, managerMatching.categoryMatcher]
 	]);
-	if (matchers.some((key) => !known.has(key))) return void 0;
+	if (matchers.some((key) => !known.has(key))) return { kind: "narrow" };
+	let unknown;
+	const result = (key, matches) => {
+		if (matches === void 0) unknown ??= key;
+		return matches !== false;
+	};
 	let names = { kind: "all" };
 	for (const key of matching.packageMatchers) {
 		if (!(key in rule)) continue;
-		const patterns = rule[key];
-		if (!isStrings$2(patterns) || patterns.length === 0) return void 0;
+		const patterns = patternsOf(rule[key], stringIsList);
+		if (patterns === void 0) {
+			result(key, void 0);
+			continue;
+		}
 		const positive = patterns.filter((pattern) => !pattern.startsWith(matching.negation));
 		const broad = positive.find(matchesEveryName);
-		if (positive.length > 0 && broad === void 0) return void 0;
+		if (patterns.length === 0 || positive.length > 0 && broad === void 0) return { kind: "narrow" };
 		if (broad !== void 0 && names.kind === "all") names = {
 			kind: "pattern",
 			pattern: broad
@@ -24804,35 +24938,73 @@ function ruleScope(bot, rule, ecosystem) {
 			patterns: [...names.kind === "except" ? names.patterns : [], ...patterns]
 		};
 	}
-	if (matching.datasourceMatcher in rule) {
-		const patterns = rule[matching.datasourceMatcher];
-		const datasource = datasources[ecosystem];
-		if (!isStrings$2(patterns) || typeof datasource !== "string" || matchesList(datasource, patterns, matching.negation) !== true) return void 0;
+	const lists = [[
+		matching.datasourceMatcher,
+		target.datasource === void 0 ? void 0 : [target.datasource],
+		"one"
+	]];
+	if (managerMatching !== void 0) {
+		lists.push([
+			managerMatching.managerMatcher,
+			target.manager === void 0 ? void 0 : [target.manager],
+			"one"
+		]);
+		lists.push([
+			managerMatching.categoryMatcher,
+			target.categories.length === 0 ? void 0 : target.categories,
+			"any"
+		]);
+	}
+	for (const [key, inputs] of lists) {
+		if (!(key in rule)) continue;
+		const patterns = patternsOf(rule[key], stringIsList);
+		if (!result(key, patterns === void 0 || inputs === void 0 ? void 0 : matchesAny(inputs, patterns, matching.negation))) return { kind: "narrow" };
 	}
 	let types = updateTypes;
 	if (matching.updateTypeMatcher in rule) {
-		const patterns = rule[matching.updateTypeMatcher];
-		if (!isStrings$2(patterns)) return void 0;
-		types = updateTypes.filter((type) => matchesList(type, patterns, matching.negation) === true);
+		const patterns = patternsOf(rule[matching.updateTypeMatcher], stringIsList);
+		const matched = patterns === void 0 ? [] : updateTypes.map((type) => matchesList(type, patterns, matching.negation));
+		types = updateTypes.filter((_, index) => matched[index] === true);
+		if (types.length === 0 && !result(matching.updateTypeMatcher, patterns === void 0 || matched.includes(void 0) ? void 0 : false)) return { kind: "narrow" };
 	}
-	return types.length === 0 ? void 0 : {
-		updateTypes: types,
-		names,
-		matchers
+	if (unknown !== void 0) return {
+		kind: "unknown",
+		matcher: unknown
 	};
+	if (types.length === 0) return { kind: "narrow" };
+	const categoryPatterns = managerMatching === void 0 ? void 0 : patternsOf(rule[managerMatching.categoryMatcher], stringIsList);
+	const categories = categoryPatterns === void 0 ? void 0 : target.categories.filter((category) => matchesList(category, categoryPatterns, matching.negation) === true);
+	return {
+		kind: "covers",
+		scope: {
+			updateTypes: types,
+			names,
+			matchers,
+			...categories === void 0 ? {} : { categories }
+		}
+	};
+}
+/**
+* The update types for which a rule applies to every package of the target (or of a registry), or undefined when it
+* narrows the packages or depcurfew cannot tell.
+*/
+function ruleScope(bot, rule, on) {
+	const coverage = ruleCoverage(bot, rule, on);
+	return coverage.kind === "covers" ? coverage.scope : void 0;
 }
 function presetName(preset) {
 	return preset.replace(/\(.*\)$/u, "");
 }
 /**
-* The delay Renovate applies to every package of `ecosystem`, for each delayed update type. Without a top-level value
-* or a rule, an update type has no entry: Renovate does not wait.
+* The delay Renovate applies to every package of the target (or of a registry), for each delayed update type. Without
+* a top-level value or a rule, an update type has no entry: Renovate does not wait.
 */
-function renovateDelay(bot, config, ecosystem) {
+function renovateDelay(bot, config, on) {
+	const target = targetOf(bot, on);
 	const updateTypes = extraOf(bot, "delayedUpdateTypes", isStrings$2);
 	const internal = extraOf(bot, "internalPresets", isInternal);
-	const datasources = extraOf(bot, "datasources", isRecord);
 	const byType = /* @__PURE__ */ new Map();
+	const unreadable = [];
 	const set = (types, source) => {
 		for (const type of types) byType.set(type, source);
 	};
@@ -24845,7 +25017,7 @@ function renovateDelay(bot, config, ecosystem) {
 	for (const key of ["minimumReleaseAgePresets", "pypiPresets"]) {
 		const fact = bot.extra?.[key] === void 0 ? void 0 : extraOf(bot, key, isPresetFact);
 		const preset = fact === void 0 ? void 0 : config.extends.presets.find((item) => fact.presets.includes(presetName(item)));
-		if (fact === void 0 || preset === void 0 || datasources[ecosystem] !== fact.datasource) continue;
+		if (fact === void 0 || preset === void 0 || target.datasource !== fact.datasource) continue;
 		set(updateTypes, {
 			value: fact.value,
 			origin: `the preset ${preset} in ${config.file} (${fact.value})`,
@@ -24855,26 +25027,34 @@ function renovateDelay(bot, config, ecosystem) {
 	let repositorySets = config.top !== void 0;
 	for (const { index, line, rule } of config.rules) {
 		if (!("minimumReleaseAge" in rule)) continue;
-		const scope = ruleScope(bot, rule, ecosystem);
-		if (scope === void 0) continue;
+		const coverage = ruleCoverage(bot, rule, target);
+		if (coverage.kind === "unknown") unreadable.push({
+			index,
+			line,
+			matcher: coverage.matcher,
+			patterns: rule[coverage.matcher],
+			value: rule["minimumReleaseAge"]
+		});
+		if (coverage.kind !== "covers") continue;
 		repositorySets = true;
-		set(scope.updateTypes, {
+		set(coverage.scope.updateTypes, {
 			value: rule["minimumReleaseAge"],
 			origin: `minimumReleaseAge: ${JSON.stringify(rule["minimumReleaseAge"])} in packageRules[${index}] of ${config.file}`,
 			line,
 			rule: index
 		});
 	}
-	const unreadable = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
+	const unreadablePreset = config.extends.presets.find((preset) => !internal.prefixes.some((prefix) => preset.startsWith(prefix)));
 	const fromKnownPreset = config.extends.presets.some((preset) => internal.settingDelay.includes(presetName(preset)));
-	if (unreadable !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
+	if (unreadablePreset !== void 0 && !repositorySets && !(fromKnownPreset && byType.size > 0)) return {
 		known: false,
-		preset: unreadable,
+		preset: unreadablePreset,
 		line: config.extends.line
 	};
 	return {
 		known: true,
-		byType
+		byType,
+		unreadable
 	};
 }
 
@@ -24884,7 +25064,7 @@ const PYTHON_RULE_DESCRIPTION = "depcurfew: Python packages excluded from minimu
 const isString = (value) => typeof value === "string";
 const isRule = (value) => isRecord(value) && typeof value["list"] === "string" && typeof value["match"] === "string";
 const isPath$1 = (value) => Array.isArray(value) && value.every(isString);
-const renovate = (context, duration) => {
+const renovate = (context, duration, repository) => {
 	const { tool, policy } = context;
 	if (policy.cooldown === void 0 || duration === void 0) return;
 	const result = convertCooldown(tool, duration);
@@ -24959,7 +25139,7 @@ const renovate = (context, duration) => {
 		context.snippet(where, snippet());
 		return;
 	}
-	shorterRules(context, file, result.value, rule.list, descriptionKey);
+	shorterRules(context, file, result.value, rule.list, descriptionKey, repository);
 	const json = context.json(file);
 	json.set([setting], result.value);
 	for (const managed of managedRules) {
@@ -24979,12 +25159,14 @@ const ECOSYSTEM_LABELS = {
 	pypi: "Python"
 };
 /**
-* packageRules entries that apply does not manage and that give every package of a registry, or some update types, a
-* shorter delay than the one apply writes: Renovate uses them, and apply never changes entries it did not write, so it
-* warns (decision D-116). They are found as doctor's bot-cooldown-mismatch finds them (renovateDelay), on the file as
-* it is, with the top-level delay apply writes and without depcurfew's own exclusion rules.
+* packageRules entries that apply does not manage and that give every package of a package manager in use (by
+* registry, Renovate manager or category, decision D-131) or the actions of the workflows (decision D-130), or some
+* update types of them, a shorter delay than the one apply writes: Renovate uses them, and apply never changes entries
+* it did not write, so it warns (decision D-116). They are found as doctor's bot-cooldown-mismatch finds them
+* (renovateDelay), on the file as it is, with the top-level delay apply writes and without depcurfew's own exclusion
+* rules.
 */
-function shorterRules(context, file, written, list, descriptionKey) {
+function shorterRules(context, file, written, list, descriptionKey, repository) {
 	const { tool } = context;
 	const config = readRenovateConfig(context.read(file), file, []);
 	const own = /* @__PURE__ */ new Set([RULE_DESCRIPTION, PYTHON_RULE_DESCRIPTION]);
@@ -24998,10 +25180,18 @@ function shorterRules(context, file, written, list, descriptionKey) {
 	};
 	const wanted = delayMinutes(tool, written, latestVersion$1(tool));
 	if (!wanted.ok) return;
-	const ecosystems = ["npm", "pypi"].filter((ecosystem) => context.tools.some((entry) => entry.kind === "package-manager" && context.targets.has(entry.id) && ecosystemOfTool(entry) === ecosystem));
+	const inUse = context.tools.filter((entry) => entry.kind === "package-manager" && context.targets.has(entry.id));
+	const actions = repository.workflows.length > 0 ? actionsTarget(tool) : void 0;
+	const targets = [...managerTargets(tool, inUse).map(({ target, tools }) => ({
+		target,
+		label: ECOSYSTEM_LABELS[ecosystemOfTool(tools[0] ?? tool)]
+	})), ...actions === void 0 ? [] : [{
+		target: actions,
+		label: ACTIONS_LABEL
+	}]];
 	const found = /* @__PURE__ */ new Map();
-	for (const ecosystem of ecosystems) {
-		const delay = renovateDelay(tool, planned, ecosystem);
+	for (const { target, label } of targets) {
+		const delay = renovateDelay(tool, planned, target);
 		if (!delay.known) continue;
 		for (const [type, source] of delay.byType) {
 			if (source.rule === void 0) continue;
@@ -25011,29 +25201,35 @@ function shorterRules(context, file, written, list, descriptionKey) {
 				line: source.line,
 				value: source.value,
 				types: /* @__PURE__ */ new Set(),
-				ecosystems: /* @__PURE__ */ new Set()
+				labels: /* @__PURE__ */ new Set()
 			};
 			entry.types.add(type);
-			entry.ecosystems.add(ecosystem);
+			entry.labels.add(label);
 			found.set(source.rule, entry);
 		}
 	}
 	const updateTypes = extraOf(tool, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every(isString));
 	const describe = (minutes) => minutes === 0 ? "no delay" : formatMinutes(minutes);
+	const order = [...Object.values(ECOSYSTEM_LABELS), ACTIONS_LABEL];
 	for (const [index, entry] of [...found].sort(([a], [b]) => a - b)) {
 		const types = updateTypes.filter((type) => entry.types.has(type));
 		const scope = types.length === updateTypes.length ? "updates" : `${listing$1(types)} updates`;
+		const packages = order.filter((label) => label !== ACTIONS_LABEL && entry.labels.has(label));
+		const covered = [...packages.length === 0 ? [] : [`${listing$1(packages)} packages`], ...entry.labels.has(ACTIONS_LABEL) ? [ACTIONS_LABEL] : []];
+		const what = packages.length === 0 ? "actions" : entry.labels.has(ACTIONS_LABEL) ? "packages and actions" : "packages";
 		context.warn({
 			code: "bot-rule-shortens-delay",
 			location: {
 				file,
 				line: entry.line
 			},
-			message: `${context.name}: ${list}[${index}] in ${file} (line ${entry.line}) sets minimumReleaseAge: ${JSON.stringify(entry.value)} for ${scope} of ${listing$1([...entry.ecosystems].map((ecosystem) => ECOSYSTEM_LABELS[ecosystem]))} packages, shorter than the ${describe(wanted.minutes)} depcurfew apply writes for ${context.name}; ${context.name} uses the rule, and depcurfew apply does not change entries it did not write`,
-			fix: `Make minimumReleaseAge in ${list}[${index}] of ${file} at least ${describe(wanted.minutes)}, or limit the rule to the packages that need a shorter delay`
+			message: `${context.name}: ${list}[${index}] in ${file} (line ${entry.line}) sets minimumReleaseAge: ${JSON.stringify(entry.value)} for ${scope} of ${listing$1(covered)}, shorter than the ${describe(wanted.minutes)} depcurfew apply writes for ${context.name}; ${context.name} uses the rule, and depcurfew apply does not change entries it did not write`,
+			fix: `Make minimumReleaseAge in ${list}[${index}] of ${file} at least ${describe(wanted.minutes)}, or limit the rule to the ${what} that need a shorter delay`
 		});
 	}
 }
+/** The actions the workflows run, as messages name them. */
+const ACTIONS_LABEL = "GitHub Actions";
 
 // src/apply/generators/uv.ts
 const uv = (context) => {
@@ -25178,6 +25374,13 @@ function autoTargets(root, detection, tools = knowledgeBase) {
 		targets: detectedTargets(detection).filter((id) => !ciOnly.some((entry) => entry.id === id)),
 		ciOnly
 	};
+}
+/**
+* Whether the policy's release-age delay covers the actions the workflows run for a bot (decision D-130): the
+* repository has workflows, and the policy has a cooldown and configures the bot (targets "auto" or naming it).
+*/
+function coversActions(policy, bot, detection) {
+	return policy?.cooldown !== void 0 && (policy.targets === "auto" || policy.targets.includes(bot)) && detection.workflows.length > 0;
 }
 /**
 * The tools apply configures in one directory. Without projects: the detected ones ("auto") or the listed ones. With
@@ -26399,7 +26602,7 @@ function planApply(root, policy, detection, tools = knowledgeBase, options = {})
 	for (const tool of tools) {
 		const generator = BOTS[tool.id];
 		if (generator === void 0 || !targets.has(tool.id)) continue;
-		run(tool, void 0, (context) => generator(context, duration));
+		run(tool, void 0, (context) => generator(context, duration, { workflows: detection.workflows }));
 	}
 	warnings.push(...allowListWarnings(root, workspace, policy, detection, targets, tools));
 	const changes = workspace.changes();
@@ -27300,14 +27503,16 @@ function dependabotDelays(context, bot, file) {
 	const fallback = versionedValue(values$1(bot.cooldown.default)[0] ?? [], void 0);
 	const securityBypass = values$1(bot.cooldown.securityUpdates).includes("bypass");
 	const include = extraOf(bot, "cooldownInclude", (value) => isRecord(value) && typeof value["key"] === "string");
+	const actions = bot.extra?.["githubActions"] === void 0 || !coversActions(context.policy, bot.id, context.detection) ? void 0 : extraOf(bot, "githubActions", isActionsEcosystem);
 	return updates.value.flatMap((entry, index) => {
 		if (!isRecord(entry) || typeof entry["package-ecosystem"] !== "string") return [];
+		const forActions = actions !== void 0 && entry["package-ecosystem"] === actions.ecosystem;
 		const managers = ecosystems[entry["package-ecosystem"]] ?? [];
-		if (managers.length === 0) return [];
+		if (managers.length === 0 && !forActions) return [];
 		const cooldown = isRecord(entry["cooldown"]) ? entry["cooldown"] : void 0;
 		const configuredDays = cooldown?.[keys.days];
 		const base = typeof configuredDays === "number" ? configuredDays : typeof fallback === "number" ? fallback : 0;
-		const semver = keys.semverDays.filter((key) => typeof cooldown?.[key] === "number");
+		const semver = (forActions && !actions.semverDays ? [] : keys.semverDays).filter((key) => typeof cooldown?.[key] === "number");
 		const days = Math.min(base, ...semver.map((key) => cooldown?.[key]));
 		const shortest = semver.find((key) => cooldown?.[key] === days);
 		const origin = cooldown === void 0 ? `Dependabot's default (${describe$1(days * 1440)})` : shortest !== void 0 && days < base ? `${shortest}: ${days} in ${file}` : typeof cooldown[keys.days] === "number" ? `${keys.days}: ${days} in ${file}` : `Dependabot's default (${describe$1(days * 1440)})`;
@@ -27316,9 +27521,11 @@ function dependabotDelays(context, bot, file) {
 			String(index),
 			cooldown === void 0 ? "package-ecosystem" : "cooldown"
 		])?.line ?? updates.line;
+		const target = forActions ? { actions: true } : {};
 		const delays = [{
 			bot,
 			managers,
+			...target,
 			minutes: days * 1440,
 			origin,
 			location: {
@@ -27340,6 +27547,7 @@ function dependabotDelays(context, bot, file) {
 			delays.push({
 				bot,
 				managers,
+				...target,
 				minutes: 0,
 				origin: `cooldown.${include.key} in ${file} names only ${listing$1(patterns)}`,
 				location: {
@@ -27355,10 +27563,20 @@ function dependabotDelays(context, bot, file) {
 	});
 }
 function renovateDelays(context, bot, file) {
-	const managersOf = (ecosystem) => context.tools.filter((tool) => tool.kind === "package-manager" && ecosystemOfTool(tool) === ecosystem).map((tool) => tool.id);
-	if (!/\.jsonc?$/u.test(file) && !/\.renovaterc$/u.test(file)) return ["npm", "pypi"].map((ecosystem) => ({
+	const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot) : void 0;
+	const targets = [...managerTargets(bot, context.tools).map(({ target, tools }) => ({
+		target,
+		managers: tools.map((tool) => tool.id)
+	})), ...actions === void 0 ? [] : [{
+		target: actions,
+		managers: []
+	}]];
+	const flags = (target) => target.actions === true ? { actions: true } : {};
+	const scopeOf = (target, types) => target.actions === true ? `${ACTIONS} ${types}` : types;
+	if (!/\.jsonc?$/u.test(file) && !/\.renovaterc$/u.test(file)) return targets.map(({ target, managers }) => ({
 		bot,
-		managers: managersOf(ecosystem),
+		managers,
+		...flags(target),
 		minutes: 0,
 		origin: file,
 		location: {
@@ -27366,7 +27584,7 @@ function renovateDelays(context, bot, file) {
 			line: 1
 		},
 		securityBypass: false,
-		scope: "updates",
+		scope: scopeOf(target, "updates"),
 		applies: false,
 		unreadableFile: file
 	}));
@@ -27383,12 +27601,12 @@ function renovateDelays(context, bot, file) {
 	const applies = base.length === 0 && /\.jsonc?$/u.test(file);
 	const config = readRenovateConfig(text, file, base);
 	const updateTypes = extraOf(bot, "delayedUpdateTypes", (value) => Array.isArray(value) && value.every((item) => typeof item === "string"));
-	return ["npm", "pypi"].flatMap((ecosystem) => {
-		const managers = managersOf(ecosystem);
-		const delay = renovateDelay(bot, config, ecosystem);
+	return targets.flatMap(({ target, managers }) => {
+		const delay = renovateDelay(bot, config, target);
 		if (!delay.known) return [{
 			bot,
 			managers,
+			...flags(target),
 			minutes: 0,
 			origin: `the preset ${delay.preset}`,
 			location: {
@@ -27396,7 +27614,7 @@ function renovateDelays(context, bot, file) {
 				line: delay.line
 			},
 			securityBypass,
-			scope: "updates",
+			scope: scopeOf(target, "updates"),
 			applies,
 			unreadablePreset: delay.preset
 		}];
@@ -27416,6 +27634,7 @@ function renovateDelays(context, bot, file) {
 		return [{
 			bot,
 			managers,
+			...flags(target),
 			minutes: shortest,
 			origin: source?.origin ?? "Renovate has no delay by default",
 			location: {
@@ -27423,12 +27642,15 @@ function renovateDelays(context, bot, file) {
 				line: source?.line ?? 1
 			},
 			securityBypass,
-			scope: types.length === updateTypes.length ? "updates" : `${listing$1(types)} updates`,
+			scope: types.length === updateTypes.length ? scopeOf(target, "updates") : `${listing$1(types)} ${scopeOf(target, "updates")}`,
 			applies,
-			...source?.rule === void 0 ? {} : { rule: source.rule }
+			...source?.rule === void 0 ? {} : { rule: source.rule },
+			...delay.unreadable.length === 0 ? {} : { unreadableRules: delay.unreadable }
 		}];
 	});
 }
+/** The actions the workflows run, as messages name them. */
+const ACTIONS = "GitHub Actions";
 function rechecksLockfile(tool, manager) {
 	const fact = tool.extra?.["lockfileRecheck"];
 	if (fact === void 0) return false;
@@ -27452,9 +27674,8 @@ function unreadableBotFile(context, bot, file) {
 	const text = context.repository.readText(file);
 	const reason = text === void 0 ? "read" : configParses(file, text) ? void 0 : "parse";
 	if (reason === void 0) return void 0;
-	return [{
-		bot,
-		managers: context.tools.filter((tool) => tool.kind === "package-manager").map((tool) => tool.id),
+	const managers = context.tools.filter((tool) => tool.kind === "package-manager").map((tool) => tool.id);
+	const unreadable = {
 		minutes: 0,
 		origin: file,
 		location: {
@@ -27462,11 +27683,22 @@ function unreadableBotFile(context, bot, file) {
 			line: 1
 		},
 		securityBypass: false,
-		scope: "updates",
 		applies: false,
 		unreadableFile: file,
 		unreadableReason: reason
-	}];
+	};
+	return [{
+		bot,
+		managers,
+		...unreadable,
+		scope: "updates"
+	}, ...coversActions(context.policy, bot.id, context.detection) ? [{
+		bot,
+		managers: [],
+		actions: true,
+		...unreadable,
+		scope: `${ACTIONS} updates`
+	}] : []];
 }
 const isConfigLocation = (value) => isRecord(value) && typeof value["from"] === "string";
 const isDirectories = (value) => isRecord(value) && Array.isArray(value["keys"]) && value["keys"].every((key) => typeof key === "string") && typeof value["globsIn"] === "string";
@@ -27562,15 +27794,89 @@ function missingDependabotEntries(context, views) {
 		fix: `If Dependabot should update ${view.directory}, add an updates entry with package-ecosystem: ${ecosystem} and directory: /${view.directory} to ${file}, then run depcurfew apply to give it the cooldown`
 	});
 }
+function managerReference(tool, own) {
+	return {
+		minutes: own.minutes,
+		asLongAs: `${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
+		waits: `${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
+		things: "packages"
+	};
+}
+function actionsReference(context) {
+	const minimum = context.policy?.cooldown?.minimum;
+	if (minimum === void 0) return void 0;
+	return {
+		minutes: minimum.minutes,
+		asLongAs: `cooldown.minimum in ${POLICY_FILE} (${describe$1(minimum.minutes)}) for the actions the workflows run`,
+		waits: `cooldown.minimum in ${POLICY_FILE} is ${describe$1(minimum.minutes)}, which covers the actions the workflows run; its pull requests bring in versions of actions younger than that`,
+		things: "actions"
+	};
+}
+/**
+* The findings for one bot delay and what it is compared with; true when it reported a shorter delay or a note
+* instead (the security check of a package manager comes after).
+*/
+function compare(context, delay, reference) {
+	if (delay.location === void 0) return true;
+	if (delay.unreadableFile !== void 0) {
+		if (reference.minutes > 0) {
+			const file = delay.unreadableFile;
+			const reason = delay.unreadableReason;
+			const cannot = reason === "parse" ? "cannot parse" : reason === "read" ? "cannot read" : "cannot read (it reads only JSON and JSONC Renovate files)";
+			context.report({
+				level: "note",
+				location: delay.location,
+				message: `${delay.bot.name} reads ${file}, which depcurfew ${cannot}, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
+				fix: reason === "parse" ? `Fix the syntax error in ${file} (unreadable-config says what it is), then run depcurfew doctor again` : reason === "read" ? `Make ${file} a file depcurfew can read (unreadable-config says what is wrong), then run depcurfew doctor again` : `Make sure minimumReleaseAge in ${file} is at least ${describe$1(reference.minutes)}, or move the configuration to renovate.json, which depcurfew reads`
+			});
+		}
+		return true;
+	}
+	if (delay.unreadablePreset !== void 0) {
+		if (reference.minutes > 0) context.report({
+			level: "note",
+			location: delay.location,
+			message: `${delay.bot.name} extends ${delay.unreadablePreset}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
+			fix: `Make sure the preset sets minimumReleaseAge to at least ${describe$1(reference.minutes)} for these ${reference.things}, or set it in ${delay.location.file}${delay.applies === false ? "" : " (depcurfew apply does this)"}`
+		});
+		return true;
+	}
+	for (const rule of delay.unreadableRules ?? []) {
+		const minutes = delayMinutes(delay.bot, rule.value, latestVersion$1(delay.bot));
+		if (!minutes.ok || minutes.minutes >= reference.minutes) continue;
+		context.report({
+			level: "note",
+			location: {
+				file: delay.location.file,
+				line: rule.line
+			},
+			message: `${delay.bot.name} packageRules[${rule.index}] in ${delay.location.file} sets minimumReleaseAge: ${JSON.stringify(rule.value)} for ${rule.matcher} ${JSON.stringify(rule.patterns)}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${reference.asLongAs}`,
+			fix: `Make sure packageRules[${rule.index}] of ${delay.location.file} gives these ${reference.things} a minimumReleaseAge of at least ${describe$1(reference.minutes)}, or write its ${rule.matcher} with names, * or /regex/ patterns, which depcurfew reads`
+		});
+	}
+	if (delay.rule !== void 0 && delay.minutes === 0) return true;
+	if (delay.minutes >= reference.minutes) return false;
+	context.report({
+		location: delay.location,
+		message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${reference.waits}`,
+		fix: delay.fix ?? (delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(reference.minutes)}, or limit the rule to the ${reference.things} that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(reference.minutes)}, or run depcurfew apply`)
+	});
+	return true;
+}
+/** Whether the scope has something a bot's delay is compared with: a package manager, or the actions of workflows. */
+function hasReference(scope) {
+	const actions = scope.project === void 0 && scope.detection.bots.some((bot) => coversActions(scope.policy, bot.id, scope.detection));
+	return usesManager(scope) || actions;
+}
 const botCooldownMismatch = {
 	id: "bot-cooldown-mismatch",
-	checks: "Update bots wait at least as long as the package manager before proposing a new version",
-	summary: "An update bot waits less than the package manager before proposing a new version.",
-	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type. A bot configuration file that depcurfew cannot read or parse, or a Renovate file in JSON5, gets a note for each package manager that waits, instead of a delay the file may not have. With projects in depcurfew.json, a bot configuration file inside a project gets a note, because the bot reads its configuration only from the repository root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.",
-	help: "Give the bot a delay at least as long as the package manager's (depcurfew apply does this).",
+	checks: "Update bots wait at least as long as the package manager, and for the actions of workflows as long as the policy, before proposing a new version",
+	summary: "An update bot waits less than the package manager, or for the actions of workflows less than the policy, before proposing a new version.",
+	description: "The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or bring in a version younger than the manager allows; security updates that skip the bot delay fail the same way. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category or update type, and one with a matcher depcurfew cannot read gets a note. With workflows and a cooldown in depcurfew.json, the bot must wait at least cooldown.minimum for the actions they run. A bot file depcurfew cannot read or parse, or a Renovate file in JSON5, gets a note for each package manager that waits. With projects in depcurfew.json, a bot file inside a project gets a note, as bots read only the one at the root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.",
+	help: "Give the bot a delay at least as long as the package manager's, and for the actions of workflows as long as cooldown.minimum (depcurfew apply does this).",
 	level: "error",
 	requiresPolicy: false,
-	applies: (scope) => usesBot(scope) && usesManager(scope),
+	applies: (scope) => usesBot(scope) && hasReference(scope),
 	check(context) {
 		if (context.project !== void 0) return;
 		if (context.projects !== void 0) {
@@ -27578,7 +27884,7 @@ const botCooldownMismatch = {
 			missingDependabotEntries(context, context.projects);
 		}
 		const sources = managerSources$1(context);
-		if (sources.every((source) => source.managers.length === 0)) return;
+		if (sources.every((source) => source.managers.length === 0) && !hasReference(context)) return;
 		const delays = [];
 		for (const detected of context.detection.bots) {
 			const bot = context.tools.find((entry) => entry.id === detected.id);
@@ -27586,57 +27892,36 @@ const botCooldownMismatch = {
 			if (bot === void 0 || file === void 0) continue;
 			delays.push(...unreadableBotFile(context, bot, file) ?? (detected.id === "dependabot" ? dependabotDelays(context, bot, file) : renovateDelays(context, bot, file)));
 		}
-		for (const delay of delays) for (const { manager, source } of sources.flatMap((item) => item.managers.filter((entry) => delay.managers.includes(entry.id)).map((manager) => ({
-			manager,
-			source: item
-		})))) {
-			const knowledge = context.tools.find((entry) => entry.id === manager.id);
-			if (knowledge === void 0) continue;
-			const found = managerDelay$1(source.context, manager, knowledge);
-			if (found === void 0 || delay.location === void 0) continue;
-			const tool = source.project === void 0 ? knowledge : {
-				...knowledge,
-				name: `${knowledge.name} in ${source.project}`
-			};
-			const own = {
-				...found,
-				origin: source.relocate(found.origin)
-			};
-			if (delay.unreadableFile !== void 0) {
-				if (own.minutes > 0) {
-					const file = delay.unreadableFile;
-					const reason = delay.unreadableReason;
-					const cannot = reason === "parse" ? "cannot parse" : reason === "read" ? "cannot read" : "cannot read (it reads only JSON and JSONC Renovate files)";
-					context.report({
-						level: "note",
-						location: delay.location,
-						message: `${delay.bot.name} reads ${file}, which depcurfew ${cannot}, so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
-						fix: reason === "parse" ? `Fix the syntax error in ${file} (unreadable-config says what it is), then run depcurfew doctor again` : reason === "read" ? `Make ${file} a file depcurfew can read (unreadable-config says what is wrong), then run depcurfew doctor again` : `Make sure minimumReleaseAge in ${file} is at least ${describe$1(own.minutes)}, or move the configuration to renovate.json, which depcurfew reads`
-					});
-				}
+		const actions = actionsReference(context);
+		for (const delay of delays) {
+			if (delay.actions === true) {
+				if (actions !== void 0) compare(context, delay, actions);
 				continue;
 			}
-			if (delay.unreadablePreset !== void 0) {
-				if (own.minutes > 0) context.report({
-					level: "note",
+			for (const { manager, source } of sources.flatMap((item) => item.managers.filter((entry) => delay.managers.includes(entry.id)).map((manager) => ({
+				manager,
+				source: item
+			})))) {
+				const knowledge = context.tools.find((entry) => entry.id === manager.id);
+				if (knowledge === void 0) continue;
+				const found = managerDelay$1(source.context, manager, knowledge);
+				if (found === void 0 || delay.location === void 0) continue;
+				const tool = source.project === void 0 ? knowledge : {
+					...knowledge,
+					name: `${knowledge.name} in ${source.project}`
+				};
+				const own = {
+					...found,
+					origin: source.relocate(found.origin)
+				};
+				if (compare(context, delay, managerReference(tool, own))) continue;
+				if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, found.location?.file)) context.report({
+					level: "warning",
 					location: delay.location,
-					message: `${delay.bot.name} extends ${delay.unreadablePreset}, which depcurfew cannot read, so it cannot tell whether ${delay.bot.name} waits as long as ${tool.name} (${describe$1(own.minutes)}, ${own.origin})`,
-					fix: `Make sure the preset sets minimumReleaseAge to at least ${describe$1(own.minutes)} for these packages, or set it in ${delay.location.file}${delay.applies === false ? "" : " (depcurfew apply does this)"}`
+					message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe$1(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
+					fix: `When a security update fails, exempt the fixed package in the ${tool.name} exclusion list until the delay has passed`
 				});
-				continue;
 			}
-			if (delay.rule !== void 0 && delay.minutes === 0) continue;
-			if (delay.minutes < own.minutes) context.report({
-				location: delay.location,
-				message: `${delay.bot.name} proposes ${delay.scope} ${delay.minutes === 0 ? "without waiting" : `after ${describe$1(delay.minutes)}`} (${delay.origin}), but ${tool.name} waits ${describe$1(own.minutes)} (${own.origin}); its pull requests bring in versions younger than ${tool.name} accepts, or fail where the lockfile is re-checked`,
-				fix: delay.fix ?? (delay.rule !== void 0 ? `Make minimumReleaseAge in packageRules[${delay.rule}] of ${delay.location.file} at least ${describe$1(own.minutes)}, or limit the rule to the packages that need a shorter delay` : delay.applies === false ? `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)} in ${delay.location.file} (depcurfew apply does not edit it)` : `Make the ${delay.bot.name} delay at least ${describe$1(own.minutes)}, or run depcurfew apply`)
-			});
-			else if (delay.securityBypass && own.minutes > 0 && rechecksLockfile(tool, manager) && !exemptsSecurityFixes(delay.bot, tool.id, found.location?.file)) context.report({
-				level: "warning",
-				location: delay.location,
-				message: `${delay.bot.name} security updates skip its delay, but ${tool.name} re-checks the lockfile and waits ${describe$1(own.minutes)} (${own.origin}); a security fix younger than that fails to install`,
-				fix: `When a security update fails, exempt the fixed package in the ${tool.name} exclusion list until the delay has passed`
-			});
 		}
 	}
 };
@@ -27769,11 +28054,26 @@ function checkYarnScopes(context) {
 }
 const isPackageJsonConfig = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
 const isMatching = (value) => isRecord(value) && typeof value["negation"] === "string" && typeof value["datasourceMatcher"] === "string" && typeof value["updateTypeMatcher"] === "string";
-/** What a packageRules entry covers, for the message: its update types, names and datasources. */
-function covers(scope, datasources, matching) {
-	return `${scope.matchers.includes(matching.updateTypeMatcher) ? `${listing$1(scope.updateTypes)} updates of ` : ""}${scope.names.kind === "except" ? `every package except ${listing$1(scope.names.patterns.map((pattern) => pattern.slice(matching.negation.length)))}` : "every package"}${scope.matchers.includes(matching.datasourceMatcher) ? ` from the ${listing$1(datasources)} datasource${datasources.length === 1 ? "" : "s"}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
+const isManagerMatching = (value) => isRecord(value) && typeof value["managerMatcher"] === "string" && typeof value["categoryMatcher"] === "string";
+/** What a packageRules entry covers, for the message: its update types, names, datasources, managers and categories. */
+function covers(scope, targets, matching) {
+	const unique = (items) => [...new Set(items.filter((item) => item !== void 0))];
+	const plural = (items, one, many) => items.length === 1 ? one : many;
+	const has = (matcher) => matcher !== void 0 && scope.matchers.includes(matcher);
+	const types = has(matching.updateTypeMatcher) ? `${listing$1(scope.updateTypes)} updates of ` : "";
+	const names = scope.names.kind === "except" ? `every package except ${listing$1(scope.names.patterns.map((pattern) => pattern.slice(matching.negation.length)))}` : "every package";
+	const datasources = unique(targets.map((target) => target.datasource));
+	const from = has(matching.datasourceMatcher) ? ` from the ${listing$1(datasources)} ${plural(datasources, "datasource", "datasources")}` : "";
+	const managers = unique(targets.map((target) => target.manager));
+	const of = has(matching.managerMatcher) ? ` of the Renovate ${listing$1(managers)} ${plural(managers, "manager", "managers")}` : "";
+	const categories = unique(targets.flatMap((target) => target.categories).filter((category) => scope.categories?.includes(category) === true));
+	return `${types}${names}${from}${of}${has(matching.categoryMatcher) ? ` in the Renovate ${listing$1(categories)} ${plural(categories, "category", "categories")}` : ""}${scope.names.kind === "except" ? " (a list of only negative patterns matches every other package)" : ""}`;
 }
-/** packageRules entries that turn minimumReleaseAge off for every package of a registry (extra.packageRuleMatching). */
+/**
+* packageRules entries that turn minimumReleaseAge off for every package of a package manager in use, by registry,
+* Renovate manager or category (extra.packageRuleMatching, extra.managerMatching, decision D-131), or for the actions
+* of the workflows when the policy's delay covers them (decision D-130).
+*/
 function checkRenovate(context, file) {
 	const bot = tool(context, "renovate");
 	if (bot === void 0 || !/(\.jsonc?|\.renovaterc)$/u.test(file)) return;
@@ -27781,23 +28081,32 @@ function checkRenovate(context, file) {
 	if (text === void 0) return;
 	const packageJson = extraOf(bot, "packageJsonConfig", isPackageJsonConfig);
 	const config = readRenovateConfig(text, file, file === packageJson.file ? [packageJson.key] : []);
-	const matching = extraOf(bot, "packageRuleMatching", isMatching);
-	const datasources = extraOf(bot, "datasources", isRecord);
-	const managers = managerSources$1(context).flatMap((source) => source.managers);
-	const detected = [...new Set(managers.flatMap((entry) => {
-		const knowledge = tool(context, entry.id);
-		return knowledge === void 0 ? [] : [ecosystemOfTool(knowledge)];
-	}))];
-	const ecosystems = detected.length > 0 ? detected : ["npm", "pypi"];
+	const managerMatching = bot.extra?.["managerMatching"] === void 0 ? void 0 : extraOf(bot, "managerMatching", isManagerMatching);
+	const matching = {
+		...extraOf(bot, "packageRuleMatching", isMatching),
+		...managerMatching === void 0 ? {} : {
+			managerMatcher: managerMatching.managerMatcher,
+			categoryMatcher: managerMatching.categoryMatcher
+		}
+	};
+	const detected = managerSources$1(context).flatMap((source) => source.managers.flatMap((entry) => tool(context, entry.id) ?? []));
+	const actions = coversActions(context.policy, bot.id, context.detection) ? actionsTarget(bot) : void 0;
+	const targets = [...managerTargets(bot, detected.length > 0 ? detected : context.tools).map((group) => group.target), ...actions === void 0 ? [] : [actions]];
+	const narrowing = [
+		matching.datasourceMatcher,
+		matching.updateTypeMatcher,
+		matching.managerMatcher,
+		matching.categoryMatcher
+	];
 	for (const { index, line, rule } of config.rules) {
 		if (!("minimumReleaseAge" in rule)) continue;
 		const delay = delayMinutes(bot, rule["minimumReleaseAge"], latestVersion$1(bot));
 		if (!delay.ok || delay.minutes !== 0) continue;
-		const covered = ecosystems.flatMap((ecosystem) => {
-			const scope = ruleScope(bot, rule, ecosystem);
+		const covered = targets.flatMap((target) => {
+			const scope = ruleScope(bot, rule, target);
 			return scope === void 0 ? [] : [{
 				scope,
-				datasource: String(datasources[ecosystem])
+				target
 			}];
 		});
 		const first = covered[0];
@@ -27808,7 +28117,7 @@ function checkRenovate(context, file) {
 				file,
 				line
 			},
-			message: scope.matchers.length === 0 ? `packageRules[${index}] turns off minimumReleaseAge without matching any packages, so it applies to all of them` : scope.names.kind === "pattern" && scope.matchers.every((key) => key !== matching.datasourceMatcher && key !== matching.updateTypeMatcher) ? `packageRules[${index}] turns off minimumReleaseAge for "${scope.names.pattern}", which matches every package` : `packageRules[${index}] turns off minimumReleaseAge for ${covers(scope, covered.map((item) => item.datasource), matching)}`,
+			message: scope.matchers.length === 0 ? `packageRules[${index}] turns off minimumReleaseAge without matching any packages, so it applies to all of them` : scope.names.kind === "pattern" && scope.matchers.every((key) => !narrowing.includes(key)) ? `packageRules[${index}] turns off minimumReleaseAge for "${scope.names.pattern}", which matches every package` : `packageRules[${index}] turns off minimumReleaseAge for ${covers(scope, covered.map((item) => item.target), matching)}`,
 			fix: "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
 		});
 	}
@@ -27817,7 +28126,7 @@ const broadExclusion = {
 	id: "broad-exclusion",
 	checks: "No exception list or per-scope setting turns the release-age delay off",
 	summary: "An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.",
-	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.",
+	description: "A release-age exception such as \"*\" (or a policy allow-list entry such as \"@*/*\") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.",
 	help: "Replace the pattern with the packages or scopes that really need the exception.",
 	level: "error",
 	requiresPolicy: false,

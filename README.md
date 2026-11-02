@@ -244,7 +244,7 @@ Warnings:
 - `bot-config-missing`: A bot has no configuration file, and depcurfew does not create one.
 - `bot-config-not-edited`: A bot configuration file is in a place or format depcurfew does not edit; a snippet shows what to add.
 - `bot-entries-missing`: The Dependabot configuration has no entries for the package managers in use.
-- `bot-rule-shortens-delay`: A Renovate packageRules entry apply does not manage gives every package of a registry, or some update types, a shorter release-age delay than the one apply writes; Renovate uses it, and apply does not change it.
+- `bot-rule-shortens-delay`: A Renovate packageRules entry apply does not manage gives every package of a registry, Renovate manager or category in use, or the actions of the workflows, or some update types of them, a shorter release-age delay than the one apply writes; Renovate uses it, and apply does not change it.
 - `security-delay-unsupported`: Dependabot cannot delay security updates, so securityUpdates "delay" is not applied.
 
 Errors (nothing is written):
@@ -365,8 +365,8 @@ What depcurfew configures and checks for each tool, from its [knowledge base](ht
 | Poetry | `solver.min-release-age` in `poetry.toml` (days), since 2.4.0 | `solver.min-release-age-exclude`, since 2.4.0 | `installer.no-binary` in `poetry.toml` | none | 2026-10-30 – 2026-11-01 |
 | PDM | `exclude-newer` in `pyproject.toml` (duration string), since 2.26.9 | `exclude-newer-override`, since 2.29.1 | `no-binary` in `pyproject.toml` | none | 2026-10-30 – 2026-11-01 |
 | Pipenv | `cool-down-period` in `Pipfile` (duration string), since 2026.6.2 | none | none | none | 2026-10-30 – 2026-11-01 |
-| Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 – 2026-11-01 |
-| Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 – 2026-11-01 |
+| Renovate | `minimumReleaseAge` in `renovate.json`, `renovate.jsonc` … (duration string), since 35.46.0 | `packageRules: matchPackageNames + minimumReleaseAge: null`, since 35.46.0 ❓ | none | n/a | 2026-10-28 – 2026-11-02 |
+| Dependabot | `cooldown` in `.github/dependabot.yml`, `.github/dependabot.yaml` (days), since 2025 07 01 | `cooldown.exclude`, since 2025 07 01 ❓ | none | n/a | 2026-10-28 – 2026-11-02 |
 
 ⚠️ official sources disagree (depcurfew takes the safer reading) · ❓ official sources are incomplete. Every value with its source: [docs/knowledge.md](https://github.com/DevXord/depcurfew/blob/main/docs/knowledge.md).
 <!-- END GENERATED: tools -->
@@ -387,6 +387,15 @@ depcurfew configures uv, Poetry, PDM, Pipenv and pip from the same `depcurfew.js
 - **PDM and Pipenv cannot pin their own version.** `apply` configures for the latest version depcurfew knows and names that version (`version-not-pinned`). Pipenv takes the delay in whole days only (rounded up), has no exceptions and no project setting that forbids building; `apply` says what to set where Pipenv runs instead. `doctor` reads `pdm.lock` and `Pipfile.lock`, and reports settings that turn the delay or the build ban off without a word: Pipenv's pure-Python resolver and PDM's uv mode.
 - **Hatch has no settings of its own.** Its environments install with uv or pip, so a Hatch project is covered by the uv configuration (add `"uv"` to `targets` when its environments use the uv installer) or by the environment variables of pip.
 - **Running depcurfew.** depcurfew is a Node.js program. In a project without `package.json`, run a pinned version with `npx --yes depcurfew@<version>`; in CI the [GitHub Action](#github-action) needs nothing else.
+
+### Update bots
+
+`apply` gives Renovate and Dependabot the policy's delay, rounded up to their unit and at least as long as the delay of every package manager after rounding, so that they never propose a version the package managers would refuse. It edits only bot configuration files that exist and adds no entries to them.
+
+- **Dependabot** gets `cooldown` in each `updates` entry of an ecosystem depcurfew configures (`npm`, `bun`, `deno`, `pip`, `uv`), with the policy's exceptions for that registry under `exclude`.
+- **GitHub Actions.** When the repository has workflows in `.github/workflows` and `targets` is `"auto"` or names the bot, the actions they run wait as long as the packages. The `github-actions` entries of Dependabot get the same `default-days` (GitHub Actions reads no `semver-*-days`), and their `exclude` stays as written, because the policy's exceptions name packages, not actions. The delay at the top level of the Renovate configuration covers its `github-actions` manager too. `doctor` (`bot-cooldown-mismatch`) compares the bot's delay for the actions with `cooldown.minimum`.
+- **Renovate** gets the delay at the top level of its configuration and a `packageRules` entry for the exceptions. `apply` and `doctor` read the other `packageRules` entries the way Renovate matches them, also by `matchManagers` and `matchCategories`: `npm` covers the packages of npm, pnpm and Yarn, `bun` and `deno` those of Bun and Deno, `pep621` those of uv and PDM, `poetry`, `pip_requirements` and `pipenv` those of Poetry, pip and Pipenv, and `github-actions` the actions of the workflows; the categories are `js`, `python` and `ci`. Globs, `/regex/`, `!` and a single string instead of a list work as in Renovate. A rule that shortens the delay of a package manager in use (or of the actions) gives `bot-rule-shortens-delay` in `apply` and `bot-cooldown-mismatch` in `doctor`, and one that turns it off gives `broad-exclusion`. A rule with a matcher depcurfew cannot read (braces, character classes) does not count, and `doctor` gives a note when it may set a shorter delay.
+- **How old an action is** comes from git. Renovate takes the commit date of a tag, the tagger date of an annotated tag, or the date of a GitHub release of that version when that is newer, and holds an update without a date; Dependabot takes the date of the GitHub release, then of the tag, then of the commit, and lets an update without a date through. Whoever makes a commit or a tag sets its git date, so the delay protects actions less than packages from a registry, which records when a version was published.
 
 ## doctor rules
 
@@ -475,17 +484,17 @@ Fix: Run depcurfew apply (depcurfew apply --dry-run shows the difference), or ch
 
 ### `bot-cooldown-mismatch`
 
-**error** · An update bot waits less than the package manager before proposing a new version.
+**error** · An update bot waits less than the package manager, or for the actions of workflows less than the policy, before proposing a new version.
 
-The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or they bring in a version younger than the manager allows. Security updates that skip the bot delay fail the same way where the manager re-checks the lockfile. A Dependabot cooldown with an include list delays only the dependencies it names, and a Renovate packageRules entry can shorten the delay for a whole registry or update type. A bot configuration file that depcurfew cannot read or parse, or a Renovate file in JSON5, gets a note for each package manager that waits, instead of a delay the file may not have. With projects in depcurfew.json, a bot configuration file inside a project gets a note, because the bot reads its configuration only from the repository root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.
+The bot then opens pull requests with versions the package manager would not pick yet: they fail to install where the manager re-checks the lockfile, or bring in a version younger than the manager allows; security updates that skip the bot delay fail the same way. A Dependabot cooldown with an include list delays only the dependencies it names; a Renovate packageRules entry can shorten the delay for a registry, manager, category or update type, and one with a matcher depcurfew cannot read gets a note. With workflows and a cooldown in depcurfew.json, the bot must wait at least cooldown.minimum for the actions they run. A bot file depcurfew cannot read or parse, or a Renovate file in JSON5, gets a note for each package manager that waits. With projects in depcurfew.json, a bot file inside a project gets a note, as bots read only the one at the root, and a project that the Dependabot configuration of the root leaves out while it updates other projects gets a warning.
 
-Fix: Give the bot a delay at least as long as the package manager's (depcurfew apply does this).
+Fix: Give the bot a delay at least as long as the package manager's, and for the actions of workflows as long as cooldown.minimum (depcurfew apply does this).
 
 ### `broad-exclusion`
 
 **error** · An exception list matches every package, or a per-scope setting shortens the delay, which turns the protection off.
 
-A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.
+A release-age exception such as "*" (or a policy allow-list entry such as "@*/*") looks like a narrow exception but exempts every package, so the delay or the install-script block never applies. The same goes for a Renovate packageRules entry that turns minimumReleaseAge off for a whole datasource, Renovate manager (matchManagers) or category (matchCategories) in use, for major, minor or patch updates of every package, or with only negative patterns, which match every package they do not name, and, when depcurfew.json sets a cooldown for Renovate and the repository has workflows, for the github-actions manager. In Yarn 4.17 and later, npmScopes.<scope>.npmMinimalAgeGate replaces the delay for one scope, so a shorter value there exempts that scope.
 
 Fix: Replace the pattern with the packages or scopes that really need the exception.
 

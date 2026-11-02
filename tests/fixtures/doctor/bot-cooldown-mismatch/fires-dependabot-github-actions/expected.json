@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 3
+    },
+    "message": "Dependabot proposes github-actions updates after 3 days (Dependabot's default (3 days)), but cooldown.minimum in depcurfew.json is 1 week, which covers the actions the workflows run; its pull requests bring in versions of actions younger than that",
+    "fix": "Make the Dependabot delay at least 1 week, or run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 20
+    },
+    "message": "Dependabot proposes github-actions updates of dependencies that cooldown.include does not name without waiting (cooldown.include in .github/dependabot.yml names only actions/*), but cooldown.minimum in depcurfew.json is 1 week, which covers the actions the workflows run; its pull requests bring in versions of actions younger than that",
+    "fix": "Remove include from the cooldown of updates[2] in .github/dependabot.yml, so that the cooldown covers every dependency, and list exceptions under exclude instead"
+  }
+]

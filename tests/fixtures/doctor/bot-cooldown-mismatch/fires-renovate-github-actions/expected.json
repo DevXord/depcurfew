@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 4
+    },
+    "message": "Renovate proposes GitHub Actions updates after 1 hour (minimumReleaseAge: \"1 hour\" in packageRules[0] of renovate.json), but cooldown.minimum in depcurfew.json is 3 days, which covers the actions the workflows run; its pull requests bring in versions of actions younger than that",
+    "fix": "Make minimumReleaseAge in packageRules[0] of renovate.json at least 3 days, or limit the rule to the actions that need a shorter delay"
+  }
+]

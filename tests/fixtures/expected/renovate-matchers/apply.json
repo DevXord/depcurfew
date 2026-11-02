@@ -1,0 +1,46 @@
+{
+  "changed": [
+    ".npmrc",
+    "package.json",
+    "renovate.json"
+  ],
+  "warnings": [
+    {
+      "code": "allow-pattern-unsupported",
+      "tool": "npm",
+      "message": "npm: allowScripts takes package names only; \"@scope/*\" not written",
+      "fix": "List the package names in installScripts.allow"
+    },
+    {
+      "code": "bot-rule-shortens-delay",
+      "tool": "renovate",
+      "location": {
+        "file": "renovate.json",
+        "line": 4
+      },
+      "message": "Renovate: packageRules[0] in renovate.json (line 4) sets minimumReleaseAge: \"1 hour\" for major and minor updates of npm packages, shorter than the 3 days depcurfew apply writes for Renovate; Renovate uses the rule, and depcurfew apply does not change entries it did not write",
+      "fix": "Make minimumReleaseAge in packageRules[0] of renovate.json at least 3 days, or limit the rule to the packages that need a shorter delay"
+    },
+    {
+      "code": "bot-rule-shortens-delay",
+      "tool": "renovate",
+      "location": {
+        "file": "renovate.json",
+        "line": 5
+      },
+      "message": "Renovate: packageRules[1] in renovate.json (line 5) sets minimumReleaseAge: \"1 day\" for major updates of GitHub Actions, shorter than the 3 days depcurfew apply writes for Renovate; Renovate uses the rule, and depcurfew apply does not change entries it did not write",
+      "fix": "Make minimumReleaseAge in packageRules[1] of renovate.json at least 3 days, or limit the rule to the actions that need a shorter delay"
+    },
+    {
+      "code": "bot-rule-shortens-delay",
+      "tool": "renovate",
+      "location": {
+        "file": "renovate.json",
+        "line": 8
+      },
+      "message": "Renovate: packageRules[4] in renovate.json (line 8) sets minimumReleaseAge: \"2 hours\" for patch updates of npm packages and GitHub Actions, shorter than the 3 days depcurfew apply writes for Renovate; Renovate uses the rule, and depcurfew apply does not change entries it did not write",
+      "fix": "Make minimumReleaseAge in packageRules[4] of renovate.json at least 3 days, or limit the rule to the packages and actions that need a shorter delay"
+    }
+  ],
+  "snippets": []
+}
