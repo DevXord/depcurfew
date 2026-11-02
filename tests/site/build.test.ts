@@ -216,6 +216,13 @@ describe('site content', () => {
     expect(page('npm.html')).toContain('id="five-minute-start"');
     expect(page('python.html')).toContain('id="python-projects"');
     expect(page('bots.html')).toContain('id="bot-cooldown-mismatch"');
+    expect(page('php.html')).toContain('id="composer-projects"');
+    expect(page('php.html')).toContain('id="composer-config-weakens"');
+  });
+
+  it('leaves out a table without rows, such as the user files of a tool that has none', () => {
+    for (const name of [...PAGES, ...START_PAGES.map((entry) => entry.file)]) expect(page(name), name).not.toMatch(/<\/thead>\s*<tbody>\s*<\/tbody>|<\/thead>\s*<\/table>/u);
+    expect(page('php.html')).not.toContain('Protecting the whole machine');
   });
 });
 

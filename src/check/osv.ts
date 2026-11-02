@@ -13,7 +13,7 @@ import { normalizePythonName } from '../policy/python-names.ts';
 import type { CheckFinding, PackageReport } from './findings.ts';
 import { cachedLookup, readLimited, requestSignal, type FetchLike, type LookupCache } from './registry.ts';
 
-/** A package version to look up; `ecosystem` is depcurfew's (npm, pypi), the prefix of a package name in the policy. */
+/** A package version to look up; `ecosystem` is depcurfew's (npm, pypi, packagist), as the knowledge base names it. */
 export interface OsvPackage {
   ecosystem: string;
   name: string;

@@ -110,6 +110,7 @@ type EcosystemPage = Pick<StartPage, 'file' | 'nav' | 'guide' | 'rules'>;
 const ECOSYSTEM_PAGES: Partial<Record<Ecosystem, EcosystemPage>> = {
   npm: { file: 'npm.html', nav: 'JavaScript', guide: [], rules: ['npmrc-overrides-policy', 'pnpm-shared-workspace-lockfile'] },
   pypi: { file: 'python.html', nav: 'Python', guide: ['python-projects'], rules: ['python-config-ignored', 'lockfile-out-of-date'] },
+  packagist: { file: 'php.html', nav: 'PHP', guide: ['composer-projects'], rules: ['composer-config-weakens'] },
 };
 const BOTS_PAGE: EcosystemPage = { file: 'bots.html', nav: 'Bots', guide: [], rules: ['bot-cooldown-mismatch'] };
 
@@ -247,6 +248,11 @@ function sectionById(sections: readonly Section[], id: string, file: string): Se
   return section;
 }
 
+/** Whether a Markdown table has a row below its header and delimiter row. */
+function hasRows(table: string): boolean {
+  return table.split('\n').filter((line) => line.trimStart().startsWith('|')).length > 2;
+}
+
 function startParts(page: StartPage, sections: readonly Section[], root: URL, knowledgeIds: ReadonlyMap<string, string>): Part[] {
   const tools = knowledgeBase.filter((tool) => page.tools.includes(tool.id));
   const generated = readmeSections({ ...readmeInputs(root), tools });
@@ -260,7 +266,10 @@ function startParts(page: StartPage, sections: readonly Section[], root: URL, kn
     { section: sectionById(sections, 'five-minute-start', page.file), level: 2 },
     ...page.guide.map((id) => ({ section: sectionById(sections, id, page.file), level: 2 })),
     { markdown: `## Supported tools\n\n${generated['tools'] ?? ''}` },
-    ...(managers.length === 0 ? [] : [{ markdown: `## Protecting the whole machine\n\n${generated['user-config'] ?? ''}\n\nMore: [Protecting the whole machine](machine.html).` }]),
+    // A tool without user files (Composer) has no row in that table: the section is left out.
+    ...(managers.length === 0 || !hasRows(generated['user-config'] ?? '')
+      ? []
+      : [{ markdown: `## Protecting the whole machine\n\n${generated['user-config'] ?? ''}\n\nMore: [Protecting the whole machine](machine.html).` }]),
     ...(page.rules.length === 0
       ? []
       : [
