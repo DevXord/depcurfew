@@ -2,6 +2,11 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-02 · Wydanie 1.4.0 i przykład Action z SHA wydania
+
+- `depcurfew@1.4.0` opublikowana 20:30 UTC z tagu `v1.4.0` (commit 20fcc21) przez trusted publishing, z proweniencją SLSA; pliki w rejestrze są bajt w bajt takie same jak kompilacja z tego tagu, a sha512 tarballa zgadza się z `integrity` w rejestrze.
+- Przykład Action w README przypina `DevXord/depcurfew@20fcc21389f308180a2f9a3a404a486f08705c15 # v1.4.0` (`ACTION_RELEASE` w `src/docs/readme.ts`).
+
 ## 2026-11-02 · 1.4.0: Composer, znane złośliwe wersje z OSV.dev, skrypty znanych paczek, Corepack w Node 25, opóźnienie dla GitHub Actions, strona dokumentacji (D-126–D-144)
 
 - Composer (D-126, D-133, D-134): ekosystem `packagist`, nazwy `composer:` w polityce, `apply` pisze `config.policy.cooldown` i `config.allow-plugins` w `composer.json` (z własnymi wpisami `ignore` oznaczonymi powodem), Dependabot `composer` i reguła Renovate dla `packagist`; `doctor` czyta `composer.lock` tak jak Composer (typy wtyczek bez względu na wielkość liter, `composer-installer`, `plugin-optional`, stary lockfile bez `plugin-api-version`, wpis bez `dist` jako VCS, nieznany host archiwum), nowa reguła `composer-config-weakens`, wersja Composera z `plugin-api-version`; `check composer:` i hook sprawdzają paczki w Packagist (metadane v2 rozwijane jak `MetadataMinifier::expand`, ograniczenia wersji i stabilność jak w composer/semver, wiek od `published-time`), hook czyta polecenia `composer` i opcje osłabiające ochronę; nagranie `npm run record:registry -- packagist`.
