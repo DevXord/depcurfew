@@ -6,6 +6,8 @@ const checked = verifiedOn('2026-10-29');
 const reviewed = verifiedOn('2026-10-30');
 const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
+// The npm keys of deno.lock, whose versions doctor --osv reads (decision D-129).
+const osvFacts = verifiedOn('2026-11-02');
 const DENO_V2_9_8 = 'https://github.com/denoland/deno/blob/v2.9.8';
 const NPMRC_PARSER = `${DENO_V2_9_8}/libs/npmrc/lib.rs`;
 const X_VALUE_OPTIONS = [
@@ -216,10 +218,10 @@ export const deno: ToolKnowledge = {
       'https://github.com/denoland/docs/tree/74beb7585f7e798fe0bc8d867295bff23fc2e38e/runtime/reference/cli',
       'install.md: deno install [PACKAGES] installs packages and adds them to deno.json or package.json, deno add is its alias, deno install --global installs a package or script as a binary, and deno install --entrypoint (-e) [FILES] installs what the files use. -n/--name, --root, --os and --arch take a value; --allow-scripts and --node-modules-dir are shown with =. Since Deno 2.8 a name without a prefix is an npm package; JSR packages need jsr: (add.md). x.md: deno x runs a package from npm or JSR without installing it, like npx (deno x npm:create-vite my-app); --package (-p) names the package when the binary differs (deno x -p typescript tsc), and npm:<package>/<binary> picks one binary; deno x --install-alias creates the dx alias. In Deno 2.9.8 (github.com/denoland/deno, cli/args/flags.rs) an executable whose name ends in dx, denox or dnx runs as deno x, and libs/cli_parser/src/defs.rs (X_SUBCOMMAND with COMPILE_ARGS, PERMISSION_ARGS, RUNTIME_MISC_ARGS and INSPECT_ARGS) gives the options of deno x that take a separate value; the permission flags take theirs after =. -L/--log-level is a global option with a value.',
     ),
-    lockfileFormat: checked.verified(
-      { installScripts: 'scripts', installScriptsSinceLockfile: '5', sources: null },
+    lockfileFormat: osvFacts.verified(
+      { installScripts: 'scripts', installScriptsSinceLockfile: '5', sources: null, peerSeparator: '_' },
       'https://github.com/denoland/deno/blob/v2.9.8/libs/lockfile/printer.rs',
-      'deno.lock version 5 (the default since Deno 2.3) marks npm packages with lifecycle scripts as scripts: true (hasInstallScript from the registry or a preinstall, install or postinstall script, libs/npm/resolution/graph.rs); version 4 has no such field. tarball is written only for registries other than the default one. Deno rejects git and http(s) dependencies in package.json and keeps file: dependencies out of the lockfile.',
+      'deno.lock version 5 (the default since Deno 2.3) marks npm packages with lifecycle scripts as scripts: true (hasInstallScript from the registry or a preinstall, install or postinstall script, libs/npm/resolution/graph.rs); version 4 has no such field. An npm key is name@version, followed by _ and the versions of its peer dependencies when it has some: libs/lockfile/lib.rs takes the part before the first _ as name@version (key.split_once(\'_\')). tarball is written only for registries other than the default one. Deno rejects git and http(s) dependencies in package.json and keeps file: dependencies out of the lockfile.',
     ),
     durationStrings: verified(
       { since: null, syntax: 'iso8601' },

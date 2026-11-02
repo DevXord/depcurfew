@@ -20,7 +20,9 @@ export type FindingCode =
   | 'yanked'
   | 'archived'
   | 'quarantined'
-  | 'insecure-registry';
+  | 'insecure-registry'
+  /** --osv: OSV.dev has a record of the OpenSSF malicious-packages database for the version (decision D-129). */
+  | 'known-malicious';
 
 export interface CheckFinding {
   level: 'error' | 'warning';

@@ -2,6 +2,7 @@
 // npm devEngines, Volta, asdf) and how GitHub Actions workflows install them.
 import { verifiedOn } from './define.ts';
 import type { EnvironmentKnowledge, UserDirectory } from './types.ts';
+import { osv } from './osv.ts';
 
 const { verified } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -699,6 +700,7 @@ export const environment: EnvironmentKnowledge = {
       'about_Parsing (the source of https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_parsing): on Windows, arguments for batch files are passed as raw command-line strings to cmd.exe, and untrusted input should be passed another way. In the Windows mode of $PSNativeCommandArgumentPassing, the default on Windows since PowerShell 7.3, files ending in .bat or .cmd (also cmd.exe, cscript.exe, wscript.exe, .js, .vbs and .wsf) keep the legacy argument passing of Windows PowerShell 5.1.',
     ),
   },
+  osv,
   python: {
     nameNormalization: python.verified(
       { separators: '[-_.]+', replacement: '-' },

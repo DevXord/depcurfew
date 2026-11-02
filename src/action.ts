@@ -11,7 +11,9 @@ import { messageAtLine } from './cli/directory.ts';
 import { listedAsProject } from './apply/projects.ts';
 import { fileSystemReason, writeChanges } from './apply/workspace.ts';
 import { checkRunName, createCheckRun, fitSummary, type CheckRunContent, type CheckRunFetch } from './action-check-run.ts';
-import { annotationCommands, cleanNotice, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport } from './doctor/index.ts';
+import { annotationCommands, cleanNotice, countLevels, failureSummary, jobSummary, renderText, RULES, runDoctor, toSarif, type DoctorReport, type OsvDoctor } from './doctor/index.ts';
+import { lockedVersions, osvAnswers } from './doctor/osv.ts';
+import type { FetchLike } from './check/registry.ts';
 import { fails, policyFailOn, resolveFailOn, type FailOn, type FailOnSetting } from './doctor/fail-on.ts';
 import { resultCounts } from './doctor/render.ts';
 import { checkRunAnnotationNote, checkRunAnnotations, problemSummary, runMessage } from './doctor/github.ts';
@@ -140,7 +142,37 @@ function unsafeOutput(workspace: string, file: string): string | undefined {
   return lstatSync(file).isFile() ? undefined : `${relative(workspace, file).split(sep).join('/')} is not a regular file`;
 }
 
-export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
+/** The input osv: only "true" sends the locked versions to OSV.dev (decision D-129); undefined for a value that is neither. */
+function osvInput(env: NodeJS.ProcessEnv): boolean | undefined {
+  const value = input(env, 'osv', 'false');
+  return value === 'true' ? true : value === 'false' ? false : undefined;
+}
+
+/**
+ * With the input osv true, the answers of OSV.dev for the locked versions of the directory the action checks, which
+ * runAction passes to doctor; undefined without it, and when the directory or its depcurfew.json cannot be used,
+ * which runAction then reports. main calls it first, because doctor itself reads the repository only.
+ */
+export async function actionOsv(env: NodeJS.ProcessEnv, fetch: FetchLike): Promise<OsvDoctor | undefined> {
+  if (osvInput(env) !== true) return undefined;
+  const workspace = resolve(env['GITHUB_WORKSPACE'] ?? process.cwd());
+  const given = scannedDirectory(workspace, input(env, 'directory', '.'));
+  if (given === undefined) return undefined;
+  const directory = policyDirectory(realpathSync(workspace), given);
+  try {
+    const policy = loadPolicyIfPresent(directory);
+    return await osvAnswers(lockedVersions(directory, { policy: policy ?? null }), { fetch });
+  } catch (error) {
+    if (error instanceof PolicyError) return undefined;
+    throw error;
+  }
+}
+
+/**
+ * `osv`: the answers of actionOsv, used when the input osv is true; without them (a caller that did not ask) every
+ * locked version counts as not checked, so the check does not pass.
+ */
+export function runAction(env: NodeJS.ProcessEnv, io: ActionIo, osv?: OsvDoctor): ActionOutputs {
   const workspace = resolve(env['GITHUB_WORKSPACE'] ?? process.cwd());
   const sarifInput = input(env, 'sarif-file', 'depcurfew.sarif');
   const sarifFile = resolve(workspace, sarifInput);
@@ -167,6 +199,10 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
       `the input fail-on is "${failOnInput}"; set it to error (errors fail the step) or warning (warnings fail it too), or leave it empty to follow doctor.failOn in ${POLICY_FILE} (errors only without it)`,
     );
   }
+  const lookUp = osvInput(env);
+  if (lookUp === undefined) {
+    return fail(`the input osv is "${input(env, 'osv', 'false')}"; set it to true to look the locked package versions up in OSV.dev (api.osv.dev), or to false (the default) to send nothing`);
+  }
   const given = scannedDirectory(workspace, input(env, 'directory', '.'));
   if (given === undefined) return fail(`directory "${input(env, 'directory', '.')}" is not a directory inside the workspace`);
   // A directory without depcurfew.json of its own (one listed in projects) is checked with the nearest policy above it
@@ -185,7 +221,7 @@ export function runAction(env: NodeJS.ProcessEnv, io: ActionIo): ActionOutputs {
   try {
     // The policy is read once, for doctor.failOn and for the rules.
     const policy = loadPolicyIfPresent(directory);
-    report = runDoctor(directory, { policy: policy ?? null });
+    report = runDoctor(directory, { policy: policy ?? null, ...(lookUp ? { osv: osv ?? { answers: new Map() } } : {}) });
     const option = failOnInput === '' ? undefined : { failOn: failOnInput as FailOn, given: `fail-on: ${failOnInput}` };
     // fail-on-error: false keeps the step from failing on findings at all, whatever fail-on says (it came first).
     failOn = enabled(env, 'fail-on-error') ? resolveFailOn(option, { failOn: policyFailOn(policy), file: prefix === '' ? POLICY_FILE : posix.join(prefix, POLICY_FILE) }) : undefined;
@@ -314,10 +350,16 @@ export function formatOutputs(outputs: ActionOutputs): string {
     .join('');
 }
 
-export async function main(env: NodeJS.ProcessEnv = process.env, fetchImpl: CheckRunFetch = (url, init) => fetch(url, init)): Promise<void> {
+export async function main(
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: CheckRunFetch = (url, init) => fetch(url, init),
+  osvFetch: FetchLike = (url, init) => fetch(url, init),
+): Promise<void> {
   const summaryVariable = values(environment.githubActions.stepSummary)[0]?.variable;
   const summaryFile = summaryVariable === undefined ? undefined : env[summaryVariable];
   let checkRun: CheckRunContent | undefined;
+  // With the input osv true only: the locked versions go to OSV.dev before doctor runs (decision D-129).
+  const osv = await actionOsv(env, osvFetch);
   const outputs = runAction(env, {
     log: (text) => process.stdout.write(text),
     summary: (markdown) => {
@@ -326,7 +368,7 @@ export async function main(env: NodeJS.ProcessEnv = process.env, fetchImpl: Chec
     checkRun: (content) => {
       checkRun = content;
     },
-  });
+  }, osv);
   const file = env['GITHUB_OUTPUT'];
   if (file !== undefined && file !== '') appendFileSync(file, formatOutputs(outputs));
   // After the outputs, so that a slow API cannot keep them from the next steps.

@@ -1,0 +1,9 @@
+{
+  "recordedAt": null,
+  "api": "https://api.osv.dev/v1/querybatch",
+  "constructedFrom": [
+    "https://storage.googleapis.com/osv-vulnerabilities/npm/MAL-2026-18458.json",
+    "https://storage.googleapis.com/osv-vulnerabilities/npm/GHSA-xxjr-mmjv-4gpg.json",
+    "https://storage.googleapis.com/osv-vulnerabilities/PyPI/MAL-2026-18443.json"
+  ]
+}

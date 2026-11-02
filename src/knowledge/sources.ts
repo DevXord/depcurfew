@@ -53,6 +53,10 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/pypa/' },
   // PyPI: docs.pypi.org is built from docs/user in pypi/warehouse.
   { host: 'github.com', pathPrefix: '/pypi/' },
+  // OSV.dev (--osv, decision D-129): osv.dev is built from docs/ in google/osv.dev; the OSV schema and the OpenSSF
+  // malicious-packages database are in ossf/osv-schema and ossf/malicious-packages.
+  { host: 'github.com', pathPrefix: '/google/osv.dev/' },
+  { host: 'github.com', pathPrefix: '/ossf/' },
   // CPython: docs.python.org is built from Doc/ in python/cpython.
   { host: 'docs.python.org' },
   { host: 'github.com', pathPrefix: '/python/' },

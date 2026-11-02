@@ -3,6 +3,7 @@ import type { Detection } from '../detect/types.ts';
 import type { PlanOptions } from '../apply/index.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
+import type { OsvPackage, OsvVerdict } from '../check/osv.ts';
 
 /** The SARIF levels: an error fails `doctor`, warnings and notes do not. */
 export type Level = 'error' | 'warning' | 'note';
@@ -82,7 +83,15 @@ export interface RuleContext {
   projects?: readonly ProjectView[];
   /** How apply plans this directory, for the rules that compare with that plan (config-drift). */
   plan?: PlanOptions;
+  /** doctor --osv (decision D-129): absent without it; see OsvDoctor. */
+  osv?: OsvDoctor;
 }
+
+/**
+ * What known-malicious gets with --osv: a list to fill with the locked versions (the first run, before OSV.dev is
+ * asked), or the answers of OSV.dev by osvKey (the second run, which reports).
+ */
+export type OsvDoctor = { collect: OsvPackage[] } | { answers: ReadonlyMap<string, OsvVerdict> };
 
 /** A directory listed in projects, as the rules at the repository root see it. */
 export interface ProjectView {

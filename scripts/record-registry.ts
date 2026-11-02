@@ -2,15 +2,18 @@
 // in tests/fixtures/registry/ and Python index pages in tests/fixtures/pypi/. Each npm document is cut down to what
 // check reads: dist-tags, the publish times and, for the kept versions, scripts and deprecated. Each index page keeps
 // its versions and status and, for the kept versions, the name, upload time and yanked state of each file. A name the
-// registry or index does not know is recorded as a 404.
-// Run by hand with network access: npm run record:registry
-import { mkdirSync, writeFileSync } from 'node:fs';
+// registry or index does not know is recorded as a 404. With osv it also sends the queries of
+// tests/fixtures/osv/querybatch.json to the batch endpoint of OSV.dev (one POST, read-only) and writes the answer next
+// to them, for the tests of --osv (decision D-129).
+// Run by hand with network access: npm run record:registry (npm, PyPI and OSV.dev), or -- npm, -- pypi or -- osv for one.
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { values } from '../src/apply/facts.ts';
 import { defaultRegistry, packumentUrl } from '../src/check/registry.ts';
 import { environment } from '../src/knowledge/environment.ts';
 import { defaultIndex, fileVersion, projectUrl } from '../src/check/pypi.ts';
 import { normalizePythonName } from '../src/policy/python-names.ts';
+import { osvBatchUrl } from '../src/check/osv.ts';
 
 /** name, or name@version to keep that version besides the newest ones. */
 const PACKAGES = ['lodash', 'esbuild', 'request', '@types/node', 'cross-env', 'crossenv', 'this-package-does-not-exist-xyz-123'];
@@ -22,6 +25,7 @@ type Json = Record<string, unknown>;
 
 const target = new URL('../tests/fixtures/registry/', import.meta.url);
 const pythonTarget = new URL('../tests/fixtures/pypi/', import.meta.url);
+const osvTarget = new URL('../tests/fixtures/osv/', import.meta.url);
 
 function fileName(name: string): string {
   return `${name.replace('/', '__')}.json`;
@@ -110,15 +114,35 @@ async function recordNpm(): Promise<void> {
   console.log(`Recorded ${PACKAGES.length} responses in ${fileURLToPath(target)}`);
 }
 
+/**
+ * The answer of OSV.dev for the queries in querybatch.json, kept with them; recorded.json gets the date and no longer
+ * names the records a response was put together from.
+ */
+async function recordOsv(): Promise<void> {
+  const file = new URL('querybatch.json', osvTarget);
+  const { queries } = JSON.parse(readFileSync(file, 'utf8')) as { queries: unknown[] };
+  const response = await fetch(osvBatchUrl(), { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ queries }) });
+  if (!response.ok) throw new Error(`${osvBatchUrl()} answered HTTP ${response.status}`);
+  const answer = (await response.json()) as Json;
+  writeFileSync(file, `${JSON.stringify({ queries, response: answer }, null, 2)}\n`);
+  writeFileSync(new URL('recorded.json', osvTarget), `${JSON.stringify({ recordedAt: new Date().toISOString(), api: osvBatchUrl() }, null, 2)}\n`);
+  console.log(`Recorded the answer to ${queries.length} queries in ${fileURLToPath(osvTarget)}`);
+}
+
 async function main(): Promise<void> {
   const only = process.argv[2];
-  if (only !== undefined && only !== 'npm' && only !== 'pypi') throw new Error(`unknown registry '${only}'; use npm or pypi`);
+  if (only !== undefined && only !== 'npm' && only !== 'pypi' && only !== 'osv') throw new Error(`unknown registry '${only}'; use npm, pypi or osv`);
+  if (only === 'osv') {
+    await recordOsv();
+    return;
+  }
   if (only !== 'pypi') await recordNpm();
   if (only !== 'npm') {
     const python = await recordPython();
     writeFileSync(new URL('recorded.json', pythonTarget), `${JSON.stringify({ recordedAt: new Date().toISOString(), index: defaultIndex(), status: python }, null, 2)}\n`);
     console.log(`Recorded ${Object.keys(python).length} responses in ${fileURLToPath(pythonTarget)}`);
   }
+  if (only === undefined) await recordOsv();
 }
 
 main().catch((error: unknown) => {

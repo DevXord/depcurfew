@@ -14,9 +14,10 @@ import type { CheckFinding, CheckRequest, FindingCode, PackageReport } from './f
 import { mayTurnWorkspacesOff } from './registry-settings.ts';
 import { REGISTRY_RETRY_FIX } from './index.ts';
 import { INDEX_RETRY_FIX } from './python.ts';
+import { OSV_RETRY_FIX } from './osv.ts';
 
 /** Findings that break the policy outright; other errors only mean that depcurfew cannot vouch for the package. */
-const DENY: ReadonlySet<FindingCode> = new Set(['forbidden-source', 'not-found', 'no-version', 'too-young', 'install-scripts', 'quarantined']);
+const DENY: ReadonlySet<FindingCode> = new Set(['forbidden-source', 'not-found', 'no-version', 'too-young', 'install-scripts', 'quarantined', 'known-malicious']);
 
 /** A decision, or none; `context` is text for Claude next to the tool result (the warnings), whatever the decision. */
 export type HookDecision = ({ decision: 'deny' | 'ask'; reason: string } | { decision: 'none' }) & { context?: string };
@@ -153,6 +154,12 @@ export const POLICY_IS_THE_USERS = 'Choose another package or version. Only the 
 export const LOOKUP_IS_THE_USERS =
   "Do not install it before it is checked. Which registry and index depcurfew asks is the user's setting (.npmrc, or --registry and --index of depcurfew), not the agent's: try again later if the registry was only unreachable, otherwise tell the user";
 
+/**
+ * What an agent is told when OSV.dev did not answer (--osv, decision D-129): the package is not checked, and the
+ * options of the hook and of depcurfew mcp are the user's.
+ */
+export const OSV_IS_THE_USERS = 'Do not install it before it is checked: try again later, and tell the user if api.osv.dev stays out of reach';
+
 /** What an agent is told instead of "Use an https:// URL": the URL is the user's setting too. */
 export const INSECURE_IS_THE_USERS = "The URL of the registry or index is the user's setting (.npmrc, or --registry and --index of depcurfew): tell the user, who can switch it to an https:// URL";
 
@@ -178,6 +185,7 @@ export function agentFix(fix: string, code?: string): string | undefined {
   if (fix.startsWith(UNREAD_REGISTRY_FIX_START)) return UNREAD_REGISTRY_IS_THE_USERS;
   if (fix.includes('depcurfew.json')) return undefined;
   if (code === 'insecure-registry') return INSECURE_IS_THE_USERS;
+  if (code === 'unverified' && fix === OSV_RETRY_FIX) return OSV_IS_THE_USERS;
   if (code === 'unverified' && aboutLookups(fix)) return LOOKUP_IS_THE_USERS;
   const sets = SETS_CONFIGURATION.exec(fix);
   if (sets !== null) return `Ask the user to set ${sets[1]} in ${sets[2]}${sets[3]}. Do not change ${sets[2]} yourself`;

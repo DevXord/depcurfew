@@ -6,7 +6,8 @@
 import { isRecord, values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 
-export type FetchLike = (url: string, init: { headers: Record<string, string>; signal: AbortSignal; redirect?: 'manual' }) => Promise<Response>;
+/** fetch as depcurfew calls it: a GET of a registry or index, or the POST of a batch query to OSV.dev (--osv, decision D-129). */
+export type FetchLike = (url: string, init: { headers: Record<string, string>; signal: AbortSignal; redirect?: 'manual'; method?: 'POST'; body?: string }) => Promise<Response>;
 
 export interface VersionDocument {
   version: string;

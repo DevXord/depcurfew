@@ -6,6 +6,7 @@ import { depcurfewOutdated } from './depcurfew-outdated.ts';
 import { settingIgnoredByVersion } from './ignored-setting.ts';
 import { invalidPolicy } from './invalid-policy.ts';
 import { invalidProject } from './invalid-project.ts';
+import { knownMalicious } from './known-malicious.ts';
 import { lockfileForbiddenSource, lockfileInstallScripts } from './lockfile.ts';
 import { lockfileOutOfDate } from './lockfile-out-of-date.ts';
 import { managerVersionTooOld } from './manager-version.ts';
@@ -31,5 +32,6 @@ export const RULES: readonly Rule[] = [
   lockfileForbiddenSource,
   lockfileInstallScripts,
   lockfileOutOfDate,
+  knownMalicious,
   unreadableConfig,
 ];

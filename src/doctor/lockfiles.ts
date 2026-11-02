@@ -37,6 +37,8 @@ export interface LockEntry {
   line?: number;
   /** A requirement without a package name (a bare URL or path): `name` is its location, and no allow-list matches it. */
   unnamed?: boolean;
+  /** The exact version of a package from a registry, when the lockfile pins one (doctor --osv, decision D-129). */
+  version?: string;
 }
 
 export interface Lockfile {
@@ -91,6 +93,11 @@ export function splitSpec(key: string): { name: string; spec: string } {
 
 const HTTP = /^https?:\/\//u;
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
+
+/** `{ version }` for an exact version of a registry package, else nothing: what doctor --osv looks up. */
+function exactVersion(source: Source, version: string | undefined): { version: string } | Record<string, never> {
+  return source === 'registry' && version !== undefined && EXACT_VERSION.test(version) ? { version } : {};
+}
 
 /** Where npm installs the dependency `name` of the package at `from`: its own node_modules, else the nearest parent's. */
 function installedAt(packages: Format, from: string, name: string): string | undefined {
@@ -175,7 +182,7 @@ function npmEntries(text: string, format: Format, workspaces: readonly string[],
       source = registry.test(spec) && !fromUrl.has(key) && !overridden ? 'registry' : 'remoteTarball';
     }
     else if (resolved === '' && (spec === '' || EXACT_VERSION.test(spec))) source = 'registry';
-    entries.push({ name, spec, source, installScript: value[scriptsKey] === true, anchor: `${JSON.stringify(key)}: {` });
+    entries.push({ name, spec, source, installScript: value[scriptsKey] === true, anchor: `${JSON.stringify(key)}: {`, ...exactVersion(source, version) });
   }
   return entries;
 }
@@ -213,7 +220,8 @@ function pnpmEntries(text: string, format: Format, documents: Format | undefined
     else if (resolution['type'] === format['directoryType']) source = 'directory';
     else if (spec.startsWith('file:')) source = 'file';
     else if (HTTP.test(spec)) source = 'remoteTarball';
-    entries.push({ name, spec, source, installScript: undefined, anchor: key });
+    // A registry package is name@version; a key may carry a suffix in parentheses (peers, a patch hash).
+    entries.push({ name, spec, source, installScript: undefined, anchor: key, ...exactVersion(source, spec.split('(', 1)[0]) });
   }
   // link: dependencies other than workspace: ones are local directories, listed only under importers.
   const importers = isRecord(document['importers']) ? document['importers'] : {};
@@ -258,7 +266,9 @@ function yarnEntries(text: string, format: Format): LockEntry[] {
     .map(([, value]) => {
       const resolution = (value as Record<string, unknown>)['resolution'] as string;
       const { name, spec } = splitSpec(resolution);
-      return { name, spec, source: yarnSource(spec, format), installScript: undefined, anchor: `resolution: "${resolution}"` };
+      const source = yarnSource(spec, format);
+      const version = (value as Record<string, unknown>)['version'];
+      return { name, spec, source, installScript: undefined, anchor: `resolution: "${resolution}"`, ...exactVersion(source, typeof version === 'string' ? version : undefined) };
     });
 }
 
@@ -278,7 +288,7 @@ function bunEntries(text: string, format: Format): LockEntry[] {
     else if (HTTP.test(spec)) source = 'remoteTarball';
     else if (/^(\.{1,2}\/|\/)/u.test(spec) && tarball.test(spec)) source = 'file';
     const info = (value as unknown[]).find((item) => isRecord(item));
-    entries.push({ name, spec, source, installScript: isRecord(info) && info[scriptsKey] === true, anchor: `${JSON.stringify(key)}: [` });
+    entries.push({ name, spec, source, installScript: isRecord(info) && info[scriptsKey] === true, anchor: `${JSON.stringify(key)}: [`, ...exactVersion(source, spec) });
   }
   return entries;
 }
@@ -291,7 +301,16 @@ function denoEntries(text: string, format: Format): { entries: LockEntry[]; reco
   const scriptsKey = String(format['installScripts']);
   const entries = Object.entries(npm).map(([key, value]): LockEntry => {
     const { name, spec } = splitSpec(key);
-    return { name, spec, source: 'registry', installScript: recordsScripts ? isRecord(value) && value[scriptsKey] === true : undefined, anchor: `${JSON.stringify(key)}: {` };
+    // name@version, with the separator and the versions of its peer dependencies when it has some.
+    const peers = typeof format['peerSeparator'] === 'string' ? format['peerSeparator'] : undefined;
+    return {
+      name,
+      spec,
+      source: 'registry',
+      installScript: recordsScripts ? isRecord(value) && value[scriptsKey] === true : undefined,
+      anchor: `${JSON.stringify(key)}: {`,
+      ...exactVersion('registry', peers === undefined ? spec : spec.split(peers, 1)[0]),
+    };
   });
   return { entries, recordsScripts };
 }

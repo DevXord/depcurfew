@@ -786,6 +786,65 @@ export interface ProjectStatusKnowledge {
   warned: readonly string[];
 }
 
+/** The batch query of the OSV.dev API (decision D-129): where to send it, how its JSON is spelled, and its limit. */
+export interface OsvApiKnowledge {
+  /** Base URL of the API. */
+  url: string;
+  queryBatchPath: string;
+  /** GET: one record by id ({id}). */
+  vulnerabilityPath: string;
+  /** The web page of a record ({id}). */
+  recordPage: string;
+  queriesField: string;
+  resultsField: string;
+  vulnsField: string;
+  idField: string;
+  /** A result with more pages carries this token; the next request sends it back as pageTokenField of that query. */
+  nextPageTokenField: string;
+  pageTokenField: string;
+  /** Most queries in one batch request. */
+  maxQueriesPerBatch: number;
+}
+
+/** When a batch result is paged: more vulnerabilities than these for one query, or for the whole batch. */
+export interface OsvPagingKnowledge {
+  perQuery: number;
+  perBatch: number;
+}
+
+/** What OSV.dev promises about its service: no rate limit (null), how fresh the data is, the largest response over HTTP/1.1. */
+export interface OsvServiceKnowledge {
+  rateLimit: number | null;
+  freshnessMinutes: number;
+  freshnessShare: number;
+  responseLimitBytes: number;
+}
+
+/** Withdrawn records: the field that marks them, and which responses still carry them. */
+export interface OsvWithdrawnKnowledge {
+  field: string;
+  inQueryResponses: boolean;
+  inRecordResponses: boolean;
+}
+
+/** The records of known malicious packages in OSV.dev: their id prefix and where they come from. */
+export interface OsvMaliciousKnowledge {
+  idPrefix: string;
+  database: string;
+  license: string;
+}
+
+/** OSV.dev, asked about known malicious package versions with --osv (decision D-129). */
+export interface OsvKnowledge {
+  api: Fact<OsvApiKnowledge>;
+  paging: Fact<OsvPagingKnowledge>;
+  service: Fact<OsvServiceKnowledge>;
+  withdrawn: Fact<OsvWithdrawnKnowledge>;
+  malicious: Fact<OsvMaliciousKnowledge>;
+  /** The OSV ecosystem name of each ecosystem of depcurfew (npm, pypi, ...). */
+  ecosystems: Fact<Readonly<Record<string, string>>>;
+}
+
 /** Claude Code hooks that run before a tool call and can block it (used by depcurfew check --hook claude-code). */
 export interface ClaudeCodeHooksKnowledge {
   /** Project settings file that can be committed. */
@@ -1265,6 +1324,8 @@ export interface EnvironmentKnowledge {
     /** Files whose arguments PowerShell hands to cmd.exe as a raw command line. */
     batchArguments: Fact<{ extensions: readonly string[] }>;
   };
+  /** OSV.dev, for --osv (decision D-129). */
+  osv: OsvKnowledge;
   python: {
     /** How Python package names are compared: lowercased, with every run of these characters replaced by `replacement`. */
     nameNormalization: Fact<{ separators: string; replacement: string }>;

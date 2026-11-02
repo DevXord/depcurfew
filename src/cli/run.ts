@@ -199,12 +199,24 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
     if (failOn === 'error' && values['strict'] === true) {
       return usage("'--strict' and '--fail-on error' cannot be used together: --strict means --fail-on warning, so pass only one of them", "Run 'depcurfew doctor --help' for usage.");
     }
+    // The user files hold no lockfile, so --osv has nothing to look up there (decision D-129).
+    if (values['osv'] === true && values['user'] === true) {
+      return usage('--osv checks the lockfiles of a project and doctor --user reads none; run depcurfew doctor --osv in the project', "Run 'depcurfew doctor --help' for usage.");
+    }
     const user = userOptions(values, rest, command.name, usage, dependencies);
     if (user === 'usage') return EXIT_USAGE;
     return doctor(
       rest[0],
-      { json: values['json'] === true, sarif: values['sarif'] === true, strict: values['strict'] === true, ...(failOn === undefined ? {} : { failOn }), ...(user === undefined ? {} : { user }) },
+      {
+        json: values['json'] === true,
+        sarif: values['sarif'] === true,
+        strict: values['strict'] === true,
+        ...(failOn === undefined ? {} : { failOn }),
+        ...(user === undefined ? {} : { user }),
+        ...(values['osv'] === true ? { osv: true } : {}),
+      },
       io,
+      { fetch: dependencies.fetch },
     );
   }
   // --registry and --index are URLs; anything else would only fail as a registry that cannot be reached (decision D-113).
@@ -230,13 +242,13 @@ export async function run(argv: readonly string[], output: CliIo, dependencies: 
     if (hook !== undefined && !(HOOKS as readonly string[]).includes(hook)) return usage(`unknown hook '${hook}'; the hooks are ${HOOKS.join(', ')}`, "Run 'depcurfew check --help' for usage.");
     if (hook === undefined && rest.length === 0) return usage("'check' needs at least one package, e.g. depcurfew check lodash@4", "Run 'depcurfew check --help' for usage.");
     if (hook !== undefined && rest.length > 0) return usage("'--hook' reads the command from stdin and takes no packages", "Run 'depcurfew check --help' for usage.");
-    return check(rest, { json: values['json'] === true, dir: text('dir'), registry: text('registry'), index: text('index'), hook: text('hook') }, io, dependencies);
+    return check(rest, { json: values['json'] === true, dir: text('dir'), registry: text('registry'), index: text('index'), hook: text('hook'), ...(values['osv'] === true ? { osv: true } : {}) }, io, dependencies);
   }
   if (command.name === 'mcp') {
     if (rest.length > 0) {
       return usage("'mcp' takes no arguments; pass the project directory with --dir", "Run 'depcurfew mcp --help' for usage.");
     }
-    return mcp({ dir: text('dir'), registry: text('registry'), index: text('index') }, io, {
+    return mcp({ dir: text('dir'), registry: text('registry'), index: text('index'), ...(values['osv'] === true ? { osv: true } : {}) }, io, {
       fetch: dependencies.fetch,
       now: dependencies.now,
       ...(dependencies.home === undefined ? {} : { home: dependencies.home }),

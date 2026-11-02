@@ -1,0 +1,308 @@
+// --osv: known malicious package versions from OSV.dev (decision D-129). check, the Claude Code hook and depcurfew mcp
+// look up the version the install picks; doctor looks up every locked version. One POST to the batch endpoint per
+// 1000 versions (the limit of the API), the pages of a paged result followed, and only records of the OpenSSF
+// malicious-packages database (ids starting with MAL-) count: other records are vulnerabilities, which npm audit and
+// its kind report. Withdrawn records are left out of query answers by OSV.dev, and skipped here should one come. A
+// version OSV.dev did not answer for (no network, an error, a redirect, an answer that is too large or not a batch
+// result, pages that do not end) stays unchecked with the reason, never clean. Only the name, the ecosystem and the
+// version are sent, and nothing at all without --osv.
+import { isRecord, values } from '../apply/facts.ts';
+import { osv as facts } from '../knowledge/osv.ts';
+import type { OsvApiKnowledge } from '../knowledge/types.ts';
+import { normalizePythonName } from '../policy/python-names.ts';
+import type { CheckFinding, PackageReport } from './findings.ts';
+import { cachedLookup, readLimited, requestSignal, type FetchLike, type LookupCache } from './registry.ts';
+
+/** A package version to look up; `ecosystem` is depcurfew's (npm, pypi), the prefix of a package name in the policy. */
+export interface OsvPackage {
+  ecosystem: string;
+  name: string;
+  version: string;
+}
+
+/** What OSV.dev says about one version: the ids of its MAL- records (none: no known malware), or why it was not checked. */
+export type OsvVerdict = { status: 'checked'; malicious: string[] } | { status: 'unchecked'; reason: string };
+
+export interface OsvOptions {
+  fetch: FetchLike;
+  signal?: AbortSignal | undefined;
+  /** Per request; OSV_TIMEOUT_MS when left out. */
+  timeoutMs?: number;
+  /** Largest answer read; the response limit of OSV.dev over HTTP/1.1 when left out. */
+  maxBytes?: number;
+  /** Most distinct versions looked up in one run; the others stay unchecked. MAX_OSV_PACKAGES when left out. */
+  limit?: number;
+}
+
+/**
+ * Most distinct package versions one run asks about: 20 batch requests. A lockfile of a large monorepo locks a few
+ * thousand; more is a repository built to keep doctor waiting, and the rest is reported as not checked.
+ */
+export const MAX_OSV_PACKAGES = 20_000;
+/** Most requests for the pages of one batch; OSV.dev pages a query only past 1000 records, or a batch past 3000. */
+export const MAX_OSV_PAGES = 10;
+/** Time for one batch request: OSV.dev aims at 6 s for 95% of them, and a paged query may take 20 s before it pages. */
+export const OSV_TIMEOUT_MS = 30_000;
+/** Longest record id kept, and most records named in one message. */
+const MAX_ID_LENGTH = 100;
+const MAX_IDS_SHOWN = 5;
+
+/** What to do when OSV.dev did not answer, for a person at the command line. */
+export const OSV_RETRY_FIX = 'Run depcurfew check again when api.osv.dev can be reached; --osv needs HTTPS access to it';
+
+function api(): OsvApiKnowledge {
+  const fact = values(facts.api)[0];
+  if (fact === undefined) throw new Error('the knowledge base has no OSV.dev API fact');
+  return fact;
+}
+
+/** The URL of the batch query endpoint. */
+export function osvBatchUrl(): string {
+  return `${api().url}${api().queryBatchPath}`;
+}
+
+/** The host depcurfew sends the queries to, for messages. */
+export function osvHost(): string {
+  return new URL(api().url).host;
+}
+
+/** The page of a record on osv.dev. */
+export function osvRecordPage(id: string): string {
+  return api().recordPage.replace('{id}', encodeURIComponent(id));
+}
+
+/** The name OSV.dev gives an ecosystem of depcurfew, or undefined when the knowledge base has none. */
+export function osvEcosystem(ecosystem: string): string | undefined {
+  const names = values(facts.ecosystems)[0] ?? {};
+  return Object.hasOwn(names, ecosystem) ? names[ecosystem] : undefined;
+}
+
+function malwarePrefix(): string {
+  return values(facts.malicious)[0]?.idPrefix ?? 'MAL-';
+}
+
+function withdrawnField(): string {
+  return values(facts.withdrawn)[0]?.field ?? 'withdrawn';
+}
+
+/** Two spellings of one Python name are one package (PEP 503), as OSV.dev matches them. */
+function comparedName(pkg: OsvPackage): string {
+  return pkg.ecosystem === 'pypi' ? normalizePythonName(pkg.name) : pkg.name;
+}
+
+/** One key per package version, for the cache and for the answers of doctor. */
+export function osvKey(pkg: OsvPackage): string {
+  return `${pkg.ecosystem}\u0000${comparedName(pkg)}\u0000${pkg.version}`;
+}
+
+interface Query {
+  package: { name: string; ecosystem: string };
+  version: string;
+  page_token?: string;
+}
+
+/** Why a batch request failed, or its results (one per query, in their order). */
+type BatchAnswer = { results: { ids: string[]; token: string | undefined }[] } | { reason: string };
+
+const NOT_A_BATCH = 'something that is not a batch result';
+
+/** The MAL- ids of one result and its page token, or undefined when the result is not one OSV.dev sends. */
+function readResult(result: unknown, fields: OsvApiKnowledge): { ids: string[]; token: string | undefined } | undefined {
+  if (!isRecord(result)) return undefined;
+  const vulns = result[fields.vulnsField] ?? [];
+  if (!Array.isArray(vulns)) return undefined;
+  const ids: string[] = [];
+  for (const vuln of vulns) {
+    if (!isRecord(vuln) || typeof vuln[fields.idField] !== 'string') return undefined;
+    // OSV.dev leaves withdrawn records out of query answers; one that comes anyway is not reported.
+    if (vuln[withdrawnField()] !== undefined && vuln[withdrawnField()] !== null) continue;
+    const id = vuln[fields.idField] as string;
+    // Record ids are short (MAL-2026-18458); a longer one is cut, so that an answer cannot fill the messages.
+    if (id.startsWith(malwarePrefix())) ids.push(id.slice(0, MAX_ID_LENGTH));
+  }
+  const token = result[fields.nextPageTokenField];
+  return { ids, token: typeof token === 'string' && token !== '' ? token : undefined };
+}
+
+async function postBatch(queries: readonly Query[], options: OsvOptions): Promise<BatchAnswer> {
+  const fields = api();
+  const host = osvHost();
+  let response: Response;
+  try {
+    response = await options.fetch(osvBatchUrl(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ [fields.queriesField]: queries }),
+      // A redirect is not followed: the answer must come from OSV.dev itself.
+      redirect: 'manual',
+      signal: requestSignal(options.timeoutMs ?? OSV_TIMEOUT_MS, options.signal),
+    });
+  } catch (error) {
+    if (options.signal?.aborted === true) throw options.signal.reason;
+    const timedOut = error instanceof Error && error.name === 'TimeoutError';
+    return { reason: timedOut ? `${host} did not answer in time` : `${host} cannot be reached (${error instanceof Error ? error.message : String(error)})` };
+  }
+  const location = response.headers.get('location');
+  if (response.status >= 300 && response.status < 400 && location !== null) {
+    await response.body?.cancel();
+    let origin = location;
+    try {
+      origin = new URL(location, osvBatchUrl()).origin;
+    } catch {
+      // An invalid location is named as it is.
+    }
+    return { reason: `${host} redirected to ${origin}, which depcurfew does not follow` };
+  }
+  if (!response.ok) {
+    await response.body?.cancel();
+    return { reason: `${host} answered HTTP ${response.status}` };
+  }
+  const limit = options.maxBytes ?? values(facts.service)[0]?.responseLimitBytes ?? 32 * 1024 * 1024;
+  let document: unknown;
+  try {
+    document = JSON.parse(await readLimited(response, limit)) as unknown;
+  } catch (error) {
+    // The time limit and the caller's signal cover reading the answer too.
+    if (options.signal?.aborted === true) throw options.signal.reason;
+    if (error instanceof Error && error.name === 'TimeoutError') return { reason: `${host} did not answer in time` };
+    if (error instanceof Error && error.message.startsWith('the document is larger than')) return { reason: `the answer of ${host} is larger than ${limit / (1024 * 1024)} MiB` };
+    return { reason: `${host} answered ${NOT_A_BATCH}` };
+  }
+  const results = isRecord(document) ? document[fields.resultsField] : undefined;
+  if (!Array.isArray(results) || results.length !== queries.length) return { reason: `${host} answered ${NOT_A_BATCH}` };
+  const read = results.map((result) => readResult(result, fields));
+  if (read.some((entry) => entry === undefined)) return { reason: `${host} answered ${NOT_A_BATCH}` };
+  return { results: read as { ids: string[]; token: string | undefined }[] };
+}
+
+/**
+ * One batch of at most maxQueriesPerBatch versions, with its pages: the queries that came back with a token are sent
+ * again with it, until none has one. When the first request fails, the reason alone, so that the caller stops.
+ */
+async function lookUpBatch(batch: readonly Query[], options: OsvOptions): Promise<OsvVerdict[] | { reason: string }> {
+  const fields = api();
+  const found: string[][] = batch.map(() => []);
+  let pending = batch.map((query, index) => ({ index, query }));
+  for (let page = 0; pending.length > 0; page++) {
+    if (page >= MAX_OSV_PAGES) {
+      const verdicts: OsvVerdict[] = found.map((ids) => ({ status: 'checked', malicious: ids }));
+      for (const { index } of pending) verdicts[index] = { status: 'unchecked', reason: `OSV.dev answered more than ${MAX_OSV_PAGES} pages for it` };
+      return verdicts;
+    }
+    const answer = await postBatch(
+      pending.map(({ query }) => query),
+      options,
+    );
+    if ('reason' in answer) {
+      if (page === 0) return answer;
+      // A later page failed: the versions still waiting for it are not checked; the others are.
+      const verdicts: OsvVerdict[] = found.map((ids) => ({ status: 'checked', malicious: ids }));
+      for (const { index } of pending) verdicts[index] = { status: 'unchecked', reason: answer.reason };
+      return verdicts;
+    }
+    const next: typeof pending = [];
+    answer.results.forEach((result, position) => {
+      const entry = pending[position] as (typeof pending)[number];
+      found[entry.index]?.push(...result.ids.filter((id) => !found[entry.index]?.includes(id)));
+      if (result.token !== undefined) next.push({ index: entry.index, query: { ...batch[entry.index], [fields.pageTokenField]: result.token } as Query });
+    });
+    pending = next;
+  }
+  return found.map((ids) => ({ status: 'checked', malicious: ids }));
+}
+
+/**
+ * What OSV.dev says about each package version, in the order given. Each distinct version is asked about once; the
+ * batches go one after the other, and once one fails the rest is not asked (OSV.dev is out of reach, or answers
+ * wrong), so every version left is unchecked with that reason. When `options.signal` aborts, the promise rejects.
+ */
+export async function queryOsv(packages: readonly OsvPackage[], options: OsvOptions): Promise<OsvVerdict[]> {
+  const limit = options.limit ?? MAX_OSV_PACKAGES;
+  const verdicts = new Map<string, OsvVerdict>();
+  const distinct: { key: string; query: Query }[] = [];
+  const queued = new Set<string>();
+  for (const pkg of packages) {
+    const key = osvKey(pkg);
+    if (verdicts.has(key) || queued.has(key)) continue;
+    const ecosystem = osvEcosystem(pkg.ecosystem);
+    if (ecosystem === undefined) {
+      verdicts.set(key, { status: 'unchecked', reason: `depcurfew does not know the name OSV.dev gives the ecosystem ${pkg.ecosystem}` });
+      continue;
+    }
+    if (distinct.length >= limit) {
+      verdicts.set(key, { status: 'unchecked', reason: `there are more than ${limit} package versions to check, and depcurfew asks OSV.dev about at most ${limit} in one run` });
+      continue;
+    }
+    queued.add(key);
+    distinct.push({ key, query: { package: { name: pkg.name, ecosystem }, version: pkg.version } });
+  }
+  const size = Math.max(1, api().maxQueriesPerBatch);
+  let failed: string | undefined;
+  for (let start = 0; start < distinct.length; start += size) {
+    const batch = distinct.slice(start, start + size);
+    const answer = failed === undefined ? await lookUpBatch(batch.map((entry) => entry.query), options) : { reason: failed };
+    if ('reason' in answer) {
+      failed = answer.reason;
+      for (const entry of batch) verdicts.set(entry.key, { status: 'unchecked', reason: answer.reason });
+      continue;
+    }
+    batch.forEach((entry, index) => verdicts.set(entry.key, answer[index] as OsvVerdict));
+  }
+  return packages.map((pkg) => verdicts.get(osvKey(pkg)) as OsvVerdict);
+}
+
+/** The ids of the records with their pages: MAL-2026-1 (https://osv.dev/vulnerability/MAL-2026-1), …, at most five. */
+export function linkedIds(ids: readonly string[]): string {
+  const shown = ids.slice(0, MAX_IDS_SHOWN).map((id) => `${id} (${osvRecordPage(id)})`);
+  const more = ids.length - MAX_IDS_SHOWN;
+  return more > 0 ? `${shown.join(', ')} and ${more} more ${more === 1 ? 'record' : 'records'}` : shown.join(', ');
+}
+
+/** How a version of a package is written in a message: name@1.2.3, and for Python name==1.2.3 as pip takes it. */
+export function versionLabel(ecosystem: string, name: string, version: string): string {
+  return `${name}${ecosystem === 'pypi' ? '==' : '@'}${version}`;
+}
+
+/** The ecosystem of a checked package name and the name OSV.dev knows: the policy prefix (pypi:) is left out. */
+function packageOf(report: PackageReport): OsvPackage | undefined {
+  if (report.kind !== 'registry' || report.name === undefined || report.version === undefined) return undefined;
+  const colon = report.name.indexOf(':');
+  const prefix = colon > 0 && !report.name.startsWith('@') ? report.name.slice(0, colon) : undefined;
+  return prefix === undefined
+    ? { ecosystem: 'npm', name: report.name, version: report.version }
+    : { ecosystem: prefix, name: report.name.slice(colon + 1), version: report.version };
+}
+
+/**
+ * Looks up the version each report picked and adds what OSV.dev says: a MAL- record is an error (known-malicious, first
+ * among the findings), a version OSV.dev did not answer for is unverified. Versions are looked up once per run, also
+ * across the checks of one hook command (`lookups`).
+ */
+export async function addOsvFindings(reports: readonly PackageReport[], options: OsvOptions & { lookups?: LookupCache | undefined }): Promise<void> {
+  const wanted = reports.map((report) => ({ report, pkg: packageOf(report) })).filter((entry): entry is { report: PackageReport; pkg: OsvPackage } => entry.pkg !== undefined);
+  if (wanted.length === 0) return;
+  const cacheKey = (pkg: OsvPackage) => `osv\u0000${osvKey(pkg)}`;
+  const missing = wanted.filter(({ pkg }) => options.lookups?.has(cacheKey(pkg)) !== true).map(({ pkg }) => pkg);
+  const batch = missing.length === 0 ? Promise.resolve([]) : queryOsv(missing, options);
+  const position = new Map(missing.map((pkg, index) => [osvKey(pkg), index] as const).reverse());
+  const verdicts = await Promise.all(wanted.map(({ pkg }) => cachedLookup(options.lookups, cacheKey(pkg), async () => (await batch)[position.get(osvKey(pkg)) ?? -1] as OsvVerdict)));
+  wanted.forEach(({ report, pkg }, index) => {
+    const verdict = verdicts[index] as OsvVerdict;
+    const finding = osvFinding(report.name ?? pkg.name, pkg, verdict);
+    if (finding !== undefined) report.findings.unshift(finding);
+  });
+}
+
+/** The finding of one checked version: known-malicious for MAL- records, unverified when OSV.dev did not answer. */
+function osvFinding(name: string, pkg: OsvPackage, verdict: OsvVerdict): CheckFinding | undefined {
+  if (verdict.status === 'unchecked') {
+    return { level: 'error', code: 'unverified', message: `it was not checked for known malicious versions in OSV.dev: ${verdict.reason}`, fix: OSV_RETRY_FIX };
+  }
+  if (verdict.malicious.length === 0) return undefined;
+  return {
+    level: 'error',
+    code: 'known-malicious',
+    message: `${versionLabel(pkg.ecosystem, name, pkg.version)} is a known malicious version: OSV.dev lists it as ${linkedIds(verdict.malicious)}`,
+    fix: 'Do not install it; pick another package or version. If it is installed anywhere already, remove it and read the record on OSV.dev for what it does',
+  };
+}

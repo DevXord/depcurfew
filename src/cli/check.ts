@@ -19,6 +19,7 @@ import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEve
 import { missingDirectory, notVirtualEnvironment, overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal, type LookupCache } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
+import { addOsvFindings } from '../check/osv.ts';
 import { hasRegistrySettings, MAX_CONFIG_SIZE, npmrcSettings, sameRegistry, toolRegistrySettings, type NpmrcSettings, type SkippedFile, type UnreadSetting, type WrittenSetting } from '../check/registry-settings.ts';
 import { quoted } from '../check/findings.ts';
 import { PopularNames } from '../check/similar.ts';
@@ -64,6 +65,8 @@ export interface CheckFlags {
   index?: string | undefined;
   dir: string | undefined;
   hook: string | undefined;
+  /** --osv: look the version each install picks up in OSV.dev for known malicious versions (decision D-129). */
+  osv?: boolean;
 }
 
 function defaultPolicy(): ResolvedPolicy {
@@ -475,6 +478,8 @@ export interface RunSettings {
   index?: string | undefined;
   /** Lookups shared with other checks of the same command (the hook's installs in several directories). */
   lookups?: LookupCache;
+  /** --osv: the versions picked are looked up in OSV.dev too (decision D-129); nothing is sent to it without. */
+  osv?: boolean;
 }
 
 /**
@@ -530,6 +535,8 @@ export async function checkApplied(requests: readonly CheckRequest[], applied: A
     report.findings = report.findings.filter((candidate) => !MISSING.has(candidate.code));
     report.findings.splice(at, 0, { ...finding, message: missingMessage(missing, setting, report, applied) });
   }
+  // Known malicious versions do not depend on the policy: looked up once, after the policies are merged.
+  if (settings.osv === true) await addOsvFindings(reports, { fetch: settings.fetch, signal: settings.signal, lookups });
   return { reports, skipped: [...applied.skipped, ...tools.skipped] };
 }
 
@@ -805,7 +812,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       const policies = sources.map((source) => source.policy);
       if (group.kind === 'here' || group.requests.length > 0) {
         const requests = group.requests.map((entry) => entry.request);
-        const settings: RunSettings = { fetch: dependencies.fetch, now: dependencies.now(), scriptBodies: false, index: flags.index, lookups };
+        const settings: RunSettings = { fetch: dependencies.fetch, now: dependencies.now(), scriptBodies: false, index: flags.index, lookups, ...(flags.osv === true ? { osv: true } : {}) };
         const checked = await checkApplied(requests, applied, settings);
         // The lookups are shared, so the packages are looked up once; the stricter answer counts.
         const also = working === undefined ? undefined : await checkApplied(requests, working.applied, settings);
@@ -846,6 +853,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     home: dependencies.home?.() ?? homedir(),
     fetch: dependencies.fetch,
     now: dependencies.now(),
+    ...(flags.osv === true ? { osv: true } : {}),
   });
   const { document } = outcome;
   const code = outcome.status === 'directory-error' ? EXIT_USAGE : outcome.status === 'policy-error' || failedCheck(document) ? EXIT_FAILURE : EXIT_OK;
@@ -901,6 +909,8 @@ export interface CheckSettings {
    * the document are then relative to it.
    */
   project?: string;
+  /** --osv: the versions picked are looked up in OSV.dev too (decision D-129). */
+  osv?: boolean;
 }
 
 /**
@@ -1018,6 +1028,7 @@ export async function checkDocument(specs: readonly string[], settings: CheckSet
     index: settings.index,
     ...(settings.scriptBodies === undefined ? {} : { scriptBodies: settings.scriptBodies }),
     ...(settings.signal === undefined ? {} : { signal: settings.signal }),
+    ...(settings.osv === true ? { osv: true } : {}),
   });
   const notices = policyNotices(applied, specs.some((spec) => !isPythonSpec(spec)), { ...(settings.audience === undefined ? {} : { audience: settings.audience }), skipped });
   return { status: 'checked', document: { schemaVersion: 1, policy: applied.file, packages: reports, notices, errors: [] } };
