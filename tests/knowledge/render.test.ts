@@ -101,6 +101,25 @@ describe('renderKnowledgeMarkdown', () => {
     expect(markdown).toContain('a\\|b');
   });
 
+  it('keeps a backtick inside a value in its code span (a longer fence, padded at the edges)', () => {
+    const tool = buildTool('pnpm');
+    setPath(tool as unknown as Record<string, unknown>, 'cooldown.exclude.patternSyntax', {
+      status: 'verified',
+      value: { escapeCharacters: ['\\', '`'] },
+      source: 'https://pnpm.io/settings',
+      verifiedAt: TODAY,
+    });
+    expect(renderKnowledgeMarkdown([tool])).toContain('``{"escapeCharacters":["\\\\","`"]}``');
+    setPath(tool as unknown as Record<string, unknown>, 'cooldown.exclude.patternSyntax', {
+      status: 'uncertain',
+      note: 'A note.',
+      value: '`x',
+      source: 'https://pnpm.io/settings',
+      verifiedAt: TODAY,
+    });
+    expect(renderKnowledgeMarkdown([tool])).toContain('`` `x ``');
+  });
+
   it('lists uncertain and disputed facts with their notes for review', () => {
     const review = markdown.slice(markdown.indexOf('## To review'));
     expect(review).toContain('Sample npm · `cooldown.unit` ❓ uncertain');

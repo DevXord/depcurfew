@@ -108,6 +108,14 @@ function sinceLabel(since: string, entries: number): string {
   return entries === 1 ? 'all versions' : 'earlier';
 }
 
+/** A code span of `text`: a fence longer than any run of backticks in it, padded with a space where CommonMark strips one. */
+function codeSpan(text: string): string {
+  const longest = Math.max(0, ...Array.from(text.matchAll(/`+/gu), (match) => match[0].length));
+  const fence = '`'.repeat(longest + 1);
+  const pad = text.startsWith('`') || text.endsWith('`') || (text.startsWith(' ') && text.endsWith(' ') && text.trim() !== '') ? ' ' : '';
+  return `${fence}${pad}${text}${pad}${fence}`;
+}
+
 function formatValue(value: unknown, style: Style, empty: string): string {
   if (value === null || value === undefined) return empty;
   if (isVersioned(value)) {
@@ -118,9 +126,9 @@ function formatValue(value: unknown, style: Style, empty: string): string {
   if (Array.isArray(value)) {
     return value.length === 0 ? `${style === 'code' ? '`[]`' : '[]'}` : value.map((item) => formatValue(item, style, empty)).join(', ');
   }
-  if (typeof value === 'object') return `\`${JSON.stringify(value)}\``;
+  if (typeof value === 'object') return codeSpan(JSON.stringify(value));
   const text = String(value);
-  return style === 'code' ? `\`${text}\`` : text;
+  return style === 'code' ? codeSpan(text) : text;
 }
 
 function escapeCell(text: string): string {

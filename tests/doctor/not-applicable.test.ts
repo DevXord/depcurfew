@@ -47,7 +47,7 @@ describe('rules that do not concern the project', () => {
       'known-malicious': 'not-applicable',
       'unreadable-config': 'passed',
     });
-    expect(resultCounts(report.checked?.rules ?? [])).toBe('17 checks: 7 passed, 6 not applicable, 4 skipped');
+    expect(resultCounts(report.checked?.rules ?? [])).toBe('18 checks: 7 passed, 7 not applicable, 4 skipped');
   });
 
   it('are not applicable in a PDM project without bots: the npm, pnpm and bot rules', () => {
