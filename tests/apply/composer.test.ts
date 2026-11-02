@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { applyProject } from '../../src/apply/index.ts';
 import { warningText, type ApplyWarning } from '../../src/apply/warnings.ts';
+import { buildReport, renderReport } from '../../src/cli/explain.ts';
+import { runDoctor } from '../../src/doctor/index.ts';
 
 const temporary: string[] = [];
 afterAll(() => {
@@ -51,17 +53,21 @@ describe('apply on Composer projects', () => {
     expect(codes(report.warningDetails)).toEqual(['cooldown-shortened']);
   });
 
-  it('writes nothing below "policy": false or an ignore that is neither a list nor an object, and says why', () => {
+  it('writes nothing below "policy": false or an ignore that is neither a list nor an object, and says why, with the line', () => {
     const off = project({ config: { policy: false } }, { cooldown: { minimum: '3d' } });
     const report = applyProject(off);
     expect(report.changes).toEqual([]);
-    expect(report.warningDetails.filter((warning) => warning.code === 'unexpected-value').map(warningText)).toEqual([
-      'Composer: config.policy in composer.json is false, not an object, so depcurfew apply does not write config.policy.cooldown.period below it. config.policy: false turns that part of the policy off; remove it from composer.json (depcurfew doctor reports it), then run depcurfew apply again',
+    // The cooldown is not written: cooldown-not-written, which explain shows with the cooldown, not with installScripts.
+    expect(report.warningDetails.filter((warning) => warning.code === 'cooldown-not-written').map((warning) => [warning.location, warningText(warning)])).toEqual([
+      [
+        { file: 'composer.json', line: 3 },
+        'Composer: cooldown not written: config.policy in composer.json (line 3) is false, not an object, so depcurfew apply does not write config.policy.cooldown.period below it. config.policy: false turns that Composer protection off; remove it from composer.json (depcurfew doctor reports it), then run depcurfew apply again',
+      ],
     ]);
     const odd = project({ config: { policy: { cooldown: { ignore: 'acme/x' } } } }, { cooldown: { minimum: '3d', exclude: ['composer:acme/y'] } });
     const second = applyProject(odd);
     expect(config(odd)).toEqual({ policy: { cooldown: { ignore: 'acme/x', period: '3 days' } } });
-    expect(codes(second.warningDetails)).toEqual(['unexpected-value']);
+    expect(second.warningDetails.filter((warning) => warning.code !== 'version-not-pinned').map((warning) => [warning.code, warning.location])).toEqual([['exclude-not-written', { file: 'composer.json', line: 5 }]]);
   });
 
   it('lists allowed plugins as true and denied ones as false, after the entries written by hand', () => {
@@ -97,8 +103,8 @@ describe('apply on Composer projects', () => {
     const report = applyProject(root);
     expect(report.changes).toEqual([]);
     expect(report.warningDetails.filter((warning) => warning.code === 'deny-conflicts-with-file').map((warning) => warning.message)).toEqual([
-      'Composer: config.allow-plugins in composer.json blocks the plugin acme/plugin with "acme/*": false, but installScripts.allow in depcurfew.json allows it; depcurfew apply does not change entries it did not write',
-      'Composer: config.allow-plugins in composer.json lets the plugin tools/bad run with "tools/*": true, although installScripts.deny in depcurfew.json says it must not run; depcurfew apply does not change entries it did not write',
+      'Composer: config.allow-plugins in composer.json (line 4) blocks the plugin acme/plugin with "acme/*": false, but installScripts.allow in depcurfew.json allows it; depcurfew apply does not change entries it did not write',
+      'Composer: config.allow-plugins in composer.json (line 5) lets the plugin tools/bad run with "tools/*": true, although installScripts.deny in depcurfew.json says it must not run; depcurfew apply does not change entries it did not write',
     ]);
   });
 
@@ -137,5 +143,148 @@ describe('apply on Composer projects', () => {
     expect(readFileSync(join(root, 'composer.json'), 'utf8')).toBe(
       '{\n  "name": "acme/app",\n  // not valid for Composer, but kept as it is\n  "config": {\n    "sort-packages": true,\n    "policy": {\n      "cooldown": {\n        "period": "7 days"\n      }\n    }\n  }\n}\n',
     );
+  });
+});
+
+/** The policy file with Composer as the only target. */
+function setPolicy(root: string, policy: object): void {
+  writeFileSync(join(root, 'depcurfew.json'), JSON.stringify({ version: 1, targets: ['composer'], ...policy }));
+}
+
+const findings = (root: string, rule: string) => runDoctor(root).findings.filter((finding) => finding.rule === rule);
+
+describe('apply on Composer projects: its own entries, the case of keys and values Composer reads like the policy (decision D-134)', () => {
+  it('says when an ignore entry exempts a package that cooldown.exclude no longer lists, in apply and doctor', () => {
+    const root = project({ require: { 'acme/x': '^1.0' } }, { cooldown: { minimum: '3d', exclude: ['composer:acme/x'] } });
+    applyProject(root);
+    expect(config(root)).toEqual({ policy: { cooldown: { period: '3 days', ignore: ['acme/x'] } } });
+    setPolicy(root, { cooldown: { minimum: '3d' } });
+    const report = applyProject(root);
+    // The list form carries no mark of apply, so the entry stays.
+    expect(report.changes).toEqual([]);
+    const outside = report.warningDetails.filter((warning) => warning.code === 'exclude-entry-outside-policy');
+    expect(outside.map((warning) => [warning.location, warningText(warning)])).toEqual([
+      [
+        { file: 'composer.json', line: 10 },
+        'Composer: config.policy.cooldown.ignore in composer.json (line 10) lists acme/x, which Composer exempts from the release-age delay, but cooldown.exclude in depcurfew.json does not exclude it; depcurfew apply removes only the entries it wrote, with the reason "cooldown.exclude in depcurfew.json". Remove "acme/x" from config.policy.cooldown.ignore in composer.json and run composer update --lock, or add composer:acme/x to cooldown.exclude in depcurfew.json',
+      ],
+    ]);
+    expect(findings(root, 'config-drift').map(({ level, location, message }) => ({ level, location, message }))).toEqual([
+      {
+        level: 'warning',
+        location: { file: 'composer.json', line: 10 },
+        message: 'config.policy.cooldown.ignore in composer.json lists acme/x, which Composer exempts from the release-age delay, but cooldown.exclude in depcurfew.json does not exclude it',
+      },
+    ]);
+  });
+
+  it('removes from an ignore object the entries it wrote with its reason once the policy drops them, and keeps the others with a warning', () => {
+    const root = project(
+      { config: { policy: { cooldown: { period: '3 days', ignore: { 'acme/legacy': { constraint: '^1.0', reason: 'pinned' } } } } } },
+      { cooldown: { minimum: '3d', exclude: ['composer:acme/legacy', 'composer:acme/tools'] } },
+      { 'composer.lock': LOCK },
+    );
+    applyProject(root);
+    expect((config(root)['policy'] as { cooldown: unknown }).cooldown).toEqual({
+      period: '3 days',
+      ignore: { 'acme/legacy': { constraint: '^1.0', reason: 'pinned' }, 'acme/tools': 'cooldown.exclude in depcurfew.json' },
+    });
+    setPolicy(root, { cooldown: { minimum: '3d' } });
+    const report = applyProject(root);
+    expect((config(root)['policy'] as { cooldown: unknown }).cooldown).toEqual({ period: '3 days', ignore: { 'acme/legacy': { constraint: '^1.0', reason: 'pinned' } } });
+    expect(codes(report.warningDetails)).toEqual(['exclude-entry-outside-policy', 'lockfile-out-of-date']);
+    expect(report.warningDetails.find((warning) => warning.code === 'exclude-entry-outside-policy')?.message).toContain('lists acme/legacy');
+    expect(applyProject(root).changes).toEqual([]);
+  });
+
+  it('reads allow-plugins keys as Composer does: in any case, and never offers a pattern for every plugin as a policy name', () => {
+    const upper = project({ config: { 'allow-plugins': { 'Symfony/Flex': true } } }, { installScripts: { default: 'deny', allow: ['composer:symfony/flex'] } });
+    const report = applyProject(upper);
+    expect(report.changes).toEqual([]);
+    expect(codes(report.warningDetails)).toEqual([]);
+    expect(findings(upper, 'config-drift')).toEqual([]);
+
+    // A denial in another case: one warning, with the policy name in lower case.
+    const blocked = project({ config: { 'allow-plugins': { 'Symfony/Flex': false } } }, { installScripts: { default: 'deny', allow: ['composer:symfony/flex'] } });
+    const conflicts = applyProject(blocked).warningDetails.filter((warning) => warning.code === 'deny-conflicts-with-file');
+    expect(conflicts.map((warning) => warning.fix)).toEqual([
+      'Remove Symfony/Flex from allow-plugins in composer.json, or move composer:symfony/flex from installScripts.allow to installScripts.deny in depcurfew.json if it works without its scripts',
+    ]);
+
+    for (const key of ['*', '*/*']) {
+      const every = project({ config: { 'allow-plugins': { [key]: true } } }, { installScripts: { default: 'deny', allow: ['composer:symfony/flex'] } });
+      const warnings = applyProject(every).warningDetails.filter((warning) => warning.code === 'allow-list-entry-outside-policy');
+      expect(warnings.map(warningText)).toEqual([
+        `allow-plugins in composer.json (line 4) has "${key}": true, which lets every plugin that no earlier key names run, but depcurfew.json does not allow them; depcurfew apply does not remove entries it did not write. Remove "${key}" from allow-plugins in composer.json by hand and list the plugins that may run in installScripts.allow in depcurfew.json (with the prefix composer:), then run depcurfew apply`,
+      ]);
+      const fixes = [...warnings, ...runDoctor(every).findings].map((item) => item.fix ?? '');
+      expect(fixes.filter((fix) => fix.includes(`composer:${key}`))).toEqual([]);
+      expect(findings(every, 'composer-config-weakens').map((finding) => finding.message)).toEqual([
+        `config.allow-plugins in composer.json has "${key}": true, which lets every Composer plugin run its code, but installScripts in depcurfew.json denies dependency code by default`,
+      ]);
+    }
+  });
+
+  it('says to put an allowed plugin before a catch-all that blocks it, never to allow every plugin', () => {
+    const root = project(
+      { config: { 'allow-plugins': { 'composer/installers': true, '*': false } } },
+      { installScripts: { default: 'deny', allow: ['composer:composer/installers', 'composer:symfony/flex'] } },
+    );
+    const report = applyProject(root, { write: false });
+    expect(report.changes).toEqual([]);
+    expect(report.warningDetails.filter((warning) => warning.code === 'deny-conflicts-with-file').map((warning) => [warning.location, warning.fix])).toEqual([
+      [
+        { file: 'composer.json', line: 5 },
+        'Put "symfony/flex": true before "*" in config.allow-plugins of composer.json, because Composer takes the first key that matches, or move composer:symfony/flex from installScripts.allow to installScripts.deny in depcurfew.json',
+      ],
+    ]);
+  });
+
+  it.each([259200, '259200', '72 hours', '3 days', '3days'])('leaves %j alone when cooldown.minimum is 3d, so composer.lock stays up to date', (period) => {
+    const root = project({ config: { policy: { cooldown: { period } } } }, { cooldown: { minimum: '3d' } }, { 'composer.lock': LOCK });
+    const report = applyProject(root, { write: false });
+    expect(report.changes).toEqual([]);
+    expect(codes(report.warningDetails)).toEqual([]);
+  });
+
+  it('writes the delay into "policy": true and "cooldown": true, which Composer reads as {}', () => {
+    const policyTrue = project({ config: { policy: true } }, { cooldown: { minimum: '3d' } });
+    expect(codes(applyProject(policyTrue).warningDetails)).toEqual([]);
+    expect(config(policyTrue)).toEqual({ policy: { cooldown: { period: '3 days' } } });
+    const cooldownTrue = project({ config: { policy: { cooldown: true, malware: { block: true } } } }, { cooldown: { minimum: '3d' } });
+    expect(codes(applyProject(cooldownTrue).warningDetails)).toEqual([]);
+    expect(config(cooldownTrue)).toEqual({ policy: { cooldown: { period: '3 days' }, malware: { block: true } } });
+    expect(applyProject(cooldownTrue).changes).toEqual([]);
+  });
+
+  it('names the line of allow-plugins in its warnings', () => {
+    const all = project({ config: { 'allow-plugins': true } }, { installScripts: { default: 'deny' } });
+    const replaced = applyProject(all).warningDetails.filter((warning) => warning.code === 'allow-all-replaced');
+    expect(replaced.map((warning) => warning.location)).toEqual([{ file: 'composer.json', line: 3 }]);
+    expect(config(all)['allow-plugins']).toEqual({});
+    const none = project({ config: { 'allow-plugins': false } }, { installScripts: { default: 'deny', allow: ['composer:a/b'] } });
+    expect(applyProject(none).warningDetails.filter((warning) => warning.code === 'deny-conflicts-with-file').map((warning) => warning.message)).toEqual([
+      'Composer: config.allow-plugins in composer.json (line 3) is false, which blocks every plugin, also composer:a/b that installScripts.allow in depcurfew.json allows; depcurfew apply does not change entries it did not write',
+    ]);
+  });
+});
+
+describe('explain on Composer projects shows what apply does (decision D-134)', () => {
+  it('shows no Composer delay when config.policy is false, and the reason, not under installScripts', () => {
+    const root = project({ config: { policy: false } }, { cooldown: { minimum: '3d' }, installScripts: { default: 'deny' } });
+    const report = buildReport(root);
+    if (report.policy === null || !report.policy.valid) throw new Error('policy');
+    expect(report.policy.cooldown?.tools).toEqual([
+      { tool: 'composer', ok: false, reason: 'config.policy in composer.json (line 3) is false, not an object, so depcurfew apply does not write config.policy.cooldown.period below it' },
+    ]);
+    expect(report.policy.installScripts?.tools.flatMap((tool) => tool.warnings.map((warning) => warning.code))).not.toContain('cooldown-not-written');
+    expect(renderReport(report)).toContain('    Composer: cannot apply: config.policy in composer.json (line 3) is false');
+  });
+
+  it('names config.allow-plugins when apply replaces "allow-plugins": true', () => {
+    const root = project({ config: { 'allow-plugins': true } }, { installScripts: { default: 'deny' } });
+    const report = buildReport(root);
+    if (report.policy === null || !report.policy.valid) throw new Error('policy');
+    expect(report.policy.installScripts?.tools.map((tool) => tool.settings)).toEqual([[{ setting: 'config.allow-plugins', file: 'composer.json' }]]);
   });
 });

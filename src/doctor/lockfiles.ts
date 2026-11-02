@@ -40,6 +40,8 @@ export interface LockEntry {
   unnamed?: boolean;
   /** The exact version of a package from a registry, when the lockfile pins one (doctor --osv and the install-script notes, decisions D-127 and D-129). */
   version?: string;
+  /** Composer: a plugin that declares extra.plugin-optional, which Composer skips without a terminal when it is not allowed (decision D-134). */
+  optional?: true;
 }
 
 export interface Lockfile {

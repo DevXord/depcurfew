@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 5
+    },
+    "message": "composer.lock installs evil/x from a VCS repository (git file:///srv/evil/x.git), which depcurfew.json denies",
+    "fix": "Use a registry version of evil/x, or set sources.git to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.lock",
+      "line": 15
+    },
+    "message": "composer.lock installs evil/y from a source depcurfew does not recognize (zip https://evil.example/y.zip); it may be one depcurfew.json denies",
+    "fix": "Check where evil/y comes from: if a Composer repository serves it, declare that repository in composer.json; otherwise lock it again from Packagist with composer update"
+  }
+]

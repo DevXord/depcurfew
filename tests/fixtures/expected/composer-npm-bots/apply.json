@@ -17,9 +17,10 @@
       "code": "allow-all-replaced",
       "tool": "composer",
       "location": {
-        "file": "composer.json"
+        "file": "composer.json",
+        "line": 6
       },
-      "message": "Composer: config.allow-plugins in composer.json allowed every plugin; replaced with the plugins installScripts.allow lists",
+      "message": "Composer: config.allow-plugins in composer.json (line 6) allowed every plugin; replaced with the plugins installScripts.allow lists",
       "fix": "Add the plugins that must run to installScripts.allow in depcurfew.json (with the prefix composer:), then run depcurfew apply again"
     }
   ],

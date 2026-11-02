@@ -69,6 +69,20 @@ export function withValues(data: unknown, edits: readonly { path: Path; value: u
   return root;
 }
 
+/** A copy of `data` without the key `key` of the object at `path`; `data` itself when there is no object there. */
+export function withoutKey(data: unknown, path: Path, key: string): unknown {
+  let current: unknown = data;
+  for (const segment of path) {
+    current = (isObject(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? (current as Record<string, unknown>)[String(segment)] : undefined;
+  }
+  if (!isObject(current)) return data;
+  const copy: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(current)) {
+    if (name !== key) Object.defineProperty(copy, name, { value, enumerable: true, writable: true, configurable: true });
+  }
+  return withValue(data, path, copy);
+}
+
 /** A copy of `data` with the array at `path` changed by `change`. */
 export function withArray(data: unknown, path: Path, change: (array: unknown[]) => unknown[]): unknown {
   let current: unknown = data;

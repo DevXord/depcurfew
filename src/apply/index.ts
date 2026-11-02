@@ -4,7 +4,7 @@
 import { join } from 'node:path';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
-import { denyConflictText, policyName, remainingConflicts } from '../doctor/allow-lists.ts';
+import { denyConflictText, outsideConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
 import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
 import type { Detection, VersionDeclaration, WorkflowJob } from '../detect/types.ts';
 import { jobsInProject, npmInUse, rootPlaces, type NpmInUse, type RootPlaces } from '../doctor/rules/bundled-versions.ts';
@@ -172,13 +172,8 @@ function allowListWarnings(root: string, workspace: ManifestGuard, policy: Resol
         const { entry } = conflict;
         const location = { file: entry.file, ...(entry.line === undefined ? {} : { line: entry.line }) };
         if (conflict.kind === 'outside') {
-          return {
-            code: 'allow-list-entry-outside-policy',
-            tool: manager.id,
-            location,
-            message: `${entry.setting} in ${entry.file}${entry.line === undefined ? '' : ` (line ${entry.line})`} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write`,
-            fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}`,
-          };
+          const text = outsideConflictText(entry, true);
+          return { code: 'allow-list-entry-outside-policy', tool: manager.id, location, message: `${text.message}; depcurfew apply does not remove entries it did not write`, fix: text.fix };
         }
         const text = denyConflictText({ kind: conflict.kind, entry }, true);
         return { code: 'deny-conflicts-with-file', tool: manager.id, location, message: `${text.message}; depcurfew apply does not change entries it did not write`, fix: text.fix };

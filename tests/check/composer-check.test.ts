@@ -186,6 +186,16 @@ describe('depcurfew check on composer: packages', () => {
     expect((await checkSpec('composer:php-http/discovery', options({ policy: running }))).findings).toEqual([]);
   });
 
+  it('counts every type Composer loads as a plugin, in any letter case (composer-installer too)', async () => {
+    for (const type of ['composer-installer', 'Composer-Plugin']) {
+      const fetch = metadata([{ version: '1.0.0', version_normalized: '1.0.0.0', 'published-time': '2025-01-01T00:00:00+00:00', type }]);
+      const report = await checkSpec('composer:acme/tool:^1.0', options({ fetch }));
+      expect(report.findings.map((finding) => [finding.code, finding.message]), type).toEqual([
+        ['install-scripts', `composer:acme/tool 1.0.0 is a Composer plugin (type ${type.toLowerCase()}), whose code runs during Composer commands, and depcurfew.json does not allow it (installScripts)`],
+      ]);
+    }
+  });
+
   it('warns about an abandoned package, with the replacement its author names in quotes', async () => {
     const report = await checkSpec('composer:swiftmailer/swiftmailer', options());
     expect(report.findings).toEqual([

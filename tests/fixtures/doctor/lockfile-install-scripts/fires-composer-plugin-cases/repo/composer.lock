@@ -1,0 +1,78 @@
+{
+    "content-hash": "0",
+    "packages": [
+        {
+            "name": "Evil/Other",
+            "version": "1.0.0",
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/evil/other/zipball/1f2e3d4c5b6a79881726354a5b6c7d8e9f0a1b2c",
+                "reference": "1f2e3d4c5b6a79881726354a5b6c7d8e9f0a1b2c",
+                "shasum": ""
+            },
+            "type": "composer-plugin",
+            "extra": {
+                "class": "Evil\\Other"
+            }
+        },
+        {
+            "name": "evil/plugin",
+            "version": "1.0.0",
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/evil/plugin/zipball/1f2e3d4c5b6a79881726354a5b6c7d8e9f0a1b2c",
+                "reference": "1f2e3d4c5b6a79881726354a5b6c7d8e9f0a1b2c",
+                "shasum": ""
+            },
+            "type": "Composer-Plugin",
+            "extra": {
+                "class": "Evil\\Plugin"
+            }
+        },
+        {
+            "name": "legacy/installer",
+            "version": "1.0.0",
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/legacy/installer/zipball/1f2e3d4c5b6a79881726354a5b6c7d8e9f0a1b2c",
+                "reference": "1f2e3d4c5b6a79881726354a5b6c7d8e9f0a1b2c",
+                "shasum": ""
+            },
+            "type": "composer-installer",
+            "extra": {
+                "class": "Legacy\\Installer"
+            }
+        },
+        {
+            "name": "odd plugin/x",
+            "version": "1.0.0",
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/odd/x/zipball/1f2e3d4c5b6a79881726354a5b6c7d8e9f0a1b2c",
+                "reference": "1f2e3d4c5b6a79881726354a5b6c7d8e9f0a1b2c",
+                "shasum": ""
+            },
+            "type": "composer-plugin",
+            "extra": {
+                "class": "Odd\\Plugin"
+            }
+        },
+        {
+            "name": "php-http/discovery",
+            "version": "1.20.0",
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-http/discovery/zipball/82fe4c73ef3363caed49ff8dd1539ba06044910d",
+                "reference": "82fe4c73ef3363caed49ff8dd1539ba06044910d",
+                "shasum": ""
+            },
+            "type": "composer-plugin",
+            "extra": {
+                "class": "Http\\Discovery\\Composer\\Plugin",
+                "plugin-optional": true
+            }
+        }
+    ],
+    "packages-dev": [],
+    "plugin-api-version": "2.11.0"
+}

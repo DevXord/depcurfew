@@ -32,7 +32,7 @@
       "file": ".github/workflows/ci.yml",
       "line": 15
     },
-    "message": "COMPOSER_NO_BLOCKING=false in the env of step 2 of job test in .github/workflows/ci.yml reaches every Composer command there and turns off all policy blocking, the cooldown included (Composer takes every value but \"\" and \"0\" for yes)",
+    "message": "COMPOSER_NO_BLOCKING=false in the env of step 2 of job test in .github/workflows/ci.yml reaches every Composer command there and turns off all policy blocking, the cooldown and malware blocking included (Composer reads false and off as yes for this variable)",
     "fix": "Remove COMPOSER_NO_BLOCKING from that env in .github/workflows/ci.yml, or set it only for a run that needs it after reviewing the packages"
   },
   {

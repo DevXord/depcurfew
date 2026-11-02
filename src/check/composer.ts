@@ -36,10 +36,11 @@ export function composerArguments(): ComposerCommandsKnowledge {
   return composerFact<ComposerCommandsKnowledge>('commandArguments');
 }
 
-/** The type of Composer plugins, whose code runs during Composer commands (extra.lockfileFormat.pluginType). */
-function pluginType(): string {
-  const format = composerFact<{ pluginType?: unknown }>('lockfileFormat');
-  return typeof format.pluginType === 'string' ? format.pluginType : 'composer-plugin';
+/** The types Composer loads as plugins, lowercase as Composer compares them (extra.lockfileFormat.pluginTypes, D-134). */
+function pluginTypes(): Set<string> {
+  const format = composerFact<{ pluginType?: unknown; pluginTypes?: unknown }>('lockfileFormat');
+  const types = Array.isArray(format.pluginTypes) ? format.pluginTypes.filter((type): type is string => typeof type === 'string') : [];
+  return new Set((types.length > 0 ? types : [typeof format.pluginType === 'string' ? format.pluginType : 'composer-plugin']).map((type) => type.toLowerCase()));
 }
 
 /** Whether a name is a platform package (php, ext-json, lib-curl, composer-plugin-api), which Composer does not install. */
@@ -220,11 +221,11 @@ export async function checkComposerSpec(raw: string, options: CheckOptions): Pro
   const scripts = policy.installScripts;
   const allowedPlugin = scripts?.allow.some((pattern) => matchesPattern(spec.name, pattern)) ?? false;
   const deniedPlugin = scripts?.deny.some((pattern) => matchesPattern(spec.name, pattern)) ?? false;
-  if (version.type === pluginType() && scripts?.default === 'deny' && !allowedPlugin && !deniedPlugin) {
+  if (version.type !== undefined && pluginTypes().has(version.type) && scripts?.default === 'deny' && !allowedPlugin && !deniedPlugin) {
     add({
       level: 'error',
       code: 'install-scripts',
-      message: `${versionLabel} is a Composer plugin (type ${pluginType()}), whose code runs during Composer commands, and depcurfew.json does not allow it (installScripts)`,
+      message: `${versionLabel} is a Composer plugin (type ${version.type}), whose code runs during Composer commands, and depcurfew.json does not allow it (installScripts)`,
       fix: `Pick a package that is not a plugin, or add ${label} to installScripts.allow in depcurfew.json if you trust it`,
     });
   }

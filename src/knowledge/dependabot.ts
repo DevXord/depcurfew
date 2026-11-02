@@ -142,6 +142,11 @@ export const dependabot: ToolKnowledge = {
       'https://github.com/dependabot/dependabot-core/blob/v0.402.0/composer/lib/dependabot/composer/package/registry_package.rb',
       'For composer, the cooldown compares the release date with released_at, which parse_release takes from the time field of each version in the Packagist metadata: the date the package author sets, not published-time, the date Packagist received the version. Seen on 2026-11-02: intercom/intercom-php 5.0.2 has time 2026-01-30 and published-time 2026-04-30 (repo.packagist.org/p2/intercom/intercom-php.json). The updater runs Composer 2.10.3 (ARG COMPOSER_V2_VERSION in composer/Dockerfile at v0.402.0), which has no cooldown policy of its own.',
     ),
+    composerContentHash: composer.verified(
+      { composerVersion: '2.10.3', hashesPolicy: false, file: 'composer.lock', key: 'content-hash' },
+      'https://github.com/dependabot/dependabot-core/blob/v0.402.0/composer/lib/dependabot/composer/file_updater/lockfile_updater.rb',
+      'post_process_lockfile calls replace_content_hash, which writes the hash get_content_hash returns: composer/helpers/v2/src/Hasher.php calls Locker::getContentHash of the composer/composer library the helper installs from its composer.lock (2.10.3 at v0.402.0). That method at 2.10.3 does not hash config.policy (src/Composer/Package/Locker.php at 2.10.3), while Composer 2.11 does, so with config.policy in composer.json every composer.lock Dependabot writes has a content-hash Composer 2.11 reads as out of date: composer install warns and composer validate fails until composer update --lock.',
+    ),
     semverKeysScope: verified(
       'semver-major/minor/patch-days apply only to SemVer ecosystems such as npm, Bun and Deno; others use default-days',
       `${OPTIONS}#cooldown`,

@@ -7,10 +7,11 @@ import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import type { ApplyReport } from '../../apply/index.ts';
 import { pinnedVersion } from '../../apply/version.ts';
-import { yamlOptionsFor } from '../../apply/facts.ts';
+import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from '../../apply/facts.ts';
 import { parseJsonc } from '../../detect/jsonc.ts';
 import { parseYaml } from '../../yaml-parse.ts';
-import { denyConflictText, remainingConflicts, type TextSource } from '../allow-lists.ts';
+import { denyConflictText, outsideConflictText, remainingConflicts, type TextSource } from '../allow-lists.ts';
+import { ignoreOutsidePolicy, ignoreOutsideText } from '../composer.ts';
 import { latestVersion } from '../effective.ts';
 import { plannedApply } from '../plan.ts';
 import { yamlSetting } from '../settings.ts';
@@ -245,13 +246,34 @@ function checkAllowLists(context: RuleContext, plan: ApplyReport): void {
         context.report({ level: conflict.kind === 'denied' ? 'error' : 'warning', location, ...denyConflictText({ kind: conflict.kind, entry }) });
         continue;
       }
-      context.report({
-        level: 'warning',
-        location,
-        message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
-        fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.policyName ?? (entry.name === entry.package ? 'it' : entry.package)} to installScripts.allow in ${POLICY_FILE}`,
-      });
+      context.report({ level: 'warning', location, ...outsideConflictText(entry) });
     }
+  }
+}
+
+/**
+ * Composer: depcurfew apply adds the exceptions of cooldown.exclude to config.policy.cooldown.ignore and removes only
+ * those it wrote with its reason (decision D-134), so other entries can exempt a package the policy does not; report the
+ * ones still there once apply has run.
+ */
+function checkComposerExclusions(context: RuleContext, plan: ApplyReport): void {
+  const policy = context.policy;
+  if (policy?.cooldown === undefined || (policy.targets !== 'auto' && !policy.targets.includes('composer'))) return;
+  const tool = context.tools.find((entry) => entry.id === 'composer');
+  if (tool === undefined || !context.detection.packageManagers.some((entry) => entry.id === 'composer' && entry.supported)) return;
+  const setting = settingOf(tool.cooldown.exclude.setting);
+  const file = values(tool.cooldown.configFiles)[0]?.[0];
+  if (setting === null || file === undefined) return;
+  const hash = extraOf(tool, 'contentHash', (value): value is { command: string } => isRecord(value) && typeof value['command'] === 'string');
+  const now = context.repository.readText(file);
+  const planned = plan.changes.find((change) => change.file === file)?.after ?? now;
+  const patterns = policyFor(policy, 'packagist').cooldown?.exclude ?? [];
+  for (const entry of ignoreOutsidePolicy(now, planned, setting.split('.'), patterns)) {
+    context.report({
+      level: 'warning',
+      location: entry.line === undefined ? { file } : { file, line: entry.line },
+      ...ignoreOutsideText(entry, { setting, file, policyFile: POLICY_FILE, relock: hash.command }),
+    });
   }
 }
 
@@ -260,7 +282,7 @@ export const configDrift: Rule = {
   checks: 'Configuration files match what depcurfew apply writes for depcurfew.json',
   summary: 'A configuration file does not match what depcurfew apply writes for depcurfew.json.',
   description:
-    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning.',
+    'A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool\'s own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself.',
   help: 'Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.',
   level: 'error',
   requiresPolicy: true,
@@ -291,6 +313,7 @@ export const configDrift: Rule = {
       }
     }
     checkAllowLists(context, plan);
+    checkComposerExclusions(context, plan);
   },
 };
 

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.json",
+      "line": 10
+    },
+    "message": "config.policy.cooldown.ignore in composer.json lists acme/tools, which Composer exempts from the release-age delay, but cooldown.exclude in depcurfew.json does not exclude it",
+    "fix": "Remove \"acme/tools\" from config.policy.cooldown.ignore in composer.json and run composer update --lock, or add composer:acme/tools to cooldown.exclude in depcurfew.json"
+  }
+]

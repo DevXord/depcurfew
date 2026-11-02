@@ -6,7 +6,7 @@ import { extraOf, isRecord } from '../../apply/facts.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { usesManager } from '../applies.ts';
-import { COMPOSER_MANIFEST, composerManifest, declaredRepositories } from '../composer.ts';
+import { COMPOSER_MANIFEST, composerManifest, declaredRepositories, matchesEveryComposerName } from '../composer.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion } from '../effective.ts';
 import { jsonSetting, yamlSetting } from '../settings.ts';
@@ -96,7 +96,8 @@ function checkManifest(context: RuleContext, tool: ToolKnowledge, text: string):
   const all = extraOf(tool, 'allowAllPlugins', (value): value is { setting: string; patterns: string[] } => isRecord(value) && typeof value['setting'] === 'string' && Array.isArray(value['patterns']));
   const path = all.setting.split('.');
   const found = jsonSetting(text, path);
-  const broad = isRecord(found?.value) ? Object.keys(found.value).filter((key) => /^\*+$/u.test(key) && (found?.value as Record<string, unknown>)[key] === true) : [];
+  // A key such as "*" or "*/*" matches every vendor/name plugin (extra.allowAllPlugins).
+  const broad = isRecord(found?.value) ? Object.keys(found.value).filter((key) => matchesEveryComposerName(key) && (found?.value as Record<string, unknown>)[key] === true) : [];
   if (found?.value === true || broad.length > 0) {
     const at = broad.length > 0 ? jsonSetting(text, [...path, broad[0] ?? ''])?.line : found?.line;
     context.report({
@@ -190,8 +191,9 @@ function checkWorkflows(context: RuleContext, tool: ToolKnowledge): void {
             : effect.detail === undefined
               ? variable.effect
               : `${variable.effect} with ${effect.detail}, shorter than the ${context.policy?.cooldown?.minimum.text ?? ''} of ${POLICY_FILE}`;
-        // Composer reads these switches with (bool) getenv(), so false and off turn them on too.
-        const reading = Array.isArray(variable.values) || variable.values === 'delay' || ['1', 'true', 'on'].includes(value) ? '' : ' (Composer takes every value but "" and "0" for yes)';
+        // COMPOSER_NO_BLOCKING also sets --no-blocking through (bool) getenv(), so false and off turn it on (environmentOverrides).
+        const both = Array.isArray(variable.values) && variable.values.includes('true') && variable.values.includes('false');
+        const reading = both && ['false', 'off'].includes(value) ? ' (Composer reads false and off as yes for this variable)' : '';
         context.report({
           level: effect.level,
           location: line === undefined ? { file } : { file, line },
@@ -208,7 +210,7 @@ export const composerConfigWeakens: Rule = {
   checks: 'composer.json and the env of CI workflows keep Composer protections on',
   summary: 'composer.json or the env of a CI workflow turns a Composer protection off: the cooldown, malware blocking, allow-plugins, secure-http or TLS.',
   description:
-    'Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. "policy": false, "cooldown": false or "block": false under it, a repository with "require-published-time": false (the cooldown then counts from the time the package author wrote) or "filter": false (no malware list), "allow-plugins": true (or a "*" key) and "secure-http": false or "disable-tls": true turn such a protection off while the configuration still looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING, COMPOSER_POLICY_COOLDOWN_PERIOD with a shorter period and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in the env of a CI workflow. Settings of the cooldown are reported when depcurfew.json sets one, allow-plugins when it denies dependency code; malware blocking and filter give warnings, because depcurfew.json does not manage them. COMPOSER_HOME/config.json on a machine is not read.',
+    'Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. "policy": false, "cooldown": false or "block": false under it, a repository with "require-published-time": false (the cooldown then counts from the time the package author wrote) or "filter": false (no malware list), "allow-plugins": true (or a "*" or "*/*" key) and "secure-http": false or "disable-tls": true turn such a protection off while the configuration still looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING or COMPOSER_NO_SECURITY_BLOCKING set to 1, true, on, false or off, COMPOSER_POLICY_COOLDOWN_PERIOD with a shorter period and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in the env of a CI workflow. Settings of the cooldown are reported when depcurfew.json sets one, allow-plugins when it denies dependency code; malware blocking and filter give warnings, because depcurfew.json does not manage them. COMPOSER_HOME/config.json on a machine is not read.',
   help: 'Remove the setting or the variable, or limit it to the repository or the run that needs it.',
   level: 'error',
   requiresPolicy: false,

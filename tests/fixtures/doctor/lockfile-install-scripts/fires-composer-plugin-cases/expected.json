@@ -1,0 +1,47 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.lock",
+      "line": 5
+    },
+    "message": "evil/other is a Composer plugin that config.allow-plugins in composer.json does not list, so Composer asks whether to run it, and a run without a terminal (CI) fails; depcurfew.json does not allow it",
+    "fix": "Review the plugin: add composer:evil/other to installScripts.allow in depcurfew.json if the project needs it, or to installScripts.deny if it works without it, then run depcurfew apply"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 19
+    },
+    "message": "evil/plugin is a Composer plugin, whose code runs during Composer commands, and \"evil/plugin\" in config.allow-plugins in composer.json lets Composer run it, but depcurfew.json does not allow it",
+    "fix": "Review the plugin and add composer:evil/plugin to installScripts.allow in depcurfew.json, or set it to false in config.allow-plugins of composer.json"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.lock",
+      "line": 33
+    },
+    "message": "legacy/installer is a Composer plugin that config.allow-plugins in composer.json does not list, so Composer asks whether to run it, and a run without a terminal (CI) fails; depcurfew.json does not allow it",
+    "fix": "Review the plugin: add composer:legacy/installer to installScripts.allow in depcurfew.json if the project needs it, or to installScripts.deny if it works without it, then run depcurfew apply"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.lock",
+      "line": 47
+    },
+    "message": "odd plugin/x is a Composer plugin that config.allow-plugins in composer.json does not list, so Composer asks whether to run it, and a run without a terminal (CI) fails; depcurfew.json does not allow it",
+    "fix": "Check the plugin at line 47 of composer.lock: its name \"odd plugin/x\" is not a Composer package name (lowercase vendor/name), so depcurfew.json cannot list it; remove the entry and lock again with composer update"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.lock",
+      "line": 61
+    },
+    "message": "php-http/discovery is a Composer plugin that config.allow-plugins in composer.json does not list, so Composer asks whether to run it, and a run without a terminal (CI) skips it, since it declares extra.plugin-optional; depcurfew.json does not allow it",
+    "fix": "Review the plugin: add composer:php-http/discovery to installScripts.allow in depcurfew.json if the project needs it, or to installScripts.deny if it works without it, then run depcurfew apply"
+  }
+]

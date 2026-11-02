@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { checkSpecs } from '../../src/check/index.ts';
 import { Repository } from '../../src/detect/repository.ts';
-import { composerEntries, declaredRepositories, normalizedUrl, pluginDecision } from '../../src/doctor/composer.ts';
+import { composerEntries, declaredRepositories, matchesEveryComposerName, normalizedUrl, pluginDecision } from '../../src/doctor/composer.ts';
 import { delayMinutes } from '../../src/doctor/durations.ts';
 import { knowledgeBase } from '../../src/knowledge/index.ts';
 import { DEFAULT_POLICY } from '../../src/policy/defaults.ts';
@@ -33,8 +33,70 @@ describe('the Composer cooldown as Composer reads it', () => {
     expect(delayMinutes(composer, value, undefined)).toEqual({ ok: true, minutes });
   });
 
-  it.each(['7 Days', '1 day 2 hours', '3d', 'P7D', 'next week'])('does not read %s, which Composer rejects', (value) => {
+  it.each(['7 Days', '1 day 2 hours', '3d', 'P7D', 'next week', ' 14 days', '14 days ', ' 259200'])('does not read %j, which Composer rejects', (value) => {
     expect(delayMinutes(composer, value, undefined).ok).toBe(false);
+  });
+});
+
+describe('composer.lock as Composer reads it (decision D-134)', () => {
+  const lock = (packages: object[]) => JSON.stringify({ packages, 'packages-dev': [] });
+  const zip = (url: string) => ({ type: 'zip', url, reference: 'abc', shasum: '' });
+
+  it('reads names and plugin types in lower case, the legacy composer-installer as a plugin, and extra.plugin-optional', () => {
+    const entries = composerEntries(
+      lock([
+        { name: 'Evil/Plugin', version: '1.0.0', type: 'Composer-Plugin', dist: zip('https://api.github.com/repos/evil/plugin/zipball/abc') },
+        { name: 'old/installer', version: '1.0.0', type: 'composer-installer', dist: zip('https://api.github.com/repos/old/installer/zipball/abc') },
+        { name: 'php-http/discovery', version: '1.20.0', type: 'composer-plugin', extra: { class: 'X', 'plugin-optional': true }, dist: zip('https://api.github.com/repos/php-http/discovery/zipball/abc') },
+        { name: 'psr/log', version: '3.0.2', type: 'library', dist: zip('https://api.github.com/repos/php-fig/log/zipball/abc') },
+      ]),
+      composer,
+      [],
+    );
+    expect(entries.map(({ name, installScript, optional, anchor, version }) => ({ name, installScript, optional, anchor, version }))).toEqual([
+      { name: 'evil/plugin', installScript: true, optional: undefined, anchor: '"name": "Evil/Plugin"', version: '1.0.0' },
+      { name: 'old/installer', installScript: true, optional: undefined, anchor: '"name": "old/installer"', version: '1.0.0' },
+      { name: 'php-http/discovery', installScript: true, optional: true, anchor: '"name": "php-http/discovery"', version: '1.20.0' },
+      { name: 'psr/log', installScript: false, optional: undefined, anchor: '"name": "psr/log"', version: '3.0.2' },
+    ]);
+  });
+
+  it('takes a package without a dist for a VCS checkout, and an archive from a host no registry uses for a source it does not recognize', () => {
+    const repositories = [{ key: 0, type: 'composer', url: 'https://repo.example.com/acme', kind: 'registry' as const, names: [], line: 3 }];
+    const entries = composerEntries(
+      lock([
+        { name: 'evil/x', version: '1.0.0', source: { type: 'git', url: 'file:///tmp/x.git', reference: 'abc' } },
+        { name: 'evil/y', version: '1.0.0', dist: zip('https://evil.example/y.zip') },
+        { name: 'acme/private', version: '2.0.0', dist: zip('https://repo.example.com/acme/dists/acme-private.zip') },
+        { name: 'gitlab/lib', version: '1.0.0', dist: zip('https://gitlab.com/api/v4/projects/1/repository/archive.zip?sha=abc') },
+        { name: 'bitbucket/lib', version: '1.0.0', dist: zip('https://bitbucket.org/o/r/get/abc.zip') },
+      ]),
+      composer,
+      repositories,
+    );
+    expect(entries.map(({ name, source, spec, version }) => ({ name, source, spec, version }))).toEqual([
+      { name: 'evil/x', source: 'git', spec: 'git file:///tmp/x.git', version: undefined },
+      { name: 'evil/y', source: 'unknown', spec: 'zip https://evil.example/y.zip', version: '1.0.0' },
+      { name: 'acme/private', source: 'registry', spec: 'zip https://repo.example.com/acme/dists/acme-private.zip', version: '2.0.0' },
+      { name: 'gitlab/lib', source: 'registry', spec: 'zip https://gitlab.com/api/v4/projects/1/repository/archive.zip?sha=abc', version: '1.0.0' },
+      { name: 'bitbucket/lib', source: 'registry', spec: 'zip https://bitbucket.org/o/r/get/abc.zip', version: '1.0.0' },
+    ]);
+  });
+
+  it('lets an empty allow-plugins next to a composer.lock from before allow-plugins allow every plugin, as Composer 2.2 to 2.9 do', () => {
+    const plugins = (setting: unknown) => (setting === undefined ? {} : { config: { 'allow-plugins': setting } });
+    const legacy = { pluginApi: undefined, below: '2.2.0', allowsAllUntil: '2.10.0' };
+    expect(pluginDecision(plugins(undefined), 'evil/plugin', { tool: composer, pluginApi: undefined })).toEqual({ allowed: true, legacy });
+    expect(pluginDecision(plugins({}), 'evil/plugin', { tool: composer, pluginApi: '2.1.0' })).toEqual({ allowed: true, legacy: { ...legacy, pluginApi: '2.1.0' } });
+    expect(pluginDecision(plugins([]), 'evil/plugin', { tool: composer, pluginApi: '1.1.0' })).toEqual({ allowed: true, legacy: { ...legacy, pluginApi: '1.1.0' } });
+    expect(pluginDecision(plugins({}), 'evil/plugin', { tool: composer, pluginApi: '2.2.0' })).toEqual({ allowed: undefined });
+    expect(pluginDecision(plugins({ 'a/b': true }), 'evil/plugin', { tool: composer, pluginApi: undefined })).toEqual({ allowed: undefined });
+    expect(pluginDecision(plugins(undefined), 'evil/plugin')).toEqual({ allowed: undefined });
+  });
+
+  it('knows the keys that match every vendor/name package', () => {
+    expect(['*', '**', '*/*', '**/*'].filter(matchesEveryComposerName)).toEqual(['*', '**', '*/*', '**/*']);
+    expect(['*/*/*', 'acme/*', '*/acme', '*/'].filter(matchesEveryComposerName)).toEqual([]);
   });
 });
 

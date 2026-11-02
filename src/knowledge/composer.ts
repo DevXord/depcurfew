@@ -145,9 +145,9 @@ export const composer: ToolKnowledge = {
   extra: {
     latestVersion: verified('2.11.1', CHANGELOG, 'Released on 2026-10-30.'),
     durationStrings: verified(
-      { since: '2.11.0', syntax: 'unit-word', numbers: 'seconds' },
+      { since: '2.11.0', syntax: 'unit-word', numbers: 'seconds', trim: false },
       `${SRC}/Policy/CooldownPolicyConfig.php`,
-      'parseDuration: an integer, or a string of digits, is a number of seconds; otherwise only /^(\\d+)\\s*(second|minute|hour|day|week)s?$/ is accepted (lowercase, one unit). null, "", 0 and "0" mean no cooldown; any other value makes the command fail with "Invalid policy.cooldown.period format", and so does such a COMPOSER_POLICY_COOLDOWN_PERIOD.',
+      'parseDuration: an integer, or a string of digits (/^\\d+$/D), is a number of seconds; otherwise only /^(\\d+)\\s*(second|minute|hour|day|week)s?$/D is accepted (lowercase, one unit). The string is matched as it is, so a space before or after the value (" 14 days") is not accepted. null, "", 0 and "0" mean no cooldown; any other value makes the command fail with "Invalid policy.cooldown.period format", and so does such a COMPOSER_POLICY_COOLDOWN_PERIOD.',
     ),
     durationUnits: verified(
       ['days'],
@@ -178,7 +178,7 @@ export const composer: ToolKnowledge = {
     contentHash: verified(
       { file: 'composer.lock', key: 'content-hash', settings: ['config.policy'], since: '2.11.0', command: 'composer update --lock' },
       `${SRC}/Package/Locker.php`,
-      'getContentHash hashes name, version, require, require-dev, conflict, replace, provide, minimum-stability, prefer-stable, repositories, extra, config.platform and config.policy ("policy changes which versions an update may pick, so changing it should flag the lock as outdated"; CHANGELOG 2.11.0-RC1, #13149). With another hash composer install warns that "The lock file is not up to date with the latest changes in composer.json" (Installer.php) and composer validate fails (03-cli.md#validate); composer update --lock "Overwrites the lock file hash to suppress warning about the lock file being out of date without updating package versions" (03-cli.md#update-u-upgrade). allow-plugins is not hashed.',
+      'getContentHash hashes name, version, require, require-dev, conflict, replace, provide, minimum-stability, prefer-stable, repositories, extra, config.platform and config.policy ("policy changes which versions an update may pick, so changing it should flag the lock as outdated"; CHANGELOG 2.11.0-RC1, #13149). With another hash composer install warns that "The lock file is not up to date with the latest changes in composer.json" (Installer.php) and composer validate fails (03-cli.md#validate); composer update --lock "Overwrites the lock file hash to suppress warning about the lock file being out of date without updating package versions" (03-cli.md#update-u-upgrade). allow-plugins is not hashed. Locker::getContentHash at 2.10.3 hashes config.platform but not config.policy, so a hash written by Composer 2.10 or older differs from what 2.11 computes for a composer.json with config.policy (https://github.com/composer/composer/blob/2.10.3/src/Composer/Package/Locker.php).',
     ),
     pluginApiVersion: verified(
       { key: 'plugin-api-version', cooldownApi: '2.11.0' },
@@ -192,13 +192,30 @@ export const composer: ToolKnowledge = {
         version: 'version',
         installScripts: 'type',
         pluginType: 'composer-plugin',
+        pluginTypes: ['composer-plugin', 'composer-installer'],
+        optionalPlugin: ['extra', 'plugin-optional'],
         source: 'source',
         dist: 'dist',
         pathType: 'path',
         archiveTypes: ['zip', 'tar', 'gzip', 'xz', 'phar', 'rar'],
       },
       `${SRC}/Package/Dumper/ArrayDumper.php`,
-      'Each entry of packages and packages-dev has name, version, type and the source { type, url, reference } and dist { type, url, reference, shasum } it installs from, time and, from a repository that gives it, published-time. A package of a path repository has dist type path with the path as url (PathRepository.php); one of an artifact repository has the archive type and its file path as url (ArtifactRepository.php). Plugins are packages of type composer-plugin (04-schema.md#type).',
+      'Each entry of packages and packages-dev has name, version, type and the source { type, url, reference } and dist { type, url, reference, shasum } it installs from, time and, from a repository that gives it, published-time. A package of a path repository has dist type path with the path as url (PathRepository.php); one of an artifact repository has the archive type and its file path as url (ArtifactRepository.php). Composer reads name and type in lower case (BasePackage::__construct and ArrayLoader::configureObject: strtolower), so "Composer-Plugin" is a plugin too. Plugins are packages of type composer-plugin (04-schema.md#type), and Composer also loads the legacy type composer-installer as a plugin, under the same allow-plugins check (PluginInstaller::supports, PluginManager::registerPackage). A plugin whose extra.plugin-optional is true is skipped without a question when Composer runs without a terminal and it is not allowed (PluginManager::isPluginAllowed: elseif ($optional) return false).',
+    ),
+    legacyLockPlugins: verified(
+      { below: '2.2.0', missing: '1.1.0', allowsAllUntil: '2.10.0' },
+      `${SRC}/Plugin/PluginManager.php`,
+      'parseAllowedPlugins returns no rules when allow-plugins is empty ({} or missing) and composer.lock has a plugin-api-version below 2.2.0, or none (Locker::getPluginApi returns 1.1.0 then). In that mode Composer 2.2 to 2.9 load every plugin without asking when run without a terminal ("if no config is defined we allow all plugins for BC", PluginManager.php at 2.9.8); since 2.10.0-RC1 Composer stops with an error there instead ("Enforce allow-plugins even in non-interactive mode for very old pre-2.2 lock files", #12764 in CHANGELOG.md) and asks in a terminal.',
+    ),
+    sourceInstall: verified(
+      { source: 'source', dist: 'dist' },
+      `${SRC}/Downloader/DownloadManager.php`,
+      'getAvailableSources offers source when the package has a source type and dist when it has a dist type; a locked package without a dist is installed from its source, a checkout of the VCS repository the entry names, whatever repository composer.json declares.',
+    ),
+    registryDistHosts: verified(
+      ['api.github.com', 'gitlab.com', 'bitbucket.org', 'codeberg.org'],
+      `${SRC}/Repository/Vcs/GitHubDriver.php`,
+      'The archives Composer\'s VCS drivers give a package of the hosts Composer knows by default (github-domains github.com, gitlab-domains gitlab.com, forgejo-domains codeberg.org in Config.php, and Bitbucket): GitHubDriver::getDist https://api.github.com/repos/<owner>/<repo>/zipball/<ref>, GitLabDriver::getDist <scheme>://gitlab.com/api/v4/projects/<id>/repository/archive.zip, GitBitbucketDriver::getDist https://bitbucket.org/<owner>/<repo>/get/<ref>.zip, ForgejoDriver::getDist <host>/api/v1/repos/<owner>/<repo>/archive/<ref>.zip; GitDriver::getDist gives none.',
     ),
     branchVersions: verified(
       { prefix: 'dev-', suffix: '-dev' },
@@ -238,9 +255,9 @@ export const composer: ToolKnowledge = {
       'secure-http "Defaults to true. If set to true only HTTPS URLs are allowed to be downloaded via Composer"; disable-tls "Defaults to false. If set to true all HTTPS URLs will be tried with HTTP instead" and "will implicitly disable the secure-http option". Config::get reads both as $value !== "false" && (bool) $value (Config.php), so "false", false, 0, "", "0" and null are false.',
     ),
     allowAllPlugins: verified(
-      { setting: 'config.allow-plugins', value: true, patterns: ['*'] },
+      { setting: 'config.allow-plugins', value: true, patterns: ['*', '*/*'] },
       `${CONFIG}#allow-plugins`,
-      '"or true to allow all plugins to run (NOT recommended)"; a key "*" with true matches every package (BasePackage::packageNameToRegexp).',
+      '"or true to allow all plugins to run (NOT recommended)". BasePackage::packageNameToRegexp turns a key into {^...$}i with * as .*, so keys match without regard to case and * matches / too: a key made only of * with at most one / between them ("*", "*/*") with true allows every vendor/name plugin that no earlier key names.',
     ),
     repositoryWeakening: verified(
       [
@@ -253,14 +270,14 @@ export const composer: ToolKnowledge = {
     environmentOverrides: verified(
       [
         { name: 'COMPOSER_POLICY', values: ['0', 'false', 'off'], effect: 'turns off every dependency policy, the cooldown included' },
-        { name: 'COMPOSER_NO_BLOCKING', values: { except: ['', '0'] }, effect: 'turns off all policy blocking, the cooldown included' },
-        { name: 'COMPOSER_NO_SECURITY_BLOCKING', values: { except: ['', '0'] }, effect: 'turns off blocking of advisories, abandoned packages and the cooldown' },
+        { name: 'COMPOSER_NO_BLOCKING', values: ['1', 'true', 'on', 'false', 'off'], effect: 'turns off all policy blocking, the cooldown and malware blocking included' },
+        { name: 'COMPOSER_NO_SECURITY_BLOCKING', values: ['1', 'true', 'on', 'false', 'off'], effect: 'turns off all policy blocking, the cooldown and malware blocking included' },
         { name: 'COMPOSER_POLICY_COOLDOWN_PERIOD', values: 'delay', effect: 'replaces the cooldown period' },
         { name: 'COMPOSER_POLICY_COOLDOWN_BLOCK', values: ['0', 'false', 'off'], effect: 'stops the cooldown from withholding new versions' },
         { name: 'COMPOSER_POLICY_MALWARE_BLOCK', values: ['0', 'false', 'off'], effect: 'stops blocking versions flagged as malware' },
       ],
       `${CLI}#environment-variables`,
-      'COMPOSER_POLICY: "Set to 0 to disable all dependency policy enforcement" (read with Platform::getBoolEnv: 0, false and off are false). COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING set --no-blocking and --no-security-blocking when (bool) getenv() is true, so every value but "" and "0" (BaseCommand.php). COMPOSER_POLICY_COOLDOWN_PERIOD "overrides the configured period", 0 disabling it; COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK set 0 to disable blocking (PolicyConfig.php).',
+      'COMPOSER_POLICY: "Set to 0 to disable all dependency policy enforcement" (read with Platform::getBoolEnv: 0, false and off are false). COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING: BaseCommand::createPolicyConfig reads both with Platform::getBoolEnv(..., false), which takes only 0, 1, false, true, off and on and makes update, require, install, remove and create-project stop with "Invalid value for COMPOSER_NO_BLOCKING" for any other value but ""; 1, true and on turn blocking off there (PolicyConfig::withBlockingDisabled: advisories, malware, abandoned packages, the cooldown and custom lists). BaseCommand::initialize also sets --no-blocking and --no-security-blocking when (bool) getenv() is true, so false and off turn blocking off as well for the commands that have the option (update, require, install, remove, create-project). COMPOSER_POLICY_COOLDOWN_PERIOD "overrides the configured period", 0 disabling it; COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK set 0 to disable blocking (PolicyConfig.php).',
     ),
     packagistApi: verified<PackagistApiKnowledge>(
       {

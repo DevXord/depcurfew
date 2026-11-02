@@ -430,8 +430,9 @@ const composer$3 = {
 		durationStrings: verified$13({
 			since: "2.11.0",
 			syntax: "unit-word",
-			numbers: "seconds"
-		}, `${SRC}/Policy/CooldownPolicyConfig.php`, "parseDuration: an integer, or a string of digits, is a number of seconds; otherwise only /^(\\d+)\\s*(second|minute|hour|day|week)s?$/ is accepted (lowercase, one unit). null, \"\", 0 and \"0\" mean no cooldown; any other value makes the command fail with \"Invalid policy.cooldown.period format\", and so does such a COMPOSER_POLICY_COOLDOWN_PERIOD."),
+			numbers: "seconds",
+			trim: false
+		}, `${SRC}/Policy/CooldownPolicyConfig.php`, "parseDuration: an integer, or a string of digits (/^\\d+$/D), is a number of seconds; otherwise only /^(\\d+)\\s*(second|minute|hour|day|week)s?$/D is accepted (lowercase, one unit). The string is matched as it is, so a space before or after the value (\" 14 days\") is not accepted. null, \"\", 0 and \"0\" mean no cooldown; any other value makes the command fail with \"Invalid policy.cooldown.period format\", and so does such a COMPOSER_POLICY_COOLDOWN_PERIOD."),
 		durationUnits: verified$13(["days"], `${CONFIG$3}#period`, "The documented examples are \"7 days\", \"24 hours\", \"30 minutes\" and \"1 week\"; depcurfew writes whole days, rounded up."),
 		excludeWildcards: verified$13({
 			since: "2.11.0",
@@ -461,7 +462,7 @@ const composer$3 = {
 			settings: ["config.policy"],
 			since: "2.11.0",
 			command: "composer update --lock"
-		}, `${SRC}/Package/Locker.php`, "getContentHash hashes name, version, require, require-dev, conflict, replace, provide, minimum-stability, prefer-stable, repositories, extra, config.platform and config.policy (\"policy changes which versions an update may pick, so changing it should flag the lock as outdated\"; CHANGELOG 2.11.0-RC1, #13149). With another hash composer install warns that \"The lock file is not up to date with the latest changes in composer.json\" (Installer.php) and composer validate fails (03-cli.md#validate); composer update --lock \"Overwrites the lock file hash to suppress warning about the lock file being out of date without updating package versions\" (03-cli.md#update-u-upgrade). allow-plugins is not hashed."),
+		}, `${SRC}/Package/Locker.php`, "getContentHash hashes name, version, require, require-dev, conflict, replace, provide, minimum-stability, prefer-stable, repositories, extra, config.platform and config.policy (\"policy changes which versions an update may pick, so changing it should flag the lock as outdated\"; CHANGELOG 2.11.0-RC1, #13149). With another hash composer install warns that \"The lock file is not up to date with the latest changes in composer.json\" (Installer.php) and composer validate fails (03-cli.md#validate); composer update --lock \"Overwrites the lock file hash to suppress warning about the lock file being out of date without updating package versions\" (03-cli.md#update-u-upgrade). allow-plugins is not hashed. Locker::getContentHash at 2.10.3 hashes config.platform but not config.policy, so a hash written by Composer 2.10 or older differs from what 2.11 computes for a composer.json with config.policy (https://github.com/composer/composer/blob/2.10.3/src/Composer/Package/Locker.php)."),
 		pluginApiVersion: verified$13({
 			key: "plugin-api-version",
 			cooldownApi: "2.11.0"
@@ -472,6 +473,8 @@ const composer$3 = {
 			version: "version",
 			installScripts: "type",
 			pluginType: "composer-plugin",
+			pluginTypes: ["composer-plugin", "composer-installer"],
+			optionalPlugin: ["extra", "plugin-optional"],
 			source: "source",
 			dist: "dist",
 			pathType: "path",
@@ -483,7 +486,22 @@ const composer$3 = {
 				"phar",
 				"rar"
 			]
-		}, `${SRC}/Package/Dumper/ArrayDumper.php`, "Each entry of packages and packages-dev has name, version, type and the source { type, url, reference } and dist { type, url, reference, shasum } it installs from, time and, from a repository that gives it, published-time. A package of a path repository has dist type path with the path as url (PathRepository.php); one of an artifact repository has the archive type and its file path as url (ArtifactRepository.php). Plugins are packages of type composer-plugin (04-schema.md#type)."),
+		}, `${SRC}/Package/Dumper/ArrayDumper.php`, "Each entry of packages and packages-dev has name, version, type and the source { type, url, reference } and dist { type, url, reference, shasum } it installs from, time and, from a repository that gives it, published-time. A package of a path repository has dist type path with the path as url (PathRepository.php); one of an artifact repository has the archive type and its file path as url (ArtifactRepository.php). Composer reads name and type in lower case (BasePackage::__construct and ArrayLoader::configureObject: strtolower), so \"Composer-Plugin\" is a plugin too. Plugins are packages of type composer-plugin (04-schema.md#type), and Composer also loads the legacy type composer-installer as a plugin, under the same allow-plugins check (PluginInstaller::supports, PluginManager::registerPackage). A plugin whose extra.plugin-optional is true is skipped without a question when Composer runs without a terminal and it is not allowed (PluginManager::isPluginAllowed: elseif ($optional) return false)."),
+		legacyLockPlugins: verified$13({
+			below: "2.2.0",
+			missing: "1.1.0",
+			allowsAllUntil: "2.10.0"
+		}, `${SRC}/Plugin/PluginManager.php`, "parseAllowedPlugins returns no rules when allow-plugins is empty ({} or missing) and composer.lock has a plugin-api-version below 2.2.0, or none (Locker::getPluginApi returns 1.1.0 then). In that mode Composer 2.2 to 2.9 load every plugin without asking when run without a terminal (\"if no config is defined we allow all plugins for BC\", PluginManager.php at 2.9.8); since 2.10.0-RC1 Composer stops with an error there instead (\"Enforce allow-plugins even in non-interactive mode for very old pre-2.2 lock files\", #12764 in CHANGELOG.md) and asks in a terminal."),
+		sourceInstall: verified$13({
+			source: "source",
+			dist: "dist"
+		}, `${SRC}/Downloader/DownloadManager.php`, "getAvailableSources offers source when the package has a source type and dist when it has a dist type; a locked package without a dist is installed from its source, a checkout of the VCS repository the entry names, whatever repository composer.json declares."),
+		registryDistHosts: verified$13([
+			"api.github.com",
+			"gitlab.com",
+			"bitbucket.org",
+			"codeberg.org"
+		], `${SRC}/Repository/Vcs/GitHubDriver.php`, "The archives Composer's VCS drivers give a package of the hosts Composer knows by default (github-domains github.com, gitlab-domains gitlab.com, forgejo-domains codeberg.org in Config.php, and Bitbucket): GitHubDriver::getDist https://api.github.com/repos/<owner>/<repo>/zipball/<ref>, GitLabDriver::getDist <scheme>://gitlab.com/api/v4/projects/<id>/repository/archive.zip, GitBitbucketDriver::getDist https://bitbucket.org/<owner>/<repo>/get/<ref>.zip, ForgejoDriver::getDist <host>/api/v1/repos/<owner>/<repo>/archive/<ref>.zip; GitDriver::getDist gives none."),
 		branchVersions: verified$13({
 			prefix: "dev-",
 			suffix: "-dev"
@@ -574,8 +592,8 @@ const composer$3 = {
 		allowAllPlugins: verified$13({
 			setting: "config.allow-plugins",
 			value: true,
-			patterns: ["*"]
-		}, `${CONFIG$3}#allow-plugins`, "\"or true to allow all plugins to run (NOT recommended)\"; a key \"*\" with true matches every package (BasePackage::packageNameToRegexp)."),
+			patterns: ["*", "*/*"]
+		}, `${CONFIG$3}#allow-plugins`, "\"or true to allow all plugins to run (NOT recommended)\". BasePackage::packageNameToRegexp turns a key into {^...$}i with * as .*, so keys match without regard to case and * matches / too: a key made only of * with at most one / between them (\"*\", \"*/*\") with true allows every vendor/name plugin that no earlier key names."),
 		repositoryWeakening: verified$13([{
 			key: "require-published-time",
 			when: "false",
@@ -598,13 +616,25 @@ const composer$3 = {
 			},
 			{
 				name: "COMPOSER_NO_BLOCKING",
-				values: { except: ["", "0"] },
-				effect: "turns off all policy blocking, the cooldown included"
+				values: [
+					"1",
+					"true",
+					"on",
+					"false",
+					"off"
+				],
+				effect: "turns off all policy blocking, the cooldown and malware blocking included"
 			},
 			{
 				name: "COMPOSER_NO_SECURITY_BLOCKING",
-				values: { except: ["", "0"] },
-				effect: "turns off blocking of advisories, abandoned packages and the cooldown"
+				values: [
+					"1",
+					"true",
+					"on",
+					"false",
+					"off"
+				],
+				effect: "turns off all policy blocking, the cooldown and malware blocking included"
 			},
 			{
 				name: "COMPOSER_POLICY_COOLDOWN_PERIOD",
@@ -629,7 +659,7 @@ const composer$3 = {
 				],
 				effect: "stops blocking versions flagged as malware"
 			}
-		], `${CLI$1}#environment-variables`, "COMPOSER_POLICY: \"Set to 0 to disable all dependency policy enforcement\" (read with Platform::getBoolEnv: 0, false and off are false). COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING set --no-blocking and --no-security-blocking when (bool) getenv() is true, so every value but \"\" and \"0\" (BaseCommand.php). COMPOSER_POLICY_COOLDOWN_PERIOD \"overrides the configured period\", 0 disabling it; COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK set 0 to disable blocking (PolicyConfig.php)."),
+		], `${CLI$1}#environment-variables`, "COMPOSER_POLICY: \"Set to 0 to disable all dependency policy enforcement\" (read with Platform::getBoolEnv: 0, false and off are false). COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING: BaseCommand::createPolicyConfig reads both with Platform::getBoolEnv(..., false), which takes only 0, 1, false, true, off and on and makes update, require, install, remove and create-project stop with \"Invalid value for COMPOSER_NO_BLOCKING\" for any other value but \"\"; 1, true and on turn blocking off there (PolicyConfig::withBlockingDisabled: advisories, malware, abandoned packages, the cooldown and custom lists). BaseCommand::initialize also sets --no-blocking and --no-security-blocking when (bool) getenv() is true, so false and off turn blocking off as well for the commands that have the option (update, require, install, remove, create-project). COMPOSER_POLICY_COOLDOWN_PERIOD \"overrides the configured period\", 0 disabling it; COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK set 0 to disable blocking (PolicyConfig.php)."),
 		packagistApi: verified$13({
 			url: "https://repo.packagist.org",
 			metadataPath: "/p2/{name}.json",
@@ -1296,6 +1326,12 @@ const dependabot$1 = {
 			ignores: "published-time",
 			composerVersion: "2.10.3"
 		}, "https://github.com/dependabot/dependabot-core/blob/v0.402.0/composer/lib/dependabot/composer/package/registry_package.rb", "For composer, the cooldown compares the release date with released_at, which parse_release takes from the time field of each version in the Packagist metadata: the date the package author sets, not published-time, the date Packagist received the version. Seen on 2026-11-02: intercom/intercom-php 5.0.2 has time 2026-01-30 and published-time 2026-04-30 (repo.packagist.org/p2/intercom/intercom-php.json). The updater runs Composer 2.10.3 (ARG COMPOSER_V2_VERSION in composer/Dockerfile at v0.402.0), which has no cooldown policy of its own."),
+		composerContentHash: composer$2.verified({
+			composerVersion: "2.10.3",
+			hashesPolicy: false,
+			file: "composer.lock",
+			key: "content-hash"
+		}, "https://github.com/dependabot/dependabot-core/blob/v0.402.0/composer/lib/dependabot/composer/file_updater/lockfile_updater.rb", "post_process_lockfile calls replace_content_hash, which writes the hash get_content_hash returns: composer/helpers/v2/src/Hasher.php calls Locker::getContentHash of the composer/composer library the helper installs from its composer.lock (2.10.3 at v0.402.0). That method at 2.10.3 does not hash config.policy (src/Composer/Package/Locker.php at 2.10.3), while Composer 2.11 does, so with config.policy in composer.json every composer.lock Dependabot writes has a content-hash Composer 2.11 reads as out of date: composer install warns and composer validate fails until composer update --lock."),
 		semverKeysScope: verified$11("semver-major/minor/patch-days apply only to SemVer ecosystems such as npm, Bun and Deno; others use default-days", `${OPTIONS$1}#cooldown`)
 	}
 };
@@ -5801,6 +5837,7 @@ const checked$3 = verifiedOn("2026-10-29");
 const rechecked = verifiedOn("2026-10-31");
 const user = verifiedOn("2026-10-31");
 const leftovers$1 = verifiedOn("2026-11-01");
+const novemberSecond = verifiedOn("2026-11-02");
 const BERRY = "https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1";
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 /** Variables for settings with a single value, which both the docs and the code accept. */
@@ -6010,12 +6047,17 @@ const yarn$1 = {
 		classicUserFile: user.verified({
 			until: "2.0.0",
 			file: ".yarnrc"
-		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/registries/yarn-registry.js", "Yarn Classic (1.x, last release 1.22.22) reads .yarnrc and .npmrc from the project, its parent folders, the home folder (homeConfigLoc = ~/.yarnrc) and the global prefix (getPossibleConfigLocations in src/registries/npm-registry.js), never .yarnrc.yml, which only Yarn 2 and later read. depcurfew does not configure Yarn Classic."),
+		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/registries/yarn-registry.js", "Yarn Classic (1.x, last release 1.22.22) reads .yarnrc and .npmrc from the project, its parent folders, the home folder (homeConfigLoc = ~/.yarnrc) and the global prefix (getPossibleConfigLocations in src/registries/npm-registry.js), and of .yarnrc.yml only yarnPath (yarnPathRuns), whose other settings only Yarn 2 and later read. depcurfew does not configure Yarn Classic."),
 		yarnPath: leftovers$1.uncertain({
 			key: "yarnPath",
 			releaseFile: "yarn-<version>.cjs",
 			variables: ["YARN_YARN_PATH", "YARN_IGNORE_PATH"]
 		}, `${BERRY}/packages/plugin-essentials/sources/commands/set/version.ts`, "yarn set version saves the release as .yarn/releases/yarn-<version>.cjs and writes a relative yarnPath to it. Yarn 2 and later read yarnPath (an absolute path setting, resolved against the folder of the .yarnrc.yml that sets it) from every .yarnrc.yml, the home file included, before the project is found (Configuration.find, pickPrimaryCoreFields), and run node <yarnPath> instead of themselves (runYarnPath in packages/yarnpkg-cli/sources/lib.ts); a nearer .yarnrc.yml with its own yarnPath, YARN_YARN_PATH or YARN_IGNORE_PATH changes that. The file name is only a hint: a URL or a file given to yarn set version gives other names (yarn-remote.cjs), a hand-written yarnPath may name any file, and the version inside the bundle is minified, so depcurfew uses the name only when it is yarn-<exact version>.cjs and the file exists."),
+		yarnPathRuns: novemberSecond.verified({
+			file: ".yarnrc.yml",
+			key: "yarnPath",
+			classicSince: "1.18.0"
+		}, "https://github.com/yarnpkg/yarn/blob/v1.22.22/src/cli/index.js", "Yarn Classic 1.18.0 and later read yarnPath from .yarnrc.yml (CHANGELOG 1.18.0: \"Adds support for reading yarnPath from v2-produced .yarnrc.yml files\", #7350): getRcPaths in src/util/rc.js looks for .yarnrc and .yarnrc.yml in the folder and its parents, loadRcFile in src/rc.js keeps only yarnPath of a .yml file, resolved against its folder, and start() in src/cli/index.js runs node <yarnPath> before anything else, also before the check that packageManager names Yarn 1 (which only main() does). Yarn 2 and later do the same (run and runYarnPath in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1), unless YARN_IGNORE_PATH is set. So a release committed under yarnPath is the Yarn that runs, whichever Yarn starts, with or without Corepack."),
 		denyList: user.verified({
 			file: "package.json",
 			setting: "dependenciesMeta.<package>.built",
@@ -18201,36 +18243,6 @@ function patternsFor(patterns, ecosystem) {
 	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => pattern.slice(prefix.length));
 }
 
-// src/apply/requirements.ts
-/** "a", "a and b", "a, b and c". */
-function listing$1(items) {
-	if (items.length <= 1) return items[0] ?? "";
-	return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
-}
-function describeRequirements(requirements) {
-	const groups = /* @__PURE__ */ new Map();
-	for (const { setting, since, disputed } of requirements) {
-		const group = groups.get(since) ?? {
-			settings: [],
-			disputed: false
-		};
-		if (!group.settings.includes(setting)) group.settings.push(setting);
-		group.disputed ||= disputed === true;
-		groups.set(since, group);
-	}
-	const order = (a, b) => compareVersions$1(parseVersion(a) ?? [
-		0,
-		0,
-		0
-	], parseVersion(b) ?? [
-		0,
-		0,
-		0
-	]);
-	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$1(group.settings)} (added in ${since})`).join(", ");
-	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
-}
-
 // src/apply/expected.ts
 function isObject$1(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -18300,6 +18312,20 @@ function withValues(data, edits) {
 		}
 	}
 	return root;
+}
+/** A copy of `data` without the key `key` of the object at `path`; `data` itself when there is no object there. */
+function withoutKey(data, path, key) {
+	let current = data;
+	for (const segment of path) current = (isObject$1(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
+	if (!isObject$1(current)) return data;
+	const copy = {};
+	for (const [name, value] of Object.entries(current)) if (name !== key) Object.defineProperty(copy, name, {
+		value,
+		enumerable: true,
+		writable: true,
+		configurable: true
+	});
+	return withValue(data, path, copy);
 }
 /** A copy of `data` with the array at `path` changed by `change`. */
 function withArray(data, path, change) {
@@ -18604,10 +18630,32 @@ function dropBlankLine(text, at) {
 function jsonArrayRemove(text, path, index) {
 	return checked(text, `removing element ${index} of ${path.join(".")}`, (body) => removeElement(body, path, index), (data) => withArray(data, path, (array) => array.filter((_item, position) => position !== index)));
 }
+/**
+* Removes the member `key` of the object at `path` the way jsonArrayRemove removes an element: with the comma that
+* separates it and its line when nothing else is left on it; comments stay.
+*/
+function jsonObjectRemove(text, path, key) {
+	return checked(text, `removing ${JSON.stringify(key)} from ${path.join(".")}`, (body) => {
+		const node = find(body, path);
+		if (node?.kind !== "object") throw new Error(`no object at ${path.join(".")}`);
+		const index = node.members.findIndex((member) => member.key === key);
+		if (index === -1) return body;
+		if (node.members.filter((member) => member.key === key).length > 1) throw new Error(`${JSON.stringify(key)} is written more than once at ${path.join(".")}`);
+		return removeSpan(body, node, node.members.map((member) => ({
+			start: member.keyStart,
+			end: member.value.end
+		})), index);
+	}, (data) => withoutKey(data, path, key));
+}
 function removeElement(text, path, index) {
-	const { elements, start, end } = arrayAt(text, path);
+	const container = arrayAt(text, path);
+	return removeSpan(text, container, container.elements, index, `no element ${index} at ${path.join(".")}`);
+}
+/** Removes item `index` of the items of a container (array elements, or object members from key to value). */
+function removeSpan(text, container, elements, index, missing = "no such item") {
+	const { start, end } = container;
 	const element = elements[index];
-	if (element === void 0) throw new Error(`no element ${index} at ${path.join(".")}`);
+	if (element === void 0) throw new Error(missing);
 	const blank = (from, to) => text.slice(from, to).trim() === "";
 	if (elements.length === 1 && `${text.slice(start + 1, element.start)}${text.slice(element.end, end - 1)}`.replaceAll(",", "").trim() === "") return `${text.slice(0, start + 1)}${text.slice(end - 1)}`;
 	const after = nextSignificant(text, element.end);
@@ -19061,16 +19109,35 @@ const REMOTE = /^[a-z][a-z0-9+.-]*:\/\//iu;
 function isLocal(url) {
 	return /^file:\/\//iu.test(url) || !REMOTE.test(url);
 }
-const isFormat = (value) => isRecord(value) && isStrings$3(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && typeof value["pathType"] === "string";
+const isFormat = (value) => isRecord(value) && isStrings$3(value["sections"]) && typeof value["name"] === "string" && typeof value["version"] === "string" && typeof value["pluginType"] === "string" && isStrings$3(value["pluginTypes"]) && isStrings$3(value["optionalPlugin"]) && typeof value["pathType"] === "string";
 const isBranches = (value) => isRecord(value) && typeof value["prefix"] === "string" && typeof value["suffix"] === "string";
 function describe$2(location) {
 	return isRecord(location) ? [location["type"], location["url"]].filter((part) => typeof part === "string").join(" ") : "";
 }
+/** The host of a URL (with its port), in lower case, as normalizedUrl gives it. */
+function hostOf(url) {
+	return normalizedUrl(url).split("/")[0] ?? "";
+}
+/**
+* The hosts the archives of a registry package come from (decision D-134): those of Composer's VCS drivers for the hosts
+* it knows by default (extra.registryDistHosts), and the hosts of the repositories composer.json declares.
+*/
+function registryHosts(tool, repositories) {
+	const known = extraOf(tool, "registryDistHosts", isStrings$3);
+	return /* @__PURE__ */ new Set([...known, ...repositories.flatMap((entry) => entry.url === void 0 || entry.kind === "disable" ? [] : [hostOf(entry.url)])]);
+}
+/** A value at a path of a JSON object. */
+function valueAt(item, path) {
+	return path.reduce((node, key) => isRecord(node) ? node[key] : void 0, item);
+}
 /**
 * The packages of composer.lock with the source each comes from: a path repository (dist type path), an artifact
 * repository (an archive at a local path), a package repository of the root composer.json (by the names it defines),
-* a VCS repository of the root composer.json (by its URL), else Packagist or another Composer repository. Plugins
-* (type composer-plugin) are the packages whose code Composer runs.
+* a VCS repository of the root composer.json (by its URL), a VCS checkout when the entry has no dist (Composer then
+* installs from its source, decision D-134), else Packagist or another Composer repository; an archive from a host
+* that is neither one those registries use nor the host of a declared repository is a source depcurfew does not
+* recognize. Names are in lower case, as Composer reads them. Plugins are the packages whose code Composer runs: of
+* type composer-plugin or composer-installer, in any case.
 */
 function composerEntries(text, tool, repositories) {
 	const format = extraOf(tool, "lockfileFormat", isFormat);
@@ -19079,36 +19146,45 @@ function composerEntries(text, tool, repositories) {
 	if (!isRecord(document)) throw new Error("composer.lock is not a JSON object");
 	const vcs = new Map(repositories.filter((entry) => entry.kind === "git" && entry.url !== void 0).map((entry) => [normalizedUrl(entry.url ?? ""), entry]));
 	const inline = repositories.filter((entry) => entry.names.length > 0);
+	const hosts = registryHosts(tool, repositories);
+	const pluginTypes = new Set(format.pluginTypes.map((type) => type.toLowerCase()));
 	const entries = [];
 	for (const section of format.sections) {
 		const packages = document[section];
 		if (!Array.isArray(packages)) continue;
 		for (const item of packages) {
 			if (!isRecord(item) || typeof item[format.name] !== "string") continue;
-			const name = item[format.name];
+			const written = item[format.name];
+			const name = written.toLowerCase();
 			const dist = isRecord(item[format.dist]) ? item[format.dist] : void 0;
 			const source = isRecord(item[format.source]) ? item[format.source] : void 0;
 			const distUrl = typeof dist?.["url"] === "string" ? dist["url"] : void 0;
 			const sourceUrl = typeof source?.["url"] === "string" ? source["url"] : void 0;
 			let kind = "registry";
 			let spec = describe$2(dist) || describe$2(source);
-			const fromInline = inline.find((entry) => entry.names.includes(name.toLowerCase()));
+			const fromInline = inline.find((entry) => entry.names.includes(name));
 			if (dist?.["type"] === format.pathType) kind = "directory";
 			else if (distUrl !== void 0 && isLocal(distUrl) && format.archiveTypes.includes(String(dist?.["type"]))) kind = "file";
 			else if (fromInline !== void 0) kind = fromInline.kind === "registry" || fromInline.kind === "disable" ? "unknown" : fromInline.kind;
 			else if ([sourceUrl, distUrl].some((url) => url !== void 0 && vcs.has(normalizedUrl(url)))) {
 				kind = "git";
 				spec = describe$2(source) || spec;
-			}
+			} else if (distUrl === void 0 && sourceUrl !== void 0) {
+				kind = "git";
+				spec = describe$2(source);
+			} else if (distUrl !== void 0 && !isLocal(distUrl) && !hosts.has(hostOf(distUrl))) kind = "unknown";
 			const locked = item[format.version];
-			const release = kind === "registry" && typeof locked === "string" && locked !== "" && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
+			const release = (kind === "registry" || kind === "unknown" && fromInline === void 0) && typeof locked === "string" && locked !== "" && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
+			const type = item[format.installScripts];
+			const plugin = typeof type === "string" && pluginTypes.has(type.toLowerCase());
 			entries.push({
 				name,
 				spec,
 				source: kind,
-				installScript: item[format.installScripts] === format.pluginType,
-				anchor: `"${format.name}": ${JSON.stringify(name)}`,
-				...release ? { version: locked } : {}
+				installScript: plugin,
+				anchor: `"${format.name}": ${JSON.stringify(written)}`,
+				...release ? { version: locked } : {},
+				...plugin && valueAt(item, format.optionalPlugin) === true ? { optional: true } : {}
 			});
 		}
 	}
@@ -19128,19 +19204,99 @@ function pluginPatternMatches(name, pattern) {
 	return matchSegment$1(name.toLowerCase(), pattern.toLowerCase());
 }
 /**
+* Whether a key of allow-plugins or of cooldown.ignore matches every vendor/name package: only * with at most one /
+* between them ("*", "*\/*"), since Composer's * matches / too (extra.allowAllPlugins).
+*/
+function matchesEveryComposerName(key) {
+	return /^\*+(?:\/\*+)?$/u.test(key);
+}
+/**
+* Whether a key Composer reads as a name pattern (allow-plugins, cooldown.ignore) says no more than the policy's
+* patterns: a name, in any case, that one of them matches, or a pattern depcurfew apply wrote, which is one of them.
+*/
+function keyCoveredBy(key, patterns) {
+	const lower = key.toLowerCase();
+	if (lower.includes("*")) return patterns.includes(lower);
+	return patterns.some((pattern) => wildcardMatch(lower, pattern));
+}
+/** The key as depcurfew.json writes it (composer:vendor/name in lower case), or undefined when the policy cannot name it. */
+function composerPolicyName(key) {
+	const name = `${COMPOSER_PREFIX}${key.toLowerCase()}`;
+	return validatePackagePattern(name) === void 0 ? name : void 0;
+}
+/** Whether a name from composer.lock is a Composer package name (lowercase vendor/name, no pattern), which a fix may quote. */
+function isComposerName(name) {
+	return !name.includes("*") && composerPolicyName(name) === `${"composer:"}${name}`;
+}
+const isLegacyFact = (value) => isRecord(value) && typeof value["below"] === "string" && typeof value["missing"] === "string" && typeof value["allowsAllUntil"] === "string";
+/**
 * What config.allow-plugins of composer.json decides for a plugin: true (allowed), false (blocked) or undefined (not
 * listed, so Composer asks, or fails without a terminal), with the key that decides. Composer takes the first key that
-* matches; true for the whole setting allows every plugin and false none.
+* matches; true for the whole setting allows every plugin and false none. With `lock` (the plugin-api-version of
+* composer.lock, undefined when it has none), an empty or missing allow-plugins next to a composer.lock older than
+* allow-plugins lets Composer 2.2 to 2.9 load every plugin without asking (extra.legacyLockPlugins): the plugin counts
+* as allowed, with `legacy`.
 */
-function pluginDecision(manifest, name) {
+function pluginDecision(manifest, name, lock) {
 	const config = manifest?.["config"];
 	const setting = isRecord(config) ? config["allow-plugins"] : void 0;
 	if (setting === true || setting === false) return { allowed: setting };
+	if ((setting === void 0 || Array.isArray(setting) && setting.length === 0 || isRecord(setting) && Object.keys(setting).length === 0) && lock !== void 0) {
+		const fact = extraOf(lock.tool, "legacyLockPlugins", isLegacyFact);
+		const api = parseVersion(lock.pluginApi ?? fact.missing);
+		const below = parseVersion(fact.below);
+		if (below !== void 0 && (api === void 0 || compareVersions$1(api, below) < 0)) return {
+			allowed: true,
+			legacy: {
+				pluginApi: lock.pluginApi,
+				below: fact.below,
+				allowsAllUntil: fact.allowsAllUntil
+			}
+		};
+	}
 	if (!isRecord(setting)) return { allowed: void 0 };
 	const key = Object.keys(setting).find((pattern) => pluginPatternMatches(name, pattern));
 	return key === void 0 ? { allowed: void 0 } : {
 		allowed: setting[key] === true,
 		key
+	};
+}
+/** The entries of the ignore setting at `path` in a composer.json text; none when it is neither a list nor an object. */
+function ignoreEntries(text, path) {
+	if (text === void 0) return [];
+	const found = jsonSetting(text, path);
+	const value = found?.value;
+	if (Array.isArray(value)) return value.flatMap((item, index) => typeof item === "string" ? [{
+		key: item,
+		line: jsonSetting(text, [...path, index])?.line ?? found?.line
+	}] : []);
+	if (isRecord(value)) return Object.entries(value).map(([key, item]) => ({
+		key,
+		value: item,
+		line: jsonSetting(text, [...path, key])?.line ?? found?.line
+	}));
+	return [];
+}
+/**
+* The ignore entries of `now` that exempt a package from the cooldown although cooldown.exclude does not, and that are
+* still there in `planned` (the file as depcurfew apply leaves it, which removes only the entries it wrote). Keys that
+* match every package are left to broad-exclusion.
+*/
+function ignoreOutsidePolicy(now, planned, path, patterns) {
+	const kept = new Set(ignoreEntries(planned, path).map((entry) => entry.key));
+	return ignoreEntries(now, path).filter((entry) => kept.has(entry.key) && !matchesEveryComposerName(entry.key) && !keyCoveredBy(entry.key, patterns));
+}
+/**
+* What is wrong with such an entry and what to do, the same in apply (exclude-entry-outside-policy) and doctor
+* (config-drift). `line` puts the line into the message, for apply's text; `relock` is the command that writes the new
+* content-hash of composer.lock.
+*/
+function ignoreOutsideText(entry, where, line = false) {
+	const at = line && entry.line !== void 0 ? ` (line ${entry.line})` : "";
+	const name = composerPolicyName(entry.key);
+	return {
+		message: `${where.setting} in ${where.file}${at} lists ${entry.key}, which Composer exempts from the release-age delay, but cooldown.exclude in ${where.policyFile} does not exclude it`,
+		fix: `Remove ${JSON.stringify(entry.key)} from ${where.setting} in ${where.file} and run ${where.relock}${name === void 0 ? "" : `, or add ${name} to cooldown.exclude in ${where.policyFile}`}`
 	};
 }
 /** plugin-api-version of composer.lock: the plugin API of the Composer that wrote it. */
@@ -19154,6 +19310,36 @@ function lockedPluginApi(repository, tool, lockfile) {
 		version: found.value,
 		line: found.line
 	} : void 0;
+}
+
+// src/apply/requirements.ts
+/** "a", "a and b", "a, b and c". */
+function listing$1(items) {
+	if (items.length <= 1) return items[0] ?? "";
+	return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
+}
+function describeRequirements(requirements) {
+	const groups = /* @__PURE__ */ new Map();
+	for (const { setting, since, disputed } of requirements) {
+		const group = groups.get(since) ?? {
+			settings: [],
+			disputed: false
+		};
+		if (!group.settings.includes(setting)) group.settings.push(setting);
+		group.disputed ||= disputed === true;
+		groups.set(since, group);
+	}
+	const order = (a, b) => compareVersions$1(parseVersion(a) ?? [
+		0,
+		0,
+		0
+	], parseVersion(b) ?? [
+		0,
+		0,
+		0
+	]);
+	const text = [...groups.entries()].sort(([a], [b]) => order(a, b)).map(([since, group]) => `${listing$1(group.settings)} (added in ${since})`).join(", ");
+	return [...groups.values()].some((group) => group.disputed) ? `${text}; where official sources disagree on the version, depcurfew assumes the later one` : text;
 }
 
 // src/policy/ecosystem.ts
@@ -19991,6 +20177,30 @@ function parseLockfiles(repository, manager, tool, workspaces, tools) {
 function policyName(entry) {
 	return entry.policyName ?? entry.package;
 }
+/** Whether the policy's patterns cover an entry: as the tool matches the entry (Composer keys), else by its package. */
+function covers$1(entry, patterns) {
+	return entry.composerKey === true ? keyCoveredBy(entry.name, patterns) : patterns.some((pattern) => matchesPattern$1(entry.package, pattern));
+}
+/**
+* What is wrong with an entry that lets a package the policy does not list run its install scripts, and what to do:
+* for apply (allow-list-entry-outside-policy, `apply` true: with the line, and the entry removed by hand) and doctor
+* (config-drift). A Composer key that matches every plugin, or one the policy cannot name, is not offered for
+* installScripts.allow, since the policy rejects such a name.
+*/
+function outsideConflictText(entry, apply = false) {
+	const where = `${entry.setting} in ${entry.file}${apply && entry.line !== void 0 ? ` (line ${entry.line})` : ""}`;
+	if (entry.composerKey === true && (matchesEveryComposerName(entry.name) || entry.policyName === void 0)) {
+		const every = matchesEveryComposerName(entry.name);
+		return {
+			message: `${where} has ${JSON.stringify(entry.name)}: true, which lets ${every ? "every plugin that no earlier key names" : "the plugins it matches"} run, but ${POLICY_FILE} does not allow ${every ? "them" : "them all"}`,
+			fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file} by hand and list the plugins that may run in installScripts.allow in ${POLICY_FILE} (with the prefix composer:), then run depcurfew apply`
+		};
+	}
+	return {
+		message: `${where} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
+		fix: apply ? `Remove ${entry.name} from ${entry.setting} by hand, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}` : `Remove ${entry.name} from ${entry.setting}, or add ${entry.policyName ?? (entry.name === entry.package ? "it" : entry.package)} to installScripts.allow in ${POLICY_FILE}`
+	};
+}
 function read(repository, file) {
 	return repository.readText(file);
 }
@@ -20110,10 +20320,15 @@ function listEntries(repository, manager, configFiles, options, allowed) {
 				setting: "allow-plugins"
 			});
 			keys.push(...fromKeys(text, "composer.json", "allow-plugins", found?.value, (entry) => entry === true === allowed, jsonLine(text, "composer.json", ["config", "allow-plugins"])));
-			entries.push(...keys.map((entry) => ({
-				...entry,
-				policyName: `${COMPOSER_PREFIX}${entry.package}`
-			})));
+			for (const entry of keys) {
+				const name = composerPolicyName(entry.name);
+				entries.push({
+					...entry,
+					package: entry.name.toLowerCase(),
+					composerKey: true,
+					...name === void 0 || matchesEveryComposerName(entry.name) ? {} : { policyName: name }
+				});
+			}
 			break;
 		}
 	}
@@ -20137,16 +20352,15 @@ function denyEntries(repository, manager, configFiles, options = {}) {
 }
 /** The entries of a tool's own lists that contradict installScripts (the policy of the tool's registry). */
 function listConflicts(repository, manager, configFiles, options, scripts) {
-	const matches = (entry, patterns) => patterns.some((pattern) => matchesPattern$1(entry.package, pattern));
 	const conflicts = [];
 	for (const entry of allowEntries(repository, manager, configFiles, options)) {
-		if (matches(entry, scripts.allow)) continue;
+		if (covers$1(entry, scripts.allow)) continue;
 		conflicts.push({
-			kind: matches(entry, scripts.deny) ? "denied" : "outside",
+			kind: covers$1(entry, scripts.deny) ? "denied" : "outside",
 			entry
 		});
 	}
-	for (const entry of denyEntries(repository, manager, configFiles, options)) if (matches(entry, scripts.allow)) conflicts.push({
+	for (const entry of denyEntries(repository, manager, configFiles, options)) if (covers$1(entry, scripts.allow)) conflicts.push({
 		kind: "allowed",
 		entry
 	});
@@ -20519,10 +20733,10 @@ function delayMinutes(tool, value, version) {
 		ok: false,
 		reason: `${JSON.stringify(value) ?? String(value)} is not a delay`
 	};
-	const text = value.trim();
-	if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
 	const fact = tool.extra?.["durationStrings"];
 	const format = fact === void 0 ? void 0 : values$1(fact)[0];
+	const text = isRecord(format) && format["trim"] === false ? value : value.trim();
+	if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
 	if (!isRecord(format) || typeof format["syntax"] !== "string") return {
 		ok: false,
 		reason: `${tool.name} takes no duration strings`
@@ -24703,29 +24917,47 @@ const bun = (context) => {
 };
 
 // src/apply/generators/composer.ts
-const isContentHash = (value) => isRecord(value) && typeof value["file"] === "string" && Array.isArray(value["settings"]) && typeof value["command"] === "string" && typeof value["since"] === "string";
-/** The reason apply writes for a name it adds to an ignore object, whose values are reasons. */
+const isContentHash$1 = (value) => isRecord(value) && typeof value["file"] === "string" && Array.isArray(value["settings"]) && typeof value["command"] === "string" && typeof value["since"] === "string";
+/** The reason apply writes for a name it adds to an ignore object, whose values are reasons; it marks the entry as apply's. */
 const IGNORE_REASON = `cooldown.exclude in ${POLICY_FILE}`;
-/** The value at `path`, and the first part of it that holds something other than an object (where apply cannot write below). */
+/** The line of the value at `path` in composer.json as it was, when there is one. */
+function locationOf(manifest, path) {
+	const line = manifest.text === void 0 ? void 0 : jsonSetting(manifest.text, path)?.line;
+	return line === void 0 ? { file: manifest.file } : {
+		file: manifest.file,
+		line
+	};
+}
+/** " (line N)" for a message, when the line is known. */
+function lineText(location) {
+	return location.line === void 0 ? "" : ` (line ${location.line})`;
+}
+/**
+* The first part of `path` that holds something other than an object, where apply cannot write below. Composer reads
+* true for config.policy and for a policy below it as {} (Config::merge), so apply writes its object there.
+*/
 function blocking(json, path) {
 	for (let length = 1; length < path.length; length++) {
 		const at = path.slice(0, length);
 		const value = json.get(at);
-		if (value !== void 0 && !isRecord(value)) return {
+		const sameAsObject = value === true && at[0] === "config" && at[1] === "policy";
+		if (value !== void 0 && !isRecord(value) && !sameAsObject) return {
 			at,
 			value
 		};
 	}
 }
-function cannotWrite(context, file, path, value, what) {
+function cannotWrite(context, manifest, code, path, value, what) {
+	const location = locationOf(manifest, path);
+	const prefix = code === "cooldown-not-written" ? `${context.name}: cooldown not written: ` : `${context.name}: `;
 	context.warn({
-		code: "unexpected-value",
-		location: { file },
-		message: `${context.name}: ${path.join(".")} in ${file} is ${JSON.stringify(value)}, not an object, so depcurfew apply does not write ${what} below it`,
-		fix: value === false ? `${path.join(".")}: false turns that part of the policy off; remove it from ${file} (depcurfew doctor reports it), then run depcurfew apply again` : `Write ${path.join(".")} in ${file} as an object, such as {}, then run depcurfew apply again`
+		code,
+		location,
+		message: `${prefix}${path.join(".")} in ${manifest.file}${lineText(location)} is ${JSON.stringify(value)}, not an object, so depcurfew apply does not write ${what} below it`,
+		fix: value === false ? `${path.join(".")}: false turns that Composer protection off; remove it from ${manifest.file} (depcurfew doctor reports it), then run depcurfew apply again` : `Write ${path.join(".")} in ${manifest.file} as an object, such as {}, then run depcurfew apply again`
 	});
 }
-function writeCooldown(context, json, file) {
+function writeCooldown(context, json, manifest) {
 	const { tool } = context;
 	const setting = settingOf(tool.cooldown.setting) ?? "config.policy.cooldown.period";
 	const path = setting.split(".");
@@ -24733,35 +24965,75 @@ function writeCooldown(context, json, file) {
 	if (cooldown === void 0) return void 0;
 	const blocked = blocking(json, path);
 	if (blocked !== void 0) {
-		cannotWrite(context, file, blocked.at, blocked.value, setting);
+		cannotWrite(context, manifest, "cooldown-not-written", blocked.at, blocked.value, setting);
 		return;
 	}
-	json.set(path, cooldown.value);
+	const current = json.get(path);
+	const written = current === void 0 ? void 0 : delayMinutes(tool, current, void 0);
+	if (written === void 0 || !written.ok || written.minutes !== cooldown.minutes) json.set(path, cooldown.value);
+	writeExclusions(context, json, manifest);
+	return cooldown.minutes;
+}
+/**
+* The composer: names of cooldown.exclude in config.policy.cooldown.ignore: a new list, added to a list, or added to an
+* object with apply's reason. An object entry with that reason whose name the policy no longer lists is apply's own and
+* is removed; any other entry the policy does not cover stays, with a warning.
+*/
+function writeExclusions(context, json, manifest) {
+	const { tool } = context;
 	const excludeSetting = settingOf(tool.cooldown.exclude.setting);
 	const patterns = exclusions(context);
-	if (excludeSetting === null || patterns === void 0 || patterns.length === 0) return cooldown.minutes;
+	if (excludeSetting === null || patterns === void 0) return;
 	const ignorePath = excludeSetting.split(".");
 	const current = json.get(ignorePath);
-	if (current === void 0) json.set(ignorePath, patterns);
-	else if (Array.isArray(current)) {
-		for (const pattern of patterns) if (!current.includes(pattern)) json.append(ignorePath, pattern);
+	const listed = (names, pattern) => names.some((name) => typeof name === "string" && name.toLowerCase() === pattern);
+	if (current === void 0) {
+		if (patterns.length > 0) json.set(ignorePath, patterns);
+	} else if (Array.isArray(current)) {
+		for (const pattern of patterns) if (!listed(json.get(ignorePath), pattern)) json.append(ignorePath, pattern);
 	} else if (isRecord(current)) {
-		for (const pattern of patterns) if (!Object.hasOwn(current, pattern)) json.set([...ignorePath, pattern], IGNORE_REASON);
-	} else context.warn({
-		code: "unexpected-value",
-		location: { file },
-		message: `${context.name}: ${excludeSetting} in ${file} is ${JSON.stringify(current)}, neither a list nor an object, so depcurfew apply does not add ${listing$1(patterns)} to it`,
-		fix: `Write ${excludeSetting} in ${file} as a list of package names, such as ${JSON.stringify(patterns)}, then run depcurfew apply again`
-	});
-	return cooldown.minutes;
+		for (const [key, value] of Object.entries(current)) if (value === IGNORE_REASON && !keyCoveredBy(key, patterns)) json.removeKey(ignorePath, key);
+		for (const pattern of patterns) if (!listed(Object.keys(current), pattern)) json.set([...ignorePath, pattern], IGNORE_REASON);
+	} else {
+		if (patterns.length > 0) {
+			const location = locationOf(manifest, ignorePath);
+			context.warn({
+				code: "exclude-not-written",
+				location,
+				message: `${context.name}: ${excludeSetting} in ${manifest.file}${lineText(location)} is ${JSON.stringify(current)}, neither a list nor an object, so depcurfew apply does not add ${listing$1(patterns)} to it`,
+				fix: `Write ${excludeSetting} in ${manifest.file} as a list of package names, such as ${JSON.stringify(patterns)}, then run depcurfew apply again`
+			});
+		}
+		return;
+	}
+	const hash = extraOf(tool, "contentHash", isContentHash$1);
+	const planned = context.exists(manifest.file) ? context.read(manifest.file) : void 0;
+	for (const entry of ignoreOutsidePolicy(manifest.text, planned, ignorePath, patterns)) {
+		const text = ignoreOutsideText(entry, {
+			setting: excludeSetting,
+			file: manifest.file,
+			policyFile: POLICY_FILE,
+			relock: hash.command
+		}, true);
+		context.warn({
+			code: "exclude-entry-outside-policy",
+			location: entry.line === void 0 ? { file: manifest.file } : {
+				file: manifest.file,
+				line: entry.line
+			},
+			message: `${context.name}: ${text.message}; depcurfew apply removes only the entries it wrote, with the reason ${JSON.stringify(IGNORE_REASON)}`,
+			fix: text.fix
+		});
+	}
 }
 /**
 * installScripts for Composer is about plugins, the dependency code Composer runs: "deny" lists the allowed ones in
 * allow-plugins (true) and the denied ones (false, which also stops Composer from asking); "allow" sets allow-plugins
 * to true where nothing is set. Patterns are written as they are, because Composer takes them.
 */
-function writePlugins(context, json, file) {
+function writePlugins(context, json, manifest) {
 	const { tool, policy } = context;
+	const { file } = manifest;
 	const scripts = policy.installScripts;
 	if (scripts === void 0) return;
 	const setting = settingOf(tool.installScripts.allowList.setting) ?? "config.allow-plugins";
@@ -24769,7 +25041,7 @@ function writePlugins(context, json, file) {
 	const path = setting.split(".");
 	const blocked = blocking(json, path);
 	if (blocked !== void 0) {
-		cannotWrite(context, file, blocked.at, blocked.value, setting);
+		cannotWrite(context, manifest, "unexpected-value", blocked.at, blocked.value, setting);
 		return;
 	}
 	const current = json.get(path);
@@ -24780,51 +25052,59 @@ function writePlugins(context, json, file) {
 	}
 	const allowed = scripts.allow;
 	const denied = scripts.deny;
+	const here = locationOf(manifest, path);
 	if (current === false) {
 		if (allowed.length > 0) context.warn({
 			code: "deny-conflicts-with-file",
-			location: { file },
-			message: `${context.name}: ${setting} in ${file} is false, which blocks every plugin, also ${listing$1(allowed.map((name) => `${COMPOSER_PREFIX}${name}`))} that installScripts.allow in ${POLICY_FILE} allows; depcurfew apply does not change entries it did not write`,
+			location: here,
+			message: `${context.name}: ${setting} in ${file}${lineText(here)} is false, which blocks every plugin, also ${listing$1(allowed.map((name) => `${COMPOSER_PREFIX}${name}`))} that installScripts.allow in ${POLICY_FILE} allows; depcurfew apply does not change entries it did not write`,
 			fix: `Replace false with an object that lists the plugins to allow, or remove them from installScripts.allow in ${POLICY_FILE}`
 		});
 		return;
 	}
 	if (current === true) context.warn({
 		code: "allow-all-replaced",
-		location: { file },
-		message: `${context.name}: ${setting} in ${file} allowed every plugin; replaced with the plugins installScripts.allow lists`,
+		location: here,
+		message: `${context.name}: ${setting} in ${file}${lineText(here)} allowed every plugin; replaced with the plugins installScripts.allow lists`,
 		fix: `Add the plugins that must run to installScripts.allow in ${POLICY_FILE} (with the prefix ${COMPOSER_PREFIX}), then run depcurfew apply again`
 	});
 	else if (current !== void 0 && !isRecord(current)) {
-		cannotWrite(context, file, path, current, "the plugins of installScripts");
+		cannotWrite(context, manifest, "unexpected-value", path, current, "the plugins of installScripts");
 		return;
 	}
 	const keys = isRecord(current) ? Object.keys(current) : [];
 	const decides = (name) => keys.find((key) => pluginPatternMatches(name, key));
+	const isPattern = (key, name) => key.toLowerCase() !== name;
 	const wanted = [];
 	for (const name of allowed) {
 		const first = decides(name);
 		if (first === void 0) wanted.push([name, true]);
-		else if (isRecord(current) && current[first] !== true && first !== name) context.warn({
-			code: "deny-conflicts-with-file",
-			location: { file },
-			message: `${context.name}: ${setting} in ${file} blocks the plugin ${name} with "${first}": ${JSON.stringify(current[first])}, but installScripts.allow in ${POLICY_FILE} allows it; depcurfew apply does not change entries it did not write`,
-			fix: `Set "${first}" to true in ${setting} of ${file} if every plugin it covers may run, or move ${COMPOSER_PREFIX}${name} from installScripts.allow to installScripts.deny in ${POLICY_FILE}`
-		});
+		else if (isRecord(current) && current[first] !== true && isPattern(first, name)) {
+			const location = locationOf(manifest, [...path, first]);
+			context.warn({
+				code: "deny-conflicts-with-file",
+				location,
+				message: `${context.name}: ${setting} in ${file}${lineText(location)} blocks the plugin ${name} with "${first}": ${JSON.stringify(current[first])}, but installScripts.allow in ${POLICY_FILE} allows it; depcurfew apply does not change entries it did not write`,
+				fix: `Put "${name}": true before "${first}" in ${setting} of ${file}, because Composer takes the first key that matches, or move ${COMPOSER_PREFIX}${name} from installScripts.allow to installScripts.deny in ${POLICY_FILE}`
+			});
+		}
 	}
 	const denial = denyListSince(context);
 	for (const name of denied) {
 		const first = decides(name);
 		if (first === void 0) {
 			if (denial === void 0 || context.supports(denial, setting)) wanted.push([name, false]);
-		} else if (isRecord(current) && current[first] === true && first !== name) context.warn({
-			code: "deny-conflicts-with-file",
-			location: { file },
-			message: `${context.name}: ${setting} in ${file} lets the plugin ${name} run with "${first}": true, although installScripts.deny in ${POLICY_FILE} says it must not run; depcurfew apply does not change entries it did not write`,
-			fix: `Remove "${first}" from ${setting} in ${file} or narrow it, or move ${COMPOSER_PREFIX}${name} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing the plugin`
-		});
+		} else if (isRecord(current) && current[first] === true && isPattern(first, name)) {
+			const location = locationOf(manifest, [...path, first]);
+			context.warn({
+				code: "deny-conflicts-with-file",
+				location,
+				message: `${context.name}: ${setting} in ${file}${lineText(location)} lets the plugin ${name} run with "${first}": true, although installScripts.deny in ${POLICY_FILE} says it must not run; depcurfew apply does not change entries it did not write`,
+				fix: `Put "${name}": false before "${first}" in ${setting} of ${file}, because Composer takes the first key that matches, or move ${COMPOSER_PREFIX}${name} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing the plugin`
+			});
+		}
 	}
-	if (allowed.length > 0 || denied.length > 0) context.writes("installScripts", setting, file);
+	if (allowed.length > 0 || denied.length > 0 || current === true) context.writes("installScripts", setting, file);
 	if (wanted.length === 0 && current !== true) return;
 	if (current === true || current === void 0) {
 		json.set(path, Object.fromEntries(wanted));
@@ -24839,7 +25119,7 @@ function denyListSince(context) {
 }
 /** composer.lock hashes config.policy (2.11.0+): after a change there composer install warns and composer validate fails until it is locked again. */
 function relockWarning$1(context, file, before, after) {
-	const hash = extraOf(context.tool, "contentHash", isContentHash);
+	const hash = extraOf(context.tool, "contentHash", isContentHash$1);
 	if (JSON.stringify(before) === JSON.stringify(after) || !context.exists(hash.file) || !context.atLeast(hash.since)) return;
 	context.warn({
 		code: "lockfile-out-of-date",
@@ -24850,12 +25130,16 @@ function relockWarning$1(context, file, before, after) {
 }
 const composer = (context) => {
 	const file = firstFile(context.tool.cooldown.configFiles) ?? "composer.json";
+	const manifest = {
+		file,
+		text: context.exists(file) ? context.read(file) : void 0
+	};
 	const json = context.json(file);
-	const hash = extraOf(context.tool, "contentHash", isContentHash);
+	const hash = extraOf(context.tool, "contentHash", isContentHash$1);
 	const hashed = (setting) => context.exists(file) ? json.get(setting.split(".")) : void 0;
 	const before = hash.settings.map(hashed);
-	const minutes = context.policy.cooldown === void 0 ? void 0 : writeCooldown(context, json, file);
-	writePlugins(context, json, file);
+	const minutes = context.policy.cooldown === void 0 ? void 0 : writeCooldown(context, json, manifest);
+	writePlugins(context, json, manifest);
 	eachSource(context, () => void 0);
 	relockWarning$1(context, file, before, hash.settings.map(hashed));
 	return minutes;
@@ -25275,7 +25559,8 @@ function createContext(options) {
 			set: (path, value) => guard(file, () => workspace.edit(file, (body) => jsonSet(body === "" ? "{}\n" : body, path, value))),
 			append: (path, value) => guard(file, () => workspace.edit(file, (body) => jsonArrayAppend(body, path, value))),
 			replace: (path, index, value) => guard(file, () => workspace.edit(file, (body) => jsonArrayReplace(body, path, index, value))),
-			remove: (path, index) => guard(file, () => workspace.edit(file, (body) => jsonArrayRemove(body, path, index)))
+			remove: (path, index) => guard(file, () => workspace.edit(file, (body) => jsonArrayRemove(body, path, index))),
+			removeKey: (path, key) => guard(file, () => workspace.edit(file, (body) => jsonObjectRemove(body, path, key)))
 		}),
 		yaml: (file) => ({
 			get: (path) => guard(file, () => workspace.exists(file) ? yamlGet(workspace.read(file), path, yamlOptions) : void 0),
@@ -27932,13 +28217,16 @@ function allowListWarnings(root, workspace, policy, detection, targets, tools) {
 				file: entry.file,
 				...entry.line === void 0 ? {} : { line: entry.line }
 			};
-			if (conflict.kind === "outside") return {
-				code: "allow-list-entry-outside-policy",
-				tool: manager.id,
-				location,
-				message: `${entry.setting} in ${entry.file}${entry.line === void 0 ? "" : ` (line ${entry.line})`} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write`,
-				fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}`
-			};
+			if (conflict.kind === "outside") {
+				const text = outsideConflictText(entry, true);
+				return {
+					code: "allow-list-entry-outside-policy",
+					tool: manager.id,
+					location,
+					message: `${text.message}; depcurfew apply does not remove entries it did not write`,
+					fix: text.fix
+				};
+			}
 			const text = denyConflictText({
 				kind: conflict.kind,
 				entry
@@ -29488,13 +29776,20 @@ const isReleaseTime = (value) => isRecord(value) && typeof value["field"] === "s
 function composerTimeNote(context, delay, manager) {
 	if (delay.bot.extra?.["composerReleaseTime"] === void 0 || delay.location === void 0) return;
 	const fact = extraOf(delay.bot, "composerReleaseTime", isReleaseTime);
+	const hash = delay.bot.extra["composerContentHash"] === void 0 ? void 0 : extraOf(delay.bot, "composerContentHash", isContentHash);
+	const composer = context.tools.find((tool) => tool.id === "composer");
+	const relock = composer?.extra?.["contentHash"] === void 0 ? void 0 : extraOf(composer, "contentHash", isRelock);
+	const hashText = hash === void 0 || hash.hashesPolicy || relock === void 0 ? "" : `; the ${hash.key} of each ${hash.file} it writes leaves out config.policy, so ${manager} ${relock.since} and later read that ${hash.file} as out of date (composer install warns, composer validate fails)`;
+	const hashFix = hashText === "" ? "" : `, run ${relock?.command ?? ""} on the branch of each such pull request and commit ${hash?.file ?? ""}`;
 	context.report({
 		level: "note",
 		location: delay.location,
-		message: `${delay.bot.name} counts the cooldown of ${delay.scope} from ${fact.field}, the release time the package author writes, not from ${fact.ignores}, when Packagist received the version, and it updates composer.lock with Composer ${fact.composerVersion}, which has no cooldown; a version published with an older ${fact.field} is proposed at once, and composer install takes it from composer.lock without ${manager}'s cooldown`,
-		fix: `Check the publication date on Packagist before merging ${delay.bot.name}'s composer pull requests, or update Composer packages with a bot that counts from ${fact.ignores}`
+		message: `${delay.bot.name} counts the cooldown of ${delay.scope} from ${fact.field}, the release time the package author writes, not from ${fact.ignores}, when Packagist received the version, and it updates composer.lock with Composer ${fact.composerVersion}, which has no cooldown; a version published with an older ${fact.field} is proposed at once, and composer install takes it from composer.lock without ${manager}'s cooldown${hashText}`,
+		fix: `Check the publication date on Packagist before merging ${delay.bot.name}'s composer pull requests${hashFix}, or update Composer packages with a bot that counts from ${fact.ignores}`
 	});
 }
+const isContentHash = (value) => isRecord(value) && typeof value["hashesPolicy"] === "boolean" && typeof value["file"] === "string" && typeof value["key"] === "string";
+const isRelock = (value) => isRecord(value) && typeof value["since"] === "string" && typeof value["command"] === "string";
 
 // src/doctor/rules/broad-exclusion.ts
 /** Patterns that match every package (or every scoped package): *, **, @*\/*, npm:*, and regexes like /.*\/. */
@@ -29531,7 +29826,7 @@ function checkManagers(context) {
 			const found = readSetting(context.repository, file, setting);
 			const items = Array.isArray(found?.value) ? found.value : isRecord(found?.value) ? Object.keys(found.value) : void 0;
 			if (found === void 0 || items === void 0) continue;
-			const broad = (item) => isBroad(item) || ecosystemOfTool(knowledge) === "packagist" && /^\*+(?:\/\*+)?$/u.test(item);
+			const broad = (item) => isBroad(item) || ecosystemOfTool(knowledge) === "packagist" && matchesEveryComposerName(item);
 			for (const pattern of items.filter((item) => typeof item === "string" && broad(item))) context.report({
 				location: {
 					file,
@@ -29771,7 +30066,7 @@ function checkManifest(context, tool, text) {
 	const all = extraOf(tool, "allowAllPlugins", (value) => isRecord(value) && typeof value["setting"] === "string" && Array.isArray(value["patterns"]));
 	const path = all.setting.split(".");
 	const found = jsonSetting(text, path);
-	const broad = isRecord(found?.value) ? Object.keys(found.value).filter((key) => /^\*+$/u.test(key) && (found?.value)[key] === true) : [];
+	const broad = isRecord(found?.value) ? Object.keys(found.value).filter((key) => matchesEveryComposerName(key) && (found?.value)[key] === true) : [];
 	if (found?.value === true || broad.length > 0) {
 		const at = broad.length > 0 ? jsonSetting(text, [...path, broad[0] ?? ""])?.line : found?.line;
 		context.report({
@@ -29890,11 +30185,7 @@ function checkWorkflows(context, tool) {
 				if (effect === void 0) continue;
 				const line = yamlSetting(text, [...path, variable.name])?.line;
 				const verb = effect.detail === "may" ? `may ${variable.effect.replace(/^(\w+)s\b/u, "$1")}` : effect.detail === void 0 ? variable.effect : `${variable.effect} with ${effect.detail}, shorter than the ${context.policy?.cooldown?.minimum.text ?? ""} of ${POLICY_FILE}`;
-				const reading = Array.isArray(variable.values) || variable.values === "delay" || [
-					"1",
-					"true",
-					"on"
-				].includes(value) ? "" : " (Composer takes every value but \"\" and \"0\" for yes)";
+				const reading = Array.isArray(variable.values) && variable.values.includes("true") && variable.values.includes("false") && ["false", "off"].includes(value) ? " (Composer reads false and off as yes for this variable)" : "";
 				context.report({
 					level: effect.level,
 					location: line === void 0 ? { file } : {
@@ -29912,7 +30203,7 @@ const composerConfigWeakens = {
 	id: RULE$2,
 	checks: "composer.json and the env of CI workflows keep Composer protections on",
 	summary: "composer.json or the env of a CI workflow turns a Composer protection off: the cooldown, malware blocking, allow-plugins, secure-http or TLS.",
-	description: "Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. \"policy\": false, \"cooldown\": false or \"block\": false under it, a repository with \"require-published-time\": false (the cooldown then counts from the time the package author wrote) or \"filter\": false (no malware list), \"allow-plugins\": true (or a \"*\" key) and \"secure-http\": false or \"disable-tls\": true turn such a protection off while the configuration still looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING, COMPOSER_POLICY_COOLDOWN_PERIOD with a shorter period and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in the env of a CI workflow. Settings of the cooldown are reported when depcurfew.json sets one, allow-plugins when it denies dependency code; malware blocking and filter give warnings, because depcurfew.json does not manage them. COMPOSER_HOME/config.json on a machine is not read.",
+	description: "Composer 2.11 withholds new versions with config.policy.cooldown and runs only the plugins config.allow-plugins allows. \"policy\": false, \"cooldown\": false or \"block\": false under it, a repository with \"require-published-time\": false (the cooldown then counts from the time the package author wrote) or \"filter\": false (no malware list), \"allow-plugins\": true (or a \"*\" or \"*/*\" key) and \"secure-http\": false or \"disable-tls\": true turn such a protection off while the configuration still looks right; so do COMPOSER_POLICY=0, COMPOSER_NO_BLOCKING or COMPOSER_NO_SECURITY_BLOCKING set to 1, true, on, false or off, COMPOSER_POLICY_COOLDOWN_PERIOD with a shorter period and COMPOSER_POLICY_COOLDOWN_BLOCK=0 in the env of a CI workflow. Settings of the cooldown are reported when depcurfew.json sets one, allow-plugins when it denies dependency code; malware blocking and filter give warnings, because depcurfew.json does not manage them. COMPOSER_HOME/config.json on a machine is not read.",
 	help: "Remove the setting or the variable, or limit it to the repository or the run that needs it.",
 	level: "error",
 	requiresPolicy: false,
@@ -30146,17 +30437,47 @@ function checkAllowLists(context, plan) {
 			context.report({
 				level: "warning",
 				location,
-				message: `${entry.setting} in ${entry.file} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
-				fix: `Remove ${entry.name} from ${entry.setting}, or add ${entry.policyName ?? (entry.name === entry.package ? "it" : entry.package)} to installScripts.allow in ${POLICY_FILE}`
+				...outsideConflictText(entry)
 			});
 		}
 	}
+}
+/**
+* Composer: depcurfew apply adds the exceptions of cooldown.exclude to config.policy.cooldown.ignore and removes only
+* those it wrote with its reason (decision D-134), so other entries can exempt a package the policy does not; report the
+* ones still there once apply has run.
+*/
+function checkComposerExclusions(context, plan) {
+	const policy = context.policy;
+	if (policy?.cooldown === void 0 || policy.targets !== "auto" && !policy.targets.includes("composer")) return;
+	const tool = context.tools.find((entry) => entry.id === "composer");
+	if (tool === void 0 || !context.detection.packageManagers.some((entry) => entry.id === "composer" && entry.supported)) return;
+	const setting = settingOf(tool.cooldown.exclude.setting);
+	const file = values$1(tool.cooldown.configFiles)[0]?.[0];
+	if (setting === null || file === void 0) return;
+	const hash = extraOf(tool, "contentHash", (value) => isRecord(value) && typeof value["command"] === "string");
+	const now = context.repository.readText(file);
+	const planned = plan.changes.find((change) => change.file === file)?.after ?? now;
+	const patterns = policyFor(policy, "packagist").cooldown?.exclude ?? [];
+	for (const entry of ignoreOutsidePolicy(now, planned, setting.split("."), patterns)) context.report({
+		level: "warning",
+		location: entry.line === void 0 ? { file } : {
+			file,
+			line: entry.line
+		},
+		...ignoreOutsideText(entry, {
+			setting,
+			file,
+			policyFile: POLICY_FILE,
+			relock: hash.command
+		})
+	});
 }
 const configDrift = {
 	id: "config-drift",
 	checks: "Configuration files match what depcurfew apply writes for depcurfew.json",
 	summary: "A configuration file does not match what depcurfew apply writes for depcurfew.json.",
-	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning.",
+	description: "A generated setting was edited by hand, or depcurfew.json changed without running depcurfew apply, so the tools enforce something other than the policy. Entries in a tool's own install-script lists that apply does not change are reported as well: one that lets a package of installScripts.deny run its scripts is an error, like the differences depcurfew apply fixes, and one that lets a package the policy does not name run them, or that blocks a package the policy allows, is a warning. So is an entry of config.policy.cooldown.ignore in composer.json that exempts a package cooldown.exclude does not, which apply keeps unless it wrote the entry itself.",
 	help: "Run depcurfew apply (depcurfew apply --dry-run shows the difference), or change depcurfew.json if the edit was intended.",
 	level: "error",
 	requiresPolicy: true,
@@ -30188,6 +30509,7 @@ const configDrift = {
 			}
 		}
 		checkAllowLists(context, plan);
+		checkComposerExclusions(context, plan);
 	}
 };
 /**
@@ -30216,6 +30538,22 @@ function removedIn() {
 function managesOwnVersion(tool) {
 	return tool?.extra?.["managesOwnVersion"] !== void 0 && isRecord(extraOf(tool, "managesOwnVersion", isRecord));
 }
+const isYarnPathFact = (value) => isRecord(value) && typeof value["file"] === "string" && typeof value["key"] === "string";
+/**
+* Whether .yarnrc.yml names, with yarnPath, a Yarn release in the repository: Yarn 1.18 and later, and Yarn 2 and later,
+* run that release instead of themselves, so it is the Yarn that runs with or without Corepack (yarn extra.yarnPathRuns,
+* decision D-134). A path outside the repository is not committed with it.
+*/
+function committedYarnPath(scope) {
+	const yarn = scope.tools.find((tool) => tool.id === "yarn");
+	if (yarn?.extra?.["yarnPathRuns"] === void 0) return false;
+	const fact = extraOf(yarn, "yarnPathRuns", isYarnPathFact);
+	const text = scope.repository.readText(fact.file);
+	const value = text === void 0 ? void 0 : yamlSetting(text, [fact.key], yamlOptionsFor(fact.file))?.value;
+	if (typeof value !== "string" || value === "" || /^(?:[a-z]:)?[\\/]/iu.test(value)) return false;
+	const path = posix.normalize(value.replaceAll("\\", "/"));
+	return path !== ".." && !path.startsWith("../") && scope.repository.isFile(path);
+}
 /** The pins of the tools Corepack manages that nothing else acts on. */
 function pinsOf(scope) {
 	const managers = new Set(evidenceOf(environment.corepack.packageManagerField).flatMap((evidence) => [...evidence.value.managers]));
@@ -30224,6 +30562,7 @@ function pinsOf(scope) {
 		if (declaration.source !== "packageManager" && declaration.source !== "devEngines") return [];
 		if (manager.id === "npm" && declaration.source === "devEngines") return [];
 		if (managesOwnVersion(scope.tools.find((tool) => tool.id === manager.id))) return [];
+		if (manager.id === "yarn" && committedYarnPath(scope)) return [];
 		const name = manager.id;
 		return [{
 			tool: manager.id,
@@ -30303,7 +30642,7 @@ const corepackUnavailable = {
 	id: RULE$1,
 	checks: "A pin that only Corepack reads has a Node.js that comes with Corepack",
 	summary: "packageManager or devEngines.packageManager pins Yarn or npm, but a declared Node.js is 25 or later, which no longer comes with Corepack.",
-	description: "Corepack reads packageManager (and devEngines.packageManager) and runs the pinned Yarn, or npm after corepack enable npm. Node.js 25.0.0 stopped distributing Corepack, so where a version file, CI job or Dockerfile chooses Node.js 25 or later, the pin has no effect unless Corepack is installed separately: whatever Yarn or npm is there runs, or none. pnpm 10 and later switches to its pinned version itself, and npm checks devEngines.packageManager itself, so those pins are not reported; nor is a CI job or Dockerfile stage that installs or runs Corepack before it installs with the pinned tool.",
+	description: "Corepack reads packageManager (and devEngines.packageManager) and runs the pinned Yarn, or npm after corepack enable npm. Node.js 25.0.0 stopped distributing Corepack, so where a version file, CI job or Dockerfile chooses Node.js 25 or later, the pin has no effect unless Corepack is installed separately: whatever Yarn or npm is there runs, or none. pnpm 10 and later switches to its pinned version itself, npm checks devEngines.packageManager itself, and every Yarn from 1.18 runs a release committed under yarnPath in .yarnrc.yml, so those pins are not reported; nor is a CI job or Dockerfile stage that installs or runs Corepack before it installs with the pinned tool.",
 	help: "Install Corepack where that Node.js runs (npm install -g corepack, then corepack enable), before the pinned tool runs.",
 	level: "warning",
 	requiresPolicy: false,
@@ -30958,7 +31297,7 @@ const lockfileForbiddenSource = {
 	id: "lockfile-forbidden-source",
 	checks: "The lockfile installs no package from a source depcurfew.json denies",
 	summary: "The lockfile installs a package from a source depcurfew.json denies.",
-	description: "A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json, and a repository of a denied kind that no package of composer.lock comes from is reported at its declaration (a warning).",
+	description: "A git repository, a tarball URL or a local path bypasses the registry and its checks (release age, provenance, integrity from the registry). The lockfile shows what installs really fetch, whatever the package manager settings say. For Composer, whose lockfile does not name the repository of a package, packages of a path or artifact repository are told by their dist, those of a VCS or package repository by the repositories of composer.json, a package without a dist is a VCS checkout (Composer installs it from its source), an archive from a host that neither the archives of Packagist.org (GitHub, GitLab, Bitbucket, Codeberg) nor a repository of composer.json use is a source depcurfew does not recognize (a warning), and a repository of a denied kind that no package of composer.lock comes from is reported at its declaration (a warning).",
 	help: "Replace the dependency with a registry version, or allow that source in depcurfew.json.",
 	level: "error",
 	requiresPolicy: true,
@@ -30974,7 +31313,7 @@ const lockfileForbiddenSource = {
 						level: "warning",
 						location: location(lockfile, entry),
 						message: `${lockfile.file} installs ${entry.name} from a source depcurfew does not recognize (${shownSpec(entry.spec) || "no source given"}); it may be one ${POLICY_FILE} denies`,
-						fix: `Check where ${entry.name} comes from, and regenerate the lockfile with the package manager if the entry is damaged`
+						fix: tool.id === "composer" ? `Check where ${entry.name} comes from: if a Composer repository serves it, declare that repository in ${COMPOSER_MANIFEST}; otherwise lock it again from Packagist with composer update` : `Check where ${entry.name} comes from, and regenerate the lockfile with the package manager if the entry is damaged`
 					});
 					continue;
 				}
@@ -31017,29 +31356,59 @@ function reportComposerRepositories(context, tool, lockfile, sources) {
 * which may run (the first key that matches, true or false; true or false for the whole setting): one it allows that the
 * policy does not is an error; one it does not list makes Composer ask, or fail without a terminal (a warning).
 */
-function reportComposerPlugins(context, lockfile, allow, deny) {
+function reportComposerPlugins(context, lockfile, tool, allow, deny) {
 	const manifest = composerManifest(context.repository);
+	const lock = {
+		tool,
+		pluginApi: lockedPluginApi(context.repository, tool, lockfile.file)?.version
+	};
+	const relock = extraOf(tool, "contentHash", (value) => isRecord(value) && typeof value["command"] === "string").command;
 	for (const entry of lockfile.entries.filter((item) => item.installScript === true)) {
 		if (allow.some((pattern) => matchesPattern$1(entry.name, pattern))) continue;
 		const isDenied = deny.some((pattern) => matchesPattern$1(entry.name, pattern));
-		const decision = pluginDecision(manifest, entry.name);
-		const by = decision.key === void 0 ? "config.allow-plugins" : `"${decision.key}" in config.allow-plugins`;
-		if (decision.allowed === true) {
-			const block = decision.key === void 0 ? `replace true in config.allow-plugins of ${COMPOSER_MANIFEST} with the plugins that may run` : decision.key === entry.name ? `set it to false in config.allow-plugins of ${COMPOSER_MANIFEST}` : `put "${entry.name}": false before "${decision.key}" in config.allow-plugins of ${COMPOSER_MANIFEST}, because Composer takes the first key that matches`;
+		const decision = pluginDecision(manifest, entry.name, lock);
+		const at = location(lockfile, entry);
+		const named = isComposerName(entry.name);
+		const plugin = named ? entry.name : `the plugin at ${at.line === void 0 ? "" : `line ${at.line} of `}${lockfile.file}`;
+		const policyName = named ? `${COMPOSER_PREFIX}${entry.name}` : void 0;
+		const unnamed = `its name ${JSON.stringify(entry.name)} is not a Composer package name (lowercase vendor/name), so ${POLICY_FILE} cannot list it; remove the entry and lock again with composer update`;
+		if (decision.legacy !== void 0) {
+			const api = decision.legacy.pluginApi === void 0 ? "has no plugin-api-version" : `has plugin-api-version ${decision.legacy.pluginApi}`;
 			context.report({
 				level: "error",
-				location: location(lockfile, entry),
+				location: at,
+				message: `${entry.name} is a Composer plugin, whose code runs during Composer commands, and ${lockfile.file} ${api}, which Composer takes for a lock file from before allow-plugins (Composer ${decision.legacy.below}): with config.allow-plugins in ${COMPOSER_MANIFEST} empty or missing, a Composer older than ${decision.legacy.allowsAllUntil} runs every plugin of it without asking, but ${POLICY_FILE} ${isDenied ? "denies it" : "does not allow it"}`,
+				fix: `Lock again with a current Composer (${relock}), which records plugin-api-version, and commit ${lockfile.file}; ${policyName === void 0 ? unnamed : isDenied ? "depcurfew apply then writes the denial into config.allow-plugins" : `review the plugin and add ${policyName} to installScripts.allow or installScripts.deny in ${POLICY_FILE}, and run depcurfew apply`}`
+			});
+			continue;
+		}
+		const by = decision.key === void 0 ? "config.allow-plugins" : `"${decision.key}" in config.allow-plugins`;
+		if (decision.allowed === true) {
+			if (policyName === void 0) {
+				context.report({
+					level: "error",
+					location: at,
+					message: `${entry.name} is a Composer plugin, whose code runs during Composer commands, and ${by} in ${COMPOSER_MANIFEST} lets Composer run it, but ${POLICY_FILE} does not allow it`,
+					fix: `Check ${plugin}: ${unnamed}, and narrow ${by} in ${COMPOSER_MANIFEST} to the plugins that may run`
+				});
+				continue;
+			}
+			const block = decision.key === void 0 ? `replace true in config.allow-plugins of ${COMPOSER_MANIFEST} with the plugins that may run` : decision.key.toLowerCase() === entry.name ? `set it to false in config.allow-plugins of ${COMPOSER_MANIFEST}` : `put "${entry.name}": false before "${decision.key}" in config.allow-plugins of ${COMPOSER_MANIFEST}, because Composer takes the first key that matches`;
+			context.report({
+				level: "error",
+				location: at,
 				message: `${entry.name} is a Composer plugin, whose code runs during Composer commands, and ${by} in ${COMPOSER_MANIFEST} lets Composer run it, but ${POLICY_FILE} ${isDenied ? "denies it" : "does not allow it"}`,
-				fix: isDenied ? `${block.charAt(0).toUpperCase()}${block.slice(1)}, or move ${COMPOSER_PREFIX}${entry.name} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing the plugin` : `Review the plugin and add ${COMPOSER_PREFIX}${entry.name} to installScripts.allow in ${POLICY_FILE}, or ${block}`
+				fix: isDenied ? `${block.charAt(0).toUpperCase()}${block.slice(1)}, or move ${policyName} from installScripts.deny to installScripts.allow in ${POLICY_FILE} after reviewing the plugin` : `Review the plugin and add ${policyName} to installScripts.allow in ${POLICY_FILE}, or ${block}`
 			});
 			continue;
 		}
 		if (decision.allowed === false || isDenied) continue;
+		const withoutTerminal = entry.optional === true ? "a run without a terminal (CI) skips it, since it declares extra.plugin-optional" : "a run without a terminal (CI) fails";
 		context.report({
 			level: "warning",
-			location: location(lockfile, entry),
-			message: `${entry.name} is a Composer plugin that config.allow-plugins in ${COMPOSER_MANIFEST} does not list, so Composer asks whether to run it, and a run without a terminal (CI) fails; ${POLICY_FILE} does not allow it`,
-			fix: `Review the plugin: add ${COMPOSER_PREFIX}${entry.name} to installScripts.allow in ${POLICY_FILE} if the project needs it, or to installScripts.deny if it works without it, then run depcurfew apply`
+			location: at,
+			message: `${entry.name} is a Composer plugin that config.allow-plugins in ${COMPOSER_MANIFEST} does not list, so Composer asks whether to run it, and ${withoutTerminal}; ${POLICY_FILE} does not allow it`,
+			fix: policyName === void 0 ? `Check ${plugin}: ${unnamed}` : `Review the plugin: add ${policyName} to installScripts.allow in ${POLICY_FILE} if the project needs it, or to installScripts.deny if it works without it, then run depcurfew apply`
 		});
 	}
 }
@@ -31197,7 +31566,7 @@ const lockfileInstallScripts = {
 			const allow = view?.allow ?? [];
 			const deny = view?.deny ?? [];
 			if (ecosystemOfTool(tool) === "packagist") {
-				reportComposerPlugins(context, lockfile, allow, deny);
+				reportComposerPlugins(context, lockfile, tool, allow, deny);
 				return;
 			}
 			if (ecosystemOfTool(tool) === "pypi") {

@@ -6,7 +6,7 @@ import type { PackageManagerId } from '../detect/types.ts';
 import type { ToolKnowledge } from '../knowledge/types.ts';
 import { wildcardMatch } from '../detect/wildcard.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
-import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
+import { composerPolicyName, keyCoveredBy, matchesEveryComposerName } from './composer.ts';
 import { splitSpec } from './lockfiles.ts';
 import { jsonSetting, lineOf, yamlSetting } from './settings.ts';
 
@@ -25,13 +25,50 @@ export interface AllowEntry {
   line: number | undefined;
   /** The setting as written, e.g. "allowBuilds" or "dependenciesMeta". */
   setting: string;
-  /** The package as depcurfew.json names it, where its registry takes a prefix there (composer:vendor/name). */
+  /**
+   * The package as depcurfew.json names it, where its registry takes a prefix there (composer:vendor/name in lower
+   * case); absent for a Composer key the policy cannot name (a key that matches every plugin, a name that is no
+   * vendor/name).
+   */
   policyName?: string;
+  /**
+   * A key of Composer's allow-plugins: Composer matches it without regard to case and its * stands for any characters
+   * (BasePackage::packageNameToRegexp), so it is compared with the policy as keyCoveredBy does (decision D-134).
+   */
+  composerKey?: true;
 }
 
 /** The package of an entry as depcurfew.json writes it. */
 export function policyName(entry: AllowEntry): string {
   return entry.policyName ?? entry.package;
+}
+
+/** Whether the policy's patterns cover an entry: as the tool matches the entry (Composer keys), else by its package. */
+function covers(entry: AllowEntry, patterns: readonly string[]): boolean {
+  return entry.composerKey === true ? keyCoveredBy(entry.name, patterns) : patterns.some((pattern) => matchesPattern(entry.package, pattern));
+}
+
+/**
+ * What is wrong with an entry that lets a package the policy does not list run its install scripts, and what to do:
+ * for apply (allow-list-entry-outside-policy, `apply` true: with the line, and the entry removed by hand) and doctor
+ * (config-drift). A Composer key that matches every plugin, or one the policy cannot name, is not offered for
+ * installScripts.allow, since the policy rejects such a name.
+ */
+export function outsideConflictText(entry: AllowEntry, apply = false): { message: string; fix: string } {
+  const where = `${entry.setting} in ${entry.file}${apply && entry.line !== undefined ? ` (line ${entry.line})` : ''}`;
+  if (entry.composerKey === true && (matchesEveryComposerName(entry.name) || entry.policyName === undefined)) {
+    const every = matchesEveryComposerName(entry.name);
+    return {
+      message: `${where} has ${JSON.stringify(entry.name)}: true, which lets ${every ? 'every plugin that no earlier key names' : 'the plugins it matches'} run, but ${POLICY_FILE} does not allow ${every ? 'them' : 'them all'}`,
+      fix: `Remove ${JSON.stringify(entry.name)} from ${entry.setting} in ${entry.file} by hand and list the plugins that may run in installScripts.allow in ${POLICY_FILE} (with the prefix composer:), then run depcurfew apply`,
+    };
+  }
+  return {
+    message: `${where} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it`,
+    fix: apply
+      ? `Remove ${entry.name} from ${entry.setting} by hand, or add ${policyName(entry)} to installScripts.allow in ${POLICY_FILE}`
+      : `Remove ${entry.name} from ${entry.setting}, or add ${entry.policyName ?? (entry.name === entry.package ? 'it' : entry.package)} to installScripts.allow in ${POLICY_FILE}`,
+  };
 }
 
 function read(repository: TextSource, file: string): string | undefined {
@@ -140,14 +177,18 @@ function listEntries(repository: TextSource, manager: PackageManagerId, configFi
       break;
     case 'composer': {
       // config.allow-plugins: Composer allows a plugin only with true (PluginManager::isPluginAllowed); its keys may be
-      // patterns. true for the whole setting allows every plugin, which stands here as the pattern *.
+      // patterns, matched without regard to case. true for the whole setting allows every plugin, which stands here as
+      // the pattern *.
       const text = read(repository, 'composer.json');
       if (text === undefined) break;
       const found = jsonSetting(text, ['config', 'allow-plugins']);
       const keys: AllowEntry[] = [];
       if (found?.value === true && allowed) keys.push({ name: '*', package: '*', file: 'composer.json', line: found.line, setting: 'allow-plugins' });
       keys.push(...fromKeys(text, 'composer.json', 'allow-plugins', found?.value, (entry) => (entry === true) === allowed, jsonLine(text, 'composer.json', ['config', 'allow-plugins'])));
-      entries.push(...keys.map((entry) => ({ ...entry, policyName: `${COMPOSER_PREFIX}${entry.package}` })));
+      for (const entry of keys) {
+        const name = composerPolicyName(entry.name);
+        entries.push({ ...entry, package: entry.name.toLowerCase(), composerKey: true, ...(name === undefined || matchesEveryComposerName(entry.name) ? {} : { policyName: name }) });
+      }
       break;
     }
   }
@@ -190,14 +231,13 @@ export function listConflicts(
   options: ListOptions,
   scripts: { allow: readonly string[]; deny: readonly string[] },
 ): ListConflict[] {
-  const matches = (entry: AllowEntry, patterns: readonly string[]) => patterns.some((pattern) => matchesPattern(entry.package, pattern));
   const conflicts: ListConflict[] = [];
   for (const entry of allowEntries(repository, manager, configFiles, options)) {
-    if (matches(entry, scripts.allow)) continue;
-    conflicts.push({ kind: matches(entry, scripts.deny) ? 'denied' : 'outside', entry });
+    if (covers(entry, scripts.allow)) continue;
+    conflicts.push({ kind: covers(entry, scripts.deny) ? 'denied' : 'outside', entry });
   }
   for (const entry of denyEntries(repository, manager, configFiles, options)) {
-    if (matches(entry, scripts.allow)) conflicts.push({ kind: 'allowed', entry });
+    if (covers(entry, scripts.allow)) conflicts.push({ kind: 'allowed', entry });
   }
   return conflicts;
 }

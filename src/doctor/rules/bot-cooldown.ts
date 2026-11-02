@@ -504,10 +504,24 @@ const isReleaseTime = (value: unknown): value is { field: string; ignores: strin
 function composerTimeNote(context: RuleContext, delay: BotDelay, manager: string): void {
   if (delay.bot.extra?.['composerReleaseTime'] === undefined || delay.location === undefined) return;
   const fact = extraOf(delay.bot, 'composerReleaseTime', isReleaseTime);
+  // Composer 2.10.3 leaves config.policy out of content-hash (extra.composerContentHash, decision D-134).
+  const hash = delay.bot.extra['composerContentHash'] === undefined ? undefined : extraOf(delay.bot, 'composerContentHash', isContentHash);
+  const composer = context.tools.find((tool) => tool.id === 'composer');
+  const relock = composer?.extra?.['contentHash'] === undefined ? undefined : extraOf(composer, 'contentHash', isRelock);
+  const hashText =
+    hash === undefined || hash.hashesPolicy || relock === undefined
+      ? ''
+      : `; the ${hash.key} of each ${hash.file} it writes leaves out config.policy, so ${manager} ${relock.since} and later read that ${hash.file} as out of date (composer install warns, composer validate fails)`;
+  const hashFix = hashText === '' ? '' : `, run ${relock?.command ?? ''} on the branch of each such pull request and commit ${hash?.file ?? ''}`;
   context.report({
     level: 'note',
     location: delay.location,
-    message: `${delay.bot.name} counts the cooldown of ${delay.scope} from ${fact.field}, the release time the package author writes, not from ${fact.ignores}, when Packagist received the version, and it updates composer.lock with Composer ${fact.composerVersion}, which has no cooldown; a version published with an older ${fact.field} is proposed at once, and composer install takes it from composer.lock without ${manager}'s cooldown`,
-    fix: `Check the publication date on Packagist before merging ${delay.bot.name}'s composer pull requests, or update Composer packages with a bot that counts from ${fact.ignores}`,
+    message: `${delay.bot.name} counts the cooldown of ${delay.scope} from ${fact.field}, the release time the package author writes, not from ${fact.ignores}, when Packagist received the version, and it updates composer.lock with Composer ${fact.composerVersion}, which has no cooldown; a version published with an older ${fact.field} is proposed at once, and composer install takes it from composer.lock without ${manager}'s cooldown${hashText}`,
+    fix: `Check the publication date on Packagist before merging ${delay.bot.name}'s composer pull requests${hashFix}, or update Composer packages with a bot that counts from ${fact.ignores}`,
   });
 }
+
+const isContentHash = (value: unknown): value is { hashesPolicy: boolean; file: string; key: string } =>
+  isRecord(value) && typeof value['hashesPolicy'] === 'boolean' && typeof value['file'] === 'string' && typeof value['key'] === 'string';
+
+const isRelock = (value: unknown): value is { since: string; command: string } => isRecord(value) && typeof value['since'] === 'string' && typeof value['command'] === 'string';

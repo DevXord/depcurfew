@@ -120,17 +120,24 @@ function explained(detection: Detection, withProjects = false): ExplainDetection
   return { ...detection, warnings: warnings.map(explainedWarning) };
 }
 
-function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[]): { minimum: string; tools: CooldownEntry[] } | null {
+/**
+ * The policy's delay converted for each tool; a tool whose file holds a value apply cannot write the delay below
+ * (Composer's "policy": false) cannot apply it, with the reason apply gives (decision D-134).
+ */
+function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[], effects: PolicyEffects | undefined): { minimum: string; tools: CooldownEntry[] } | null {
   if (policy.cooldown === undefined) return null;
   const minimum = policy.cooldown.minimum;
   const entries = tools.flatMap((id): CooldownEntry[] => {
     const tool = knowledgeBase.find((entry) => entry.id === id);
     if (tool === undefined) return [];
     const result = convertCooldown(tool, minimum);
+    const skipped = result.ok ? effects?.cooldownNotWritten(id) : undefined;
     return [
-      result.ok
-        ? { tool: id, ok: true, unit: result.unit, value: result.value, exact: result.exact }
-        : { tool: id, ok: false, reason: result.reason },
+      !result.ok
+        ? { tool: id, ok: false, reason: result.reason }
+        : skipped !== undefined
+          ? { tool: id, ok: false, reason: skipped }
+          : { tool: id, ok: true, unit: result.unit, value: result.value, exact: result.exact },
     ];
   });
   return { minimum: minimum.text, tools: entries };
@@ -153,8 +160,9 @@ function policyReport(directory: string, detection: Detection): { policy: Policy
   if (policy === undefined) return { policy: null, projects: [], errors: [], withProjects: false };
   const mode = policy.targets === 'auto' ? ('auto' as const) : ('listed' as const);
   const withProjects = policy.projects.length > 0;
-  // One plan of the whole repository, as apply makes it, only when the policy has a part it shows (decision D-117).
-  const effects = policy.installScripts === undefined && policy.sources === undefined ? undefined : policyEffects(directory, policy, detection);
+  // One plan of the whole repository, as apply makes it, only when the policy has a part it shows (decisions D-117 and
+  // D-134: the cooldown, for a tool whose file keeps apply from writing it).
+  const effects = policy.installScripts === undefined && policy.sources === undefined && policy.cooldown === undefined ? undefined : policyEffects(directory, policy, detection);
   const part = (name: PolicyPart, project: string | undefined, ids: readonly ToolId[]) => partReport(effects, policy, name, project, ids);
   const problems = projectProblems(directory, policy.projects, detection);
   const projects = policy.projects.map((entry): ProjectReport => {
@@ -183,7 +191,7 @@ function policyReport(directory: string, detection: Detection): { policy: Policy
   const installScripts = scripts === undefined ? null : { default: scripts.default, allow: [...scripts.allow], deny: [...scripts.deny], tools: part('installScripts', undefined, tools)?.tools ?? [] };
   const sources = policy.sources === undefined ? null : { ...sourceAccess(policy.sources), tools: part('sources', undefined, tools)?.tools ?? [] };
   return {
-    policy: { file: POLICY_FILE, valid: true, targets: { mode, tools }, cooldown: cooldownReport(policy, withProjects ? ordered : tools), installScripts, sources },
+    policy: { file: POLICY_FILE, valid: true, targets: { mode, tools }, cooldown: cooldownReport(policy, withProjects ? ordered : tools, effects), installScripts, sources },
     projects,
     errors,
     withProjects,

@@ -14,7 +14,7 @@
       "file": ".github/dependabot.yml",
       "line": 7
     },
-    "message": "Dependabot counts the cooldown of composer updates from time, the release time the package author writes, not from published-time, when Packagist received the version, and it updates composer.lock with Composer 2.10.3, which has no cooldown; a version published with an older time is proposed at once, and composer install takes it from composer.lock without Composer's cooldown",
-    "fix": "Check the publication date on Packagist before merging Dependabot's composer pull requests, or update Composer packages with a bot that counts from published-time"
+    "message": "Dependabot counts the cooldown of composer updates from time, the release time the package author writes, not from published-time, when Packagist received the version, and it updates composer.lock with Composer 2.10.3, which has no cooldown; a version published with an older time is proposed at once, and composer install takes it from composer.lock without Composer's cooldown; the content-hash of each composer.lock it writes leaves out config.policy, so Composer 2.11.0 and later read that composer.lock as out of date (composer install warns, composer validate fails)",
+    "fix": "Check the publication date on Packagist before merging Dependabot's composer pull requests, run composer update --lock on the branch of each such pull request and commit composer.lock, or update Composer packages with a bot that counts from published-time"
   }
 ]

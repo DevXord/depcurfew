@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 8
+    },
+    "message": "evil/plugin is a Composer plugin, whose code runs during Composer commands, and composer.lock has no plugin-api-version, which Composer takes for a lock file from before allow-plugins (Composer 2.2.0): with config.allow-plugins in composer.json empty or missing, a Composer older than 2.10.0 runs every plugin of it without asking, but depcurfew.json does not allow it",
+    "fix": "Lock again with a current Composer (composer update --lock), which records plugin-api-version, and commit composer.lock; review the plugin and add composer:evil/plugin to installScripts.allow or installScripts.deny in depcurfew.json, and run depcurfew apply"
+  }
+]

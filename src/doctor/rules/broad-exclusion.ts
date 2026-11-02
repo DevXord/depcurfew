@@ -7,6 +7,7 @@ import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { convertCooldown } from '../../policy/convert.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
+import { matchesEveryComposerName } from '../composer.ts';
 import { delayMinutes, formatMinutes } from '../durations.ts';
 import { latestVersion } from '../effective.ts';
 import { actionsTarget, managerTargets, matchesEveryName, readRenovateConfig, ruleScope, type RenovateTarget, type RuleScope } from '../renovate.ts';
@@ -57,7 +58,7 @@ function checkManagers(context: RuleContext): void {
       // Composer's ignore may also be an object of names to reasons, and its * matches / as well (vendor names).
       const items: unknown[] | undefined = Array.isArray(found?.value) ? found.value : isRecord(found?.value) ? Object.keys(found.value) : undefined;
       if (found === undefined || items === undefined) continue;
-      const broad = (item: string) => isBroad(item) || (ecosystemOfTool(knowledge) === 'packagist' && /^\*+(?:\/\*+)?$/u.test(item));
+      const broad = (item: string) => isBroad(item) || (ecosystemOfTool(knowledge) === 'packagist' && matchesEveryComposerName(item));
       for (const pattern of items.filter((item): item is string => typeof item === 'string' && broad(item))) {
         context.report({
           location: { file, line: found.line },

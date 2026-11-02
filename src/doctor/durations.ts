@@ -80,10 +80,11 @@ export function delayMinutes(tool: ToolKnowledge, value: unknown, version: Versi
     return factor === undefined ? { ok: false, reason: `${tool.name} takes no number here` } : { ok: true, minutes: value * factor };
   }
   if (typeof value !== 'string') return { ok: false, reason: `${JSON.stringify(value) ?? String(value)} is not a delay` };
-  const text = value.trim();
-  if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
   const fact = tool.extra?.['durationStrings'];
   const format = fact === undefined ? undefined : values(fact)[0];
+  // Composer matches the string as it is (durationStrings trim: false); the other tools read it without the spaces around it.
+  const text = isRecord(format) && format['trim'] === false ? value : value.trim();
+  if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
   if (!isRecord(format) || typeof format['syntax'] !== 'string') return { ok: false, reason: `${tool.name} takes no duration strings` };
   const since = typeof format['since'] === 'string' ? parseVersion(format['since']) : undefined;
   if (since !== undefined && version !== undefined && compareVersions(version, since) < 0) {

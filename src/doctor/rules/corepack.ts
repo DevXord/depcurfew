@@ -3,8 +3,10 @@
 // Corepack install the pin then has no effect there. pnpm switches to its pinned version itself (pnpm
 // extra.managesOwnVersion) and npm checks devEngines.packageManager itself, so those pins are not reported. A CI job or
 // Dockerfile stage that installs or runs Corepack before it installs with the pinned tool is not reported either.
+import { posix } from 'node:path';
 import { parseVersion, type Version } from '../../apply/version.ts';
-import { extraOf, isRecord } from '../../apply/facts.ts';
+import { extraOf, isRecord, yamlOptionsFor } from '../../apply/facts.ts';
+import { yamlSetting } from '../settings.ts';
 import type { DockerfileInfo, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration } from '../../detect/types.ts';
 import { environment } from '../../knowledge/environment.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
@@ -42,6 +44,24 @@ function managesOwnVersion(tool: ToolKnowledge | undefined): boolean {
   return tool?.extra?.['managesOwnVersion'] !== undefined && isRecord(extraOf(tool, 'managesOwnVersion', isRecord));
 }
 
+const isYarnPathFact = (value: unknown): value is { file: string; key: string } => isRecord(value) && typeof value['file'] === 'string' && typeof value['key'] === 'string';
+
+/**
+ * Whether .yarnrc.yml names, with yarnPath, a Yarn release in the repository: Yarn 1.18 and later, and Yarn 2 and later,
+ * run that release instead of themselves, so it is the Yarn that runs with or without Corepack (yarn extra.yarnPathRuns,
+ * decision D-134). A path outside the repository is not committed with it.
+ */
+function committedYarnPath(scope: RuleScope): boolean {
+  const yarn = scope.tools.find((tool) => tool.id === 'yarn');
+  if (yarn?.extra?.['yarnPathRuns'] === undefined) return false;
+  const fact = extraOf(yarn, 'yarnPathRuns', isYarnPathFact);
+  const text = scope.repository.readText(fact.file);
+  const value = text === undefined ? undefined : yamlSetting(text, [fact.key], yamlOptionsFor(fact.file))?.value;
+  if (typeof value !== 'string' || value === '' || /^(?:[a-z]:)?[\\/]/iu.test(value)) return false;
+  const path = posix.normalize(value.replaceAll('\\', '/'));
+  return path !== '..' && !path.startsWith('../') && scope.repository.isFile(path);
+}
+
 /** The pins of the tools Corepack manages that nothing else acts on. */
 function pinsOf(scope: RuleScope): Pin[] {
   const managers = new Set<string>(evidenceOf(environment.corepack.packageManagerField).flatMap((evidence) => [...evidence.value.managers]));
@@ -52,6 +72,8 @@ function pinsOf(scope: RuleScope): Pin[] {
       // npm checks devEngines.packageManager itself (environment.devEngines); pnpm switches to its pin itself.
       if (manager.id === 'npm' && declaration.source === 'devEngines') return [];
       if (managesOwnVersion(scope.tools.find((tool) => tool.id === manager.id))) return [];
+      // A release committed under yarnPath runs whichever Yarn starts.
+      if (manager.id === 'yarn' && committedYarnPath(scope)) return [];
       const name = manager.id;
       return [{ tool: manager.id, name, text: `${name}@${declaration.version}`, declaration }];
     }),
@@ -132,7 +154,7 @@ export const corepackUnavailable: Rule = {
   checks: 'A pin that only Corepack reads has a Node.js that comes with Corepack',
   summary: 'packageManager or devEngines.packageManager pins Yarn or npm, but a declared Node.js is 25 or later, which no longer comes with Corepack.',
   description:
-    'Corepack reads packageManager (and devEngines.packageManager) and runs the pinned Yarn, or npm after corepack enable npm. Node.js 25.0.0 stopped distributing Corepack, so where a version file, CI job or Dockerfile chooses Node.js 25 or later, the pin has no effect unless Corepack is installed separately: whatever Yarn or npm is there runs, or none. pnpm 10 and later switches to its pinned version itself, and npm checks devEngines.packageManager itself, so those pins are not reported; nor is a CI job or Dockerfile stage that installs or runs Corepack before it installs with the pinned tool.',
+    'Corepack reads packageManager (and devEngines.packageManager) and runs the pinned Yarn, or npm after corepack enable npm. Node.js 25.0.0 stopped distributing Corepack, so where a version file, CI job or Dockerfile chooses Node.js 25 or later, the pin has no effect unless Corepack is installed separately: whatever Yarn or npm is there runs, or none. pnpm 10 and later switches to its pinned version itself, npm checks devEngines.packageManager itself, and every Yarn from 1.18 runs a release committed under yarnPath in .yarnrc.yml, so those pins are not reported; nor is a CI job or Dockerfile stage that installs or runs Corepack before it installs with the pinned tool.',
   help: 'Install Corepack where that Node.js runs (npm install -g corepack, then corepack enable), before the pinned tool runs.',
   level: 'warning',
   requiresPolicy: false,
