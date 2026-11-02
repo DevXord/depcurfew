@@ -129,7 +129,7 @@ function startsBlock(all: readonly string[], index: number): boolean {
 export function renderMarkdown(markdown: string, options: MarkdownOptions = {}): Rendered {
   const slug = options.slug ?? createSlugger();
   const rewrite = options.href ?? ((target: string): string | undefined => target);
-  const inline = (source: string) => renderInline(parseInline(source), rewrite);
+  const inline = (source: string, cell = false) => renderInline(parseInline(source), rewrite, cell);
   const all = lines(markdown);
   const out: string[] = [];
   const headings: Heading[] = [];
@@ -182,7 +182,7 @@ export function renderMarkdown(markdown: string, options: MarkdownOptions = {}):
           .map((_, column) => {
             const side = align[column];
             const text = (values[column] ?? '').replaceAll('\\|', '|');
-            return `<${tag}${side === undefined ? '' : ` class="align-${side}"`}>${inline(text)}</${tag}>`;
+            return `<${tag}${side === undefined ? '' : ` class="align-${side}"`}>${inline(text, true)}</${tag}>`;
           })
           .join('')}</tr>`;
       const body: string[] = [];
@@ -515,22 +515,43 @@ function safeTarget(target: string): boolean {
 /** The text of a link to the source of a fact in the knowledge base (src/knowledge/render.ts). */
 const SOURCE_ARROW = '↗';
 
-function renderInline(nodes: readonly Inline[], rewrite: (target: string) => string | undefined): string {
+/**
+ * Code in a table cell: each word, and each part of a long word after a dot or a slash, in a span, so that the stylesheet
+ * lets the code wrap between its words and after those separators but never inside a part (min-release-age does not
+ * break at its hyphens, install.minimumReleaseAgeExcludes may break after install.), and a long command, setting or
+ * path does not widen its column past the window (decision D-145). The text, and so what a reader copies, stays the same.
+ */
+function cellCode(value: string): string {
+  const pieces = value.split(/(\s+)/u).map((part) => {
+    if (part === '' || /^\s+$/u.test(part)) return { html: escapeHtml(part), split: false };
+    const segments = part.length > LONG_WORD ? part.split(/(?<=[./])(?=[^./])/u) : [part];
+    return { html: segments.map((segment) => `<span>${escapeHtml(segment)}</span>`).join('<wbr>'), split: segments.length > 1 };
+  });
+  if (!/\s/u.test(value) && !pieces.some((piece) => piece.split)) return `<code>${escapeHtml(value)}</code>`;
+  return `<code class="words">${pieces.map((piece) => piece.html).join('')}</code>`;
+}
+
+/** Words of table code up to this length stay whole; longer ones may wrap after a dot or a slash (decision D-145). */
+const LONG_WORD = 16;
+
+function renderInline(nodes: readonly Inline[], rewrite: (target: string) => string | undefined, cell = false): string {
   return nodes
     .map((node) => {
       switch (node.kind) {
         case 'text':
-          return escapeHtml(node.value);
+          // A date in a table cell stays on one line instead of breaking at its hyphens, with the dash of a range after
+          // it (decision D-145).
+          return cell ? escapeHtml(node.value).replace(/\b\d{4}-\d{2}-\d{2}\b(?: \u2013)?/gu, '<span class="date">$&</span>') : escapeHtml(node.value);
         case 'code':
-          return `<code>${escapeHtml(node.value)}</code>`;
+          return cell ? cellCode(node.value) : `<code>${escapeHtml(node.value)}</code>`;
         case 'break':
           return '<br>';
         case 'strong':
-          return `<strong>${renderInline(node.children, rewrite)}</strong>`;
+          return `<strong>${renderInline(node.children, rewrite, cell)}</strong>`;
         case 'em':
-          return `<em>${renderInline(node.children, rewrite)}</em>`;
+          return `<em>${renderInline(node.children, rewrite, cell)}</em>`;
         case 'link': {
-          const children = renderInline(node.children, rewrite);
+          const children = renderInline(node.children, rewrite, cell);
           const target = rewrite(node.target);
           // The knowledge base links each fact to its source with an arrow alone, which screen readers name "source" (D-141).
           const name = children === SOURCE_ARROW ? ' aria-label="source"' : '';

@@ -2,6 +2,10 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-02 · Strona dokumentacji: tabele czytelne bez przewijania w bok (D-145)
+
+- `scripts/site/markdown.ts`: kod w komórkach tabel jako słowa w `<span>` (klasa `words`), długie słowa z `<wbr>` po kropce i ukośniku, daty w `<span class="date">`; `site/style.css`: zawijanie między słowami, `min-width` komórki 6rem, odstęp 0.75rem, przyklejona pierwsza kolumna. Przy 1440 px w bok przewija się 5 tabel zamiast 13.
+
 ## 2026-11-02 · Wydanie 1.4.0 i przykład Action z SHA wydania
 
 - `depcurfew@1.4.0` opublikowana 20:30 UTC z tagu `v1.4.0` (commit 20fcc21) przez trusted publishing, z proweniencją SLSA; pliki w rejestrze są bajt w bajt takie same jak kompilacja z tego tagu, a sha512 tarballa zgadza się z `integrity` w rejestrze.

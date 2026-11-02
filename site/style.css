@@ -866,7 +866,7 @@ table {
 
 th,
 td {
-  padding: 0.5rem 0.875rem;
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
@@ -885,20 +885,54 @@ thead th {
   font-weight: 650;
 }
 
+tbody tr {
+  background: var(--background);
+}
+
 tbody tr:nth-child(even) {
   background: var(--zebra);
+}
+
+/* The first column (the tool or the field a row is about) stays in sight while a wide table scrolls sideways, on the
+   background of its row (decision D-145). */
+tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: inherit;
+  box-shadow: inset -1px 0 0 var(--border);
+}
+
+thead th:first-child {
+  left: 0;
+  z-index: 2;
+  box-shadow: inset -1px 0 0 var(--border);
 }
 
 tbody tr:last-child > * {
   border-bottom: 0;
 }
 
-/* A table with many columns scrolls instead of squeezing each column into a few characters. */
+/* A table with many columns scrolls instead of squeezing each column into a few characters; 6rem lets a table of
+   three or four columns fit beside the "On this page" list (decision D-145). */
 td {
-  min-width: 8rem;
+  min-width: 6rem;
 }
 
-td code {
+td code,
+th code {
+  white-space: nowrap;
+}
+
+/* Code with spaces wraps between its words, never inside one, so a long command or path does not widen its column
+   past the window (decision D-145). */
+td code.words,
+th code.words {
+  white-space: normal;
+}
+
+code.words > span,
+td .date {
   white-space: nowrap;
 }
 

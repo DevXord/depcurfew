@@ -91,7 +91,50 @@ describe('tables', () => {
 
   it('keeps escaped pipes in cells, also in code, and line breaks', () => {
     expect(html('| Command | Note |\n| --- | --- |\n| `doctor [--json \\| --sarif]` | a<br>b |')).toBe(
-      '<div class="table"><table>\n<thead>\n<tr><th>Command</th><th>Note</th></tr>\n</thead>\n<tbody>\n<tr><td><code>doctor [--json | --sarif]</code></td><td>a<br>b</td></tr>\n</tbody>\n</table></div>\n',
+      '<div class="table"><table>\n<thead>\n<tr><th>Command</th><th>Note</th></tr>\n</thead>\n<tbody>\n<tr><td><code class="words"><span>doctor</span> <span>[--json</span> <span>|</span> <span>--sarif]</span></code></td><td>a<br>b</td></tr>\n</tbody>\n</table></div>\n',
+    );
+  });
+
+  // Code in a table wraps only between its words, which never break at a hyphen (decision D-145).
+  it('splits code with spaces in a table cell into words, and leaves other code as it is', () => {
+    expect(html('| `a b` x | `min-release-age` |\n| --- | --- |\n| **`npm  ci <name>`** | [`c d`](#e) |')).toBe(
+      [
+        '<div class="table"><table>',
+        '<thead>',
+        '<tr><th><code class="words"><span>a</span> <span>b</span></code> x</th><th><code>min-release-age</code></th></tr>',
+        '</thead>',
+        '<tbody>',
+        '<tr><td><strong><code class="words"><span>npm</span>  <span>ci</span> <span>&lt;name&gt;</span></code></strong></td><td><a href="#e"><code class="words"><span>c</span> <span>d</span></code></a></td></tr>',
+        '</tbody>',
+        '</table></div>',
+        '',
+      ].join('\n'),
+    );
+    expect(html('run `npm ci <name>` and `min-release-age`')).toBe('<p>run <code>npm ci &lt;name&gt;</code> and <code>min-release-age</code></p>\n');
+  });
+
+  it('keeps a date in a table cell whole, with the dash of a range after it', () => {
+    expect(html('| Verified |\n| --- |\n| 2026-10-28 – 2026-11-02 |\n\nOn 2026-11-02.')).toBe(
+      '<div class="table"><table>\n<thead>\n<tr><th>Verified</th></tr>\n</thead>\n<tbody>\n<tr><td><span class="date">2026-10-28 –</span> <span class="date">2026-11-02</span></td></tr>\n</tbody>\n</table></div>\n<p>On 2026-11-02.</p>\n',
+    );
+  });
+
+  it('lets a long word of table code wrap after a dot or a slash, never at a hyphen', () => {
+    expect(html('| a |\n| --- |\n| `install.minimumReleaseAgeExcludes` `~/Library/Application Support/pypoetry/config.toml` `solver.min-release-age` `a.b/c` `https://github.com/org/*` |')).toBe(
+      [
+        '<div class="table"><table>',
+        '<thead>',
+        '<tr><th>a</th></tr>',
+        '</thead>',
+        '<tbody>',
+        '<tr><td><code class="words"><span>install.</span><wbr><span>minimumReleaseAgeExcludes</span></code> ' +
+          '<code class="words"><span>~/</span><wbr><span>Library/</span><wbr><span>Application</span> <span>Support/</span><wbr><span>pypoetry/</span><wbr><span>config.</span><wbr><span>toml</span></code> ' +
+          '<code class="words"><span>solver.</span><wbr><span>min-release-age</span></code> <code>a.b/c</code> ' +
+          '<code class="words"><span>https://</span><wbr><span>github.</span><wbr><span>com/</span><wbr><span>org/</span><wbr><span>*</span></code></td></tr>',
+        '</tbody>',
+        '</table></div>',
+        '',
+      ].join('\n'),
     );
   });
 
