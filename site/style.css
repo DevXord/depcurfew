@@ -1,5 +1,5 @@
-/* The stylesheet of the depcurfew documentation site (decision D-132): system fonts only, a light and a dark color
-   scheme that follow the system setting, and nothing loaded from elsewhere. */
+/* The stylesheet of the depcurfew documentation site (decisions D-132 and D-139): system fonts only, a light and a
+   dark color scheme that follow the system setting, and nothing loaded from elsewhere. */
 
 :root {
   color-scheme: light dark;
@@ -10,6 +10,8 @@
   --link: #0550ae;
   --surface: #f6f8fa;
   --current: #e7ecf2;
+  --note: #fff8c5;
+  --note-border: #d4a72c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +23,8 @@
     --link: #74b9ff;
     --surface: #161b22;
     --current: #262c36;
+    --note: #272115;
+    --note-border: #9e6a03;
   }
 }
 
@@ -71,13 +75,22 @@ header.site {
   background: var(--surface);
 }
 
+header.site .bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+}
+
 header.site ul {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.5rem;
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: 0.75rem 1rem;
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
 
@@ -92,6 +105,30 @@ header.site a[aria-current="page"] {
   background: var(--current);
   color: var(--text);
   font-weight: 600;
+}
+
+header.site a.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-left: 0;
+  color: var(--text);
+  font-weight: 700;
+}
+
+header.site a.brand img {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.25rem;
+}
+
+.banner {
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--note-border);
+  border-radius: 0.375rem;
+  background: var(--note);
 }
 
 main {

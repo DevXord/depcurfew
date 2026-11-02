@@ -1,11 +1,11 @@
-// The documentation site (decision D-132): a full build into a temporary directory has every page, every internal
-// link and anchor resolves, nothing loads from another host, two builds give the same bytes, and the served schema
-// is schema.json.
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+// The documentation site (decisions D-132 and D-139): a full build into a temporary directory has every page, every
+// internal link and anchor resolves, nothing loads from another host, two builds give the same bytes, and the served
+// schema is schema.json. Without --versions the site has no Versions page and no version directories.
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, posix, relative, sep } from 'node:path';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildSite, freshReadme, README_PAGES, SITE_PAGES, START_PAGES } from '../../scripts/site/build.ts';
+import { buildSite, freshReadme, README_PAGES, SITE_PAGES, START_PAGES, VERSIONS_PAGE } from '../../scripts/site/build.ts';
 import { escapeHtml, splitSections } from '../../scripts/site/markdown.ts';
 import { APPLY_ERRORS, APPLY_WARNINGS } from '../../src/apply/warnings.ts';
 import { INIT_NOTES, INIT_WARNINGS } from '../../src/cli/init-codes.ts';
@@ -13,6 +13,7 @@ import { RULES } from '../../src/doctor/index.ts';
 import { evidenceOf, collectFacts } from '../../src/knowledge/facts.ts';
 import { environment, knowledgeBase } from '../../src/knowledge/index.ts';
 import { USER_RULES } from '../../src/user/doctor.ts';
+import { checkDocument, checkLinks, checkLoadsNothing, files, ids } from './pages.ts';
 
 const ROOT = new URL('../../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, ROOT), 'utf8');
@@ -34,34 +35,12 @@ const PAGES = [
   'knowledge.html',
   'about.html',
 ];
-const FILES = [...PAGES, 'schema.json', 'schema/v1.json', 'style.css'].sort();
+const FILES = [...PAGES, 'favicon.svg', 'schema.json', 'schema/v1.json', 'style.css'].sort();
 
 let directories: string[] = [];
 let site = '';
 
-/** The files under a directory, as paths with `/`. */
-function files(directory: string): string[] {
-  return readdirSync(directory, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => relative(directory, join(entry.parentPath, entry.name)).split(sep).join('/'))
-    .sort();
-}
-
 const page = (name: string) => readFileSync(join(site, name), 'utf8');
-
-/** Every attribute value of the page with the element it is on. */
-function attributes(html: string): { tag: string; name: string; value: string }[] {
-  const found: { tag: string; name: string; value: string }[] = [];
-  for (const element of html.matchAll(/<([a-zA-Z][\w-]*)\b([^>]*)>/gu)) {
-    const [, tag = '', rest = ''] = element;
-    for (const attribute of rest.matchAll(/([\w-]+)\s*=\s*"([^"]*)"/gu)) found.push({ tag: tag.toLowerCase(), name: (attribute[1] ?? '').toLowerCase(), value: attribute[2] ?? '' });
-  }
-  return found;
-}
-
-const unescape = (value: string) => value.replaceAll('&quot;', '"').replaceAll('&#39;', "'").replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&');
-const ids = (html: string) => [...html.matchAll(/\sid="([^"]*)"/gu)].map((match) => unescape(match[1] ?? ''));
-const isExternal = (value: string) => /^[a-z][a-z0-9+.-]*:/iu.test(value) || value.startsWith('//');
 
 beforeAll(() => {
   directories = [mkdtempSync(join(tmpdir(), 'depcurfew-site-')), mkdtempSync(join(tmpdir(), 'depcurfew-site-'))];
@@ -74,10 +53,12 @@ afterAll(() => {
 });
 
 describe('site build', () => {
-  it('writes every page, the stylesheet and the schema, and nothing else', () => {
+  it('writes every page, the stylesheet, the icon and the schema, and nothing else: no Versions page or version directories', () => {
     expect(files(site)).toEqual(FILES);
     expect(START_PAGES.map((entry) => entry.file)).toEqual(expect.arrayContaining(['npm.html', 'python.html', 'bots.html']));
     expect(SITE_PAGES.map((entry) => entry.file)).toEqual(PAGES);
+    expect(FILES).not.toContain(VERSIONS_PAGE.file);
+    for (const name of PAGES) expect(page(name), name).not.toContain(`href="${VERSIONS_PAGE.file}"`);
   });
 
   it('gives the same bytes in two builds', () => {
@@ -92,51 +73,29 @@ describe('site build', () => {
     expect(readFileSync(join(site, 'schema/v1.json')).equals(schema)).toBe(true);
   });
 
-  it.each(PAGES)('%s is a complete HTML page with one h1 and the navigation', (name) => {
+  it('serves site/favicon.svg as favicon.svg, an image that loads and runs nothing', () => {
+    const icon = readFileSync(new URL('site/favicon.svg', ROOT));
+    expect(readFileSync(join(site, 'favicon.svg')).equals(icon)).toBe(true);
+    const svg = icon.toString('utf8');
+    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" ')).toBe(true);
+    expect(svg).not.toMatch(/<script|<foreignObject|href=|@import|\son\w+=/iu);
+    for (const reference of svg.matchAll(/url\(([^)]*)\)/gu)) expect(reference[1]).toMatch(/^#[\w-]+$/u);
+  });
+
+  it.each(PAGES)('%s is a complete HTML page with one h1, the icon in the header and the navigation', (name) => {
     const html = page(name);
-    expect(html.startsWith('<!doctype html>\n<html lang="en">\n')).toBe(true);
-    expect(html).toContain('<meta charset="utf-8">');
-    expect(html).toContain('<meta name="color-scheme" content="light dark">');
-    expect(html).toContain('<link rel="stylesheet" href="style.css">');
-    expect(html).toMatch(/<title>[^<]+<\/title>/u);
-    expect(html.match(/<h1[ >]/gu)?.length).toBe(1);
-    expect(html).not.toMatch(/\{\{(title|description|nav|content|footer)\}\}/u);
+    checkDocument(html, name);
+    expect(html).not.toContain('class="banner"');
     for (const other of PAGES) expect(html, `${name} links to ${other}`).toContain(`href="${other}"`);
     expect(html).toContain(`href="${name}" aria-current="page"`);
   });
 
   it.each(PAGES)('%s resolves every internal link and anchor, with relative paths only', (name) => {
-    const html = page(name);
-    const own = new Set(ids(html));
-    expect(own.size, 'duplicate ids').toBe(ids(html).length);
-    for (const { name: attribute, value: raw } of attributes(html)) {
-      if (!['href', 'src', 'srcset', 'action', 'poster', 'data', 'formaction'].includes(attribute)) continue;
-      const value = unescape(raw);
-      if (isExternal(value)) continue;
-      expect(value.startsWith('/'), `${name}: ${value} is not relative`).toBe(false);
-      const [path = '', fragment] = value.split('#');
-      const target = path === '' ? name : posix.normalize(posix.join(posix.dirname(name), path));
-      expect(FILES, `${name}: ${value}`).toContain(target);
-      if (fragment !== undefined) {
-        const targetIds = target === name ? own : new Set(ids(page(target)));
-        expect(targetIds.has(decodeURIComponent(fragment)), `${name}: ${value} has no anchor`).toBe(true);
-      }
-    }
+    checkLinks(site, name, FILES);
   });
 
-  it.each(PAGES)('%s loads nothing: no scripts, frames, images, styles from elsewhere or external URLs outside links', (name) => {
-    const html = page(name);
-    expect(html).not.toMatch(/<(script|iframe|img|object|embed|video|audio|source|picture|form|base|meta http-equiv)\b/iu);
-    expect(html).not.toMatch(/\sstyle="/u);
-    expect(html).not.toMatch(/\son\w+="/u);
-    for (const { tag, name: attribute, value } of attributes(html)) {
-      if (tag === 'a' && attribute === 'href') {
-        if (isExternal(unescape(value))) expect(unescape(value), name).toMatch(/^(https?|mailto):/u);
-        continue;
-      }
-      expect(isExternal(unescape(value)), `${name}: <${tag} ${attribute}="${value}">`).toBe(false);
-    }
-    for (const link of html.matchAll(/<link\b[^>]*>/gu)) expect(link[0]).toBe('<link rel="stylesheet" href="style.css">');
+  it.each(PAGES)('%s loads nothing but the stylesheet and the icon of the site: no scripts, frames, other images or external URLs outside links', (name) => {
+    checkLoadsNothing(page(name), name);
   });
 
   it('has a stylesheet with a light and a dark color scheme that loads nothing', () => {

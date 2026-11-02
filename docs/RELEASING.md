@@ -59,9 +59,13 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
 
 6. **Zalecane:** w ustawieniach repozytorium GitHub reguła, która pozwala tworzyć tagi `v*` tylko właścicielowi, żeby nikt inny nie mógł uruchomić workflow wydania.
 
-7. **Strona dokumentacji na GitHub Pages** (workflow `.github/workflows/pages.yml`, decyzja D-132):
-   - repozytorium → **Settings** → **Pages** → **Build and deployment** → **Source**: „GitHub Actions”;
-   - repozytorium → **Settings** → **Environments** → `github-pages` (GitHub tworzy je sam, jeśli go nie ma; jeśli go jeszcze nie ma, utwórz je przyciskiem **New environment** pod tą nazwą) → **Deployment branches and tags**: „Selected branches and tags”, reguła tagów `v*`, żeby wdrażać mogły tylko tagi wydań.
+7. **Strona dokumentacji https://depcurfew.github.io/** (repozytorium organizacji `depcurfew/depcurfew.github.io`, decyzja D-139):
+   - w organizacji `depcurfew` utwórz publiczne repozytorium `depcurfew.github.io` i skopiuj do niego pliki z `site/org-repo/` tego repozytorium z tymi samymi ścieżkami: `README.md` i `.github/workflows/pages.yml`;
+   - w nim **Settings** → **Pages** → **Build and deployment** → **Source**: „GitHub Actions”; środowisko `github-pages` może mieć regułę tylko dla gałęzi domyślnej, bo workflow działa na niej (harmonogram zawsze, ręczne uruchomienie z `main`);
+   - pierwsze wdrożenie: **Actions** → „Pages” → **Run workflow**; workflow buduje najnowsze opublikowane wydanie, więc działa od wydania, w którym `npm run site` zna `--versions` (1.4.0);
+   - jeśli w tym repozytorium włączono kiedyś Pages, wyłącz tu stronę projektu (**Settings** → **Pages** → menu przy „Your site is live at” → **Unpublish site**), żeby dokumentacja nie miała drugiej kopii;
+   - repozytorium główne to `DevXord/depcurfew`; gdy zmieni adres, zmień `SOURCE_REPOSITORY` w `.github/workflows/pages.yml` repozytorium organizacji i w `site/org-repo/` oraz pole `repository` w `package.json`;
+   - GitHub wyłącza zaplanowany workflow publicznego repozytorium po 60 dniach bez aktywności w nim; wtedy włącz go w **Actions** albo uruchom ręcznie.
 
 ## Każde wydanie
 
@@ -89,7 +93,7 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
 6. **Sprawdzenie proweniencji:** strona paczki na npmjs.com pokazuje proweniencję (repozytorium, workflow, commit). W dowolnym projekcie po instalacji `depcurfew@X.Y.Z` polecenie `npm audit signatures` powinno wykazać zweryfikowaną attestację.
 7. **Po wydaniu:**
    - w `src/docs/readme.ts` wpisać w `ACTION_RELEASE` wersję i pełny SHA commita wydania (`git rev-parse vX.Y.Z`), potem `npm run docs:readme` i PR do `main`; przykład Action w README przypina wtedy ten commit;
-   - utworzyć na GitHubie Release `vX.Y.Z` z tagu, z sekcją wersji z `CHANGELOG.md` jako opisem; opublikowanie Release uruchamia workflow „Pages”, który wdraża stronę dokumentacji z tego tagu;
+   - utworzyć na GitHubie Release `vX.Y.Z` z tagu, z sekcją wersji z `CHANGELOG.md` jako opisem; https://depcurfew.github.io/ pokazuje to wydanie po najbliższym codziennym przebiegu workflow „Pages” w `depcurfew/depcurfew.github.io` albo od razu po jego ręcznym uruchomieniu (**Actions** → „Pages” → **Run workflow**), a poprzednie wydanie trafia pod `/<wersja>/`;
    - poprzednią wersję z błędem, którego nie powinno się już instalować, oznaczyć `npm deprecate`.
 8. **Tylko po pierwszym wydaniu:** odrzuć etap próbny z kroku 2 jednorazowej konfiguracji (`npm stage list depcurfew`, potem `npm stage reject <stage-id>`, z 2FA). Opublikowana wersja zostaje. Po 1.0.0 to już zrobione. README trafia do paczki w chwili publikacji i to ono jest na stronie npm, więc wszystko, co ma się tam znaleźć, musi być w `main` przed tagiem.
 

@@ -1,5 +1,6 @@
-// Every action used by action.yml and by this repository's workflows is pinned to a full commit SHA, with the
-// version it stands for in a comment, so a moved tag cannot change what runs.
+// Every action used by action.yml, by this repository's workflows and by the workflow of the organization repository
+// in site/org-repo/ (decision D-139) is pinned to a full commit SHA, with the version it stands for in a comment, so a
+// moved tag cannot change what runs.
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -10,12 +11,14 @@ const files = [
   ...readdirSync(new URL('.github/workflows/', ROOT))
     .filter((name) => /\.ya?ml$/u.test(name))
     .map((name) => `.github/workflows/${name}`),
+  'site/org-repo/.github/workflows/pages.yml',
 ];
 
 describe('pinned actions', () => {
   it('finds the workflows', () => {
     expect(files).toContain('.github/workflows/ci.yml');
     expect(files).toContain('.github/workflows/action-test.yml');
+    expect(files).not.toContain('.github/workflows/pages.yml');
   });
 
   it.each(files)('%s pins every action to a commit SHA', (file) => {

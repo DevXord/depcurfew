@@ -2,7 +2,7 @@
 // GitHub ids, paragraphs, bullet and ordered lists without nesting, GitHub tables, fenced code blocks, code spans,
 // links and autolinks, strong and emphasis with stars, backslash escapes and <br>. HTML comments are dropped; any other HTML,
 // images and entities are escaped and shown as text. Link targets with a scheme other than http, https and mailto
-// lose their link.
+// lose their link, and so do targets the caller drops (decision D-139).
 
 export interface Heading {
   level: number;
@@ -14,8 +14,8 @@ export interface Heading {
 export interface MarkdownOptions {
   /** The id of a heading from its plain text; GitHub ids, numbered when repeated, by default. */
   slug?: (text: string) => string;
-  /** Rewrites a link target before it is written. */
-  href?: (target: string) => string;
+  /** Rewrites a link target before it is written; undefined drops the link and keeps its text. */
+  href?: (target: string) => string | undefined;
 }
 
 export interface Rendered {
@@ -128,7 +128,7 @@ function startsBlock(all: readonly string[], index: number): boolean {
 
 export function renderMarkdown(markdown: string, options: MarkdownOptions = {}): Rendered {
   const slug = options.slug ?? createSlugger();
-  const rewrite = options.href ?? ((target: string) => target);
+  const rewrite = options.href ?? ((target: string): string | undefined => target);
   const inline = (source: string) => renderInline(parseInline(source), rewrite);
   const all = lines(markdown);
   const out: string[] = [];
@@ -512,7 +512,7 @@ function safeTarget(target: string): boolean {
   return scheme === undefined || scheme === 'http' || scheme === 'https' || scheme === 'mailto';
 }
 
-function renderInline(nodes: readonly Inline[], rewrite: (target: string) => string): string {
+function renderInline(nodes: readonly Inline[], rewrite: (target: string) => string | undefined): string {
   return nodes
     .map((node) => {
       switch (node.kind) {
@@ -529,7 +529,7 @@ function renderInline(nodes: readonly Inline[], rewrite: (target: string) => str
         case 'link': {
           const children = renderInline(node.children, rewrite);
           const target = rewrite(node.target);
-          return safeTarget(target) ? `<a href="${escapeHtml(target)}">${children}</a>` : children;
+          return target !== undefined && safeTarget(target) ? `<a href="${escapeHtml(target)}">${children}</a>` : children;
         }
       }
     })

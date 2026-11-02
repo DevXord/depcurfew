@@ -2,16 +2,18 @@
 // README.md with its generated sections rendered afresh, the knowledge base as docs/knowledge.md shows it, and
 // schema.json. Every page is the README text of its sections, the knowledge base, or a start page for one ecosystem
 // that puts README sections and the README tables of its tools together. Hand-written text is limited to
-// navigation. Links are relative, so the site works as a project site (https://<owner>.github.io/depcurfew/) and at
-// the root of a domain; nothing is loaded from another host.
+// navigation. Links are relative, so the site works at the root of a domain (https://depcurfew.github.io/, decision
+// D-139) and under a path; the only things loaded are its own stylesheet and icon. With earlier versions (D-139) the
+// site also has a Versions page and a directory /<version>/ for each earlier release.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import { KNOWLEDGE_DOCUMENT, readmeSections, renderReadme, type ReadmeInputs } from '../../src/docs/readme.ts';
 import { environment } from '../../src/knowledge/environment.ts';
 import { knowledgeBase } from '../../src/knowledge/index.ts';
 import { renderKnowledgeMarkdown } from '../../src/knowledge/render.ts';
 import type { Ecosystem, ToolId, ToolKnowledge } from '../../src/knowledge/types.ts';
-import { createSlugger, escapeHtml, renderMarkdown, splitSections, type Section } from './markdown.ts';
+import { createSlugger, escapeHtml, renderMarkdown, slugify, splitSections, type Section } from './markdown.ts';
+import { FIRST_ARCHIVED_VERSION, repositoryUrl, type ArchivedVersion } from './versions.ts';
 
 const REPOSITORY = new URL('../../', import.meta.url);
 
@@ -151,6 +153,9 @@ export const SITE_PAGES: readonly Page[] = [
   ...README_PAGES.slice(-1),
 ];
 
+/** The page that lists the current version and the earlier ones; only in a site with earlier versions (D-139). */
+export const VERSIONS_PAGE: Page = { file: 'versions.html', nav: 'Versions', title: 'Versions', summary: 'The current version and the documentation of every earlier release.' };
+
 const read = (root: URL, path: string) => readFileSync(new URL(path, root), 'utf8');
 
 function readmeInputs(root: URL): ReadmeInputs {
@@ -196,6 +201,8 @@ interface Context {
   license: string;
   repository: string | undefined;
   template: string;
+  /** The pages in the navigation of the current version: SITE_PAGES, and the Versions page with earlier versions. */
+  pages: readonly Page[];
 }
 
 /** A link target of README or knowledge text as it works on the site, on `file` that shows the sections `local`. */
@@ -209,10 +216,13 @@ function siteTarget(target: string, file: string, local: ReadonlySet<string>, co
   return local.has(id) || page === file ? target : `${page}${target}`;
 }
 
-function renderParts(parts: readonly Part[], file: string, context: Context): string {
-  const local = new Set(parts.flatMap((part) => ('section' in part ? [part.section.id] : [])));
-  const slug = createSlugger(['content', ...local]);
-  const href = (target: string) => siteTarget(target, file, local, context);
+/** The ids of the sections among the parts, which keep the id they have in their document. */
+function sectionIds(parts: readonly Part[]): Set<string> {
+  return new Set(parts.flatMap((part) => ('section' in part ? [part.section.id] : [])));
+}
+
+function renderParts(parts: readonly Part[], href: (target: string) => string | undefined): string {
+  const slug = createSlugger(['content', ...sectionIds(parts)]);
   return parts
     .map((part) => {
       if ('markdown' in part) return renderMarkdown(part.markdown, { slug, href }).html;
@@ -222,7 +232,13 @@ function renderParts(parts: readonly Part[], file: string, context: Context): st
     .join('');
 }
 
-function readmeParts(page: ReadmePage, sections: readonly Section[]): Part[] {
+/** The parts of a page of the current version, with the links of README and knowledge text as they work on the site. */
+function currentParts(parts: readonly Part[], file: string, context: Context): string {
+  const local = sectionIds(parts);
+  return renderParts(parts, (target) => siteTarget(target, file, local, context));
+}
+
+function readmeParts(page: ReadmePage, sections: readonly Section[], context: Context): Part[] {
   const top = Math.min(...sections.map((section) => section.level));
   if (page.heading !== true && (sections[0]?.level !== top || sections.filter((section) => section.level === top).length !== 1)) {
     throw new Error(`site: ${page.file} needs a heading of its own, because its README sections do not start with a single one at the top`);
@@ -232,13 +248,13 @@ function readmeParts(page: ReadmePage, sections: readonly Section[]): Part[] {
     ...(page.heading === true ? [{ markdown: `# ${page.title}` }] : []),
     ...sections.map((section) => ({ section, level: section.level - shift })),
     ...(page.extra === undefined ? [] : [{ markdown: page.extra }]),
-    ...(page.contents === true ? [{ markdown: contents(page) }] : []),
+    ...(page.contents === true ? [{ markdown: contents(page, context.pages) }] : []),
   ];
 }
 
 /** The other pages of the site with their summaries. */
-function contents(page: Page): string {
-  const entries = SITE_PAGES.filter((entry) => entry.file !== page.file).map((entry) => `- [${entry.title}](${entry.file}): ${entry.summary}`);
+function contents(page: Page, pages: readonly Page[]): string {
+  const entries = pages.filter((entry) => entry.file !== page.file).map((entry) => `- [${entry.title}](${entry.file}): ${entry.summary}`);
   return ['## On this site', '', ...entries].join('\n');
 }
 
@@ -281,18 +297,38 @@ function startParts(page: StartPage, sections: readonly Section[], root: URL, kn
   ];
 }
 
-function pageHtml(page: Page, content: string, context: Context): string {
-  const nav = SITE_PAGES.map((entry) => `<li><a href="${entry.file}"${entry.file === page.file ? ' aria-current="page"' : ''}>${escapeHtml(entry.nav)}</a></li>`).join('\n');
-  const source = context.repository === undefined ? '' : ` · <a href="${escapeHtml(context.repository)}">Source on GitHub</a>`;
+interface NavEntry {
+  href: string;
+  text: string;
+  current: boolean;
+}
+
+/** What site/template.html puts around the content of a page. */
+interface Frame {
+  /** The path of the page from the root of the site, which gives the relative path back to the root. */
+  file: string;
+  title: string;
+  description: string;
+  nav: readonly NavEntry[];
+  /** HTML before the content: the banner of an earlier version, empty for the current one. */
+  banner: string;
+  /** HTML of the footer. */
+  footer: string;
+}
+
+function pageHtml(frame: Frame, content: string, template: string): string {
+  const nav = frame.nav.map((entry) => `<li><a href="${escapeHtml(entry.href)}"${entry.current ? ' aria-current="page"' : ''}>${escapeHtml(entry.text)}</a></li>`).join('\n');
   const values: Record<string, string> = {
-    title: escapeHtml(page.title === 'depcurfew' ? 'depcurfew' : `${page.title} · depcurfew`),
-    description: escapeHtml(context.description),
+    title: escapeHtml(frame.title),
+    description: escapeHtml(frame.description),
+    root: '../'.repeat(frame.file.split('/').length - 1),
     nav: `<ul>\n${nav}\n</ul>`,
+    banner: frame.banner,
     content: content.trimEnd(),
-    footer: `<p>depcurfew ${escapeHtml(context.version)} · built from README.md and src/knowledge/ with <code>npm run site</code>${source} · ${escapeHtml(context.license)} license</p>`,
+    footer: frame.footer,
   };
   const used = new Set<string>();
-  const html = context.template.replace(/\{\{(\w+)\}\}/gu, (_match, key: string) => {
+  const html = template.replace(/\{\{(\w+)\}\}/gu, (_match, key: string) => {
     const value = values[key];
     if (value === undefined) throw new Error(`site: unknown placeholder {{${key}}} in site/template.html`);
     used.add(key);
@@ -303,16 +339,186 @@ function pageHtml(page: Page, content: string, context: Context): string {
   return html;
 }
 
-/** The https address of the repository from package.json, for the footer. */
-function repositoryUrl(repository: unknown): string | undefined {
-  const url = typeof repository === 'string' ? repository : typeof repository === 'object' && repository !== null ? (repository as { url?: unknown }).url : undefined;
-  if (typeof url !== 'string') return undefined;
-  const plain = url.replace(/^git\+/u, '').replace(/\.git$/u, '');
-  return plain.startsWith('https://') ? plain : undefined;
+/** The frame of a page of the current version. */
+function currentFrame(page: Page, context: Context): Frame {
+  const source = context.repository === undefined ? '' : ` · <a href="${escapeHtml(context.repository)}">Source on GitHub</a>`;
+  return {
+    file: page.file,
+    title: page.title === 'depcurfew' ? 'depcurfew' : `${page.title} · depcurfew`,
+    description: context.description,
+    nav: context.pages.map((entry) => ({ href: entry.file, text: entry.nav, current: entry.file === page.file })),
+    banner: '',
+    footer: `<p>depcurfew ${escapeHtml(context.version)} · built from README.md and src/knowledge/ with <code>npm run site</code>${source} · ${escapeHtml(context.license)} license</p>`,
+  };
+}
+
+// Earlier versions (decision D-139).
+
+/** A page of an earlier version: a document of its tag. */
+interface ArchivePage {
+  /** The page in the directory of the version. */
+  file: 'index.html' | 'knowledge.html' | 'changelog.html';
+  /** The file of the tag the page shows, for relative links and messages. */
+  source: 'README.md' | 'docs/knowledge.md' | 'CHANGELOG.md';
+  nav: string;
+  title: string;
+  parts: Part[];
+  /** The ids of its headings, as GitHub gives them in the source. */
+  ids: Set<string>;
+}
+
+interface Archive {
+  entry: ArchivedVersion;
+  pages: ArchivePage[];
+}
+
+/** A whole document as parts: each section keeps the id GitHub gives it, so its own anchors work. */
+function documentParts(markdown: string): Part[] {
+  const { preamble, sections } = splitSections(markdown);
+  return [...(preamble.trim() === '' ? [] : [{ markdown: preamble }]), ...sections.map((section) => ({ section, level: section.level }))];
+}
+
+/** The section of `version` in a CHANGELOG.md, with the heading of the page, or undefined when it has none. */
+function changelogParts(changelog: string, version: string): Part[] | undefined {
+  const { sections } = splitSections(changelog);
+  // "## 1.3.0", also "## [1.3.0]", "## v1.3.0" or "## 1.3.0 (date)".
+  const heading = new RegExp(`^\\[?v?${version.replaceAll('.', '\\.')}\\]?(?:$|[\\s(])`, 'u');
+  const start = sections.findIndex((section) => section.level === 2 && heading.test(section.text));
+  const own = sections[start];
+  if (own === undefined) return undefined;
+  const parts: Part[] = [{ section: { ...own, heading: `Changes in depcurfew ${version}` }, level: 1 }];
+  for (const section of sections.slice(start + 1)) {
+    if (section.level <= 2) break;
+    parts.push({ section, level: section.level - 1 });
+  }
+  return parts;
+}
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+
+/**
+ * A link target of a document of an earlier version as it works on the site: an anchor of the page stays, a file of the
+ * repository that the version shows (README.md, docs/knowledge.md, CHANGELOG.md, schema.json) is its page when the
+ * anchor is there, any other file of the repository is the file at the tag on GitHub, and other links stay. Undefined
+ * drops the link and keeps its text, with a line passed to `report`.
+ */
+function archiveTarget(target: string, page: ArchivePage, archive: Archive, context: Context, report: (line: string) => void): string | undefined {
+  const { entry } = archive;
+  const where = `site: ${entry.version}/${page.file}: ${page.source} at tag ${entry.tag} links to ${target}`;
+  const hash = target.indexOf('#');
+  const path = hash === -1 ? target : target.slice(0, hash);
+  const anchor = hash === -1 ? '' : target.slice(hash);
+  let fragment: string | undefined;
+  try {
+    fragment = hash === -1 ? undefined : decodeURIComponent(target.slice(hash + 1));
+  } catch {
+    fragment = target.slice(hash + 1);
+  }
+  if (path === '') {
+    if (fragment !== undefined && page.ids.has(fragment)) return target;
+    report(`${where}, which none of its headings has; the link is shown as text`);
+    return undefined;
+  }
+  // A link to a file of the repository: on GitHub, at any branch or commit, or relative to the document.
+  let file: { kind: string; path: string } | undefined;
+  for (const repository of new Set([context.repository, entry.repository])) {
+    if (repository === undefined) continue;
+    const match = new RegExp(`^${escapeRegExp(repository)}/(blob|tree)/[^/]+/(.+)$`, 'iu').exec(path);
+    if (match !== null) file = { kind: match[1] ?? 'blob', path: match[2] ?? '' };
+  }
+  if (file === undefined) {
+    if (/^[a-z][a-z0-9+.-]*:/iu.test(path) || path.startsWith('/')) return target;
+    const resolved = posix.normalize(posix.join(posix.dirname(page.source), path)).replace(/\/$/u, '');
+    if (resolved === '..' || resolved.startsWith('../')) {
+      report(`${where}, outside the repository; the link is shown as text`);
+      return undefined;
+    }
+    file = { kind: 'blob', path: resolved };
+  }
+  const shown = archive.pages.find((other) => other.source === file.path);
+  if (shown !== undefined && (fragment === undefined || shown.ids.has(fragment))) return `${shown.file}${anchor}`;
+  if (file.path === 'schema.json' && entry.schema !== undefined && fragment === undefined) return 'schema.json';
+  const repository = context.repository ?? entry.repository;
+  if (repository === undefined) {
+    report(`${where}, a file of the repository, but package.json has no https address of the repository; the link is shown as text`);
+    return undefined;
+  }
+  return `${repository}/${file.kind}/${entry.tag}/${file.path}${anchor}`;
+}
+
+/** "a", "a and b", "a, b and c". */
+function enumeration(items: readonly string[]): string {
+  return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1) ?? ''}`;
+}
+
+function archiveOf(entry: ArchivedVersion, report: (line: string) => void): Archive {
+  const version = entry.version;
+  const pages: Omit<ArchivePage, 'ids'>[] = [{ file: 'index.html', source: 'README.md', nav: 'README', title: `depcurfew ${version}`, parts: documentParts(entry.readme) }];
+  if (entry.knowledge !== undefined) pages.push({ file: 'knowledge.html', source: 'docs/knowledge.md', nav: 'Knowledge base', title: `Knowledge base · depcurfew ${version}`, parts: documentParts(entry.knowledge) });
+  if (entry.changelog !== undefined) {
+    const parts = changelogParts(entry.changelog, version);
+    if (parts === undefined) report(`site: CHANGELOG.md at tag ${entry.tag} has no section "## ${version}", so ${version}/ has no changes page`);
+    else pages.push({ file: 'changelog.html', source: 'CHANGELOG.md', nav: `Changes in ${version}`, title: `Changes in ${version} · depcurfew ${version}`, parts });
+  }
+  return { entry, pages: pages.map((page) => ({ ...page, ids: sectionIds(page.parts) })) };
+}
+
+/** The files of an earlier version in its directory: its pages with a banner and its schema.json. */
+function archiveFiles(archive: Archive, context: Context, report: (line: string) => void): Map<string, string | Buffer> {
+  const { entry } = archive;
+  const version = escapeHtml(entry.version);
+  const source = context.repository ?? entry.repository;
+  const footer = `<p>depcurfew ${version} · from ${enumeration(archive.pages.map((page) => page.source))} at tag ${escapeHtml(entry.tag)}, built with <code>npm run site -- --versions</code>${
+    source === undefined ? '' : ` · <a href="${escapeHtml(`${source}/tree/${entry.tag}`)}">Source on GitHub</a>`
+  } · ${escapeHtml(entry.license ?? context.license)} license</p>`;
+  const banner = `<p class="banner">This page documents depcurfew ${version}, an earlier version. The current version is ${escapeHtml(context.version)}: <a href="../index.html">its documentation</a> · <a href="../${VERSIONS_PAGE.file}">all versions</a></p>\n`;
+  const files = new Map<string, string | Buffer>();
+  for (const page of archive.pages) {
+    const nav: NavEntry[] = [
+      ...archive.pages.map((other) => ({ href: other.file, text: other.nav, current: other.file === page.file })),
+      { href: `../${VERSIONS_PAGE.file}`, text: VERSIONS_PAGE.nav, current: false },
+      { href: '../index.html', text: `Current version (${context.version})`, current: false },
+    ];
+    const frame: Frame = { file: `${entry.version}/${page.file}`, title: page.title, description: entry.description ?? context.description, nav, banner, footer };
+    files.set(frame.file, pageHtml(frame, renderParts(page.parts, (target) => archiveTarget(target, page, archive, context, report)), context.template));
+  }
+  if (entry.schema !== undefined) files.set(`${entry.version}/schema.json`, entry.schema);
+  return files;
+}
+
+/** The Markdown of the Versions page: the current version, then every earlier one, newest first. */
+function versionsMarkdown(archives: readonly Archive[], context: Context): string {
+  const changes = context.repository === undefined ? '-' : `[CHANGELOG.md](${context.repository}/blob/v${context.version}/CHANGELOG.md#${slugify(context.version)})`;
+  const link = (archive: Archive, file: ArchivePage['file']) => {
+    const page = archive.pages.find((entry) => entry.file === file);
+    return page === undefined ? '-' : `[${page.nav}](${archive.entry.version}/${page.file})`;
+  };
+  return [
+    `# ${VERSIONS_PAGE.title}`,
+    '',
+    `The pages at the root of this site document depcurfew ${context.version}, the current version. Every earlier release from ${FIRST_ARCHIVED_VERSION} on keeps the README, the knowledge base, the changes and the JSON Schema of its release tag, with a banner on each page that names its version.`,
+    '',
+    '| Version | Documentation | Knowledge base | Changes | JSON Schema |',
+    '| --- | --- | --- | --- | --- |',
+    `| ${context.version} (current) | [${SITE_PAGES[0]?.nav ?? 'Overview'}](index.html) | [${KNOWLEDGE_PAGE.nav}](knowledge.html) | ${changes} | [schema.json](schema.json) |`,
+    ...archives.map((archive) => {
+      const schema = archive.entry.schema === undefined ? '-' : `[schema.json](${archive.entry.version}/schema.json)`;
+      return `| ${archive.entry.version} | ${link(archive, 'index.html')} | ${link(archive, 'knowledge.html')} | ${link(archive, 'changelog.html')} | ${schema} |`;
+    }),
+  ].join('\n');
+}
+
+export interface SiteOptions {
+  /** Earlier versions, from readVersions; without any, only the current version is built. */
+  versions?: readonly ArchivedVersion[];
+  /** Receives a line for each link of an earlier version that the site cannot keep. */
+  report?: (line: string) => void;
 }
 
 /** Every file of the site by its path, from the sources in `root`. */
-export function renderSite(root: URL = REPOSITORY): Map<string, string | Buffer> {
+export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): Map<string, string | Buffer> {
+  const versions = options.versions ?? [];
+  const report = options.report ?? (() => undefined);
   const pkg = JSON.parse(read(root, 'package.json')) as { version: string; description: string; license: string; repository?: unknown };
   const { preamble, sections } = splitSections(freshReadme(root));
   if (preamble.trim() !== '') throw new Error('site: README.md has text before its first heading, which no page would show');
@@ -326,26 +532,40 @@ export function renderSite(root: URL = REPOSITORY): Map<string, string | Buffer>
     license: pkg.license,
     repository: repositoryUrl(pkg.repository),
     template: read(root, 'site/template.html'),
+    pages: versions.length === 0 ? SITE_PAGES : [...SITE_PAGES, VERSIONS_PAGE],
   };
 
   const files = new Map<string, string | Buffer>();
-  for (const page of README_PAGES) files.set(page.file, pageHtml(page, renderParts(readmeParts(page, assigned.get(page) ?? []), page.file, context), context));
+  for (const page of README_PAGES) files.set(page.file, pageHtml(currentFrame(page, context), currentParts(readmeParts(page, assigned.get(page) ?? [], context), page.file, context), context.template));
 
   const knowledge = renderMarkdown(renderKnowledgeMarkdown(knowledgeBase, environment), {
     slug: createSlugger(['content']),
     href: (target) => siteTarget(target, KNOWLEDGE_PAGE.file, new Set(), context),
   });
-  files.set(KNOWLEDGE_PAGE.file, pageHtml(KNOWLEDGE_PAGE, knowledge.html, context));
+  files.set(KNOWLEDGE_PAGE.file, pageHtml(currentFrame(KNOWLEDGE_PAGE, context), knowledge.html, context.template));
   // The first heading of each tool in the knowledge base, for the links of the start pages.
   const knowledgeIds = new Map<string, string>();
   for (const heading of knowledge.headings) if (!knowledgeIds.has(heading.text)) knowledgeIds.set(heading.text, heading.id);
 
-  for (const page of START_PAGES) files.set(page.file, pageHtml(page, renderParts(startParts(page, sections, root, knowledgeIds), page.file, context), context));
+  for (const page of START_PAGES) files.set(page.file, pageHtml(currentFrame(page, context), currentParts(startParts(page, sections, root, knowledgeIds), page.file, context), context.template));
 
   files.set('style.css', read(root, 'site/style.css'));
+  files.set('favicon.svg', readFileSync(new URL('site/favicon.svg', root)));
   const schema = readFileSync(new URL('schema.json', root));
   files.set('schema.json', schema);
   files.set('schema/v1.json', schema);
+
+  if (versions.length > 0) {
+    const seen = new Set<string>();
+    for (const entry of versions) {
+      if (!/^\d+\.\d+\.\d+$/u.test(entry.version) || seen.has(entry.version)) throw new Error(`site: ${entry.version} is not one release version`);
+      seen.add(entry.version);
+    }
+    const archives = versions.map((entry) => archiveOf(entry, report));
+    for (const archive of archives) for (const [path, content] of archiveFiles(archive, context, report)) files.set(path, content);
+    const page = renderMarkdown(versionsMarkdown(archives, context), { slug: createSlugger(['content']) });
+    files.set(VERSIONS_PAGE.file, pageHtml(currentFrame(VERSIONS_PAGE, context), page.html, context.template));
+  }
   return new Map([...files].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 
@@ -359,6 +579,6 @@ export function writeSite(files: ReadonlyMap<string, string | Buffer>, directory
   return [...files.keys()];
 }
 
-export function buildSite(directory: string, root: URL = REPOSITORY): string[] {
-  return writeSite(renderSite(root), directory);
+export function buildSite(directory: string, root: URL = REPOSITORY, options: SiteOptions = {}): string[] {
+  return writeSite(renderSite(root, options), directory);
 }

@@ -155,6 +155,10 @@ describe('links', () => {
     );
   });
 
+  it('keeps the text of a link whose target the caller drops (decision D-139)', () => {
+    expect(html('[a](#x) and [**b**](#y)', { href: (target) => (target === '#x' ? undefined : target) })).toBe('<p>a and <a href="#y"><strong>b</strong></a></p>\n');
+  });
+
   it('keeps parentheses in targets, ignores a title and escapes the target', () => {
     expect(html('[w](https://example.com/a_(b)?q="1"&r=2 "Title")')).toBe('<p><a href="https://example.com/a_(b)?q=&quot;1&quot;&amp;r=2">w</a></p>\n');
   });
