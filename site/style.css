@@ -1,0 +1,971 @@
+/* The stylesheet of the depcurfew documentation site (decisions D-132, D-139 and D-140): system fonts only, a light and
+   a dark color scheme that follow the system setting, colors from the icon (teal as the accent, amber as the
+   highlight) and nothing loaded from elsewhere. Without JavaScript: on narrow screens a details element at the start
+   of the navigation and one right before the "On this page" list open them (.menu[open] + .groups), only below the
+   widths at which both are always shown (decision D-141). */
+
+:root {
+  color-scheme: light dark;
+  --background: #ffffff;
+  --surface: #f6f7f8;
+  --hover: #eceef0;
+  --code-background: #f2f3f5;
+  --zebra: #f9fafb;
+  --table-head: #eef0f2;
+  --text: #1b1f24;
+  --muted: #565e67;
+  --border: #e1e4e8;
+  --border-strong: #c6ccd2;
+  /* The border of buttons and of the tool links of the start page: 3:1 against what is around them (decision D-141). */
+  --control-border: #7d8791;
+  --accent: #0f766e;
+  --link: #0f766e;
+  --link-hover: #115e59;
+  --current: #e3f3f0;
+  --current-text: #0b5c55;
+  --button: #0f766e;
+  --button-hover: #115e59;
+  --button-text: #ffffff;
+  --focus: #0f766e;
+  --highlight: #fbbf24;
+  --highlight-soft: #fff8e6;
+  --highlight-border: #f1d27f;
+  --selection: #fde68a;
+  --version: #fef3c7;
+  --version-text: #7c3d0c;
+  --version-border: #f3d58b;
+  --hero: #eff8f6;
+  --hero-end: #fffaeb;
+  --error: #fde8e8;
+  --error-text: #9b1c1c;
+  --error-border: #f4b9b9;
+  --warning: #fef3c7;
+  --warning-text: #854106;
+  --warning-border: #f0cf74;
+  --note: #e3eefb;
+  --note-text: #1d4f91;
+  --note-border: #aac7ec;
+  --monospace: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --bar: 3.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f1214;
+    --surface: #161a1d;
+    --hover: #1f2428;
+    --code-background: #1a1f23;
+    --zebra: #14181b;
+    --table-head: #1d2226;
+    --text: #e4e7ea;
+    --muted: #9aa3ab;
+    --border: #2a3036;
+    --border-strong: #3d454d;
+    --control-border: #6f7a85;
+    --accent: #2dd4bf;
+    --link: #2dd4bf;
+    --link-hover: #5eead4;
+    --current: #123532;
+    --current-text: #5eead4;
+    --button: #2dd4bf;
+    --button-hover: #5eead4;
+    --button-text: #04201d;
+    --focus: #fbbf24;
+    --highlight-soft: #241e10;
+    --highlight-border: #5c4a1a;
+    --selection: #5c4708;
+    --version: #33280c;
+    --version-text: #fcd34d;
+    --version-border: #5c4a1a;
+    --hero: #10201e;
+    --hero-end: #1f1b10;
+    --error: #3a1517;
+    --error-text: #fca5a5;
+    --error-border: #6b2a2d;
+    --warning: #362808;
+    --warning-text: #fcd34d;
+    --warning-border: #6b5212;
+    --note: #142a45;
+    --note-text: #93c5fd;
+    --note-border: #2a4a75;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr auto;
+  grid-template-areas:
+    "bar"
+    "pages"
+    "main"
+    "footer";
+  min-height: 100vh;
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--text);
+}
+
+a {
+  color: var(--link);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  color: var(--link-hover);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.skip {
+  position: absolute;
+  top: -10rem;
+  left: 0.75rem;
+  z-index: 10;
+  padding: 0.5rem 0.875rem;
+  border-radius: 0.375rem;
+  background: var(--button);
+  color: var(--button-text);
+  font-weight: 600;
+}
+
+.skip:focus {
+  top: 0.5rem;
+}
+
+/* Text for screen readers only, such as the colon between the title and the summary of a card. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Top bar */
+
+header.site {
+  grid-area: bar;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: var(--bar);
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+  font-size: 1.0625rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.brand:hover {
+  color: var(--text);
+}
+
+.brand img {
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.version {
+  padding: 0 0.5rem;
+  border: 1px solid var(--version-border);
+  border-radius: 999px;
+  background: var(--version);
+  color: var(--version-text);
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Navigation: a menu on narrow screens, a sidebar on wide ones. The details element that opens the menu is the first
+   child of the navigation, so that it is inside its landmark, and sits in the top bar (decision D-141). */
+
+.menu {
+  position: absolute;
+  top: 0;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  height: var(--bar);
+}
+
+.menu summary,
+.toc-toggle summary {
+  list-style: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.menu summary::-webkit-details-marker,
+.toc-toggle summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+/* Three lines; an empty string, so screen readers read only "Menu". */
+.menu summary::before {
+  content: "";
+  width: 0.875rem;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  box-shadow: 0 -5px 0 currentColor, 0 5px 0 currentColor;
+}
+
+.menu[open] summary {
+  background: var(--current);
+  border-color: var(--accent);
+  color: var(--current-text);
+}
+
+.pages {
+  grid-area: pages;
+  font-size: 0.9375rem;
+}
+
+.pages .groups {
+  display: none;
+}
+
+@media not all and (min-width: 60rem) {
+  .menu[open] + .groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: 0.5rem 1rem;
+    padding: 0.75rem 1rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+}
+
+.pages .group-title {
+  margin: 0 0 0.25rem;
+  padding: 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pages ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pages a {
+  display: block;
+  padding: 0.3125rem 0.75rem;
+  border-radius: 0.375rem;
+  color: var(--text);
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.pages a:hover {
+  background: var(--hover);
+  color: var(--link-hover);
+}
+
+.pages a[aria-current="page"] {
+  background: var(--current);
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--current-text);
+  font-weight: 650;
+}
+
+main {
+  grid-area: main;
+  min-width: 0;
+  padding: 1.5rem 1rem 3rem;
+}
+
+footer.site {
+  grid-area: footer;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+footer.site p {
+  max-width: 66rem;
+  margin: 0;
+  padding: 1.25rem 1rem;
+}
+
+@media (min-width: 60rem) {
+  html {
+    scroll-padding-top: calc(var(--bar) + 1rem);
+  }
+
+  body {
+    grid-template-columns: 15.5rem minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "bar bar"
+      "pages main"
+      "pages footer";
+  }
+
+  header.site {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    padding: 0 1.25rem;
+  }
+
+  .menu {
+    display: none;
+  }
+
+  .pages {
+    position: sticky;
+    top: var(--bar);
+    align-self: start;
+    height: calc(100vh - var(--bar));
+    overflow-y: auto;
+    padding: 1.5rem 0.75rem 2rem;
+    border-right: 1px solid var(--border);
+  }
+
+  .pages .groups {
+    display: block;
+  }
+
+  .pages .group + .group {
+    margin-top: 1.25rem;
+  }
+
+  main {
+    padding: 2.25rem 2.5rem 4rem;
+  }
+
+  footer.site p {
+    padding: 1.25rem 2.5rem;
+  }
+}
+
+/* Content and the "On this page" list */
+
+.page {
+  max-width: 66rem;
+}
+
+.content > p,
+.content > ul,
+.content > ol,
+.content > h1,
+.content > h2,
+.content > h3,
+.content > h4,
+.content > h5,
+.content > h6 {
+  max-width: 72ch;
+}
+
+.toc-toggle {
+  margin: 0 0 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  background: var(--surface);
+}
+
+.toc-toggle summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.9375rem;
+}
+
+/* A chevron that points down, and up when the list is open. */
+.toc-toggle summary::after {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-0.15rem) rotate(45deg);
+}
+
+.toc-toggle[open] summary::after {
+  transform: translateY(0.15rem) rotate(-135deg);
+}
+
+.toc {
+  display: none;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+/* Only below the width at which the list stands beside the content (decision D-141). */
+@media not all and (min-width: 78rem) {
+  .toc-toggle[open] {
+    margin-bottom: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .toc-toggle[open] + .toc {
+    display: block;
+    margin: 0 0 1.5rem;
+    padding: 0.25rem 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-top: 0;
+    border-radius: 0 0 0.625rem 0.625rem;
+    background: var(--surface);
+  }
+}
+
+.toc-title {
+  display: none;
+  margin: 0 0 0.5rem;
+  padding-left: 0.875rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.toc ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toc a {
+  display: block;
+  padding: 0.25rem 0.375rem 0.25rem 0.875rem;
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.toc ul ul a {
+  padding-left: 1.75rem;
+}
+
+.toc a:hover {
+  border-left-color: var(--accent);
+  color: var(--link-hover);
+}
+
+.toc code {
+  padding: 0;
+  background: none;
+  font-size: 0.9em;
+}
+
+@media (min-width: 78rem) {
+  .page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 13rem;
+    grid-template-areas: "content toc";
+    gap: 3rem;
+  }
+
+  .content {
+    grid-area: content;
+    min-width: 0;
+  }
+
+  .toc-toggle {
+    display: none;
+  }
+
+  .toc {
+    grid-area: toc;
+    position: sticky;
+    top: calc(var(--bar) + 1.5rem);
+    display: block;
+    align-self: start;
+    max-height: calc(100vh - var(--bar) - 3rem);
+    overflow-y: auto;
+    border-left: 1px solid var(--border);
+  }
+
+  .toc-title {
+    display: block;
+  }
+
+  .toc a {
+    margin-left: -1px;
+  }
+}
+
+/* Hero of the start page */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 66rem;
+  margin: 0 0 2.5rem;
+  padding: 1.5rem 1rem;
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--highlight);
+  border-radius: 1rem;
+  background: linear-gradient(135deg, var(--hero), var(--hero-end));
+}
+
+.hero .logo {
+  width: 4rem;
+  height: 4rem;
+  margin-bottom: 1rem;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 2.25rem;
+  letter-spacing: -0.03em;
+}
+
+.hero p {
+  max-width: 62ch;
+  margin: 0.5rem 0 1.25rem;
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+.hero .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1.25rem;
+}
+
+.button {
+  display: inline-block;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.5rem;
+  background: var(--background);
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.5;
+  text-decoration: none;
+}
+
+.button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.button.primary {
+  border-color: var(--button);
+  background: var(--button);
+  color: var(--button-text);
+}
+
+.button.primary:hover {
+  border-color: var(--button-hover);
+  background: var(--button-hover);
+  color: var(--button-text);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Links to the start page of each tool: the color of links and an underline, in a border with 3:1 contrast. */
+.chips a {
+  display: inline-block;
+  padding: 0.0625rem 0.625rem;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--background);
+  color: var(--link);
+  font-size: 0.8125rem;
+  font-weight: 550;
+  text-decoration: underline;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.18em;
+}
+
+.chips a:hover {
+  border-color: var(--accent);
+  color: var(--link-hover);
+}
+
+@media (min-width: 40rem) {
+  .hero {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 1.75rem;
+    padding: 2rem 2rem 1.75rem;
+  }
+
+  .hero .actions {
+    gap: 0.625rem;
+  }
+
+  .button {
+    padding: 0.5rem 1.125rem;
+  }
+
+  .hero > * {
+    grid-column: 2;
+  }
+
+  .hero .logo {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    width: 6rem;
+    height: 6rem;
+    margin: 0.25rem 0 0;
+  }
+
+  .hero h1 {
+    font-size: 2.75rem;
+  }
+}
+
+/* Cards of the pages on the start page */
+
+.content > ul.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+  max-width: none;
+  padding: 0;
+  list-style: none;
+}
+
+.content > ul.cards > li {
+  margin: 0;
+}
+
+.cards a {
+  display: block;
+  height: 100%;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  background: var(--background);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.cards a:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.cards .title {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--link);
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.cards .summary {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* Banner of an earlier version */
+
+.banner {
+  max-width: 66rem;
+  margin: 0 0 1.75rem;
+  padding: 0.875rem 1.125rem;
+  border: 1px solid var(--highlight-border);
+  border-left: 5px solid var(--highlight);
+  border-radius: 0.625rem;
+  background: var(--highlight-soft);
+}
+
+/* Typography */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  margin: 0 0 1rem;
+  font-size: 2.25rem;
+  letter-spacing: -0.025em;
+}
+
+h2 {
+  margin: 2.75rem 0 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 1.5rem;
+}
+
+h1 + h2 {
+  margin-top: 1.5rem;
+}
+
+.content > h2:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+h3 {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.1875rem;
+}
+
+h4,
+h5,
+h6 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.0625rem;
+}
+
+p,
+ul,
+ol {
+  margin: 0 0 1rem;
+}
+
+ul,
+ol {
+  padding-left: 1.5rem;
+}
+
+.content li + li {
+  margin-top: 0.25rem;
+}
+
+/* A list of codes of init or apply: the pill of its level stands where the bullet would. */
+.content > ul.codes {
+  padding-left: 0;
+  list-style: none;
+}
+
+.content > ul.codes > li + li {
+  margin-top: 0.625rem;
+}
+
+code,
+pre {
+  font-family: var(--monospace);
+}
+
+code {
+  padding: 0.1em 0.35em;
+  border-radius: 0.3rem;
+  background: var(--code-background);
+  font-size: 0.875em;
+}
+
+p code,
+li code {
+  overflow-wrap: anywhere;
+}
+
+h1 code,
+h2 code,
+h3 code,
+h4 code {
+  padding: 0;
+  background: none;
+  font-size: 0.92em;
+}
+
+pre {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.125rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  background: var(--code-background);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+pre code {
+  padding: 0;
+  background: none;
+  font-size: 1em;
+}
+
+/* Tables: scroll inside their own box, with zebra rows and a header that stands out. A tall table scrolls inside a box
+   at most as high as the window, so that its header stays at the top and its horizontal scrollbar is in sight
+   (decision D-141). */
+
+.table {
+  margin: 0 0 1.5rem;
+  max-height: 80vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+th,
+td {
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+th + th,
+td + td {
+  border-left: 1px solid var(--border);
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  border-bottom: 2px solid var(--border-strong);
+  background: var(--table-head);
+  font-weight: 650;
+}
+
+tbody tr:nth-child(even) {
+  background: var(--zebra);
+}
+
+tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* A table with many columns scrolls instead of squeezing each column into a few characters. */
+td {
+  min-width: 8rem;
+}
+
+td code {
+  white-space: nowrap;
+}
+
+.align-left {
+  text-align: left;
+}
+
+.align-center {
+  text-align: center;
+}
+
+.align-right {
+  text-align: right;
+}
+
+/* Levels: always the word, the color only adds to it */
+
+.level {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375em;
+  padding: 0 0.625em;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.6;
+  white-space: nowrap;
+  vertical-align: 0.05em;
+}
+
+.level::before {
+  content: "";
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.level-error {
+  border-color: var(--error-border);
+  background: var(--error);
+  color: var(--error-text);
+}
+
+.level-warning {
+  border-color: var(--warning-border);
+  background: var(--warning);
+  color: var(--warning-text);
+}
+
+.level-note {
+  border-color: var(--note-border);
+  background: var(--note);
+  color: var(--note-text);
+}
+
+@media print {
+  body {
+    display: block;
+  }
+
+  .menu,
+  .pages,
+  .toc-toggle,
+  .toc,
+  .skip {
+    display: none;
+  }
+}

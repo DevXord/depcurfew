@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -7,6 +7,7 @@ const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
+const release14 = verifiedOn('2026-11-02');
 
 const CONFIG = 'https://docs.npmjs.com/cli/v12/using-npm/config';
 const CONFIG_V11 = 'https://docs.npmjs.com/cli/v11/using-npm/config';
@@ -227,6 +228,11 @@ export const npm: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: release14.verified<EnvironmentNameRule[]>(
+      [{ prefix: 'npm_config_', match: 'any-case' }],
+      `${NPM_CONFIG_LIB}/index.js`,
+      'loadEnv takes every variable whose name matches /^npm_config_/i, cuts the prefix and lowercases the rest (with _ as - but for a leading _), so NPM_CONFIG_REGISTRY and Npm_Config_Registry set registry as npm_config_registry does (decision D-143).',
+    ),
     localPrefix: runtimes.verified(
       { markers: { file: 'package.json', directory: 'node_modules' }, workspaceRoot: true, workspacesField: 'workspaces', workspacesObjectKey: 'packages', prefixOption: '--prefix', workspacesOption: '--workspaces', projectFile: '.npmrc' },
       `${NPM_CONFIG_LIB}/index.js`,
@@ -256,6 +262,11 @@ export const npm: ToolKnowledge = {
       { command: 'npm trust github', minimumNpm: '11.15.0', packageMustExist: true, permissions: ['--allow-publish', '--allow-stage-publish'] },
       'https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-trust.mdx',
       'Configures a trusted publisher from the CLI; needs 2FA on the account and write access, and the package must already exist. At least one permission flag is required.',
+    ),
+    tarballIdentity: release14.verified(
+      { separator: '/-/', extension: '.tgz', scopeSeparator: '/|%2f', version: 'semver' },
+      'https://github.com/npm/cli/blob/v12.2.1/workspaces/arborist/lib/version-from-tgz.js',
+      'What npm installs for an entry of package-lock.json is the tarball of resolved (after replace-registry-host), whatever its version field says: #extractOrLink in workspaces/arborist/lib/arborist/reify.js extracts <name>@<resolved> when resolved is set, and <name>@<version> only without it (12.2.1; the same code in 10.9.9). The allowScripts matcher of npm 12.2.1 takes the name and version of a registry package from resolved with this function (getTrustedRegistryIdentity in workspaces/arborist/lib/script-allowed.js: "Never use node.packageName / node.version here: those read from the tarball\'s own package.json and can be forged"): the path part after the last /-/ must be the file name of the URL, the part before it ends with the name, with the scope before it when that starts with @ (separated by / or %2f), and the file name is <name>-<version>.tgz with a version that semver.parse reads (semver 7.8.5 in npm 12.2.1: three numbers without leading zeros, an optional pre-release and build, an optional leading v, at most 256 characters; the version drops the v and the build). A path in another layout gives no name and version. versionFromTgz reads the whole URL, so a query or a fragment after the file name (.tgz?x=1, .tgz#x) gives none either, while npm still fetches the tarball: pacote 22.0.0 (the version npm 12.2.1 locks) fetches resolved as it is, or, when replace-registry-host replaces its host, new URL(path, registry) without query or fragment (lib/remote.js), and minipass-fetch 6.0.0 requests pathname and search, never the fragment (lib/request.js). The registry serves the file the path names, with its percent-escapes decoded as an HTTP server reads a path (decision D-136).',
     ),
     lockfileFormat: checked.verified(
       {
@@ -552,6 +563,16 @@ export const npm: ToolKnowledge = {
       ],
       'https://github.com/npm/cli/blob/v11.19.1/package.json',
       'engines.node of npm/cli package.json, the same at the tags v11.0.0, v11.10.0, v11.16.0, v11.19.1 and v11.21.1 (^20.17.0 || >=22.9.0) and at v12.0.0 and v12.2.1 (^22.22.2 || ^24.15.0 || >=26.0.0, https://github.com/npm/cli/blob/v12.2.1/package.json). On a Node.js outside the range npm only warns that it does not support it: lib/cli/entry.js at v11.19.1 runs log.warn(\'cli\', validateEngines.unsupportedMessage) when !satisfies(node, engines), for a Node.js "still unsupported and untested and might not work reliably", and lib/cli/validate-engines.js prints "ERROR: npm ... is known not to run on Node.js ..." when it fails with a SyntaxError. So npm install -g npm@11 on Node.js 18 installs an npm that is not meant to run there.',
+    ),
+    rootLifecycleScripts: release14.verified<RootLifecycleScriptsKnowledge>(
+      { events: ['preinstall', 'install', 'postinstall', 'prepublish', 'preprepare', 'prepare', 'postprepare'], skippedBy: 'ignore-scripts', allowListApplies: false },
+      `${NPM_GITHUB_V12}/lib/commands/install.js`,
+      'A bare npm install in a project runs the lifecycle scripts of the project itself with runScript, outside arborist and its allowScripts gate: "const runRootLifecycle = !args.length && !isGlobalInstall && !ignoreScripts", preinstall before reify and install, postinstall, prepublish, preprepare, prepare and postprepare after it. npm ci does the same "if (!ignoreScripts)" (lib/commands/ci.js), and so do install.js and ci.js at v11.16.0. collectUnreviewedScripts in workspaces/arborist/lib/unreviewed-scripts.js skips "node.isProjectRoot || node.isWorkspace", so strict-allow-scripts never stops at them. using-npm/scripts.md: prepare "Runs on local npm install without package arguments (runs with flags like --production or --omit=dev, but does not run when installing specific packages like npm install express)".',
+    ),
+    omitOptional: release14.verified<OmitOptionalKnowledge>(
+      { omit: { setting: 'omit', value: 'optional' }, alias: { setting: 'optional', off: false }, include: { setting: 'include' }, variablePrefix: 'npm_config_', listSeparator: '\n\n' },
+      NPM_DEFINITIONS,
+      'omit: [Array, "dev", "optional", "peer"], "Dependency types to omit from the installation tree on disk"; include: "Dependency types specified in --include will not be omitted, regardless of the order in which omit/include are specified on the command-line"; optional: deprecated, "Alias for --include=optional or --omit=optional" (buildOmitList: obj.optional === false pushes optional to omit, true to include; omit then drops what include lists). --no-optional sets optional to false. Each is one key: the value of the highest layer that sets it wins (command line, then npm_config_* variables in any case, then the project .npmrc). parseField in workspaces/config/lib/parse-field.js splits a list from the environment at two line breaks ("list types get put in the environment separated by double-\\n"), so NPM_CONFIG_OMIT=optional omits them and dev,optional is one unknown value.',
     ),
   },
 };

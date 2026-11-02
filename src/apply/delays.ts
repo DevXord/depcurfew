@@ -4,7 +4,7 @@
 import { delayMinutes, formatMinutes } from '../doctor/durations.ts';
 import { latestVersion } from '../doctor/effective.ts';
 import { readPythonSetting } from '../doctor/python.ts';
-import { jsonSetting, readSetting, yamlKeyLine, yamlSetting, type Setting } from '../doctor/settings.ts';
+import { jsonSetting, readSetting, rejectsYamlAliases, yamlAliasLine, yamlKeyLine, yamlSetting, type Setting } from '../doctor/settings.ts';
 import { Repository } from '../detect/repository.ts';
 import type { Detection, PackageManagerInfo } from '../detect/types.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
@@ -13,7 +13,8 @@ import { POLICY_FILE } from '../policy/defaults.ts';
 import { parseDuration } from '../policy/duration.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { BLOCK_END, isBlockStart } from './block.ts';
-import { extraOf, isRecord, settingOf, values } from './facts.ts';
+import { extraOf, isRecord, settingOf, values, yamlOptionsFor } from './facts.ts';
+import { isActionsEcosystem } from './generators/dependabot.ts';
 import { compareVersions, parseVersion, pinnedVersion, type Version } from './version.ts';
 import type { ApplyWarning } from './warnings.ts';
 import type { FileChange } from './workspace.ts';
@@ -29,6 +30,8 @@ export interface ConfiguredDelay {
   setting: string;
   /** The value as written. */
   value: unknown;
+  /** The text of a number in the file when the tool reads it as another value (default-days: 016, read as 14; decision D-138). */
+  written?: string;
   minutes: number;
   location: { file: string; line: number };
   /** Written by depcurfew: inside its managed block or under its YAML marker. */
@@ -133,13 +136,19 @@ function managerDelay(repository: Repository, manager: PackageManagerInfo, tool:
   };
 }
 
-function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: string): ConfiguredDelay[] {
+function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: string, workflows: readonly string[]): ConfiguredDelay[] {
   const text = repository.readText(file);
-  if (text === undefined) return [];
-  const updates = yamlSetting(text, ['updates']);
+  // Dependabot does not read a file with YAML aliases (extra.yamlAliases, decision D-135), so it configures no delay.
+  if (text === undefined || (rejectsYamlAliases(bot) && yamlAliasLine(text) !== undefined)) return [];
+  // Numbers as Dependabot's YAML library reads them (extra.yamlScalars, decision D-136).
+  const yaml = yamlOptionsFor(file, [bot]);
+  const updates = yamlSetting(text, ['updates'], yaml);
   if (updates === undefined || !Array.isArray(updates.value)) return [];
   const keys = extraOf(bot, 'cooldownKeys', isCooldownKeys);
   const ecosystems = Object.keys(extraOf(bot, 'ecosystems', isRecord));
+  // apply writes the github-actions entries too when there are workflows (decision D-130).
+  const actions = bot.extra?.['githubActions'] === undefined || workflows.length === 0 ? undefined : extraOf(bot, 'githubActions', isActionsEcosystem).ecosystem;
+  if (actions !== undefined) ecosystems.push(actions);
   const setting = settingOf(bot.cooldown.setting) ?? 'cooldown';
   const all = lines(text);
   return (updates.value as unknown[]).flatMap((entry, index): ConfiguredDelay[] => {
@@ -148,7 +157,8 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
     const days = isRecord(cooldown) ? cooldown[keys.days] : undefined;
     if (typeof days !== 'number' || days <= 0) return [];
     const path = ['updates', String(index), setting, keys.days];
-    const line = yamlSetting(text, path)?.line ?? updates.line;
+    const found = yamlSetting(text, path, yaml);
+    const line = found?.line ?? updates.line;
     return [
       {
         tool: bot.id,
@@ -156,6 +166,7 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
         label: `${String(entry['package-ecosystem'])} updates`,
         setting: keys.days,
         value: days,
+        ...(found?.written === undefined ? {} : { written: found.written }),
         minutes: days * 1440,
         location: { file, line },
         managed: markedInYaml(text, path, all),
@@ -200,7 +211,7 @@ export function configuredDelays(repository: Repository, detection: Detection, t
     const bot = tools.find((entry) => entry.id === detected.id);
     const file = detected.configFiles[0];
     if (bot === undefined || file === undefined || (only !== undefined && !only.has(bot.id))) continue;
-    if (bot.id === 'dependabot') delays.push(...readable(() => dependabotDelays(repository, bot, file), []));
+    if (bot.id === 'dependabot') delays.push(...readable(() => dependabotDelays(repository, bot, file, detection.workflows), []));
     else {
       const delay = readable(() => renovateDelay(repository, bot, file), undefined);
       if (delay !== undefined) delays.push(delay);
@@ -231,9 +242,16 @@ export function policyDuration(minutes: number): string {
   return `${whole}m`;
 }
 
-/** A value and where it is set, for messages: `min-release-age: 14 in .npmrc (line 2)`. */
+/**
+ * A value and where it is set, for messages: `min-release-age: 14 in .npmrc (line 2)`; a number the tool reads as
+ * another value as the file writes it and as the tool reads it (`default-days: 016 in .github/dependabot.yml (line 7),
+ * which Dependabot reads as 14`, decision D-138).
+ */
 export function describeDelay(delay: ConfiguredDelay): string {
-  return `${settingText(delay.location.file, delay.setting, delay.value)} in ${delay.location.file} (line ${delay.location.line})`;
+  const where = `in ${delay.location.file} (line ${delay.location.line})`;
+  if (delay.written === undefined) return `${settingText(delay.location.file, delay.setting, delay.value)} ${where}`;
+  const name = knowledgeBase.find((tool) => tool.id === delay.tool)?.name ?? delay.tool;
+  return `${delay.setting}: ${delay.written} ${where}, which ${name} reads as ${String(delay.value)}`;
 }
 
 /** INI files: .npmrc, pnpm's rc and pip's configuration files. */
@@ -299,7 +317,7 @@ export function shortenedDelays(root: string, changes: readonly FileChange[], de
         code: 'cooldown-shortened',
         tool: old.tool,
         location: { ...old.location },
-        message: `${name}: ${describeDelay(old)} waits ${formatMinutes(old.minutes)}${scope}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
+        message: `${name}: ${describeDelay(old)}${old.written === undefined ? '' : ','} waits ${formatMinutes(old.minutes)}${scope}, longer than cooldown.minimum "${policyMinimum}" in ${POLICY_FILE}; depcurfew apply ${action}, so ${name} waits only ${formatMinutes(now.minutes)}`,
         // JSON has no comments to mark what apply wrote, so a value an earlier apply wrote there counts as set by hand.
         fix: `To keep the longer delay, set cooldown.minimum to "${policyDuration(old.minutes)}" in ${POLICY_FILE} and run depcurfew apply again${old.location.file.endsWith('.json') || old.location.file.endsWith('.jsonc') ? `; if an earlier depcurfew apply wrote this value to ${old.location.file} and you lowered cooldown.minimum on purpose, nothing to do` : ''}`,
       },

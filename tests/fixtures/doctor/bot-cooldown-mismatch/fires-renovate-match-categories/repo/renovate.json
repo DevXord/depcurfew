@@ -1,0 +1,7 @@
+{
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchCategories": ["python"], "minimumReleaseAge": "1 hour" },
+    { "matchCategories": "js", "matchUpdateTypes": ["major"], "minimumReleaseAge": "1 day" }
+  ]
+}

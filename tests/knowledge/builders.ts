@@ -15,6 +15,7 @@ const SAMPLE_SOURCE: Record<ToolId, string> = {
   poetry: 'https://python-poetry.org/docs/configuration/',
   pdm: 'https://pdm-project.org/latest/usage/lockfile/',
   pipenv: 'https://pipenv.pypa.io/en/latest/pipfile/',
+  composer: 'https://getcomposer.org/doc/06-config.md',
   renovate: 'https://docs.renovatebot.com/configuration-options/',
   dependabot: 'https://docs.github.com/en/code-security/dependabot',
 };

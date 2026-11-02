@@ -1,8 +1,9 @@
 // `depcurfew check`: whether installing a package now would follow the policy. For a registry package: whether it exists,
 // how old the version the spec picks is compared with the cooldown, whether it runs install scripts the policy does
 // not allow, whether it is deprecated and whether its name imitates a popular package. Git, tarball and local sources
-// are checked against the policy's sources section only. Anything that cannot be checked is an error, so callers fail
-// closed.
+// are checked against the policy's sources section only. pypi: names are looked up on a Python package index
+// (python.ts), composer: names on Packagist (composer.ts). Anything that cannot be checked is an error, so callers
+// fail closed.
 import { values } from '../apply/facts.ts';
 import { matchesPattern } from '../doctor/allow-lists.ts';
 import { formatMinutes } from '../doctor/durations.ts';
@@ -10,6 +11,7 @@ import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import { policyFor } from '../policy/ecosystem.ts';
 import { CHECK_BY_HAND, describeAge, insecureFinding, quoted, sourceFindings, type CheckFinding, type CheckOptions, type CheckRequest, type PackageReport } from './findings.ts';
+import { checkComposerSpec, isComposerSpec } from './composer.ts';
 import { checkPythonSpec, isPythonSpec } from './python.ts';
 import { cachedLookup, fetchPackument, type Packument } from './registry.ts';
 import { compareSemver, maxSatisfying, parseRange, parseSemver, satisfies } from './semver.ts';
@@ -214,6 +216,8 @@ export const DEPRECATED_FIX = 'Pick a version or package that is not deprecated;
 export async function checkSpec(request: string | CheckRequest, options: CheckOptions): Promise<PackageReport> {
   const { spec: raw, ...chosen } = typeof request === 'string' ? { spec: request } : request;
   if (isPythonSpec(raw)) return checkPythonSpec(raw, options, chosen);
+  // Composer packages are looked up in Packagist (decision D-133).
+  if (isComposerSpec(raw)) return checkComposerSpec(raw, options, chosen);
   const spec = parseSpec(raw);
   if (spec === undefined) {
     const finding: CheckFinding = { level: 'error', code: 'invalid-spec', message: `"${raw}" is not a package spec`, fix: 'Write it as name, name@version, name@range or name@tag' };

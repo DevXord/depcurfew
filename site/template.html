@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{title}}</title>
+<meta name="description" content="{{description}}">
+<link rel="stylesheet" href="{{root}}style.css">
+<link rel="icon" href="{{root}}favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site">
+<a class="brand" href="{{root}}index.html"><img src="{{root}}favicon.svg" alt="" width="20" height="20">depcurfew</a>
+<span class="version">v{{version}}</span>
+</header>
+<nav class="pages" aria-label="Pages">
+<details class="menu"><summary>Menu</summary></details>
+<div class="groups">
+{{nav}}
+</div>
+</nav>
+<main id="content">
+{{banner}}{{hero}}<div class="page">
+{{toc}}<div class="content">
+{{content}}
+</div>
+</div>
+</main>
+<footer class="site">
+{{footer}}
+</footer>
+</body>
+</html>

@@ -1,0 +1,45 @@
+{
+  "packages": {
+    "swiftmailer/swiftmailer": [
+      {
+        "version": "v6.3.0",
+        "version_normalized": "6.3.0.0",
+        "time": "2021-10-18T15:26:12+00:00",
+        "published-time": "2021-10-18T15:26:28+00:00",
+        "type": "library",
+        "abandoned": "symfony/mailer"
+      },
+      {
+        "version": "v6.2.7",
+        "version_normalized": "6.2.7.0",
+        "time": "2021-03-09T12:30:35+00:00",
+        "published-time": "2021-03-09T12:32:51+00:00"
+      },
+      {
+        "version": "v6.2.6",
+        "version_normalized": "6.2.6.0",
+        "time": "2021-03-05T12:08:49+00:00",
+        "published-time": "2021-03-05T12:09:35+00:00"
+      },
+      {
+        "version": "v6.2.5",
+        "version_normalized": "6.2.5.0",
+        "time": "2021-01-12T09:35:59+00:00",
+        "published-time": "2021-01-12T09:37:03+00:00"
+      },
+      {
+        "version": "v6.2.4",
+        "version_normalized": "6.2.4.0",
+        "time": "2020-12-08T18:02:06+00:00",
+        "published-time": "2020-12-08T18:02:52+00:00"
+      },
+      {
+        "version": "v6.2.3",
+        "version_normalized": "6.2.3.0",
+        "time": "2019-11-12T09:31:26+00:00",
+        "published-time": "2019-11-12T09:35:00+00:00"
+      }
+    ]
+  },
+  "minified": "composer/2.0"
+}

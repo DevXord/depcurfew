@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "cooldown": {
+    "minimum": { "text": "3d", "minutes": 4320 },
+    "exclude": ["composer:acme/*", "composer:symfony/security-bundle", "@acme/*"],
+    "securityUpdates": "bypass"
+  },
+  "installScripts": { "default": "deny", "allow": ["composer:php-http/discovery", "composer:acme/*-plugin"], "deny": ["composer:symfony/flex"] },
+  "targets": ["composer", "npm"], "projects": []
+}

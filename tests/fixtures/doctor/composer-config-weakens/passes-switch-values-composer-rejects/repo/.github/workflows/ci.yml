@@ -1,0 +1,13 @@
+name: ci
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      # Composer stops with "Invalid value for COMPOSER_NO_BLOCKING" instead of running without blocking.
+      COMPOSER_NO_BLOCKING: "yes"
+      COMPOSER_NO_SECURITY_BLOCKING: "0"
+      COMPOSER_POLICY: "no"
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - run: composer update

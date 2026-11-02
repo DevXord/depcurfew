@@ -11,6 +11,7 @@ import { npm as npmFacts } from '../../knowledge/npm.ts';
 import type { PlanOptions } from '../../apply/index.ts';
 import { versionedValue } from '../effective.ts';
 import type { Detection, DockerfileInfo, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration, WorkflowJob } from '../../detect/types.ts';
+import { declarationJob, jobLabel, projectOf } from '../../detect/workflows.ts';
 import { environment } from '../../knowledge/environment.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { managerSources } from '../projects.ts';
@@ -172,13 +173,6 @@ export function commandsAfterStep(group: JobGroup, declaration: VersionDeclarati
   return found;
 }
 
-/** The project (a directory listed in projects) a command's working directory lies in; '' for the root. */
-function projectOf(command: ToolCommand, projects: readonly string[]): string {
-  const directory = command.directory;
-  if (directory === undefined) return '';
-  return projects.find((project) => directory === project || directory.startsWith(`${project}/`)) ?? '';
-}
-
 /**
  * What the installs of a place do (decision D-115): the line of the first, whether every one is npm ci (or an alias),
  * which installs the versions package-lock.json records, so that no release-age delay changes what it installs, and
@@ -236,10 +230,11 @@ export function jobsInProject(detection: Detection, project: string): { jobs: Wo
 }
 
 /** "Node.js 22 (matrix.node) in GitHub Actions (.github/workflows/ci.yml, job test)", "Node.js 22 in .nvmrc". */
-export function nodeSubject(declaration: VersionDeclaration & { version: string }, label: string): string {
+export function nodeSubject(declaration: VersionDeclaration & { version: string }, label: string, jobs: readonly WorkflowJob[] = []): string {
   const matrix = declaration.matrix === undefined ? '' : ` (matrix.${declaration.matrix})`;
   const container = declaration.container === undefined ? '' : ` of the job container ${declaration.container}`;
-  const where = declaration.source === 'github-actions' && declaration.job !== undefined ? `${declaration.file}, job ${declaration.job}` : declaration.file;
+  // The job by its id only when GitHub accepts it as one, else by the line of its key (decision D-135).
+  const where = declaration.source === 'github-actions' && declaration.job !== undefined ? `${declaration.file}, ${declarationJob(declaration, jobs)}` : declaration.file;
   const from = declaration.versionFile === undefined ? '' : ` from ${declaration.versionFile}`;
   return `Node.js ${declaration.version}${matrix}${container}${from} in ${label === where ? label : `${label} (${where})`}`;
 }
@@ -637,7 +632,7 @@ export function npmInUse(
   // The npm CI jobs and Dockerfile stages install for this directory, then the npm of the Node.js they set up.
   for (const { place, ownFile } of jobs) {
     if (place.upgrade === undefined || place.project !== '' || place.installs.scriptsOff) continue;
-    upgrade(place.upgrade, `installed in job ${place.job.id} of ${place.job.file}${ownFile ? '' : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : undefined, place.nodes.flatMap(nodeOf));
+    upgrade(place.upgrade, `installed in ${jobLabel(place.job.id, place.job.line)} of ${place.job.file}${ownFile ? '' : AT_ROOT}, line ${place.upgrade.line}`, ownFile ? at(place.job.file, place.upgrade.line) : undefined, place.nodes.flatMap(nodeOf));
   }
   for (const place of own) {
     if (place.upgrade !== undefined && !place.installs.scriptsOff) upgrade(place.upgrade, `installed in ${place.file.file}, line ${place.upgrade.line}`, at(place.file.file, place.upgrade.line), stageNodes(place));
@@ -649,7 +644,7 @@ export function npmInUse(
     const declaration = place.declaration;
     if (declaration === undefined || place.project !== '' || place.installs.scriptsOff) continue;
     const location = ownFile ? at(declaration.file, declaration.line) : undefined;
-    const job = `job ${place.job.id} of ${declaration.file}${ownFile ? '' : AT_ROOT}`;
+    const job = `${jobLabel(place.job.id, place.job.line)} of ${declaration.file}${ownFile ? '' : AT_ROOT}`;
     if (!('version' in declaration)) {
       unknownNode('depcurfew cannot read the version from that file', `Node.js from ${declaration.versionFile} in ${job}`, location);
       continue;
@@ -961,7 +956,7 @@ function checkJobs(context: RuleContext, helpers: BundledHelpers, checkFor: (pro
     const check = checkFor(project);
     if (check === undefined) continue;
     const where = project === '' ? '' : ` in ${project}`;
-    const uses = `job ${job.id} installs packages with it${where} on line ${installs.first}`;
+    const uses = `${jobLabel(job.id, job.line)} installs packages with it${where} on line ${installs.first}`;
     if (place.upgrade !== undefined) {
       checkUpgrade(context, helpers, check, { command: place.upgrade, file: job.file, label: SOURCE_LABEL['github-actions'], ...(project === '' ? {} : { installs: uses }), of: installs, nodes: place.nodes.flatMap(nodeOf) }, facts);
       continue;
@@ -972,7 +967,7 @@ function checkJobs(context: RuleContext, helpers: BundledHelpers, checkFor: (pro
       unknown(context, `the Node.js of ${declaration.versionFile} in ${declaration.file}`, 'depcurfew cannot read the version from that file', declaration.file);
       continue;
     }
-    const subject = nodeSubject(declaration, helpers.label(declaration));
+    const subject = nodeSubject(declaration, helpers.label(declaration), context.detection.jobs);
     if (declaration.unknown !== undefined) {
       unknown(context, subject, declaration.unknown, declaration.file);
       continue;
@@ -990,7 +985,7 @@ function checkJobs(context: RuleContext, helpers: BundledHelpers, checkFor: (pro
       installs: uses,
       of: installs,
       nodes: nodeOf(declaration),
-      install: (version) => `run npm install -g npm@${version} in job ${job.id} before it installs packages`,
+      install: (version) => `run npm install -g npm@${version} in ${jobLabel(job.id, job.line)} before it installs packages`,
       installSeen: true,
       runtime: (releases, _first, bundled) =>
         declaration.container === undefined
@@ -1073,7 +1068,7 @@ function checkDeveloperFiles(
   project?: string,
 ): void {
   for (const declaration of declarations) {
-    const subject = nodeSubject(declaration, helpers.label(declaration));
+    const subject = nodeSubject(declaration, helpers.label(declaration), context.detection.jobs);
     const resolution = nodeBundledNpm(declaration.version, namingOf(declaration.source), facts);
     if (resolution.kind === 'unknown') {
       unknown(context, subject, resolution.reason, declaration.file);

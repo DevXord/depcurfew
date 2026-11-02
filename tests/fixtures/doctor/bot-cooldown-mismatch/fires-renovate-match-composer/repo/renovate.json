@@ -1,0 +1,6 @@
+{
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchManagers": "composer", "matchUpdateTypes": ["major"], "minimumReleaseAge": "1 day" }
+  ]
+}

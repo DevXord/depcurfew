@@ -1,0 +1,47 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 4
+    },
+    "message": "COMPOSER_POLICY=0 in the env of the workflow in .github/workflows/ci.yml reaches every Composer command there and turns off every dependency policy, the cooldown included",
+    "fix": "Remove COMPOSER_POLICY from that env in .github/workflows/ci.yml, or set it only for a run that needs it after reviewing the packages"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 9
+    },
+    "message": "COMPOSER_POLICY_COOLDOWN_PERIOD=1 day in the env of job test in .github/workflows/ci.yml reaches every Composer command there and replaces the cooldown period with 1 day, shorter than the 3d of depcurfew.json",
+    "fix": "Remove COMPOSER_POLICY_COOLDOWN_PERIOD from that env in .github/workflows/ci.yml, or set it only for a run that needs it after reviewing the packages"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 10
+    },
+    "message": "COMPOSER_POLICY_MALWARE_BLOCK=off in the env of job test in .github/workflows/ci.yml reaches every Composer command there and stops blocking versions flagged as malware",
+    "fix": "Remove COMPOSER_POLICY_MALWARE_BLOCK from that env in .github/workflows/ci.yml, or set it only for a run that needs it after reviewing the packages"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 15
+    },
+    "message": "COMPOSER_NO_BLOCKING=false in the env of step 2 of job test in .github/workflows/ci.yml reaches every Composer command there and turns off all policy blocking, the cooldown and malware blocking included (Composer reads false and off as yes for this variable)",
+    "fix": "Remove COMPOSER_NO_BLOCKING from that env in .github/workflows/ci.yml, or set it only for a run that needs it after reviewing the packages"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 16
+    },
+    "message": "COMPOSER_POLICY_COOLDOWN_BLOCK=${{ matrix.block }} in the env of step 2 of job test in .github/workflows/ci.yml reaches every Composer command there and may stop the cooldown from withholding new versions",
+    "fix": "Remove COMPOSER_POLICY_COOLDOWN_BLOCK from that env in .github/workflows/ci.yml, or set it only for a run that needs it after reviewing the packages"
+  }
+]

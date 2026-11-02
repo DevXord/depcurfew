@@ -1,6 +1,8 @@
 // targets "auto": the tools the repository shows it uses. A package manager seen only in a CI setup step, with no
 // manifest, lockfile or configuration of its own in the repository, installs nothing from it (denoland/std sets up Bun
-// in CI but has no package.json), so it is left out rather than given new files (decision D-075).
+// in CI but has no package.json), so it is left out rather than given new files (decision D-075). One the root's CI sets
+// up only for the projects (ciForProjects, decision D-137) is no target of the root either, and without a manifest of
+// its own in the root it is in ciOnly, so that apply names it in tool-only-in-ci as before.
 import { detectedTargets } from '../cli/describe.ts';
 import { Repository } from '../detect/repository.ts';
 import type { Detection } from '../detect/types.ts';
@@ -23,7 +25,7 @@ export function manifestsOf(tool: ToolKnowledge): string[] {
 export function autoTargets(root: string, detection: Detection, tools: readonly ToolKnowledge[] = knowledgeBase): AutoTargets {
   const repository = new Repository(root);
   const ciOnly: AutoTargets['ciOnly'] = [];
-  for (const manager of detection.packageManagers) {
+  for (const manager of [...detection.packageManagers, ...(detection.ciForProjects ?? [])]) {
     const tool = tools.find((entry) => entry.id === manager.id);
     if (!manager.supported || tool === undefined || !manager.evidence.every((item) => item.kind === 'ci')) continue;
     const manifests = manifestsOf(tool);
@@ -31,6 +33,14 @@ export function autoTargets(root: string, detection: Detection, tools: readonly 
     ciOnly.push({ id: manager.id, workflows: manager.evidence.map((item) => item.file), manifests });
   }
   return { targets: detectedTargets(detection).filter((id) => !ciOnly.some((entry) => entry.id === id)), ciOnly };
+}
+
+/**
+ * Whether the policy's release-age delay covers the actions the workflows run for a bot (decision D-130): the
+ * repository has workflows, and the policy has a cooldown and configures the bot (targets "auto" or naming it).
+ */
+export function coversActions(policy: ResolvedPolicy | undefined, bot: ToolId, detection: Pick<Detection, 'workflows'>): boolean {
+  return policy?.cooldown !== undefined && (policy.targets === 'auto' || policy.targets.includes(bot)) && detection.workflows.length > 0;
 }
 
 /**

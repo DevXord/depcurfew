@@ -8,7 +8,7 @@ import { posix, win32 } from 'node:path';
 import { extraOf, isRecord, values } from '../apply/facts.ts';
 import { compareVersions, parseVersion, type Version } from '../apply/version.ts';
 import { environment as environmentFacts } from '../knowledge/environment.ts';
-import type { ToolId, ToolKnowledge } from '../knowledge/types.ts';
+import type { Ecosystem, ToolId, ToolKnowledge } from '../knowledge/types.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
 import { readLimitedText } from '../read-limited.ts';
 import { parseYamlDocument } from '../yaml-parse.ts';
@@ -214,10 +214,12 @@ function resolved(name: string, environment: UserEnvironment): { executable: str
 }
 
 /** The installed version of the executable `name` found in PATH, read from files; undefined when it cannot be read. */
-export function installedVersion(name: string, ecosystem: 'npm' | 'pypi', environment: UserEnvironment): InstalledVersion | undefined {
+export function installedVersion(name: string, ecosystem: Ecosystem, environment: UserEnvironment): InstalledVersion | undefined {
   const found = resolved(name, environment);
   if (found === undefined) return undefined;
   const { executable, real, module } = found;
+  // Composer is a PHP archive (composer.phar) whose version depcurfew does not read from files.
+  if (ecosystem === 'packagist') return undefined;
   return ecosystem === 'npm' ? fromNpm(executable, real, name, module, environment) : pythonDistInfo(real, name, module)?.found;
 }
 

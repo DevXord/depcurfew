@@ -1,4 +1,4 @@
-// `depcurfew doctor [directory] [--json | --sarif] [--fail-on error|warning] [--strict]`. Exit code 1 when any finding
+// `depcurfew doctor [directory] [--json | --sarif] [--fail-on error|warning] [--strict] [--osv]`. Exit code 1 when any finding
 // is an error, and also for a warning when --fail-on (--strict is --fail-on warning) or else doctor.failOn of the
 // policy is "warning" (decision D-112); notes never fail. An invalid depcurfew.json is one (invalid-policy), in every
 // output format, and counts as "error" unless the option says otherwise. A directory that does not exist is a usage
@@ -18,6 +18,8 @@ import type { UserEnvironment } from '../user/locate.ts';
 import { loadUserPolicy } from '../user/policy.ts';
 import { toUserSarif } from '../user/sarif.ts';
 import { paint } from '../color.ts';
+import type { FetchLike } from '../check/registry.ts';
+import { runDoctorWithOsv } from '../doctor/osv.ts';
 import { projectDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
 
@@ -42,6 +44,8 @@ export interface DoctorFormat {
   /** --fail-on: which findings fail, over doctor.failOn of the policy; run checks that it does not conflict with --strict. */
   failOn?: FailOn;
   user?: { environment: UserEnvironment; versions: Partial<Record<ToolId, Version>> };
+  /** --osv: look the locked versions up in OSV.dev, for known-malicious (decision D-129). */
+  osv?: boolean;
 }
 
 /** The option that decides, as given: --fail-on, else --strict; undefined when the policy or the default decides. */
@@ -80,11 +84,12 @@ function projectPolicy(directory: string): ResolvedPolicy | undefined | 'invalid
   }
 }
 
-export function doctor(
+export async function doctor(
   directory: string | undefined,
   format: DoctorFormat,
   io: CliIo,
-): number {
+  dependencies: { fetch: FetchLike } = { fetch: (url, init) => fetch(url, init) },
+): Promise<number> {
   if (format.json && format.sarif) {
     io.stderr("depcurfew: '--json' and '--sarif' cannot be used together; pick one\nRun 'depcurfew doctor --help' for usage.\n");
     return EXIT_USAGE;
@@ -105,7 +110,9 @@ export function doctor(
   }
   // An invalid policy is read again by runDoctor, which reports it; it counts as failOn "error" unless the option says otherwise.
   const policy = projectPolicy(target.directory);
-  const found = policy === 'invalid' ? runDoctor(target.directory, { invalidPolicy: 'report' }) : runDoctor(target.directory, { policy: policy ?? null });
+  const options = policy === 'invalid' ? { invalidPolicy: 'report' as const } : { policy: policy ?? null };
+  // --osv: the locked versions go to OSV.dev before the rules run; nothing is sent without it.
+  const found = format.osv === true ? await runDoctorWithOsv(target.directory, options, { fetch: dependencies.fetch }) : runDoctor(target.directory, options);
   // The directory came from the nearest depcurfew.json in a parent directory: said first, as a note (decision D-116).
   const report: DoctorReport = target.notice === undefined ? found : { ...found, notices: [makeNotice('policy-from-parent', target.notice, POLICY_FILE), ...found.notices] };
   const setting = resolveFailOn(option, { failOn: policy === 'invalid' ? undefined : policyFailOn(policy), file: POLICY_FILE });

@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 14
+    },
+    "message": "core-js has install scripts and npm 10.5.1 to 10.9.9 (with Node.js 22 in .nvmrc) run them, because npm before 11.16.0 does not read the denial in allowScripts in package.json; depcurfew.json denies them",
+    "fix": "Use npm 11.16.0 or later wherever the project installs, or make npm stop running dependency install scripts there (run depcurfew apply and follow its warnings)"
+  }
+]

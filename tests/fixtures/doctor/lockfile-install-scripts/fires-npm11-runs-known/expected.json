@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "package-lock.json",
+      "line": 15
+    },
+    "message": "esbuild has install scripts and npm 11.6.0 (packageManager in package.json) runs them, but depcurfew.json does not allow it",
+    "fix": "Add esbuild to installScripts.deny in depcurfew.json, and keep optional dependencies installed (no omit=optional in .npmrc, no --omit=optional or --no-optional on the install): esbuild works without its install script then. Then make npm stop running dependency install scripts (run depcurfew apply and follow its warnings)"
+  }
+]

@@ -3,7 +3,7 @@
 // pnpm-lock.yaml 19 s and a 14 MB one six minutes. Files are parsed without that check, and the same check runs here
 // with a Set, so a duplicate key is still an error of the document, with the line and column of the second key.
 // YAML merge keys (<<) are read only for files of tools whose loader applies them (extra.yamlMergeKeys).
-import { isAlias, isMap, isScalar, isSeq, Lexer, LineCounter, parseAllDocuments, parseDocument, YAMLParseError, type Document, type Node, type Pair } from 'yaml';
+import { isAlias, isMap, isScalar, isSeq, Lexer, LineCounter, parseAllDocuments, parseDocument, visit, YAMLParseError, type Document, type Node, type Pair } from 'yaml';
 
 export interface YamlOptions {
   /**
@@ -11,6 +11,76 @@ export interface YamlOptions {
    * itself, and earlier maps win over later ones. Without it, << is an ordinary key, as for Yarn.
    */
   merge?: boolean;
+  /**
+   * Read plain numbers as Ruby's Psych does (dependabot.yml, extra.yamlScalars, decision D-136): 010 is 8, 1_0 and 1,0
+   * are 10, 1:30 is 5400, and 0o12 or 1e3 are text. Values only; keys are read as YAML 1.2 reads them.
+   */
+  psychScalars?: boolean;
+  /**
+   * Read through aliases (*name) as the loader expands them (GitHub Actions workflows, decision D-141): a path may pass
+   * an alias, and a value is converted with at most MAX_YAML_ALIASES aliases.
+   */
+  aliases?: boolean;
+}
+
+/** The most aliases depcurfew expands in one value it converts, as for merge keys: more is read as no value. */
+export const MAX_YAML_ALIASES = 100;
+
+/** A plain scalar as Psych reads it, as far as numbers go: an integer, text where YAML 1.2 may read a number, or as YAML 1.2 does. */
+export type PsychReading = { kind: 'integer'; value: number } | { kind: 'string'; value: string } | { kind: 'other' };
+
+const PSYCH_WORD = /^[^\d.:-]?[\p{L}_\s!@#$%^&*(){}<>|/\\~;=]+/u;
+const PSYCH_TIME = /^-?\d{4}-\d{1,2}-\d{1,2}(?:[Tt]|\s+)\d{1,2}:\d\d:\d\d(?:\.\d*)?(?:\s*(?:Z|[-+]\d{1,2}:?(?:\d\d)?))?$/u;
+const PSYCH_DATE = /^\d{4}-(?:1[012]|0\d|\d)-(?:[12]\d|3[01]|0\d|\d)$/u;
+const PSYCH_BASE60 = /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9]){1,2}$/u;
+const PSYCH_BASE60_FLOAT = /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9]){1,2}\.[0-9_]*$/u;
+const PSYCH_FLOAT = /^[-+]?(?:[0-9][0-9_,]*)?\.[0-9]*(?:[eE][-+][0-9]+)?$/u;
+const PSYCH_INTEGER = /^(?:[-+]?0b[_,]*[0-1][0-1_,]*|[-+]?0[_,]*[0-7][0-7_,]*|[-+]?(?:0|[1-9](?:[0-9]|,[0-9]|_[0-9])*)|[-+]?0x[_,]*[0-9a-fA-F][0-9a-fA-F_,]*)$/u;
+
+/** Ruby's String#to_i: an optional sign and digits, single underscores between them, up to the first other character. */
+function rubyToI(text: string): number {
+  const match = /^[-+]?\d+(?:_\d+)*/u.exec(text);
+  return match === null ? 0 : Number.parseInt(match[0].replaceAll('_', ''), 10);
+}
+
+/** Ruby's Integer() of a text INTEGER_LEGACY matched, after the commas and underscores are deleted. */
+function rubyInteger(text: string): number {
+  const digits = text.replace(/[,_]/gu, '');
+  const negative = digits.startsWith('-');
+  const unsigned = digits.replace(/^[-+]/u, '');
+  const big = unsigned.startsWith('0b') || unsigned.startsWith('0x') ? BigInt(unsigned) : unsigned.length > 1 && unsigned.startsWith('0') ? BigInt(`0o${unsigned.slice(1)}`) : BigInt(unsigned);
+  return Number(negative ? -big : big);
+}
+
+/**
+ * A plain scalar as Psych 5.5.0's ScalarScanner#tokenize reads it (extra.yamlScalars of Dependabot), as far as numbers
+ * go: words, booleans, null, times, dates, infinities and symbols are `other` (no number either way), so are floats;
+ * base 60 and INTEGER_LEGACY integers are integers; any other text is a string, also where YAML 1.2 reads a number.
+ */
+export function psychScalar(text: string): PsychReading {
+  if (text === '' || PSYCH_WORD.test(text) || text.includes('\n')) return { kind: 'other' };
+  if (PSYCH_TIME.test(text) || PSYCH_DATE.test(text)) return { kind: 'other' };
+  if (/^\+?\.inf$/iu.test(text) || /^-\.inf$/iu.test(text) || /^\.nan$/iu.test(text) || /^:./u.test(text)) return { kind: 'other' };
+  if (PSYCH_BASE60.test(text)) {
+    let total = 0;
+    for (const [index, part] of text.split(':').entries()) total += rubyToI(part) * 60 ** Math.abs(index - 2);
+    return { kind: 'integer', value: total };
+  }
+  if (PSYCH_BASE60_FLOAT.test(text) || PSYCH_FLOAT.test(text)) return { kind: 'other' };
+  if (PSYCH_INTEGER.test(text)) return { kind: 'integer', value: rubyInteger(text) };
+  return { kind: 'string', value: text };
+}
+
+/** Gives the plain values of a document the numbers Psych reads (YamlOptions.psychScalars). */
+function readLikePsych(document: Document.Parsed): void {
+  visit(document, {
+    Scalar(key, node) {
+      if (key === 'key' || node.type !== 'PLAIN' || typeof node.source !== 'string') return;
+      const reading = psychScalar(node.source);
+      if (reading.kind === 'integer') node.value = reading.value;
+      else if (reading.kind === 'string' && typeof node.value === 'number') node.value = reading.value;
+    },
+  });
 }
 
 /** Whether a pair is a merge key (<<) of a document parsed with `merge`: the yaml package gives it a symbol. */
@@ -205,7 +275,9 @@ export function parseYamlDocument(text: string, lineCounter = new LineCounter(),
   const deep = tooDeep(text);
   if (deep !== undefined) return tooDeepDocument(text, deep);
   const merge = options.merge === true;
-  return checked(parseDocument(text, { uniqueKeys: false, lineCounter, merge }), lineCounter, merge);
+  const document = checked(parseDocument(text, { uniqueKeys: false, lineCounter, merge }), lineCounter, merge);
+  if (options.psychScalars === true && document.errors.length === 0) readLikePsych(document);
+  return document;
 }
 
 /** Every document of a YAML stream, as parseAllDocuments gives them; errors as in parseYamlDocument. */
@@ -225,7 +297,7 @@ const READ_CACHE_SIZE = 4;
  * a large file is parsed once. Nothing may change the document; apply parses its own copy to edit.
  */
 export function readYamlDocument(text: string, options: YamlOptions = {}): { document: Document.Parsed; lineCounter: LineCounter } {
-  const key = `${options.merge === true ? 'merge' : 'plain'}\n${text}`;
+  const key = `${options.merge === true ? 'merge' : 'plain'}${options.psychScalars === true ? ' psych' : ''}\n${text}`;
   const cached = READ_CACHE.get(key);
   if (cached !== undefined) return cached;
   const lineCounter = new LineCounter();

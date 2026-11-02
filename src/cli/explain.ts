@@ -1,5 +1,6 @@
 import { detectProject } from '../detect/index.ts';
-import type { Detection, DetectionWarning, DockerStage, ToolCommand, VersionDeclaration } from '../detect/types.ts';
+import type { Detection, DetectionWarning, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration } from '../detect/types.ts';
+import { jobLabel } from '../detect/workflows.ts';
 import { WARNING_FIXES } from '../doctor/unreadable-warnings.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { ToolId } from '../knowledge/types.ts';
@@ -7,7 +8,8 @@ import { convertCooldown } from '../policy/convert.ts';
 import { POLICY_FILE } from '../policy/defaults.ts';
 import { makeNotice } from '../doctor/types.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
-import { loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
+import { botDuration, loadPolicyIfPresent, PolicyError } from '../apply/index.ts';
+import { delayMinutes } from '../doctor/durations.ts';
 import { join } from 'node:path';
 import { projectProblems, relocateDetection } from '../apply/projects.ts';
 import { autoTargets, directoryTargets } from '../apply/targets.ts';
@@ -120,17 +122,35 @@ function explained(detection: Detection, withProjects = false): ExplainDetection
   return { ...detection, warnings: warnings.map(explainedWarning) };
 }
 
-function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[]): { minimum: string; tools: CooldownEntry[] } | null {
+/**
+ * The policy's delay converted for each tool; a tool whose file holds a value apply cannot write the delay below
+ * (Composer's "policy": false) cannot apply it, with the reason apply gives (decision D-134). Bots get the delay apply
+ * writes for them: the policy's, or the longer one a package manager rounded up to (botDuration, decision D-141).
+ */
+function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[], effects: PolicyEffects | undefined): { minimum: string; tools: CooldownEntry[] } | null {
   if (policy.cooldown === undefined) return null;
   const minimum = policy.cooldown.minimum;
+  // The minutes each package manager is given, as apply writes them, for the bots' delay.
+  const managerMinutes = tools.flatMap((id) => {
+    const tool = knowledgeBase.find((entry) => entry.id === id);
+    if (tool === undefined || tool.kind !== 'package-manager' || effects?.cooldownNotWritten(id) !== undefined) return [];
+    const result = convertCooldown(tool, minimum);
+    const minutes = result.ok ? delayMinutes(tool, result.value, undefined) : undefined;
+    return minutes?.ok === true ? [minutes.minutes] : [];
+  });
+  const forBots = botDuration(minimum, managerMinutes);
   const entries = tools.flatMap((id): CooldownEntry[] => {
     const tool = knowledgeBase.find((entry) => entry.id === id);
     if (tool === undefined) return [];
-    const result = convertCooldown(tool, minimum);
+    const result = convertCooldown(tool, tool.kind === 'update-bot' ? forBots : minimum);
+    const skipped = result.ok ? effects?.cooldownNotWritten(id) : undefined;
     return [
-      result.ok
-        ? { tool: id, ok: true, unit: result.unit, value: result.value, exact: result.exact }
-        : { tool: id, ok: false, reason: result.reason },
+      !result.ok
+        ? { tool: id, ok: false, reason: result.reason }
+        : skipped !== undefined
+          ? { tool: id, ok: false, reason: skipped }
+          : // A bot's delay is exact only when it is the policy's (a manager may have rounded it up, decision D-141).
+            { tool: id, ok: true, unit: result.unit, value: result.value, exact: result.exact && (tool.kind !== 'update-bot' || forBots.minutes === minimum.minutes) },
     ];
   });
   return { minimum: minimum.text, tools: entries };
@@ -141,20 +161,19 @@ function cooldownReport(policy: ResolvedPolicy, tools: readonly ToolId[]): { min
  * error. With projects, the targets are the ones apply configures in each directory, and the cooldown is converted for
  * every tool of the root and of the projects.
  */
-function policyReport(directory: string, detection: Detection): { policy: PolicyReport | null; projects: ProjectReport[]; errors: InputError[]; withProjects: boolean } {
-  let policy: ResolvedPolicy | undefined;
-  try {
-    policy = loadPolicyIfPresent(directory);
-  } catch (error) {
-    if (!(error instanceof PolicyError)) throw error;
+function policyReport(directory: string, detection: Detection, loaded: LoadedPolicy): { policy: PolicyReport | null; projects: ProjectReport[]; errors: InputError[]; withProjects: boolean } {
+  if ('error' in loaded) {
+    const { error } = loaded;
     const issues = error.issues.length > 0 ? error.issues : [error.message];
     return { policy: { file: POLICY_FILE, valid: false, issues }, projects: [], errors: [policyInputError(error, POLICY_FILE)], withProjects: false };
   }
+  const { policy } = loaded;
   if (policy === undefined) return { policy: null, projects: [], errors: [], withProjects: false };
   const mode = policy.targets === 'auto' ? ('auto' as const) : ('listed' as const);
   const withProjects = policy.projects.length > 0;
-  // One plan of the whole repository, as apply makes it, only when the policy has a part it shows (decision D-117).
-  const effects = policy.installScripts === undefined && policy.sources === undefined ? undefined : policyEffects(directory, policy, detection);
+  // One plan of the whole repository, as apply makes it, only when the policy has a part it shows (decisions D-117 and
+  // D-134: the cooldown, for a tool whose file keeps apply from writing it).
+  const effects = policy.installScripts === undefined && policy.sources === undefined && policy.cooldown === undefined ? undefined : policyEffects(directory, policy, detection);
   const part = (name: PolicyPart, project: string | undefined, ids: readonly ToolId[]) => partReport(effects, policy, name, project, ids);
   const problems = projectProblems(directory, policy.projects, detection);
   const projects = policy.projects.map((entry): ProjectReport => {
@@ -183,7 +202,7 @@ function policyReport(directory: string, detection: Detection): { policy: Policy
   const installScripts = scripts === undefined ? null : { default: scripts.default, allow: [...scripts.allow], deny: [...scripts.deny], tools: part('installScripts', undefined, tools)?.tools ?? [] };
   const sources = policy.sources === undefined ? null : { ...sourceAccess(policy.sources), tools: part('sources', undefined, tools)?.tools ?? [] };
   return {
-    policy: { file: POLICY_FILE, valid: true, targets: { mode, tools }, cooldown: cooldownReport(policy, withProjects ? ordered : tools), installScripts, sources },
+    policy: { file: POLICY_FILE, valid: true, targets: { mode, tools }, cooldown: cooldownReport(policy, withProjects ? ordered : tools, effects), installScripts, sources },
     projects,
     errors,
     withProjects,
@@ -201,9 +220,23 @@ function partReport(effects: PolicyEffects | undefined, policy: ResolvedPolicy, 
   return { tools: tools.map((tool) => effects(project, name, tool)) };
 }
 
+/** depcurfew.json as apply reads it: the policy (undefined without one), or the error that keeps it from being used. */
+type LoadedPolicy = { policy: ResolvedPolicy | undefined } | { error: PolicyError };
+
+function loadedPolicy(directory: string): LoadedPolicy {
+  try {
+    return { policy: loadPolicyIfPresent(directory) };
+  } catch (error) {
+    if (!(error instanceof PolicyError)) throw error;
+    return { error };
+  }
+}
+
 export function buildReport(directory: string): ExplainReport {
-  const detection = detectProject(directory);
-  const { withProjects, ...rest } = policyReport(directory, detection);
+  const loaded = loadedPolicy(directory);
+  // A package manager the root's CI sets up only for the projects is not the root's (decision D-137).
+  const detection = detectProject(directory, knowledgeBase, undefined, { projects: 'policy' in loaded ? (loaded.policy?.projects ?? []) : [] });
+  const { withProjects, ...rest } = policyReport(directory, detection, loaded);
   return { schemaVersion: 1, project: explained(detection, withProjects), ...rest };
 }
 
@@ -218,7 +251,7 @@ function where(declaration: VersionDeclaration): string {
         : `${declaration.version} from ${declaration.versionFile}`
       : `from ${declaration.versionFile}`;
   const scope = [
-    ...(declaration.job === undefined ? [] : [`job ${declaration.job}`]),
+    ...(declaration.job === undefined ? [] : [jobLabel(declaration.job, undefined)]),
     ...(declaration.matrix === undefined ? [] : [`matrix.${declaration.matrix}`]),
     ...(declaration.stage === undefined ? [] : [`stage ${declaration.stage}`]),
   ];
@@ -247,14 +280,19 @@ function amount(value: number | string, unit: string): string {
 
 const AT_ROOT = 'at the repository root';
 
+function managerLines(managers: readonly PackageManagerInfo[]): string[] {
+  return managers.flatMap((manager) => [
+    `  ${managerName(manager)}`,
+    ...(manager.versions.length > 0 ? [`    versions: ${manager.versions.map(where).join(', ')}`] : []),
+    `    evidence: ${manager.evidence.map((item) => `${item.file} (${item.kind})`).join(', ')}`,
+    ...(manager.configFiles.length > 0 ? [`    config files: ${manager.configFiles.join(', ')}`] : []),
+  ]);
+}
+
 function projectLines(project: ExplainDetection, fromRoot?: { directory: string; places: FromRoot; detection: Pick<Detection, 'dockerfiles'> }): string[] {
-  const lines = [project.packageManagers.length === 0 ? 'Package managers: none' : 'Package managers:'];
-  for (const manager of project.packageManagers) {
-    lines.push(`  ${managerName(manager)}`);
-    if (manager.versions.length > 0) lines.push(`    versions: ${manager.versions.map(where).join(', ')}`);
-    lines.push(`    evidence: ${manager.evidence.map((item) => `${item.file} (${item.kind})`).join(', ')}`);
-    if (manager.configFiles.length > 0) lines.push(`    config files: ${manager.configFiles.join(', ')}`);
-  }
+  const lines = [project.packageManagers.length === 0 ? 'Package managers: none' : 'Package managers:', ...managerLines(project.packageManagers)];
+  // Set up by the root's CI for the directories listed in projects, so not the root's (decision D-137).
+  if (project.ciForProjects !== undefined && project.ciForProjects.length > 0) lines.push('Package managers set up in CI for projects:', ...managerLines(project.ciForProjects));
   // A project also uses the root's version files of the kinds it has none of (decision D-111).
   const versions = [...project.node.versions.map((version) => `  ${where(version)}`), ...(fromRoot?.places.versions ?? []).map((version) => `  ${where(version).replace(/\)$/u, `, ${AT_ROOT})`)}`)];
   if (versions.length === 0) lines.push('Node.js versions: none declared');
@@ -403,7 +441,7 @@ export function explain(directory: string | undefined, json: boolean, io: CliIo)
     const { errors, ...rest } = report;
     io.stdout(`${safeJson({ ...rest, notices, errors }, 2)}\n`);
   } else {
-    for (const notice of notices) io.stderr(`note: ${notice.message} (${notice.code})\n`);
+    for (const notice of notices) io.stderr(`note: ${printable(notice.message)} (${notice.code})\n`);
     io.stdout(renderReport(report, paint(io.colors?.stdout)));
   }
   return report.errors.length > 0 ? EXIT_FAILURE : EXIT_OK;

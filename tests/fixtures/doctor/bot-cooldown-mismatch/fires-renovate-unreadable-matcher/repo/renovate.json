@@ -1,0 +1,7 @@
+{
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchManagers": ["{npm,bun}"], "minimumReleaseAge": "1 hour" },
+    { "matchManagers": ["{pep621,poetry}"], "minimumReleaseAge": "7 days" }
+  ]
+}

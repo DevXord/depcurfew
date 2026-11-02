@@ -1,0 +1,10 @@
+{
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchManagers": ["bun", "pep621"], "minimumReleaseAge": "1 hour" },
+    { "matchManagers": ["!npm"], "minimumReleaseAge": null },
+    { "matchManagers": ["custom.regex"], "minimumReleaseAge": "1 hour" },
+    { "matchCategories": ["python", "ci"], "minimumReleaseAge": "1 hour" },
+    { "matchManagers": ["npm"], "matchCategories": ["python"], "minimumReleaseAge": "1 hour" }
+  ]
+}

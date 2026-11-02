@@ -41,6 +41,11 @@ const SYNTAX: Record<string, (text: string) => number | undefined> = {
     }
     return total;
   },
+  // One number and one lowercase unit word, singular or plural (Composer's policy.cooldown.period).
+  'unit-word': (text) => {
+    const match = /^(\d+)\s*(second|minute|hour|day|week)s?$/u.exec(text);
+    return match === null ? undefined : Number(match[1]) * (MINUTES[match[2] ?? ''] ?? Number.NaN);
+  },
   'words-or-iso8601': (text) => SYNTAX['iso8601']?.(text) ?? SYNTAX['words']?.(text),
   iso8601: (text) => {
     const match = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/u.exec(text);
@@ -52,6 +57,13 @@ const SYNTAX: Record<string, (text: string) => number | undefined> = {
 
 export type DelayValue = { ok: true; minutes: number } | { ok: false; reason: string };
 
+/** The unit of a plain number where the tool's unit is a duration string (extra.durationStrings.numbers). */
+function numberUnit(tool: ToolKnowledge): string | undefined {
+  const fact = tool.extra?.['durationStrings'];
+  const format = fact === undefined ? undefined : values(fact)[0];
+  return isRecord(format) && typeof format['numbers'] === 'string' ? format['numbers'] : undefined;
+}
+
 /** A delay as written for `tool` at `version` (undefined: the latest version). null and 0 mean no delay. */
 export function delayMinutes(tool: ToolKnowledge, value: unknown, version: Version | undefined): DelayValue {
   if (value === null || value === undefined || value === false) return { ok: true, minutes: 0 };
@@ -62,14 +74,17 @@ export function delayMinutes(tool: ToolKnowledge, value: unknown, version: Versi
   }
   if (typeof value === 'number') {
     const unit = values(tool.cooldown.unit)[0];
-    const factor = unit === null || unit === undefined ? undefined : UNIT_MINUTES[unit];
+    // A tool whose unit is a duration string may read a plain number in a unit of its own (Composer: seconds).
+    const numbers = unit === 'duration-string' ? numberUnit(tool) : undefined;
+    const factor = numbers !== undefined ? UNIT_MINUTES[numbers] : unit === null || unit === undefined ? undefined : UNIT_MINUTES[unit];
     return factor === undefined ? { ok: false, reason: `${tool.name} takes no number here` } : { ok: true, minutes: value * factor };
   }
   if (typeof value !== 'string') return { ok: false, reason: `${JSON.stringify(value) ?? String(value)} is not a delay` };
-  const text = value.trim();
-  if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
   const fact = tool.extra?.['durationStrings'];
   const format = fact === undefined ? undefined : values(fact)[0];
+  // Composer matches the string as it is (durationStrings trim: false); the other tools read it without the spaces around it.
+  const text = isRecord(format) && format['trim'] === false ? value : value.trim();
+  if (/^\d+$/u.test(text)) return delayMinutes(tool, Number(text), version);
   if (!isRecord(format) || typeof format['syntax'] !== 'string') return { ok: false, reason: `${tool.name} takes no duration strings` };
   const since = typeof format['since'] === 'string' ? parseVersion(format['since']) : undefined;
   if (since !== undefined && version !== undefined && compareVersions(version, since) < 0) {

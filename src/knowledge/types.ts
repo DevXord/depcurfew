@@ -1,10 +1,10 @@
 // Every fact about a package manager or bot carries the official URL it was verified against
 // and the date of verification. Disputed facts keep every variant with its own source.
 
-export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'renovate' | 'dependabot';
+export type ToolId = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno' | 'uv' | 'pip' | 'poetry' | 'pdm' | 'pipenv' | 'composer' | 'renovate' | 'dependabot';
 export type ToolKind = 'package-manager' | 'update-bot';
 /** The registry a package manager installs from; package names in the policy are compared per ecosystem. */
-export type Ecosystem = 'npm' | 'pypi';
+export type Ecosystem = 'npm' | 'pypi' | 'packagist';
 
 export interface Evidence<T> {
   value: T;
@@ -468,9 +468,19 @@ export type OverrideValues = 'delay' | 'any' | readonly string[] | { readonly ex
 export interface OverrideSwitch {
   /** The option as the scanner resolves it (--name) or the variable, compared without regard to case. */
   name: string;
-  /** The release-age delay, or the rule on dependency install scripts. */
-  weakens: 'delay' | 'scripts';
+  /**
+   * The release-age delay, the rule on dependency install scripts, or a protection of the package manager that the
+   * policy does not manage (Composer's blocking of versions flagged as malware), which always counts (decision D-133).
+   */
+  weakens: 'delay' | 'scripts' | 'protection';
   values: OverrideValues;
+  /** protection: what it turns off, for messages ("turns off the blocking of versions flagged as malware"). */
+  effect?: string;
+  /**
+   * protection: what that protection does, as a clause of its own, when it covers less than every package the command
+   * fetches ("secure-http lets Composer download only over HTTPS, …"; decision D-142).
+   */
+  protects?: string;
 }
 
 /**
@@ -480,6 +490,22 @@ export interface OverrideSwitch {
 export interface InstallOverridesKnowledge {
   options: readonly OverrideSwitch[];
   variables: readonly OverrideSwitch[];
+}
+
+/**
+ * How a tool tells the names of the environment variables that its command-line facts list (registryOverrides,
+ * installOverrides, selection, versionSelection and directoryOptions) on Linux and macOS (decision D-143). A rule covers
+ * the listed names that start with `prefix` (in any case), the longest prefix first; '' covers the rest. Windows tells
+ * no names apart by case, so the rules do not apply there.
+ */
+export interface EnvironmentNameRule {
+  prefix: string;
+  /**
+   * exact: only the name as the knowledge base writes it; any-case: the name in any case; lower-or-upper: the name all
+   * in lower case or all in upper case (pnpm_config_x, PNPM_CONFIG_X); prefix-then-any-case: the prefix as written,
+   * the rest in any case (PIP_index_url).
+   */
+  match: 'exact' | 'any-case' | 'lower-or-upper' | 'prefix-then-any-case';
 }
 
 /**
@@ -513,6 +539,13 @@ export interface DirectoryOption {
 export interface DirectoryOptionsKnowledge {
   options: readonly DirectoryOption[];
   variables: readonly DirectoryOption[];
+  /**
+   * How the tool finds the option: by its own option parsing (left out), or as symfony/console's
+   * getParameterOption(..., onlyParams: true) does for Composer (decision D-136): the first word, up to --, that is one
+   * of the options followed by the value, or starts with a long option and = or with a short option and has the value
+   * after it; grouped short options (-nd dir) do not count.
+   */
+  lookup?: 'first-token';
 }
 
 /** A command that changes the tool's configuration, which an install later in the same command line reads. */
@@ -527,6 +560,12 @@ export interface ConfigCommand {
   options?: readonly string[];
   /** It changes package.json (npm pkg set), whose settings the install reads, rather than a configuration file. */
   manifest?: boolean;
+  /**
+   * The change goes to a file that depcurfew does not read when it checks later commands (`file`, as messages name it):
+   * with one of `options`, or always when `options` is left out. The install guard asks about such a change also when
+   * nothing is installed next to it (decision D-142).
+   */
+  unread?: { file: string; options?: readonly string[] };
 }
 
 /**
@@ -537,6 +576,161 @@ export interface CommandNamesKnowledge {
   commands: readonly string[];
   /** Alias to the name it stands for (a command or another alias). */
   aliases: Readonly<Record<string, string>>;
+  /**
+   * How a word is resolved: npm (deref, the default) or symfony-console (Composer, decision D-133): an exact command
+   * or alias, else the commands and aliases that start with the word, compared with case and then without, which
+   * must all stand for one command.
+   */
+  matching?: 'npm' | 'symfony-console';
+  /** symfony-console: commands find() leaves out when a word matches others too, and refuses when it matches only them. */
+  hidden?: readonly string[];
+}
+
+/**
+ * How Composer's commands name the packages they install (decision D-133): the commands by name, the arguments of
+ * composer require (name and constraint in one word, separated by one of `pairSeparators`, or in two words), the
+ * names that are platform packages and the options that name packages or a stability.
+ */
+export interface ComposerCommandsKnowledge {
+  require: string;
+  update: string;
+  createProject: string;
+  /** Runs another command in the global directory (COMPOSER_HOME), whose composer.json depcurfew does not read. */
+  global: string;
+  /** Between a package name and its constraint in one argument (vendor/name:^1.0). */
+  pairSeparators: readonly string[];
+  /** A pattern (with i) of the names of platform packages (php, ext-*, lib-*), which Composer does not install. */
+  platformPackages: string;
+  /** The pattern of a package name (04-schema.md#name). */
+  namePattern: string;
+  /** Arguments of composer update that are not packages but make it update the lock file only. */
+  updateLockWords: readonly string[];
+  /** Options of composer update with a temporary constraint (vendor/name:1.0), and of create-project with packages to require. */
+  withOption: string;
+  requireOption: string;
+  /** Options of create-project with the minimum stability of the package. */
+  stabilityOptions: readonly string[];
+}
+
+/**
+ * An option of the input definition of Composer's application (symfony/console's defaults and Composer's own), the only
+ * options that can take the word after them before the command name is known (decision D-136).
+ */
+export interface ApplicationOption {
+  /** The long name, without --. */
+  name: string;
+  /** The short forms, without -; verbose has v, vv and vvv. */
+  shortcuts: readonly string[];
+  /** none: takes no value; required: takes one; negatable: also --no-<name>, no value. */
+  value: 'none' | 'required' | 'negatable';
+}
+
+/** The scripts of the root composer.json that Composer registers as commands (decision D-136). */
+export interface ComposerScriptCommandsKnowledge {
+  /** The key of the scripts in composer.json. */
+  scripts: string;
+  /** The key that gives a script command its aliases. */
+  aliases: string;
+  /** Script names of events, which are not registered as commands (ScriptEvents, compared in upper case with - as _). */
+  events: readonly string[];
+  /** A command name symfony/console accepts: parts without a colon, separated by single colons. */
+  validName: string;
+}
+
+/** How the root composer.json picks the stability of the versions Composer installs (decision D-136). */
+export interface ComposerRootStabilityKnowledge {
+  minimumStability: string;
+  preferStable: string;
+  /** The stability names RootPackageLoader accepts, in lower case. */
+  values: readonly string[];
+}
+
+/** Where Composer installs a locked package from, by config.preferred-install (decision D-136). */
+export interface ComposerInstallPreferenceKnowledge {
+  setting: string;
+  /** The value Composer starts from (Config::$defaultConfig). */
+  default: string;
+  /** The values that choose: dist for the archive, source for the checkout, auto for the checkout of dev versions only. */
+  dist: string;
+  source: string;
+  auto: string;
+  /** In a pattern object, the key that matches every package; Composer moves it to the end. */
+  everything: string;
+}
+
+/** The v2 metadata of Packagist.org, from which depcurfew check reads Composer packages (decision D-133). */
+export interface PackagistApiKnowledge {
+  /** The repository Composer adds by default. */
+  url: string;
+  /** The metadata of a package's tagged releases; {name} is vendor/name. */
+  metadataPath: string;
+  /** Appended to the name for the metadata of its branches (dev versions). */
+  devSuffix: string;
+  /** Status of a package Packagist does not have. */
+  notFoundStatus: number;
+  /** The key of the object of packages, each with a list of versions; the key and value that mark the list as minified. */
+  packagesField: string;
+  minifiedField: string;
+  minifiedValue: string;
+  /** In a minified list, the value of a key the version does not have. */
+  unsetValue: string;
+  /** The keys of a version. */
+  versionField: string;
+  normalizedField: string;
+  /** Release time set by the package author, and the time Packagist published the version. */
+  timeField: string;
+  publishedField: string;
+  typeField: string;
+  /** true, or the name of the package that replaces it. */
+  abandonedField: string;
+  /** The page of a package on packagist.org; {name} is vendor/name. */
+  packagePage: string;
+}
+
+/** Composer's stabilities (decision D-133): their order and priorities, the default minimum stability and spellings. */
+export interface ComposerStabilitiesKnowledge {
+  /** Most stable first. */
+  order: readonly string[];
+  /** Higher is less stable; a version is acceptable when its priority is at most the allowed one. */
+  priorities: Readonly<Record<string, number>>;
+  /** The minimum stability when composer.json sets none. */
+  minimumStability: string;
+  /** Short and other spellings of version modifiers, lowercase, to their stability or modifier. */
+  modifiers: Readonly<Record<string, string>>;
+}
+
+/** The syntax of Composer's version constraints (decision D-133). */
+export interface ComposerConstraintsKnowledge {
+  /** Separators of constraints that must all match. */
+  and: readonly string[];
+  /** Separators of alternatives. */
+  or: readonly string[];
+  /** Between the two ends of an inclusive range. */
+  hyphen: string;
+  /** Characters that stand for any number in a version part. */
+  wildcards: readonly string[];
+  tilde: string;
+  caret: string;
+  operators: readonly string[];
+  /** Before a stability at the end of a constraint (^1.0@beta). */
+  stabilityFlag: string;
+  /** A branch is required as dev-<name>, or as <number>.x-dev for a branch named like a version. */
+  branchPrefix: string;
+  branchSuffix: string;
+  /** Between a version and the version it is installed as (dev-main as 1.0.x-dev). */
+  alias: string;
+  /** After a branch, a commit to install (dev-main#abc123). */
+  reference: string;
+}
+
+/** How PHP's version_compare, which Composer uses to order versions, compares the parts that are not numbers. */
+export interface VersionCompareKnowledge {
+  /** Characters replaced by a dot before the comparison. */
+  separators: readonly string[];
+  /** Words a part starts with, and their order; a part that starts with none is below all of them. */
+  specialForms: readonly (readonly [string, number])[];
+  /** The order of a number compared with a word. */
+  numberOrder: number;
 }
 
 /**
@@ -784,6 +978,79 @@ export interface ProjectStatusKnowledge {
   blocked: readonly string[];
   /** Installers may warn about the project. */
   warned: readonly string[];
+}
+
+/** The batch query of the OSV.dev API (decision D-129): where to send it, how its JSON is spelled, and its limit. */
+export interface OsvApiKnowledge {
+  /** Base URL of the API. */
+  url: string;
+  queryBatchPath: string;
+  /** GET: one record by id ({id}). */
+  vulnerabilityPath: string;
+  /** The web page of a record ({id}). */
+  recordPage: string;
+  queriesField: string;
+  resultsField: string;
+  vulnsField: string;
+  idField: string;
+  /** A result with more pages carries this token; the next request sends it back as pageTokenField of that query. */
+  nextPageTokenField: string;
+  pageTokenField: string;
+  /** Most queries in one batch request. */
+  maxQueriesPerBatch: number;
+}
+
+/** When a batch result is paged: more vulnerabilities than these for one query, or for the whole batch. */
+export interface OsvPagingKnowledge {
+  perQuery: number;
+  perBatch: number;
+}
+
+/** What OSV.dev promises about its service: no rate limit (null), how fresh the data is, the largest response over HTTP/1.1. */
+export interface OsvServiceKnowledge {
+  rateLimit: number | null;
+  freshnessMinutes: number;
+  freshnessShare: number;
+  responseLimitBytes: number;
+}
+
+/** Withdrawn records: the field that marks them, and which responses still carry them. */
+export interface OsvWithdrawnKnowledge {
+  field: string;
+  inQueryResponses: boolean;
+  inRecordResponses: boolean;
+}
+
+/** The records of known malicious packages in OSV.dev: their id prefix and where they come from. */
+export interface OsvMaliciousKnowledge {
+  idPrefix: string;
+  database: string;
+  license: string;
+}
+
+/** The characters a record id may have (a regular expression for the whole id), from the OSV schema (decision D-135). */
+export interface OsvIdKnowledge {
+  pattern: string;
+}
+
+/** OSV.dev, asked about known malicious package versions with --osv (decision D-129). */
+export interface OsvKnowledge {
+  api: Fact<OsvApiKnowledge>;
+  paging: Fact<OsvPagingKnowledge>;
+  ids: Fact<OsvIdKnowledge>;
+  service: Fact<OsvServiceKnowledge>;
+  withdrawn: Fact<OsvWithdrawnKnowledge>;
+  malicious: Fact<OsvMaliciousKnowledge>;
+  /** The OSV ecosystem name of each ecosystem of depcurfew (npm, pypi, ...). */
+  ecosystems: Fact<Readonly<Record<string, string>>>;
+  /** How the API compares the version of a query with the versions of a record, by depcurfew's ecosystem (decision D-142). */
+  versionMatching: Fact<Readonly<Record<string, OsvVersionMatchingKnowledge>>>;
+}
+
+/** What OSV.dev leaves out of a version before it compares it. */
+export interface OsvVersionMatchingKnowledge {
+  /** A leading character left out of both versions (Packagist: v and V). */
+  ignoredPrefixes: readonly string[];
 }
 
 /** Claude Code hooks that run before a tool call and can block it (used by depcurfew check --hook claude-code). */
@@ -1132,6 +1399,55 @@ export interface MovingTagsKnowledge {
   tags: Readonly<Record<string, string>>;
 }
 
+/**
+ * An npm package with install scripts whose effect is known (decision D-127), read in its source at the releases in
+ * `versions`: `not-needed` when the package works without the script, `project-task` when the script does a task of
+ * the project (installing git hooks) that the project can run in its own lifecycle script (`projectScript`).
+ */
+export interface InstallScriptPackageKnowledge {
+  name: string;
+  /** The releases the source was read at. */
+  versions: readonly string[];
+  /** The install script, as the package declares it or as npm adds it, for messages. */
+  script: string;
+  kind: 'not-needed' | 'project-task';
+  /** What the script does, as a clause for messages ("it runs lefthook install, which installs the git hooks"). */
+  does: string;
+  /** What changes when the script does not run, as a clause for messages ("nothing changes"). */
+  withoutScript: string;
+  /**
+   * Without its install script the package can take its binary only from an optional dependency for the platform (the
+   * script fetches it otherwise), so a denied one fails where optional dependencies are left out.
+   */
+  needsOptionalDependencies: boolean;
+  /**
+   * project-task: how the project does the same task without the install script, as the package documents it for
+   * projects that do not use that script: a command to run after each clone of the repository (decision D-135).
+   */
+  projectStep?: { command: string; after: 'clone' };
+}
+
+/**
+ * npm: how a project can leave out optional dependencies (decision D-127). The setting `omit` with the value `optional`
+ * (also a list item), its alias `optional` set to false, and `include`, which wins over both.
+ */
+export interface OmitOptionalKnowledge {
+  omit: { setting: string; value: string };
+  alias: { setting: string; off: boolean };
+  include: { setting: string };
+  /** npm_config_<setting>, read in any case; list values are separated by two line breaks. */
+  variablePrefix: string;
+  listSeparator: string;
+}
+
+/** The lifecycle scripts of the project itself that an install runs, and what keeps them from running (decision D-127). */
+export interface RootLifecycleScriptsKnowledge {
+  events: readonly string[];
+  /** Only this switch stops them; the allow-list of dependency install scripts does not apply to the project itself. */
+  skippedBy: string;
+  allowListApplies: boolean;
+}
+
 export interface EnvironmentKnowledge {
   corepack: {
     packageManagerField: Fact<PackageManagerFieldKnowledge>;
@@ -1146,7 +1462,14 @@ export interface EnvironmentKnowledge {
     defaults: Fact<CorepackDefaultsKnowledge>;
     /** corepack enable installs an npm shim only when npm is named. */
     enableNpm: Fact<{ command: string; npmOnlyWhenNamed: boolean }>;
+    /**
+     * Installing Corepack where Node.js does not come with it (decision D-128): the npm package and the command; then
+     * corepack enable puts the shims on the path.
+     */
+    manualInstall: Fact<{ package: string; command: string; enable: string }>;
   };
+  /** npm packages whose install scripts are known to be unneeded or to do a task of the project (decision D-127). */
+  installScriptPackages: Readonly<Record<string, Fact<InstallScriptPackageKnowledge>>>;
   node: {
     /** The npm each Node.js release bundles, per release line. */
     bundledNpm: Fact<readonly BundledVersionsLine[]>;
@@ -1191,6 +1514,8 @@ export interface EnvironmentKnowledge {
   };
   githubActions: {
     workflows: Fact<WorkflowsKnowledge>;
+    /** The ids GitHub accepts as keys of jobs, as a regular expression (decision D-135). */
+    jobId: Fact<{ pattern: string }>;
     setupNode: Fact<SetupActionKnowledge>;
     /** The versions node-version accepts besides semver ranges. */
     setupNodeVersions: Fact<NodeVersionNamesKnowledge>;
@@ -1202,6 +1527,8 @@ export interface EnvironmentKnowledge {
     jobContainer: Fact<{ key: string; imageKey: string; envKey: string }>;
     /** The env maps of a workflow, a job and a step; the most specific one wins (decision D-115). */
     environmentKeys: Fact<{ key: string; levels: readonly ('workflow' | 'job' | 'step')[] }>;
+    /** Whether workflows may use YAML anchors and aliases, which GitHub expands (decision D-141). */
+    yamlAliases: Fact<{ accepted: boolean }>;
     pnpmActionSetup: Fact<SetupActionKnowledge>;
     pnpmSetup: Fact<SetupActionKnowledge>;
     setupBun: Fact<SetupActionKnowledge>;
@@ -1265,6 +1592,8 @@ export interface EnvironmentKnowledge {
     /** Files whose arguments PowerShell hands to cmd.exe as a raw command line. */
     batchArguments: Fact<{ extensions: readonly string[] }>;
   };
+  /** OSV.dev, for --osv (decision D-129). */
+  osv: OsvKnowledge;
   python: {
     /** How Python package names are compared: lowercased, with every run of these characters replaced by `replacement`. */
     nameNormalization: Fact<{ separators: string; replacement: string }>;

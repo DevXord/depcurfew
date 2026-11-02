@@ -54,7 +54,7 @@ export const runtimeEndOfLife: Rule = {
         cannotTell(`the Node.js of ${declaration.versionFile} in ${declaration.file}`, 'depcurfew cannot read the version from that file', location, `${check.replace('it is', `${declaration.versionFile} names`)}`);
         continue;
       }
-      const subject = nodeSubject(declaration, label);
+      const subject = nodeSubject(declaration, label, context.detection.jobs);
       if (declaration.unknown !== undefined) {
         cannotTell(subject, declaration.unknown, location, check.replace('it is', 'every value is'));
         continue;

@@ -1,0 +1,9 @@
+{
+  "name": "app",
+  "private": true,
+  "packageManager": "npm@12.2.1",
+  "devDependencies": {
+    "lefthook": "^2.2.2",
+    "vite": "^8.0.0"
+  }
+}

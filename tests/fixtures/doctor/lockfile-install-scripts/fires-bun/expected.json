@@ -5,7 +5,7 @@
       "file": "bun.lock",
       "line": 10
     },
-    "message": "esbuild has install scripts that Bun will not run because depcurfew.json does not allow it; the package may need them",
-    "fix": "Review its scripts: add esbuild to installScripts.allow in depcurfew.json if it needs them, or to installScripts.deny if it works without them; otherwise replace the package"
+    "message": "esbuild has install scripts that Bun will not run because depcurfew.json does not allow it; esbuild does not need them: it only puts the binary, which esbuild takes from an optional dependency for the platform, in place of the esbuild command and checks that it runs (depcurfew checked esbuild 0.28.2; the lockfile has 0.21.5, so check that it works the same)",
+    "fix": "Add esbuild to installScripts.deny in depcurfew.json, and keep optional dependencies installed: esbuild works without its install script then"
   }
 ]

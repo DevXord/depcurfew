@@ -5,6 +5,8 @@ const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const python = verifiedOn('2026-10-30');
 const review = verifiedOn('2026-10-31');
 const projects = verifiedOn('2026-11-01');
+const bots = verifiedOn('2026-11-02');
+const composer = verifiedOn('2026-11-02');
 
 const OPTIONS = 'https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference';
 const COOLDOWN_GA = 'https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/';
@@ -96,15 +98,40 @@ export const dependabot: ToolKnowledge = {
       'Keys inside the cooldown block of an updates entry; the semver-* keys override default-days for that kind of update.',
     ),
     excludeWildcards: verified({ since: '0.0.0', trailingOnly: false }, `${OPTIONS}#cooldown`, 'cooldown.exclude accepts * wildcards.'),
+    excludeMatching: composer.verified(
+      { starMatchesSlash: true, caseSensitive: true },
+      'https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/package/release_cooldown_options.rb',
+      'ReleaseCooldownOptions#excluded? at v0.402.0 skips the cooldown for a dependency when any exclude pattern matches its name with File.fnmatch?(pattern, dependency_name), and included? matches include the same way, both without flags. Without File::FNM_PATHNAME a * matches / as well ("File.fnmatch(\'c*t\', \'c/a/b/t\') #=> true" in the documentation of File.fnmatch, dir.rb of Ruby 3.4.7, https://github.com/ruby/ruby/blob/v3_4_7/dir.rb), and without File::FNM_CASEFOLD case counts, so "*/*" matches every Composer package (vendor/name) and every scoped npm package.',
+    ),
     cooldownInclude: python.verified(
       { key: 'include', everything: '*' },
       'https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates#setting-up-a-cooldown-period-for-dependency-updates',
       'An include list in the cooldown block limits the cooldown to the dependencies it names (* wildcards, up to 150 entries): the example applies the cooldown to requests, numpy and names starting with pandas or django, and to cover all dependencies one omits include or uses "*". The other dependencies get no cooldown at all, not even the default 3 days: dependabot-core skips the cooldown for a dependency that the include list does not match (ReleaseCooldownOptions#included? with File.fnmatch? and CooldownCalculation.skip_cooldown? in common/lib/dependabot, commit 03892a3e8ee26d43eb96f31c5136c98a85d63b14). exclude wins over include.',
     ),
-    ecosystems: python.verified(
-      { npm: ['npm', 'pnpm', 'yarn'], bun: ['bun'], deno: ['deno'], pip: ['pip', 'poetry', 'pipenv'], uv: ['uv'] },
+    ecosystems: composer.verified(
+      { npm: ['npm', 'pnpm', 'yarn'], bun: ['bun'], deno: ['deno'], pip: ['pip', 'poetry', 'pipenv'], uv: ['uv'], composer: ['composer'] },
       `${OPTIONS}#package-ecosystem`,
-      'The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). Cooldown, including the semver-* keys, is supported for all of them. PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0).',
+      'The npm ecosystem covers npm, pnpm and Yarn; bun needs Bun 1.1.39 or later and deno needs Deno 2. pip covers pip, pip-compile, pipenv and Poetry (v2); uv has its own ecosystem (the table lists uv v0.11). composer covers Composer v2. Cooldown, including the semver-* keys, is supported for all of them (the cooldown table of the same page lists Composer with default and SemVer-bump days, read 2026-11-02). PDM is not listed: dependabot-core skips the dependencies of pyproject.toml when pdm.lock exists (python/lib/dependabot/python/file_parser/pyproject_files_parser.rb at v0.402.0).',
+    ),
+    yamlAliases: bots.verified(
+      { accepted: false },
+      'https://github.com/dependabot/dependabot-core/blob/v0.402.0/common/lib/dependabot/config/file.rb',
+      'Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load(config, symbolize_names: true); Psych.safe_load takes aliases: false unless told otherwise and raises Psych::AliasesNotEnabled on an alias (*name), so a file with one is not read. The issue that asks for aliases (https://github.com/dependabot/dependabot-core/issues/1582, "YAML aliases", open and labelled Keep on 2026-11-02) quotes the error users get, "YAML aliases are not supported"; the pull request that would allow them (#9653) is open and not merged. The reference of dependabot.yml (dependabot-options-reference.md in github/docs) does not mention anchors or aliases. An anchor (&name) that no alias refers to changes nothing.',
+    ),
+    yamlScalars: bots.verified(
+      { library: 'psych', version: '5.5.0', integers: 'legacy' },
+      'https://github.com/ruby/psych/blob/v5.5.0/lib/psych/scalar_scanner.rb',
+      'Dependabot::Config::File.parse loads dependabot.yml with YAML.safe_load (dependabot-core v0.402.0, common/lib/dependabot/config/file.rb), which is Psych: Ruby 4.0.5 (.ruby-version) with psych 5.5.0 (Gemfile.lock of dependabot-core at v0.402.0). ScalarScanner#tokenize reads a plain scalar in this order: words, booleans (yes, no, on, off, true, false) and null; times and dates; .inf and .nan; :symbols; base 60 integers [-+]?[0-9][0-9_]*(:[0-5]?[0-9]){1,2}, summed as part * 60 ** (index - 2).abs, so 1:30 is 5400; floats with a dot; then INTEGER_LEGACY, the default without strict_integer: 0b binary, 0 followed by octal digits, decimal without a leading zero, 0x hex, each with _ and , allowed, read with Integer(string.delete(\',_\')), so 010 is 8, 1_0 and 1,0 are 10; anything else, 0o12 and 08 too, is a string.',
+    ),
+    githubActions: bots.verified(
+      { ecosystem: 'github-actions', semverDays: false },
+      `${OPTIONS}#cooldown`,
+      'package-ecosystem github-actions updates the actions the workflows run: with directory / Dependabot "will search the /.github/workflows directory, as well as the action.yml/action.yaml file from the root directory". The cooldown table lists GitHub Actions with default-days supported and the semver-major-days, semver-minor-days and semver-patch-days keys not supported, and the default cooldown of 3 days covers version updates without a cooldown block (github/docs, content/code-security/reference/supply-chain-security/dependabot-options-reference.md, main on 2026-11-02).',
+    ),
+    actionsReleaseDate: bots.uncertain(
+      'the publication date of the GitHub release of the tag, else the date of the tag, else the date of the commit; with no date the update does not wait',
+      'https://github.com/dependabot/dependabot-core/blob/v0.402.0/github_actions/lib/dependabot/github_actions/update_checker/latest_version_finder.rb',
+      'Read from the code, not the docs. A proposed commit SHA is aged by published_at of the GitHub release of its tag, else the creatordate of the tag (git for-each-ref), else the commit date; version tags by the creatordate of each tag (refs_for_tag_with_detail in common/lib/dependabot/git_metadata_fetcher.rb), which is the tagger date of an annotated tag and the commit date of a lightweight one, both set in git by whoever makes them. Only default-days counts. A missing or unreadable date lets the update through (check_if_version_in_cooldown_period? returns false).',
     ),
     dayRange: disputed(
       'Matters for opting out of the default cooldown; cooldown.exclude: ["*"] works under the documented precedence rule either way. The announcement does not state its author\'s role.',
@@ -124,6 +151,16 @@ export const dependabot: ToolKnowledge = {
       'Regular updates pass the cooldown to npm (11.10+), pnpm (10.16+) and Yarn Berry to hold back transitive dependencies; the Bun updater passes none',
       `${CORE}/npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npm_lockfile_updater.rb`,
       'Read from dependabot-core source.',
+    ),
+    composerReleaseTime: composer.verified(
+      { field: 'time', ignores: 'published-time', composerVersion: '2.10.3' },
+      'https://github.com/dependabot/dependabot-core/blob/v0.402.0/composer/lib/dependabot/composer/package/registry_package.rb',
+      'For composer, the cooldown compares the release date with released_at, which parse_release takes from the time field of each version in the Packagist metadata: the date the package author sets, not published-time, the date Packagist received the version. Seen on 2026-11-02: intercom/intercom-php 5.0.2 has time 2026-01-30 and published-time 2026-04-30 (repo.packagist.org/p2/intercom/intercom-php.json). The updater runs Composer 2.10.3 (ARG COMPOSER_V2_VERSION in composer/Dockerfile at v0.402.0), which has no cooldown policy of its own.',
+    ),
+    composerContentHash: composer.verified(
+      { composerVersion: '2.10.3', hashesPolicy: false, file: 'composer.lock', key: 'content-hash' },
+      'https://github.com/dependabot/dependabot-core/blob/v0.402.0/composer/lib/dependabot/composer/file_updater/lockfile_updater.rb',
+      'post_process_lockfile calls replace_content_hash, which writes the hash get_content_hash returns: composer/helpers/v2/src/Hasher.php calls Locker::getContentHash of the composer/composer library the helper installs from its composer.lock (2.10.3 at v0.402.0). That method at 2.10.3 does not hash config.policy (src/Composer/Package/Locker.php at 2.10.3), while Composer 2.11 does, so with config.policy in composer.json every composer.lock Dependabot writes has a content-hash Composer 2.11 reads as out of date: composer install warns and composer validate fails until composer update --lock.',
     ),
     semverKeysScope: verified(
       'semver-major/minor/patch-days apply only to SemVer ecosystems such as npm, Bun and Deno; others use default-days',

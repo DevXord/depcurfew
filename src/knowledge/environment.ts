@@ -2,6 +2,7 @@
 // npm devEngines, Volta, asdf) and how GitHub Actions workflows install them.
 import { verifiedOn } from './define.ts';
 import type { EnvironmentKnowledge, UserDirectory } from './types.ts';
+import { osv } from './osv.ts';
 
 const { verified } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -15,6 +16,7 @@ const leftovers = verifiedOn('2026-11-01');
 const runtimes = verifiedOn('2026-11-01');
 const recheck = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
+const release14 = verifiedOn('2026-11-02');
 
 const COREPACK_README = 'https://github.com/nodejs/corepack/blob/main/README.md';
 const COREPACK_CHANGELOG = 'https://github.com/nodejs/corepack/blob/main/CHANGELOG.md';
@@ -43,6 +45,10 @@ const OFFICIAL_IMAGES = 'https://github.com/docker-library/official-images/blob/
 const DOCKERFILE_REFERENCE = 'https://github.com/moby/buildkit/blob/c1cfdbd30b79b4a4908cdccc3c0f9849c30e34e5/frontend/dockerfile/docs/reference.md';
 const DOCKER_DOCS = 'https://github.com/docker/docs/blob/53581df94e05ad4116a8d31e47ea098289fa5498';
 const SETUP_NODE = 'https://github.com/actions/setup-node/blob/949feb2413d6458794dcd2491c4babbbce0c15c1';
+// Packages whose install scripts are known (decision D-127), read at these release tags.
+const ESBUILD = 'https://github.com/evanw/esbuild/blob/v0.28.2';
+const LEFTHOOK = 'https://github.com/evilmartians/lefthook/blob/v2.2.2';
+const FSEVENTS = 'https://github.com/fsevents/fsevents/blob/v2.3.3';
 
 export const environment: EnvironmentKnowledge = {
   corepack: {
@@ -117,6 +123,54 @@ export const environment: EnvironmentKnowledge = {
       { command: 'enable', npmOnlyWhenNamed: true },
       COREPACK_README,
       'corepack enable [... name] creates shims for the package managers it is given, or for all of them without parameters: "Note that the npm shims will not be installed unless explicitly requested, as npm is currently distributed with Node.js through other means". So corepack enable npm makes npm the version Corepack picks (packageManager), while a bare corepack enable leaves the bundled npm.',
+    ),
+    manualInstall: release14.verified(
+      { package: 'corepack', command: 'npm install -g corepack', enable: 'corepack enable' },
+      `${COREPACK_V0_36_0}/README.md`,
+      'How to Install: "Corepack is distributed with Node.js from version 14.19.0 up to (but not including) 25.0.0. Run `corepack enable` to install the required Yarn and pnpm binaries on your path." Manual Installs, "Install Corepack using npm": "npm install -g corepack". The Node.js 25.0.0 changelog lists "build: stop distributing Corepack" (#57617) among its semver-major commits (https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V25.md), and the node images of 25 and later extract the release tarball unchanged (docker.nodeImage), so they have no Corepack either.',
+    ),
+  },
+  installScriptPackages: {
+    esbuild: release14.verified(
+      {
+        name: 'esbuild',
+        versions: ['0.28.2'],
+        script: 'postinstall: node install.js',
+        kind: 'not-needed',
+        does: 'it only puts the binary, which esbuild takes from an optional dependency for the platform, in place of the esbuild command and checks that it runs',
+        withoutScript:
+          'the esbuild command starts through a small Node.js script instead of the binary itself (install.js never makes that change on Windows or with Yarn anyway), and the install no longer checks that the binary runs',
+        needsOptionalDependencies: true,
+      },
+      `${ESBUILD}/lib/npm/node-platform.ts`,
+      'npm/esbuild/package.json at v0.28.2 declares "postinstall": "node install.js" and one optionalDependencies entry per platform (@esbuild/linux-x64 and the others, version 0.28.2). generateBinPath in lib/npm/node-platform.ts, which the JavaScript API and bin/esbuild run, first resolves the binary from that optional package ("First check for the binary package from our optionalDependencies"), so esbuild works without its install script. lib/npm/node-install.ts (the install script) only replaces bin/esbuild with the binary ("This optimization also doesn\'t apply when npm\'s --ignore-scripts flag is used since in that case this install script will not be run"; not on Windows, with Yarn or WASM), checks the version of the binary, and downloads the platform package when it is missing ("This can happen if you use the --no-optional flag"). Without both, esbuild fails: "maybe someone installed esbuild with both the --no-optional and the --ignore-scripts flags. The fix for this is to just not do that", with the error "make sure that you don\'t specify the --no-optional or --omit=optional flags".',
+    ),
+    fsevents: release14.verified(
+      {
+        name: 'fsevents',
+        versions: ['2.3.3'],
+        script: 'install: node-gyp rebuild',
+        kind: 'not-needed',
+        does: 'it is the node-gyp rebuild that npm adds because the source has a binding.gyp, while the package already contains the built fsevents.node',
+        withoutScript: 'nothing changes',
+        needsOptionalDependencies: false,
+      },
+      `${FSEVENTS}/package.json`,
+      'The package.json of fsevents 2.3.3 declares no install script and lists "files": ["fsevents.d.ts", "fsevents.js", "fsevents.node"], so the published package contains the built module that fsevents.js loads (require("./fsevents.node")); the published tarball holds exactly LICENSE, README.md, package.json, fsevents.js, fsevents.d.ts and fsevents.node (listed on 2026-11-02, nothing run). The repository has a binding.gyp at that tag, and npm adds an install script to such a package when it is published: "If there is a binding.gyp file in the root of your package and you haven\'t defined your own install or preinstall scripts, npm will default the install command to compile using node-gyp via node-gyp rebuild" (https://github.com/npm/cli/blob/v12.2.1/docs/lib/content/using-npm/scripts.md). That is the install: node-gyp rebuild of the registry metadata and the hasInstallScript of lockfiles; the tarball has no binding.gyp to build from.',
+    ),
+    lefthook: release14.verified(
+      {
+        name: 'lefthook',
+        versions: ['2.2.2'],
+        script: 'postinstall: node postinstall.js',
+        kind: 'project-task',
+        does: 'it runs lefthook install, which installs the git hooks of the repository',
+        withoutScript: 'the install no longer installs the git hooks',
+        needsOptionalDependencies: false,
+        projectStep: { command: 'lefthook install', after: 'clone' },
+      },
+      `${LEFTHOOK}/packaging/registries/npm/lefthook/postinstall.js`,
+      'postinstall.js runs the lefthook executable with install in INIT_CWD (the directory the install was started in), and does nothing when CI is set and LEFTHOOK is not ("if (isEnabled(process.env.CI) && !isEnabled(process.env.LEFTHOOK)) return"). get-exe.js resolves the executable from lefthook-<os>-<arch>/bin/lefthook, one of the optionalDependencies of packaging/registries/npm/lefthook/package.json (version 2.2.2), whose only script is "postinstall": "node postinstall.js". docs/usage/commands/install.md: lefthook install "Installs configured hooks to Git hooks"; "NPM package lefthook installs the hooks in a postinstall script automatically. For projects not using NPM package run lefthook install after cloning the repo." and "Reinstall is not required when you modify lefthook.yml, the configuration file is read every time a git hook is run." docs/usage/envs/LEFTHOOK.md: "When using NPM package lefthook in CI, and your CI sets CI=true automatically, use LEFTHOOK=1 or LEFTHOOK=true to install hooks in the postinstall script", so by default no hooks are installed in CI. postinstall.js catches every error and does not look at the exit code of lefthook install, so it never fails the install. The legacy package @evilmartians/lefthook-installer fetches the executable when it is installed (docs/installation/node.md), so its script is needed; it is not this entry.',
     ),
   },
   node: {
@@ -295,6 +349,11 @@ export const environment: EnvironmentKnowledge = {
       { directory: '.github/workflows', extensions: ['.yml', '.yaml'] },
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax',
     ),
+    jobId: release14.verified(
+      { pattern: '^[A-Za-z_][A-Za-z0-9_-]*$' },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id',
+      'Read from the page source in github/docs (data/reusables/actions/jobs/section-using-jobs-in-a-workflow-id.md, main on 2026-11-02): "You must replace <job_id> with a string that is unique to the jobs object. The <job_id> must start with a letter or _ and contain only alphanumeric characters, -, or _." The runner checks names the same way with ASCII letters and digits (NameValidation.IsValid in src/Sdk/DTPipelines/Pipelines/Validation/NameValidation.cs of actions/runner, main on 2026-11-02: a-z, A-Z, _ anywhere, digits and, with hyphens allowed, - after the first character).',
+    ),
     setupNode: verified(
       {
         action: 'actions/setup-node',
@@ -326,6 +385,11 @@ export const environment: EnvironmentKnowledge = {
       { key: 'env', levels: ['workflow', 'job', 'step'] },
       'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env',
       'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/workflow-syntax.md and data/reusables/repositories/actions-env-var-note.md, main on 2026-11-01): env is "A map of variables that are available to the steps of all jobs in the workflow", jobs.<job_id>.env "A map of variables that are available to all steps in the job", and jobs.<job_id>.steps[*].env "Sets variables for steps to use in the runner environment"; for the same name GitHub "uses the most specific variable": the step\'s over the job\'s over the workflow\'s.',
+    ),
+    yamlAliases: release14.verified(
+      { accepted: true },
+      'https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#yaml-anchors-and-aliases',
+      'Read from the page source in github/docs (content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md, commit 23809bf of main on 2026-11-02), for GitHub.com and GitHub Enterprise Cloud: "You can use YAML anchors and aliases to reduce repetition in your workflows. An anchor (marked with &) identifies a piece of content that you want to reuse, while an alias (marked with *) repeats that content in another location." Its examples reuse the env map of a job (env: *env_vars) and a whole job (alt-test: *base_job), and say that this "is equivalent to writing the following YAML without anchors and aliases". The page does not mention merge keys (<<), so depcurfew does not apply them in workflows.',
     ),
     pnpmActionSetup: verified(
       { action: 'pnpm/action-setup', installs: ['pnpm'], inputs: [{ name: 'version', kind: 'version', tool: 'pnpm' }] },
@@ -699,6 +763,7 @@ export const environment: EnvironmentKnowledge = {
       'about_Parsing (the source of https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_parsing): on Windows, arguments for batch files are passed as raw command-line strings to cmd.exe, and untrusted input should be passed another way. In the Windows mode of $PSNativeCommandArgumentPassing, the default on Windows since PowerShell 7.3, files ending in .bat or .cmd (also cmd.exe, cscript.exe, wscript.exe, .js, .vbs and .wsf) keep the legacy argument passing of Windows PowerShell 5.1.',
     ),
   },
+  osv,
   python: {
     nameNormalization: python.verified(
       { separators: '[-_.]+', replacement: '-' },

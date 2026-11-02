@@ -1,12 +1,13 @@
 // Reading settings from configuration files with their line numbers, for doctor: INI (.npmrc), YAML, TOML
 // (bunfig.toml) and JSON/JSONC. Unreadable files give no value; detection already reports them.
-import { LineCounter, isMap, isScalar, isSeq, type Document, type Node, type Pair } from 'yaml';
+import { LineCounter, isAlias, isMap, isPair, isScalar, isSeq, type Document, type Node, type Pair } from 'yaml';
 import { extraOf, isRecord, yamlOptionsFor } from '../apply/facts.ts';
 import { jsonElementOffsets, jsonGet, jsonOffset } from '../apply/json-edit.ts';
 import { BLOCK_END, isBlockStart } from '../apply/block.ts';
 import type { Repository } from '../detect/repository.ts';
 import { npm } from '../knowledge/npm.ts';
-import { mergedPair, ownPair, readYamlDocument, type YamlOptions } from '../yaml-parse.ts';
+import type { ToolKnowledge } from '../knowledge/types.ts';
+import { MAX_YAML_ALIASES, mergedPair, ownPair, readYamlDocument, type YamlOptions } from '../yaml-parse.ts';
 
 export interface Setting {
   file: string;
@@ -145,17 +146,20 @@ function lineAt(text: string, offset: number): number {
 function yamlNode(text: string, path: readonly string[], options: YamlOptions = {}): { node: Node | null; line: number; mergedAt?: number; document: Document.Parsed } | undefined {
   // Shared with detection and the other rules, which read the same file (readYamlDocument); only read here.
   const merge = options.merge === true;
-  const { document, lineCounter } = readYamlDocument(text, { merge });
+  const { document, lineCounter } = readYamlDocument(text, { merge, ...(options.psychScalars === true ? { psychScalars: true } : {}) });
   if (document.errors.length > 0) return undefined;
   let node: Node | null = document.contents as Node | null;
   let keyOffset = 0;
   let mergedAt: number | undefined;
+  // An alias stands for the node of its anchor where the tool's loader expands aliases (decision D-141).
+  const resolve = (item: Node | null): Node | null => (options.aliases === true && item !== null && isAlias(item) ? ((item.resolve(document) as Node | undefined) ?? null) : item);
+  node = resolve(node);
   for (const segment of path) {
     if (node !== null && isSeq(node) && /^\d+$/u.test(segment)) {
       const item = node.items[Number(segment)] as Node | undefined;
       if (item === undefined) return undefined;
       keyOffset = item.range?.[0] ?? keyOffset;
-      node = item;
+      node = resolve(item);
       continue;
     }
     if (node === null || !isMap(node)) return undefined;
@@ -167,20 +171,78 @@ function yamlNode(text: string, path: readonly string[], options: YamlOptions = 
     }
     if (pair === undefined) return undefined;
     keyOffset = pair.key.range?.[0] ?? 0;
-    node = pair.value;
+    node = resolve(pair.value);
   }
   return { node, line: lineCounter.linePos(keyOffset).line, ...(mergedAt === undefined ? {} : { mergedAt }), document };
 }
 
-/** The YAML value at `path`, the line of its key and, with `merge`, the line of the << it comes in through. */
-export function yamlSetting(text: string, path: readonly string[], options: YamlOptions = {}): { value: unknown; line: number; mergedAt?: number } | undefined {
+/**
+ * The YAML value at `path`, the line of its key and, with `merge`, the line of the << it comes in through; `written` is
+ * the text of a plain scalar as the file has it when it is not the text of its value (010, which Psych reads as 8).
+ */
+export function yamlSetting(text: string, path: readonly string[], options: YamlOptions = {}): { value: unknown; line: number; mergedAt?: number; written?: string } | undefined {
   const found = yamlNode(text, path, options);
   if (found === undefined) return undefined;
   const { node, line, mergedAt, document } = found;
-  // With merge keys the value is converted in the document, which applies them; toJSON without it cannot.
-  const convert = (item: Node) => (options.merge === true ? item.toJS(document) : item.toJSON()) as unknown;
+  // With merge keys or aliases the value is converted in the document, which applies them; toJSON without it cannot.
+  // Aliases that expand beyond MAX_YAML_ALIASES leave no value (decision D-141).
+  const convert = (item: Node): unknown => {
+    if (options.aliases === true) {
+      try {
+        return item.toJS(document, { maxAliasCount: MAX_YAML_ALIASES }) as unknown;
+      } catch {
+        return undefined;
+      }
+    }
+    return (options.merge === true ? item.toJS(document) : item.toJSON()) as unknown;
+  };
   const value: unknown = node === null ? null : isMap(node) || isSeq(node) || isScalar(node) ? convert(node) : undefined;
-  return { value, line, ...(mergedAt === undefined ? {} : { mergedAt }) };
+  const written = node !== null && isScalar(node) && node.type === 'PLAIN' && typeof node.source === 'string' && node.source !== String(value) ? node.source : undefined;
+  return { value, line, ...(mergedAt === undefined ? {} : { mergedAt }), ...(written === undefined ? {} : { written }) };
+}
+
+/**
+ * The line of the first YAML alias (*name) of a file, or undefined when it has none or cannot be parsed (decision
+ * D-135): for files of tools whose loader rejects aliases (Dependabot, extra.yamlAliases), whose values depcurfew then
+ * does not read either.
+ */
+export function yamlAliasLine(text: string): number | undefined {
+  const { document, lineCounter } = readYamlDocument(text);
+  if (document.errors.length > 0) return undefined;
+  let first: number | undefined;
+  const stack: unknown[] = [document.contents];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (isAlias(node)) {
+      const start = node.range?.[0];
+      if (start !== undefined && (first === undefined || start < first)) first = start;
+    } else if (isMap(node) || isSeq(node)) {
+      for (const item of node.items) stack.push(item);
+    } else if (isPair(node)) {
+      stack.push(node.key, node.value);
+    }
+  }
+  return first === undefined ? undefined : lineCounter.linePos(first).line;
+}
+
+/**
+ * Why the aliases of a YAML file cannot be expanded within MAX_YAML_ALIASES (an alias without its anchor, aliases that
+ * expand without end), or undefined when they can or the file has none (decision D-141).
+ */
+export function yamlAliasProblem(text: string): string | undefined {
+  if (yamlAliasLine(text) === undefined) return undefined;
+  const { document } = readYamlDocument(text);
+  try {
+    document.toJS({ maxAliasCount: MAX_YAML_ALIASES });
+    return undefined;
+  } catch (thrown) {
+    return (thrown instanceof Error ? thrown.message : String(thrown)).split('\n', 1)[0] ?? 'its aliases cannot be expanded';
+  }
+}
+
+/** Whether the bot's loader rejects YAML aliases (extra.yamlAliases: Dependabot). */
+export function rejectsYamlAliases(tool: ToolKnowledge): boolean {
+  return tool.extra?.['yamlAliases'] !== undefined && extraOf(tool, 'yamlAliases', isRecord)['accepted'] === false;
 }
 
 /** The line of the key at `path` in YAML, without its value. */

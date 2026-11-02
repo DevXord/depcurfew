@@ -1,0 +1,13 @@
+name: ci
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      COMPOSER_POLICY: "1"
+      COMPOSER_POLICY_COOLDOWN_PERIOD: "7 days"
+      COMPOSER_NO_BLOCKING: "0"
+      COMPOSER_POLICY_COOLDOWN_BLOCK: ""
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - run: composer install

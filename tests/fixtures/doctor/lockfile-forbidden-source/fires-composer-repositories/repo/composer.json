@@ -1,0 +1,39 @@
+{
+    "name": "acme/app",
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/acme/monolog-fork"
+        },
+        {
+            "type": "path",
+            "url": "packages/*"
+        },
+        {
+            "type": "artifact",
+            "url": "artifacts/"
+        },
+        {
+            "type": "package",
+            "package": {
+                "name": "legacy/widgets",
+                "version": "1.0.0",
+                "dist": {
+                    "url": "https://downloads.example.com/widgets-1.0.0.zip",
+                    "type": "zip"
+                }
+            }
+        },
+        {
+            "type": "git",
+            "url": "git@gitlab.example.com:acme/unused.git"
+        }
+    ],
+    "require": {
+        "monolog/monolog": "dev-main",
+        "acme/local": "*",
+        "acme/archive": "1.0.0",
+        "legacy/widgets": "1.0.0",
+        "psr/log": "^3.0"
+    }
+}

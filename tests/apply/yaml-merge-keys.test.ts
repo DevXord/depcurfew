@@ -26,7 +26,8 @@ describe('which tools apply merge keys', () => {
   it('pnpm does, Yarn and Dependabot are read without them', () => {
     const tool = (id: string) => knowledgeBase.find((entry) => entry.id === id);
     expect([mergesYamlKeys(tool('pnpm')), mergesYamlKeys(tool('yarn')), mergesYamlKeys(tool('dependabot'))]).toEqual([true, false, false]);
-    expect([yamlOptionsFor('pnpm-workspace.yaml'), yamlOptionsFor('.yarnrc.yml'), yamlOptionsFor('.github/dependabot.yml')]).toEqual([{ merge: true }, { merge: false }, { merge: false }]);
+    // Dependabot reads numbers as Ruby's Psych does (decision D-136).
+    expect([yamlOptionsFor('pnpm-workspace.yaml'), yamlOptionsFor('.yarnrc.yml'), yamlOptionsFor('.github/dependabot.yml')]).toEqual([{ merge: true }, { merge: false }, { merge: false, psychScalars: true }]);
   });
 });
 

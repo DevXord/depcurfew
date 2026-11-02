@@ -3,7 +3,7 @@
 // parse strictly (JSON with comments and trailing commas) before an edit, and the result must parse and hold the
 // old data with only the edited value changed; otherwise the edit is refused.
 import { nextSignificant, parseJsonc } from '../detect/jsonc.ts';
-import { sameData, withArray, withValue } from './expected.ts';
+import { sameData, withArray, withoutKey, withValue } from './expected.ts';
 
 type Path = readonly (string | number)[];
 
@@ -103,7 +103,7 @@ function parse(text: string): JsonNode {
 }
 
 /** A syntax error with the line and column of the position JSON.parse reports. */
-function invalidJson(text: string, error: unknown): Error {
+export function invalidJson(text: string, error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   const reason = message.replace(/ in JSON at position \d+.*$/u, '');
   const position = /at position (\d+)/u.exec(message);
@@ -343,10 +343,37 @@ export function jsonArrayRemove(text: string, path: Path, index: number): string
   );
 }
 
+/**
+ * Removes the member `key` of the object at `path` the way jsonArrayRemove removes an element: with the comma that
+ * separates it and its line when nothing else is left on it; comments stay.
+ */
+export function jsonObjectRemove(text: string, path: Path, key: string): string {
+  return checked(
+    text,
+    `removing ${JSON.stringify(key)} from ${path.join('.')}`,
+    (body) => {
+      const node = find(body, path);
+      if (node?.kind !== 'object') throw new Error(`no object at ${path.join('.')}`);
+      const index = node.members.findIndex((member) => member.key === key);
+      if (index === -1) return body;
+      // A key written twice would leave the other one; JSON.parse keeps the last, which the expected data cannot tell.
+      if (node.members.filter((member) => member.key === key).length > 1) throw new Error(`${JSON.stringify(key)} is written more than once at ${path.join('.')}`);
+      return removeSpan(body, node, node.members.map((member) => ({ start: member.keyStart, end: member.value.end })), index);
+    },
+    (data) => withoutKey(data, path, key),
+  );
+}
+
 function removeElement(text: string, path: Path, index: number): string {
-  const { elements, start, end } = arrayAt(text, path);
+  const container = arrayAt(text, path);
+  return removeSpan(text, container, container.elements, index, `no element ${index} at ${path.join('.')}`);
+}
+
+/** Removes item `index` of the items of a container (array elements, or object members from key to value). */
+function removeSpan(text: string, container: { start: number; end: number }, elements: readonly { start: number; end: number }[], index: number, missing = 'no such item'): string {
+  const { start, end } = container;
   const element = elements[index];
-  if (element === undefined) throw new Error(`no element ${index} at ${path.join('.')}`);
+  if (element === undefined) throw new Error(missing);
   const blank = (from: number, to: number) => text.slice(from, to).trim() === '';
   if (elements.length === 1 && `${text.slice(start + 1, element.start)}${text.slice(element.end, end - 1)}`.replaceAll(',', '').trim() === '') {
     return `${text.slice(0, start + 1)}${text.slice(end - 1)}`;

@@ -14,9 +14,12 @@ import type { CheckFinding, CheckRequest, FindingCode, PackageReport } from './f
 import { mayTurnWorkspacesOff } from './registry-settings.ts';
 import { REGISTRY_RETRY_FIX } from './index.ts';
 import { INDEX_RETRY_FIX } from './python.ts';
+import { OSV_RETRY_FIX } from './osv.ts';
+import { PACKAGIST_RETRY_FIX } from './composer.ts';
+import { PACKAGIST_REDIRECT_FIX } from './packagist.ts';
 
 /** Findings that break the policy outright; other errors only mean that depcurfew cannot vouch for the package. */
-const DENY: ReadonlySet<FindingCode> = new Set(['forbidden-source', 'not-found', 'no-version', 'too-young', 'install-scripts', 'quarantined']);
+const DENY: ReadonlySet<FindingCode> = new Set(['forbidden-source', 'not-found', 'no-version', 'too-young', 'install-scripts', 'quarantined', 'known-malicious']);
 
 /** A decision, or none; `context` is text for Claude next to the tool result (the warnings), whatever the decision. */
 export type HookDecision = ({ decision: 'deny' | 'ask'; reason: string } | { decision: 'none' }) & { context?: string };
@@ -143,8 +146,11 @@ function label(report: PackageReport): string {
   return notes.length === 0 ? report.spec : `${report.spec} (${notes.join(', ')})`;
 }
 
+/** What an agent is told after a known malicious version alone: no policy change allows it. */
+const CHOOSE_ANOTHER = 'Choose another package or version.';
+
 /** What an agent is told instead of a fix that changes depcurfew.json (the hook's reason and depcurfew mcp). */
-export const POLICY_IS_THE_USERS = 'Choose another package or version. Only the user may change depcurfew.json: ask them instead of editing it.';
+export const POLICY_IS_THE_USERS = `${CHOOSE_ANOTHER} Only the user may change depcurfew.json: ask them instead of editing it.`;
 
 /**
  * What an agent is told instead of a fix about the registry or the index depcurfew asks: the agent cannot pass
@@ -152,6 +158,18 @@ export const POLICY_IS_THE_USERS = 'Choose another package or version. Only the 
  */
 export const LOOKUP_IS_THE_USERS =
   "Do not install it before it is checked. Which registry and index depcurfew asks is the user's setting (.npmrc, or --registry and --index of depcurfew), not the agent's: try again later if the registry was only unreachable, otherwise tell the user";
+
+/**
+ * What an agent is told when OSV.dev did not answer (--osv, decision D-129): the package is not checked, and the
+ * options of the hook and of depcurfew mcp are the user's.
+ */
+export const OSV_IS_THE_USERS = 'Do not install it before it is checked: try again later, and tell the user if api.osv.dev stays out of reach';
+
+/** What an agent is told when Packagist did not answer (decision D-133): depcurfew asks Packagist only, so there is no other to set. */
+export const PACKAGIST_IS_UNREACHABLE = 'Do not install it before it is checked: try again later, and tell the user if repo.packagist.org stays out of reach';
+
+/** What an agent is told when Packagist redirects (decision D-142): there is no repository setting to change. */
+export const PACKAGIST_REDIRECTS = 'Do not install it before it is checked: try again later, and tell the user if repo.packagist.org keeps redirecting';
 
 /** What an agent is told instead of "Use an https:// URL": the URL is the user's setting too. */
 export const INSECURE_IS_THE_USERS = "The URL of the registry or index is the user's setting (.npmrc, or --registry and --index of depcurfew): tell the user, who can switch it to an https:// URL";
@@ -178,6 +196,9 @@ export function agentFix(fix: string, code?: string): string | undefined {
   if (fix.startsWith(UNREAD_REGISTRY_FIX_START)) return UNREAD_REGISTRY_IS_THE_USERS;
   if (fix.includes('depcurfew.json')) return undefined;
   if (code === 'insecure-registry') return INSECURE_IS_THE_USERS;
+  if (code === 'unverified' && fix === OSV_RETRY_FIX) return OSV_IS_THE_USERS;
+  if (code === 'unverified' && fix === PACKAGIST_RETRY_FIX) return PACKAGIST_IS_UNREACHABLE;
+  if (code === 'unverified' && fix === PACKAGIST_REDIRECT_FIX) return PACKAGIST_REDIRECTS;
   if (code === 'unverified' && aboutLookups(fix)) return LOOKUP_IS_THE_USERS;
   const sets = SETS_CONFIGURATION.exec(fix);
   if (sets !== null) return `Ask the user to set ${sets[1]} in ${sets[2]}${sets[3]}. Do not change ${sets[2]} yourself`;
@@ -217,12 +238,20 @@ export function decide(reports: readonly PackageReport[], unreadable: string | u
   const denied = errors.filter(({ finding }) => DENY.has(finding.code));
   const shownNotes = notes.map(reasonText);
   if (denied.length > 0) {
-    const advice = `\n${POLICY_IS_THE_USERS}`;
+    // No change of depcurfew.json allows a known malicious version (decision D-129): the reason names OSV.dev, and
+    // the policy only where another finding breaks it.
+    const malicious = denied.filter(({ finding }) => finding.code === 'known-malicious').length;
+    const policy = malicious < denied.length;
+    const advice = policy ? `\n${POLICY_IS_THE_USERS}` : `\n${CHOOSE_ANOTHER}`;
+    const head =
+      malicious === 0
+        ? "depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n"
+        : `depcurfew blocked this command because it installs a known malicious version, which OSV.dev lists${policy ? ", and breaks the project's supply-chain policy (depcurfew.json)" : ''}:\n`;
     return {
       ...context,
       decision: 'deny',
       reason: limited(
-        "depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n",
+        head,
         denied.map(({ report, finding }) => line(report, finding)),
         `${advice}${shownNotes.map((note) => `\n${note}`).join('')}`,
       ),
@@ -272,8 +301,12 @@ export interface PlacedRequest {
  * part of it could not be read; and the options and variables that weaken the delay or the rule on install scripts
  * (compared with the policy by overrideDoubt).
  */
-export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'posix'): { specs: PlacedRequest[]; unreadable: string | undefined; overrides: readonly Override[] } {
-  const scan = scanCommandLine(command, { shell });
+export function requestedSpecs(
+  command: string,
+  shell: HookEvent['shell'] = 'posix',
+  windows: boolean = process.platform === 'win32',
+): { specs: PlacedRequest[]; unreadable: string | undefined; overrides: readonly Override[] } {
+  const scan = scanCommandLine(command, { shell, windows });
   const unique = new Map<string, PlacedRequest>();
   // Installs placed in one directory share its object: it is written out once, and stands in the key by a number, so
   // that a directory with long paths is not hashed for every install (decision D-123).
@@ -290,7 +323,7 @@ export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'pos
     }
     return id;
   };
-  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written } of scan.requests) {
+  for (const { tool, spec, tag, prereleases, buildFromSource, directory, command: written, readsManifest, fromManifest, composerCommand } of scan.requests) {
     const request: CheckRequest = {
       spec,
       // The tool decides which of its own registry settings apply (decision D-113).
@@ -301,6 +334,10 @@ export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'pos
       ...(prereleases === undefined ? {} : { prereleases }),
       ...(buildFromSource === undefined ? {} : { buildFromSource }),
       ...(tool === 'npm' && mayTurnWorkspacesOff(written) ? { workspacesOption: true } : {}),
+      // Composer: the composer.json the command reads, and a constraint that comes from it (decision D-133).
+      ...(readsManifest === false ? { readsManifest } : {}),
+      ...(fromManifest === true ? { fromManifest } : {}),
+      ...(composerCommand === undefined ? {} : { composerCommand }),
     };
     const key = `${JSON.stringify(request)}\n${keyOf(directory)}`;
     if (!unique.has(key)) unique.set(key, { request, ...(directory === undefined ? {} : { directory }), command: written });

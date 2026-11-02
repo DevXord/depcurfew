@@ -1,0 +1,11 @@
+{
+  "extends": ["config:recommended"],
+  "packageRules": [
+    { "matchManagers": ["npm"], "minimumReleaseAge": "1 hour" },
+    { "matchManagers": "github-actions", "matchUpdateTypes": ["major"], "minimumReleaseAge": "1 day" },
+    { "matchCategories": ["python"], "minimumReleaseAge": "1 hour" },
+    { "matchManagers": ["{npm,bun}"], "minimumReleaseAge": "1 hour" },
+    { "matchCategories": ["ci", "js"], "matchUpdateTypes": ["patch"], "minimumReleaseAge": "2 hours" },
+    { "matchManagers": ["bun", "deno"], "minimumReleaseAge": null }
+  ]
+}

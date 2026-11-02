@@ -1,0 +1,33 @@
+{
+    "name": "acme/app",
+    "require": {
+        "monolog/monolog": "^3.12"
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://packages.example.com",
+            "require-published-time": false
+        },
+        {
+            "type": "composer",
+            "url": "https://mirror.example.com",
+            "filter": {
+                "malware": false
+            }
+        }
+    ],
+    "config": {
+        "secure-http": false,
+        "allow-plugins": true,
+        "policy": {
+            "cooldown": {
+                "period": "3 days",
+                "block": 0
+            },
+            "malware": {
+                "block-scope": "update"
+            }
+        }
+    }
+}

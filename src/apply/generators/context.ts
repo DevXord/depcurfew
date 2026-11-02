@@ -6,9 +6,9 @@ import type { Duration } from '../../policy/duration.ts';
 import type { ResolvedPolicy } from '../../policy/schema.ts';
 import type { ToolId, ToolKnowledge } from '../../knowledge/types.ts';
 import { blockStart } from '../block.ts';
-import { mergesYamlKeys } from '../facts.ts';
+import { mergesYamlKeys, readsYamlLikePsych } from '../facts.ts';
 import { writeIniBlock } from '../ini.ts';
-import { jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonSet } from '../json-edit.ts';
+import { invalidJson, jsonArrayAppend, jsonArrayRemove, jsonArrayReplace, jsonGet, jsonObjectRemove, jsonSet } from '../json-edit.ts';
 import { writeRequirementsBlock } from '../pip-requirements.ts';
 import { requirementsLongOptions } from '../../doctor/python.ts';
 import { requirementsFormatOf } from '../../doctor/python-lockfiles.ts';
@@ -72,6 +72,34 @@ export interface EditFailure {
   tool: ToolId;
   file: string;
   message: string;
+  /** What to do, when the generic fix of cannot-edit does not say it. */
+  fix?: string;
+}
+
+/** A file the tool reads as strict JSON (no comments, no trailing commas, decision D-141): why, and what to do. */
+export interface StrictJson {
+  /** After the syntax error: "Composer reads composer.json with json_decode, which takes no comments or trailing commas". */
+  reason: string;
+  fix: string;
+}
+
+/** An edit refused with its own fix. */
+class RefusedEdit extends Error {
+  readonly fix: string;
+  constructor(message: string, fix: string) {
+    super(message);
+    this.fix = fix;
+  }
+}
+
+/** Refuses text that JSON.parse does not take, for a tool that reads the file as strict JSON. */
+function assertStrictJson(text: string, strict: StrictJson | undefined): void {
+  if (strict === undefined || text === '') return;
+  try {
+    JSON.parse(text);
+  } catch (error) {
+    throw new RefusedEdit(`${invalidJson(text, error).message}; ${strict.reason}`, strict.fix);
+  }
 }
 
 export interface Context {
@@ -114,7 +142,8 @@ export interface Context {
   atLeast(since: string | undefined): boolean;
   /** Reports what the version did not support; called once the generator has run. */
   finish(): void;
-  json(file: string): JsonFile;
+  /** With `strict`, a file that is not strict JSON is not edited (cannot-edit with that reason and fix). */
+  json(file: string, strict?: StrictJson): JsonFile;
   yaml(file: string): YamlFile;
   ini(file: string, entries: readonly string[], managedKeys: readonly string[]): void;
   /** A managed block in a TOML table ('' for the top level); `label` names the table in the marker when a file has several. */
@@ -129,6 +158,8 @@ export interface JsonFile {
   append(path: readonly (string | number)[], value: unknown): void;
   replace(path: readonly (string | number)[], index: number, value: unknown): void;
   remove(path: readonly (string | number)[], index: number): void;
+  /** Removes a key of the object at `path`. */
+  removeKey(path: readonly (string | number)[], key: string): void;
 }
 
 export interface YamlFile {
@@ -140,7 +171,12 @@ export interface YamlFile {
 
 /** A generator for a package manager returns the cooldown it wrote, in minutes, so bots can wait at least as long. */
 export type ManagerGenerator = (context: Context) => number | undefined;
-export type BotGenerator = (context: Context, cooldown: Duration | undefined) => void;
+/** What a bot generator knows of the repository besides its files: the workflows whose actions it updates (decision D-130). */
+export interface BotRepository {
+  workflows: readonly string[];
+}
+
+export type BotGenerator = (context: Context, cooldown: Duration | undefined, repository: BotRepository) => void;
 
 export class EditFailed extends Error {}
 
@@ -164,7 +200,7 @@ export function createContext(options: {
   const user = options.user !== undefined;
   const versionLabel = options.user?.versionText ?? formatVersion(options.version ?? [0, 0, 0]);
   const scope = user ? 'user' : 'project';
-  const yamlOptions = { merge: mergesYamlKeys(tool) };
+  const yamlOptions = { merge: mergesYamlKeys(tool), ...(readsYamlLikePsych(tool) ? { psychScalars: true } : {}) };
   const atLeast = (since: string | undefined): boolean => {
     const required = since === undefined ? undefined : parseVersion(since);
     return options.version === undefined || required === undefined || compareVersions(options.version, required) >= 0;
@@ -182,7 +218,7 @@ export function createContext(options: {
       if (error instanceof EditFailed) throw error;
       // Parsers put a code frame after the first line; the first line says what is wrong.
       const message = (error instanceof Error ? error.message : String(error)).split('\n', 1)[0]?.replace(/:$/u, '') ?? '';
-      failures.push({ tool: tool.id, file, message });
+      failures.push({ tool: tool.id, file, message, ...(error instanceof RefusedEdit ? { fix: error.fix } : {}) });
       throw new EditFailed(message);
     }
   };
@@ -232,13 +268,29 @@ export function createContext(options: {
     atLeast,
     // The JSON and YAML editors parse the file before an edit and the result after it, and refuse an edit whose
     // result does not parse or changes anything besides the managed value (see expected.ts).
-    json: (file) => ({
-      get: (path) => guard(file, () => (workspace.exists(file) ? jsonGet(workspace.read(file), path) : undefined)),
-      set: (path, value) => guard(file, () => workspace.edit(file, (body) => jsonSet(body === '' ? '{}\n' : body, path, value))),
-      append: (path, value) => guard(file, () => workspace.edit(file, (body) => jsonArrayAppend(body, path, value))),
-      replace: (path, index, value) => guard(file, () => workspace.edit(file, (body) => jsonArrayReplace(body, path, index, value))),
-      remove: (path, index) => guard(file, () => workspace.edit(file, (body) => jsonArrayRemove(body, path, index))),
-    }),
+    json: (file, strict) => {
+      const edit = (change: (body: string) => string) =>
+        guard(file, () =>
+          workspace.edit(file, (body) => {
+            assertStrictJson(body, strict);
+            return change(body);
+          }),
+        );
+      return {
+        get: (path) =>
+          guard(file, () => {
+            if (!workspace.exists(file)) return undefined;
+            const text = workspace.read(file);
+            assertStrictJson(text, strict);
+            return jsonGet(text, path);
+          }),
+        set: (path, value) => edit((body) => jsonSet(body === '' ? '{}\n' : body, path, value)),
+        append: (path, value) => edit((body) => jsonArrayAppend(body, path, value)),
+        replace: (path, index, value) => edit((body) => jsonArrayReplace(body, path, index, value)),
+        remove: (path, index) => edit((body) => jsonArrayRemove(body, path, index)),
+        removeKey: (path, key) => edit((body) => jsonObjectRemove(body, path, key)),
+      };
+    },
     // A tool's generator edits the tool's own files, so they are read with merge keys where its loader applies them.
     yaml: (file) => ({
       get: (path) => guard(file, () => (workspace.exists(file) ? yamlGet(workspace.read(file), path, yamlOptions) : undefined)),

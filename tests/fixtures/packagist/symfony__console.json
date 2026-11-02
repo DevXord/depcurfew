@@ -1,0 +1,56 @@
+{
+  "packages": {
+    "symfony/console": [
+      {
+        "version": "v8.1.10",
+        "version_normalized": "8.1.10.0",
+        "time": "2026-10-28T11:16:19+00:00",
+        "published-time": "2026-10-28T18:23:59+00:00",
+        "type": "library"
+      },
+      {
+        "version": "v8.1.9",
+        "version_normalized": "8.1.9.0",
+        "time": "2026-10-12T19:11:16+00:00",
+        "published-time": "2026-10-14T06:49:16+00:00"
+      },
+      {
+        "version": "v8.1.0-RC1",
+        "version_normalized": "8.1.0.0-RC1",
+        "time": "2026-05-24T08:59:22+00:00",
+        "published-time": "2026-05-27T11:34:01+00:00"
+      },
+      {
+        "version": "v8.1.0-BETA3",
+        "version_normalized": "8.1.0.0-beta3",
+        "time": "2026-05-19T20:20:07+00:00",
+        "published-time": "2026-05-20T12:09:58+00:00"
+      },
+      {
+        "version": "v7.4.22",
+        "version_normalized": "7.4.22.0",
+        "time": "2026-10-28T11:08:27+00:00",
+        "published-time": "2026-10-28T18:21:33+00:00"
+      },
+      {
+        "version": "v6.4.49",
+        "version_normalized": "6.4.49.0",
+        "time": "2026-10-28T10:54:25+00:00",
+        "published-time": "2026-10-28T18:17:12+00:00"
+      },
+      {
+        "version": "v5.4.55",
+        "version_normalized": "5.4.55.0",
+        "time": "2026-10-28T09:02:56+00:00",
+        "published-time": "2026-10-28T18:14:06+00:00"
+      },
+      {
+        "version": "v5.4.54",
+        "version_normalized": "5.4.54.0",
+        "time": "2026-10-07T15:50:15+00:00",
+        "published-time": "2026-10-15T06:51:54+00:00"
+      }
+    ]
+  },
+  "minified": "composer/2.0"
+}

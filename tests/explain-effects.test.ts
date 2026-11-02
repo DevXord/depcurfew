@@ -20,6 +20,7 @@ const DEFAULT_POLICY = readFileSync(new URL('fixtures/apply/policy.json', import
 /** One fixture for every generator, with the cases of the brief: Bun, a tool without source settings, old versions, projects. */
 const FIXTURES = [
   'bun-basic',
+  'composer-basic',
   'deno-allow-all-scripts',
   'docker-node',
   'multi-project',
@@ -29,6 +30,8 @@ const FIXTURES = [
   'pnpm10-monorepo',
   'pnpm11-dependabot',
   'poetry-basic',
+  'projects-ci-setup',
+  'projects-ci-setup-root-npm',
   'volta-renovate',
   'yarn-berry',
 ];

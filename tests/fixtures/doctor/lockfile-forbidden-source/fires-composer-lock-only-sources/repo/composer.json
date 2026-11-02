@@ -1,0 +1,12 @@
+{
+    "require": {
+        "evil/x": "1.0.0",
+        "evil/y": "1.0.0",
+        "psr/log": "^3.0"
+    },
+    "repositories": [
+        {
+            "packagist.org": false
+        }
+    ]
+}

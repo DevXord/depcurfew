@@ -1,0 +1,37 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # managed by depcurfew
+    cooldown:
+      default-days: 3
+      exclude:
+        - "@acme/*"
+        - left-pad
+  # The actions of the workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # managed by depcurfew
+    cooldown:
+      default-days: 3
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/build"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      # managed by depcurfew
+      default-days: 3
+      semver-major-days: 1
+      exclude:
+        - "my-org/*"
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/release"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      # managed by depcurfew
+      default-days: 3

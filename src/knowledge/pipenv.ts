@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 
@@ -10,6 +10,8 @@ const CHANGELOG = `${PIPENV}/CHANGELOG.md`;
 const CONFIGURATION = `${PIPENV}/docs/configuration.md`;
 const user = verifiedOn('2026-10-31');
 const final = verifiedOn('2026-11-01');
+// The version key of Pipfile.lock, which doctor --osv reads (decision D-129).
+const osvFacts = verifiedOn('2026-11-02');
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(null, PIPFILE, `No Pipfile setting allows or forbids ${kind} dependencies (concluded from the documented [pipenv] directives).`),
@@ -89,6 +91,14 @@ export const pipenv: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: osvFacts.verified<EnvironmentNameRule[]>(
+      [
+        { prefix: 'PIPENV_', match: 'exact' },
+        { prefix: 'PIP_', match: 'prefix-then-any-case' },
+      ],
+      `${PIPENV}/pipenv/environments.py`,
+      'get_from_env looks up f"{prefix}_{arg}" with the prefix PIPENV (PIPENV_PYPI_MIRROR, PIPENV_PIPFILE, PIPENV_DOTENV_LOCATION) through "positive_lookup in os.environ", that spelling only. PIP_NO_BINARY and PIP_ONLY_BINARY reach the pip Pipenv runs, which reads PIP_ variables with the prefix in upper case and the rest in any case (pip extra.environmentNames). Decision D-143.',
+    ),
     pylockCreatedBy: verified(
       'pipenv',
       `${PIPENV}/pipenv/utils/pylock.py`,
@@ -107,10 +117,10 @@ export const pipenv: ToolKnowledge = {
       `${PIPENV}/pipenv/routines/lock.py`,
       'Not documented. Tested on 2026-10-30 with 2026.10.4: with resolver_backend = "pure-python" in [pipenv], pipenv lock locked the newest versions despite cool-down-period = "100000d"; resolver is the older name of the key.',
     ),
-    lockfileFormat: verified(
-      { meta: '_meta', git: 'git', file: 'file', path: 'path', editable: 'editable', hashes: 'hashes' },
+    lockfileFormat: osvFacts.verified(
+      { meta: '_meta', git: 'git', file: 'file', path: 'path', editable: 'editable', hashes: 'hashes', version: 'version' },
       `${PIPFILE}#pipfilelock-structure`,
-      'Every key but _meta is a category (default, develop and custom ones) mapping names to entries: index packages have version, hashes and index; git entries git and ref; remote archives file; local projects path, and editable = true for editable installs (Pipfile "Packages Section"). The hashes of wheels and source distributions are listed together, so the lockfile does not show which packages are built.',
+      'Every key but _meta is a category (default, develop and custom ones) mapping names to entries: index packages have version, hashes and index; git entries git and ref; remote archives file; local projects path, and editable = true for editable installs (Pipfile "Packages Section"). The version is written as a specifier ("version": "==1.2.3"). The hashes of wheels and source distributions are listed together, so the lockfile does not show which packages are built.',
     ),
     commandLine: verified(
       {

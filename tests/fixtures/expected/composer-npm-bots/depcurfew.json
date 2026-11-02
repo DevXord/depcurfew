@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3d", "exclude": ["@acme/*", "composer:acme/*", "composer:laravel/framework"] },
+  "installScripts": { "default": "deny", "allow": ["esbuild", "composer:pestphp/pest-plugin"] },
+  "targets": "auto"
+}

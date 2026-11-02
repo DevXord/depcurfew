@@ -2,7 +2,8 @@
 // directory (or the nearest parent that has one, up to the root of the repository), else the default policy of
 // `depcurfew init`. Packages are looked up in the registry given with --registry, else the one the user's .npmrc or
 // the project's .npmrc sets (the .npmrc npm reads there, when it belongs to the policy: decision D-113), else the
-// public npm registry; pypi: packages in the index given with --index, else PyPI. Exit code 1 when any package breaks
+// public npm registry; pypi: packages in the index given with --index, else PyPI; composer: packages in Packagist,
+// unless the root composer.json declares other repositories (decision D-133). Exit code 1 when any package breaks
 // the policy or cannot be checked, 2 for a usage error such as a --dir that does not exist; in hook mode the decision
 // goes to stdout as JSON and the exit code is 0.
 import { accessSync, constants, existsSync, realpathSync, statSync } from 'node:fs';
@@ -15,15 +16,33 @@ import { checkSpecs, type CheckFinding, type CheckRequest, type PackageReport } 
 import { parseRange, parseSemver } from '../check/semver.ts';
 import { parseSpec } from '../check/spec.ts';
 import { isPythonSpec } from '../check/python.ts';
+import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
+import { isComposerSpec } from '../check/composer.ts';
+import { findComposerCommand, type FoundCommand, type ScriptCommands } from '../check/composer-commands.ts';
+import { packagistUrl } from '../check/packagist.ts';
+import { knowledgeBase } from '../knowledge/index.ts';
 import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEvent, reasonText, requestedSpecs, UNREAD_REGISTRY_FIX_START, type PlacedRequest } from '../check/hook.ts';
 import { missingDirectory, notVirtualEnvironment, overrideDoubt, TOO_MANY, unknownDirectory, type CommandDirectory, type Override } from '../check/command.ts';
 import { defaultRegistry, type FetchLike, isLinkLocal, type LookupCache } from '../check/registry.ts';
 import { defaultIndex } from '../check/pypi.ts';
-import { hasRegistrySettings, MAX_CONFIG_SIZE, npmrcSettings, sameRegistry, toolRegistrySettings, type NpmrcSettings, type SkippedFile, type UnreadSetting, type WrittenSetting } from '../check/registry-settings.ts';
+import { addOsvFindings } from '../check/osv.ts';
+import {
+  composerProject,
+  hasRegistrySettings,
+  MAX_CONFIG_SIZE,
+  npmrcSettings,
+  sameRegistry,
+  toolRegistrySettings,
+  type ComposerProject,
+  type NpmrcSettings,
+  type SkippedFile,
+  type UnreadSetting,
+  type WrittenSetting,
+} from '../check/registry-settings.ts';
 import { quoted } from '../check/findings.ts';
 import { PopularNames } from '../check/similar.ts';
 import { values } from '../apply/facts.ts';
-import type { ToolId } from '../knowledge/types.ts';
+import type { CommandNamesKnowledge, ToolId } from '../knowledge/types.ts';
 import { popularPackages } from '../knowledge/popular.ts';
 import { popularPythonPackages } from '../knowledge/popular-python.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
@@ -53,6 +72,11 @@ export interface CheckDependencies {
   projectDir?: () => string | undefined;
   /** --user: platform, home directory and environment variables (tests replace them). */
   userEnvironment?: () => UserEnvironment;
+  /**
+   * The platform the hook runs on: on Windows a POSIX shell (Git Bash) hands its variables to programs that do not tell
+   * their names apart by case (decision D-143); tests replace it.
+   */
+  platform?: () => NodeJS.Platform;
   /** depcurfew mcp: the streams the server talks over, its environment and signals (tests replace them). */
   mcpProcess?: () => McpProcess;
 }
@@ -64,6 +88,8 @@ export interface CheckFlags {
   index?: string | undefined;
   dir: string | undefined;
   hook: string | undefined;
+  /** --osv: look the version each install picks up in OSV.dev for known malicious versions (decision D-129). */
+  osv?: boolean;
 }
 
 function defaultPolicy(): ResolvedPolicy {
@@ -127,9 +153,11 @@ function shownPath(start: string, file: string): string {
 function render(reports: readonly PackageReport[], colors: Paint): string {
   const lines: string[] = [];
   for (const report of reports) {
-    // Python versions are written name==version, as pip takes them.
-    // Names, versions, deprecation messages and scripts come from the registry: control characters are shown as text.
-    const label = printable(report.version === undefined || report.name === undefined ? report.spec : `${report.name}${isPythonSpec(report.spec) ? '==' : '@'}${report.version}`);
+    // Python versions are written name==version, as pip takes them, and Composer versions name:version, as composer
+    // require takes them. Names, versions, deprecation messages and scripts come from the registry: control characters
+    // are shown as text.
+    const separator = isPythonSpec(report.spec) ? '==' : isComposerSpec(report.spec) ? ':' : '@';
+    const label = printable(report.version === undefined || report.name === undefined ? report.spec : `${report.name}${separator}${report.version}`);
     if (report.findings.length === 0) {
       lines.push(`${colors.bold(label)}: ${colors.green('ok')}${report.publishedAt === undefined ? '' : ` (published ${printable(report.publishedAt.slice(0, 10))})`}`);
       continue;
@@ -353,8 +381,12 @@ function readsSetting(setting: UnreadSetting, request: Omit<CheckRequest, 'spec'
 function appliesTo(setting: UnreadSetting, report: PackageReport, request: CheckRequest): boolean {
   if (report.kind !== 'registry' || report.name === undefined || !readsSetting(setting, request)) return false;
   const python = isPythonSpec(report.spec);
+  const composer = isComposerSpec(report.spec);
+  // The root composer.json counts for every Composer package, with or without a command that names Composer, unless
+  // the command does not read it (create-project, global; decision D-133).
+  if (setting.tool === 'composer') return composer && request.readsManifest !== false;
   // .npmrc counts for every tool of the npm ecosystem (pnpm and Bun read it too); a tool's own file for that tool only.
-  if (setting.tool === 'npm' ? python : setting.tool !== request.tool) return false;
+  if (setting.tool === 'npm' ? python || composer : setting.tool !== request.tool) return false;
   if (setting.applies === 'scope') return scopeOf(report.name) === setting.scope;
   // An index pinned to one Python package (decision D-120).
   if (setting.applies === 'package') return python && setting.package === normalizePythonName(report.name.slice(PYPI_PREFIX.length));
@@ -375,6 +407,7 @@ function registryDefaultTag(): string {
 function usedFor(setting: UnreadSetting, report: PackageReport, applied: Pick<AppliedPolicy, 'registry' | 'index' | 'scopes' | 'tag'>): string {
   if (setting.applies === 'tag') return report.tag ?? applied.tag?.value ?? registryDefaultTag();
   if (isPythonSpec(report.spec)) return applied.index;
+  if (isComposerSpec(report.spec)) return packagistUrl();
   return (setting.scope === undefined ? undefined : applied.scopes.get(setting.scope)) ?? applied.registry.url;
 }
 
@@ -405,6 +438,24 @@ function unreadFinding(setting: UnreadSetting, report: PackageReport, applied: P
   const value = setting.value;
   const finding = (message: string, fix: string): CheckFinding => ({ level: 'error', code: 'unverified', message, fix: `${UNREAD_REGISTRY_FIX_START} ${fix}` });
   const options = `to depcurfew check in the hook command (${hookSettingsFile()}), to depcurfew mcp, or on the command line`;
+  if (setting.composer !== undefined) {
+    // depcurfew asks Packagist only, and has no option to ask another repository (decision D-133).
+    const fix = `the package in the repositories that ${setting.file} declares: depcurfew checks only Packagist (${used}), so it cannot vouch for a package from another repository`;
+    // The package is not looked up on Packagist, so that a private name does not leave the machine (decision D-136).
+    const skipped = `depcurfew checks only Packagist (${used}), so it did not look the package up`;
+    if (setting.composer.kind === 'packagist-off') {
+      return finding(`the install would not use Packagist: ${where} turns packagist.org off, so the package comes from the other repositories it declares; ${skipped}`, fix);
+    }
+    if (setting.composer.kind === 'unread') {
+      // Composer reads the file depcurfew skipped, with whatever repositories it declares (decision D-142).
+      return finding(
+        `the install may take it from a repository that ${setting.file} declares, which Composer asks before Packagist, but depcurfew did not read ${setting.file} (${setting.composer.reason}); ${skipped}`,
+        `the package in the repositories that ${setting.file} may declare: depcurfew checks only Packagist (${used}) and did not read ${setting.file}, so it cannot vouch for a package from another repository`,
+      );
+    }
+    const repository = `the ${setting.composer.type} repository${value === undefined ? '' : ` ${value}`}`;
+    return finding(`the install may take it from ${repository} that ${where} declares, which Composer asks before Packagist; ${skipped}`, fix);
+  }
   if (setting.applies === 'tag') {
     return finding(
       `the install would pick the version by the dist-tag ${value === undefined ? '' : `${quoted(value)} `}set in ${where}; depcurfew checked the version that ${used} names`,
@@ -450,6 +501,11 @@ function missingMessage(missing: CheckFinding, setting: UnreadSetting, report: P
   const absent = missing.code === 'not-found' ? `${report.name ?? report.spec} does not exist in ${used}` : `${missing.message} in ${used}`;
   const where = `${setting.file} (line ${setting.line})`;
   const value = setting.value === undefined ? '' : ` ${setting.value}`;
+  if (setting.composer !== undefined) {
+    if (setting.composer.kind === 'packagist-off') return `${absent}, and ${where} turns packagist.org off, so it may come from the other repositories it declares, which depcurfew did not check`;
+    if (setting.composer.kind === 'unread') return `${absent}, but it may come from a repository that ${setting.file} declares, which depcurfew did not read`;
+    return `${absent}, but it may come from the ${setting.composer.type} repository${value} that ${where} declares, which depcurfew did not check`;
+  }
   const what = isPythonSpec(report.spec) ? 'index' : 'registry';
   if (setting.applies === 'package' && setting.pin !== undefined) {
     return `${absent}, but ${setting.pin.file} (line ${setting.pin.line}) pins it to the index${value} set in ${where}, which depcurfew did not check`;
@@ -459,11 +515,67 @@ function missingMessage(missing: CheckFinding, setting: UnreadSetting, report: P
   return `${absent}, but it may come from ${source}, which depcurfew did not check`;
 }
 
-/** The settings of a tool's own configuration files for the requests of a command, read once per tool. */
-function toolSettings(requests: readonly CheckRequest[], applied: Pick<AppliedPolicy, 'start' | 'top'>): { unread: UnreadSetting[]; skipped: SkippedFile[] } {
+/**
+ * The settings of a tool's own configuration files for the requests of a command, read once per tool, and those of the
+ * root composer.json for Composer packages, also without a command (decision D-133).
+ */
+function toolSettings(requests: readonly CheckRequest[], applied: Pick<AppliedPolicy, 'start' | 'top'>, composer: ComposerProject | undefined): { unread: UnreadSetting[]; skipped: SkippedFile[] } {
   const tools = [...new Set(requests.map((request) => request.tool).filter((tool): tool is ToolId => tool !== undefined && hasRegistrySettings(tool)))];
-  const found = tools.map((tool) => toolRegistrySettings(tool, applied.start, applied.top));
+  const found = [...tools.map((tool) => toolRegistrySettings(tool, applied.start, applied.top)), ...(composer === undefined ? [] : [composer])];
   return { unread: found.flatMap((entry) => entry.unread), skipped: found.flatMap((entry) => entry.skipped) };
+}
+
+/** Composer's command names (extra.commandNames), for the words the scripts of composer.json may change (decision D-136). */
+function composerCommandNames(): CommandNamesKnowledge | undefined {
+  const composer = knowledgeBase.find((tool) => tool.id === 'composer');
+  const fact = composer?.extra?.['commandNames'];
+  return fact === undefined ? undefined : (values(fact)[0] as CommandNamesKnowledge | undefined);
+}
+
+/** Whether a word Composer resolved stands for the command it was read as. */
+function isCommand(found: FoundCommand | undefined, command: string): boolean {
+  return found?.kind === 'command' && found.name === command;
+}
+
+/**
+ * The scripts of composer.json as the Composer versions the hook cannot tell apart register them: with their aliases
+ * (scripts-aliases, read since the version extra.scriptAliases gives), and without them as before that version.
+ */
+function scriptReadings(scripts: ScriptCommands): ScriptCommands[] {
+  const composer = knowledgeBase.find((tool) => tool.id === 'composer');
+  const since = composer?.extra?.['scriptAliases'] === undefined ? undefined : values(composer.extra['scriptAliases'])[0];
+  if (since === undefined || scripts.scripts.every((script) => script.aliases.length === 0)) return [scripts];
+  return [scripts, { scripts: scripts.scripts.map((script) => ({ ...script, aliases: [] })) }];
+}
+
+/**
+ * The requests of a Composer command as the root composer.json makes them: a command word that, with the scripts of
+ * composer.json registered as commands, no longer stands for the command it was read as (a script, which runs as
+ * composer run-script does, or an ambiguous word) installs nothing of its own (decision D-136); composer update without
+ * a constraint (fromManifest) gets the constraint the root composer.json requires, and a package it does not require
+ * is left out, as composer update picks its version within what the packages that require it allow, which depcurfew
+ * does not know (decision D-133).
+ */
+function withManifestConstraints(requests: readonly CheckRequest[], composer: ComposerProject | undefined): CheckRequest[] {
+  const names = composer?.scripts === undefined ? undefined : composerCommandNames();
+  // A parent's composer.json may not apply, and then Composer registers no scripts (decision D-142).
+  const readings = composer?.scripts === undefined ? [] : [...scriptReadings(composer.scripts), ...(composer.inParent === true ? [{ scripts: [] }] : [])];
+  return requests.flatMap((request): CheckRequest[] => {
+    const word = request.composerCommand;
+    // The word installs nothing of its own only when it is not the command in any reading (decision D-138).
+    if (word !== undefined && names !== undefined && !readings.some((scripts) => isCommand(findComposerCommand(names, word.word, scripts), word.command))) return [];
+    if (request.fromManifest !== true) return [request];
+    const name = request.spec.trim().slice(COMPOSER_PREFIX.length).toLowerCase();
+    // A composer.json depcurfew did not read may require it: the package is reported as not checked (decision D-142).
+    if (request.readsManifest !== false && composer?.unreadable === true) {
+      const { fromManifest: _fromManifest, ...rest } = request;
+      return [{ ...rest, spec: `${COMPOSER_PREFIX}${name}` }];
+    }
+    const constraint = request.readsManifest === false ? undefined : composer?.requires.get(name);
+    if (constraint === undefined) return [];
+    const { fromManifest: _fromManifest, ...rest } = request;
+    return [{ ...rest, spec: `${COMPOSER_PREFIX}${name}:${constraint}` }];
+  });
 }
 
 export interface RunSettings {
@@ -475,6 +587,8 @@ export interface RunSettings {
   index?: string | undefined;
   /** Lookups shared with other checks of the same command (the hook's installs in several directories). */
   lookups?: LookupCache;
+  /** --osv: the versions picked are looked up in OSV.dev too (decision D-129); nothing is sent to it without. */
+  osv?: boolean;
 }
 
 /**
@@ -482,9 +596,15 @@ export interface RunSettings {
  * them (decision D-113); then marks the packages a registry setting depcurfew did not take applies to. `skipped`
  * lists the configuration files that were not read.
  */
-export async function checkApplied(requests: readonly CheckRequest[], applied: AppliedPolicy, settings: RunSettings): Promise<{ reports: PackageReport[]; skipped: SkippedFile[] }> {
+export async function checkApplied(given: readonly CheckRequest[], applied: AppliedPolicy, settings: RunSettings): Promise<{ reports: PackageReport[]; skipped: SkippedFile[] }> {
   const lookups: LookupCache = settings.lookups ?? new Map();
-  const tools = toolSettings(requests, applied);
+  const composer = given.some((request) => isComposerSpec(request.spec)) ? composerProject(applied.start, applied.top) : undefined;
+  const asked = withManifestConstraints(given, composer);
+  // The stability of a parent's composer.json may not apply: each Composer package that reads it is checked once more
+  // at the stability stable, and the stricter answer counts (decision D-142).
+  const again = composer?.inParent === true && composer.stability !== undefined ? asked.flatMap((request, index) => (isComposerSpec(request.spec) && request.readsManifest !== false ? [index] : [])) : [];
+  const requests = [...asked, ...again.map((index): CheckRequest => ({ ...(asked[index] as CheckRequest), rootStability: false }))];
+  const tools = toolSettings(requests, applied, composer);
   const unread = [...applied.unread, ...tools.unread];
   const options = (policy: ResolvedPolicy) => ({
     policy,
@@ -495,16 +615,20 @@ export async function checkApplied(requests: readonly CheckRequest[], applied: A
     popularPython: popularPython(),
     scopeRegistries: applied.scopes,
     lookups,
-    // A scope whose registry is set elsewhere, to another registry than depcurfew would ask, is not looked up.
+    // A scope whose registry is set elsewhere, to another registry than depcurfew would ask, is not looked up; nor is a
+    // Composer package when the root composer.json declares another repository (decision D-136).
     skipLookup: (name: string, tool: ToolId | undefined, request?: Omit<CheckRequest, 'spec'>) =>
-      unread.some(
-        (setting) =>
-          setting.applies === 'scope' &&
-          setting.scope === scopeOf(name) &&
-          (setting.tool === 'npm' || setting.tool === tool) &&
-          readsSetting(setting, request ?? { ...(tool === undefined ? {} : { tool }) }) &&
-          changesTheCheck(setting, applied.scopes.get(setting.scope) ?? applied.registry.url),
-      ),
+      isComposerSpec(name)
+        ? request?.readsManifest !== false && unread.some((setting) => setting.tool === 'composer')
+        : unread.some(
+            (setting) =>
+              setting.applies === 'scope' &&
+              setting.scope === scopeOf(name) &&
+              (setting.tool === 'npm' || setting.tool === tool) &&
+              readsSetting(setting, request ?? { ...(tool === undefined ? {} : { tool }) }) &&
+              changesTheCheck(setting, applied.scopes.get(setting.scope) ?? applied.registry.url),
+          ),
+    ...(composer?.stability === undefined || composer.file === undefined ? {} : { composerStability: { ...composer.stability, file: composer.file } }),
     ...(settings.index === undefined ? {} : { index: applied.index }),
     ...(applied.tag === undefined ? {} : { defaultTag: applied.tag.value }),
     ...(settings.scriptBodies === undefined ? {} : { scriptBodies: settings.scriptBodies }),
@@ -530,13 +654,38 @@ export async function checkApplied(requests: readonly CheckRequest[], applied: A
     report.findings = report.findings.filter((candidate) => !MISSING.has(candidate.code));
     report.findings.splice(at, 0, { ...finding, message: missingMessage(missing, setting, report, applied) });
   }
-  return { reports, skipped: [...applied.skipped, ...tools.skipped] };
+  // Known malicious versions do not depend on the policy: looked up once, after the policies are merged.
+  if (settings.osv === true) await addOsvFindings(reports, { fetch: settings.fetch, signal: settings.signal, lookups });
+  return { reports: withStableReadings(reports, asked.length, again, composer?.file), skipped: [...applied.skipped, ...tools.skipped] };
+}
+
+/**
+ * The reports of the requests, with the findings of their second reading at the stability stable (`again`, in the
+ * order of the reports after the first `count`) that their own reading does not have, said to be about that reading:
+ * the stricter answer counts, as for two policies (decision D-142).
+ */
+function withStableReadings(reports: readonly PackageReport[], count: number, again: readonly number[], file: string | undefined): PackageReport[] {
+  const own = reports.slice(0, count);
+  if (again.length === 0) return own;
+  const stable = own.map((report) => ({ ...report, findings: [] as CheckFinding[] }));
+  again.forEach((index, position) => {
+    const second = reports[count + position];
+    if (second !== undefined && stable[index] !== undefined) stable[index].findings = second.findings;
+  });
+  const merged = mergedReports(own, stable, POLICY_FILE);
+  return merged.map((report, index) => {
+    const added = new Set(report.findings.filter((finding) => !(own[index]?.findings ?? []).includes(finding)));
+    if (added.size === 0) return report;
+    const note = ` (at the stability stable, which Composer uses when it does not take ${file ?? 'composer.json'} from a parent directory)`;
+    return { ...report, findings: report.findings.map((finding) => (added.has(finding) ? { ...finding, message: `${finding.message}${note}` } : finding)) };
+  });
 }
 
 /** What to say about a configuration file that was not read. */
 function skippedNotice(skipped: SkippedFile): string {
   if (skipped.notice !== undefined) return skipped.notice;
-  const what = skipped.file.split('/').at(-1) === '.npmrc' ? 'its registry settings, if any, were not used' : 'the registry it may set was not looked at';
+  const name = skipped.file.split('/').at(-1);
+  const what = name === '.npmrc' ? 'its registry settings, if any, were not used' : name === 'composer.json' ? 'the repositories it may declare were not looked at' : 'the registry it may set was not looked at';
   return `${skipped.file} was not read: ${skipped.reason}; ${what}`;
 }
 
@@ -759,7 +908,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
   }
   if (event === undefined) return EXIT_OK;
   try {
-    const { specs, unreadable, overrides } = requestedSpecs(event.command, event.shell);
+    const { specs, unreadable, overrides } = requestedSpecs(event.command, event.shell, (dependencies.platform?.() ?? process.platform) === 'win32');
     if (specs.length === 0 && unreadable === undefined && overrides.length === 0) return EXIT_OK;
     const cwd = resolve(flags.dir ?? event.cwd ?? process.cwd());
     const projectDir = flags.dir === undefined ? (dependencies.projectDir ?? (() => process.env[projectDirVariable()]))() : undefined;
@@ -805,6 +954,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       const policies = sources.map((source) => source.policy);
       if (group.kind === 'here' || group.requests.length > 0) {
         const requests = group.requests.map((entry) => entry.request);
+        // OSV.dev is asked once for the whole command, after every directory is checked (decision D-129).
         const settings: RunSettings = { fetch: dependencies.fetch, now: dependencies.now(), scriptBodies: false, index: flags.index, lookups };
         const checked = await checkApplied(requests, applied, settings);
         // The lookups are shared, so the packages are looked up once; the stricter answer counts.
@@ -813,7 +963,9 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
         reports.push(...(also === undefined ? checked.reports : mergedReports(checked.reports, also.reports, POLICY_FILE, delays)));
         for (const file of [...checked.skipped, ...(also?.skipped ?? [])]) if (!skipped.some((known) => known.file === file.file && known.reason === file.reason)) skipped.push(file);
         // Say which registry answered when it is not the public one, if an npm package was looked up there.
-        const lookedUp = checked.reports.some((report) => report.kind === 'registry' && !isPythonSpec(report.spec) && report.name !== undefined && !applied.scopes.has(scopeOf(report.name)));
+        const lookedUp = checked.reports.some(
+          (report) => report.kind === 'registry' && !isPythonSpec(report.spec) && !isComposerSpec(report.spec) && report.name !== undefined && !applied.scopes.has(scopeOf(report.name)),
+        );
         const note = lookedUp ? registryNote(applied.registry) : undefined;
         if (note !== undefined) notes.push(`${note}.`);
       }
@@ -827,6 +979,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
       // The message names the file that sets the delay or the rule, relative to the project (decision D-123).
       doubt ??= overrideDoubt(group.overrides, policies, sources.map((source) => source.file));
     }
+    if (flags.osv === true) await addOsvFindings(reports, { fetch: dependencies.fetch, lookups });
     io.stdout(formatDecision(decide(reports, unreadable ?? doubt, [...new Set(notes)], skipped.map(skippedNotice))) ?? '');
   } catch (error) {
     io.stdout(formatDecision({ decision: 'ask', reason: `depcurfew cannot check this command: ${reasonText(messageOf(error))}` }) ?? '');
@@ -846,6 +999,7 @@ export async function check(specs: readonly string[], flags: CheckFlags, io: Cli
     home: dependencies.home?.() ?? homedir(),
     fetch: dependencies.fetch,
     now: dependencies.now(),
+    ...(flags.osv === true ? { osv: true } : {}),
   });
   const { document } = outcome;
   const code = outcome.status === 'directory-error' ? EXIT_USAGE : outcome.status === 'policy-error' || failedCheck(document) ? EXIT_FAILURE : EXIT_OK;
@@ -901,6 +1055,8 @@ export interface CheckSettings {
    * the document are then relative to it.
    */
   project?: string;
+  /** --osv: the versions picked are looked up in OSV.dev too (decision D-129). */
+  osv?: boolean;
 }
 
 /**
@@ -1018,7 +1174,9 @@ export async function checkDocument(specs: readonly string[], settings: CheckSet
     index: settings.index,
     ...(settings.scriptBodies === undefined ? {} : { scriptBodies: settings.scriptBodies }),
     ...(settings.signal === undefined ? {} : { signal: settings.signal }),
+    ...(settings.osv === true ? { osv: true } : {}),
   });
-  const notices = policyNotices(applied, specs.some((spec) => !isPythonSpec(spec)), { ...(settings.audience === undefined ? {} : { audience: settings.audience }), skipped });
+  const npm = specs.some((spec) => !isPythonSpec(spec) && !isComposerSpec(spec));
+  const notices = policyNotices(applied, npm, { ...(settings.audience === undefined ? {} : { audience: settings.audience }), skipped });
   return { status: 'checked', document: { schemaVersion: 1, policy: applied.file, packages: reports, notices, errors: [] } };
 }

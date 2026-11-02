@@ -103,7 +103,7 @@ function toolsTable(tools: readonly ToolKnowledge[]): string {
     return `| ${[tool.name, delay, exceptions, scripts, sources, verifiedRange(tool)].map(cell).join(' | ')} |`;
   });
   return [
-    '| Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source) | Dependency sources | Verified |',
+    '| Tool | Release-age delay | Exceptions | Install-script allow-list (Python: packages built from source; Composer: plugins) | Dependency sources | Verified |',
     '| --- | --- | --- | --- | --- | --- |',
     ...rows,
     '',

@@ -1,0 +1,6 @@
+{
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    { "matchManagers": ["npm"], "minimumReleaseAge": "1 hour" }
+  ]
+}

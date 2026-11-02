@@ -32,7 +32,14 @@ export interface ToolEffect {
 }
 
 /** What apply does with a part of the policy for a tool at the repository root (project undefined) or in a listed project. */
-export type PolicyEffects = (project: string | undefined, part: PolicyPart, tool: ToolId) => ToolEffect;
+export interface PolicyEffects {
+  (project: string | undefined, part: PolicyPart, tool: ToolId): ToolEffect;
+  /**
+   * Why apply writes no release-age delay for a tool although the policy's delay converts (decision D-134: a
+   * config.policy of composer.json that is no object), as its cooldown-not-written warning says; undefined when it does.
+   */
+  cooldownNotWritten(tool: ToolId): string | undefined;
+}
 
 /**
  * The part of the policy a setting belongs to, by the tool's knowledge: the release-age delay (undefined), a dependency
@@ -54,7 +61,11 @@ function partOfSetting(tool: ToolKnowledge | undefined, setting: string): Policy
 export function policyEffects(root: string, policy: ResolvedPolicy, detection: Detection, tools: readonly ToolKnowledge[] = knowledgeBase): PolicyEffects {
   const { result: report, written, missing } = recordSettings(() => planRepository(root, policy, tools, detection));
   const settings = written.map((entry) => ({ ...entry, file: entry.project === undefined ? entry.file : inProject(entry.project, entry.file) }));
-  return (project, part, tool) => {
+  const cooldownNotWritten = (tool: ToolId): string | undefined => {
+    const reasons = report.warningDetails.filter((warning) => warning.code === 'cooldown-not-written' && warning.tool === tool).map((warning) => warning.message.replace(/^.*?cooldown not written: /u, ''));
+    return reasons.length === 0 ? undefined : [...new Set(reasons)].join('; ');
+  };
+  const effects = (project: string | undefined, part: PolicyPart, tool: ToolId): ToolEffect => {
     const mine = (entry: { tool?: ToolId; project?: string }) => entry.tool === tool && entry.project === project;
     const own = settings.filter((entry) => mine(entry) && entry.part === part);
     const knowledge = tools.find((entry) => entry.id === tool);
@@ -73,4 +84,5 @@ export function policyEffects(root: string, policy: ResolvedPolicy, detection: D
       warnings: warnings.map(({ code, ...rest }) => ({ code, level: 'warning', ...rest })),
     };
   };
+  return Object.assign(effects, { cooldownNotWritten });
 }

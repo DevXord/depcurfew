@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.json",
+      "line": 11
+    },
+    "message": "composer.json does not match depcurfew.json: `\"period\": \"1 day\"` should be `\"period\": \"3 days\"`",
+    "fix": "Run depcurfew apply to bring composer.json back in line with depcurfew.json (depcurfew apply --dry-run shows the change first), or change depcurfew.json if the edit was intended"
+  }
+]

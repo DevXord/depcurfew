@@ -1,0 +1,14 @@
+Policy (depcurfew.json):
+  targets: npm, Dependabot (detected)
+  cooldown 3d:
+    npm: 3 days
+    pnpm: 4320 minutes
+    Dependabot: 3 days
+  installScripts: not managed
+  sources: not managed
+
+Project web:
+  targets: npm (detected)
+
+Project app:
+  targets: pnpm (detected)

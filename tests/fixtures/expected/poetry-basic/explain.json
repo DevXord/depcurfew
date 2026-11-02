@@ -23,8 +23,8 @@
           "tool": "renovate",
           "ok": true,
           "unit": "duration-string",
-          "value": "36 hours",
-          "exact": true
+          "value": "2 days",
+          "exact": false
         }
       ]
     },

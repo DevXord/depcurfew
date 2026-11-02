@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "36h", "exclude": ["composer:acme/*", "@acme/*"] },
+  "installScripts": { "default": "deny", "allow": ["composer:php-http/discovery", "composer:symfony/flex"], "deny": ["composer:phpstan/extension-installer"] },
+  "sources": { "git": "deny", "remoteTarball": "deny", "file": "allow", "directory": "allow" },
+  "targets": "auto"
+}

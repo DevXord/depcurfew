@@ -59,6 +59,15 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
 
 6. **Zalecane:** w ustawieniach repozytorium GitHub reguła, która pozwala tworzyć tagi `v*` tylko właścicielowi, żeby nikt inny nie mógł uruchomić workflow wydania.
 
+7. **Strona dokumentacji https://depcurfew.github.io/** (repozytorium organizacji `depcurfew/depcurfew.github.io`, decyzje D-139 i D-141). Repozytorium już istnieje: publikuje stronę z gałęzi (**Deploy from a branch**), a gałąź ma zbudowaną stronę (wygenerowane pliki HTML, `style.css`, `favicon.svg`, `schema.json`, `schema/`, katalogi wcześniejszych wersji), plik `.nojekyll` i README, które mówi, że wszystko jest wygenerowane. Przejście na workflow robi się raz, **dopiero gdy GitHub Release `v1.4.0` jest opublikowany**: workflow buduje najnowsze opublikowane wydanie, a `npm run site` ma dopiero 1.4.0, więc przy starszym wydaniu kończy się błędem `::error::` z nazwą wydania i nic nie wdraża. Kolejno:
+   - w klonie `depcurfew/depcurfew.github.io` usuń całą zawartość gałęzi domyślnej oprócz `.git`: wszystkie wygenerowane pliki i katalogi, `.nojekyll` i stare `README.md` (`git rm -r .` usuwa też pliki zaczynające się kropką);
+   - skopiuj do niego pliki z `site/org-repo/` tego repozytorium z tymi samymi ścieżkami: `README.md` i `.github/workflows/pages.yml`; sprawdź, że `git status` pokazuje tylko te dwa pliki jako dodane, i wypchnij commit na gałąź domyślną;
+   - w nim **Settings** → **Pages** → **Build and deployment** → **Source**: zmień „Deploy from a branch” na „GitHub Actions”; środowisko `github-pages` może mieć regułę tylko dla gałęzi domyślnej, bo workflow działa na niej (harmonogram zawsze, ręczne uruchomienie z `main`);
+   - pierwsze wdrożenie od razu ręcznie: **Actions** → „Pages” → **Run workflow**; do jego końca strona pokazuje ostatnie wdrożenie z gałęzi, potem stronę zbudowaną z `v1.4.0` z wcześniejszymi wersjami pod `/<wersja>/`;
+   - jeśli w tym repozytorium włączono kiedyś Pages, wyłącz tu stronę projektu (**Settings** → **Pages** → menu przy „Your site is live at” → **Unpublish site**), żeby dokumentacja nie miała drugiej kopii;
+   - repozytorium główne to `DevXord/depcurfew`; gdy zmieni adres, zmień `SOURCE_REPOSITORY` w `.github/workflows/pages.yml` repozytorium organizacji i w `site/org-repo/` oraz pole `repository` w `package.json`;
+   - GitHub wyłącza zaplanowany workflow publicznego repozytorium po 60 dniach bez aktywności w nim; wtedy włącz go w **Actions** albo uruchom ręcznie.
+
 ## Każde wydanie
 
 1. **Wersja.** Na gałęzi podnieś wersję (`npm version X.Y.Z --no-git-tag-version`), dopisz zmiany dla użytkowników po angielsku do `CHANGELOG.md` (i deweloperskie do `docs/CHANGELOG-dev.md`), scal PR do `main`. Tag stawiaj dopiero wtedy, gdy PR wydania jest scalony do `main`: workflow buduje i publikuje to, co jest w oznaczonym commicie. 2026-10-31 tag `v1.0.0` trafił na `main` przed scaleniem `faza-7`, więc 1.0.0 wyszła ze starszego kodu, a pełna wersja dostała numer 1.1.0.
@@ -85,7 +94,7 @@ Kroki 2–4 trzeba wykonać jeden po drugim, a po kroku 3 w ciągu 2 dni wydać 
 6. **Sprawdzenie proweniencji:** strona paczki na npmjs.com pokazuje proweniencję (repozytorium, workflow, commit). W dowolnym projekcie po instalacji `depcurfew@X.Y.Z` polecenie `npm audit signatures` powinno wykazać zweryfikowaną attestację.
 7. **Po wydaniu:**
    - w `src/docs/readme.ts` wpisać w `ACTION_RELEASE` wersję i pełny SHA commita wydania (`git rev-parse vX.Y.Z`), potem `npm run docs:readme` i PR do `main`; przykład Action w README przypina wtedy ten commit;
-   - utworzyć na GitHubie Release `vX.Y.Z` z tagu, z sekcją wersji z `CHANGELOG.md` jako opisem;
+   - utworzyć na GitHubie Release `vX.Y.Z` z tagu, z sekcją wersji z `CHANGELOG.md` jako opisem; https://depcurfew.github.io/ pokazuje to wydanie po najbliższym codziennym przebiegu workflow „Pages” w `depcurfew/depcurfew.github.io` albo od razu po jego ręcznym uruchomieniu (**Actions** → „Pages” → **Run workflow**), a poprzednie wydanie trafia pod `/<wersja>/`;
    - poprzednią wersję z błędem, którego nie powinno się już instalować, oznaczyć `npm deprecate`.
 8. **Tylko po pierwszym wydaniu:** odrzuć etap próbny z kroku 2 jednorazowej konfiguracji (`npm stage list depcurfew`, potem `npm stage reject <stage-id>`, z 2FA). Opublikowana wersja zostaje. Po 1.0.0 to już zrobione. README trafia do paczki w chwili publikacji i to ono jest na stronie npm, więc wszystko, co ma się tam znaleźć, musi być w `main` przed tagiem.
 

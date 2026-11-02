@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RootLifecycleScriptsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -7,6 +7,7 @@ const reviewed = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
+const release14 = verifiedOn('2026-11-02');
 const PNPM_V12 = 'https://github.com/pnpm/pnpm/blob/v12.16.1';
 const PNPM_V11_CODE = 'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src';
 
@@ -249,6 +250,14 @@ export const pnpm: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: release14.verified<EnvironmentNameRule[]>(
+      [
+        { prefix: 'pnpm_config_', match: 'lower-or-upper' },
+        { prefix: 'npm_config_', match: 'any-case' },
+      ],
+      `${PNPM_V11_CODE}/env.ts`,
+      'pnpm 11 reads pnpm_config_<key> only with the prefix and the key in lower case, or PNPM_CONFIG_<KEY> with both in upper case (getEnvKeySuffix with isLowerSnakeCase and isUpperSnakeCase), so Pnpm_Config_Registry sets nothing; pnpm 12 looks up PNPM_CONFIG_<KEY> and then pnpm_config_<key> (read_env in pnpm/crates/config/src/env_overlay/string_reader.rs, https://github.com/pnpm/pnpm/blob/v12.17.0/pnpm/crates/config/src/env_overlay/string_reader.rs). pnpm 10 reads npm_config_* in any case: addEnv in lib/conf.js of @pnpm/npm-conf 3.0.3 filters with /^npm_config_/i, and envKeyToSetting lowercases the key (https://github.com/pnpm/npm-conf/blob/v3.0.3/lib/envKeyToSetting.js). Decision D-143.',
+    ),
     denyList: user.verified(
       { file: 'pnpm-workspace.yaml', setting: 'allowBuilds', value: false, since: '10.26.0' },
       'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/building/policy/src/index.ts',
@@ -516,6 +525,21 @@ export const pnpm: ToolKnowledge = {
     unknownWorkspaceKeys: verified(
       'pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns',
       'https://pnpm.io/blog/releases/12.0',
+    ),
+    tarballResolution: release14.verified(
+      { field: 'tarball' },
+      'https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/utils/src/pkgSnapshotToResolution.ts',
+      'pnpm fetches a registry package of pnpm-lock.yaml (a key name@version) from the tarball URL get-npm-tarball-url builds from the name and version, unless its resolution has tarball: then from that URL, resolved against the registry (new url.URL(resolution.tarball, registry)). pnpm 11.28.10 does the same (resolveTarballUrl in pnpm11/lockfile/utils/src/pkgSnapshotToResolution.ts). assertRegistryShapedResolution (lockfile/utils/src/assertRegistryShapedResolution.ts at v10.34.9) accepts any http(s) URL there for such a key, and a relative path without a scheme or a leading slash, which "is resolved against the configured registry", while the allowBuild policy "derives a trusted package identity from that key shape". pnpm writes tarball for a registry package whose tarball is not at the URL it would build. The fetch requests the path and the query of the URL, never the fragment, and the registry serves the file the path names.',
+    ),
+    rootLifecycleScripts: release14.verified<RootLifecycleScriptsKnowledge>(
+      { events: ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'], skippedBy: 'ignoreScripts', allowListApplies: false },
+      'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/installing/deps-installer/src/install/linkResolvedProjects.ts',
+      'pnpm 11.28.10 runs the projects\' own lifecycle scripts after linking "if (!opts.ignoreScripts && !opts.virtualStoreOnly)" (runProjectLifecycleScripts), with PROJECT_LIFECYCLE_STAGES = preinstall, install, postinstall, preprepare, prepare, postprepare for a full install and only the install stages for --prod or deploy (exec/lifecycle/src/runLifecycleHooksConcurrently.ts); allowBuilds only goes to the build of dependencies (allowBuild). pnpm 10.34.9 does the same in pkg-manager/core/src/install/index.ts and, for a frozen lockfile, pkg-manager/headless/src/index.ts ("if (!opts.ignoreScripts && !opts.ignorePackageManifest) await runLifecycleHooksConcurrently([preinstall, install, postinstall, preprepare, prepare, postprepare], ...)"). pnpm 12.16.1 picks PROJECT_LIFECYCLE_STAGES for a full install with devDependencies (project_script_stages in pnpm/crates/package-manager/src/install/lifecycle/uninstall.rs).',
+    ),
+    managesOwnVersion: release14.verified(
+      { since: '10.0.0', field: 'packageManager' },
+      'https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md',
+      '10.0.0: "manage-package-manager-versions: enabled by default. pnpm now manages its own version based on the packageManager field in package.json by default" (added in 9.7.0, off by default: "pnpm will switch to the version specified in the packageManager field of package.json ... This is the same field used by Corepack"). The 11.0.0 release notes replace the setting with pmOnFail, which "directly sets the onFail behavior of both packageManager and devEngines.packageManager" (https://github.com/pnpm/pnpm/releases/tag/v11.0.0); pnpm 12 documents pmOnFail with the default download: "download and run the declared pnpm version (this is the default and matches the previous managePackageManagerVersions: true behavior)" (pnpm/docs/settings/cli.md at v12.16.1). So any pnpm 10 or later honors a pnpm pin without Corepack.',
     ),
   },
 };

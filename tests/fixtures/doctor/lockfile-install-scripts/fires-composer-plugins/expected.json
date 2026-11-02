@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 79
+    },
+    "message": "symfony/flex is a Composer plugin, whose code runs during Composer commands, and \"symfony/*\" in config.allow-plugins in composer.json lets Composer run it, but depcurfew.json does not allow it",
+    "fix": "Review the plugin and add composer:symfony/flex to installScripts.allow in depcurfew.json, or put \"symfony/flex\": false before \"symfony/*\" in config.allow-plugins of composer.json, because Composer takes the first key that matches"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.lock",
+      "line": 106
+    },
+    "message": "phpstan/extension-installer is a Composer plugin that config.allow-plugins in composer.json does not list, so Composer asks whether to run it, and a run without a terminal (CI) fails; depcurfew.json does not allow it",
+    "fix": "Review the plugin: add composer:phpstan/extension-installer to installScripts.allow in depcurfew.json if the project needs it, or to installScripts.deny if it works without it, then run depcurfew apply"
+  }
+]

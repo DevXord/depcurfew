@@ -36,16 +36,19 @@ describe('rules that do not concern the project', () => {
       'npmrc-overrides-policy': 'passed',
       'pnpm-shared-workspace-lockfile': 'passed',
       'python-config-ignored': 'not-applicable',
+      'composer-config-weakens': 'not-applicable',
       'runtime-end-of-life': 'not-applicable',
+      'corepack-unavailable': 'not-applicable',
       'config-drift': 'skipped',
       'bot-cooldown-mismatch': 'passed',
       'broad-exclusion': 'passed',
       'lockfile-forbidden-source': 'skipped',
       'lockfile-install-scripts': 'skipped',
       'lockfile-out-of-date': 'not-applicable',
+      'known-malicious': 'not-applicable',
       'unreadable-config': 'passed',
     });
-    expect(resultCounts(report.checked?.rules ?? [])).toBe('16 checks: 7 passed, 5 not applicable, 4 skipped');
+    expect(resultCounts(report.checked?.rules ?? [])).toBe('19 checks: 7 passed, 8 not applicable, 4 skipped');
   });
 
   it('are not applicable in a PDM project without bots: the npm, pnpm and bot rules', () => {
@@ -70,13 +73,16 @@ describe('rules that do not concern the project', () => {
       'npmrc-overrides-policy': 'not-applicable',
       'pnpm-shared-workspace-lockfile': 'not-applicable',
       'python-config-ignored': 'not-applicable',
+      'composer-config-weakens': 'not-applicable',
       'runtime-end-of-life': 'not-applicable',
+      'corepack-unavailable': 'not-applicable',
       'config-drift': 'skipped',
       'bot-cooldown-mismatch': 'not-applicable',
       'broad-exclusion': 'not-applicable',
       'lockfile-forbidden-source': 'not-applicable',
       'lockfile-install-scripts': 'not-applicable',
       'lockfile-out-of-date': 'not-applicable',
+      'known-malicious': 'not-applicable',
       'unreadable-config': 'passed',
     });
   });
@@ -103,7 +109,9 @@ describe('rules that do not concern the project', () => {
   ]);
   it.each(fires.map(([rule, name]) => [rule.id, name, rule] as const))('%s applies to %s', (_id, name, rule) => {
     const silent: Rule = { ...rule, check: () => undefined };
-    const report = runDoctor(join(DOCTOR, rule.id, name, 'repo'), { rules: [silent], invalidPolicy: 'report' });
+    // known-malicious runs with --osv only (decision D-129), and then concerns its fixtures.
+    const osv = rule.id === 'known-malicious' ? { osv: { answers: new Map() } } : {};
+    const report = runDoctor(join(DOCTOR, rule.id, name, 'repo'), { rules: [silent], invalidPolicy: 'report', ...osv });
     if (contentOnly.has(`${rule.id}/${name}`)) {
       expect(report.checked?.rules[0]?.result).toBe('not-applicable');
       expect(runDoctor(join(DOCTOR, rule.id, name, 'repo'), { rules: [rule], invalidPolicy: 'report' }).checked?.rules[0]?.result).toBe('problems');

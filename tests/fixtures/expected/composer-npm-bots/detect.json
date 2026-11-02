@@ -1,0 +1,63 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "package-lock.json"
+        },
+        {
+          "kind": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "versions": [
+        {
+          "version": "11.21.1",
+          "source": "packageManager",
+          "file": "package.json"
+        }
+      ],
+      "configFiles": []
+    },
+    {
+      "id": "composer",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "config",
+          "file": "composer.json"
+        }
+      ],
+      "versions": [],
+      "configFiles": [
+        "composer.json"
+      ]
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [
+    {
+      "id": "renovate",
+      "configFiles": [
+        "renovate.json"
+      ]
+    },
+    {
+      "id": "dependabot",
+      "configFiles": [
+        ".github/dependabot.yml"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [],
+  "jobs": [],
+  "dockerfiles": [],
+  "warnings": []
+}

@@ -1,0 +1,34 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state"
+    ],
+    "content-hash": "0",
+    "packages": [
+        {
+            "name": "evil/plugin",
+            "version": "1.0.0",
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/evil/plugin/zipball/1f2e3d4c5b6a79881726354a5b6c7d8e9f0a1b2c",
+                "reference": "1f2e3d4c5b6a79881726354a5b6c7d8e9f0a1b2c",
+                "shasum": ""
+            },
+            "type": "Composer-Plugin",
+            "extra": {
+                "class": "Evil\\Plugin"
+            }
+        },
+        {
+            "name": "monolog/monolog",
+            "version": "3.12.1",
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Seldaek/monolog/zipball/d7059e4c691d05ea1222b5124bed0f961be46e15",
+                "reference": "d7059e4c691d05ea1222b5124bed0f961be46e15",
+                "shasum": ""
+            },
+            "type": "library"
+        }
+    ],
+    "packages-dev": []
+}

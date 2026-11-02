@@ -1,0 +1,8 @@
+Policy (depcurfew.json):
+  targets: Composer (detected)
+  cooldown 36h:
+    Composer: 2 days (rounded up)
+  installScripts deny, allow composer:php-http/discovery and composer:symfony/flex, deny composer:phpstan/extension-installer:
+    Composer: config.allow-plugins in composer.json
+  sources git deny, remoteTarball deny, file allow, directory allow:
+    Composer: nothing written; warning: Composer has no setting for VCS repository dependencies, so "deny" cannot be enforced; Composer has no setting for package repository dependencies, so "deny" cannot be enforced (source-not-enforceable); fix: Run depcurfew doctor, which reports such dependencies in the lockfile

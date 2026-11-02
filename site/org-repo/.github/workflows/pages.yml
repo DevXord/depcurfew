@@ -1,0 +1,124 @@
+# Builds the documentation site of depcurfew from its latest release and deploys it to GitHub Pages as the
+# organization site https://depcurfew.github.io/ (decision D-139 in the main repository). It runs once a day and by
+# hand (Actions, Pages, Run workflow), never on a push or a pull request. The release is the published GitHub release
+# with the highest version, or the highest pre-release while there is no full release; the site is built from the
+# commit of its tag with every tag fetched, so npm run site -- --versions adds the earlier versions. A release older
+# than 1.4.0 has no npm run site, so the workflow then stops with an error that names it. It needs Pages set to
+# "GitHub Actions" in the settings of this repository.
+#
+# This file is kept in the main repository as site/org-repo/.github/workflows/pages.yml and copied here by hand.
+name: Pages
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  # The main repository, owner/name: the releases are read and the site is built from it. Change it here (and the
+  # repository field of its package.json) if the repository moves.
+  SOURCE_REPOSITORY: DevXord/depcurfew
+
+# One deployment at a time; a newer one waits instead of cancelling a deployment that is running.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the site of the latest release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # Published releases are public: the workflow token only raises the rate limit of the GitHub API. Drafts are
+      # skipped, and so are tags that are not v<major>.<minor>.<patch> with an optional pre-release part.
+      - name: Find the latest release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node -e '
+            const pattern = /^v(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
+            const identifiers = (a, b) => {
+              for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+                if (a[index] === undefined || b[index] === undefined) return a[index] === undefined ? -1 : 1;
+                if (a[index] === b[index]) continue;
+                const [x, y] = [/^\d+$/.test(a[index]), /^\d+$/.test(b[index])];
+                if (x && y) return Number(a[index]) - Number(b[index]);
+                if (x !== y) return x ? -1 : 1;
+                return a[index] < b[index] ? -1 : 1;
+              }
+              return 0;
+            };
+            const order = (a, b) => {
+              const [x, y] = [pattern.exec(a), pattern.exec(b)];
+              for (let index = 1; index <= 3; index += 1) if (Number(x[index]) !== Number(y[index])) return Number(x[index]) - Number(y[index]);
+              if (x[4] === undefined || y[4] === undefined) return (x[4] === undefined) - (y[4] === undefined);
+              return identifiers(x[4].split("."), y[4].split("."));
+            };
+            const repository = process.env.SOURCE_REPOSITORY;
+            fetch(`https://api.github.com/repos/${repository}/releases?per_page=100`, {
+              headers: { accept: "application/vnd.github+json", authorization: `Bearer ${process.env.GITHUB_TOKEN}` },
+            })
+              .then(async (response) => {
+                if (!response.ok) throw new Error(`the GitHub API answered HTTP ${response.status} for the releases of ${repository}`);
+                const releases = (await response.json()).filter((release) => !release.draft && pattern.test(release.tag_name));
+                const full = releases.filter((release) => !release.prerelease);
+                const tag = (full.length > 0 ? full : releases).map((release) => release.tag_name).sort(order).at(-1);
+                if (tag === undefined) throw new Error(`${repository} has no published release with a tag v<major>.<minor>.<patch>`);
+                // npm run site exists from depcurfew 1.4.0 on: an older release stops here, before anything is checked out.
+                const [, major, minor] = pattern.exec(tag).map(Number);
+                if (major < 1 || (major === 1 && minor < 4)) {
+                  throw new Error(`the latest release of ${repository} is ${tag}, but the site needs depcurfew 1.4.0 or later (npm run site); publish the GitHub Release of v1.4.0 or later, then run this workflow again`);
+                }
+                require("node:fs").appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\n`);
+                console.log(`Building the site of ${repository} at ${tag}`);
+              })
+              .catch((error) => {
+                console.error(`::error::${error.message}`);
+                process.exit(1);
+              });
+          '
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ steps.release.outputs.tag }}
+          # Every tag, for the earlier versions.
+          fetch-depth: 0
+          persist-credentials: false
+      # The npm of packageManager in package.json of the release: an older Node.js 24.x comes with an npm that lacks
+      # settings of its .npmrc (decision D-099 in the main repository).
+      - name: Install the npm of packageManager
+        run: |
+          version="$(node -p 'require("./package.json").packageManager.replace(/^npm@/u, "").replace(/\+.*$/u, "")')"
+          npm install -g "npm@$version"
+      - run: npm ci --ignore-scripts
+      - run: npm run site -- --versions
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist-site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Fails with a message when Pages is not enabled for this repository.
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

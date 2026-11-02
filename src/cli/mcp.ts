@@ -1,4 +1,4 @@
-// `depcurfew mcp [--dir <directory>] [--registry <url>] [--index <url>]`: the Model Context Protocol server over stdio,
+// `depcurfew mcp [--dir <directory>] [--registry <url>] [--index <url>] [--osv]`: the Model Context Protocol server over stdio,
 // for agents other than Claude Code's hook (Claude Desktop, VS Code, and any client that starts a stdio server). The
 // project directory is --dir, else CLAUDE_PROJECT_DIR (Claude Code sets it for the servers it starts), else the
 // current directory. Exit code 0 when the server stops (stdin closed, stdout closed, SIGINT or SIGTERM), 2 for a usage
@@ -27,6 +27,8 @@ export interface McpFlags {
   dir: string | undefined;
   registry: string | undefined;
   index: string | undefined;
+  /** --osv: check_packages also looks the versions up in OSV.dev (decision D-129). */
+  osv?: boolean;
 }
 
 export interface McpDependencies {
@@ -90,6 +92,7 @@ export async function mcp(flags: McpFlags, io: CliIo, dependencies: McpDependenc
       home: dependencies.home?.() ?? homedir(),
       fetch: dependencies.fetch,
       now: dependencies.now,
+      ...(flags.osv === true ? { osv: true } : {}),
     },
     ...(host.limits === undefined ? {} : { limits: host.limits }),
   });

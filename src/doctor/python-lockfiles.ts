@@ -62,8 +62,12 @@ function isWheel(location: string): boolean {
   return (location.split(/[?#]/u, 1)[0] ?? '').toLowerCase().endsWith(WHEEL);
 }
 
-function entry(name: string, spec: string, source: Source, builds: boolean | undefined, line: number | undefined): LockEntry {
-  return { name: normalizePythonName(name), spec, source, installScript: builds, anchor: name, ...(line === undefined ? {} : { line }) };
+/** A pinned version as doctor --osv looks it up (decision D-129): one word, no wildcard. */
+const PINNED = /^[^\s,;*<>=!~]+$/u;
+
+function entry(name: string, spec: string, source: Source, builds: boolean | undefined, line: number | undefined, version?: unknown): LockEntry {
+  const pinned = source === 'registry' && typeof version === 'string' && PINNED.test(version) ? { version } : {};
+  return { name: normalizePythonName(name), spec, source, installScript: builds, anchor: name, ...(line === undefined ? {} : { line }), ...pinned };
 }
 
 /** uv.lock: [[package]] with source = { registry | git | url | path | directory | editable | virtual = ... }. */
@@ -82,7 +86,7 @@ export function uvEntries(input: string, format: Format, workspaces: readonly st
     const wheels = list(item[String(format['wheels'])]);
     switch (name) {
       case 'registry':
-        return [entry(item['name'], location, 'registry', item[String(format['sdist'])] !== undefined && wheels.length === 0, line)];
+        return [entry(item['name'], location, 'registry', item[String(format['sdist'])] !== undefined && wheels.length === 0, line, item['version'])];
       case 'git':
         return [entry(item['name'], location, 'git', true, line)];
       case 'remoteTarball':
@@ -110,12 +114,12 @@ export function poetryEntries(input: string, format: Format): LockEntry[] {
     const line = document.lineOf([String(format['packages']), index]);
     const files = list(item[String(format['files'])]).map((file) => (isRecord(file) ? text(file['file']) : undefined)).filter((file): file is string => file !== undefined);
     const source = item[String(format['source'])];
-    if (!isRecord(source)) return [entry(item['name'], 'PyPI', 'registry', files.length > 0 && !files.some(isWheel), line)];
+    if (!isRecord(source)) return [entry(item['name'], 'PyPI', 'registry', files.length > 0 && !files.some(isWheel), line, item['version'])];
     const url = text(source['url']) ?? '';
     const kind = kindOf(text(source['type']) ?? '');
     switch (kind) {
       case 'registry':
-        return [entry(item['name'], text(source['reference']) ?? url, 'registry', files.length > 0 && !files.some(isWheel), line)];
+        return [entry(item['name'], text(source['reference']) ?? url, 'registry', files.length > 0 && !files.some(isWheel), line, item['version'])];
       case 'git':
         return [entry(item['name'], url, 'git', true, line)];
       case 'remoteTarball':
@@ -147,7 +151,7 @@ export function pdmEntries(input: string, format: Format): LockEntry[] {
       return [entry(item['name'], path, archive ? 'file' : 'directory', archive ? !isWheel(path) : true, line)];
     }
     const files = list(item[key('files')]).map((file) => (isRecord(file) ? text(file[key('file')]) : undefined)).filter((file): file is string => file !== undefined);
-    return [entry(item['name'], 'an index', 'registry', files.length > 0 && !files.some(isWheel), line)];
+    return [entry(item['name'], 'an index', 'registry', files.length > 0 && !files.some(isWheel), line, item['version'])];
   });
 }
 
@@ -174,7 +178,8 @@ export function pipfileLockEntries(input: string, format: Format): LockEntry[] {
       // The project itself (pipenv install -e . writes path "."), as -e . in a requirements file.
       else if (path !== undefined && isProject(path)) entries.push(anchored(entry(name, path, 'workspace', false, undefined)));
       else if (path !== undefined) entries.push(anchored(entry(name, path, 'directory', true, undefined)));
-      else entries.push(anchored(entry(name, 'an index', 'registry', undefined, undefined)));
+      // The version is written as a specifier, ==2.31.0.
+      else entries.push(anchored(entry(name, 'an index', 'registry', undefined, undefined, /^==(?!=)(.+)$/u.exec(text(item[key('version')]) ?? '')?.[1])));
     }
   }
   return entries;
@@ -214,7 +219,7 @@ export function pylockEntries(input: string, format: Format, workspaces: readonl
     const wheels = list(item[key('wheels')]);
     const sdist = item[key('sdist')];
     if (wheels.length === 0 && !isRecord(sdist)) return [entry(item['name'], 'no source given', 'unknown', undefined, line)];
-    return [entry(item['name'], text(item[key('index')]) ?? 'an index', 'registry', isRecord(sdist) && wheels.length === 0, line)];
+    return [entry(item['name'], text(item[key('index')]) ?? 'an index', 'registry', isRecord(sdist) && wheels.length === 0, line, item['version'])];
   });
 }
 
@@ -356,7 +361,9 @@ export function requirementsEntries(input: string, format: Format): LockEntry[] 
     if (found.source === 'workspace') {
       entries.push({ ...entry('', found.target, 'workspace', false, lineNumber), name: '.' });
     } else if (found.source === 'registry') {
-      if (found.name !== undefined) entries.push(entry(found.name, requirement, 'registry', undefined, lineNumber));
+      // name==1.2.3 or name===1.2.3 (with extras) pins one version; a range or a wildcard does not.
+      const pinned = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]*\])?\s*===?\s*(\S+)$/u.exec(requirement)?.[1];
+      if (found.name !== undefined) entries.push(entry(found.name, requirement, 'registry', undefined, lineNumber, pinned));
     } else if (found.name !== undefined) {
       entries.push(entry(found.name, found.target, found.source, found.builds, lineNumber));
     } else {

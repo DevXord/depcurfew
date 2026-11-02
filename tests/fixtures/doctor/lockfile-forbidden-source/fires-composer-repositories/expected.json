@@ -1,0 +1,47 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.json",
+      "line": 27
+    },
+    "message": "composer.json declares the git repository git@gitlab.example.com:acme/unused.git (repositories[4]), a VCS repository, which depcurfew.json denies (sources.git); composer.lock shows no package from it that depcurfew can tell, so Composer may install from it on the next update",
+    "fix": "Remove the repository from composer.json and require the packages from Packagist, or set sources.git to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 10
+    },
+    "message": "composer.lock installs acme/archive from an artifact repository (zip artifacts/acme-archive-1.0.0.zip), which depcurfew.json denies",
+    "fix": "Use a registry version of acme/archive, or set sources.file to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 20
+    },
+    "message": "composer.lock installs acme/local from a path repository (path packages/local), which depcurfew.json denies",
+    "fix": "Use a registry version of acme/local, or set sources.directory to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 33
+    },
+    "message": "composer.lock installs legacy/widgets from a package repository at a URL (zip https://downloads.example.com/widgets-1.0.0.zip), which depcurfew.json denies",
+    "fix": "Use a registry version of legacy/widgets, or set sources.remoteTarball to \"allow\" in depcurfew.json"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.lock",
+      "line": 42
+    },
+    "message": "composer.lock installs monolog/monolog from a VCS repository (git https://github.com/acme/monolog-fork.git), which depcurfew.json denies",
+    "fix": "Use a registry version of monolog/monolog, or set sources.git to \"allow\" in depcurfew.json"
+  }
+]

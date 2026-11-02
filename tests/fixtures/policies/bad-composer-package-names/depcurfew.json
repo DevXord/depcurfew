@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "cooldown": { "minimum": "3d", "exclude": ["composer:", "composer:*/*", "composer:*", "composer:monolog", "composer:Monolog/Monolog", "composer:monolog/monolog:^3.0", "composer:monolog/monolog@dev", "composer:-acme/x"] },
+  "installScripts": { "default": "deny", "allow": ["Composer:monolog/monolog", "packagist:monolog/monolog", "compser:acme/x", "monolog/monolog"] }
+}

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://unpkg.com/depcurfew/schema.json",
   "title": "depcurfew policy",
-  "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate and Dependabot.",
+  "description": "One supply-chain security policy for npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composer, Renovate and Dependabot.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -32,9 +32,9 @@
           "description": "Packages that skip the release-age delay, e.g. your own scope.",
           "type": "array",
           "items": {
-            "description": "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\". No versions.",
+            "description": "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\", and Composer packages the prefix composer:, e.g. \"composer:monolog/monolog\" or \"composer:acme/*\". No versions.",
             "type": "string",
-            "pattern": "^(?:pypi:(?!\\*+$)[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?|(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*)$"
+            "pattern": "^(?:pypi:(?!\\*+$)[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?|composer:(?!\\*+/\\*+$)[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?/[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?|(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*)$"
           },
           "uniqueItems": true,
           "default": []
@@ -55,11 +55,11 @@
       "additionalProperties": false
     },
     "installScripts": {
-      "description": "Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python.",
+      "description": "Code that dependencies run when they are installed: lifecycle scripts in npm, building from source in Python, plugins in Composer.",
       "type": "object",
       "properties": {
         "default": {
-          "description": "Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source.",
+          "description": "Whether dependency lifecycle scripts (preinstall, install, postinstall) run by default; for Python, whether packages may be built from source; for Composer, whether plugins may run.",
           "type": "string",
           "enum": [
             "allow",
@@ -67,23 +67,23 @@
           ]
         },
         "allow": {
-          "description": "Packages whose lifecycle scripts may run when the default is \"deny\"; Python packages listed here are always built from source.",
+          "description": "Packages whose lifecycle scripts may run when the default is \"deny\"; Python packages listed here are always built from source; Composer packages listed here are the plugins allow-plugins lets run.",
           "type": "array",
           "items": {
-            "description": "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\". No versions.",
+            "description": "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\", and Composer packages the prefix composer:, e.g. \"composer:monolog/monolog\" or \"composer:acme/*\". No versions.",
             "type": "string",
-            "pattern": "^(?:pypi:(?!\\*+$)[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?|(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*)$"
+            "pattern": "^(?:pypi:(?!\\*+$)[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?|composer:(?!\\*+/\\*+$)[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?/[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?|(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*)$"
           },
           "uniqueItems": true,
           "default": []
         },
         "deny": {
-          "description": "Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example \"fsevents\", which ships a prebuilt binary. A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one.",
+          "description": "Packages you reviewed that work without their lifecycle scripts, so the scripts stay blocked on purpose and doctor does not report them, for example \"fsevents\", which ships a prebuilt binary. depcurfew init fills it with the packages of the lockfile whose scripts depcurfew knows to be unneeded (esbuild, fsevents) or to do only a task of the project (lefthook). A package cannot be in both lists, also not through two patterns that match the same name. Python packages listed here must not be built from source: doctor reports a tool that would still build one. Composer packages listed here are plugins that allow-plugins disallows.",
           "type": "array",
           "items": {
-            "description": "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\". No versions.",
+            "description": "An npm package name such as \"esbuild\" or \"@scope/name\", or a pattern with *, such as \"@scope/*\". Python packages take the prefix pypi:, e.g. \"pypi:requests\" or \"pypi:acme-*\", and Composer packages the prefix composer:, e.g. \"composer:monolog/monolog\" or \"composer:acme/*\". No versions.",
             "type": "string",
-            "pattern": "^(?:pypi:(?!\\*+$)[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?|(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*)$"
+            "pattern": "^(?:pypi:(?!\\*+$)[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?|composer:(?!\\*+/\\*+$)[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?/[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?|(?!\\*+$)(@[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*/)?[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*)$"
           },
           "uniqueItems": true,
           "default": []
@@ -158,6 +158,7 @@
               "poetry",
               "pdm",
               "pipenv",
+              "composer",
               "renovate",
               "dependabot"
             ]

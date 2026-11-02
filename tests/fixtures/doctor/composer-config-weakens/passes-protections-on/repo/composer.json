@@ -1,0 +1,30 @@
+{
+    "require": {
+        "monolog/monolog": "^3.12"
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://packages.example.com",
+            "require-published-time": true
+        }
+    ],
+    "config": {
+        "secure-http": true,
+        "disable-tls": false,
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "symfony/*": false
+        },
+        "policy": {
+            "cooldown": {
+                "period": "3 days",
+                "block": null
+            },
+            "malware": {
+                "block": "false",
+                "block-scope": "all"
+            }
+        }
+    }
+}

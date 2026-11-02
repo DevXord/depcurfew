@@ -1,11 +1,14 @@
 import type { Rule } from '../types.ts';
 import { botCooldownMismatch } from './bot-cooldown.ts';
 import { broadExclusion } from './broad-exclusion.ts';
+import { composerConfigWeakens } from './composer-config.ts';
 import { configDrift } from './config-drift.ts';
+import { corepackUnavailable } from './corepack.ts';
 import { depcurfewOutdated } from './depcurfew-outdated.ts';
 import { settingIgnoredByVersion } from './ignored-setting.ts';
 import { invalidPolicy } from './invalid-policy.ts';
 import { invalidProject } from './invalid-project.ts';
+import { knownMalicious } from './known-malicious.ts';
 import { lockfileForbiddenSource, lockfileInstallScripts } from './lockfile.ts';
 import { lockfileOutOfDate } from './lockfile-out-of-date.ts';
 import { managerVersionTooOld } from './manager-version.ts';
@@ -21,15 +24,18 @@ export const RULES: readonly Rule[] = [
   depcurfewOutdated,
   managerVersionTooOld,
   runtimeEndOfLife,
+  corepackUnavailable,
   settingIgnoredByVersion,
   npmrcOverridesPolicy,
   pnpmSharedWorkspaceLockfile,
   pythonConfigIgnored,
+  composerConfigWeakens,
   configDrift,
   botCooldownMismatch,
   broadExclusion,
   lockfileForbiddenSource,
   lockfileInstallScripts,
   lockfileOutOfDate,
+  knownMalicious,
   unreadableConfig,
 ];

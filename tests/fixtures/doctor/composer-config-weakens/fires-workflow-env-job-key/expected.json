@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 7
+    },
+    "message": "COMPOSER_POLICY=0 in the env of the job at line 4 in .github/workflows/ci.yml reaches every Composer command there and turns off every dependency policy, the cooldown included",
+    "fix": "Remove COMPOSER_POLICY from that env in .github/workflows/ci.yml, or set it only for a run that needs it after reviewing the packages"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 11
+    },
+    "message": "COMPOSER_POLICY=0 in the env of step 1 of the job at line 4 in .github/workflows/ci.yml reaches every Composer command there and turns off every dependency policy, the cooldown included",
+    "fix": "Remove COMPOSER_POLICY from that env in .github/workflows/ci.yml, or set it only for a run that needs it after reviewing the packages"
+  }
+]

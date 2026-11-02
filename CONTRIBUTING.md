@@ -25,6 +25,8 @@ npm test
 | `npm run docs:readme` | rewrites the generated sections of `README.md` |
 | `npm run schema` | writes `schema.json` from the policy definition in `src/policy/schema.ts` |
 | `npm run build:action` | builds `action/depcurfew.mjs`, which is committed and must match the source |
+| `npm run site` | builds the documentation site into `dist-site/` from `README.md`, `src/knowledge/` and `schema.json` (not committed) |
+| `npm run site -- --versions` | the same, plus the documentation of every earlier release tag under `/<version>/` and a Versions page; reads the tags with git, as the workflow in `site/org-repo/` does for [depcurfew.github.io](https://depcurfew.github.io/) |
 
 To try a change by hand: `node dist/cli.js explain tests/fixtures/repos/<name>`, `node dist/cli.js doctor tests/fixtures/doctor/<rule>/<case>/repo` (also with `--json` and `--sarif`) and `node dist/cli.js apply --dry-run <directory>`.
 

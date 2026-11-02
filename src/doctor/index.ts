@@ -16,9 +16,9 @@ import { RULES } from './rules/index.ts';
 import { UNREADABLE_WARNINGS, unreadableConfig } from './rules/unreadable-config.ts';
 import { DETECTION_NOTICES, WARNING_FIXES } from './unreadable-warnings.ts';
 import type { Detection } from '../detect/types.ts';
-import { makeNotice, relocatedNotice, type Checked, type DoctorReport, type Finding, type Notice, type ProjectView, type Rule } from './types.ts';
+import { makeNotice, relocatedNotice, type Checked, type DoctorReport, type Finding, type Notice, type OsvDoctor, type ProjectView, type Rule } from './types.ts';
 
-export type { Checked, CheckedTool, DoctorReport, Finding, Level, Location, Notice, ProjectView, Rule, RuleResult, RuleScope } from './types.ts';
+export type { Checked, CheckedTool, DoctorReport, Finding, Level, Location, Notice, OsvDoctor, ProjectView, Rule, RuleResult, RuleScope } from './types.ts';
 export { makeNotice } from './types.ts';
 export { RULES } from './rules/index.ts';
 export { countLevels, renderText, ruleResults } from './render.ts';
@@ -98,7 +98,7 @@ function runRules(
   policy: ResolvedPolicy | undefined,
   rules: readonly Rule[],
   tools: readonly ToolKnowledge[],
-  where: { detection?: Detection; project?: string; projects?: readonly ProjectView[]; plan?: PlanOptions; repository?: Repository } = {},
+  where: { detection?: Detection; project?: string; projects?: readonly ProjectView[]; plan?: PlanOptions; repository?: Repository; osv?: OsvDoctor | undefined } = {},
 ): DirectoryRun {
   const detection = where.detection ?? detectProject(root, tools);
   const repository = where.repository ?? new Repository(root);
@@ -121,6 +121,7 @@ function runRules(
       ...(where.project === undefined ? {} : { project: where.project }),
       ...(where.projects === undefined ? {} : { projects: where.projects }),
       ...(where.plan === undefined ? {} : { plan: where.plan }),
+      ...(where.osv === undefined ? {} : { osv: where.osv }),
       report: ({ level, ...finding }) => findings.push({ rule: rule.id, level: level ?? rule.level, ...finding }),
       notice: (message, file, fix) => notice(rule.id, message, file, fix),
     });
@@ -166,7 +167,7 @@ function relocateRun(project: string, run: DirectoryRun, plan: ApplyReport | und
  */
 export function runDoctor(
   root: string,
-  options: { rules?: readonly Rule[]; tools?: readonly ToolKnowledge[]; invalidPolicy?: 'throw' | 'report'; policy?: ResolvedPolicy | null } = {},
+  options: { rules?: readonly Rule[]; tools?: readonly ToolKnowledge[]; invalidPolicy?: 'throw' | 'report'; policy?: ResolvedPolicy | null; osv?: OsvDoctor } = {},
 ): DoctorReport {
   const tools = options.tools ?? knowledgeBase;
   let policy: ResolvedPolicy | undefined;
@@ -181,10 +182,10 @@ export function runDoctor(
     }
   }
   const rules = options.rules ?? RULES;
-  const detection = detectProject(root, tools);
-
   // The listed directories that can be read; invalid-project reports the others.
   const listed = policy?.projects ?? [];
+  // A package manager the root's CI sets up only for the projects is not the root's (decision D-137).
+  const detection = detectProject(root, tools, undefined, { projects: listed });
   const problems = projectProblems(root, listed, detection);
   const views: ProjectView[] = listed
     .filter((project) => !problems.some((problem) => problem.project === project))
@@ -201,9 +202,9 @@ export function runDoctor(
 
   const projectRuns = views.map((view) => ({
     view,
-    run: runRules(view.root, policy, rules, tools, { detection: view.detection, repository: view.repository, project: view.directory, plan: projectPlanOptions(detection, view.directory, view.detection) }),
+    run: runRules(view.root, policy, rules, tools, { detection: view.detection, repository: view.repository, project: view.directory, plan: projectPlanOptions(detection, view.directory, view.detection), osv: options.osv }),
   }));
-  const rootRun = runRules(root, policy, rules, tools, { detection, ...(views.length === 0 ? {} : { projects: views }), ...(rootPlan === undefined ? {} : { plan: rootPlan }) });
+  const rootRun = runRules(root, policy, rules, tools, { detection, ...(views.length === 0 ? {} : { projects: views }), ...(rootPlan === undefined ? {} : { plan: rootPlan }), osv: options.osv });
 
   const notices: Notice[] = [];
   const shown = new Set<string>();
@@ -238,9 +239,10 @@ export function runDoctor(
     };
   });
   // A rule applies when it concerns the root or any project; the files above were counted before applies reads any (decision D-098).
+  const osv = options.osv === undefined ? {} : { osv: options.osv };
   const scopes = [
-    { root, repository: rootRun.repository, detection, policy, tools, ...(views.length === 0 ? {} : { projects: views }) },
-    ...views.map((view) => ({ root: view.root, repository: view.repository, detection: view.detection, policy, tools, project: view.directory })),
+    { root, repository: rootRun.repository, detection, policy, tools, ...(views.length === 0 ? {} : { projects: views }), ...osv },
+    ...views.map((view) => ({ root: view.root, repository: view.repository, detection: view.detection, policy, tools, project: view.directory, ...osv })),
   ];
   return {
     schemaVersion: 1,
@@ -284,6 +286,18 @@ function checkedOf(detection: Detection, repository: Repository, tools: readonly
           id: manager.id,
           name: name(manager.id),
           ...(declared === undefined || !('version' in declared) ? {} : { version: declared.version, versionFrom: declared.file }),
+        };
+      }),
+    // A package manager a CI step sets up only for the projects (decision D-137), named so (decision D-141).
+    ...(detection.ciForProjects ?? [])
+      .filter((manager) => manager.supported)
+      .map((manager) => {
+        const declared = manager.versions.find((declaration) => 'version' in declaration);
+        return {
+          id: manager.id,
+          name: name(manager.id),
+          ...(declared === undefined || !('version' in declared) ? {} : { version: declared.version, versionFrom: declared.file }),
+          setUpInCi: true as const,
         };
       }),
     ...detection.bots.map((bot) => ({ id: bot.id, name: name(bot.id) })),

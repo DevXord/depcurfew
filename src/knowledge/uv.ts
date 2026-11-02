@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, IndexEntriesKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, IndexEntriesKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const guard = verifiedOn('2026-11-01');
@@ -18,6 +18,7 @@ const changelog = (minor: string, version: string) => `${UV}/changelogs/${minor}
 const user = verifiedOn('2026-10-31');
 const release13 = verifiedOn('2026-11-01');
 const final = verifiedOn('2026-11-01');
+const release14 = verifiedOn('2026-11-02');
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = ['1', 'true', 't', 'yes', 'y', 'on'];
 
@@ -217,6 +218,11 @@ export const uv: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: release14.verified<EnvironmentNameRule[]>(
+      [{ prefix: '', match: 'exact' }],
+      CLI,
+      'The options take their variables through clap (env = EnvVars::UV_PROJECT and the others), and clap_builder Arg::env reads the variable with env::var_os(name) (https://github.com/clap-rs/clap/blob/v4.5.40/clap_builder/src/builder/arg.rs), which outside Windows finds only that spelling, so uv_project sets nothing (decision D-143).',
+    ),
     registrySettings: release13.verified(
       [
         { file: 'pyproject.toml', path: ['tool', 'uv', 'index'], applies: 'all', effect: 'adds', urlKey: 'url', entries: INDEX_ENTRIES },

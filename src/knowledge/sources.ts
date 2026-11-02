@@ -28,11 +28,27 @@ export const OFFICIAL_SOURCES: Readonly<Record<ToolId, readonly SourceRule[]>> =
   poetry: [{ host: 'python-poetry.org' }, { host: 'github.com', pathPrefix: '/python-poetry/' }, { host: 'github.com', pathPrefix: '/tox-dev/' }],
   pdm: [{ host: 'pdm-project.org' }, { host: 'github.com', pathPrefix: '/pdm-project/' }, { host: 'github.com', pathPrefix: '/tox-dev/' }],
   pipenv: [{ host: 'pipenv.pypa.io' }, { host: 'github.com', pathPrefix: '/pypa/' }],
+  // Packagist.org is Composer's default repository; its API documentation and the files it serves describe it. Composer
+  // runs on symfony/console, which resolves its command names, and orders versions with PHP's version_compare (php-src).
+  composer: [
+    { host: 'getcomposer.org' },
+    { host: 'github.com', pathPrefix: '/composer/' },
+    { host: 'packagist.org' },
+    { host: 'repo.packagist.org' },
+    { host: 'github.com', pathPrefix: '/symfony/console/' },
+    { host: 'github.com', pathPrefix: '/php/php-src/' },
+    // WPackagist serves the WordPress plugin and theme directories as a Composer repository (repositoryArchiveHosts).
+    { host: 'github.com', pathPrefix: '/outlandishideas/wpackagist/' },
+  ],
   renovate: [{ host: 'docs.renovatebot.com' }, { host: 'github.com', pathPrefix: '/renovatebot/' }],
+  // Psych (ruby/psych) is the YAML library dependabot-core loads dependabot.yml with (extra.yamlScalars).
   dependabot: [
     { host: 'docs.github.com' },
     { host: 'github.blog', pathPrefix: '/changelog/' },
     { host: 'github.com', pathPrefix: '/dependabot/' },
+    { host: 'github.com', pathPrefix: '/ruby/psych/' },
+    // Ruby's File.fnmatch, with which dependabot-core matches cooldown exclude and include (excludeMatching).
+    { host: 'github.com', pathPrefix: '/ruby/ruby/' },
   ],
 };
 
@@ -53,6 +69,10 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/pypa/' },
   // PyPI: docs.pypi.org is built from docs/user in pypi/warehouse.
   { host: 'github.com', pathPrefix: '/pypi/' },
+  // OSV.dev (--osv, decision D-129): osv.dev is built from docs/ in google/osv.dev; the OSV schema and the OpenSSF
+  // malicious-packages database are in ossf/osv-schema and ossf/malicious-packages.
+  { host: 'github.com', pathPrefix: '/google/osv.dev/' },
+  { host: 'github.com', pathPrefix: '/ossf/' },
   // CPython: docs.python.org is built from Doc/ in python/cpython.
   { host: 'docs.python.org' },
   { host: 'github.com', pathPrefix: '/python/' },
@@ -85,6 +105,10 @@ export const ENVIRONMENT_SOURCES: readonly SourceRule[] = [
   { host: 'github.com', pathPrefix: '/nvm-sh/' },
   { host: 'github.com', pathPrefix: '/nodenv/' },
   { host: 'github.com', pathPrefix: '/schniz/' },
+  // npm packages whose install scripts are known (decision D-127): each package's own repository at a release tag.
+  { host: 'github.com', pathPrefix: '/evanw/esbuild/' },
+  { host: 'github.com', pathPrefix: '/evilmartians/lefthook/' },
+  { host: 'github.com', pathPrefix: '/fsevents/fsevents/' },
 ];
 
 export function isOfficialSource(url: URL, rules: readonly SourceRule[]): boolean {

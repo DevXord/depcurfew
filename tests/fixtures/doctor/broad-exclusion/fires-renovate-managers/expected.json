@@ -1,0 +1,38 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 4
+    },
+    "message": "packageRules[0] turns off minimumReleaseAge for every package of the Renovate npm manager",
+    "fix": "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 5
+    },
+    "message": "packageRules[1] turns off minimumReleaseAge for major updates of every package in the Renovate js category",
+    "fix": "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 6
+    },
+    "message": "packageRules[2] turns off minimumReleaseAge for every package of the Renovate github-actions manager",
+    "fix": "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 8
+    },
+    "message": "packageRules[4] turns off minimumReleaseAge for every package of the Renovate github-actions manager",
+    "fix": "Match only the packages that need the exception, e.g. with matchPackageNames: [\"@your-scope/*\"]"
+  }
+]

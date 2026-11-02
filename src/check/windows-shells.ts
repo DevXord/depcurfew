@@ -16,7 +16,7 @@
 import type { Item } from './command.ts';
 
 /** Brackets nested deeper than this cannot be read. */
-const MAX_NESTING = 64;
+export const MAX_NESTING = 64;
 
 export class NestingTooDeep extends Error {}
 
@@ -86,7 +86,7 @@ function afterSingleQuoted(line: string, index: number): number {
  * The index after the bracket that closes the one at `open` (( or {), skipping strings, comments and other brackets;
  * -1 when it is not closed, or closed by the wrong bracket.
  */
-function closing(line: string, open: number, level = 0): number {
+export function closing(line: string, open: number, level = 0): number {
   if (level > MAX_NESTING) throw new NestingTooDeep(`brackets are nested more than ${MAX_NESTING} levels deep`);
   const stack = [line[open] === '(' ? ')' : '}'];
   let index = open + 1;

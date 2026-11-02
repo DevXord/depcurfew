@@ -1,0 +1,1 @@
+{ "version": 1, "installScripts": { "default": "deny", "allow": ["composer:symfony/flex", "composer:php-http/discovery"], "deny": ["composer:phpstan/extension-installer"] } }

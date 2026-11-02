@@ -21,6 +21,8 @@ import { delayMinutes, formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type {
+  ApplicationOption,
+  ComposerCommandsKnowledge,
   CommandLineKnowledge,
   CommandLineParsing,
   CommandNamesKnowledge,
@@ -29,6 +31,7 @@ import type {
   DirectoryOptionsKnowledge,
   DownloadCommand,
   Ecosystem,
+  EnvironmentNameRule,
   InstallOverridesKnowledge,
   NpmVersionSelectionKnowledge,
   OverrideSwitch,
@@ -40,10 +43,12 @@ import type {
   ToolId,
 } from '../knowledge/types.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
-import { PYPI_PREFIX } from '../policy/package-pattern.ts';
+import { COMPOSER_PREFIX, PYPI_PREFIX } from '../policy/package-pattern.ts';
+import { commandWordIndex, findComposerCommand } from './composer-commands.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import {
+  ARITHMETIC_TESTS,
   builtName,
   createdDirectories,
   directoryChange,
@@ -60,6 +65,7 @@ import {
 } from './directories.ts';
 import { parsePythonSpec } from './python-spec.ts';
 import { NestingTooDeep, readCmd, readPowerShell } from './windows-shells.ts';
+import { powerShellEnvironment, type PowerShellEnvironment } from './powershell-env.ts';
 
 export interface Word {
   text: string;
@@ -100,6 +106,12 @@ export interface InstallRequest {
   buildFromSource?: boolean;
   /** Where the install runs, when the command changes directory before it or moves it with an option (decision D-118). */
   directory?: CommandDirectory;
+  /** Composer: the command does not read the composer.json of the directory it runs in (create-project, global; decision D-133). */
+  readsManifest?: false;
+  /** Composer: composer update names the package without a constraint, so the one of the root composer.json applies. */
+  fromManifest?: true;
+  /** Composer: the command word, when the scripts of composer.json may change the command it stands for (decision D-136). */
+  composerCommand?: { word: string; command: string };
 }
 
 export type { CommandDirectory, KnownDirectory } from './directories.ts';
@@ -112,10 +124,16 @@ export interface Override {
   /** As written: --min-release-age=0, npm_config_ignore_scripts=false. */
   written: string;
   weakens: OverrideSwitch['weakens'];
+  /** protection: what it turns off (OverrideSwitch.effect). */
+  effect?: string;
+  /** protection: what that protection does, when it covers less than every package the command fetches (OverrideSwitch.protects). */
+  protects?: string;
   /** The delay it sets, to compare with the policy; left out when any value weakens it. */
   delay?: string;
   /** The shell expands its value. */
   expanded?: boolean;
+  /** A shell builtin or another form sets it, whose value depcurfew does not read (decision D-143); written is the name. */
+  unread?: true;
   /** Where its command runs, when that is not where the command line starts (decision D-118). */
   directory?: CommandDirectory;
 }
@@ -142,10 +160,18 @@ const SEPARATORS = ['&&', '||', '|&', ';;', '|', ';', '&', '(', ')'];
 const MAX_DEPTH = 4;
 /** How deep brackets may nest while a line is split. */
 const MAX_NESTING = 64;
-/** Brace expansion ({a,b} or {1..3}) in the unquoted part of a word. */
-const BRACES = /\{[^{}]*(?:,|\.\.)[^{}]*\}/u;
-/** Globs in the unquoted part of a word: *, ? and a bracket expression such as [ab]. */
-const GLOB = /[*?]|\[[^\]]*\]/u;
+/**
+ * Brace expansion ({a,b} or {1..3}) in the unquoted part of a word: braces without braces between them around a , or
+ * .., found at the first such separator, in linear time; [^{}]* before the separator tried every one of a long run of
+ * commas after { (decision D-143).
+ */
+export const BRACES = /\{(?:[^{},.]|\.(?!\.))*(?:,|\.\.)[^{}]*\}/u;
+/**
+ * Globs in the unquoted part of a word: *, ? and a bracket expression such as [ab]. A [ followed later by ] holds such
+ * a pair without a [ between them (the last [ before the ]), which the expression finds in linear time: [^\]]* tried
+ * every [ of a 1 MiB word of unclosed [ to its end (decision D-143).
+ */
+export const GLOB = /[*?]|\[[^\][]*\]/u;
 const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=/u;
 /** A word that is one expansion as a whole, so nothing of it is known: $CMD, ${CMD}, $(...), `...`, or cmd's %CMD% and !CMD!. */
 const WHOLE_EXPANSION = /^(?:\$[A-Za-z_][A-Za-z0-9_]*|\$[0-9@*#?$!-]|\$\{[^}]*\}|\$\(.*\)|`.*`|%[^%\s]+%|![^!\s]+!)$/su;
@@ -331,6 +357,8 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
     const inside = line.slice(from + 2, end - 1);
     // Arithmetic evaluates what an expansion gives, which may assign any variable: (( $X )) with X=OLDPWD=1 (D-123).
     if (/[$`]/u.test(inside)) noteBuiltName(builtName(shownText(line.slice(from, end + 1))));
+    // (( NAME = 1 )), NAME++: a variable of a package manager it assigns (decision D-143).
+    arithmeticSets(inside, () => shownText(line.slice(from, end + 1)), 'posix');
     substitutions.push(...[...bodySubstitutions(inside, level), inside].map((entry) => ({ line: entry, at: items.length })));
     dynamic = true;
     started = true;
@@ -358,7 +386,8 @@ function read(line: string, start: number, stop: ')' | '}' | undefined, level: n
     // Outside double quotes the shell splits what an expansion gives into words.
     if (!inQuotes) splits = true;
     if (next === '(') return nested(from, from + 2, ')');
-    if (next === '{') return nested(from, from + 2, '}');
+    // ${#NAME} is the length of NAME, whose # starts no comment (decision D-142).
+    if (next === '{') return nested(from, from + (line[from + 2] === '#' ? 3 : 2), '}');
     dynamic = true;
     started = true;
     const end = from + 1 + (/^[A-Za-z_][A-Za-z0-9_]*|^./u.exec(line.slice(from + 1))?.[0].length ?? 0);
@@ -701,6 +730,10 @@ interface ToolCommands {
   commandNames: CommandNamesKnowledge | undefined;
   /** Options and variables that make one command run in another directory, or find its project there. */
   directories: DirectoryOptionsKnowledge | undefined;
+  /** Composer: how its commands name the packages they install (decision D-133). */
+  composer: ComposerCommandsKnowledge | undefined;
+  /** Composer: the options of the application, which it binds before it knows the command (decision D-136). */
+  applicationOptions: readonly ApplicationOption[] | undefined;
 }
 
 interface Commands {
@@ -724,6 +757,21 @@ interface Commands {
   overrideVariables: ReadonlyMap<string, readonly { tool: ToolId; entry: OverrideSwitch }[]>;
   /** Variables, lowercased, that make a package manager's command run in another directory (directoryOptions). */
   directoryVariables: ReadonlySet<string>;
+  /** What the protections that switches turn off protect, when a switch says (OverrideSwitch.protects). */
+  protections: readonly string[];
+  /**
+   * Every variable above, lowercased: those whose value depcurfew reads when it is set as NAME=value (decision D-142),
+   * with each spelling the knowledge base gives and how the tool that lists it tells names apart (decision D-143).
+   */
+  watchedVariables: ReadonlyMap<string, readonly WatchedName[]>;
+}
+
+/** A variable of a package manager as one tool lists it, and how that tool tells names apart (environmentNames). */
+interface WatchedName {
+  listed: string;
+  match: EnvironmentNameRule['match'];
+  /** The length of the prefix of the rule, which prefix-then-any-case reads as written. */
+  prefix: number;
 }
 
 /** The variables of a tool's selection switches. */
@@ -812,6 +860,8 @@ function commands(): Commands {
             configCommands: factOf<ConfigCommand[]>(tool, sibling(key, 'configCommands')) ?? [],
             commandNames: factOf<CommandNamesKnowledge>(tool, sibling(key, 'commandNames')),
             directories: factOf<DirectoryOptionsKnowledge>(tool, sibling(key, 'directoryOptions')),
+            composer: factOf<ComposerCommandsKnowledge>(tool, sibling(key, 'commandArguments')),
+            applicationOptions: factOf<ApplicationOption[]>(tool, sibling(key, 'applicationOptions')),
           },
         ];
       }),
@@ -833,7 +883,7 @@ function commands(): Commands {
           .filter((key) => /(?:^r|R)egistryOverrides$/u.test(key))
           .flatMap((key) => {
             const fact = factOf<RegistryOverridesKnowledge>(source, key);
-            return fact === undefined ? [] : [{ fact, publicRegistry: tool.publicRegistry }];
+            return fact === undefined ? [] : [{ tool: tool.tool, fact, publicRegistry: tool.publicRegistry }];
           });
   });
   // Only npm package managers share their add subcommands: pip, uv and Poetry commands are matched word for word.
@@ -865,8 +915,71 @@ function commands(): Commands {
     ),
     overrideVariables,
     directoryVariables: new Set(tools.flatMap((tool) => (tool.directories?.variables ?? []).map((entry) => entry.name.toLowerCase()))),
+    protections: [...new Set(tools.flatMap((tool) => [...(tool.overrides?.options ?? []), ...(tool.overrides?.variables ?? [])].flatMap((entry) => (entry.protects === undefined ? [] : [entry.protects]))))],
+    watchedVariables: watchedNames([
+      ...overrides.map(({ tool, fact }) => ({ tool, names: [...fact.registryVariables, ...fact.configVariables] })),
+      ...tools.map(({ tool, selection, versionSelection, overrides: switches, directories }) => ({
+        tool,
+        names: [
+          ...[selection, ...(selection?.commands ?? [])].flatMap((entry) => [...switchVariables(entry?.prereleases), ...switchVariables(entry?.buildFromSource)]),
+          ...(versionSelection === undefined ? [] : [versionSelection.tagVariable]),
+          ...(switches?.variables ?? []).map((entry) => entry.name),
+          ...(directories?.variables ?? []).map((entry) => entry.name),
+        ],
+      })),
+    ]),
   };
   return cached;
+}
+
+/**
+ * The variables of package managers by their names in lower case, each spelling with the rule of the tool that lists
+ * it (extra.environmentNames: the longest prefix the name starts with). A name without a rule of its tool counts in
+ * any case, which only makes the scanner count more spellings.
+ */
+function watchedNames(lists: readonly { tool: ToolId; names: readonly string[] }[]): Map<string, WatchedName[]> {
+  const watched = new Map<string, WatchedName[]>();
+  for (const { tool, names } of lists) {
+    const source = knowledgeBase.find((entry) => entry.id === tool);
+    const rules = (source === undefined ? undefined : factOf<EnvironmentNameRule[]>(source, 'environmentNames')) ?? [];
+    for (const listed of names) {
+      const key = listed.toLowerCase();
+      const rule = rules.filter((entry) => key.startsWith(entry.prefix.toLowerCase())).sort((a, b) => b.prefix.length - a.prefix.length)[0];
+      const entry: WatchedName = { listed, match: rule?.match ?? 'any-case', prefix: rule?.prefix.length ?? 0 };
+      const known = watched.get(key) ?? [];
+      if (!known.some((other) => other.listed === listed && other.match === entry.match)) known.push(entry);
+      watched.set(key, known);
+    }
+  }
+  return watched;
+}
+
+/** Whether a tool that lists a variable this way reads it under the name as written (decision D-143). */
+function readsName(entry: WatchedName, written: string): boolean {
+  if (entry.match === 'exact') return written === entry.listed;
+  if (entry.match === 'lower-or-upper') return written === entry.listed.toLowerCase() || written === entry.listed.toUpperCase();
+  if (entry.match === 'prefix-then-any-case') return written.startsWith(entry.listed.slice(0, entry.prefix)) && written.toLowerCase() === entry.listed.toLowerCase();
+  return written.toLowerCase() === entry.listed.toLowerCase();
+}
+
+/**
+ * The line runs on Windows, where a POSIX shell (Git Bash) hands its variables to programs that do not tell names apart
+ * by case (decision D-143); scanCommandLine sets it from its options.
+ */
+let onWindows = process.platform === 'win32';
+
+/**
+ * The variable of a package manager that a name written in this shell sets, by its name in lower case, or undefined
+ * when no tool reads it under that name (decision D-143). cmd.exe, PowerShell and Windows do not tell names apart by
+ * case; a POSIX shell on Linux and macOS passes the name as written, and each tool reads it as its environmentNames
+ * says (npm_config_* in any case, COMPOSER only in upper case).
+ */
+function variableKey(name: string, shell: Shell): string | undefined {
+  const key = name.toLowerCase();
+  const entries = commands().watchedVariables.get(key);
+  if (entries === undefined) return undefined;
+  if (shell !== 'posix' || onWindows) return key;
+  return entries.some((entry) => readsName(entry, name)) ? key : undefined;
 }
 
 interface Wrapper {
@@ -1084,14 +1197,47 @@ const MAY_BE_ANY = 'and may stand for any command, also an install';
 const TOO_MUCH = 'depcurfew stops reading after';
 /** A change of directory to a directory the hook does not find (decision D-119). */
 const NOT_A_DIRECTORY = 'which is not an existing directory';
+/** A change to a configuration file that depcurfew does not read, which later commands use (decision D-142). */
+const UNREAD_CONFIGURATION = 'while depcurfew does not read it when it checks them';
+
+function unreadConfiguration(file: string, tool: ToolId): string {
+  const name = knowledgeBase.find((entry) => entry.id === tool)?.name ?? tool;
+  return `writes ${file}, which later ${name} commands use, ${UNREAD_CONFIGURATION}`;
+}
 const CONFIG_CHANGE =
   "changes the package manager's configuration, which the install or other package manager command in the same command would use, while depcurfew checks it with the configuration from before the change";
 const MANIFEST_CHANGE =
   'changes package.json, whose settings (overrides, scripts, allowScripts, trustedDependencies, pnpm settings) the install or other package manager command in the same command would use, while depcurfew checks it with the package.json from before the change';
 const WEAKENS = 'what the project configured for every package this install fetches, also those depcurfew does not check';
-const OVERRIDE_UNREAD = `is set in a way depcurfew does not read, which may weaken ${WEAKENS}`;
+/** A protection of the package manager that the policy does not manage (decision D-133). */
+const PROTECTS = 'which protects every package the command fetches, also those depcurfew does not check';
+
+/** The effect and what it protects of a switch that turns off a protection of the package manager, for an Override. */
+function protection(entry: OverrideSwitch): Pick<Override, 'effect' | 'protects'> {
+  return { ...(entry.effect === undefined ? {} : { effect: entry.effect }), ...(entry.protects === undefined ? {} : { protects: entry.protects }) };
+}
+
+/**
+ * What turning a protection off does, as a reason ends: the effect, then what the protection protects (every package
+ * the command fetches, unless the switch says less, as --no-secure-http does; decision D-142).
+ */
+function protectionText(override: Pick<Override, 'effect' | 'protects'>): string {
+  const effect = override.effect ?? 'turns off a protection of the package manager';
+  return override.protects === undefined ? `${effect}, ${PROTECTS}` : `${effect}; ${override.protects}`;
+}
+
+/** Whether a reason says that a protection of the package manager is turned off (protectionText). */
+function aboutProtection(reason: string): boolean {
+  return reason.includes(PROTECTS) || commands().protections.some((text) => reason.includes(text));
+}
+const SET_IN_UNREAD_WAY = 'is set in a way depcurfew does not read';
+/** A PowerShell command on the Env: drive whose variable name the reader cannot tell (decision D-138). */
+const ENV_NAME_UNREAD =
+  'uses an environment variable whose name depcurfew does not read, which may point the package manager at another registry or weaken the release-age delay or the install-script settings of the project';
 /** More specs than the hook checks for one command. */
 export const TOO_MANY = 'depcurfew checks at most';
+/** composer global update of a name without a constraint (decision D-136). */
+const GLOBAL_CONSTRAINT = 'from the constraint in COMPOSER_HOME/composer.json, which depcurfew does not read';
 /** How the reason starts for an install whose directory cannot be told (decision D-118). */
 const UNKNOWN_DIRECTORY = 'depcurfew cannot tell which directory';
 /** A file run in this shell, and a trap that runs between later commands, make every later directory unknown (decision D-123). */
@@ -1113,6 +1259,12 @@ export function unreadableFix(reason: string): string {
   if (reason.startsWith(UNKNOWN_DIRECTORY)) {
     return 'Run the install from that directory, or change to it with a path written out (cd path/to/project && …), so depcurfew checks it with the policy that applies there';
   }
+  if (reason.includes(BUILT_SETTING)) {
+    return 'Set the variable with its name written out (NAME=value before the command), or leave it out, so depcurfew can tell which variable the command sets';
+  }
+  if (reason.includes(ENV_NAME_UNREAD)) {
+    return "Set the variable as $env:NAME = 'value' with its name written out, or leave it out, so depcurfew can tell which variable the command sets";
+  }
   if (reason.includes(ANOTHER_REGISTRY)) {
     return 'Leave out the option or variable so that packages come from the registry depcurfew checks; if the other registry is intended, the user decides';
   }
@@ -1130,17 +1282,24 @@ export function unreadableFix(reason: string): string {
   if (reason.includes(MAY_BE_MANAGER)) return 'Run the package manager by its name (npm, pnpm, yarn, bun, pip, uv) with the package names written out, so depcurfew can check the command';
   if (reason.includes(MAY_BE_ANY)) return 'Write the command out as plain text, without building it from variables or other commands, so depcurfew can check it';
   if (reason.includes(TOO_MUCH)) return 'Run the commands one by one, without aliases or eval that repeat them, so depcurfew can read each of them';
+  if (reason.includes(UNREAD_CONFIGURATION)) {
+    return 'A change to the configuration that every later command of the package manager uses is for the user to decide: tell the user what to change, and do not change it yourself';
+  }
   if (reason.includes(CONFIG_CHANGE)) {
     return "Run the install as a command of its own, so depcurfew checks it with the configuration it will use; a change to the package manager's configuration is for the user to decide";
   }
   if (reason.includes(MANIFEST_CHANGE)) {
     return 'Run the install as a command of its own, so depcurfew checks it with the package.json it will use; a change to the settings in package.json is for the user to decide';
   }
+  if (aboutProtection(reason)) {
+    return 'Run the command without that option or variable, so the package manager keeps that protection; if the change is intended, the user decides';
+  }
   if (reason.includes(WEAKENS)) {
     return 'Run the install without that option or variable, so it keeps the release-age delay and install-script settings of the project; if the change is intended, the user decides';
   }
   if (reason.includes(CMD_READS_AGAIN)) return 'Leave & | < > and " out of the arguments of the package manager, so depcurfew can check the command';
   if (reason.includes(TOO_MANY)) return 'Install the packages in smaller groups, so depcurfew can check each of them';
+  if (reason.includes(GLOBAL_CONSTRAINT)) return 'Name the version to install (composer global require vendor/name:1.2.3), so depcurfew can check it';
   return 'Write the package names out in the command, so depcurfew can check them';
 }
 
@@ -1152,10 +1311,12 @@ function registryOption(tool: ToolCommands, name: string, value: string | undefi
 }
 
 /** Why a variable may change where a package manager fetches packages from; undefined when it does not. */
-function registryVariable(name: string, value: string | undefined): string | undefined {
+function registryVariable(name: string, value: string | undefined, shell: Shell): string | undefined {
   const { configVariables, registryVariables } = commands();
-  if (configVariables.has(name.toLowerCase())) return anotherRegistry(name);
-  const publicRegistry = registryVariables.get(name.toLowerCase());
+  const key = variableKey(name, shell);
+  if (key === undefined) return undefined;
+  if (configVariables.has(key)) return anotherRegistry(name);
+  const publicRegistry = registryVariables.get(key);
   if (publicRegistry === undefined) return undefined;
   return value !== undefined && sameRegistry(value, publicRegistry) ? undefined : anotherRegistry(name);
 }
@@ -1202,7 +1363,7 @@ function overrideOption(tool: ToolCommands, name: string, value: string | undefi
     given = value === 'false' ? 'true' : 'false';
   }
   if (entry === undefined || !weakensWith(entry.values, given)) return undefined;
-  return { tool: tool.tool, written, weakens: entry.weakens, ...(entry.values === 'delay' ? { delay: given } : {}) };
+  return { tool: tool.tool, written, weakens: entry.weakens, ...protection(entry), ...(entry.values === 'delay' ? { delay: given } : {}) };
 }
 
 /** The overrides among the options of a command that is not an install (npm ci --ignore-scripts=false). */
@@ -1826,6 +1987,28 @@ function scanTrap(words: readonly Word[], depth: number): CommandScan {
   return { ...inChild(scan), moves: [{ kind: 'unknown', reason: `the trap "${shown(joined(words))}" ${TRAP_BETWEEN} and ${what}`, lasting: true }] };
 }
 
+/**
+ * mapfile -C callback (readarray -C): the shell runs the callback as a command line in this shell every -c lines it
+ * reads, with two words appended, so an install in it runs; a change of directory in it, or a callback depcurfew cannot
+ * read, makes the directory of every later command unknown, as for a trap (decision D-143). Undefined without -C.
+ */
+function scanMapfileCallback(words: readonly Word[], executable: string, depth: number): CommandScan | undefined {
+  const spec = SETTER_OPTIONS.get(executable);
+  if (spec === undefined) return undefined;
+  const { code } = setterOperands(words.slice(1), spec);
+  if (code.length === 0) return undefined;
+  const scans = code.map((callback) => (callback.input === true ? unreadable(`${shown(joined(words))}: ${expanded(callback)}`) : scanLine(callback.text, depth + 1)));
+  const scan = scans.reduce((all, next) => ({
+    requests: [...all.requests, ...next.requests],
+    unreadable: all.unreadable ?? next.unreadable,
+    ...(all.overrides === undefined && next.overrides === undefined ? {} : { overrides: [...(all.overrides ?? []), ...(next.overrides ?? [])] }),
+    ...(all.moves === undefined && next.moves === undefined ? {} : { moves: [...(all.moves ?? []), ...(next.moves ?? [])] }),
+  }));
+  if (scan.moves === undefined && scan.unreadable === undefined) return scan;
+  const what = scan.moves === undefined ? 'may change directory with a callback depcurfew cannot read' : 'changes directory';
+  return { ...scan, moves: [{ kind: 'unknown', reason: `the callback of "${shown(joined(words))}" runs in this shell and ${what}`, lasting: true }] };
+}
+
 /** The aliases defined so far in the command line being scanned, by name, with their values. */
 let aliases = new Map<string, string>();
 
@@ -1900,6 +2083,329 @@ function noteNames(text: string): void {
 /** A command may set a variable whose name the shell builds, which may be OLDPWD, PWD, CDPATH or DIRSTACK (decision D-123). */
 function noteBuiltName(reason: string): void {
   if (variables.dynamic === undefined) variables = { ...variables, dynamic: reason };
+}
+
+/**
+ * Variables of package managers (registryOverrides, installOverrides, the version selection and directoryOptions) that
+ * the command line, or a line inside it, may set in a way depcurfew does not read (decisions D-142 and D-143), by name
+ * as written, with the command that sets them: at most MAX_UNREAD_SETS.
+ */
+let unreadSets = new Map<string, string>();
+const MAX_UNREAD_SETS = 16;
+/** The names noted since their overrides were last made (unreadOverrides), each once. */
+let noted: string[] = [];
+/** Why a builtin of the line may set a variable whose name the shell builds, which may be one of them (decision D-142). */
+let builtSetting: string | undefined;
+/** Why an assignment on a line inside the command line (eval, an alias, sh -c) may point an install of it at another registry (decision D-143). */
+let innerSetting: string | undefined;
+/** Overrides that count only when the command line has an install or another command of a package manager (decision D-143). */
+let withInstalls = new WeakSet<Override>();
+
+/** Builtins whose operands name the variables they set (decision D-142): those dynamicAssignment reads but let, unset, wait and [[. */
+const SETTING_BUILTINS = new Set(['declare', 'typeset', 'local', 'export', 'readonly', 'printf', 'read', 'mapfile', 'readarray', 'getopts']);
+/** Builtins of bash, zsh and ksh that declare the variables their operands name (integer, float and nameref: zsh and ksh). */
+const DECLARING = new Set(['declare', 'typeset', 'local', 'export', 'readonly', 'integer', 'float', 'nameref', 'private']);
+/** Declaring builtins whose -n makes a nameref (export -n takes the export away). */
+const NAMEREF_DECLARERS = new Set(['declare', 'typeset', 'local', 'private']);
+/**
+ * Builtins that set the variables their operands or options name, with the letters of their options that take a
+ * value, those whose value is a name (bash read -a, printf -v, wait -p; zsh and ksh print -v), and those whose value
+ * is code the shell evaluates (mapfile -C).
+ */
+const SETTER_OPTIONS = new Map<string, { values: string; names: string; code?: string }>([
+  ['read', { values: 'adinNptu', names: 'a' }],
+  ['mapfile', { values: 'dnOsuCc', names: '', code: 'C' }],
+  ['readarray', { values: 'dnOsuCc', names: '', code: 'C' }],
+  ['getopts', { values: '', names: '' }],
+  ['printf', { values: 'v', names: 'v' }],
+  ['print', { values: 'vuCxXf', names: 'v' }],
+  ['wait', { values: 'p', names: 'p' }],
+]);
+/** zsh builtins that set variables in more ways than depcurfew reads: every name in their words counts (decision D-143). */
+const OTHER_SETTERS = new Set(['vared', 'getln', 'zparseopts', 'zstyle', 'zformat', 'zregexparse', 'strftime', 'sysread', 'zstat', 'compgen']);
+/** Words before a builtin that run it in the shell itself (noglob and nocorrect: zsh). */
+const IN_SHELL = new Set(['builtin', 'command', 'time', 'noglob', 'nocorrect']);
+const BUILT_SETTING =
+  'may set a variable whose name the shell builds, which may point the package manager at another registry or weaken the release-age delay, the install-script settings or another protection of the project';
+const IDENTIFIERS = /[A-Za-z_][A-Za-z0-9_]*/gu;
+/** NAME=, NAME+=, NAME[…]= and NAME[…]+= at the start of a word. */
+const ASSIGNING = /^([A-Za-z_][A-Za-z0-9_]*)(\[[^\][]*\])?(\+?)=/u;
+
+/** A command as messages show it, worked out only when a variable is noted. */
+type Shown = string | (() => string);
+
+/** Notes that a command (as messages show it) sets a variable of a package manager in a way depcurfew does not read. */
+function noteSet(name: string, command: Shown, shell: Shell): void {
+  if (unreadSets.has(name) || unreadSets.size >= MAX_UNREAD_SETS || variableKey(name, shell) === undefined) return;
+  unreadSets.set(name, typeof command === 'string' ? command : command());
+  noted.push(name);
+}
+
+/**
+ * The names a text mentions, as D-142 read every word: each name but an expansion that reads it ($NAME, ${NAME},
+ * ${#NAME}, ${!NAME}, ${NAME:-…}). For what depcurfew cannot tell sets a variable or not: a command the shell expands,
+ * zsh builtins it does not read, code of python -c and node -e, and the value of an assignment, which the shell may
+ * take as a name (${!N:=…}, declare -n r=$N) or evaluate as arithmetic (X='NAME=1'; (( X ))).
+ */
+function mentioned(text: string, command: Shown, shell: Shell, programs = false): void {
+  if (unreadSets.size >= MAX_UNREAD_SETS) return;
+  const { executables } = commands();
+  for (const match of text.matchAll(IDENTIFIERS)) {
+    const token = match[0];
+    const at = match.index;
+    if (text[at - 1] === '$' || /[0-9]/u.test(text[at - 1] ?? '') || (programs && executables.has(token))) continue;
+    const before = text.slice(Math.max(0, at - 3), at);
+    if (before.endsWith('${') || before === '${#' || before === '${!') continue;
+    noteSet(token, command, shell);
+  }
+}
+
+/** Whether the name at `at` in arithmetic is assigned: NAME = …, NAME += … (and the other operators), NAME++, ++NAME. */
+function assignedAt(text: string, at: number, length: number): boolean {
+  let back = at;
+  while (back > 0 && back > at - 64 && (text[back - 1] === ' ' || text[back - 1] === '\t')) back -= 1;
+  if (back >= 2 && (text.slice(back - 2, back) === '++' || text.slice(back - 2, back) === '--')) return true;
+  let next = at + length;
+  const skip = () => {
+    const from = next;
+    while (next < text.length && next < from + 64 && (text[next] === ' ' || text[next] === '\t')) next += 1;
+  };
+  skip();
+  if (text[next] === '[') {
+    const close = text.slice(next + 1, next + 256).indexOf(']');
+    // An unclosed or very long subscript: whatever follows may assign it.
+    if (close === -1) return true;
+    next += close + 2;
+    skip();
+  }
+  return /^(?:<<=|>>=|[-+*/%&^|]=|=(?!=)|\+\+|--)/u.test(text.slice(next, next + 3));
+}
+
+/** The variables an arithmetic expression assigns (decision D-143): (( … )), $(( … )), let, [[ … -eq … ]], declare -i and subscripts. */
+function arithmeticSets(text: string, command: Shown, shell: Shell): void {
+  if (unreadSets.size >= MAX_UNREAD_SETS) return;
+  for (const match of text.matchAll(IDENTIFIERS)) {
+    const name = match[0];
+    const at = match.index;
+    if (text[at - 1] === '$' || /[0-9]/u.test(text[at - 1] ?? '') || unreadSets.has(name) || variableKey(name, shell) === undefined) continue;
+    if (assignedAt(text, at, name.length)) noteSet(name, command, shell);
+  }
+}
+
+/**
+ * What a word sets wherever it stands (decision D-143): ${NAME:=…} and ${NAME=…}, and the arithmetic of its subscripts
+ * (a[i]=…, ${a[i]}), of $[ … ] and of the offsets of ${s:offset:length}. A word of echo that only mentions a name sets
+ * nothing.
+ */
+function wordSets(text: string, command: Shown, shell: Shell): void {
+  if (!text.includes('[') && !text.includes('${')) return;
+  for (const match of text.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?:\[[^\][]*\])?:?=/gu)) noteSet(match[1] as string, command, shell);
+  if (![...text.matchAll(IDENTIFIERS)].some((match) => variableKey(match[0], shell) !== undefined)) return;
+  for (const match of text.matchAll(/\[([^\][]*)\]/gu)) arithmeticSets(match[1] as string, command, shell);
+  for (const match of text.matchAll(/\$\{[A-Za-z_][A-Za-z0-9_]*(?:\[[^\][]*\])?:(?![-=+?])([^}]{0,4096})\}/gu)) arithmeticSets(match[1] as string, command, shell);
+}
+
+/**
+ * An assignment word (NAME=…, NAME+=…, NAME[…]=…): the name when its value is not read as written, and the names in a
+ * value written out (N=COMPOSER).
+ */
+function assignmentSets(word: Word, command: Shown, shell: Shell, unread: boolean, arithmetic: boolean): boolean {
+  const match = ASSIGNING.exec(word.text);
+  if (match === null) return false;
+  const name = match[1] as string;
+  if (unread || match[2] !== undefined || match[3] === '+') noteSet(name, command, shell);
+  const value = word.text.slice(match[0].length);
+  if (arithmetic) arithmeticSets(value, command, shell);
+  if (!word.dynamic) mentioned(value, command, shell);
+  return true;
+}
+
+/** The names options of a builtin give (read -a NAME, printf -vNAME), and its operands after the options. */
+function setterOperands(words: readonly Word[], spec: { values: string; names: string; code?: string }): { names: Word[]; code: Word[]; operands: readonly Word[] } {
+  const names: Word[] = [];
+  const code: Word[] = [];
+  let index = 0;
+  for (; index < words.length; index++) {
+    const word = words[index] as Word;
+    if (word.text === '--' && !word.dynamic) {
+      index += 1;
+      break;
+    }
+    if (word.dynamic || !/^-[A-Za-z]/u.test(word.text)) break;
+    for (let at = 1; at < word.text.length; at++) {
+      const letter = word.text[at] as string;
+      if (!spec.values.includes(letter)) continue;
+      const attached = word.text.slice(at + 1);
+      const value = attached === '' ? words[++index] : { text: attached, dynamic: false };
+      if (value !== undefined && spec.names.includes(letter)) names.push(value);
+      if (value !== undefined && spec.code?.includes(letter) === true) code.push(value);
+      break;
+    }
+  }
+  return { names, code, operands: words.slice(index) };
+}
+
+/**
+ * The variables of package managers that a command sets in a way depcurfew does not read (decision D-143), in the
+ * positions that set them: printf -v and print -v, read (also -a and zsh's NAME?prompt), mapfile and readarray,
+ * getopts, wait -p, for and select, a nameref (declare -n r=NAME), NAME+=…, NAME[0]=…, the values of declare -i,
+ * integer and float and of declare -l and -u, let, (( )) and $(( )) (read with the line), [[ … -eq … ]], ${NAME:=…},
+ * subscripts, and the value of an assignment (N=NAME), which the shell may use as a name or evaluate; in cmd.exe, set /p
+ * and set /a. Every name counts in the words of a command the shell expands ($CMD NAME) and of zsh builtins that set
+ * variables in other ways (vared, zparseopts). NAME=value is read with its value by the readers of assignments;
+ * export, readonly, declare and unset of a name without a value leave its value as it is. A name in a word of any
+ * other command (echo, printenv, grep, git commit -m) only mentions it.
+ */
+function noteSettings(command: SimpleCommand, shell: Shell): void {
+  if (unreadSets.size >= MAX_UNREAD_SETS) return;
+  const words = command.words;
+  const shownCommand = () => shown(joined(words));
+  if (shell === 'cmd') {
+    // set /p NAME=prompt reads the value from the input, set /a NAME=expression computes it.
+    const head = words.find((word) => !ASSIGNMENT.test(word.text));
+    if (head === undefined || head.dynamic || head.text.toLowerCase() !== 'set' || !words.some((word) => /^\/[ap]$/iu.test(word.text))) return;
+    for (const word of words) {
+      const assigned = ASSIGNMENT.exec(word.text)?.[1];
+      if (assigned !== undefined) noteSet(assigned, shownCommand, shell);
+    }
+    return;
+  }
+  for (const word of words) wordSets(word.text, shownCommand, shell);
+  let index = 0;
+  // Assignments before the command (or a command of assignments only), reserved words (while IFS= read), function f.
+  for (;;) {
+    const word = words[index];
+    if (word === undefined) return;
+    if (assignmentSets(word, shownCommand, shell, false, false)) index += 1;
+    else if (!word.dynamic && word.text === 'function') index += 2;
+    else if (!word.dynamic && (KEYWORDS.has(word.text) || IN_SHELL.has(word.text))) {
+      index += 1;
+      // time -p, command -p
+      while (IN_SHELL.has(word.text) && /^-[A-Za-z]+$/u.test(words[index]?.text ?? '')) index += 1;
+    } else break;
+  }
+  const head = words[index] as Word;
+  const rest = words.slice(index + 1);
+  // The shell may expand the word to read or another builtin, and an alias stands for any command: every name of the
+  // words after them counts.
+  if (head.dynamic || aliases.has(head.text)) {
+    for (const word of rest) mentioned(word.text, shownCommand, shell);
+    return;
+  }
+  const name = head.text;
+  if (OTHER_SETTERS.has(name)) {
+    for (const word of rest) mentioned(word.text, shownCommand, shell);
+    return;
+  }
+  const spec = SETTER_OPTIONS.get(name);
+  if (spec !== undefined) {
+    const { names, code, operands } = setterOperands(rest, spec);
+    // The callback of mapfile -C runs in the shell, which depcurfew does not read.
+    for (const word of code) mentioned(word.text, shownCommand, shell);
+    const set = [...names];
+    if (name === 'read') set.push(...operands);
+    if (name === 'mapfile' || name === 'readarray') set.push(...operands.slice(0, 1));
+    if (name === 'getopts') set.push(...operands.slice(1, 2));
+    // zsh: read NAME?prompt
+    for (const word of set) if (!word.dynamic) noteSet(word.text.replace(/\?[\s\S]*$/u, '').replace(/\[[\s\S]*$/u, ''), shownCommand, shell);
+    return;
+  }
+  if (name === 'for' || name === 'select' || name === 'foreach') {
+    for (const word of rest) {
+      if (word.dynamic || word.text === 'in' || word.text === 'do') break;
+      noteSet(word.text, shownCommand, shell);
+    }
+    return;
+  }
+  if (name === 'let') {
+    for (const word of rest) arithmeticSets(word.text, shownCommand, shell);
+    return;
+  }
+  if (name === '[[') {
+    if (rest.some((word) => !word.dynamic && ARITHMETIC_TESTS.has(word.text))) for (const word of rest) arithmeticSets(word.text, shownCommand, shell);
+    return;
+  }
+  if (!DECLARING.has(name)) return;
+  let at = 0;
+  let letters = '';
+  for (; at < rest.length; at++) {
+    const word = rest[at] as Word;
+    if (word.dynamic) break;
+    if (word.text === '--') {
+      at += 1;
+      break;
+    }
+    if (!/^[-+][A-Za-z]/u.test(word.text)) break;
+    letters += word.text.slice(1);
+  }
+  const nameref = name === 'nameref' || (NAMEREF_DECLARERS.has(name) && letters.includes('n'));
+  const arithmetic = name === 'integer' || name === 'float' || letters.includes('i');
+  // -n makes later assignments set the variable the value names; -i, -l and -u change what they store.
+  const unread = nameref || arithmetic || letters.includes('l') || letters.includes('u');
+  for (const word of rest.slice(at)) {
+    if (assignmentSets(word, shownCommand, shell, unread, arithmetic) || word.dynamic) continue;
+    // export NAME and unset NAME leave the value as it is.
+    if (unread) noteSet(word.text.replace(/\[[\s\S]*$/u, ''), shownCommand, shell);
+  }
+}
+
+/** The names of the code an interpreter runs (python -c, node -e, php -r), which depcurfew does not read (decision D-143). */
+function codeSets(code: Word | undefined, words: readonly Word[], shell: Shell): void {
+  if (code !== undefined) mentioned(code.text, () => shown(joined(words)), shell, true);
+}
+
+/**
+ * The overrides of the variables noted since the last call that weaken the delay, the rule on install scripts or a
+ * protection of the package manager (decision D-143): their value is unknown, so the hook compares the worst one with
+ * the policy, as for a value the shell expands, and they count only next to an install or another command of a
+ * package manager.
+ */
+function unreadOverrides(line: string, place: CommandDirectory | undefined): Override[] {
+  if (noted.length === 0) return [];
+  const { overrideVariables } = commands();
+  const found: Override[] = [];
+  for (const name of noted) {
+    for (const { tool, entry } of overrideVariables.get(name.toLowerCase()) ?? []) {
+      const override: Override = { tool, command: shown(line), written: name, weakens: entry.weakens, ...protection(entry), unread: true, ...(place === undefined ? {} : { directory: place }) };
+      withInstalls.add(override);
+      found.push(override);
+    }
+  }
+  noted = [];
+  return found;
+}
+
+/**
+ * Why the command line may set a variable of a package manager in a way depcurfew does not read (decisions D-142 and
+ * D-143), as for a value that weakens it most: next to an install with names, the first such variable that may point a
+ * package manager at another registry or change the version it picks, or an assignment of a line inside it that points
+ * it at another registry; else a builtin that may set a variable whose name the shell builds, unless an install of the
+ * line asks already because that name may be OLDPWD (decision D-123), whose reason says more. The variables that
+ * weaken the delay, the rule on install scripts or a protection are overrides, which the hook compares with the policy.
+ */
+function unreadSetting(scan: CommandScan): string | undefined {
+  const { configVariables, registryVariables, selectionVariables } = commands();
+  if (scan.requests.length > 0) {
+    for (const name of unreadSets.keys()) {
+      const lower = name.toLowerCase();
+      if (configVariables.has(lower) || registryVariables.has(lower)) return anotherRegistry(name);
+      if (selectionVariables.has(lower)) return `${name} ${SET_UNREAD}`;
+    }
+    if (innerSetting !== undefined) return innerSetting;
+  }
+  const unplaced = scan.requests.some((request) => request.directory !== undefined && 'unknown' in request.directory);
+  return unplaced ? undefined : builtSetting;
+}
+
+/** Installs and overrides of the tools that read a directory variable set in a way depcurfew does not read are placed nowhere (decision D-142). */
+function unreadDirectories(scan: CommandScan): void {
+  const { directoryVariables, tools } = commands();
+  for (const [name, command] of unreadSets) {
+    if (!directoryVariables.has(name.toLowerCase())) continue;
+    const readers = new Set(tools.filter((tool) => tool.directories?.variables.some((entry) => entry.name.toLowerCase() === name.toLowerCase()) === true).map((tool) => tool.tool));
+    const reason = `${name} is set by "${command}" in a way depcurfew does not read, which may move it to another directory`;
+    for (const entry of [...scan.requests, ...(scan.overrides ?? [])]) if (readers.has(entry.tool)) entry.directory = { unknown: reason };
+  }
 }
 
 /**
@@ -2355,12 +2861,15 @@ function executableOf(text: string): string {
   const name = base.includes('@') || base.includes('==') ? base.replace(/@[^/]*$/u, '').replace(/==.*$/u, '') : base;
   const { executables } = commands();
   if (executables.has(name)) return name;
+  // A PHP archive runs as the program it packs when it has a shebang (./composer.phar).
+  const archive = name.endsWith('.phar') ? name.slice(0, -'.phar'.length).replace(/-v?\d[\w.+-]*$/u, '') : undefined;
+  if (archive !== undefined && executables.has(archive)) return archive;
   const unversioned = /[0-9.]$/u.test(name) ? name.replace(/[0-9][0-9.]*$/u, '') : name;
   return unversioned !== name && (executables.has(unversioned) || interpreter()?.executables.includes(unversioned) === true) ? unversioned : name;
 }
 
-/** Script files a JavaScript or Python interpreter runs: npm-cli.js, yarn-4.1.0.cjs, pnpm.mjs, pip.pyz, __main__.py. */
-const SCRIPT_EXTENSIONS = /\.(?:js|cjs|mjs|pyz|py)$/iu;
+/** Script files a JavaScript, Python or PHP interpreter runs: npm-cli.js, yarn-4.1.0.cjs, pnpm.mjs, pip.pyz, __main__.py, composer.phar. */
+const SCRIPT_EXTENSIONS = /\.(?:js|cjs|mjs|pyz|py|phar)$/iu;
 
 /**
  * The package manager a script path runs: its file name without the extension, -cli or a version (/usr/bin/npm,
@@ -2427,6 +2936,8 @@ function scanProgramReader(words: readonly Word[], command: SimpleCommand, reade
     const inline = reader.inline.find((option) => name === option || (option.length === 2 && name.startsWith(option)));
     if (inline !== undefined) {
       const code = word.text.length > inline.length ? word : words[index + 1];
+      // node -e 'process.env.npm_config_registry = …': code depcurfew does not read (decision D-143).
+      codeSets(code, words, command.shell ?? 'posix');
       return printedCode(code) ? unreadable(`${shown(joined(words))}: ${FROM_PRINTED_CODE}`) : NOTHING;
     }
     if (reader.values.includes(name) && !word.text.includes('=')) index += 1;
@@ -2456,6 +2967,7 @@ function scanInterpreter(words: readonly Word[], command: SimpleCommand, depth: 
       // A command string (-c) is Python code, which depcurfew does not read, unless another command prints it.
       if (option === facts.commandOption) {
         const code = attached === '' ? words[index + 1] : word;
+        codeSets(code, words, command.shell ?? 'posix');
         return printedCode(code) ? unreadable(`${shown(joined(words))}: ${FROM_PRINTED_CODE}`) : NOTHING;
       }
       if (option === facts.moduleOption) {
@@ -2628,10 +3140,12 @@ function scanWords(command: SimpleCommand, depth: number, put: string[]): Comman
       break;
     }
   }
-  // declare "${X}PWD=…", printf -v "$N", read "$N": a variable whose name the shell builds (decision D-123).
+  // declare "${X}PWD=…", printf -v "$N", read "$N": a variable whose name the shell builds (decision D-123), which may
+  // also be a variable of a package manager when the builtin names the variable it sets (decision D-142).
   if (builtin) {
     const reason = dynamicAssignment(words);
     if (reason !== undefined) noteBuiltName(reason);
+    if (reason !== undefined && SETTING_BUILTINS.has(words[0]?.text ?? '')) builtSetting ??= `"${shown(joined(words))}" ${BUILT_SETTING}`;
   }
   return moved(scanSimple(command, words, assigned, builtin, depth));
 }
@@ -2695,6 +3209,10 @@ function scanSimple(command: SimpleCommand, words: readonly Word[], assigned: re
   // . and source run a file in this shell, and a trap may run its action before later commands (decision D-123).
   if (!first.dynamic && SOURCES.has(executable)) return scanSource(words, command, depth) ?? scanSourcedInput(words, command, depth);
   if (!first.dynamic && executable === 'trap') return scanTrap(words, depth);
+  if (!first.dynamic && (executable === 'mapfile' || executable === 'readarray')) {
+    const callback = scanMapfileCallback(words, executable, depth);
+    if (callback !== undefined) return callback;
+  }
   if (!first.dynamic && executable === 'alias') return scanAlias(words, depth);
   if (!first.dynamic && EXPRESSION_RUNNERS.has(executable)) return scanInvokeExpression(words, command, depth);
   if (!first.dynamic && interpreter()?.executables.includes(executable) === true) return scanInterpreter(words, command, depth);
@@ -2703,7 +3221,9 @@ function scanSimple(command: SimpleCommand, words: readonly Word[], assigned: re
   const rest = words.slice(1);
   // A change of the configuration or of package.json counts when another package manager command is on the line.
   const change = first.dynamic ? undefined : configChange(executable, rest);
-  if (change !== undefined) return { requests: [], unreadable: undefined, changes: `${shown(line)}: ${change === 'manifest' ? MANIFEST_CHANGE : CONFIG_CHANGE}` };
+  // A change to a file depcurfew never reads counts on its own: every later command uses it (decision D-142).
+  if (change?.unread !== undefined) return unreadable(`${shown(line)}: ${unreadConfiguration(change.unread, change.tool)}`);
+  if (change !== undefined) return { requests: [], unreadable: undefined, changes: `${shown(line)}: ${change.kind === 'manifest' ? MANIFEST_CHANGE : CONFIG_CHANGE}` };
   const scan = scanPackageManager(command, first, executable, rest, line, depth, assigned);
   if (scan !== undefined) {
     const batch = batchArgument(first, executable, rest, command.shell);
@@ -2740,7 +3260,17 @@ function commandName(names: CommandNamesKnowledge, word: string): string {
   return name;
 }
 
+/**
+ * A command name as symfony/console resolves it for Composer (Application::find, decisions D-133 and D-136), without
+ * the scripts of composer.json, which the check of the install adds (findComposerCommand); a word that is ambiguous
+ * or names no command stays as written (Composer runs nothing for it).
+ */
+function symfonyCommandName(names: CommandNamesKnowledge, word: string): string {
+  return findComposerCommand(names, word)?.name ?? word;
+}
+
 function resolveCommandName(names: CommandNamesKnowledge, word: string): string {
+  if (names.matching === 'symfony-console') return symfonyCommandName(names, word);
   const name = /[A-Z]/u.test(word) ? word.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`) : word;
   if (names.commands.includes(name)) return name;
   const alias = (key: string) => (Object.hasOwn(names.aliases, key) ? names.aliases[key] : undefined);
@@ -2760,7 +3290,24 @@ function resolveCommandName(names: CommandNamesKnowledge, word: string): string 
  * their values, match a command of configCommands that writes. A word the shell expands where a writing word may
  * stand counts as one.
  */
-function configChange(executable: string, rest: readonly Word[]): 'configuration' | 'manifest' | undefined {
+/** A command that changes a package manager's configuration or package.json; `unread`: the file it writes, which depcurfew does not read later (decision D-142). */
+interface ConfigChange {
+  kind: 'configuration' | 'manifest';
+  tool: ToolId;
+  unread?: string;
+}
+
+/**
+ * Whether an option was given among the options a command line names: as written, in a group of short options (-ge
+ * for -g and -e) where the tool groups them, or abbreviated (--del for --delete) where the tool takes abbreviations.
+ */
+function optionGiven(option: string, given: readonly string[], parsing: CommandLineParsing): boolean {
+  if (given.includes(option)) return true;
+  if (parsing.groupedShortOptions === true && /^-[^-]$/u.test(option) && given.some((name) => /^-[^-]{2,}$/u.test(name) && name.slice(1).includes(option.slice(1)))) return true;
+  return parsing.abbreviations === true && option.startsWith('--') && given.some((name) => name.length > 3 && name.startsWith('--') && option.startsWith(name));
+}
+
+function configChange(executable: string, rest: readonly Word[]): ConfigChange | undefined {
   configExecutables ??= new Set(commands().tools.flatMap((tool) => tool.configCommands.map((entry) => entry.command[0] ?? '')));
   if (!configExecutables.has(executable)) return undefined;
   for (const tool of commands().tools) {
@@ -2786,16 +3333,22 @@ function configChange(executable: string, rest: readonly Word[]): 'configuration
     const names = tool.commandNames;
     const first = positional[0];
     const firstName = first === undefined || names === undefined ? first?.text : commandName(names, first.text);
-    const named = (word: Word | undefined, index: number) => (index === 0 ? firstName : word?.text);
+    // Composer resolves the command after global too (composer global conf …).
+    const named = (word: Word | undefined, index: number) => (index === 0 ? firstName : names?.matching === 'symfony-console' && word !== undefined ? commandName(names, word.text) : word?.text);
+    const given = (option: string) => optionGiven(option, options, tool.parsing);
     for (const entry of entries) {
       const parts = entry.command.slice(1);
       if (!parts.every((part, index) => named(positional[index], index) === part && positional[index]?.dynamic !== true)) continue;
       const after = positional.slice(parts.length);
       const word = after[0];
-      const kind = entry.manifest === true ? 'manifest' : 'configuration';
-      if (entry.writes !== undefined && word !== undefined && (word.dynamic || entry.writes.includes(word.text))) return kind;
-      if (entry.operands !== undefined && (after.length >= entry.operands || after.some((part) => part.dynamic))) return kind;
-      if (entry.options?.some((option) => options.includes(option)) === true) return kind;
+      const writes =
+        (entry.writes !== undefined && word !== undefined && (word.dynamic || entry.writes.includes(word.text))) ||
+        (entry.operands !== undefined && (after.length >= entry.operands || after.some((part) => part.dynamic))) ||
+        entry.options?.some(given) === true;
+      if (!writes) continue;
+      // A word the shell expands may be the option that writes elsewhere (decision D-142).
+      const unread = entry.unread !== undefined && (entry.unread.options === undefined || entry.unread.options.some(given) || rest.some((part) => part.dynamic)) ? entry.unread.file : undefined;
+      return { kind: entry.manifest === true ? 'manifest' : 'configuration', tool: tool.tool, ...(unread === undefined ? {} : { unread }) };
     }
   }
   return undefined;
@@ -2810,7 +3363,7 @@ function scanPackageManager(command: SimpleCommand, first: Word, executable: str
   if (!commands().executables.has(executable)) return undefined;
   for (const tool of commands().tools) {
     if (!ownedBy(tool).has(executable)) continue;
-    const moved = toolDirectory(tool, executable, rest, assigned);
+    const moved = toolDirectory(tool, executable, rest, assigned, command.shell ?? 'posix');
     const scan = scanToolCommand(tool, command, first, executable, moved.words, line, depth);
     if (scan !== undefined) return placed(scan, moved.directory);
   }
@@ -2872,9 +3425,10 @@ function positionals(tool: ToolCommands, words: readonly Word[]): { texts: strin
  * command that runs a package (npx, uvx, uv run) count only before the package: the words after it are the package's.
  * An option of the command line wins over a variable of the same kind; a project option is relative to a directory one.
  */
-function toolDirectory(tool: ToolCommands, executable: string, words: readonly Word[], assigned: readonly Word[]): { directory: CommandDirectory | undefined; words: readonly Word[] } {
+function toolDirectory(tool: ToolCommands, executable: string, words: readonly Word[], assigned: readonly Word[], shell: Shell): { directory: CommandDirectory | undefined; words: readonly Word[] } {
   const facts = tool.directories;
   if (facts === undefined) return { directory: undefined, words };
+  if (facts.lookup === 'first-token') return firstTokenDirectory(facts, executable, words);
   let rest = words;
   const found: { option: DirectoryOption; value: Word }[] = [];
   for (const option of facts.options) {
@@ -2913,7 +3467,8 @@ function toolDirectory(tool: ToolCommands, executable: string, words: readonly W
   const variables: { option: DirectoryOption; value: Word }[] = [];
   for (const word of assigned) {
     const name = ASSIGNMENT.exec(word.text)?.[1] ?? '';
-    const entry = facts.variables.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase() && counts(candidate));
+    const key = variableKey(name, shell);
+    const entry = key === undefined ? undefined : facts.variables.find((candidate) => candidate.name.toLowerCase() === key && counts(candidate));
     if (entry !== undefined) variables.push({ option: entry, value: { text: word.text.slice(name.length + 1), dynamic: word.dynamic } });
   }
   const pick = (moves: DirectoryOption['moves']) => found.findLast((entry) => entry.option.moves === moves) ?? variables.findLast((entry) => entry.option.moves === moves);
@@ -2929,6 +3484,34 @@ function toolDirectory(tool: ToolCommands, executable: string, words: readonly W
   const steps = chosen.map((entry) => (entry.option.file === undefined ? entry.value.text : directoryOfFile(entry.value.text)));
   const local = chosen.some((entry) => entry.option.localPrefix === true) ? { localPrefix: true as const } : {};
   return { directory: { steps, ...local }, words: rest };
+}
+
+/**
+ * The directory option as symfony/console's getParameterOption(..., onlyParams: true) finds it for Composer (decision
+ * D-136): the first word up to -- that is the option, with the next word as its value, or starts with it (a long option
+ * and =, a short option with the value attached); a grouped -nd dir does not count. A word the shell expands before it
+ * may be the option, so the directory is unknown then.
+ */
+function firstTokenDirectory(facts: DirectoryOptionsKnowledge, executable: string, words: readonly Word[]): { directory: CommandDirectory | undefined; words: readonly Word[] } {
+  for (let index = 0; index < words.length; index++) {
+    const word = words[index] as Word;
+    if (word.text === '--') break;
+    for (const option of facts.options) {
+      const leading = option.name.startsWith('--') ? `${option.name}=` : option.name;
+      let value: Word | undefined;
+      if (word.text === option.name) value = words[index + 1];
+      else if (word.text.startsWith(leading)) value = { text: word.text.slice(leading.length), dynamic: word.dynamic };
+      else continue;
+      // getParameterOption returns what follows the first match, also nothing: Composer then stays where it is.
+      if (value === undefined) return { directory: undefined, words };
+      if (value.dynamic) return { directory: { unknown: `the shell expands ${option.name}, which names the directory "${shown(executable)}" runs in` }, words };
+      return { directory: { steps: [value.text] }, words };
+    }
+    if (word.dynamic) {
+      return { directory: { unknown: `the shell expands "${shown(word.text)}", which may be the ${facts.options[0]?.name ?? 'option'} that names the directory "${shown(executable)}" runs in` }, words };
+    }
+  }
+  return { directory: undefined, words };
 }
 
 /** The directory of a file named by a path: '.' for a file named alone, '/' for one in the root. */
@@ -2947,6 +3530,7 @@ function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word
     const context = contextOf(tool, run.command);
     return finish(tool, line, readArguments(rest, 'run', tool, run, context), depth, [], context);
   }
+  if (tool.composer !== undefined) return scanComposer(tool, tool.composer, rest, line, depth);
   if (tool.ecosystem !== 'npm') return scanPythonTool(tool, executable, rest, line, depth);
   // The subcommand is the first word that is not an option or an option's value.
   let index = 0;
@@ -2990,12 +3574,166 @@ function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word
   return managerScan(line, [...overridesBefore, ...optionOverrides(tool, after)]);
 }
 
+/**
+ * Composer's name and constraint pairs as composer require reads them (VersionParser::parseNameVersionPairs): a name
+ * and its constraint in one word, split at the first separator, or a name followed by a word that is its constraint
+ * (no /, no * next to a name character, no platform package).
+ */
+function composerPairs(texts: readonly string[], facts: ComposerCommandsKnowledge): { name: string; constraint?: string }[] {
+  const separators = facts.pairSeparators.map((separator) => separator.replace(/[\\\]^-]/gu, '\\$&')).join('');
+  const pair = new RegExp(`^([^${separators}]+)[${separators}](.*)$`, 'su');
+  const platform = new RegExp(facts.platformPackages, 'iu');
+  const result: { name: string; constraint?: string }[] = [];
+  for (let index = 0; index < texts.length; index++) {
+    const text = (texts[index] as string).trim();
+    const split = pair.exec(text);
+    if (split !== null) {
+      result.push({ name: split[1] as string, constraint: split[2] as string });
+      continue;
+    }
+    const next = texts[index + 1];
+    if (next !== undefined && !next.includes('/') && !/(?<=[a-z0-9_/-])\*|\*(?=[a-z0-9_/-])/iu.test(next) && !platform.test(next)) {
+      result.push({ name: text, constraint: next });
+      index += 1;
+      continue;
+    }
+    result.push({ name: text });
+  }
+  return result;
+}
+
+/**
+ * A Composer command (decisions D-133 and D-136), read as symfony/console reads it: options anywhere (grouped short
+ * options, a value attached or in the next word) and every word after -- an argument. The command word is the one
+ * Composer finds before it knows the command (getFirstArgument after binding the options of the application, so that
+ * only -d and --working-dir take the word after them before it), resolved as Composer resolves its names
+ * (commandNames); the first word the command then binds as an argument is its command argument, and the others are
+ * its arguments. composer require, the require of composer global, create-project (its package and --require) and
+ * composer update with packages or --with name the packages they install; update names without a constraint take the
+ * one of the root composer.json, and patterns and lock, nothing and mirrors are no packages. Platform packages (php,
+ * ext-*) are not installed by Composer. composer install installs composer.lock, so only what its options weaken
+ * counts, as for any other command. A command word that is not the exact name of the command it stands for is kept
+ * with the requests, since the scripts of composer.json may make it stand for a script or for nothing.
+ */
+function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest: readonly Word[], line: string, depth: number): CommandScan {
+  const values = new Map<string, string[]>();
+  const found: Found[] = [];
+  let arguments_ = false;
+  for (let index = 0; index < rest.length; index++) {
+    const word = rest[index] as Word;
+    if (!arguments_ && word.text === '--') {
+      arguments_ = true;
+      continue;
+    }
+    if (arguments_ || !isOption(word.text)) continue;
+    if (word.dynamic) return unreadable(`${shown(line)}: ${expanded(word)}`);
+    const option = readOption(rest, index, tool, (name) => tool.valueOptions.has(name));
+    if (option.next?.dynamic === true) return unreadable(`${shown(line)}: "${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell`);
+    const setting = registryOption(tool, option.name, option.value);
+    if (setting !== undefined) return unreadable(`${shown(line)}: ${setting}`);
+    const override = overrideOption(tool, option.name, option.value, option.next === undefined ? word.text : `${word.text} ${option.next.text}`);
+    if (override !== undefined) found.push(override);
+    if (option.value !== undefined) values.set(option.name, [...(values.get(option.name) ?? []), option.value]);
+    if (option.next !== undefined) index += 1;
+  }
+  // The words the command binds as arguments: every word that is no option or option value, and each after --.
+  const positionalOf = (words: readonly Word[]): Word[] => {
+    const list: Word[] = [];
+    let after = false;
+    for (let index = 0; index < words.length; index++) {
+      const word = words[index] as Word;
+      if (!after && word.text === '--') {
+        after = true;
+        continue;
+      }
+      if (after || !isOption(word.text)) {
+        list.push(word);
+        continue;
+      }
+      if (readOption(words, index, tool, (name) => tool.valueOptions.has(name)).next !== undefined) index += 1;
+    }
+    return list;
+  };
+  const scan = managerScan(line, found);
+  const names = tool.commandNames;
+  const resolve = (word: Word) => (names === undefined ? word.text : commandName(names, word.text));
+  const options = tool.applicationOptions ?? [];
+  const commandWord = (words: readonly Word[]): Word | undefined => words[commandWordIndex(words.map((word) => word.text), options)];
+  const head = commandWord(rest);
+  if (head === undefined) return scan;
+  if (head.dynamic) return unreadable(`${shown(line)}: ${expanded(head, 'the subcommand ')}`);
+  let command = resolve(head);
+  // An alias or abbreviation of a command: the scripts of composer.json may change what it stands for (decision D-136).
+  const marker = names !== undefined && command !== head.text && (names.commands.includes(command) || Object.hasOwn(names.aliases, command)) ? { word: head.text, command } : undefined;
+  let operands = positionalOf(rest).slice(1);
+  let readsManifest = true;
+  if (command === facts.global) {
+    // composer global runs the input again without the global word, in COMPOSER_HOME, whose composer.json depcurfew does not read.
+    readsManifest = false;
+    const inner = rest.filter((word) => word !== head);
+    const innerHead = commandWord(inner);
+    if (innerHead === undefined) return scan;
+    if (innerHead.dynamic) return unreadable(`${shown(line)}: ${expanded(innerHead, 'the subcommand ')}`);
+    command = resolve(innerHead);
+    operands = positionalOf(inner).slice(1);
+  }
+  const dynamic = operands.find((word) => word.dynamic);
+  const platform = new RegExp(facts.platformPackages, 'iu');
+  const requests: InstallRequest[] = [];
+  const request = (name: string, constraint: string | undefined, extra: Pick<InstallRequest, 'readsManifest' | 'fromManifest'> = {}) => {
+    if (platform.test(name)) return;
+    requests.push({
+      tool: tool.tool,
+      command: line,
+      spec: `${COMPOSER_PREFIX}${name.toLowerCase()}${constraint === undefined ? '' : `:${constraint}`}`,
+      ...(readsManifest ? {} : { readsManifest: false }),
+      ...extra,
+      ...(marker === undefined ? {} : { composerCommand: marker }),
+    });
+  };
+  const option = (names: readonly string[]) => names.flatMap((name) => values.get(name) ?? []);
+  if (command === facts.require) {
+    if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic)}`);
+    for (const pair of composerPairs(operands.map((word) => word.text), facts)) request(pair.name, pair.constraint);
+  } else if (command === facts.update) {
+    if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic)}`);
+    const constrained = new RegExp(`^(\\S+?)[${facts.pairSeparators.map((separator) => separator.replace(/[\\\]^-]/gu, '\\$&')).join('')}](\\S.*)$`, 'su');
+    for (const text of [...operands.map((word) => word.text), ...option([facts.withOption])]) {
+      if (facts.updateLockWords.includes(text) || text.includes('*')) continue;
+      const pair = constrained.exec(text.trim());
+      if (pair !== null) request(pair[1] as string, pair[2] as string);
+      else if (values.get(facts.withOption)?.includes(text)) continue;
+      // composer global update takes the constraint from the composer.json of COMPOSER_HOME (decision D-136).
+      else if (!readsManifest) return unreadable(`${shown(line)}: Composer takes the version of ${shown(text)} ${GLOBAL_CONSTRAINT}`);
+      else request(text, undefined, { fromManifest: true });
+    }
+  } else if (command === facts.createProject) {
+    if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic)}`);
+    readsManifest = false;
+    const [pkg, , version] = operands;
+    const stability = option(facts.stabilityOptions).at(-1);
+    if (pkg !== undefined) {
+      const [root] = composerPairs([pkg.text], facts);
+      const constraint = version?.text ?? root?.constraint;
+      const flagged = stability === undefined ? constraint : `${(constraint ?? '*').replace(/@[a-z]+$/iu, '')}@${stability}`;
+      if (root !== undefined) request(root.name, flagged);
+    }
+    for (const pair of composerPairs(option([facts.requireOption]), facts)) request(pair.name, pair.constraint);
+  } else {
+    // Another command (install, remove, exec, run-script): what its options weaken, and a package manager it runs.
+    merge(scan, laterCommand(operands, depth));
+    return scan;
+  }
+  scan.requests.push(...requests);
+  return scan;
+}
+
 /** A variable set anywhere on the line that may point a package manager at another registry or configuration file. */
-function registryAssignment(items: readonly Item[]): string | undefined {
+function registryAssignment(items: readonly Item[], shell: Shell): string | undefined {
   for (const item of items) {
     if (item.kind !== 'word') continue;
     const name = ASSIGNMENT.exec(item.word.text)?.[1];
-    const setting = name === undefined ? undefined : registryVariable(name, item.word.dynamic ? undefined : item.word.text.slice(name.length + 1));
+    const setting = name === undefined ? undefined : registryVariable(name, item.word.dynamic ? undefined : item.word.text.slice(name.length + 1), shell);
     if (setting !== undefined) return setting;
   }
   return undefined;
@@ -3015,42 +3753,71 @@ function namedRunner(text: string): string | undefined {
 }
 
 /**
- * A variable that may point a package manager at another registry, or change the version it picks, named anywhere in
- * a PowerShell line outside the $env:NAME = value assignments that were read (Set-Item env:…, ${env:…} = …,
+ * The names of environment variables a PowerShell line (without the $env:NAME = value assignments that were read)
+ * may set (decision D-138): those its Env: operations and [Environment]::SetEnvironmentVariable name, as PowerShell
+ * binds their parameters (powerShellEnvironment), and every other word, without backtick escapes and quotes, unless it
+ * is named like a package manager's program (COMPOSER, decision D-136): the word composer is the command, or a string
+ * (& 'composer', Write-Output 'composer'), and the variable only where PowerShell takes a variable name.
+ */
+function powerShellNames(text: string, environment: PowerShellEnvironment): string[] {
+  const { executables } = commands();
+  const plain = text.replace(/`([\s\S])/gu, '$1').replace(/['"\u2018-\u201e]/gu, '');
+  const words = (plain.match(/[A-Za-z0-9_]+/gu) ?? []).filter((word) => !executables.has(word.toLowerCase()));
+  return [...environment.names, ...words];
+}
+
+/**
+ * A variable that may point a package manager at another registry, or change the version it picks, that a PowerShell
+ * line names outside the $env:NAME = value assignments that were read (Set-Item env:…, ${env:…} = …,
  * [Environment]::SetEnvironmentVariable(…)).
  */
-function namedSetting(text: string): string | undefined {
+function namedSetting(names: readonly string[]): string | undefined {
   const { configVariables, registryVariables, selectionVariables } = commands();
-  for (const piece of text.split(/[^A-Za-z0-9_]+/u)) {
-    const lower = piece.toLowerCase();
-    if (configVariables.has(lower) || registryVariables.has(lower)) return anotherRegistry(piece);
-    if (selectionVariables.has(lower)) return `${piece} ${SET_UNREAD}`;
+  for (const name of names) {
+    const lower = name.toLowerCase();
+    if (configVariables.has(lower) || registryVariables.has(lower)) return anotherRegistry(name);
+    if (selectionVariables.has(lower)) return `${name} ${SET_UNREAD}`;
   }
   return undefined;
 }
 
 /** A variable that weakens the delay or the rule on install scripts, named in a PowerShell line outside what was read. */
-function namedOverride(text: string): string | undefined {
+function namedOverride(names: readonly string[]): string | undefined {
   const { overrideVariables } = commands();
-  const piece = text.split(/[^A-Za-z0-9_]+/u).find((part) => overrideVariables.has(part.toLowerCase()));
-  return piece === undefined ? undefined : `${piece} ${OVERRIDE_UNREAD}`;
+  const name = names.find((entry) => overrideVariables.has(entry.toLowerCase()));
+  return name === undefined ? undefined : overrideUnread(name);
+}
+
+/**
+ * Why a variable that weakens the delay, the rule on install scripts or a protection of the package manager counts when
+ * depcurfew cannot read its value (decision D-142): what it may do, as the switch of each tool that reads it says.
+ */
+function overrideUnread(name: string): string {
+  const entries = commands().overrideVariables.get(name.toLowerCase()) ?? [];
+  const guarding = entries.find(({ entry }) => entry.weakens === 'protection');
+  if (guarding !== undefined) return `${name} ${SET_IN_UNREAD_WAY}, and with some values it ${protectionText(protection(guarding.entry))}`;
+  const scripts = entries.some(({ entry }) => entry.weakens === 'scripts');
+  const delay = entries.some(({ entry }) => entry.weakens === 'delay');
+  const may = [...(delay ? ['shorten the release-age delay'] : []), ...(scripts ? ['let dependency install scripts run'] : [])];
+  return `${name} ${SET_IN_UNREAD_WAY}, which may ${may.length === 0 ? '' : `${may.join(' or ')} and `}weaken ${WEAKENS}`;
 }
 
 /**
  * Variables set anywhere on the line that weaken the delay or the rule on install scripts (installOverrides), with the
  * directory of the command they are set on (`placeOf`).
  */
-function overrideAssignments(items: readonly Item[], line: string, placeOf: ReadonlyMap<Word, CommandDirectory>): Override[] {
+function overrideAssignments(items: readonly Item[], line: string, placeOf: ReadonlyMap<Word, CommandDirectory>, shell: Shell): Override[] {
   const { overrideVariables } = commands();
   const found: Override[] = [];
   for (const item of items) {
     if (item.kind !== 'word') continue;
     const name = ASSIGNMENT.exec(item.word.text)?.[1];
-    if (name === undefined) continue;
+    const key = name === undefined ? undefined : variableKey(name, shell);
+    if (name === undefined || key === undefined) continue;
     const value = item.word.text.slice(name.length + 1);
     const place = placeOf.get(item.word);
-    for (const { tool, entry } of overrideVariables.get(name.toLowerCase()) ?? []) {
-      const base = { tool, command: line, written: item.word.text, weakens: entry.weakens, ...(place === undefined ? {} : { directory: place }) };
+    for (const { tool, entry } of overrideVariables.get(key) ?? []) {
+      const base = { tool, command: line, written: item.word.text, weakens: entry.weakens, ...protection(entry), ...(place === undefined ? {} : { directory: place }) };
       if (item.word.dynamic) found.push({ ...base, expanded: true });
       else if (weakensWith(entry.values, value)) found.push({ ...base, ...(entry.values === 'delay' ? { delay: value } : {}) });
     }
@@ -3082,21 +3849,27 @@ function writesNothing(command: SimpleCommand): boolean {
 /** Commands that set a variable for the commands after them (export UV_PROJECT=sub; cmd's set NAME=value). */
 const SETTERS = new Set(['export', 'declare', 'typeset', 'readonly', 'local', 'set']);
 
+/** The words of a command that set variables for the commands after it: the operands of export or set, or a command of assignments only. */
+function setterWords(words: readonly Word[]): readonly Word[] {
+  const head = words[0];
+  if (head !== undefined && !head.dynamic && SETTERS.has(head.text.toLowerCase())) return words.slice(1);
+  return words.every((word) => ASSIGNMENT.test(word.text)) ? words : [];
+}
+
 /**
  * A variable that moves a package manager's command to another directory (UV_PROJECT), set on the line apart from the
  * command (export UV_PROJECT=sub; uv add x): depcurfew does not follow it, so the installs of the tools that read it
  * cannot be placed. Variables set for one command alone are read with it (toolDirectory).
  */
-function directoryAssignments(commandList: readonly SimpleCommand[], scan: CommandScan): void {
+function directoryAssignments(commandList: readonly SimpleCommand[], scan: CommandScan, shell: Shell): void {
   const { directoryVariables, tools } = commands();
   for (const command of commandList) {
     const words = command.words;
-    const head = words[0];
-    const setters = head !== undefined && !head.dynamic && SETTERS.has(head.text.toLowerCase()) ? words.slice(1) : words.every((word) => ASSIGNMENT.test(word.text)) ? words : [];
-    for (const word of setters) {
+    for (const word of setterWords(words)) {
       const name = ASSIGNMENT.exec(word.text)?.[1];
-      if (name === undefined || !directoryVariables.has(name.toLowerCase())) continue;
-      const readers = new Set(tools.filter((tool) => tool.directories?.variables.some((entry) => entry.name.toLowerCase() === name.toLowerCase()) === true).map((tool) => tool.tool));
+      const key = name === undefined ? undefined : variableKey(name, shell);
+      if (name === undefined || key === undefined || !directoryVariables.has(key)) continue;
+      const readers = new Set(tools.filter((tool) => tool.directories?.variables.some((entry) => entry.name.toLowerCase() === key) === true).map((tool) => tool.tool));
       const reason = `${name} is set by "${shown(joined(words))}" apart from the command, which may move it to another directory`;
       for (const entry of [...scan.requests, ...(scan.overrides ?? [])]) if (readers.has(entry.tool)) entry.directory = { unknown: reason };
     }
@@ -3151,6 +3924,8 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
   }
   noteWords(reading.items);
   const scan: CommandScan = { requests: [], unreadable: reading.unreadable };
+  /** Variables the line sets in ways depcurfew does not read that weaken an install (decision D-143), arithmetic of the line first. */
+  const unread = unreadOverrides(line, undefined);
   // Each install runs in the directory the shell is in when its command runs (decision D-118).
   const walk = new DirectoryWalk(shell);
   /** Where the words of each command run, for the variables set on the line. */
@@ -3180,6 +3955,9 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     walk.begin(command.words, bounds);
     // The command lines in its words (and before them) run first, where the command runs.
     while (next < pending.length && (pending[next]?.at ?? Infinity) < (command.to ?? 0)) nested(pending[next++] as LineReading['nested'][number]);
+    // PowerShell lines name their variables otherwise (powerShellNames, decision D-138).
+    if (shell !== 'powershell') noteSettings(command, shell);
+    appendAll(unread, unreadOverrides(line, walk.place));
     // Only assignments are looked up (overrideAssignments).
     for (const word of command.words) if (word.text.includes('=')) placeOf.set(word, walk.place);
     // mkdir: a cd into the directory it creates later on the line need not find it (decision D-119).
@@ -3187,6 +3965,8 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     const created = start === -1 ? undefined : createdDirectories(command.words.slice(start), shell);
     if (created !== undefined) walk.create(created.paths, created.parents);
     const found = scanCommand(command, depth);
+    // The code of python -c or node -e that the command runs (codeSets).
+    appendAll(unread, unreadOverrides(line, walk.place));
     add(found);
     if (found.moves !== undefined) walk.changes(found.moves, command.words, bounds);
     // An activation script run after a command that may write files is not trusted (decision D-123).
@@ -3194,34 +3974,78 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
   }
   while (next < pending.length) nested(pending[next++] as LineReading['nested'][number]);
   walk.finish();
+  // PowerShell: the variables the line names in other ways than the assignments read (decision D-138), read once.
+  let names: { list: string[]; unresolved?: string } | undefined;
+  const powerShell = (named: string) => {
+    if (names !== undefined) return names;
+    const environment = powerShellEnvironment(named);
+    names = { list: powerShellNames(named, environment), ...(environment.unresolved === undefined ? {} : { unresolved: environment.unresolved }) };
+    return names;
+  };
+  appendAll(unread, unreadOverrides(line, undefined));
+  if (unread.length > 0) appendAll((scan.overrides ??= []), unread);
   if (scan.requests.length > 0) {
-    const setting = registryAssignment(reading.items) ?? (reading.named === undefined ? undefined : namedSetting(reading.named));
+    const setting = registryAssignment(reading.items, shell) ?? (reading.named === undefined ? undefined : namedSetting(powerShell(reading.named).list));
     if (setting !== undefined) scan.unreadable ??= `${shown(line)}: ${setting}`;
-    const selection = selectionAssignments(reading.items);
+    const selection = selectionAssignments(reading.items, shell);
     if ('unreadable' in selection) scan.unreadable ??= `${shown(line)}: ${selection.unreadable}`;
     // Variables set on this line count before those of the lines inside it, which come in first.
     else for (const request of scan.requests) PENDING.get(request)?.variables.unshift(...selection.set);
-  }
+  } else if (depth > 0) innerAssignments(reading.items, commandList, shell);
   if (scan.requests.length > 0 || scan.manager === true) {
     // npm_config_ignore_scripts=false npm ci weakens that install as much as npm i lodash.
-    const found = overrideAssignments(reading.items, shown(line), placeOf);
+    const found = overrideAssignments(reading.items, shown(line), placeOf, shell);
     if (found.length > 0) appendAll((scan.overrides ??= []), found);
-    const named = reading.named === undefined ? undefined : namedOverride(reading.named);
-    if (named !== undefined) scan.unreadable ??= `${shown(line)}: ${named}`;
-    directoryAssignments(commandList, scan);
+    if (reading.named !== undefined) {
+      const found = powerShell(reading.named);
+      const named = namedOverride(found.list) ?? (found.unresolved === undefined ? undefined : `"${shownText(found.unresolved)}" ${ENV_NAME_UNREAD}`);
+      if (named !== undefined) scan.unreadable ??= `${shown(line)}: ${named}`;
+    }
+    directoryAssignments(commandList, scan, shell);
+  } else if (depth > 0 && shell !== 'powershell') {
+    // export npm_config_ignore_scripts=false in eval or an alias weakens the installs after it (decision D-143).
+    const found = overrideAssignments(reading.items, shown(line), placeOf, shell);
+    for (const override of found) withInstalls.add(override);
+    if (found.length > 0) appendAll((scan.overrides ??= []), found);
   }
   if (walk.moves.length > 0) scan.moves = walk.moves;
   return scan;
 }
 
+/**
+ * The assignments of a line inside the command line (eval, an alias, a trap, sh -c, $(…)) without an install of its
+ * own, which count for the installs of the whole command line (decision D-143): a variable that points a package
+ * manager at another registry is read with its value, one that changes the version it picks or the directory it
+ * runs in counts as set to a value depcurfew does not read. (Overrides are read with their values by scanLine.)
+ */
+function innerAssignments(items: readonly Item[], commandList: readonly SimpleCommand[], shell: Shell): void {
+  if (shell === 'powershell') return;
+  const setting = registryAssignment(items, shell);
+  if (setting !== undefined) innerSetting ??= setting;
+  const selection = selectionAssignments(items, shell);
+  if ('unreadable' in selection) innerSetting ??= selection.unreadable;
+  else for (const { name } of selection.set) noteSet(name, `${name}=…`, shell);
+  const { directoryVariables } = commands();
+  for (const command of commandList) {
+    for (const word of setterWords(command.words)) {
+      const name = ASSIGNMENT.exec(word.text)?.[1];
+      const key = name === undefined ? undefined : variableKey(name, shell);
+      if (name !== undefined && key !== undefined && directoryVariables.has(key)) noteSet(name, shown(joined(command.words)), shell);
+    }
+  }
+  // Overrides of the line are read with their values; these names are no overrides.
+  noted = [];
+}
+
 /** Variables set anywhere on the line that may change the version a package manager picks or whether it builds from source. */
-function selectionAssignments(items: readonly Item[]): { set: { name: string; value: string }[] } | { unreadable: string } {
+function selectionAssignments(items: readonly Item[], shell: Shell): { set: { name: string; value: string }[] } | { unreadable: string } {
   const { selectionVariables } = commands();
   const set: { name: string; value: string }[] = [];
   for (const item of items) {
     if (item.kind !== 'word') continue;
     const name = ASSIGNMENT.exec(item.word.text)?.[1];
-    if (name === undefined || !selectionVariables.has(name.toLowerCase())) continue;
+    const key = name === undefined ? undefined : variableKey(name, shell);
+    if (name === undefined || key === undefined || !selectionVariables.has(key)) continue;
     if (item.word.dynamic) return { unreadable: `${name} ${VERSION_SETTING}` };
     set.push({ name, value: item.word.text.slice(name.length + 1) });
   }
@@ -3258,24 +4082,41 @@ function settle(request: InstallRequest): InstallRequest {
 export interface ScanOptions {
   /** The shell that runs the line: a POSIX shell (the default; also Git Bash) or PowerShell. */
   shell?: 'posix' | 'powershell';
+  /**
+   * The line runs on Windows (by default where depcurfew runs), whose programs do not tell the names of environment
+   * variables apart by case, so a POSIX shell's Composer=… sets COMPOSER there too (decision D-143).
+   */
+  windows?: boolean;
 }
 
 /** The packages a command line installs or downloads to run with npm, pnpm, Yarn, Bun, Deno, pip, uv, Poetry, PDM, Pipenv or pipx. */
 export function scanCommandLine(line: string, options: ScanOptions = {}): CommandScan {
-  const previous = { aliases, expanding, work, variables, translated };
+  const previous = { aliases, expanding, work, variables, translated, unreadSets, noted, builtSetting, innerSetting, withInstalls, onWindows };
   aliases = new Map();
   expanding = new Set();
   work = new Work();
   variables = shellVariables('');
   translated = false;
+  unreadSets = new Map();
+  noted = [];
+  builtSetting = undefined;
+  innerSetting = undefined;
+  withInstalls = new WeakSet();
+  onWindows = options.windows ?? process.platform === 'win32';
   try {
     const scan = scanLine(line, 0, options.shell ?? 'posix');
+    const installs = scan.requests.length > 0 || scan.manager === true;
+    if (installs) unreadDirectories(scan);
+    // A variable set in a way depcurfew does not read matters to every install of the line (decisions D-142 and D-143).
+    const setting = installs ? unreadSetting(scan) : undefined;
     // A change of the configuration matters to the installs next to it, also those without names (npm config set … && npm ci).
-    const unreadable = scan.unreadable ?? (scan.requests.length > 0 || scan.manager === true ? scan.changes : undefined);
-    const overrides = scan.overrides?.map(({ directory, ...override }) => ({ ...override, ...shownDirectory(directory) }));
+    const unreadable = scan.unreadable ?? (setting === undefined ? undefined : `${shown(line)}: ${setting}`) ?? (installs ? scan.changes : undefined);
+    // Variables set apart from an install count only next to one (decision D-143).
+    const counted = scan.overrides?.filter((override) => installs || !withInstalls.has(override)) ?? [];
+    const overrides = counted.length === 0 ? undefined : counted.map(({ directory, ...override }) => ({ ...override, ...shownDirectory(directory) }));
     return { requests: scan.requests.map(settle), unreadable, ...(overrides === undefined ? {} : { overrides }) };
   } finally {
-    ({ aliases, expanding, work, variables, translated } = previous);
+    ({ aliases, expanding, work, variables, translated, unreadSets, noted, builtSetting, innerSetting, withInstalls, onWindows } = previous);
   }
 }
 
@@ -3308,14 +4149,22 @@ export function overrideDoubt(overrides: readonly Override[] | undefined, polici
   const scriptsFile = fileOf(denying);
   for (const override of overrides ?? []) {
     const where = `${shown(override.command)}: ${override.written}`;
+    // Composer's blocking of versions flagged as malware is not part of the policy, so turning it off asks whatever the
+    // policy says (decision D-133).
+    // Set by a builtin or another form whose value depcurfew does not read (decision D-143): its worst value counts.
+    const unknown = override.unread === true ? SET_IN_UNREAD_WAY : override.expanded === true ? 'is set to a value the shell expands' : undefined;
+    if (override.weakens === 'protection') {
+      if (unknown !== undefined) return `${where} ${unknown}, and with some values it ${protectionText(override)}`;
+      return `${where} ${protectionText(override)}`;
+    }
     if (override.weakens === 'scripts') {
       if (denying === -1) continue;
-      if (override.expanded === true) return `${where} is set to a value the shell expands, which may turn on dependency install scripts that ${scriptsFile} restricts, and may weaken ${WEAKENS}`;
+      if (unknown !== undefined) return `${where} ${unknown}, which may turn on dependency install scripts that ${scriptsFile} restricts, and may weaken ${WEAKENS}`;
       return `${where} lets dependency install scripts run that ${scriptsFile} restricts, and weakens ${WEAKENS}`;
     }
     if (required <= 0) continue;
     const policy = formatMinutes(required);
-    if (override.expanded === true) return `${where} is set to a value the shell expands, so its release-age delay cannot be compared with the ${policy} in ${delayFile}, and may weaken ${WEAKENS}`;
+    if (unknown !== undefined) return `${where} ${unknown}, so its release-age delay cannot be compared with the ${policy} in ${delayFile}, and may weaken ${WEAKENS}`;
     if (override.delay === undefined) return `${where} changes the release-age delay of ${policy} that ${delayFile} requires, and weakens ${WEAKENS}`;
     const tool = knowledgeBase.find((entry) => entry.id === override.tool);
     const delay = tool === undefined ? undefined : delayMinutes(tool, override.delay, undefined);

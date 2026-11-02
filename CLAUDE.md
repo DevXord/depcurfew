@@ -1,7 +1,7 @@
 # Zasady projektu
 
 ## Cel
-CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa łańcucha dostaw dla npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Renovate i Dependabota oraz wykrywa konfigurację, która po cichu nie działa.
+CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa łańcucha dostaw dla npm, pnpm, Yarn, Bun, Deno, uv, pip, Poetry, PDM, Pipenv, Composera, Renovate i Dependabota oraz wykrywa konfigurację, która po cichu nie działa.
 
 ## Twarde reguły
 - To narzędzie bezpieczeństwa. Minimum zależności w czasie działania: wolno użyć wyłącznie `yaml` (zero zależności przechodnich), wszystko inne piszemy sami. Każda nowa zależność wymaga uzasadnienia w docs/decisions.md.
@@ -32,12 +32,13 @@ CLI, które z jednego pliku polityki generuje konfigurację bezpieczeństwa ła�
 - `npm run docs:readme` – przepisuje wygenerowane sekcje README.md (baza wiedzy, polityka, reguły `doctor`, `action.yml`)
 - `npm run build:action` – buduje action/depcurfew.mjs dla GitHub Action; zatwierdzany w repozytorium, musi być zgodny ze źródłem
 - `npm run schema` – generuje schema.json z definicji polityki w src/policy/schema.ts
+- `npm run site` – buduje stronę dokumentacji w dist-site/ (poza gitem) z README.md, src/knowledge/ i schema.json; z `-- --versions` także dokumentację wcześniejszych wydań z tagów git. Stronę https://depcurfew.github.io wdraża workflow repozytorium depcurfew/depcurfew.github.io (jego pliki są w site/org-repo/)
 - `node dist/cli.js explain tests/fixtures/repos/<nazwa>` – ręczne sprawdzenie wykrywania na fiksturze
 - `node dist/cli.js doctor tests/fixtures/doctor/<reguła>/<przypadek>/repo` – ręczne sprawdzenie reguły `doctor` na fiksturze (`--json`, `--sarif`)
 - `node dist/cli.js apply --dry-run <katalog>` – podgląd zmian `apply` bez zapisu (katalog musi mieć `depcurfew.json`)
-- `node dist/cli.js check <paczka>` – ręczne sprawdzenie paczki w prawdziwym rejestrze npm, a `pypi:<paczka>` na PyPI (wymaga sieci; testy jej nie używają)
+- `node dist/cli.js check <paczka>` – ręczne sprawdzenie paczki w prawdziwym rejestrze npm, `pypi:<paczka>` na PyPI, a `composer:<vendor>/<paczka>` w Packagist; z `--osv` także w OSV.dev (wymaga sieci; testy jej nie używają)
 - `npm run data:popular` – odświeża listę popularnych paczek npm w src/knowledge/popular.ts; z `-- pypi` listę projektów PyPI w src/knowledge/popular-python.ts (wymaga sieci)
-- `npm run record:registry` – nagrywa na nowo odpowiedzi rejestru npm i PyPI dla testów `check` w tests/fixtures/registry i tests/fixtures/pypi; `-- npm` albo `-- pypi` tylko jeden z nich (wymaga sieci)
+- `npm run record:registry` – nagrywa na nowo odpowiedzi rejestru npm, PyPI i Packagist oraz OSV.dev dla testów `check` i `--osv` w tests/fixtures/registry, tests/fixtures/pypi, tests/fixtures/packagist i tests/fixtures/osv; `-- npm`, `-- pypi`, `-- packagist` albo `-- osv` tylko jeden z nich (wymaga sieci)
 
 ## Środowisko
 - Praca nad repozytorium wymaga Node ≥ 22.18: skrypty w scripts/ uruchamiamy natywnie z plików `.ts` (type stripping), a importy względne mają końcówkę `.ts`.

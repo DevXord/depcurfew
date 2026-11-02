@@ -1,0 +1,16 @@
+{
+    "require": {
+        "acme/x": "^1.0"
+    },
+    "config": {
+        "policy": {
+            "cooldown": {
+                "period": "3 days",
+                "ignore": [
+                    "acme/tools",
+                    "Acme/X"
+                ]
+            }
+        }
+    }
+}

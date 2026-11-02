@@ -1,0 +1,12 @@
+{
+    "require": {
+        "monolog/monolog": "^3.12"
+    },
+    "config": {
+        "disable-tls": "yes",
+        "allow-plugins": {
+            "*": true
+        },
+        "policy": false
+    }
+}

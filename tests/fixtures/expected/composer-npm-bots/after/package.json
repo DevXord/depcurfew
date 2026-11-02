@@ -1,0 +1,9 @@
+{
+  "name": "shop-assets",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "npm@11.21.1",
+  "allowScripts": {
+    "esbuild": true
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "app",
+  "private": true,
+  "devEngines": {
+    "packageManager": {
+      "name": "yarn",
+      "version": "^4.18.0"
+    }
+  }
+}

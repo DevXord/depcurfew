@@ -1,0 +1,56 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.json",
+      "line": 7
+    },
+    "message": "repositories[0] (https://packages.example.com) in composer.json sets require-published-time to false, which lets the cooldown count from the time the package author wrote into composer.json",
+    "fix": "Remove require-published-time from repositories[0] in composer.json, or move the packages that need it to a repository that does not"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.json",
+      "line": 12
+    },
+    "message": "repositories[1] (https://mirror.example.com) in composer.json sets filter to {\"malware\":false}, which skips the malware list that the repository advertises",
+    "fix": "Remove filter from repositories[1] in composer.json, or move the packages that need it to a repository that does not"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.json",
+      "line": 21
+    },
+    "message": "config.secure-http in composer.json is false, which allows downloads over plain HTTP: a package or its metadata can be changed on the way",
+    "fix": "Remove secure-http from config in composer.json, and serve the repository that needs it over HTTPS"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.json",
+      "line": 22
+    },
+    "message": "config.allow-plugins in composer.json is true, which lets every Composer plugin run its code, but installScripts in depcurfew.json denies dependency code by default",
+    "fix": "List the plugins that may run in installScripts.allow in depcurfew.json (with the prefix composer:) and run depcurfew apply, which replaces true with them"
+  },
+  {
+    "level": "error",
+    "location": {
+      "file": "composer.json",
+      "line": 26
+    },
+    "message": "config.policy.cooldown.block in composer.json is 0, which stops the cooldown from withholding new versions",
+    "fix": "Remove block from config.policy.cooldown in composer.json, then run depcurfew apply"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "composer.json",
+      "line": 29
+    },
+    "message": "config.policy.malware.block-scope in composer.json is \"update\", which blocks versions flagged as malware only on update, so composer install still installs them from composer.lock",
+    "fix": "Remove block-scope from config.policy.malware in composer.json"
+  }
+]

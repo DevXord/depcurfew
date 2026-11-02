@@ -166,9 +166,11 @@
             {
               "kind": "install",
               "tool": "npm",
-              "line": 2
+              "line": 2,
+              "afterCorepack": true
             }
-          ]
+          ],
+          "corepack": 2
         }
       ]
     }

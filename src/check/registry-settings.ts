@@ -20,10 +20,12 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { extraOf, isRecord, values } from '../apply/facts.ts';
 import { tomlValueAt, parseToml, type TomlDocument, type TomlValue } from '../detect/toml.ts';
 import { matchSegment, OutOfSteps, spendSteps, type StepBudget } from '../detect/wildcard.ts';
-import { iniEntries } from '../doctor/settings.ts';
+import { iniEntries, jsonSetting } from '../doctor/settings.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type {
   CommandLineParsing,
+  ComposerRootStabilityKnowledge,
+  ComposerScriptCommandsKnowledge,
   IndexEntriesKnowledge,
   IndexEntryEffect,
   NpmLocalPrefixKnowledge,
@@ -37,6 +39,7 @@ import { normalizePythonName } from '../policy/python-names.ts';
 import { withoutCredentials } from '../printable.ts';
 import { readLimited } from '../read-limited.ts';
 import { readYamlDocument } from '../yaml-parse.ts';
+import { scriptCommands, type ScriptCommands } from './composer-commands.ts';
 import { defaultIndex } from './pypi.ts';
 import { isMap, isScalar, type Node } from 'yaml';
 
@@ -79,6 +82,12 @@ export interface UnreadSetting {
   package?: string;
   /** Where the package is pinned to the index. */
   pin?: { file: string; line: number };
+  /**
+   * Composer (decision D-133): a repository the root composer.json declares, which Composer asks before Packagist, with
+   * its type; the entry that turns Packagist off; or a root composer.json that depcurfew did not read, with why, which
+   * may declare any repository (decision D-142).
+   */
+  composer?: { kind: 'repository'; type: string } | { kind: 'packagist-off' } | { kind: 'unread'; reason: string };
   /** replaces: the registry, index or dist-tag used instead of the one depcurfew used; adds: another place to install from. */
   effect: 'replaces' | 'adds';
   /** The URL (without credentials) or dist-tag it sets; undefined when depcurfew cannot read it (a variable, another type). */
@@ -495,6 +504,147 @@ function registrySettingFacts(tool: ToolId): readonly RegistrySettingKnowledge[]
 /** Whether a tool has registry settings of its own that depcurfew does not read. */
 export function hasRegistrySettings(tool: ToolId): boolean {
   return registrySettingFacts(tool).length > 0;
+}
+
+/** The root composer.json of an install: its repositories, the constraints it requires, and a file it could not read. */
+export interface ComposerProject {
+  /** The file, as messages show it; undefined when there is none. */
+  file?: string;
+  unread: UnreadSetting[];
+  /** The constraints of require and require-dev, by the package name in lower case. */
+  requires: ReadonlyMap<string, string>;
+  skipped: SkippedFile[];
+  /** minimum-stability (normalized as Composer does) and prefer-stable, when the file sets them (decision D-136). */
+  stability?: ComposerStability;
+  /** The scripts Composer registers as commands, when there are any it would accept (decision D-136). */
+  scripts?: ScriptCommands;
+  /**
+   * The file is in a parent directory of the one the install runs in. Composer uses it there only when it runs with a
+   * terminal and the user agrees, or with use-parent-dir true, and never with --working-dir; otherwise it stays where it
+   * is, without scripts and at the minimum stability stable (decision D-142).
+   */
+  inParent?: true;
+  /** The file is there, but depcurfew did not read it (too large, not a regular file): its require is not known (decision D-142). */
+  unreadable?: true;
+}
+
+/** How the root composer.json picks the stability of versions: minimum-stability and prefer-stable (decision D-136). */
+export interface ComposerStability {
+  minimum?: string;
+  preferStable: boolean;
+}
+
+/** minimum-stability and prefer-stable as RootPackageLoader reads them (extra.rootStability); undefined when neither is set. */
+function composerStability(manifest: Record<string, unknown>): ComposerStability | undefined {
+  const composer = knowledgeBase.find((tool) => tool.id === 'composer');
+  const facts = composer?.extra?.['rootStability'] === undefined ? undefined : (values(composer.extra['rootStability'])[0] as ComposerRootStabilityKnowledge | undefined);
+  if (facts === undefined) return undefined;
+  const minimum = manifest[facts.minimumStability];
+  const prefer = manifest[facts.preferStable];
+  if (minimum === undefined && prefer === undefined) return undefined;
+  // normalizeStability: lower case, RC for rc; another value makes Composer stop, so it changes nothing here.
+  const lower = typeof minimum === 'string' ? minimum.toLowerCase() : undefined;
+  const normalized = lower !== undefined && facts.values.includes(lower) ? (lower === 'rc' ? 'RC' : lower) : undefined;
+  // (bool) in PHP: false, 0, "", "0", null and [] are false.
+  const preferStable = !(prefer === undefined || prefer === null || prefer === false || prefer === 0 || prefer === '' || prefer === '0' || (Array.isArray(prefer) && prefer.length === 0));
+  return { ...(normalized === undefined ? {} : { minimum: normalized }), preferStable };
+}
+
+/** The scripts of composer.json that Composer would register as commands (extra.scriptCommands). */
+function composerScripts(manifest: Record<string, unknown>): ScriptCommands | undefined {
+  const composer = knowledgeBase.find((tool) => tool.id === 'composer');
+  const facts = composer?.extra?.['scriptCommands'] === undefined ? undefined : (values(composer.extra['scriptCommands'])[0] as ComposerScriptCommandsKnowledge | undefined);
+  return facts === undefined ? undefined : scriptCommands(manifest, facts);
+}
+
+/** Composer's names for its repositories setting and for the entry that turns Packagist off (extra.repositoryTypes). */
+function composerRepositoryFacts(): { manifest: string; disable: string; packagistUrl: string } {
+  const composer = knowledgeBase.find((tool) => tool.id === 'composer');
+  const manifests = composer?.project?.manifests;
+  const manifest = (manifests === undefined ? undefined : values(manifests)[0]?.[0]) ?? 'composer.json';
+  const types = composer === undefined ? undefined : extraOf(composer, 'repositoryTypes', (value): value is { disable: string } => isRecord(value) && typeof value['disable'] === 'string');
+  const api = composer === undefined ? undefined : extraOf(composer, 'packagistApi', (value): value is { url: string } => isRecord(value) && typeof value['url'] === 'string');
+  return { manifest, disable: types?.disable ?? 'packagist.org', packagistUrl: api?.url ?? 'https://repo.packagist.org' };
+}
+
+/**
+ * The root composer.json of an install in `start` (decision D-133): the nearest one from `start` up to `top`. Composer
+ * takes the one of its working directory; without one, it takes the nearest one above only when it runs with a
+ * terminal and the user agrees, or with use-parent-dir true, and never with --working-dir (Application::doRunComposer,
+ * decision D-142), so a parent's file is marked `inParent`: its repositories still count, which is stricter, and its
+ * scripts and stability are read as ones that may not apply. Every repository it declares counts as a place the package
+ * may come from before Packagist, since Composer asks the repositories in order and the first that has a package is
+ * canonical for it; one that turns packagist.org off counts as well. A repository of type composer at the URL of
+ * Packagist is Packagist itself. A file depcurfew does not read (too large, not a regular file) counts as one that may
+ * declare any repository, since Composer reads it (decision D-142); one that does not parse stops Composer too.
+ */
+export function composerProject(start: string, top: string): ComposerProject {
+  const facts = composerRepositoryFacts();
+  const first = realPath(start);
+  const last = realPath(top);
+  const empty: ComposerProject = { unread: [], requires: new Map(), skipped: [] };
+  for (let directory = first; ; directory = dirname(directory)) {
+    const path = join(directory, facts.manifest);
+    const file = shownFile(last, path);
+    const read = readConfig(path);
+    if (read !== undefined) {
+      const parent = directory === first ? {} : { inParent: true as const };
+      if (!('text' in read)) {
+        const unread: UnreadSetting = { tool: 'composer', file, line: 1, applies: 'all', effect: 'adds', composer: { kind: 'unread', reason: read.skipped } };
+        return { ...empty, file, ...parent, unread: [unread], skipped: [{ file, reason: read.skipped }], unreadable: true };
+      }
+      let manifest: unknown;
+      try {
+        manifest = JSON.parse(read.text) as unknown;
+      } catch {
+        return { ...empty, file, ...parent, skipped: [{ file, reason: 'it cannot be parsed' }] };
+      }
+      if (!isRecord(manifest)) return { ...empty, file, ...parent, skipped: [{ file, reason: 'it is not a JSON object' }] };
+      const stability = composerStability(manifest);
+      const scripts = composerScripts(manifest);
+      return {
+        file,
+        unread: composerRepositories(read.text, manifest, file, facts),
+        requires: composerRequires(manifest),
+        skipped: [],
+        ...parent,
+        ...(stability === undefined ? {} : { stability }),
+        ...(scripts === undefined ? {} : { scripts }),
+      };
+    }
+    if (directory === last || !isInside(last, directory) || dirname(directory) === directory) return empty;
+  }
+}
+
+function composerRepositories(text: string, manifest: Record<string, unknown>, file: string, facts: ReturnType<typeof composerRepositoryFacts>): UnreadSetting[] {
+  const list = manifest['repositories'];
+  const entries: [string | number, unknown][] = Array.isArray(list) ? list.map((entry, index): [number, unknown] => [index, entry]) : isRecord(list) ? Object.entries(list) : [];
+  const unread: UnreadSetting[] = [];
+  for (const [key, entry] of entries) {
+    const line = jsonSetting(text, ['repositories', key])?.line ?? jsonSetting(text, ['repositories'])?.line ?? 1;
+    const base = { tool: 'composer' as const, file, line, applies: 'all' as const };
+    // { "packagist.org": false } in the list, or "packagist.org": false in the object form (also the old name packagist).
+    const disabled = entry === false ? String(key) : isRecord(entry) && Object.keys(entry).length === 1 && Object.values(entry)[0] === false ? Object.keys(entry)[0] : undefined;
+    if (disabled !== undefined) {
+      if (disabled === facts.disable || `${disabled}.org` === facts.disable) unread.push({ ...base, effect: 'replaces', composer: { kind: 'packagist-off' } });
+      continue;
+    }
+    const type = isRecord(entry) && typeof entry['type'] === 'string' ? entry['type'].toLowerCase() : 'unknown';
+    const url = isRecord(entry) && typeof entry['url'] === 'string' ? urlValue(entry['url']) : undefined;
+    if (type === 'composer' && url !== undefined && sameRegistry(url, facts.packagistUrl)) continue;
+    unread.push({ ...base, effect: 'adds', composer: { kind: 'repository', type }, ...(url === undefined ? {} : { value: url }) });
+  }
+  return unread;
+}
+
+function composerRequires(manifest: Record<string, unknown>): Map<string, string> {
+  const requires = new Map<string, string>();
+  for (const section of ['require', 'require-dev']) {
+    const table = manifest[section];
+    if (!isRecord(table)) continue;
+    for (const [name, constraint] of Object.entries(table)) if (typeof constraint === 'string' && !requires.has(name.toLowerCase())) requires.set(name.toLowerCase(), constraint);
+  }
+  return requires;
 }
 
 /** The scope a key of a scopes table names, with @. */

@@ -6,7 +6,8 @@
 import { isRecord, values } from '../apply/facts.ts';
 import { environment } from '../knowledge/environment.ts';
 
-export type FetchLike = (url: string, init: { headers: Record<string, string>; signal: AbortSignal; redirect?: 'manual' }) => Promise<Response>;
+/** fetch as depcurfew calls it: a GET of a registry or index, or the POST of a batch query to OSV.dev (--osv, decision D-129). */
+export type FetchLike = (url: string, init: { headers: Record<string, string>; signal: AbortSignal; redirect?: 'manual'; method?: 'POST'; body?: string }) => Promise<Response>;
 
 export interface VersionDocument {
   version: string;
@@ -89,7 +90,13 @@ export async function fetchSameOrigin(url: string, init: { headers: Record<strin
     const location = response.headers.get('location');
     if (!REDIRECT_STATUSES.has(response.status) || location === null) return { response };
     await response.body?.cancel();
-    const next = new URL(location, current);
+    let next: URL;
+    try {
+      next = new URL(location, current);
+    } catch {
+      // The location is the text of the answer, which never reaches a message (decision D-142).
+      return { reason: `the ${what} redirected to a location that is not a URL, which depcurfew does not follow`, fix: `Check the ${what} URL; it redirects to something that is not a URL` };
+    }
     if (next.origin !== current.origin) {
       if (next.hostname === current.hostname) {
         const change = next.protocol === current.protocol ? 'another port of the same host' : `the same host over ${next.protocol.slice(0, -1)} instead of ${current.protocol.slice(0, -1)}`;
@@ -208,8 +215,19 @@ export function tooManyMembers(text: string, limits: Readonly<Record<string, num
   return undefined;
 }
 
+const NOT_A_PACKUMENT = 'the registry answered something that is not a package document';
+
+/**
+ * Why an answer could not be read, for a message: a document that is not JSON is named so, without the text of the
+ * answer that JSON.parse quotes in its error (decision D-142); the limits of readLimited and the time limit as they are.
+ */
+export function readError(error: unknown, notADocument: string): string {
+  if (error instanceof SyntaxError) return notADocument;
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** The lookup of a document with more than MAX_VERSIONS versions: not checked, with what to do. */
-export function tooManyVersions(name: string, what: 'registry' | 'index', listed = `${MAX_VERSIONS} versions`): { status: 'error'; reason: string; fix: string } {
+export function tooManyVersions(name: string, what: 'registry' | 'index' | 'repository', listed = `${MAX_VERSIONS} versions`): { status: 'error'; reason: string; fix: string } {
   return {
     status: 'error',
     reason: `the ${what} lists more than ${listed} of ${name}, more than depcurfew reads of one package, so its versions were not checked`,
@@ -274,8 +292,8 @@ export async function fetchPackument(name: string, options: { registry: string; 
     // Counted before the document is parsed (decision D-113); time also has created and modified.
     if (tooManyMembers(text, { [fields.versionsField]: MAX_VERSIONS, [fields.timeField]: MAX_VERSIONS + 2 }) !== undefined) return tooManyVersions(name, 'registry');
     const packument = toPackument(JSON.parse(text) as unknown, name);
-    return packument === undefined ? { status: 'error', reason: 'the registry answered something that is not a package document' } : { status: 'found', packument };
+    return packument === undefined ? { status: 'error', reason: NOT_A_PACKUMENT } : { status: 'found', packument };
   } catch (error) {
-    return { status: 'error', reason: error instanceof Error ? error.message : String(error) };
+    return { status: 'error', reason: readError(error, NOT_A_PACKUMENT) };
   }
 }

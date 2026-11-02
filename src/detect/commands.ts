@@ -20,6 +20,12 @@ export interface CommandFacts {
     cleanCommands: readonly string[];
     /** --ignore-scripts and npm_config_ignore_scripts=true turn dependency install scripts off (extra.scriptsOff). */
     scriptsOff?: { option: string; variable: string; value: string };
+    /**
+     * omit=optional, optional=false and include=optional, on the command line and as npm_config_* (extra.omitOptional,
+     * decision D-127), with the file of the project configuration (extra.localPrefix) and what it says, which the
+     * command line and the variables override key by key (decision D-143).
+     */
+    omitOptional?: { omit: string; value: string; alias: string; include: string; prefix: string; separator: string; projectFile?: string; project?: ProjectOptional };
   };
   /** pnpm, Yarn and Bun: install commands (pnpm install, pnpm i), add commands, and whether the bare tool installs (yarn). */
   others: readonly { tool: 'pnpm' | 'yarn' | 'bun'; install: readonly string[]; add: readonly string[]; bare: boolean; valueOptions: readonly string[] }[];
@@ -34,7 +40,8 @@ export interface CommandFacts {
     config?: { command: string; writes: readonly string[]; files: readonly string[] };
   };
   python: { executables: readonly string[]; moduleOption: string; commandOption: string; valueOptions: readonly string[] };
-  corepack: { enableCommand: string };
+  /** `corepack <command>`; `package`: the npm package of Corepack, installed with npm install -g (decision D-128). */
+  corepack: { enableCommand: string; package?: string };
   /** The package of Poetry and the commands that install it (pipx install, pip install; poetry extra.installedPackage). */
   poetry?: { name: string; commands: readonly (readonly string[])[] };
 }
@@ -251,6 +258,13 @@ type Found = Omit<ToolCommand, 'line' | 'directory'> & { offset: number; cd?: st
  */
 export type Environment = ReadonlyMap<string, string>;
 
+/** What the project .npmrc sets of omit, include and optional (decision D-143). */
+export interface ProjectOptional {
+  omit?: readonly string[];
+  include?: readonly string[];
+  optional?: string;
+}
+
 /**
  * Set in an Environment when a script sets more variables than depcurfew follows (MAX_ASSIGNMENTS): the later ones are
  * not read, so the variables of the commands after them cannot be told. No variable can have this name.
@@ -265,6 +279,8 @@ function readNames(facts: CommandFacts): ReadonlyMap<string, boolean> {
     const found = new Map<string, boolean>();
     const off = facts.npm.scriptsOff;
     if (off !== undefined) found.set(off.variable.toLowerCase(), true);
+    const optional = facts.npm.omitOptional;
+    if (optional !== undefined) for (const key of [optional.omit, optional.alias, optional.include]) found.set(`${optional.prefix}${key}`.toLowerCase(), true);
     const delay = facts.pip.delay;
     if (delay !== undefined) {
       found.set(delay.variable, false);
@@ -328,6 +344,57 @@ function scriptsOff(args: readonly Word[], environment: Environment, facts: Comm
   return off;
 }
 
+/**
+ * What npm does with the optional dependencies of an npm install whose command line or variables say something about
+ * them (decisions D-127 and D-143): `omitted` when it leaves them out (--omit=optional, --no-optional,
+ * npm_config_omit=optional), `kept` when include=optional or optional=true keeps them (include wins over any omit),
+ * absent when the command line and the variables do not name omit, include or optional, so that the project .npmrc
+ * decides alone (doctor reports it at its line). Each of omit, include and optional is one key: the command line wins
+ * over the variables, and both over the project .npmrc (buildOmitList in npm's definitions.js).
+ */
+function optionalDependencies(args: readonly Word[], environment: Environment, facts: CommandFacts): ToolCommand['optionalDependencies'] {
+  const known = facts.npm.omitOptional;
+  if (known === undefined) return undefined;
+  const fromVariable = (key: string): readonly string[] | undefined => {
+    const value = anyCase(environment, `${known.prefix}${key}`);
+    return value === undefined || value.trim() === '' ? undefined : value.trim().split(known.separator).map((item) => item.trim());
+  };
+  let omit = fromVariable(known.omit);
+  let include = fromVariable(known.include);
+  const alias = fromVariable(known.alias);
+  let optional: boolean | undefined = alias === undefined ? undefined : alias[0] === 'true' ? true : alias[0] === 'false' ? false : undefined;
+  /** optional is set, also to a value that is neither true nor false (npm_config_optional=yes). */
+  let optionalSet = alias !== undefined;
+  // The command line replaces a variable for the same key; a list option given twice adds to the list.
+  let omitOnLine: string[] | undefined;
+  let includeOnLine: string[] | undefined;
+  for (const [index, word] of args.entries()) {
+    const value = (option: string): string | undefined =>
+      word.text === `--${option}` ? args[index + 1]?.text : word.text.startsWith(`--${option}=`) ? word.text.slice(option.length + 3) : undefined;
+    const omitted = value(known.omit);
+    if (omitted !== undefined) omitOnLine = [...(omitOnLine ?? []), omitted];
+    const included = value(known.include);
+    if (included !== undefined) includeOnLine = [...(includeOnLine ?? []), included];
+    if (word.text === `--no-${known.alias}`) optional = false;
+    else if (word.text === `--${known.alias}`) optional = args[index + 1]?.text !== 'false';
+    else if (word.text.startsWith(`--${known.alias}=`)) {
+      const text = word.text.slice(known.alias.length + 3);
+      optional = text === 'false' ? false : text === 'true' ? true : optional;
+    }
+    if (word.text === `--no-${known.alias}` || word.text === `--${known.alias}` || word.text.startsWith(`--${known.alias}=`)) optionalSet = true;
+  }
+  omit = omitOnLine ?? omit;
+  include = includeOnLine ?? include;
+  if (omit === undefined && include === undefined && !optionalSet) return undefined;
+  // The project .npmrc gives the keys the command line and the variables leave unset (decision D-143).
+  const project = known.project;
+  omit ??= project?.omit;
+  include ??= project?.include;
+  if (!optionalSet && project?.optional !== undefined) optional = project.optional === 'true' ? true : project.optional === 'false' ? false : undefined;
+  if (include?.includes(known.value) === true || optional === true) return 'kept';
+  return omit?.includes(known.value) === true || optional === false ? 'omitted' : undefined;
+}
+
 function npmCommand(args: readonly Word[], at: number, facts: CommandFacts, environment: Environment): Found | undefined {
   const values = setOf(facts.npm.valueOptions);
   const index = firstOperand(args, values);
@@ -339,13 +406,27 @@ function npmCommand(args: readonly Word[], at: number, facts: CommandFacts, envi
   if (global && self !== undefined) return { kind: 'upgrade', tool: 'npm', version: self.text.includes('@') ? self.text.slice(4) || 'latest' : 'latest', offset: at };
   // npm install -g typescript installs a program for the machine; npm does not read the project .npmrc then.
   if (global && facts.npm.globalIgnoresProject) return undefined;
+  const optional = optionalDependencies(rest, environment, facts);
   return {
     kind: 'install',
     tool: 'npm',
     ...(facts.npm.cleanCommands.includes(command) ? { lockfile: true as const } : {}),
     ...(scriptsOff(rest, environment, facts) ? { scriptsOff: true as const } : {}),
+    ...(optional === undefined ? {} : { optionalDependencies: optional }),
     offset: at,
   };
+}
+
+/** npm install -g corepack (or corepack@<version>): it installs Corepack for the machine (decision D-128). */
+function installsCorepack(args: readonly Word[], facts: CommandFacts): boolean {
+  const name = facts.corepack.package;
+  if (name === undefined) return false;
+  const values = setOf(facts.npm.valueOptions);
+  const index = firstOperand(args, values);
+  const command = args[index]?.text;
+  if (command === undefined || !facts.npm.installCommands.includes(command)) return false;
+  const rest = args.filter((_, position) => position !== index);
+  return rest.some((word) => facts.npm.globalOptions.includes(word.text)) && operands(rest, values).some((word) => word.text === name || word.text.startsWith(`${name}@`));
 }
 
 /** pnpm install, pnpm i, pnpm add, yarn, yarn install, yarn add, bun install, bun add. */
@@ -476,6 +557,8 @@ export interface ScriptCommands {
   commands: Found[];
   runsNode: boolean;
   pipConfig?: true;
+  /** The offset of the first command that installs Corepack (npm install -g corepack) or runs it (decision D-128). */
+  corepack?: number;
   /**
    * `directory`: more than MAX_DIRECTORY_CHANGES cd commands (`changes`), or a directory longer than
    * MAX_DIRECTORY_LENGTH (`length`), so later installs run in a directory depcurfew cannot tell. `variables`: more
@@ -498,12 +581,15 @@ function readCommand(words: readonly Word[], facts: CommandFacts, depth: number,
     const script = args.find((_word, index) => index > 0 && isCommandOption(args[index - 1]?.text ?? ''));
     if (script !== undefined) {
       const { commands, ...inner } = findToolCommands(script.text, facts, depth + 1, seen);
-      return { ...inner, found: commands.map((item) => ({ ...item, offset: script.offset })) };
+      return { ...inner, ...(inner.corepack === undefined ? {} : { corepack: script.offset }), found: commands.map((item) => ({ ...item, offset: script.offset })) };
     }
   }
   const runsNode = NODE_EXECUTABLES.has(name);
-  if (name === 'npm') return { found: [npmCommand(args, first.offset, facts, seen)].filter((item) => item !== undefined), runsNode };
-  if (name === 'corepack') return { found: [corepackCommand(args, first.offset, facts)].filter((item) => item !== undefined), runsNode };
+  if (name === 'npm') {
+    const found = [npmCommand(args, first.offset, facts, seen)].filter((item) => item !== undefined);
+    return { found, runsNode, ...(installsCorepack(args, facts) ? { corepack: first.offset } : {}) };
+  }
+  if (name === 'corepack') return { found: [corepackCommand(args, first.offset, facts)].filter((item) => item !== undefined), runsNode, corepack: first.offset };
   const other = facts.others.find((entry) => entry.tool === name);
   if (other !== undefined) return { found: [otherCommand(other, args, first.offset)].filter((item) => item !== undefined), runsNode };
   if (name === 'pipx') return { found: pipxCommand(args, first.offset, facts), runsNode };
@@ -563,6 +649,7 @@ export function findToolCommands(script: string, facts: CommandFacts, depth = 0,
   const commands: Found[] = [];
   let runsNode = false;
   let pipConfig = false;
+  let corepack: number | undefined;
   const overLimit: NonNullable<ScriptCommands['overLimit']> = {};
   const variables = withVariables(facts, environment);
   let changes = 0;
@@ -625,6 +712,7 @@ export function findToolCommands(script: string, facts: CommandFacts, depth = 0,
     }
     runsNode ||= result.runsNode;
     pipConfig ||= result.pipConfig === true;
+    corepack ??= result.corepack;
     if (result.overLimit?.directory !== undefined) overLimit.directory ??= result.overLimit.directory;
     if (result.overLimit?.variables === true) overLimit.variables = true;
   }
@@ -632,6 +720,7 @@ export function findToolCommands(script: string, facts: CommandFacts, depth = 0,
     commands,
     runsNode,
     ...(pipConfig ? { pipConfig: true as const } : {}),
+    ...(corepack === undefined ? {} : { corepack }),
     ...(overLimit.directory !== undefined || overLimit.variables === true ? { overLimit } : {}),
   };
 }

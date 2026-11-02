@@ -1,0 +1,11 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".node-version",
+      "line": 1
+    },
+    "message": "devEngines.packageManager in package.json (line 4) pins yarn@^4.18.0, but Node.js lts/* in .node-version does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, yarn there is whatever Yarn is installed, or none",
+    "fix": "Install Corepack wherever Node.js lts/* is used for this project (npm install -g corepack, then corepack enable), as the Corepack README says for a Node.js without it"
+  }
+]

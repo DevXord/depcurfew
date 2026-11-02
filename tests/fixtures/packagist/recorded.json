@@ -1,0 +1,14 @@
+{
+  "recordedAt": "2026-11-02T10:30:11.129Z",
+  "repository": "https://repo.packagist.org",
+  "userAgent": "depcurfew-record",
+  "status": {
+    "monolog/monolog": 200,
+    "guzzlehttp/guzzle": 200,
+    "symfony/console": 200,
+    "php-http/discovery": 200,
+    "swiftmailer/swiftmailer": 200,
+    "intercom/intercom-php": 200,
+    "this-vendor-does-not-exist-xyz/nothing-123": 404
+  }
+}

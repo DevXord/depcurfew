@@ -1,0 +1,28 @@
+{
+  "changed": [
+    ".github/dependabot.yml",
+    ".npmrc",
+    "composer.json",
+    "package.json",
+    "renovate.json"
+  ],
+  "warnings": [
+    {
+      "code": "version-not-pinned",
+      "tool": "composer",
+      "message": "Composer: no exact version is pinned, so depcurfew configures for Composer 2.11.1, the latest version it knows",
+      "fix": "Use Composer 2.11.1 or a recent version wherever the project is installed; Composer has no setting that pins its version in the project"
+    },
+    {
+      "code": "allow-all-replaced",
+      "tool": "composer",
+      "location": {
+        "file": "composer.json",
+        "line": 6
+      },
+      "message": "Composer: config.allow-plugins in composer.json (line 6) allowed every plugin; replaced with the plugins installScripts.allow lists",
+      "fix": "Add the plugins that must run to installScripts.allow in depcurfew.json (with the prefix composer:), then run depcurfew apply again"
+    }
+  ],
+  "snippets": []
+}

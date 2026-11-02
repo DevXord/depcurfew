@@ -4,7 +4,7 @@
 import { join } from 'node:path';
 import { detectProject } from '../detect/index.ts';
 import { Repository } from '../detect/repository.ts';
-import { denyConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
+import { denyConflictText, outsideConflictText, remainingConflicts } from '../doctor/allow-lists.ts';
 import { UNREADABLE_WARNINGS } from '../doctor/unreadable-warnings.ts';
 import type { Detection, VersionDeclaration, WorkflowJob } from '../detect/types.ts';
 import { jobsInProject, npmInUse, rootPlaces, type NpmInUse, type RootPlaces } from '../doctor/rules/bundled-versions.ts';
@@ -23,6 +23,7 @@ import { shortenedDelays } from './delays.ts';
 import { isRecord, sinceOf, values } from './facts.ts';
 import { foldCase, ignoredByGit, ignoresCase, trackedFiles } from './gitignore.ts';
 import { bun } from './generators/bun.ts';
+import { composer } from './generators/composer.ts';
 import { workspaceText } from './generators/common.ts';
 import { createContext, EditFailed, type BotGenerator, type EditFailure, type ManagerGenerator, type Snippet } from './generators/context.ts';
 import { deno } from './generators/deno.ts';
@@ -44,6 +45,7 @@ import { parseVersion, pinnedVersion, type Version } from './version.ts';
 import { warningText, type ApplyErrorCode, type ApplyWarning } from './warnings.ts';
 import { CHANGED, OUTSIDE, WriteFailed, writeChanges, type FileChange } from './workspace.ts';
 import { policyIssueLine } from '../doctor/policy-lines.ts';
+import { deniedNeedingOptional, omittedOptionalText, optionalOmissions } from '../doctor/install-script-packages.ts';
 
 export type { FileChange } from './workspace.ts';
 export type { ProjectProblem } from './projects.ts';
@@ -109,7 +111,7 @@ export function planDetails(report: ApplyReport): PlanDetails | undefined {
   return DETAILS.get(report);
 }
 
-const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv };
+const MANAGERS: Partial<Record<ToolId, ManagerGenerator>> = { npm, pnpm, yarn, bun, deno, uv, pip, poetry, pdm, pipenv, composer };
 const BOTS: Partial<Record<ToolId, BotGenerator>> = { renovate, dependabot };
 
 function latestVersion(tool: ToolKnowledge): string | undefined {
@@ -169,19 +171,36 @@ function allowListWarnings(root: string, workspace: ManifestGuard, policy: Resol
       return remainingConflicts(repository, planned, manager.id, manager.configFiles, options, scripts).map((conflict): ApplyWarning => {
         const { entry } = conflict;
         const location = { file: entry.file, ...(entry.line === undefined ? {} : { line: entry.line }) };
+        // The tool's name first, as in the other warnings of apply (decision D-141).
+        const name = `${tool?.name ?? manager.id}: `;
         if (conflict.kind === 'outside') {
-          return {
-            code: 'allow-list-entry-outside-policy',
-            tool: manager.id,
-            location,
-            message: `${entry.setting} in ${entry.file}${entry.line === undefined ? '' : ` (line ${entry.line})`} lets ${entry.name} run install scripts, but ${POLICY_FILE} does not allow it; depcurfew apply does not remove entries it did not write`,
-            fix: `Remove ${entry.name} from ${entry.setting} by hand, or add ${entry.package} to installScripts.allow in ${POLICY_FILE}`,
-          };
+          const text = outsideConflictText(entry, true);
+          return { code: 'allow-list-entry-outside-policy', tool: manager.id, location, message: `${name}${text.message}; depcurfew apply does not remove entries it did not write`, fix: text.fix };
         }
         const text = denyConflictText({ kind: conflict.kind, entry }, true);
-        return { code: 'deny-conflicts-with-file', tool: manager.id, location, message: `${text.message}; depcurfew apply does not change entries it did not write`, fix: text.fix };
+        return { code: 'deny-conflicts-with-file', tool: manager.id, location, message: `${name}${text.message}; depcurfew apply does not change entries it did not write`, fix: text.fix };
       });
     });
+}
+
+/**
+ * deny-needs-optional-dependencies (decision D-127): a package of installScripts.deny that takes its binary from an
+ * optional dependency (esbuild), while npm leaves optional dependencies out somewhere (.npmrc, a CI job, a Dockerfile).
+ * The same places and text as lockfile-install-scripts in doctor, which also needs the package in the lockfile.
+ */
+function optionalDependencyWarnings(root: string, policy: ResolvedPolicy, detection: Detection, targets: ReadonlySet<ToolId>, tools: readonly ToolKnowledge[]): ApplyWarning[] {
+  const npmTool = tools.find((tool) => tool.id === 'npm');
+  if (policy.installScripts?.default !== 'deny' || npmTool === undefined || !targets.has('npm')) return [];
+  if (!detection.packageManagers.some((manager) => manager.id === 'npm' && manager.supported)) return [];
+  const denied = deniedNeedingOptional(policyFor(policy, 'npm').installScripts?.deny ?? []);
+  if (denied.length === 0) return [];
+  const places = optionalOmissions(new Repository(root), detection, npmTool);
+  return denied.flatMap((known) =>
+    places.map((place): ApplyWarning => {
+      const { message, fix } = omittedOptionalText(known, place);
+      return { code: 'deny-needs-optional-dependencies', tool: 'npm', location: place.location, message, fix };
+    }),
+  );
 }
 
 /**
@@ -380,10 +399,11 @@ export function planApply(root: string, policy: ResolvedPolicy, detection: Detec
   for (const tool of tools) {
     const generator = BOTS[tool.id];
     if (generator === undefined || !targets.has(tool.id)) continue;
-    run(tool, undefined, (context) => generator(context, duration));
+    run(tool, undefined, (context) => generator(context, duration, { workflows: detection.workflows }));
   }
 
   warnings.push(...allowListWarnings(root, workspace, policy, detection, targets, tools));
+  warnings.push(...optionalDependencyWarnings(root, policy, detection, targets, tools));
   const changes = workspace.changes();
   if (policy.cooldown !== undefined) warnings.push(...shortenedDelays(root, changes, detection, tools, targets, policy.cooldown.minimum.text));
   // A project's files may match a .gitignore of the root, which planRepository reads for all of them.
@@ -480,7 +500,13 @@ function byFile(a: FileChange, b: FileChange): number {
  * used is an error (`problems`), so that nothing is written; the other directories are still planned, so one run
  * reports everything.
  */
-export function planRepository(root: string, policy: ResolvedPolicy, tools: readonly ToolKnowledge[] = knowledgeBase, rootDetection: Detection = detectProject(root, tools)): ApplyReport {
+export function planRepository(
+  root: string,
+  policy: ResolvedPolicy,
+  tools: readonly ToolKnowledge[] = knowledgeBase,
+  // A package manager the root's CI sets up only for the projects is not the root's (decision D-137).
+  rootDetection: Detection = detectProject(root, tools, undefined, { projects: policy.projects }),
+): ApplyReport {
   if (policy.projects.length === 0) return planApply(root, policy, rootDetection, tools);
   const problems = projectProblems(root, policy.projects, rootDetection);
   const projects = policy.projects

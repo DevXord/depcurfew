@@ -1,0 +1,10 @@
+{
+  "name": "app",
+  "private": true,
+  "devEngines": {
+    "packageManager": {
+      "name": "npm",
+      "version": "^12.2.1"
+    }
+  }
+}

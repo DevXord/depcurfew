@@ -1,0 +1,62 @@
+{
+  "packageManagers": [
+    {
+      "id": "npm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "lockfile",
+          "file": "package-lock.json"
+        }
+      ],
+      "versions": [],
+      "configFiles": []
+    },
+    {
+      "id": "pnpm",
+      "supported": true,
+      "evidence": [
+        {
+          "kind": "ci",
+          "file": ".github/workflows/ci.yml"
+        }
+      ],
+      "versions": [],
+      "configFiles": []
+    }
+  ],
+  "node": {
+    "versions": []
+  },
+  "bots": [
+    {
+      "id": "dependabot",
+      "configFiles": [
+        ".github/dependabot.yml"
+      ]
+    }
+  ],
+  "workspaces": null,
+  "npmrcFiles": [],
+  "workflows": [
+    ".github/workflows/ci.yml"
+  ],
+  "jobs": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "id": "build",
+      "line": 3,
+      "commands": [
+        {
+          "kind": "install",
+          "tool": "pnpm",
+          "line": 8,
+          "directory": "app"
+        }
+      ],
+      "runsNode": true
+    }
+  ],
+  "dockerfiles": [],
+  "warnings": []
+}

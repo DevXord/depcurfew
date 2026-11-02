@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RULES, runDoctor } from '../../src/doctor/index.ts';
 import { PolicyError } from '../../src/apply/index.ts';
+import { runDoctorWithOsv } from '../../src/doctor/osv.ts';
+import { osvFetch } from '../support/osv.ts';
 
 const ROOT = fileURLToPath(new URL('../fixtures/doctor/', import.meta.url));
 
@@ -31,9 +33,13 @@ describe('doctor rules', () => {
   });
 
   const cases = RULES.flatMap((rule) => directories(join(ROOT, rule.id)).map((name) => [rule.id, name] as const));
-  it.each(cases)('%s / %s', (ruleId, name) => {
+  it.each(cases)('%s / %s', async (ruleId, name) => {
     const directory = join(ROOT, ruleId, name);
-    const report = runDoctor(join(directory, 'repo'), { invalidPolicy: 'report' });
+    // known-malicious runs with --osv only: it gets the recorded answers of OSV.dev (tests/fixtures/osv).
+    const report =
+      ruleId === 'known-malicious'
+        ? await runDoctorWithOsv(join(directory, 'repo'), { invalidPolicy: 'report' }, { fetch: osvFetch() })
+        : runDoctor(join(directory, 'repo'), { invalidPolicy: 'report' });
     const findings = report.findings
       .filter((finding) => finding.rule === ruleId)
       .map(({ rule: _rule, ...finding }) => finding);

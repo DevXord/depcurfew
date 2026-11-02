@@ -1,0 +1,11 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": "renovate.json",
+      "line": 4
+    },
+    "message": "Renovate proposes major updates after 1 day (minimumReleaseAge: \"1 day\" in packageRules[0] of renovate.json), but Composer waits 3 days (config.policy.cooldown.period: 259200 in composer.json); its pull requests bring in versions younger than Composer accepts, or fail where the lockfile is re-checked",
+    "fix": "Make minimumReleaseAge in packageRules[0] of renovate.json at least 3 days, or limit the rule to the packages that need a shorter delay"
+  }
+]

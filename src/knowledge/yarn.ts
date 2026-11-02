@@ -1,11 +1,13 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
+const novemberSecond = verifiedOn('2026-11-02');
+const release14 = verifiedOn('2026-11-02');
 const BERRY = 'https://github.com/yarnpkg/berry/blob/%40yarnpkg/cli/4.18.1';
 const CONFIGURATION = `${BERRY}/packages/yarnpkg-core/sources/Configuration.ts`;
 
@@ -221,6 +223,11 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: release14.verified<EnvironmentNameRule[]>(
+      [{ prefix: 'YARN_', match: 'any-case' }],
+      CONFIGURATION,
+      'getEnvironmentSettings lowercases every name of process.env and takes those that start with yarn_ (ENVIRONMENT_PREFIX), and getRcFilename compares the lowercased name with yarn_rc_filename, so yarn_enable_scripts and Yarn_Enable_Scripts set enableScripts as YARN_ENABLE_SCRIPTS does (decision D-143).',
+    ),
     registrySettings: leftovers.verified(
       [
         { file: '.yarnrc.yml', path: ['npmRegistryServer'], applies: 'all', effect: 'replaces' },
@@ -237,12 +244,17 @@ export const yarn: ToolKnowledge = {
     classicUserFile: user.verified(
       { until: '2.0.0', file: '.yarnrc' },
       'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/registries/yarn-registry.js',
-      'Yarn Classic (1.x, last release 1.22.22) reads .yarnrc and .npmrc from the project, its parent folders, the home folder (homeConfigLoc = ~/.yarnrc) and the global prefix (getPossibleConfigLocations in src/registries/npm-registry.js), never .yarnrc.yml, which only Yarn 2 and later read. depcurfew does not configure Yarn Classic.',
+      'Yarn Classic (1.x, last release 1.22.22) reads .yarnrc and .npmrc from the project, its parent folders, the home folder (homeConfigLoc = ~/.yarnrc) and the global prefix (getPossibleConfigLocations in src/registries/npm-registry.js), and of .yarnrc.yml only yarnPath (yarnPathRuns), whose other settings only Yarn 2 and later read. depcurfew does not configure Yarn Classic.',
     ),
     yarnPath: leftovers.uncertain(
       { key: 'yarnPath', releaseFile: 'yarn-<version>.cjs', variables: ['YARN_YARN_PATH', 'YARN_IGNORE_PATH'] },
       `${BERRY}/packages/plugin-essentials/sources/commands/set/version.ts`,
       'yarn set version saves the release as .yarn/releases/yarn-<version>.cjs and writes a relative yarnPath to it. Yarn 2 and later read yarnPath (an absolute path setting, resolved against the folder of the .yarnrc.yml that sets it) from every .yarnrc.yml, the home file included, before the project is found (Configuration.find, pickPrimaryCoreFields), and run node <yarnPath> instead of themselves (runYarnPath in packages/yarnpkg-cli/sources/lib.ts); a nearer .yarnrc.yml with its own yarnPath, YARN_YARN_PATH or YARN_IGNORE_PATH changes that. The file name is only a hint: a URL or a file given to yarn set version gives other names (yarn-remote.cjs), a hand-written yarnPath may name any file, and the version inside the bundle is minified, so depcurfew uses the name only when it is yarn-<exact version>.cjs and the file exists.',
+    ),
+    yarnPathRuns: novemberSecond.verified(
+      { file: '.yarnrc.yml', key: 'yarnPath', classicSince: '1.18.0' },
+      'https://github.com/yarnpkg/yarn/blob/v1.22.22/src/cli/index.js',
+      'Yarn Classic 1.18.0 and later read yarnPath from .yarnrc.yml (CHANGELOG 1.18.0: "Adds support for reading yarnPath from v2-produced .yarnrc.yml files", #7350): getRcPaths in src/util/rc.js looks for .yarnrc and .yarnrc.yml in the folder and its parents, loadRcFile in src/rc.js keeps only yarnPath of a .yml file, resolved against its folder, and start() in src/cli/index.js runs node <yarnPath> before anything else, also before the check that packageManager names Yarn 1 (which only main() does). Yarn 2 and later do the same (run and runYarnPath in packages/yarnpkg-cli/sources/lib.ts at @yarnpkg/cli/4.18.1), unless YARN_IGNORE_PATH is set. So a release committed under yarnPath is the Yarn that runs, whichever Yarn starts, with or without Corepack.',
     ),
     denyList: user.verified(
       { file: 'package.json', setting: 'dependenciesMeta.<package>.built', value: false, since: '2.0.0' },
@@ -275,6 +287,11 @@ export const yarn: ToolKnowledge = {
       { registryOptions: [], registryVariables: ['YARN_NPM_REGISTRY_SERVER'], configOptions: [], configVariables: ['YARN_RC_FILENAME'] },
       'https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-core/sources/Configuration.ts',
       'Environment variables that start with yarn_ (any case) set the setting named by the camel-cased rest, so YARN_NPM_REGISTRY_SERVER sets npmRegistryServer, the registry packages are fetched from (https://yarnpkg.com/configuration/yarnrc#npmRegistryServer). getRcFilename reads yarn_rc_filename (any case) as the name of the configuration file instead of .yarnrc.yml. npmScopes, an object, cannot be set this way.',
+    ),
+    registryFetch: release14.verified(
+      { protocol: 'npm:', patch: 'patch:', patchEnd: '#', params: '?' },
+      `${BERRY}/packages/plugin-npm/sources/NpmSemverFetcher.ts`,
+      'Yarn fetches a registry package of yarn.lock by its resolution: getLocatorUrl builds <registry>/<name>/-/<name>-<version>.tgz from the name of the locator and the version after npm:, cleaned by semverUtils.clean (packages/yarnpkg-core/sources/semverUtils.ts, which drops leading spaces, v and = and trailing spaces and keeps pre-release and build), and supports only a reference whose part before ? semver.valid accepts. The version field of the entry goes into the package Yarn builds from the lockfile (setupResolutions in packages/yarnpkg-core/sources/Project.ts) and is not used for the fetch. A patch: locator wraps the locator it patches, URL-encoded, up to #. An npm: reference with an __archiveUrl parameter is fetched from that URL instead (NpmHttpFetcher.ts).',
     ),
     lockfileFormat: checked.verified(
       {

@@ -1,0 +1,20 @@
+[
+  {
+    "level": "error",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 7
+    },
+    "message": "Dependabot proposes composer updates after 1 day (default-days: 1 in .github/dependabot.yml), but Composer waits 3 days (config.policy.cooldown.period: \"3 days\" in composer.json); its pull requests bring in versions younger than Composer accepts, or fail where the lockfile is re-checked",
+    "fix": "Make the Dependabot delay at least 3 days, or run depcurfew apply"
+  },
+  {
+    "level": "note",
+    "location": {
+      "file": ".github/dependabot.yml",
+      "line": 7
+    },
+    "message": "Dependabot counts the cooldown of composer updates from time, the release time the package author writes, not from published-time, when Packagist received the version, and it updates composer.lock with Composer 2.10.3, which has no cooldown; a version published with an older time is proposed at once, and composer install takes it from composer.lock without Composer's cooldown; the content-hash of each composer.lock it writes leaves out config.policy, so Composer 2.11.0 and later read that composer.lock as out of date (composer install warns, composer validate fails)",
+    "fix": "Check the publication date on Packagist before merging Dependabot's composer pull requests, run composer update --lock on the branch of each such pull request and commit composer.lock, or update Composer packages with a bot that counts from published-time"
+  }
+]

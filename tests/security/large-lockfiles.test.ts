@@ -72,6 +72,84 @@ describe('large YAML lockfiles', () => {
     expect(report?.findings.filter((finding) => finding.rule === 'unreadable-config')).toEqual([]);
   });
 
+  // Decision D-135: a minified lockfile has none of the anchors depcurfew looks for (`"node_modules/x": {` with a
+  // space), and each one was looked for in the whole file twice: 10 000 npm entries took 10 s, 20 000 Composer
+  // packages 33 s and 300 000 more than 5 minutes. Searches that miss now read at most a few times the file in all.
+  it('checks a minified package-lock.json with 20 000 entries in seconds', { timeout: 120_000 }, () => {
+    const packages: Record<string, unknown> = { '': { name: 'x' } };
+    for (let index = 0; index < 20_000; index++) {
+      packages[`node_modules/pkg-${index}`] =
+        index % 997 === 0
+          ? { version: '1.2.3', resolved: `git+ssh://git@github.com/x/pkg-${index}.git#${'a'.repeat(40)}` }
+          : { version: '1.2.3', resolved: `https://registry.npmjs.org/pkg-${index}/-/pkg-${index}-1.2.3.tgz`, integrity: `sha512-${'A'.repeat(86)}==` };
+    }
+    const root = repository({ 'package.json': '{ "name": "x", "packageManager": "npm@11.16.0" }', 'package-lock.json': JSON.stringify({ name: 'x', lockfileVersion: 3, packages }), 'depcurfew.json': POLICY });
+    let findings: ReturnType<typeof runDoctor>['findings'] = [];
+    expect(elapsed(() => (findings = runDoctor(root).findings))).toBeLessThan(10_000);
+    // The whole file is line 1; findings at one place that differ only in numbers are grouped after ten.
+    const own = findings.filter((finding) => finding.rule === 'lockfile-forbidden-source');
+    expect(own).toHaveLength(11);
+    expect(own.map((finding) => finding.location)).toEqual(Array.from({ length: 11 }, () => ({ file: 'package-lock.json', line: 1 })));
+  });
+
+  it('checks a yarn.lock written as JSON, where no anchor matches, in seconds', { timeout: 120_000 }, () => {
+    const document: Record<string, unknown> = { __metadata: { version: 8, cacheKey: '10c0' } };
+    for (let index = 0; index < 20_000; index++) {
+      const locator = index % 997 === 0 ? `https://code.example/x/pkg-${index}.tgz` : 'npm:1.2.3';
+      document[`pkg-${index}@npm:^1.0.0`] = { version: '1.2.3', resolution: `pkg-${index}@${locator}`, checksum: `10c0/${'a'.repeat(128)}`, languageName: 'node', linkType: 'hard' };
+    }
+    const root = repository({ 'package.json': '{ "name": "x", "packageManager": "yarn@4.12.0" }', 'yarn.lock': JSON.stringify(document), '.yarnrc.yml': 'nodeLinker: node-modules\n', 'depcurfew.json': POLICY });
+    let findings: ReturnType<typeof runDoctor>['findings'] = [];
+    expect(elapsed(() => (findings = runDoctor(root).findings))).toBeLessThan(10_000);
+    expect(findings.filter((finding) => finding.rule === 'lockfile-forbidden-source').length).toBeGreaterThan(0);
+  });
+
+  it('looks up the lines of 50 000 entries of a minified bun.lock in linear time', { timeout: 120_000 }, () => {
+    const packages = Object.fromEntries(Array.from({ length: 50_000 }, (_, index) => [`pkg-${index}`, [`pkg-${index}@1.2.3`, '', {}, `sha512-${'A'.repeat(86)}==`]]));
+    const root = repository({ 'package.json': '{ "name": "x" }', 'bun.lock': JSON.stringify({ lockfileVersion: 1, workspaces: { '': { name: 'x' } }, packages }) });
+    const detection = detectProject(root);
+    const manager = detection.packageManagers.find((item) => item.id === 'bun');
+    const tool = knowledgeBase.find((item) => item.id === 'bun');
+    if (manager === undefined || tool === undefined) throw new Error('Bun not detected');
+    const [result] = readLockfiles(new Repository(root), manager, tool, [], knowledgeBase);
+    if (result === undefined || !result.ok) throw new Error('bun.lock not read');
+    const { entries, lineOf } = result.lockfile;
+    expect(entries).toHaveLength(50_000);
+    expect(elapsed(() => entries.forEach((item) => lineOf(item)))).toBeLessThan(3000);
+  });
+
+  it('looks up the lines of 50 000 packages of a minified composer.lock in linear time', { timeout: 120_000 }, () => {
+    const packages = Array.from({ length: 50_000 }, (_, index) => ({ name: `vendor/pkg-${index}`, version: '1.2.3', dist: { type: 'zip', url: `https://api.github.com/repos/vendor/pkg-${index}/zipball/abc` } }));
+    const root = repository({ 'composer.json': '{ "require": { "vendor/pkg-0": "^1" } }', 'composer.lock': JSON.stringify({ packages, 'packages-dev': [], 'plugin-api-version': '2.9.0' }) });
+    const detection = detectProject(root);
+    const manager = detection.packageManagers.find((item) => item.id === 'composer');
+    const tool = knowledgeBase.find((item) => item.id === 'composer');
+    if (manager === undefined || tool === undefined) throw new Error('Composer not detected');
+    const [result] = readLockfiles(new Repository(root), manager, tool, [], knowledgeBase);
+    if (result === undefined || !result.ok) throw new Error('composer.lock not read');
+    const { entries, lineOf } = result.lockfile;
+    expect(entries).toHaveLength(50_000);
+    let lines: (number | undefined)[] = [];
+    expect(elapsed(() => (lines = entries.map((item) => lineOf(item))))).toBeLessThan(3000);
+    expect(new Set(lines)).toEqual(new Set([1]));
+  });
+
+  it('still finds the line of every entry of a pretty-printed lockfile when a few anchors are missing or written another way', () => {
+    const entry = (index: number) =>
+      index === 30 ? `    "node_modules/pkg-${index}"  :  { "version": "1.2.3" },\n` : `    "node_modules/pkg-${index}":${index === 10 || index === 20 ? '' : ' '}{ "version": "1.2.3" },\n`;
+    const lock = `{\n  "name": "x",\n  "lockfileVersion": 3,\n  "packages": {\n    "": { "name": "x" },\n${Array.from({ length: 50 }, (_, index) => entry(index)).join('')}    "node_modules/last": { "version": "1.2.3" }\n  }\n}\n`;
+    const root = repository({ 'package.json': '{ "name": "x" }', 'package-lock.json': lock });
+    const detection = detectProject(root);
+    const manager = detection.packageManagers.find((item) => item.id === 'npm');
+    const tool = knowledgeBase.find((item) => item.id === 'npm');
+    if (manager === undefined || tool === undefined) throw new Error('npm not detected');
+    const [result] = readLockfiles(new Repository(root), manager, tool, [], knowledgeBase);
+    if (result === undefined || !result.ok) throw new Error('package-lock.json not read');
+    const lines = result.lockfile.entries.map((item) => result.lockfile.lineOf(item));
+    // Entry 30 has an anchor depcurfew does not find; the minified spelling of 10 and 20 is found.
+    expect(lines).toEqual([...Array.from({ length: 50 }, (_, index) => (index === 30 ? undefined : 6 + index)), 56]);
+  });
+
   it('parses each lockfile once per run, for both lockfile rules', () => {
     const root = repository({ 'package.json': '{ "name": "x", "packageManager": "pnpm@10.26.0" }', 'pnpm-lock.yaml': pnpmLock(3), 'depcurfew.json': POLICY });
     const detection = detectProject(root);

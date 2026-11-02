@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { scanCommandLine } from '../../src/check/command.ts';
+import { BRACES, GLOB, scanCommandLine } from '../../src/check/command.ts';
 import { requestedSpecs } from '../../src/check/hook.ts';
 import { detectProject } from '../../src/detect/index.ts';
 import { wildcardMatch } from '../../src/detect/wildcard.ts';
@@ -142,6 +142,47 @@ describe('the stack of pushd, traps, env -S and names the shell builds (decision
   it('removes repeated installs in a directory with long paths quickly in the hook (it took 18 s)', () => {
     const line = `${`cd ${'a'.repeat(1000)}; `.repeat(64)}${'npm i x;'.repeat(120_000)}`;
     expect(elapsed(() => expect(requestedSpecs(line).specs).toHaveLength(1))).toBeLessThan(5000);
+  });
+});
+
+describe('variables set in ways depcurfew does not read (decision D-143)', () => {
+  const MiB = 1024 * 1024;
+  const filled = (part: string, tail = '') => part.repeat(Math.floor((MiB - tail.length) / part.length)) + tail;
+  it.each([
+    ['subscripts that name a variable, unclosed', filled('a[COMPOSER_NO_BLOCKING[', ' npm ci')],
+    ['subscripts that name a variable', filled('echo ${a[COMPOSER_NO_BLOCKING + 1]}; ', 'npm ci')],
+    ['arithmetic that reads a variable', filled('(( COMPOSER_NO_BLOCKING + 1 )); ', 'npm ci')],
+    ['offsets of a long expansion', `echo "\${s:${'COMPOSER_NO_BLOCKING '.repeat(50_000)}}"; npm ci`],
+    ['assignments whose values name variables', filled('X=COMPOSER_NO_BLOCKING; ', 'npm ci')],
+    ['values with long names', `X=${'a'.repeat(MiB - 20)}; npm ci`],
+    ['code of node -e', `node -e '${'process.env.x; '.repeat(60_000)}'; npm ci`],
+    ['many names read', filled('read a b c d e f g h; ', 'npm ci')],
+    ['a command the shell expands with many words', `$CMD ${'COMPOSER_X '.repeat(90_000)}; npm ci`],
+  ])('reads %s quickly', (_label, line) => {
+    expect(elapsed(() => requestedSpecs(line, 'posix', false))).toBeLessThan(5000);
+  });
+
+  it.each([
+    // A word of unclosed [ took 100 s, a { before a long run of commas about 23 minutes.
+    ['a word of unclosed brackets', `echo ${'a['.repeat(MiB / 2 - 10)}; npm ci`],
+    ['a brace before many commas', `echo {${','.repeat(MiB - 20)}; npm ci`],
+    ['a brace before many dots', `echo {${'.'.repeat(MiB - 20)}; npm ci`],
+  ])('tells globs and brace expansion in %s quickly', (_label, line) => {
+    expect(elapsed(() => scanCommandLine(line))).toBeLessThan(5000);
+  });
+
+  it('finds the same globs and brace expansions as the expressions before', () => {
+    const glob = /[*?]|\[[^\]]*\]/u;
+    const braces = /\{[^{}]*(?:,|\.\.)[^{}]*\}/u;
+    const letters = ['{', '}', ',', '.', '[', ']', 'a', '*'];
+    let words = [''];
+    for (let length = 1; length <= 6; length++) {
+      words = words.flatMap((word) => letters.map((letter) => word + letter));
+      for (const word of words) {
+        if (GLOB.test(word) !== glob.test(word)) expect(word).toBe('a glob in both');
+        if (BRACES.test(word) !== braces.test(word)) expect(word).toBe('a brace expansion in both');
+      }
+    }
   });
 });
 
