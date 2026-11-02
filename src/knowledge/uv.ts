@@ -221,7 +221,7 @@ export const uv: ToolKnowledge = {
     environmentNames: release14.verified<EnvironmentNameRule[]>(
       [{ prefix: '', match: 'exact' }],
       CLI,
-      'The options take their variables through clap (env = EnvVars::UV_PROJECT and the others), and clap_builder Arg::env reads the variable with env::var_os(name) (https://github.com/clap-rs/clap/blob/v4.5.40/clap_builder/src/builder/arg.rs), which outside Windows finds only that spelling, so uv_project sets nothing (decision D-143).',
+      'The options take their variables through clap (env = EnvVars::UV_PROJECT and the others), and clap_builder Arg::env reads the variable with env::var_os(name) (https://github.com/clap-rs/clap/blob/v4.6.7/clap_builder/src/builder/arg.rs, the clap_builder version in the Cargo.lock of uv), which outside Windows finds only that spelling, so uv_project sets nothing (decision D-143).',
     ),
     registrySettings: release13.verified(
       [

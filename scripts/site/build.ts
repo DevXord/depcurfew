@@ -7,6 +7,7 @@
 // site also has a Versions page and a directory /<version>/ for each earlier release. The design (D-140): the pages in
 // groups of the navigation (PAGE_GROUPS), a hero on the start page, an "On this page" list on long pages and the
 // levels of doctor rules and codes as pills, all without JavaScript.
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import { KNOWLEDGE_DOCUMENT, readmeSections, renderReadme, type ReadmeInputs } from '../../src/docs/readme.ts';
@@ -717,7 +718,9 @@ export function renderSite(root: URL = REPOSITORY, options: SiteOptions = {}): M
     description: pkg.description,
     license: pkg.license,
     repository: repositoryUrl(pkg.repository),
-    template: read(root, 'site/template.html'),
+    // The address of the stylesheet changes with its content, so that a browser does not keep a cached one after a
+    // change of the site (decision D-147).
+    template: read(root, 'site/template.html').replaceAll('{{stamp}}', createHash('sha256').update(read(root, 'site/style.css')).digest('hex').slice(0, 12)),
     pages: versions.length === 0 ? SITE_PAGES : [...SITE_PAGES, VERSIONS_PAGE],
   };
 

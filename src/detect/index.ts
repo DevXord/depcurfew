@@ -344,10 +344,6 @@ export interface DetectOptions {
 }
 
 /**
- * Describes the repository at `root`. Never executes anything from the repository and never leaves it;
- * problems with individual files become warnings.
- */
-/**
  * What the project .npmrc of the repository says about optional dependencies (omit, include and optional, as npm
  * reads them: the last line of a key wins, key[] lines add to the list), for the npm installs of CI jobs and
  * Dockerfiles, whose command line and variables override it key by key (decision D-143). The installs are read with
@@ -375,6 +371,10 @@ function withProjectOptional(facts: DetectionFacts, repository: Repository): Det
   return { ...facts, commands, docker: { ...facts.docker, commands } };
 }
 
+/**
+ * Describes the repository at `root`. Never executes anything from the repository and never leaves it;
+ * problems with individual files become warnings.
+ */
 export function detectProject(
   root: string,
   tools: readonly ToolKnowledge[] = knowledgeBase,

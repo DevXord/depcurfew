@@ -167,6 +167,10 @@ describe('the forms that set a variable', () => {
     'a[COMPOSER_NO_BLOCKING=1]=x; export COMPOSER_NO_BLOCKING; composer install',
     'echo $[COMPOSER_NO_BLOCKING=1]; export COMPOSER_NO_BLOCKING; composer install',
     'echo ${s:COMPOSER_NO_BLOCKING=1}; export COMPOSER_NO_BLOCKING; composer install',
+    // Offsets that share the first } after them, and one more than 4096 characters from it (decision D-146).
+    'echo ${a:${b:1:COMPOSER_NO_BLOCKING=1}; export COMPOSER_NO_BLOCKING; composer install',
+    `echo \${a:${'x'.repeat(5000)}\${b:COMPOSER_NO_BLOCKING=1}; export COMPOSER_NO_BLOCKING; composer install`,
+    'echo ${a:1} ${b:2:COMPOSER_NO_BLOCKING+=1}; export COMPOSER_NO_BLOCKING; composer install',
     'echo $(( COMPOSER_NO_BLOCKING += 1 )); export COMPOSER_NO_BLOCKING; composer install',
     'for (( COMPOSER_NO_BLOCKING = 1; 0; )); do :; done; export COMPOSER_NO_BLOCKING; composer install',
     "X='COMPOSER_NO_BLOCKING=1'; (( X )); export COMPOSER_NO_BLOCKING; composer install",
@@ -194,6 +198,9 @@ describe('the forms that set a variable', () => {
     '(( COMPOSER_PROCESS_TIMEOUT > 300 )) && composer install',
     'echo $(( COMPOSER_NO_BLOCKING + 1 )); composer install',
     '[[ COMPOSER_NO_BLOCKING -eq 0 ]] && composer install',
+    'echo ${a:COMPOSER_NO_BLOCKING:1}; composer install',
+    // The body of an offset ends at the first }: what follows it is no offset (decision D-146).
+    'echo ${a:1}COMPOSER_NO_BLOCKING=1:2; composer install',
     // Options and prompts of the builtins, which are not names.
     'read -p "COMPOSER? " answer; composer require monolog/monolog:3.11.0',
     "printf -v x 'COMPOSER'; composer require monolog/monolog:3.11.0",

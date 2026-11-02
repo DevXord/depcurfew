@@ -2,6 +2,25 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-02 · 1.4.1: hook, `corepack-unavailable` i tabele strony (D-145–D-147)
+
+- Wersja 1.4.1 w `package.json` i `package-lock.json`, sekcja 1.4.1 w `CHANGELOG.md`.
+
+## 2026-11-02 · Strona dokumentacji: szerokie tabele i adres arkusza stylów (D-147)
+
+- Tabele z co najmniej pięcioma kolumnami (`wide`) zajmują całą szerokość strony, a lista „On this page” stoi wtedy nad treścią; przy 1440 px w bok przewija się jedna tabela zamiast pięciu.
+- `style.css?v=<SHA-256>` w szablonie, więc po wdrożeniu przeglądarka pobiera zmieniony arkusz zamiast starego z pamięci.
+
+## 2026-11-02 · Hook: przesunięcia w czasie liniowym; `corepack-unavailable` porównuje wydania (D-146)
+
+- `offsetSets` w `src/check/command.ts` czyta arytmetykę przesunięć `${s:offset}` w jednym przejściu (słowo 1 MiB z wieloma `${a:` w cudzysłowie: 5,5 s, teraz kilka milisekund), z tym samym wynikiem co dotychczasowe wyrażenie.
+- `corepack-unavailable` porównuje `npm install -g npm@<spec>` z przypięciem jako wydania (`v11.19.1`, `=11.19.1`, `11.19.1+…` to 11.19.1).
+- Fakt `environmentNames` uv wskazuje clap_builder 4.6.7 z `Cargo.lock` uv; komentarz `detectProject` wrócił nad tę funkcję.
+
+## 2026-11-02 · Strona dokumentacji: tabele czytelne bez przewijania w bok (D-145)
+
+- `scripts/site/markdown.ts`: kod w komórkach tabel jako słowa w `<span>` (klasa `words`), długie słowa z `<wbr>` po kropce i ukośniku, daty w `<span class="date">`; `site/style.css`: zawijanie między słowami, `min-width` komórki 6rem, odstęp 0.75rem, przyklejona pierwsza kolumna. Przy 1440 px w bok przewija się 5 tabel zamiast 13.
+
 ## 2026-11-02 · Wydanie 1.4.0 i przykład Action z SHA wydania
 
 - `depcurfew@1.4.0` opublikowana 20:30 UTC z tagu `v1.4.0` (commit 20fcc21) przez trusted publishing, z proweniencją SLSA; pliki w rejestrze są bajt w bajt takie same jak kompilacja z tego tagu, a sha512 tarballa zgadza się z `integrity` w rejestrze.

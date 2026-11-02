@@ -2202,7 +2202,32 @@ function wordSets(text: string, command: Shown, shell: Shell): void {
   for (const match of text.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?:\[[^\][]*\])?:?=/gu)) noteSet(match[1] as string, command, shell);
   if (![...text.matchAll(IDENTIFIERS)].some((match) => variableKey(match[0], shell) !== undefined)) return;
   for (const match of text.matchAll(/\[([^\][]*)\]/gu)) arithmeticSets(match[1] as string, command, shell);
-  for (const match of text.matchAll(/\$\{[A-Za-z_][A-Za-z0-9_]*(?:\[[^\][]*\])?:(?![-=+?])([^}]{0,4096})\}/gu)) arithmeticSets(match[1] as string, command, shell);
+  offsetSets(text, command, shell);
+}
+
+/** The start of ${NAME:offset} or ${NAME[i]:offset}, not ${NAME:-…}, ${NAME:=…}, ${NAME:+…} or ${NAME:?…}. */
+const OFFSET_START = /\$\{[A-Za-z_][A-Za-z0-9_]*(?:\[[^\][]*\])?:(?![-=+?])/gu;
+
+/** The longest body of an offset whose arithmetic is read. */
+const MAX_OFFSET = 4096;
+
+/**
+ * The arithmetic of the offsets of ${s:offset:length}: a body runs from its start to the first } after it, up to
+ * MAX_OFFSET characters. Starts before the same } share it, so the body of the first of them that is short enough
+ * holds the others, and it is read once: one pass, so a word of many starts without a } is read in linear time instead
+ * of scanning up to MAX_OFFSET characters from each start (decision D-146).
+ */
+function offsetSets(text: string, command: Shown, shell: Shell): void {
+  let close = -1;
+  let read = -1;
+  for (const match of text.matchAll(OFFSET_START)) {
+    const body = match.index + match[0].length;
+    if (close < body) close = text.indexOf('}', body);
+    if (close === -1) return;
+    if (close === read || close - body > MAX_OFFSET) continue;
+    arithmeticSets(text.slice(body, close), command, shell);
+    read = close;
+  }
 }
 
 /**

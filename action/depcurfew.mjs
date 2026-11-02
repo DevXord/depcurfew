@@ -5509,7 +5509,7 @@ const uv$1 = {
 		environmentNames: release14$2.verified([{
 			prefix: "",
 			match: "exact"
-		}], CLI, "The options take their variables through clap (env = EnvVars::UV_PROJECT and the others), and clap_builder Arg::env reads the variable with env::var_os(name) (https://github.com/clap-rs/clap/blob/v4.5.40/clap_builder/src/builder/arg.rs), which outside Windows finds only that spelling, so uv_project sets nothing (decision D-143)."),
+		}], CLI, "The options take their variables through clap (env = EnvVars::UV_PROJECT and the others), and clap_builder Arg::env reads the variable with env::var_os(name) (https://github.com/clap-rs/clap/blob/v4.6.7/clap_builder/src/builder/arg.rs, the clap_builder version in the Cargo.lock of uv), which outside Windows finds only that spelling, so uv_project sets nothing (decision D-143)."),
 		registrySettings: release13$1.verified([
 			{
 				file: "pyproject.toml",
@@ -19009,10 +19009,6 @@ function configFiles(repository, manager, directories, project) {
 	return directories.flatMap((directory) => [...manager.configFiles.map((file) => joinPath(directory, file)).filter((file) => repository.isFile(file)), ...table !== void 0 && tomlAt(readToml(repository, joinPath(directory, project)), table) !== void 0 ? [joinPath(directory, project)] : []]).sort(byPath);
 }
 /**
-* Describes the repository at `root`. Never executes anything from the repository and never leaves it;
-* problems with individual files become warnings.
-*/
-/**
 * What the project .npmrc of the repository says about optional dependencies (omit, include and optional, as npm
 * reads them: the last line of a key wins, key[] lines add to the list), for the npm installs of CI jobs and
 * Dockerfiles, whose command line and variables override it key by key (decision D-143). The installs are read with
@@ -19059,6 +19055,10 @@ function withProjectOptional(facts, repository) {
 		}
 	};
 }
+/**
+* Describes the repository at `root`. Never executes anything from the repository and never leaves it;
+* problems with individual files become warnings.
+*/
 function detectProject(root, tools = knowledgeBase, environment$1 = environment, options = {}) {
 	const repository = new Repository(root);
 	const facts = withProjectOptional(detectionFacts(tools, environment$1), repository);
@@ -31698,13 +31698,26 @@ function pinsOf(scope) {
 /** The installs a command list makes with the pinned tool. */
 const installsWith = (tool) => (command) => command.kind === "install" && command.tool === tool;
 /**
+* The one release an install spec names, read as manager-version-too-old reads npm install -g npm@<spec>: 11.19.1,
+* v11.19.1, =11.19.1 and 11.19.1+sha512... all name 11.19.1 (decision D-146); a range, a tag or a variable names none.
+*/
+function exactRelease(spec) {
+	const exact = parseVersion(spec);
+	if (exact !== void 0) return exact;
+	const lowest = lowestVersion(spec);
+	return lowest.kind === "exact" && lowest.prerelease === void 0 ? lowest.version : void 0;
+}
+/**
 * The tool installing a release of itself before the install (npm install -g npm@11.19.1, decision D-144): the pinned
-* release then runs there without Corepack, so nothing is reported; another release runs instead of the pin.
+* release then runs there without Corepack, so nothing is reported; another release runs instead of the pin. The spec
+* and the pin are compared as releases, not as text (decision D-146).
 */
 function ownRelease(before, pin) {
 	const own = before.filter((command) => command.kind === "upgrade" && command.tool === pin.tool && command.version !== void 0).at(-1);
 	if (own === void 0) return {};
-	return own.version === pin.version ? void 0 : { other: own };
+	const installed = exactRelease(own.version ?? "");
+	const pinned = parseVersion(pin.version);
+	return installed !== void 0 && pinned !== void 0 && compareVersions$1(installed, pinned) === 0 ? void 0 : { other: own };
 }
 /** The stage a Dockerfile declaration belongs to, by its name or its number from 0. */
 function stageOf(file, declaration) {

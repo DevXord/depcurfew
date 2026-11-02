@@ -539,6 +539,69 @@ footer.site p {
   .toc a {
     margin-left: -1px;
   }
+
+  /* A page with a table of five or more columns: its "On this page" list stands above the content, as on narrower
+     screens, so that such a table may use the whole width of the page; only a table wider than that scrolls sideways
+     (decision D-147). Text keeps its measure, and other blocks the width of a page without such a table. */
+  .page:has(.table.wide) {
+    display: block;
+    max-width: none;
+  }
+
+  .page:has(.table.wide) .content > * {
+    max-width: 66rem;
+  }
+
+  .page:has(.table.wide) .content > :is(p, ul, ol, h1, h2, h3, h4, h5, h6) {
+    max-width: 72ch;
+  }
+
+  .page:has(.table.wide) .content > .table.wide {
+    width: fit-content;
+    min-width: min(100%, 66rem);
+    max-width: 100%;
+  }
+
+  .page:has(.table.wide) .toc-toggle {
+    display: block;
+  }
+
+  .page:has(.table.wide) .toc {
+    position: static;
+    display: none;
+    max-height: none;
+    overflow: visible;
+    border-left: 0;
+  }
+
+  .page:has(.table.wide) .toc-title {
+    display: none;
+  }
+
+  .page:has(.table.wide) .toc a {
+    margin-left: 0;
+  }
+
+  .page:has(.table.wide) .toc-toggle[open] {
+    margin-bottom: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .page:has(.table.wide) .toc-toggle[open] + .toc {
+    display: block;
+    max-width: 66rem;
+    margin: 0 0 1.5rem;
+    padding: 0.25rem 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-top: 0;
+    border-radius: 0 0 0.625rem 0.625rem;
+    background: var(--surface);
+  }
+
+  .page:has(.table.wide) .toc-toggle {
+    max-width: 66rem;
+  }
 }
 
 /* Hero of the start page */
@@ -866,7 +929,7 @@ table {
 
 th,
 td {
-  padding: 0.5rem 0.875rem;
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
@@ -885,20 +948,54 @@ thead th {
   font-weight: 650;
 }
 
+tbody tr {
+  background: var(--background);
+}
+
 tbody tr:nth-child(even) {
   background: var(--zebra);
+}
+
+/* The first column (the tool or the field a row is about) stays in sight while a wide table scrolls sideways, on the
+   background of its row (decision D-145). */
+tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: inherit;
+  box-shadow: inset -1px 0 0 var(--border);
+}
+
+thead th:first-child {
+  left: 0;
+  z-index: 2;
+  box-shadow: inset -1px 0 0 var(--border);
 }
 
 tbody tr:last-child > * {
   border-bottom: 0;
 }
 
-/* A table with many columns scrolls instead of squeezing each column into a few characters. */
+/* A table with many columns scrolls instead of squeezing each column into a few characters; 6rem lets a table of
+   three or four columns fit beside the "On this page" list (decision D-145). */
 td {
-  min-width: 8rem;
+  min-width: 6rem;
 }
 
-td code {
+td code,
+th code {
+  white-space: nowrap;
+}
+
+/* Code with spaces wraps between its words, never inside one, so a long command or path does not widen its column
+   past the window (decision D-145). */
+td code.words,
+th code.words {
+  white-space: normal;
+}
+
+code.words > span,
+td .date {
   white-space: nowrap;
 }
 
