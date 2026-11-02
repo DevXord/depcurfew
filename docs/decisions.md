@@ -2439,5 +2439,5 @@ Tag `v1.0.0` wskazuje commit na `main` sprzed PR #6, a `depcurfew@1.0.0` ma prow
   - Wersje są porównywane dosłownie, bez części `+sha…` przypięcia (detekcja ją odcina).
 - **Zgodność wstecz.** JSON `schemaVersion` 1 i kody wyjścia bez zmian. Reguła zgłasza mniej (przypięte wydanie), a jeden komunikat ma nowy koniec (inne wydanie).
 - **Testy.** Fikstury `passes-npm-installs-pinned-release` (osobny krok, ta sama linia, etap bazowy Dockerfile'a) i `fires-npm-installs-other-release` (`npm@latest`, instalacja przed `actions/setup-node`, inne wydanie w etapie bazowym).
-- **Test na Windows.** Przypadek F4 z D-141 (`policy-from-parent` ze znakami sterującymi w nazwie katalogu) działa tylko poza Windows: Windows nie dopuszcza znaków sterujących w nazwach plików, więc taki katalog tam nie istnieje.
+- **Test na Windows.** Przypadek F4 z D-141 (`policy-from-parent` ze znakami sterującymi w nazwie katalogu) działa tylko poza Windows: Windows nie dopuszcza znaków sterujących w nazwach plików, więc taki katalog tam nie istnieje. Test czasu z D-120 dla 900 zagnieżdżonych katalogów ma limit 60 s zamiast domyślnych 5 s: granica 1 s dotyczy samego dopasowania wzorców, a utworzenie katalogów trwało na Windows dłużej niż 5 s.
 - **Ograniczenia.** Yarn instalowany przez npm (`npm install -g yarn@…`) nie jest czytany jako wydanie Yarn, jak wcześniej.
