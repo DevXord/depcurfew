@@ -426,7 +426,8 @@ describe('composer-config-weakens: YAML aliases in the env of a workflow (F3)', 
 });
 
 describe('apply and explain: the policy-from-parent note shows control characters as text (F4)', () => {
-  it.each([['explain'], ['apply', '--dry-run']])('%s', async (...args) => {
+  // Windows allows no control characters in file names, so such a directory exists only on other systems.
+  it.skipIf(process.platform === 'win32').each([['explain'], ['apply', '--dry-run']])('%s', async (...args) => {
     // A repository root above the policy, as doctor and apply look for one.
     const root = repository({ '.git/HEAD': 'ref: refs/heads/main\n' });
     const name = 'x\u001b]0;PWNED\u0007y';

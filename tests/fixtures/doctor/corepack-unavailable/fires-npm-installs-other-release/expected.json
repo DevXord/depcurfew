@@ -1,0 +1,29 @@
+[
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 8
+    },
+    "message": "packageManager in package.json (line 4) pins npm@11.19.1, but Node.js 26 in GitHub Actions (.github/workflows/ci.yml, job latest) does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: npm there is npm@latest, which line 9 of .github/workflows/ci.yml installs",
+    "fix": "Make line 9 of .github/workflows/ci.yml install the pinned release (npm install -g npm@11.19.1), or install Corepack in job latest of .github/workflows/ci.yml before it runs npm (a step that runs npm install -g corepack, then corepack enable npm); npm itself does not read packageManager, while it checks devEngines.packageManager itself"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 17
+    },
+    "message": "packageManager in package.json (line 4) pins npm@11.19.1, but Node.js 26 in GitHub Actions (.github/workflows/ci.yml, job before-setup) does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, npm there is whatever npm comes with that Node.js",
+    "fix": "Install Corepack in job before-setup of .github/workflows/ci.yml before it runs npm (a step that runs npm install -g corepack, then corepack enable npm); npm itself does not read packageManager, while it checks devEngines.packageManager itself"
+  },
+  {
+    "level": "warning",
+    "location": {
+      "file": "Dockerfile",
+      "line": 1
+    },
+    "message": "packageManager in package.json (line 4) pins npm@11.19.1, but Node.js 26 in Dockerfile does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: npm there is npm@11.18.0, which line 2 of Dockerfile installs",
+    "fix": "Make line 2 of Dockerfile install the pinned release (npm install -g npm@11.19.1), or install Corepack in Dockerfile before npm runs (RUN npm install -g corepack && corepack enable npm); npm itself does not read packageManager, while it checks devEngines.packageManager itself"
+  }
+]

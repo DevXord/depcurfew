@@ -2,7 +2,8 @@
 // Corepack reads, while a declared Node.js is 25 or later, which no longer comes with Corepack. Without a separate
 // Corepack install the pin then has no effect there. pnpm switches to its pinned version itself (pnpm
 // extra.managesOwnVersion) and npm checks devEngines.packageManager itself, so those pins are not reported. A CI job or
-// Dockerfile stage that installs or runs Corepack before it installs with the pinned tool is not reported either.
+// Dockerfile stage that installs or runs Corepack before it installs with the pinned tool is not reported either, nor
+// one that installs the pinned npm release itself first (npm install -g npm@<version>, decision D-144).
 import { posix } from 'node:path';
 import { parseVersion, type Version } from '../../apply/version.ts';
 import { extraOf, isRecord, yamlOptionsFor } from '../../apply/facts.ts';
@@ -24,6 +25,8 @@ const RULE = 'corepack-unavailable';
 interface Pin {
   tool: PackageManagerInfo['id'];
   name: string;
+  /** The pinned version, without the hash Corepack may check (+sha512...). */
+  version: string;
   text: string;
   declaration: VersionDeclaration;
 }
@@ -76,13 +79,29 @@ function pinsOf(scope: RuleScope): Pin[] {
       // A release committed under yarnPath runs whichever Yarn starts.
       if (manager.id === 'yarn' && committedYarnPath(scope)) return [];
       const name = manager.id;
-      return [{ tool: manager.id, name, text: `${name}@${declaration.version}`, declaration }];
+      return [{ tool: manager.id, name, version: declaration.version, text: `${name}@${declaration.version}`, declaration }];
     }),
   );
 }
 
 /** The installs a command list makes with the pinned tool. */
 const installsWith = (tool: Pin['tool']) => (command: ToolCommand) => command.kind === 'install' && command.tool === tool;
+
+/** How a place uses the pinned tool without Corepack: with the release it comes with, or with another one it installs. */
+interface Use {
+  /** The last command before the install that installs another release of the tool itself (npm install -g npm@latest). */
+  other?: ToolCommand;
+}
+
+/**
+ * The tool installing a release of itself before the install (npm install -g npm@11.19.1, decision D-144): the pinned
+ * release then runs there without Corepack, so nothing is reported; another release runs instead of the pin.
+ */
+function ownRelease(before: readonly ToolCommand[], pin: Pin): Use | undefined {
+  const own = before.filter((command) => command.kind === 'upgrade' && command.tool === pin.tool && command.version !== undefined).at(-1);
+  if (own === undefined) return {};
+  return own.version === pin.version ? undefined : { other: own };
+}
 
 /** The stage a Dockerfile declaration belongs to, by its name or its number from 0. */
 function stageOf(file: DockerfileInfo, declaration: VersionDeclaration): number | undefined {
@@ -115,28 +134,32 @@ function stagesFrom(file: DockerfileInfo, index: number): DockerStage[][] {
  * the step without a Corepack command before; a Dockerfile stage (or one that starts from it) likewise; any other
  * place (a version file, engines) always, since people run the tool there.
  */
-function usesWithoutCorepack(context: RuleContext, declaration: VersionDeclaration, tool: Pin['tool']): boolean {
+function usesWithoutCorepack(context: RuleContext, declaration: VersionDeclaration, pin: Pin): Use | undefined {
   if (declaration.source === 'github-actions') {
     const group = jobIndex(context.detection).of(declaration);
-    if (group === undefined) return false;
-    if (!group.job.runsNode) return false;
-    const install = commandsAfterStep(group, declaration).find(installsWith(tool));
-    if (install === undefined) return false;
+    if (group === undefined) return undefined;
+    if (!group.job.runsNode) return undefined;
+    const commands = commandsAfterStep(group, declaration);
+    const at = commands.findIndex(installsWith(pin.tool));
     // Corepack before the install in the job, also on its line (decision D-141).
-    return install.afterCorepack !== true;
+    if (at === -1 || commands[at]?.afterCorepack === true) return undefined;
+    return ownRelease(commands.slice(0, at), pin);
   }
   if (declaration.source === 'dockerfile') {
     const file = context.detection.dockerfiles.find((entry) => entry.file === declaration.file);
     const index = file === undefined ? undefined : stageOf(file, declaration);
-    if (file === undefined || index === undefined) return false;
-    return stagesFrom(file, index).some((chain) => {
-      const install = chain.at(-1)?.commands.find(installsWith(tool));
-      if (install === undefined) return false;
+    if (file === undefined || index === undefined) return undefined;
+    for (const chain of stagesFrom(file, index)) {
+      const commands = chain.at(-1)?.commands ?? [];
+      const at = commands.findIndex(installsWith(pin.tool));
       // Corepack in an earlier stage of the chain, or before the install in its own (decision D-141).
-      return install.afterCorepack !== true && !chain.slice(0, -1).some((stage) => stage.corepack !== undefined);
-    });
+      if (at === -1 || commands[at]?.afterCorepack === true || chain.slice(0, -1).some((stage) => stage.corepack !== undefined)) continue;
+      const use = ownRelease([...chain.slice(0, -1).flatMap((stage) => stage.commands), ...commands.slice(0, at)], pin);
+      if (use !== undefined) return use;
+    }
+    return undefined;
   }
-  return declaration.source !== 'volta';
+  return declaration.source === 'volta' ? undefined : {};
 }
 
 /** What to do there: install Corepack, as its README says for Node.js 25 and later, then enable the pinned tool. */
@@ -157,7 +180,7 @@ export const corepackUnavailable: Rule = {
   checks: 'A pin that only Corepack reads has a Node.js that comes with Corepack',
   summary: 'packageManager or devEngines.packageManager pins Yarn or npm, but a declared Node.js is 25 or later, which no longer comes with Corepack.',
   description:
-    'Corepack reads packageManager (and devEngines.packageManager) and runs the pinned Yarn, or npm after corepack enable npm. Node.js 25.0.0 stopped distributing Corepack, so where a version file, CI job or Dockerfile chooses Node.js 25 or later, the pin has no effect unless Corepack is installed separately: whatever Yarn or npm is there runs, or none. pnpm 10 and later switches to its pinned version itself, npm checks devEngines.packageManager itself, and every Yarn from 1.18 runs a release committed under yarnPath in .yarnrc.yml, so those pins are not reported; nor is a CI job or Dockerfile stage that installs or runs Corepack before it installs with the pinned tool.',
+    'Corepack reads packageManager (and devEngines.packageManager) and runs the pinned Yarn, or npm after corepack enable npm. Node.js 25.0.0 stopped distributing Corepack, so where a version file, CI job or Dockerfile chooses Node.js 25 or later, the pin has no effect unless Corepack is installed separately: whatever Yarn or npm is there runs, or none. pnpm 10 and later switches to its pinned version itself, npm checks devEngines.packageManager itself, and every Yarn from 1.18 runs a release committed under yarnPath in .yarnrc.yml, so those pins are not reported; nor is a CI job or Dockerfile stage that installs or runs Corepack, or installs the pinned npm release itself, before it installs with the pinned tool.',
   help: 'Install Corepack where that Node.js runs (npm install -g corepack, then corepack enable), before the pinned tool runs.',
   level: 'warning',
   requiresPolicy: false,
@@ -181,13 +204,20 @@ export const corepackUnavailable: Rule = {
       const subject = nodeSubject(declaration, SOURCE_LABEL[declaration.source], context.detection.jobs);
       const line = declarationLine(context, declaration);
       for (const pin of pins) {
-        if (!usesWithoutCorepack(context, declaration, pin.tool)) continue;
+        const use = usesWithoutCorepack(context, declaration, pin);
+        if (use === undefined) continue;
         const pinLine = declarationLine(context, pin.declaration);
         const where = `${SOURCE_LABEL[pin.declaration.source] === 'devEngines' ? 'devEngines.packageManager' : 'packageManager'} in ${pin.declaration.file}${pinLine === undefined ? '' : ` (line ${pinLine})`}`;
+        const fix = fixFor(declaration, pin, subject.replace(/ in .*$/u, ''), context.detection.jobs);
+        // Another release of the tool that the place installs itself runs instead of the pin (decision D-144).
+        const runs =
+          use.other === undefined
+            ? `without a separate Corepack install, ${pin.name} there is whatever ${pin.tool === 'npm' ? 'npm comes with that Node.js' : 'Yarn is installed, or none'}`
+            : `${pin.name} there is ${pin.name}@${use.other.version ?? 'latest'}, which line ${use.other.line} of ${declaration.file} installs`;
         context.report({
           location: line === undefined ? { file: declaration.file } : { file: declaration.file, line },
-          message: `${where} pins ${pin.text}, but ${subject} does not come with Corepack (Node.js ${removed.slice(0, 3).join('.')} stopped distributing it), and Corepack is what reads that pin: without a separate Corepack install, ${pin.name} there is whatever ${pin.tool === 'npm' ? 'npm comes with that Node.js' : 'Yarn is installed, or none'}`,
-          fix: fixFor(declaration, pin, subject.replace(/ in .*$/u, ''), context.detection.jobs),
+          message: `${where} pins ${pin.text}, but ${subject} does not come with Corepack (Node.js ${removed.slice(0, 3).join('.')} stopped distributing it), and Corepack is what reads that pin: ${runs}`,
+          fix: use.other === undefined ? fix : `Make line ${use.other.line} of ${declaration.file} install the pinned release (npm install -g ${pin.text}), or ${fix.charAt(0).toLowerCase()}${fix.slice(1)}`,
         });
       }
     }

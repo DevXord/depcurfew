@@ -34,7 +34,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 ### Corepack on Node.js 25
 
-- New `doctor` rule `corepack-unavailable` (warning), which respects the order of commands within one line: `packageManager` or `devEngines.packageManager` pins Yarn or npm, but a declared Node.js is 25 or later, which no longer comes with Corepack, so the pin has no effect there. The fix says how to install it (`npm install -g corepack`, then `corepack enable`). pnpm pins, a `yarnPath` in `.yarnrc.yml` that points at a Yarn release committed in the repository, and CI jobs or Dockerfile stages that install Corepack first are not reported. `explain --json` gives the line of that command as `corepack` in `project.jobs[]` and `project.dockerfiles[].stages[]`, and marks the commands that run after it with `afterCorepack`.
+- New `doctor` rule `corepack-unavailable` (warning), which respects the order of commands within one line: `packageManager` or `devEngines.packageManager` pins Yarn or npm, but a declared Node.js is 25 or later, which no longer comes with Corepack, so the pin has no effect there. The fix says how to install it (`npm install -g corepack`, then `corepack enable`). pnpm pins, a `yarnPath` in `.yarnrc.yml` that points at a Yarn release committed in the repository, and CI jobs or Dockerfile stages that install Corepack, or the pinned npm release itself (`npm install -g npm@11.19.1`), first are not reported; one that installs another npm release first is reported with that release. `explain --json` gives the line of that command as `corepack` in `project.jobs[]` and `project.dockerfiles[].stages[]`, and marks the commands that run after it with `afterCorepack`.
 
 ### Update bots and GitHub Actions
 

@@ -2429,3 +2429,15 @@ Tag `v1.0.0` wskazuje commit na `main` sprzed PR #6, a `depcurfew@1.0.0` ma prow
   - Wbudowane polecenia zsh i ksh poza wymienionymi i zmienne ustawiane przez plik czytany przez `source` (D-142) nie są czytane. PowerShell porównuje nazwy bez względu na wielkość liter i czyta je jak w D-138, także te, które linia tylko wymienia.
   - Zmienna nadpisania przypisana w arytmetyce `(( … ))` leży w katalogu, w którym zaczyna się jej linia, a nie polecenie.
   - `.npmrc` projektu w podkatalogu zadania (`working-directory`) albo w obrazie Dockerfile'a nie jest czytany dla `optionalDependencies`, tak jak w `doctor`.
+
+## D-144 · `corepack-unavailable`: npm, które zadanie CI albo etap Dockerfile'a instaluje sam (2026-11-02)
+
+- **Problem.** Zadanie CI z Node.js 25 lub nowszym, które przed instalacją uruchamia `npm install -g npm@11.19.1` przy `packageManager: "npm@11.19.1"`, dostawało ostrzeżenie, że npm jest tam taki, jaki przychodzi z Node.js. To nieprawda: działa przypięte wydanie, które zadanie zainstalowało, choć Corepack nie czyta przypięcia. Tak wygląda zadanie `test` w `.github/workflows/ci.yml` tego repozytorium (D-099), więc `doctor` na samym depcurfew kończył się ostrzeżeniem, a Action z `doctor.failOn: "warning"` błędem.
+- **Decyzja.**
+  - Zadanie albo etap Dockerfile'a (razem z etapami, z których startuje), w którym przed instalacją przypiętym narzędziem stoi instalacja tego narzędzia w wydaniu z przypięcia (`npm install -g npm@<wersja>`, czyli polecenie `upgrade` z `ToolCommand`), nie jest zgłaszane. Liczy się ostatnia taka instalacja przed instalacją paczek i tylko po kroku z tym Node.js: `actions/setup-node` podmienia npm.
+  - Instalacja innego wydania (`npm@latest`, inna wersja, zakres) dalej daje ostrzeżenie, bo przypięcie tam nie działa, ale komunikat mówi, co działa: „npm there is npm@latest, which line 9 of .github/workflows/ci.yml installs”. Poprawka proponuje instalację przypiętego wydania w tej linii albo Corepacka.
+  - Wersje są porównywane dosłownie, bez części `+sha…` przypięcia (detekcja ją odcina).
+- **Zgodność wstecz.** JSON `schemaVersion` 1 i kody wyjścia bez zmian. Reguła zgłasza mniej (przypięte wydanie), a jeden komunikat ma nowy koniec (inne wydanie).
+- **Testy.** Fikstury `passes-npm-installs-pinned-release` (osobny krok, ta sama linia, etap bazowy Dockerfile'a) i `fires-npm-installs-other-release` (`npm@latest`, instalacja przed `actions/setup-node`, inne wydanie w etapie bazowym).
+- **Test na Windows.** Przypadek F4 z D-141 (`policy-from-parent` ze znakami sterującymi w nazwie katalogu) działa tylko poza Windows: Windows nie dopuszcza znaków sterujących w nazwach plików, więc taki katalog tam nie istnieje.
+- **Ograniczenia.** Yarn instalowany przez npm (`npm install -g yarn@…`) nie jest czytany jako wydanie Yarn, jak wcześniej.
