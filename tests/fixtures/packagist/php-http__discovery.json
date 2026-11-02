@@ -1,0 +1,44 @@
+{
+  "packages": {
+    "php-http/discovery": [
+      {
+        "version": "1.20.0",
+        "version_normalized": "1.20.0.0",
+        "time": "2024-10-02T11:20:13+00:00",
+        "published-time": "2024-10-02T11:21:00+00:00",
+        "type": "composer-plugin"
+      },
+      {
+        "version": "1.19.4",
+        "version_normalized": "1.19.4.0",
+        "time": "2024-03-29T13:00:05+00:00",
+        "published-time": "2024-03-29T13:00:43+00:00"
+      },
+      {
+        "version": "1.19.3",
+        "version_normalized": "1.19.3.0",
+        "time": "2024-03-28T07:38:36+00:00",
+        "published-time": "2024-03-28T07:39:48+00:00"
+      },
+      {
+        "version": "1.19.2",
+        "version_normalized": "1.19.2.0",
+        "time": "2023-11-30T16:49:05+00:00",
+        "published-time": "2023-11-30T16:49:52+00:00"
+      },
+      {
+        "version": "1.19.1",
+        "version_normalized": "1.19.1.0",
+        "time": "2023-07-11T07:02:26+00:00",
+        "published-time": "2023-07-11T07:03:02+00:00"
+      },
+      {
+        "version": "1.19.0",
+        "version_normalized": "1.19.0.0",
+        "time": "2023-06-19T08:45:36+00:00",
+        "published-time": "2023-06-19T08:46:01+00:00"
+      }
+    ]
+  },
+  "minified": "composer/2.0"
+}

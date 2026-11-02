@@ -304,6 +304,73 @@ const SCHEMA$2 = `${COMPOSER}/doc/04-schema.md`;
 const REPOSITORIES = `${COMPOSER}/doc/05-repositories.md`;
 const CHANGELOG$3 = `${COMPOSER}/CHANGELOG.md`;
 const SRC = `${COMPOSER}/src/Composer`;
+const VERSIONS = `${COMPOSER}/doc/articles/versions.md`;
+const MINIFIER = "https://github.com/composer/metadata-minifier/blob/1.0.1/src/MetadataMinifier.php";
+const CONSOLE = "https://github.com/symfony/console/blob/v5.4.55";
+const PACKAGIST_API = "https://packagist.org/apidoc";
+/** What composer --no-blocking and the variables that set it turn off (BaseCommand::createPolicyConfig at 2.11.1). */
+const ALL_BLOCKING = "turns off all of Composer's policy blocking for the command, the cooldown and the blocking of versions flagged as malware included";
+/** The commands of Composer 2.11.1 and of symfony/console v5.4.55 that Composer registers, and their aliases. */
+const COMMAND_NAMES = {
+	commands: [
+		"about",
+		"archive",
+		"audit",
+		"browse",
+		"bump",
+		"check-platform-reqs",
+		"clear-cache",
+		"completion",
+		"config",
+		"create-project",
+		"depends",
+		"diagnose",
+		"dump-autoload",
+		"exec",
+		"fund",
+		"global",
+		"help",
+		"init",
+		"install",
+		"licenses",
+		"list",
+		"outdated",
+		"policy",
+		"prohibits",
+		"reinstall",
+		"remove",
+		"repository",
+		"require",
+		"run-script",
+		"search",
+		"self-update",
+		"show",
+		"status",
+		"suggests",
+		"update",
+		"validate",
+		"_complete"
+	],
+	aliases: {
+		home: "browse",
+		clearcache: "clear-cache",
+		cc: "clear-cache",
+		why: "depends",
+		dumpautoload: "dump-autoload",
+		i: "install",
+		"why-not": "prohibits",
+		rm: "remove",
+		uninstall: "remove",
+		repo: "repository",
+		r: "require",
+		run: "run-script",
+		selfupdate: "self-update",
+		info: "show",
+		u: "update",
+		upgrade: "update"
+	},
+	matching: "symfony-console"
+};
 const noSetting$6 = (kind) => ({ setting: uncertain$11(null, `${SCHEMA$2}#repositories`, `No setting allows or forbids ${kind} dependencies (concluded from the config options in 06-config.md). Such packages come only from repositories declared in the root composer.json: "Repositories are not resolved recursively. You can only add them to your main composer.json. Repository declarations of dependencies' composer.jsons are ignored."`) });
 const composer$3 = {
 	id: "composer",
@@ -562,7 +629,324 @@ const composer$3 = {
 				],
 				effect: "stops blocking versions flagged as malware"
 			}
-		], `${CLI$1}#environment-variables`, "COMPOSER_POLICY: \"Set to 0 to disable all dependency policy enforcement\" (read with Platform::getBoolEnv: 0, false and off are false). COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING set --no-blocking and --no-security-blocking when (bool) getenv() is true, so every value but \"\" and \"0\" (BaseCommand.php). COMPOSER_POLICY_COOLDOWN_PERIOD \"overrides the configured period\", 0 disabling it; COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK set 0 to disable blocking (PolicyConfig.php).")
+		], `${CLI$1}#environment-variables`, "COMPOSER_POLICY: \"Set to 0 to disable all dependency policy enforcement\" (read with Platform::getBoolEnv: 0, false and off are false). COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING set --no-blocking and --no-security-blocking when (bool) getenv() is true, so every value but \"\" and \"0\" (BaseCommand.php). COMPOSER_POLICY_COOLDOWN_PERIOD \"overrides the configured period\", 0 disabling it; COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK set 0 to disable blocking (PolicyConfig.php)."),
+		packagistApi: verified$13({
+			url: "https://repo.packagist.org",
+			metadataPath: "/p2/{name}.json",
+			devSuffix: "~dev",
+			notFoundStatus: 404,
+			packagesField: "packages",
+			minifiedField: "minified",
+			minifiedValue: "composer/2.0",
+			unsetValue: "__unset",
+			versionField: "version",
+			normalizedField: "version_normalized",
+			timeField: "time",
+			publishedField: "published-time",
+			typeField: "type",
+			abandonedField: "abandoned",
+			packagePage: "https://packagist.org/packages/{name}"
+		}, PACKAGIST_API, "\"Using the Composer v2 metadata\": GET https://repo.packagist.org/p2/[vendor]/[package].json gives {\"packages\": {\"[vendor]/[package]\": [versions]}, \"minified\": \"composer/2.0\"}, each version with version, \"time\": [release datetime, as set by the package author] and \"published-time\": [datetime the version was published on packagist.org, not influenced by the package author]; the list \"requires you to use Composer\\MetadataMinifier\\MetadataMinifier::expand\"; \"The p2/$vendor/$package.json file contains only tagged releases\", branches are in p2/$vendor/$package~dev.json; package pages are https://packagist.org/packages/[vendor]/[package]. https://repo.packagist.org is the url of the packagist.org repository Composer adds by default (Config::$defaultRepositories at 2.11.1). Composer reads a 404 as a package the repository does not have (ComposerRepository.php), expands a list marked composer/2.0 and loads each version with ArrayLoader.php: version_normalized (else the version normalized), type (lowercased, library when missing), time, published-time (an integer or a non-empty string) and abandoned (true or the name of a replacement)."),
+		metadataMinifier: verified$13({
+			firstEntry: "whole",
+			emptyIsFirst: true,
+			unsetValue: "__unset"
+		}, MINIFIER, "MetadataMinifier::expand: the first entry is a whole version; each later entry holds only the keys that changed since the previous version, a key with the value \"__unset\" being removed; while the version built so far is empty (PHP: !$expandedVersion), the next entry is taken whole again. Composer 2.11.1 locks composer/metadata-minifier 1.0.1."),
+		versionConstraints: verified$13({
+			and: [",", " "],
+			or: ["||", "|"],
+			hyphen: " - ",
+			wildcards: [
+				"*",
+				"x",
+				"X"
+			],
+			tilde: "~",
+			caret: "^",
+			operators: [
+				">=",
+				"<=",
+				"<>",
+				"!=",
+				"==",
+				">",
+				"<",
+				"="
+			],
+			stabilityFlag: "@",
+			branchPrefix: "dev-",
+			branchSuffix: "-dev",
+			alias: " as ",
+			reference: "#"
+		}, VERSIONS, "Exact version (1.0.2); ranges with >, >=, <, <=, != separated by a space or comma (logical AND) or || (logical OR, and | for backwards compatibility), AND binding tighter; the hyphenated range 1.0 - 2.0 (>=1.0.0 <2.1, a partial right end completed with a wildcard); wildcard 1.0.* (>=1.0 <1.1); ~1.2 (>=1.2 <2.0.0), ~1.2.3 (>=1.2.3 <1.3.0), ~1 like ~1.0; ^1.2.3 (>=1.2.3 <2.0.0), ^0.3 (>=0.3.0 <0.4.0), ^0.0.3 (>=0.0.3 <0.0.4); stability flags @<stability>; a branch as dev-<branch>, or <version>.x-dev for a branch named like a version (versions.md). composer/semver 3.6.0 (src/VersionParser.php, which Composer 2.11.1 locks, https://github.com/composer/semver/blob/3.6.0/src/VersionParser.php) also reads = and == as exact, <> as !=, x, X and * as wildcards, \"<version> as <alias>\", #<commit> after a branch, and appends -dev to the bound of < and >= without an explicit stability, so that pre-releases of the bound are below it."),
+		stabilities: verified$13({
+			order: [
+				"stable",
+				"RC",
+				"beta",
+				"alpha",
+				"dev"
+			],
+			priorities: {
+				stable: 0,
+				RC: 5,
+				beta: 10,
+				alpha: 15,
+				dev: 20
+			},
+			minimumStability: "stable",
+			modifiers: {
+				a: "alpha",
+				alpha: "alpha",
+				b: "beta",
+				beta: "beta",
+				rc: "RC",
+				p: "patch",
+				pl: "patch",
+				patch: "patch",
+				stable: "stable"
+			}
+		}, `${COMPOSER}/doc/04-schema.md#minimum-stability-root-only`, "minimum-stability \"defaults to stable\"; the options in order of stability are dev, alpha, beta, RC and stable, and stability flags allow another stability per package. BasePackage::STABILITIES at 2.11.1 gives the priorities (stable 0 to dev 20); StabilityFilter::isPackageAcceptable accepts a version whose stability priority is at most the flag of its package, else at most the minimum stability. RootPackageLoader::extractStabilityFlags takes the least stable @<stability> of a requirement as its flag, else the stability of an explicit unstable version in it (2.0.0-beta1) when that is less stable than the minimum stability. VersionParser::parseStability (composer/semver 3.6.0): a version starting with dev- or ending with -dev is dev; a modifier beta or b is beta, alpha or a is alpha, RC is RC (in any case), anything else (patch, pl, p, none) is stable. Versions without a stability suffix are stable (articles/versions.md#stabilities)."),
+		versionComparison: verified$13({
+			separators: [
+				"-",
+				"_",
+				"+"
+			],
+			specialForms: [
+				["dev", 0],
+				["alpha", 1],
+				["a", 1],
+				["beta", 2],
+				["b", 2],
+				["RC", 3],
+				["rc", 3],
+				["#", 4],
+				["pl", 5],
+				["p", 5]
+			],
+			numberOrder: 4
+		}, "https://github.com/php/php-src/blob/php-8.4.0/ext/standard/versioning.c", "Composer orders normalized versions with PHP's version_compare (VersionSelector.php at 2.11.1; Constraint::versionCompare in composer/semver 3.6.0, where a dev- branch only equals itself). php_canonicalize_version replaces -, _ and + with a dot and puts a dot between a digit and a non-digit; the parts are compared one by one, numbers as numbers, words by the first special form they start with (dev < alpha = a < beta = b < RC = rc < # < pl = p; a word that starts with none is lowest), a number against a word as the form # (#N#); when one version has parts left, a number makes it the greater and a word is compared with #N#."),
+		commandLine: verified$13({
+			add: [
+				["composer", "require"],
+				["composer", "r"],
+				[
+					"composer",
+					"global",
+					"require"
+				],
+				[
+					"composer",
+					"global",
+					"r"
+				]
+			],
+			run: [],
+			create: [{
+				command: ["composer", "create-project"],
+				packageOptions: []
+			}],
+			valueOptions: [
+				"-d",
+				"--working-dir",
+				"--prefer-install",
+				"--audit-format",
+				"--ignore-platform-req",
+				"--apcu-autoloader-prefix",
+				"--with",
+				"--bump-after-update",
+				"-s",
+				"--stability",
+				"--repository",
+				"--repository-url",
+				"--require",
+				"-f",
+				"--file",
+				"--before",
+				"--after"
+			],
+			parsing: { groupedShortOptions: true }
+		}, CLI$1, "composer require (alias r) takes packages as \"vendor/package:2.*\" or vendor/package2:dev-master, and picks a constraint itself for a package without one; composer global <command> runs the command \"as if you were running them from the COMPOSER_HOME directory\"; composer create-project <package> [<directory>] [<version>]; composer update (u, upgrade) takes packages, wildcards and constraints vendor/package:2.0.1, and --with foo/bar:1.0.0. \"As Composer uses symfony/console you can call commands by short name if it's not ambiguous\" (commandNames). The options with a value of require, update, create-project, install, config and repository (InputOption VALUE_REQUIRED or VALUE_OPTIONAL in src/Composer/Command/*Command.php at 2.11.1) and the global --working-dir (-d) of src/Composer/Console/Application.php; symfony/console v5.4.55 (Input/ArgvInput.php) groups short options (-nd dir), takes a value attached (-ddir, --working-dir=dir) or the next word when it does not start with -, accepts options before and after the command, reads every word after -- as an argument and does not shorten long options."),
+		commandNames: verified$13(COMMAND_NAMES, `${CONSOLE}/Application.php`, "Application::find: an exact command name or alias; otherwise every name and alias that starts with the word (for each part between colons), first with case and then without, aliases of a command already in the list left out; one command is run, more are ambiguous (an error) and none is not defined. The names and aliases are those of Composer's getDefaultCommands (src/Composer/Console/Application.php at 2.11.1, setName and setAliases in each src/Composer/Command/*Command.php) and of symfony/console (help, list, completion and the hidden _complete). Scripts of composer.json and commands of plugins are added as commands too, unless a command of that name exists."),
+		commandArguments: verified$13({
+			require: "require",
+			update: "update",
+			createProject: "create-project",
+			global: "global",
+			pairSeparators: [
+				":",
+				"=",
+				" "
+			],
+			platformPackages: "^(?:php(?:-64bit|-ipv6|-zts|-debug)?|hhvm|(?:ext|lib)-[a-z0-9](?:[_.-]?[a-z0-9]+)*|composer(?:-(?:plugin|runtime)-api)?)$",
+			namePattern: "^[a-z0-9]([_.-]?[a-z0-9]+)*/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$",
+			updateLockWords: [
+				"lock",
+				"nothing",
+				"mirrors"
+			],
+			withOption: "--with",
+			requireOption: "--require",
+			stabilityOptions: ["--stability", "-s"]
+		}, `${SRC}/Package/Version/VersionParser.php`, "parseNameVersionPairs: an argument is split at the first =, : or space after the name; an argument without one takes the next argument as its constraint when that has no /, no * next to a letter, digit, _, / or - and is no platform package. require and create-project read their packages so (RequireCommand via PackageDiscoveryTrait, CreateProjectCommand::installRootPackage); update moves an argument with a constraint (\\S+[ =:]\\S+) to the temporary constraints of --with and takes lock, nothing and mirrors as --lock (UpdateCommand.php). create-project takes its stability from --stability (-s), else from the @<stability> of its version, else from the version itself. Platform packages are PlatformRepository::PLATFORM_PACKAGE_REGEX (case-insensitive). The name pattern is the one 04-schema.md#name gives; Composer lowercases the names it looks up."),
+		registryOverrides: verified$13({
+			registryOptions: ["--repository", "--repository-url"],
+			registryVariables: [],
+			configOptions: [],
+			configVariables: ["COMPOSER"]
+		}, `${CLI$1}#create-project`, "create-project --repository \"Provide a custom repository to search for the package, which will be used instead of packagist\" (and --repository-url, CreateProjectCommand.php at 2.11.1). COMPOSER sets the file name of composer.json, whose repositories then apply (#composer). Other commands take their repositories from composer.json only."),
+		installOverrides: verified$13({
+			options: [
+				{
+					name: "--no-blocking",
+					weakens: "protection",
+					values: "any",
+					effect: ALL_BLOCKING
+				},
+				{
+					name: "--no-security-blocking",
+					weakens: "protection",
+					values: "any",
+					effect: ALL_BLOCKING
+				},
+				{
+					name: "--no-cooldown",
+					weakens: "delay",
+					values: "any"
+				},
+				{
+					name: "--no-secure-http",
+					weakens: "protection",
+					values: "any",
+					effect: "allows downloads of the project over plain HTTP"
+				}
+			],
+			variables: [
+				{
+					name: "COMPOSER_NO_BLOCKING",
+					weakens: "protection",
+					values: { except: ["", "0"] },
+					effect: ALL_BLOCKING
+				},
+				{
+					name: "COMPOSER_NO_SECURITY_BLOCKING",
+					weakens: "protection",
+					values: { except: ["", "0"] },
+					effect: ALL_BLOCKING
+				},
+				{
+					name: "COMPOSER_POLICY",
+					weakens: "protection",
+					values: [
+						"0",
+						"false",
+						"off"
+					],
+					effect: "turns off every dependency policy of Composer for the command, the cooldown and the blocking of versions flagged as malware included"
+				},
+				{
+					name: "COMPOSER_POLICY_COOLDOWN_PERIOD",
+					weakens: "delay",
+					values: "delay"
+				},
+				{
+					name: "COMPOSER_POLICY_COOLDOWN_BLOCK",
+					weakens: "delay",
+					values: [
+						"0",
+						"false",
+						"off"
+					]
+				},
+				{
+					name: "COMPOSER_POLICY_MALWARE_BLOCK",
+					weakens: "protection",
+					values: [
+						"0",
+						"false",
+						"off"
+					],
+					effect: "turns off the blocking of versions flagged as malware"
+				}
+			]
+		}, `${SRC}/Command/BaseCommand.php`, "createPolicyConfig: --no-blocking, --no-security-blocking (deprecated), COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING \"disable ALL blocking (advisories + malware + abandoned + cooldown + custom)\" (PolicyConfig::withBlockingDisabled); --no-cooldown disables only the cooldown blocking. initialize sets --no-blocking and --no-security-blocking on each command that has them when (bool) getenv() is true, so for every value but \"\" and \"0\" (\"false\" and \"off\" too); createPolicyConfig also reads both with Platform::getBoolEnv, which makes the command fail for a value other than 0, 1, false, true, off and on (src/Composer/Util/Platform.php), so such a value installs nothing. COMPOSER_POLICY (Config::get), COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK (PolicyConfig::fromConfig) are read with getBoolEnv: 0, false and off turn them off. COMPOSER_POLICY_COOLDOWN_PERIOD replaces the period (CooldownPolicyConfig::getEnvPeriod, in the syntax of durationStrings). create-project --no-secure-http \"Disable the secure-http config option temporarily while installing the root package\" (03-cli.md#create-project). The options are on require, update, install, create-project and remove (03-cli.md)."),
+		configCommands: verified$13([
+			{
+				command: ["composer", "config"],
+				operands: 2,
+				options: [
+					"--unset",
+					"--editor",
+					"-e"
+				]
+			},
+			{
+				command: ["composer", "repository"],
+				writes: [
+					"add",
+					"remove",
+					"rm",
+					"delete",
+					"set-url",
+					"seturl",
+					"enable",
+					"disable"
+				]
+			},
+			{
+				command: ["composer", "policy"],
+				writes: ["add-source"]
+			},
+			{
+				command: [
+					"composer",
+					"global",
+					"config"
+				],
+				operands: 2,
+				options: [
+					"--unset",
+					"--editor",
+					"-e"
+				]
+			},
+			{
+				command: [
+					"composer",
+					"global",
+					"repository"
+				],
+				writes: [
+					"add",
+					"remove",
+					"rm",
+					"delete",
+					"set-url",
+					"seturl",
+					"enable",
+					"disable"
+				]
+			},
+			{
+				command: [
+					"composer",
+					"global",
+					"policy"
+				],
+				writes: ["add-source"]
+			}
+		], `${CLI$1}#config`, "composer config [options] [setting-key] [setting-value1] ... changes a setting of composer.json (with --global, -g, of COMPOSER_HOME/config.json), --unset removes one and --editor (-e) opens the file; with a key alone it shows the value (src/Composer/Command/ConfigCommand.php at 2.11.1). composer repository (repo) add, remove (rm, delete), set-url (seturl), enable and disable change the repositories, list (ls, show) and get-url (geturl) only read them (RepositoryCommand.php). composer policy add-source changes config.policy (PolicyCommand.php). The same commands after composer global change the files of COMPOSER_HOME."),
+		directoryOptions: verified$13({
+			options: [{
+				name: "--working-dir",
+				moves: "directory"
+			}, {
+				name: "-d",
+				moves: "directory"
+			}],
+			variables: []
+		}, `${CLI$1}#global-options`, "\"--working-dir (-d): If specified, use the given directory as working directory.\" Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory, an interactive run asks whether to use the nearest parent that has one, and use-parent-dir true does so without asking.")
 	}
 };
 

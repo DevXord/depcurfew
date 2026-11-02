@@ -468,9 +468,14 @@ export type OverrideValues = 'delay' | 'any' | readonly string[] | { readonly ex
 export interface OverrideSwitch {
   /** The option as the scanner resolves it (--name) or the variable, compared without regard to case. */
   name: string;
-  /** The release-age delay, or the rule on dependency install scripts. */
-  weakens: 'delay' | 'scripts';
+  /**
+   * The release-age delay, the rule on dependency install scripts, or a protection of the package manager that the
+   * policy does not manage (Composer's blocking of versions flagged as malware), which always counts (decision D-133).
+   */
+  weakens: 'delay' | 'scripts' | 'protection';
   values: OverrideValues;
+  /** protection: what it turns off, for messages ("turns off the blocking of versions flagged as malware"). */
+  effect?: string;
 }
 
 /**
@@ -537,6 +542,113 @@ export interface CommandNamesKnowledge {
   commands: readonly string[];
   /** Alias to the name it stands for (a command or another alias). */
   aliases: Readonly<Record<string, string>>;
+  /**
+   * How a word is resolved: npm (deref, the default) or symfony-console (Composer, decision D-133): an exact command
+   * or alias, else the commands and aliases that start with the word, compared with case and then without, which
+   * must all stand for one command.
+   */
+  matching?: 'npm' | 'symfony-console';
+}
+
+/**
+ * How Composer's commands name the packages they install (decision D-133): the commands by name, the arguments of
+ * composer require (name and constraint in one word, separated by one of `pairSeparators`, or in two words), the
+ * names that are platform packages and the options that name packages or a stability.
+ */
+export interface ComposerCommandsKnowledge {
+  require: string;
+  update: string;
+  createProject: string;
+  /** Runs another command in the global directory (COMPOSER_HOME), whose composer.json depcurfew does not read. */
+  global: string;
+  /** Between a package name and its constraint in one argument (vendor/name:^1.0). */
+  pairSeparators: readonly string[];
+  /** A pattern (with i) of the names of platform packages (php, ext-*, lib-*), which Composer does not install. */
+  platformPackages: string;
+  /** The pattern of a package name (04-schema.md#name). */
+  namePattern: string;
+  /** Arguments of composer update that are not packages but make it update the lock file only. */
+  updateLockWords: readonly string[];
+  /** Options of composer update with a temporary constraint (vendor/name:1.0), and of create-project with packages to require. */
+  withOption: string;
+  requireOption: string;
+  /** Options of create-project with the minimum stability of the package. */
+  stabilityOptions: readonly string[];
+}
+
+/** The v2 metadata of Packagist.org, from which depcurfew check reads Composer packages (decision D-133). */
+export interface PackagistApiKnowledge {
+  /** The repository Composer adds by default. */
+  url: string;
+  /** The metadata of a package's tagged releases; {name} is vendor/name. */
+  metadataPath: string;
+  /** Appended to the name for the metadata of its branches (dev versions). */
+  devSuffix: string;
+  /** Status of a package Packagist does not have. */
+  notFoundStatus: number;
+  /** The key of the object of packages, each with a list of versions; the key and value that mark the list as minified. */
+  packagesField: string;
+  minifiedField: string;
+  minifiedValue: string;
+  /** In a minified list, the value of a key the version does not have. */
+  unsetValue: string;
+  /** The keys of a version. */
+  versionField: string;
+  normalizedField: string;
+  /** Release time set by the package author, and the time Packagist published the version. */
+  timeField: string;
+  publishedField: string;
+  typeField: string;
+  /** true, or the name of the package that replaces it. */
+  abandonedField: string;
+  /** The page of a package on packagist.org; {name} is vendor/name. */
+  packagePage: string;
+}
+
+/** Composer's stabilities (decision D-133): their order and priorities, the default minimum stability and spellings. */
+export interface ComposerStabilitiesKnowledge {
+  /** Most stable first. */
+  order: readonly string[];
+  /** Higher is less stable; a version is acceptable when its priority is at most the allowed one. */
+  priorities: Readonly<Record<string, number>>;
+  /** The minimum stability when composer.json sets none. */
+  minimumStability: string;
+  /** Short and other spellings of version modifiers, lowercase, to their stability or modifier. */
+  modifiers: Readonly<Record<string, string>>;
+}
+
+/** The syntax of Composer's version constraints (decision D-133). */
+export interface ComposerConstraintsKnowledge {
+  /** Separators of constraints that must all match. */
+  and: readonly string[];
+  /** Separators of alternatives. */
+  or: readonly string[];
+  /** Between the two ends of an inclusive range. */
+  hyphen: string;
+  /** Characters that stand for any number in a version part. */
+  wildcards: readonly string[];
+  tilde: string;
+  caret: string;
+  operators: readonly string[];
+  /** Before a stability at the end of a constraint (^1.0@beta). */
+  stabilityFlag: string;
+  /** A branch is required as dev-<name>, or as <number>.x-dev for a branch named like a version. */
+  branchPrefix: string;
+  branchSuffix: string;
+  /** Between a version and the version it is installed as (dev-main as 1.0.x-dev). */
+  alias: string;
+  /** After a branch, a commit to install (dev-main#abc123). */
+  reference: string;
+}
+
+/** How PHP's version_compare, which Composer uses to order versions, compares the parts that are not numbers. */
+export interface VersionCompareKnowledge {
+  /** Characters replaced by a dot before the comparison. */
+  separators: readonly string[];
+  /** Words a part starts with, and their order; a part that starts with none is below all of them. */
+  specialForms: readonly (readonly [string, number])[];
+  /** The order of a number compared with a word. */
+  numberOrder: number;
 }
 
 /**

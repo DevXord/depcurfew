@@ -1,7 +1,7 @@
 // --osv of depcurfew check, the Claude Code hook and depcurfew mcp (decision D-129): the version the install picks is
 // looked up in OSV.dev, a MAL- record is an error that names it and links its page, OSV.dev out of reach leaves the
 // package unverified (the hook asks), and nothing goes to OSV.dev without the option.
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -146,9 +146,35 @@ describe('the Claude Code hook with --osv', () => {
     expect(result.code).toBe(EXIT_OK);
     const output = JSON.parse(result.stdout) as { hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string } };
     expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+    // No change of depcurfew.json allows a malicious version, so the reason names OSV.dev, not the policy.
     expect(output.hookSpecificOutput.permissionDecisionReason).toBe(
-      `depcurfew blocked this command because it breaks the project's supply-chain policy (depcurfew.json):\n- cutekitten-test@1.0.1: ${MALWARE_MESSAGE}. Fix: ${MALWARE_FIX}\n${POLICY_IS_THE_USERS}`,
+      `depcurfew blocked this command because it installs a known malicious version, which OSV.dev lists:\n- cutekitten-test@1.0.1: ${MALWARE_MESSAGE}. Fix: ${MALWARE_FIX}\nChoose another package or version.`,
     );
+  });
+
+  it('names both reasons when the same command also breaks the policy', async () => {
+    // A delay longer than any version's age makes lodash too young.
+    const directory = project({ cooldown: { minimum: '3650d' } });
+    const result = await exec(['check', '--hook', 'claude-code', '--osv'], osvFetch(registry), event('npm install cutekitten-test@1.0.1 lodash@4.17.21', directory), directory);
+    const reason = (JSON.parse(result.stdout) as { hookSpecificOutput: { permissionDecisionReason: string } }).hookSpecificOutput.permissionDecisionReason;
+    expect(reason.split('\n')[0]).toBe("depcurfew blocked this command because it installs a known malicious version, which OSV.dev lists, and breaks the project's supply-chain policy (depcurfew.json):");
+    expect(reason.endsWith(POLICY_IS_THE_USERS)).toBe(true);
+  });
+
+  it('asks OSV.dev once for a command that installs in two directories, and not again after it failed', async () => {
+    const directory = project();
+    mkdirSync(join(directory, 'a'));
+    mkdirSync(join(directory, 'b'));
+    const command = 'cd a && npm install cutekitten-test@1.0.1 && cd ../b && npm install lodash@4.17.21';
+    const fetch = osvFetch(registry);
+    const result = await exec(['check', '--hook', 'claude-code', '--osv'], fetch, event(command, directory), directory);
+    expect(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision).toBe('deny');
+    expect(fetch.requests).toHaveLength(1);
+    expect(fetch.requests[0]).toHaveLength(2);
+    const failing = unreachableOsv(registry);
+    const asked = await exec(['check', '--hook', 'claude-code', '--osv'], failing, event(command, directory), directory);
+    expect(JSON.parse(asked.stdout).hookSpecificOutput.permissionDecision).toBe('ask');
+    expect(failing.requests).toHaveLength(1);
   });
 
   it('asks when OSV.dev cannot be reached, and tells the agent not to install before the check', async () => {

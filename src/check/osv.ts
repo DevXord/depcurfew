@@ -9,11 +9,12 @@
 import { isRecord, values } from '../apply/facts.ts';
 import { osv as facts } from '../knowledge/osv.ts';
 import type { OsvApiKnowledge } from '../knowledge/types.ts';
+import { ecosystemOf, prefixOf } from '../policy/package-pattern.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import type { CheckFinding, PackageReport } from './findings.ts';
 import { cachedLookup, readLimited, requestSignal, type FetchLike, type LookupCache } from './registry.ts';
 
-/** A package version to look up; `ecosystem` is depcurfew's (npm, pypi, packagist), as the knowledge base names it. */
+/** A package version to look up; `ecosystem` is depcurfew's (npm, pypi, packagist), whose names the policy writes without a prefix, with pypi: and with composer:. */
 export interface OsvPackage {
   ecosystem: string;
   name: string;
@@ -263,14 +264,11 @@ export function versionLabel(ecosystem: string, name: string, version: string): 
   return `${name}${ecosystem === 'pypi' ? '==' : '@'}${version}`;
 }
 
-/** The ecosystem of a checked package name and the name OSV.dev knows: the policy prefix (pypi:) is left out. */
+/** The ecosystem of a checked package name and the name OSV.dev knows: the policy prefix (pypi:, composer:) is left out. */
 function packageOf(report: PackageReport): OsvPackage | undefined {
   if (report.kind !== 'registry' || report.name === undefined || report.version === undefined) return undefined;
-  const colon = report.name.indexOf(':');
-  const prefix = colon > 0 && !report.name.startsWith('@') ? report.name.slice(0, colon) : undefined;
-  return prefix === undefined
-    ? { ecosystem: 'npm', name: report.name, version: report.version }
-    : { ecosystem: prefix, name: report.name.slice(colon + 1), version: report.version };
+  const ecosystem = ecosystemOf(report.name);
+  return { ecosystem, name: report.name.slice(prefixOf(ecosystem).length), version: report.version };
 }
 
 /**
@@ -302,7 +300,8 @@ function osvFinding(name: string, pkg: OsvPackage, verdict: OsvVerdict): CheckFi
   return {
     level: 'error',
     code: 'known-malicious',
-    message: `${versionLabel(pkg.ecosystem, name, pkg.version)} is a known malicious version: OSV.dev lists it as ${linkedIds(verdict.malicious)}`,
+    // A Composer version as composer require takes it (composer:vendor/name:1.2.3), as the other findings of check write it.
+    message: `${pkg.ecosystem === 'packagist' ? `${name}:${pkg.version}` : versionLabel(pkg.ecosystem, name, pkg.version)} is a known malicious version: OSV.dev lists it as ${linkedIds(verdict.malicious)}`,
     fix: 'Do not install it; pick another package or version. If it is installed anywhere already, remove it and read the record on OSV.dev for what it does',
   };
 }

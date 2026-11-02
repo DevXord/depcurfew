@@ -77,6 +77,16 @@ export interface CheckRequest {
    * reads the .npmrc of a workspace package as its project configuration (decision D-124).
    */
   workspacesOption?: boolean;
+  /**
+   * Composer (decision D-133): the command does not read the composer.json of the directory it runs in (create-project,
+   * global), so the repositories declared there do not apply to it.
+   */
+  readsManifest?: false;
+  /**
+   * Composer: composer update names the package without a constraint, so the constraint the root composer.json
+   * requires applies; a package that composer.json does not require is not checked.
+   */
+  fromManifest?: true;
 }
 
 export interface CheckOptions {

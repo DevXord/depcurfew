@@ -1,5 +1,5 @@
 // Composer in doctor (decision D-126): the delay as Composer reads it, where composer.lock says a package comes from,
-// what allow-plugins decides for a plugin, and that check names Composer packages it does not look up.
+// what allow-plugins decides for a plugin, and that check looks Composer packages up on Packagist (decision D-133).
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -94,22 +94,28 @@ describe('composer.lock and the repositories of composer.json', () => {
 });
 
 describe('check and Composer packages', () => {
-  it('says that it does not look up a composer: package instead of reading it as an npm spec', async () => {
+  it('looks a composer: package up on Packagist instead of reading it as an npm spec (decision D-133)', async () => {
     const result = validatePolicy(DEFAULT_POLICY);
     if (!result.ok) throw new Error('default policy');
-    const fetch = () => Promise.reject(new Error('no network in tests'));
+    const asked: string[] = [];
+    const fetch = (url: string) => {
+      asked.push(url);
+      return Promise.reject(new Error('no network in tests'));
+    };
     const [report] = await checkSpecs(['composer:monolog/monolog'], { policy: result.policy, fetch } as unknown as Parameters<typeof checkSpecs>[1]);
     expect(report).toEqual({
       spec: 'composer:monolog/monolog',
-      kind: 'invalid',
+      kind: 'registry',
+      name: 'composer:monolog/monolog',
       findings: [
         {
           level: 'error',
           code: 'unverified',
-          message: 'depcurfew check does not look up Composer packages',
-          fix: 'Check the package on packagist.org yourself (its publication date, security advisories and whether it is a plugin); Composer 2.11 withholds young versions itself once depcurfew apply has written the cooldown into composer.json',
+          message: 'it cannot be checked: Packagist cannot be reached (no network in tests)',
+          fix: 'Run depcurfew check again when Packagist (repo.packagist.org) can be reached',
         },
       ],
     });
+    expect(asked).toEqual(['https://repo.packagist.org/p2/monolog/monolog.json']);
   });
 });

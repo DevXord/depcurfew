@@ -210,7 +210,7 @@ export function tooManyMembers(text: string, limits: Readonly<Record<string, num
 }
 
 /** The lookup of a document with more than MAX_VERSIONS versions: not checked, with what to do. */
-export function tooManyVersions(name: string, what: 'registry' | 'index', listed = `${MAX_VERSIONS} versions`): { status: 'error'; reason: string; fix: string } {
+export function tooManyVersions(name: string, what: 'registry' | 'index' | 'repository', listed = `${MAX_VERSIONS} versions`): { status: 'error'; reason: string; fix: string } {
   return {
     status: 'error',
     reason: `the ${what} lists more than ${listed} of ${name}, more than depcurfew reads of one package, so its versions were not checked`,

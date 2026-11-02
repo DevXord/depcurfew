@@ -503,7 +503,7 @@ describe('depcurfew mcp: explain_policy', () => {
       schemaVersion: 1,
       policy: 'depcurfew.json',
       values: { cooldown: { minimum: '2w', minimumMinutes: 20160, exclude: ['@acme/*'] }, installScripts: { default: 'deny', allow: ['esbuild'], deny: [] }, sources: { git: 'deny' } },
-      lookups: { npmRegistry: 'https://registry.npmjs.org/', pythonIndex: 'https://pypi.org/simple/', scopes: [], osv: null },
+      lookups: { npmRegistry: 'https://registry.npmjs.org/', pythonIndex: 'https://pypi.org/simple/', composerRepository: 'https://repo.packagist.org', scopes: [], osv: null },
       notices: [],
       errors: [],
     });

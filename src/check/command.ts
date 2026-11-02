@@ -21,6 +21,7 @@ import { delayMinutes, formatMinutes } from '../doctor/durations.ts';
 import { environment } from '../knowledge/environment.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type {
+  ComposerCommandsKnowledge,
   CommandLineKnowledge,
   CommandLineParsing,
   CommandNamesKnowledge,
@@ -40,7 +41,7 @@ import type {
   ToolId,
 } from '../knowledge/types.ts';
 import { ecosystemOfTool } from '../policy/ecosystem.ts';
-import { PYPI_PREFIX } from '../policy/package-pattern.ts';
+import { COMPOSER_PREFIX, PYPI_PREFIX } from '../policy/package-pattern.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import type { ResolvedPolicy } from '../policy/schema.ts';
 import {
@@ -100,6 +101,10 @@ export interface InstallRequest {
   buildFromSource?: boolean;
   /** Where the install runs, when the command changes directory before it or moves it with an option (decision D-118). */
   directory?: CommandDirectory;
+  /** Composer: the command does not read the composer.json of the directory it runs in (create-project, global; decision D-133). */
+  readsManifest?: false;
+  /** Composer: composer update names the package without a constraint, so the one of the root composer.json applies. */
+  fromManifest?: true;
 }
 
 export type { CommandDirectory, KnownDirectory } from './directories.ts';
@@ -112,6 +117,8 @@ export interface Override {
   /** As written: --min-release-age=0, npm_config_ignore_scripts=false. */
   written: string;
   weakens: OverrideSwitch['weakens'];
+  /** protection: what it turns off (OverrideSwitch.effect). */
+  effect?: string;
   /** The delay it sets, to compare with the policy; left out when any value weakens it. */
   delay?: string;
   /** The shell expands its value. */
@@ -701,6 +708,8 @@ interface ToolCommands {
   commandNames: CommandNamesKnowledge | undefined;
   /** Options and variables that make one command run in another directory, or find its project there. */
   directories: DirectoryOptionsKnowledge | undefined;
+  /** Composer: how its commands name the packages they install (decision D-133). */
+  composer: ComposerCommandsKnowledge | undefined;
 }
 
 interface Commands {
@@ -812,6 +821,7 @@ function commands(): Commands {
             configCommands: factOf<ConfigCommand[]>(tool, sibling(key, 'configCommands')) ?? [],
             commandNames: factOf<CommandNamesKnowledge>(tool, sibling(key, 'commandNames')),
             directories: factOf<DirectoryOptionsKnowledge>(tool, sibling(key, 'directoryOptions')),
+            composer: factOf<ComposerCommandsKnowledge>(tool, sibling(key, 'commandArguments')),
           },
         ];
       }),
@@ -1089,6 +1099,8 @@ const CONFIG_CHANGE =
 const MANIFEST_CHANGE =
   'changes package.json, whose settings (overrides, scripts, allowScripts, trustedDependencies, pnpm settings) the install or other package manager command in the same command would use, while depcurfew checks it with the package.json from before the change';
 const WEAKENS = 'what the project configured for every package this install fetches, also those depcurfew does not check';
+/** A protection of the package manager that the policy does not manage (decision D-133). */
+const PROTECTS = 'which protects every package the command fetches, also those depcurfew does not check';
 const OVERRIDE_UNREAD = `is set in a way depcurfew does not read, which may weaken ${WEAKENS}`;
 /** More specs than the hook checks for one command. */
 export const TOO_MANY = 'depcurfew checks at most';
@@ -1135,6 +1147,9 @@ export function unreadableFix(reason: string): string {
   }
   if (reason.includes(MANIFEST_CHANGE)) {
     return 'Run the install as a command of its own, so depcurfew checks it with the package.json it will use; a change to the settings in package.json is for the user to decide';
+  }
+  if (reason.includes(PROTECTS)) {
+    return 'Run the command without that option or variable, so the package manager keeps that protection; if the change is intended, the user decides';
   }
   if (reason.includes(WEAKENS)) {
     return 'Run the install without that option or variable, so it keeps the release-age delay and install-script settings of the project; if the change is intended, the user decides';
@@ -1202,7 +1217,7 @@ function overrideOption(tool: ToolCommands, name: string, value: string | undefi
     given = value === 'false' ? 'true' : 'false';
   }
   if (entry === undefined || !weakensWith(entry.values, given)) return undefined;
-  return { tool: tool.tool, written, weakens: entry.weakens, ...(entry.values === 'delay' ? { delay: given } : {}) };
+  return { tool: tool.tool, written, weakens: entry.weakens, ...(entry.effect === undefined ? {} : { effect: entry.effect }), ...(entry.values === 'delay' ? { delay: given } : {}) };
 }
 
 /** The overrides among the options of a command that is not an install (npm ci --ignore-scripts=false). */
@@ -2355,12 +2370,15 @@ function executableOf(text: string): string {
   const name = base.includes('@') || base.includes('==') ? base.replace(/@[^/]*$/u, '').replace(/==.*$/u, '') : base;
   const { executables } = commands();
   if (executables.has(name)) return name;
+  // A PHP archive runs as the program it packs when it has a shebang (./composer.phar).
+  const archive = name.endsWith('.phar') ? name.slice(0, -'.phar'.length).replace(/-v?\d[\w.+-]*$/u, '') : undefined;
+  if (archive !== undefined && executables.has(archive)) return archive;
   const unversioned = /[0-9.]$/u.test(name) ? name.replace(/[0-9][0-9.]*$/u, '') : name;
   return unversioned !== name && (executables.has(unversioned) || interpreter()?.executables.includes(unversioned) === true) ? unversioned : name;
 }
 
-/** Script files a JavaScript or Python interpreter runs: npm-cli.js, yarn-4.1.0.cjs, pnpm.mjs, pip.pyz, __main__.py. */
-const SCRIPT_EXTENSIONS = /\.(?:js|cjs|mjs|pyz|py)$/iu;
+/** Script files a JavaScript, Python or PHP interpreter runs: npm-cli.js, yarn-4.1.0.cjs, pnpm.mjs, pip.pyz, __main__.py, composer.phar. */
+const SCRIPT_EXTENSIONS = /\.(?:js|cjs|mjs|pyz|py|phar)$/iu;
 
 /**
  * The package manager a script path runs: its file name without the extension, -cli or a version (/usr/bin/npm,
@@ -2740,7 +2758,25 @@ function commandName(names: CommandNamesKnowledge, word: string): string {
   return name;
 }
 
+/**
+ * A command name as symfony/console resolves it for Composer (Application::find, decision D-133): an exact command or
+ * alias, else every command and alias that starts with the word, with case and, when none does, without; they must
+ * all stand for one command, else the word stays as written (Composer reports it as ambiguous or not defined). No
+ * command of Composer has a colon, so a word with one is not a prefix of any.
+ */
+function symfonyCommandName(names: CommandNamesKnowledge, word: string): string {
+  if (names.commands.includes(word)) return word;
+  if (Object.hasOwn(names.aliases, word)) return names.aliases[word] as string;
+  if (word === '' || word.includes(':')) return word;
+  const all = [...names.commands, ...Object.keys(names.aliases)];
+  let matched = all.filter((candidate) => candidate.startsWith(word));
+  if (matched.length === 0) matched = all.filter((candidate) => candidate.toLowerCase().startsWith(word.toLowerCase()));
+  const commands = new Set(matched.map((candidate) => (Object.hasOwn(names.aliases, candidate) ? (names.aliases[candidate] as string) : candidate)));
+  return commands.size === 1 ? ([...commands][0] as string) : word;
+}
+
 function resolveCommandName(names: CommandNamesKnowledge, word: string): string {
+  if (names.matching === 'symfony-console') return symfonyCommandName(names, word);
   const name = /[A-Z]/u.test(word) ? word.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`) : word;
   if (names.commands.includes(name)) return name;
   const alias = (key: string) => (Object.hasOwn(names.aliases, key) ? names.aliases[key] : undefined);
@@ -2786,7 +2822,8 @@ function configChange(executable: string, rest: readonly Word[]): 'configuration
     const names = tool.commandNames;
     const first = positional[0];
     const firstName = first === undefined || names === undefined ? first?.text : commandName(names, first.text);
-    const named = (word: Word | undefined, index: number) => (index === 0 ? firstName : word?.text);
+    // Composer resolves the command after global too (composer global conf …).
+    const named = (word: Word | undefined, index: number) => (index === 0 ? firstName : names?.matching === 'symfony-console' && word !== undefined ? commandName(names, word.text) : word?.text);
     for (const entry of entries) {
       const parts = entry.command.slice(1);
       if (!parts.every((part, index) => named(positional[index], index) === part && positional[index]?.dynamic !== true)) continue;
@@ -2947,6 +2984,7 @@ function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word
     const context = contextOf(tool, run.command);
     return finish(tool, line, readArguments(rest, 'run', tool, run, context), depth, [], context);
   }
+  if (tool.composer !== undefined) return scanComposer(tool, tool.composer, rest, line, depth);
   if (tool.ecosystem !== 'npm') return scanPythonTool(tool, executable, rest, line, depth);
   // The subcommand is the first word that is not an option or an option's value.
   let index = 0;
@@ -2988,6 +3026,128 @@ function scanToolCommand(tool: ToolCommands, command: SimpleCommand, first: Word
   if (later !== -1) return finish(tool, line, readArguments(after.slice(later + 1), 'add', tool, undefined, context), depth, before, context, overridesBefore);
   // Any other command (npm ci, npm rebuild): what its options weaken.
   return managerScan(line, [...overridesBefore, ...optionOverrides(tool, after)]);
+}
+
+/**
+ * Composer's name and constraint pairs as composer require reads them (VersionParser::parseNameVersionPairs): a name
+ * and its constraint in one word, split at the first separator, or a name followed by a word that is its constraint
+ * (no /, no * next to a name character, no platform package).
+ */
+function composerPairs(texts: readonly string[], facts: ComposerCommandsKnowledge): { name: string; constraint?: string }[] {
+  const separators = facts.pairSeparators.map((separator) => separator.replace(/[\\\]^-]/gu, '\\$&')).join('');
+  const pair = new RegExp(`^([^${separators}]+)[${separators}](.*)$`, 'su');
+  const platform = new RegExp(facts.platformPackages, 'iu');
+  const result: { name: string; constraint?: string }[] = [];
+  for (let index = 0; index < texts.length; index++) {
+    const text = (texts[index] as string).trim();
+    const split = pair.exec(text);
+    if (split !== null) {
+      result.push({ name: split[1] as string, constraint: split[2] as string });
+      continue;
+    }
+    const next = texts[index + 1];
+    if (next !== undefined && !next.includes('/') && !/(?<=[a-z0-9_/-])\*|\*(?=[a-z0-9_/-])/iu.test(next) && !platform.test(next)) {
+      result.push({ name: text, constraint: next });
+      index += 1;
+      continue;
+    }
+    result.push({ name: text });
+  }
+  return result;
+}
+
+/**
+ * A Composer command (decision D-133), read as symfony/console reads it: options anywhere (grouped short options, a
+ * value attached or in the next word), every word after -- an argument, and the first argument the command, resolved
+ * as Composer resolves its names (commandNames). composer require, the require of composer global, create-project
+ * (its package and --require) and composer update with packages or --with name the packages they install; update
+ * names without a constraint take the one of the root composer.json, and patterns and lock, nothing and mirrors are no
+ * packages. Platform packages (php, ext-*) are not installed by Composer. composer install installs composer.lock, so
+ * only what its options weaken counts, as for any other command.
+ */
+function scanComposer(tool: ToolCommands, facts: ComposerCommandsKnowledge, rest: readonly Word[], line: string, depth: number): CommandScan {
+  const positional: Word[] = [];
+  const values = new Map<string, string[]>();
+  const found: Found[] = [];
+  let arguments_ = false;
+  for (let index = 0; index < rest.length; index++) {
+    const word = rest[index] as Word;
+    if (!arguments_ && word.text === '--') {
+      arguments_ = true;
+      continue;
+    }
+    if (arguments_ || !isOption(word.text)) {
+      positional.push(word);
+      continue;
+    }
+    if (word.dynamic) return unreadable(`${shown(line)}: ${expanded(word)}`);
+    const option = readOption(rest, index, tool, (name) => tool.valueOptions.has(name));
+    if (option.next?.dynamic === true) return unreadable(`${shown(line)}: "${shown(`${word.text} ${option.next.text}`)}" is expanded by the shell`);
+    const setting = registryOption(tool, option.name, option.value);
+    if (setting !== undefined) return unreadable(`${shown(line)}: ${setting}`);
+    const override = overrideOption(tool, option.name, option.value, option.next === undefined ? word.text : `${word.text} ${option.next.text}`);
+    if (override !== undefined) found.push(override);
+    if (option.value !== undefined) values.set(option.name, [...(values.get(option.name) ?? []), option.value]);
+    if (option.next !== undefined) index += 1;
+  }
+  const scan = managerScan(line, found);
+  const names = tool.commandNames;
+  const resolve = (word: Word) => (names === undefined ? word.text : commandName(names, word.text));
+  let words = positional;
+  let readsManifest = true;
+  const head = words[0];
+  if (head === undefined) return scan;
+  if (head.dynamic) return unreadable(`${shown(line)}: ${expanded(head, 'the subcommand ')}`);
+  let command = resolve(head);
+  if (command === facts.global) {
+    // composer global runs the command in COMPOSER_HOME, whose composer.json depcurfew does not read.
+    readsManifest = false;
+    words = words.slice(1);
+    const inner = words[0];
+    if (inner === undefined) return scan;
+    if (inner.dynamic) return unreadable(`${shown(line)}: ${expanded(inner, 'the subcommand ')}`);
+    command = resolve(inner);
+  }
+  const operands = words.slice(1);
+  const dynamic = operands.find((word) => word.dynamic);
+  const platform = new RegExp(facts.platformPackages, 'iu');
+  const requests: InstallRequest[] = [];
+  const request = (name: string, constraint: string | undefined, extra: Pick<InstallRequest, 'readsManifest' | 'fromManifest'> = {}) => {
+    if (platform.test(name)) return;
+    requests.push({ tool: tool.tool, command: line, spec: `${COMPOSER_PREFIX}${name.toLowerCase()}${constraint === undefined ? '' : `:${constraint}`}`, ...(readsManifest ? {} : { readsManifest: false }), ...extra });
+  };
+  const option = (names: readonly string[]) => names.flatMap((name) => values.get(name) ?? []);
+  if (command === facts.require) {
+    if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic)}`);
+    for (const pair of composerPairs(operands.map((word) => word.text), facts)) request(pair.name, pair.constraint);
+  } else if (command === facts.update) {
+    if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic)}`);
+    const constrained = new RegExp(`^(\\S+?)[${facts.pairSeparators.map((separator) => separator.replace(/[\\\]^-]/gu, '\\$&')).join('')}](\\S.*)$`, 'su');
+    for (const text of [...operands.map((word) => word.text), ...option([facts.withOption])]) {
+      if (facts.updateLockWords.includes(text) || text.includes('*')) continue;
+      const pair = constrained.exec(text.trim());
+      if (pair !== null) request(pair[1] as string, pair[2] as string);
+      else if (!values.get(facts.withOption)?.includes(text)) request(text, undefined, { fromManifest: true });
+    }
+  } else if (command === facts.createProject) {
+    if (dynamic !== undefined) return unreadable(`${shown(line)}: ${expanded(dynamic)}`);
+    readsManifest = false;
+    const [pkg, , version] = operands;
+    const stability = option(facts.stabilityOptions).at(-1);
+    if (pkg !== undefined) {
+      const [root] = composerPairs([pkg.text], facts);
+      const constraint = version?.text ?? root?.constraint;
+      const flagged = stability === undefined ? constraint : `${(constraint ?? '*').replace(/@[a-z]+$/iu, '')}@${stability}`;
+      if (root !== undefined) request(root.name, flagged);
+    }
+    for (const pair of composerPairs(option([facts.requireOption]), facts)) request(pair.name, pair.constraint);
+  } else {
+    // Another command (install, remove, exec): what its options weaken, and a package manager it runs.
+    merge(scan, laterCommand(operands, depth));
+    return scan;
+  }
+  scan.requests.push(...requests);
+  return scan;
 }
 
 /** A variable set anywhere on the line that may point a package manager at another registry or configuration file. */
@@ -3050,7 +3210,7 @@ function overrideAssignments(items: readonly Item[], line: string, placeOf: Read
     const value = item.word.text.slice(name.length + 1);
     const place = placeOf.get(item.word);
     for (const { tool, entry } of overrideVariables.get(name.toLowerCase()) ?? []) {
-      const base = { tool, command: line, written: item.word.text, weakens: entry.weakens, ...(place === undefined ? {} : { directory: place }) };
+      const base = { tool, command: line, written: item.word.text, weakens: entry.weakens, ...(entry.effect === undefined ? {} : { effect: entry.effect }), ...(place === undefined ? {} : { directory: place }) };
       if (item.word.dynamic) found.push({ ...base, expanded: true });
       else if (weakensWith(entry.values, value)) found.push({ ...base, ...(entry.values === 'delay' ? { delay: value } : {}) });
     }
@@ -3308,6 +3468,12 @@ export function overrideDoubt(overrides: readonly Override[] | undefined, polici
   const scriptsFile = fileOf(denying);
   for (const override of overrides ?? []) {
     const where = `${shown(override.command)}: ${override.written}`;
+    // Composer's blocking of versions flagged as malware is not part of the policy, so turning it off asks whatever the
+    // policy says (decision D-133).
+    if (override.weakens === 'protection') {
+      if (override.expanded === true) return `${where} is set to a value the shell expands, which may turn off a protection of the package manager (${override.effect ?? 'a protection'}), ${PROTECTS}`;
+      return `${where} ${override.effect ?? 'turns off a protection of the package manager'}, ${PROTECTS}`;
+    }
     if (override.weakens === 'scripts') {
       if (denying === -1) continue;
       if (override.expanded === true) return `${where} is set to a value the shell expands, which may turn on dependency install scripts that ${scriptsFile} restricts, and may weaken ${WEAKENS}`;

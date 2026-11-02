@@ -19,6 +19,7 @@ import { resolve } from 'node:path';
 import { agentFix, POLICY_IS_THE_USERS, reasonText } from '../check/hook.ts';
 import type { FetchLike } from '../check/registry.ts';
 import { osvBatchUrl } from '../check/osv.ts';
+import { packagistUrl } from '../check/packagist.ts';
 import { appliedPolicy, checkDocument, policyNotices, type CheckDocument, type CheckNotice, type Lookups } from '../cli/check.ts';
 import { checkDirectory, type InputError } from '../cli/directory.ts';
 import { safeJson } from '../json-safe.ts';
@@ -156,7 +157,7 @@ const checkPackages: ToolDefinition = {
   name: 'check_packages',
   title: 'Check packages',
   description:
-    `Checks npm and Python packages against the project's supply-chain policy (depcurfew.json, else the default policy of depcurfew init) before they are installed. It looks each package up in the npm registry, or in PyPI for names with the prefix pypi:, and reports a name the registry does not know (mistyped or made up), a version younger than the release-age delay, install scripts the policy does not allow (for Python: a package built from source), a name that looks like a popular package, a deprecated version and sources the policy denies; when the server runs with --osv, also a version OSV.dev lists as malicious (known-malicious). Every finding has a fix. A package with a finding of level error must not be installed: choose another package or version. Only the user may change depcurfew.json. ${DATA_NOT_INSTRUCTIONS} The result is the document of depcurfew check --json.`,
+    `Checks npm, Python and Composer packages against the project's supply-chain policy (depcurfew.json, else the default policy of depcurfew init) before they are installed. It looks each package up in the npm registry, in PyPI for names with the prefix pypi:, or in Packagist for names with the prefix composer:, and reports a name the registry does not know (mistyped or made up), a version younger than the release-age delay, install scripts the policy does not allow (for Python: a package built from source; for Composer: a plugin), a name that looks like a popular package (npm and Python), a deprecated or abandoned package and sources the policy denies; when the server runs with --osv, also a version OSV.dev lists as malicious (known-malicious). Every finding has a fix. A package with a finding of level error must not be installed: choose another package or version. Only the user may change depcurfew.json. ${DATA_NOT_INSTRUCTIONS} The result is the document of depcurfew check --json.`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -165,7 +166,8 @@ const checkPackages: ToolDefinition = {
         minItems: 1,
         maxItems: MAX_PACKAGES,
         items: { type: 'string', minLength: 1, maxLength: MAX_SPEC_LENGTH },
-        description: 'Package specs as the package manager takes them: lodash, zod@4, react@^19, @scope/name@1.2.3, a git or tarball URL; Python packages with the prefix pypi:, such as pypi:requests or pypi:django==5.2.',
+        description:
+          'Package specs as the package manager takes them: lodash, zod@4, react@^19, @scope/name@1.2.3, a git or tarball URL; Python packages with the prefix pypi:, such as pypi:requests or pypi:django==5.2; Composer packages with the prefix composer:, as composer require takes them, such as composer:monolog/monolog or composer:monolog/monolog:^3.9.',
       },
       directory: DIRECTORY_PROPERTY,
     },
@@ -220,9 +222,10 @@ interface PolicyDocument {
   };
   /**
    * Where check_packages looks packages up; packages of the scopes .npmrc assigns a registry are not looked up. `osv`
-   * is the OSV.dev endpoint asked about known malicious versions with --osv, null without (decision D-129).
+   * is the OSV.dev endpoint asked about known malicious versions with --osv, null without (decision D-129);
+   * `composerRepository` is Packagist, where composer: packages are looked up (decision D-133).
    */
-  lookups: { npmRegistry: string; pythonIndex: string; scopes: { scope: string; registry: string }[]; osv: string | null };
+  lookups: { npmRegistry: string; pythonIndex: string; composerRepository: string; scopes: { scope: string; registry: string }[]; osv: string | null };
   notices: CheckNotice[];
   errors: InputError[];
 }
@@ -279,6 +282,7 @@ function lookupsOf(lookups: Lookups, context: Pick<ToolContext, 'osv'>): PolicyD
   return {
     npmRegistry: lookups.registry.url,
     pythonIndex: lookups.index,
+    composerRepository: packagistUrl(),
     scopes: [...lookups.scopes].map(([scope, registry]) => ({ scope, registry })),
     osv: context.osv === true ? osvBatchUrl() : null,
   };
