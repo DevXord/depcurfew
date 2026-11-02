@@ -5,7 +5,7 @@
 // Dockerfile stage that installs or runs Corepack before it installs with the pinned tool is not reported either, nor
 // one that installs the pinned npm release itself first (npm install -g npm@<version>, decision D-144).
 import { posix } from 'node:path';
-import { parseVersion, type Version } from '../../apply/version.ts';
+import { compareVersions, parseVersion, type Version } from '../../apply/version.ts';
 import { extraOf, isRecord, yamlOptionsFor } from '../../apply/facts.ts';
 import { yamlSetting } from '../settings.ts';
 import type { DockerfileInfo, DockerStage, PackageManagerInfo, ToolCommand, VersionDeclaration, WorkflowJob } from '../../detect/types.ts';
@@ -14,6 +14,7 @@ import { environment } from '../../knowledge/environment.ts';
 import { evidenceOf } from '../../knowledge/facts.ts';
 import type { ToolKnowledge } from '../../knowledge/types.ts';
 import { versionedValue } from '../effective.ts';
+import { lowestVersion } from '../version-range.ts';
 import { namingFor, nodeLines, runtimeFacts } from '../runtime-versions.ts';
 import type { Rule, RuleContext, RuleScope } from '../types.ts';
 import { commandsAfterStep, jobIndex, nodeSubject, SOURCE_LABEL } from './bundled-versions.ts';
@@ -94,13 +95,27 @@ interface Use {
 }
 
 /**
+ * The one release an install spec names, read as manager-version-too-old reads npm install -g npm@<spec>: 11.19.1,
+ * v11.19.1, =11.19.1 and 11.19.1+sha512... all name 11.19.1 (decision D-146); a range, a tag or a variable names none.
+ */
+function exactRelease(spec: string): Version | undefined {
+  const exact = parseVersion(spec);
+  if (exact !== undefined) return exact;
+  const lowest = lowestVersion(spec);
+  return lowest.kind === 'exact' && lowest.prerelease === undefined ? lowest.version : undefined;
+}
+
+/**
  * The tool installing a release of itself before the install (npm install -g npm@11.19.1, decision D-144): the pinned
- * release then runs there without Corepack, so nothing is reported; another release runs instead of the pin.
+ * release then runs there without Corepack, so nothing is reported; another release runs instead of the pin. The spec
+ * and the pin are compared as releases, not as text (decision D-146).
  */
 function ownRelease(before: readonly ToolCommand[], pin: Pin): Use | undefined {
   const own = before.filter((command) => command.kind === 'upgrade' && command.tool === pin.tool && command.version !== undefined).at(-1);
   if (own === undefined) return {};
-  return own.version === pin.version ? undefined : { other: own };
+  const installed = exactRelease(own.version ?? '');
+  const pinned = parseVersion(pin.version);
+  return installed !== undefined && pinned !== undefined && compareVersions(installed, pinned) === 0 ? undefined : { other: own };
 }
 
 /** The stage a Dockerfile declaration belongs to, by its name or its number from 0. */

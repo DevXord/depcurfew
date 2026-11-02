@@ -16,3 +16,11 @@ jobs:
         with:
           node-version: 26
       - run: npm ci
+  range:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+      - run: npm install -g npm@^11.19.1
+      - run: npm ci

@@ -20,6 +20,15 @@
   {
     "level": "warning",
     "location": {
+      "file": ".github/workflows/ci.yml",
+      "line": 24
+    },
+    "message": "packageManager in package.json (line 4) pins npm@11.19.1, but Node.js 26 in GitHub Actions (.github/workflows/ci.yml, job range) does not come with Corepack (Node.js 25.0.0 stopped distributing it), and Corepack is what reads that pin: npm there is npm@^11.19.1, which line 25 of .github/workflows/ci.yml installs",
+    "fix": "Make line 25 of .github/workflows/ci.yml install the pinned release (npm install -g npm@11.19.1), or install Corepack in job range of .github/workflows/ci.yml before it runs npm (a step that runs npm install -g corepack, then corepack enable npm); npm itself does not read packageManager, while it checks devEngines.packageManager itself"
+  },
+  {
+    "level": "warning",
+    "location": {
       "file": "Dockerfile",
       "line": 1
     },

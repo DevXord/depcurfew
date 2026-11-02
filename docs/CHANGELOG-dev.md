@@ -2,6 +2,12 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-02 · Hook: przesunięcia w czasie liniowym; `corepack-unavailable` porównuje wydania (D-146)
+
+- `offsetSets` w `src/check/command.ts` czyta arytmetykę przesunięć `${s:offset}` w jednym przejściu (słowo 1 MiB z wieloma `${a:` w cudzysłowie: 5,5 s, teraz kilka milisekund), z tym samym wynikiem co dotychczasowe wyrażenie.
+- `corepack-unavailable` porównuje `npm install -g npm@<spec>` z przypięciem jako wydania (`v11.19.1`, `=11.19.1`, `11.19.1+…` to 11.19.1).
+- Fakt `environmentNames` uv wskazuje clap_builder 4.6.7 z `Cargo.lock` uv; komentarz `detectProject` wrócił nad tę funkcję.
+
 ## 2026-11-02 · Strona dokumentacji: tabele czytelne bez przewijania w bok (D-145)
 
 - `scripts/site/markdown.ts`: kod w komórkach tabel jako słowa w `<span>` (klasa `words`), długie słowa z `<wbr>` po kropce i ukośniku, daty w `<span class="date">`; `site/style.css`: zawijanie między słowami, `min-width` komórki 6rem, odstęp 0.75rem, przyklejona pierwsza kolumna. Przy 1440 px w bok przewija się 5 tabel zamiast 13.

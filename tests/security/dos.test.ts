@@ -162,6 +162,15 @@ describe('variables set in ways depcurfew does not read (decision D-143)', () =>
     expect(elapsed(() => requestedSpecs(line, 'posix', false))).toBeLessThan(5000);
   });
 
+  // Each start of an offset without a } after it scanned up to 4096 characters: 5.5 s for 1 MiB (decision D-146).
+  it.each([
+    ['many offsets without a closing brace, in quotes', `echo '${filled('${a:', ' COMPOSER_NO_BLOCKING')}'; npm ci`],
+    ['many offsets without a closing brace', `echo ${filled('${a:', ' COMPOSER_NO_BLOCKING')}; npm ci`],
+    ['many offsets before one closing brace', `echo '${filled('${a:x', '} COMPOSER_NO_BLOCKING')}'; npm ci`],
+  ])('reads %s in linear time', (_label, line) => {
+    expect(elapsed(() => requestedSpecs(line, 'posix', false))).toBeLessThan(1000);
+  });
+
   it.each([
     // A word of unclosed [ took 100 s, a { before a long run of commas about 23 minutes.
     ['a word of unclosed brackets', `echo ${'a['.repeat(MiB / 2 - 10)}; npm ci`],
