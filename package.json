@@ -42,7 +42,8 @@
     "docs:readme": "node scripts/generate-readme.ts",
     "data:popular": "node scripts/generate-popular.ts",
     "record:registry": "node scripts/record-registry.ts",
-    "schema": "node scripts/generate-schema.ts"
+    "schema": "node scripts/generate-schema.ts",
+    "site": "node scripts/site.ts"
   },
   "keywords": [
     "supply-chain",

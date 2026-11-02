@@ -5,6 +5,7 @@ plan-polityka-supply-chain.md
 # Dependencies and build output
 node_modules/
 dist/
+dist-site/
 coverage/
 *.tgz
 

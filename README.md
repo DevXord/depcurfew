@@ -818,6 +818,8 @@ The same functions are available from the package: `detectProject`, `planApply` 
 
 Facts about package managers live only in [`src/knowledge/`](https://github.com/DevXord/depcurfew/tree/main/src/knowledge), each with the official URL it was verified against and the date. A correction is welcome with a link to the official documentation or changelog. `npm test` builds the project and runs every test without network access. [CONTRIBUTING.md](https://github.com/DevXord/depcurfew/blob/main/CONTRIBUTING.md) has the setup, the commands and the rules for changes, and the issue forms ask for what a report needs; vulnerabilities go through [SECURITY.md](https://github.com/DevXord/depcurfew/blob/main/SECURITY.md).
 
+`npm run site` builds the documentation site into `dist-site/` from this README, the knowledge base and `schema.json`, so its pages say what the README says; it uses relative links only and loads nothing from other hosts. A published release deploys it to GitHub Pages, which serves the schema at `schema.json` and `schema/v1.json`.
+
 ## License
 
 [MIT](https://github.com/DevXord/depcurfew/blob/main/LICENSE)

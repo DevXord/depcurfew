@@ -25,6 +25,7 @@ npm test
 | `npm run docs:readme` | rewrites the generated sections of `README.md` |
 | `npm run schema` | writes `schema.json` from the policy definition in `src/policy/schema.ts` |
 | `npm run build:action` | builds `action/depcurfew.mjs`, which is committed and must match the source |
+| `npm run site` | builds the documentation site into `dist-site/` from `README.md`, `src/knowledge/` and `schema.json` (not committed) |
 
 To try a change by hand: `node dist/cli.js explain tests/fixtures/repos/<name>`, `node dist/cli.js doctor tests/fixtures/doctor/<rule>/<case>/repo` (also with `--json` and `--sarif`) and `node dist/cli.js apply --dry-run <directory>`.
 
