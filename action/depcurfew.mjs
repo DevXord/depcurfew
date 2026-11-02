@@ -70,6 +70,7 @@ const { verified: verified$14, uncertain: uncertain$12, disputed: disputed$6, ev
 const checked$6 = verifiedOn("2026-10-29");
 const user$9 = verifiedOn("2026-10-31");
 const runtimes$3 = verifiedOn("2026-11-01");
+const release14$6 = verifiedOn("2026-11-02");
 const BUN_V1_4_4 = "https://github.com/oven-sh/bun/blob/bun-v1.4.4";
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 const BUNFIG = "https://bun.com/docs/runtime/bunfig";
@@ -186,6 +187,10 @@ const bun$1 = {
 		variables: user$9.uncertain([], `${BUN_V1_4_4}/docs/pm/cli/install.mdx`, "No environment variable sets minimumReleaseAge or its exclusions: concluded from the install page, which lists registry, token, lockfile and retry variables only. NPM_CONFIG_IGNORE_SCRIPTS only turns scripts off. XDG_CONFIG_HOME moves the user file (user.files).")
 	},
 	extra: {
+		environmentNames: release14$6.verified([{
+			prefix: "",
+			match: "exact"
+		}], `${BUN_V1_4_4}/src/install/PackageManager/PackageManagerOptions.rs`, "Options::load looks up BUN_CONFIG_REGISTRY, NPM_CONFIG_REGISTRY and npm_config_registry with env.get, each spelling as written; the map behind env.get (HashTable in src/dotenv/env_loader.rs, https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/dotenv/env_loader.rs) is a StringArrayHashMap outside Windows and a CaseInsensitiveAsciiStringArrayHashMap on Windows, where names are not told apart by case. Decision D-143."),
 		registrySettings: runtimes$3.verified([{
 			file: "bunfig.toml",
 			path: ["install", "registry"],
@@ -438,6 +443,10 @@ const composer$3 = {
 		workspacesObjectKey: uncertain$11(null, `${REPOSITORIES}#path`, "No workspaces.")
 	},
 	extra: {
+		environmentNames: verified$13([{
+			prefix: "",
+			match: "exact"
+		}], `${COMPOSER}/src/Composer/Util/Platform.php`, "Platform::getEnv looks the name up with array_key_exists($name, $_SERVER), then in $_ENV, then with getenv($name), so outside Windows only that spelling counts: COMPOSER and COMPOSER_HOME, not Composer or composer (decision D-143)."),
 		latestVersion: verified$13("2.11.1", CHANGELOG$3, "Released on 2026-10-30."),
 		durationStrings: verified$13({
 			since: "2.11.0",
@@ -1502,7 +1511,7 @@ const reviewed$2 = verifiedOn("2026-10-30");
 const rechecked$4 = verifiedOn("2026-10-31");
 const runtimes$2 = verifiedOn("2026-11-01");
 const finalReview$3 = verifiedOn("2026-11-01");
-const release14$3 = verifiedOn("2026-11-02");
+const release14$5 = verifiedOn("2026-11-02");
 const CONFIG$2 = "https://docs.npmjs.com/cli/v12/using-npm/config";
 const NPMRC$1 = "https://docs.npmjs.com/cli/v12/configuring-npm/npmrc";
 const release$4 = (version) => `https://github.com/npm/cli/releases/tag/v${version}`;
@@ -1801,6 +1810,10 @@ const npm$1 = {
 		], `${NPM_GITHUB_V12}/docs/lib/content/using-npm/config.md`, "Environment variables starting with npm_config_ are interpreted as configuration parameters; config values are case-insensitive, so NPM_CONFIG_FOO=bar works the same. loadEnv in workspaces/config/lib/index.js (11.21.1 and 12.2.1) skips variables whose value is empty and reads them in the order of the environment, so of two spellings the later one wins. userconfig defaults to ~/.npmrc (definitions.js), and npm exports the resolved path as npm_config_userconfig to every command it runs (see extra.childEnvironment), so that value names the default file.")
 	},
 	extra: {
+		environmentNames: release14$5.verified([{
+			prefix: "npm_config_",
+			match: "any-case"
+		}], `${NPM_CONFIG_LIB}/index.js`, "loadEnv takes every variable whose name matches /^npm_config_/i, cuts the prefix and lowercases the rest (with _ as - but for a leading _), so NPM_CONFIG_REGISTRY and Npm_Config_Registry set registry as npm_config_registry does (decision D-143)."),
 		localPrefix: runtimes$2.verified({
 			markers: {
 				file: "package.json",
@@ -1844,7 +1857,7 @@ const npm$1 = {
 			packageMustExist: true,
 			permissions: ["--allow-publish", "--allow-stage-publish"]
 		}, "https://github.com/npm/documentation/blob/514e6c9e84ef5b29dd8e11b7e743ab573ba10a0b/content/cli/v12/commands/npm-trust.mdx", "Configures a trusted publisher from the CLI; needs 2FA on the account and write access, and the package must already exist. At least one permission flag is required."),
-		tarballIdentity: release14$3.verified({
+		tarballIdentity: release14$5.verified({
 			separator: "/-/",
 			extension: ".tgz",
 			scopeSeparator: "/|%2f",
@@ -2522,7 +2535,7 @@ const npm$1 = {
 			since: "12.0.0",
 			node: "^22.22.2 || ^24.15.0 || >=26.0.0"
 		}], "https://github.com/npm/cli/blob/v11.19.1/package.json", "engines.node of npm/cli package.json, the same at the tags v11.0.0, v11.10.0, v11.16.0, v11.19.1 and v11.21.1 (^20.17.0 || >=22.9.0) and at v12.0.0 and v12.2.1 (^22.22.2 || ^24.15.0 || >=26.0.0, https://github.com/npm/cli/blob/v12.2.1/package.json). On a Node.js outside the range npm only warns that it does not support it: lib/cli/entry.js at v11.19.1 runs log.warn('cli', validateEngines.unsupportedMessage) when !satisfies(node, engines), for a Node.js \"still unsupported and untested and might not work reliably\", and lib/cli/validate-engines.js prints \"ERROR: npm ... is known not to run on Node.js ...\" when it fails with a SyntaxError. So npm install -g npm@11 on Node.js 18 installs an npm that is not meant to run there."),
-		rootLifecycleScripts: release14$3.verified({
+		rootLifecycleScripts: release14$5.verified({
 			events: [
 				"preinstall",
 				"install",
@@ -2535,7 +2548,7 @@ const npm$1 = {
 			skippedBy: "ignore-scripts",
 			allowListApplies: false
 		}, `${NPM_GITHUB_V12}/lib/commands/install.js`, "A bare npm install in a project runs the lifecycle scripts of the project itself with runScript, outside arborist and its allowScripts gate: \"const runRootLifecycle = !args.length && !isGlobalInstall && !ignoreScripts\", preinstall before reify and install, postinstall, prepublish, preprepare, prepare and postprepare after it. npm ci does the same \"if (!ignoreScripts)\" (lib/commands/ci.js), and so do install.js and ci.js at v11.16.0. collectUnreviewedScripts in workspaces/arborist/lib/unreviewed-scripts.js skips \"node.isProjectRoot || node.isWorkspace\", so strict-allow-scripts never stops at them. using-npm/scripts.md: prepare \"Runs on local npm install without package arguments (runs with flags like --production or --omit=dev, but does not run when installing specific packages like npm install express)\"."),
-		omitOptional: release14$3.verified({
+		omitOptional: release14$5.verified({
 			omit: {
 				setting: "omit",
 				value: "optional"
@@ -2569,6 +2582,7 @@ const PYLOCK = "https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668
 const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
 const user$6 = verifiedOn("2026-10-31");
 const finalReview$2 = verifiedOn("2026-11-01");
+const release14$4 = verifiedOn("2026-11-02");
 const noSetting$5 = (kind) => ({ setting: uncertain$7(null, `${PIP}/src/pip/_internal/cli/cmdoptions.py`, `No option allows or forbids ${kind} requirements (concluded from the list of options). Hash-checking mode (--require-hashes, or any --hash) rejects VCS and local directory requirements, unless --no-require-hashes (26.2) turns the automatic mode off.`) });
 const pip$1 = {
 	id: "pip",
@@ -2800,6 +2814,10 @@ const pip$1 = {
 		], CONFIGURATION$4, "\"Note that if a file exists at the location that this is set to, the user config file will not be loaded.\" PIP_<NAME> variables are applied after the [global] and command sections of all files, and the command line beats them (cli/parser.py, override_order). --isolated, a flag, ignores environment variables and user configuration. XDG_CONFIG_HOME (Linux) and XDG_DATA_HOME (macOS, 26.2) move the user directory (see files).")
 	},
 	extra: {
+		environmentNames: release14$4.verified([{
+			prefix: "PIP_",
+			match: "prefix-then-any-case"
+		}], `${PIP}/src/pip/_internal/configuration.py`, "get_environ_vars takes the variables of os.environ whose names start with PIP_ (key.startswith(\"PIP_\"), the prefix in upper case) and lowercases the rest (key[4:].lower()), so PIP_index_url sets index-url and pip_index_url sets nothing (decision D-143)."),
 		configCommand: finalReview$2.verified({
 			command: "config",
 			writes: [
@@ -3395,6 +3413,10 @@ const pdm$1 = {
 		], `${PDM}/src/pdm/project/core.py`, "env_or_setting returns os.getenv(var) or the pyproject.toml setting, so a non-empty PDM_ONLY_BINARY or PDM_NO_BINARY wins (environments/base.py). -c/--config and PDM_CONFIG_FILE name the home config file (src/pdm/core.py). PDM_USE_UV is the variable of use_uv, and variables beat pdm.toml and config.toml (src/pdm/project/config.py).")
 	},
 	extra: {
+		environmentNames: current$1.verified([{
+			prefix: "",
+			match: "exact"
+		}], `${PDM}/src/pdm/project/config.py`, "A configuration item takes its value from its env_var (PDM_PYPI_URL and the others) with os.environ[item.env_var], and the options read PDM_PROJECT and the other variables with os.getenv(\"PDM_PROJECT\") (src/pdm/cli/options.py), so only those spellings count (decision D-143)."),
 		pylockCreatedBy: verified$8("pdm", `${PDM}/src/pdm/formats/pylock.py`, "PDM's pylock.toml export writes created-by = \"pdm\"."),
 		configTables: verified$8({ "pyproject.toml": "tool.pdm.resolution" }, `${LOCKFILE}#exclude-packages-newer-than-specific-date`, "exclude-newer, its overrides, only-binary and no-binary share the table."),
 		pyprojectTable: verified$8("tool.pdm", `${PDM}/docs/reference/pep621.md`, "PDM keeps its settings in [tool.pdm] of pyproject.toml."),
@@ -3725,6 +3747,13 @@ const pipenv$1 = {
 		], `${PIPENV}/pipenv/utils/resolver.py`, "PIPENV_RESOLVER is not documented. The code ranks it above the resolver key of the Pipfile (\"CLI/caller > env > current project's Pipfile > default\"), and the pure-python backend locked the newest versions despite cool-down-period when chosen in the Pipfile (extra.resolverBypass, tested on 2026-10-30); the variable itself was not tested. PIPENV_PYPI_MIRROR: \"When the index does not provide upload-time metadata (e.g. most private mirrors) the setting is accepted but has no filtering effect\" (docs/pipfile.md). PIP_* variables are merged over the environment of the pip subprocess (pipenv/utils/processes.py), so they still reach it while pip.conf does not; pipenv/routines/install.py also reads PIP_NO_BINARY.")
 	},
 	extra: {
+		environmentNames: osvFacts.verified([{
+			prefix: "PIPENV_",
+			match: "exact"
+		}, {
+			prefix: "PIP_",
+			match: "prefix-then-any-case"
+		}], `${PIPENV}/pipenv/environments.py`, "get_from_env looks up f\"{prefix}_{arg}\" with the prefix PIPENV (PIPENV_PYPI_MIRROR, PIPENV_PIPFILE, PIPENV_DOTENV_LOCATION) through \"positive_lookup in os.environ\", that spelling only. PIP_NO_BINARY and PIP_ONLY_BINARY reach the pip Pipenv runs, which reads PIP_ variables with the prefix in upper case and the rest in any case (pip extra.environmentNames). Decision D-143."),
 		pylockCreatedBy: verified$7("pipenv", `${PIPENV}/pipenv/utils/pylock.py`, "Pipenv writes created-by = \"pipenv\" in the pylock.toml it generates (docs/pylock.md). pipenv install -e . writes the project itself as { path = \".\", editable = true } (docs/pipfile.md), and Pipfile.lock keeps it as \"path\": \".\"."),
 		configTables: verified$7({ Pipfile: "pipenv" }, `${PIPFILE}#pipenv-directives`, "Directives such as cool-down-period and allow_prereleases live in [pipenv]."),
 		durationStrings: verified$7({
@@ -3855,7 +3884,7 @@ const reviewed$1 = verifiedOn("2026-10-30");
 const rechecked$1 = verifiedOn("2026-10-31");
 const user$3 = verifiedOn("2026-10-31");
 const runtimes$1 = verifiedOn("2026-11-01");
-const release14$2 = verifiedOn("2026-11-02");
+const release14$3 = verifiedOn("2026-11-02");
 const PNPM_V12 = "https://github.com/pnpm/pnpm/blob/v12.16.1";
 const PNPM_V11_CODE = "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/config/reader/src";
 /** A file in pnpm's config directory (getConfigDir): $XDG_CONFIG_HOME/pnpm when set, else the platform's own place. */
@@ -4188,6 +4217,13 @@ const pnpm$1 = {
 		], `${PNPM_V11_CODE}/env.ts`, "pnpm 11 reads pnpm_config_<key> in lower case or PNPM_CONFIG_<KEY> in upper case, not mixed case (getEnvKeySuffix), over pnpm-workspace.yaml and under the command line; pnpm 12 reads the same two forms (pnpm/crates/config/src/env_overlay.rs at 12.17.0). pnpm 11+ ignores npm_config_* except npm_config_userconfig, which then moves only the auth .npmrc. The 11.0.0 release notes (https://github.com/pnpm/pnpm/releases/tag/v11.0.0): \"pnpm no longer reads npm_config_* environment variables\", \"Added support for loading environment variables whose names start with pnpm_config_ into config\"; pnpm 10.34.9 reads pnpm_config_ only for verify-deps-before-run (config/config/src/index.ts). pnpm 10 reads npm_config_* in any case, skipping empty values (addEnv in lib/conf.js of @pnpm/npm-conf 3.0.3), under pnpm-workspace.yaml (npmrcPrecedence), and parses them with the same parseField as .npmrc, so npm_config_dangerously_allow_all_builds is off only for false, null and undefined (1 and yes stay true strings); its npm_config_userconfig defaults to ~/.npmrc (lib/defaults.js). pnpm 11 parses a Boolean pnpm_config_ value with parseBoolean of env.ts, which takes only true as true (false gives false, any other text no value). XDG_CONFIG_HOME and LOCALAPPDATA move the config directory (user.files).")
 	},
 	extra: {
+		environmentNames: release14$3.verified([{
+			prefix: "pnpm_config_",
+			match: "lower-or-upper"
+		}, {
+			prefix: "npm_config_",
+			match: "any-case"
+		}], `${PNPM_V11_CODE}/env.ts`, "pnpm 11 reads pnpm_config_<key> only with the prefix and the key in lower case, or PNPM_CONFIG_<KEY> with both in upper case (getEnvKeySuffix with isLowerSnakeCase and isUpperSnakeCase), so Pnpm_Config_Registry sets nothing; pnpm 12 looks up PNPM_CONFIG_<KEY> and then pnpm_config_<key> (read_env in pnpm/crates/config/src/env_overlay/string_reader.rs, https://github.com/pnpm/pnpm/blob/v12.17.0/pnpm/crates/config/src/env_overlay/string_reader.rs). pnpm 10 reads npm_config_* in any case: addEnv in lib/conf.js of @pnpm/npm-conf 3.0.3 filters with /^npm_config_/i, and envKeyToSetting lowercases the key (https://github.com/pnpm/npm-conf/blob/v3.0.3/lib/envKeyToSetting.js). Decision D-143."),
 		denyList: user$3.verified({
 			file: "pnpm-workspace.yaml",
 			setting: "allowBuilds",
@@ -4596,8 +4632,8 @@ const pnpm$1 = {
 			value: "lockfile entries are re-checked; trustLockfile: true (11.3.0) turns this off"
 		}], release$3("11.1.3"), "The 11.1.3 release notes confirm re-validation (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). The pnpm 10 behavior rests on maintainer comments in pnpm/pnpm#12450 (a Dependabot lockfile passed --frozen-lockfile on 10.34.5), not on docs."),
 		unknownWorkspaceKeys: verified$6("pnpm 11 and earlier silently ignore misspelled pnpm-workspace.yaml settings; pnpm 12 warns", "https://pnpm.io/blog/releases/12.0"),
-		tarballResolution: release14$2.verified({ field: "tarball" }, "https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/utils/src/pkgSnapshotToResolution.ts", "pnpm fetches a registry package of pnpm-lock.yaml (a key name@version) from the tarball URL get-npm-tarball-url builds from the name and version, unless its resolution has tarball: then from that URL, resolved against the registry (new url.URL(resolution.tarball, registry)). pnpm 11.28.10 does the same (resolveTarballUrl in pnpm11/lockfile/utils/src/pkgSnapshotToResolution.ts). assertRegistryShapedResolution (lockfile/utils/src/assertRegistryShapedResolution.ts at v10.34.9) accepts any http(s) URL there for such a key, and a relative path without a scheme or a leading slash, which \"is resolved against the configured registry\", while the allowBuild policy \"derives a trusted package identity from that key shape\". pnpm writes tarball for a registry package whose tarball is not at the URL it would build. The fetch requests the path and the query of the URL, never the fragment, and the registry serves the file the path names."),
-		rootLifecycleScripts: release14$2.verified({
+		tarballResolution: release14$3.verified({ field: "tarball" }, "https://github.com/pnpm/pnpm/blob/v10.34.9/lockfile/utils/src/pkgSnapshotToResolution.ts", "pnpm fetches a registry package of pnpm-lock.yaml (a key name@version) from the tarball URL get-npm-tarball-url builds from the name and version, unless its resolution has tarball: then from that URL, resolved against the registry (new url.URL(resolution.tarball, registry)). pnpm 11.28.10 does the same (resolveTarballUrl in pnpm11/lockfile/utils/src/pkgSnapshotToResolution.ts). assertRegistryShapedResolution (lockfile/utils/src/assertRegistryShapedResolution.ts at v10.34.9) accepts any http(s) URL there for such a key, and a relative path without a scheme or a leading slash, which \"is resolved against the configured registry\", while the allowBuild policy \"derives a trusted package identity from that key shape\". pnpm writes tarball for a registry package whose tarball is not at the URL it would build. The fetch requests the path and the query of the URL, never the fragment, and the registry serves the file the path names."),
+		rootLifecycleScripts: release14$3.verified({
 			events: [
 				"preinstall",
 				"install",
@@ -4609,7 +4645,7 @@ const pnpm$1 = {
 			skippedBy: "ignoreScripts",
 			allowListApplies: false
 		}, "https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/installing/deps-installer/src/install/linkResolvedProjects.ts", "pnpm 11.28.10 runs the projects' own lifecycle scripts after linking \"if (!opts.ignoreScripts && !opts.virtualStoreOnly)\" (runProjectLifecycleScripts), with PROJECT_LIFECYCLE_STAGES = preinstall, install, postinstall, preprepare, prepare, postprepare for a full install and only the install stages for --prod or deploy (exec/lifecycle/src/runLifecycleHooksConcurrently.ts); allowBuilds only goes to the build of dependencies (allowBuild). pnpm 10.34.9 does the same in pkg-manager/core/src/install/index.ts and, for a frozen lockfile, pkg-manager/headless/src/index.ts (\"if (!opts.ignoreScripts && !opts.ignorePackageManifest) await runLifecycleHooksConcurrently([preinstall, install, postinstall, preprepare, prepare, postprepare], ...)\"). pnpm 12.16.1 picks PROJECT_LIFECYCLE_STAGES for a full install with devDependencies (project_script_stages in pnpm/crates/package-manager/src/install/lifecycle/uninstall.rs)."),
-		managesOwnVersion: release14$2.verified({
+		managesOwnVersion: release14$3.verified({
 			since: "10.0.0",
 			field: "packageManager"
 		}, "https://github.com/pnpm/pnpm/blob/v10.26.0/pnpm/CHANGELOG.md", "10.0.0: \"manage-package-manager-versions: enabled by default. pnpm now manages its own version based on the packageManager field in package.json by default\" (added in 9.7.0, off by default: \"pnpm will switch to the version specified in the packageManager field of package.json ... This is the same field used by Corepack\"). The 11.0.0 release notes replace the setting with pmOnFail, which \"directly sets the onFail behavior of both packageManager and devEngines.packageManager\" (https://github.com/pnpm/pnpm/releases/tag/v11.0.0); pnpm 12 documents pmOnFail with the default download: \"download and run the declared pnpm version (this is the default and matches the previous managePackageManagerVersions: true behavior)\" (pnpm/docs/settings/cli.md at v12.16.1). So any pnpm 10 or later honors a pnpm pin without Corepack.")
@@ -4807,6 +4843,10 @@ const poetry$1 = {
 		], `${CONFIGURATION$2}#using-environment-variables`, "Any setting can be set as POETRY_ plus its name in capitals with dots and dashes replaced by underscores, and environment variables come first in the precedence (\"Configuration sources\"). POETRY_CONFIG_DIR replaces the platform directory (src/poetry/locations.py).")
 	},
 	extra: {
+		environmentNames: current.verified([{
+			prefix: "",
+			match: "exact"
+		}], `${POETRY}/src/poetry/config/config.py`, "Config.get builds the name \"POETRY_\" + the keys of the setting in upper case with _ for - and reads it with os.getenv(env), and _get_environment_repositories matches POETRY_REPOSITORIES_(?P<name>[A-Z_]+)_URL, so only the names in upper case count (decision D-143)."),
 		installedPackage: finalReview$1.verified({
 			name: "poetry",
 			commands: [["pipx", "install"], ["pip", "install"]]
@@ -5228,6 +5268,7 @@ const changelog = (minor, version) => `${UV}/changelogs/${minor}.x.md#${version.
 const user$1 = verifiedOn("2026-10-31");
 const release13$1 = verifiedOn("2026-11-01");
 const final = verifiedOn("2026-11-01");
+const release14$2 = verifiedOn("2026-11-02");
 /** The values clap's BoolishValueParser reads as true, compared without regard to case (user.variables). */
 const TRUE_VALUES = [
 	"1",
@@ -5465,6 +5506,10 @@ const uv$1 = {
 		], `${UV}/crates/uv-static/src/env_vars.rs`, "\"Settings provided via environment variables take precedence over persistent configuration, and settings provided via the command line take precedence over both\" (docs/concepts/configuration-files.md). UV_NO_BUILD_PACKAGE since 0.6.5, UV_NO_BINARY and UV_NO_BINARY_PACKAGE since 0.5.30 (lists separated by spaces), UV_NO_CONFIG since 0.2.30, UV_CONFIG_FILE since 0.1.34. UV_NO_BUILD, UV_NO_BINARY and UV_NO_CONFIG are flags parsed with the BoolishValueParser of clap (crates/uv-cli/src/lib.rs), whose true values are y, yes, t, true, on and 1 and false values n, no, f, false, off and 0, in any case (https://github.com/clap-rs/clap/blob/v4.6.7/clap_builder/src/util/str_to_bool.rs, the clap_builder version in the Cargo.lock of uv); a false value leaves the flag unset (flag() in crates/uv-cli/src/options.rs gives None), so the files decide (with UV_NO_BUILD=0 uv 0.11.32 still refused to build in a review test on 2026-10-31). XDG_CONFIG_HOME and APPDATA move the user directory (see files).")
 	},
 	extra: {
+		environmentNames: release14$2.verified([{
+			prefix: "",
+			match: "exact"
+		}], CLI, "The options take their variables through clap (env = EnvVars::UV_PROJECT and the others), and clap_builder Arg::env reads the variable with env::var_os(name) (https://github.com/clap-rs/clap/blob/v4.5.40/clap_builder/src/builder/arg.rs), which outside Windows finds only that spelling, so uv_project sets nothing (decision D-143)."),
 		registrySettings: release13$1.verified([
 			{
 				file: "pyproject.toml",
@@ -6217,6 +6262,10 @@ const yarn$1 = {
 		], CONFIGURATION, "A variable starting with yarn_ in any case sets the camel-cased setting before the rc files are read, and they cannot change it (Configuration.find and use; YARN_IGNORE_SCRIPTS is ignored); a list setting takes a comma-separated string (parseValue); enableScripts accepts true or 1 (parseBoolean), false or 0 turn it off, and any other value stops Yarn, so every value but false and 0 counts as on."), user.evidence(SCALAR_VARIABLES, `${BERRY}/packages/docusaurus/static/configuration/yarnrc.json`, "Most settings \"can also be defined through environment variables (at least for the simpler ones; arrays and objects aren't supported yet)\", and such values \"will overwrite any that might have been defined in the RC files\"."))
 	},
 	extra: {
+		environmentNames: release14$1.verified([{
+			prefix: "YARN_",
+			match: "any-case"
+		}], CONFIGURATION, "getEnvironmentSettings lowercases every name of process.env and takes those that start with yarn_ (ENVIRONMENT_PREFIX), and getRcFilename compares the lowercased name with yarn_rc_filename, so yarn_enable_scripts and Yarn_Enable_Scripts set enableScripts as YARN_ENABLE_SCRIPTS does (decision D-143)."),
 		registrySettings: leftovers$1.verified([{
 			file: ".yarnrc.yml",
 			path: ["npmRegistryServer"],
@@ -8357,6 +8406,7 @@ function detectionFacts(tools, environment) {
 	const poetryPackage = poetryTool === void 0 ? void 0 : extraValue(poetryTool, "installedPackage");
 	const off = extraValue(npm, "scriptsOff");
 	const omitOptional = npm.extra?.["omitOptional"] === void 0 ? void 0 : extraValue(npm, "omitOptional");
+	const localPrefix = npm.extra?.["localPrefix"] === void 0 ? void 0 : extraValue(npm, "localPrefix");
 	const corepackInstall = first$1(environment.corepack.manualInstall);
 	const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 	const others = [
@@ -8395,7 +8445,8 @@ function detectionFacts(tools, environment) {
 				alias: String(omitOptional["alias"]["setting"]),
 				include: String(omitOptional["include"]["setting"]),
 				prefix: String(omitOptional["variablePrefix"]),
-				separator: String(omitOptional["listSeparator"])
+				separator: String(omitOptional["listSeparator"]),
+				...isRecord(localPrefix) && typeof localPrefix["projectFile"] === "string" ? { projectFile: localPrefix["projectFile"] } : {}
 			} } : {}
 		},
 		others,
@@ -16293,11 +16344,12 @@ function scriptsOff(args, environment, facts) {
 	return off;
 }
 /**
-* What the command line and the variables of an npm install say about optional dependencies (decision D-127):
-* `omitted` when they leave them out (--omit=optional, --no-optional, npm_config_omit=optional), `kept` when they keep
-* them whatever .npmrc says (--include=optional, which wins over any omit, or --optional), absent when they do not
-* say, so the project .npmrc decides. Each of omit, include and optional is one key, the command line winning over
-* the variables.
+* What npm does with the optional dependencies of an npm install whose command line or variables say something about
+* them (decisions D-127 and D-143): `omitted` when it leaves them out (--omit=optional, --no-optional,
+* npm_config_omit=optional), `kept` when include=optional or optional=true keeps them (include wins over any omit),
+* absent when the command line and the variables do not name omit, include or optional, so that the project .npmrc
+* decides alone (doctor reports it at its line). Each of omit, include and optional is one key: the command line wins
+* over the variables, and both over the project .npmrc (buildOmitList in npm's definitions.js).
 */
 function optionalDependencies(args, environment, facts) {
 	const known = facts.npm.omitOptional;
@@ -16310,6 +16362,8 @@ function optionalDependencies(args, environment, facts) {
 	let include = fromVariable(known.include);
 	const alias = fromVariable(known.alias);
 	let optional = alias === void 0 ? void 0 : alias[0] === "true" ? true : alias[0] === "false" ? false : void 0;
+	/** optional is set, also to a value that is neither true nor false (npm_config_optional=yes). */
+	let optionalSet = alias !== void 0;
 	let omitOnLine;
 	let includeOnLine;
 	for (const [index, word] of args.entries()) {
@@ -16324,9 +16378,15 @@ function optionalDependencies(args, environment, facts) {
 			const text = word.text.slice(known.alias.length + 3);
 			optional = text === "false" ? false : text === "true" ? true : optional;
 		}
+		if (word.text === `--no-${known.alias}` || word.text === `--${known.alias}` || word.text.startsWith(`--${known.alias}=`)) optionalSet = true;
 	}
 	omit = omitOnLine ?? omit;
 	include = includeOnLine ?? include;
+	if (omit === void 0 && include === void 0 && !optionalSet) return void 0;
+	const project = known.project;
+	omit ??= project?.omit;
+	include ??= project?.include;
+	if (!optionalSet && project?.optional !== void 0) optional = project.optional === "true" ? true : project.optional === "false" ? false : void 0;
 	if (include?.includes(known.value) === true || optional === true) return "kept";
 	return omit?.includes(known.value) === true || optional === false ? "omitted" : void 0;
 }
@@ -17776,847 +17836,8 @@ function normalizePythonName(name) {
 	return name.replace(SEPARATORS, REPLACEMENT).toLowerCase();
 }
 
-// src/detect/index.ts
-const EVIDENCE_ORDER = [
-	"lockfile",
-	"packageManager",
-	"devEngines",
-	"config",
-	"ci",
-	"default"
-];
-const SOURCE_ORDER = [
-	"packageManager",
-	"tool-config",
-	"devEngines",
-	"volta",
-	"tool-versions",
-	"nvmrc",
-	"node-version",
-	"engines",
-	"github-actions",
-	"dockerfile"
-];
-function isObject$2(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function stringList(value) {
-	return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : void 0;
-}
-/** devEngines entries may be one object or a list of objects with a name and an optional version. */
-function devEngineEntries(value) {
-	return (Array.isArray(value) ? value : [value]).flatMap((entry) => isObject$2(entry) && typeof entry["name"] === "string" ? [{
-		name: entry["name"],
-		...typeof entry["version"] === "string" ? { version: entry["version"] } : {}
-	}] : []);
-}
-/** Orders paths and codes by their UTF-16 code units, the same on every machine (localeCompare depends on the locale). */
-function byPath(a, b) {
-	return a < b ? -1 : a > b ? 1 : 0;
-}
-function compareVersions(a, b) {
-	return SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source) || byPath(a.file, b.file) || (a.line ?? 0) - (b.line ?? 0);
-}
-function compareEvidence(a, b) {
-	return EVIDENCE_ORDER.indexOf(a.kind) - EVIDENCE_ORDER.indexOf(b.kind) || byPath(a.file, b.file);
-}
-function tomlAt(document, path) {
-	return document === void 0 ? void 0 : tomlValueAt(document, path);
-}
-/** A required version as written; an exact one (==1.2.3) without the operator, so that it counts as pinned. */
-function requiredVersionText(value) {
-	return /^\s*===?\s*(\d+(?:\.\d+)*)\s*$/u.exec(value)?.[1] ?? value.trim();
-}
-/** A TOML file, parsed once per repository; undefined when it is missing or cannot be parsed (a warning says so). */
-function readToml(repository, file) {
-	return repository.parseOnce(file, parseToml);
-}
-/**
-* A top-level string key of a TOML lockfile, such as created-by in pylock.toml, read from the start of the file: top-level
-* keys come before the first table, so a large lockfile is not read whole.
-*/
-function createdBy(repository, file, key) {
-	const head = repository.readHead(file, 16384) ?? "";
-	const escaped = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-	const pattern = new RegExp(`^\\s*(?:${escaped}|"${escaped}")\\s*=\\s*("(?:[^"\\\\]|\\\\.)*"|'[^']*')`, "u");
-	for (const line of head.split(/\r?\n/u)) {
-		if (/^\s*\[/u.test(line)) return void 0;
-		const value = pattern.exec(line)?.[1];
-		if (value === void 0) continue;
-		if (value.startsWith("'")) return value.slice(1, -1);
-		try {
-			return JSON.parse(value);
-		} catch {
-			return;
-		}
-	}
-}
-function orList(items) {
-	return items.length < 2 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} or ${items.at(-1) ?? ""}`;
-}
-var Collector = class {
-	evidence = /* @__PURE__ */ new Map();
-	versions = /* @__PURE__ */ new Map();
-	addEvidence(manager, kind, file) {
-		const list = this.evidence.get(manager) ?? [];
-		if (!list.some((item) => item.kind === kind && item.file === file)) list.push({
-			kind,
-			file
-		});
-		this.evidence.set(manager, list);
-	}
-	addVersion(tool, declaration) {
-		const list = this.versions.get(tool) ?? [];
-		list.push(declaration);
-		this.versions.set(tool, list);
-	}
-};
-function readPackageJson(repository) {
-	if (!repository.isFile("package.json")) return void 0;
-	const parsed = repository.parse("package.json", (text) => JSON.parse(text));
-	return isObject$2(parsed) ? parsed : void 0;
-}
-function readPackageManagerField(repository, facts, manifest, collector) {
-	const value = manifest[facts.packageManagerKey];
-	if (value === void 0) return void 0;
-	const match = typeof value === "string" ? /^(@?[^@\s]+)@([^+\s]+)(?:\+.*)?$/u.exec(value) : null;
-	if (match === null) {
-		repository.warn("invalid-package-manager", `${facts.packageManagerKey} ${JSON.stringify(value)} is not in the form name@version`, ["package.json"]);
-		return;
-	}
-	const [, name = "", version = ""] = match;
-	const manager = facts.managers.find((entry) => entry.id === name);
-	if (manager === void 0) {
-		repository.warn("invalid-package-manager", `${facts.packageManagerKey} names ${name}, which depcurfew does not know`, ["package.json"]);
-		return;
-	}
-	collector.addEvidence(manager.id, "packageManager", "package.json");
-	collector.addVersion(manager.id, {
-		version,
-		source: "packageManager",
-		file: "package.json"
-	});
-	return manager.id;
-}
-function readDevEngines(facts, manifest, collector) {
-	const devEngines = manifest[facts.devEngines.key];
-	if (!isObject$2(devEngines)) return;
-	for (const entry of devEngineEntries(devEngines[facts.devEngines.packageManagerKey])) {
-		const manager = facts.managers.find((item) => item.id === entry.name);
-		if (manager === void 0) continue;
-		collector.addEvidence(manager.id, "devEngines", "package.json");
-		if (entry.version !== void 0) collector.addVersion(manager.id, {
-			version: entry.version,
-			source: "devEngines",
-			file: "package.json"
-		});
-	}
-	for (const entry of devEngineEntries(devEngines[facts.devEngines.runtimeKey])) if (entry.name === "node" && entry.version !== void 0) collector.addVersion("node", {
-		version: entry.version,
-		source: "devEngines",
-		file: "package.json"
-	});
-}
-function readVolta(facts, manifest, collector) {
-	const volta = manifest[facts.volta.key];
-	if (!isObject$2(volta)) return;
-	for (const tool of facts.volta.tools) {
-		const version = volta[tool];
-		if (typeof version === "string") collector.addVersion(tool, {
-			version,
-			source: "volta",
-			file: "package.json"
-		});
-	}
-}
-function readToolVersions(repository, facts, collector) {
-	const file = facts.toolVersions.file;
-	const text = repository.isFile(file) ? repository.readText(file) : void 0;
-	if (text === void 0) return;
-	text.split(/\r?\n/u).forEach((raw, index) => {
-		const [plugin, version] = (raw.split("#", 1)[0] ?? "").trim().split(/\s+/u);
-		const tool = plugin === void 0 ? void 0 : facts.toolVersions.plugins[plugin];
-		if (tool !== void 0 && version !== void 0) collector.addVersion(tool, {
-			version,
-			source: "tool-versions",
-			file,
-			line: index + 1
-		});
-	});
-}
-/**
-* .nvmrc and .node-version in the root: the first line that is not empty, without a # comment in .nvmrc. engines.node
-* of package.json is a range of the Node.js versions the package works on, kept as written.
-*/
-function readNodeFiles(repository, facts, manifest, collector) {
-	const files = [[
-		facts.nodeFiles.nvmrc,
-		"nvmrc",
-		facts.nodeFiles.comment
-	], [
-		facts.nodeFiles.nodeVersion,
-		"node-version",
-		void 0
-	]];
-	for (const [file, source, comment] of files) {
-		const text = repository.isFile(file) ? repository.readText(file) : void 0;
-		if (text === void 0) continue;
-		for (const [index, raw] of text.split(/\r?\n/u).entries()) {
-			const version = (comment === void 0 ? raw : raw.split(comment, 1)[0] ?? "").trim();
-			if (version === "") continue;
-			collector.addVersion("node", {
-				version,
-				source,
-				file,
-				line: index + 1
-			});
-			break;
-		}
-	}
-	const engines = manifest?.[facts.nodeFiles.engines.key];
-	const range = isObject$2(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : void 0;
-	if (typeof range === "string") collector.addVersion("node", {
-		version: range,
-		source: "engines",
-		file: "package.json"
-	});
-}
-/** The version setup-node reads from the file node-version-file names, when depcurfew can read it the same way. */
-function versionFromFile(repository, facts, path, manifest) {
-	const file = path.trim().replace(/^(?:\.\/)+/u, "");
-	const { versionFile } = facts.setupNode;
-	if (file === "" || !repository.isFile(file)) return void 0;
-	if (file.endsWith(".json")) {
-		const json = file === versionFile.packageJson ? manifest : repository.parse(file, (text) => JSON.parse(text));
-		if (!isObject$2(json)) return void 0;
-		for (const key of versionFile.packageJsonOrder) {
-			if (key === `${facts.devEngines.key}.${facts.devEngines.runtimeKey}`) {
-				const devEngines = json[facts.devEngines.key];
-				const entry = (isObject$2(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : []).find((item) => item.name.toLowerCase() === "node" && item.version !== void 0);
-				if (entry?.version !== void 0) return entry.version;
-				continue;
-			}
-			const value = key.split(".").reduce((node, part) => isObject$2(node) ? node[part] : void 0, json);
-			if (typeof value === "string") return value;
-		}
-		return;
-	}
-	if (file.endsWith(".toml")) return void 0;
-	const text = repository.readText(file);
-	if (text === void 0) return void 0;
-	const version = new RegExp(versionFile.textPattern, "mu").exec(text)?.groups?.["version"] ?? text.trim();
-	return version === "" ? void 0 : version;
-}
-function yarnVariant(repository, facts, collector) {
-	if (repository.isFile("yarn.lock")) {
-		const head = repository.readHead("yarn.lock") ?? "";
-		if (head.includes(facts.yarn.classicHeader)) return {
-			variant: "classic",
-			file: "yarn.lock"
-		};
-		if (new RegExp(`^${facts.yarn.berryMarker}:`, "mu").test(head)) return {
-			variant: "berry",
-			file: "yarn.lock"
-		};
-	}
-	const declared = collector.versions.get("yarn")?.find((entry) => entry.source === "packageManager");
-	if (declared !== void 0 && "version" in declared && /^1\./u.test(declared.version)) return {
-		variant: "classic",
-		file: "package.json"
-	};
-	return {
-		variant: "berry",
-		file: "package.json"
-	};
-}
-function readWorkspaces(repository, facts, manifest) {
-	const declarations = [];
-	const seen = /* @__PURE__ */ new Set();
-	for (const manager of facts.managers) {
-		if (manager.workspaces === null) continue;
-		const { files, key, objectKey, excludeKey } = manager.workspaces;
-		for (const file of files) {
-			const id = `${file}#${key}`;
-			if (seen.has(id) || !repository.isFile(file)) continue;
-			seen.add(id);
-			const document = file.endsWith(".toml") ? readToml(repository, file)?.root : readDocument(repository, file, manifest);
-			if (!isObject$2(document)) continue;
-			const value = key.split(".").reduce((node, part) => isObject$2(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
-			const patterns = stringList(value) ?? (objectKey !== null && isObject$2(value) ? stringList(value[objectKey]) : void 0);
-			const excluded = excludeKey !== void 0 && isObject$2(value) ? stringList(value[excludeKey]) ?? [] : [];
-			const manifests = [...new Set(facts.managers.filter((other) => other.ecosystem === manager.ecosystem).flatMap((other) => other.manifests))];
-			if (patterns !== void 0) declarations.push({
-				file,
-				patterns: [...patterns, ...excluded.map((pattern) => `!${pattern}`)],
-				manifests
-			});
-			break;
-		}
-	}
-	if (declarations.length === 0) return null;
-	const packages = /* @__PURE__ */ new Set();
-	for (const declaration of declarations) for (const directory of expandWorkspaces(repository, declaration.patterns, declaration.manifests, declaration.file)) packages.add(directory);
-	return {
-		declarations: declarations.map(({ file, patterns }) => ({
-			file,
-			patterns
-		})),
-		packages: [...packages].sort(byPath)
-	};
-}
-/**
-* The .npmrc files of the root and the workspace packages. One that exists but is not a regular file (a named pipe)
-* cannot be read, by depcurfew or safely by npm, so it gets a warning instead of passing for a missing file.
-*/
-function npmrcFiles(repository, directories) {
-	const files = directories.map((directory) => joinPath(directory, ".npmrc"));
-	for (const file of files.filter((path) => repository.isSpecialFile(path))) repository.warn("not-a-regular-file", `${file} exists but is not a regular file (a named pipe, socket or device), so depcurfew did not read it`, [file]);
-	return files.filter((file) => repository.isFile(file)).sort(byPath);
-}
-/** A workspace declaration file: package.json is already parsed, others are YAML or JSONC. */
-function readDocument(repository, file, manifest) {
-	return file === "package.json" ? manifest : repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => parseYaml(text, yamlOptionsFor(file)) : parseJsonc);
-}
-/** Python tools: a pyproject.toml with the tool's table is configuration, and required versions are pinned versions. */
-function readPythonConfig(repository, facts, collector) {
-	const project = facts.pythonProject;
-	for (const manager of facts.managers) {
-		if (manager.pyprojectTable !== null && tomlAt(readToml(repository, project), manager.pyprojectTable.split(".")) !== void 0) collector.addEvidence(manager.id, "config", project);
-		const read = manager.configFileOrder?.find((file) => repository.isFile(file));
-		for (const { file, path } of manager.requiredVersions) {
-			if (read !== void 0 && file !== read) continue;
-			const document = readToml(repository, file);
-			const value = tomlAt(document, path);
-			if (typeof value !== "string") continue;
-			const line = document?.lineOf(path);
-			collector.addVersion(manager.id, {
-				version: requiredVersionText(value),
-				source: "tool-config",
-				file,
-				...line === void 0 ? {} : { line }
-			});
-		}
-	}
-}
-function configFiles(repository, manager, directories, project) {
-	const table = manager.pyprojectTable?.split(".");
-	return directories.flatMap((directory) => [...manager.configFiles.map((file) => joinPath(directory, file)).filter((file) => repository.isFile(file)), ...table !== void 0 && tomlAt(readToml(repository, joinPath(directory, project)), table) !== void 0 ? [joinPath(directory, project)] : []]).sort(byPath);
-}
-/**
-* Describes the repository at `root`. Never executes anything from the repository and never leaves it;
-* problems with individual files become warnings.
-*/
-function detectProject(root, tools = knowledgeBase, environment$1 = environment, options = {}) {
-	const repository = new Repository(root);
-	const facts = detectionFacts(tools, environment$1);
-	const collector = new Collector();
-	const managerIds = new Set(facts.managers.map((manager) => manager.id));
-	const ecosystemOf = (id) => facts.managers.find((manager) => manager.id === id)?.ecosystem ?? "npm";
-	const manifest = readPackageJson(repository);
-	const declaredManager = manifest === void 0 ? void 0 : readPackageManagerField(repository, facts, manifest, collector);
-	if (manifest !== void 0) {
-		readDevEngines(facts, manifest, collector);
-		readVolta(facts, manifest, collector);
-	}
-	readToolVersions(repository, facts, collector);
-	readNodeFiles(repository, facts, manifest, collector);
-	readPythonConfig(repository, facts, collector);
-	const owners = /* @__PURE__ */ new Map();
-	for (const manager of facts.managers) {
-		const named = manager.lockfilePattern === null ? [] : repository.listFiles(".").filter((name) => manager.lockfilePattern?.test(name) === true);
-		for (const file of /* @__PURE__ */ new Set([...manager.lockfiles.filter((name) => repository.isFile(name)), ...named])) {
-			const creator = manager.createdByKey === null ? void 0 : createdBy(repository, file, manager.createdByKey);
-			const owner = creator === void 0 ? void 0 : facts.managers.find((other) => other.pylockCreatedBy !== null && normalizePythonName(other.pylockCreatedBy) === normalizePythonName(creator));
-			if (!owners.has(file)) owners.set(file, owner?.id ?? manager.id);
-		}
-	}
-	const lockfiles = /* @__PURE__ */ new Map();
-	for (const manager of facts.managers) {
-		const present = [...owners].filter(([, owner]) => owner === manager.id).map(([file]) => file).sort(byPath);
-		if (present.length > 0) lockfiles.set(manager.id, present);
-		for (const file of present) collector.addEvidence(manager.id, "lockfile", file);
-		for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, "config", file);
-	}
-	const workflows = readWorkflows(repository, facts);
-	for (const { tool, declaration } of workflows.versions) {
-		const version = tool === "node" && !("version" in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : void 0;
-		collector.addVersion(tool, version === void 0 ? declaration : {
-			version,
-			...declaration
-		});
-	}
-	const workspaces = readWorkspaces(repository, facts, manifest);
-	const directories = [".", ...workspaces?.packages ?? []];
-	const manifests = [...new Set(facts.managers.flatMap((manager) => manager.manifests))];
-	const dockerfiles = dockerfileCandidates(repository, facts.docker, manifests, workspaces?.packages ?? []).flatMap((file) => {
-		const text = repository.readText(file);
-		if (text === void 0) return [];
-		const reading = readDockerStages(file, text, facts.docker);
-		for (const { tool, declaration } of reading.versions) collector.addVersion(tool, declaration);
-		for (const { message, line } of reading.notices) repository.warn("script-not-followed", message, [file], line);
-		return [reading.info];
-	});
-	const projects = options.projects ?? [];
-	const installsWith = (id, commands) => commands.filter((command) => command.kind === "install" && command.tool === id);
-	const forProjects = (id) => {
-		if (projects.length === 0 || collector.evidence.has(id)) return false;
-		if (!facts.managers.filter((manager) => manager.ecosystem === ecosystemOf(id)).flatMap((manager) => manager.manifests).some((file) => repository.isFile(file))) return true;
-		if (dockerfiles.some((dockerfile) => dockerfile.stages.some((stage) => installsWith(id, stage.commands).length > 0))) return false;
-		const installs = workflows.jobs.flatMap((job) => installsWith(id, job.commands));
-		return installs.length > 0 && installs.every((command) => projectOf(command, projects) !== "");
-	};
-	const setUp = /* @__PURE__ */ new Map();
-	const steps = workflows.installs.filter(({ tool }) => managerIds.has(tool));
-	for (const id of new Set(steps.map(({ tool }) => tool))) {
-		const files = [...new Set(steps.filter(({ tool }) => tool === id).map(({ file }) => file))].sort(byPath);
-		if (forProjects(id)) setUp.set(id, files.map((file) => ({
-			kind: "ci",
-			file
-		})));
-		else for (const file of files) collector.addEvidence(id, "ci", file);
-	}
-	const hasEvidence = (ecosystem) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
-	if (manifest !== void 0 && !hasEvidence("npm")) {
-		collector.addEvidence("npm", "default", "package.json");
-		repository.warn("package-manager-assumed", "no lockfile, packageManager or devEngines found; assuming npm", ["package.json"]);
-	}
-	const packageManagers = [];
-	const ciForProjects = [];
-	for (const manager of facts.managers) {
-		const steps = setUp.get(manager.id);
-		if (steps !== void 0) {
-			const versions = [...collector.versions.get(manager.id) ?? []].sort(compareVersions);
-			ciForProjects.push({
-				id: manager.id,
-				supported: true,
-				evidence: steps,
-				versions,
-				configFiles: configFiles(repository, manager, directories, facts.pythonProject)
-			});
-		}
-		const evidence = collector.evidence.get(manager.id);
-		if (evidence === void 0) continue;
-		const yarn = manager.id === "yarn" ? yarnVariant(repository, facts, collector) : void 0;
-		if (yarn?.variant === "classic") repository.warn("yarn-classic-unsupported", "Yarn Classic (1.x) is not supported; depcurfew configures Yarn 2 and later", [yarn.file]);
-		packageManagers.push({
-			id: manager.id,
-			...yarn === void 0 ? {} : { variant: yarn.variant },
-			supported: yarn?.variant !== "classic",
-			evidence: [...evidence].sort(compareEvidence),
-			versions: [...collector.versions.get(manager.id) ?? []].sort(compareVersions),
-			configFiles: configFiles(repository, manager, directories, facts.pythonProject)
-		});
-	}
-	const bots = [];
-	for (const bot of facts.bots) {
-		const files = bot.configFiles.filter((file) => repository.isFile(file));
-		if (bot.packageJsonKey !== null && manifest !== void 0 && bot.packageJsonKey in manifest) {
-			files.push("package.json");
-			repository.warn("renovate-config-in-package-json", "Renovate configuration in package.json is deprecated and depcurfew does not edit it; move it to renovate.json", ["package.json"]);
-		}
-		if (files.length > 0) bots.push({
-			id: bot.id,
-			configFiles: files
-		});
-	}
-	const withLockfiles = [...lockfiles.entries()];
-	for (const ecosystem of ["npm", "pypi"]) {
-		const competing = withLockfiles.filter(([id]) => ecosystemOf(id) === ecosystem && id !== "pip");
-		if (competing.length < 2) continue;
-		const files = competing.flatMap(([, list]) => list).sort(byPath);
-		repository.warn("multiple-lockfiles", `lockfiles of several package managers: ${files.join(", ")}`, files);
-	}
-	const npmLockfiles = withLockfiles.filter(([id]) => ecosystemOf(id) === "npm");
-	if (declaredManager !== void 0 && !lockfiles.has(declaredManager) && npmLockfiles.length > 0) repository.warn("package-manager-mismatch", `${facts.packageManagerKey} names ${declaredManager}, but no ${declaredManager} lockfile exists`, ["package.json"]);
-	const python = facts.managers.filter((manager) => manager.ecosystem === "pypi");
-	if (repository.isFile(facts.pythonProject) && readToml(repository, facts.pythonProject) !== void 0 && !hasEvidence("pypi")) {
-		const tables = python.flatMap((manager) => manager.pyprojectTable === null ? [] : [`[${manager.pyprojectTable}]`]);
-		const files = [...python.flatMap((manager) => manager.lockfiles), ...python.flatMap((manager) => manager.manifests.filter((file) => file !== facts.pythonProject))];
-		const hatch = repository.isFile(facts.hatch.configFile) || tomlAt(readToml(repository, facts.pythonProject), facts.hatch.pyprojectTable.split(".")) !== void 0;
-		repository.warn("python-tool-unknown", `${facts.pythonProject} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none${hatch ? ". Hatch has no supply-chain settings of its own: if its environments use the uv installer, add \"uv\" to targets in depcurfew.json" : ""}`, [facts.pythonProject]);
-	}
-	if (manifest === void 0 && packageManagers.length === 0 && !repository.isFile("package.json") && !repository.isFile(facts.pythonProject)) repository.warn("nothing-detected", "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found", []);
-	return {
-		packageManagers,
-		...ciForProjects.length === 0 ? {} : { ciForProjects },
-		node: { versions: [...collector.versions.get("node") ?? []].sort(compareVersions) },
-		bots,
-		workspaces,
-		npmrcFiles: npmrcFiles(repository, directories),
-		workflows: workflows.files,
-		jobs: workflows.jobs,
-		dockerfiles,
-		warnings: [...repository.warnings].sort((a, b) => byPath(a.code, b.code) || byPath(a.files.join(), b.files.join()))
-	};
-}
-
-// src/policy/defaults.ts
-const POLICY_FILE = "depcurfew.json";
-
-// src/policy/shape.ts
-const IDENTIFIER = /^[A-Za-z_$][\w$]*$/u;
-function formatPath(path) {
-	let text = "";
-	for (const segment of path) if (typeof segment === "number") text += `[${segment}]`;
-	else if (IDENTIFIER.test(segment)) text += text === "" ? segment : `.${segment}`;
-	else text += `[${JSON.stringify(segment)}]`;
-	return text === "" ? "(root)" : text;
-}
-function jsonTypeOf(value) {
-	if (value === null) return "null";
-	if (Array.isArray(value)) return "array";
-	const type = typeof value;
-	return type === "object" || type === "string" || type === "number" || type === "boolean" ? type : "null";
-}
-/** Shows what was found: scalars as JSON, compound values by kind. */
-function describeValue(value) {
-	switch (jsonTypeOf(value)) {
-		case "array": return "a list";
-		case "object": return "an object";
-		default: return JSON.stringify(value) ?? String(value);
-	}
-}
-/** Optimal string alignment distance: insertions, deletions, substitutions and adjacent transpositions. */
-function editDistance(a, b) {
-	const rows = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0));
-	const at = (i, j) => rows[i]?.[j] ?? Number.POSITIVE_INFINITY;
-	for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
-		const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-		let best = Math.min(at(i - 1, j) + 1, at(i, j - 1) + 1, at(i - 1, j - 1) + cost);
-		if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) best = Math.min(best, at(i - 2, j - 2) + 1);
-		rows[i][j] = best;
-	}
-	return at(a.length, b.length);
-}
-/** The closest candidate to a mistyped name, if one is close enough to be a likely typo. */
-function suggest(input, candidates) {
-	const normalize = (text) => text.toLowerCase().replace(/[-_\s]/gu, "");
-	const wanted = normalize(input);
-	const exact = candidates.find((candidate) => normalize(candidate) === wanted);
-	if (exact !== void 0) return exact;
-	const prefix = candidates.find((candidate) => {
-		const name = normalize(candidate);
-		return Math.min(name.length, wanted.length) >= 3 && (name.startsWith(wanted) || wanted.startsWith(name));
-	});
-	if (prefix !== void 0) return prefix;
-	let best;
-	let bestDistance = Number.POSITIVE_INFINITY;
-	for (const candidate of candidates) {
-		const distance = editDistance(wanted, normalize(candidate));
-		if (distance <= Math.max(1, Math.floor(candidate.length / 3)) && distance < bestDistance) {
-			best = candidate;
-			bestDistance = distance;
-		}
-	}
-	return best;
-}
-function didYouMean(value, candidates) {
-	if (typeof value !== "string" || candidates === void 0) return "";
-	const match = suggest(value, candidates);
-	return match === void 0 ? "" : `; did you mean ${JSON.stringify(match)}?`;
-}
-function report$1(issues, path, message) {
-	issues.push({
-		path: formatPath(path),
-		message
-	});
-	return { ok: false };
-}
-function mismatch(issues, path, label, value, candidates) {
-	return report$1(issues, path, `must be ${label}, got ${describeValue(value)}${didYouMean(value, candidates)}`);
-}
-function withDescription(schema, description) {
-	return description === void 0 ? schema : {
-		description,
-		...schema
-	};
-}
-function literal(value, options = {}) {
-	const label = JSON.stringify(value);
-	return {
-		label,
-		jsonTypes: [typeof value === "string" ? "string" : "number"],
-		...typeof value === "string" ? { suggestions: [value] } : {},
-		parse: (input, path, issues) => input === value ? {
-			ok: true,
-			value
-		} : mismatch(issues, path, label, input, typeof value === "string" ? [value] : void 0),
-		toJsonSchema: () => {
-			return withDescription({
-				type: typeof value === "string" ? "string" : Number.isInteger(value) ? "integer" : "number",
-				const: value
-			}, options.description);
-		}
-	};
-}
-function oneOfStrings(values, options = {}) {
-	const label = `one of ${values.map((value) => JSON.stringify(value)).join(", ")}`;
-	return {
-		label,
-		jsonTypes: ["string"],
-		suggestions: values,
-		parse: (input, path, issues) => typeof input === "string" && values.includes(input) ? {
-			ok: true,
-			value: input
-		} : mismatch(issues, path, label, input, values),
-		toJsonSchema: () => withDescription({
-			type: "string",
-			enum: values
-		}, options.description)
-	};
-}
-/** A string with its own syntax; the JSON Schema `pattern` must accept exactly the canonical form. */
-function text$1(options) {
-	return {
-		label: options.label,
-		jsonTypes: ["string"],
-		parse(input, path, issues) {
-			if (typeof input !== "string") return mismatch(issues, path, options.label, input);
-			const result = options.parse(input);
-			return result.ok ? result : report$1(issues, path, `${options.kind} ${JSON.stringify(input)}: ${result.message}`);
-		},
-		toJsonSchema: () => withDescription({
-			type: "string",
-			pattern: options.pattern,
-			...options.examples === void 0 ? {} : { examples: options.examples }
-		}, options.description)
-	};
-}
-function anyString(options = {}) {
-	return {
-		label: "a string",
-		jsonTypes: ["string"],
-		parse: (input, path, issues) => typeof input === "string" ? {
-			ok: true,
-			value: input
-		} : mismatch(issues, path, "a string", input),
-		toJsonSchema: () => withDescription({ type: "string" }, options.description)
-	};
-}
-function list$1(item, options = {}) {
-	const label = options.label ?? "a list";
-	return {
-		label,
-		jsonTypes: ["array"],
-		parse(input, path, issues) {
-			if (!Array.isArray(input)) return mismatch(issues, path, label, input);
-			if (options.nonEmpty !== void 0 && input.length === 0) return report$1(issues, path, `must not be an empty list; ${options.nonEmpty}`);
-			const values = [];
-			const firstIndex = /* @__PURE__ */ new Map();
-			let ok = true;
-			input.forEach((element, index) => {
-				const result = item.parse(element, [...path, index], issues);
-				if (!result.ok) {
-					ok = false;
-					return;
-				}
-				if (options.unique === true) {
-					const key = JSON.stringify(element);
-					const first = firstIndex.get(key);
-					if (first !== void 0) {
-						ok = false;
-						report$1(issues, [...path, index], `duplicate entry ${describeValue(element)} (first at index ${first})`);
-						return;
-					}
-					firstIndex.set(key, index);
-				}
-				values.push(result.value);
-			});
-			return ok ? {
-				ok: true,
-				value: values
-			} : { ok: false };
-		},
-		toJsonSchema: () => withDescription({
-			type: "array",
-			items: item.toJsonSchema(),
-			...options.unique === true ? { uniqueItems: true } : {},
-			...options.nonEmpty === void 0 ? {} : { minItems: 1 }
-		}, options.description)
-	};
-}
-/** Alternatives told apart by JSON type, e.g. `"auto"` or a list of tools. */
-function anyOf(shapes, options = {}) {
-	const types = shapes.flatMap((shape) => shape.jsonTypes);
-	if (new Set(types).size !== types.length) throw new Error("anyOf alternatives must accept different JSON types");
-	const label = shapes.map((shape) => shape.label).join(" or ");
-	const suggestions = shapes.flatMap((shape) => shape.suggestions ?? []);
-	return {
-		label,
-		jsonTypes: types,
-		suggestions,
-		parse(input, path, issues) {
-			const shape = shapes.find((candidate) => candidate.jsonTypes.includes(jsonTypeOf(input)));
-			if (shape === void 0) return mismatch(issues, path, label, input, suggestions);
-			const own = [];
-			const result = shape.parse(input, path, own);
-			if (own.some((issue) => issue.path === formatPath(path) && issue.message.startsWith("must be "))) return mismatch(issues, path, label, input, suggestions);
-			issues.push(...own);
-			return result;
-		},
-		toJsonSchema: () => withDescription({ anyOf: shapes.map((shape) => shape.toJsonSchema()) }, options.description)
-	};
-}
-function required(shape) {
-	return {
-		kind: "required",
-		shape
-	};
-}
-/** Absent fields stay absent in the output. */
-function optional(shape) {
-	return {
-		kind: "optional",
-		shape
-	};
-}
-/** Absent fields get the default, parsed like a written value. */
-function withDefault(shape, value) {
-	return {
-		kind: "default",
-		shape,
-		default: value
-	};
-}
-function isPlainObject(value) {
-	return jsonTypeOf(value) === "object";
-}
-/** An object with known fields only; unknown fields are reported, with a suggestion when one looks like a typo. */
-function object(fields, options = {}) {
-	const names = Object.keys(fields);
-	return {
-		label: "an object",
-		jsonTypes: ["object"],
-		parse(input, path, issues) {
-			if (!isPlainObject(input)) return mismatch(issues, path, "an object", input);
-			let ok = true;
-			for (const key of Object.keys(input)) if (!Object.hasOwn(fields, key)) {
-				ok = false;
-				report$1(issues, path, `unknown field ${JSON.stringify(key)}${didYouMean(key, names)}`);
-			}
-			const output = {};
-			for (const [key, field] of Object.entries(fields)) {
-				if (!Object.hasOwn(input, key)) {
-					if (field.kind === "required") {
-						ok = false;
-						report$1(issues, path, `missing required field ${JSON.stringify(key)}`);
-					} else if (field.kind === "default") {
-						const result = field.shape.parse(field.default, [...path, key], issues);
-						if (result.ok) output[key] = result.value;
-					}
-					continue;
-				}
-				const result = field.shape.parse(input[key], [...path, key], issues);
-				if (result.ok) output[key] = result.value;
-				else ok = false;
-			}
-			return ok ? {
-				ok: true,
-				value: output
-			} : { ok: false };
-		},
-		toJsonSchema() {
-			const properties = {};
-			const requiredNames = [];
-			for (const [key, field] of Object.entries(fields)) {
-				properties[key] = field.kind === "default" ? {
-					...field.shape.toJsonSchema(),
-					default: field.default
-				} : field.shape.toJsonSchema();
-				if (field.kind === "required") requiredNames.push(key);
-			}
-			return withDescription({
-				type: "object",
-				properties,
-				...requiredNames.length > 0 ? { required: requiredNames } : {},
-				additionalProperties: false
-			}, options.description);
-		}
-	};
-}
-
-// src/policy/package-pattern.ts
-const NAME$1 = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
-const PYTHON_NAME$1 = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
-/** One part of a Composer name: lowercase, as the schema requires (vendor/name, 04-schema.md#name). */
-const COMPOSER_PART = "[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?";
-const PYPI_PREFIX = "pypi:";
-const COMPOSER_PREFIX = "composer:";
-/** The prefix of each registry but npm, whose names have none. */
-const PREFIXES = {
-	pypi: PYPI_PREFIX,
-	packagist: COMPOSER_PREFIX
-};
-/** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
-const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME$1}|${COMPOSER_PREFIX}(?!\\*+/\\*+$)${COMPOSER_PART}/${COMPOSER_PART}|(?!\\*+$)(@${NAME$1}/)?${NAME$1})$`;
-const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
-const PREFIX_LIST = `${PYPI_PREFIX} and ${COMPOSER_PREFIX}`;
-function validatePythonPattern(pattern) {
-	const name = pattern.slice(5);
-	if (name === "") return `write a Python package name after ${PYPI_PREFIX}, e.g. "${PYPI_PREFIX}requests"`;
-	const versionAt = name.search(/[@=<>!~;[ ]/u);
-	if (versionAt > 0 && !name.startsWith("@")) return `versions are not supported; write "${PYPI_PREFIX}${name.slice(0, versionAt)}"`;
-	if (/^\*+$/u.test(name)) return "it matches every package; list packages explicitly";
-	const example = `e.g. "${PYPI_PREFIX}requests" or "${PYPI_PREFIX}acme-*"`;
-	if (name.startsWith("@")) return `Python package names have no scope; expected a name or a name pattern with *, ${example}`;
-	if (!GRAMMAR.test(pattern)) return `expected a Python package name or a name pattern with *, ${example}`;
-}
-function validateComposerPattern(pattern) {
-	const name = pattern.slice(9);
-	const example = `e.g. "${COMPOSER_PREFIX}monolog/monolog" or "${COMPOSER_PREFIX}acme/*"`;
-	if (name === "") return `write a Composer package name after ${COMPOSER_PREFIX}, ${example}`;
-	const versionAt = name.search(/[:=@<>^~ ]/u);
-	if (versionAt > 0) return `versions are not supported; write "${COMPOSER_PREFIX}${name.slice(0, versionAt)}"`;
-	if (/^\*+(?:\/\*+)?$/u.test(name)) return "it matches every package; list packages explicitly";
-	if (!name.includes("/")) return `Composer package names are vendor/name; expected a name or a name pattern with *, ${example}`;
-	if (name !== name.toLowerCase() && GRAMMAR.test(`${"composer:"}${name.toLowerCase()}`)) return `Composer package names are lowercase; write "${COMPOSER_PREFIX}${name.toLowerCase()}"`;
-	if (!GRAMMAR.test(pattern)) return `expected a Composer package name or a name pattern with *, ${example}`;
-}
-/** A vendor/name (or a pattern of one) without a scope, which is how Composer names packages. */
-const COMPOSER_LIKE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9*][a-z0-9._*-]*$/u;
-/** Returns why the pattern is invalid, or undefined when it is valid. */
-function validatePackagePattern(pattern) {
-	if (pattern === "") return "must not be empty";
-	if (/\s/u.test(pattern)) return "must not contain spaces";
-	if (pattern.startsWith("pypi:")) return validatePythonPattern(pattern);
-	if (pattern.startsWith("composer:")) return validateComposerPattern(pattern);
-	const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(pattern);
-	if (prefix !== null) {
-		const rest = pattern.slice(prefix[0].length);
-		const word = prefix[1] ?? "";
-		const meant = word.toLowerCase() === "packagist" ? "composer" : suggest(word.toLowerCase(), ["pypi", "composer"]);
-		if (meant === "pypi") return `the ecosystem prefixes are ${PREFIX_LIST}; write Python packages as "${PYPI_PREFIX}${rest}"`;
-		if (meant === "composer") return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
-		if (COMPOSER_LIKE.test(rest.toLowerCase())) return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
-		const example = validatePackagePattern(rest) === void 0 ? `"${rest}"` : "\"esbuild\" or \"@scope/name\"";
-		return `the ecosystem prefixes are ${PREFIX_LIST}; write npm packages without a prefix, e.g. ${example}`;
-	}
-	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
-	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
-	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
-	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
-	if (!GRAMMAR.test(pattern)) {
-		if (COMPOSER_LIKE.test(pattern)) return `npm names have a scope (@scope/name); write Composer packages as "${COMPOSER_PREFIX}${pattern}"`;
-		return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
-	}
-}
-/** The ecosystem a policy pattern belongs to. */
-function ecosystemOf(pattern) {
-	if (pattern.startsWith("pypi:")) return "pypi";
-	return pattern.startsWith("composer:") ? "packagist" : "npm";
-}
-/** The prefix of an ecosystem's names in the policy: pypi:, composer:, or none for npm. */
-function prefixOf(ecosystem) {
-	return ecosystem === "npm" ? "" : PREFIXES[ecosystem];
-}
-/** The patterns of one ecosystem, without their prefix. */
-function patternsFor(patterns, ecosystem) {
-	const prefix = prefixOf(ecosystem);
-	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => pattern.slice(prefix.length));
-}
-
 // src/apply/expected.ts
-function isObject$1(value) {
+function isObject$2(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 /** A copy of `data` with `value` at `path`; missing objects on the way, or values that are not objects, become objects. */
@@ -18628,7 +17849,7 @@ function withValue(data, path, value) {
 		copy[segment] = withValue(data[segment], rest, value);
 		return copy;
 	}
-	const copy = isObject$1(data) ? { ...data } : {};
+	const copy = isObject$2(data) ? { ...data } : {};
 	const key = String(segment);
 	const current = Object.hasOwn(copy, key) ? copy[key] : void 0;
 	Object.defineProperty(copy, key, {
@@ -18657,7 +17878,7 @@ function withValues(data, edits) {
 			root = value;
 			continue;
 		}
-		if (!(Array.isArray(root) && typeof path[0] === "number") && !isObject$1(root)) root = {};
+		if (!(Array.isArray(root) && typeof path[0] === "number") && !isObject$2(root)) root = {};
 		let container = root;
 		for (const [index, segment] of path.entries()) {
 			const last = index === path.length - 1;
@@ -18667,7 +17888,7 @@ function withValues(data, edits) {
 				else {
 					const next = container[segment];
 					const nextSegment = path[index + 1];
-					if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$1(next)) container[segment] = {};
+					if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$2(next)) container[segment] = {};
 					container = container[segment];
 				}
 				continue;
@@ -18679,7 +17900,7 @@ function withValues(data, edits) {
 			}
 			const next = Object.hasOwn(object, key) ? object[key] : void 0;
 			const nextSegment = path[index + 1];
-			if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$1(next)) define(object, key, {});
+			if (!(Array.isArray(next) && typeof nextSegment === "number") && !isObject$2(next)) define(object, key, {});
 			container = object[key];
 		}
 	}
@@ -18688,8 +17909,8 @@ function withValues(data, edits) {
 /** A copy of `data` without the key `key` of the object at `path`; `data` itself when there is no object there. */
 function withoutKey(data, path, key) {
 	let current = data;
-	for (const segment of path) current = (isObject$1(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
-	if (!isObject$1(current)) return data;
+	for (const segment of path) current = (isObject$2(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
+	if (!isObject$2(current)) return data;
 	const copy = {};
 	for (const [name, value] of Object.entries(current)) if (name !== key) Object.defineProperty(copy, name, {
 		value,
@@ -18702,7 +17923,7 @@ function withoutKey(data, path, key) {
 /** A copy of `data` with the array at `path` changed by `change`. */
 function withArray(data, path, change) {
 	let current = data;
-	for (const segment of path) current = (isObject$1(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
+	for (const segment of path) current = (isObject$2(current) || Array.isArray(current)) && Object.hasOwn(current, String(segment)) ? current[String(segment)] : void 0;
 	return withValue(data, path, change(Array.isArray(current) ? [...current] : []));
 }
 /** Whether two parsed documents hold the same data, keys in the same order. */
@@ -19459,6 +18680,892 @@ function readSetting(repository, file, setting, options = yamlOptionsFor(file)) 
 function lineOf$1(text, needle) {
 	const offset = text.indexOf(needle);
 	return offset === -1 ? void 0 : lineAt$1(text, offset);
+}
+
+// src/detect/index.ts
+const EVIDENCE_ORDER = [
+	"lockfile",
+	"packageManager",
+	"devEngines",
+	"config",
+	"ci",
+	"default"
+];
+const SOURCE_ORDER = [
+	"packageManager",
+	"tool-config",
+	"devEngines",
+	"volta",
+	"tool-versions",
+	"nvmrc",
+	"node-version",
+	"engines",
+	"github-actions",
+	"dockerfile"
+];
+function isObject$1(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function stringList(value) {
+	return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : void 0;
+}
+/** devEngines entries may be one object or a list of objects with a name and an optional version. */
+function devEngineEntries(value) {
+	return (Array.isArray(value) ? value : [value]).flatMap((entry) => isObject$1(entry) && typeof entry["name"] === "string" ? [{
+		name: entry["name"],
+		...typeof entry["version"] === "string" ? { version: entry["version"] } : {}
+	}] : []);
+}
+/** Orders paths and codes by their UTF-16 code units, the same on every machine (localeCompare depends on the locale). */
+function byPath(a, b) {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+function compareVersions(a, b) {
+	return SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source) || byPath(a.file, b.file) || (a.line ?? 0) - (b.line ?? 0);
+}
+function compareEvidence(a, b) {
+	return EVIDENCE_ORDER.indexOf(a.kind) - EVIDENCE_ORDER.indexOf(b.kind) || byPath(a.file, b.file);
+}
+function tomlAt(document, path) {
+	return document === void 0 ? void 0 : tomlValueAt(document, path);
+}
+/** A required version as written; an exact one (==1.2.3) without the operator, so that it counts as pinned. */
+function requiredVersionText(value) {
+	return /^\s*===?\s*(\d+(?:\.\d+)*)\s*$/u.exec(value)?.[1] ?? value.trim();
+}
+/** A TOML file, parsed once per repository; undefined when it is missing or cannot be parsed (a warning says so). */
+function readToml(repository, file) {
+	return repository.parseOnce(file, parseToml);
+}
+/**
+* A top-level string key of a TOML lockfile, such as created-by in pylock.toml, read from the start of the file: top-level
+* keys come before the first table, so a large lockfile is not read whole.
+*/
+function createdBy(repository, file, key) {
+	const head = repository.readHead(file, 16384) ?? "";
+	const escaped = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+	const pattern = new RegExp(`^\\s*(?:${escaped}|"${escaped}")\\s*=\\s*("(?:[^"\\\\]|\\\\.)*"|'[^']*')`, "u");
+	for (const line of head.split(/\r?\n/u)) {
+		if (/^\s*\[/u.test(line)) return void 0;
+		const value = pattern.exec(line)?.[1];
+		if (value === void 0) continue;
+		if (value.startsWith("'")) return value.slice(1, -1);
+		try {
+			return JSON.parse(value);
+		} catch {
+			return;
+		}
+	}
+}
+function orList(items) {
+	return items.length < 2 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} or ${items.at(-1) ?? ""}`;
+}
+var Collector = class {
+	evidence = /* @__PURE__ */ new Map();
+	versions = /* @__PURE__ */ new Map();
+	addEvidence(manager, kind, file) {
+		const list = this.evidence.get(manager) ?? [];
+		if (!list.some((item) => item.kind === kind && item.file === file)) list.push({
+			kind,
+			file
+		});
+		this.evidence.set(manager, list);
+	}
+	addVersion(tool, declaration) {
+		const list = this.versions.get(tool) ?? [];
+		list.push(declaration);
+		this.versions.set(tool, list);
+	}
+};
+function readPackageJson(repository) {
+	if (!repository.isFile("package.json")) return void 0;
+	const parsed = repository.parse("package.json", (text) => JSON.parse(text));
+	return isObject$1(parsed) ? parsed : void 0;
+}
+function readPackageManagerField(repository, facts, manifest, collector) {
+	const value = manifest[facts.packageManagerKey];
+	if (value === void 0) return void 0;
+	const match = typeof value === "string" ? /^(@?[^@\s]+)@([^+\s]+)(?:\+.*)?$/u.exec(value) : null;
+	if (match === null) {
+		repository.warn("invalid-package-manager", `${facts.packageManagerKey} ${JSON.stringify(value)} is not in the form name@version`, ["package.json"]);
+		return;
+	}
+	const [, name = "", version = ""] = match;
+	const manager = facts.managers.find((entry) => entry.id === name);
+	if (manager === void 0) {
+		repository.warn("invalid-package-manager", `${facts.packageManagerKey} names ${name}, which depcurfew does not know`, ["package.json"]);
+		return;
+	}
+	collector.addEvidence(manager.id, "packageManager", "package.json");
+	collector.addVersion(manager.id, {
+		version,
+		source: "packageManager",
+		file: "package.json"
+	});
+	return manager.id;
+}
+function readDevEngines(facts, manifest, collector) {
+	const devEngines = manifest[facts.devEngines.key];
+	if (!isObject$1(devEngines)) return;
+	for (const entry of devEngineEntries(devEngines[facts.devEngines.packageManagerKey])) {
+		const manager = facts.managers.find((item) => item.id === entry.name);
+		if (manager === void 0) continue;
+		collector.addEvidence(manager.id, "devEngines", "package.json");
+		if (entry.version !== void 0) collector.addVersion(manager.id, {
+			version: entry.version,
+			source: "devEngines",
+			file: "package.json"
+		});
+	}
+	for (const entry of devEngineEntries(devEngines[facts.devEngines.runtimeKey])) if (entry.name === "node" && entry.version !== void 0) collector.addVersion("node", {
+		version: entry.version,
+		source: "devEngines",
+		file: "package.json"
+	});
+}
+function readVolta(facts, manifest, collector) {
+	const volta = manifest[facts.volta.key];
+	if (!isObject$1(volta)) return;
+	for (const tool of facts.volta.tools) {
+		const version = volta[tool];
+		if (typeof version === "string") collector.addVersion(tool, {
+			version,
+			source: "volta",
+			file: "package.json"
+		});
+	}
+}
+function readToolVersions(repository, facts, collector) {
+	const file = facts.toolVersions.file;
+	const text = repository.isFile(file) ? repository.readText(file) : void 0;
+	if (text === void 0) return;
+	text.split(/\r?\n/u).forEach((raw, index) => {
+		const [plugin, version] = (raw.split("#", 1)[0] ?? "").trim().split(/\s+/u);
+		const tool = plugin === void 0 ? void 0 : facts.toolVersions.plugins[plugin];
+		if (tool !== void 0 && version !== void 0) collector.addVersion(tool, {
+			version,
+			source: "tool-versions",
+			file,
+			line: index + 1
+		});
+	});
+}
+/**
+* .nvmrc and .node-version in the root: the first line that is not empty, without a # comment in .nvmrc. engines.node
+* of package.json is a range of the Node.js versions the package works on, kept as written.
+*/
+function readNodeFiles(repository, facts, manifest, collector) {
+	const files = [[
+		facts.nodeFiles.nvmrc,
+		"nvmrc",
+		facts.nodeFiles.comment
+	], [
+		facts.nodeFiles.nodeVersion,
+		"node-version",
+		void 0
+	]];
+	for (const [file, source, comment] of files) {
+		const text = repository.isFile(file) ? repository.readText(file) : void 0;
+		if (text === void 0) continue;
+		for (const [index, raw] of text.split(/\r?\n/u).entries()) {
+			const version = (comment === void 0 ? raw : raw.split(comment, 1)[0] ?? "").trim();
+			if (version === "") continue;
+			collector.addVersion("node", {
+				version,
+				source,
+				file,
+				line: index + 1
+			});
+			break;
+		}
+	}
+	const engines = manifest?.[facts.nodeFiles.engines.key];
+	const range = isObject$1(engines) ? engines[facts.nodeFiles.engines.runtimeKey] : void 0;
+	if (typeof range === "string") collector.addVersion("node", {
+		version: range,
+		source: "engines",
+		file: "package.json"
+	});
+}
+/** The version setup-node reads from the file node-version-file names, when depcurfew can read it the same way. */
+function versionFromFile(repository, facts, path, manifest) {
+	const file = path.trim().replace(/^(?:\.\/)+/u, "");
+	const { versionFile } = facts.setupNode;
+	if (file === "" || !repository.isFile(file)) return void 0;
+	if (file.endsWith(".json")) {
+		const json = file === versionFile.packageJson ? manifest : repository.parse(file, (text) => JSON.parse(text));
+		if (!isObject$1(json)) return void 0;
+		for (const key of versionFile.packageJsonOrder) {
+			if (key === `${facts.devEngines.key}.${facts.devEngines.runtimeKey}`) {
+				const devEngines = json[facts.devEngines.key];
+				const entry = (isObject$1(devEngines) ? devEngineEntries(devEngines[facts.devEngines.runtimeKey]) : []).find((item) => item.name.toLowerCase() === "node" && item.version !== void 0);
+				if (entry?.version !== void 0) return entry.version;
+				continue;
+			}
+			const value = key.split(".").reduce((node, part) => isObject$1(node) ? node[part] : void 0, json);
+			if (typeof value === "string") return value;
+		}
+		return;
+	}
+	if (file.endsWith(".toml")) return void 0;
+	const text = repository.readText(file);
+	if (text === void 0) return void 0;
+	const version = new RegExp(versionFile.textPattern, "mu").exec(text)?.groups?.["version"] ?? text.trim();
+	return version === "" ? void 0 : version;
+}
+function yarnVariant(repository, facts, collector) {
+	if (repository.isFile("yarn.lock")) {
+		const head = repository.readHead("yarn.lock") ?? "";
+		if (head.includes(facts.yarn.classicHeader)) return {
+			variant: "classic",
+			file: "yarn.lock"
+		};
+		if (new RegExp(`^${facts.yarn.berryMarker}:`, "mu").test(head)) return {
+			variant: "berry",
+			file: "yarn.lock"
+		};
+	}
+	const declared = collector.versions.get("yarn")?.find((entry) => entry.source === "packageManager");
+	if (declared !== void 0 && "version" in declared && /^1\./u.test(declared.version)) return {
+		variant: "classic",
+		file: "package.json"
+	};
+	return {
+		variant: "berry",
+		file: "package.json"
+	};
+}
+function readWorkspaces(repository, facts, manifest) {
+	const declarations = [];
+	const seen = /* @__PURE__ */ new Set();
+	for (const manager of facts.managers) {
+		if (manager.workspaces === null) continue;
+		const { files, key, objectKey, excludeKey } = manager.workspaces;
+		for (const file of files) {
+			const id = `${file}#${key}`;
+			if (seen.has(id) || !repository.isFile(file)) continue;
+			seen.add(id);
+			const document = file.endsWith(".toml") ? readToml(repository, file)?.root : readDocument(repository, file, manifest);
+			if (!isObject$1(document)) continue;
+			const value = key.split(".").reduce((node, part) => isObject$1(node) && Object.hasOwn(node, part) ? node[part] : void 0, document);
+			const patterns = stringList(value) ?? (objectKey !== null && isObject$1(value) ? stringList(value[objectKey]) : void 0);
+			const excluded = excludeKey !== void 0 && isObject$1(value) ? stringList(value[excludeKey]) ?? [] : [];
+			const manifests = [...new Set(facts.managers.filter((other) => other.ecosystem === manager.ecosystem).flatMap((other) => other.manifests))];
+			if (patterns !== void 0) declarations.push({
+				file,
+				patterns: [...patterns, ...excluded.map((pattern) => `!${pattern}`)],
+				manifests
+			});
+			break;
+		}
+	}
+	if (declarations.length === 0) return null;
+	const packages = /* @__PURE__ */ new Set();
+	for (const declaration of declarations) for (const directory of expandWorkspaces(repository, declaration.patterns, declaration.manifests, declaration.file)) packages.add(directory);
+	return {
+		declarations: declarations.map(({ file, patterns }) => ({
+			file,
+			patterns
+		})),
+		packages: [...packages].sort(byPath)
+	};
+}
+/**
+* The .npmrc files of the root and the workspace packages. One that exists but is not a regular file (a named pipe)
+* cannot be read, by depcurfew or safely by npm, so it gets a warning instead of passing for a missing file.
+*/
+function npmrcFiles(repository, directories) {
+	const files = directories.map((directory) => joinPath(directory, ".npmrc"));
+	for (const file of files.filter((path) => repository.isSpecialFile(path))) repository.warn("not-a-regular-file", `${file} exists but is not a regular file (a named pipe, socket or device), so depcurfew did not read it`, [file]);
+	return files.filter((file) => repository.isFile(file)).sort(byPath);
+}
+/** A workspace declaration file: package.json is already parsed, others are YAML or JSONC. */
+function readDocument(repository, file, manifest) {
+	return file === "package.json" ? manifest : repository.parse(file, /\.ya?ml$/u.test(file) ? (text) => parseYaml(text, yamlOptionsFor(file)) : parseJsonc);
+}
+/** Python tools: a pyproject.toml with the tool's table is configuration, and required versions are pinned versions. */
+function readPythonConfig(repository, facts, collector) {
+	const project = facts.pythonProject;
+	for (const manager of facts.managers) {
+		if (manager.pyprojectTable !== null && tomlAt(readToml(repository, project), manager.pyprojectTable.split(".")) !== void 0) collector.addEvidence(manager.id, "config", project);
+		const read = manager.configFileOrder?.find((file) => repository.isFile(file));
+		for (const { file, path } of manager.requiredVersions) {
+			if (read !== void 0 && file !== read) continue;
+			const document = readToml(repository, file);
+			const value = tomlAt(document, path);
+			if (typeof value !== "string") continue;
+			const line = document?.lineOf(path);
+			collector.addVersion(manager.id, {
+				version: requiredVersionText(value),
+				source: "tool-config",
+				file,
+				...line === void 0 ? {} : { line }
+			});
+		}
+	}
+}
+function configFiles(repository, manager, directories, project) {
+	const table = manager.pyprojectTable?.split(".");
+	return directories.flatMap((directory) => [...manager.configFiles.map((file) => joinPath(directory, file)).filter((file) => repository.isFile(file)), ...table !== void 0 && tomlAt(readToml(repository, joinPath(directory, project)), table) !== void 0 ? [joinPath(directory, project)] : []]).sort(byPath);
+}
+/**
+* Describes the repository at `root`. Never executes anything from the repository and never leaves it;
+* problems with individual files become warnings.
+*/
+/**
+* What the project .npmrc of the repository says about optional dependencies (omit, include and optional, as npm
+* reads them: the last line of a key wins, key[] lines add to the list), for the npm installs of CI jobs and
+* Dockerfiles, whose command line and variables override it key by key (decision D-143). The installs are read with
+* the .npmrc of the repository root, as doctor reads them.
+*/
+function withProjectOptional(facts, repository) {
+	const known = facts.commands.npm.omitOptional;
+	const file = known?.projectFile;
+	if (known === void 0 || file === void 0 || !repository.isFile(file)) return facts;
+	const text = repository.readText(file);
+	if (text === void 0) return facts;
+	const lists = /* @__PURE__ */ new Map();
+	let optional;
+	for (const entry of iniEntries(text)) {
+		const list = entry.key.endsWith("[]");
+		const key = list ? entry.key.slice(0, -2) : entry.key;
+		if (key === known.alias) optional = entry.value;
+		if (key === known.omit || key === known.include) lists.set(key, list ? [...lists.get(key) ?? [], entry.value] : [entry.value]);
+	}
+	const omit = lists.get(known.omit);
+	const include = lists.get(known.include);
+	if (omit === void 0 && include === void 0 && optional === void 0) return facts;
+	const project = {
+		...omit === void 0 ? {} : { omit },
+		...include === void 0 ? {} : { include },
+		...optional === void 0 ? {} : { optional }
+	};
+	const commands = {
+		...facts.commands,
+		npm: {
+			...facts.commands.npm,
+			omitOptional: {
+				...known,
+				project
+			}
+		}
+	};
+	return {
+		...facts,
+		commands,
+		docker: {
+			...facts.docker,
+			commands
+		}
+	};
+}
+function detectProject(root, tools = knowledgeBase, environment$1 = environment, options = {}) {
+	const repository = new Repository(root);
+	const facts = withProjectOptional(detectionFacts(tools, environment$1), repository);
+	const collector = new Collector();
+	const managerIds = new Set(facts.managers.map((manager) => manager.id));
+	const ecosystemOf = (id) => facts.managers.find((manager) => manager.id === id)?.ecosystem ?? "npm";
+	const manifest = readPackageJson(repository);
+	const declaredManager = manifest === void 0 ? void 0 : readPackageManagerField(repository, facts, manifest, collector);
+	if (manifest !== void 0) {
+		readDevEngines(facts, manifest, collector);
+		readVolta(facts, manifest, collector);
+	}
+	readToolVersions(repository, facts, collector);
+	readNodeFiles(repository, facts, manifest, collector);
+	readPythonConfig(repository, facts, collector);
+	const owners = /* @__PURE__ */ new Map();
+	for (const manager of facts.managers) {
+		const named = manager.lockfilePattern === null ? [] : repository.listFiles(".").filter((name) => manager.lockfilePattern?.test(name) === true);
+		for (const file of /* @__PURE__ */ new Set([...manager.lockfiles.filter((name) => repository.isFile(name)), ...named])) {
+			const creator = manager.createdByKey === null ? void 0 : createdBy(repository, file, manager.createdByKey);
+			const owner = creator === void 0 ? void 0 : facts.managers.find((other) => other.pylockCreatedBy !== null && normalizePythonName(other.pylockCreatedBy) === normalizePythonName(creator));
+			if (!owners.has(file)) owners.set(file, owner?.id ?? manager.id);
+		}
+	}
+	const lockfiles = /* @__PURE__ */ new Map();
+	for (const manager of facts.managers) {
+		const present = [...owners].filter(([, owner]) => owner === manager.id).map(([file]) => file).sort(byPath);
+		if (present.length > 0) lockfiles.set(manager.id, present);
+		for (const file of present) collector.addEvidence(manager.id, "lockfile", file);
+		for (const file of manager.configFiles.filter((name) => repository.isFile(name))) collector.addEvidence(manager.id, "config", file);
+	}
+	const workflows = readWorkflows(repository, facts);
+	for (const { tool, declaration } of workflows.versions) {
+		const version = tool === "node" && !("version" in declaration) ? versionFromFile(repository, facts, declaration.versionFile, manifest) : void 0;
+		collector.addVersion(tool, version === void 0 ? declaration : {
+			version,
+			...declaration
+		});
+	}
+	const workspaces = readWorkspaces(repository, facts, manifest);
+	const directories = [".", ...workspaces?.packages ?? []];
+	const manifests = [...new Set(facts.managers.flatMap((manager) => manager.manifests))];
+	const dockerfiles = dockerfileCandidates(repository, facts.docker, manifests, workspaces?.packages ?? []).flatMap((file) => {
+		const text = repository.readText(file);
+		if (text === void 0) return [];
+		const reading = readDockerStages(file, text, facts.docker);
+		for (const { tool, declaration } of reading.versions) collector.addVersion(tool, declaration);
+		for (const { message, line } of reading.notices) repository.warn("script-not-followed", message, [file], line);
+		return [reading.info];
+	});
+	const projects = options.projects ?? [];
+	const installsWith = (id, commands) => commands.filter((command) => command.kind === "install" && command.tool === id);
+	const forProjects = (id) => {
+		if (projects.length === 0 || collector.evidence.has(id)) return false;
+		if (!facts.managers.filter((manager) => manager.ecosystem === ecosystemOf(id)).flatMap((manager) => manager.manifests).some((file) => repository.isFile(file))) return true;
+		if (dockerfiles.some((dockerfile) => dockerfile.stages.some((stage) => installsWith(id, stage.commands).length > 0))) return false;
+		const installs = workflows.jobs.flatMap((job) => installsWith(id, job.commands));
+		return installs.length > 0 && installs.every((command) => projectOf(command, projects) !== "");
+	};
+	const setUp = /* @__PURE__ */ new Map();
+	const steps = workflows.installs.filter(({ tool }) => managerIds.has(tool));
+	for (const id of new Set(steps.map(({ tool }) => tool))) {
+		const files = [...new Set(steps.filter(({ tool }) => tool === id).map(({ file }) => file))].sort(byPath);
+		if (forProjects(id)) setUp.set(id, files.map((file) => ({
+			kind: "ci",
+			file
+		})));
+		else for (const file of files) collector.addEvidence(id, "ci", file);
+	}
+	const hasEvidence = (ecosystem) => [...collector.evidence.keys()].some((id) => ecosystemOf(id) === ecosystem);
+	if (manifest !== void 0 && !hasEvidence("npm")) {
+		collector.addEvidence("npm", "default", "package.json");
+		repository.warn("package-manager-assumed", "no lockfile, packageManager or devEngines found; assuming npm", ["package.json"]);
+	}
+	const packageManagers = [];
+	const ciForProjects = [];
+	for (const manager of facts.managers) {
+		const steps = setUp.get(manager.id);
+		if (steps !== void 0) {
+			const versions = [...collector.versions.get(manager.id) ?? []].sort(compareVersions);
+			ciForProjects.push({
+				id: manager.id,
+				supported: true,
+				evidence: steps,
+				versions,
+				configFiles: configFiles(repository, manager, directories, facts.pythonProject)
+			});
+		}
+		const evidence = collector.evidence.get(manager.id);
+		if (evidence === void 0) continue;
+		const yarn = manager.id === "yarn" ? yarnVariant(repository, facts, collector) : void 0;
+		if (yarn?.variant === "classic") repository.warn("yarn-classic-unsupported", "Yarn Classic (1.x) is not supported; depcurfew configures Yarn 2 and later", [yarn.file]);
+		packageManagers.push({
+			id: manager.id,
+			...yarn === void 0 ? {} : { variant: yarn.variant },
+			supported: yarn?.variant !== "classic",
+			evidence: [...evidence].sort(compareEvidence),
+			versions: [...collector.versions.get(manager.id) ?? []].sort(compareVersions),
+			configFiles: configFiles(repository, manager, directories, facts.pythonProject)
+		});
+	}
+	const bots = [];
+	for (const bot of facts.bots) {
+		const files = bot.configFiles.filter((file) => repository.isFile(file));
+		if (bot.packageJsonKey !== null && manifest !== void 0 && bot.packageJsonKey in manifest) {
+			files.push("package.json");
+			repository.warn("renovate-config-in-package-json", "Renovate configuration in package.json is deprecated and depcurfew does not edit it; move it to renovate.json", ["package.json"]);
+		}
+		if (files.length > 0) bots.push({
+			id: bot.id,
+			configFiles: files
+		});
+	}
+	const withLockfiles = [...lockfiles.entries()];
+	for (const ecosystem of ["npm", "pypi"]) {
+		const competing = withLockfiles.filter(([id]) => ecosystemOf(id) === ecosystem && id !== "pip");
+		if (competing.length < 2) continue;
+		const files = competing.flatMap(([, list]) => list).sort(byPath);
+		repository.warn("multiple-lockfiles", `lockfiles of several package managers: ${files.join(", ")}`, files);
+	}
+	const npmLockfiles = withLockfiles.filter(([id]) => ecosystemOf(id) === "npm");
+	if (declaredManager !== void 0 && !lockfiles.has(declaredManager) && npmLockfiles.length > 0) repository.warn("package-manager-mismatch", `${facts.packageManagerKey} names ${declaredManager}, but no ${declaredManager} lockfile exists`, ["package.json"]);
+	const python = facts.managers.filter((manager) => manager.ecosystem === "pypi");
+	if (repository.isFile(facts.pythonProject) && readToml(repository, facts.pythonProject) !== void 0 && !hasEvidence("pypi")) {
+		const tables = python.flatMap((manager) => manager.pyprojectTable === null ? [] : [`[${manager.pyprojectTable}]`]);
+		const files = [...python.flatMap((manager) => manager.lockfiles), ...python.flatMap((manager) => manager.manifests.filter((file) => file !== facts.pythonProject))];
+		const hatch = repository.isFile(facts.hatch.configFile) || tomlAt(readToml(repository, facts.pythonProject), facts.hatch.pyprojectTable.split(".")) !== void 0;
+		repository.warn("python-tool-unknown", `${facts.pythonProject} has no ${orList(tables)} table, and there is no ${orList(files)}; depcurfew cannot tell which tool installs this project, so it configures none${hatch ? ". Hatch has no supply-chain settings of its own: if its environments use the uv installer, add \"uv\" to targets in depcurfew.json" : ""}`, [facts.pythonProject]);
+	}
+	if (manifest === void 0 && packageManagers.length === 0 && !repository.isFile("package.json") && !repository.isFile(facts.pythonProject)) repository.warn("nothing-detected", "no package.json, deno.json, pyproject.toml, requirements.txt or lockfile found", []);
+	return {
+		packageManagers,
+		...ciForProjects.length === 0 ? {} : { ciForProjects },
+		node: { versions: [...collector.versions.get("node") ?? []].sort(compareVersions) },
+		bots,
+		workspaces,
+		npmrcFiles: npmrcFiles(repository, directories),
+		workflows: workflows.files,
+		jobs: workflows.jobs,
+		dockerfiles,
+		warnings: [...repository.warnings].sort((a, b) => byPath(a.code, b.code) || byPath(a.files.join(), b.files.join()))
+	};
+}
+
+// src/policy/defaults.ts
+const POLICY_FILE = "depcurfew.json";
+
+// src/policy/shape.ts
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/u;
+function formatPath(path) {
+	let text = "";
+	for (const segment of path) if (typeof segment === "number") text += `[${segment}]`;
+	else if (IDENTIFIER.test(segment)) text += text === "" ? segment : `.${segment}`;
+	else text += `[${JSON.stringify(segment)}]`;
+	return text === "" ? "(root)" : text;
+}
+function jsonTypeOf(value) {
+	if (value === null) return "null";
+	if (Array.isArray(value)) return "array";
+	const type = typeof value;
+	return type === "object" || type === "string" || type === "number" || type === "boolean" ? type : "null";
+}
+/** Shows what was found: scalars as JSON, compound values by kind. */
+function describeValue(value) {
+	switch (jsonTypeOf(value)) {
+		case "array": return "a list";
+		case "object": return "an object";
+		default: return JSON.stringify(value) ?? String(value);
+	}
+}
+/** Optimal string alignment distance: insertions, deletions, substitutions and adjacent transpositions. */
+function editDistance(a, b) {
+	const rows = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+	const at = (i, j) => rows[i]?.[j] ?? Number.POSITIVE_INFINITY;
+	for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+		const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+		let best = Math.min(at(i - 1, j) + 1, at(i, j - 1) + 1, at(i - 1, j - 1) + cost);
+		if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) best = Math.min(best, at(i - 2, j - 2) + 1);
+		rows[i][j] = best;
+	}
+	return at(a.length, b.length);
+}
+/** The closest candidate to a mistyped name, if one is close enough to be a likely typo. */
+function suggest(input, candidates) {
+	const normalize = (text) => text.toLowerCase().replace(/[-_\s]/gu, "");
+	const wanted = normalize(input);
+	const exact = candidates.find((candidate) => normalize(candidate) === wanted);
+	if (exact !== void 0) return exact;
+	const prefix = candidates.find((candidate) => {
+		const name = normalize(candidate);
+		return Math.min(name.length, wanted.length) >= 3 && (name.startsWith(wanted) || wanted.startsWith(name));
+	});
+	if (prefix !== void 0) return prefix;
+	let best;
+	let bestDistance = Number.POSITIVE_INFINITY;
+	for (const candidate of candidates) {
+		const distance = editDistance(wanted, normalize(candidate));
+		if (distance <= Math.max(1, Math.floor(candidate.length / 3)) && distance < bestDistance) {
+			best = candidate;
+			bestDistance = distance;
+		}
+	}
+	return best;
+}
+function didYouMean(value, candidates) {
+	if (typeof value !== "string" || candidates === void 0) return "";
+	const match = suggest(value, candidates);
+	return match === void 0 ? "" : `; did you mean ${JSON.stringify(match)}?`;
+}
+function report$1(issues, path, message) {
+	issues.push({
+		path: formatPath(path),
+		message
+	});
+	return { ok: false };
+}
+function mismatch(issues, path, label, value, candidates) {
+	return report$1(issues, path, `must be ${label}, got ${describeValue(value)}${didYouMean(value, candidates)}`);
+}
+function withDescription(schema, description) {
+	return description === void 0 ? schema : {
+		description,
+		...schema
+	};
+}
+function literal(value, options = {}) {
+	const label = JSON.stringify(value);
+	return {
+		label,
+		jsonTypes: [typeof value === "string" ? "string" : "number"],
+		...typeof value === "string" ? { suggestions: [value] } : {},
+		parse: (input, path, issues) => input === value ? {
+			ok: true,
+			value
+		} : mismatch(issues, path, label, input, typeof value === "string" ? [value] : void 0),
+		toJsonSchema: () => {
+			return withDescription({
+				type: typeof value === "string" ? "string" : Number.isInteger(value) ? "integer" : "number",
+				const: value
+			}, options.description);
+		}
+	};
+}
+function oneOfStrings(values, options = {}) {
+	const label = `one of ${values.map((value) => JSON.stringify(value)).join(", ")}`;
+	return {
+		label,
+		jsonTypes: ["string"],
+		suggestions: values,
+		parse: (input, path, issues) => typeof input === "string" && values.includes(input) ? {
+			ok: true,
+			value: input
+		} : mismatch(issues, path, label, input, values),
+		toJsonSchema: () => withDescription({
+			type: "string",
+			enum: values
+		}, options.description)
+	};
+}
+/** A string with its own syntax; the JSON Schema `pattern` must accept exactly the canonical form. */
+function text$1(options) {
+	return {
+		label: options.label,
+		jsonTypes: ["string"],
+		parse(input, path, issues) {
+			if (typeof input !== "string") return mismatch(issues, path, options.label, input);
+			const result = options.parse(input);
+			return result.ok ? result : report$1(issues, path, `${options.kind} ${JSON.stringify(input)}: ${result.message}`);
+		},
+		toJsonSchema: () => withDescription({
+			type: "string",
+			pattern: options.pattern,
+			...options.examples === void 0 ? {} : { examples: options.examples }
+		}, options.description)
+	};
+}
+function anyString(options = {}) {
+	return {
+		label: "a string",
+		jsonTypes: ["string"],
+		parse: (input, path, issues) => typeof input === "string" ? {
+			ok: true,
+			value: input
+		} : mismatch(issues, path, "a string", input),
+		toJsonSchema: () => withDescription({ type: "string" }, options.description)
+	};
+}
+function list$1(item, options = {}) {
+	const label = options.label ?? "a list";
+	return {
+		label,
+		jsonTypes: ["array"],
+		parse(input, path, issues) {
+			if (!Array.isArray(input)) return mismatch(issues, path, label, input);
+			if (options.nonEmpty !== void 0 && input.length === 0) return report$1(issues, path, `must not be an empty list; ${options.nonEmpty}`);
+			const values = [];
+			const firstIndex = /* @__PURE__ */ new Map();
+			let ok = true;
+			input.forEach((element, index) => {
+				const result = item.parse(element, [...path, index], issues);
+				if (!result.ok) {
+					ok = false;
+					return;
+				}
+				if (options.unique === true) {
+					const key = JSON.stringify(element);
+					const first = firstIndex.get(key);
+					if (first !== void 0) {
+						ok = false;
+						report$1(issues, [...path, index], `duplicate entry ${describeValue(element)} (first at index ${first})`);
+						return;
+					}
+					firstIndex.set(key, index);
+				}
+				values.push(result.value);
+			});
+			return ok ? {
+				ok: true,
+				value: values
+			} : { ok: false };
+		},
+		toJsonSchema: () => withDescription({
+			type: "array",
+			items: item.toJsonSchema(),
+			...options.unique === true ? { uniqueItems: true } : {},
+			...options.nonEmpty === void 0 ? {} : { minItems: 1 }
+		}, options.description)
+	};
+}
+/** Alternatives told apart by JSON type, e.g. `"auto"` or a list of tools. */
+function anyOf(shapes, options = {}) {
+	const types = shapes.flatMap((shape) => shape.jsonTypes);
+	if (new Set(types).size !== types.length) throw new Error("anyOf alternatives must accept different JSON types");
+	const label = shapes.map((shape) => shape.label).join(" or ");
+	const suggestions = shapes.flatMap((shape) => shape.suggestions ?? []);
+	return {
+		label,
+		jsonTypes: types,
+		suggestions,
+		parse(input, path, issues) {
+			const shape = shapes.find((candidate) => candidate.jsonTypes.includes(jsonTypeOf(input)));
+			if (shape === void 0) return mismatch(issues, path, label, input, suggestions);
+			const own = [];
+			const result = shape.parse(input, path, own);
+			if (own.some((issue) => issue.path === formatPath(path) && issue.message.startsWith("must be "))) return mismatch(issues, path, label, input, suggestions);
+			issues.push(...own);
+			return result;
+		},
+		toJsonSchema: () => withDescription({ anyOf: shapes.map((shape) => shape.toJsonSchema()) }, options.description)
+	};
+}
+function required(shape) {
+	return {
+		kind: "required",
+		shape
+	};
+}
+/** Absent fields stay absent in the output. */
+function optional(shape) {
+	return {
+		kind: "optional",
+		shape
+	};
+}
+/** Absent fields get the default, parsed like a written value. */
+function withDefault(shape, value) {
+	return {
+		kind: "default",
+		shape,
+		default: value
+	};
+}
+function isPlainObject(value) {
+	return jsonTypeOf(value) === "object";
+}
+/** An object with known fields only; unknown fields are reported, with a suggestion when one looks like a typo. */
+function object(fields, options = {}) {
+	const names = Object.keys(fields);
+	return {
+		label: "an object",
+		jsonTypes: ["object"],
+		parse(input, path, issues) {
+			if (!isPlainObject(input)) return mismatch(issues, path, "an object", input);
+			let ok = true;
+			for (const key of Object.keys(input)) if (!Object.hasOwn(fields, key)) {
+				ok = false;
+				report$1(issues, path, `unknown field ${JSON.stringify(key)}${didYouMean(key, names)}`);
+			}
+			const output = {};
+			for (const [key, field] of Object.entries(fields)) {
+				if (!Object.hasOwn(input, key)) {
+					if (field.kind === "required") {
+						ok = false;
+						report$1(issues, path, `missing required field ${JSON.stringify(key)}`);
+					} else if (field.kind === "default") {
+						const result = field.shape.parse(field.default, [...path, key], issues);
+						if (result.ok) output[key] = result.value;
+					}
+					continue;
+				}
+				const result = field.shape.parse(input[key], [...path, key], issues);
+				if (result.ok) output[key] = result.value;
+				else ok = false;
+			}
+			return ok ? {
+				ok: true,
+				value: output
+			} : { ok: false };
+		},
+		toJsonSchema() {
+			const properties = {};
+			const requiredNames = [];
+			for (const [key, field] of Object.entries(fields)) {
+				properties[key] = field.kind === "default" ? {
+					...field.shape.toJsonSchema(),
+					default: field.default
+				} : field.shape.toJsonSchema();
+				if (field.kind === "required") requiredNames.push(key);
+			}
+			return withDescription({
+				type: "object",
+				properties,
+				...requiredNames.length > 0 ? { required: requiredNames } : {},
+				additionalProperties: false
+			}, options.description);
+		}
+	};
+}
+
+// src/policy/package-pattern.ts
+const NAME$1 = "[A-Za-z0-9~*-][A-Za-z0-9._~*_-]*";
+const PYTHON_NAME$1 = "[A-Za-z0-9*](?:[A-Za-z0-9._*-]*[A-Za-z0-9*])?";
+/** One part of a Composer name: lowercase, as the schema requires (vendor/name, 04-schema.md#name). */
+const COMPOSER_PART = "[a-z0-9*](?:[a-z0-9._*-]*[a-z0-9*])?";
+const PYPI_PREFIX = "pypi:";
+const COMPOSER_PREFIX = "composer:";
+/** The prefix of each registry but npm, whose names have none. */
+const PREFIXES = {
+	pypi: PYPI_PREFIX,
+	packagist: COMPOSER_PREFIX
+};
+/** Also used as the JSON Schema pattern. The lookaheads reject patterns made only of `*`, which match every package. */
+const PACKAGE_PATTERN = `^(?:${PYPI_PREFIX}(?!\\*+$)${PYTHON_NAME$1}|${COMPOSER_PREFIX}(?!\\*+/\\*+$)${COMPOSER_PART}/${COMPOSER_PART}|(?!\\*+$)(@${NAME$1}/)?${NAME$1})$`;
+const GRAMMAR = new RegExp(PACKAGE_PATTERN, "u");
+const PREFIX_LIST = `${PYPI_PREFIX} and ${COMPOSER_PREFIX}`;
+function validatePythonPattern(pattern) {
+	const name = pattern.slice(5);
+	if (name === "") return `write a Python package name after ${PYPI_PREFIX}, e.g. "${PYPI_PREFIX}requests"`;
+	const versionAt = name.search(/[@=<>!~;[ ]/u);
+	if (versionAt > 0 && !name.startsWith("@")) return `versions are not supported; write "${PYPI_PREFIX}${name.slice(0, versionAt)}"`;
+	if (/^\*+$/u.test(name)) return "it matches every package; list packages explicitly";
+	const example = `e.g. "${PYPI_PREFIX}requests" or "${PYPI_PREFIX}acme-*"`;
+	if (name.startsWith("@")) return `Python package names have no scope; expected a name or a name pattern with *, ${example}`;
+	if (!GRAMMAR.test(pattern)) return `expected a Python package name or a name pattern with *, ${example}`;
+}
+function validateComposerPattern(pattern) {
+	const name = pattern.slice(9);
+	const example = `e.g. "${COMPOSER_PREFIX}monolog/monolog" or "${COMPOSER_PREFIX}acme/*"`;
+	if (name === "") return `write a Composer package name after ${COMPOSER_PREFIX}, ${example}`;
+	const versionAt = name.search(/[:=@<>^~ ]/u);
+	if (versionAt > 0) return `versions are not supported; write "${COMPOSER_PREFIX}${name.slice(0, versionAt)}"`;
+	if (/^\*+(?:\/\*+)?$/u.test(name)) return "it matches every package; list packages explicitly";
+	if (!name.includes("/")) return `Composer package names are vendor/name; expected a name or a name pattern with *, ${example}`;
+	if (name !== name.toLowerCase() && GRAMMAR.test(`${"composer:"}${name.toLowerCase()}`)) return `Composer package names are lowercase; write "${COMPOSER_PREFIX}${name.toLowerCase()}"`;
+	if (!GRAMMAR.test(pattern)) return `expected a Composer package name or a name pattern with *, ${example}`;
+}
+/** A vendor/name (or a pattern of one) without a scope, which is how Composer names packages. */
+const COMPOSER_LIKE = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9*][a-z0-9._*-]*$/u;
+/** Returns why the pattern is invalid, or undefined when it is valid. */
+function validatePackagePattern(pattern) {
+	if (pattern === "") return "must not be empty";
+	if (/\s/u.test(pattern)) return "must not contain spaces";
+	if (pattern.startsWith("pypi:")) return validatePythonPattern(pattern);
+	if (pattern.startsWith("composer:")) return validateComposerPattern(pattern);
+	const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(pattern);
+	if (prefix !== null) {
+		const rest = pattern.slice(prefix[0].length);
+		const word = prefix[1] ?? "";
+		const meant = word.toLowerCase() === "packagist" ? "composer" : suggest(word.toLowerCase(), ["pypi", "composer"]);
+		if (meant === "pypi") return `the ecosystem prefixes are ${PREFIX_LIST}; write Python packages as "${PYPI_PREFIX}${rest}"`;
+		if (meant === "composer") return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
+		if (COMPOSER_LIKE.test(rest.toLowerCase())) return `the ecosystem prefixes are ${PREFIX_LIST}; write Composer packages as "${COMPOSER_PREFIX}${rest.toLowerCase()}"`;
+		const example = validatePackagePattern(rest) === void 0 ? `"${rest}"` : "\"esbuild\" or \"@scope/name\"";
+		return `the ecosystem prefixes are ${PREFIX_LIST}; write npm packages without a prefix, e.g. ${example}`;
+	}
+	const nameStart = pattern.startsWith("@") ? pattern.indexOf("/") + 1 : 0;
+	const versionAt = pattern.indexOf("@", Math.max(nameStart, 1));
+	if (versionAt > 0) return `versions are not supported; write "${pattern.slice(0, versionAt)}"`;
+	if (/^\*+$/u.test(pattern)) return "it matches every package; list packages explicitly";
+	if (!GRAMMAR.test(pattern)) {
+		if (COMPOSER_LIKE.test(pattern)) return `npm names have a scope (@scope/name); write Composer packages as "${COMPOSER_PREFIX}${pattern}"`;
+		return "expected a package name or a name pattern with *, e.g. \"esbuild\", \"@scope/name\" or \"@scope/*\"";
+	}
+}
+/** The ecosystem a policy pattern belongs to. */
+function ecosystemOf(pattern) {
+	if (pattern.startsWith("pypi:")) return "pypi";
+	return pattern.startsWith("composer:") ? "packagist" : "npm";
+}
+/** The prefix of an ecosystem's names in the policy: pypi:, composer:, or none for npm. */
+function prefixOf(ecosystem) {
+	return ecosystem === "npm" ? "" : PREFIXES[ecosystem];
+}
+/** The patterns of one ecosystem, without their prefix. */
+function patternsFor(patterns, ecosystem) {
+	const prefix = prefixOf(ecosystem);
+	return patterns.filter((pattern) => ecosystemOf(pattern) === ecosystem).map((pattern) => pattern.slice(prefix.length));
 }
 
 // src/doctor/composer.ts
@@ -29053,7 +29160,6 @@ function optionalOmissions(repository, detection, npm) {
 		entry: npmrc.entry,
 		text: `${npmrc.entry} in ${file}${npmrc.line === void 0 ? "" : ` (line ${npmrc.line})`}`
 	});
-	if (npmrc.included) return places;
 	const omits = (command) => command.tool === "npm" && command.kind === "install" && command.optionalDependencies === "omitted";
 	for (const job of detection.jobs) for (const command of job.commands.filter(omits)) places.push(commandPlace(command, `in ${jobLabel(job.id, job.line)} of ${job.file}`, job.file));
 	for (const dockerfile of detection.dockerfiles) for (const stage of dockerfile.stages) for (const command of stage.commands.filter(omits)) places.push(commandPlace(command, `in ${dockerfile.file}`, dockerfile.file));

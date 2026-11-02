@@ -20,8 +20,12 @@ export interface CommandFacts {
     cleanCommands: readonly string[];
     /** --ignore-scripts and npm_config_ignore_scripts=true turn dependency install scripts off (extra.scriptsOff). */
     scriptsOff?: { option: string; variable: string; value: string };
-    /** omit=optional, optional=false and include=optional, on the command line and as npm_config_* (extra.omitOptional, decision D-127). */
-    omitOptional?: { omit: string; value: string; alias: string; include: string; prefix: string; separator: string };
+    /**
+     * omit=optional, optional=false and include=optional, on the command line and as npm_config_* (extra.omitOptional,
+     * decision D-127), with the file of the project configuration (extra.localPrefix) and what it says, which the
+     * command line and the variables override key by key (decision D-143).
+     */
+    omitOptional?: { omit: string; value: string; alias: string; include: string; prefix: string; separator: string; projectFile?: string; project?: ProjectOptional };
   };
   /** pnpm, Yarn and Bun: install commands (pnpm install, pnpm i), add commands, and whether the bare tool installs (yarn). */
   others: readonly { tool: 'pnpm' | 'yarn' | 'bun'; install: readonly string[]; add: readonly string[]; bare: boolean; valueOptions: readonly string[] }[];
@@ -254,6 +258,13 @@ type Found = Omit<ToolCommand, 'line' | 'directory'> & { offset: number; cd?: st
  */
 export type Environment = ReadonlyMap<string, string>;
 
+/** What the project .npmrc sets of omit, include and optional (decision D-143). */
+export interface ProjectOptional {
+  omit?: readonly string[];
+  include?: readonly string[];
+  optional?: string;
+}
+
 /**
  * Set in an Environment when a script sets more variables than depcurfew follows (MAX_ASSIGNMENTS): the later ones are
  * not read, so the variables of the commands after them cannot be told. No variable can have this name.
@@ -334,16 +345,17 @@ function scriptsOff(args: readonly Word[], environment: Environment, facts: Comm
 }
 
 /**
- * What the command line and the variables of an npm install say about optional dependencies (decision D-127):
- * `omitted` when they leave them out (--omit=optional, --no-optional, npm_config_omit=optional), `kept` when they keep
- * them whatever .npmrc says (--include=optional, which wins over any omit, or --optional), absent when they do not
- * say, so the project .npmrc decides. Each of omit, include and optional is one key, the command line winning over
- * the variables.
+ * What npm does with the optional dependencies of an npm install whose command line or variables say something about
+ * them (decisions D-127 and D-143): `omitted` when it leaves them out (--omit=optional, --no-optional,
+ * npm_config_omit=optional), `kept` when include=optional or optional=true keeps them (include wins over any omit),
+ * absent when the command line and the variables do not name omit, include or optional, so that the project .npmrc
+ * decides alone (doctor reports it at its line). Each of omit, include and optional is one key: the command line wins
+ * over the variables, and both over the project .npmrc (buildOmitList in npm's definitions.js).
  */
 function optionalDependencies(args: readonly Word[], environment: Environment, facts: CommandFacts): ToolCommand['optionalDependencies'] {
   const known = facts.npm.omitOptional;
   if (known === undefined) return undefined;
-  const fromVariable = (key: string): string[] | undefined => {
+  const fromVariable = (key: string): readonly string[] | undefined => {
     const value = anyCase(environment, `${known.prefix}${key}`);
     return value === undefined || value.trim() === '' ? undefined : value.trim().split(known.separator).map((item) => item.trim());
   };
@@ -351,6 +363,8 @@ function optionalDependencies(args: readonly Word[], environment: Environment, f
   let include = fromVariable(known.include);
   const alias = fromVariable(known.alias);
   let optional: boolean | undefined = alias === undefined ? undefined : alias[0] === 'true' ? true : alias[0] === 'false' ? false : undefined;
+  /** optional is set, also to a value that is neither true nor false (npm_config_optional=yes). */
+  let optionalSet = alias !== undefined;
   // The command line replaces a variable for the same key; a list option given twice adds to the list.
   let omitOnLine: string[] | undefined;
   let includeOnLine: string[] | undefined;
@@ -367,9 +381,16 @@ function optionalDependencies(args: readonly Word[], environment: Environment, f
       const text = word.text.slice(known.alias.length + 3);
       optional = text === 'false' ? false : text === 'true' ? true : optional;
     }
+    if (word.text === `--no-${known.alias}` || word.text === `--${known.alias}` || word.text.startsWith(`--${known.alias}=`)) optionalSet = true;
   }
   omit = omitOnLine ?? omit;
   include = includeOnLine ?? include;
+  if (omit === undefined && include === undefined && !optionalSet) return undefined;
+  // The project .npmrc gives the keys the command line and the variables leave unset (decision D-143).
+  const project = known.project;
+  omit ??= project?.omit;
+  include ??= project?.include;
+  if (!optionalSet && project?.optional !== undefined) optional = project.optional === 'true' ? true : project.optional === 'false' ? false : undefined;
   if (include?.includes(known.value) === true || optional === true) return 'kept';
   return omit?.includes(known.value) === true || optional === false ? 'omitted' : undefined;
 }

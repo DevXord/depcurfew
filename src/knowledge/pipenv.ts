@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 
@@ -91,6 +91,14 @@ export const pipenv: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: osvFacts.verified<EnvironmentNameRule[]>(
+      [
+        { prefix: 'PIPENV_', match: 'exact' },
+        { prefix: 'PIP_', match: 'prefix-then-any-case' },
+      ],
+      `${PIPENV}/pipenv/environments.py`,
+      'get_from_env looks up f"{prefix}_{arg}" with the prefix PIPENV (PIPENV_PYPI_MIRROR, PIPENV_PIPFILE, PIPENV_DOTENV_LOCATION) through "positive_lookup in os.environ", that spelling only. PIP_NO_BINARY and PIP_ONLY_BINARY reach the pip Pipenv runs, which reads PIP_ variables with the prefix in upper case and the rest in any case (pip extra.environmentNames). Decision D-143.',
+    ),
     pylockCreatedBy: verified(
       'pipenv',
       `${PIPENV}/pipenv/utils/pylock.py`,

@@ -24,6 +24,8 @@ import { dockerfileCandidates, readDockerStages } from './dockerfiles.ts';
 import { expandWorkspaces } from './workspaces.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { parseYaml } from '../yaml-parse.ts';
+import { iniEntries } from '../doctor/settings.ts';
+import type { ProjectOptional } from './commands.ts';
 import { yamlOptionsFor } from '../apply/facts.ts';
 
 export type * from './types.ts';
@@ -345,6 +347,34 @@ export interface DetectOptions {
  * Describes the repository at `root`. Never executes anything from the repository and never leaves it;
  * problems with individual files become warnings.
  */
+/**
+ * What the project .npmrc of the repository says about optional dependencies (omit, include and optional, as npm
+ * reads them: the last line of a key wins, key[] lines add to the list), for the npm installs of CI jobs and
+ * Dockerfiles, whose command line and variables override it key by key (decision D-143). The installs are read with
+ * the .npmrc of the repository root, as doctor reads them.
+ */
+function withProjectOptional(facts: DetectionFacts, repository: Repository): DetectionFacts {
+  const known = facts.commands.npm.omitOptional;
+  const file = known?.projectFile;
+  if (known === undefined || file === undefined || !repository.isFile(file)) return facts;
+  const text = repository.readText(file);
+  if (text === undefined) return facts;
+  const lists = new Map<string, string[]>();
+  let optional: string | undefined;
+  for (const entry of iniEntries(text)) {
+    const list = entry.key.endsWith('[]');
+    const key = list ? entry.key.slice(0, -2) : entry.key;
+    if (key === known.alias) optional = entry.value;
+    if (key === known.omit || key === known.include) lists.set(key, list ? [...(lists.get(key) ?? []), entry.value] : [entry.value]);
+  }
+  const omit = lists.get(known.omit);
+  const include = lists.get(known.include);
+  if (omit === undefined && include === undefined && optional === undefined) return facts;
+  const project: ProjectOptional = { ...(omit === undefined ? {} : { omit }), ...(include === undefined ? {} : { include }), ...(optional === undefined ? {} : { optional }) };
+  const commands = { ...facts.commands, npm: { ...facts.commands.npm, omitOptional: { ...known, project } } };
+  return { ...facts, commands, docker: { ...facts.docker, commands } };
+}
+
 export function detectProject(
   root: string,
   tools: readonly ToolKnowledge[] = knowledgeBase,
@@ -352,7 +382,7 @@ export function detectProject(
   options: DetectOptions = {},
 ): Detection {
   const repository = new Repository(root);
-  const facts = detectionFacts(tools, environment);
+  const facts = withProjectOptional(detectionFacts(tools, environment), repository);
   const collector = new Collector();
   const managerIds = new Set<string>(facts.managers.map((manager) => manager.id));
   const ecosystemOf = (id: PackageManagerId) => facts.managers.find((manager) => manager.id === id)?.ecosystem ?? 'npm';

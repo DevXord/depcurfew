@@ -513,7 +513,7 @@ const DECLARERS = new Set(['declare', 'typeset', 'local', 'export', 'readonly'])
 /** Builtins whose operands name variables they read into or unset, or are arithmetic that may assign one. */
 const NAMERS = new Set(['read', 'mapfile', 'readarray', 'unset', 'let']);
 /** Operators of [[ … ]] whose operands bash evaluates as arithmetic, which may assign a variable. */
-const ARITHMETIC_TESTS = new Set(['-eq', '-ne', '-lt', '-le', '-gt', '-ge']);
+export const ARITHMETIC_TESTS = new Set(['-eq', '-ne', '-lt', '-le', '-gt', '-ge']);
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 /** Every builtin dynamicAssignment looks at. */
 const ASSIGNERS = new Set([...DECLARERS, ...NAMERS, 'printf', 'wait', 'getopts', '[[']);

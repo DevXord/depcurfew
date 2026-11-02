@@ -199,6 +199,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
   const poetryPackage = poetryTool === undefined ? undefined : extraValue(poetryTool, 'installedPackage');
   const off = extraValue(npm, 'scriptsOff');
   const omitOptional = npm.extra?.['omitOptional'] === undefined ? undefined : extraValue(npm, 'omitOptional');
+  const localPrefix = npm.extra?.['localPrefix'] === undefined ? undefined : extraValue(npm, 'localPrefix');
   const corepackInstall = first(environment.corepack.manualInstall);
   const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
   // pnpm, Yarn and Bun: the commands that install the project's dependencies and those that add packages.
@@ -229,6 +230,7 @@ export function detectionFacts(tools: readonly ToolKnowledge[], environment: Env
               include: String(omitOptional['include']['setting']),
               prefix: String(omitOptional['variablePrefix']),
               separator: String(omitOptional['listSeparator']),
+              ...(isRecord(localPrefix) && typeof localPrefix['projectFile'] === 'string' ? { projectFile: localPrefix['projectFile'] } : {}),
             },
           }
         : {}),

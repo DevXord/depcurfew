@@ -152,8 +152,8 @@ export function optionalOmissions(repository: Repository, detection: Detection, 
   if (npmrc.omitted && npmrc.entry !== undefined) {
     places.push({ location: { file, ...(npmrc.line === undefined ? {} : { line: npmrc.line }) }, entry: npmrc.entry, text: `${npmrc.entry} in ${file}${npmrc.line === undefined ? '' : ` (line ${npmrc.line})`}` });
   }
-  // include=optional in .npmrc wins over an omit on the command line, which sets another key.
-  if (npmrc.included) return places;
+  // The installs say what npm does with the .npmrc of the root under their command line and variables, key by key:
+  // include=optional there wins over --omit=optional, but not over a command line that sets include (decision D-143).
   const omits = (command: ToolCommand) => command.tool === 'npm' && command.kind === 'install' && command.optionalDependencies === 'omitted';
   for (const job of detection.jobs) {
     for (const command of job.commands.filter(omits)) places.push(commandPlace(command, `in ${jobLabel(job.id, job.line)} of ${job.file}`, job.file));

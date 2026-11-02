@@ -72,6 +72,11 @@ export interface CheckDependencies {
   projectDir?: () => string | undefined;
   /** --user: platform, home directory and environment variables (tests replace them). */
   userEnvironment?: () => UserEnvironment;
+  /**
+   * The platform the hook runs on: on Windows a POSIX shell (Git Bash) hands its variables to programs that do not tell
+   * their names apart by case (decision D-143); tests replace it.
+   */
+  platform?: () => NodeJS.Platform;
   /** depcurfew mcp: the streams the server talks over, its environment and signals (tests replace them). */
   mcpProcess?: () => McpProcess;
 }
@@ -903,7 +908,7 @@ async function hook(flags: CheckFlags, io: CliIo, dependencies: CheckDependencie
   }
   if (event === undefined) return EXIT_OK;
   try {
-    const { specs, unreadable, overrides } = requestedSpecs(event.command, event.shell);
+    const { specs, unreadable, overrides } = requestedSpecs(event.command, event.shell, (dependencies.platform?.() ?? process.platform) === 'win32');
     if (specs.length === 0 && unreadable === undefined && overrides.length === 0) return EXIT_OK;
     const cwd = resolve(flags.dir ?? event.cwd ?? process.cwd());
     const projectDir = flags.dir === undefined ? (dependencies.projectDir ?? (() => process.env[projectDirVariable()]))() : undefined;

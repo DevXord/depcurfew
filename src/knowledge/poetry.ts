@@ -1,6 +1,6 @@
 import { verifiedOn } from './define.ts';
 import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './platformdirs.ts';
-import type { DirectoryOptionsKnowledge, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-30');
 const user = verifiedOn('2026-10-31');
@@ -193,6 +193,11 @@ export const poetry: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: current.verified<EnvironmentNameRule[]>(
+      [{ prefix: '', match: 'exact' }],
+      `${POETRY}/src/poetry/config/config.py`,
+      'Config.get builds the name "POETRY_" + the keys of the setting in upper case with _ for - and reads it with os.getenv(env), and _get_environment_repositories matches POETRY_REPOSITORIES_(?P<name>[A-Z_]+)_URL, so only the names in upper case count (decision D-143).',
+    ),
     installedPackage: finalReview.verified(
       { name: 'poetry', commands: [['pipx', 'install'], ['pip', 'install']] },
       `${POETRY}/docs/_index.md`,

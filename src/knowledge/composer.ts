@@ -11,6 +11,7 @@ import type {
   CommandNamesKnowledge,
   ConfigCommand,
   DirectoryOptionsKnowledge,
+  EnvironmentNameRule,
   InstallOverridesKnowledge,
   PackagistApiKnowledge,
   RegistryOverridesKnowledge,
@@ -155,6 +156,11 @@ export const composer: ToolKnowledge = {
     workspacesObjectKey: uncertain(null, `${REPOSITORIES}#path`, 'No workspaces.'),
   },
   extra: {
+    environmentNames: verified<EnvironmentNameRule[]>(
+      [{ prefix: '', match: 'exact' }],
+      `${COMPOSER}/src/Composer/Util/Platform.php`,
+      'Platform::getEnv looks the name up with array_key_exists($name, $_SERVER), then in $_ENV, then with getenv($name), so outside Windows only that spelling counts: COMPOSER and COMPOSER_HOME, not Composer or composer (decision D-143).',
+    ),
     latestVersion: verified('2.11.1', CHANGELOG, 'Released on 2026-10-30.'),
     durationStrings: verified(
       { since: '2.11.0', syntax: 'unit-word', numbers: 'seconds', trim: false },

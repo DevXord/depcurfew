@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, RootLifecycleScriptsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RootLifecycleScriptsKnowledge, SourceKnowledge, ToolKnowledge, UserLocation } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -250,6 +250,14 @@ export const pnpm: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: release14.verified<EnvironmentNameRule[]>(
+      [
+        { prefix: 'pnpm_config_', match: 'lower-or-upper' },
+        { prefix: 'npm_config_', match: 'any-case' },
+      ],
+      `${PNPM_V11_CODE}/env.ts`,
+      'pnpm 11 reads pnpm_config_<key> only with the prefix and the key in lower case, or PNPM_CONFIG_<KEY> with both in upper case (getEnvKeySuffix with isLowerSnakeCase and isUpperSnakeCase), so Pnpm_Config_Registry sets nothing; pnpm 12 looks up PNPM_CONFIG_<KEY> and then pnpm_config_<key> (read_env in pnpm/crates/config/src/env_overlay/string_reader.rs, https://github.com/pnpm/pnpm/blob/v12.17.0/pnpm/crates/config/src/env_overlay/string_reader.rs). pnpm 10 reads npm_config_* in any case: addEnv in lib/conf.js of @pnpm/npm-conf 3.0.3 filters with /^npm_config_/i, and envKeyToSetting lowercases the key (https://github.com/pnpm/npm-conf/blob/v3.0.3/lib/envKeyToSetting.js). Decision D-143.',
+    ),
     denyList: user.verified(
       { file: 'pnpm-workspace.yaml', setting: 'allowBuilds', value: false, since: '10.26.0' },
       'https://github.com/pnpm/pnpm/blob/v11.28.10/pnpm11/building/policy/src/index.ts',

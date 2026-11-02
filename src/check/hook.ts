@@ -301,8 +301,12 @@ export interface PlacedRequest {
  * part of it could not be read; and the options and variables that weaken the delay or the rule on install scripts
  * (compared with the policy by overrideDoubt).
  */
-export function requestedSpecs(command: string, shell: HookEvent['shell'] = 'posix'): { specs: PlacedRequest[]; unreadable: string | undefined; overrides: readonly Override[] } {
-  const scan = scanCommandLine(command, { shell });
+export function requestedSpecs(
+  command: string,
+  shell: HookEvent['shell'] = 'posix',
+  windows: boolean = process.platform === 'win32',
+): { specs: PlacedRequest[]; unreadable: string | undefined; overrides: readonly Override[] } {
+  const scan = scanCommandLine(command, { shell, windows });
   const unique = new Map<string, PlacedRequest>();
   // Installs placed in one directory share its object: it is written out once, and stands in the key by a number, so
   // that a directory with long paths is not hashed for every install (decision D-123).

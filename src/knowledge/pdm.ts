@@ -1,6 +1,6 @@
 import { verifiedOn } from './define.ts';
 import { PLATFORMDIRS_CHANGELOG, PLATFORMDIRS_NOTE, platformdirsMacos } from './platformdirs.ts';
-import type { DirectoryOptionsKnowledge, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, RegistrySettingKnowledge, SourceKnowledge, ToolKnowledge, UserDirectory, UserFile, Versioned } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
@@ -165,6 +165,11 @@ export const pdm: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: current.verified<EnvironmentNameRule[]>(
+      [{ prefix: '', match: 'exact' }],
+      `${PDM}/src/pdm/project/config.py`,
+      'A configuration item takes its value from its env_var (PDM_PYPI_URL and the others) with os.environ[item.env_var], and the options read PDM_PROJECT and the other variables with os.getenv("PDM_PROJECT") (src/pdm/cli/options.py), so only those spellings count (decision D-143).',
+    ),
     pylockCreatedBy: verified('pdm', `${PDM}/src/pdm/formats/pylock.py`, 'PDM\'s pylock.toml export writes created-by = "pdm".'),
     configTables: verified({ 'pyproject.toml': 'tool.pdm.resolution' }, `${LOCKFILE}#exclude-packages-newer-than-specific-date`, 'exclude-newer, its overrides, only-binary and no-binary share the table.'),
     pyprojectTable: verified('tool.pdm', `${PDM}/docs/reference/pep621.md`, 'PDM keeps its settings in [tool.pdm] of pyproject.toml.'),

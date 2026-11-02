@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, SourceKnowledge, ToolKnowledge, UserVariable } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -223,6 +223,11 @@ export const yarn: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: release14.verified<EnvironmentNameRule[]>(
+      [{ prefix: 'YARN_', match: 'any-case' }],
+      CONFIGURATION,
+      'getEnvironmentSettings lowercases every name of process.env and takes those that start with yarn_ (ENVIRONMENT_PREFIX), and getRcFilename compares the lowercased name with yarn_rc_filename, so yarn_enable_scripts and Yarn_Enable_Scripts set enableScripts as YARN_ENABLE_SCRIPTS does (decision D-143).',
+    ),
     registrySettings: leftovers.verified(
       [
         { file: '.yarnrc.yml', path: ['npmRegistryServer'], applies: 'all', effect: 'replaces' },

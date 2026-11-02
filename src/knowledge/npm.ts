@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, ToolKnowledge } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, OmitOptionalKnowledge, RootLifecycleScriptsKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
@@ -228,6 +228,11 @@ export const npm: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: release14.verified<EnvironmentNameRule[]>(
+      [{ prefix: 'npm_config_', match: 'any-case' }],
+      `${NPM_CONFIG_LIB}/index.js`,
+      'loadEnv takes every variable whose name matches /^npm_config_/i, cuts the prefix and lowercases the rest (with _ as - but for a leading _), so NPM_CONFIG_REGISTRY and Npm_Config_Registry set registry as npm_config_registry does (decision D-143).',
+    ),
     localPrefix: runtimes.verified(
       { markers: { file: 'package.json', directory: 'node_modules' }, workspaceRoot: true, workspacesField: 'workspaces', workspacesObjectKey: 'packages', prefixOption: '--prefix', workspacesOption: '--workspaces', projectFile: '.npmrc' },
       `${NPM_CONFIG_LIB}/index.js`,

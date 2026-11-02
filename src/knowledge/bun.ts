@@ -1,10 +1,11 @@
 import { verifiedOn } from './define.ts';
-import type { DirectoryOptionsKnowledge, SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
+import type { DirectoryOptionsKnowledge, EnvironmentNameRule, SourceKnowledge, ToolKnowledge, Versioned } from './types.ts';
 
 const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-28');
 const checked = verifiedOn('2026-10-29');
 const user = verifiedOn('2026-10-31');
 const runtimes = verifiedOn('2026-11-01');
+const release14 = verifiedOn('2026-11-02');
 const BUN_V1_4_4 = 'https://github.com/oven-sh/bun/blob/bun-v1.4.4';
 const BUNFIG_PARSER = `${BUN_V1_4_4}/src/bunfig/bunfig.rs`;
 
@@ -172,6 +173,11 @@ export const bun: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: release14.verified<EnvironmentNameRule[]>(
+      [{ prefix: '', match: 'exact' }],
+      `${BUN_V1_4_4}/src/install/PackageManager/PackageManagerOptions.rs`,
+      'Options::load looks up BUN_CONFIG_REGISTRY, NPM_CONFIG_REGISTRY and npm_config_registry with env.get, each spelling as written; the map behind env.get (HashTable in src/dotenv/env_loader.rs, https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/dotenv/env_loader.rs) is a StringArrayHashMap outside Windows and a CaseInsensitiveAsciiStringArrayHashMap on Windows, where names are not told apart by case. Decision D-143.',
+    ),
     registrySettings: runtimes.verified(
       [
         { file: 'bunfig.toml', path: ['install', 'registry'], applies: 'all', effect: 'replaces', urlKey: 'url' },

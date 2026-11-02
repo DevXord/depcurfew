@@ -1,5 +1,5 @@
 import { verifiedOn } from './define.ts';
-import type { SourceKnowledge, ToolKnowledge } from './types.ts';
+import type { EnvironmentNameRule, SourceKnowledge, ToolKnowledge } from './types.ts';
 
 const { verified, uncertain } = verifiedOn('2026-10-30');
 const guard = verifiedOn('2026-11-01');
@@ -20,6 +20,7 @@ const PYLOCK = 'https://github.com/pypa/packaging.python.org/blob/6fa4790c1fb668
 const PARSER = `${PIP}/src/pip/_internal/cli/parser.py`;
 const user = verifiedOn('2026-10-31');
 const finalReview = verifiedOn('2026-11-01');
+const release14 = verifiedOn('2026-11-02');
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
@@ -220,6 +221,11 @@ export const pip: ToolKnowledge = {
     ),
   },
   extra: {
+    environmentNames: release14.verified<EnvironmentNameRule[]>(
+      [{ prefix: 'PIP_', match: 'prefix-then-any-case' }],
+      `${PIP}/src/pip/_internal/configuration.py`,
+      'get_environ_vars takes the variables of os.environ whose names start with PIP_ (key.startswith("PIP_"), the prefix in upper case) and lowercases the rest (key[4:].lower()), so PIP_index_url sets index-url and pip_index_url sets nothing (decision D-143).',
+    ),
     configCommand: finalReview.verified(
       { command: 'config', writes: ['set', 'unset', 'edit'] },
       `${PIP}/src/pip/_internal/commands/configuration.py`,

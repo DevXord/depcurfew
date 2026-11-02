@@ -493,6 +493,22 @@ export interface InstallOverridesKnowledge {
 }
 
 /**
+ * How a tool tells the names of the environment variables that its command-line facts list (registryOverrides,
+ * installOverrides, selection, versionSelection and directoryOptions) on Linux and macOS (decision D-143). A rule covers
+ * the listed names that start with `prefix` (in any case), the longest prefix first; '' covers the rest. Windows tells
+ * no names apart by case, so the rules do not apply there.
+ */
+export interface EnvironmentNameRule {
+  prefix: string;
+  /**
+   * exact: only the name as the knowledge base writes it; any-case: the name in any case; lower-or-upper: the name all
+   * in lower case or all in upper case (pnpm_config_x, PNPM_CONFIG_X); prefix-then-any-case: the prefix as written,
+   * the rest in any case (PIP_index_url).
+   */
+  match: 'exact' | 'any-case' | 'lower-or-upper' | 'prefix-then-any-case';
+}
+
+/**
  * An option or environment variable that makes one command of a tool run in another directory, or find its project
  * there (decision D-118): the install guard then checks the install with the policy of that directory.
  */
