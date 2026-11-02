@@ -11,7 +11,6 @@ const SCHEMA = `${COMPOSER}/doc/04-schema.md`;
 const REPOSITORIES = `${COMPOSER}/doc/05-repositories.md`;
 const CHANGELOG = `${COMPOSER}/CHANGELOG.md`;
 const SRC = `${COMPOSER}/src/Composer`;
-const APIDOC = 'https://packagist.org/apidoc';
 
 const noSetting = (kind: string): SourceKnowledge => ({
   setting: uncertain(
