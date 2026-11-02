@@ -95,16 +95,24 @@ export function declaredRepositories(repository: Repository, tool: ToolKnowledge
   });
 }
 
-/** A repository URL as host and path, so that https://github.com/a/b, git@github.com:a/b.git and the like compare equal. */
+/** The ports a URL leaves out for its scheme, as the WHATWG URL standard does (decision D-138). */
+const DEFAULT_PORTS: Readonly<Record<string, string>> = { http: '80', https: '443' };
+
+/**
+ * A repository URL as host and path, so that https://github.com/a/b, git@github.com:a/b.git and the like compare equal;
+ * the default port of http and https is left out, as a URL leaves it out (https://github.com:443/a/b is github.com).
+ */
 export function normalizedUrl(url: string): string {
   const scp = /^[\w.-]+@([^:/]+):(.*)$/u.exec(url);
-  const text = scp === null ? url : `${scp[1] ?? ''}/${scp[2] ?? ''}`;
-  return text
+  const scheme = scp === null ? /^([a-z][a-z0-9+.-]*):\/\//iu.exec(url)?.[1]?.toLowerCase() : undefined;
+  const text = (scp === null ? url : `${scp[1] ?? ''}/${scp[2] ?? ''}`)
     .replace(/^[a-z][a-z0-9+.-]*:\/\//iu, '')
     .replace(/^[^/@]*@/u, '')
     .replace(/\/+$/u, '')
     .replace(/\.git$/iu, '')
     .toLowerCase();
+  const port = scheme === undefined ? undefined : DEFAULT_PORTS[scheme];
+  return port === undefined ? text : text.replace(new RegExp(`^([^/]*):${port}(?=/|$)`, 'u'), '$1');
 }
 
 const REMOTE = /^[a-z][a-z0-9+.-]*:\/\//iu;
@@ -207,6 +215,7 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
       const locked = item[format.version];
       const dev = typeof locked === 'string' && (locked.startsWith(branches.prefix) || locked.endsWith(branches.suffix));
       let why: string | undefined;
+      let preference: LockEntry['preferredInstall'];
       let otherSource: LockEntry['otherSource'];
       if (kind === 'registry' && [sourceUrl, distUrl].some((url) => url !== undefined && vcs.has(normalizedUrl(url)))) {
         kind = 'git';
@@ -216,10 +225,11 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
         kind = 'git';
         spec = describe(source);
         if (dist !== undefined) why = 'its dist has no type, so Composer cannot download its archive';
-      } else if (kind === 'registry' && sourceUrl !== undefined && offered(source) && (why = sourcePreference(manifest, tool, name, dev)) !== undefined) {
+      } else if (kind === 'registry' && sourceUrl !== undefined && offered(source) && (preference = sourcePreference(manifest, tool, name, dev)) !== undefined) {
         // config.preferred-install makes Composer check it out instead of downloading the archive (decision D-136).
         kind = 'git';
         spec = describe(source);
+        why = preference.why;
       } else if (kind === 'registry' && distUrl !== undefined && !isLocal(distUrl) && !hosts.has(hostOf(distUrl))) {
         kind = 'unknown';
       } else if (kind === 'registry' && distUrl !== undefined && sourceUrl !== undefined && offered(source)) {
@@ -240,6 +250,7 @@ export function composerEntries(text: string, tool: ToolKnowledge, repositories:
         ...(release ? { version: locked } : {}),
         ...(plugin && valueAt(item, format.optionalPlugin) === true ? { optional: true as const } : {}),
         ...(kind === 'git' && why !== undefined ? { why } : {}),
+        ...(kind === 'git' && preference !== undefined ? { preferredInstall: preference } : {}),
         ...(otherSource === undefined ? {} : { otherSource }),
       });
     }
@@ -252,33 +263,84 @@ const isPreference = (value: unknown): value is ComposerInstallPreferenceKnowled
 
 /**
  * Why Composer installs a locked package that has both an archive and a source from the source, by config.preferred-install
- * of the root composer.json (extra.installPreference, decision D-136); undefined when it downloads the archive. A string
- * "source" always, "dist" never, "auto" and any other string for a dev version (preferDist and preferSource both off);
- * an object by its first key that matches the name, in any case and with * for any characters, "*" last and "dist"
- * when the object has no "*": "dist" never, "auto" for a dev version, any other value always.
+ * of the root composer.json (extra.installPreference, decision D-136), with the entry of the setting that decides it
+ * (decision D-138); undefined when it downloads the archive. A string "source" always, "dist" never, "auto" and any
+ * other string for a dev version (preferDist and preferSource both off); an object by its first key that matches the
+ * name, in any case and with * for any characters, "*" last and "dist" when the object has no "*": "dist" never,
+ * "auto" for a dev version, any other value always.
  */
-function sourcePreference(manifest: Record<string, unknown> | undefined, tool: ToolKnowledge, name: string, dev: boolean): string | undefined {
+function sourcePreference(manifest: Record<string, unknown> | undefined, tool: ToolKnowledge, name: string, dev: boolean): LockEntry['preferredInstall'] {
   if (tool.extra?.['installPreference'] === undefined) return undefined;
   const fact = extraOf(tool, 'installPreference', isPreference);
   const config = manifest?.['config'];
   const setting = isRecord(config) ? config[fact.setting] : undefined;
   const where = `config.${fact.setting} in ${COMPOSER_MANIFEST}`;
-  const forDev = (text: string) => (dev ? `${text}, which installs a dev version from its source` : undefined);
+  const forDev = (text: string) => (dev ? `${text}, which installs dev versions from their source` : undefined);
   if (typeof setting === 'string') {
-    if (setting === fact.source) return `${where} is "${setting}"`;
+    if (setting === fact.source) return { value: setting, why: `${where} is "${setting}"` };
     if (setting === fact.dist) return undefined;
-    return forDev(`${where} is ${JSON.stringify(setting)}`);
+    const why = forDev(`${where} is ${JSON.stringify(setting)}`);
+    return why === undefined ? undefined : { value: setting, why };
   }
   if (!isRecord(setting)) return undefined;
   const keys = [...Object.keys(setting).filter((key) => key !== fact.everything), fact.everything];
   for (const key of keys) {
     if (!pluginPatternMatches(name, key)) continue;
+    // A name that no key matches gets "dist" (the default), so only a key written out gives another value.
     const preference = Object.hasOwn(setting, key) ? setting[key] : fact.default;
     if (preference === fact.dist) return undefined;
     const given = `${where} gives ${JSON.stringify(preference)} for ${key}`;
-    return preference === fact.auto ? forDev(given) : given;
+    const why = preference === fact.auto ? forDev(given) : given;
+    return why === undefined ? undefined : { key, value: typeof preference === 'string' ? preference : JSON.stringify(preference), why };
   }
   return undefined;
+}
+
+/** The packages of composer.lock that one entry of config.preferred-install makes Composer check out (decision D-138). */
+export interface Checkouts {
+  preference: NonNullable<LockEntry['preferredInstall']>;
+  entries: LockEntry[];
+}
+
+/** The entries of composer.lock checked out because of config.preferred-install, by its entry, in the order of the lockfile. */
+export function checkoutsByPreference(entries: readonly LockEntry[]): Checkouts[] {
+  const groups = new Map<string, Checkouts>();
+  for (const entry of entries) {
+    if (entry.source !== 'git' || entry.preferredInstall === undefined) continue;
+    const key = entry.preferredInstall.key ?? '';
+    const group = groups.get(key) ?? { preference: entry.preferredInstall, entries: [] };
+    group.entries.push(entry);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
+/** The line in composer.json of the entry of config.preferred-install, when it can be found. */
+export function preferenceLine(text: string | undefined, preference: Checkouts['preference']): number | undefined {
+  if (text === undefined) return undefined;
+  return jsonSetting(text, ['config', 'preferred-install', ...(preference.key === undefined ? [] : [preference.key])])?.line;
+}
+
+/** The packages of a group as a message lists them: the first `most` with their line in the lockfile, the rest counted. */
+export function listedCheckouts(entries: readonly LockEntry[], lineOf: (entry: LockEntry) => number | undefined, most = 10): string {
+  const shown = entries.slice(0, most).map((entry) => {
+    const line = lineOf(entry);
+    return line === undefined ? entry.name : `${entry.name} (line ${line})`;
+  });
+  return `${shown.join(', ')}${entries.length > most ? ` and ${entries.length - most} more` : ''}`;
+}
+
+/** How a message says that Composer checks the packages out: "1 package of composer.lock from its VCS repository instead of its archive". */
+export function checkedOut(count: number, file: string): string {
+  return count === 1 ? `1 package of ${file} from its VCS repository instead of its archive` : `${count} packages of ${file} from their VCS repositories instead of their archives`;
+}
+
+/** What to change in composer.json so that Composer takes the archives again. */
+export function preferenceChange(preference: Checkouts['preference']): string {
+  const setting = `config.preferred-install in ${COMPOSER_MANIFEST}`;
+  return preference.key === undefined
+    ? `Set ${setting} to "dist", or remove it, so Composer installs packages from their archives`
+    : `Remove ${JSON.stringify(preference.key)} from ${setting}, or set it to "dist", so Composer installs these packages from their archives`;
 }
 
 /**
@@ -287,11 +349,15 @@ function sourcePreference(manifest: Record<string, unknown> | undefined, tool: T
  */
 function sourceElsewhere(tool: ToolKnowledge, distUrl: string, sourceUrl: string, spec: string): LockEntry['otherSource'] {
   if (tool.extra?.['registrySourceHosts'] === undefined) return undefined;
-  const hosts = extraOf(tool, 'registrySourceHosts', (value): value is Record<string, string> => isRecord(value) && Object.values(value).every((host) => typeof host === 'string'));
+  const isHosts = (value: unknown): value is Record<string, string> => isRecord(value) && Object.values(value).every((host) => typeof host === 'string');
+  const hosts = extraOf(tool, 'registrySourceHosts', isHosts);
+  // The hosts a VCS driver reads as another one: www.github.com is github.com for GitHubDriver (decision D-138).
+  const same = tool.extra['sourceHostAliases'] === undefined ? {} : extraOf(tool, 'sourceHostAliases', isHosts);
   const distHost = hostOf(distUrl);
   const expected = Object.hasOwn(hosts, distHost) ? hosts[distHost] : undefined;
   const sourceHost = hostOf(sourceUrl);
-  return expected === undefined || sourceHost === expected ? undefined : { spec, distHost, sourceHost };
+  const read = Object.hasOwn(same, sourceHost) ? same[sourceHost] : sourceHost;
+  return expected === undefined || read === expected ? undefined : { spec, distHost, sourceHost };
 }
 
 /** The host of the source the VCS driver gives a package whose archive is on `distHost` (extra.registrySourceHosts). */

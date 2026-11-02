@@ -198,8 +198,9 @@ describe('scripts of composer.json as commands (finding 8)', () => {
     const clean = project({ 'composer.json': scripts({ inst: '@composer require', required: 'echo', tool: 'echo' }) });
     // req stands for require and the script required: ambiguous, Composer runs nothing.
     expect(await decision('composer req guzzlehttp/guzzle', clean)).toBe('none');
-    // The alias r of the script tool replaces Composer's alias r.
-    expect(await decision('composer r guzzlehttp/guzzle', clean)).toBe('none');
+    // The alias r of the script tool replaces Composer's alias r from Composer 2.7.0; before, r is require, which is
+    // checked (decision D-138).
+    expect(await decision('composer r guzzlehttp/guzzle', clean)).toBe('deny');
     // inst is the script, run as composer run-script inst runs it.
     expect(await decision('composer inst guzzlehttp/guzzle', clean)).toBe('none');
     expect(await decision('composer run-script inst guzzlehttp/guzzle', clean)).toBe('none');

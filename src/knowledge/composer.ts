@@ -496,6 +496,11 @@ export const composer: ToolKnowledge = {
       `${SRC}/Console/Application.php`,
       'doRunComposer registers the scripts of the composer.json it runs with (Factory::getComposerFile, after -d) as commands when the command word is not the exact name of a command Composer found before (mayNeedScriptCommand: "$rawCommandName !== $commandName", so also for an alias, an abbreviation, another case or a word that names no command) or the command is run-script. Each key of scripts that is no event (the constants of src/Composer/Script/ScriptEvents.php, compared in upper case with - as _) and not already a command or alias ($this->has($script): "A script named ... would override a Composer command and has been skipped") becomes a ScriptAliasCommand with the aliases that scripts-aliases gives it. Application::add of symfony/console (v5.4.55) maps the name and each alias to it, over an alias or name of another command; Command::setName and setAliases reject a name that is not parts without a colon separated by single colons (validateName), and ScriptAliasCommand an alias that is not a string, which stops Composer. find() then resolves the word among all of them: the exact name or alias, else the names that start with it. ScriptAliasCommand runs the script as composer run-script does (src/Composer/Command/ScriptAliasCommand.php).',
     ),
+    scriptAliases: verified(
+      { key: 'scripts-aliases', since: '2.7.0' },
+      CHANGELOG,
+      '2.7.0: "Added `scripts-aliases` top level key in composer.json to define aliases for custom scripts you defined" (#11666). Application::doRunComposer at 2.6.6 and 2.2.25 (src/Composer/Console/Application.php) registers each script of composer.json as a ScriptAliasCommand without aliases ($this->add(new Command\\ScriptAliasCommand($script, $description))), and from 2.7.0 with $composer[\'scripts-aliases\'][$script]. So on Composer 2.2 LTS to 2.6 a word that scripts-aliases gives a script is still the Composer command or alias of that name (r is require).',
+    ),
     rootStability: verified<ComposerRootStabilityKnowledge>(
       { minimumStability: 'minimum-stability', preferStable: 'prefer-stable', values: ['stable', 'rc', 'beta', 'alpha', 'dev'] },
       `${SRC}/Package/Loader/RootPackageLoader.php`,
@@ -515,6 +520,11 @@ export const composer: ToolKnowledge = {
       { 'api.github.com': 'github.com', 'gitlab.com': 'gitlab.com', 'bitbucket.org': 'bitbucket.org', 'codeberg.org': 'codeberg.org' },
       `${SRC}/Repository/Vcs/GitHubDriver.php`,
       'The host of the source that the VCS driver gives a package whose archive comes from a host of registryDistHosts: GitHubDriver::getSource https://github.com/<owner>/<repo>.git (git@github.com:<owner>/<repo>.git for a private repository) beside its archive on api.github.com; GitLabDriver::getSource the http_url_to_repo or ssh_url_to_repo of the project on gitlab.com; GitBitbucketDriver::getSource the URL of the repository on bitbucket.org; ForgejoDriver::getSource its clone URL on codeberg.org (src/Composer/Repository/Vcs/*Driver.php at 2.11.1).',
+    ),
+    sourceHostAliases: verified(
+      { 'www.github.com': 'github.com' },
+      `${SRC}/Repository/Vcs/GitHubDriver.php`,
+      'GitHubDriver::initialize at 2.11.1 reads the host of the repository URL in lower case and takes www.github.com for github.com ("if ($this->originUrl === \'www.github.com\') { $this->originUrl = \'github.com\'; }"), and GitHubDriver::supports compares the host without www. with github-domains. GitLabDriver::determineOrigin compares the host (with its port) with gitlab-domains as written, GitBitbucketDriver::supports takes only https://bitbucket.org/…, and ForgejoDriver compares the host with forgejo-domains as written (src/Composer/Repository/Vcs/*Driver.php at 2.11.1), so only GitHub has such a host.',
     ),
     directoryOptions: verified<DirectoryOptionsKnowledge>(
       { options: [{ name: '--working-dir', moves: 'directory' }, { name: '-d', moves: 'directory' }], variables: [], lookup: 'first-token' },

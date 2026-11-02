@@ -1048,6 +1048,10 @@ const composer$3 = {
 			],
 			validName: "^[^:]+(?::[^:]+)*$"
 		}, `${SRC}/Console/Application.php`, "doRunComposer registers the scripts of the composer.json it runs with (Factory::getComposerFile, after -d) as commands when the command word is not the exact name of a command Composer found before (mayNeedScriptCommand: \"$rawCommandName !== $commandName\", so also for an alias, an abbreviation, another case or a word that names no command) or the command is run-script. Each key of scripts that is no event (the constants of src/Composer/Script/ScriptEvents.php, compared in upper case with - as _) and not already a command or alias ($this->has($script): \"A script named ... would override a Composer command and has been skipped\") becomes a ScriptAliasCommand with the aliases that scripts-aliases gives it. Application::add of symfony/console (v5.4.55) maps the name and each alias to it, over an alias or name of another command; Command::setName and setAliases reject a name that is not parts without a colon separated by single colons (validateName), and ScriptAliasCommand an alias that is not a string, which stops Composer. find() then resolves the word among all of them: the exact name or alias, else the names that start with it. ScriptAliasCommand runs the script as composer run-script does (src/Composer/Command/ScriptAliasCommand.php)."),
+		scriptAliases: verified$13({
+			key: "scripts-aliases",
+			since: "2.7.0"
+		}, CHANGELOG$3, "2.7.0: \"Added `scripts-aliases` top level key in composer.json to define aliases for custom scripts you defined\" (#11666). Application::doRunComposer at 2.6.6 and 2.2.25 (src/Composer/Console/Application.php) registers each script of composer.json as a ScriptAliasCommand without aliases ($this->add(new Command\\ScriptAliasCommand($script, $description))), and from 2.7.0 with $composer['scripts-aliases'][$script]. So on Composer 2.2 LTS to 2.6 a word that scripts-aliases gives a script is still the Composer command or alias of that name (r is require)."),
 		rootStability: verified$13({
 			minimumStability: "minimum-stability",
 			preferStable: "prefer-stable",
@@ -1078,6 +1082,7 @@ const composer$3 = {
 			"bitbucket.org": "bitbucket.org",
 			"codeberg.org": "codeberg.org"
 		}, `${SRC}/Repository/Vcs/GitHubDriver.php`, "The host of the source that the VCS driver gives a package whose archive comes from a host of registryDistHosts: GitHubDriver::getSource https://github.com/<owner>/<repo>.git (git@github.com:<owner>/<repo>.git for a private repository) beside its archive on api.github.com; GitLabDriver::getSource the http_url_to_repo or ssh_url_to_repo of the project on gitlab.com; GitBitbucketDriver::getSource the URL of the repository on bitbucket.org; ForgejoDriver::getSource its clone URL on codeberg.org (src/Composer/Repository/Vcs/*Driver.php at 2.11.1)."),
+		sourceHostAliases: verified$13({ "www.github.com": "github.com" }, `${SRC}/Repository/Vcs/GitHubDriver.php`, "GitHubDriver::initialize at 2.11.1 reads the host of the repository URL in lower case and takes www.github.com for github.com (\"if ($this->originUrl === 'www.github.com') { $this->originUrl = 'github.com'; }\"), and GitHubDriver::supports compares the host without www. with github-domains. GitLabDriver::determineOrigin compares the host (with its port) with gitlab-domains as written, GitBitbucketDriver::supports takes only https://bitbucket.org/…, and ForgejoDriver compares the host with forgejo-domains as written (src/Composer/Repository/Vcs/*Driver.php at 2.11.1), so only GitHub has such a host."),
 		directoryOptions: verified$13({
 			options: [{
 				name: "--working-dir",
@@ -19395,10 +19400,21 @@ function declaredRepositories(repository, tool) {
 		}];
 	});
 }
-/** A repository URL as host and path, so that https://github.com/a/b, git@github.com:a/b.git and the like compare equal. */
+/** The ports a URL leaves out for its scheme, as the WHATWG URL standard does (decision D-138). */
+const DEFAULT_PORTS = {
+	http: "80",
+	https: "443"
+};
+/**
+* A repository URL as host and path, so that https://github.com/a/b, git@github.com:a/b.git and the like compare equal;
+* the default port of http and https is left out, as a URL leaves it out (https://github.com:443/a/b is github.com).
+*/
 function normalizedUrl(url) {
 	const scp = /^[\w.-]+@([^:/]+):(.*)$/u.exec(url);
-	return (scp === null ? url : `${scp[1] ?? ""}/${scp[2] ?? ""}`).replace(/^[a-z][a-z0-9+.-]*:\/\//iu, "").replace(/^[^/@]*@/u, "").replace(/\/+$/u, "").replace(/\.git$/iu, "").toLowerCase();
+	const scheme = scp === null ? /^([a-z][a-z0-9+.-]*):\/\//iu.exec(url)?.[1]?.toLowerCase() : void 0;
+	const text = (scp === null ? url : `${scp[1] ?? ""}/${scp[2] ?? ""}`).replace(/^[a-z][a-z0-9+.-]*:\/\//iu, "").replace(/^[^/@]*@/u, "").replace(/\/+$/u, "").replace(/\.git$/iu, "").toLowerCase();
+	const port = scheme === void 0 ? void 0 : DEFAULT_PORTS[scheme];
+	return port === void 0 ? text : text.replace(new RegExp(`^([^/]*):${port}(?=/|$)`, "u"), "$1");
 }
 const REMOTE = /^[a-z][a-z0-9+.-]*:\/\//iu;
 /** Whether a dist URL is a file on this machine: no scheme (a path, also C:/…) or file://. */
@@ -19467,6 +19483,7 @@ function composerEntries(text, tool, repositories, manifest) {
 			const locked = item[format.version];
 			const dev = typeof locked === "string" && (locked.startsWith(branches.prefix) || locked.endsWith(branches.suffix));
 			let why;
+			let preference;
 			let otherSource;
 			if (kind === "registry" && [sourceUrl, distUrl].some((url) => url !== void 0 && vcs.has(normalizedUrl(url)))) {
 				kind = "git";
@@ -19475,9 +19492,10 @@ function composerEntries(text, tool, repositories, manifest) {
 				kind = "git";
 				spec = describe$2(source);
 				if (dist !== void 0) why = "its dist has no type, so Composer cannot download its archive";
-			} else if (kind === "registry" && sourceUrl !== void 0 && offered(source) && (why = sourcePreference(manifest, tool, name, dev)) !== void 0) {
+			} else if (kind === "registry" && sourceUrl !== void 0 && offered(source) && (preference = sourcePreference(manifest, tool, name, dev)) !== void 0) {
 				kind = "git";
 				spec = describe$2(source);
+				why = preference.why;
 			} else if (kind === "registry" && distUrl !== void 0 && !isLocal(distUrl) && !hosts.has(hostOf(distUrl))) kind = "unknown";
 			else if (kind === "registry" && distUrl !== void 0 && sourceUrl !== void 0 && offered(source)) otherSource = sourceElsewhere(tool, distUrl, sourceUrl, describe$2(source));
 			const release = (kind === "registry" || kind === "unknown" && fromInline === void 0) && typeof locked === "string" && locked !== "" && !locked.startsWith(branches.prefix) && !locked.endsWith(branches.suffix);
@@ -19492,6 +19510,7 @@ function composerEntries(text, tool, repositories, manifest) {
 				...release ? { version: locked } : {},
 				...plugin && valueAt(item, format.optionalPlugin) === true ? { optional: true } : {},
 				...kind === "git" && why !== void 0 ? { why } : {},
+				...kind === "git" && preference !== void 0 ? { preferredInstall: preference } : {},
 				...otherSource === void 0 ? {} : { otherSource }
 			});
 		}
@@ -19508,10 +19527,11 @@ const isPreference = (value) => isRecord(value) && [
 ].every((key) => typeof value[key] === "string");
 /**
 * Why Composer installs a locked package that has both an archive and a source from the source, by config.preferred-install
-* of the root composer.json (extra.installPreference, decision D-136); undefined when it downloads the archive. A string
-* "source" always, "dist" never, "auto" and any other string for a dev version (preferDist and preferSource both off);
-* an object by its first key that matches the name, in any case and with * for any characters, "*" last and "dist"
-* when the object has no "*": "dist" never, "auto" for a dev version, any other value always.
+* of the root composer.json (extra.installPreference, decision D-136), with the entry of the setting that decides it
+* (decision D-138); undefined when it downloads the archive. A string "source" always, "dist" never, "auto" and any
+* other string for a dev version (preferDist and preferSource both off); an object by its first key that matches the
+* name, in any case and with * for any characters, "*" last and "dist" when the object has no "*": "dist" never,
+* "auto" for a dev version, any other value always.
 */
 function sourcePreference(manifest, tool, name, dev) {
 	if (tool.extra?.["installPreference"] === void 0) return void 0;
@@ -19519,11 +19539,18 @@ function sourcePreference(manifest, tool, name, dev) {
 	const config = manifest?.["config"];
 	const setting = isRecord(config) ? config[fact.setting] : void 0;
 	const where = `config.${fact.setting} in ${COMPOSER_MANIFEST}`;
-	const forDev = (text) => dev ? `${text}, which installs a dev version from its source` : void 0;
+	const forDev = (text) => dev ? `${text}, which installs dev versions from their source` : void 0;
 	if (typeof setting === "string") {
-		if (setting === fact.source) return `${where} is "${setting}"`;
+		if (setting === fact.source) return {
+			value: setting,
+			why: `${where} is "${setting}"`
+		};
 		if (setting === fact.dist) return void 0;
-		return forDev(`${where} is ${JSON.stringify(setting)}`);
+		const why = forDev(`${where} is ${JSON.stringify(setting)}`);
+		return why === void 0 ? void 0 : {
+			value: setting,
+			why
+		};
 	}
 	if (!isRecord(setting)) return void 0;
 	const keys = [...Object.keys(setting).filter((key) => key !== fact.everything), fact.everything];
@@ -19532,8 +19559,53 @@ function sourcePreference(manifest, tool, name, dev) {
 		const preference = Object.hasOwn(setting, key) ? setting[key] : fact.default;
 		if (preference === fact.dist) return void 0;
 		const given = `${where} gives ${JSON.stringify(preference)} for ${key}`;
-		return preference === fact.auto ? forDev(given) : given;
+		const why = preference === fact.auto ? forDev(given) : given;
+		return why === void 0 ? void 0 : {
+			key,
+			value: typeof preference === "string" ? preference : JSON.stringify(preference),
+			why
+		};
 	}
+}
+/** The entries of composer.lock checked out because of config.preferred-install, by its entry, in the order of the lockfile. */
+function checkoutsByPreference(entries) {
+	const groups = /* @__PURE__ */ new Map();
+	for (const entry of entries) {
+		if (entry.source !== "git" || entry.preferredInstall === void 0) continue;
+		const key = entry.preferredInstall.key ?? "";
+		const group = groups.get(key) ?? {
+			preference: entry.preferredInstall,
+			entries: []
+		};
+		group.entries.push(entry);
+		groups.set(key, group);
+	}
+	return [...groups.values()];
+}
+/** The line in composer.json of the entry of config.preferred-install, when it can be found. */
+function preferenceLine(text, preference) {
+	if (text === void 0) return void 0;
+	return jsonSetting(text, [
+		"config",
+		"preferred-install",
+		...preference.key === void 0 ? [] : [preference.key]
+	])?.line;
+}
+/** The packages of a group as a message lists them: the first `most` with their line in the lockfile, the rest counted. */
+function listedCheckouts(entries, lineOf, most = 10) {
+	return `${entries.slice(0, most).map((entry) => {
+		const line = lineOf(entry);
+		return line === void 0 ? entry.name : `${entry.name} (line ${line})`;
+	}).join(", ")}${entries.length > most ? ` and ${entries.length - most} more` : ""}`;
+}
+/** How a message says that Composer checks the packages out: "1 package of composer.lock from its VCS repository instead of its archive". */
+function checkedOut(count, file) {
+	return count === 1 ? `1 package of ${file} from its VCS repository instead of its archive` : `${count} packages of ${file} from their VCS repositories instead of their archives`;
+}
+/** What to change in composer.json so that Composer takes the archives again. */
+function preferenceChange(preference) {
+	const setting = `config.preferred-install in ${COMPOSER_MANIFEST}`;
+	return preference.key === void 0 ? `Set ${setting} to "dist", or remove it, so Composer installs packages from their archives` : `Remove ${JSON.stringify(preference.key)} from ${setting}, or set it to "dist", so Composer installs these packages from their archives`;
 }
 /**
 * An archive from a host of registryDistHosts next to a source on another host than the one the VCS driver of that
@@ -19541,11 +19613,14 @@ function sourcePreference(manifest, tool, name, dev) {
 */
 function sourceElsewhere(tool, distUrl, sourceUrl, spec) {
 	if (tool.extra?.["registrySourceHosts"] === void 0) return void 0;
-	const hosts = extraOf(tool, "registrySourceHosts", (value) => isRecord(value) && Object.values(value).every((host) => typeof host === "string"));
+	const isHosts = (value) => isRecord(value) && Object.values(value).every((host) => typeof host === "string");
+	const hosts = extraOf(tool, "registrySourceHosts", isHosts);
+	const same = tool.extra["sourceHostAliases"] === void 0 ? {} : extraOf(tool, "sourceHostAliases", isHosts);
 	const distHost = hostOf(distUrl);
 	const expected = Object.hasOwn(hosts, distHost) ? hosts[distHost] : void 0;
 	const sourceHost = hostOf(sourceUrl);
-	return expected === void 0 || sourceHost === expected ? void 0 : {
+	const read = Object.hasOwn(same, sourceHost) ? same[sourceHost] : sourceHost;
+	return expected === void 0 || read === expected ? void 0 : {
 		spec,
 		distHost,
 		sourceHost
@@ -24981,13 +25056,15 @@ function dependabotDelays$1(repository, bot, file, workflows) {
 			setting,
 			keys.days
 		];
-		const line = yamlSetting(text, path, yaml)?.line ?? updates.line;
+		const found = yamlSetting(text, path, yaml);
+		const line = found?.line ?? updates.line;
 		return [{
 			tool: bot.id,
 			scope: `updates[${index}]`,
 			label: `${String(entry["package-ecosystem"])} updates`,
 			setting: keys.days,
 			value: days,
+			...found?.written === void 0 ? {} : { written: found.written },
 			minutes: days * 1440,
 			location: {
 				file,
@@ -25056,9 +25133,16 @@ function policyDuration(minutes) {
 	if (whole % 60 === 0) return `${whole / 60}h`;
 	return `${whole}m`;
 }
-/** A value and where it is set, for messages: `min-release-age: 14 in .npmrc (line 2)`. */
+/**
+* A value and where it is set, for messages: `min-release-age: 14 in .npmrc (line 2)`; a number the tool reads as
+* another value as the file writes it and as the tool reads it (`default-days: 016 in .github/dependabot.yml (line 7),
+* which Dependabot reads as 14`, decision D-138).
+*/
 function describeDelay(delay) {
-	return `${settingText(delay.location.file, delay.setting, delay.value)} in ${delay.location.file} (line ${delay.location.line})`;
+	const where = `in ${delay.location.file} (line ${delay.location.line})`;
+	if (delay.written === void 0) return `${settingText(delay.location.file, delay.setting, delay.value)} ${where}`;
+	const name = knowledgeBase.find((tool) => tool.id === delay.tool)?.name ?? delay.tool;
+	return `${delay.setting}: ${delay.written} ${where}, which ${name} reads as ${String(delay.value)}`;
 }
 /** INI files: .npmrc, pnpm's rc and pip's configuration files. */
 const INI_FILES = /* @__PURE__ */ new Set([
@@ -32092,16 +32176,34 @@ const lockfileForbiddenSource = {
 				}
 				if (entry.source !== "git" && entry.source !== "remoteTarball" && entry.source !== "file" && entry.source !== "directory") continue;
 				if (sources[entry.source] !== "deny") continue;
+				if (entry.preferredInstall !== void 0) continue;
 				context.report({
 					location: location(lockfile, entry),
 					message: `${lockfile.file} installs ${entry.unnamed === true ? "a package" : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies${entry.why === void 0 ? "" : `: ${entry.why}`}`,
 					fix: `Use a registry version ${entry.unnamed === true ? "instead" : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`
 				});
 			}
+			if (sources.git === "deny") for (const group of checkoutsByPreference(lockfile.entries)) reportPreferredInstall(context, lockfile, group);
 			if (tool.id === "composer") reportComposerRepositories(context, tool, lockfile, sources);
 		});
 	}
 };
+/**
+* Composer: one entry of config.preferred-install in composer.json that makes Composer check packages of composer.lock
+* out of their VCS repositories, which the policy denies (decision D-138): one finding at that entry, naming the
+* packages with their lines in the lockfile, and a fix in composer.json; the packages are registry versions.
+*/
+function reportPreferredInstall(context, lockfile, { preference, entries }) {
+	const line = preferenceLine(context.repository.readText(COMPOSER_MANIFEST), preference);
+	context.report({
+		location: line === void 0 ? { file: COMPOSER_MANIFEST } : {
+			file: COMPOSER_MANIFEST,
+			line
+		},
+		message: `${preference.why}, so Composer installs ${checkedOut(entries.length, lockfile.file)}, which ${POLICY_FILE} denies: ${listedCheckouts(entries, (entry) => lockfile.lineOf(entry))}`,
+		fix: `${preferenceChange(preference)}; or set sources.git to "allow" in ${POLICY_FILE}`
+	});
+}
 /**
 * Composer: a repository of composer.json of a kind the policy denies whose packages depcurfew cannot find in
 * composer.lock (a VCS repository at another URL than the lock records, a path or artifact repository not locked yet).

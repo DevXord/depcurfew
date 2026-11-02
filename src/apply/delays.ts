@@ -30,6 +30,8 @@ export interface ConfiguredDelay {
   setting: string;
   /** The value as written. */
   value: unknown;
+  /** The text of a number in the file when the tool reads it as another value (default-days: 016, read as 14; decision D-138). */
+  written?: string;
   minutes: number;
   location: { file: string; line: number };
   /** Written by depcurfew: inside its managed block or under its YAML marker. */
@@ -155,7 +157,8 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
     const days = isRecord(cooldown) ? cooldown[keys.days] : undefined;
     if (typeof days !== 'number' || days <= 0) return [];
     const path = ['updates', String(index), setting, keys.days];
-    const line = yamlSetting(text, path, yaml)?.line ?? updates.line;
+    const found = yamlSetting(text, path, yaml);
+    const line = found?.line ?? updates.line;
     return [
       {
         tool: bot.id,
@@ -163,6 +166,7 @@ function dependabotDelays(repository: Repository, bot: ToolKnowledge, file: stri
         label: `${String(entry['package-ecosystem'])} updates`,
         setting: keys.days,
         value: days,
+        ...(found?.written === undefined ? {} : { written: found.written }),
         minutes: days * 1440,
         location: { file, line },
         managed: markedInYaml(text, path, all),
@@ -238,9 +242,16 @@ export function policyDuration(minutes: number): string {
   return `${whole}m`;
 }
 
-/** A value and where it is set, for messages: `min-release-age: 14 in .npmrc (line 2)`. */
+/**
+ * A value and where it is set, for messages: `min-release-age: 14 in .npmrc (line 2)`; a number the tool reads as
+ * another value as the file writes it and as the tool reads it (`default-days: 016 in .github/dependabot.yml (line 7),
+ * which Dependabot reads as 14`, decision D-138).
+ */
 export function describeDelay(delay: ConfiguredDelay): string {
-  return `${settingText(delay.location.file, delay.setting, delay.value)} in ${delay.location.file} (line ${delay.location.line})`;
+  const where = `in ${delay.location.file} (line ${delay.location.line})`;
+  if (delay.written === undefined) return `${settingText(delay.location.file, delay.setting, delay.value)} ${where}`;
+  const name = knowledgeBase.find((tool) => tool.id === delay.tool)?.name ?? delay.tool;
+  return `${delay.setting}: ${delay.written} ${where}, which ${name} reads as ${String(delay.value)}`;
 }
 
 /** INI files: .npmrc, pnpm's rc and pip's configuration files. */

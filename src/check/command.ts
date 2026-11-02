@@ -63,6 +63,7 @@ import {
 } from './directories.ts';
 import { parsePythonSpec } from './python-spec.ts';
 import { NestingTooDeep, readCmd, readPowerShell } from './windows-shells.ts';
+import { powerShellEnvironment, type PowerShellEnvironment } from './powershell-env.ts';
 
 export interface Word {
   text: string;
@@ -1109,6 +1110,9 @@ const WEAKENS = 'what the project configured for every package this install fetc
 /** A protection of the package manager that the policy does not manage (decision D-133). */
 const PROTECTS = 'which protects every package the command fetches, also those depcurfew does not check';
 const OVERRIDE_UNREAD = `is set in a way depcurfew does not read, which may weaken ${WEAKENS}`;
+/** A PowerShell command on the Env: drive whose variable name the reader cannot tell (decision D-138). */
+const ENV_NAME_UNREAD =
+  'uses an environment variable whose name depcurfew does not read, which may point the package manager at another registry or weaken the release-age delay or the install-script settings of the project';
 /** More specs than the hook checks for one command. */
 export const TOO_MANY = 'depcurfew checks at most';
 /** composer global update of a name without a constraint (decision D-136). */
@@ -1133,6 +1137,9 @@ export function unreadableFix(reason: string): string {
   }
   if (reason.startsWith(UNKNOWN_DIRECTORY)) {
     return 'Run the install from that directory, or change to it with a path written out (cd path/to/project && …), so depcurfew checks it with the policy that applies there';
+  }
+  if (reason.includes(ENV_NAME_UNREAD)) {
+    return "Set the variable as $env:NAME = 'value' with its name written out, or leave it out, so depcurfew can tell which variable the command sets";
   }
   if (reason.includes(ANOTHER_REGISTRY)) {
     return 'Leave out the option or variable so that packages come from the registry depcurfew checks; if the other registry is intended, the user decides';
@@ -3238,45 +3245,39 @@ function namedRunner(text: string): string | undefined {
 }
 
 /**
- * A variable that may point a package manager at another registry, or change the version it picks, named anywhere in
- * a PowerShell line outside the $env:NAME = value assignments that were read (Set-Item env:…, ${env:…} = …,
+ * The names of environment variables a PowerShell line (without the $env:NAME = value assignments that were read)
+ * may set (decision D-138): those its Env: operations and [Environment]::SetEnvironmentVariable name, as PowerShell
+ * binds their parameters (powerShellEnvironment), and every other word, without backtick escapes and quotes, unless it
+ * is named like a package manager's program (COMPOSER, decision D-136): the word composer is the command, or a string
+ * (& 'composer', Write-Output 'composer'), and the variable only where PowerShell takes a variable name.
+ */
+function powerShellNames(text: string, environment: PowerShellEnvironment): string[] {
+  const { executables } = commands();
+  const plain = text.replace(/`([\s\S])/gu, '$1').replace(/['"\u2018-\u201e]/gu, '');
+  const words = (plain.match(/[A-Za-z0-9_]+/gu) ?? []).filter((word) => !executables.has(word.toLowerCase()));
+  return [...environment.names, ...words];
+}
+
+/**
+ * A variable that may point a package manager at another registry, or change the version it picks, that a PowerShell
+ * line names outside the $env:NAME = value assignments that were read (Set-Item env:…, ${env:…} = …,
  * [Environment]::SetEnvironmentVariable(…)).
  */
-function namedSetting(text: string): string | undefined {
+function namedSetting(names: readonly string[]): string | undefined {
   const { configVariables, registryVariables, selectionVariables } = commands();
-  for (const { piece, at } of namedPieces(text)) {
-    const lower = piece.toLowerCase();
-    if ((configVariables.has(lower) || registryVariables.has(lower)) && namesVariable(text, piece, at)) return anotherRegistry(piece);
-    if (selectionVariables.has(lower) && namesVariable(text, piece, at)) return `${piece} ${SET_UNREAD}`;
+  for (const name of names) {
+    const lower = name.toLowerCase();
+    if (configVariables.has(lower) || registryVariables.has(lower)) return anotherRegistry(name);
+    if (selectionVariables.has(lower)) return `${name} ${SET_UNREAD}`;
   }
   return undefined;
 }
 
-/** The words of a PowerShell line that may name a variable, with where they start. */
-function* namedPieces(text: string): Generator<{ piece: string; at: number }> {
-  for (const match of text.matchAll(/[A-Za-z0-9_]+/gu)) yield { piece: match[0], at: match.index };
-}
-
-/**
- * Whether a word of a PowerShell line counts as naming an environment variable: always, unless the variable has the
- * name of a package manager (COMPOSER, decision D-136), which the line names as a command too; that one counts only
- * where PowerShell takes a variable name: after env: (Set-Item env:COMPOSER, ${env:COMPOSER}), in quotes on its own
- * ([Environment]::SetEnvironmentVariable('COMPOSER', …)) and after -Name (New-Item -Path Env: -Name COMPOSER).
- */
-function namesVariable(text: string, piece: string, at: number): boolean {
-  if (!commands().executables.has(piece.toLowerCase())) return true;
-  const before = text.slice(0, at);
-  const after = text[at + piece.length];
-  if (/env:[\\/]?$/iu.test(before) || /-name\s+$/iu.test(before)) return true;
-  const quote = before.at(-1);
-  return (quote === "'" || quote === '"') && after === quote;
-}
-
 /** A variable that weakens the delay or the rule on install scripts, named in a PowerShell line outside what was read. */
-function namedOverride(text: string): string | undefined {
+function namedOverride(names: readonly string[]): string | undefined {
   const { overrideVariables } = commands();
-  for (const { piece, at } of namedPieces(text)) if (overrideVariables.has(piece.toLowerCase()) && namesVariable(text, piece, at)) return `${piece} ${OVERRIDE_UNREAD}`;
-  return undefined;
+  const name = names.find((entry) => overrideVariables.has(entry.toLowerCase()));
+  return name === undefined ? undefined : `${name} ${OVERRIDE_UNREAD}`;
 }
 
 /**
@@ -3437,8 +3438,16 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
   }
   while (next < pending.length) nested(pending[next++] as LineReading['nested'][number]);
   walk.finish();
+  // PowerShell: the variables the line names in other ways than the assignments read (decision D-138), read once.
+  let names: { list: string[]; unresolved?: string } | undefined;
+  const powerShell = (named: string) => {
+    if (names !== undefined) return names;
+    const environment = powerShellEnvironment(named);
+    names = { list: powerShellNames(named, environment), ...(environment.unresolved === undefined ? {} : { unresolved: environment.unresolved }) };
+    return names;
+  };
   if (scan.requests.length > 0) {
-    const setting = registryAssignment(reading.items) ?? (reading.named === undefined ? undefined : namedSetting(reading.named));
+    const setting = registryAssignment(reading.items) ?? (reading.named === undefined ? undefined : namedSetting(powerShell(reading.named).list));
     if (setting !== undefined) scan.unreadable ??= `${shown(line)}: ${setting}`;
     const selection = selectionAssignments(reading.items);
     if ('unreadable' in selection) scan.unreadable ??= `${shown(line)}: ${selection.unreadable}`;
@@ -3449,8 +3458,11 @@ function scanLine(line: string, depth: number, shell: Shell = 'posix'): CommandS
     // npm_config_ignore_scripts=false npm ci weakens that install as much as npm i lodash.
     const found = overrideAssignments(reading.items, shown(line), placeOf);
     if (found.length > 0) appendAll((scan.overrides ??= []), found);
-    const named = reading.named === undefined ? undefined : namedOverride(reading.named);
-    if (named !== undefined) scan.unreadable ??= `${shown(line)}: ${named}`;
+    if (reading.named !== undefined) {
+      const found = powerShell(reading.named);
+      const named = namedOverride(found.list) ?? (found.unresolved === undefined ? undefined : `"${shownText(found.unresolved)}" ${ENV_NAME_UNREAD}`);
+      if (named !== undefined) scan.unreadable ??= `${shown(line)}: ${named}`;
+    }
     directoryAssignments(commandList, scan);
   }
   if (walk.moves.length > 0) scan.moves = walk.moves;

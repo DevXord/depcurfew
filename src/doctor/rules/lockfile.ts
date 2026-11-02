@@ -7,7 +7,23 @@ import type { ScriptPolicy, ToolKnowledge } from '../../knowledge/types.ts';
 import { POLICY_FILE } from '../../policy/defaults.ts';
 import { ecosystemOfTool, policyFor } from '../../policy/ecosystem.ts';
 import { COMPOSER_PREFIX, PYPI_PREFIX } from '../../policy/package-pattern.ts';
-import { COMPOSER_MANIFEST, composerManifest, declaredRepositories, fallbackRemoved, isComposerName, lockedPluginApi, pluginDecision, sourceHostOf, unmatchedRepositories } from '../composer.ts';
+import {
+  checkedOut,
+  checkoutsByPreference,
+  COMPOSER_MANIFEST,
+  composerManifest,
+  declaredRepositories,
+  fallbackRemoved,
+  isComposerName,
+  listedCheckouts,
+  lockedPluginApi,
+  pluginDecision,
+  preferenceChange,
+  preferenceLine,
+  sourceHostOf,
+  unmatchedRepositories,
+  type Checkouts,
+} from '../composer.ts';
 import { normalizePythonName } from '../../policy/python-names.ts';
 import { allowEntries, denyEntries, matchesPattern, type AllowEntry } from '../allow-lists.ts';
 import { latestVersion, versionedValue } from '../effective.ts';
@@ -100,16 +116,33 @@ export const lockfileForbiddenSource: Rule = {
         }
         if (entry.source !== 'git' && entry.source !== 'remoteTarball' && entry.source !== 'file' && entry.source !== 'directory') continue;
         if (sources[entry.source] !== 'deny') continue;
+        // Composer: reported once for the entry of config.preferred-install that causes it, below (decision D-138).
+        if (entry.preferredInstall !== undefined) continue;
         context.report({
           location: location(lockfile, entry),
           message: `${lockfile.file} installs ${entry.unnamed === true ? 'a package' : entry.name} from ${LABELS[ecosystemOfTool(tool)][entry.source]} (${shownSpec(entry.spec)}), which ${POLICY_FILE} denies${entry.why === undefined ? '' : `: ${entry.why}`}`,
           fix: `Use a registry version ${entry.unnamed === true ? 'instead' : `of ${entry.name}`}, or set sources.${entry.source} to "allow" in ${POLICY_FILE}`,
         });
       }
+      if (sources.git === 'deny') for (const group of checkoutsByPreference(lockfile.entries)) reportPreferredInstall(context, lockfile, group);
       if (tool.id === 'composer') reportComposerRepositories(context, tool, lockfile, sources);
     });
   },
 };
+
+/**
+ * Composer: one entry of config.preferred-install in composer.json that makes Composer check packages of composer.lock
+ * out of their VCS repositories, which the policy denies (decision D-138): one finding at that entry, naming the
+ * packages with their lines in the lockfile, and a fix in composer.json; the packages are registry versions.
+ */
+function reportPreferredInstall(context: RuleContext, lockfile: Lockfile, { preference, entries }: Checkouts): void {
+  const line = preferenceLine(context.repository.readText(COMPOSER_MANIFEST), preference);
+  context.report({
+    location: line === undefined ? { file: COMPOSER_MANIFEST } : { file: COMPOSER_MANIFEST, line },
+    message: `${preference.why}, so Composer installs ${checkedOut(entries.length, lockfile.file)}, which ${POLICY_FILE} denies: ${listedCheckouts(entries, (entry) => lockfile.lineOf(entry))}`,
+    fix: `${preferenceChange(preference)}; or set sources.git to "allow" in ${POLICY_FILE}`,
+  });
+}
 
 /**
  * Composer: a repository of composer.json of a kind the policy denies whose packages depcurfew cannot find in

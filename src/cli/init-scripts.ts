@@ -9,7 +9,7 @@ import { inProject } from '../apply/projects.ts';
 import { listing } from '../apply/requirements.ts';
 import { Repository } from '../detect/repository.ts';
 import type { Detection } from '../detect/types.ts';
-import { COMPOSER_MANIFEST, composerManifest, isComposerName, pluginDecision } from '../doctor/composer.ts';
+import { checkedOut, checkoutsByPreference, COMPOSER_MANIFEST, composerManifest, isComposerName, listedCheckouts, pluginDecision, preferenceChange, preferenceLine } from '../doctor/composer.ts';
 import { keepFix, knownPackageOf, knownPackages, versionNote, withoutScript } from '../doctor/install-script-packages.ts';
 import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
 import { readLockfiles, type Lockfile, type LockEntry } from '../doctor/lockfiles.ts';
@@ -142,6 +142,37 @@ function composerPlugins(repository: Repository, manager: Detection['packageMana
       message: `${shown} has ${one ? 'a Composer plugin' : 'Composer plugins'}, whose code runs during Composer commands, that installScripts.default "deny" blocks: ${names(named)}`,
       fix: `Review each one before you run depcurfew apply: add it to installScripts.allow in ${POLICY_FILE} if the project needs it (as ${COMPOSER_PREFIX}vendor/name), or to installScripts.deny if it works without it; depcurfew apply then writes config.allow-plugins from ${POLICY_FILE}`,
     });
+  }
+  return notes;
+}
+
+/**
+ * The packages of composer.lock that config.preferred-install of composer.json makes Composer check out of their VCS
+ * repositories, which sources.git "deny" of the policy init writes does not allow (decision D-138): one note per entry
+ * of the setting, at its line in composer.json, so that the first doctor after init and apply has no unexplained error.
+ */
+export function composerCheckoutNotes(base: string, directories: readonly ScriptDirectory[]): InitMessage[] {
+  const notes: InitMessage[] = [];
+  for (const { project, detection } of directories) {
+    const repository = new Repository(project === undefined ? base : join(base, project));
+    const shownFile = (file: string) => (project === undefined ? file : inProject(project, file));
+    for (const manager of detection.packageManagers.filter((entry) => entry.supported && entry.id === 'composer')) {
+      const tool = knowledgeBase.find((entry) => entry.id === manager.id);
+      if (tool === undefined) continue;
+      for (const result of readLockfiles(repository, manager, tool, [], knowledgeBase)) {
+        if (!result.ok) continue;
+        const { lockfile } = result;
+        for (const { preference, entries } of checkoutsByPreference(lockfile.entries)) {
+          notes.push({
+            code: 'composer-source-checkouts',
+            level: 'note',
+            location: located(shownFile(COMPOSER_MANIFEST), preferenceLine(repository.readText(COMPOSER_MANIFEST), preference)),
+            message: `${preference.why}, so Composer installs ${checkedOut(entries.length, shownFile(lockfile.file))}, which sources.git "deny" in ${POLICY_FILE} does not allow, and depcurfew doctor reports it (lockfile-forbidden-source): ${listedCheckouts(entries, (entry) => lockfile.lineOf(entry), MAX_NAMES)}`,
+            fix: `${preferenceChange(preference)}; or, if the project installs them from source on purpose, set sources.git to "allow" in ${POLICY_FILE} before you run depcurfew apply`,
+          });
+        }
+      }
+    }
   }
   return notes;
 }

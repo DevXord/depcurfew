@@ -57,6 +57,11 @@ export interface LockEntry {
   /** Composer: why it installs a package that has an archive from its VCS source instead (decision D-136), for messages. */
   why?: string;
   /**
+   * Composer: the entry of config.preferred-install in composer.json that makes Composer check the package out (decision
+   * D-138): the key of a pattern object, none for a string; `value` as written, `why` the cause for messages.
+   */
+  preferredInstall?: { key?: string; value: string; why: string };
+  /**
    * Composer: an archive from a host of Packagist.org's packages next to a VCS source on a host that is not the one of
    * that archive (decision D-136), which Packagist.org never writes: the source Composer falls back to in some cases.
    */

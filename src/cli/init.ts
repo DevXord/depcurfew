@@ -27,7 +27,7 @@ import { printable } from '../printable.ts';
 import { toolName } from './describe.ts';
 import type { InitMessage } from './init-codes.ts';
 import { proposedProjects } from './init-projects.ts';
-import { installScriptHints } from './init-scripts.ts';
+import { composerCheckoutNotes, installScriptHints } from './init-scripts.ts';
 import { hasBuildRecords } from '../doctor/python-lockfiles.ts';
 import { checkDirectory, reportInputError, type InputError } from './directory.ts';
 import { EXIT_FAILURE, EXIT_OK, EXIT_USAGE, type CliIo } from './io.ts';
@@ -348,6 +348,8 @@ export function init(directory: string | undefined, options: InitOptions, io: Cl
     });
   }
   after.push(...scripts.notes);
+  // composer.lock packages that config.preferred-install checks out, which the sources.git "deny" written here reports (decision D-138).
+  if (DEFAULT_POLICY.sources.git === 'deny') after.push(...composerCheckoutNotes(absolute, [{ detection }, ...projects.map((entry) => ({ project: entry.project, detection: entry.detection }))]));
   // In a repository of projects the workflows of the root set up the projects' tools, as apply knows (decision D-100).
   const inProjects = new Set(projects.flatMap((entry) => entry.detection.packageManagers.map((manager) => manager.id)));
   for (const entry of ciOnly.filter((item) => !inProjects.has(item.id as never))) {

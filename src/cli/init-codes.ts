@@ -14,6 +14,8 @@ export const INIT_NOTES = {
   'install-script-denied': 'A lockfile has a package whose install script depcurfew knows it does not need (esbuild, fsevents), so init adds it to installScripts.deny; the note says what changes without the script.',
   'install-script-project-task': 'A lockfile has a package whose install script only does a task of the project (lefthook installs the git hooks), so init adds it to installScripts.deny; the fix says how the project runs that task itself.',
   'install-scripts-to-review': 'A lockfile has other packages with install scripts, or composer.lock has Composer plugins (the note says which ones allow-plugins in composer.json already allows), which installScripts.default "deny" blocks; review each before depcurfew apply.',
+  'composer-source-checkouts':
+    'config.preferred-install in composer.json makes Composer install packages of composer.lock from their VCS repositories, which sources.git "deny" does not allow, so depcurfew doctor reports them; the note says which entry and which packages.',
   'install-scripts-not-recorded': 'A lockfile does not record which packages have install scripts (pnpm-lock.yaml, yarn.lock), or is in a format depcurfew does not read, so init can name only the packages depcurfew knows.',
 } as const satisfies Record<string, string>;
 

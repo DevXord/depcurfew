@@ -18,7 +18,7 @@ import { parseSpec } from '../check/spec.ts';
 import { isPythonSpec } from '../check/python.ts';
 import { COMPOSER_PREFIX } from '../policy/package-pattern.ts';
 import { isComposerSpec } from '../check/composer.ts';
-import { findComposerCommand } from '../check/composer-commands.ts';
+import { findComposerCommand, type FoundCommand, type ScriptCommands } from '../check/composer-commands.ts';
 import { packagistUrl } from '../check/packagist.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import { blockingExitCode, decide, formatDecision, hookEventExample, readHookEvent, reasonText, requestedSpecs, UNREAD_REGISTRY_FIX_START, type PlacedRequest } from '../check/hook.ts';
@@ -519,6 +519,22 @@ function composerCommandNames(): CommandNamesKnowledge | undefined {
   return fact === undefined ? undefined : (values(fact)[0] as CommandNamesKnowledge | undefined);
 }
 
+/** Whether a word Composer resolved stands for the command it was read as. */
+function isCommand(found: FoundCommand | undefined, command: string): boolean {
+  return found?.kind === 'command' && found.name === command;
+}
+
+/**
+ * The scripts of composer.json as the Composer versions the hook cannot tell apart register them: with their aliases
+ * (scripts-aliases, read since the version extra.scriptAliases gives), and without them as before that version.
+ */
+function scriptReadings(scripts: ScriptCommands): ScriptCommands[] {
+  const composer = knowledgeBase.find((tool) => tool.id === 'composer');
+  const since = composer?.extra?.['scriptAliases'] === undefined ? undefined : values(composer.extra['scriptAliases'])[0];
+  if (since === undefined || scripts.scripts.every((script) => script.aliases.length === 0)) return [scripts];
+  return [scripts, { scripts: scripts.scripts.map((script) => ({ ...script, aliases: [] })) }];
+}
+
 /**
  * The requests of a Composer command as the root composer.json makes them: a command word that, with the scripts of
  * composer.json registered as commands, no longer stands for the command it was read as (a script, which runs as
@@ -529,12 +545,11 @@ function composerCommandNames(): CommandNamesKnowledge | undefined {
  */
 function withManifestConstraints(requests: readonly CheckRequest[], composer: ComposerProject | undefined): CheckRequest[] {
   const names = composer?.scripts === undefined ? undefined : composerCommandNames();
+  const readings = composer?.scripts === undefined ? [] : scriptReadings(composer.scripts);
   return requests.flatMap((request): CheckRequest[] => {
     const word = request.composerCommand;
-    if (word !== undefined && names !== undefined) {
-      const found = findComposerCommand(names, word.word, composer?.scripts);
-      if (found?.kind !== 'command' || found.name !== word.command) return [];
-    }
+    // The word installs nothing of its own only when it is not the command in any reading (decision D-138).
+    if (word !== undefined && names !== undefined && !readings.some((scripts) => isCommand(findComposerCommand(names, word.word, scripts), word.command))) return [];
     if (request.fromManifest !== true) return [request];
     const name = request.spec.trim().slice(COMPOSER_PREFIX.length).toLowerCase();
     const constraint = request.readsManifest === false ? undefined : composer?.requires.get(name);

@@ -110,19 +110,31 @@ describe('lockfile-forbidden-source: composer.lock entries Composer installs fro
     expect(errors(repository({ 'depcurfew.json': POLICY, 'composer.json': manifest({ 'preferred-install': { 'other/*': 'source' } }), 'composer.lock': lock(ENTRY) }))).toEqual([]);
   });
 
+  // One error per entry of config.preferred-install, at its line in composer.json (decision D-138).
   it.each([
-    ['preferred-install "source"', { 'preferred-install': 'source' }, ENTRY, 'config.preferred-install in composer.json is "source"'],
-    ['a pattern that selects source', { 'preferred-install': { 'acme/*': 'source', '*': 'dist' } }, ENTRY, 'config.preferred-install in composer.json gives "source" for acme/*'],
-    ['"auto" for a dev version', { 'preferred-install': 'auto' }, { ...ENTRY, version: 'dev-main' }, 'config.preferred-install in composer.json is "auto", which installs a dev version from its source'],
-    ['a pattern with "auto" for a dev version', { 'preferred-install': { 'ACME/LIB': 'auto' } }, { ...ENTRY, version: '1.x-dev' }, 'config.preferred-install in composer.json gives "auto" for ACME/LIB, which installs a dev version from its source'],
-    ['an archive without a type', undefined, { ...ENTRY, dist: { ...ENTRY.dist, type: '' } }, 'its dist has no type, so Composer cannot download its archive'],
-  ])('reports an entry installed from its source because of %s', (_name, config, entry, why) => {
+    ['preferred-install "source"', { 'preferred-install': 'source' }, ENTRY, 6, 'config.preferred-install in composer.json is "source"'],
+    ['a pattern that selects source', { 'preferred-install': { 'acme/*': 'source', '*': 'dist' } }, ENTRY, 7, 'config.preferred-install in composer.json gives "source" for acme/*'],
+    ['"auto" for a dev version', { 'preferred-install': 'auto' }, { ...ENTRY, version: 'dev-main' }, 6, 'config.preferred-install in composer.json is "auto", which installs dev versions from their source'],
+    ['a pattern with "auto" for a dev version', { 'preferred-install': { 'ACME/LIB': 'auto' } }, { ...ENTRY, version: '1.x-dev' }, 7, 'config.preferred-install in composer.json gives "auto" for ACME/LIB, which installs dev versions from their source'],
+  ])('reports an entry installed from its source because of %s', (_name, config, entry, line, why) => {
     const root = repository({ 'depcurfew.json': POLICY, 'composer.json': manifest(config), 'composer.lock': lock(entry) });
     expect(errors(root)).toEqual([
       {
         level: 'error',
+        location: { file: 'composer.json', line },
+        message: `${why}, so Composer installs 1 package of composer.lock from its VCS repository instead of its archive, which depcurfew.json denies: acme/lib (line 5)`,
+        fix: expect.stringContaining('or set sources.git to "allow" in depcurfew.json') as unknown as string,
+      },
+    ]);
+  });
+
+  it('reports an entry installed from its source because its archive has no type', () => {
+    const root = repository({ 'depcurfew.json': POLICY, 'composer.json': manifest(), 'composer.lock': lock({ ...ENTRY, dist: { ...ENTRY.dist, type: '' } }) });
+    expect(errors(root)).toEqual([
+      {
+        level: 'error',
         location: { file: 'composer.lock', line: 5 },
-        message: `composer.lock installs acme/lib from a VCS repository (git https://github.com/acme/lib.git), which depcurfew.json denies: ${why}`,
+        message: 'composer.lock installs acme/lib from a VCS repository (git https://github.com/acme/lib.git), which depcurfew.json denies: its dist has no type, so Composer cannot download its archive',
         fix: 'Use a registry version of acme/lib, or set sources.git to "allow" in depcurfew.json',
       },
     ]);
