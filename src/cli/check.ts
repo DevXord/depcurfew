@@ -441,6 +441,13 @@ function unreadFinding(setting: UnreadSetting, report: PackageReport, applied: P
     if (setting.composer.kind === 'packagist-off') {
       return finding(`the install would not use Packagist: ${where} turns packagist.org off, so the package comes from the other repositories it declares; ${skipped}`, fix);
     }
+    if (setting.composer.kind === 'unread') {
+      // Composer reads the file depcurfew skipped, with whatever repositories it declares (decision D-142).
+      return finding(
+        `the install may take it from a repository that ${setting.file} declares, which Composer asks before Packagist, but depcurfew did not read ${setting.file} (${setting.composer.reason}); ${skipped}`,
+        `the package in the repositories that ${setting.file} may declare: depcurfew checks only Packagist (${used}) and did not read ${setting.file}, so it cannot vouch for a package from another repository`,
+      );
+    }
     const repository = `the ${setting.composer.type} repository${value === undefined ? '' : ` ${value}`}`;
     return finding(`the install may take it from ${repository} that ${where} declares, which Composer asks before Packagist; ${skipped}`, fix);
   }
@@ -491,6 +498,7 @@ function missingMessage(missing: CheckFinding, setting: UnreadSetting, report: P
   const value = setting.value === undefined ? '' : ` ${setting.value}`;
   if (setting.composer !== undefined) {
     if (setting.composer.kind === 'packagist-off') return `${absent}, and ${where} turns packagist.org off, so it may come from the other repositories it declares, which depcurfew did not check`;
+    if (setting.composer.kind === 'unread') return `${absent}, but it may come from a repository that ${setting.file} declares, which depcurfew did not read`;
     return `${absent}, but it may come from the ${setting.composer.type} repository${value} that ${where} declares, which depcurfew did not check`;
   }
   const what = isPythonSpec(report.spec) ? 'index' : 'registry';
@@ -545,13 +553,19 @@ function scriptReadings(scripts: ScriptCommands): ScriptCommands[] {
  */
 function withManifestConstraints(requests: readonly CheckRequest[], composer: ComposerProject | undefined): CheckRequest[] {
   const names = composer?.scripts === undefined ? undefined : composerCommandNames();
-  const readings = composer?.scripts === undefined ? [] : scriptReadings(composer.scripts);
+  // A parent's composer.json may not apply, and then Composer registers no scripts (decision D-142).
+  const readings = composer?.scripts === undefined ? [] : [...scriptReadings(composer.scripts), ...(composer.inParent === true ? [{ scripts: [] }] : [])];
   return requests.flatMap((request): CheckRequest[] => {
     const word = request.composerCommand;
     // The word installs nothing of its own only when it is not the command in any reading (decision D-138).
     if (word !== undefined && names !== undefined && !readings.some((scripts) => isCommand(findComposerCommand(names, word.word, scripts), word.command))) return [];
     if (request.fromManifest !== true) return [request];
     const name = request.spec.trim().slice(COMPOSER_PREFIX.length).toLowerCase();
+    // A composer.json depcurfew did not read may require it: the package is reported as not checked (decision D-142).
+    if (request.readsManifest !== false && composer?.unreadable === true) {
+      const { fromManifest: _fromManifest, ...rest } = request;
+      return [{ ...rest, spec: `${COMPOSER_PREFIX}${name}` }];
+    }
     const constraint = request.readsManifest === false ? undefined : composer?.requires.get(name);
     if (constraint === undefined) return [];
     const { fromManifest: _fromManifest, ...rest } = request;
@@ -580,7 +594,11 @@ export interface RunSettings {
 export async function checkApplied(given: readonly CheckRequest[], applied: AppliedPolicy, settings: RunSettings): Promise<{ reports: PackageReport[]; skipped: SkippedFile[] }> {
   const lookups: LookupCache = settings.lookups ?? new Map();
   const composer = given.some((request) => isComposerSpec(request.spec)) ? composerProject(applied.start, applied.top) : undefined;
-  const requests = withManifestConstraints(given, composer);
+  const asked = withManifestConstraints(given, composer);
+  // The stability of a parent's composer.json may not apply: each Composer package that reads it is checked once more
+  // at the stability stable, and the stricter answer counts (decision D-142).
+  const again = composer?.inParent === true && composer.stability !== undefined ? asked.flatMap((request, index) => (isComposerSpec(request.spec) && request.readsManifest !== false ? [index] : [])) : [];
+  const requests = [...asked, ...again.map((index): CheckRequest => ({ ...(asked[index] as CheckRequest), rootStability: false }))];
   const tools = toolSettings(requests, applied, composer);
   const unread = [...applied.unread, ...tools.unread];
   const options = (policy: ResolvedPolicy) => ({
@@ -633,7 +651,29 @@ export async function checkApplied(given: readonly CheckRequest[], applied: Appl
   }
   // Known malicious versions do not depend on the policy: looked up once, after the policies are merged.
   if (settings.osv === true) await addOsvFindings(reports, { fetch: settings.fetch, signal: settings.signal, lookups });
-  return { reports, skipped: [...applied.skipped, ...tools.skipped] };
+  return { reports: withStableReadings(reports, asked.length, again, composer?.file), skipped: [...applied.skipped, ...tools.skipped] };
+}
+
+/**
+ * The reports of the requests, with the findings of their second reading at the stability stable (`again`, in the
+ * order of the reports after the first `count`) that their own reading does not have, said to be about that reading:
+ * the stricter answer counts, as for two policies (decision D-142).
+ */
+function withStableReadings(reports: readonly PackageReport[], count: number, again: readonly number[], file: string | undefined): PackageReport[] {
+  const own = reports.slice(0, count);
+  if (again.length === 0) return own;
+  const stable = own.map((report) => ({ ...report, findings: [] as CheckFinding[] }));
+  again.forEach((index, position) => {
+    const second = reports[count + position];
+    if (second !== undefined && stable[index] !== undefined) stable[index].findings = second.findings;
+  });
+  const merged = mergedReports(own, stable, POLICY_FILE);
+  return merged.map((report, index) => {
+    const added = new Set(report.findings.filter((finding) => !(own[index]?.findings ?? []).includes(finding)));
+    if (added.size === 0) return report;
+    const note = ` (at the stability stable, which Composer uses when it does not take ${file ?? 'composer.json'} from a parent directory)`;
+    return { ...report, findings: report.findings.map((finding) => (added.has(finding) ? { ...finding, message: `${finding.message}${note}` } : finding)) };
+  });
 }
 
 /** What to say about a configuration file that was not read. */

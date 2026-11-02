@@ -391,12 +391,23 @@ function parseOne(input: string): Constraint[] | undefined {
 /** Splits AND constraints as VersionParser::parseConstraints does: at a comma or space that is not part of an operator, -, or as. */
 const AND_SEPARATOR = /(?<!^|as|[=>< ,]) *(?<!-)[, ](?!-) *(?!,|as|$)/u;
 
+/**
+ * The || alternatives of a constraint, as VersionParser::parseConstraints splits them (preg_split at \s*\|\|?\s*, after
+ * trim): at | or ||, with the blanks around each part left out. Split at the bars first and trimmed after, so that a
+ * long run of blanks is read in linear time: the pattern itself tries every blank of a run as the start of a separator
+ * and reads the rest of the run each time (decision D-142).
+ */
+export function orParts(input: string): string[] {
+  const parts = input.trim().split(/\|\|?/u);
+  return parts.map((part, index) => (index === 0 ? part.trimEnd() : index === parts.length - 1 ? part.trimStart() : part.trim()));
+}
+
 /** A constraint (VersionParser::parseConstraints): || alternatives of AND groups; undefined when Composer rejects it. */
 export function parseConstraint(input: string): Constraint | undefined {
   const text = input.trim();
   if (text === '' || text.length > MAX_CONSTRAINT_LENGTH) return undefined;
   const alternatives: Constraint[] = [];
-  for (const alternative of text.split(/\s*\|\|?\s*/u)) {
+  for (const alternative of orParts(text)) {
     const parts: Constraint[] = [];
     for (const piece of alternative.split(AND_SEPARATOR)) {
       const parsed = parseOne(piece);
@@ -414,10 +425,7 @@ export function parseConstraint(input: string): Constraint | undefined {
  * than `minimum`; undefined when it allows only `minimum`.
  */
 export function stabilityFlag(input: string, minimum = stabilities().minimumStability): string | undefined {
-  const parts = input
-    .trim()
-    .split(/\s*\|\|?\s*/u)
-    .flatMap((alternative) => alternative.split(AND_SEPARATOR));
+  const parts = orParts(input).flatMap((alternative) => alternative.split(AND_SEPARATOR));
   const { stabilityFlag: at } = syntax();
   const words = stabilities().order.map(escape).join('|');
   let flag: string | undefined;

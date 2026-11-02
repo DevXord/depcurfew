@@ -6,6 +6,7 @@ const { verified, uncertain } = verifiedOn('2026-10-30');
 const rechecked = verifiedOn('2026-10-31');
 const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
+const current = verifiedOn('2026-11-02');
 
 // pdm-project.org is built from docs/ in the repository.
 const PDM = 'https://github.com/pdm-project/pdm/blob/2.29.5';
@@ -273,6 +274,11 @@ export const pdm: ToolKnowledge = {
       { registryOptions: [], registryVariables: ['PDM_PYPI_URL'], configOptions: ['-c', '--config'], configVariables: ['PDM_CONFIG_FILE'] },
       `${PDM}/src/pdm/project/config.py`,
       'pypi.url, the index PDM uses when pyproject.toml names no source called pypi, can be set with PDM_PYPI_URL (docs/usage/config.md); -c/--config and PDM_CONFIG_FILE name another configuration file, which may set any index.',
+    ),
+    configCommands: current.verified(
+      [{ command: ['pdm', 'config'], operands: 2, options: ['-d', '--delete', '-e', '--edit'] }],
+      `${PDM}/src/pdm/cli/commands/config.py`,
+      'pdm config [-l|--local] [-d|--delete] [-e|--edit] [key] [value]: with a key and a value it sets the key (_set_config, in the home config.toml, with -l in the pdm.toml of the project), with -d it deletes the key, with -e it opens the file in an editor; a key alone shows its value, and without a key it lists the configuration. docs/usage/config.md sets the index this way: pdm config pypi.url "https://test.pypi.org/simple", pdm config --local pypi.url …, pdm config pypi.extra.url … for an extra index. PDM parses with argparse, which takes abbreviated long options and grouped short ones (commandLine).',
     ),
     selection: verified(
       {

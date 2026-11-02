@@ -175,7 +175,7 @@ describe('doctor --osv: known-malicious', () => {
       [
         'error',
         { file: 'composer.lock', line: 4 },
-        'composer.lock locks intercom/intercom-php@5.0.2, a known malicious version: OSV.dev lists it as MAL-2026-3637 (https://osv.dev/vulnerability/MAL-2026-3637)',
+        'composer.lock locks intercom/intercom-php:5.0.2, a known malicious version: OSV.dev lists it as MAL-2026-3637 (https://osv.dev/vulnerability/MAL-2026-3637)',
       ],
     ]);
     expect(fetch.requests).toEqual([

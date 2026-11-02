@@ -7,7 +7,7 @@ import { isRecord, values } from '../apply/facts.ts';
 import { knowledgeBase } from '../knowledge/index.ts';
 import type { PackagistApiKnowledge } from '../knowledge/types.ts';
 import { normalizeVersion } from './composer-version.ts';
-import { fetchSameOrigin, readLimited, requestSignal, tooManyVersions, type FetchLike } from './registry.ts';
+import { fetchSameOrigin, readError, readLimited, requestSignal, tooManyVersions, type FetchLike } from './registry.ts';
 
 /**
  * The largest answer, the most versions and the longest version of one package depcurfew reads from Packagist
@@ -39,6 +39,15 @@ export interface PackagistPackage {
   name: string;
   versions: readonly PackagistVersion[];
 }
+
+/**
+ * What to do when Packagist redirects (to another origin, to something that is not a URL, or too often), for a person:
+ * depcurfew asks Packagist only and has no setting for another repository (decision D-142).
+ */
+export const PACKAGIST_REDIRECT_FIX =
+  'Run depcurfew check again later; while repo.packagist.org redirects, check the package on packagist.org by hand before installing it: depcurfew asks only Packagist and follows no redirect away from it';
+
+const NOT_METADATA = 'Packagist answered something that is not package metadata';
 
 export type PackagistLookup = { status: 'found'; package: PackagistPackage } | { status: 'not-found' } | { status: 'error'; reason: string; fix?: string };
 
@@ -165,7 +174,8 @@ export async function fetchPackage(name: string, options: { fetch: FetchLike; ti
   let response: Response;
   try {
     const fetched = await fetchSameOrigin(metadataUrl(name), { headers: { accept: 'application/json' }, signal: requestSignal(options.timeoutMs, options.signal) }, options.fetch, 'repository');
-    if ('reason' in fetched) return { status: 'error', reason: fetched.reason, fix: fetched.fix };
+    // The fixes of fetchSameOrigin name a URL to set, which depcurfew has none of for Packagist.
+    if ('reason' in fetched) return { status: 'error', reason: fetched.reason, fix: PACKAGIST_REDIRECT_FIX };
     response = fetched.response;
   } catch (error) {
     const reason = error instanceof Error && error.name === 'TimeoutError' ? 'Packagist did not answer in time' : `Packagist cannot be reached (${error instanceof Error ? error.message : String(error)})`;
@@ -183,9 +193,15 @@ export async function fetchPackage(name: string, options: { fetch: FetchLike; ti
     const body = await readLimited(response, options.maxBytes ?? MAX_PACKAGIST_SIZE);
     const found = toPackage(JSON.parse(body) as unknown, name);
     if (found === 'too many') return tooManyVersions(name, 'repository', `${MAX_PACKAGIST_VERSIONS} versions`);
-    if (found === 'too long') return { status: 'error', reason: `Packagist lists a version of ${name} longer than ${MAX_PACKAGIST_VERSION_LENGTH} characters, more than depcurfew reads, so its versions were not checked` };
-    return found === undefined ? { status: 'error', reason: 'Packagist answered something that is not package metadata' } : { status: 'found', package: found };
+    if (found === 'too long') {
+      return {
+        status: 'error',
+        reason: `Packagist lists a version of ${name} longer than ${MAX_PACKAGIST_VERSION_LENGTH} characters, more than depcurfew reads, so its versions were not checked`,
+        fix: `Check ${name} by hand before installing it: real versions are far shorter, so the repository may be answering with something made to slow checks down`,
+      };
+    }
+    return found === undefined ? { status: 'error', reason: NOT_METADATA } : { status: 'found', package: found };
   } catch (error) {
-    return { status: 'error', reason: error instanceof Error ? error.message : String(error) };
+    return { status: 'error', reason: readError(error, NOT_METADATA) };
   }
 }

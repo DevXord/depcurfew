@@ -84,9 +84,10 @@ export interface UnreadSetting {
   pin?: { file: string; line: number };
   /**
    * Composer (decision D-133): a repository the root composer.json declares, which Composer asks before Packagist, with
-   * its type; or the entry that turns Packagist off.
+   * its type; the entry that turns Packagist off; or a root composer.json that depcurfew did not read, with why, which
+   * may declare any repository (decision D-142).
    */
-  composer?: { kind: 'repository'; type: string } | { kind: 'packagist-off' };
+  composer?: { kind: 'repository'; type: string } | { kind: 'packagist-off' } | { kind: 'unread'; reason: string };
   /** replaces: the registry, index or dist-tag used instead of the one depcurfew used; adds: another place to install from. */
   effect: 'replaces' | 'adds';
   /** The URL (without credentials) or dist-tag it sets; undefined when depcurfew cannot read it (a variable, another type). */
@@ -517,6 +518,14 @@ export interface ComposerProject {
   stability?: ComposerStability;
   /** The scripts Composer registers as commands, when there are any it would accept (decision D-136). */
   scripts?: ScriptCommands;
+  /**
+   * The file is in a parent directory of the one the install runs in. Composer uses it there only when it runs with a
+   * terminal and the user agrees, or with use-parent-dir true, and never with --working-dir; otherwise it stays where it
+   * is, without scripts and at the minimum stability stable (decision D-142).
+   */
+  inParent?: true;
+  /** The file is there, but depcurfew did not read it (too large, not a regular file): its require is not known (decision D-142). */
+  unreadable?: true;
 }
 
 /** How the root composer.json picks the stability of versions: minimum-stability and prefer-stable (decision D-136). */
@@ -559,11 +568,15 @@ function composerRepositoryFacts(): { manifest: string; disable: string; packagi
 }
 
 /**
- * The root composer.json of an install in `start` (decision D-133): the nearest one from `start` up to `top`, as
- * Composer finds it (the working directory, else a parent with use-parent-dir). Every repository it declares counts as
- * a place the package may come from before Packagist, since Composer asks the repositories in order and the first that
- * has a package is canonical for it; one that turns packagist.org off counts as well. A repository of type composer
- * at the URL of Packagist is Packagist itself.
+ * The root composer.json of an install in `start` (decision D-133): the nearest one from `start` up to `top`. Composer
+ * takes the one of its working directory; without one, it takes the nearest one above only when it runs with a
+ * terminal and the user agrees, or with use-parent-dir true, and never with --working-dir (Application::doRunComposer,
+ * decision D-142), so a parent's file is marked `inParent`: its repositories still count, which is stricter, and its
+ * scripts and stability are read as ones that may not apply. Every repository it declares counts as a place the package
+ * may come from before Packagist, since Composer asks the repositories in order and the first that has a package is
+ * canonical for it; one that turns packagist.org off counts as well. A repository of type composer at the URL of
+ * Packagist is Packagist itself. A file depcurfew does not read (too large, not a regular file) counts as one that may
+ * declare any repository, since Composer reads it (decision D-142); one that does not parse stops Composer too.
  */
 export function composerProject(start: string, top: string): ComposerProject {
   const facts = composerRepositoryFacts();
@@ -575,14 +588,18 @@ export function composerProject(start: string, top: string): ComposerProject {
     const file = shownFile(last, path);
     const read = readConfig(path);
     if (read !== undefined) {
-      if (!('text' in read)) return { ...empty, file, skipped: [{ file, reason: read.skipped }] };
+      const parent = directory === first ? {} : { inParent: true as const };
+      if (!('text' in read)) {
+        const unread: UnreadSetting = { tool: 'composer', file, line: 1, applies: 'all', effect: 'adds', composer: { kind: 'unread', reason: read.skipped } };
+        return { ...empty, file, ...parent, unread: [unread], skipped: [{ file, reason: read.skipped }], unreadable: true };
+      }
       let manifest: unknown;
       try {
         manifest = JSON.parse(read.text) as unknown;
       } catch {
-        return { ...empty, file, skipped: [{ file, reason: 'it cannot be parsed' }] };
+        return { ...empty, file, ...parent, skipped: [{ file, reason: 'it cannot be parsed' }] };
       }
-      if (!isRecord(manifest)) return { ...empty, file, skipped: [{ file, reason: 'it is not a JSON object' }] };
+      if (!isRecord(manifest)) return { ...empty, file, ...parent, skipped: [{ file, reason: 'it is not a JSON object' }] };
       const stability = composerStability(manifest);
       const scripts = composerScripts(manifest);
       return {
@@ -590,6 +607,7 @@ export function composerProject(start: string, top: string): ComposerProject {
         unread: composerRepositories(read.text, manifest, file, facts),
         requires: composerRequires(manifest),
         skipped: [],
+        ...parent,
         ...(stability === undefined ? {} : { stability }),
         ...(scripts === undefined ? {} : { scripts }),
       };

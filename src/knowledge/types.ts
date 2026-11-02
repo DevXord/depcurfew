@@ -476,6 +476,11 @@ export interface OverrideSwitch {
   values: OverrideValues;
   /** protection: what it turns off, for messages ("turns off the blocking of versions flagged as malware"). */
   effect?: string;
+  /**
+   * protection: what that protection does, as a clause of its own, when it covers less than every package the command
+   * fetches ("secure-http lets Composer download only over HTTPS, …"; decision D-142).
+   */
+  protects?: string;
 }
 
 /**
@@ -539,6 +544,12 @@ export interface ConfigCommand {
   options?: readonly string[];
   /** It changes package.json (npm pkg set), whose settings the install reads, rather than a configuration file. */
   manifest?: boolean;
+  /**
+   * The change goes to a file that depcurfew does not read when it checks later commands (`file`, as messages name it):
+   * with one of `options`, or always when `options` is left out. The install guard asks about such a change also when
+   * nothing is installed next to it (decision D-142).
+   */
+  unread?: { file: string; options?: readonly string[] };
 }
 
 /**
@@ -1016,6 +1027,14 @@ export interface OsvKnowledge {
   malicious: Fact<OsvMaliciousKnowledge>;
   /** The OSV ecosystem name of each ecosystem of depcurfew (npm, pypi, ...). */
   ecosystems: Fact<Readonly<Record<string, string>>>;
+  /** How the API compares the version of a query with the versions of a record, by depcurfew's ecosystem (decision D-142). */
+  versionMatching: Fact<Readonly<Record<string, OsvVersionMatchingKnowledge>>>;
+}
+
+/** What OSV.dev leaves out of a version before it compares it. */
+export interface OsvVersionMatchingKnowledge {
+  /** A leading character left out of both versions (Packagist: v and V). */
+  ignoredPrefixes: readonly string[];
 }
 
 /** Claude Code hooks that run before a tool call and can block it (used by depcurfew check --hook claude-code). */

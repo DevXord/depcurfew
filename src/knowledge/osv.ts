@@ -8,6 +8,8 @@ const { verified } = verifiedOn('2026-11-02');
 
 const OSV_DOCS = 'https://github.com/google/osv.dev/blob/master/docs';
 const OSV_SCHEMA = 'https://github.com/ossf/osv-schema/blob/main/docs/schema.md';
+/** The Go code of the API and the workers of OSV.dev, at the commit that was read. */
+const OSV_GO = 'https://github.com/google/osv.dev/blob/b7449847246af793439d06284d340af40cdae854/go';
 
 export const osv: OsvKnowledge = {
   api: verified(
@@ -55,6 +57,11 @@ export const osv: OsvKnowledge = {
   ecosystems: verified(
     { npm: 'npm', pypi: 'PyPI', packagist: 'Packagist' },
     `${OSV_SCHEMA}#affectedpackage-field`,
-    'Keys are the ecosystems of depcurfew (npm, pypi and packagist; in package names of the policy no prefix, pypi: and composer:), values the ecosystem names of the OSV schema: "npm" (an NPM package name), "PyPI" (a normalized PyPI package name), "Packagist" (a PHP package name; without a :<REMOTE-REPO-URL> suffix it means https://packagist.org). OSV.dev covers all three (google/osv.dev docs/data.md, Covered Ecosystems). It compares Packagist versions as PHP does, with a leading v left out (PackagistVersion in osv/ecosystems/packagist.py of google/osv.dev at b7449847246af793439d06284d340af40cdae854), so a version of composer.lock is sent as Composer wrote it.',
+    'Keys are the ecosystems of depcurfew (npm, pypi and packagist; in package names of the policy no prefix, pypi: and composer:), values the ecosystem names of the OSV schema: "npm" (an NPM package name), "PyPI" (a normalized PyPI package name), "Packagist" (a PHP package name; without a :<REMOTE-REPO-URL> suffix it means https://packagist.org). OSV.dev covers all three (google/osv.dev docs/data.md, Covered Ecosystems). How it compares Packagist versions: versionMatching.',
+  ),
+  versionMatching: verified(
+    { packagist: { ignoredPrefixes: ['v', 'V'] } },
+    `${OSV_GO}/internal/database/datastore/vulnerability_matching.go`,
+    'The API (go/cmd/api, with the Datastore store of go/internal/database/datastore) answers a query with a version by buildVersionMatcher: for an ecosystem it knows, it parses the version with the ecosystem helper and keeps the AffectedVersions whose coarse range holds Coarse(version), then matches each listed version of a record by parsing it too and comparing the two (versionIsMatchEcosystemVersionsList, cmp == 0), and the events of its ranges the same way. The Packagist helper (go/osv/ecosystem/packagist.go) parses with semantic.ParsePackagistVersion of google/osv-scalibr v0.5.3 (go/go.mod), whose canonicalizePackagistVersion removes one leading v or V before it compares as PHP\'s version_compare does (semantic/version-packagist.go at v0.5.3), and its Coarse removes them too, so v8.1.9 and 8.1.9 are the same version both in a query and in a record (also the coarse range the importer stores, go/internal/database/datastore/affected_versions.go). The Python helper of the workers (osv/ecosystems/packagist.py, PackagistVersion.php_canonicalize_version) removes a leading v as well. All at google/osv.dev b7449847246af793439d06284d340af40cdae854 (master on 2026-11-02). A version of composer.lock is therefore sent as Composer wrote it.',
   ),
 };

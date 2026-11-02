@@ -16,6 +16,7 @@ import { REGISTRY_RETRY_FIX } from './index.ts';
 import { INDEX_RETRY_FIX } from './python.ts';
 import { OSV_RETRY_FIX } from './osv.ts';
 import { PACKAGIST_RETRY_FIX } from './composer.ts';
+import { PACKAGIST_REDIRECT_FIX } from './packagist.ts';
 
 /** Findings that break the policy outright; other errors only mean that depcurfew cannot vouch for the package. */
 const DENY: ReadonlySet<FindingCode> = new Set(['forbidden-source', 'not-found', 'no-version', 'too-young', 'install-scripts', 'quarantined', 'known-malicious']);
@@ -167,6 +168,9 @@ export const OSV_IS_THE_USERS = 'Do not install it before it is checked: try aga
 /** What an agent is told when Packagist did not answer (decision D-133): depcurfew asks Packagist only, so there is no other to set. */
 export const PACKAGIST_IS_UNREACHABLE = 'Do not install it before it is checked: try again later, and tell the user if repo.packagist.org stays out of reach';
 
+/** What an agent is told when Packagist redirects (decision D-142): there is no repository setting to change. */
+export const PACKAGIST_REDIRECTS = 'Do not install it before it is checked: try again later, and tell the user if repo.packagist.org keeps redirecting';
+
 /** What an agent is told instead of "Use an https:// URL": the URL is the user's setting too. */
 export const INSECURE_IS_THE_USERS = "The URL of the registry or index is the user's setting (.npmrc, or --registry and --index of depcurfew): tell the user, who can switch it to an https:// URL";
 
@@ -194,6 +198,7 @@ export function agentFix(fix: string, code?: string): string | undefined {
   if (code === 'insecure-registry') return INSECURE_IS_THE_USERS;
   if (code === 'unverified' && fix === OSV_RETRY_FIX) return OSV_IS_THE_USERS;
   if (code === 'unverified' && fix === PACKAGIST_RETRY_FIX) return PACKAGIST_IS_UNREACHABLE;
+  if (code === 'unverified' && fix === PACKAGIST_REDIRECT_FIX) return PACKAGIST_REDIRECTS;
   if (code === 'unverified' && aboutLookups(fix)) return LOOKUP_IS_THE_USERS;
   const sets = SETS_CONFIGURATION.exec(fix);
   if (sets !== null) return `Ask the user to set ${sets[1]} in ${sets[2]}${sets[3]}. Do not change ${sets[2]} yourself`;

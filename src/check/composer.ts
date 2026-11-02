@@ -209,7 +209,8 @@ export async function checkComposerSpec(raw: string, options: CheckOptions, requ
   }
   const found = lookup.package;
   // minimum-stability and prefer-stable of the root composer.json, for a command that reads it (decision D-136).
-  const root = request.readsManifest === false ? undefined : options.composerStability;
+  // A parent's file is read once more without them, as Composer may stay where it runs (decision D-142).
+  const root = request.readsManifest === false || request.rootStability === false ? undefined : options.composerStability;
   const minimum = root?.minimum ?? stabilities().minimumStability;
   const preferStable = root?.preferStable === true;
   const latest = highest(candidates(found, undefined, minimum));

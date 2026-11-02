@@ -6,7 +6,8 @@
 // version OSV.dev did not answer for (no network, an error, a redirect, an answer that is too large or not a batch
 // result, pages that do not end) stays unchecked with the reason, never clean. A batch result is one OSV.dev sends:
 // record ids in the grammar of the OSV schema and no more records in one result than two of its pages (decision
-// D-135), so no other text of an answer reaches a message. Only the name, the ecosystem and the version are sent, and
+// D-135), and a redirect is named by the origin of its location, or as a location that is not a URL (decision D-142),
+// so no other text of an answer reaches a message. Only the name, the ecosystem and the version are sent, and
 // nothing at all without --osv.
 import { isRecord, values } from '../apply/facts.ts';
 import { osv as facts } from '../knowledge/osv.ts';
@@ -179,13 +180,13 @@ async function postBatch(queries: readonly Query[], options: OsvOptions): Promis
   const location = response.headers.get('location');
   if (response.status >= 300 && response.status < 400 && location !== null) {
     await response.body?.cancel();
-    let origin = location;
+    let origin: string | undefined;
     try {
       origin = new URL(location, osvBatchUrl()).origin;
     } catch {
-      // An invalid location is named as it is.
+      // A location that is not a URL is the text of the answer, which never reaches a message (decision D-142).
     }
-    return { reason: `${host} redirected to ${origin}, which depcurfew does not follow` };
+    return { reason: `${host} redirected to ${origin ?? 'a location that is not a URL'}, which depcurfew does not follow` };
   }
   if (!response.ok) {
     await response.body?.cancel();
@@ -300,9 +301,12 @@ export function linkedIds(ids: readonly string[]): string {
   return more > 0 ? `${shown.join(', ')} and ${more} more ${more === 1 ? 'record' : 'records'}` : shown.join(', ');
 }
 
-/** How a version of a package is written in a message: name@1.2.3, and for Python name==1.2.3 as pip takes it. */
+/**
+ * How a version of a package is written in a message: name@1.2.3, for Python name==1.2.3 as pip takes it, and for
+ * Composer vendor/name:1.2.3 as composer require takes it, where @ is a stability flag (decisions D-133 and D-142).
+ */
 export function versionLabel(ecosystem: string, name: string, version: string): string {
-  return `${name}${ecosystem === 'pypi' ? '==' : '@'}${version}`;
+  return `${name}${ecosystem === 'pypi' ? '==' : ecosystem === 'packagist' ? ':' : '@'}${version}`;
 }
 
 /** The ecosystem of a checked package name and the name OSV.dev knows: the policy prefix (pypi:, composer:) is left out. */
@@ -342,7 +346,7 @@ function osvFinding(name: string, pkg: OsvPackage, verdict: OsvVerdict): CheckFi
     level: 'error',
     code: 'known-malicious',
     // A Composer version as composer require takes it (composer:vendor/name:1.2.3), as the other findings of check write it.
-    message: `${pkg.ecosystem === 'packagist' ? `${name}:${pkg.version}` : versionLabel(pkg.ecosystem, name, pkg.version)} is a known malicious version: OSV.dev lists it as ${linkedIds(verdict.malicious)}`,
+    message: `${versionLabel(pkg.ecosystem, name, pkg.version)} is a known malicious version: OSV.dev lists it as ${linkedIds(verdict.malicious)}`,
     fix: 'Do not install it; pick another package or version. If it is installed anywhere already, remove it and read the record on OSV.dev for what it does',
   };
 }

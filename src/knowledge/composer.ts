@@ -38,6 +38,11 @@ const CONSOLE = 'https://github.com/symfony/console/blob/v5.4.55';
 const PACKAGIST_API = 'https://packagist.org/apidoc';
 
 /** What composer --no-blocking and the variables that set it turn off (BaseCommand::createPolicyConfig at 2.11.1). */
+/** Where composer config, repository and policy write with --global or --file, which depcurfew does not read (decision D-142). */
+const GLOBAL_FILES = 'COMPOSER_HOME/config.json, or the file --file names';
+const GLOBAL_OPTIONS = ['--global', '-g', '--file', '-f'];
+/** Where the same commands write after composer global. */
+const HOME_FILES = 'a file of COMPOSER_HOME';
 const ALL_BLOCKING = "turns off all of Composer's policy blocking for the command, the cooldown and the blocking of versions flagged as malware included";
 
 /** The commands of Composer 2.11.1 and of symfony/console v5.4.55 that Composer registers, and their aliases. */
@@ -425,7 +430,13 @@ export const composer: ToolKnowledge = {
           { name: '--no-blocking', weakens: 'protection', values: 'any', effect: ALL_BLOCKING },
           { name: '--no-security-blocking', weakens: 'protection', values: 'any', effect: ALL_BLOCKING },
           { name: '--no-cooldown', weakens: 'delay', values: 'any' },
-          { name: '--no-secure-http', weakens: 'protection', values: 'any', effect: 'allows downloads of the project over plain HTTP' },
+          {
+            name: '--no-secure-http',
+            weakens: 'protection',
+            values: 'any',
+            effect: 'turns off secure-http while Composer installs the project package',
+            protects: 'secure-http lets Composer download only over HTTPS, which keeps that download from being read or changed on the way',
+          },
         ],
         variables: [
           { name: 'COMPOSER_NO_BLOCKING', weakens: 'protection', values: { except: ['', '0'] }, effect: ALL_BLOCKING },
@@ -442,19 +453,19 @@ export const composer: ToolKnowledge = {
         ],
       },
       `${SRC}/Command/BaseCommand.php`,
-      'createPolicyConfig: --no-blocking, --no-security-blocking (deprecated), COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING "disable ALL blocking (advisories + malware + abandoned + cooldown + custom)" (PolicyConfig::withBlockingDisabled); --no-cooldown disables only the cooldown blocking. initialize sets --no-blocking and --no-security-blocking on each command that has them when (bool) getenv() is true, so for every value but "" and "0" ("false" and "off" too); createPolicyConfig also reads both with Platform::getBoolEnv, which makes the command fail for a value other than 0, 1, false, true, off and on (src/Composer/Util/Platform.php), so such a value installs nothing. COMPOSER_POLICY (Config::get), COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK (PolicyConfig::fromConfig) are read with getBoolEnv: 0, false and off turn them off. COMPOSER_POLICY_COOLDOWN_PERIOD replaces the period (CooldownPolicyConfig::getEnvPeriod, in the syntax of durationStrings). create-project --no-secure-http "Disable the secure-http config option temporarily while installing the root package" (03-cli.md#create-project). The options are on require, update, install, create-project and remove (03-cli.md).',
+      'createPolicyConfig: --no-blocking, --no-security-blocking (deprecated), COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING "disable ALL blocking (advisories + malware + abandoned + cooldown + custom)" (PolicyConfig::withBlockingDisabled); --no-cooldown disables only the cooldown blocking. initialize sets --no-blocking and --no-security-blocking on each command that has them when (bool) getenv() is true, so for every value but "" and "0" ("false" and "off" too); createPolicyConfig also reads both with Platform::getBoolEnv, which makes the command fail for a value other than 0, 1, false, true, off and on (src/Composer/Util/Platform.php), so such a value installs nothing. COMPOSER_POLICY (Config::get), COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK (PolicyConfig::fromConfig) are read with getBoolEnv: 0, false and off turn them off. COMPOSER_POLICY_COOLDOWN_PERIOD replaces the period (CooldownPolicyConfig::getEnvPeriod, in the syntax of durationStrings). create-project --no-secure-http "Disable the secure-http config option temporarily while installing the root package" (03-cli.md#create-project): CreateProjectCommand::installRootPackage merges secure-http false into the configuration it installs the project package with, and secure-http "Defaults to true. If set to true only HTTPS URLs are allowed to be downloaded via Composer" (06-config.md#secure-http). The options are on require, update, install, create-project and remove (03-cli.md).',
     ),
     configCommands: verified<readonly ConfigCommand[]>(
       [
-        { command: ['composer', 'config'], operands: 2, options: ['--unset', '--editor', '-e'] },
-        { command: ['composer', 'repository'], writes: ['add', 'remove', 'rm', 'delete', 'set-url', 'seturl', 'enable', 'disable'] },
-        { command: ['composer', 'policy'], writes: ['add-source'] },
-        { command: ['composer', 'global', 'config'], operands: 2, options: ['--unset', '--editor', '-e'] },
-        { command: ['composer', 'global', 'repository'], writes: ['add', 'remove', 'rm', 'delete', 'set-url', 'seturl', 'enable', 'disable'] },
-        { command: ['composer', 'global', 'policy'], writes: ['add-source'] },
+        { command: ['composer', 'config'], operands: 2, options: ['--unset', '--editor', '-e'], unread: { file: GLOBAL_FILES, options: GLOBAL_OPTIONS } },
+        { command: ['composer', 'repository'], writes: ['add', 'remove', 'rm', 'delete', 'set-url', 'seturl', 'enable', 'disable'], unread: { file: GLOBAL_FILES, options: GLOBAL_OPTIONS } },
+        { command: ['composer', 'policy'], writes: ['add-source'], unread: { file: GLOBAL_FILES, options: GLOBAL_OPTIONS } },
+        { command: ['composer', 'global', 'config'], operands: 2, options: ['--unset', '--editor', '-e'], unread: { file: HOME_FILES } },
+        { command: ['composer', 'global', 'repository'], writes: ['add', 'remove', 'rm', 'delete', 'set-url', 'seturl', 'enable', 'disable'], unread: { file: HOME_FILES } },
+        { command: ['composer', 'global', 'policy'], writes: ['add-source'], unread: { file: HOME_FILES } },
       ],
       `${CLI}#config`,
-      'composer config [options] [setting-key] [setting-value1] ... changes a setting of composer.json (with --global, -g, of COMPOSER_HOME/config.json), --unset removes one and --editor (-e) opens the file; with a key alone it shows the value (src/Composer/Command/ConfigCommand.php at 2.11.1). composer repository (repo) add, remove (rm, delete), set-url (seturl), enable and disable change the repositories, list (ls, show) and get-url (geturl) only read them (RepositoryCommand.php). composer policy add-source changes config.policy (PolicyCommand.php). The same commands after composer global change the files of COMPOSER_HOME.',
+      'composer config [options] [setting-key] [setting-value1] ... changes a setting of composer.json (with --global, -g, of COMPOSER_HOME/config.json; with --file, -f, of that file), --unset removes one and --editor (-e) opens the file; with a key alone it shows the value (src/Composer/Command/ConfigCommand.php at 2.11.1). composer repository (repo) add, remove (rm, delete), set-url (seturl), enable and disable change the repositories, list (ls, show) and get-url (geturl) only read them (RepositoryCommand.php). composer policy add-source changes config.policy (PolicyCommand.php). config, repository and policy all take --global (-g, "Apply command to the global config file") and --file (-f, "If you want to choose a different composer.json or config.json"). The same commands after composer global change the files of COMPOSER_HOME: GlobalCommand runs them in the home directory, where composer.json is the one of composer global and config.json the configuration that Factory::createConfig merges under that of every project. depcurfew reads neither file (decision D-133), so a change there counts also without an install next to it (unread).',
     ),
     applicationOptions: verified<readonly ApplicationOption[]>(
       [
@@ -529,7 +540,7 @@ export const composer: ToolKnowledge = {
     directoryOptions: verified<DirectoryOptionsKnowledge>(
       { options: [{ name: '--working-dir', moves: 'directory' }, { name: '-d', moves: 'directory' }], variables: [], lookup: 'first-token' },
       `${CLI}#global-options`,
-      '"--working-dir (-d): If specified, use the given directory as working directory." Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory, an interactive run asks whether to use the nearest parent that has one, and use-parent-dir true does so without asking. getNewWorkingDir reads the directory with $input->getParameterOption([\'--working-dir\', \'-d\'], null, true), which in symfony/console v5.4.55 (Input/ArgvInput.php) takes the first word, up to --, that is --working-dir or -d (then the next word) or starts with --working-dir= or -d (then the rest of the word); a grouped -nd dir does not start with -d, so Composer stays where it is, although the command later binds -n and -d dir as options.',
+      '"--working-dir (-d): If specified, use the given directory as working directory." Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory (and for a command other than list, init, about, help, diagnose, self-update, global, create-project and outdated), Composer looks for the nearest parent with one, stopping before the home directory and the root of the file system: an interactive run asks whether to use it, use-parent-dir true uses it without asking, and a run without a terminal (stdin not a TTY, or COMPOSER_NO_INTERACTION) with the default use-parent-dir "prompt" (Config::$defaultConfig in src/Composer/Config.php) stays in the current directory and only says so; with --working-dir it never looks at a parent. It then registers the scripts (Application.php) and reads minimum-stability (PackageDiscoveryTrait::getMinimumStability) of Factory::getComposerFile() in the directory it is in. getNewWorkingDir reads the directory with $input->getParameterOption([\'--working-dir\', \'-d\'], null, true), which in symfony/console v5.4.55 (Input/ArgvInput.php) takes the first word, up to --, that is --working-dir or -d (then the next word) or starts with --working-dir= or -d (then the rest of the word); a grouped -nd dir does not start with -d, so Composer stays where it is, although the command later binds -n and -d dir as options.',
     ),
   },
 };

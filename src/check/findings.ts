@@ -93,6 +93,11 @@ export interface CheckRequest {
    * command runs with, which Composer then registers as commands, may make it stand for a script or for nothing.
    */
   composerCommand?: { word: string; command: string };
+  /**
+   * Composer: picks the version at the minimum stability stable, without the minimum-stability and prefer-stable of
+   * the root composer.json, for a file of a parent directory that Composer may not use (decision D-142).
+   */
+  rootStability?: false;
 }
 
 export interface CheckOptions {

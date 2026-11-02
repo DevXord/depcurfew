@@ -6,6 +6,7 @@ const { verified, uncertain, disputed, evidence } = verifiedOn('2026-10-30');
 const user = verifiedOn('2026-10-31');
 const leftovers = verifiedOn('2026-11-01');
 const finalReview = verifiedOn('2026-11-01');
+const current = verifiedOn('2026-11-02');
 
 // python-poetry.org/docs is built from docs/ in the repository.
 const POETRY = 'https://github.com/python-poetry/poetry/blob/2.5.1';
@@ -318,10 +319,13 @@ export const poetry: ToolKnowledge = {
       `${POETRY}/docs/repositories.md`,
       '[[tool.poetry.source]] has name, url and priority. "If priority is undefined, the source is considered a primary source"; "All primary package sources are searched for each dependency without a source constraint" and "If you configure at least one primary source, the implicit PyPI source is disabled", so a primary source replaces PyPI. Supplemental sources "are only searched if no other (higher-priority) source yields a compatible package distribution": depcurfew does not know whether PyPI has a version the constraint takes, so such a source counts as one that adds. Explicit sources "are only searched when a package configuration explicitly indicates" them: a dependency with source = "name" in [tool.poetry.dependencies] or [tool.poetry.group.<group>.dependencies], also in a list of constraint tables (docs/dependency-specification.md, docs/managing-dependencies.md). create_pool in src/poetry/factory.py reads Priority[source.get("priority", "primary").upper()], so the value is compared without regard to case; the schema (src/poetry/json/schemas/poetry.json) allows primary, supplemental and explicit, and another value (default or secondary of Poetry 1.x) fails in 2.5.1 and counts as primary here. A source whose name is pypi in any case is PyPI itself (PyPiRepository), which "cannot be configured with a custom url" (create_package_source).',
     ),
-    configCommands: leftovers.verified(
-      [{ command: ['poetry', 'config'], operands: 2, options: ['--unset', '--migrate'] }],
-      'https://github.com/python-poetry/poetry/blob/main/docs/cli.md',
-      'poetry config [options] [setting-key] [setting-value1] ... [setting-valueN] sets a key to a value; --unset removes the key, --migrate migrates outdated settings and --list only shows them.',
+    configCommands: current.verified(
+      [
+        { command: ['poetry', 'config'], operands: 2, options: ['--unset', '--migrate'] },
+        { command: ['poetry', 'source'], writes: ['add', 'remove'] },
+      ],
+      `${POETRY}/docs/cli.md`,
+      'poetry config [options] [setting-key] [setting-value1] ... [setting-valueN] sets a key to a value (--local in poetry.toml of the project); --unset removes the key, --migrate migrates outdated settings and --list only shows them. "The source namespace groups subcommands to manage repository sources for a Poetry project": source add adds a source to pyproject.toml (also the priority of PyPI, with --priority), source remove removes one from it, and source show only shows them (docs/cli.md; src/poetry/console/commands/source/add.py and remove.py write pyproject.poetry_config["source"], and src/poetry/console/application.py lists source add, source remove and source show). The sources of pyproject.toml are where poetry add and poetry install take packages from (registrySettings).',
     ),
     installOverrides: leftovers.verified(
       {

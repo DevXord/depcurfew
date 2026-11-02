@@ -7,7 +7,9 @@ import { environment } from '../knowledge/environment.ts';
 import type { PypiIndexKnowledge } from '../knowledge/types.ts';
 import { normalizePythonName } from '../policy/python-names.ts';
 import { formatVersion, parseVersion, type Pep440 } from './pep440.ts';
-import { fetchSameOrigin, MAX_DOCUMENT_SIZE, MAX_VERSIONS, readLimited, requestSignal, tooManyMembers, tooManyVersions, type FetchLike } from './registry.ts';
+import { fetchSameOrigin, MAX_DOCUMENT_SIZE, MAX_VERSIONS, readError, readLimited, requestSignal, tooManyMembers, tooManyVersions, type FetchLike } from './registry.ts';
+
+const NOT_A_PROJECT_PAGE = 'the index answered something that is not a project page';
 
 /**
  * The most files of one project page depcurfew reads (decision D-113): projects with many wheels per release have a
@@ -157,8 +159,8 @@ export async function fetchProject(name: string, options: { index: string; fetch
     const over = tooManyMembers(text, { [fields.versionsField]: MAX_VERSIONS, [fields.filesField]: MAX_FILES });
     if (over !== undefined) return tooManyVersions(normalizePythonName(name), 'index', over === fields.filesField ? `${MAX_FILES} files` : `${MAX_VERSIONS} versions`);
     const project = toProject(JSON.parse(text) as unknown, name);
-    return project === undefined ? { status: 'error', reason: 'the index answered something that is not a project page' } : { status: 'found', project };
+    return project === undefined ? { status: 'error', reason: NOT_A_PROJECT_PAGE } : { status: 'found', project };
   } catch (error) {
-    return { status: 'error', reason: error instanceof Error ? error.message : String(error) };
+    return { status: 'error', reason: readError(error, NOT_A_PROJECT_PAGE) };
   }
 }

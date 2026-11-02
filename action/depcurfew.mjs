@@ -309,6 +309,16 @@ const MINIFIER = "https://github.com/composer/metadata-minifier/blob/1.0.1/src/M
 const CONSOLE = "https://github.com/symfony/console/blob/v5.4.55";
 const PACKAGIST_API = "https://packagist.org/apidoc";
 /** What composer --no-blocking and the variables that set it turn off (BaseCommand::createPolicyConfig at 2.11.1). */
+/** Where composer config, repository and policy write with --global or --file, which depcurfew does not read (decision D-142). */
+const GLOBAL_FILES = "COMPOSER_HOME/config.json, or the file --file names";
+const GLOBAL_OPTIONS = [
+	"--global",
+	"-g",
+	"--file",
+	"-f"
+];
+/** Where the same commands write after composer global. */
+const HOME_FILES = "a file of COMPOSER_HOME";
 const ALL_BLOCKING = "turns off all of Composer's policy blocking for the command, the cooldown and the blocking of versions flagged as malware included";
 /** The commands of Composer 2.11.1 and of symfony/console v5.4.55 that Composer registers, and their aliases. */
 const COMMAND_NAMES = {
@@ -850,7 +860,8 @@ const composer$3 = {
 					name: "--no-secure-http",
 					weakens: "protection",
 					values: "any",
-					effect: "allows downloads of the project over plain HTTP"
+					effect: "turns off secure-http while Composer installs the project package",
+					protects: "secure-http lets Composer download only over HTTPS, which keeps that download from being read or changed on the way"
 				}
 			],
 			variables: [
@@ -901,7 +912,7 @@ const composer$3 = {
 					effect: "turns off the blocking of versions flagged as malware"
 				}
 			]
-		}, `${SRC}/Command/BaseCommand.php`, "createPolicyConfig: --no-blocking, --no-security-blocking (deprecated), COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING \"disable ALL blocking (advisories + malware + abandoned + cooldown + custom)\" (PolicyConfig::withBlockingDisabled); --no-cooldown disables only the cooldown blocking. initialize sets --no-blocking and --no-security-blocking on each command that has them when (bool) getenv() is true, so for every value but \"\" and \"0\" (\"false\" and \"off\" too); createPolicyConfig also reads both with Platform::getBoolEnv, which makes the command fail for a value other than 0, 1, false, true, off and on (src/Composer/Util/Platform.php), so such a value installs nothing. COMPOSER_POLICY (Config::get), COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK (PolicyConfig::fromConfig) are read with getBoolEnv: 0, false and off turn them off. COMPOSER_POLICY_COOLDOWN_PERIOD replaces the period (CooldownPolicyConfig::getEnvPeriod, in the syntax of durationStrings). create-project --no-secure-http \"Disable the secure-http config option temporarily while installing the root package\" (03-cli.md#create-project). The options are on require, update, install, create-project and remove (03-cli.md)."),
+		}, `${SRC}/Command/BaseCommand.php`, "createPolicyConfig: --no-blocking, --no-security-blocking (deprecated), COMPOSER_NO_BLOCKING and COMPOSER_NO_SECURITY_BLOCKING \"disable ALL blocking (advisories + malware + abandoned + cooldown + custom)\" (PolicyConfig::withBlockingDisabled); --no-cooldown disables only the cooldown blocking. initialize sets --no-blocking and --no-security-blocking on each command that has them when (bool) getenv() is true, so for every value but \"\" and \"0\" (\"false\" and \"off\" too); createPolicyConfig also reads both with Platform::getBoolEnv, which makes the command fail for a value other than 0, 1, false, true, off and on (src/Composer/Util/Platform.php), so such a value installs nothing. COMPOSER_POLICY (Config::get), COMPOSER_POLICY_COOLDOWN_BLOCK and COMPOSER_POLICY_MALWARE_BLOCK (PolicyConfig::fromConfig) are read with getBoolEnv: 0, false and off turn them off. COMPOSER_POLICY_COOLDOWN_PERIOD replaces the period (CooldownPolicyConfig::getEnvPeriod, in the syntax of durationStrings). create-project --no-secure-http \"Disable the secure-http config option temporarily while installing the root package\" (03-cli.md#create-project): CreateProjectCommand::installRootPackage merges secure-http false into the configuration it installs the project package with, and secure-http \"Defaults to true. If set to true only HTTPS URLs are allowed to be downloaded via Composer\" (06-config.md#secure-http). The options are on require, update, install, create-project and remove (03-cli.md)."),
 		configCommands: verified$13([
 			{
 				command: ["composer", "config"],
@@ -910,7 +921,11 @@ const composer$3 = {
 					"--unset",
 					"--editor",
 					"-e"
-				]
+				],
+				unread: {
+					file: GLOBAL_FILES,
+					options: GLOBAL_OPTIONS
+				}
 			},
 			{
 				command: ["composer", "repository"],
@@ -923,11 +938,19 @@ const composer$3 = {
 					"seturl",
 					"enable",
 					"disable"
-				]
+				],
+				unread: {
+					file: GLOBAL_FILES,
+					options: GLOBAL_OPTIONS
+				}
 			},
 			{
 				command: ["composer", "policy"],
-				writes: ["add-source"]
+				writes: ["add-source"],
+				unread: {
+					file: GLOBAL_FILES,
+					options: GLOBAL_OPTIONS
+				}
 			},
 			{
 				command: [
@@ -940,7 +963,8 @@ const composer$3 = {
 					"--unset",
 					"--editor",
 					"-e"
-				]
+				],
+				unread: { file: HOME_FILES }
 			},
 			{
 				command: [
@@ -957,7 +981,8 @@ const composer$3 = {
 					"seturl",
 					"enable",
 					"disable"
-				]
+				],
+				unread: { file: HOME_FILES }
 			},
 			{
 				command: [
@@ -965,9 +990,10 @@ const composer$3 = {
 					"global",
 					"policy"
 				],
-				writes: ["add-source"]
+				writes: ["add-source"],
+				unread: { file: HOME_FILES }
 			}
-		], `${CLI$1}#config`, "composer config [options] [setting-key] [setting-value1] ... changes a setting of composer.json (with --global, -g, of COMPOSER_HOME/config.json), --unset removes one and --editor (-e) opens the file; with a key alone it shows the value (src/Composer/Command/ConfigCommand.php at 2.11.1). composer repository (repo) add, remove (rm, delete), set-url (seturl), enable and disable change the repositories, list (ls, show) and get-url (geturl) only read them (RepositoryCommand.php). composer policy add-source changes config.policy (PolicyCommand.php). The same commands after composer global change the files of COMPOSER_HOME."),
+		], `${CLI$1}#config`, "composer config [options] [setting-key] [setting-value1] ... changes a setting of composer.json (with --global, -g, of COMPOSER_HOME/config.json; with --file, -f, of that file), --unset removes one and --editor (-e) opens the file; with a key alone it shows the value (src/Composer/Command/ConfigCommand.php at 2.11.1). composer repository (repo) add, remove (rm, delete), set-url (seturl), enable and disable change the repositories, list (ls, show) and get-url (geturl) only read them (RepositoryCommand.php). composer policy add-source changes config.policy (PolicyCommand.php). config, repository and policy all take --global (-g, \"Apply command to the global config file\") and --file (-f, \"If you want to choose a different composer.json or config.json\"). The same commands after composer global change the files of COMPOSER_HOME: GlobalCommand runs them in the home directory, where composer.json is the one of composer global and config.json the configuration that Factory::createConfig merges under that of every project. depcurfew reads neither file (decision D-133), so a change there counts also without an install next to it (unread)."),
 		applicationOptions: verified$13([
 			{
 				name: "help",
@@ -1093,7 +1119,7 @@ const composer$3 = {
 			}],
 			variables: [],
 			lookup: "first-token"
-		}, `${CLI$1}#global-options`, "\"--working-dir (-d): If specified, use the given directory as working directory.\" Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory, an interactive run asks whether to use the nearest parent that has one, and use-parent-dir true does so without asking. getNewWorkingDir reads the directory with $input->getParameterOption(['--working-dir', '-d'], null, true), which in symfony/console v5.4.55 (Input/ArgvInput.php) takes the first word, up to --, that is --working-dir or -d (then the next word) or starts with --working-dir= or -d (then the rest of the word); a grouped -nd dir does not start with -d, so Composer stays where it is, although the command later binds -n and -d dir as options.")
+		}, `${CLI$1}#global-options`, "\"--working-dir (-d): If specified, use the given directory as working directory.\" Application::doRunComposer changes to it before it reads composer.json (src/Composer/Console/Application.php at 2.11.1). Without it and without composer.json in the current directory (and for a command other than list, init, about, help, diagnose, self-update, global, create-project and outdated), Composer looks for the nearest parent with one, stopping before the home directory and the root of the file system: an interactive run asks whether to use it, use-parent-dir true uses it without asking, and a run without a terminal (stdin not a TTY, or COMPOSER_NO_INTERACTION) with the default use-parent-dir \"prompt\" (Config::$defaultConfig in src/Composer/Config.php) stays in the current directory and only says so; with --working-dir it never looks at a parent. It then registers the scripts (Application.php) and reads minimum-stability (PackageDiscoveryTrait::getMinimumStability) of Factory::getComposerFile() in the directory it is in. getNewWorkingDir reads the directory with $input->getParameterOption(['--working-dir', '-d'], null, true), which in symfony/console v5.4.55 (Input/ArgvInput.php) takes the first word, up to --, that is --working-dir or -d (then the next word) or starts with --working-dir= or -d (then the rest of the word); a grouped -nd dir does not start with -d, so Composer stays where it is, although the command later binds -n and -d dir as options.")
 	}
 };
 
@@ -3219,6 +3245,7 @@ const { verified: verified$8, uncertain: uncertain$6 } = verifiedOn("2026-10-30"
 const rechecked$2 = verifiedOn("2026-10-31");
 const user$5 = verifiedOn("2026-10-31");
 const leftovers$3 = verifiedOn("2026-11-01");
+const current$1 = verifiedOn("2026-11-02");
 const PDM = "https://github.com/pdm-project/pdm/blob/2.29.5";
 const LOCKFILE = `${PDM}/docs/usage/lockfile.md`;
 const CHANGELOG$2 = `${PDM}/CHANGELOG.md`;
@@ -3580,6 +3607,16 @@ const pdm$1 = {
 			configOptions: ["-c", "--config"],
 			configVariables: ["PDM_CONFIG_FILE"]
 		}, `${PDM}/src/pdm/project/config.py`, "pypi.url, the index PDM uses when pyproject.toml names no source called pypi, can be set with PDM_PYPI_URL (docs/usage/config.md); -c/--config and PDM_CONFIG_FILE name another configuration file, which may set any index."),
+		configCommands: current$1.verified([{
+			command: ["pdm", "config"],
+			operands: 2,
+			options: [
+				"-d",
+				"--delete",
+				"-e",
+				"--edit"
+			]
+		}], `${PDM}/src/pdm/cli/commands/config.py`, "pdm config [-l|--local] [-d|--delete] [-e|--edit] [key] [value]: with a key and a value it sets the key (_set_config, in the home config.toml, with -l in the pdm.toml of the project), with -d it deletes the key, with -e it opens the file in an editor; a key alone shows its value, and without a key it lists the configuration. docs/usage/config.md sets the index this way: pdm config pypi.url \"https://test.pypi.org/simple\", pdm config --local pypi.url …, pdm config pypi.extra.url … for an extra index. PDM parses with argparse, which takes abbreviated long options and grouped short ones (commandLine)."),
 		selection: verified$8({
 			prereleases: {
 				onFlags: ["--pre", "--prerelease"],
@@ -4574,6 +4611,7 @@ const { verified: verified$5, uncertain: uncertain$3, disputed: disputed$2, evid
 const user$2 = verifiedOn("2026-10-31");
 const leftovers$2 = verifiedOn("2026-11-01");
 const finalReview$1 = verifiedOn("2026-11-01");
+const current = verifiedOn("2026-11-02");
 const POETRY = "https://github.com/python-poetry/poetry/blob/2.5.1";
 const CONFIGURATION$2 = `${POETRY}/docs/configuration.md`;
 const CHANGELOG = `${POETRY}/CHANGELOG.md`;
@@ -4905,11 +4943,14 @@ const poetry$1 = {
 				}
 			}
 		}], `${POETRY}/docs/repositories.md`, "[[tool.poetry.source]] has name, url and priority. \"If priority is undefined, the source is considered a primary source\"; \"All primary package sources are searched for each dependency without a source constraint\" and \"If you configure at least one primary source, the implicit PyPI source is disabled\", so a primary source replaces PyPI. Supplemental sources \"are only searched if no other (higher-priority) source yields a compatible package distribution\": depcurfew does not know whether PyPI has a version the constraint takes, so such a source counts as one that adds. Explicit sources \"are only searched when a package configuration explicitly indicates\" them: a dependency with source = \"name\" in [tool.poetry.dependencies] or [tool.poetry.group.<group>.dependencies], also in a list of constraint tables (docs/dependency-specification.md, docs/managing-dependencies.md). create_pool in src/poetry/factory.py reads Priority[source.get(\"priority\", \"primary\").upper()], so the value is compared without regard to case; the schema (src/poetry/json/schemas/poetry.json) allows primary, supplemental and explicit, and another value (default or secondary of Poetry 1.x) fails in 2.5.1 and counts as primary here. A source whose name is pypi in any case is PyPI itself (PyPiRepository), which \"cannot be configured with a custom url\" (create_package_source)."),
-		configCommands: leftovers$2.verified([{
+		configCommands: current.verified([{
 			command: ["poetry", "config"],
 			operands: 2,
 			options: ["--unset", "--migrate"]
-		}], "https://github.com/python-poetry/poetry/blob/main/docs/cli.md", "poetry config [options] [setting-key] [setting-value1] ... [setting-valueN] sets a key to a value; --unset removes the key, --migrate migrates outdated settings and --list only shows them."),
+		}, {
+			command: ["poetry", "source"],
+			writes: ["add", "remove"]
+		}], `${POETRY}/docs/cli.md`, "poetry config [options] [setting-key] [setting-value1] ... [setting-valueN] sets a key to a value (--local in poetry.toml of the project); --unset removes the key, --migrate migrates outdated settings and --list only shows them. \"The source namespace groups subcommands to manage repository sources for a Poetry project\": source add adds a source to pyproject.toml (also the priority of PyPI, with --priority), source remove removes one from it, and source show only shows them (docs/cli.md; src/poetry/console/commands/source/add.py and remove.py write pyproject.poetry_config[\"source\"], and src/poetry/console/application.py lists source add, source remove and source show). The sources of pyproject.toml are where poetry add and poetry install take packages from (registrySettings)."),
 		installOverrides: leftovers$2.verified({
 			options: [],
 			variables: [
@@ -6329,6 +6370,8 @@ const yarn$1 = {
 const { verified: verified$1 } = verifiedOn("2026-11-02");
 const OSV_DOCS = "https://github.com/google/osv.dev/blob/master/docs";
 const OSV_SCHEMA = "https://github.com/ossf/osv-schema/blob/main/docs/schema.md";
+/** The Go code of the API and the workers of OSV.dev, at the commit that was read. */
+const OSV_GO = "https://github.com/google/osv.dev/blob/b7449847246af793439d06284d340af40cdae854/go";
 const osv = {
 	api: verified$1({
 		url: "https://api.osv.dev",
@@ -6368,7 +6411,8 @@ const osv = {
 		npm: "npm",
 		pypi: "PyPI",
 		packagist: "Packagist"
-	}, `${OSV_SCHEMA}#affectedpackage-field`, "Keys are the ecosystems of depcurfew (npm, pypi and packagist; in package names of the policy no prefix, pypi: and composer:), values the ecosystem names of the OSV schema: \"npm\" (an NPM package name), \"PyPI\" (a normalized PyPI package name), \"Packagist\" (a PHP package name; without a :<REMOTE-REPO-URL> suffix it means https://packagist.org). OSV.dev covers all three (google/osv.dev docs/data.md, Covered Ecosystems). It compares Packagist versions as PHP does, with a leading v left out (PackagistVersion in osv/ecosystems/packagist.py of google/osv.dev at b7449847246af793439d06284d340af40cdae854), so a version of composer.lock is sent as Composer wrote it.")
+	}, `${OSV_SCHEMA}#affectedpackage-field`, "Keys are the ecosystems of depcurfew (npm, pypi and packagist; in package names of the policy no prefix, pypi: and composer:), values the ecosystem names of the OSV schema: \"npm\" (an NPM package name), \"PyPI\" (a normalized PyPI package name), \"Packagist\" (a PHP package name; without a :<REMOTE-REPO-URL> suffix it means https://packagist.org). OSV.dev covers all three (google/osv.dev docs/data.md, Covered Ecosystems). How it compares Packagist versions: versionMatching."),
+	versionMatching: verified$1({ packagist: { ignoredPrefixes: ["v", "V"] } }, `${OSV_GO}/internal/database/datastore/vulnerability_matching.go`, "The API (go/cmd/api, with the Datastore store of go/internal/database/datastore) answers a query with a version by buildVersionMatcher: for an ecosystem it knows, it parses the version with the ecosystem helper and keeps the AffectedVersions whose coarse range holds Coarse(version), then matches each listed version of a record by parsing it too and comparing the two (versionIsMatchEcosystemVersionsList, cmp == 0), and the events of its ranges the same way. The Packagist helper (go/osv/ecosystem/packagist.go) parses with semantic.ParsePackagistVersion of google/osv-scalibr v0.5.3 (go/go.mod), whose canonicalizePackagistVersion removes one leading v or V before it compares as PHP's version_compare does (semantic/version-packagist.go at v0.5.3), and its Coarse removes them too, so v8.1.9 and 8.1.9 are the same version both in a query and in a record (also the coarse range the importer stores, go/internal/database/datastore/affected_versions.go). The Python helper of the workers (osv/ecosystems/packagist.py, PackagistVersion.php_canonicalize_version) removes a leading v as well. All at google/osv.dev b7449847246af793439d06284d340af40cdae854 (master on 2026-11-02). A version of composer.lock is therefore sent as Composer wrote it.")
 };
 
 // src/knowledge/environment.ts
@@ -31782,11 +31826,11 @@ async function postBatch(queries, options) {
 	const location = response.headers.get("location");
 	if (response.status >= 300 && response.status < 400 && location !== null) {
 		await response.body?.cancel();
-		let origin = location;
+		let origin;
 		try {
 			origin = new URL(location, osvBatchUrl()).origin;
 		} catch {}
-		return { reason: `${host} redirected to ${origin}, which depcurfew does not follow` };
+		return { reason: `${host} redirected to ${origin ?? "a location that is not a URL"}, which depcurfew does not follow` };
 	}
 	if (!response.ok) {
 		await response.body?.cancel();
@@ -31933,9 +31977,12 @@ function linkedIds(ids) {
 	const more = ids.length - MAX_IDS_SHOWN;
 	return more > 0 ? `${shown.join(", ")} and ${more} more ${more === 1 ? "record" : "records"}` : shown.join(", ");
 }
-/** How a version of a package is written in a message: name@1.2.3, and for Python name==1.2.3 as pip takes it. */
+/**
+* How a version of a package is written in a message: name@1.2.3, for Python name==1.2.3 as pip takes it, and for
+* Composer vendor/name:1.2.3 as composer require takes it, where @ is a stability flag (decisions D-133 and D-142).
+*/
 function versionLabel(ecosystem, name, version) {
-	return `${name}${ecosystem === "pypi" ? "==" : "@"}${version}`;
+	return `${name}${ecosystem === "pypi" ? "==" : ecosystem === "packagist" ? ":" : "@"}${version}`;
 }
 
 // src/doctor/rules/known-malicious.ts
