@@ -1987,6 +1987,28 @@ function scanTrap(words: readonly Word[], depth: number): CommandScan {
   return { ...inChild(scan), moves: [{ kind: 'unknown', reason: `the trap "${shown(joined(words))}" ${TRAP_BETWEEN} and ${what}`, lasting: true }] };
 }
 
+/**
+ * mapfile -C callback (readarray -C): the shell runs the callback as a command line in this shell every -c lines it
+ * reads, with two words appended, so an install in it runs; a change of directory in it, or a callback depcurfew cannot
+ * read, makes the directory of every later command unknown, as for a trap (decision D-143). Undefined without -C.
+ */
+function scanMapfileCallback(words: readonly Word[], executable: string, depth: number): CommandScan | undefined {
+  const spec = SETTER_OPTIONS.get(executable);
+  if (spec === undefined) return undefined;
+  const { code } = setterOperands(words.slice(1), spec);
+  if (code.length === 0) return undefined;
+  const scans = code.map((callback) => (callback.input === true ? unreadable(`${shown(joined(words))}: ${expanded(callback)}`) : scanLine(callback.text, depth + 1)));
+  const scan = scans.reduce((all, next) => ({
+    requests: [...all.requests, ...next.requests],
+    unreadable: all.unreadable ?? next.unreadable,
+    ...(all.overrides === undefined && next.overrides === undefined ? {} : { overrides: [...(all.overrides ?? []), ...(next.overrides ?? [])] }),
+    ...(all.moves === undefined && next.moves === undefined ? {} : { moves: [...(all.moves ?? []), ...(next.moves ?? [])] }),
+  }));
+  if (scan.moves === undefined && scan.unreadable === undefined) return scan;
+  const what = scan.moves === undefined ? 'may change directory with a callback depcurfew cannot read' : 'changes directory';
+  return { ...scan, moves: [{ kind: 'unknown', reason: `the callback of "${shown(joined(words))}" runs in this shell and ${what}`, lasting: true }] };
+}
+
 /** The aliases defined so far in the command line being scanned, by name, with their values. */
 let aliases = new Map<string, string>();
 
@@ -3187,6 +3209,10 @@ function scanSimple(command: SimpleCommand, words: readonly Word[], assigned: re
   // . and source run a file in this shell, and a trap may run its action before later commands (decision D-123).
   if (!first.dynamic && SOURCES.has(executable)) return scanSource(words, command, depth) ?? scanSourcedInput(words, command, depth);
   if (!first.dynamic && executable === 'trap') return scanTrap(words, depth);
+  if (!first.dynamic && (executable === 'mapfile' || executable === 'readarray')) {
+    const callback = scanMapfileCallback(words, executable, depth);
+    if (callback !== undefined) return callback;
+  }
   if (!first.dynamic && executable === 'alias') return scanAlias(words, depth);
   if (!first.dynamic && EXPRESSION_RUNNERS.has(executable)) return scanInvokeExpression(words, command, depth);
   if (!first.dynamic && interpreter()?.executables.includes(executable) === true) return scanInterpreter(words, command, depth);

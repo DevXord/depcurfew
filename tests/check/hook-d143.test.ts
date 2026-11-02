@@ -271,3 +271,22 @@ describe('the knowledge base', () => {
     }
   });
 });
+
+describe('the callback of mapfile -C, which the shell runs for every few lines it reads', () => {
+  const requests = (line: string) => scanCommandLine(line).requests.map((request) => `${request.tool}:${request.spec}`);
+
+  it('is read as a command line, so an install in it is checked', () => {
+    expect(requests("mapfile -C 'npm i fresh-pkg@1.1.0' -c 1 x < package.json")).toEqual(['npm:fresh-pkg@1.1.0']);
+    expect(requests('readarray -c1 -C "pip install requests==2.0.0" lines < requirements.txt')).toEqual(['pip:pypi:requests==2.0.0']);
+    expect(requests("mapfile -tC'npm i fresh-pkg@1.1.0' x < f")).toEqual(['npm:fresh-pkg@1.1.0']);
+  });
+
+  it('makes the command unreadable when the callback is expanded by the shell', () => {
+    expect(scanCommandLine('mapfile -C "$CB" -c 1 x < f; npm ci').unreadable).toBeDefined();
+  });
+
+  it('leaves a mapfile without a callback alone', () => {
+    expect(scanCommandLine('mapfile -t lines < package.json').unreadable).toBeUndefined();
+    expect(requests('mapfile -t lines < package.json')).toEqual([]);
+  });
+});
