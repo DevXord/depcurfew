@@ -1,0 +1,61 @@
+name: Wrong result
+description: doctor, check or the Claude Code hook reports something that is fine, or misses something that is not.
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - A false alarm (reported, but the configuration works)
+        - A missed problem (not reported, but the configuration does not work)
+    validations:
+      required: true
+  - type: dropdown
+    id: command
+    attributes:
+      label: Command
+      options:
+        - depcurfew doctor
+        - depcurfew check
+        - Claude Code hook (check --hook claude-code)
+        - depcurfew mcp
+        - depcurfew apply or explain
+        - GitHub Action
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: depcurfew version
+      description: The output of `npx depcurfew --version`.
+      placeholder: 1.3.0
+    validations:
+      required: true
+  - type: input
+    id: tools
+    attributes:
+      label: Package manager and version
+      description: The tool and the exact version that installs (the pinned one, the one in CI, the one in the Docker image).
+      placeholder: npm 10 in CI (setup-node 22)
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output with --json
+      description: "`depcurfew doctor --json`, `depcurfew check --json <package>`, or the hook event and the hook's answer. Remove tokens and private registry URLs."
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Why it is wrong
+      description: What the package manager actually does, with a link to its documentation or source, or a command and its output that shows it.
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files involved
+      description: The parts of depcurfew.json and the configuration files that matter, or a link to a small repository that shows the problem.

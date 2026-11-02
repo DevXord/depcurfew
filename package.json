@@ -61,7 +61,12 @@
     "renovate",
     "dependabot",
     "minimum-release-age",
-    "cooldown"
+    "cooldown",
+    "mcp",
+    "model-context-protocol",
+    "claude-code",
+    "github-action",
+    "sarif"
   ],
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",

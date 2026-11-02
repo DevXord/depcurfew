@@ -1,0 +1,18 @@
+# Updates for depcurfew's own dependencies and the actions its workflows pin by commit SHA. The release-age delay
+# (cooldown) comes from depcurfew.json: depcurfew apply writes and keeps it.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # managed by depcurfew
+    cooldown:
+      default-days: 7
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Set by hand: depcurfew.json does not cover GitHub Actions; the same 7 days as for npm.
+    cooldown:
+      default-days: 7

@@ -1,0 +1,17 @@
+name: Feature
+description: Support for another package manager, setting, bot or check.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What should depcurfew do
+      description: The setting, file or situation, and what goes wrong without it.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Official documentation
+      description: Links to the documentation, source or changelog of the tool that describe the setting and the versions that have it. depcurfew only uses facts it can cite.
+    validations:
+      required: true
