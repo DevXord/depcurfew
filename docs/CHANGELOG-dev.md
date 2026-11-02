@@ -2,6 +2,10 @@
 
 Krótkie podsumowanie zmian w projekcie. Decyzje i ich uzasadnienia są w `docs/decisions.md`.
 
+## 2026-11-02 · 1.4.1: hook, `corepack-unavailable` i tabele strony (D-145–D-147)
+
+- Wersja 1.4.1 w `package.json` i `package-lock.json`, sekcja 1.4.1 w `CHANGELOG.md`.
+
 ## 2026-11-02 · Strona dokumentacji: szerokie tabele i adres arkusza stylów (D-147)
 
 - Tabele z co najmniej pięcioma kolumnami (`wide`) zajmują całą szerokość strony, a lista „On this page” stoi wtedy nad treścią; przy 1440 px w bok przewija się jedna tabela zamiast pięciu.

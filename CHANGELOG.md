@@ -2,6 +2,19 @@
 
 All notable changes for users of depcurfew. The project follows [semantic versioning](https://semver.org/): the policy file (`version: 1`), the command-line options, the exit codes and the JSON and SARIF output (`schemaVersion: 1`) only change in a backward-incompatible way in a new major version.
 
+## 1.4.1
+
+### Fixes
+
+- The Claude Code hook reads the arithmetic of `${name:offset:length}` in one pass. A command with many `${name:` and no `}` after them (1 MiB in quotes) took about 5.5 seconds to answer; it now takes milliseconds. The hook gives the same decisions.
+- `corepack-unavailable` compares `npm install -g npm@<spec>` with the `packageManager` pin as versions, not as text: `npm@v11.19.1`, `npm@=11.19.1` and `npm@11.19.1+sha512…` install the pinned 11.19.1 and are no longer reported. A range (`npm@^11.19.1`) or a tag (`npm@latest`) is still reported with what it installs.
+
+### Documentation site
+
+- Code in tables wraps between its words, and after a `.` or `/` in a long name, but never at a hyphen, so a long command or path no longer pushes the other columns out of sight (the command table was the worst case). Dates stay on one line, and the first column stays in sight while a table scrolls sideways.
+- Tables with five or more columns use the whole width of the page, with the "On this page" list above the content; only a table wider than the page scrolls left and right.
+- The address of the stylesheet changes with its content, so a browser no longer shows a new page with an old cached stylesheet after an update of the site.
+
 ## 1.4.0
 
 ### Composer
