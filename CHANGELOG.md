@@ -32,7 +32,7 @@ All notable changes for users of depcurfew. The project follows [semantic versio
 
 ### Corepack on Node.js 25
 
-- New `doctor` rule `corepack-unavailable` (warning): `packageManager` or `devEngines.packageManager` pins Yarn or npm, but a declared Node.js is 25 or later, which no longer comes with Corepack, so the pin has no effect there. The fix says how to install it (`npm install -g corepack`, then `corepack enable`). pnpm pins, a `yarnPath` in `.yarnrc.yml` that points at a Yarn release committed in the repository, and CI jobs or Dockerfile stages that install Corepack first are not reported.
+- New `doctor` rule `corepack-unavailable` (warning): `packageManager` or `devEngines.packageManager` pins Yarn or npm, but a declared Node.js is 25 or later, which no longer comes with Corepack, so the pin has no effect there. The fix says how to install it (`npm install -g corepack`, then `corepack enable`). pnpm pins, a `yarnPath` in `.yarnrc.yml` that points at a Yarn release committed in the repository, and CI jobs or Dockerfile stages that install Corepack first are not reported. `explain --json` gives the line of that command as `corepack` in `project.jobs[]` and `project.dockerfiles[].stages[]`.
 
 ### Update bots and GitHub Actions
 
